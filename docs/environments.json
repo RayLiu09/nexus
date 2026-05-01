@@ -1,0 +1,242 @@
+{
+    "environments": {
+        "development": {
+            "postgresql": {
+                "driver": "postgresql",
+                "host": "10.100.11.182",
+                "port": 5432,
+                "database": "nexus_dev",
+                "username": "postgre_normal",
+                "password": "${POSTGRES_PASSWORD}",
+                "pool_size": 10,
+                "max_overflow": 20,
+                "ssl_mode": "disable"
+            },
+            "redis": {
+                "host": "10.100.11.51",
+                "port": 6379,
+                "database": 0,
+                "password": "${REDIS_PASSWORD}",
+                "ssl": false,
+                "decode_responses": true
+            },
+            "minio": {
+                "endpoint": "http://10.100.11.182:9000",
+                "access_key": "${MINIO_ROOT_USER}",
+                "secret_key": "${MINIO_ROOT_PASSWORD}",
+                "bucket_primary": "nexus-dev-objects",
+                "bucket_partitions": {
+                    "raw": "raw",
+                    "staging": "staging",
+                    "parsed": "parsed",
+                    "normalized": "normalized",
+                    "export": "export",
+                    "misc": "misc"
+                }
+            },
+            "rabbitmq": {
+                "scheme": "amqp",
+                "username": "${RABBITMQ_USER}",
+                "password": "${RABBITMQ_PASSWORD}",
+                "host": "127.0.0.1",
+                "port": 5672,
+                "vhost": "nexus",
+                "connection_attempts": 3,
+                "retry_delay": 2,
+                "heartbeat": 60,
+                "connection_timeout_seconds": 10,
+                "exchange_jobs": "nexus.jobs",
+                "exchange_dlx": "nexus.dlx",
+                "default_queue_type": "quorum"
+            },
+            "elasticsearch": {
+                "hosts": ["10.100.11.51:9200"],
+                "scheme": "http",
+                "username": "${ES_USERNAME}",
+                "password": "${ES_PASSWORD}",
+                "verify_certs": false,
+                "timeout": 30
+            },
+            "mineru": {
+                "api_endpoint": "http://10.100.11.252:8000",
+                "timeout": 300,
+                "max_workers": 4
+            },
+            "ragflow": {
+                "api_endpoint": "http://10.100.11.182:9380",
+                "api_key": "${RAGFLOW_API_KEY}",
+                "timeout": 60
+            },
+            "litellm": {
+                "api_base": "http://10.100.11.51:4000",
+                "api_key": "${LITELLM_API_KEY}",
+                "timeout": 120,
+                "retry_attempts": 3
+            }
+        },
+        "staging": {
+            "postgresql": {
+                "driver": "postgresql",
+                "host": "${POSTGRES_HOST}",
+                "port": 5432,
+                "database": "nexus_staging",
+                "username": "${POSTGRES_USER}",
+                "password": "${POSTGRES_PASSWORD}",
+                "pool_size": 20,
+                "max_overflow": 40,
+                "ssl_mode": "require"
+            },
+            "redis": {
+                "host": "${REDIS_HOST}",
+                "port": 6379,
+                "database": 1,
+                "password": "${REDIS_PASSWORD}",
+                "ssl": true,
+                "decode_responses": true
+            },
+            "minio": {
+                "endpoint": "${MINIO_ENDPOINT}",
+                "access_key": "${MINIO_ACCESS_KEY}",
+                "secret_key": "${MINIO_SECRET_KEY}",
+                "bucket_primary": "nexus-staging-objects",
+                "bucket_partitions": {
+                    "raw": "raw",
+                    "staging": "staging",
+                    "parsed": "parsed",
+                    "normalized": "normalized",
+                    "export": "export",
+                    "misc": "misc"
+                },
+                "secure": true
+            },
+            "rabbitmq": {
+                "scheme": "amqps",
+                "username": "${RABBITMQ_USER}",
+                "password": "${RABBITMQ_PASSWORD}",
+                "host": "${RABBITMQ_HOST}",
+                "port": 5671,
+                "vhost": "nexus",
+                "connection_attempts": 5,
+                "retry_delay": 2,
+                "heartbeat": 60,
+                "connection_timeout_seconds": 10,
+                "exchange_jobs": "nexus.jobs",
+                "exchange_dlx": "nexus.dlx",
+                "default_queue_type": "quorum"
+            },
+            "elasticsearch": {
+                "hosts": ["${ES_HOST_1}:9200", "${ES_HOST_2}:9200"],
+                "scheme": "https",
+                "username": "${ES_USERNAME}",
+                "password": "${ES_PASSWORD}",
+                "verify_certs": true,
+                "timeout": 60
+            },
+            "mineru": {
+                "api_endpoint": "${MINERU_ENDPOINT}",
+                "timeout": 300,
+                "max_workers": 8
+            },
+            "ragflow": {
+                "api_endpoint": "${RAGFLOW_ENDPOINT}",
+                "api_key": "${RAGFLOW_API_KEY}",
+                "timeout": 120
+            },
+            "litellm": {
+                "api_base": "${LITELLM_ENDPOINT}",
+                "api_key": "${LITELLM_API_KEY}",
+                "timeout": 180,
+                "retry_attempts": 5
+            }
+        },
+        "production": {
+            "postgresql": {
+                "driver": "postgresql",
+                "host": "${POSTGRES_HOST}",
+                "port": 5432,
+                "database": "nexus_prod",
+                "username": "${POSTGRES_USER}",
+                "password": "${POSTGRES_PASSWORD}",
+                "pool_size": 30,
+                "max_overflow": 60,
+                "ssl_mode": "require",
+                "application_name": "nexus-api-prod"
+            },
+            "redis": {
+                "host": "${REDIS_CLUSTER_NODES}",
+                "port": 6379,
+                "database": 0,
+                "password": "${REDIS_PASSWORD}",
+                "ssl": true,
+                "decode_responses": true,
+                "cluster_enabled": true
+            },
+            "minio": {
+                "endpoint": "${MINIO_ENDPOINT}",
+                "access_key": "${MINIO_ACCESS_KEY}",
+                "secret_key": "${MINIO_SECRET_KEY}",
+                "bucket_primary": "nexus-prod-objects",
+                "bucket_partitions": {
+                    "raw": "raw",
+                    "staging": "staging",
+                    "parsed": "parsed",
+                    "normalized": "normalized",
+                    "export": "export",
+                    "misc": "misc"
+                },
+                "secure": true,
+                "region": "us-east-1"
+            },
+            "rabbitmq": {
+                "scheme": "amqp",
+                "username": "${RABBITMQ_USER}",
+                "password": "${RABBITMQ_PASSWORD}",
+                "host": "${RABBITMQ_CLUSTER_NODES}",
+                "port": 5672,
+                "vhost": "nexus",
+                "connection_attempts": 10,
+                "retry_delay": 5,
+                "heartbeat": 60,
+                "connection_timeout_seconds": 10,
+                "exchange_jobs": "nexus.jobs",
+                "exchange_dlx": "nexus.dlx",
+                "default_queue_type": "quorum"
+            },
+            "elasticsearch": {
+                "hosts": "${ES_CLUSTER_NODES}",
+                "scheme": "https",
+                "username": "${ES_USERNAME}",
+                "password": "${ES_PASSWORD}",
+                "verify_certs": true,
+                "timeout": 90,
+                "max_retries": 3
+            },
+            "mineru": {
+                "api_endpoint": "${MINERU_ENDPOINT}",
+                "timeout": 300,
+                "max_workers": 16,
+                "pool_size": 8
+            },
+            "ragflow": {
+                "api_endpoint": "${RAGFLOW_ENDPOINT}",
+                "api_key": "${RAGFLOW_API_KEY}",
+                "timeout": 180,
+                "pool_size": 10
+            },
+            "litellm": {
+                "api_base": "${LITELLM_ENDPOINT}",
+                "api_key": "${LITELLM_API_KEY}",
+                "timeout": 300,
+                "retry_attempts": 8,
+                "pool_size": 20
+            }
+        }
+    },
+    "notes": {
+        "security": "All sensitive values must be provided via environment variables (${VAR_NAME}), never committed to repository.",
+        "ssl_certificates": "For production, ensure CA certificates are properly configured for PostgreSQL, Redis, RabbitMQ, and Elasticsearch.",
+        "connection_pooling": "Adjust pool_size and max_overflow based on expected concurrent workloads.",
+        "timeouts": "Adjust timeout values based on network latency and service response times in your environment.",
+        "retry_strategy": "RabbitMQ and LiteLLM have built-in retry mechanisms; configure appropriately for idempotency."
+    }
+}

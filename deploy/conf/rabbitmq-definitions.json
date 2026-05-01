@@ -1,0 +1,65 @@
+{
+  "rabbit_version": "4.3.0",
+  "rabbitmq_version": "4.3.0",
+  "product_name": "RabbitMQ",
+  "product_version": "4.3.0",
+  "users": [],
+  "vhosts": [
+    {
+      "name": "nexus",
+      "description": "Nexus application virtual host for asynchronous jobs and dead-letter routing.",
+      "metadata": {
+        "description": "Nexus application virtual host. Protected from accidental deletion.",
+        "tags": [
+          "nexus",
+          "protected"
+        ],
+        "default_queue_type": "quorum",
+        "protected_from_deletion": true
+      },
+      "tags": [
+        "nexus",
+        "protected"
+      ],
+      "default_queue_type": "quorum"
+    }
+  ],
+  "permissions": [],
+  "topic_permissions": [],
+  "parameters": [],
+  "global_parameters": [],
+  "policies": [
+    {
+      "vhost": "nexus",
+      "name": "nexus-dlx-defaults",
+      "pattern": "^nexus\\.",
+      "apply-to": "queues",
+      "definition": {
+        "dead-letter-exchange": "nexus.dlx"
+      },
+      "priority": 0
+    }
+  ],
+  "queues": [],
+  "exchanges": [
+    {
+      "name": "nexus.jobs",
+      "vhost": "nexus",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "nexus.dlx",
+      "vhost": "nexus",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": []
+}

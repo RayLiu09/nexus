@@ -1,0 +1,41 @@
+# Local agent and editor state
+.codex
+.claude/
+.idea/
+.vscode/
+
+# Environment and secret material
+.env
+.env.*
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Node / frontend
+node_modules/
+.next/
+out/
+dist/
+coverage/
+
+# Build, logs, and runtime data
+*.log
+logs/
+tmp/
+temp/
+.DS_Store
+
+# Local middleware state
+data/
+storage/
+minio-data/
+postgres-data/
+redis-data/
+elasticsearch-data/
