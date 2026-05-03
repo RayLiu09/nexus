@@ -30,10 +30,20 @@ The current P0 target covers D1-D4 pilot domains and focuses on an end-to-end us
 ├── SPEC.md         # Concise product/spec contract, v2.2
 ├── readme.md       # Project overview
 ├── docs/           # Full source design documents
-├── nexus-api/      # API/control-plane implementation area
-├── nexus-app/      # Application/shared implementation area
+├── nexus-app/      # Core backend/domain models, migrations, and services
+├── nexus-api/      # Externally consumed /v1 business API service
 └── nexus-console/  # Console/frontend implementation area
 ```
+
+Week 1 implementation baselines:
+
+- `docs/contracts/p0_api_state_contract.md`: frozen P0 API, status, UI label, audit event, and M1 demo path baseline.
+- `docs/testing/p0_e2e_checklist.md`: P0 E2E and M1 verification checklist draft.
+- `docs/samples/p0_sample_inventory.md`: D1-D4 sample inventory and permission sample placeholders.
+- `docs/review/wk1_review_evidence.md`: Week 1 Review Gate evidence.
+- `nexus-app/`: Week 1 core settings, database setup, master data models, Alembic migration, domain schemas, application services, environment checker, and pytest baseline.
+- `nexus-api/`: FastAPI `/v1` externally consumed business API skeleton, route adaptation to `nexus-app`, response envelopes, trace/log/error handling, and pytest baseline.
+- `nexus-console/`: Next.js App Router skeleton and P0 route placeholders.
 
 ## Source Documents
 
