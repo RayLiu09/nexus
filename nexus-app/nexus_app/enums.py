@@ -37,6 +37,34 @@ class JobStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
+class JobType(StrEnum):
+    INGEST_PROCESS = "ingest_process"
+    PARSE = "parse"
+    NORMALIZE = "normalize"
+    ASSETIZE = "assetize"
+
+
+class ParseArtifactStatus(StrEnum):
+    GENERATED = "generated"
+    FAILED = "failed"
+
+
+class NormalizedType(StrEnum):
+    DOCUMENT = "document"
+    RECORD = "record"
+
+
+class NormalizedAssetRefStatus(StrEnum):
+    GENERATED = "generated"
+    FAILED = "failed"
+    DEPRECATED = "deprecated"
+
+
+class AssetKind(StrEnum):
+    DOCUMENT = "document"
+    RECORD = "record"
+
+
 class IndexStatus(StrEnum):
     NOT_INDEXED = "not_indexed"
     PENDING = "pending"

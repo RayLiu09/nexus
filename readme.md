@@ -45,6 +45,14 @@ Week 1 implementation baselines:
 - `nexus-api/`: FastAPI `/v1` externally consumed business API skeleton, route adaptation to `nexus-app`, response envelopes, trace/log/error handling, and pytest baseline.
 - `nexus-console/`: Next.js App Router skeleton and P0 route placeholders.
 
+Week 2 implementation baselines:
+
+- `docs/week2_runbook.md`: M1 ingest-to-assetization runbook.
+- `docs/review/wk2_review_evidence.md`: Week 2 Review Gate evidence.
+- `nexus-app/`: M1 pipeline services, MinIO/S3 storage adapter, MinerU adapter boundary, job/stage, parse artifact, normalized ref, asset/version models, Alembic migration, and tests.
+- `nexus-api/`: `/v1` ingest submit, job, parse artifact, normalized ref, asset, and version route adaptation to `nexus-app`.
+- `nexus-console/`: M1 static data views for workbench, ingest, raw ledger, jobs, asset catalog, and asset detail.
+
 ## Source Documents
 
 - `docs/企业数据与知识资产平台技术选型和架构nexus_v2.2.md`

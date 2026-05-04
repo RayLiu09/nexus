@@ -4,9 +4,16 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from nexus_app.enums import (
+    AssetKind,
+    AssetVersionStatus,
     DataSourceStatus,
     DataSourceType,
     IngestBatchStatus,
+    JobStatus,
+    JobType,
+    NormalizedAssetRefStatus,
+    NormalizedType,
+    ParseArtifactStatus,
     PrincipalStatus,
     RawObjectStatus,
     UserRole,
@@ -149,6 +156,125 @@ class RawObjectRead(ORMModel):
     metadata_summary: dict[str, Any]
     created_at: datetime
     updated_at: datetime
+
+
+class JobStageRead(ORMModel):
+    id: str
+    job_id: str
+    stage_name: str
+    status: JobStatus
+    started_at: datetime | None
+    finished_at: datetime | None
+    failure_reason: str | None
+    detail: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
+class JobRead(ORMModel):
+    id: str
+    job_type: JobType
+    status: JobStatus
+    ingest_batch_id: str | None
+    raw_object_id: str | None
+    retry_count: int
+    current_stage: str | None
+    failure_reason: str | None
+    trace_id: str | None
+    metadata_summary: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
+class ParseArtifactRead(ORMModel):
+    id: str
+    raw_object_id: str
+    document_version_id: str | None
+    artifact_uri: str
+    parse_mode: str
+    checksum: str
+    status: ParseArtifactStatus
+    error: str | None
+    metadata_summary: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
+class DocumentAssetRead(ORMModel):
+    id: str
+    data_source_id: str
+    source_object_key: str
+    title: str
+    asset_kind: AssetKind
+    status: AssetVersionStatus
+    org_scope: list[str]
+    metadata_summary: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
+class DocumentVersionRead(ORMModel):
+    id: str
+    asset_id: str
+    raw_object_id: str
+    version_no: int
+    version_status: AssetVersionStatus
+    source_checksum: str
+    failure_reason: str | None
+    metadata_summary: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
+class NormalizedAssetRefRead(ORMModel):
+    id: str
+    version_id: str
+    normalized_type: NormalizedType
+    object_uri: str
+    schema_version: str
+    checksum: str
+    status: NormalizedAssetRefStatus
+    block_count: int
+    record_count: int
+    metadata_summary: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
+class AssetDetailRead(BaseModel):
+    asset: DocumentAssetRead
+    versions: list[DocumentVersionRead]
+    normalized_refs: list[NormalizedAssetRefRead]
+
+
+class IngestFileSubmit(BaseModel):
+    data_source_id: str
+    idempotency_key: str = Field(min_length=1, max_length=128)
+    filename: str = Field(min_length=1, max_length=255)
+    content_base64: str = Field(min_length=1)
+    content_type: str = Field(default="application/octet-stream", max_length=128)
+    source_uri: str | None = Field(default=None, max_length=1024)
+    submitted_by_user_id: str | None = None
+    process_now: bool = True
+
+
+class CrawlerPackageSubmit(BaseModel):
+    data_source_id: str
+    idempotency_key: str = Field(min_length=1, max_length=128)
+    package: dict[str, Any]
+    source_uri: str | None = Field(default=None, max_length=1024)
+    submitted_by_user_id: str | None = None
+    process_now: bool = True
+
+
+class IngestToAssetResultRead(BaseModel):
+    batch: IngestBatchRead
+    raw_object: RawObjectRead
+    job: JobRead
+    asset: DocumentAssetRead | None = None
+    version: DocumentVersionRead | None = None
+    parse_artifact: ParseArtifactRead | None = None
+    normalized_ref: NormalizedAssetRefRead | None = None
 
 
 class RuntimeStateRead(BaseModel):

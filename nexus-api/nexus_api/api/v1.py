@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
 from nexus_api.responses import list_response, response
-from nexus_app import models, schemas as domain_schemas, services
+from nexus_app import models, pipeline, schemas as domain_schemas, services
 from nexus_app.config import Settings, get_settings
 from nexus_app.database import get_db
 
@@ -141,6 +141,74 @@ def create_ingest_batch(
     return response(services.create_ingest_batch(session, payload), request)
 
 
+def _result_read(result: pipeline.IngestToAssetResult) -> domain_schemas.IngestToAssetResultRead:
+    return domain_schemas.IngestToAssetResultRead(
+        batch=domain_schemas.IngestBatchRead.model_validate(result.batch),
+        raw_object=domain_schemas.RawObjectRead.model_validate(result.raw_object),
+        job=domain_schemas.JobRead.model_validate(result.job),
+        asset=(
+            domain_schemas.DocumentAssetRead.model_validate(result.asset)
+            if result.asset is not None
+            else None
+        ),
+        version=(
+            domain_schemas.DocumentVersionRead.model_validate(result.version)
+            if result.version is not None
+            else None
+        ),
+        parse_artifact=(
+            domain_schemas.ParseArtifactRead.model_validate(result.parse_artifact)
+            if result.parse_artifact is not None
+            else None
+        ),
+        normalized_ref=(
+            domain_schemas.NormalizedAssetRefRead.model_validate(result.normalized_ref)
+            if result.normalized_ref is not None
+            else None
+        ),
+    )
+
+
+@router.post(
+    "/ingest/files",
+    response_model=schemas.ApiResponse[domain_schemas.IngestToAssetResultRead],
+    status_code=202,
+)
+def submit_ingest_file(
+    payload: domain_schemas.IngestFileSubmit, request: Request, session: Session = Depends(get_db)
+):
+    try:
+        result = pipeline.submit_file_ingest(
+            session,
+            payload,
+            trace_id=str(getattr(request.state, "trace_id", "")),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return response(_result_read(result), request)
+
+
+@router.post(
+    "/ingest/crawler-packages",
+    response_model=schemas.ApiResponse[domain_schemas.IngestToAssetResultRead],
+    status_code=202,
+)
+def submit_crawler_package(
+    payload: domain_schemas.CrawlerPackageSubmit,
+    request: Request,
+    session: Session = Depends(get_db),
+):
+    try:
+        result = pipeline.submit_crawler_package(
+            session,
+            payload,
+            trace_id=str(getattr(request.state, "trace_id", "")),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return response(_result_read(result), request)
+
+
 @router.get("/ingest/batches", response_model=schemas.ListResponse[domain_schemas.IngestBatchRead])
 def list_ingest_batches(request: Request, session: Session = Depends(get_db)):
     return list_response(services.list_rows(session, models.IngestBatch), request)
@@ -174,3 +242,60 @@ def list_raw_objects(request: Request, session: Session = Depends(get_db)):
 )
 def get_raw_object(raw_object_id: str, request: Request, session: Session = Depends(get_db)):
     return response(services.get_row(session, models.RawObject, raw_object_id, "raw_object"), request)
+
+
+@router.get("/jobs", response_model=schemas.ListResponse[domain_schemas.JobRead])
+def list_jobs(request: Request, session: Session = Depends(get_db)):
+    return list_response(pipeline.list_jobs(session), request)
+
+
+@router.get("/jobs/{job_id}", response_model=schemas.ApiResponse[domain_schemas.JobRead])
+def get_job(job_id: str, request: Request, session: Session = Depends(get_db)):
+    return response(services.get_row(session, models.Job, job_id, "job"), request)
+
+
+@router.get("/jobs/{job_id}/stages", response_model=schemas.ListResponse[domain_schemas.JobStageRead])
+def list_job_stages(job_id: str, request: Request, session: Session = Depends(get_db)):
+    services.get_row(session, models.Job, job_id, "job")
+    return list_response(pipeline.list_job_stages(session, job_id), request)
+
+
+@router.get("/parse-artifacts", response_model=schemas.ListResponse[domain_schemas.ParseArtifactRead])
+def list_parse_artifacts(request: Request, session: Session = Depends(get_db)):
+    return list_response(services.list_rows(session, models.ParseArtifact), request)
+
+
+@router.get(
+    "/normalized-refs", response_model=schemas.ListResponse[domain_schemas.NormalizedAssetRefRead]
+)
+def list_normalized_refs(request: Request, session: Session = Depends(get_db)):
+    return list_response(services.list_rows(session, models.NormalizedAssetRef), request)
+
+
+@router.get("/assets", response_model=schemas.ListResponse[domain_schemas.DocumentAssetRead])
+def list_assets(request: Request, session: Session = Depends(get_db)):
+    return list_response(pipeline.list_assets(session), request)
+
+
+@router.get("/assets/{asset_id}", response_model=schemas.ApiResponse[domain_schemas.AssetDetailRead])
+def get_asset(asset_id: str, request: Request, session: Session = Depends(get_db)):
+    asset = services.get_row(session, models.DocumentAsset, asset_id, "asset")
+    versions = pipeline.list_asset_versions(session, asset_id)
+    refs = pipeline.list_normalized_refs_for_versions(session, [version.id for version in versions])
+    detail = domain_schemas.AssetDetailRead(
+        asset=domain_schemas.DocumentAssetRead.model_validate(asset),
+        versions=[domain_schemas.DocumentVersionRead.model_validate(version) for version in versions],
+        normalized_refs=[
+            domain_schemas.NormalizedAssetRefRead.model_validate(ref) for ref in refs
+        ],
+    )
+    return response(detail, request)
+
+
+@router.get(
+    "/assets/{asset_id}/versions",
+    response_model=schemas.ListResponse[domain_schemas.DocumentVersionRead],
+)
+def list_asset_versions(asset_id: str, request: Request, session: Session = Depends(get_db)):
+    services.get_row(session, models.DocumentAsset, asset_id, "asset")
+    return list_response(pipeline.list_asset_versions(session, asset_id), request)

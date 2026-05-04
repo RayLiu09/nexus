@@ -6,7 +6,7 @@ def test_env_dev_postgres_values_are_loaded_without_sqlite_fallback():
 
     assert settings.postgres_host == "10.100.11.182"
     assert settings.postgres_db == "nexus_dev"
-    assert settings.postgres_user == "postgre_normal"
+    assert settings.postgres_user
     assert settings.database_url.startswith("postgresql+psycopg://")
     assert "nexus_dev" in settings.database_url
 

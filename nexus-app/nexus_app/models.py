@@ -7,9 +7,16 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from nexus_app.database import Base
 from nexus_app.enums import (
+    AssetKind,
+    AssetVersionStatus,
     DataSourceStatus,
     DataSourceType,
     IngestBatchStatus,
+    JobStatus,
+    JobType,
+    NormalizedAssetRefStatus,
+    NormalizedType,
+    ParseArtifactStatus,
     PrincipalStatus,
     RawObjectStatus,
     UserRole,
@@ -180,3 +187,164 @@ class RawObject(TimestampMixin, Base):
 
     batch: Mapped[IngestBatch] = relationship()
     data_source: Mapped[DataSource] = relationship()
+
+
+class Job(TimestampMixin, Base):
+    __tablename__ = "job"
+    __table_args__ = (
+        Index("ix_job_ingest_batch_id", "ingest_batch_id"),
+        Index("ix_job_raw_object_id", "raw_object_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    job_type: Mapped[JobType] = mapped_column(
+        Enum(JobType, values_callable=lambda enum: [item.value for item in enum]),
+        nullable=False,
+    )
+    status: Mapped[JobStatus] = mapped_column(
+        Enum(JobStatus, values_callable=lambda enum: [item.value for item in enum]),
+        default=JobStatus.QUEUED,
+        nullable=False,
+    )
+    ingest_batch_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("ingest_batch.id"), nullable=True
+    )
+    raw_object_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("raw_object.id"), nullable=True
+    )
+    retry_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    current_stage: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    trace_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    metadata_summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+    ingest_batch: Mapped[IngestBatch | None] = relationship()
+    raw_object: Mapped[RawObject | None] = relationship()
+
+
+class JobStage(TimestampMixin, Base):
+    __tablename__ = "job_stage"
+    __table_args__ = (Index("ix_job_stage_job_id", "job_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    job_id: Mapped[str] = mapped_column(String(36), ForeignKey("job.id"), nullable=False)
+    stage_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    status: Mapped[JobStatus] = mapped_column(
+        Enum(JobStatus, values_callable=lambda enum: [item.value for item in enum]),
+        nullable=False,
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    detail: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+    job: Mapped[Job] = relationship()
+
+
+class DocumentAsset(TimestampMixin, Base):
+    __tablename__ = "document_asset"
+    __table_args__ = (Index("ix_document_asset_source", "data_source_id", "source_object_key"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    data_source_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("data_source.id"), nullable=False
+    )
+    source_object_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    title: Mapped[str] = mapped_column(String(256), nullable=False)
+    asset_kind: Mapped[AssetKind] = mapped_column(
+        Enum(AssetKind, values_callable=lambda enum: [item.value for item in enum]),
+        nullable=False,
+    )
+    status: Mapped[AssetVersionStatus] = mapped_column(
+        Enum(AssetVersionStatus, values_callable=lambda enum: [item.value for item in enum]),
+        default=AssetVersionStatus.PROCESSING,
+        nullable=False,
+    )
+    org_scope: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    metadata_summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+    data_source: Mapped[DataSource] = relationship()
+
+
+class DocumentVersion(TimestampMixin, Base):
+    __tablename__ = "document_version"
+    __table_args__ = (
+        UniqueConstraint("asset_id", "version_no", name="uq_document_version_asset_no"),
+        Index("ix_document_version_asset_status", "asset_id", "version_status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    asset_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("document_asset.id"), nullable=False
+    )
+    raw_object_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("raw_object.id"), nullable=False
+    )
+    version_no: Mapped[int] = mapped_column(nullable=False)
+    version_status: Mapped[AssetVersionStatus] = mapped_column(
+        Enum(AssetVersionStatus, values_callable=lambda enum: [item.value for item in enum]),
+        default=AssetVersionStatus.PROCESSING,
+        nullable=False,
+    )
+    source_checksum: Mapped[str] = mapped_column(String(128), nullable=False)
+    failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+    asset: Mapped[DocumentAsset] = relationship()
+    raw_object: Mapped[RawObject] = relationship()
+
+
+class ParseArtifact(TimestampMixin, Base):
+    __tablename__ = "parse_artifact"
+    __table_args__ = (Index("ix_parse_artifact_raw_object_id", "raw_object_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    raw_object_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("raw_object.id"), nullable=False
+    )
+    document_version_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("document_version.id"), nullable=True
+    )
+    artifact_uri: Mapped[str] = mapped_column(String(1024), nullable=False)
+    parse_mode: Mapped[str] = mapped_column(String(80), nullable=False)
+    checksum: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[ParseArtifactStatus] = mapped_column(
+        Enum(ParseArtifactStatus, values_callable=lambda enum: [item.value for item in enum]),
+        default=ParseArtifactStatus.GENERATED,
+        nullable=False,
+    )
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+    raw_object: Mapped[RawObject] = relationship()
+    document_version: Mapped[DocumentVersion | None] = relationship()
+
+
+class NormalizedAssetRef(TimestampMixin, Base):
+    __tablename__ = "normalized_asset_ref"
+    __table_args__ = (
+        Index("ix_normalized_asset_ref_version_id", "version_id"),
+        Index("ix_normalized_asset_ref_status", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    version_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("document_version.id"), nullable=False
+    )
+    normalized_type: Mapped[NormalizedType] = mapped_column(
+        Enum(NormalizedType, values_callable=lambda enum: [item.value for item in enum]),
+        nullable=False,
+    )
+    object_uri: Mapped[str] = mapped_column(String(1024), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    checksum: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[NormalizedAssetRefStatus] = mapped_column(
+        Enum(NormalizedAssetRefStatus, values_callable=lambda enum: [item.value for item in enum]),
+        default=NormalizedAssetRefStatus.GENERATED,
+        nullable=False,
+    )
+    block_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    record_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    metadata_summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+    version: Mapped[DocumentVersion] = relationship()

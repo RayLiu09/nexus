@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     minio_bucket_primary: str = "nexus-dev-objects"
     minio_secure: bool = False
     minio_region_name: str = "us-east-1"
+    minio_bucket_partition_raw: str = "raw"
+    minio_bucket_partition_staging: str = "staging"
+    minio_bucket_partition_parsed: str = "parsed"
+    minio_bucket_partition_normalized: str = "normalized"
+    minio_bucket_partition_export: str = "export"
+    minio_bucket_partition_misc: str = "misc"
 
     rabbitmq_scheme: str = "amqp"
     rabbitmq_host: str = "127.0.0.1"
@@ -59,6 +65,8 @@ class Settings(BaseSettings):
     celery_broker_url: str | None = None
 
     mineru_endpoint: str | None = None
+    mineru_use_fake: bool = False
+    mineru_timeout: int = 300
     ragflow_endpoint: str | None = None
     ragflow_api_key: str | None = None
     litellm_endpoint: str | None = None
