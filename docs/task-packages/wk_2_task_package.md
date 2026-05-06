@@ -165,7 +165,7 @@ Scope:
 
 Out of scope:
 
-- 不实现完整 Celery 生产部署。
+- 不引入 RabbitMQ/Celery 作为 P0 必需依赖；异步作业按 v2.4 采用 PostgreSQL 作业表 + Worker 轮询，RabbitMQ/Celery 仅作为扩展路径。
 - 不实现复杂补偿策略。
 - 不实现 AI 重评分、重治理、索引重建。
 
@@ -464,4 +464,3 @@ Acceptance:
 6. 资产目录和资产详情可展示样本资产、版本和标准化引用。
 7. 无 `current_version_id`、`normalized_ref_id`、质量报告反向指针。
 8. M1 接入到资产化演示脚本可执行。
-

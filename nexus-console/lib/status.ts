@@ -37,11 +37,7 @@ export const statusDefinitions = {
   rejected: { label: "已驳回", tone: "danger" },
   overridden: { label: "人工覆盖", tone: "warning" },
 
-  draft: { label: "草稿", tone: "neutral" },
-  validating: { label: "校验中", tone: "info" },
-  published: { label: "已发布", tone: "success" },
   active: { label: "启用", tone: "success" },
-  validation_failed: { label: "校验失败", tone: "warning" },
 
   enabled: { label: "启用", tone: "success" },
   error: { label: "异常", tone: "danger" }

@@ -8,6 +8,7 @@ NEXUS admin console built with Next.js App Router and TypeScript.
 - P0 route placeholders from Prototype v2.2.
 - Shared status label component aligned with `docs/contracts/p0_api_state_contract.md`.
 - Live `/v1` API integration for workbench, data sources, ingest, raw ledger, jobs, assets, asset detail, and audit pages.
+- v2.4 Prompt and rule placeholders use save-to-activate states instead of draft/publish/rollback lifecycle states.
 - No P1 retrieval test page, no knowledge asset page, and no NEXUS AI gateway management page.
 
 ## Run

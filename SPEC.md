@@ -1,6 +1,6 @@
-# NEXUS Product Spec Contract v2.2
+# NEXUS Product Spec Contract v2.4
 
-This document is the concise product and requirement contract for implementation. It is distilled from `docs/企业数据与知识资产平台需求Spec_v2.2.md`.
+This document is the concise product and requirement contract for implementation. It is distilled from `docs/企业数据与知识资产平台需求Spec_v2.2.md` and constrained by the v2.4 architecture baseline in `ARCHTECT.md`.
 
 ## Product Goal
 
@@ -30,13 +30,13 @@ Role constraints:
 - Local org/user/API caller management.
 - Data source registration and file/NAS/crawler ingestion.
 - Raw object retention and ingest ledger.
-- Persistent job center, state machine, failure lookup, retry.
+- Persistent job center backed by PostgreSQL job table + Worker polling, state machine, failure lookup, retry, lock lease, and dead-letter handling.
 - MinerU parsing and standardization into `normalized_document` / `normalized_record`.
 - AI governance and quality scoring from standardized objects.
 - Configurable governance rules for classification, level, tags, org scope, quality admission, review triggers, and index admission.
 - Governance decision tracking.
 - RAGFlow integration for chunking, indexing, search execution.
-- RBAC, ABAC, org scope, masking, audit.
+- RBAC, org scope filtering, data-level visibility, masking for explicit L3/L4 exceptions, audit. ABAC is an extension point.
 - `nexus-console` P0 pages and `/v1` P0 APIs.
 - Search/QA source traceability to asset version, normalized ref, chunk, and raw object.
 - Basic maintainability: health checks, structured logs, trace IDs, job status, basic runtime state.
@@ -72,8 +72,8 @@ P0 pages:
 - 作业中心: job list, stage progress, failure reason, retry, reprocess, re-governance.
 - 资产目录: asset list, current version read model, versions, normalized refs, index status.
 - 资产详情: overview, versions, normalized refs, AI governance, quality score, governance result, decision tracking, chunks, index manifest, lineage, audit.
-- 治理中心: AI suggestions, AI quality score, AI Prompt config, review tasks, rule config, rule publish, decision tracking, quality review.
-- 规则配置: rule sets, rules, validation, publish, rollback, effect.
+- 治理中心: AI suggestions, AI quality score, AI Prompt config, review tasks, rule config, save-to-activate changes, decision tracking, quality review.
+- 规则配置: rule sets, rules, validation, save-to-activate, disable, effect.
 - 权限与审计: local users, roles, API keys, org scopes, approvals, audit logs.
 - AI Prompt 配置: Prompt templates, LiteLLM alias references, output schema, scoring weights, redaction policies.
 
@@ -116,13 +116,15 @@ Identity and permission:
 
 - Local users, org units, roles, API callers, API keys, and org scopes are mandatory.
 - Calls must carry API caller context and user context where applicable.
-- Permission evaluation combines RBAC, ABAC, org scope, data level, and masking.
+- Permission evaluation combines RBAC, org scope, data level visibility, and masking for explicit L3/L4 exceptions. ABAC is not a P0 requirement.
+- Imported data sources default to L1/L2. L3/L4 requires explicit source approval, governance rule evidence, manual/security review, and audit.
 
 Ingestion and raw retention:
 
 - Upload, batch, NAS, crawler, DB/webhook adapters are supported by adapter pattern.
 - `idempotency_key` prevents duplicate effective assets.
 - Raw objects and original JSON packages must be retained with checksum and source metadata.
+- `data_source.default_level_hint` may be empty, L1, or L2; empty is treated as L2. L3/L4 must not be a normal source default.
 
 Parsing and standardization:
 
@@ -134,16 +136,16 @@ AI governance and quality scoring:
 
 - Use existing LiteLLM only; no NEXUS `llm-gateway`.
 - Prompt maintenance is in NEXUS through `ai_prompt_profile`.
-- `ai_prompt_profile` must support create draft, edit, validate, publish, disable, version history, and audit.
-- `ai_governance_run` records suggestions, quality scores, evidence refs, confidence, validation, adoption, and human feedback.
+- `ai_prompt_profile` uses save-to-activate: create/update creates a new active version, archives the old active version, supports disable, version history, and audit. Draft/publish is an upgrade path.
+- `ai_governance_run` records suggestions, quality scores, evidence refs, confidence, validation, and adoption. Human feedback and overrides are recorded in `governance_result.decision_trail`.
 - AI outputs need schema validation, field whitelist checks, enum checks, redaction policy, rule guardrails, and confidence thresholds.
 - Human users can revise, reject, calibrate, and submit feedback labels.
 
 Rules and decisions:
 
-- Rule sets support create, validate, publish, rollback.
+- Rule sets use save-to-activate in P0: create/update validates restricted expressions and immediately activates the new version; disable is supported. Publish/rollback is an upgrade path.
 - Rules cover classification, level, tags, org scope, quality admission, manual review triggers, and index admission.
-- Decision logs must record input summary, AI Prompt config, LiteLLM alias, Prompt version, AI suggestion, quality score, rule set, matched rules, candidate values, final value, confidence, adoption status, and conflict reason.
+- `governance_result.decision_trail` must record input summary, AI Prompt config, LiteLLM alias, Prompt version, AI suggestion, quality score, rule set, matched rules, candidate values, final value, confidence, adoption status, and conflict reason.
 
 Search and QA:
 
@@ -156,6 +158,7 @@ Maintainability:
 - Core services expose health checks.
 - Structured logs and request/trace IDs are mandatory.
 - Job center must show stage, failure reason, retry count, and related object.
+- P0 job processing must expose enough state to identify queued/running/succeeded/failed/review/dead-lettered jobs, Worker lock ownership, retry attempts, and failure reasons.
 
 ## Public API Groups
 
@@ -168,9 +171,9 @@ P0 API groups include:
 - Job query, retry, reprocess.
 - Asset list/detail/version/current read model.
 - Search and QA.
-- Governance rule sets, validation, publish, rollback.
+- Governance rule sets, validation, save-to-activate updates, disable. Publish/rollback are extension APIs.
 - Governance decision query.
-- AI Prompt profile query/create/update draft/validate/publish/disable/version query.
+- AI Prompt profile query/create/update save-to-activate/disable/version query. Draft/validate/publish are extension APIs.
 - AI governance run query, AI re-score, AI feedback.
 - Auth verification.
 
@@ -204,8 +207,9 @@ Quality:
 
 Security:
 
-- L4 content is masked by default.
+- L3/L4 exception content is masked by default.
 - External models cannot receive unmasked L3/L4 plain text unless policy allows an approved private LiteLLM alias.
+- Imported data source defaults are L1/L2. Any L3/L4 elevation must be explicit, evidence-backed, and audited.
 - Logs must not include sensitive fields, API keys, or large raw content.
 - Rule expressions cannot execute arbitrary code.
 - AI output cannot bypass permissions, classification, masking, or rule guardrails.
@@ -214,18 +218,18 @@ Security:
 
 P0 end-to-end cases:
 
-- Static D4 PDF ingestion produces asset, version, parse artifact, normalized ref, AI run, quality report, governance result, chunks, index manifest.
+- Static D4 PDF ingestion produces asset, version, parse artifact, normalized ref, AI run, `governance_result.quality_summary`, governance result, chunks, index manifest.
 - D1 crawler JSON batch produces queryable raw package and searchable normalized records.
 - High-confidence AI plus clean rules automatically enters `available`.
 - AI/rule conflict enters `review_required` with evidence and conflict reason.
-- Rule publish and re-governance generate new decision logs and mark index stale if needed.
-- Unauthorized caller cannot retrieve L3/L4 content.
+- Rule save-to-activate and re-governance generate updated `governance_result.decision_trail` and mark index stale if needed.
+- Unauthorized caller cannot retrieve L3/L4 exception content.
 - QA response includes source citations.
 - Reprocess creates a new job/version and enters `available` or `review_required`.
 - RAGFlow sync failure can be retried and traced in `index_manifest`.
 - Duplicate `idempotency_key` does not create duplicate effective assets.
 - Local identity works without DingTalk.
-- AI re-score produces new `ai_governance_run` and `quality_report` while retaining feedback and score deltas.
+- AI re-score produces new `ai_governance_run` and updated `governance_result.quality_summary` while retaining feedback and score deltas in `decision_trail`.
 
 Go / No-Go:
 
@@ -234,4 +238,3 @@ Go / No-Go:
 - Job failures must be locatable and retryable.
 - Critical actions must be audited.
 - Platform must work without external IAM.
-

@@ -8,7 +8,7 @@
 
 本周不追求完整业务闭环，重点是：
 
-- 固化 v2.2 架构禁区和 P0 范围。
+- 固化 v2.4 架构禁区和 P0 范围。
 - 冻结首批 API、Schema、状态枚举、UI 状态标签和审计事件。
 - 建立后端、前端、测试、文档的最小可持续开发骨架。
 - 建立本地身份、API 调用方、数据源、接入批次、原始对象等基础主数据模型。
@@ -51,7 +51,7 @@ Scope:
 - 根目录契约文档引用确认。
 - `/v1` API 初版清单。
 - P0 状态枚举：`processing`、`available`、`review_required`、`archived`、`disabled`、`failed`。
-- 作业状态、索引状态、AI 采纳状态、规则发布状态、Prompt 配置状态的初版枚举。
+- 作业状态、索引状态、AI 采纳状态、规则保存即生效状态、Prompt 配置保存即生效状态的初版枚举。
 - UI 状态标签语义。
 - 审计事件初版清单。
 
@@ -82,7 +82,7 @@ Deliverables:
 Acceptance:
 
 - 后端、前端、测试任务均可引用同一 API/Schema/状态枚举。
-- Review Assistant Agent 检查无 v2.2 架构禁区冲突。
+- Review Assistant Agent 检查无 v2.4 架构禁区冲突。
 - 人工 Review 通过 API Contract Gate 和 Version State Gate。
 
 ### TP-W1-02 后端工程骨架与基础运行能力
@@ -406,4 +406,3 @@ Acceptance:
 5. 测试骨架可运行。
 6. 业务样本清单和 M1 演示验收口径已确认。
 7. Review Assistant Agent 未发现企业 IAM、`llm-gateway`、独立 AI 编排服务、反向指针或 P1/P2 越界。
-

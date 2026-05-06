@@ -193,8 +193,8 @@ The following changes require human approval before merge.
 |------|---------|--------------------|
 | Data Model Gate | New or changed master tables, status fields, relation fields, migrations | No reverse pointers; single-direction references; correct uniqueness; audit fields; no `current_version_id`; no `normalized_ref_id`. |
 | AI Governance Gate | LiteLLM calls, Prompt config, AI output adoption, quality scoring | Still depends on LiteLLM; Prompt is versioned; L3/L4 is redacted; AI output passes Schema, whitelist, redaction, rule guardrails, confidence and audit. |
-| Rule Engine Gate | Rule expressions, rule publishing, conflict handling | No arbitrary code execution; input is standardized object context; conflicts are traceable; publish/rollback is audited. |
-| Permission And Audit Gate | Search, QA, API Key, org scope, L4 masking, audit logs | Auth before return; no permission leakage; L4 masked by default; key actions audited; trace_id present. |
+| Rule Engine Gate | Rule expressions, save-to-activate rule changes, conflict handling | No arbitrary code execution; input is standardized object context; conflicts are traceable; rule save/disable is audited. |
+| Permission And Audit Gate | Search, QA, API Key, org scope, L3/L4 exception masking, audit logs | Auth before return; no permission leakage; high-sensitivity exception data is masked by default; key actions audited; trace_id present. |
 | Version State Gate | `processing`, `available`, `review_required`, `archived`, `disabled`, `failed` transitions | Only one available version; correct review triggers; index status consistency; state changes audited. |
 | RAGFlow Integration Gate | Chunking, indexing, retrieval, QA citations | `index_manifest` is queryable; failures recoverable; results trace to version, normalized ref, chunk, and raw object. |
 | API Contract Gate | New or changed `/v1` API behavior | Request/response schema stable; errors defined; idempotency addressed; frontend mapping updated; tests added. |
@@ -205,7 +205,7 @@ The following changes require human approval before merge.
 
 Before merging, check:
 
-- The change does not violate v2.2 architecture boundaries.
+- The change does not violate v2.4 architecture boundaries.
 - The change does not introduce P1/P2 scope.
 - The change includes tests or explicit verification evidence.
 - Failure paths and disabled states are handled.
@@ -224,7 +224,7 @@ Before merging, check:
 | Unit tests | State transitions, rule execution, AI output validation, permission filtering, idempotency are covered where touched. |
 | Contract tests | `/v1` request/response, Pydantic schemas, and frontend field mappings stay consistent. |
 | E2E tests | Cover static document ingest, crawler JSON, AI auto-adoption, conflict review, rule re-governance, permission isolation, QA citation, reprocess, index failure recovery, idempotency, no-DingTalk local identity, AI re-score. |
-| Security tests | L4 masked by default; API keys are not logged; cross-org access denied by default; rule expressions cannot execute arbitrary code. |
+| Security tests | L3/L4 exception data masked by default; API keys are not logged; cross-org access denied by default; rule expressions cannot execute arbitrary code. |
 | Audit tests | Prompt, rules, permissions, version status, AI adoption, human override, API Key changes are auditable. |
 | Demo gate | A milestone must have a working end-to-end demo path and evidence. |
 
@@ -233,8 +233,8 @@ Before merging, check:
 | Milestone | Evidence required |
 |-----------|-------------------|
 | M1 Ingest To Asset | Ingest request, raw object, job record, normalized reference, asset catalog, asset detail, current version read model. |
-| M2 AI Governance And Rules | Prompt config version, LiteLLM alias, AI run, quality report, rule hit, decision log, `available` and `review_required` examples. |
-| M3 P0 Full Flow | RAGFlow index manifest, search/QA result, permission filtering, L4 masking, source traceability, reprocess, re-governance, AI re-score, audit log. |
+| M2 AI Governance And Rules | Prompt config version, LiteLLM alias, AI run, `governance_result.quality_summary`, rule hit, `governance_result.decision_trail`, `available` and `review_required` examples. |
+| M3 P0 Full Flow | RAGFlow index manifest, search/QA result, permission filtering, L3/L4 exception masking, source traceability, reprocess, re-governance, AI re-score, audit log. |
 | M4 Formal Acceptance | 12 E2E results, NFR metrics, Go/No-Go table, business acceptance opinion, known issues by severity, delivery docs. |
 
 ## Buffer Rules

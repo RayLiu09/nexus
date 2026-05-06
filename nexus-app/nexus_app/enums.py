@@ -92,22 +92,14 @@ class AIAdoptionStatus(StrEnum):
 
 
 class RuleSetStatus(StrEnum):
-    DRAFT = "draft"
-    VALIDATING = "validating"
-    PUBLISHED = "published"
+    ACTIVE = "active"
     DISABLED = "disabled"
-    ARCHIVED = "archived"
-    VALIDATION_FAILED = "validation_failed"
 
 
 class PromptProfileStatus(StrEnum):
-    DRAFT = "draft"
-    VALIDATING = "validating"
-    PUBLISHED = "published"
     ACTIVE = "active"
     DISABLED = "disabled"
     ARCHIVED = "archived"
-    VALIDATION_FAILED = "validation_failed"
 
 
 class PrincipalStatus(StrEnum):

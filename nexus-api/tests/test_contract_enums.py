@@ -32,6 +32,7 @@ def test_week1_shared_status_values_are_available():
     assert "dead_lettered" in values(JobStatus)
     assert "stale" in values(IndexStatus)
     assert "auto_adopted" in values(AIAdoptionStatus)
-    assert "validation_failed" in values(RuleSetStatus)
+    assert values(RuleSetStatus) == {"active", "disabled"}
     assert "active" in values(PromptProfileStatus)
+    assert "draft" not in values(PromptProfileStatus)
     assert "enabled" in values(DataSourceStatus)

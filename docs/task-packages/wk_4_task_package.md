@@ -10,10 +10,10 @@
 
 ```text
 标准化对象
-  -> AI 治理建议和质量报告
+  -> AI 治理建议和 quality_summary
   -> 规则护栏
-  -> governance_decision_log
-  -> governance_result
+  -> governance_result.decision_trail
+  -> governance_result（含 quality_summary）
   -> available / review_required
   -> 最小索引投影 / 检索或 QA 演示入口
   -> 来源追溯和审计摘要
@@ -28,7 +28,7 @@
 | 后台开发 / 项目负责人 / AI 工程师 | 规则、状态、权限演示边界、M2 汇报 Review | P0 可演示版 Review 和汇报 |
 | 前端开发 | 治理中心、规则配置、决策追踪、演示路径 Review | 可演示页面和交互 |
 | 业务专家 | 规则样本、冲突样本、复核口径确认 | 规则样本和演示确认 |
-| Backend Agent | 规则引擎、治理结果、决策日志、状态流、最小索引投影 | API、服务、测试 |
+| Backend Agent | 规则引擎、治理结果、decision_trail、状态流、最小索引投影 | API、服务、测试 |
 | Frontend Agent | 治理中心、规则配置、决策追踪、最小检索入口 | 页面、抽屉、弹窗 |
 | Test Agent | 规则、状态、AI 采纳、演示 E2E | 测试和演示脚本 |
 | Docs Agent | M2 演示材料和 P0 可演示版说明 | 演示证据和已知缺口 |
@@ -50,16 +50,16 @@ Source context:
 
 Goal:
 
-- 实现规则集和规则明细的最小配置、校验和发布能力。
+- 实现规则集和规则明细的最小配置、校验和保存即生效能力。
 
 Scope:
 
 - `governance_rule_set` 模型和迁移。
 - `governance_rule` 模型和迁移。
 - 规则类型：classification、level、tag、org_scope、quality_admission、manual_review_trigger、index_admission。
-- API：创建规则集、添加规则、校验、发布、回滚、查询。
-- 状态：`draft`、`active`、`disabled`、`archived`。
-- 规则发布审计事件。
+- API：创建规则集、添加规则、校验、保存即生效、禁用、查询。
+- 状态：`active`、`disabled`。
+- 规则保存/禁用审计事件。
 
 Out of scope:
 
@@ -79,37 +79,37 @@ Deliverables:
 - 规则集和规则模型。
 - 配置 API。
 - 规则校验。
-- 发布/回滚审计。
+- 保存/禁用审计。
 - API 契约测试。
 
 Acceptance:
 
-- 可创建、校验、发布一组样例规则。
+- 可创建、校验、保存即激活一组样例规则。
 - 非法表达式被拒绝。
 - 人工 Review 通过 Rule Engine Gate。
 
-### TP-W4-02 规则执行、冲突处理和决策日志
+### TP-W4-02 规则执行、冲突处理和 Decision Trail
 
 Task name:
 
-规则执行、冲突处理和决策日志
+规则执行、冲突处理和 Decision Trail
 
 Source context:
 
-- `ARCHTECT.md`：规则输入来自标准化对象、AI 建议、质量报告、敏感识别、组织上下文。
-- `SPEC.md`：治理决策日志必须记录 AI 建议、规则命中、候选值、冲突、置信度、采纳状态、最终结果和人工覆盖。
+- `ARCHTECT.md`：规则输入来自标准化对象、AI 建议、`governance_result.quality_summary` 输入、敏感识别、组织上下文。
+- `SPEC.md`：`governance_result.decision_trail` 必须记录 AI 建议、规则命中、候选值、冲突、置信度、采纳状态、最终结果和人工覆盖。
 
 Goal:
 
-- 将 AI 建议和质量报告通过规则护栏转化为可追踪决策。
+- 将 AI 建议和 quality summary 通过规则护栏转化为可追踪决策。
 
 Scope:
 
 - Governance context builder。
 - 规则执行顺序。
 - 冲突策略：高敏优先、优先级、manual_review、deny。
-- `governance_decision_log` 模型和迁移。
-- 决策日志查询 API。
+- `governance_result.decision_trail` 结构。
+- decision trail 查询 API。
 - AI 建议采纳状态：`auto_adopted`、`partially_adopted`、`review_required`、`rejected`。
 
 Out of scope:
@@ -128,15 +128,15 @@ Deliverables:
 
 - 规则执行服务。
 - 冲突处理逻辑。
-- `governance_decision_log`。
-- 决策日志 API。
+- `governance_result.decision_trail` 写入。
+- decision trail API。
 - 规则命中和冲突测试。
 
 Acceptance:
 
 - 高置信无冲突样本生成 auto_adopted 决策。
 - AI/规则冲突样本进入 `review_required`。
-- 决策日志可解释最终结果来源。
+- `decision_trail` 可解释最终结果来源。
 - 人工 Review 通过 Rule Engine Gate 和 AI Governance Gate。
 
 ### TP-W4-03 Governance Result 和资产版本状态判定
@@ -147,7 +147,7 @@ Governance Result 和资产版本状态判定
 
 Source context:
 
-- `ARCHTECT.md`：进入 `available` 需要有效标准化引用、质量报告、治理结果、无阻断规则、AI 置信度达标、唯一可用版本。
+- `ARCHTECT.md`：进入 `available` 需要有效标准化引用、`governance_result.quality_summary`、治理结果、无阻断规则、AI 置信度达标、唯一可用版本。
 - `SPEC.md`：默认自动治理优先，异常才进入人工复核。
 
 Goal:
@@ -173,7 +173,7 @@ Forbidden changes:
 
 - 不允许新增 `document_asset.current_version_id`。
 - 不允许多个 `available` 版本并存。
-- 不允许无质量报告和决策日志直接进入 `available`。
+- 不允许无 quality summary 和 decision trail 直接进入 `available`。
 
 Deliverables:
 
@@ -211,7 +211,7 @@ Scope:
 - AI 治理建议和质量评分摘要。
 - 治理待办。
 - 规则配置页面。
-- 规则发布确认弹窗。
+- 规则保存即生效确认弹窗。
 - 决策追踪抽屉。
 - 人工复核入口占位。
 
@@ -233,7 +233,7 @@ Deliverables:
 - 治理中心页面。
 - 规则配置页面。
 - 决策追踪抽屉。
-- 规则发布确认弹窗。
+- 规则保存即生效确认弹窗。
 - 页面测试或演示验证。
 
 Acceptance:
@@ -301,7 +301,7 @@ P0 可演示版测试、证据和汇报材料
 
 Source context:
 
-- `WORKFLOWS.md`：M2 证据包括 Prompt 配置版本、LiteLLM 模型别名、AI 执行记录、质量报告、规则命中、决策日志、`available` / `review_required` 示例。
+- `WORKFLOWS.md`：M2 证据包括 Prompt 配置版本、LiteLLM 模型别名、AI 执行记录、`governance_result.quality_summary`、规则命中、`governance_result.decision_trail`、`available` / `review_required` 示例。
 - `docs/基于AI Agent的开发计划v1.0.md`：4 周为 P0 可演示版，不建议作为正式验收口径。
 
 Goal:
@@ -357,12 +357,11 @@ Acceptance:
 
 第 4 周只有在以下条件满足时视为完成：
 
-1. 样例规则集可创建、校验和发布。
-2. AI 建议和质量报告可经过规则护栏形成决策日志。
+1. 样例规则集可创建、校验和保存即激活。
+2. AI 建议和 quality summary 可经过规则护栏形成 decision trail。
 3. 高置信无冲突样本可进入 `available`。
 4. 冲突、低置信或质量阻断样本可进入 `review_required`。
-5. 治理中心和资产详情可展示 AI 建议、质量评分、规则命中、决策日志和最终状态。
+5. 治理中心和资产详情可展示 AI 建议、质量评分、规则命中、decision trail 和最终状态。
 6. 至少一个 `available` 样本可通过最小检索/QA 演示入口返回来源引用。
 7. P0 可演示版汇报材料明确后续正式验收仍需补齐的权限审计、RAGFlow 稳定联调、重处理、重治理、AI 重评分和完整 E2E。
 8. Review Assistant Agent 未发现企业 IAM、`llm-gateway`、独立 AI 编排服务、反向指针或 P1/P2 越界。
-

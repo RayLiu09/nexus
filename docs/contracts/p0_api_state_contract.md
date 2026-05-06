@@ -27,6 +27,8 @@ This document is the Week 1 minimum shared contract for backend, frontend, tests
   - no `document_version.normalized_ref_id`;
   - no `document_version.quality_report_id` or equivalent quality-report reverse pointer.
 - AI suggestions cannot become official governance results until schema validation, field whitelist, redaction, rule guardrails, confidence thresholds, and state-machine decisions pass.
+- P0 async work uses PostgreSQL job table + Worker polling; RabbitMQ/Celery are scale-up components only.
+- Imported data sources default to L1/L2; L3/L4 are explicit exception levels requiring evidence, approval, masking controls, and audit.
 
 ## 2. Common API Shape
 
@@ -79,7 +81,7 @@ Required request and response rules:
 
 - Every response includes `meta.trace_id`.
 - Mutating APIs that can be retried must accept `Idempotency-Key` or an explicit `idempotency_key` field once they perform durable side effects.
-- API keys, secrets, L3/L4 raw content, and large raw payloads must not be returned from general list APIs.
+- API keys, secrets, L3/L4 exception raw content, and large raw payloads must not be returned from general list APIs.
 - Timestamps use UTC ISO 8601 strings.
 - Resource IDs are UUID strings unless an external source identifier is explicitly named.
 
@@ -156,24 +158,16 @@ Required request and response rules:
 
 | Value | UI Label | Meaning |
 |-------|----------|---------|
-| `draft` | 草稿 | Editable unpublished rule set. |
-| `validating` | 校验中 | Validation is running. |
-| `published` | 已发布 | Immutable active or selectable rule set version. |
+| `active` | 当前启用 | Active rule set for new governance decisions. |
 | `disabled` | 已禁用 | Rule set cannot be used for new decisions. |
-| `archived` | 已归档 | Historical retained version. |
-| `validation_failed` | 校验失败 | Validation failed and publish is blocked. |
 
 ### Prompt Profile Status
 
 | Value | UI Label | Meaning |
 |-------|----------|---------|
-| `draft` | 草稿 | Editable Prompt profile version. |
-| `validating` | 校验中 | Variable whitelist, schema, redaction, weights, and model alias checks are running. |
-| `published` | 已发布 | Immutable published Prompt version. |
 | `active` | 当前启用 | Active Prompt profile for a task type. |
 | `disabled` | 已禁用 | Cannot be selected for new AI runs. |
 | `archived` | 已归档 | Historical retained version. |
-| `validation_failed` | 校验失败 | Publish blocked by validation failure. |
 
 ### Data Source Status
 
@@ -195,10 +189,10 @@ Required request and response rules:
 
 | Tone | Use For |
 |------|---------|
-| `neutral` | Draft, archived, not indexed, submitted. |
-| `info` | Processing, queued, pending, raw persisted, validating. |
-| `success` | Available, succeeded, completed, indexed, enabled, auto adopted, published, active. |
-| `warning` | Review required, partial failed, stale, partially adopted, validation failed. |
+| `neutral` | Archived, not indexed, submitted. |
+| `info` | Processing, queued, pending, raw persisted. |
+| `success` | Available, succeeded, completed, indexed, enabled, auto adopted, active. |
+| `warning` | Review required, partial failed, stale, partially adopted. |
 | `danger` | Failed, dead lettered, checksum failed, rejected, error. |
 | `muted` | Disabled, cancelled, duplicate skipped. |
 
@@ -279,15 +273,15 @@ Week 1 implements only the bolded minimal endpoints. The remaining paths are fro
 | POST | `/v1/governance/ai-runs/{run_id}:feedback` | No | Record feedback. |
 | POST | `/v1/governance/ai-runs/{run_id}:rescore` | No | AI re-score request. |
 | GET | `/v1/rule-sets` | No | List rule sets. |
-| POST | `/v1/rule-sets` | No | Create draft rule set. |
+| POST | `/v1/rule-sets` | No | Create or save-to-activate rule set. |
 | POST | `/v1/rule-sets/{rule_set_id}:validate` | No | Validate restricted expressions. |
-| POST | `/v1/rule-sets/{rule_set_id}:publish` | No | Publish immutable rule set version. |
-| POST | `/v1/rule-sets/{rule_set_id}:rollback` | No | Roll back to prior published version. |
+| PUT | `/v1/rule-sets/{rule_set_id}` | No | Save updates as a new active version. |
+| POST | `/v1/rule-sets/{rule_set_id}:disable` | No | Disable rule set. |
 | GET | `/v1/ai-prompt-profiles` | No | List Prompt profiles. |
-| POST | `/v1/ai-prompt-profiles` | No | Create draft Prompt profile. |
-| POST | `/v1/ai-prompt-profiles/{profile_id}:validate` | No | Validate Prompt profile. |
-| POST | `/v1/ai-prompt-profiles/{profile_id}:publish` | No | Publish immutable Prompt profile. |
+| POST | `/v1/ai-prompt-profiles` | No | Create Prompt profile as active version. |
+| PUT | `/v1/ai-prompt-profiles/{profile_id}` | No | Save updates as a new active version and archive the old active version. |
 | POST | `/v1/ai-prompt-profiles/{profile_id}:disable` | No | Disable Prompt profile. |
+| GET | `/v1/ai-prompt-profiles/{profile_id}/history` | No | List retained Prompt profile versions. |
 
 ## 6. Audit Event Baseline
 
@@ -316,16 +310,14 @@ Audit event names are frozen as PascalCase strings.
 | `HumanOverrideSubmitted` | Human override of AI or rules. |
 | `AIAdoptionDecisionRecorded` | AI adoption state decided. |
 | `AIRescoreRequested` | AI re-score requested. |
-| `AIPromptProfileCreated` | Prompt draft created. |
-| `AIPromptProfileValidated` | Prompt validation completed. |
-| `AIPromptProfilePublished` | Prompt published. |
+| `AIPromptProfileSaved` | Prompt profile saved and active version changed. |
 | `AIPromptProfileDisabled` | Prompt disabled. |
-| `RuleSetCreated` | Rule set draft created. |
+| `RuleSetSaved` | Rule set saved and active version changed. |
 | `RuleSetValidated` | Rule set validation completed. |
-| `RuleSetPublished` | Rule set published. |
-| `RuleSetRolledBack` | Rule set rollback. |
+| `RuleSetDisabled` | Rule set disabled. |
+| `JobDeadLettered` | Worker retry policy exhausted. |
 | `PermissionDenied` | Authorization denied. |
-| `SensitiveContentMasked` | L3/L4 content masked. |
+| `SensitiveContentMasked` | L3/L4 exception content masked. |
 | `SearchExecuted` | Search request completed. |
 | `QAExecuted` | QA request completed. |
 
@@ -338,7 +330,7 @@ Every audit event must carry `trace_id`, actor or caller context, target resourc
 3. View batch and raw object from raw ledger.
 4. View job state placeholders from job center once Week 2 job orchestration is added.
 5. Produce or simulate normalized reference and asset version.
-6. Run AI governance and rules in Week 2+ implementation.
+6. Run AI governance and rules in Week 3+ implementation.
 7. Version enters `available` when quality, governance, confidence, and uniqueness checks pass; otherwise `review_required`.
 8. Asset catalog shows derived current version, not a stored reverse pointer.
 

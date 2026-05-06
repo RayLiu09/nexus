@@ -44,13 +44,13 @@ This avoids keeping core data asset platform logic in `nexus-api` and restores t
 
 Non-destructive middleware checks were run with secrets redacted.
 
-The `.env.dev` file loads successfully through `nexus-app` settings. Required middleware keys for PostgreSQL, Redis, RabbitMQ, and MinIO are present. The checks below validate basic TCP/HTTP reachability only; they do not write data, run migrations, create buckets, or authenticate application-level operations.
+The `.env.dev` file loads successfully through `nexus-app` settings. PostgreSQL and MinIO are P0-required targets; Redis and RabbitMQ settings are present and reachable in this development environment but are v2.4 scale-up components, not P0 required dependencies. The checks below validate basic TCP/HTTP reachability only; they do not write data, run migrations, create buckets, or authenticate application-level operations.
 
 | Component | Config Target | Check Result | Notes |
 |-----------|---------------|--------------|-------|
 | PostgreSQL | `10.100.11.182:5432`, db `nexus_dev`, user `postgre_normal` | TCP OK | `POSTGRES_DRIVER=postgresql` is normalized by code to SQLAlchemy runtime URL `postgresql+psycopg://...`. |
-| Redis | `10.100.11.51:6379`, db `0` | TCP OK | No Redis password is configured in `.env.dev`. |
-| RabbitMQ | `10.100.11.182:5672`, vhost `nexus`, user `rabbitmq_nexus` | TCP OK | `RABBITMQ_URL` and `CELERY_BROKER_URL` point to `/nexus`. |
+| Redis | `10.100.11.51:6379`, db `0` | TCP OK | v2.4 scale-up component only; no Redis password is configured in `.env.dev`. |
+| RabbitMQ | `10.100.11.182:5672`, vhost `nexus`, user `rabbitmq_nexus` | TCP OK | v2.4 scale-up component only; `RABBITMQ_URL` and `CELERY_BROKER_URL` point to `/nexus`. |
 | MinIO | `http://10.100.11.182:9000`, bucket `nexus-dev-objects` | S3 API OK | `head_bucket` passed. Upload checks passed for `raw/`, `staging/`, `parsed/`, `normalized/`, `export/`, and `.env.dev` extra partition `misc/`. |
 | MinerU | `http://10.100.11.252:8000` | Connection refused | Service appears unreachable from this host at check time; requires service/process or endpoint review. |
 | RAGFlow | `http://10.100.11.182:9380` | HTTP 404 | Host is reachable; root path is not a health endpoint. `RAGFLOW_API_KEY` is empty, so authenticated integration calls may fail. |
@@ -95,7 +95,7 @@ Commands run on 2026-05-03:
 | `cd nexus-console && npm install` | Pass | Generated `package-lock.json`; Next upgraded to `16.2.4` after `16.0.0` security warning during earlier Week 1 setup. |
 | `cd nexus-console && npm run build` | Pass | Next generated 14 app routes including all P0 placeholders. |
 | `cd nexus-console && npm audit --json` | Residual risk | 2 moderate findings remain through Next's PostCSS dependency. NPM only offers a breaking downgrade to Next 9.3.3, so no compatible automated fix was applied. |
-| `python3 -m nexus_app.scripts.check_env --env-file ../.env.dev` | Partial pass | Config loads and core middleware targets are present. PostgreSQL, Redis, RabbitMQ, and LiteLLM are reachable; MinIO/RAGFlow need endpoint-specific authenticated checks; MinerU refuses connection. |
+| `python3 -m nexus_app.scripts.check_env --env-file ../.env.dev` | Partial pass | Config loads and middleware targets are present. PostgreSQL, Redis, RabbitMQ, and LiteLLM are reachable; Redis/RabbitMQ are v2.4 scale-up components; MinIO/RAGFlow need endpoint-specific authenticated checks; MinerU refuses connection. |
 | MinIO partition upload check with S3 API | Pass | `nexus-dev-objects` `head_bucket` passed. Test run `dac3e26206f1` uploaded and read back small JSON objects under `raw/_upload_check/`, `staging/_upload_check/`, `parsed/_upload_check/`, `normalized/_upload_check/`, `export/_upload_check/`, and `misc/_upload_check/`. |
 | stale boundary scan with `rg` | Pass | No remaining imports from deleted `nexus_api.config/database/models/crud/enums`; no documentation claims `nexus-api` owns Week 1 models or Alembic migrations. |
 

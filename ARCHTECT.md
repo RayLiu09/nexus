@@ -1,6 +1,6 @@
-# NEXUS Architecture Contract v2.3
+# NEXUS Architecture Contract v2.4
 
-This document is a concise architecture baseline for implementation. It is distilled from `docs/企业数据与知识资产平台技术选型和架构nexus_v2.3.md`.
+This document is a concise architecture baseline for implementation. It is distilled from `docs/企业数据与知识资产平台技术选型和架构nexus_v2.4.md`.
 
 ## Architecture Goal
 
@@ -8,18 +8,15 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
 
 The P0 architecture optimizes for private deployment, local identity control, traceability, reduced manual review, replaceable external engines, and **minimum infrastructure footprint for small-to-medium data asset scale**.
 
-## v2.3 Key Changes From v2.2
+## v2.4 Key Changes From v2.3
 
-| Change | v2.2 | v2.3 |
+| Change | v2.3 | v2.4 |
 |--------|------|------|
-| Quality report entity | Standalone `quality_report` table | Embedded as `governance_result.quality_summary` (JSONB) |
-| Decision log entity | Standalone `governance_decision_log` table | Embedded as `governance_result.decision_trail` (JSONB) |
-| AI Prompt lifecycle | `draft → validate → publish → active → disable → archive` | Save-to-activate: new version = immediate active, old = archived |
-| Rule set lifecycle | `draft → active → disabled → archived` with explicit publish | Save-to-activate: `active / disabled` only |
-| Conflict resolution | Configurable enum per rule set | Fixed policy: priority-first + high-sensitivity-wins for level |
-| Async job infra | RabbitMQ + Celery (required) | PostgreSQL job table + Worker poller (P0 default); MQ as scale-up path |
-| Cache | Redis (required) | In-process TTL cache (P0 default); Redis as scale-up path |
-| Permission model | RBAC + ABAC + org scope + level + masking | RBAC + org scope (P0); ABAC as extension point |
+| Async job design | PostgreSQL job table + Worker poller as a selection | Explicit claim SQL with `FOR UPDATE SKIP LOCKED`, lock lease, heartbeat, retry, dead-letter, polling indexes, and idempotency |
+| Single-node capacity | PostgreSQL queue scale-up trigger was coarse | Recommended 8-12 active pipeline jobs, hard P0 limit 16; MinerU parse jobs 2-4 concurrent |
+| Default imported data level | L1-L4 governance levels exist, but default source level was not explicit | Imported data sources default to L1/L2; L3/L4 are explicit exceptions only |
+| MQ upgrade trigger | Throughput bottleneck, previously described as typically >500 concurrent parse jobs | Upgrade when active jobs stay >16, queue wait P95 >5 minutes for 3 days, or route/dead-letter needs exceed PG poller |
+| v2.3 simplifications | Quality summary, decision trail, Prompt lifecycle, rule lifecycle, Redis/ABAC scope were simplified | Preserved; v2.4 clarifies implementation and capacity boundaries |
 
 ## System Boundaries
 
@@ -44,6 +41,7 @@ The P0 architecture optimizes for private deployment, local identity control, tr
 - Derivable relations are not stored as reverse pointers.
 - Automation is the default; manual review is exception handling.
 - Classification, level, tags, org scope, quality admission, review triggers, and index admission are configurable rules.
+- Imported data sources default to L1/L2; L3/L4 must be explicitly configured, rule-evidenced, or manually/security approved.
 - AI leads semantic understanding and scoring; rules are hard guardrails; humans handle exceptions, samples, and feedback.
 - AI output must be explainable, structured, schema-valid, evidence-backed, and auditable.
 - Models are replaceable through LiteLLM aliases and NEXUS-owned output schemas.
@@ -55,7 +53,7 @@ The P0 architecture optimizes for private deployment, local identity control, tr
 
 1. Source and access layer: console, API callers, crawler push, NAS/batch upload.
 2. Raw persistence layer: MinIO `raw/`, `staging/`, `parsed/`, `normalized/`; PostgreSQL ledgers and checksums.
-3. Job and processing layer: `job-orchestrator`, PostgreSQL job queue + Worker (P0) / RabbitMQ + Celery (scale-up), parse workers, `normalize-service`.
+3. Job and processing layer: `job-orchestrator`, PostgreSQL job queue + Worker poller (P0) / RabbitMQ + Celery (scale-up), parse workers, `normalize-service`.
 4. Standardization and governance layer: `normalized_document`, `normalized_record`, `metadata-service.ai-governance`, `metadata-enrich`, `governance-rule`.
 5. Master data layer: `metadata-service` for assets, versions, governance results (with embedded quality summary and decision trail), read models.
 6. Index, permission, and service layer: `ragflow-adapter`, RAGFlow, `search-service`, `iam-audit-service`, `nexus-api`.
@@ -98,6 +96,13 @@ Modeling constraints:
 - Use read models such as `asset_current_version_view` and `version_current_normalized_ref_view` for current-state queries.
 - Use partial unique constraints to enforce one effective/current record where needed.
 
+Data source default level constraints:
+
+- `data_source.default_level_hint` may be empty, L1, or L2. Empty is treated as L2.
+- L3/L4 must not be configured as a normal source default.
+- High-sensitivity import requires explicit source override, rule evidence, manual/security approval, and audit.
+- Final version level is still determined from standardized content, AI suggestions, sensitive recognition, rules, and review decisions.
+
 ## Version State Contract
 
 Allowed `document_version.version_status` values:
@@ -127,6 +132,7 @@ Entering `available` requires:
 - `metadata-service.ai-governance` renders Prompt, applies field whitelist and redaction, calls LiteLLM alias, validates structured output, records audit summary, and persists `ai_governance_run`.
 - `ai_governance_run` records: version, normalized ref, Prompt profile+version, LiteLLM alias, input hash/summary, governance suggestions, quality scores, evidence refs, confidence, validation status, adoption status. Human feedback is recorded in `governance_result.decision_trail`.
 - External models must not receive unmasked L3/L4 plain text unless using an approved private LiteLLM alias or an explicit security exception.
+- Because imported sources default to L1/L2, L3/L4 AI input handling is triggered only by explicit high-sensitivity exceptions or detected sensitive content.
 
 ## Rule Governance Architecture
 
@@ -134,7 +140,7 @@ P0 uses PostgreSQL configuration tables plus a restricted JSON expression evalua
 
 Rule types: classification inference, level override, tag suggestion and restriction, org scope inference, sensitive admission, quality admission, manual review trigger, index admission.
 
-**v2.3 lifecycle: rules are save-to-activate. Rule set `version` auto-increments on each save. No `draft` state or explicit publish step in P0.**
+**v2.4 lifecycle: rules are save-to-activate. Rule set `version` auto-increments on each save. No `draft` state or explicit publish step in P0.**
 
 Conflict resolution (fixed policy, not configurable in P0):
 - Level conflicts: high-sensitivity-first (L4 > L3 > L2 > L1).
@@ -177,7 +183,7 @@ Rule change, Prompt update, LiteLLM alias change, parse failure, index failure, 
 | Persistence | PostgreSQL 15+, SQLAlchemy 2.x, Alembic | — |
 | Object storage | MinIO | — |
 | Cache | In-process TTL cache | Redis 7.x when horizontally scaling |
-| Async jobs | PostgreSQL job table + Worker poller | RabbitMQ + Celery when throughput exceeds single-node capacity |
+| Async jobs | PostgreSQL job table + Worker poller | RabbitMQ + Celery when active jobs exceed single-node capacity |
 | Frontend | React 19, Next.js 16 App Router, TypeScript | — |
 | Charts | ECharts 5.x | — |
 | Parsing | MinerU | — |
@@ -188,9 +194,10 @@ Rule change, Prompt update, LiteLLM alias change, parse failure, index failure, 
 ## Security And Audit
 
 - P0: RBAC plus org scope filtering plus data level visibility check (L3/L4 requires explicit role grant).
+- Imported data source defaults are L1/L2; L3/L4 access, masking, and review are exception paths that require explicit evidence or approval.
 - ABAC policy evaluation is an architecture extension point, not a P0 requirement.
 - Cross-org access is denied by default.
-- L4 content masking is implemented when L4 data actually exists in the deployment.
+- L3/L4 content masking is implemented when explicit high-sensitivity exception data actually exists in the deployment.
 - API keys support scope, quota, disable, and audit.
 - Rule expressions cannot execute arbitrary code.
 - Logs must not expose sensitive fields, API keys, or long raw content.
@@ -202,9 +209,34 @@ P0 required infrastructure: PostgreSQL, MinIO, RAGFlow, MinerU, LiteLLM (existin
 
 Single-node deployment may co-locate control, processing, and search adapters for pilot use. Three-node deployment separates control/metadata, parsing/standardization, and retrieval/indexing. LiteLLM remains an existing external platform and is not part of NEXUS node deployment.
 
+## PostgreSQL Worker Poller Contract
+
+The P0 Worker poller uses PostgreSQL as both queue and job state center:
+
+- Jobs are selected with a short transaction using `FOR UPDATE SKIP LOCKED`, ordered by `priority ASC, created_at ASC`.
+- Claiming sets `status = running`, `locked_by`, `locked_at`, `lock_expires_at`, `heartbeat_at`, and increments `attempt_count`.
+- Workers execute outside the claim transaction and refresh `heartbeat_at` plus `lock_expires_at` every 30-60 seconds.
+- Timed-out `running` jobs are returned to `queued` when attempts remain; otherwise they become `dead_lettered` or `failed`.
+- Retry uses `next_run_at` with exponential backoff, defaulting to 1, 5, and 15 minute delays.
+- Job payloads store IDs, URIs, checksums, config versions, and trace IDs only; do not store large raw content or L3/L4 plaintext.
+- Required indexes: polling by `status/next_run_at/priority/created_at`, timeout scan by `status/lock_expires_at`, idempotency by `job_type/idempotency_key`, and target lookup by asset/version/raw/batch IDs.
+
+Single-node capacity envelope for the 16 Core / 64 GB RAM / 48 GB GPU P0 baseline:
+
+| Concurrency Item | Recommended | P0 Single-Node Limit |
+|------------------|-------------|----------------------|
+| Active pipeline jobs | 8-12 | 16 |
+| MinerU parse jobs | 2-4 | 4 |
+| Standardization jobs | 4-8 | 8 |
+| AI governance / quality jobs | 2-4 | 6 |
+| Rule governance jobs | 4-8 | 12 |
+| RAGFlow sync jobs | 2-4 | 6 |
+
+Scale up to RabbitMQ + Celery when active jobs stay above 16, queue wait P95 stays above 5 minutes for 3 days, PostgreSQL locks or CPU affect API P95, or the platform needs separate routing, queue pause/resume, or independent dead-letter monitoring.
+
 ## Scale-Up Triggers
 
-Each capability simplified in v2.3 has a documented upgrade trigger:
+Each capability simplified in v2.4 has a documented upgrade trigger:
 
 | Simplified Capability | Upgrade Trigger |
 |-----------------------|-----------------|
@@ -212,9 +244,10 @@ Each capability simplified in v2.3 has a documented upgrade trigger:
 | `governance_decision_log` as embedded JSONB | Need per-rule hit rate analysis, AI acceptance rate stats, or compliance audit |
 | `ai_prompt_profile` save-to-activate | Multi-person Prompt review, approval workflow, or gray release needed |
 | Rule save-to-activate | Rule change approval flow, time-window rollback, or gray release needed |
-| PostgreSQL job queue | Single-node queue becomes throughput bottleneck (typically >500 concurrent parse jobs) |
+| PostgreSQL job queue | Active jobs stay above 16, queue wait P95 exceeds 5 minutes for 3 days, or routing/dead-letter needs exceed the PG poller |
 | In-process cache | Horizontal scaling, distributed cache invalidation, or distributed locks needed |
 | ABAC extension point | Cross-org sharing, temporary approval, or attribute-based dynamic permissions needed |
+| Default L1/L2 source level | A source is approved to contain L3/L4 data and has explicit review, masking, and audit controls |
 
 ## P0 Architecture Acceptance
 
@@ -227,4 +260,6 @@ Each capability simplified in v2.3 has a documented upgrade trigger:
 - Job failure can be located and retried.
 - Permission leakage rate is zero.
 - P0 deployment does not require RabbitMQ or Redis.
+- P0 single-node concurrency is bounded and visible through job status metrics; exceeding the documented envelope triggers scale-up planning.
+- Imported data sources default to L1/L2 unless explicit L3/L4 exception evidence and audit exist.
 - Each simplified capability has a documented upgrade trigger and migration path.

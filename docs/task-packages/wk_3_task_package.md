@@ -15,7 +15,7 @@ normalized_document / normalized_record
   -> LiteLLM 模型别名调用
   -> AI 结构化输出 Schema 校验
   -> ai_governance_run
-  -> quality_report
+  -> governance_result.quality_summary 待采纳输入
   -> 资产详情 AI 治理 / 质量评分展示
 ```
 
@@ -28,11 +28,11 @@ normalized_document / normalized_record
 | 后台开发 / AI 工程师 | AI 治理 Gate、LiteLLM 边界、Prompt 版本和脱敏 Review | AI 治理实现 Review 和样本演示 |
 | 前端开发 | AI Prompt 和 AI 治理页面 Review | NX-13、AI 治理 Tab、质量评分 Tab |
 | 业务专家 | Prompt 样例、评分维度、证据引用、反馈标签确认 | Prompt 样例和评分口径 |
-| Backend Agent | `ai_prompt_profile`、LiteLLM client、AI 输入、AI 输出、质量报告 | 模型、API、服务、测试 |
+| Backend Agent | `ai_prompt_profile`、LiteLLM client、AI 输入、AI 输出、质量评分摘要 | 模型、API、服务、测试 |
 | Frontend Agent | AI Prompt 配置和 AI 建议展示 | 页面、表单、抽屉、状态 |
 | Test Agent | AI 输出 Schema、脱敏、Prompt 版本测试 | 单测、契约测试、样本测试 |
 | Docs Agent | Prompt 配置说明、AI 治理说明 | 配置说明、演示脚本 |
-| Review Assistant Agent | 检查 AI 边界和 v2.2 禁区 | 契约偏差清单 |
+| Review Assistant Agent | 检查 AI 边界和 v2.4 禁区 | 契约偏差清单 |
 
 ## 3. 任务包清单
 
@@ -45,7 +45,7 @@ AI Prompt Profile 模型和生命周期 API
 Source context:
 
 - `ARCHTECT.md`：`ai_prompt_profile` 由 NEXUS 维护，包含 LiteLLM 模型别名、Prompt、输出 Schema、评分权重、脱敏策略。
-- `SPEC.md`：AI Prompt 配置必须支持草稿创建、编辑、校验、发布、禁用、版本查看和审计。
+- `SPEC.md`：AI Prompt 配置采用保存即生效，支持创建、更新生成新 active 版本、禁用、版本查看和审计。
 - `WORKFLOWS.md`：AI 治理 Gate 必须人工 Review。
 
 Goal:
@@ -55,10 +55,10 @@ Goal:
 Scope:
 
 - `ai_prompt_profile` 模型和迁移。
-- 状态：`draft`、`active`、`disabled`、`archived`。
-- API：创建草稿、修改草稿、校验、发布、禁用、版本查询、列表查询。
+- 状态：`active`、`disabled`、`archived`。
+- API：创建 active 配置、更新并生成新 active 版本、禁用、版本查询、列表查询。
 - 字段：profile_id、profile_name、profile_version、task_type、litellm_model_alias、prompt_version、prompt_template、output_schema_version、scoring_weight_version、temperature、max_input_tokens、redaction_policy。
-- 发布不可变约束。
+- 保存即生效约束：新版本 active，旧 active 自动 archived。
 - Prompt 配置变更审计事件。
 
 Out of scope:
@@ -71,7 +71,7 @@ Forbidden changes:
 
 - 不允许开发 `llm-gateway`。
 - 不允许在 NEXUS 中维护模型供应商密钥。
-- 不允许已发布 Prompt 原地修改。
+- 不允许 active Prompt 原地修改；任何变更必须生成新版本。
 - 不允许新增 P1/P2 Prompt 优化能力。
 
 Deliverables:
@@ -84,8 +84,8 @@ Deliverables:
 
 Acceptance:
 
-- 草稿可创建和编辑。
-- 发布后不可原地修改。
+- 新配置保存后立即 active。
+- 更新后生成新 active 版本，旧版本 archived，不可原地修改。
 - 禁用后不可被新 AI 作业引用。
 - 人工 Review 通过 AI Governance Gate。
 
@@ -247,52 +247,54 @@ Acceptance:
 - 每条 AI 结论可追溯到 Prompt 配置、模型别名、输入摘要和证据。
 - 人工 Review 通过 AI Governance Gate。
 
-### TP-W3-05 AI 质量评分和 Quality Report
+### TP-W3-05 AI 质量评分和 Quality Summary
 
 Task name:
 
-AI 质量评分和 Quality Report
+AI 质量评分和 Governance Quality Summary
 
 Source context:
 
 - `SPEC.md`：AI 质量评分必须包含维度分、综合分、问题列表、证据引用和修复建议。
-- `ARCHTECT.md`：`quality_report.version_id` 关联资产版本，不在版本表保存反向指针。
+- `ARCHTECT.md`：v2.4 不创建独立 `quality_report` 实体；质量摘要内嵌在 `governance_result.quality_summary`，Week 3 可先生成供 Week 4 规则准入使用的质量评分摘要载荷。
 
 Goal:
 
-- 生成可解释的质量报告，为第 4 周规则准入和状态流转提供输入。
+- 生成可解释的质量评分摘要，为第 4 周规则准入和状态流转提供输入。
 
 Scope:
 
-- `quality_report` 模型和迁移。
+- 质量评分摘要 Schema 和持久化载荷。
 - scoring_source：`ai_primary`、`rule_only`、`manual_calibrated`。
 - quality_score、quality_level、dimension_scores、check_items、evidence_refs、blocking_reasons、confidence、status。
-- 同一 version_id 同一时间最多一个 effective 报告的约束。
-- 质量报告查询 API。
+- 同一 version_id 同一评分输入 hash 的评分摘要幂等。
+- 质量评分摘要查询 API，最终落点为 Week 4 `governance_result.quality_summary`。
 
 Out of scope:
 
 - 不实现人工校准。
 - 不实现评分效果分析。
 - 不实现质量报表。
+- 不创建独立 `quality_report` 表。
 
 Forbidden changes:
 
 - 不允许新增 `document_version.quality_report_id`。
 - 不允许只保存单一总分。
 - 不允许无证据引用的评分进入有效报告。
+- 不允许创建 standalone `quality_report` 或 `governance_decision_log`。
 
 Deliverables:
 
-- `quality_report` 模型和迁移。
-- 质量报告生成服务。
+- 质量评分摘要 Schema。
+- 质量评分摘要生成服务。
 - 查询 API。
 - 维度分和证据测试。
 
 Acceptance:
 
-- 样本资产可生成 quality report。
-- 报告包含维度分、证据、置信度和阻断原因。
+- 样本资产可生成质量评分摘要。
+- 摘要包含维度分、证据、置信度和阻断原因。
 - 人工 Review 通过 Data Model Gate 和 AI Governance Gate。
 
 ### TP-W3-06 AI Prompt 和 AI 治理前端页面
@@ -312,7 +314,7 @@ Goal:
 
 Scope:
 
-- AI Prompt 配置列表、草稿编辑、版本历史、校验记录。
+- AI Prompt 配置列表、保存即生效编辑、版本历史。
 - LiteLLM 模型别名引用字段。
 - 输出 Schema、评分权重、脱敏策略表单。
 - 资产详情 AI 治理 Tab。
@@ -341,7 +343,7 @@ Deliverables:
 
 Acceptance:
 
-- 可以创建/查看/发布 Prompt 配置演示数据。
+- 可以创建/查看/更新 Prompt 配置演示数据，更新后生成新 active 版本。
 - AI 建议展示包含模型别名、Prompt 版本、证据和置信度。
 - 人工 Review 通过 Frontend UX Gate。
 
@@ -354,7 +356,7 @@ AI 治理演示证据、测试和文档
 Source context:
 
 - `WORKFLOWS.md`：代码、测试、文档同步交付。
-- `WORKFLOWS.md`：M2 前需要 Prompt 配置版本、LiteLLM 模型别名、AI 执行记录、质量报告等证据。
+- `WORKFLOWS.md`：M2 前需要 Prompt 配置版本、LiteLLM 模型别名、AI 执行记录、`governance_result.quality_summary` 等证据。
 
 Goal:
 
@@ -385,12 +387,12 @@ Deliverables:
 
 - AI 治理演示脚本。
 - 测试命令或验证步骤。
-- 样本 AI run 和 quality report。
+- 样本 AI run 和 quality summary。
 - 已知问题清单。
 
 Acceptance:
 
-- 样本资产可以生成 AI run 和 quality report。
+- 样本资产可以生成 AI run 和 quality summary。
 - 至少包含一个失败或阻断样例。
 - 人工 Review 通过 AI Governance Gate 和 Acceptance Gate。
 
@@ -399,8 +401,8 @@ Acceptance:
 | Gate | 适用任务包 | 人工 Review 重点 |
 |------|------------|------------------|
 | AI Governance Gate | TP-W3-01 至 TP-W3-07 | LiteLLM 边界、Prompt 版本、脱敏、Schema、AI 不直写正式治理结果。 |
-| Data Model Gate | TP-W3-01、TP-W3-04、TP-W3-05 | `ai_prompt_profile`、`ai_governance_run`、`quality_report` 字段和约束；禁止反向指针。 |
-| API Contract Gate | TP-W3-01、TP-W3-04、TP-W3-05 | Prompt、AI run、quality report 查询接口。 |
+| Data Model Gate | TP-W3-01、TP-W3-04、TP-W3-05 | `ai_prompt_profile`、`ai_governance_run`、quality summary 字段和约束；禁止反向指针和 standalone `quality_report`。 |
+| API Contract Gate | TP-W3-01、TP-W3-04、TP-W3-05 | Prompt、AI run、quality summary 查询接口。 |
 | Frontend UX Gate | TP-W3-06 | NX-13 页面、AI 治理展示、无 AI 网关管理页。 |
 | Acceptance Gate | TP-W3-07 | AI 治理证据可支撑第 4 周规则护栏演示。 |
 
@@ -408,11 +410,11 @@ Acceptance:
 
 第 3 周只有在以下条件满足时视为完成：
 
-1. `ai_prompt_profile` 可完成草稿、校验、发布、禁用和版本查询。
+1. `ai_prompt_profile` 可完成保存即生效、禁用和版本查询。
 2. LiteLLM 模型别名调用或 fake client 可执行。
 3. AI 输入来自 `normalized_document` / `normalized_record`，并经过字段白名单和脱敏。
 4. 合法 AI 输出可生成 `ai_governance_run`。
-5. 样本资产可生成 `quality_report`。
+5. 样本资产可生成 quality summary。
 6. 资产详情可展示 AI 建议、质量评分、证据引用、置信度、模型别名和 Prompt 版本。
 7. AI 输出没有直接写入 `governance_result`。
 8. Review Assistant Agent 未发现 `llm-gateway`、模型密钥管理、反向指针或 P1/P2 越界。

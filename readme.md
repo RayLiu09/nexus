@@ -1,6 +1,6 @@
 # NEXUS
 
-NEXUS is an enterprise data and knowledge asset platform. It is currently defined by v2.2 architecture, product Spec, and Prototype documents under `docs/`.
+NEXUS is an enterprise data and knowledge asset platform. It is currently defined by the v2.4 architecture baseline, product Spec, and Prototype documents under `docs/`.
 
 ## What NEXUS Does
 
@@ -26,8 +26,8 @@ The current P0 target covers D1-D4 pilot domains and focuses on an end-to-end us
 .
 ├── AGENTS.md       # Codex coding-agent contract
 ├── CLAUDE.md       # Claude coding-agent contract
-├── ARCHTECT.md     # Concise architecture contract, v2.2
-├── SPEC.md         # Concise product/spec contract, v2.2
+├── ARCHTECT.md     # Concise architecture contract, v2.4
+├── SPEC.md         # Concise product/spec contract, v2.4
 ├── readme.md       # Project overview
 ├── docs/           # Full source design documents
 ├── nexus-app/      # Core backend/domain models, migrations, and services
@@ -51,11 +51,18 @@ Week 2 implementation baselines:
 - `docs/review/wk2_review_evidence.md`: Week 2 Review Gate evidence.
 - `nexus-app/`: M1 pipeline services, MinIO/S3 storage adapter, MinerU adapter boundary, job/stage, parse artifact, normalized ref, asset/version models, Alembic migration, and tests.
 - `nexus-api/`: `/v1` ingest submit, job, parse artifact, normalized ref, asset, and version route adaptation to `nexus-app`.
-- `nexus-console/`: M1 static data views for workbench, ingest, raw ledger, jobs, asset catalog, and asset detail.
+- `nexus-console/`: M1 live `/v1` API views for workbench, ingest, raw ledger, jobs, asset catalog, asset detail, and audit basics.
+
+Architecture v2.4 baseline:
+
+- P0 async jobs use PostgreSQL job table + background Worker polling with row-level claim locking, lock lease/heartbeat, retry/backoff, dead-letter state, and idempotent job creation.
+- Single-node P0 capacity is intentionally bounded: 8-12 recommended active pipeline jobs, 16 maximum; MinerU parse jobs should stay at 2-4 concurrent before planning MQ/multi-node scale-up.
+- Imported data sources default to L1/L2. L3/L4 are explicit exception levels requiring source approval, rule evidence, manual/security review, masking controls, and audit.
+- RabbitMQ, Celery, and Redis are optional scale-up components, not P0 required infrastructure.
 
 ## Source Documents
 
-- `docs/企业数据与知识资产平台技术选型和架构nexus_v2.2.md`
+- `docs/企业数据与知识资产平台技术选型和架构nexus_v2.4.md`
 - `docs/企业数据与知识资产平台需求Spec_v2.2.md`
 - `docs/企业数据与知识资产平台Prototype设计文档_v2.2.md`
 
@@ -75,6 +82,8 @@ Root documents are distilled implementation contracts:
 - Governance starts from `normalized_document` or `normalized_record`, not raw objects or MinerU raw output.
 - `document_asset.current_version_id`, `document_version.normalized_ref_id`, and quality-report reverse pointers must not be introduced.
 - AI output must be structured, schema-valid, evidence-backed, confidence-scored, rule-guarded, and auditable before official adoption.
+- P0 does not require RabbitMQ, Celery, or Redis. PostgreSQL Worker polling and in-process TTL cache are the default.
+- Imported data sources default to L1/L2 unless explicit high-sensitivity exception evidence exists.
 
 ## Core P0 Capabilities
 
@@ -101,8 +110,8 @@ Root documents are distilled implementation contracts:
 - Backend/control plane: Python 3.11, FastAPI, Pydantic v2, SQLAlchemy 2.x, Alembic.
 - Python dependency management: uv with `pyproject.toml` and `uv.lock`.
 - Frontend console: React 19, Next.js 16 App Router, TypeScript.
-- Async jobs: RabbitMQ, Celery.
-- Storage: PostgreSQL 15+, MinIO, Redis.
+- Async jobs: PostgreSQL job table + Worker poller; RabbitMQ + Celery are scale-up components.
+- Storage: PostgreSQL 15+, MinIO; Redis is an optional scale-up cache.
 - Parsing: MinerU.
 - AI gateway: existing LiteLLM.
 - Search/index: RAGFlow, with Elasticsearch/vector engine managed by RAGFlow.
@@ -115,6 +124,6 @@ Read in this order before building or changing behavior:
 1. `AGENTS.md` or `CLAUDE.md`, depending on the coding agent.
 2. `ARCHTECT.md` for architecture and data model constraints.
 3. `SPEC.md` for product behavior, APIs, NFRs, and acceptance criteria.
-4. The full `docs/` v2.2 files for details and page-level Prototype behavior.
+4. The full `docs/` architecture v2.4 and product/prototype v2.2 files for details and page-level Prototype behavior.
 
 Any implementation that changes architecture, data model, API, UI behavior, or acceptance criteria should update the root contract documents and the relevant full design document.
