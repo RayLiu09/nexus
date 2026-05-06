@@ -2,7 +2,7 @@ import base64
 
 from nexus_api.api import v1
 from nexus_app import models, services
-from nexus_app.mineru import FakeMinerUAdapter
+from nexus_app.ingest import gateway as ingest_gateway
 from nexus_app.schemas import CrawlerPackageSubmit, DataSourceCreate, IngestFileSubmit
 from nexus_app.storage import InMemoryObjectStorage
 
@@ -37,13 +37,10 @@ def test_week2_routes_are_registered(app):
     }
 
 
-def test_submit_file_route_returns_ingest_to_asset_result(monkeypatch, session, fake_request):
+def test_submit_file_route_returns_queued_job(monkeypatch, session, fake_request):
     source = create_source(session)
     storage = InMemoryObjectStorage()
-    monkeypatch.setattr(v1.pipeline, "get_object_storage", lambda settings=None: storage)
-    monkeypatch.setattr(
-        v1.pipeline, "get_mineru_adapter", lambda settings=None: FakeMinerUAdapter()
-    )
+    monkeypatch.setattr(ingest_gateway, "get_object_storage", lambda settings=None: storage)
     payload = IngestFileSubmit(
         data_source_id=source.id,
         idempotency_key="api-file-001",
@@ -53,17 +50,15 @@ def test_submit_file_route_returns_ingest_to_asset_result(monkeypatch, session, 
 
     result = v1.submit_ingest_file(payload, fake_request, session)
 
-    assert result.data.batch.status == "completed"
-    assert result.data.asset.status == "processing"
-    assert result.data.version.version_status == "processing"
-    assert result.data.version.metadata_summary["m1_ready_for_governance"] is True
-    assert result.data.normalized_ref.normalized_type == "document"
+    assert result.data.job.status == "queued"
+    assert result.data.batch.status == "raw_persisted"
+    assert result.data.raw_object.object_uri.startswith("s3://nexus-test-objects/raw/")
 
 
-def test_submit_crawler_route_creates_record_asset(monkeypatch, session, fake_request):
+def test_submit_crawler_route_returns_queued_job(monkeypatch, session, fake_request):
     source = create_source(session, "crawler")
     storage = InMemoryObjectStorage()
-    monkeypatch.setattr(v1.pipeline, "get_object_storage", lambda settings=None: storage)
+    monkeypatch.setattr(ingest_gateway, "get_object_storage", lambda settings=None: storage)
     payload = CrawlerPackageSubmit(
         data_source_id=source.id,
         idempotency_key="api-crawler-001",
@@ -72,7 +67,7 @@ def test_submit_crawler_route_creates_record_asset(monkeypatch, session, fake_re
 
     result = v1.submit_crawler_package(payload, fake_request, session)
 
-    assert result.data.asset.asset_kind == "record"
-    assert result.data.parse_artifact is None
-    assert result.data.normalized_ref.normalized_type == "record"
-    assert services.list_rows(session, models.DocumentAsset)[0].id == result.data.asset.id
+    assert result.data.job.status == "queued"
+    assert result.data.batch.status == "raw_persisted"
+    assert result.data.raw_object.object_uri.startswith("s3://nexus-test-objects/raw/")
+    assert services.list_rows(session, models.RawObject)[0].id == result.data.raw_object.id

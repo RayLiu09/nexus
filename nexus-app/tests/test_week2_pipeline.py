@@ -1,10 +1,14 @@
 import base64
 
 from nexus_app import models, pipeline, services
-from nexus_app.enums import AssetVersionStatus, JobStatus, NormalizedType
+from nexus_app.config import get_settings
+from nexus_app.enums import AssetVersionStatus, IngestBatchStatus, JobStatus, NormalizedType
+from nexus_app.ingest import gateway as ingest_gateway
 from nexus_app.mineru import FakeMinerUAdapter
 from nexus_app.schemas import CrawlerPackageSubmit, DataSourceCreate, IngestFileSubmit
 from nexus_app.storage import InMemoryObjectStorage
+from nexus_app.worker.claimer import claim_jobs
+from nexus_app.worker.runner import execute_job
 
 
 def create_source(session, source_type="file_upload"):
@@ -18,9 +22,23 @@ def create_source(session, source_type="file_upload"):
     )
 
 
+def run_worker(session, storage, mineru=None):
+    """Claim and execute all queued jobs synchronously in the test session."""
+    if mineru is None:
+        mineru = FakeMinerUAdapter()
+    settings = get_settings()
+    jobs = claim_jobs(session, "test-worker", batch_size=10, lease_seconds=30)
+    for job in jobs:
+        try:
+            execute_job(job, session, storage, mineru, settings)
+        except Exception:
+            pass
+
+
 def test_file_ingest_to_document_asset_pipeline(session):
     source = create_source(session)
     storage = InMemoryObjectStorage()
+    mineru = FakeMinerUAdapter()
     payload = IngestFileSubmit(
         data_source_id=source.id,
         idempotency_key="file-001",
@@ -29,22 +47,40 @@ def test_file_ingest_to_document_asset_pipeline(session):
         content_base64=base64.b64encode(b"hello mineru").decode("ascii"),
     )
 
-    result = pipeline.submit_file_ingest(
-        session, payload, storage=storage, mineru=FakeMinerUAdapter(), trace_id="trace-001"
+    accepted = ingest_gateway.submit_file_ingest(
+        session, payload, storage=storage, trace_id="trace-001"
     )
+    assert accepted.job.status == JobStatus.QUEUED
 
-    assert result.batch.status == "completed"
-    assert result.raw_object.object_uri.startswith("s3://nexus-test-objects/raw/")
-    assert result.job.status == "succeeded"
-    assert result.asset.status == AssetVersionStatus.PROCESSING
-    assert result.version.version_status == AssetVersionStatus.PROCESSING
-    assert result.version.metadata_summary["m1_ready_for_governance"] is True
-    assert result.parse_artifact.artifact_uri.startswith("s3://nexus-test-objects/parsed/")
-    assert result.normalized_ref.normalized_type == NormalizedType.DOCUMENT
-    assert result.normalized_ref.object_uri.startswith("s3://nexus-test-objects/normalized/")
+    run_worker(session, storage, mineru)
 
-    stages = pipeline.list_job_stages(session, result.job.id)
-    assert [stage.stage_name for stage in stages] == ["parse", "normalize", "assetize"]
+    session.refresh(accepted.job)
+    session.refresh(accepted.batch)
+    assert accepted.job.status == JobStatus.SUCCEEDED
+    assert accepted.batch.status == IngestBatchStatus.COMPLETED
+    assert accepted.raw_object.object_uri.startswith("s3://nexus-test-objects/raw/")
+
+    assets = pipeline.list_assets(session)
+    assert len(assets) == 1
+    versions = pipeline.list_asset_versions(session, assets[0].id)
+    assert len(versions) == 1
+    version = versions[0]
+
+    assert assets[0].status == AssetVersionStatus.PROCESSING
+    assert version.version_status == AssetVersionStatus.PROCESSING
+    assert version.metadata_summary["m1_ready_for_governance"] is True
+
+    artifacts = services.list_rows(session, models.ParseArtifact)
+    assert len(artifacts) == 1
+    assert artifacts[0].artifact_uri.startswith("s3://nexus-test-objects/parsed/")
+
+    refs = pipeline.list_normalized_refs_for_versions(session, [version.id])
+    assert len(refs) == 1
+    assert refs[0].normalized_type == NormalizedType.DOCUMENT
+    assert refs[0].object_uri.startswith("s3://nexus-test-objects/normalized/")
+
+    stages = pipeline.list_job_stages(session, accepted.job.id)
+    assert [s.stage_name for s in stages] == ["assetize", "parse", "normalize"]
 
 
 def test_crawler_package_ingest_to_normalized_record(session):
@@ -56,15 +92,30 @@ def test_crawler_package_ingest_to_normalized_record(session):
         package={"id": "notice-001", "title": "Program Notice", "body": "content"},
     )
 
-    result = pipeline.submit_crawler_package(
+    accepted = ingest_gateway.submit_crawler_package(
         session, payload, storage=storage, trace_id="trace-002"
     )
+    assert accepted.job.status == JobStatus.QUEUED
 
-    assert result.batch.status == "completed"
-    assert result.parse_artifact is None
-    assert result.asset.asset_kind == "record"
-    assert result.normalized_ref.normalized_type == NormalizedType.RECORD
-    assert result.normalized_ref.record_count == 1
+    run_worker(session, storage)
+
+    session.refresh(accepted.job)
+    session.refresh(accepted.batch)
+    assert accepted.job.status == JobStatus.SUCCEEDED
+    assert accepted.batch.status == IngestBatchStatus.COMPLETED
+
+    assets = pipeline.list_assets(session)
+    assert len(assets) == 1
+    assert assets[0].asset_kind == "record"
+
+    versions = pipeline.list_asset_versions(session, assets[0].id)
+    refs = pipeline.list_normalized_refs_for_versions(session, [versions[0].id])
+    assert len(refs) == 1
+    assert refs[0].normalized_type == NormalizedType.RECORD
+    assert refs[0].record_count == 1
+
+    parse_artifacts = services.list_rows(session, models.ParseArtifact)
+    assert len(parse_artifacts) == 0
 
 
 def test_ingest_idempotency_returns_existing_batch_without_duplicate_raw_object(session):
@@ -77,12 +128,8 @@ def test_ingest_idempotency_returns_existing_batch_without_duplicate_raw_object(
         content_base64=base64.b64encode(b"same").decode("ascii"),
     )
 
-    first = pipeline.submit_file_ingest(
-        session, payload, storage=storage, mineru=FakeMinerUAdapter()
-    )
-    second = pipeline.submit_file_ingest(
-        session, payload, storage=storage, mineru=FakeMinerUAdapter()
-    )
+    first = ingest_gateway.submit_file_ingest(session, payload, storage=storage)
+    second = ingest_gateway.submit_file_ingest(session, payload, storage=storage)
 
     assert second.batch.id == first.batch.id
     assert second.raw_object.id == first.raw_object.id
@@ -105,18 +152,13 @@ def test_duplicate_checksum_marks_batch_skipped_without_second_raw_object(sessio
         content_base64=base64.b64encode(b"same").decode("ascii"),
     )
 
-    first = pipeline.submit_file_ingest(
-        session, first_payload, storage=storage, mineru=FakeMinerUAdapter()
-    )
-    second = pipeline.submit_file_ingest(
-        session, second_payload, storage=storage, mineru=FakeMinerUAdapter()
-    )
+    first = ingest_gateway.submit_file_ingest(session, first_payload, storage=storage)
+    second = ingest_gateway.submit_file_ingest(session, second_payload, storage=storage)
 
-    assert first.batch.status == "completed"
-    assert second.batch.status == "duplicate_skipped"
+    assert second.batch.status == IngestBatchStatus.DUPLICATE_SKIPPED
     assert second.raw_object.id == first.raw_object.id
     assert len(services.list_rows(session, models.RawObject)) == 1
-    assert second.job.current_stage == "duplicate_check"
+    assert second.job.current_stage == "duplicate_skipped"
 
 
 class FailingMinerUAdapter:
@@ -134,25 +176,26 @@ def test_file_ingest_failure_is_persisted_on_job_and_stage(session):
         content_base64=base64.b64encode(b"fail").decode("ascii"),
     )
 
-    try:
-        pipeline.submit_file_ingest(
-            session, payload, storage=storage, mineru=FailingMinerUAdapter()
-        )
-    except pipeline.PipelineError:
-        pass
+    accepted = ingest_gateway.submit_file_ingest(session, payload, storage=storage)
+    run_worker(session, storage, FailingMinerUAdapter())
 
-    job = services.list_rows(session, models.Job)[0]
-    raw = services.list_rows(session, models.RawObject)[0]
-    batch = services.list_rows(session, models.IngestBatch)[0]
-    version = services.list_rows(session, models.DocumentVersion)[0]
+    session.refresh(accepted.job)
+    session.refresh(accepted.batch)
+    session.refresh(accepted.raw_object)
+    job = accepted.job
+    batch = accepted.batch
+    raw = accepted.raw_object
+
+    versions = services.list_rows(session, models.DocumentVersion)
     stages = pipeline.list_job_stages(session, job.id)
 
     assert job.status == JobStatus.FAILED
-    assert "RuntimeError" in job.failure_reason
+    assert "RuntimeError" in (job.failure_reason or "")
     assert raw.status == "failed"
     assert batch.status == "failed"
-    assert version.version_status == AssetVersionStatus.FAILED
-    assert version.asset.status == AssetVersionStatus.FAILED
+    assert len(versions) == 1
+    assert versions[0].version_status == AssetVersionStatus.FAILED
+    assert versions[0].asset.status == AssetVersionStatus.FAILED
     assert stages[-1].status == JobStatus.FAILED
 
 

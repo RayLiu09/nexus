@@ -7,6 +7,7 @@ from nexus_api.responses import list_response, response
 from nexus_app import models, pipeline, schemas as domain_schemas, services
 from nexus_app.config import Settings, get_settings
 from nexus_app.database import get_db
+from nexus_app.ingest import gateway as ingest_gateway
 
 router = APIRouter(prefix="/v1")
 
@@ -143,56 +144,36 @@ def create_ingest_batch(
     return response(services.create_ingest_batch(session, payload), request)
 
 
-def _result_read(result: pipeline.IngestToAssetResult) -> domain_schemas.IngestToAssetResultRead:
-    return domain_schemas.IngestToAssetResultRead(
+def _accepted_read(result: ingest_gateway.IngestAccepted) -> domain_schemas.IngestAcceptedRead:
+    return domain_schemas.IngestAcceptedRead(
         batch=domain_schemas.IngestBatchRead.model_validate(result.batch),
         raw_object=domain_schemas.RawObjectRead.model_validate(result.raw_object),
         job=domain_schemas.JobRead.model_validate(result.job),
-        asset=(
-            domain_schemas.DocumentAssetRead.model_validate(result.asset)
-            if result.asset is not None
-            else None
-        ),
-        version=(
-            domain_schemas.DocumentVersionRead.model_validate(result.version)
-            if result.version is not None
-            else None
-        ),
-        parse_artifact=(
-            domain_schemas.ParseArtifactRead.model_validate(result.parse_artifact)
-            if result.parse_artifact is not None
-            else None
-        ),
-        normalized_ref=(
-            domain_schemas.NormalizedAssetRefRead.model_validate(result.normalized_ref)
-            if result.normalized_ref is not None
-            else None
-        ),
     )
 
 
 @router.post(
     "/ingest/files",
-    response_model=schemas.ApiResponse[domain_schemas.IngestToAssetResultRead],
+    response_model=schemas.ApiResponse[domain_schemas.IngestAcceptedRead],
     status_code=202,
 )
 def submit_ingest_file(
     payload: domain_schemas.IngestFileSubmit, request: Request, session: Session = Depends(get_db)
 ):
     try:
-        result = pipeline.submit_file_ingest(
+        result = ingest_gateway.submit_file_ingest(
             session,
             payload,
             trace_id=str(getattr(request.state, "trace_id", "")),
         )
-    except ValueError as exc:
+    except ingest_gateway.IngestError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return response(_result_read(result), request)
+    return response(_accepted_read(result), request)
 
 
 @router.post(
     "/ingest/crawler-packages",
-    response_model=schemas.ApiResponse[domain_schemas.IngestToAssetResultRead],
+    response_model=schemas.ApiResponse[domain_schemas.IngestAcceptedRead],
     status_code=202,
 )
 def submit_crawler_package(
@@ -201,14 +182,14 @@ def submit_crawler_package(
     session: Session = Depends(get_db),
 ):
     try:
-        result = pipeline.submit_crawler_package(
+        result = ingest_gateway.submit_crawler_package(
             session,
             payload,
             trace_id=str(getattr(request.state, "trace_id", "")),
         )
-    except ValueError as exc:
+    except ingest_gateway.IngestError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return response(_result_read(result), request)
+    return response(_accepted_read(result), request)
 
 
 @router.get("/ingest/batches", response_model=schemas.ListResponse[domain_schemas.IngestBatchRead])

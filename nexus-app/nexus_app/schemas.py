@@ -188,12 +188,21 @@ class JobRead(ORMModel):
     id: str
     job_type: JobType
     status: JobStatus
+    priority: int
     ingest_batch_id: str | None
     raw_object_id: str | None
+    idempotency_key: str | None
+    next_run_at: datetime
+    locked_by: str | None
+    attempt_count: int
+    max_attempts: int
     retry_count: int
     current_stage: str | None
     failure_reason: str | None
+    last_error_code: str | None
+    last_error_message: str | None
     trace_id: str | None
+    payload: dict[str, Any]
     metadata_summary: dict[str, Any]
     created_at: datetime
     updated_at: datetime
@@ -270,7 +279,6 @@ class IngestFileSubmit(BaseModel):
     content_type: str = Field(default="application/octet-stream", max_length=128)
     source_uri: str | None = Field(default=None, max_length=1024)
     submitted_by_user_id: str | None = None
-    process_now: bool = True
 
 
 class CrawlerPackageSubmit(BaseModel):
@@ -279,7 +287,12 @@ class CrawlerPackageSubmit(BaseModel):
     package: dict[str, Any]
     source_uri: str | None = Field(default=None, max_length=1024)
     submitted_by_user_id: str | None = None
-    process_now: bool = True
+
+
+class IngestAcceptedRead(BaseModel):
+    batch: IngestBatchRead
+    raw_object: RawObjectRead
+    job: JobRead
 
 
 class IngestToAssetResultRead(BaseModel):

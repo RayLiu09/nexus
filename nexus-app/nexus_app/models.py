@@ -215,6 +215,9 @@ class Job(TimestampMixin, Base):
     __table_args__ = (
         Index("ix_job_ingest_batch_id", "ingest_batch_id"),
         Index("ix_job_raw_object_id", "raw_object_id"),
+        Index("idx_job_polling", "status", "next_run_at", "priority", "created_at"),
+        Index("idx_job_lock_expiry", "status", "lock_expires_at"),
+        Index("idx_job_idempotency", "job_type", "idempotency_key"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
@@ -227,16 +230,30 @@ class Job(TimestampMixin, Base):
         default=JobStatus.QUEUED,
         nullable=False,
     )
+    priority: Mapped[int] = mapped_column(default=100, nullable=False)
     ingest_batch_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("ingest_batch.id"), nullable=True
     )
     raw_object_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("raw_object.id"), nullable=True
     )
+    idempotency_key: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    next_run_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    locked_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    lock_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    attempt_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    max_attempts: Mapped[int] = mapped_column(default=3, nullable=False)
     retry_count: Mapped[int] = mapped_column(default=0, nullable=False)
     current_stage: Mapped[str | None] = mapped_column(String(80), nullable=True)
     failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_error_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    last_error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     trace_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     metadata_summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
     ingest_batch: Mapped[IngestBatch | None] = relationship()
