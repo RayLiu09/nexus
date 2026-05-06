@@ -147,6 +147,7 @@ def test_raw_object_checksum_constraint(session):
 
 def test_week1_routes_are_registered(app):
     paths = {route.path for route in app.routes}
+    post_paths = {route.path for route in app.routes if "POST" in getattr(route, "methods", set())}
 
     assert "/v1/health" in paths
     assert "/v1/org-units" in paths
@@ -155,3 +156,4 @@ def test_week1_routes_are_registered(app):
     assert "/v1/data-sources" in paths
     assert "/v1/ingest/batches" in paths
     assert "/v1/raw-objects" in paths
+    assert "/v1/raw-objects" not in post_paths

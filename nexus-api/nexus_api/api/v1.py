@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
@@ -101,7 +101,9 @@ def list_api_callers(request: Request, session: Session = Depends(get_db)):
     response_model=schemas.ApiResponse[domain_schemas.ApiCallerRead],
 )
 def get_api_caller(api_caller_id: str, request: Request, session: Session = Depends(get_db)):
-    return response(services.get_row(session, models.ApiCaller, api_caller_id, "api_caller"), request)
+    return response(
+        services.get_row(session, models.ApiCaller, api_caller_id, "api_caller"), request
+    )
 
 
 @router.post(
@@ -219,16 +221,25 @@ def list_ingest_batches(request: Request, session: Session = Depends(get_db)):
     response_model=schemas.ApiResponse[domain_schemas.IngestBatchRead],
 )
 def get_ingest_batch(batch_id: str, request: Request, session: Session = Depends(get_db)):
-    return response(services.get_row(session, models.IngestBatch, batch_id, "ingest_batch"), request)
+    return response(
+        services.get_row(session, models.IngestBatch, batch_id, "ingest_batch"), request
+    )
 
 
-@router.post(
-    "/raw-objects", response_model=schemas.ApiResponse[domain_schemas.RawObjectRead], status_code=201
+@router.get(
+    "/ingest/batches/{batch_id}/raw-objects",
+    response_model=schemas.ListResponse[domain_schemas.RawObjectRead],
 )
-def create_raw_object(
-    payload: domain_schemas.RawObjectCreate, request: Request, session: Session = Depends(get_db)
-):
-    return response(services.create_raw_object(session, payload), request)
+def list_raw_objects_for_batch(batch_id: str, request: Request, session: Session = Depends(get_db)):
+    services.get_row(session, models.IngestBatch, batch_id, "ingest_batch")
+    rows = list(
+        session.scalars(
+            select(models.RawObject)
+            .where(models.RawObject.batch_id == batch_id)
+            .order_by(models.RawObject.created_at.desc())
+        ).all()
+    )
+    return list_response(rows, request)
 
 
 @router.get("/raw-objects", response_model=schemas.ListResponse[domain_schemas.RawObjectRead])
@@ -241,7 +252,9 @@ def list_raw_objects(request: Request, session: Session = Depends(get_db)):
     response_model=schemas.ApiResponse[domain_schemas.RawObjectRead],
 )
 def get_raw_object(raw_object_id: str, request: Request, session: Session = Depends(get_db)):
-    return response(services.get_row(session, models.RawObject, raw_object_id, "raw_object"), request)
+    return response(
+        services.get_row(session, models.RawObject, raw_object_id, "raw_object"), request
+    )
 
 
 @router.get("/jobs", response_model=schemas.ListResponse[domain_schemas.JobRead])
@@ -254,13 +267,19 @@ def get_job(job_id: str, request: Request, session: Session = Depends(get_db)):
     return response(services.get_row(session, models.Job, job_id, "job"), request)
 
 
-@router.get("/jobs/{job_id}/stages", response_model=schemas.ListResponse[domain_schemas.JobStageRead])
+@router.get(
+    "/jobs/{job_id}/stages",
+    response_model=schemas.ListResponse[domain_schemas.JobStageRead],
+)
 def list_job_stages(job_id: str, request: Request, session: Session = Depends(get_db)):
     services.get_row(session, models.Job, job_id, "job")
     return list_response(pipeline.list_job_stages(session, job_id), request)
 
 
-@router.get("/parse-artifacts", response_model=schemas.ListResponse[domain_schemas.ParseArtifactRead])
+@router.get(
+    "/parse-artifacts",
+    response_model=schemas.ListResponse[domain_schemas.ParseArtifactRead],
+)
 def list_parse_artifacts(request: Request, session: Session = Depends(get_db)):
     return list_response(services.list_rows(session, models.ParseArtifact), request)
 
@@ -272,22 +291,49 @@ def list_normalized_refs(request: Request, session: Session = Depends(get_db)):
     return list_response(services.list_rows(session, models.NormalizedAssetRef), request)
 
 
+@router.get("/audit-logs", response_model=schemas.ListResponse[domain_schemas.AuditLogRead])
+def list_audit_logs(request: Request, session: Session = Depends(get_db)):
+    return list_response(services.list_rows(session, models.AuditLog), request)
+
+
 @router.get("/assets", response_model=schemas.ListResponse[domain_schemas.DocumentAssetRead])
 def list_assets(request: Request, session: Session = Depends(get_db)):
     return list_response(pipeline.list_assets(session), request)
 
 
-@router.get("/assets/{asset_id}", response_model=schemas.ApiResponse[domain_schemas.AssetDetailRead])
+@router.get(
+    "/assets/{asset_id}",
+    response_model=schemas.ApiResponse[domain_schemas.AssetDetailRead],
+)
 def get_asset(asset_id: str, request: Request, session: Session = Depends(get_db)):
     asset = services.get_row(session, models.DocumentAsset, asset_id, "asset")
     versions = pipeline.list_asset_versions(session, asset_id)
     refs = pipeline.list_normalized_refs_for_versions(session, [version.id for version in versions])
+    current_version = pipeline.get_current_version(session, asset_id)
+    current_ref = (
+        pipeline.get_current_normalized_ref(session, current_version.id)
+        if current_version is not None
+        else None
+    )
     detail = domain_schemas.AssetDetailRead(
         asset=domain_schemas.DocumentAssetRead.model_validate(asset),
-        versions=[domain_schemas.DocumentVersionRead.model_validate(version) for version in versions],
+        versions=[
+            domain_schemas.DocumentVersionRead.model_validate(version)
+            for version in versions
+        ],
         normalized_refs=[
             domain_schemas.NormalizedAssetRefRead.model_validate(ref) for ref in refs
         ],
+        current_version=(
+            domain_schemas.DocumentVersionRead.model_validate(current_version)
+            if current_version is not None
+            else None
+        ),
+        current_normalized_ref=(
+            domain_schemas.NormalizedAssetRefRead.model_validate(current_ref)
+            if current_ref is not None
+            else None
+        ),
     )
     return response(detail, request)
 

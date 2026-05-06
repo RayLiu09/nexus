@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from nexus_app.database import Base
 from nexus_app.enums import (
+    AuditEventType,
     AssetKind,
     AssetVersionStatus,
     DataSourceStatus,
@@ -187,6 +188,26 @@ class RawObject(TimestampMixin, Base):
 
     batch: Mapped[IngestBatch] = relationship()
     data_source: Mapped[DataSource] = relationship()
+
+
+class AuditLog(TimestampMixin, Base):
+    __tablename__ = "audit_log"
+    __table_args__ = (
+        Index("ix_audit_log_target", "target_type", "target_id"),
+        Index("ix_audit_log_trace_id", "trace_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    event_type: Mapped[AuditEventType] = mapped_column(
+        Enum(AuditEventType, values_callable=lambda enum: [item.value for item in enum]),
+        nullable=False,
+    )
+    actor_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    actor_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    target_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    target_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    trace_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
 
 class Job(TimestampMixin, Base):

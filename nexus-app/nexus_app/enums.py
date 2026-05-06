@@ -27,6 +27,13 @@ class RawObjectStatus(StrEnum):
     FAILED = "failed"
 
 
+class AuditEventType(StrEnum):
+    INGEST_BATCH_SUBMITTED = "IngestBatchSubmitted"
+    RAW_OBJECT_PERSISTED = "RawObjectPersisted"
+    VERSION_STATUS_CHANGED = "VersionStatusChanged"
+    PIPELINE_FAILED = "PipelineFailed"
+
+
 class JobStatus(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"

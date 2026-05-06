@@ -1,7 +1,17 @@
+import { ApiState } from "@/components/ApiState";
 import { StatusLabel } from "@/components/StatusLabel";
-import { week2Demo } from "@/lib/week2-demo";
+import { formatDateTime, shortId } from "@/lib/api";
+import { loadWorkbenchData } from "@/lib/console-data";
 
-export default function WorkbenchPage() {
+export const dynamic = "force-dynamic";
+
+export default async function WorkbenchPage() {
+  const data = await loadWorkbenchData();
+  const latestBatch = data.batches.data[0];
+  const latestJob = data.jobs.data[0];
+  const latestAsset = data.assets.data[0];
+  const latestRef = data.normalizedRefs.data[0];
+
   return (
     <section className="page-section">
       <div className="page-heading">
@@ -12,22 +22,32 @@ export default function WorkbenchPage() {
         </div>
       </div>
 
+      <ApiState ok={data.ok} error={data.error} traceId={data.traceId} />
+
       <div className="detail-grid">
         <div>
-          <span>接入批次</span>
-          <strong>{week2Demo.batchId}</strong>
+          <span>数据源</span>
+          <strong>{data.dataSources.data.length}</strong>
         </div>
         <div>
-          <span>处理作业</span>
-          <strong>{week2Demo.jobId}</strong>
+          <span>接入批次</span>
+          <strong>{data.batches.data.length}</strong>
+        </div>
+        <div>
+          <span>原始对象</span>
+          <strong>{data.rawObjects.data.length}</strong>
         </div>
         <div>
           <span>资产</span>
-          <strong>{week2Demo.assetId}</strong>
+          <strong>{data.assets.data.length}</strong>
         </div>
         <div>
-          <span>链路状态</span>
-          <StatusLabel value="completed" />
+          <span>数据库</span>
+          <StatusLabel value={data.runtime.data?.database ?? "failed"} />
+        </div>
+        <div>
+          <span>审计事件</span>
+          <strong>{data.audits.data.length}</strong>
         </div>
       </div>
 
@@ -40,14 +60,41 @@ export default function WorkbenchPage() {
           <span>标准化引用</span>
           <span>状态</span>
         </div>
-        <div className="table-row">
-          <span>{week2Demo.batchId}</span>
-          <span>{week2Demo.source}</span>
-          <span>{week2Demo.rawObjectId}</span>
-          <span>{week2Demo.jobId}</span>
-          <span>{week2Demo.normalizedRefId}</span>
-          <StatusLabel value="completed" />
+        {latestBatch ? (
+          <div className="table-row">
+            <span>{shortId(latestBatch.id)}</span>
+            <span>{latestBatch.source_type}</span>
+            <span>{shortId(data.rawObjects.data[0]?.id)}</span>
+            <span>{shortId(latestJob?.id)}</span>
+            <span>{shortId(latestRef?.id)}</span>
+            <StatusLabel value={latestBatch.status} />
+          </div>
+        ) : (
+          <div className="empty-state">
+            <strong>暂无真实接入批次</strong>
+          </div>
+        )}
+      </div>
+
+      <div className="table-frame">
+        <div className="table-row table-head">
+          <span>最近资产</span>
+          <span>版本状态</span>
+          <span>最近作业</span>
+          <span>更新时间</span>
         </div>
+        {latestAsset ? (
+          <div className="table-row">
+            <span>{latestAsset.title}</span>
+            <StatusLabel value={latestAsset.status} />
+            <span>{latestJob?.current_stage ?? "-"}</span>
+            <span>{formatDateTime(latestAsset.updated_at)}</span>
+          </div>
+        ) : (
+          <div className="empty-state">
+            <strong>暂无真实资产</strong>
+          </div>
+        )}
       </div>
     </section>
   );

@@ -30,13 +30,20 @@ def test_week2_routes_are_registered(app):
     assert "/v1/assets/{asset_id}/versions" in paths
     assert "/v1/normalized-refs" in paths
     assert "/v1/parse-artifacts" in paths
+    assert "/v1/audit-logs" in paths
+    assert "/v1/ingest/batches/{batch_id}/raw-objects" in paths
+    assert "/v1/raw-objects" not in {
+        route.path for route in app.routes if "POST" in getattr(route, "methods", set())
+    }
 
 
 def test_submit_file_route_returns_ingest_to_asset_result(monkeypatch, session, fake_request):
     source = create_source(session)
     storage = InMemoryObjectStorage()
     monkeypatch.setattr(v1.pipeline, "get_object_storage", lambda settings=None: storage)
-    monkeypatch.setattr(v1.pipeline, "get_mineru_adapter", lambda settings=None: FakeMinerUAdapter())
+    monkeypatch.setattr(
+        v1.pipeline, "get_mineru_adapter", lambda settings=None: FakeMinerUAdapter()
+    )
     payload = IngestFileSubmit(
         data_source_id=source.id,
         idempotency_key="api-file-001",
@@ -47,8 +54,9 @@ def test_submit_file_route_returns_ingest_to_asset_result(monkeypatch, session, 
     result = v1.submit_ingest_file(payload, fake_request, session)
 
     assert result.data.batch.status == "completed"
-    assert result.data.asset.status == "available"
-    assert result.data.version.version_status == "available"
+    assert result.data.asset.status == "processing"
+    assert result.data.version.version_status == "processing"
+    assert result.data.version.metadata_summary["m1_ready_for_governance"] is True
     assert result.data.normalized_ref.normalized_type == "document"
 
 

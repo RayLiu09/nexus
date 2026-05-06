@@ -13,10 +13,10 @@ ingest submit
   -> job and job_stage
   -> parse_artifact in parsed/ for documents
   -> normalized_asset_ref in normalized/
-  -> document_asset / document_version
+  -> document_asset / document_version marked ready for governance
 ```
 
-AI governance, rules, RAGFlow indexing, search, QA, and full permission audit remain out of scope for Week 2.
+AI governance, rules, RAGFlow indexing, search, QA, and full permission audit remain out of scope for Week 2. Therefore M1 does not officially admit versions into `available`; it leaves asset/version state as `processing` with `metadata_summary.m1_ready_for_governance=true` for Week 3/4 governance and rule decisions.
 
 ## Backend
 
@@ -67,6 +67,7 @@ POST /v1/ingest/crawler-packages
 Query M1 outputs:
 
 - `GET /v1/raw-objects`
+- `GET /v1/ingest/batches/{batch_id}/raw-objects`
 - `GET /v1/jobs`
 - `GET /v1/jobs/{job_id}/stages`
 - `GET /v1/parse-artifacts`
@@ -74,6 +75,41 @@ Query M1 outputs:
 - `GET /v1/assets`
 - `GET /v1/assets/{asset_id}`
 - `GET /v1/assets/{asset_id}/versions`
+- `GET /v1/audit-logs`
+
+Raw object ledger creation is not a public API. `POST /v1/raw-objects` is intentionally absent; raw rows are written only by the storage-backed ingest submission flow.
+
+## Console Live API Path
+
+`nexus-console` uses live `/v1` API data for the Week 1/2 pages:
+
+- `/workbench`
+- `/data-sources`
+- `/ingest`
+- `/raw-ledger`
+- `/jobs`
+- `/assets`
+- `/assets/{asset_id}`
+- `/iam-audit`
+
+Configure the Console API base URL with `NEXUS_API_BASE_URL`; it defaults to `http://127.0.0.1:8000`.
+
+Start Console:
+
+```bash
+cd nexus-console
+NEXUS_API_BASE_URL=http://127.0.0.1:8000 npm run dev
+```
+
+Run the Week 1/2 Console connectivity check after API and Console are running:
+
+```bash
+NEXUS_API_BASE_URL=http://127.0.0.1:8000 \
+NEXUS_CONSOLE_BASE_URL=http://127.0.0.1:3000 \
+scripts/week2_console_e2e.sh
+```
+
+The script creates local org/user/API caller/data source through `/v1`, submits a small text ingest through `/v1/ingest/files`, verifies raw object, job stages, asset detail, normalized ref, audit logs, and confirms the Console pages render those live objects.
 
 ## Environment
 
@@ -93,3 +129,5 @@ Week 2 tests use in-memory storage and a fake MinerU adapter for deterministic v
 - Do not add `document_version.normalized_ref_id`.
 - Do not add `document_version.quality_report_id`.
 - Do not treat raw object or MinerU raw output as official governance input.
+- Do not use `POST /v1/raw-objects` as a public ingest path; raw objects must be created through storage-backed ingest submission.
+- Official `available` requires Week 3/4 quality, AI governance, rules, and uniqueness decisions. M1 readiness is not the same as production availability.

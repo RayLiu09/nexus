@@ -2,7 +2,7 @@
 
 Source: `docs/task-packages/wk_1_task_package.md` TP-W1-07.
 
-Status as of 2026-05-03: real business samples are pending business expert review. The entries below are placeholders for business-approved samples. They must be replaced or attached with real desensitized files before formal acceptance.
+Status as of 2026-05-06: real business samples are still pending business expert review. A live-commerce textbook file under `docs/samples` has been used for a technical Week 2 end-to-end path check, but it is not yet a formally approved/desensitized business acceptance sample. The entries below remain placeholders for business-approved samples and must be replaced or attached with reviewed files or payloads before formal acceptance.
 
 ## D1-D4 Sample List
 

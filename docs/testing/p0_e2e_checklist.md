@@ -14,6 +14,8 @@ This file is a Week 1 checklist. It is not the full automated E2E suite yet.
 6. Health and runtime state return `trace_id`.
 7. Logs and response bodies do not expose API keys, secrets, L3/L4 plain text, or large raw content.
 8. Console P0 routes load and use the same status labels as the shared contract.
+9. Console Week 1/2 pages render live `/v1` data for data sources, ingest batches, raw objects, jobs, assets, asset detail, and audit logs.
+10. `scripts/week2_console_e2e.sh` can create a small ingest flow through API and confirm the live objects are visible through Console pages.
 
 ## P0 Full Flow Cases To Automate Later
 

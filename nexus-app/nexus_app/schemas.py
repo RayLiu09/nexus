@@ -158,6 +158,19 @@ class RawObjectRead(ORMModel):
     updated_at: datetime
 
 
+class AuditLogRead(ORMModel):
+    id: str
+    event_type: str
+    actor_type: str | None
+    actor_id: str | None
+    target_type: str
+    target_id: str
+    trace_id: str | None
+    summary: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
 class JobStageRead(ORMModel):
     id: str
     job_id: str
@@ -245,6 +258,8 @@ class AssetDetailRead(BaseModel):
     asset: DocumentAssetRead
     versions: list[DocumentVersionRead]
     normalized_refs: list[NormalizedAssetRefRead]
+    current_version: DocumentVersionRead | None = None
+    current_normalized_ref: NormalizedAssetRefRead | None = None
 
 
 class IngestFileSubmit(BaseModel):

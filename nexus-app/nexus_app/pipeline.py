@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from nexus_app import models
 from nexus_app.config import Settings, get_settings
 from nexus_app.enums import (
+    AuditEventType,
     AssetKind,
     AssetVersionStatus,
     DataSourceType,
@@ -39,6 +40,10 @@ class IngestToAssetResult:
     normalized_ref: models.NormalizedAssetRef | None
 
 
+class PipelineError(RuntimeError):
+    pass
+
+
 def _safe_part(value: str) -> str:
     safe = "".join(char if char.isalnum() or char in {"-", "_", "."} else "-" for char in value)
     return safe.strip(".-")[:120] or "object"
@@ -57,7 +62,8 @@ def _object_key(
     current = now or models.utcnow()
     dated = [f"{current.year:04d}", f"{current.month:02d}", f"{current.day:02d}"]
     safe_parts = [_safe_part(part) for part in parts if part]
-    return "/".join([partition.strip("/"), *safe_parts, *dated]) + f"/{_safe_part(parts[-1])}.{extension}"
+    prefix = "/".join([partition.strip("/"), *safe_parts, *dated])
+    return f"{prefix}/{_safe_part(parts[-1])}.{extension}"
 
 
 def _raw_key(
@@ -144,6 +150,86 @@ def _find_or_create_batch(
     return batch, True
 
 
+def _audit(
+    session: Session,
+    event_type: AuditEventType,
+    target_type: str,
+    target_id: str,
+    trace_id: str | None,
+    summary: dict[str, Any],
+    actor_type: str | None = None,
+    actor_id: str | None = None,
+) -> models.AuditLog:
+    audit = models.AuditLog(
+        event_type=event_type,
+        actor_type=actor_type,
+        actor_id=actor_id,
+        target_type=target_type,
+        target_id=target_id,
+        trace_id=trace_id,
+        summary=summary,
+    )
+    session.add(audit)
+    session.flush()
+    return audit
+
+
+def _fail_pipeline(
+    session: Session,
+    job: models.Job,
+    batch: models.IngestBatch,
+    raw_object: models.RawObject,
+    stage_name: str,
+    exc: Exception,
+    trace_id: str | None,
+) -> None:
+    reason = f"{type(exc).__name__}: {exc}"
+    job.status = JobStatus.FAILED
+    job.current_stage = stage_name
+    job.failure_reason = reason[:2000]
+    batch.status = IngestBatchStatus.FAILED
+    raw_object.status = RawObjectStatus.FAILED
+    versions = list(
+        session.scalars(
+            select(models.DocumentVersion).where(
+                models.DocumentVersion.raw_object_id == raw_object.id
+            )
+        ).all()
+    )
+    for version in versions:
+        previous_status = version.version_status
+        version.version_status = AssetVersionStatus.FAILED
+        version.failure_reason = reason[:2000]
+        if version.asset is not None:
+            version.asset.status = AssetVersionStatus.FAILED
+        _audit(
+            session,
+            AuditEventType.VERSION_STATUS_CHANGED,
+            "document_version",
+            version.id,
+            trace_id,
+            {
+                "from_status": previous_status.value,
+                "to_status": AssetVersionStatus.FAILED.value,
+                "reason": "pipeline_failed",
+            },
+        )
+    _add_stage(session, job, stage_name, JobStatus.FAILED, failure_reason=reason[:2000])
+    _audit(
+        session,
+        AuditEventType.PIPELINE_FAILED,
+        "job",
+        job.id,
+        trace_id,
+        {
+            "stage": stage_name,
+            "batch_id": batch.id,
+            "raw_object_id": raw_object.id,
+            "error_type": type(exc).__name__,
+        },
+    )
+
+
 def _create_job(
     session: Session,
     batch: models.IngestBatch,
@@ -189,7 +275,11 @@ def _add_stage(
 
 
 def _asset_kind_for(raw_object: models.RawObject) -> AssetKind:
-    if raw_object.source_type in {DataSourceType.CRAWLER, DataSourceType.WEBHOOK, DataSourceType.DATABASE}:
+    if raw_object.source_type in {
+        DataSourceType.CRAWLER,
+        DataSourceType.WEBHOOK,
+        DataSourceType.DATABASE,
+    }:
         return AssetKind.RECORD
     if raw_object.mime_type and "json" in raw_object.mime_type:
         return AssetKind.RECORD
@@ -323,12 +413,11 @@ def _process_raw_object(
     models.NormalizedAssetRef,
 ]:
     job.status = JobStatus.RUNNING
-    _add_stage(session, job, "assetize", JobStatus.SUCCEEDED)
     asset, version = _create_asset_and_version(session, raw_object, raw_payload)
 
     parse_artifact = None
     if _asset_kind_for(raw_object) == AssetKind.DOCUMENT:
-        _add_stage(session, job, "parse", JobStatus.SUCCEEDED)
+        job.current_stage = "parse"
         parsed = mineru.parse(
             str(raw_object.metadata_summary.get("filename", raw_object.id)),
             raw_content,
@@ -360,18 +449,60 @@ def _process_raw_object(
                 "title": raw_object.metadata_summary.get("filename", raw_object.id),
                 "markdown": parsed.content.decode("utf-8", errors="ignore")[:4000],
             }
+        _add_stage(
+            session,
+            job,
+            "parse",
+            JobStatus.SUCCEEDED,
+            {"parse_artifact_id": parse_artifact.id, "artifact_uri": parse_artifact.artifact_uri},
+        )
         normalized_type = NormalizedType.DOCUMENT
         normalized_payload = _normalize_document(raw_object, parse_artifact, parse_payload)
     else:
         normalized_type = NormalizedType.RECORD
         normalized_payload = _normalize_record(raw_object, raw_payload or {})
 
-    _add_stage(session, job, "normalize", JobStatus.SUCCEEDED)
+    job.current_stage = "normalize"
     normalized_ref = _create_normalized_ref(
         session, storage, settings, version, normalized_type, normalized_payload
     )
-    version.version_status = AssetVersionStatus.AVAILABLE
-    asset.status = AssetVersionStatus.AVAILABLE
+    _add_stage(
+        session,
+        job,
+        "normalize",
+        JobStatus.SUCCEEDED,
+        {"normalized_ref_id": normalized_ref.id, "normalized_uri": normalized_ref.object_uri},
+    )
+    version.metadata_summary = {
+        **version.metadata_summary,
+        "m1_ready_for_governance": True,
+        "available_blocked_reason": "quality_governance_rules_not_run",
+    }
+    asset.metadata_summary = {
+        **asset.metadata_summary,
+        "m1_ready_for_governance": True,
+        "available_blocked_reason": "quality_governance_rules_not_run",
+    }
+    _audit(
+        session,
+        AuditEventType.VERSION_STATUS_CHANGED,
+        "document_version",
+        version.id,
+        job.trace_id,
+        {
+            "from_status": AssetVersionStatus.PROCESSING.value,
+            "to_status": AssetVersionStatus.PROCESSING.value,
+            "reason": "m1_ready_for_governance",
+        },
+    )
+    job.current_stage = "assetize"
+    _add_stage(
+        session,
+        job,
+        "assetize",
+        JobStatus.SUCCEEDED,
+        {"asset_id": asset.id, "version_id": version.id},
+    )
     job.status = JobStatus.SUCCEEDED
     job.current_stage = "completed"
     job.failure_reason = None
@@ -394,6 +525,7 @@ def submit_file_ingest(
         raise ValueError("data_source not found")
 
     content = base64.b64decode(payload.content_base64)
+    content_checksum = checksum_value(content)
     batch, created = _find_or_create_batch(
         session,
         payload.data_source_id,
@@ -406,10 +538,50 @@ def submit_file_ingest(
         existing_raw = session.scalar(
             select(models.RawObject).where(models.RawObject.batch_id == batch.id)
         )
-        existing_job = session.scalar(select(models.Job).where(models.Job.ingest_batch_id == batch.id))
+        existing_job = session.scalar(
+            select(models.Job).where(models.Job.ingest_batch_id == batch.id)
+        )
+        if existing_raw is None and existing_job is not None:
+            existing_raw = existing_job.raw_object
         return IngestToAssetResult(batch, existing_raw, existing_job, None, None, None, None)
 
-    content_checksum = checksum_value(content)
+    duplicate_raw = session.scalar(
+        select(models.RawObject).where(
+            models.RawObject.data_source_id == data_source.id,
+            models.RawObject.checksum == content_checksum,
+        )
+    )
+    if duplicate_raw is not None:
+        batch.status = IngestBatchStatus.DUPLICATE_SKIPPED
+        batch.summary = {
+            **batch.summary,
+            "duplicate_raw_object_id": duplicate_raw.id,
+            "filename": payload.filename,
+        }
+        job = _create_job(session, batch, duplicate_raw, trace_id)
+        job.status = JobStatus.SUCCEEDED
+        job.current_stage = "duplicate_skipped"
+        _add_stage(
+            session,
+            job,
+            "duplicate_check",
+            JobStatus.SUCCEEDED,
+            {"duplicate_raw_object_id": duplicate_raw.id},
+        )
+        _audit(
+            session,
+            AuditEventType.INGEST_BATCH_SUBMITTED,
+            "ingest_batch",
+            batch.id,
+            trace_id,
+            {
+                "idempotency_key": payload.idempotency_key,
+                "duplicate_raw_object_id": duplicate_raw.id,
+            },
+        )
+        session.commit()
+        return IngestToAssetResult(batch, duplicate_raw, job, None, None, None, None)
+
     key = _raw_key(
         settings,
         data_source.source_type,
@@ -440,11 +612,32 @@ def submit_file_ingest(
     session.flush()
     batch.status = IngestBatchStatus.RAW_PERSISTED
     job = _create_job(session, batch, raw, trace_id)
+    _audit(
+        session,
+        AuditEventType.INGEST_BATCH_SUBMITTED,
+        "ingest_batch",
+        batch.id,
+        trace_id,
+        {"idempotency_key": payload.idempotency_key, "object_count": 1},
+    )
+    _audit(
+        session,
+        AuditEventType.RAW_OBJECT_PERSISTED,
+        "raw_object",
+        raw.id,
+        trace_id,
+        {"batch_id": batch.id, "checksum": raw.checksum, "size_bytes": raw.size_bytes},
+    )
     if payload.process_now:
-        asset, version, parse_artifact, ref = _process_raw_object(
-            session, storage, settings, raw, job, mineru, content, None
-        )
-        batch.status = IngestBatchStatus.COMPLETED
+        try:
+            asset, version, parse_artifact, ref = _process_raw_object(
+                session, storage, settings, raw, job, mineru, content, None
+            )
+            batch.status = IngestBatchStatus.COMPLETED
+        except Exception as exc:
+            _fail_pipeline(session, job, batch, raw, job.current_stage or "process", exc, trace_id)
+            session.commit()
+            raise PipelineError("file ingest pipeline failed") from exc
     else:
         asset = version = parse_artifact = ref = None
     session.commit()
@@ -465,6 +658,7 @@ def submit_crawler_package(
         raise ValueError("data_source not found")
 
     content = _json_bytes(payload.package)
+    content_checksum = checksum_value(content)
     batch, created = _find_or_create_batch(
         session,
         payload.data_source_id,
@@ -477,11 +671,51 @@ def submit_crawler_package(
         existing_raw = session.scalar(
             select(models.RawObject).where(models.RawObject.batch_id == batch.id)
         )
-        existing_job = session.scalar(select(models.Job).where(models.Job.ingest_batch_id == batch.id))
+        existing_job = session.scalar(
+            select(models.Job).where(models.Job.ingest_batch_id == batch.id)
+        )
+        if existing_raw is None and existing_job is not None:
+            existing_raw = existing_job.raw_object
         return IngestToAssetResult(batch, existing_raw, existing_job, None, None, None, None)
 
-    package_id = str(payload.package.get("id") or payload.package.get("source_id") or sha256_hex(content)[:16])
-    content_checksum = checksum_value(content)
+    duplicate_raw = session.scalar(
+        select(models.RawObject).where(
+            models.RawObject.data_source_id == data_source.id,
+            models.RawObject.checksum == content_checksum,
+        )
+    )
+    if duplicate_raw is not None:
+        batch.status = IngestBatchStatus.DUPLICATE_SKIPPED
+        batch.summary = {**batch.summary, "duplicate_raw_object_id": duplicate_raw.id}
+        job = _create_job(session, batch, duplicate_raw, trace_id)
+        job.status = JobStatus.SUCCEEDED
+        job.current_stage = "duplicate_skipped"
+        _add_stage(
+            session,
+            job,
+            "duplicate_check",
+            JobStatus.SUCCEEDED,
+            {"duplicate_raw_object_id": duplicate_raw.id},
+        )
+        _audit(
+            session,
+            AuditEventType.INGEST_BATCH_SUBMITTED,
+            "ingest_batch",
+            batch.id,
+            trace_id,
+            {
+                "idempotency_key": payload.idempotency_key,
+                "duplicate_raw_object_id": duplicate_raw.id,
+            },
+        )
+        session.commit()
+        return IngestToAssetResult(batch, duplicate_raw, job, None, None, None, None)
+
+    package_id = str(
+        payload.package.get("id")
+        or payload.package.get("source_id")
+        or sha256_hex(content)[:16]
+    )
     key = _raw_key(
         settings,
         data_source.source_type,
@@ -512,11 +746,32 @@ def submit_crawler_package(
     session.flush()
     batch.status = IngestBatchStatus.RAW_PERSISTED
     job = _create_job(session, batch, raw, trace_id)
+    _audit(
+        session,
+        AuditEventType.INGEST_BATCH_SUBMITTED,
+        "ingest_batch",
+        batch.id,
+        trace_id,
+        {"idempotency_key": payload.idempotency_key, "object_count": 1},
+    )
+    _audit(
+        session,
+        AuditEventType.RAW_OBJECT_PERSISTED,
+        "raw_object",
+        raw.id,
+        trace_id,
+        {"batch_id": batch.id, "checksum": raw.checksum, "size_bytes": raw.size_bytes},
+    )
     if payload.process_now:
-        asset, version, parse_artifact, ref = _process_raw_object(
-            session, storage, settings, raw, job, FakeMinerUAdapter(), content, payload.package
-        )
-        batch.status = IngestBatchStatus.COMPLETED
+        try:
+            asset, version, parse_artifact, ref = _process_raw_object(
+                session, storage, settings, raw, job, FakeMinerUAdapter(), content, payload.package
+            )
+            batch.status = IngestBatchStatus.COMPLETED
+        except Exception as exc:
+            _fail_pipeline(session, job, batch, raw, job.current_stage or "process", exc, trace_id)
+            session.commit()
+            raise PipelineError("crawler ingest pipeline failed") from exc
     else:
         asset = version = parse_artifact = ref = None
     session.commit()
@@ -538,7 +793,11 @@ def list_job_stages(session: Session, job_id: str) -> list[models.JobStage]:
 
 
 def list_assets(session: Session) -> list[models.DocumentAsset]:
-    return list(session.scalars(select(models.DocumentAsset).order_by(models.DocumentAsset.created_at.desc())).all())
+    return list(
+        session.scalars(
+            select(models.DocumentAsset).order_by(models.DocumentAsset.created_at.desc())
+        ).all()
+    )
 
 
 def list_asset_versions(session: Session, asset_id: str) -> list[models.DocumentVersion]:
@@ -548,6 +807,32 @@ def list_asset_versions(session: Session, asset_id: str) -> list[models.Document
             .where(models.DocumentVersion.asset_id == asset_id)
             .order_by(models.DocumentVersion.version_no.desc())
         ).all()
+    )
+
+
+def get_current_version(
+    session: Session, asset_id: str
+) -> models.DocumentVersion | None:
+    return session.scalar(
+        select(models.DocumentVersion)
+        .where(
+            models.DocumentVersion.asset_id == asset_id,
+            models.DocumentVersion.version_status == AssetVersionStatus.AVAILABLE,
+        )
+        .order_by(models.DocumentVersion.created_at.desc())
+    )
+
+
+def get_current_normalized_ref(
+    session: Session, version_id: str
+) -> models.NormalizedAssetRef | None:
+    return session.scalar(
+        select(models.NormalizedAssetRef)
+        .where(
+            models.NormalizedAssetRef.version_id == version_id,
+            models.NormalizedAssetRef.status == NormalizedAssetRefStatus.GENERATED,
+        )
+        .order_by(models.NormalizedAssetRef.created_at.desc())
     )
 
 

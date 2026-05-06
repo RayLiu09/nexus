@@ -13,8 +13,8 @@ Week 2 starts the M1 ingest-to-assetization loop:
 - Fake MinerU adapter for deterministic tests plus real MinerU `/file_parse` adapter and health boundary.
 - Parse artifact records for document inputs.
 - Normalized document / normalized record payloads written through `normalized_asset_ref`.
-- Asset and version records for asset catalog and detail reads.
-- Console M1 static views for workbench, ingest, raw ledger, jobs, assets, and asset detail.
+- Asset and version records for asset catalog and detail reads; M1 marks them `processing` with `m1_ready_for_governance` until Week 3/4 quality, AI governance, and rules decide official `available` / `review_required`.
+- Console M1 live API views for workbench, data sources, ingest, raw ledger, jobs, assets, asset detail, and audit.
 
 ## Review Gate Mapping
 
@@ -22,8 +22,8 @@ Week 2 starts the M1 ingest-to-assetization loop:
 |------|----------|
 | API Contract Gate | `/v1/ingest/files`, `/v1/ingest/crawler-packages`, jobs, normalized refs, parse artifacts, assets, and versions route tests. |
 | Data Model Gate | `nexus-app` models and Alembic migration `20260504_0002_week2_ingest_assetization.py`. |
-| Version State Gate | Job status/stage tests and asset version `processing -> available` M1 transition tests. |
-| Frontend UX Gate | `nexus-console` M1 views reuse shared status labels and P0 pages only. |
+| Version State Gate | Job status/stage tests, failure persistence tests, duplicate handling tests, and M1 `processing + ready_for_governance` version semantics. |
+| Frontend UX Gate | `nexus-console` M1 views reuse shared status labels, call live `/v1` APIs, and keep P0 pages only. |
 | Acceptance Gate | `docs/week2_runbook.md`, backend pytest suites, and M1 query path. |
 
 ## Architecture Drift Checklist
@@ -67,14 +67,29 @@ Commands run on 2026-05-04:
 | Sensitive diff scan | Pass | No `.env.dev` secrets or middleware credentials found in staged worktree diff. |
 | Forbidden pointer scan | Pass | No active model, schema, migration, or API fields for forbidden reverse pointers. |
 
-Additional development-environment evidence on 2026-05-05:
+Additional development-environment evidence:
 
 | Check | Result | Notes |
 |-------|--------|-------|
-| Alembic initialization | Pass | `nexus_dev` upgraded to `20260504_0002 (head)`. |
+| Alembic initialization | Pass | `nexus_dev` upgraded to `20260504_0002 (head)` before review hardening; new hardening migration `20260506_0003` adds audit/read-model constraints. |
 | Live-commerce sample E2E | Pass | `docs/samples` live-commerce textbook content ingested with safe UTF-8 business filename `live-commerce-textbook.docx`. |
-| E2E database state | Pass | Batch `completed`, raw object `raw_persisted`, job `succeeded`, asset/version `available`, parse artifact/ref `generated`. |
+| E2E database state | Pass | Initial E2E produced batch `completed`, raw object `raw_persisted`, job `succeeded`, parse artifact/ref `generated`; review hardening now keeps asset/version `processing` until governance/rules run. |
 | E2E MinIO readback | Pass | Raw object 11,400,205 bytes, parsed artifact 2,107,170 bytes, normalized document 645 bytes all read back from MinIO. |
+| Review hardening migration | Pass | On 2026-05-06, `nexus_dev` upgraded to `20260506_0003 (head)`; `audit_log`, both read-model views, and both partial unique indexes exist. |
+| Console live API integration | Pass | Week 1/2 Console pages now use `NEXUS_API_BASE_URL` and live `/v1` data; `scripts/week2_console_e2e.sh` verifies API objects render in Console. |
+
+Review hardening after Week 2 review:
+
+| Finding | Status | Notes |
+|---------|--------|-------|
+| Premature `available` | Fixed | M1 pipeline now leaves asset/version `processing` and sets `metadata_summary.m1_ready_for_governance=true`. |
+| Failure locatability | Fixed | Pipeline failures persist failed batch/raw/job/stage plus `PipelineFailed` audit summary before raising. |
+| Stage order | Fixed | Document path now records `parse -> normalize -> assetize`. |
+| Duplicate checksum | Fixed | Duplicate content uses `duplicate_skipped` batch/job path without writing a second raw object. |
+| Read models and uniqueness | Fixed | `20260506_0003` adds `asset_current_version_view`, `version_current_normalized_ref_view`, and partial unique indexes for one `available` version / one generated normalized ref. |
+| Direct raw ledger write | Fixed | Public `POST /v1/raw-objects` route removed; raw objects are written through storage-backed ingest paths. |
+| Minimal audit sink | Fixed | `audit_log` captures ingest submission, raw persistence, version status changes, and pipeline failures as redacted summaries. |
+| Console static data | Fixed | Workbench, data source, ingest, raw ledger, job, asset, asset detail, and audit pages now read real `/v1` APIs and expose API error states. |
 
 E2E object IDs:
 
@@ -88,7 +103,5 @@ E2E object IDs:
 
 ## Remaining Work
 
-- Run real reviewed business samples through the MinerU `/file_parse` adapter and calibrate parsing options if needed.
-- Run Alembic migration against the shared development PostgreSQL database.
-- Replace console static M1 data with API calls after the development API server is deployed.
+- Run business-expert-reviewed samples through the MinerU `/file_parse` adapter and calibrate normalized document extraction. The live-commerce technical E2E proved the path but did not replace business sample approval.
 - RAGFlow indexing, AI governance, rule guardrails, search, QA, and permission audit are later stages.

@@ -249,9 +249,9 @@ Week 1 implements only the bolded minimal endpoints. The remaining paths are fro
 | POST | `/v1/ingest/batches` | Yes | Create ingest batch metadata. |
 | GET | `/v1/ingest/batches` | Yes | List ingest batches. |
 | GET | `/v1/ingest/batches/{batch_id}` | Yes | Get ingest batch. |
-| POST | `/v1/raw-objects` | Yes | Create raw object ledger row for existing object URI. |
 | GET | `/v1/raw-objects` | Yes | List raw objects. |
 | GET | `/v1/raw-objects/{raw_object_id}` | Yes | Get raw object. |
+| GET | `/v1/ingest/batches/{batch_id}/raw-objects` | No | List raw objects created by an ingest batch. |
 | POST | `/v1/ingest/files` | No | Submit file upload and raw persistence. |
 | POST | `/v1/ingest/crawler-packages` | No | Submit crawler JSON package. |
 
@@ -334,7 +334,7 @@ Every audit event must carry `trace_id`, actor or caller context, target resourc
 ## 7. Week 2 M1 Demo Path Draft
 
 1. Create local org unit, platform user, API caller, and data source.
-2. Submit an ingest batch for a D4 static document and create raw object ledger metadata with checksum and object URI.
+2. Submit a storage-backed ingest request for a D4 static document; the pipeline creates raw object ledger metadata with checksum and object URI.
 3. View batch and raw object from raw ledger.
 4. View job state placeholders from job center once Week 2 job orchestration is added.
 5. Produce or simulate normalized reference and asset version.

@@ -1,7 +1,21 @@
+import { ApiState } from "@/components/ApiState";
 import { StatusLabel } from "@/components/StatusLabel";
-import { jobStages, week2Demo } from "@/lib/week2-demo";
+import { formatDateTime, getApiData, shortId, type Job, type JobStage } from "@/lib/api";
 
-export default function JobsPage() {
+export const dynamic = "force-dynamic";
+
+async function loadStages(jobs: Job[]) {
+  const firstJob = jobs[0];
+  if (!firstJob) {
+    return getApiData<JobStage[]>("/v1/jobs/-/stages", []);
+  }
+  return getApiData<JobStage[]>(`/v1/jobs/${firstJob.id}/stages`, []);
+}
+
+export default async function JobsPage() {
+  const jobs = await getApiData<Job[]>("/v1/jobs", []);
+  const stages = jobs.ok ? await loadStages(jobs.data) : await loadStages([]);
+
   return (
     <section className="page-section">
       <div className="page-heading">
@@ -12,6 +26,8 @@ export default function JobsPage() {
         </div>
       </div>
 
+      <ApiState ok={jobs.ok} error={jobs.error} traceId={jobs.traceId} />
+
       <div className="table-frame">
         <div className="table-row table-head">
           <span>作业ID</span>
@@ -21,14 +37,22 @@ export default function JobsPage() {
           <span>状态</span>
           <span>创建时间</span>
         </div>
-        <div className="table-row">
-          <span>{week2Demo.jobId}</span>
-          <span>ingest_process</span>
-          <span>{week2Demo.rawObjectId}</span>
-          <span>completed</span>
-          <StatusLabel value="succeeded" />
-          <span>{week2Demo.createdAt}</span>
-        </div>
+        {jobs.data.length ? (
+          jobs.data.map((job) => (
+            <div className="table-row" key={job.id}>
+              <span>{shortId(job.id)}</span>
+              <span>{job.job_type}</span>
+              <span>{shortId(job.raw_object_id)}</span>
+              <span>{job.current_stage ?? "-"}</span>
+              <StatusLabel value={job.status} />
+              <span>{formatDateTime(job.created_at)}</span>
+            </div>
+          ))
+        ) : (
+          <div className="empty-state">
+            <strong>暂无真实作业</strong>
+          </div>
+        )}
       </div>
 
       <div className="table-frame">
@@ -39,15 +63,21 @@ export default function JobsPage() {
           <span>输出对象</span>
           <span>状态</span>
         </div>
-        {jobStages.map((stage) => (
-          <div className="table-row" key={stage.label}>
-            <span>{stage.label}</span>
-            <span>{stage.values[0]}</span>
-            <span>{stage.values[1]}</span>
-            <span>{stage.values[2]}</span>
-            {stage.status ? <StatusLabel value={stage.status} /> : <span />}
+        {stages.data.length ? (
+          stages.data.map((stage) => (
+            <div className="table-row" key={stage.id}>
+              <span>{shortId(stage.id)}</span>
+              <span>{stage.stage_name}</span>
+              <span>{shortId(stage.job_id)}</span>
+              <span className="mono-cell">{JSON.stringify(stage.detail)}</span>
+              <StatusLabel value={stage.status} />
+            </div>
+          ))
+        ) : (
+          <div className="empty-state">
+            <strong>暂无阶段记录</strong>
           </div>
-        ))}
+        )}
       </div>
     </section>
   );

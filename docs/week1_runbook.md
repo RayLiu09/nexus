@@ -64,9 +64,10 @@ Week 1 implemented routes:
 - `POST /v1/ingest/batches`
 - `GET /v1/ingest/batches`
 - `GET /v1/ingest/batches/{batch_id}`
-- `POST /v1/raw-objects`
 - `GET /v1/raw-objects`
 - `GET /v1/raw-objects/{raw_object_id}`
+
+Week 1 originally exposed raw object ledger scaffolding for development visibility. After the Week 2 review, public raw object creation is intentionally not exposed; raw objects must be created through storage-backed ingest submission, while read-only ledger endpoints remain available for tracing.
 
 ## Frontend
 

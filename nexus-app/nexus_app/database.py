@@ -32,5 +32,5 @@ def get_session_local() -> sessionmaker[Session]:
 
 
 def get_db() -> Generator[Session, None, None]:
-    with get_session_local() as session:
+    with get_session_local()() as session:
         yield session
