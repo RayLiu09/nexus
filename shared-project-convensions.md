@@ -52,6 +52,16 @@
 
 版本化的目的不是形式化管理，而是保证决策可追溯、反馈可回放、方案演进有上下文。
 
+### 1.4 架构文档版本归档规则
+
+架构文档版本演进时遵循以下约定：
+
+- 旧版本归档至 `docs/archived/`，文件名保留原版本号，不删除。
+- `ARCHTECT.md` 始终指向当前有效版本，文件头标注版本号和源文档路径。
+- 新版本在正文中包含"Key Changes from 上一版本"变更表，列明每条变更的分类和内容。
+- 更新 `ARCHTECT.md` 时同步补充新引入的架构约束（如接入层 Adapter 规则、存储 Key 命名规则等）。
+- 旧版本契约不得在代码或测试中继续引用；切换版本时需检查是否存在旧版本残留引用。
+
 ## 2. 文档工作习惯
 
 ### 2.1 文档之间必须相互对齐
@@ -344,7 +354,47 @@ docs/task-packages/wk_<week>_task_package.md
 - P0 核心 UX。
 - 里程碑和最终验收。
 
-### 7.2 Review 重点不是代码风格
+### 7.2 分层 Review 模式
+
+复杂系统的人工 Review 应按关注点分层推进，而不是一次性全量 Review：
+
+典型分层顺序（以数据平台为例）：
+
+```text
+第一层：数据契约（枚举、模型字段、命名、约束、状态机）
+  -> 第二层：接入层（幂等、去重、Adapter 边界、存储 Key 设计）
+  -> 第三层：流水线层（阶段划分、错误分类、重试策略、事务边界）
+  -> 第四层：治理层（AI 输入、规则护栏、状态流转、审计事件）
+  -> 第五层：API 和前后端契约（路由、Schema、错误码、状态语义）
+```
+
+说明：
+
+- 每层 Review 完成后才进入下一层，避免底层问题传导导致上层返工。
+- 每次 Review 后应更新 `docs/Human_Review_Feedbacks.md`（见 §7.3）。
+- 不同项目可根据实际情况调整分层顺序和粒度，但分层原则保持。
+
+### 7.3 Review Feedback 文档约定
+
+项目根目录 `docs/Human_Review_Feedbacks.md` 是人工 Review 意见的持久化记录，每次 Review 后必须更新。
+
+文件结构：
+
+- 每次 Review 为一个独立章节，标注时间和审查范围。
+- 每条意见包含：原始意见引用、处置动作、理由。
+- 处置动作分三类：
+  - **Action: 已实施** — 按意见修改了代码/文档，说明具体改动和相关文件。
+  - **Action: 保持不变** — 经评估决定维持现状，必须附上充分理由（"保持不变"不等于忽略意见）。
+  - **Action: 延期到 wk_N** — 认可意见但推迟处理，说明推迟原因和规划的任务包。
+- 文件末尾标注最后更新时间（"最后更新：YYYY-MM-DD（Review N 完成后）"）。
+
+维护规则：
+
+- AI Agent 不得在没有人工确认的情况下将意见标记为"保持不变"。
+- 每次 Review 后当次 commit 应包含 `Human_Review_Feedbacks.md` 的更新。
+- 文件随项目版本一起纳入 git 管理。
+
+### 7.4 Review 重点不是代码风格
 
 人工 Review 重点是：
 
@@ -395,7 +445,33 @@ API 默认遵循 RESTful 风格：
 
 ## 9. 技术栈与依赖管理习惯
 
-### 9.1 Python 依赖统一使用 uv
+### 9.1 Git Commit Message 约定
+
+commit message 应简要说明本次变更的意图和范围，不追加变更文件列表（文件列表由 `git diff` 或 `git show` 获取，写入 message 是冗余信息）。
+
+格式约定：
+
+```text
+<type>: <一句话说明变更意图>
+
+<可选正文：补充背景、设计决策或不可从代码直接读出的原因>
+```
+
+常用 type：`feat`（新功能）、`fix`（缺陷修复）、`refactor`（重构）、`docs`（文档）、`test`（测试）、`chore`（工程配置）。
+
+示例（正确）：
+
+```text
+refactor: adapter pattern for ingest gateway, eliminate duplicate submit logic
+```
+
+示例（错误，不要这样写）：
+
+```text
+update files: gateway.py, adapter_base.py, adapter_file.py, adapter_crawler.py, enums.py
+```
+
+### 9.2 Python 依赖统一使用 uv
 
 Python 技术栈默认统一采用 `uv` 进行依赖包管理。
 
@@ -538,6 +614,11 @@ Python 技术栈默认统一采用 `uv` 进行依赖包管理。
 - 控制面内部 API 对外充当业务 API。
 - 里程碑只讲进度而无演示证据。
 - Python 项目中绕过 uv 引入另一套依赖管理方式，除非用户明确要求。
+- git commit message 中追加变更文件列表（文件列表属于 git diff，不属于 commit message）。
+- Review 意见标记为"保持不变"但不附理由。
+- 架构版本升级后不归档旧版本、不更新 ARCHTECT.md 指向。
+- Review 完成后不更新 `docs/Human_Review_Feedbacks.md`。
+- 一次性对所有层级展开全量 Review 而不按层推进。
 
 ## 14. 推荐的默认项目推进模板
 
