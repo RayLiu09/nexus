@@ -1,6 +1,17 @@
-# NEXUS Architecture Contract v2.5
+# NEXUS Architecture Contract v2.6
 
-This document is a concise architecture baseline for implementation. It is distilled from `docs/企业数据与知识资产平台技术选型和架构nexus_v2.5.md` (v2.4 archived to `docs/archived/`).
+This document is a concise architecture baseline for implementation. It is distilled from `docs/企业数据与知识资产平台技术选型和架构nexus_v2.6.md` (v2.4 and v2.5 archived to `docs/archived/`).
+
+## v2.6 Key Changes From v2.5
+
+| Change | v2.5 | v2.6 |
+|--------|------|------|
+| `raw_object` scope | Binary files only (implicit) | Unified: covers both binary files (`file_upload`/`nas`) and serialized JSON packages (`crawler`/`database`/`webhook`); `mime_type` reflects actual content format |
+| Processing pipelines | Implicit, runtime-inferred by `asset_kind_for()` | Formally named: Pipeline A (Document Processing) and Pipeline B (Record Processing); routing stored in `Job.payload.pipeline_type` at job creation |
+| Pipeline routing | Runtime inference | Determined at job creation from `DataSource.source_type` + `raw_object.mime_type`; stored in `Job.payload.pipeline_type`; Worker reads from payload |
+| Asset model naming | `document_asset` / `document_version` (concept + table) | Concepts renamed to `asset` / `asset_version`; table names (`document_asset`, `document_version`) unchanged pending migration |
+| Asset identity | `source_object_key` not formalized | `asset` idempotency anchor is `(data_source_id, source_object_key)`; for documents = upload idempotency key; for records = canonical record key |
+| Re-versioning rule | Not formally defined; code may create new `asset` on re-ingest | Same `source_object_key` + different checksum → new `asset_version` (version_no+1), old version archived; same checksum → idempotent skip |
 
 ## Architecture Goal
 
@@ -8,7 +19,7 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
 
 The P0 architecture optimizes for private deployment, local identity control, traceability, reduced manual review, replaceable external engines, and **minimum infrastructure footprint for small-to-medium data asset scale**.
 
-## v2.5 Key Changes From v2.4
+## v2.5 Key Changes From v2.4 (retained for history)
 
 | Change | v2.4 | v2.5 |
 |--------|------|------|
@@ -67,7 +78,7 @@ The P0 architecture optimizes for private deployment, local identity control, tr
 
 1. Source and access layer: console, API callers, crawler push, NAS/batch upload.
 2. Raw persistence layer: MinIO `raw/`, `staging/`, `parsed/`, `normalized/`; PostgreSQL ledgers and checksums.
-3. Job and processing layer: `job-orchestrator`, PostgreSQL job queue + Worker poller (P0) / RabbitMQ + Celery (scale-up), parse workers, `normalize-service`.
+3. Job and processing layer: `job-orchestrator`, PostgreSQL job queue + Worker poller (P0) / RabbitMQ + Celery (scale-up), two processing pipelines: **Pipeline A (Document Processing Pipeline)** for file/NAS sources via MinerU, **Pipeline B (Record Processing Pipeline)** for crawler/database/webhook JSON sources without MinerU.
 4. Standardization and governance layer: `normalized_document`, `normalized_record`, `metadata-service.ai-governance`, `metadata-enrich`, `governance-rule`.
 5. Master data layer: `metadata-service` for assets, versions, governance results (with embedded quality summary and decision trail), read models.
 6. Index, permission, and service layer: `ragflow-adapter`, RAGFlow, `search-service`, `iam-audit-service`, `nexus-api`.
@@ -97,15 +108,16 @@ The P0 architecture optimizes for private deployment, local identity control, tr
 
 Required P0 objects:
 
-`org_unit`, `user_account`, `api_caller`, `data_source`, `ingest_batch`, `raw_object`, `document_asset`, `document_version`, `parse_artifact`, `normalized_asset_ref`, `ai_prompt_profile`, `ai_governance_run`, `governance_rule_set`, `governance_rule`, `governance_result`, `knowledge_chunk`, `index_manifest`, `job`, `audit_log`.
+`org_unit`, `user_account`, `api_caller`, `data_source`, `ingest_batch`, `raw_object`, **`asset` (table name `document_asset`, pending migration)**, **`asset_version` (table name `document_version`, pending migration)**, `parse_artifact`, `normalized_asset_ref`, `ai_prompt_profile`, `ai_governance_run`, `governance_rule_set`, `governance_rule`, `governance_result`, `knowledge_chunk`, `index_manifest`, `job`, `audit_log`.
 
 Removed from v2.2: `quality_report` (embedded in `governance_result.quality_summary`), `governance_decision_log` (embedded in `governance_result.decision_trail`).
 
 Modeling constraints:
 
-- `document_asset` is the long-lived asset identity and does not store current version.
-- `document_version` is the processing, governance, and index boundary and does not store normalized reference.
+- `asset` is the logical asset entity identified by `(data_source_id, source_object_key)` and does not store current version. For documents, `source_object_key` is the upload idempotency key; for records, it is the canonical record key (e.g., `policy_id`).
+- `asset_version` is the processing, governance, and index boundary and does not store normalized reference.
 - `normalized_asset_ref.version_id` is the only relation from standardization result to version.
+- `parse_artifact` exists only for Pipeline A (document pipeline); `asset_version` records for Pipeline B (record pipeline) have zero associated `parse_artifact` rows.
 - `governance_result` is the authoritative governance conclusion per version; it contains `quality_summary` (JSONB) and `decision_trail` (JSONB) instead of separate entities.
 - Use read models such as `asset_current_version_view` and `version_current_normalized_ref_view` for current-state queries.
 - Use partial unique constraints to enforce one effective/current record where needed.
@@ -119,7 +131,7 @@ Data source default level constraints:
 
 ## Version State Contract
 
-Allowed `document_version.version_status` values:
+Allowed `asset_version.version_status` values (table: `document_version`, pending rename):
 
 | Status | Meaning | Searchable |
 |--------|---------|------------|
@@ -172,13 +184,13 @@ Rule execution order:
 
 ## Core Flows
 
-Document ingestion:
+Pipeline A (Document Processing — `file_upload`, `nas`):
 
-`upload -> raw_object -> job (PG queue) -> MinerU parse -> normalized_document -> normalized_asset_ref -> AI governance (ai_governance_run) -> rules -> governance_result (quality_summary + decision_trail) -> available/review_required -> RAGFlow index`.
+`upload -> raw_object (binary) -> Job(pipeline_type="document") -> MinerU parse -> parse_artifact -> normalized_document -> normalized_asset_ref(type=document) -> asset/asset_version -> AI governance -> rules -> governance_result -> available/review_required -> RAGFlow index`.
 
-Structured/crawler ingestion:
+Pipeline B (Record Processing — `crawler`, `database`, `webhook`):
 
-`crawler/webhook/batch -> raw_object JSON -> normalized_record -> normalized_asset_ref -> AI governance -> rules -> governance_result -> index`.
+`crawler/webhook/batch -> raw_object (JSON package) -> Job(pipeline_type="record") -> [no MinerU] -> normalized_record -> normalized_asset_ref(type=record) -> asset/asset_version -> AI governance -> rules -> governance_result -> index`.
 
 Retrieval and QA:
 
@@ -222,6 +234,28 @@ Rule change, Prompt update, LiteLLM alias change, parse failure, index failure, 
 P0 required infrastructure: PostgreSQL, MinIO, RAGFlow, MinerU, LiteLLM (existing platform). Redis and RabbitMQ are optional scale-up components.
 
 Single-node deployment may co-locate control, processing, and search adapters for pilot use. Three-node deployment separates control/metadata, parsing/standardization, and retrieval/indexing. LiteLLM remains an existing external platform and is not part of NEXUS node deployment.
+
+## Two Processing Pipelines (v2.6)
+
+Pipeline routing is determined at Job creation time and stored in `Job.payload.pipeline_type`. Workers read the payload value; they do not call runtime inference functions.
+
+| `DataSource.source_type` | `raw_object.mime_type` | `pipeline_type` |
+|--------------------------|------------------------|-----------------|
+| `file_upload`, `nas` | non-`application/json` | `"document"` |
+| `file_upload`, `nas` | `application/json` | `"record"` |
+| `crawler`, `database`, `webhook` | any | `"record"` |
+
+**Pipeline A — Document Processing:**
+- Applies to `file_upload`, `nas`, and non-JSON file sources.
+- Stages: ingest → assetize → **parse** (MinerU → `parse_artifact`) → normalize (`normalized_document`) → govern → index.
+- Produces: `parse_artifact`, `normalized_asset_ref(type=document)`.
+
+**Pipeline B — Record Processing:**
+- Applies to `crawler`, `database`, `webhook`, and JSON-MIME sources.
+- Stages: ingest → assetize → normalize (`normalized_record`) → govern → index. **No MinerU call, no `parse_artifact`.**
+- Produces: `normalized_asset_ref(type=record)`.
+
+Both pipelines share the same `asset`/`asset_version` model (distinguished by `asset_kind`), the same version state machine, and the same audit event requirements (`INGEST_BATCH_SUBMITTED`, `RAW_OBJECT_PERSISTED`, `VERSION_STATUS_CHANGED`, `PIPELINE_FAILED`).
 
 ## Ingest Layer Architecture (v2.5)
 
