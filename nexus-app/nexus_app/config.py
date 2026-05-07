@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     )
 
     app_env: str = "dev"
-    app_name: str = "NEXUS API"
+    app_name: str = "NEXUS Platform"
     nexus_env: str = "development"
     log_level: str = "INFO"
 
