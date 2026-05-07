@@ -5,9 +5,12 @@ from nexus_app.enums import (
     IngestBatchStatus,
     IndexStatus,
     JobStatus,
+    OrgUnitStatus,
+    PrincipalStatus,
     PromptProfileStatus,
     RawObjectStatus,
     RuleSetStatus,
+    StageStatus,
 )
 
 
@@ -36,3 +39,19 @@ def test_week1_shared_status_values_are_available():
     assert "active" in values(PromptProfileStatus)
     assert "draft" not in values(PromptProfileStatus)
     assert "enabled" in values(DataSourceStatus)
+
+
+def test_org_unit_status_has_no_archived():
+    assert values(OrgUnitStatus) == {"active", "disabled"}
+    assert "archived" not in values(OrgUnitStatus)
+
+
+def test_principal_status_has_no_archived():
+    assert values(PrincipalStatus) == {"active", "disabled"}
+    assert "archived" not in values(PrincipalStatus)
+
+
+def test_stage_status_is_restricted_to_execution_states():
+    assert values(StageStatus) == {"running", "succeeded", "failed"}
+    assert "queued" not in values(StageStatus)
+    assert "dead_lettered" not in values(StageStatus)

@@ -16,6 +16,7 @@ from nexus_app.enums import (
     IngestBatchStatus,
     JobStatus,
     RawObjectStatus,
+    StageStatus,
 )
 from nexus_app.mineru import MinerUAdapter, get_mineru_adapter
 from nexus_app.models import utcnow
@@ -66,7 +67,7 @@ def _add_failure_stage(session: Session, job: models.Job, stage_name: str, reaso
     stage = models.JobStage(
         job_id=job.id,
         stage_name=stage_name,
-        status=JobStatus.FAILED,
+        status=StageStatus.FAILED,
         started_at=now,
         finished_at=now,
         failure_reason=reason[:2000],

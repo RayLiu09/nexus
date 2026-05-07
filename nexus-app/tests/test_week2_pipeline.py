@@ -2,7 +2,7 @@ import base64
 
 from nexus_app import models, pipeline, services
 from nexus_app.config import get_settings
-from nexus_app.enums import AssetVersionStatus, IngestBatchStatus, JobStatus, NormalizedType
+from nexus_app.enums import AssetVersionStatus, IngestBatchStatus, JobStatus, NormalizedType, StageStatus
 from nexus_app.ingest import gateway as ingest_gateway
 from nexus_app.mineru import FakeMinerUAdapter
 from nexus_app.schemas import CrawlerPackageSubmit, DataSourceCreate, IngestFileSubmit
@@ -196,7 +196,7 @@ def test_file_ingest_failure_is_persisted_on_job_and_stage(session):
     assert len(versions) == 1
     assert versions[0].version_status == AssetVersionStatus.FAILED
     assert versions[0].asset.status == AssetVersionStatus.FAILED
-    assert stages[-1].status == JobStatus.FAILED
+    assert stages[-1].status == StageStatus.FAILED
 
 
 def test_week2_forbidden_reverse_pointers_are_not_present():

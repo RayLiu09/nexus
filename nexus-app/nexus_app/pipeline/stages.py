@@ -10,7 +10,7 @@ from nexus_app.enums import (
     AssetVersionStatus,
     AuditEventType,
     DataSourceType,
-    JobStatus,
+    StageStatus,
     NormalizedAssetRefStatus,
     NormalizedType,
     ParseArtifactStatus,
@@ -23,7 +23,7 @@ from nexus_app.storage import checksum_value
 def _add_stage(
     ctx: PipelineContext,
     stage_name: str,
-    status: JobStatus,
+    status: StageStatus,
     detail: dict[str, Any] | None = None,
     failure_reason: str | None = None,
 ) -> models.JobStage:
@@ -33,7 +33,7 @@ def _add_stage(
         stage_name=stage_name,
         status=status,
         started_at=now,
-        finished_at=now if status in {JobStatus.SUCCEEDED, JobStatus.FAILED} else None,
+        finished_at=now if status in {StageStatus.SUCCEEDED, StageStatus.FAILED} else None,
         failure_reason=failure_reason,
         detail=detail or {},
     )
@@ -108,7 +108,7 @@ def run_assetize(
     _add_stage(
         ctx,
         "assetize",
-        JobStatus.SUCCEEDED,
+        StageStatus.SUCCEEDED,
         {"asset_id": asset.id, "version_id": version.id},
     )
     return asset, version
@@ -151,7 +151,7 @@ def run_parse(
     _add_stage(
         ctx,
         "parse",
-        JobStatus.SUCCEEDED,
+        StageStatus.SUCCEEDED,
         {"parse_artifact_id": artifact.id, "artifact_uri": artifact.artifact_uri},
     )
     return artifact
@@ -270,7 +270,7 @@ def run_normalize(
     _add_stage(
         ctx,
         "normalize",
-        JobStatus.SUCCEEDED,
+        StageStatus.SUCCEEDED,
         {"normalized_ref_id": ref.id, "normalized_uri": ref.object_uri},
     )
     return ref

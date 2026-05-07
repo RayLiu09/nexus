@@ -41,7 +41,7 @@ def _find_or_create_batch(
     data_source_id: str,
     idempotency_key: str,
     source_type: DataSourceType,
-    submitted_by_user_id: str | None,
+    owner_user_id: str | None,
     summary: dict[str, Any],
 ) -> tuple[models.IngestBatch, bool]:
     existing = session.scalar(
@@ -58,7 +58,7 @@ def _find_or_create_batch(
         idempotency_key=idempotency_key,
         source_type=source_type,
         status=IngestBatchStatus.SUBMITTED,
-        submitted_by_user_id=submitted_by_user_id,
+        owner_user_id=owner_user_id,
         summary=summary,
     )
     session.add(batch)
@@ -111,7 +111,7 @@ def submit_file_ingest(
         payload.data_source_id,
         payload.idempotency_key,
         data_source.source_type,
-        payload.submitted_by_user_id,
+        payload.owner_user_id,
         {"filename": payload.filename, "object_count": 1},
     )
     if not created:
@@ -235,7 +235,7 @@ def submit_crawler_package(
         payload.data_source_id,
         payload.idempotency_key,
         data_source.source_type,
-        payload.submitted_by_user_id,
+        payload.owner_user_id,
         {"object_count": 1, "package_type": "crawler_json"},
     )
     if not created:

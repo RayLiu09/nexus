@@ -17,9 +17,11 @@ from nexus_app.enums import (
     JobType,
     NormalizedAssetRefStatus,
     NormalizedType,
+    OrgUnitStatus,
     ParseArtifactStatus,
     PrincipalStatus,
     RawObjectStatus,
+    StageStatus,
     UserRole,
 )
 
@@ -50,9 +52,9 @@ class OrgUnit(TimestampMixin, Base):
     parent_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("org_unit.id"), nullable=True
     )
-    status: Mapped[PrincipalStatus] = mapped_column(
-        Enum(PrincipalStatus, values_callable=lambda enum: [item.value for item in enum]),
-        default=PrincipalStatus.ACTIVE,
+    status: Mapped[OrgUnitStatus] = mapped_column(
+        Enum(OrgUnitStatus, values_callable=lambda enum: [item.value for item in enum]),
+        default=OrgUnitStatus.ACTIVE,
         nullable=False,
     )
 
@@ -90,11 +92,7 @@ class ApiCaller(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     org_scope: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     permission_scope: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
-    status: Mapped[PrincipalStatus] = mapped_column(
-        Enum(PrincipalStatus, values_callable=lambda enum: [item.value for item in enum]),
-        default=PrincipalStatus.ACTIVE,
-        nullable=False,
-    )
+    expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     owner_user_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("user_account.id"), nullable=True
     )
@@ -149,13 +147,13 @@ class IngestBatch(TimestampMixin, Base):
         default=IngestBatchStatus.SUBMITTED,
         nullable=False,
     )
-    submitted_by_user_id: Mapped[str | None] = mapped_column(
+    owner_user_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("user_account.id"), nullable=True
     )
     summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
     data_source: Mapped[DataSource] = relationship()
-    submitted_by_user: Mapped[UserAccount | None] = relationship()
+    owner_user: Mapped[UserAccount | None] = relationship()
 
 
 class RawObject(TimestampMixin, Base):
@@ -267,8 +265,8 @@ class JobStage(TimestampMixin, Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     job_id: Mapped[str] = mapped_column(String(36), ForeignKey("job.id"), nullable=False)
     stage_name: Mapped[str] = mapped_column(String(80), nullable=False)
-    status: Mapped[JobStatus] = mapped_column(
-        Enum(JobStatus, values_callable=lambda enum: [item.value for item in enum]),
+    status: Mapped[StageStatus] = mapped_column(
+        Enum(StageStatus, values_callable=lambda enum: [item.value for item in enum]),
         nullable=False,
     )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

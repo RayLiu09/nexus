@@ -13,9 +13,11 @@ from nexus_app.enums import (
     JobType,
     NormalizedAssetRefStatus,
     NormalizedType,
+    OrgUnitStatus,
     ParseArtifactStatus,
     PrincipalStatus,
     RawObjectStatus,
+    StageStatus,
     UserRole,
 )
 
@@ -28,7 +30,7 @@ class OrgUnitCreate(BaseModel):
     code: str = Field(min_length=1, max_length=64)
     name: str = Field(min_length=1, max_length=128)
     parent_id: str | None = None
-    status: PrincipalStatus = PrincipalStatus.ACTIVE
+    status: OrgUnitStatus = OrgUnitStatus.ACTIVE
 
 
 class OrgUnitRead(ORMModel):
@@ -36,7 +38,7 @@ class OrgUnitRead(ORMModel):
     code: str
     name: str
     parent_id: str | None
-    status: PrincipalStatus
+    status: OrgUnitStatus
     created_at: datetime
     updated_at: datetime
 
@@ -68,7 +70,7 @@ class ApiCallerCreate(BaseModel):
     org_scope: list[str] = Field(default_factory=list)
     permission_scope: list[str] = Field(default_factory=list)
     owner_user_id: str | None = None
-    status: PrincipalStatus = PrincipalStatus.ACTIVE
+    expired_at: datetime | None = None
 
 
 class ApiCallerRead(ORMModel):
@@ -78,7 +80,7 @@ class ApiCallerRead(ORMModel):
     org_scope: list[str]
     permission_scope: list[str]
     owner_user_id: str | None
-    status: PrincipalStatus
+    expired_at: datetime | None
     created_at: datetime
     updated_at: datetime
 
@@ -112,7 +114,7 @@ class IngestBatchCreate(BaseModel):
     data_source_id: str
     idempotency_key: str = Field(min_length=1, max_length=128)
     source_type: DataSourceType
-    submitted_by_user_id: str | None = None
+    owner_user_id: str | None = None
     summary: dict[str, Any] = Field(default_factory=dict)
     status: IngestBatchStatus = IngestBatchStatus.SUBMITTED
 
@@ -123,7 +125,7 @@ class IngestBatchRead(ORMModel):
     idempotency_key: str
     source_type: DataSourceType
     status: IngestBatchStatus
-    submitted_by_user_id: str | None
+    owner_user_id: str | None
     summary: dict[str, Any]
     created_at: datetime
     updated_at: datetime
@@ -175,7 +177,7 @@ class JobStageRead(ORMModel):
     id: str
     job_id: str
     stage_name: str
-    status: JobStatus
+    status: StageStatus
     started_at: datetime | None
     finished_at: datetime | None
     failure_reason: str | None
@@ -278,7 +280,7 @@ class IngestFileSubmit(BaseModel):
     content_base64: str = Field(min_length=1)
     content_type: str = Field(default="application/octet-stream", max_length=128)
     source_uri: str | None = Field(default=None, max_length=1024)
-    submitted_by_user_id: str | None = None
+    owner_user_id: str | None = None
 
 
 class CrawlerPackageSubmit(BaseModel):
@@ -286,7 +288,7 @@ class CrawlerPackageSubmit(BaseModel):
     idempotency_key: str = Field(min_length=1, max_length=128)
     package: dict[str, Any]
     source_uri: str | None = Field(default=None, max_length=1024)
-    submitted_by_user_id: str | None = None
+    owner_user_id: str | None = None
 
 
 class IngestAcceptedRead(BaseModel):

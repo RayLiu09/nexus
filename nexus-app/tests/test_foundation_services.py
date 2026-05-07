@@ -61,7 +61,7 @@ def test_ingest_batch_idempotency_constraint(session):
         data_source_id=source.id,
         idempotency_key="same-key",
         source_type="file_upload",
-        submitted_by_user_id=user.id,
+        owner_user_id=user.id,
     )
 
     first = services.create_ingest_batch(session, payload)
@@ -79,7 +79,7 @@ def test_raw_object_checksum_constraint(session):
             data_source_id=source.id,
             idempotency_key="checksum-batch",
             source_type="file_upload",
-            submitted_by_user_id=user.id,
+            owner_user_id=user.id,
         ),
     )
     first = services.create_raw_object(
