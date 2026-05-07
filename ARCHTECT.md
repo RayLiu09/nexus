@@ -1,6 +1,6 @@
-# NEXUS Architecture Contract v2.4
+# NEXUS Architecture Contract v2.5
 
-This document is a concise architecture baseline for implementation. It is distilled from `docs/企业数据与知识资产平台技术选型和架构nexus_v2.4.md`.
+This document is a concise architecture baseline for implementation. It is distilled from `docs/企业数据与知识资产平台技术选型和架构nexus_v2.5.md` (v2.4 archived to `docs/archived/`).
 
 ## Architecture Goal
 
@@ -8,7 +8,22 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
 
 The P0 architecture optimizes for private deployment, local identity control, traceability, reduced manual review, replaceable external engines, and **minimum infrastructure footprint for small-to-medium data asset scale**.
 
-## v2.4 Key Changes From v2.3
+## v2.5 Key Changes From v2.4
+
+| Change | v2.4 | v2.5 |
+|--------|------|------|
+| `OrgUnit.status` enum | Reused `PrincipalStatus` | New `OrgUnitStatus` (`active`, `disabled`) — decoupled from `PrincipalStatus` |
+| `PrincipalStatus` | `active`, `disabled`, `archived` | `archived` removed; `UserAccount` has no archival concept |
+| `ApiCaller.status` | `status` enum field | Replaced by `expired_at: datetime | None`; null = never expires |
+| `IngestBatch` submitter field | `submitted_by_user_id` | Renamed to `owner_user_id` for naming consistency |
+| `JobStage.status` | Reused `JobStatus` | New `StageStatus` (`running`, `succeeded`, `failed`) — stages have no queued/dead-lettered states |
+| Ingest gateway | Duplicate logic in `submit_file_ingest` and `submit_crawler_package` | Adapter pattern (`IngestAdapter` protocol + `PreparedContent`); each source type in its own file; single `_submit_ingest()` |
+| Cross-source dedup | Not tracked | Audit event `CrossSourceDuplicateDetected` written when same checksum found in a different `data_source`; does not block ingestion |
+| Job polling | Full table scan | Partial index `WHERE status='queued'` on `job` table |
+| Worker idle | Safety-net polling | PostgreSQL LISTEN/NOTIFY pull via `pg_notify('nexus_jobs')` + `JobNotifier`; SQLite fallback to polling |
+| Multi-raw batch | Not explicitly scoped | P0 main scenario; design in `wk_5_task_package.md` |
+
+## v2.4 Key Changes From v2.3 (retained for history)
 
 | Change | v2.3 | v2.4 |
 |--------|------|------|
@@ -16,7 +31,6 @@ The P0 architecture optimizes for private deployment, local identity control, tr
 | Single-node capacity | PostgreSQL queue scale-up trigger was coarse | Recommended 8-12 active pipeline jobs, hard P0 limit 16; MinerU parse jobs 2-4 concurrent |
 | Default imported data level | L1-L4 governance levels exist, but default source level was not explicit | Imported data sources default to L1/L2; L3/L4 are explicit exceptions only |
 | MQ upgrade trigger | Throughput bottleneck, previously described as typically >500 concurrent parse jobs | Upgrade when active jobs stay >16, queue wait P95 >5 minutes for 3 days, or route/dead-letter needs exceed PG poller |
-| v2.3 simplifications | Quality summary, decision trail, Prompt lifecycle, rule lifecycle, Redis/ABAC scope were simplified | Preserved; v2.4 clarifies implementation and capacity boundaries |
 
 ## System Boundaries
 
@@ -208,6 +222,29 @@ Rule change, Prompt update, LiteLLM alias change, parse failure, index failure, 
 P0 required infrastructure: PostgreSQL, MinIO, RAGFlow, MinerU, LiteLLM (existing platform). Redis and RabbitMQ are optional scale-up components.
 
 Single-node deployment may co-locate control, processing, and search adapters for pilot use. Three-node deployment separates control/metadata, parsing/standardization, and retrieval/indexing. LiteLLM remains an existing external platform and is not part of NEXUS node deployment.
+
+## Ingest Layer Architecture (v2.5)
+
+The ingest gateway uses the `IngestAdapter` protocol to unify source-specific content preparation:
+
+- `PreparedContent` dataclass: `content`, `filename`, `mime_type`, `source_uri`, `raw_metadata`, `batch_summary`.
+- `IngestAdapter` protocol: `data_source_id`, `idempotency_key`, `owner_user_id`, `prepare() -> PreparedContent`.
+- Each source type has its own adapter file: `adapter_file.py`, `adapter_crawler.py`, and future `adapter_nas.py`, `adapter_database.py`, `adapter_webhook.py`.
+- All source types share `_submit_ingest()` in `gateway.py`.
+
+Storage key naming rules:
+
+- Raw objects: `raw/<source_type>/<source_id>/<YYYY>/<MM>/<DD>/<idempotency_key>/<checksum_prefix>/<filename>`
+- Parse artifacts: `parsed/<version_id>/<artifact_id>/mineru-result.json`
+- Normalized objects: `normalized/<normalized_type>/<version_id>/<ref_id>/schema-v1/<checksum_prefix>.json`
+
+Idempotency and deduplication rules:
+
+- Batch idempotency: `(data_source_id, idempotency_key)` — duplicate batch request returns existing batch.
+- Same-source content dedup: same `data_source_id` + same `checksum` → `DUPLICATE_SKIPPED`, no second `RawObject` created.
+- Cross-source content dedup: different `data_source_id`, same `checksum` → audit event `CrossSourceDuplicateDetected`, ingestion continues.
+
+`IngestBatch.idempotency_key` policy: callers must supply a stable, externally meaningful key. For file uploads, recommended format is `<source_id>/<filename>/<file_checksum_prefix>`. For crawler packages, use the package's canonical ID. For multi-raw batches, use a session-level key supplied by the caller. The platform does not generate idempotency keys internally.
 
 ## PostgreSQL Worker Poller Contract
 

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import base64
-import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -19,9 +17,12 @@ from nexus_app.enums import (
     JobType,
     RawObjectStatus,
 )
+from nexus_app.ingest.adapter_base import IngestAdapter
+from nexus_app.ingest.adapter_crawler import CrawlerPackageAdapter
+from nexus_app.ingest.adapter_file import FileUploadAdapter
 from nexus_app.ingest.keys import raw_key
 from nexus_app.schemas import CrawlerPackageSubmit, IngestFileSubmit
-from nexus_app.storage import ObjectStorage, checksum_value, get_object_storage, sha256_hex
+from nexus_app.storage import ObjectStorage, checksum_value, get_object_storage
 from nexus_app.worker.notify import notify_job_ready
 
 
@@ -89,30 +90,27 @@ def _create_queued_job(
     return job
 
 
-def submit_file_ingest(
+def _submit_ingest(
     session: Session,
-    payload: IngestFileSubmit,
-    storage: ObjectStorage | None = None,
-    settings: Settings | None = None,
-    trace_id: str | None = None,
+    adapter: IngestAdapter,
+    storage: ObjectStorage,
+    settings: Settings,
+    trace_id: str | None,
 ) -> IngestAccepted:
-    settings = settings or get_settings()
-    storage = storage or get_object_storage(settings)
-
-    data_source = session.get(models.DataSource, payload.data_source_id)
+    data_source = session.get(models.DataSource, adapter.data_source_id)
     if data_source is None:
         raise IngestError("data_source not found")
 
-    content = base64.b64decode(payload.content_base64)
-    content_checksum = checksum_value(content)
+    prepared = adapter.prepare()
+    content_checksum = checksum_value(prepared.content)
 
     batch, created = _find_or_create_batch(
         session,
-        payload.data_source_id,
-        payload.idempotency_key,
+        adapter.data_source_id,
+        adapter.idempotency_key,
         data_source.source_type,
-        payload.owner_user_id,
-        {"filename": payload.filename, "object_count": 1},
+        adapter.owner_user_id,
+        prepared.batch_summary,
     )
     if not created:
         existing_raw = session.scalar(
@@ -126,6 +124,7 @@ def submit_file_ingest(
         session.commit()
         return IngestAccepted(batch, existing_raw, existing_job)
 
+    # Same-source duplicate check (blocks re-ingestion)
     duplicate_raw = session.scalar(
         select(models.RawObject).where(
             models.RawObject.data_source_id == data_source.id,
@@ -134,12 +133,8 @@ def submit_file_ingest(
     )
     if duplicate_raw is not None:
         batch.status = IngestBatchStatus.DUPLICATE_SKIPPED
-        batch.summary = {
-            **batch.summary,
-            "duplicate_raw_object_id": duplicate_raw.id,
-            "filename": payload.filename,
-        }
-        job = _create_queued_job(session, batch, duplicate_raw, payload.idempotency_key, trace_id)
+        batch.summary = {**batch.summary, "duplicate_raw_object_id": duplicate_raw.id}
+        job = _create_queued_job(session, batch, duplicate_raw, adapter.idempotency_key, trace_id)
         job.status = JobStatus.SUCCEEDED
         job.current_stage = "duplicate_skipped"
         write_audit(
@@ -149,44 +144,69 @@ def submit_file_ingest(
             batch.id,
             trace_id,
             {
-                "idempotency_key": payload.idempotency_key,
+                "idempotency_key": adapter.idempotency_key,
                 "duplicate_raw_object_id": duplicate_raw.id,
             },
         )
         session.commit()
         return IngestAccepted(batch, duplicate_raw, job)
 
+    # Cross-source duplicate check (audit only, does not block)
+    cross_dup = session.scalar(
+        select(models.RawObject).where(
+            models.RawObject.data_source_id != data_source.id,
+            models.RawObject.checksum == content_checksum,
+        )
+    )
+    if cross_dup is not None:
+        write_audit(
+            session,
+            AuditEventType.CROSS_SOURCE_DUPLICATE_DETECTED,
+            "raw_object",
+            cross_dup.id,
+            trace_id,
+            {
+                "incoming_data_source_id": data_source.id,
+                "existing_data_source_id": cross_dup.data_source_id,
+                "checksum": content_checksum,
+                "idempotency_key": adapter.idempotency_key,
+            },
+        )
+
     key = raw_key(
         settings,
         data_source.source_type,
         data_source.id,
-        payload.idempotency_key,
+        adapter.idempotency_key,
         content_checksum,
-        payload.filename,
+        prepared.filename,
     )
     stored = storage.put_bytes(
         key,
-        content,
-        payload.content_type,
-        {"nexus-data-source-id": data_source.id, "nexus-idempotency-key": payload.idempotency_key},
+        prepared.content,
+        prepared.mime_type,
+        {
+            "nexus-data-source-id": data_source.id,
+            "nexus-idempotency-key": adapter.idempotency_key,
+        },
     )
     raw = models.RawObject(
         batch_id=batch.id,
         data_source_id=data_source.id,
         source_type=data_source.source_type,
-        source_uri=payload.source_uri,
+        source_uri=prepared.source_uri,
         object_uri=stored.object_uri,
         checksum=stored.checksum,
-        mime_type=payload.content_type,
+        mime_type=prepared.mime_type,
         size_bytes=stored.size_bytes,
         status=RawObjectStatus.RAW_PERSISTED,
-        metadata_summary={"filename": payload.filename},
+        metadata_summary=prepared.raw_metadata,
     )
     session.add(raw)
     session.flush()
     batch.status = IngestBatchStatus.RAW_PERSISTED
 
-    job = _create_queued_job(session, batch, raw, payload.idempotency_key, trace_id)
+    job = _create_queued_job(session, batch, raw, adapter.idempotency_key, trace_id)
 
     write_audit(
         session,
@@ -194,7 +214,7 @@ def submit_file_ingest(
         "ingest_batch",
         batch.id,
         trace_id,
-        {"idempotency_key": payload.idempotency_key, "object_count": 1},
+        {"idempotency_key": adapter.idempotency_key, "object_count": 1},
     )
     write_audit(
         session,
@@ -209,8 +229,16 @@ def submit_file_ingest(
     return IngestAccepted(batch, raw, job)
 
 
-def _json_bytes(value: dict[str, Any]) -> bytes:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True).encode("utf-8")
+def submit_file_ingest(
+    session: Session,
+    payload: IngestFileSubmit,
+    storage: ObjectStorage | None = None,
+    settings: Settings | None = None,
+    trace_id: str | None = None,
+) -> IngestAccepted:
+    settings = settings or get_settings()
+    storage = storage or get_object_storage(settings)
+    return _submit_ingest(session, FileUploadAdapter(payload), storage, settings, trace_id)
 
 
 def submit_crawler_package(
@@ -222,113 +250,4 @@ def submit_crawler_package(
 ) -> IngestAccepted:
     settings = settings or get_settings()
     storage = storage or get_object_storage(settings)
-
-    data_source = session.get(models.DataSource, payload.data_source_id)
-    if data_source is None:
-        raise IngestError("data_source not found")
-
-    content = _json_bytes(payload.package)
-    content_checksum = checksum_value(content)
-
-    batch, created = _find_or_create_batch(
-        session,
-        payload.data_source_id,
-        payload.idempotency_key,
-        data_source.source_type,
-        payload.owner_user_id,
-        {"object_count": 1, "package_type": "crawler_json"},
-    )
-    if not created:
-        existing_raw = session.scalar(
-            select(models.RawObject).where(models.RawObject.batch_id == batch.id)
-        )
-        existing_job = session.scalar(
-            select(models.Job).where(models.Job.ingest_batch_id == batch.id)
-        )
-        if existing_raw is None and existing_job is not None:
-            existing_raw = existing_job.raw_object
-        session.commit()
-        return IngestAccepted(batch, existing_raw, existing_job)
-
-    duplicate_raw = session.scalar(
-        select(models.RawObject).where(
-            models.RawObject.data_source_id == data_source.id,
-            models.RawObject.checksum == content_checksum,
-        )
-    )
-    if duplicate_raw is not None:
-        batch.status = IngestBatchStatus.DUPLICATE_SKIPPED
-        batch.summary = {**batch.summary, "duplicate_raw_object_id": duplicate_raw.id}
-        job = _create_queued_job(session, batch, duplicate_raw, payload.idempotency_key, trace_id)
-        job.status = JobStatus.SUCCEEDED
-        job.current_stage = "duplicate_skipped"
-        write_audit(
-            session,
-            AuditEventType.INGEST_BATCH_SUBMITTED,
-            "ingest_batch",
-            batch.id,
-            trace_id,
-            {
-                "idempotency_key": payload.idempotency_key,
-                "duplicate_raw_object_id": duplicate_raw.id,
-            },
-        )
-        session.commit()
-        return IngestAccepted(batch, duplicate_raw, job)
-
-    package_id = str(
-        payload.package.get("id")
-        or payload.package.get("source_id")
-        or sha256_hex(content)[:16]
-    )
-    key = raw_key(
-        settings,
-        data_source.source_type,
-        data_source.id,
-        payload.idempotency_key,
-        content_checksum,
-        f"{package_id}.json",
-    )
-    stored = storage.put_bytes(
-        key,
-        content,
-        "application/json",
-        {"nexus-data-source-id": data_source.id, "nexus-idempotency-key": payload.idempotency_key},
-    )
-    raw = models.RawObject(
-        batch_id=batch.id,
-        data_source_id=data_source.id,
-        source_type=data_source.source_type,
-        source_uri=payload.source_uri,
-        object_uri=stored.object_uri,
-        checksum=stored.checksum,
-        mime_type="application/json",
-        size_bytes=stored.size_bytes,
-        status=RawObjectStatus.RAW_PERSISTED,
-        metadata_summary={"package_id": package_id},
-    )
-    session.add(raw)
-    session.flush()
-    batch.status = IngestBatchStatus.RAW_PERSISTED
-
-    job = _create_queued_job(session, batch, raw, payload.idempotency_key, trace_id)
-
-    write_audit(
-        session,
-        AuditEventType.INGEST_BATCH_SUBMITTED,
-        "ingest_batch",
-        batch.id,
-        trace_id,
-        {"idempotency_key": payload.idempotency_key, "object_count": 1},
-    )
-    write_audit(
-        session,
-        AuditEventType.RAW_OBJECT_PERSISTED,
-        "raw_object",
-        raw.id,
-        trace_id,
-        {"batch_id": batch.id, "checksum": raw.checksum, "size_bytes": raw.size_bytes},
-    )
-    notify_job_ready(session)
-    session.commit()
-    return IngestAccepted(batch, raw, job)
+    return _submit_ingest(session, CrawlerPackageAdapter(payload), storage, settings, trace_id)

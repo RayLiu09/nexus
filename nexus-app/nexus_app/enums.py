@@ -134,7 +134,8 @@ class PromptProfileStatus(StrEnum):
 
 
 class AuditEventType(StrEnum):
-    INGEST_BATCH_SUBMITTED = "IngestBatchSubmitted"
-    RAW_OBJECT_PERSISTED   = "RawObjectPersisted"
-    VERSION_STATUS_CHANGED = "VersionStatusChanged"
-    PIPELINE_FAILED        = "PipelineFailed"
+    INGEST_BATCH_SUBMITTED          = "IngestBatchSubmitted"
+    RAW_OBJECT_PERSISTED            = "RawObjectPersisted"
+    CROSS_SOURCE_DUPLICATE_DETECTED = "CrossSourceDuplicateDetected"
+    VERSION_STATUS_CHANGED          = "VersionStatusChanged"
+    PIPELINE_FAILED                 = "PipelineFailed"
