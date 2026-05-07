@@ -20,3 +20,4 @@ class PipelineContext:
     raw_object: models.RawObject
     batch: models.IngestBatch
     trace_id: str | None
+    pipeline_type: str = "document"

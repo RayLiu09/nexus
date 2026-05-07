@@ -14,6 +14,7 @@ class PreparedContent:
     source_uri: str | None
     raw_metadata: dict[str, Any] = field(default_factory=dict)
     batch_summary: dict[str, Any] = field(default_factory=dict)
+    source_object_key: str | None = None
 
 
 @runtime_checkable

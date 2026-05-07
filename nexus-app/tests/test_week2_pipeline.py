@@ -203,3 +203,82 @@ def test_week2_forbidden_reverse_pointers_are_not_present():
     assert not hasattr(models.DocumentAsset, "current_version_id")
     assert not hasattr(models.DocumentVersion, "normalized_ref_id")
     assert not hasattr(models.DocumentVersion, "quality_report_id")
+
+
+def test_pipeline_type_is_document_for_file_upload(session):
+    source = create_source(session, "file_upload")
+    storage = InMemoryObjectStorage()
+    payload = IngestFileSubmit(
+        data_source_id=source.id,
+        idempotency_key="file-pipeline-type-001",
+        filename="doc.pdf",
+        content_type="application/pdf",
+        content_base64=base64.b64encode(b"pdf content").decode("ascii"),
+    )
+    accepted = ingest_gateway.submit_file_ingest(session, payload, storage=storage)
+    assert accepted.job.payload["pipeline_type"] == "document"
+    assert accepted.job.payload["source_object_key"] is not None
+
+
+def test_pipeline_type_is_record_for_crawler(session):
+    source = create_source(session, "crawler")
+    storage = InMemoryObjectStorage()
+    payload = CrawlerPackageSubmit(
+        data_source_id=source.id,
+        idempotency_key="crawler-pipeline-type-001",
+        package={"id": "pkg-001", "title": "Crawler Package"},
+    )
+    accepted = ingest_gateway.submit_crawler_package(session, payload, storage=storage)
+    assert accepted.job.payload["pipeline_type"] == "record"
+    assert accepted.job.payload["source_object_key"] == "pkg-001"
+
+
+def test_asset_reversion_same_source_object_key_different_checksum(session):
+    """Same source_object_key, different content → new version (M17), old version archived."""
+    source = create_source(session, "crawler")
+    storage = InMemoryObjectStorage()
+    mineru = FakeMinerUAdapter()
+
+    first_payload = CrawlerPackageSubmit(
+        data_source_id=source.id,
+        idempotency_key="rev-001",
+        package={"id": "policy-abc", "title": "Policy v1", "body": "original"},
+    )
+    first = ingest_gateway.submit_crawler_package(session, first_payload, storage=storage)
+    run_worker(session, storage, mineru)
+    session.refresh(first.job)
+    assert first.job.status == JobStatus.SUCCEEDED
+
+    assets_after_v1 = pipeline.list_assets(session)
+    assert len(assets_after_v1) == 1
+    versions_after_v1 = pipeline.list_asset_versions(session, assets_after_v1[0].id)
+    assert len(versions_after_v1) == 1
+    assert versions_after_v1[0].version_no == 1
+
+    # Manually mark version as available (simulating governance pass)
+    versions_after_v1[0].version_status = AssetVersionStatus.AVAILABLE
+    assets_after_v1[0].status = AssetVersionStatus.AVAILABLE
+    session.commit()
+
+    # Ingest updated content for the same record key (different idempotency_key, different content)
+    second_payload = CrawlerPackageSubmit(
+        data_source_id=source.id,
+        idempotency_key="rev-002",
+        package={"id": "policy-abc", "title": "Policy v2", "body": "updated content here"},
+    )
+    second = ingest_gateway.submit_crawler_package(session, second_payload, storage=storage)
+    run_worker(session, storage, mineru)
+    session.refresh(second.job)
+    assert second.job.status == JobStatus.SUCCEEDED
+
+    assets = pipeline.list_assets(session)
+    assert len(assets) == 1, "re-ingest of same source_object_key must not create a new asset"
+
+    versions = pipeline.list_asset_versions(session, assets[0].id)
+    assert len(versions) == 2
+    version_nos = sorted(v.version_no for v in versions)
+    assert version_nos == [1, 2]
+
+    statuses = {v.version_no: v.version_status for v in versions}
+    assert statuses[1] == AssetVersionStatus.ARCHIVED
+    assert statuses[2] == AssetVersionStatus.PROCESSING

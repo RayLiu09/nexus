@@ -39,4 +39,5 @@ class CrawlerPackageAdapter:
             source_uri=self._p.source_uri,
             raw_metadata={"package_id": package_id},
             batch_summary={"object_count": 1, "package_type": "crawler_json"},
+            source_object_key=package_id,
         )

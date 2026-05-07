@@ -34,4 +34,5 @@ class FileUploadAdapter:
             source_uri=self._p.source_uri,
             raw_metadata={"filename": filename},
             batch_summary={"filename": filename, "object_count": 1},
+            source_object_key=self._p.source_uri or self._p.idempotency_key,
         )

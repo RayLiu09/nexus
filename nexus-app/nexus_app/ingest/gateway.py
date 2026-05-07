@@ -67,12 +67,22 @@ def _find_or_create_batch(
     return batch, True
 
 
+def _pipeline_type_for(source_type: DataSourceType, mime_type: str | None) -> str:
+    if source_type in {DataSourceType.CRAWLER, DataSourceType.DATABASE, DataSourceType.WEBHOOK}:
+        return "record"
+    if mime_type and "json" in mime_type.lower():
+        return "record"
+    return "document"
+
+
 def _create_queued_job(
     session: Session,
     batch: models.IngestBatch,
     raw_object: models.RawObject,
     idempotency_key: str,
     trace_id: str | None,
+    pipeline_type: str = "document",
+    source_object_key: str | None = None,
 ) -> models.Job:
     job = models.Job(
         job_type=JobType.INGEST_PROCESS,
@@ -82,7 +92,12 @@ def _create_queued_job(
         idempotency_key=idempotency_key,
         current_stage="queued",
         trace_id=trace_id,
-        payload={"raw_object_id": raw_object.id, "batch_id": batch.id},
+        payload={
+            "raw_object_id": raw_object.id,
+            "batch_id": batch.id,
+            "pipeline_type": pipeline_type,
+            "source_object_key": source_object_key,
+        },
         metadata_summary={"pipeline": "ingest_to_asset"},
     )
     session.add(job)
@@ -206,7 +221,16 @@ def _submit_ingest(
     session.flush()
     batch.status = IngestBatchStatus.RAW_PERSISTED
 
-    job = _create_queued_job(session, batch, raw, adapter.idempotency_key, trace_id)
+    pipeline_type = _pipeline_type_for(data_source.source_type, prepared.mime_type)
+    job = _create_queued_job(
+        session,
+        batch,
+        raw,
+        adapter.idempotency_key,
+        trace_id,
+        pipeline_type=pipeline_type,
+        source_object_key=prepared.source_object_key,
+    )
 
     write_audit(
         session,

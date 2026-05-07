@@ -10,7 +10,6 @@ from nexus_app import models
 from nexus_app.audit import write_audit
 from nexus_app.config import Settings, get_settings
 from nexus_app.enums import (
-    AssetKind,
     AssetVersionStatus,
     AuditEventType,
     IngestBatchStatus,
@@ -21,7 +20,7 @@ from nexus_app.enums import (
 from nexus_app.mineru import MinerUAdapter, get_mineru_adapter
 from nexus_app.models import utcnow
 from nexus_app.pipeline.context import PipelineContext
-from nexus_app.pipeline.stages import asset_kind_for, run_assetize, run_normalize, run_parse
+from nexus_app.pipeline.stages import run_assetize, run_normalize, run_parse
 from nexus_app.storage import ObjectStorage, get_object_storage
 
 logger = logging.getLogger(__name__)
@@ -182,6 +181,8 @@ def execute_job(
         session.commit()
         return
 
+    pipeline_type = job.payload.get("pipeline_type", "document")
+
     ctx = PipelineContext(
         session=session,
         storage=storage,
@@ -191,17 +192,16 @@ def execute_job(
         raw_object=raw_object,
         batch=batch,
         trace_id=trace_id,
+        pipeline_type=pipeline_type,
     )
 
-    kind = asset_kind_for(raw_object)
-
     raw_payload: dict[str, Any] | None = None
-    if kind == AssetKind.RECORD:
+    if pipeline_type == "record":
         raw_uri = raw_object.object_uri
         raw_key = raw_uri.split("/", 3)[-1] if raw_uri.startswith("s3://") else raw_uri
         try:
-            raw_bytes = storage.get_bytes(raw_key)
             import json
+            raw_bytes = storage.get_bytes(raw_key)
             raw_payload = json.loads(raw_bytes.decode("utf-8"))
         except Exception:
             raw_payload = {}
@@ -222,7 +222,7 @@ def execute_job(
     # Stages 2 & 3: parse + normalize — failures are committed as failed state (no rollback)
     try:
         parse_artifact = None
-        if kind == AssetKind.DOCUMENT:
+        if pipeline_type == "document":
             parse_artifact = run_parse(ctx, version)
 
         normalized_ref = run_normalize(ctx, version, parse_artifact, raw_payload)

@@ -279,7 +279,9 @@ class JobStage(TimestampMixin, Base):
 
 class DocumentAsset(TimestampMixin, Base):
     __tablename__ = "document_asset"
-    __table_args__ = (Index("ix_document_asset_source", "data_source_id", "source_object_key"),)
+    __table_args__ = (
+        UniqueConstraint("data_source_id", "source_object_key", name="uq_document_asset_source_key"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     data_source_id: Mapped[str] = mapped_column(

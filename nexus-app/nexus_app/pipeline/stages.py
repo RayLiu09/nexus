@@ -3,13 +3,14 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from sqlalchemy import func, select
+
 from nexus_app import models
 from nexus_app.audit import write_audit
 from nexus_app.enums import (
     AssetKind,
     AssetVersionStatus,
     AuditEventType,
-    DataSourceType,
     StageStatus,
     NormalizedAssetRefStatus,
     NormalizedType,
@@ -43,18 +44,6 @@ def _add_stage(
     return stage
 
 
-def asset_kind_for(raw_object: models.RawObject) -> AssetKind:
-    if raw_object.source_type in {
-        DataSourceType.CRAWLER,
-        DataSourceType.WEBHOOK,
-        DataSourceType.DATABASE,
-    }:
-        return AssetKind.RECORD
-    if raw_object.mime_type and "json" in raw_object.mime_type:
-        return AssetKind.RECORD
-    return AssetKind.DOCUMENT
-
-
 def title_from(raw_object: models.RawObject, payload: dict[str, Any] | None = None) -> str:
     if payload:
         for key in ("title", "name", "source_title"):
@@ -75,27 +64,69 @@ def run_assetize(
     ctx: PipelineContext,
     raw_payload: dict[str, Any] | None = None,
 ) -> tuple[models.DocumentAsset, models.DocumentVersion]:
-    """Stage 1: Create DocumentAsset + DocumentVersion (processing state)."""
-    raw_object = ctx.raw_object
-    kind = asset_kind_for(raw_object)
-    source_key = raw_object.source_uri or raw_object.object_uri
+    """Stage 1: Create or re-version DocumentAsset + DocumentVersion (M16/M17).
 
-    asset = models.DocumentAsset(
-        data_source_id=raw_object.data_source_id,
-        source_object_key=source_key,
-        title=title_from(raw_object, raw_payload),
-        asset_kind=kind,
-        status=AssetVersionStatus.PROCESSING,
-        org_scope=[],
-        metadata_summary={"source_type": raw_object.source_type.value},
+    Idempotency anchor: (data_source_id, source_object_key).
+    - Same source_object_key, same checksum → caller should have skipped via duplicate check.
+    - Same source_object_key, different checksum → archive old available, create version_no+1.
+    - New source_object_key → create fresh asset at version_no=1.
+    """
+    raw_object = ctx.raw_object
+    kind = AssetKind.RECORD if ctx.pipeline_type == "record" else AssetKind.DOCUMENT
+    source_key = (
+        ctx.job.payload.get("source_object_key")
+        or raw_object.source_uri
+        or raw_object.id
     )
-    ctx.session.add(asset)
-    ctx.session.flush()
+
+    existing_asset = ctx.session.scalar(
+        select(models.DocumentAsset).where(
+            models.DocumentAsset.data_source_id == raw_object.data_source_id,
+            models.DocumentAsset.source_object_key == source_key,
+        )
+    )
+
+    if existing_asset is not None:
+        # Re-versioning (M17): archive any currently available versions
+        existing_available = ctx.session.scalars(
+            select(models.DocumentVersion).where(
+                models.DocumentVersion.asset_id == existing_asset.id,
+                models.DocumentVersion.version_status == AssetVersionStatus.AVAILABLE,
+            )
+        ).all()
+        for old_v in existing_available:
+            old_v.version_status = AssetVersionStatus.ARCHIVED
+
+        max_version_no = ctx.session.scalar(
+            select(func.max(models.DocumentVersion.version_no)).where(
+                models.DocumentVersion.asset_id == existing_asset.id,
+            )
+        ) or 0
+
+        existing_asset.status = AssetVersionStatus.PROCESSING
+        existing_asset.title = title_from(raw_object, raw_payload)
+        ctx.session.flush()
+
+        asset = existing_asset
+        version_no = max_version_no + 1
+    else:
+        asset = models.DocumentAsset(
+            data_source_id=raw_object.data_source_id,
+            source_object_key=source_key,
+            title=title_from(raw_object, raw_payload),
+            asset_kind=kind,
+            status=AssetVersionStatus.PROCESSING,
+            org_scope=[],
+            metadata_summary={"source_type": raw_object.source_type.value},
+        )
+        ctx.session.add(asset)
+        ctx.session.flush()
+        version_no = 1
 
     version = models.DocumentVersion(
         asset_id=asset.id,
         raw_object_id=raw_object.id,
-        version_no=1,
+        version_no=version_no,
         version_status=AssetVersionStatus.PROCESSING,
         source_checksum=raw_object.checksum,
         metadata_summary={
@@ -109,7 +140,7 @@ def run_assetize(
         ctx,
         "assetize",
         StageStatus.SUCCEEDED,
-        {"asset_id": asset.id, "version_id": version.id},
+        {"asset_id": asset.id, "version_id": version.id, "version_no": version_no},
     )
     return asset, version
 
@@ -202,9 +233,8 @@ def run_normalize(
 ) -> models.NormalizedAssetRef:
     """Stage 3: Build normalized object, store it, create NormalizedAssetRef."""
     raw_object = ctx.raw_object
-    kind = asset_kind_for(raw_object)
 
-    if kind == AssetKind.DOCUMENT and artifact is not None:
+    if ctx.pipeline_type == "document" and artifact is not None:
         artifact_uri = artifact.artifact_uri
         artifact_key_path = artifact_uri.split("/", 3)[-1] if artifact_uri.startswith("s3://") else artifact_uri
         raw_bytes = ctx.storage.get_bytes(artifact_key_path)
