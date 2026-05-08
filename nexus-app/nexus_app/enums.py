@@ -61,9 +61,6 @@ class JobStatus(StrEnum):
 
 class JobType(StrEnum):
     INGEST_PROCESS = "ingest_process"
-    PARSE          = "parse"
-    NORMALIZE      = "normalize"
-    ASSETIZE       = "assetize"
 
 
 class StageStatus(StrEnum):

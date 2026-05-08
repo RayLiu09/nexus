@@ -308,3 +308,108 @@ API Key 的有效性是时间轴上的一个截止点，而不是枚举状态机
 ---
 
 *最后更新：2026-05-07（Review 3 完成后）*
+
+
+## Review 4：第一层——数据契约层（2026-05-08）
+
+审查范围：`nexus_app/models.py`、`nexus_app/enums.py`、`nexus_app/schemas.py`（v2.6 重构后）。
+
+---
+
+### FB-4-1：DataSource 缺少对接凭证配置字段
+
+**原始意见**
+
+> NAS/Crawler/Database/Webhook 等平台对接接入源，在设计上应存在对接凭证配置信息，目前结构上是缺失的。
+
+**Action: 已实施**
+
+- `models.py` 的 `DataSource` 新增 `connection_config: Mapped[dict[str, Any] | None]` 字段（JSONB nullable）。
+- `schemas.py` 新增四个 source_type 专用配置模型：
+  - `NasConnectionConfig`（`mount_path`, `scan_pattern`）
+  - `CrawlerConnectionConfig`（`target_url`, `schedule_cron`, `auth_token`）
+  - `DatabaseConnectionConfig`（`connection_string`, `query`, `schedule_cron`）
+  - `WebhookConnectionConfig`（`webhook_secret`, `allowed_ips`）
+- `DataSourceCreate` / `DataSourceRead` 新增 `connection_config: dict[str, Any] | None` 字段。
+- Alembic 迁移：`20260508_0008_add_connection_config.py`（PostgreSQL 使用 JSONB，SQLite 使用 JSON）。
+- 字段注释：`"Source-type specific config: NasConnectionConfig, CrawlerConnectionConfig, etc."`
+
+**理由**
+
+P0 阶段 `file_upload` 无需凭证（用户直接上传），但 NAS/Crawler/Database/Webhook 四类接入源都需要存储连接信息（路径、URL、认证令牌、数据库连接串等）。缺失此字段会导致接入源配置无处存储，wk_5 实现 NAS/Database 接入时必须回补，不如在数据契约层一次性补全。
+
+---
+
+### FB-4-2：JSON 字段缺少 Schema 定义
+
+**原始意见**
+
+> DataSource 中 default_governance_hints 具体的 JSON schema 设计需要补充，org_scope_hint 类似，RawObject 的 metadata_summary 也是，数据模型中 JSON 类型需要明确定义，可以做基础最小化信息设计。
+
+**Action: 已实施**
+
+- `schemas.py` 新增 `GovernanceHints` Pydantic 模型：
+  - `sensitivity_level: str | None`（敏感度级别）
+  - `quality_threshold: float | None`（质量阈值 0.0-1.0）
+  - `auto_approve_threshold: float | None`（自动通过阈值）
+  - `required_reviewers: list[str]`（必需审核人列表）
+- `schemas.py` 新增三个 `RawObjectMetadata` 变体：
+  - `RawObjectMetadataFile`（`filename: str`）
+  - `RawObjectMetadataCrawler`（`package_id: str`, `source_url: str | None`）
+  - `RawObjectMetadataDatabase`（`table_name: str | None`, `record_count: int | None`）
+- `models.py` 字段注释更新：
+  - `DataSource.org_scope_hint`：`"List of org_unit codes"`
+  - `DataSource.default_governance_hints`：`"GovernanceHints schema: sensitivity_level, quality_threshold, etc."`
+  - `DataSource.connection_config`：`"Source-type specific config: NasConnectionConfig, CrawlerConnectionConfig, etc."`
+  - `RawObject.metadata_summary`：`"Source-type specific: RawObjectMetadataFile, RawObjectMetadataCrawler, etc."`
+
+**理由**
+
+JSON 字段无 Schema 定义会导致：(1) API 消费者不知道应传入什么结构；(2) 代码中访问 JSON 字段时无类型提示，容易出错；(3) 测试用例无法验证字段完整性。最小化 Schema 定义既满足 P0 需求，又为后续扩展预留空间（如 `GovernanceHints` 可在 wk_6 治理阶段增加字段）。
+
+---
+
+### FB-4-3：JobType 枚举值与 JobStage 职责重叠
+
+**原始意见**
+
+> Job 中 job_type 是否合理，其内容定义更像是 Job 处理步骤状态，定义在 JobStage 里面是否更合适？
+
+**Action: 已实施**
+
+- `enums.py` 的 `JobType` 枚举删除 `PARSE`、`NORMALIZE`、`ASSETIZE` 三个值，仅保留 `INGEST_PROCESS`。
+- 理由：
+  - `JobType` 的语义是"作业类型"（如接入处理、治理运行、索引构建），不是"处理步骤"。
+  - `PARSE`、`NORMALIZE`、`ASSETIZE` 是 `INGEST_PROCESS` 作业的三个**阶段**，应记录在 `JobStage.stage_name` 中，而不是作为独立作业类型。
+  - 当前代码中唯一实际使用的 `JobType` 值是 `INGEST_PROCESS`，另外三个是无效死代码。
+- 测试通过，无引用残留。
+
+**理由**
+
+`JobType` 与 `JobStage.stage_name` 职责重叠会导致：(1) 作业查询时无法区分"接入作业"和"治理作业"（都被拆成阶段级别）；(2) Worker 轮询逻辑需要按 `job_type` 分发到不同处理器，阶段级别的枚举值会破坏分发逻辑；(3) 未来新增"治理作业"或"索引作业"时，无法与"接入作业"的阶段区分。删除重叠值后，`JobType` 回归"作业类型"语义，`JobStage` 专注"阶段执行记录"。
+
+---
+
+### FB-4-4：DocumentAsset 与 DocumentVersion 的 1:1 关系质疑
+
+**原始意见**
+
+> DocumentAsset 和 DocumentVersion 的设计意图没问题，但从目前的业务场景分析，此处似乎总是 1:1 的关系。
+
+**Action: 保持不变**
+
+- v2.6 M17 架构明确要求：同 `source_object_key` + 不同 `checksum` → 创建新 `asset_version`（`version_no+1`），旧 `available` 版本归档为 `archived`。
+- 测试用例 `test_asset_reversion_same_source_object_key_different_checksum` 已覆盖 1:N 场景：同一爬虫记录 `package_id` 的两次接入（内容不同）产生 1 个 asset、2 个 version。
+- 真实业务场景：
+  - **文档更新再接入**：用户上传 `policy-2024.pdf`（v1），后续上传修订版 `policy-2024.pdf`（v2，内容不同但 `source_uri` 相同）。
+  - **爬虫记录内容变更**：爬虫每日抓取同一公告 ID，公告内容更新后产生新版本。
+  - **数据库记录更新**：定期同步数据库表，同一主键记录的内容变化产生新版本。
+- 1:1 关系是 P0 阶段的**暂时现象**（用户尚未触发再版本场景），不是设计缺陷。
+
+**理由**
+
+如果强制 1:1 关系（即每次接入都创建新 asset），会导致：(1) 同一文档的多个版本在资产目录中显示为多个独立资产，用户无法追溯版本历史；(2) 权限控制和组织范围过滤需要对每个版本单独配置，而不是在资产级别统一管理；(3) 治理结果和质量评分无法在版本间对比。1:N 设计是版本管理的标准模式，符合 NEXUS 的"资产主实体 + 版本实体"架构原则。
+
+---
+
+*最后更新：2026-05-08（Review 4 完成后）*

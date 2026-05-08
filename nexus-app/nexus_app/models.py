@@ -118,9 +118,19 @@ class DataSource(TimestampMixin, Base):
     owner_user_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("user_account.id"), nullable=True
     )
-    org_scope_hint: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    org_scope_hint: Mapped[list[str]] = mapped_column(
+        JSON, default=list, nullable=False, comment="List of org_unit codes"
+    )
     default_governance_hints: Mapped[dict[str, Any]] = mapped_column(
-        JSON, default=dict, nullable=False
+        JSON,
+        default=dict,
+        nullable=False,
+        comment="GovernanceHints schema: sensitivity_level, quality_threshold, etc.",
+    )
+    connection_config: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="Source-type specific config: NasConnectionConfig, CrawlerConnectionConfig, etc.",
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -182,7 +192,12 @@ class RawObject(TimestampMixin, Base):
         default=RawObjectStatus.RAW_PERSISTED,
         nullable=False,
     )
-    metadata_summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    metadata_summary: Mapped[dict[str, Any]] = mapped_column(
+        JSON,
+        default=dict,
+        nullable=False,
+        comment="Source-type specific: RawObjectMetadataFile, RawObjectMetadataCrawler, etc.",
+    )
 
     batch: Mapped[IngestBatch] = relationship()
     data_source: Mapped[DataSource] = relationship()

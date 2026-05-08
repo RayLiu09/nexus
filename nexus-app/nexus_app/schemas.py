@@ -85,6 +85,57 @@ class ApiCallerRead(ORMModel):
     updated_at: datetime
 
 
+class NasConnectionConfig(BaseModel):
+    """NAS source connection configuration."""
+    mount_path: str = Field(min_length=1, max_length=512)
+    scan_pattern: str | None = Field(default=None, max_length=256)
+
+
+class CrawlerConnectionConfig(BaseModel):
+    """Crawler source connection configuration."""
+    target_url: str = Field(min_length=1, max_length=1024)
+    schedule_cron: str | None = Field(default=None, max_length=128)
+    auth_token: str | None = Field(default=None, max_length=512)
+
+
+class DatabaseConnectionConfig(BaseModel):
+    """Database source connection configuration."""
+    connection_string: str = Field(min_length=1, max_length=1024)
+    query: str | None = Field(default=None)
+    schedule_cron: str | None = Field(default=None, max_length=128)
+
+
+class WebhookConnectionConfig(BaseModel):
+    """Webhook source connection configuration."""
+    webhook_secret: str = Field(min_length=1, max_length=256)
+    allowed_ips: list[str] = Field(default_factory=list)
+
+
+class GovernanceHints(BaseModel):
+    """Default governance hints for a data source."""
+    sensitivity_level: str | None = Field(default=None, max_length=20)
+    quality_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    auto_approve_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    required_reviewers: list[str] = Field(default_factory=list)
+
+
+class RawObjectMetadataFile(BaseModel):
+    """Metadata for file_upload/nas raw objects."""
+    filename: str
+
+
+class RawObjectMetadataCrawler(BaseModel):
+    """Metadata for crawler raw objects."""
+    package_id: str
+    source_url: str | None = None
+
+
+class RawObjectMetadataDatabase(BaseModel):
+    """Metadata for database raw objects."""
+    table_name: str | None = None
+    record_count: int | None = None
+
+
 class DataSourceCreate(BaseModel):
     code: str = Field(min_length=1, max_length=80)
     name: str = Field(min_length=1, max_length=128)
@@ -92,6 +143,7 @@ class DataSourceCreate(BaseModel):
     owner_user_id: str | None = None
     org_scope_hint: list[str] = Field(default_factory=list)
     default_governance_hints: dict[str, Any] = Field(default_factory=dict)
+    connection_config: dict[str, Any] | None = None
     description: str | None = None
     status: DataSourceStatus = DataSourceStatus.ENABLED
 
@@ -105,6 +157,7 @@ class DataSourceRead(ORMModel):
     owner_user_id: str | None
     org_scope_hint: list[str]
     default_governance_hints: dict[str, Any]
+    connection_config: dict[str, Any] | None
     description: str | None
     created_at: datetime
     updated_at: datetime
