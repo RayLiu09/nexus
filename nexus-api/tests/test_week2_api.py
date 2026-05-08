@@ -1,4 +1,5 @@
 import base64
+from io import BytesIO
 
 from nexus_api.api import v1
 from nexus_app import models, services
@@ -22,6 +23,7 @@ def test_week2_routes_are_registered(app):
     paths = {route.path for route in app.routes}
 
     assert "/v1/ingest/files" in paths
+    assert "/v1/ingest/files/upload" in paths
     assert "/v1/ingest/crawler-packages" in paths
     assert "/v1/jobs" in paths
     assert "/v1/jobs/{job_id}/stages" in paths
@@ -71,3 +73,41 @@ def test_submit_crawler_route_returns_queued_job(monkeypatch, session, fake_requ
     assert result.data.batch.status == "raw_persisted"
     assert result.data.raw_object.object_uri.startswith("s3://nexus-test-objects/raw/")
     assert services.list_rows(session, models.RawObject)[0].id == result.data.raw_object.id
+
+
+def test_submit_file_upload_multipart_returns_queued_job(monkeypatch, session, fake_request):
+    """Test multipart file upload endpoint (for large files or browser uploads)."""
+    import asyncio
+
+    from fastapi import UploadFile
+
+    source = create_source(session)
+    storage = InMemoryObjectStorage()
+    monkeypatch.setattr(ingest_gateway, "get_object_storage", lambda settings=None: storage)
+
+    file_content = b"multipart file content"
+    file_obj = BytesIO(file_content)
+    upload_file = UploadFile(filename="multipart.pdf", file=file_obj)
+    # Manually set headers to simulate content_type
+    upload_file.headers = {"content-type": "application/pdf"}
+
+    result = asyncio.run(
+        v1.submit_ingest_file_upload(
+            data_source_id=source.id,
+            idempotency_key="api-multipart-001",
+            file=upload_file,
+            source_uri=None,
+            owner_user_id=None,
+            request=fake_request,
+            session=session,
+        )
+    )
+
+    assert result.data.job.status == "queued"
+    assert result.data.batch.status == "raw_persisted"
+    assert result.data.raw_object.object_uri.startswith("s3://nexus-test-objects/raw/")
+    assert result.data.raw_object.mime_type == "application/pdf"
+
+    raw_objects = services.list_rows(session, models.RawObject)
+    assert len(raw_objects) == 1
+    assert raw_objects[0].metadata_summary["filename"] == "multipart.pdf"

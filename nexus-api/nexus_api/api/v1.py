@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
@@ -160,6 +160,44 @@ def _accepted_read(result: ingest_gateway.IngestAccepted) -> domain_schemas.Inge
 def submit_ingest_file(
     payload: domain_schemas.IngestFileSubmit, request: Request, session: Session = Depends(get_db)
 ):
+    try:
+        result = ingest_gateway.submit_file_ingest(
+            session,
+            payload,
+            trace_id=str(getattr(request.state, "trace_id", "")),
+        )
+    except ingest_gateway.IngestError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return response(_accepted_read(result), request)
+
+
+@router.post(
+    "/ingest/files/upload",
+    response_model=schemas.ApiResponse[domain_schemas.IngestAcceptedRead],
+    status_code=202,
+)
+async def submit_ingest_file_upload(
+    data_source_id: str = Form(...),
+    idempotency_key: str = Form(...),
+    file: UploadFile = File(...),
+    source_uri: str | None = Form(None),
+    owner_user_id: str | None = Form(None),
+    request: Request = None,
+    session: Session = Depends(get_db),
+):
+    """File upload endpoint using multipart/form-data (for large files or browser uploads)."""
+    import base64
+
+    content = await file.read()
+    payload = domain_schemas.IngestFileSubmit(
+        data_source_id=data_source_id,
+        idempotency_key=idempotency_key,
+        filename=file.filename or "upload.bin",
+        content_base64=base64.b64encode(content).decode("ascii"),
+        content_type=file.content_type or "application/octet-stream",
+        source_uri=source_uri,
+        owner_user_id=owner_user_id,
+    )
     try:
         result = ingest_gateway.submit_file_ingest(
             session,
