@@ -166,7 +166,30 @@ class FailingMinerUAdapter:
         raise RuntimeError("mineru unavailable")
 
 
-def test_file_ingest_failure_is_persisted_on_job_and_stage(session):
+class BadJsonStorage(InMemoryObjectStorage):
+    def get_bytes(self, key: str) -> bytes:
+        if key.endswith(".json"):
+            return b"not-a-json-object"
+        return super().get_bytes(key)
+
+
+def test_record_pipeline_fails_fast_on_invalid_raw_payload(session):
+    source = create_source(session, "crawler")
+    storage = BadJsonStorage()
+    payload = CrawlerPackageSubmit(
+        data_source_id=source.id,
+        idempotency_key="crawler-bad-json-001",
+        package={"id": "record-bad-001", "title": "Bad JSON Record"},
+    )
+
+    accepted = ingest_gateway.submit_crawler_package(session, payload, storage=storage)
+    run_worker(session, storage)
+
+    session.refresh(accepted.job)
+    assert accepted.job.status == JobStatus.FAILED
+    assert accepted.job.last_error_code == "invalid_record_payload"
+    assert "invalid_record_payload" in (accepted.job.failure_reason or "")
+
     source = create_source(session)
     storage = InMemoryObjectStorage()
     payload = IngestFileSubmit(

@@ -243,7 +243,11 @@ class Job(TimestampMixin, Base):
         default=JobStatus.QUEUED,
         nullable=False,
     )
-    priority: Mapped[int] = mapped_column(default=100, nullable=False)
+    priority: Mapped[int] = mapped_column(
+        default=100,
+        nullable=False,
+        comment="Lower value = higher priority (e.g., 10 > 100 > 200)",
+    )
     ingest_batch_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("ingest_batch.id"), nullable=True
     )

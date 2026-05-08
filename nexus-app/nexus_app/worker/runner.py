@@ -203,8 +203,50 @@ def execute_job(
             import json
             raw_bytes = storage.get_bytes(raw_key)
             raw_payload = json.loads(raw_bytes.decode("utf-8"))
-        except Exception:
-            raw_payload = {}
+        except Exception as exc:
+            job.status = JobStatus.FAILED
+            job.failure_reason = f"invalid_record_payload: {type(exc).__name__}: {exc}"[:2000]
+            job.last_error_code = "invalid_record_payload"
+            job.last_error_message = job.failure_reason
+            _release_lock(job)
+            write_audit(
+                session,
+                AuditEventType.PIPELINE_FAILED,
+                "job",
+                job.id,
+                trace_id,
+                {
+                    "error_code": "invalid_record_payload",
+                    "reason": f"{type(exc).__name__}: {exc}"[:500],
+                },
+            )
+            session.commit()
+            raise NonRetryableError(
+                f"record pipeline payload decode failed: {type(exc).__name__}: {exc}",
+                error_code="invalid_record_payload",
+            )
+        if not isinstance(raw_payload, dict) or not raw_payload:
+            job.status = JobStatus.FAILED
+            job.failure_reason = "invalid_record_payload: payload must be a non-empty JSON object"
+            job.last_error_code = "invalid_record_payload"
+            job.last_error_message = job.failure_reason
+            _release_lock(job)
+            write_audit(
+                session,
+                AuditEventType.PIPELINE_FAILED,
+                "job",
+                job.id,
+                trace_id,
+                {
+                    "error_code": "invalid_record_payload",
+                    "reason": "payload must be a non-empty JSON object",
+                },
+            )
+            session.commit()
+            raise NonRetryableError(
+                "record pipeline payload must be a non-empty JSON object",
+                error_code="invalid_record_payload",
+            )
 
     # Stage 1: assetize — failures here are rolled back (no significant partial state)
     asset: models.DocumentAsset | None = None
@@ -225,7 +267,7 @@ def execute_job(
         if pipeline_type == "document":
             parse_artifact = run_parse(ctx, version)
 
-        normalized_ref = run_normalize(ctx, version, parse_artifact, raw_payload)
+        run_normalize(ctx, version, parse_artifact, raw_payload)
 
         batch.status = IngestBatchStatus.COMPLETED
         job.status = JobStatus.SUCCEEDED
