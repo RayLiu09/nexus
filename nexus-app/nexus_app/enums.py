@@ -131,8 +131,17 @@ class PromptProfileStatus(StrEnum):
 
 
 class AuditEventType(StrEnum):
+    # Ingest pipeline
     INGEST_BATCH_SUBMITTED          = "IngestBatchSubmitted"
     RAW_OBJECT_PERSISTED            = "RawObjectPersisted"
     CROSS_SOURCE_DUPLICATE_DETECTED = "CrossSourceDuplicateDetected"
     VERSION_STATUS_CHANGED          = "VersionStatusChanged"
     PIPELINE_FAILED                 = "PipelineFailed"
+    # Asset lifecycle
+    ASSET_VERSION_ARCHIVED          = "AssetVersionArchived"
+    # Data source management
+    DATA_SOURCE_CREATED             = "DataSourceCreated"
+    DATA_SOURCE_STATUS_CHANGED      = "DataSourceStatusChanged"
+    # API caller management
+    API_CALLER_CREATED              = "ApiCallerCreated"
+    API_CALLER_REVOKED              = "ApiCallerRevoked"

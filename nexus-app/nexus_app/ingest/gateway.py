@@ -275,3 +275,46 @@ def submit_crawler_package(
     settings = settings or get_settings()
     storage = storage or get_object_storage(settings)
     return _submit_ingest(session, CrawlerPackageAdapter(payload), storage, settings, trace_id)
+
+
+def submit_file_bytes(
+    session: Session,
+    data_source_id: str,
+    idempotency_key: str,
+    content: bytes,
+    filename: str,
+    content_type: str,
+    source_uri: str | None = None,
+    owner_user_id: str | None = None,
+    storage: ObjectStorage | None = None,
+    settings: Settings | None = None,
+    trace_id: str | None = None,
+) -> IngestAccepted:
+    """Submit raw bytes directly — avoids base64 encode/decode overhead for multipart uploads."""
+    from nexus_app.ingest.adapter_base import PreparedContent
+
+    settings = settings or get_settings()
+    storage = storage or get_object_storage(settings)
+
+    _data_source_id = data_source_id
+    _idempotency_key = idempotency_key
+    _owner_user_id = owner_user_id
+    _prepared = PreparedContent(
+        content=content,
+        filename=filename,
+        mime_type=content_type,
+        source_uri=source_uri,
+        raw_metadata={"filename": filename},
+        batch_summary={"filename": filename, "object_count": 1},
+        source_object_key=source_uri or idempotency_key,
+    )
+
+    class _BytesAdapter:
+        data_source_id = _data_source_id
+        idempotency_key = _idempotency_key
+        owner_user_id = _owner_user_id
+
+        def prepare(self) -> PreparedContent:
+            return _prepared
+
+    return _submit_ingest(session, _BytesAdapter(), storage, settings, trace_id)

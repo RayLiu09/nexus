@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from pydantic import ValidationError
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
@@ -7,9 +8,30 @@ from nexus_api.responses import list_response, response
 from nexus_app import models, pipeline, schemas as domain_schemas, services
 from nexus_app.config import Settings, get_settings
 from nexus_app.database import get_db
+from nexus_app.enums import DataSourceType
 from nexus_app.ingest import gateway as ingest_gateway
 
 router = APIRouter(prefix="/v1")
+
+_CONNECTION_CONFIG_SCHEMAS = {
+    DataSourceType.NAS: domain_schemas.NasConnectionConfig,
+    DataSourceType.CRAWLER: domain_schemas.CrawlerConnectionConfig,
+    DataSourceType.DATABASE: domain_schemas.DatabaseConnectionConfig,
+    DataSourceType.WEBHOOK: domain_schemas.WebhookConnectionConfig,
+}
+
+
+def _validate_connection_config(source_type: DataSourceType, config: dict) -> None:
+    schema_cls = _CONNECTION_CONFIG_SCHEMAS.get(source_type)
+    if schema_cls is None:
+        return
+    try:
+        schema_cls.model_validate(config)
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"connection_config invalid for source_type={source_type}: {exc}",
+        ) from exc
 
 
 @router.get("/health", response_model=schemas.ApiResponse[schemas.HealthRead])
@@ -115,7 +137,16 @@ def get_api_caller(api_caller_id: str, request: Request, session: Session = Depe
 def create_data_source(
     payload: domain_schemas.DataSourceCreate, request: Request, session: Session = Depends(get_db)
 ):
-    return response(services.create_data_source(session, payload), request)
+    if payload.connection_config is not None:
+        _validate_connection_config(payload.source_type, payload.connection_config)
+    return response(
+        services.create_data_source(
+            session,
+            payload,
+            trace_id=str(getattr(request.state, "trace_id", "")),
+        ),
+        request,
+    )
 
 
 @router.get("/data-sources", response_model=schemas.ListResponse[domain_schemas.DataSourceRead])
@@ -186,22 +217,17 @@ async def submit_ingest_file_upload(
     session: Session = Depends(get_db),
 ):
     """File upload endpoint using multipart/form-data (for large files or browser uploads)."""
-    import base64
-
     content = await file.read()
-    payload = domain_schemas.IngestFileSubmit(
-        data_source_id=data_source_id,
-        idempotency_key=idempotency_key,
-        filename=file.filename or "upload.bin",
-        content_base64=base64.b64encode(content).decode("ascii"),
-        content_type=file.content_type or "application/octet-stream",
-        source_uri=source_uri,
-        owner_user_id=owner_user_id,
-    )
     try:
-        result = ingest_gateway.submit_file_ingest(
+        result = ingest_gateway.submit_file_bytes(
             session,
-            payload,
+            data_source_id=data_source_id,
+            idempotency_key=idempotency_key,
+            content=content,
+            filename=file.filename or "upload.bin",
+            content_type=file.content_type or "application/octet-stream",
+            source_uri=source_uri,
+            owner_user_id=owner_user_id,
             trace_id=str(getattr(request.state, "trace_id", "")),
         )
     except ingest_gateway.IngestError as exc:

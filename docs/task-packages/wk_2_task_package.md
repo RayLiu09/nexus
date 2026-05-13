@@ -157,8 +157,8 @@ Goal:
 Scope:
 
 - `job`、`job_stage` 或等价状态记录。
-- 作业类型：`ingest_process`、`parse`、`normalize`、`assetize`。
-- 状态：`pending`、`running`、`succeeded`、`failed`、`retrying`。
+- 作业类型：`ingest_process`（`parse`、`normalize`、`assetize` 已合并为 `ingest_process` 的阶段，见 Review 4 FB-4-3）。
+- 状态：`queued`（原 `pending`）、`running`、`succeeded`、`failed`、`review_required`、`dead_lettered`、`cancelled`（见 Review 4 FB-4-3 实施后的实际枚举）。
 - 失败原因、重试次数、关联 `ingest_batch` / `raw_object`。
 - 最小 worker 调度骨架，可先同步执行或使用队列抽象。
 - 作业查询 API。

@@ -4,6 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from nexus_app import models
+from nexus_app.audit import write_audit
+from nexus_app.enums import AuditEventType
 
 ModelT = TypeVar("ModelT")
 
@@ -41,17 +43,51 @@ def create_user(session: Session, payload) -> models.UserAccount:
     return row
 
 
-def create_api_caller(session: Session, payload) -> models.ApiCaller:
+def create_api_caller(
+    session: Session,
+    payload,
+    trace_id: str | None = None,
+    actor_type: str | None = None,
+    actor_id: str | None = None,
+) -> models.ApiCaller:
     row = models.ApiCaller(**payload.model_dump())
     session.add(row)
+    session.flush()
+    write_audit(
+        session,
+        AuditEventType.API_CALLER_CREATED,
+        "api_caller",
+        row.id,
+        trace_id,
+        {"name": row.name, "org_scope": row.org_scope},
+        actor_type=actor_type,
+        actor_id=actor_id,
+    )
     session.commit()
     session.refresh(row)
     return row
 
 
-def create_data_source(session: Session, payload) -> models.DataSource:
+def create_data_source(
+    session: Session,
+    payload,
+    trace_id: str | None = None,
+    actor_type: str | None = None,
+    actor_id: str | None = None,
+) -> models.DataSource:
     row = models.DataSource(**payload.model_dump())
     session.add(row)
+    session.flush()
+    write_audit(
+        session,
+        AuditEventType.DATA_SOURCE_CREATED,
+        "data_source",
+        row.id,
+        trace_id,
+        {"code": row.code, "source_type": row.source_type.value, "status": row.status.value},
+        actor_type=actor_type,
+        actor_id=actor_id,
+    )
     session.commit()
     session.refresh(row)
     return row

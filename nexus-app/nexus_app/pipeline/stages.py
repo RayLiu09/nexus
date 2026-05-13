@@ -96,6 +96,18 @@ def run_assetize(
         ).all()
         for old_v in existing_available:
             old_v.version_status = AssetVersionStatus.ARCHIVED
+            write_audit(
+                ctx.session,
+                AuditEventType.ASSET_VERSION_ARCHIVED,
+                "document_version",
+                old_v.id,
+                ctx.trace_id,
+                {
+                    "asset_id": existing_asset.id,
+                    "version_no": old_v.version_no,
+                    "reason": "superseded_by_new_ingest",
+                },
+            )
 
         max_version_no = ctx.session.scalar(
             select(func.max(models.DocumentVersion.version_no)).where(
