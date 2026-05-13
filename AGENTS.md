@@ -5,8 +5,8 @@ This is the Codex coding-agent contract for NEXUS. It applies to the whole repos
 ## Read First
 
 - `readme.md`: project overview and repository map.
-- `ARCHTECT.md`: architecture contract distilled from `docs/企业数据与知识资产平台技术选型和架构nexus_v2.4.md`.
-- `SPEC.md`: product and requirement contract distilled from `docs/企业数据与知识资产平台需求Spec_v2.2.md`.
+- `ARCHITECT.md`: architecture contract distilled from `docs/企业数据与知识资产平台技术选型和架构nexus_v3.0.md`.
+- `SPEC.md`: product and requirement contract distilled from `docs/企业数据与知识资产平台需求Spec_v2.2.md` and `docs/企业数据与知识资产平台nexus_v8.0.md`.
 - `WORKFLOWS.md`: human and AI Agent collaboration workflow, task package rules, parallel-agent division, quality gates, and Review Gates.
 - `docs/企业数据与知识资产平台Prototype设计文档_v2.2.md`: page-level UI and interaction baseline.
 
@@ -16,21 +16,34 @@ This is the Codex coding-agent contract for NEXUS. It applies to the whole repos
 - No self-developed `llm-gateway`. Use existing LiteLLM for model routing, provider adaptation, credentials, and gateway-side limits.
 - Prompt management belongs to NEXUS through `ai_prompt_profile`.
 - AI governance is `metadata-service.ai-governance`, not an independent service.
-- Governance input must be `normalized_document` or `normalized_record`.
-- Never persist redundant reverse pointers: no `document_asset.current_version_id`, no `document_version.normalized_ref_id`, no quality-report reverse pointer on version.
-- AI suggestions must pass schema validation, field whitelist, redaction policy, rule guardrails, confidence thresholds, and state-machine decisions before they affect official governance results.
+- **Governance input must be `normalized_document` or `normalized_record` (via `normalized_asset_ref`). Raw files, raw JSON, and MinerU raw output are never valid governance inputs.**
+- **`governance_result` target is `normalized_asset_ref`, not `asset_version`.** `knowledge_chunk.normalized_ref_id` links chunks to normalized ref.
+- Never persist redundant reverse pointers: no `asset.current_version_id`, no `asset_version.normalized_ref_id`, no quality-report reverse pointer on version.
+- AI suggestions must pass schema validation, field whitelist, redaction policy, rule guardrails, confidence thresholds, and state-machine decisions before affecting official governance results.
 - P0 does not include a productized operations center, release management, monitoring, alerting, or capacity planning. Only health checks, structured logs, trace IDs, job status, and basic runtime state are required.
-- P0 async jobs use PostgreSQL job table + background Worker polling. Do not make RabbitMQ or Celery required unless the v2.4 scale-up trigger is explicitly approved.
-- Unless explicitly configured by source approval, governance rules, manual review, or security exception, imported data sources default to L1/L2. L3/L4 are exception levels and must be auditable.
+- P0 async jobs use PostgreSQL job table + background Worker polling. Do not make RabbitMQ or Celery required unless the v3.0 scale-up trigger is explicitly approved.
+- Imported data sources default to L1/L2. L3/L4 are exception levels requiring explicit approval, rule evidence, and audit.
+- **`assetize` and `normalize` are distinct pipeline stages.** assetize = create asset/asset_version anchor (job-orchestrator + metadata-service). normalize = content standardization (normalize-service with LLM extraction + rule fallback). Do not conflate them.
+- **MinerU must be called with auto-selected `model_version` and OCR auto-enabled for image/pdf/tiff.** Images must be stored at `parsed/<version_id>/<artifact_id>/images/` alongside `mineru-result.json`.
+- **Knowledge Pipeline is independent of Asset Pipeline.** P0 Knowledge Pipeline scope = Pipeline 1 (RAG retrieval KB) only. Pipelines 2-5 are reserved extension points.
+- **`metadata_enrich` tag generation targets normalized assets (not chunks).** High-confidence tags auto-commit with audit log. Low-confidence tags enter human review queue.
 
 ## Domain And State Rules
 
 - Core status values: `processing`, `available`, `review_required`, `archived`, `disabled`, `failed`.
 - A single asset can have at most one `available` version at a time.
 - Current version and current normalized reference are read models derived from constraints and relation tables.
-- `available` requires effective normalized reference, acceptable `governance_result.quality_summary`, effective governance result, no blocking rule, sufficient AI confidence, and uniqueness of the available version.
+- `available` requires: effective `normalized_asset_ref`; `governance.quality_level = pass`; required classification, level, tags, and org scope populated; no blocking rule; sufficient AI confidence; uniqueness of the available version.
 - `review_required` is only for low confidence, rule conflicts, high sensitivity, unclear org scope, quality/index admission failure, policy block, or explicit manual-review rules.
 - L3/L4 review, masking, and explicit authorization are triggered only by high-sensitivity exceptions or detected sensitive content; do not treat imported data sources as L3/L4 by default.
+
+## Pipeline Stages Contract
+
+Both pipelines must include: `ingest_validate` → `assetize` → normalize (+ parse for Pipeline A).
+
+Pipeline routing stored in `Job.payload.pipeline_type` at job creation. Workers read from payload; no runtime inference via `asset_kind_for()` or similar.
+
+Required audit events for both pipelines: `INGEST_BATCH_SUBMITTED`, `RAW_OBJECT_PERSISTED`, `INGEST_VALIDATE_COMPLETED`, `VERSION_STATUS_CHANGED`, `PIPELINE_FAILED`.
 
 ## Implementation Expectations
 
@@ -39,8 +52,9 @@ This is the Codex coding-agent contract for NEXUS. It applies to the whole repos
 - Store sensitive data safely. Do not log API keys, L3/L4 plain text, or large raw content.
 - Every mutation of Prompt config, rules, version status, governance result, permission, API key, AI adoption, or human override must be auditable.
 - Preserve idempotency for ingest, job retry, reprocess, re-governance, AI re-score, and index rebuild flows.
-- For frontend work, follow Prototype v2.2 page names and flows, especially `NX-13 AI Prompt 配置`. Do not add a NEXUS AI gateway management page.
-- If changing architecture, data model, API, UI, or acceptance criteria, update `ARCHTECT.md`, `SPEC.md`, and `readme.md` as needed.
+- For frontend work, follow Prototype v2.2 page names and flows. Do not add a NEXUS AI gateway management page.
+- If changing architecture, data model, API, UI, or acceptance criteria, update `ARCHITECT.md`, `SPEC.md`, and `readme.md` as needed.
+- `normalized_asset_ref` must include `source_type`, `content_type`, `title`, `language`, `governance`, `quality`, and `lineage` fields (v3.0 M22). Do not omit them.
 
 ## Preferred Stack
 
@@ -48,8 +62,8 @@ This is the Codex coding-agent contract for NEXUS. It applies to the whole repos
 - Python dependency management: uv with `pyproject.toml` and `uv.lock`.
 - Frontend console: React 19, Next.js 16 App Router, TypeScript, ECharts for basic charts.
 - Async jobs: PostgreSQL job table + Worker poller, row-level claim locking, lock lease/heartbeat, retry/backoff, dead-letter state. RabbitMQ + Celery are scale-up components only.
-- Storage/search: PostgreSQL 15+, MinIO, in-process TTL cache for P0, RAGFlow, Elasticsearch/vector engine managed by RAGFlow. Redis 7.x is a scale-up component only.
-- Parsing and AI: MinerU, LiteLLM, OpenAI-compatible/private models, `bge-large-zh-v1.5`, `bge-reranker-large`.
+- Storage/search: PostgreSQL 15+, MinIO, in-process TTL cache for P0, RAGFlow. Redis 7.x is a scale-up component only.
+- Parsing and AI: MinerU (pipeline / vlm / MinerU-HTML, auto-selected by mime_type), LiteLLM, `bge-large-zh-v1.5`, `bge-reranker-large`.
 
 ## Working Practice
 
@@ -59,8 +73,8 @@ This is the Codex coding-agent contract for NEXUS. It applies to the whole repos
 - Use contract-first parallelism. Freeze API schemas, state enums, UI state semantics, and file ownership before concurrent Agent work.
 - If multiple AI Agents work in parallel in a task cycle, create the `WORKFLOWS.md` parallel-agent contract before implementation. This rule applies only to parallel multi-Agent scenarios.
 - Keep task packages small, ideally 0.5 to 1.5 days of scoped work. Avoid large cross-cutting patches unless explicitly requested.
-- Keep externally consumed business APIs in `nexus-api`. `nexus-console` control-plane APIs are internal to the admin console by principle and must not be exposed as business-facing APIs for external callers.
+- Keep externally consumed business APIs in `nexus-api`. `nexus-console` control-plane APIs are internal and must not be exposed as business-facing APIs.
 - Avoid broad rewrites unless the user asks for a version upgrade.
-- Do not silently change the v2.4 contract to simplify implementation.
+- Do not silently change the v3.0 contract to simplify implementation.
 - Add or update tests for state transitions, permission filtering, governance rules, AI output validation, Prompt versioning, and audit trails.
 - High-risk changes to data model, AI governance, rule engine, permissions/audit, version state, RAGFlow integration, API contract, or P0 UX require the corresponding `WORKFLOWS.md` Review Gate before they can be considered complete.

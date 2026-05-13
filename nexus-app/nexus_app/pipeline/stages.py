@@ -16,7 +16,7 @@ from nexus_app.enums import (
     NormalizedType,
     ParseArtifactStatus,
 )
-from nexus_app.ingest.keys import artifact_key, normalized_key
+from nexus_app.ingest.keys import artifact_key, artifact_image_key, normalized_key
 from nexus_app.pipeline.context import PipelineContext
 from nexus_app.storage import checksum_value
 
@@ -161,14 +161,15 @@ def run_parse(
     ctx: PipelineContext,
     version: models.DocumentVersion,
 ) -> models.ParseArtifact:
-    """Stage 2 (documents only): Call MinerU, store artifact, create ParseArtifact record."""
+    """Stage 2 (documents only): Call MinerU, store artifact + images, create ParseArtifact record."""
     raw_object = ctx.raw_object
     raw_uri = raw_object.object_uri
     raw_key = raw_uri.split("/", 3)[-1] if raw_uri.startswith("s3://") else raw_uri
     raw_content = ctx.storage.get_bytes(raw_key)
 
     filename = str(raw_object.metadata_summary.get("filename", raw_object.id))
-    parsed = ctx.mineru.parse(filename, raw_content, raw_object.mime_type)
+    mime_type = raw_object.mime_type
+    parsed = ctx.mineru.parse(filename, raw_content, mime_type)
 
     artifact = models.ParseArtifact(
         raw_object_id=raw_object.id,
@@ -177,7 +178,10 @@ def run_parse(
         parse_mode=parsed.parse_mode,
         checksum=checksum_value(parsed.content),
         status=ParseArtifactStatus.GENERATED,
-        metadata_summary=parsed.metadata,
+        metadata_summary={
+            **parsed.metadata,
+            "image_count": len(parsed.images),
+        },
     )
     ctx.session.add(artifact)
     ctx.session.flush()
@@ -185,17 +189,40 @@ def run_parse(
     stored = ctx.storage.put_bytes(
         artifact_key(ctx.settings, version.id, artifact.id),
         parsed.content,
-        parsed.content_type,
+        "application/json",
         {"nexus-raw-object-id": raw_object.id, "nexus-version-id": version.id},
     )
     artifact.artifact_uri = stored.object_uri
+
+    # Store extracted images alongside the JSON result so renderers can resolve
+    # image references in the middle-json without re-parsing the original file.
+    image_uris: dict[str, str] = {}
+    for img_name, img_bytes in parsed.images.items():
+        img_key = artifact_image_key(ctx.settings, version.id, artifact.id, img_name)
+        ext = img_name.rsplit(".", 1)[-1].lower() if "." in img_name else "bin"
+        img_content_type = f"image/{ext}" if ext in {"png", "jpg", "jpeg", "webp", "gif", "tiff", "bmp"} else "application/octet-stream"
+        img_stored = ctx.storage.put_bytes(
+            img_key,
+            img_bytes,
+            img_content_type,
+            {"nexus-artifact-id": artifact.id, "nexus-image-name": img_name},
+        )
+        image_uris[img_name] = img_stored.object_uri
+
+    if image_uris:
+        artifact.metadata_summary = {**artifact.metadata_summary, "image_uris": image_uris}
+
     ctx.session.flush()
 
     _add_stage(
         ctx,
         "parse",
         StageStatus.SUCCEEDED,
-        {"parse_artifact_id": artifact.id, "artifact_uri": artifact.artifact_uri},
+        {
+            "parse_artifact_id": artifact.id,
+            "artifact_uri": artifact.artifact_uri,
+            "image_count": len(image_uris),
+        },
     )
     return artifact
 
@@ -208,19 +235,61 @@ def _build_normalized_document(
     blocks = parse_payload.get("blocks")
     if not isinstance(blocks, list):
         text = parse_payload.get("markdown") or parse_payload.get("content") or ""
-        blocks = [{"block_id": "block-001", "type": "paragraph", "text": str(text)[:4000]}]
+        blocks = [{"block_id": "block-001", "block_type": "paragraph", "seq_no": 1,
+                   "text": str(text)[:4000], "source_locator": {}}]
+    title = title_from(raw_object, parse_payload)
     return {
         "schema_version": "normalized-document-v1",
-        "title": title_from(raw_object, parse_payload),
+        "asset_id": None,       # filled by run_normalize after asset is known
+        "version_id": None,     # filled by run_normalize
         "source_type": raw_object.source_type.value,
+        "source_ref": {
+            "raw_object_id": raw_object.id,
+            "raw_object_uri": raw_object.object_uri,
+            "batch_id": raw_object.batch_id,
+            "source_uri": raw_object.source_uri,
+        },
+        "content_type": "document",
+        "title": title,
+        "language": "zh-CN",
+        "toc": [],
         "blocks": blocks,
+        "body_markdown": parse_payload.get("markdown") or "",
+        "attachments": _extract_attachments(artifact),
+        "metadata": {
+            "filename": raw_object.metadata_summary.get("filename"),
+            "mime_type": raw_object.mime_type,
+            "model_version": artifact.metadata_summary.get("model_version"),
+            "ocr_enabled": artifact.metadata_summary.get("ocr_enabled", False),
+        },
+        "governance": {
+            "sensitivity_level": None,
+            "org_scope": [],
+            "version_status": "processing",
+        },
+        "quality": {
+            "parse_score": None,
+            "normalize_score": None,
+            "anomaly_items": [],
+            "manual_review_status": "not_required",
+        },
         "lineage": {
             "raw_object_id": raw_object.id,
             "raw_object_uri": raw_object.object_uri,
             "parse_artifact_id": artifact.id,
             "parse_artifact_uri": artifact.artifact_uri,
+            "image_uris": artifact.metadata_summary.get("image_uris", {}),
         },
     }
+
+
+def _extract_attachments(artifact: models.ParseArtifact) -> list[dict[str, Any]]:
+    """Build attachment list from stored image_uris in artifact metadata."""
+    image_uris: dict[str, str] = artifact.metadata_summary.get("image_uris", {})
+    return [
+        {"attachment_type": "image", "filename": name, "uri": uri}
+        for name, uri in image_uris.items()
+    ]
 
 
 def _build_normalized_record(
@@ -229,11 +298,32 @@ def _build_normalized_record(
 ) -> dict[str, Any]:
     return {
         "schema_version": "normalized-record-v1",
+        "asset_id": None,       # filled by run_normalize
+        "version_id": None,     # filled by run_normalize
         "source_type": raw_object.source_type.value,
+        "record_type": raw_object.metadata_summary.get("record_type", "generic"),
         "record_key": raw_object.source_uri or raw_object.id,
         "title": title_from(raw_object, raw_payload),
+        "language": "zh-CN",
         "record_body": raw_payload,
-        "lineage": {"raw_object_id": raw_object.id, "object_uri": raw_object.object_uri},
+        "metadata": {
+            "mime_type": raw_object.mime_type,
+            "source_uri": raw_object.source_uri,
+        },
+        "governance": {
+            "sensitivity_level": None,
+            "org_scope": [],
+            "version_status": "processing",
+        },
+        "quality": {
+            "normalize_score": None,
+            "anomaly_items": [],
+            "manual_review_status": "not_required",
+        },
+        "lineage": {
+            "raw_object_id": raw_object.id,
+            "object_uri": raw_object.object_uri,
+        },
     }
 
 
@@ -264,6 +354,10 @@ def run_normalize(
         normalized_type = NormalizedType.RECORD
         normalized_payload = _build_normalized_record(raw_object, raw_payload or {})
 
+    # Back-fill asset_id / version_id now that we have the version record
+    normalized_payload["asset_id"] = version.asset_id
+    normalized_payload["version_id"] = version.id
+
     content = _json_bytes(normalized_payload)
     checksum = checksum_value(content)
 
@@ -276,7 +370,14 @@ def run_normalize(
         status=NormalizedAssetRefStatus.GENERATED,
         block_count=len(normalized_payload.get("blocks", [])),
         record_count=1 if normalized_type == NormalizedType.RECORD else 0,
-        metadata_summary={"title": normalized_payload.get("title")},
+        source_type=raw_object.source_type.value,
+        content_type=normalized_payload.get("content_type"),
+        title=normalized_payload.get("title"),
+        language=normalized_payload.get("language"),
+        governance=normalized_payload.get("governance", {}),
+        quality=normalized_payload.get("quality", {}),
+        lineage=normalized_payload.get("lineage", {}),
+        metadata_summary=normalized_payload.get("metadata", {}),
     )
     ctx.session.add(ref)
     ctx.session.flush()

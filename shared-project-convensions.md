@@ -57,9 +57,9 @@
 架构文档版本演进时遵循以下约定：
 
 - 旧版本归档至 `docs/archived/`，文件名保留原版本号，不删除。
-- `ARCHTECT.md` 始终指向当前有效版本，文件头标注版本号和源文档路径。
+- `ARCHITECT.md` 始终指向当前有效版本（当前 v3.0），文件头标注版本号和源文档路径。
 - 新版本在正文中包含"Key Changes from 上一版本"变更表，列明每条变更的分类和内容。
-- 更新 `ARCHTECT.md` 时同步补充新引入的架构约束（如接入层 Adapter 规则、存储 Key 命名规则等）。
+- 更新 `ARCHITECT.md` 时同步补充新引入的架构约束（如 assetize/normalize 职责边界、MinerU model_version 规则、normalized_asset_ref 字段规范等）。
 - 旧版本契约不得在代码或测试中继续引用；切换版本时需检查是否存在旧版本残留引用。
 
 ## 2. 文档工作习惯
@@ -616,7 +616,7 @@ Python 技术栈默认统一采用 `uv` 进行依赖包管理。
 - Python 项目中绕过 uv 引入另一套依赖管理方式，除非用户明确要求。
 - git commit message 中追加变更文件列表（文件列表属于 git diff，不属于 commit message）。
 - Review 意见标记为"保持不变"但不附理由。
-- 架构版本升级后不归档旧版本、不更新 ARCHTECT.md 指向。
+- 架构版本升级后旧版本归档至 `docs/`，`ARCHITECT.md` 更新指向新版本。
 - Review 完成后不更新 `docs/Human_Review_Feedbacks.md`。
 - 一次性对所有层级展开全量 Review 而不按层推进。
 

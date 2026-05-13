@@ -1,6 +1,6 @@
 # NEXUS
 
-NEXUS is an enterprise data and knowledge asset platform. It is currently defined by the v2.4 architecture baseline, product Spec, and Prototype documents under `docs/`.
+NEXUS is an enterprise data and knowledge asset platform. It is currently defined by the v3.0 architecture baseline and v8.0 platform documents under `docs/`.
 
 ## What NEXUS Does
 
@@ -26,8 +26,8 @@ The current P0 target covers D1-D4 pilot domains and focuses on an end-to-end us
 .
 ├── AGENTS.md       # Codex coding-agent contract
 ├── CLAUDE.md       # Claude coding-agent contract
-├── ARCHTECT.md     # Concise architecture contract, v2.4
-├── SPEC.md         # Concise product/spec contract, v2.4
+├── ARCHITECT.md     # Concise architecture contract, v3.0
+├── SPEC.md         # Concise product/spec contract, v3.0
 ├── readme.md       # Project overview
 ├── docs/           # Full source design documents
 ├── nexus-app/      # Core backend/domain models, migrations, and services
@@ -53,7 +53,7 @@ Week 2 implementation baselines:
 - `nexus-api/`: `/v1` ingest submit, job, parse artifact, normalized ref, asset, and version route adaptation to `nexus-app`.
 - `nexus-console/`: M1 live `/v1` API views for workbench, ingest, raw ledger, jobs, asset catalog, asset detail, and audit basics.
 
-Architecture v2.4 baseline:
+Architecture v3.0 baseline:
 
 - P0 async jobs use PostgreSQL job table + background Worker polling with row-level claim locking, lock lease/heartbeat, retry/backoff, dead-letter state, and idempotent job creation.
 - Single-node P0 capacity is intentionally bounded: 8-12 recommended active pipeline jobs, 16 maximum; MinerU parse jobs should stay at 2-4 concurrent before planning MQ/multi-node scale-up.
@@ -62,13 +62,14 @@ Architecture v2.4 baseline:
 
 ## Source Documents
 
-- `docs/企业数据与知识资产平台技术选型和架构nexus_v2.4.md`
+- `docs/企业数据与知识资产平台技术选型和架构nexus_v3.0.md`
+- `docs/企业数据与知识资产平台nexus_v8.0.md`
 - `docs/企业数据与知识资产平台需求Spec_v2.2.md`
 - `docs/企业数据与知识资产平台Prototype设计文档_v2.2.md`
 
 Root documents are distilled implementation contracts:
 
-- `ARCHTECT.md`: architecture boundaries, modules, data model, state model, AI governance, rules, tech baseline.
+- `ARCHITECT.md`: architecture boundaries, modules, data model, state model, AI governance, rules, tech baseline.
 - `SPEC.md`: roles, scope, product flows, APIs, non-functional requirements, acceptance criteria.
 - `CLAUDE.md`: Claude agent instructions.
 - `AGENTS.md`: Codex agent instructions.
@@ -79,8 +80,8 @@ Root documents are distilled implementation contracts:
 - NEXUS does not develop `llm-gateway`. Existing LiteLLM is the AI gateway platform.
 - Prompt templates, Prompt versions, output schema, scoring weights, redaction policy, and governance audit data are maintained in NEXUS through `ai_prompt_profile`.
 - AI governance is implemented as `metadata-service.ai-governance`, not an independent service.
-- Governance starts from `normalized_document` or `normalized_record`, not raw objects or MinerU raw output.
-- `document_asset.current_version_id`, `document_version.normalized_ref_id`, and quality-report reverse pointers must not be introduced.
+- Governance starts from `normalized_document` or `normalized_record` (via `normalized_asset_ref`), not raw objects or MinerU raw output. `governance_result` target is `normalized_asset_ref`.
+- `asset.current_version_id`, `asset_version.normalized_ref_id`, and quality-report reverse pointers must not be introduced.
 - AI output must be structured, schema-valid, evidence-backed, confidence-scored, rule-guarded, and auditable before official adoption.
 - P0 does not require RabbitMQ, Celery, or Redis. PostgreSQL Worker polling and in-process TTL cache are the default.
 - Imported data sources default to L1/L2 unless explicit high-sensitivity exception evidence exists.
@@ -91,7 +92,7 @@ Root documents are distilled implementation contracts:
 - Data source registration and file/NAS/crawler ingestion.
 - Raw object and original JSON package retention.
 - Persistent job center with stage, failure reason, retry, reprocess, and re-governance.
-- MinerU parsing and standardization into `normalized_document` / `normalized_record`.
+- MinerU parsing (auto model_version, OCR, image extraction) and standardization into `normalized_document` / `normalized_record` with full `normalized_asset_ref` fields.
 - AI-led classification, level, tag, org-scope suggestions, and quality scoring.
 - Configurable governance rules and decision tracking.
 - RAGFlow chunking, indexing, and retrieval integration.
@@ -122,8 +123,8 @@ Root documents are distilled implementation contracts:
 Read in this order before building or changing behavior:
 
 1. `AGENTS.md` or `CLAUDE.md`, depending on the coding agent.
-2. `ARCHTECT.md` for architecture and data model constraints.
+2. `ARCHITECT.md` for architecture and data model constraints.
 3. `SPEC.md` for product behavior, APIs, NFRs, and acceptance criteria.
-4. The full `docs/` architecture v2.4 and product/prototype v2.2 files for details and page-level Prototype behavior.
+4. The full `docs/` architecture v3.0 / v8.0 and product/prototype v2.2 files for details and page-level Prototype behavior.
 
 Any implementation that changes architecture, data model, API, UI behavior, or acceptance criteria should update the root contract documents and the relevant full design document.

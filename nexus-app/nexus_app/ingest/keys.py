@@ -3,6 +3,13 @@ from __future__ import annotations
 from nexus_app.config import Settings
 from nexus_app.enums import DataSourceType, NormalizedType
 
+__all__ = [
+    "raw_key",
+    "artifact_key",
+    "artifact_image_key",
+    "normalized_key",
+]
+
 
 def _safe_part(value: str) -> str:
     safe = "".join(char if char.isalnum() or char in {"-", "_", "."} else "-" for char in value)
@@ -41,6 +48,19 @@ def artifact_key(settings: Settings, version_id: str, artifact_id: str) -> str:
             _safe_part(version_id),
             _safe_part(artifact_id),
             "mineru-result.json",
+        ]
+    )
+
+
+def artifact_image_key(settings: Settings, version_id: str, artifact_id: str, image_name: str) -> str:
+    """Key for an extracted image stored alongside the parse result JSON."""
+    return "/".join(
+        [
+            settings.minio_bucket_partition_parsed.strip("/"),
+            _safe_part(version_id),
+            _safe_part(artifact_id),
+            "images",
+            _safe_part(image_name) or "image",
         ]
     )
 

@@ -1,39 +1,82 @@
 from __future__ import annotations
 
+import io
 import json
-from uuid import uuid4
-from dataclasses import dataclass
+import zipfile
+from dataclasses import dataclass, field
 from typing import Protocol
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
+from uuid import uuid4
 
 from nexus_app.config import Settings, get_settings
 from nexus_app.storage import checksum_value
 
 
+def _select_model_version(mime_type: str | None) -> str:
+    """Choose MinerU model_version based on file mime type.
+
+    - text/html or application/xhtml+xml → MinerU-HTML
+    - default → pipeline  (vlm is opt-in via caller override)
+    """
+    if mime_type:
+        mt = mime_type.lower()
+        if "html" in mt:
+            return "MinerU-HTML"
+    return "pipeline"
+
+
+def _needs_ocr(mime_type: str | None) -> bool:
+    """Return True when the content type warrants OCR activation."""
+    if not mime_type:
+        return False
+    mt = mime_type.lower()
+    return any(t in mt for t in ("image/", "application/pdf", "tiff"))
+
+
 @dataclass(frozen=True)
 class ParseResult:
-    content: bytes
+    content: bytes          # mineru-result.json bytes
     content_type: str
     parse_mode: str
     metadata: dict[str, object]
+    images: dict[str, bytes] = field(default_factory=dict)
+    """Extracted images keyed by filename (e.g. 'page_0_img_0.png').
+
+    Stored alongside the JSON result so downstream renderers can resolve
+    image references without re-parsing the original document.
+    """
 
 
 class MinerUAdapter(Protocol):
-    def parse(self, filename: str, content: bytes, content_type: str | None = None) -> ParseResult:
+    def parse(
+        self,
+        filename: str,
+        content: bytes,
+        content_type: str | None = None,
+        model_version: str | None = None,
+    ) -> ParseResult:
         ...
 
 
 class FakeMinerUAdapter:
-    def parse(self, filename: str, content: bytes, content_type: str | None = None) -> ParseResult:
+    def parse(
+        self,
+        filename: str,
+        content: bytes,
+        content_type: str | None = None,
+        model_version: str | None = None,
+    ) -> ParseResult:
         text = content.decode("utf-8", errors="ignore")
         title = filename.rsplit("/", 1)[-1]
+        effective_model = model_version or _select_model_version(content_type)
         result = {
             "schema_version": "mineru-fake-v1",
             "title": title,
             "markdown": f"# {title}\n\n{text[:4000]}",
             "content_checksum": checksum_value(content),
+            "model_version": effective_model,
             "blocks": [
                 {
                     "block_id": "block-001",
@@ -45,8 +88,14 @@ class FakeMinerUAdapter:
         return ParseResult(
             content=json.dumps(result, ensure_ascii=False, sort_keys=True).encode("utf-8"),
             content_type="application/json",
-            parse_mode="fake",
-            metadata={"adapter": "fake", "source_filename": title},
+            parse_mode=f"fake-{effective_model}",
+            metadata={
+                "adapter": "fake",
+                "source_filename": title,
+                "model_version": effective_model,
+                "ocr_enabled": _needs_ocr(content_type),
+            },
+            images={},
         )
 
 
@@ -66,21 +115,31 @@ class MinerUHttpAdapter:
         except json.JSONDecodeError:
             return {"status": "ok", "raw_bytes": len(body)}
 
-    def parse(self, filename: str, content: bytes, content_type: str | None = None) -> ParseResult:
+    def parse(
+        self,
+        filename: str,
+        content: bytes,
+        content_type: str | None = None,
+        model_version: str | None = None,
+    ) -> ParseResult:
+        effective_model = model_version or _select_model_version(content_type)
+        ocr_enabled = _needs_ocr(content_type)
+
         boundary = f"----nexus-mineru-{uuid4().hex}"
         form = _multipart_form(
             boundary,
             fields={
-                "backend": "hybrid-auto-engine",
+                "model_version": effective_model,
                 "parse_method": "auto",
                 "formula_enable": "true",
                 "table_enable": "true",
+                "ocr_enable": "true" if ocr_enabled else "false",
                 "return_md": "true",
                 "return_middle_json": "true",
                 "return_model_output": "false",
                 "return_content_list": "false",
-                "return_images": "false",
-                "response_format_zip": "false",
+                "return_images": "true",
+                "response_format_zip": "true",
                 "return_original_file": "false",
                 "start_page_id": "0",
                 "end_page_id": "99999",
@@ -107,13 +166,68 @@ class MinerUHttpAdapter:
         )
         with urlopen(request, timeout=self.settings.mineru_timeout) as response:
             body = response.read()
-            response_type = response.headers.get("content-type") or "application/octet-stream"
-        return ParseResult(
-            content=body,
-            content_type=response_type.split(";", 1)[0],
-            parse_mode="mineru-http",
-            metadata={"adapter": "mineru-http", "source_filename": filename},
+            response_type = (response.headers.get("content-type") or "application/octet-stream").split(";", 1)[0]
+
+        return _unpack_mineru_response(
+            body=body,
+            response_type=response_type,
+            filename=filename,
+            effective_model=effective_model,
+            ocr_enabled=ocr_enabled,
         )
+
+
+def _unpack_mineru_response(
+    body: bytes,
+    response_type: str,
+    filename: str,
+    effective_model: str,
+    ocr_enabled: bool,
+) -> ParseResult:
+    """Unpack MinerU response.
+
+    When response_format_zip=true MinerU returns a ZIP archive containing:
+      - <name>/<name>.json   (middle-json result)
+      - <name>/images/       (extracted images, may be absent if none)
+    When the response is plain JSON (no zip), treat it as the result directly.
+    """
+    images: dict[str, bytes] = {}
+    result_json: bytes
+
+    if "zip" in response_type or body[:2] == b"PK":
+        try:
+            with zipfile.ZipFile(io.BytesIO(body)) as zf:
+                json_entries = [n for n in zf.namelist() if n.endswith(".json")]
+                image_entries = [
+                    n for n in zf.namelist()
+                    if not n.endswith(".json") and not n.endswith("/")
+                    and any(n.lower().endswith(ext) for ext in (".png", ".jpg", ".jpeg", ".webp", ".gif", ".tiff", ".bmp"))
+                ]
+                if not json_entries:
+                    result_json = body
+                else:
+                    result_json = zf.read(json_entries[0])
+                for img_path in image_entries:
+                    img_name = img_path.rsplit("/", 1)[-1]
+                    images[img_name] = zf.read(img_path)
+        except zipfile.BadZipFile:
+            result_json = body
+    else:
+        result_json = body
+
+    return ParseResult(
+        content=result_json,
+        content_type="application/json",
+        parse_mode=f"mineru-http-{effective_model}",
+        metadata={
+            "adapter": "mineru-http",
+            "source_filename": filename,
+            "model_version": effective_model,
+            "ocr_enabled": ocr_enabled,
+            "image_count": len(images),
+        },
+        images=images,
+    )
 
 
 def mineru_health(settings: Settings | None = None) -> dict[str, object]:

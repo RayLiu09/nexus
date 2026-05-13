@@ -1,44 +1,47 @@
-# NEXUS Product Spec Contract v2.4
+# NEXUS Product Spec Contract v3.0
 
-This document is the concise product and requirement contract for implementation. It is distilled from `docs/企业数据与知识资产平台需求Spec_v2.2.md` and constrained by the v2.4 architecture baseline in `ARCHTECT.md`.
+This document is the concise product and requirement contract for implementation. It is distilled from `docs/企业数据与知识资产平台需求Spec_v2.2.md` and `docs/企业数据与知识资产平台nexus_v8.0.md`, and is constrained by the v3.0 architecture baseline in `ARCHITECT.md`.
 
 ## Product Goal
 
 NEXUS一期 builds the minimum usable loop for enterprise data assets and knowledge assets:
 
-`data ingestion -> raw retention -> parsing -> standardization -> AI governance and quality scoring -> rule guardrails -> available/review_required -> indexing -> permission-filtered search/QA -> traceable citation and audit`.
+`data ingestion → ingest_validate → assetize → parse/normalize → normalized_asset_ref → AI governance and quality scoring → rule guardrails → available/review_required → RAGFlow indexing → permission-filtered search/QA → traceable citation and audit`
 
-The platform focuses on D1-D4 pilot domains and does not productize D5/D6, knowledge graph production, SFT corpus production, evaluation standard library, or an operations center in P0.
+The platform focuses on D1-D4 pilot domains. Knowledge Pipeline P0 scope = Pipeline 1 (RAG retrieval KB) only. D5/D6 ingestion, knowledge graph, SFT corpus, evaluation standard library, and an operations center are not productized in P0.
 
 ## Roles
 
 | Role | Scope |
 |------|-------|
 | 平台/数据管理员 | Local identity/org, data sources, ingestion, jobs, rules, AI Prompt configs, governance review, permissions, audit |
-| 业务专家 | Rule review, AI suggestion review, quality calibration, search testing, knowledge asset review |
+| 业务专家 | Rule review, AI suggestion review, quality calibration, normalize-service rule definition, search testing, knowledge asset review |
 | 运维人员 | Basic job/runtime troubleshooting, retry where authorized, failure summaries |
 | API 调用方 | Upper systems, smart apps, integrations, and authorized business access through API keys and user context |
 
 Role constraints:
-
-- Former platform admin and data admin are merged into `平台/数据管理员`.
-- Former ordinary business user is merged into `API 调用方` for authorized business access.
-- No enterprise IAM/SSO is required. Local identity is mandatory; DingTalk sync is optional.
+- No enterprise IAM/SSO required. Local identity mandatory; DingTalk sync optional.
+- `nexus-console` APIs are internal control-plane only. Business-facing APIs belong in `nexus-api`.
 
 ## P0 Scope
 
 - Local org/user/API caller management.
 - Data source registration and file/NAS/crawler ingestion.
 - Raw object retention and ingest ledger.
+- `ingest_validate` job stage: format validation, virus scan, hash calculation, deduplication; writes `INGEST_VALIDATE_COMPLETED` / `INGEST_VALIDATE_FAILED` audit events.
+- `assetize` job stage: create/re-version `asset`/`asset_version` by `(data_source_id, source_object_key)` idempotency anchor.
 - Persistent job center backed by PostgreSQL job table + Worker polling, state machine, failure lookup, retry, lock lease, and dead-letter handling.
-- MinerU parsing and standardization into `normalized_document` / `normalized_record`.
-- AI governance and quality scoring from standardized objects.
+- MinerU parsing (Pipeline A): auto-selected `model_version` (HTML→MinerU-HTML, default→pipeline, complex→vlm); OCR auto-enabled for image/pdf/tiff; images stored at `parsed/<version_id>/<artifact_id>/images/`.
+- Standardization via normalize-service: LLM semantic extraction + rule-engine fallback validation; produces `normalized_document` / `normalized_record` with full `normalized_asset_ref` fields (governance, quality, lineage, source_type, content_type, title, language).
+- AI governance and quality scoring from normalized objects via `metadata-service.ai-governance`. Governance target is `normalized_asset_ref`.
 - Configurable governance rules for classification, level, tags, org scope, quality admission, review triggers, and index admission.
-- Governance decision tracking.
-- RAGFlow integration for chunking, indexing, search execution.
-- RBAC, org scope filtering, data-level visibility, masking for explicit L3/L4 exceptions, audit. ABAC is an extension point.
+- Governance decision tracking in `governance_result.decision_trail`.
+- RAGFlow integration for chunking, indexing, search execution. `knowledge_chunk.normalized_ref_id` links chunks to `normalized_asset_ref`.
+- Knowledge Pipeline 1: RAG retrieval KB for D4 teaching materials and D3 talent cultivation plans. Knowledge Pipeline is independent of Asset Pipeline.
+- `metadata_enrich` auto-tagging: targets normalized assets (not chunks); high-confidence tags auto-commit (audit logged); low-confidence tags enter human review queue.
+- RBAC, org scope filtering, data-level visibility, masking for L3/L4 exceptions, audit. ABAC is an extension point.
 - `nexus-console` P0 pages and `/v1` P0 APIs.
-- Search/QA source traceability to asset version, normalized ref, chunk, and raw object.
+- Search/QA source traceability to asset version, normalized ref (with image_uris), chunk, and raw object.
 - Basic maintainability: health checks, structured logs, trace IDs, job status, basic runtime state.
 
 ## P1 Scope
@@ -54,9 +57,7 @@ Role constraints:
 ## P2 Reserved
 
 - D5/D6 production ingestion.
-- Knowledge graph production.
-- SFT corpus production.
-- Evaluation standard library.
+- Knowledge Pipeline 2 (QA corpus / SFT), Pipeline 3 (process corpus), Pipeline 4 (knowledge graph), Pipeline 5 (evaluation standard library).
 - Productized operations center for release, monitoring, alerting, capacity planning.
 - Prompt automatic optimization, LiteLLM alias A/B comparison, active learning, batch AI re-scoring strategy.
 - Full high availability upgrades.
@@ -65,100 +66,58 @@ Role constraints:
 
 P0 pages:
 
-- 工作台: ingestion/job/review/AI adoption/rule overview/basic runtime state.
-- 数据源管理: source registration, upload entry, NAS sync, crawler push config.
-- 数据接入: single file, batch upload, directory import, ingestion policy.
-- 原始数据台账: batch query, raw object query, checksum, replay entry.
-- 作业中心: job list, stage progress, failure reason, retry, reprocess, re-governance.
-- 资产目录: asset list, current version read model, versions, normalized refs, index status.
-- 资产详情: overview, versions, normalized refs, AI governance, quality score, governance result, decision tracking, chunks, index manifest, lineage, audit.
-- 治理中心: AI suggestions, AI quality score, AI Prompt config, review tasks, rule config, save-to-activate changes, decision tracking, quality review.
-- 规则配置: rule sets, rules, validation, save-to-activate, disable, effect.
-- 权限与审计: local users, roles, API keys, org scopes, approvals, audit logs.
-- AI Prompt 配置: Prompt templates, LiteLLM alias references, output schema, scoring weights, redaction policies.
+- **工作台**: ingestion/job/review/AI adoption/rule overview/basic runtime state.
+- **数据源管理**: source registration, upload entry, NAS sync, crawler push config.
+- **数据接入**: single file, batch upload, directory import, ingestion policy.
+- **原始数据台账**: batch query, raw object query, checksum, replay entry.
+- **作业中心**: job list, stage progress (including ingest_validate / assetize / parse / normalize), failure reason, retry, reprocess, re-governance.
+- **资产目录**: asset list, current version read model, versions, normalized refs (with governance/quality/lineage fields), index status.
+- **资产详情**: overview, versions, normalized refs, AI governance, quality score, governance result, decision tracking, chunks (with normalized_ref_id), index manifest, lineage (including image_uris), audit.
+- **治理中心**: AI suggestions, AI quality score, AI Prompt config, review tasks, rule config, save-to-activate changes, decision tracking, quality review.
+- **规则配置**: rule sets, rules, validation, save-to-activate, disable, effect.
+- **权限与审计**: local users, roles, API keys, org scopes, approvals, audit logs.
+- **AI Prompt 配置**: Prompt templates, LiteLLM alias references, output schema, scoring weights, redaction policies.
+- **标签审核**: tag draft review (confirm / revise / reject), auto-committed tag history.
 
 P1 pages:
+- 检索测试
+- 知识资产管理 (Knowledge Pipeline 1 assets)
+- DingTalk 同步（可选）
+- API Key 运营增强
+- 统计报表
 
-- 检索测试.
-- 知识资产.
+## Data Classification And Level
 
-## Key User Journeys
+Assets are classified into D1-D6 domains with 3-level hierarchy. Default level:
+- D1-D2: L1/L2. D3: L1/L3 (official→L1, school-private→L3). D4: L2/L3.
+- D5-D6 (P2): L3/L4.
 
-平台/数据管理员:
+Imported data sources default to L1/L2. L3/L4 requires explicit source approval, governance rule evidence, manual/security review, and audit.
 
-1. Maintain local org/user/API caller.
-2. Configure data sources and ingestion policies.
-3. Maintain AI Prompt profiles and governance rules.
-4. Track jobs and failures.
-5. Review `review_required` assets.
-6. Configure permissions and validate retrieval.
+Level inheritance: asset → asset_version → normalized_document → knowledge_chunk. Can be overridden upward per-version or per-chunk if higher sensitivity detected.
 
-业务专家:
+## Governance Behavior
 
-1. Review AI suggestions, quality scores, and rule effects.
-2. Calibrate quality score and governance outputs.
-3. Test search quality and provide feedback.
-
-API 调用方:
-
-1. Apply for or receive API access.
-2. Call assets/search/QA/jobs APIs within authorized scopes.
-3. Provide caller and end-user context for permission evaluation.
-
-运维人员:
-
-1. Use workbench, job center, and audit logs to locate failures.
-2. Retry or trigger approved recovery actions.
-
-## Functional Requirements Summary
-
-Identity and permission:
-
-- Local users, org units, roles, API callers, API keys, and org scopes are mandatory.
-- Calls must carry API caller context and user context where applicable.
-- Permission evaluation combines RBAC, org scope, data level visibility, and masking for explicit L3/L4 exceptions. ABAC is not a P0 requirement.
-- Imported data sources default to L1/L2. L3/L4 requires explicit source approval, governance rule evidence, manual/security review, and audit.
-
-Ingestion and raw retention:
-
-- Upload, batch, NAS, crawler, DB/webhook adapters are supported by adapter pattern.
-- `idempotency_key` prevents duplicate effective assets.
-- Raw objects and original JSON packages must be retained with checksum and source metadata.
-- `data_source.default_level_hint` may be empty, L1, or L2; empty is treated as L2. L3/L4 must not be a normal source default.
-
-Parsing and standardization:
-
-- MinerU handles PDF, Office, image, scan parsing.
-- Standardized output must be `normalized_document` or `normalized_record`.
-- Governance cannot finalize from raw objects or MinerU raw artifacts.
-
-AI governance and quality scoring:
-
-- Use existing LiteLLM only; no NEXUS `llm-gateway`.
-- Prompt maintenance is in NEXUS through `ai_prompt_profile`.
-- `ai_prompt_profile` uses save-to-activate: create/update creates a new active version, archives the old active version, supports disable, version history, and audit. Draft/publish is an upgrade path.
-- `ai_governance_run` records suggestions, quality scores, evidence refs, confidence, validation, and adoption. Human feedback and overrides are recorded in `governance_result.decision_trail`.
-- AI outputs need schema validation, field whitelist checks, enum checks, redaction policy, rule guardrails, and confidence thresholds.
-- Human users can revise, reject, calibrate, and submit feedback labels.
+AI governance:
+- Input: `normalized_document` or `normalized_record` (via `normalized_asset_ref`).
+- Output pipeline: schema validation → field whitelist → redaction policy → rule guardrails → confidence threshold → state-machine decision.
+- Results persisted in `ai_governance_run`. Human feedback in `governance_result.decision_trail`.
+- High-confidence + clean rules → `available`. Conflict or low confidence → `review_required`.
 
 Rules and decisions:
-
-- Rule sets use save-to-activate in P0: create/update validates restricted expressions and immediately activates the new version; disable is supported. Publish/rollback is an upgrade path.
+- Rule sets use save-to-activate: create/update validates restricted expressions and immediately activates; disable is supported.
 - Rules cover classification, level, tags, org scope, quality admission, manual review triggers, and index admission.
 - `governance_result.decision_trail` must record input summary, AI Prompt config, LiteLLM alias, Prompt version, AI suggestion, quality score, rule set, matched rules, candidate values, final value, confidence, adoption status, and conflict reason.
 
+Auto-tagging:
+- `metadata_enrich` generates tag drafts from normalized asset content (not chunks — they don't exist yet).
+- High-confidence tags (≥ threshold) auto-committed with audit log. Admins can retrospectively review and revoke.
+- Low-confidence tags queued for human review: confirm / revise / reject.
+
 Search and QA:
-
 - Search and QA must enforce permissions before returning content.
-- Results must cite asset version, normalized ref, chunk ID, and source position.
+- Results must cite asset version, normalized ref, chunk ID (with normalized_ref_id), and source position including image_uris where applicable.
 - Unauthorized or masked content must never be returned.
-
-Maintainability:
-
-- Core services expose health checks.
-- Structured logs and request/trace IDs are mandatory.
-- Job center must show stage, failure reason, retry count, and related object.
-- P0 job processing must expose enough state to identify queued/running/succeeded/failed/review/dead-lettered jobs, Worker lock ownership, retry attempts, and failure reasons.
 
 ## Public API Groups
 
@@ -171,9 +130,9 @@ P0 API groups include:
 - Job query, retry, reprocess.
 - Asset list/detail/version/current read model.
 - Search and QA.
-- Governance rule sets, validation, save-to-activate updates, disable. Publish/rollback are extension APIs.
+- Governance rule sets, validation, save-to-activate updates, disable.
 - Governance decision query.
-- AI Prompt profile query/create/update save-to-activate/disable/version query. Draft/validate/publish are extension APIs.
+- AI Prompt profile query/create/update (save-to-activate)/disable/version query.
 - AI governance run query, AI re-score, AI feedback.
 - Auth verification.
 
@@ -182,7 +141,6 @@ Use `/v1` as the external API prefix.
 ## Non-Functional Requirements
 
 Performance:
-
 - `GET /v1/assets` P95 < 200 ms.
 - `GET /v1/assets/{id}` P95 < 150 ms.
 - `POST /v1/search` P95 < 1 s.
@@ -192,7 +150,6 @@ Performance:
 - Single-asset AI governance P95 < 30 s for small batches, excluding parse/index.
 
 Quality:
-
 - Standardized asset traceability: 100%.
 - Governance decision traceability: 100%.
 - AI governance traceability: 100%.
@@ -204,9 +161,9 @@ Quality:
 - QA citation rate: 100%.
 - Job failure locatability: 100%.
 - Key action audit coverage: 100%.
+- MinerU parse success rate: ≥ 95%.
 
 Security:
-
 - L3/L4 exception content is masked by default.
 - External models cannot receive unmasked L3/L4 plain text unless policy allows an approved private LiteLLM alias.
 - Imported data source defaults are L1/L2. Any L3/L4 elevation must be explicit, evidence-backed, and audited.
@@ -218,23 +175,28 @@ Security:
 
 P0 end-to-end cases:
 
-- Static D4 PDF ingestion produces asset, version, parse artifact, normalized ref, AI run, `governance_result.quality_summary`, governance result, chunks, index manifest.
-- D1 crawler JSON batch produces queryable raw package and searchable normalized records.
-- High-confidence AI plus clean rules automatically enters `available`.
-- AI/rule conflict enters `review_required` with evidence and conflict reason.
-- Rule save-to-activate and re-governance generate updated `governance_result.decision_trail` and mark index stale if needed.
+- Static D4 PDF ingestion: `ingest_validate` passes → `assetize` creates asset/version → MinerU parse with auto-selected `model_version` produces `parse_artifact` with image URIs stored in `parsed/…/images/` → normalize produces `normalized_document` with full governance/quality/lineage fields in `normalized_asset_ref` → AI governance run → `governance_result.quality_summary` → governance result → chunks (with `normalized_ref_id`) → index manifest.
+- HTML file ingestion: `model_version = MinerU-HTML` auto-selected; parse succeeds and images stored alongside JSON.
+- Image/scanned PDF ingestion: `ocr_enable = true` auto-set; parse succeeds.
+- D1 crawler JSON batch: `ingest_validate` passes → `assetize` (Pipeline B, no MinerU) → `normalized_record` with full `normalized_asset_ref` fields → queryable and searchable.
+- High-confidence AI + clean rules → `available`.
+- AI/rule conflict → `review_required` with evidence and conflict reason in `governance_result.decision_trail`.
+- Tag generation: high-confidence tags auto-committed with audit log; low-confidence tags appear in review queue.
+- Same `source_object_key` + different content re-ingested → new `asset_version`, old `available` archived; `AssetVersionArchived` audit event written.
+- Rule save-to-activate and re-governance → updated `governance_result.decision_trail`, index marked stale if needed.
 - Unauthorized caller cannot retrieve L3/L4 exception content.
-- QA response includes source citations.
-- Reprocess creates a new job/version and enters `available` or `review_required`.
-- RAGFlow sync failure can be retried and traced in `index_manifest`.
-- Duplicate `idempotency_key` does not create duplicate effective assets.
+- QA response includes source citations with `normalized_ref_id` and image_uri references where applicable.
+- Reprocess creates new job/version → `available` or `review_required`.
+- RAGFlow sync failure retried and traced in `index_manifest`.
+- Duplicate `idempotency_key` → no duplicate effective assets.
 - Local identity works without DingTalk.
-- AI re-score produces new `ai_governance_run` and updated `governance_result.quality_summary` while retaining feedback and score deltas in `decision_trail`.
+- AI re-score produces new `ai_governance_run` and updated `governance_result.quality_summary` while retaining feedback in `decision_trail`.
+- Knowledge Pipeline 1: normalized D4 asset → RAGFlow chunked → chunk carries `normalized_ref_id` → search returns result traceable to normalized ref.
 
 Go / No-Go:
-
 - Permission leakage rate must be 0.
 - Traceability must be 100% for standardized assets, governance decisions, AI conclusions, and QA citations.
 - Job failures must be locatable and retryable.
 - Critical actions must be audited.
 - Platform must work without external IAM.
+- `normalized_asset_ref` must include full v3.0 fields (governance, quality, lineage, source_type, content_type, title, language).

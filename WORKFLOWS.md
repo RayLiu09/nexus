@@ -1,6 +1,6 @@
 # WORKFLOWS.md
 
-This file defines how humans and AI Agents collaborate on NEXUS. It is part of the coding-agent contract together with `CLAUDE.md`, `AGENTS.md`, `ARCHTECT.md`, and `SPEC.md`.
+This file defines how humans and AI Agents collaborate on NEXUS. It is part of the coding-agent contract together with `CLAUDE.md`, `AGENTS.md`, `ARCHITECT.md`, and `SPEC.md`.
 
 The workflow is distilled from `docs/基于AI Agent的开发计划v1.0.md` and applies to the full repository unless a deeper workflow document explicitly overrides it.
 
@@ -32,7 +32,7 @@ contract first -> small task package -> AI implementation -> AI-assisted contrac
 | Frontend Agent | AI implementation lead | Pages, components, forms, state labels, drawers, dialogs, API integration. |
 | Test Agent | AI quality support | Unit tests, contract tests, E2E cases, permission cases, regression checklist. |
 | Docs Agent | AI documentation support | API docs, deployment notes, rule docs, AI governance docs, acceptance materials. |
-| Review Assistant Agent | AI review support | Check changes against `ARCHTECT.md`, `SPEC.md`, Prototype v2.2, and this workflow. |
+| Review Assistant Agent | AI review support | Check changes against `ARCHITECT.md`, `SPEC.md`, Prototype v2.2, and this workflow. |
 
 AI Agents may work in parallel, but final merges, architecture decisions, and high-risk approvals are human responsibilities.
 
@@ -79,7 +79,7 @@ Every non-trivial AI Agent task must be framed as a task package. A task package
 Task name:
 
 Source context:
-  - Reference specific constraints from ARCHTECT.md, SPEC.md, Prototype v2.2, or WORKFLOWS.md.
+  - Reference specific constraints from ARCHITECT.md, SPEC.md, Prototype v2.2, or WORKFLOWS.md.
 
 Goal:
   - User value or engineering capability to deliver.
@@ -123,7 +123,7 @@ Task size rule:
 
 1. Confirm the contract.
 
-Read `ARCHTECT.md`, `SPEC.md`, Prototype v2.2, and relevant root agent instructions before implementation.
+Read `ARCHITECT.md`, `SPEC.md`, Prototype v2.2, and relevant root agent instructions before implementation.
 
 2. Freeze the interface.
 
@@ -139,7 +139,7 @@ Agents implement code, tests, and docs inside their assigned ownership. Agents m
 
 5. Run AI-assisted contract review.
 
-Review Assistant Agent checks for drift against `ARCHTECT.md`, `SPEC.md`, Prototype v2.2, and this workflow.
+Review Assistant Agent checks for drift against `ARCHITECT.md`, `SPEC.md`, Prototype v2.2, and this workflow.
 
 6. Run human Review Gate.
 
@@ -205,7 +205,7 @@ The following changes require human approval before merge.
 
 Before merging, check:
 
-- The change does not violate v2.4 architecture boundaries.
+- The change does not violate v3.0 architecture boundaries.
 - The change does not introduce P1/P2 scope.
 - The change includes tests or explicit verification evidence.
 - Failure paths and disabled states are handled.

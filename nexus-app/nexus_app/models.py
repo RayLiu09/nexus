@@ -402,6 +402,21 @@ class NormalizedAssetRef(TimestampMixin, Base):
     )
     block_count: Mapped[int] = mapped_column(default=0, nullable=False)
     record_count: Mapped[int] = mapped_column(default=0, nullable=False)
-    metadata_summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    # Governance fields — populated by normalize-service from source contract and content analysis
+    source_type: Mapped[str | None] = mapped_column(String(40), nullable=True,
+        comment="DataSourceType value copied from raw_object for fast filtering")
+    content_type: Mapped[str | None] = mapped_column(String(40), nullable=True,
+        comment="Semantic content type: document/slide_deck/table_sheet/web_record/media_meta")
+    title: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    language: Mapped[str | None] = mapped_column(String(16), nullable=True,
+        comment="Primary language code, e.g. zh-CN")
+    governance: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False,
+        comment="Classification, sensitivity level, org_scope, version_status snapshot")
+    quality: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False,
+        comment="Quality scores, anomaly items, manual review status")
+    lineage: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False,
+        comment="raw_object_id, parse_artifact_id, processing chain trace")
+    metadata_summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False,
+        comment="Source, business, temporal metadata for search enrichment")
 
     version: Mapped[DocumentVersion] = relationship()
