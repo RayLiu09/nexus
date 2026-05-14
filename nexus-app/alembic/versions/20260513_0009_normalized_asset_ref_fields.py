@@ -41,7 +41,7 @@ def upgrade() -> None:
         for col_name in _NEW_JSON_COLS:
             op.add_column(
                 "normalized_asset_ref",
-                sa.Column(col_name, postgresql.JSONB, nullable=False, server_default="'{}'"),
+                sa.Column(col_name, postgresql.JSONB, nullable=False, server_default="{}"),
             )
     else:
         with op.batch_alter_table("normalized_asset_ref") as batch_op:
@@ -49,7 +49,7 @@ def upgrade() -> None:
                 batch_op.add_column(sa.Column(col_name, col_type, nullable=nullable))
             for col_name in _NEW_JSON_COLS:
                 batch_op.add_column(
-                    sa.Column(col_name, sa.JSON, nullable=False, server_default="'{}'")
+                    sa.Column(col_name, sa.JSON, nullable=False, server_default="{}")
                 )
 
 

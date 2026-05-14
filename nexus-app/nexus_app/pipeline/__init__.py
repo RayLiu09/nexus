@@ -7,11 +7,17 @@ from nexus_app.pipeline._queries import (
     list_jobs,
     list_normalized_refs_for_versions,
 )
-from nexus_app.pipeline.stages import run_assetize, run_normalize, run_parse
+from nexus_app.pipeline.stages import (
+    run_assetize,
+    run_normalize_document,
+    run_normalize_record,
+    run_parse,
+)
 
 __all__ = [
     "run_parse",
-    "run_normalize",
+    "run_normalize_document",
+    "run_normalize_record",
     "run_assetize",
     "list_jobs",
     "list_job_stages",

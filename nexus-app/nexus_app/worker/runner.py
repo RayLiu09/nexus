@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from datetime import timedelta
 from typing import Any
@@ -14,13 +15,20 @@ from nexus_app.enums import (
     AuditEventType,
     IngestBatchStatus,
     JobStatus,
+    PipelineType,
     RawObjectStatus,
     StageStatus,
 )
+from nexus_app.image_analysis import ImageAnalyzer, get_image_analyzer
 from nexus_app.mineru import MinerUAdapter, get_mineru_adapter
 from nexus_app.models import utcnow
 from nexus_app.pipeline.context import PipelineContext
-from nexus_app.pipeline.stages import run_assetize, run_normalize, run_parse
+from nexus_app.pipeline.stages import (
+    run_assetize,
+    run_normalize_document,
+    run_normalize_record,
+    run_parse,
+)
 from nexus_app.storage import ObjectStorage, get_object_storage
 
 logger = logging.getLogger(__name__)
@@ -76,36 +84,6 @@ def _add_failure_stage(session: Session, job: models.Job, stage_name: str, reaso
     session.flush()
 
 
-def _mark_dead_lettered(
-    session: Session,
-    job: models.Job,
-    reason: str,
-    trace_id: str | None,
-) -> None:
-    _release_lock(job)
-    job.status = JobStatus.DEAD_LETTERED
-    job.failure_reason = reason[:2000]
-    job.last_error_code = "max_attempts_exceeded"
-    job.last_error_message = reason[:2000]
-    write_audit(
-        session,
-        AuditEventType.PIPELINE_FAILED,
-        "job",
-        job.id,
-        trace_id,
-        {"error_code": "dead_lettered", "reason": reason[:500], "attempt_count": job.attempt_count},
-    )
-
-
-def _mark_retry(session: Session, job: models.Job, reason: str) -> None:
-    _release_lock(job)
-    delay = _backoff_seconds(job.attempt_count)
-    job.status = JobStatus.QUEUED
-    job.next_run_at = utcnow() + timedelta(seconds=delay)
-    job.failure_reason = reason[:2000]
-    job.last_error_message = reason[:2000]
-
-
 def _mark_job_outcome(
     session: Session,
     job: models.Job,
@@ -151,16 +129,102 @@ def _mark_job_outcome(
         )
 
 
+# ---------------------------------------------------------------------------
+# Pipeline-specific stage runners
+# ---------------------------------------------------------------------------
+
+def _run_document_pipeline(
+    ctx: PipelineContext,
+    version: models.DocumentVersion,
+) -> None:
+    """Pipeline A: parse (MinerU) → normalize_document."""
+    artifact = run_parse(ctx, version)
+    run_normalize_document(ctx, version, artifact)
+
+
+def _run_record_pipeline(
+    ctx: PipelineContext,
+    version: models.DocumentVersion,
+    raw_payload: dict[str, Any],
+) -> None:
+    """Pipeline B: normalize_record (no parse stage)."""
+    run_normalize_record(ctx, version, raw_payload)
+
+
+def _load_record_payload(
+    job: models.Job,
+    raw_object: models.RawObject,
+    storage: ObjectStorage,
+    session: Session,
+    trace_id: str | None,
+) -> dict[str, Any]:
+    """Load and validate the JSON payload for Pipeline B. Raises NonRetryableError on failure."""
+    raw_uri = raw_object.object_uri
+    raw_key = raw_uri.split("/", 3)[-1] if raw_uri.startswith("s3://") else raw_uri
+    try:
+        raw_bytes = storage.get_bytes(raw_key)
+        payload = json.loads(raw_bytes.decode("utf-8"))
+    except Exception as exc:
+        reason = f"invalid_record_payload: {type(exc).__name__}: {exc}"
+        job.status = JobStatus.FAILED
+        job.failure_reason = reason[:2000]
+        job.last_error_code = "invalid_record_payload"
+        job.last_error_message = reason[:2000]
+        _release_lock(job)
+        write_audit(
+            session,
+            AuditEventType.PIPELINE_FAILED,
+            "job",
+            job.id,
+            trace_id,
+            {"error_code": "invalid_record_payload", "reason": f"{type(exc).__name__}: {exc}"[:500]},
+        )
+        session.commit()
+        raise NonRetryableError(
+            f"record pipeline payload decode failed: {type(exc).__name__}: {exc}",
+            error_code="invalid_record_payload",
+        )
+
+    if not isinstance(payload, dict) or not payload:
+        reason = "invalid_record_payload: payload must be a non-empty JSON object"
+        job.status = JobStatus.FAILED
+        job.failure_reason = reason[:2000]
+        job.last_error_code = "invalid_record_payload"
+        job.last_error_message = reason[:2000]
+        _release_lock(job)
+        write_audit(
+            session,
+            AuditEventType.PIPELINE_FAILED,
+            "job",
+            job.id,
+            trace_id,
+            {"error_code": "invalid_record_payload", "reason": "payload must be a non-empty JSON object"},
+        )
+        session.commit()
+        raise NonRetryableError(
+            "record pipeline payload must be a non-empty JSON object",
+            error_code="invalid_record_payload",
+        )
+
+    return payload
+
+
+# ---------------------------------------------------------------------------
+# Main job executor
+# ---------------------------------------------------------------------------
+
 def execute_job(
     job: models.Job,
     session: Session,
     storage: ObjectStorage | None = None,
     mineru: MinerUAdapter | None = None,
     settings: Settings | None = None,
+    image_analyzer: ImageAnalyzer | None = None,
 ) -> None:
     """Execute all pipeline stages for a single job.
 
-    Stage order: assetize → parse (documents only) → normalize.
+    Dispatch: Pipeline A (document) → assetize → parse → normalize_document
+              Pipeline B (record)   → assetize → normalize_record
 
     After assetize succeeds, failures are persisted without rollback so that
     the partial state (asset, version) is preserved in the failed-state record.
@@ -168,6 +232,8 @@ def execute_job(
     settings = settings or get_settings()
     storage = storage or get_object_storage(settings)
     mineru = mineru or get_mineru_adapter(settings)
+    if image_analyzer is None:
+        image_analyzer = get_image_analyzer(settings)
 
     raw_object = job.raw_object
     batch = job.ingest_batch
@@ -181,72 +247,34 @@ def execute_job(
         session.commit()
         return
 
-    pipeline_type = job.payload.get("pipeline_type", "document")
+    pipeline_type = PipelineType(job.payload.get("pipeline_type", PipelineType.DOCUMENT))
+
+    # ingest_validate: for Pipeline B, load and validate the JSON payload before any DB writes
+    raw_payload: dict[str, Any] | None = None
+    if pipeline_type == PipelineType.RECORD:
+        raw_payload = _load_record_payload(job, raw_object, storage, session, trace_id)
+
+    write_audit(
+        session,
+        AuditEventType.INGEST_VALIDATE_COMPLETED,
+        "raw_object",
+        raw_object.id,
+        trace_id,
+        {"pipeline_type": pipeline_type.value, "job_id": job.id},
+    )
 
     ctx = PipelineContext(
         session=session,
         storage=storage,
         settings=settings,
-        mineru=mineru,
+        mineru=mineru if pipeline_type == PipelineType.DOCUMENT else None,
         job=job,
         raw_object=raw_object,
         batch=batch,
         trace_id=trace_id,
         pipeline_type=pipeline_type,
+        image_analyzer=image_analyzer if pipeline_type == PipelineType.DOCUMENT else None,
     )
-
-    raw_payload: dict[str, Any] | None = None
-    if pipeline_type == "record":
-        raw_uri = raw_object.object_uri
-        raw_key = raw_uri.split("/", 3)[-1] if raw_uri.startswith("s3://") else raw_uri
-        try:
-            import json
-            raw_bytes = storage.get_bytes(raw_key)
-            raw_payload = json.loads(raw_bytes.decode("utf-8"))
-        except Exception as exc:
-            job.status = JobStatus.FAILED
-            job.failure_reason = f"invalid_record_payload: {type(exc).__name__}: {exc}"[:2000]
-            job.last_error_code = "invalid_record_payload"
-            job.last_error_message = job.failure_reason
-            _release_lock(job)
-            write_audit(
-                session,
-                AuditEventType.PIPELINE_FAILED,
-                "job",
-                job.id,
-                trace_id,
-                {
-                    "error_code": "invalid_record_payload",
-                    "reason": f"{type(exc).__name__}: {exc}"[:500],
-                },
-            )
-            session.commit()
-            raise NonRetryableError(
-                f"record pipeline payload decode failed: {type(exc).__name__}: {exc}",
-                error_code="invalid_record_payload",
-            )
-        if not isinstance(raw_payload, dict) or not raw_payload:
-            job.status = JobStatus.FAILED
-            job.failure_reason = "invalid_record_payload: payload must be a non-empty JSON object"
-            job.last_error_code = "invalid_record_payload"
-            job.last_error_message = job.failure_reason
-            _release_lock(job)
-            write_audit(
-                session,
-                AuditEventType.PIPELINE_FAILED,
-                "job",
-                job.id,
-                trace_id,
-                {
-                    "error_code": "invalid_record_payload",
-                    "reason": "payload must be a non-empty JSON object",
-                },
-            )
-            session.commit()
-            raise NonRetryableError(
-                "record pipeline payload must be a non-empty JSON object",
-                error_code="invalid_record_payload",
-            )
 
     # Stage 1: assetize — failures here are rolled back (no significant partial state)
     asset: models.DocumentAsset | None = None
@@ -261,13 +289,12 @@ def execute_job(
         session.commit()
         raise
 
-    # Stages 2 & 3: parse + normalize — failures are committed as failed state (no rollback)
+    # Stages 2+: pipeline-specific — failures are committed as failed state (no rollback)
     try:
-        parse_artifact = None
-        if pipeline_type == "document":
-            parse_artifact = run_parse(ctx, version)
-
-        run_normalize(ctx, version, parse_artifact, raw_payload)
+        if pipeline_type == PipelineType.DOCUMENT:
+            _run_document_pipeline(ctx, version)
+        else:
+            _run_record_pipeline(ctx, version, raw_payload)  # type: ignore[arg-type]
 
         batch.status = IngestBatchStatus.COMPLETED
         job.status = JobStatus.SUCCEEDED

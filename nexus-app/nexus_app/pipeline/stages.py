@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 from sqlalchemy import func, select
@@ -11,14 +12,18 @@ from nexus_app.enums import (
     AssetKind,
     AssetVersionStatus,
     AuditEventType,
-    StageStatus,
     NormalizedAssetRefStatus,
     NormalizedType,
     ParseArtifactStatus,
+    PipelineType,
+    StageStatus,
 )
 from nexus_app.ingest.keys import artifact_key, artifact_image_key, normalized_key
+from nexus_app.pipeline import mineru_converter
 from nexus_app.pipeline.context import PipelineContext
 from nexus_app.storage import checksum_value
+
+logger = logging.getLogger(__name__)
 
 
 def _add_stage(
@@ -64,7 +69,7 @@ def run_assetize(
     ctx: PipelineContext,
     raw_payload: dict[str, Any] | None = None,
 ) -> tuple[models.DocumentAsset, models.DocumentVersion]:
-    """Stage 1: Create or re-version DocumentAsset + DocumentVersion (M16/M17).
+    """Stage 1 (both pipelines): Create or re-version DocumentAsset + DocumentVersion.
 
     Idempotency anchor: (data_source_id, source_object_key).
     - Same source_object_key, same checksum → caller should have skipped via duplicate check.
@@ -72,7 +77,7 @@ def run_assetize(
     - New source_object_key → create fresh asset at version_no=1.
     """
     raw_object = ctx.raw_object
-    kind = AssetKind.RECORD if ctx.pipeline_type == "record" else AssetKind.DOCUMENT
+    kind = AssetKind.RECORD if ctx.pipeline_type == PipelineType.RECORD else AssetKind.DOCUMENT
     source_key = (
         ctx.job.payload.get("source_object_key")
         or raw_object.source_uri
@@ -87,7 +92,6 @@ def run_assetize(
     )
 
     if existing_asset is not None:
-        # Re-versioning (M17): archive any currently available versions
         existing_available = ctx.session.scalars(
             select(models.DocumentVersion).where(
                 models.DocumentVersion.asset_id == existing_asset.id,
@@ -161,7 +165,10 @@ def run_parse(
     ctx: PipelineContext,
     version: models.DocumentVersion,
 ) -> models.ParseArtifact:
-    """Stage 2 (documents only): Call MinerU, store artifact + images, create ParseArtifact record."""
+    """Stage 2 (Pipeline A only): Call MinerU, store artifact + images, create ParseArtifact."""
+    if ctx.mineru is None:
+        raise RuntimeError("run_parse called on a context without a MinerU adapter (record pipeline?)")
+
     raw_object = ctx.raw_object
     raw_uri = raw_object.object_uri
     raw_key = raw_uri.split("/", 3)[-1] if raw_uri.startswith("s3://") else raw_uri
@@ -227,21 +234,78 @@ def run_parse(
     return artifact
 
 
+# ---------------------------------------------------------------------------
+# Normalize — Pipeline A (document) and Pipeline B (record)
+# ---------------------------------------------------------------------------
+
+def run_normalize_document(
+    ctx: PipelineContext,
+    version: models.DocumentVersion,
+    artifact: models.ParseArtifact,
+) -> models.NormalizedAssetRef:
+    """Stage 3 (Pipeline A): Build normalized_document from MinerU parse artifact."""
+    raw_object = ctx.raw_object
+    artifact_uri = artifact.artifact_uri
+    artifact_key_path = artifact_uri.split("/", 3)[-1] if artifact_uri.startswith("s3://") else artifact_uri
+    raw_bytes = ctx.storage.get_bytes(artifact_key_path)
+    try:
+        parse_payload = json.loads(raw_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        parse_payload = {
+            "title": raw_object.metadata_summary.get("filename", raw_object.id),
+            "markdown": raw_bytes.decode("utf-8", errors="ignore")[:4000],
+        }
+    normalized_payload = _build_normalized_document(raw_object, artifact, parse_payload, ctx)
+    return _persist_normalized_ref(ctx, version, NormalizedType.DOCUMENT, normalized_payload)
+
+
+def run_normalize_record(
+    ctx: PipelineContext,
+    version: models.DocumentVersion,
+    raw_payload: dict[str, Any],
+) -> models.NormalizedAssetRef:
+    """Stage 3 (Pipeline B): Build normalized_record from raw JSON payload (no MinerU)."""
+    normalized_payload = _build_normalized_record(ctx.raw_object, raw_payload)
+    return _persist_normalized_ref(ctx, version, NormalizedType.RECORD, normalized_payload)
+
+
+# ---------------------------------------------------------------------------
+# Normalized payload builders
+# ---------------------------------------------------------------------------
+
 def _build_normalized_document(
     raw_object: models.RawObject,
     artifact: models.ParseArtifact,
     parse_payload: dict[str, Any],
+    ctx: PipelineContext,
 ) -> dict[str, Any]:
-    blocks = parse_payload.get("blocks")
-    if not isinstance(blocks, list):
-        text = parse_payload.get("markdown") or parse_payload.get("content") or ""
-        blocks = [{"block_id": "block-001", "block_type": "paragraph", "seq_no": 1,
-                   "text": str(text)[:4000], "source_locator": {}}]
-    title = title_from(raw_object, parse_payload)
+    image_uris: dict[str, str] = artifact.metadata_summary.get("image_uris", {})
+
+    pdf_info = parse_payload.get("pdf_info")
+    if isinstance(pdf_info, list) and pdf_info:
+        blocks, body_markdown = mineru_converter.convert(
+            pdf_info,
+            image_uris,
+            ctx.image_analyzer,
+            ctx.storage,
+        )
+    else:
+        # Fallback: fake adapter or legacy format with top-level 'markdown'/'blocks'
+        raw_md = parse_payload.get("markdown") or parse_payload.get("content") or ""
+        body_markdown = str(raw_md)[:8000]
+        raw_blocks = parse_payload.get("blocks")
+        blocks = raw_blocks if isinstance(raw_blocks, list) else [{
+            "block_id": "block-001",
+            "block_type": "paragraph",
+            "seq_no": 1,
+            "text": body_markdown[:4000],
+            "source_locator": {},
+        }]
+
     return {
         "schema_version": "normalized-document-v1",
-        "asset_id": None,       # filled by run_normalize after asset is known
-        "version_id": None,     # filled by run_normalize
+        "asset_id": None,
+        "version_id": None,
         "source_type": raw_object.source_type.value,
         "source_ref": {
             "raw_object_id": raw_object.id,
@@ -250,16 +314,16 @@ def _build_normalized_document(
             "source_uri": raw_object.source_uri,
         },
         "content_type": "document",
-        "title": title,
+        "title": title_from(raw_object, parse_payload),
         "language": "zh-CN",
         "toc": [],
         "blocks": blocks,
-        "body_markdown": parse_payload.get("markdown") or "",
+        "body_markdown": body_markdown,
         "attachments": _extract_attachments(artifact),
         "metadata": {
             "filename": raw_object.metadata_summary.get("filename"),
             "mime_type": raw_object.mime_type,
-            "model_version": artifact.metadata_summary.get("model_version"),
+            "backend": artifact.metadata_summary.get("backend") or artifact.metadata_summary.get("model_version"),
             "ocr_enabled": artifact.metadata_summary.get("ocr_enabled", False),
         },
         "governance": {
@@ -278,13 +342,12 @@ def _build_normalized_document(
             "raw_object_uri": raw_object.object_uri,
             "parse_artifact_id": artifact.id,
             "parse_artifact_uri": artifact.artifact_uri,
-            "image_uris": artifact.metadata_summary.get("image_uris", {}),
+            "image_uris": image_uris,
         },
     }
 
 
 def _extract_attachments(artifact: models.ParseArtifact) -> list[dict[str, Any]]:
-    """Build attachment list from stored image_uris in artifact metadata."""
     image_uris: dict[str, str] = artifact.metadata_summary.get("image_uris", {})
     return [
         {"attachment_type": "image", "filename": name, "uri": uri}
@@ -298,8 +361,8 @@ def _build_normalized_record(
 ) -> dict[str, Any]:
     return {
         "schema_version": "normalized-record-v1",
-        "asset_id": None,       # filled by run_normalize
-        "version_id": None,     # filled by run_normalize
+        "asset_id": None,
+        "version_id": None,
         "source_type": raw_object.source_type.value,
         "record_type": raw_object.metadata_summary.get("record_type", "generic"),
         "record_key": raw_object.source_uri or raw_object.id,
@@ -327,34 +390,13 @@ def _build_normalized_record(
     }
 
 
-def run_normalize(
+def _persist_normalized_ref(
     ctx: PipelineContext,
     version: models.DocumentVersion,
-    artifact: models.ParseArtifact | None,
-    raw_payload: dict[str, Any] | None,
+    normalized_type: NormalizedType,
+    normalized_payload: dict[str, Any],
 ) -> models.NormalizedAssetRef:
-    """Stage 3: Build normalized object, store it, create NormalizedAssetRef."""
-    raw_object = ctx.raw_object
-
-    if ctx.pipeline_type == "document" and artifact is not None:
-        artifact_uri = artifact.artifact_uri
-        artifact_key_path = artifact_uri.split("/", 3)[-1] if artifact_uri.startswith("s3://") else artifact_uri
-        raw_bytes = ctx.storage.get_bytes(artifact_key_path)
-        try:
-            parse_payload = json.loads(raw_bytes.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            parse_payload = {
-                "schema_version": "mineru-raw-v1",
-                "title": raw_object.metadata_summary.get("filename", raw_object.id),
-                "markdown": raw_bytes.decode("utf-8", errors="ignore")[:4000],
-            }
-        normalized_type = NormalizedType.DOCUMENT
-        normalized_payload = _build_normalized_document(raw_object, artifact, parse_payload)
-    else:
-        normalized_type = NormalizedType.RECORD
-        normalized_payload = _build_normalized_record(raw_object, raw_payload or {})
-
-    # Back-fill asset_id / version_id now that we have the version record
+    """Shared: back-fill IDs, store to MinIO, create NormalizedAssetRef, write audit."""
     normalized_payload["asset_id"] = version.asset_id
     normalized_payload["version_id"] = version.id
 
@@ -370,7 +412,7 @@ def run_normalize(
         status=NormalizedAssetRefStatus.GENERATED,
         block_count=len(normalized_payload.get("blocks", [])),
         record_count=1 if normalized_type == NormalizedType.RECORD else 0,
-        source_type=raw_object.source_type.value,
+        source_type=ctx.raw_object.source_type.value,
         content_type=normalized_payload.get("content_type"),
         title=normalized_payload.get("title"),
         language=normalized_payload.get("language"),
@@ -417,3 +459,4 @@ def run_normalize(
         {"normalized_ref_id": ref.id, "normalized_uri": ref.object_uri},
     )
     return ref
+

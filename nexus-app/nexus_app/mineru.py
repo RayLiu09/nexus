@@ -14,16 +14,12 @@ from nexus_app.config import Settings, get_settings
 from nexus_app.storage import checksum_value
 
 
-def _select_model_version(mime_type: str | None) -> str:
-    """Choose MinerU model_version based on file mime type.
+def _select_backend(mime_type: str | None) -> str:
+    """Map MIME type to MinerU v3 backend name.
 
-    - text/html or application/xhtml+xml → MinerU-HTML
-    - default → pipeline  (vlm is opt-in via caller override)
+    - text/html → pipeline  (HTML parser, no GPU needed)
+    - default   → pipeline  (most compatible; vlm/hybrid are opt-in)
     """
-    if mime_type:
-        mt = mime_type.lower()
-        if "html" in mt:
-            return "MinerU-HTML"
     return "pipeline"
 
 
@@ -70,13 +66,13 @@ class FakeMinerUAdapter:
     ) -> ParseResult:
         text = content.decode("utf-8", errors="ignore")
         title = filename.rsplit("/", 1)[-1]
-        effective_model = model_version or _select_model_version(content_type)
+        backend = model_version or _select_backend(content_type)
         result = {
             "schema_version": "mineru-fake-v1",
             "title": title,
             "markdown": f"# {title}\n\n{text[:4000]}",
             "content_checksum": checksum_value(content),
-            "model_version": effective_model,
+            "backend": backend,
             "blocks": [
                 {
                     "block_id": "block-001",
@@ -88,11 +84,11 @@ class FakeMinerUAdapter:
         return ParseResult(
             content=json.dumps(result, ensure_ascii=False, sort_keys=True).encode("utf-8"),
             content_type="application/json",
-            parse_mode=f"fake-{effective_model}",
+            parse_mode=f"fake-{backend}",
             metadata={
                 "adapter": "fake",
                 "source_filename": title,
-                "model_version": effective_model,
+                "backend": backend,
                 "ocr_enabled": _needs_ocr(content_type),
             },
             images={},
@@ -122,18 +118,18 @@ class MinerUHttpAdapter:
         content_type: str | None = None,
         model_version: str | None = None,
     ) -> ParseResult:
-        effective_model = model_version or _select_model_version(content_type)
+        # model_version kept for API compat; maps to MinerU v3 'backend' field
+        backend = model_version or _select_backend(content_type)
         ocr_enabled = _needs_ocr(content_type)
 
         boundary = f"----nexus-mineru-{uuid4().hex}"
         form = _multipart_form(
             boundary,
             fields={
-                "model_version": effective_model,
+                "backend": backend,
                 "parse_method": "auto",
                 "formula_enable": "true",
                 "table_enable": "true",
-                "ocr_enable": "true" if ocr_enabled else "false",
                 "return_md": "true",
                 "return_middle_json": "true",
                 "return_model_output": "false",
@@ -172,7 +168,7 @@ class MinerUHttpAdapter:
             body=body,
             response_type=response_type,
             filename=filename,
-            effective_model=effective_model,
+            effective_model=backend,
             ocr_enabled=ocr_enabled,
         )
 

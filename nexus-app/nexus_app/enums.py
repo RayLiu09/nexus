@@ -75,6 +75,11 @@ class ParseArtifactStatus(StrEnum):
     FAILED    = "failed"
 
 
+class PipelineType(StrEnum):
+    DOCUMENT = "document"
+    RECORD   = "record"
+
+
 class NormalizedType(StrEnum):
     DOCUMENT = "document"
     RECORD   = "record"
@@ -134,6 +139,7 @@ class AuditEventType(StrEnum):
     # Ingest pipeline
     INGEST_BATCH_SUBMITTED          = "IngestBatchSubmitted"
     RAW_OBJECT_PERSISTED            = "RawObjectPersisted"
+    INGEST_VALIDATE_COMPLETED       = "IngestValidateCompleted"
     CROSS_SOURCE_DUPLICATE_DETECTED = "CrossSourceDuplicateDetected"
     VERSION_STATUS_CHANGED          = "VersionStatusChanged"
     PIPELINE_FAILED                 = "PipelineFailed"

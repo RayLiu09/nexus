@@ -15,11 +15,13 @@ from nexus_app.enums import (
     IngestBatchStatus,
     JobStatus,
     JobType,
+    PipelineType,
     RawObjectStatus,
 )
 from nexus_app.ingest.adapter_base import IngestAdapter
 from nexus_app.ingest.adapter_crawler import CrawlerPackageAdapter
 from nexus_app.ingest.adapter_file import FileUploadAdapter
+from nexus_app.ingest.adapter_base import BytesAdapter
 from nexus_app.ingest.keys import raw_key
 from nexus_app.schemas import CrawlerPackageSubmit, IngestFileSubmit
 from nexus_app.storage import ObjectStorage, checksum_value, get_object_storage
@@ -67,12 +69,17 @@ def _find_or_create_batch(
     return batch, True
 
 
-def _pipeline_type_for(source_type: DataSourceType, mime_type: str | None) -> str:
+def _pipeline_type_for(source_type: DataSourceType, mime_type: str | None) -> PipelineType:
+    """Determine pipeline routing from source type and MIME type.
+
+    Pipeline B (record): CRAWLER, DATABASE, WEBHOOK sources; or FILE_UPLOAD/NAS with JSON MIME.
+    Pipeline A (document): all other FILE_UPLOAD and NAS sources.
+    """
     if source_type in {DataSourceType.CRAWLER, DataSourceType.DATABASE, DataSourceType.WEBHOOK}:
-        return "record"
+        return PipelineType.RECORD
     if mime_type and "json" in mime_type.lower():
-        return "record"
-    return "document"
+        return PipelineType.RECORD
+    return PipelineType.DOCUMENT
 
 
 def _create_queued_job(
@@ -202,7 +209,10 @@ def _submit_ingest(
         prepared.mime_type,
         {
             "nexus-data-source-id": data_source.id,
-            "nexus-idempotency-key": adapter.idempotency_key,
+            # S3 metadata is ASCII-only; encode non-ASCII idempotency keys as hex
+            "nexus-idempotency-key": adapter.idempotency_key.encode("utf-8").hex()
+            if not adapter.idempotency_key.isascii()
+            else adapter.idempotency_key,
         },
     )
     raw = models.RawObject(
@@ -291,30 +301,15 @@ def submit_file_bytes(
     trace_id: str | None = None,
 ) -> IngestAccepted:
     """Submit raw bytes directly — avoids base64 encode/decode overhead for multipart uploads."""
-    from nexus_app.ingest.adapter_base import PreparedContent
-
     settings = settings or get_settings()
     storage = storage or get_object_storage(settings)
-
-    _data_source_id = data_source_id
-    _idempotency_key = idempotency_key
-    _owner_user_id = owner_user_id
-    _prepared = PreparedContent(
+    adapter = BytesAdapter(
+        data_source_id=data_source_id,
+        idempotency_key=idempotency_key,
         content=content,
         filename=filename,
         mime_type=content_type,
         source_uri=source_uri,
-        raw_metadata={"filename": filename},
-        batch_summary={"filename": filename, "object_count": 1},
-        source_object_key=source_uri or idempotency_key,
+        owner_user_id=owner_user_id,
     )
-
-    class _BytesAdapter:
-        data_source_id = _data_source_id
-        idempotency_key = _idempotency_key
-        owner_user_id = _owner_user_id
-
-        def prepare(self) -> PreparedContent:
-            return _prepared
-
-    return _submit_ingest(session, _BytesAdapter(), storage, settings, trace_id)
+    return _submit_ingest(session, adapter, storage, settings, trace_id)
