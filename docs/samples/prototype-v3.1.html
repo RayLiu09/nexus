@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS v3.1 — 企业数据与知识资产平台 Prototype</title>
+<style>
+/* ===== Design Tokens ===== */
+:root {
+  --primary: #6c5ce7;
+  --primary-light: #a29bfe;
+  --primary-pale: #f0eeff;
+  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --surface: #ffffff;
+  --bg: #f8f9fc;
+  --border: #e8ecf1;
+  --text: #1a1a2e;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --info: #3b82f6;
+  --neutral: #6b7280;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.08);
+  --shadow-xl: 0 16px 48px rgba(0,0,0,0.10);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --nav-width: 220px;
+  --topbar-h: 56px;
+  --transition: 250ms ease-in-out;
+  /* domain colors */
+  --d1: #6366f1; --d2: #8b5cf6; --d3: #06b6d4;
+  --d4: #10b981; --d5: #f59e0b; --d6: #ef4444;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6;
+  display: flex; min-height: 100vh;
+}
+
+/* ===== Navigation ===== */
+nav {
+  width: var(--nav-width); background: var(--surface); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; position: fixed; top:0; left:0; bottom:0; z-index:100;
+  transition: width var(--transition); overflow: hidden;
+}
+nav.collapsed { width: 64px; }
+nav .logo {
+  padding: 16px 20px; font-size: 18px; font-weight: 700;
+  background: var(--primary-gradient); -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent; white-space: nowrap;
+  display: flex; align-items: center; gap: 10px; height: var(--topbar-h);
+}
+nav .logo .icon { font-size: 24px; -webkit-text-fill-color: initial; flex-shrink: 0; }
+nav .nav-group { padding: 8px 12px; }
+nav .nav-group-title {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  color: var(--text-tertiary); padding: 8px 8px 4px; letter-spacing: 0.5px;
+  white-space: nowrap; overflow: hidden;
+}
+nav.collapsed .nav-group-title { display: none; }
+nav .nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-sm);
+  color: var(--text-secondary); text-decoration: none; font-size: 14px; font-weight: 500;
+  transition: all 150ms; cursor: pointer; white-space: nowrap; position: relative;
+}
+nav .nav-item:hover { background: var(--primary-pale); color: var(--primary); }
+nav .nav-item.active { background: var(--primary-pale); color: var(--primary); font-weight: 600; }
+nav .nav-item .badge {
+  position: absolute; right: 12px; background: var(--error); color: #fff;
+  font-size: 11px; min-width: 18px; height: 18px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center; padding: 0 5px;
+}
+nav.collapsed .nav-item .badge { right: 6px; top: 6px; }
+nav .nav-sep { height: 1px; background: var(--border); margin: 4px 16px; }
+nav .nav-item .label { transition: opacity var(--transition); }
+nav.collapsed .nav-item .label { opacity: 0; width: 0; }
+nav .collapse-btn {
+  margin: auto 12px 16px; padding: 8px; border-radius: var(--radius-sm);
+  cursor: pointer; color: var(--text-tertiary); text-align: center;
+  font-size: 13px; transition: all 150ms;
+}
+nav .collapse-btn:hover { background: var(--primary-pale); color: var(--primary); }
+
+/* ===== Top Bar ===== */
+.topbar {
+  position: fixed; top:0; left: var(--nav-width); right:0; height: var(--topbar-h);
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 24px; gap: 16px; z-index: 90;
+  transition: left var(--transition);
+}
+nav.collapsed ~ .topbar { left: 64px; }
+.topbar .search-box {
+  flex: 1; max-width: 480px; display: flex; align-items: center; gap: 8px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 8px 16px; color: var(--text-tertiary); font-size: 13px;
+}
+.topbar .search-box .shortcut {
+  margin-left: auto; font-size: 11px; background: var(--border); padding: 2px 6px;
+  border-radius: 4px; color: var(--text-secondary);
+}
+.topbar .topbar-actions { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+.topbar .topbar-actions .icon-btn {
+  width: 36px; height: 36px; border-radius: 50%; border: none; background: transparent;
+  cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center;
+  position: relative; color: var(--text-secondary); transition: all 150ms;
+}
+.topbar .topbar-actions .icon-btn:hover { background: var(--bg); color: var(--primary); }
+.topbar .topbar-actions .icon-btn .dot {
+  position: absolute; top: 6px; right: 6px; width: 8px; height: 8px;
+  background: var(--error); border-radius: 50%; border: 1.5px solid #fff;
+}
+.topbar .avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--primary-gradient); color: #fff; display: flex;
+  align-items: center; justify-content: center; font-size: 13px; font-weight: 600;
+}
+
+/* ===== Main Content ===== */
+main {
+  margin-left: var(--nav-width); margin-top: var(--topbar-h);
+  padding: 24px; flex: 1; min-width: 0;
+  transition: margin-left var(--transition);
+}
+nav.collapsed ~ main { margin-left: 64px; }
+nav.collapsed ~ .topbar { left: 64px; }
+
+/* ===== Page Components ===== */
+.page-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;
+}
+.page-header h1 { font-size: 24px; font-weight: 700; }
+.page-header .actions { display:flex; gap: 8px; }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
+  border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  cursor: pointer; transition: all 150ms; white-space: nowrap;
+}
+.btn:hover { background: var(--bg); border-color: var(--primary-light); }
+.btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+.btn-primary:hover { background: #5b4bd5; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-ghost { border: none; background: transparent; color: var(--text-secondary); }
+.btn-ghost:hover { background: var(--bg); color: var(--primary); }
+.btn-danger { color: var(--error); border-color: var(--error); }
+.btn-danger:hover { background: #fef2f2; }
+
+/* Badges */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px;
+  border-radius: 4px; font-size: 11px; font-weight: 600; white-space: nowrap;
+}
+.badge-success { background: #d1fae5; color: #059669; }
+.badge-info { background: #dbeafe; color: #2563eb; }
+.badge-warning { background: #fef3c7; color: #d97706; }
+.badge-error { background: #fee2e2; color: #dc2626; }
+.badge-neutral { background: #f3f4f6; color: #4b5563; }
+.badge-d1 { background: #e0e7ff; color: #4338ca; }
+.badge-d2 { background: #ede9fe; color: #6d28d9; }
+.badge-d3 { background: #cffafe; color: #0e7490; }
+.badge-d4 { background: #d1fae5; color: #047857; }
+.badge-d5 { background: #fef3c7; color: #b45309; }
+.badge-d6 { background: #fee2e2; color: #b91c1c; }
+.badge-l1 { background: #d1fae5; color: #047857; }
+.badge-l2 { background: #dbeafe; color: #1d4ed8; }
+.badge-l3 { background: #fef3c7; color: #b45309; }
+.badge-l4 { background: #fee2e2; color: #b91c1c; }
+
+/* Stat Cards */
+.stat-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-bottom: 24px; }
+.stat-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+  padding: 16px 20px; cursor: pointer; transition: all 150ms;
+}
+.stat-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.stat-card .stat-value { font-size: 28px; font-weight: 700; line-height: 1.2; }
+.stat-card .stat-trend { font-size: 12px; margin-top: 4px; }
+.stat-card .stat-trend.up { color: var(--success); }
+.stat-card .stat-trend.down { color: var(--error); }
+.stat-card .stat-label { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
+
+/* Card Grid */
+.card-grid { display: grid; gap: 16px; }
+.card-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+.card-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.card-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+  padding: 20px;
+}
+.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; font-weight: 600; font-size: 15px; }
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; margin-bottom: 20px; background: var(--surface); border-radius: var(--radius-sm); padding: 4px; border: 1px solid var(--border); }
+.tab {
+  padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 500;
+  cursor: pointer; color: var(--text-secondary); border: none; background: none;
+  transition: all 150ms;
+}
+.tab:hover { color: var(--text); }
+.tab.active { background: var(--primary-pale); color: var(--primary); font-weight: 600; }
+.tab .count { font-size: 11px; background: var(--border); padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
+
+/* Table */
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 10px 12px; font-size: 12px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
+tr:hover { background: var(--bg); }
+tr.selected { background: var(--primary-pale); }
+
+/* Asset Cards */
+.asset-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.asset-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+  overflow: hidden; cursor: pointer; transition: all 150ms;
+}
+.asset-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+.asset-card .card-thumb {
+  height: 100px; background: linear-gradient(135deg, #f8f9fc 0%, #e8ecf1 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px; position: relative; overflow: hidden;
+}
+.asset-card .card-thumb.d1 { background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%); }
+.asset-card .card-thumb.d2 { background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%); }
+.asset-card .card-thumb.d4 { background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); }
+.asset-card .card-thumb.d6 { background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); }
+.asset-card .card-thumb .domain-tag {
+  position: absolute; top: 8px; right: 8px; padding: 2px 8px; border-radius: 4px;
+  font-size: 10px; font-weight: 600; background: rgba(255,255,255,0.9); backdrop-filter: blur(4px);
+}
+.asset-card .card-body { padding: 12px 14px; }
+.asset-card .card-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; line-height: 1.3; }
+.asset-card .card-meta { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+.asset-card .quality-bar {
+  height: 4px; border-radius: 2px; background: #e8ecf1; margin-bottom: 8px; overflow: hidden;
+}
+.asset-card .quality-bar-fill { height: 100%; border-radius: 2px; }
+.asset-card .quality-bar-fill.high { background: var(--success); }
+.asset-card .quality-bar-fill.mid { background: var(--warning); }
+.asset-card .card-footer { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-tertiary); }
+
+/* SLA indicators */
+.sla-critical { color: var(--error); font-weight: 600; }
+.sla-warning { color: var(--warning); font-weight: 600; }
+.sla-normal { color: var(--text-secondary); }
+
+/* Queue sections */
+.queue-section {
+  border-left: 3px solid transparent; margin-bottom: 24px;
+  background: var(--surface); border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+.queue-section.critical { border-left-color: var(--error); }
+.queue-section.warning { border-left-color: var(--warning); }
+.queue-section.info { border-left-color: var(--success); }
+.queue-section.neutral { border-left-color: var(--neutral); }
+.queue-header {
+  padding: 14px 20px; display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border); font-weight: 600;
+}
+.queue-header.critical { color: var(--error); }
+.queue-header.warning { color: var(--warning); }
+.queue-header.info { color: var(--success); }
+.queue-body { padding: 0; }
+
+/* Lineage DAG */
+.lineage-dag {
+  display: flex; flex-direction: column; align-items: center; gap: 0; padding: 20px;
+  font-size: 12px;
+}
+.dag-node {
+  padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--surface); font-weight: 500; display: flex; align-items: center;
+  gap: 8px; cursor: pointer; transition: all 150ms; white-space: nowrap; position: relative;
+}
+.dag-node:hover { box-shadow: var(--shadow-md); border-color: var(--primary-light); }
+.dag-node .dot { width: 8px; height: 8px; border-radius: 50%; }
+.dag-node .dot.done { background: var(--success); }
+.dag-node .dot.progress { background: var(--info); animation: pulse 1.5s ease-in-out infinite; }
+.dag-node .dot.pending { background: var(--border); }
+.dag-node .dot.failed { background: var(--error); }
+.dag-arrow { color: var(--text-tertiary); font-size: 16px; line-height: 1; padding: 2px 0; text-align: center; }
+.dag-row { display: flex; gap: 24px; align-items: flex-start; justify-content: center; }
+.dag-col { display: flex; flex-direction: column; align-items: center; }
+.dag-branch { display: flex; gap: 40px; }
+.dag-merge { display: flex; gap: 40px; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Notification center */
+.notif-list { list-style: none; }
+.notif-item {
+  display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border);
+  font-size: 13px; align-items: flex-start;
+}
+.notif-item .notif-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+.notif-item .notif-dot.err { background: var(--error); }
+.notif-item .notif-dot.ok { background: var(--success); }
+.notif-item .notif-dot.warn { background: var(--warning); }
+.notif-item .notif-time { color: var(--text-tertiary); font-size: 11px; margin-left: auto; white-space: nowrap; }
+
+/* Confidence bars */
+.conf-bar { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.conf-bar .conf-label { width: 70px; font-size: 12px; color: var(--text-secondary); }
+.conf-bar .conf-track { flex: 1; height: 6px; background: #e8ecf1; border-radius: 3px; overflow: hidden; }
+.conf-bar .conf-fill { height: 100%; border-radius: 3px; }
+.conf-bar .conf-fill.high { background: var(--success); }
+.conf-bar .conf-fill.mid { background: var(--warning); }
+.conf-bar .conf-fill.low { background: var(--error); }
+.conf-bar .conf-val { font-size: 12px; font-weight: 600; width: 40px; text-align: right; }
+
+/* Page visibility */
+.page { display: none; }
+.page.active { display: block; }
+
+/* Batch bar */
+.batch-bar {
+  background: var(--primary-pale); border: 1px solid var(--primary-light); border-radius: var(--radius-md);
+  padding: 10px 16px; display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+  font-size: 13px; font-weight: 500;
+}
+
+/* My workspace SLA groups */
+.sla-group { margin-bottom: 20px; }
+.sla-group-header {
+  font-size: 13px; font-weight: 600; padding: 8px 0; display: flex; align-items: center; gap: 8px;
+}
+.sla-group-header.critical { color: var(--error); }
+.sla-group-header.warning { color: var(--warning); }
+.sla-group-header.normal { color: var(--success); }
+
+/* Toast */
+.toast {
+  position: fixed; top: 72px; right: 24px; z-index: 999;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg); padding: 14px 20px; font-size: 13px;
+  display: flex; align-items: center; gap: 12px; min-width: 320px;
+  animation: slideIn 250ms ease-out;
+}
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* Confirm dialog */
+.overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+}
+.dialog {
+  background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-xl);
+  padding: 24px; max-width: 440px; width: 90%;
+}
+.dialog h3 { font-size: 16px; margin-bottom: 8px; }
+.dialog p { color: var(--text-secondary); font-size: 13px; margin-bottom: 16px; }
+.dialog .confirm-input { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; margin-bottom: 16px; }
+.dialog .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* Responsive simulation note */
+.responsive-note {
+  background: #fef3c7; color: #92400e; padding: 8px 16px; border-radius: var(--radius-sm);
+  font-size: 12px; margin-bottom: 16px; text-align: center;
+}
+</style>
+</head>
+<body>
+
+<!-- ===== NAVIGATION ===== -->
+<nav id="nav">
+  <div class="logo"><span class="icon">◉</span><span class="label">NEXUS</span></div>
+  <div class="nav-group">
+    <a class="nav-item active" data-page="workbench"><span>📊</span><span class="label">工作台</span></a>
+  </div>
+  <div class="nav-sep"></div>
+  <div class="nav-group-title">数据工程</div>
+  <div class="nav-group">
+    <a class="nav-item" data-page="datasources"><span>📡</span><span class="label">数据源管理</span></a>
+    <a class="nav-item" data-page="ingest"><span>📤</span><span class="label">数据接入</span></a>
+    <a class="nav-item" data-page="raw"><span>📦</span><span class="label">原始数据台账</span></a>
+    <a class="nav-item" data-page="jobs"><span>⚙</span><span class="label">作业中心</span></a>
+  </div>
+  <div class="nav-sep"></div>
+  <div class="nav-group-title">资产</div>
+  <div class="nav-group">
+    <a class="nav-item" data-page="assets"><span>📚</span><span class="label">资产目录</span></a>
+  </div>
+  <div class="nav-sep"></div>
+  <div class="nav-group-title">治理</div>
+  <div class="nav-group">
+    <a class="nav-item" data-page="governance"><span>🛡</span><span class="label">治理中心</span><span class="badge">3</span></a>
+    <a class="nav-item" data-page="rules"><span>📋</span><span class="label">规则配置</span></a>
+    <a class="nav-item" data-page="prompt"><span>🧠</span><span class="label">AI Prompt</span></a>
+  </div>
+  <div class="nav-sep"></div>
+  <div class="nav-group-title">工具</div>
+  <div class="nav-group">
+    <a class="nav-item" data-page="search"><span>🔍</span><span class="label">检索测试</span></a>
+    <a class="nav-item" data-page="knowledge"><span>📖</span><span class="label">知识资产</span></a>
+  </div>
+  <div class="nav-sep"></div>
+  <div class="nav-group-title">系统</div>
+  <div class="nav-group">
+    <a class="nav-item" data-page="permissions"><span>🔑</span><span class="label">权限与审计</span></a>
+    <a class="nav-item" data-page="workspace"><span>👤</span><span class="label">我的工作区</span></a>
+  </div>
+  <div class="collapse-btn" onclick="toggleNav()" title="收起/展开导航">◀ 收起导航</div>
+</nav>
+
+<!-- ===== TOP BAR ===== -->
+<div class="topbar">
+  <div class="search-box">
+    <span>🔍</span> 搜索资产、作业、规则...
+    <span class="shortcut">⌘K</span>
+  </div>
+  <div class="topbar-actions">
+    <button class="icon-btn"><span>🔔</span><span class="dot"></span></button>
+    <button class="icon-btn">💡</button>
+    <div class="avatar">张</div>
+  </div>
+</div>
+
+<!-- ===== MAIN CONTENT ===== -->
+<main id="main">
+
+<!-- ========== WORKBENCH PAGE ========== -->
+<div class="page active" id="page-workbench">
+  <div class="page-header">
+    <h1>工作台</h1>
+    <div class="actions">
+      <select class="btn btn-sm"><option>近7天</option><option>今日</option><option>近30天</option></select>
+      <button class="btn btn-sm">↻ 刷新</button>
+    </div>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat-card" onclick="navigateTo('ingest')">
+      <div class="stat-value">128</div>
+      <div class="stat-trend up">↑ 12%</div>
+      <div class="stat-label">接入批次</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">1,234</div>
+      <div class="stat-trend">→ 持平</div>
+      <div class="stat-label">处理对象</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">89%</div>
+      <div class="stat-trend up">↑ 3%</div>
+      <div class="stat-label">自动化通过率</div>
+    </div>
+    <div class="stat-card" style="border-color: var(--warning);">
+      <div class="stat-value" style="color: var(--warning);">23</div>
+      <div class="stat-trend down">↓ 5</div>
+      <div class="stat-label">待复核资产</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">95%</div>
+      <div class="stat-trend">→ 持平</div>
+      <div class="stat-label">索引覆盖率</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" style="font-size: 24px;">●</div>
+      <div class="stat-trend" style="color: var(--success);">健康</div>
+      <div class="stat-label">系统状态</div>
+    </div>
+  </div>
+
+  <div class="card-grid cols-3" style="margin-bottom: 24px;">
+    <div class="card">
+      <div class="card-header">数据域分布（资产数）</div>
+      <div style="font-size:12px; line-height:2;">
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--d1);">● D1 教研教学</span><b>32</b></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--d2);">● D2 人才培养</span><b>24</b></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--d3);">● D3 就业创业</span><b>12</b></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--d4);">● D4 产教融合</span><b>45</b></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--d5);">● D5 平台运营</span><b>3</b></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--d6);">● D6 政策法规</span><b>15</b></div>
+      </div>
+      <div style="margin-top:12px;text-align:right;"><a href="#" style="color:var(--primary);font-size:12px;" onclick="navigateTo('assets');return false;">查看全部资产 →</a></div>
+    </div>
+    <div class="card">
+      <div class="card-header">分级分布</div>
+      <div style="display:flex; gap:12px; align-items:flex-end; height:100px;">
+        <div style="flex:1;text-align:center;"><div style="height:60px;background:var(--success);border-radius:4px 4px 0 0;"></div><small>L1 30%</small></div>
+        <div style="flex:1;text-align:center;"><div style="height:90px;background:var(--info);border-radius:4px 4px 0 0;"></div><small>L2 45%</small></div>
+        <div style="flex:1;text-align:center;"><div style="height:36px;background:var(--warning);border-radius:4px 4px 0 0;"></div><small>L3 18%</small></div>
+        <div style="flex:1;text-align:center;"><div style="height:14px;background:var(--error);border-radius:4px 4px 0 0;"></div><small style="color:var(--error);">L4 7%</small></div>
+      </div>
+      <div style="color:var(--error);font-size:11px;margin-top:8px;">⚠ L4 资产较上周新增 2 项</div>
+    </div>
+    <div class="card">
+      <div class="card-header">我最近的资产</div>
+      <div style="font-size:13px; line-height:2;">
+        <div>📄 电子商务基础（第3版）<span style="color:var(--text-tertiary);float:right;">2h前</span></div>
+        <div>📄 人才培养方案2025<span style="color:var(--text-tertiary);float:right;">5h前</span></div>
+        <div>📄 产教融合案例集<span style="color:var(--text-tertiary);float:right;">1d前</span></div>
+        <div>📄 教研方法论v2<span style="color:var(--text-tertiary);float:right;">2d前</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-grid cols-2" style="margin-bottom: 24px;">
+    <div class="card">
+      <div class="card-header">⚡ 待处理事项（按紧急度）</div>
+      <div style="font-size:13px;line-height:2.4;">
+        <div style="color:var(--error);">🔴 待人工复核 <b>23</b> 条 · 最早等待 3h · 超时 2 条</div>
+        <div style="color:var(--warning);">🟡 规则冲突 <b>5</b> 条 · 最早等待 1h</div>
+        <div style="color:var(--warning);">🟡 标签待审核 <b>12</b> 条 · 最早等待 5h</div>
+        <div>🟢 索引失败 <b>3</b> 条</div>
+      </div>
+      <div style="margin-top:12px;"><button class="btn btn-primary btn-sm" onclick="navigateTo('governance')">处理待复核</button> <button class="btn btn-sm">查看全部待办</button></div>
+    </div>
+    <div class="card">
+      <div class="card-header">📋 最近作业</div>
+      <table>
+        <tr><td>◉ normalize_document</td><td style="color:var(--info);">处理中</td><td style="color:var(--text-tertiary);">2min前</td></tr>
+        <tr><td>✓ index_build</td><td style="color:var(--success);">完成</td><td style="color:var(--text-tertiary);">15min前</td></tr>
+        <tr><td>⚠ governance_evaluate</td><td style="color:var(--warning);">需复核</td><td style="color:var(--text-tertiary);">1h前</td></tr>
+        <tr><td>✕ document_parse</td><td style="color:var(--error);">失败</td><td style="color:var(--text-tertiary);">3h前</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 24px;">
+    <div class="card-header">🔔 通知中心 <span style="font-weight:400;font-size:12px;color:var(--text-tertiary);float:right;cursor:pointer;">全部已读</span></div>
+    <ul class="notif-list">
+      <li class="notif-item"><span class="notif-dot err"></span><span>作业 job-g7h8i9 解析失败：文档格式不支持</span><span class="notif-time">2min前</span></li>
+      <li class="notif-item"><span class="notif-dot ok"></span><span>批次 B20260514-001 全部处理完成，12个资产已可用</span><span class="notif-time">15min前</span></li>
+      <li class="notif-item"><span class="notif-dot warn"></span><span>规则集「文档分类规则 v4」校验通过，待发布</span><span class="notif-time">1h前</span></li>
+    </ul>
+  </div>
+</div>
+
+<!-- ========== ASSET CATALOG PAGE ========== -->
+<div class="page" id="page-assets">
+  <div class="page-header">
+    <h1>资产目录</h1>
+    <div class="actions">
+      <button class="btn btn-sm" id="view-card-btn" onclick="switchAssetView('card')" style="background:var(--primary-pale);color:var(--primary);">▣ 卡片</button>
+      <button class="btn btn-sm" id="view-list-btn" onclick="switchAssetView('list')">☰ 列表</button>
+      <button class="btn btn-sm">保存视图</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab active">全部</button>
+    <button class="tab">D1 教研</button><button class="tab">D2 培养</button>
+    <button class="tab">D3 就业</button><button class="tab">D4 产教</button>
+    <button class="tab">D6 政策</button>
+  </div>
+
+  <!-- Card View -->
+  <div id="asset-card-view" class="asset-cards">
+    <div class="asset-card" onclick="navigateTo('asset-detail')">
+      <div class="card-thumb d4"><span style="font-size:40px;">📕</span><span class="domain-tag">D4</span></div>
+      <div class="card-body">
+        <div class="card-title">电子商务基础（第3版）</div>
+        <div class="card-meta"><span class="badge badge-d4">D4 产教</span><span class="badge badge-l2">L2</span></div>
+        <div class="quality-bar"><div class="quality-bar-fill high" style="width:92%;"></div></div>
+        <div class="card-footer"><span>质量 <b>92</b></span><span style="color:var(--success);">● 已索引</span></div>
+      </div>
+    </div>
+    <div class="asset-card">
+      <div class="card-thumb d2"><span style="font-size:40px;">📘</span><span class="domain-tag">D2</span></div>
+      <div class="card-body">
+        <div class="card-title">人才培养方案2025</div>
+        <div class="card-meta"><span class="badge badge-d2">D2 培养</span><span class="badge badge-l2">L2</span></div>
+        <div class="quality-bar"><div class="quality-bar-fill high" style="width:88%;"></div></div>
+        <div class="card-footer"><span>质量 <b>88</b></span><span style="color:var(--success);">● 已索引</span></div>
+      </div>
+    </div>
+    <div class="asset-card">
+      <div class="card-thumb d4"><span style="font-size:40px;">📙</span><span class="domain-tag">D4</span></div>
+      <div class="card-body">
+        <div class="card-title">产教融合案例集</div>
+        <div class="card-meta"><span class="badge badge-d4">D4 产教</span><span class="badge badge-l3">L3</span></div>
+        <div class="quality-bar"><div class="quality-bar-fill mid" style="width:72%;"></div></div>
+        <div class="card-footer"><span>质量 <b style="color:var(--warning);">72</b></span><span style="color:var(--text-tertiary);">○ 未索引</span></div>
+      </div>
+    </div>
+    <div class="asset-card">
+      <div class="card-thumb d6"><span style="font-size:40px;">📗</span><span class="domain-tag">D6</span></div>
+      <div class="card-body">
+        <div class="card-title">政策汇编2025</div>
+        <div class="card-meta"><span class="badge badge-d6">D6 政策</span><span class="badge badge-l1">L1</span></div>
+        <div class="quality-bar"><div class="quality-bar-fill high" style="width:95%;"></div></div>
+        <div class="card-footer"><span>质量 <b>95</b></span><span style="color:var(--success);">● 已索引</span></div>
+      </div>
+    </div>
+    <div class="asset-card">
+      <div class="card-thumb d1"><span style="font-size:40px;">📓</span><span class="domain-tag">D1</span></div>
+      <div class="card-body">
+        <div class="card-title">教研方法论v2</div>
+        <div class="card-meta"><span class="badge badge-d1">D1 教研</span><span class="badge badge-l2">L2</span></div>
+        <div class="quality-bar"><div class="quality-bar-fill mid" style="width:68%;"></div></div>
+        <div class="card-footer"><span>质量 <b style="color:var(--warning);">68</b></span><span style="color:var(--warning);">⚠ 待复核</span></div>
+      </div>
+    </div>
+    <div class="asset-card">
+      <div class="card-thumb d3"><span style="font-size:40px;">📔</span><span class="domain-tag">D3</span></div>
+      <div class="card-body">
+        <div class="card-title">就业数据分析报告v2</div>
+        <div class="card-meta"><span class="badge badge-d3">D3 就业</span><span class="badge badge-l2">L2</span></div>
+        <div class="quality-bar"><div class="quality-bar-fill high" style="width:88%;"></div></div>
+        <div class="card-footer"><span>质量 <b>88</b></span><span style="color:var(--success);">● 已索引</span></div>
+      </div>
+    </div>
+    <div class="asset-card">
+      <div class="card-thumb d1"><span style="font-size:40px;">📒</span><span class="domain-tag">D1</span></div>
+      <div class="card-body">
+        <div class="card-title">教学大纲2025</div>
+        <div class="card-meta"><span class="badge badge-d1">D1 教研</span><span class="badge badge-l2">L2</span></div>
+        <div class="quality-bar"><div class="quality-bar-fill high" style="width:85%;"></div></div>
+        <div class="card-footer"><span>质量 <b>85</b></span><span style="color:var(--success);">● 已索引</span></div>
+      </div>
+    </div>
+    <div class="asset-card" style="display:flex;align-items:center;justify-content:center;border:2px dashed var(--border);min-height:220px;">
+      <div style="text-align:center;color:var(--text-tertiary);">
+        <div style="font-size:32px;">➕</div>
+        <div>新增资产</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- List View (hidden by default) -->
+  <div id="asset-list-view" style="display:none;">
+    <table>
+      <thead><tr><th>☐</th><th>标题</th><th>域</th><th>类型</th><th>分级</th><th>质量</th><th>AI采纳</th><th>索引</th><th>状态</th><th>时间</th></tr></thead>
+      <tbody>
+        <tr><td><input type="checkbox"></td><td style="font-weight:500;">电子商务基础（第3版）</td><td><span class="badge badge-d4">D4</span></td><td>教材</td><td><span class="badge badge-l2">L2</span></td><td><b>92</b></td><td>✓已采纳</td><td>● 已索引</td><td>● 可用</td><td>2h前</td></tr>
+        <tr><td><input type="checkbox"></td><td style="font-weight:500;">人才培养方案2025</td><td><span class="badge badge-d2">D2</span></td><td>方案</td><td><span class="badge badge-l2">L2</span></td><td><b>88</b></td><td>⚡部分</td><td>● 已索引</td><td>● 可用</td><td>5h前</td></tr>
+        <tr><td><input type="checkbox"></td><td style="font-weight:500;">产教融合案例集</td><td><span class="badge badge-d4">D4</span></td><td>案例</td><td><span class="badge badge-l3">L3</span></td><td><b style="color:var(--warning)">72</b></td><td>⚠待复核</td><td>○ 未索引</td><td>⚠ 复核</td><td>1d前</td></tr>
+        <tr><td><input type="checkbox"></td><td style="font-weight:500;">政策汇编2025</td><td><span class="badge badge-d6">D6</span></td><td>法规</td><td><span class="badge badge-l1">L1</span></td><td><b>95</b></td><td>✓已采纳</td><td>● 已索引</td><td>● 可用</td><td>3d前</td></tr>
+        <tr><td><input type="checkbox"></td><td style="font-weight:500;">教研方法论v2</td><td><span class="badge badge-d1">D1</span></td><td>报告</td><td><span class="badge badge-l2">L2</span></td><td><b style="color:var(--warning)">68</b></td><td>⚠待复核</td><td>○ 未索引</td><td>⚠ 复核</td><td>2d前</td></tr>
+        <tr><td><input type="checkbox"></td><td style="font-weight:500;">就业数据分析报告v2</td><td><span class="badge badge-d3">D3</span></td><td>报告</td><td><span class="badge badge-l2">L2</span></td><td><b>88</b></td><td>✓已采纳</td><td>● 已索引</td><td>● 可用</td><td>3d前</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ========== GOVERNANCE CENTER PAGE ========== -->
+<div class="page" id="page-governance">
+  <div class="page-header">
+    <h1>治理中心</h1>
+    <div class="actions">
+      <button class="btn btn-sm">批量操作 ▼</button>
+      <button class="btn btn-sm">我的视图 ▼</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab active">全部 67</button>
+    <button class="tab">待复核 <span class="count" style="background:var(--error);color:#fff;">23</span></button>
+    <button class="tab">质量待审 <span class="count" style="background:var(--warning);color:#fff;">15</span></button>
+    <button class="tab">AI建议 <span class="count">20</span></button>
+    <button class="tab">决策追踪 <span class="count">9</span></button>
+  </div>
+
+  <div class="batch-bar" id="batch-bar" style="display:none;">
+    ☑ 已选 <b id="batch-count">0</b> 项
+    <button class="btn btn-primary btn-sm">批量确认</button>
+    <button class="btn btn-sm">批量打标</button>
+    <button class="btn btn-sm">批量导出</button>
+    <button class="btn btn-ghost btn-sm" onclick="hideBatch()">✕</button>
+  </div>
+
+  <!-- Queue: Critical - Pending Review -->
+  <div class="queue-section critical">
+    <div class="queue-header critical">🔴 待复核 23 条 — 需人工裁定</div>
+    <div class="queue-body">
+      <table>
+        <thead><tr><th>☐</th><th>SLA</th><th>资产</th><th>复核原因</th><th>等待</th><th>置信度</th><th>操作</th></tr></thead>
+        <tbody>
+          <tr><td><input type="checkbox" onchange="toggleBatch(this)"></td><td class="sla-critical">超时</td><td style="font-weight:500;">政策法规汇编2025</td><td>高敏风险 + 低置信度</td><td>26h</td><td><span style="color:var(--error);font-weight:600;">45%</span></td><td><button class="btn btn-primary btn-sm" onclick="navigateTo('asset-detail')">裁定</button></td></tr>
+          <tr><td><input type="checkbox" onchange="toggleBatch(this)"></td><td class="sla-critical">超时</td><td style="font-weight:500;">内部培训材料v2</td><td>组织范围不明</td><td>24h</td><td><span style="color:var(--warning);font-weight:600;">62%</span></td><td><button class="btn btn-primary btn-sm">裁定</button></td></tr>
+          <tr><td><input type="checkbox" onchange="toggleBatch(this)"></td><td class="sla-warning">今日</td><td style="font-weight:500;">产教融合案例集</td><td>质量不达标</td><td>5h</td><td><span style="color:var(--warning);font-weight:600;">72%</span></td><td><button class="btn btn-sm">裁定</button></td></tr>
+          <tr><td><input type="checkbox" onchange="toggleBatch(this)"></td><td class="sla-normal">正常</td><td style="font-weight:500;">教学大纲2025</td><td>规则冲突</td><td>8h</td><td><span style="color:var(--warning);font-weight:600;">78%</span></td><td><button class="btn btn-sm">裁定</button></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Queue: Warning - Quality Review -->
+  <div class="queue-section warning">
+    <div class="queue-header warning">🟡 质量待审 15 条 — 建议人工校准</div>
+    <div class="queue-body">
+      <table>
+        <thead><tr><th>☐</th><th>资产</th><th>质量分</th><th>问题</th><th>时间</th><th>操作</th></tr></thead>
+        <tbody>
+          <tr><td><input type="checkbox" onchange="toggleBatch(this)"></td><td style="font-weight:500;">教研方法论v2</td><td><b style="color:var(--warning);">68</b></td><td>正文完整性不足</td><td>2d前</td><td><button class="btn btn-sm">校准</button></td></tr>
+          <tr><td><input type="checkbox" onchange="toggleBatch(this)"></td><td style="font-weight:500;">课程大纲v5</td><td><b style="color:var(--warning);">65</b></td><td>切片结构不连续</td><td>3d前</td><td><button class="btn btn-sm">校准</button></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Queue: Info - AI Suggestions -->
+  <div class="queue-section info">
+    <div class="queue-header info">🟢 AI 建议 20 条 — 高置信度可批量采纳</div>
+    <div class="queue-body">
+      <div style="padding:12px 20px;border-bottom:1px solid var(--border);font-size:13px;">
+        <label><input type="checkbox" checked> 全选高置信度条目（≥85%）</label>
+        <span style="margin-left:12px;color:var(--text-tertiary);">低置信度条目已自动排除，不可批量操作</span>
+      </div>
+      <table>
+        <thead><tr><th>☐</th><th>资产</th><th>建议分类</th><th>建议分级</th><th>置信度</th><th>操作</th></tr></thead>
+        <tbody>
+          <tr class="selected"><td><input type="checkbox" checked onchange="toggleBatch(this)"></td><td style="font-weight:500;">电子商务基础v3</td><td>D4 教材</td><td>L2</td><td><span style="color:var(--success);font-weight:600;">94%</span></td><td><button class="btn btn-sm">查看</button></td></tr>
+          <tr class="selected"><td><input type="checkbox" checked onchange="toggleBatch(this)"></td><td style="font-weight:500;">人才培养方案v1</td><td>D2 方案</td><td>L2</td><td><span style="color:var(--success);font-weight:600;">90%</span></td><td><button class="btn btn-sm">查看</button></td></tr>
+          <tr class="selected"><td><input type="checkbox" checked onchange="toggleBatch(this)"></td><td style="font-weight:500;">就业数据分析v2</td><td>D3 报告</td><td>L2</td><td><span style="color:var(--success);font-weight:600;">88%</span></td><td><button class="btn btn-sm">查看</button></td></tr>
+          <tr><td><input type="checkbox" disabled></td><td style="font-weight:500;color:var(--text-tertiary);">课程大纲v5</td><td>D1 大纲</td><td>L3</td><td><span style="color:var(--error);font-weight:600;">62%</span></td><td><span style="font-size:11px;color:var(--error);">⚠ 需人工复核</span></td></tr>
+        </tbody>
+      </table>
+      <div style="padding:12px 20px;"><button class="btn btn-primary btn-sm" onclick="showToast('✓ 已批量采纳 3 条 AI 建议，规则校验中...')">一键采纳高置信度 (3条)</button></div>
+    </div>
+  </div>
+
+  <!-- Queue: Neutral - Decision Trail -->
+  <div class="queue-section neutral">
+    <div class="queue-header">📋 决策追踪 9 条 — 已完成记录</div>
+    <div class="queue-body">
+      <table>
+        <thead><tr><th>资产</th><th>结果</th><th>方式</th><th>时间</th><th>操作</th></tr></thead>
+        <tbody>
+          <tr><td style="font-weight:500;">政策法规汇编2025</td><td><span class="badge badge-l4">L4 机密</span></td><td>人工裁定</td><td>2h前</td><td><button class="btn btn-sm">查看决策</button></td></tr>
+          <tr><td style="font-weight:500;">教研教材v2</td><td><span class="badge badge-d4">D4 教材</span></td><td>AI自动</td><td>1d前</td><td><button class="btn btn-sm">查看决策</button></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ========== ASSET DETAIL PAGE ========== -->
+<div class="page" id="page-asset-detail">
+  <div class="page-header">
+    <div><span style="color:var(--primary);cursor:pointer;" onclick="navigateTo('assets')">← 资产目录</span> / <h1 style="display:inline;font-size:20px;">电子商务基础（第3版）</h1></div>
+    <div class="actions">
+      <button class="btn btn-sm">重处理</button>
+      <button class="btn btn-sm">重治理</button>
+      <button class="btn btn-sm">AI 重评分</button>
+      <button class="btn btn-sm">···</button>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 180px;gap:24px;">
+    <div>
+      <!-- Overview Card -->
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header">概览</div>
+        <div style="display:flex;gap:20px;">
+          <div style="width:200px;height:140px;background:linear-gradient(135deg,#d1fae5,#a7f3d0);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:48px;flex-shrink:0;">📕</div>
+          <div style="flex:1;font-size:13px;line-height:2.2;">
+            <div><b>标题：</b>电子商务基础（第3版）</div>
+            <div><b>数据域：</b><span class="badge badge-d4">D4 产教融合</span> · <b>分级：</b><span class="badge badge-l2">L2 内部</span> · <b>类型：</b>教材</div>
+            <div><b>组织范围：</b>教研组、教务处</div>
+            <div><b>标签：</b><span class="badge badge-d4">#电子商务</span> <span class="badge badge-d2">#职业教育</span> <span class="badge badge-d1">#教材</span> <span class="badge badge-neutral">#2025版</span></div>
+            <div><b>来源：</b>教研教材上传 · 2h前 · <b>版本：</b>v3 <span class="badge badge-success">● 当前可用</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Governance & Quality -->
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header">AI 治理与质量评分</div>
+        <div style="display:flex;gap:24px;">
+          <div style="flex:1;">
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">质量评分</div>
+            <div style="font-size:36px;font-weight:700;color:var(--success);">92<span style="font-size:16px;color:var(--text-tertiary);">/100</span></div>
+            <div style="font-size:12px;margin-top:8px;">
+              <div>完整性 <span style="float:right;color:var(--success);">95</span></div>
+              <div style="height:3px;background:#e8ecf1;border-radius:2px;margin:2px 0;"><div style="height:100%;width:95%;background:var(--success);border-radius:2px;"></div></div>
+              <div>结构性 <span style="float:right;color:var(--info);">90</span></div>
+              <div style="height:3px;background:#e8ecf1;border-radius:2px;margin:2px 0;"><div style="height:100%;width:90%;background:var(--info);border-radius:2px;"></div></div>
+              <div>可读性 <span style="float:right;color:var(--warning);">88</span></div>
+              <div style="height:3px;background:#e8ecf1;border-radius:2px;margin:2px 0;"><div style="height:100%;width:88%;background:var(--warning);border-radius:2px;"></div></div>
+              <div>安全性 <span style="float:right;color:var(--success);">98</span></div>
+              <div style="height:3px;background:#e8ecf1;border-radius:2px;margin:2px 0;"><div style="height:100%;width:98%;background:var(--success);border-radius:2px;"></div></div>
+            </div>
+          </div>
+          <div style="flex:1;font-size:12px;line-height:2;">
+            <div><b>模型：</b>LiteLLM/qwen-plus</div>
+            <div><b>Prompt：</b>文档治理 v3</div>
+            <div><b>采纳状态：</b><span class="badge badge-success">✓ 自动采纳</span></div>
+            <div><b>阻断原因：</b>无</div>
+            <div style="margin-top:8px;">
+              <div class="conf-bar"><span class="conf-label">分类 D4</span><div class="conf-track"><div class="conf-fill high" style="width:94%;"></div></div><span class="conf-val" style="color:var(--success);">94%</span></div>
+              <div class="conf-bar"><span class="conf-label">分级 L2</span><div class="conf-track"><div class="conf-fill high" style="width:92%;"></div></div><span class="conf-val" style="color:var(--success);">92%</span></div>
+              <div class="conf-bar"><span class="conf-label">标签</span><div class="conf-track"><div class="conf-fill high" style="width:88%;"></div></div><span class="conf-val" style="color:var(--success);">88%</span></div>
+              <div class="conf-bar"><span class="conf-label">组织范围</span><div class="conf-track"><div class="conf-fill mid" style="width:78%;"></div></div><span class="conf-val" style="color:var(--warning);">78%</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive Lineage DAG -->
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header">血缘追溯 <span style="font-weight:400;font-size:12px;color:var(--text-tertiary);">图例：●完成 ◉进行中 ○待执行 ✕失败</span></div>
+        <div class="lineage-dag">
+          <div class="dag-node"><span class="dot done"></span> raw_object · 已落库 <span style="color:var(--text-tertiary);margin-left:8px;">📦</span></div>
+          <div class="dag-arrow">│</div>
+          <div class="dag-node"><span class="dot done"></span> ingest_validate · 通过 <span style="color:var(--text-tertiary);margin-left:8px;">✓</span></div>
+          <div class="dag-arrow">│</div>
+          <div class="dag-node"><span class="dot done"></span> parse_artifact · 完成 <span style="color:var(--primary);margin-left:8px;cursor:pointer;">[查看解析结果]</span></div>
+          <div class="dag-arrow">│</div>
+          <div class="dag-node"><span class="dot done"></span> normalize · 完成 <span style="color:var(--primary);margin-left:8px;cursor:pointer;">[查看标准化内容]</span></div>
+          <div class="dag-arrow">│</div>
+          <div class="dag-row">
+            <div class="dag-col">
+              <div class="dag-node"><span class="dot done"></span> ai_governance_run</div>
+            </div>
+            <div style="padding:0 8px;color:var(--text-tertiary);">+</div>
+            <div class="dag-col">
+              <div class="dag-node"><span class="dot done"></span> metadata_enrich</div>
+            </div>
+            <div style="padding:0 8px;color:var(--text-tertiary);">+</div>
+            <div class="dag-col">
+              <div class="dag-node"><span class="dot done"></span> quality_score · 92分</div>
+            </div>
+          </div>
+          <div class="dag-arrow">│</div>
+          <div class="dag-node"><span class="dot done"></span> governance_result · 通过 <span style="color:var(--primary);margin-left:8px;cursor:pointer;">[查看治理结果]</span></div>
+          <div class="dag-arrow">│</div>
+          <div class="dag-node"><span class="dot done"></span> index_build · 已索引 → RAGFlow<span style="color:var(--primary);margin-left:8px;cursor:pointer;">[查看索引清单]</span></div>
+        </div>
+        <div style="text-align:center;padding-bottom:12px;font-size:12px;">
+          <span style="cursor:pointer;color:var(--primary);">[展开全部节点]</span>
+          <span style="cursor:pointer;color:var(--primary);margin-left:12px;">[导出 SVG]</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right anchor nav -->
+    <div style="position:sticky;top:80px;align-self:start;">
+      <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px;">📍 页面锚点</div>
+      <div style="font-size:13px;line-height:2.4;color:var(--text-secondary);">
+        <div>概览</div><div>版本历史</div><div>标准化内容</div>
+        <div style="color:var(--primary);font-weight:500;">AI 治理</div>
+        <div style="color:var(--primary);font-weight:500;">质量评分</div>
+        <div>治理结果</div><div>决策追踪</div>
+        <div>知识切片</div><div>索引清单</div>
+        <div style="color:var(--primary);font-weight:500;">血缘追溯</div><div>审计日志</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MY WORKSPACE PAGE ========== -->
+<div class="page" id="page-workspace">
+  <div class="page-header">
+    <h1>我的工作区</h1>
+    <div class="actions"><button class="btn btn-sm">自定义视图 ▼</button></div>
+  </div>
+  <div class="tabs">
+    <button class="tab active">我的待办 8</button>
+    <button class="tab">我负责的资产 45</button>
+    <button class="tab">我的草稿 2</button>
+    <button class="tab">我提交的作业 12</button>
+  </div>
+
+  <div class="sla-group">
+    <div class="sla-group-header critical">🔴 超时 — 2 条</div>
+    <table>
+      <tr><td style="color:var(--error);font-weight:600;">⚠ 超时</td><td style="font-weight:500;">政策法规汇编2025</td><td>分级裁定</td><td>等待 26h</td><td><button class="btn btn-primary btn-sm">立即处理</button></td></tr>
+      <tr><td style="color:var(--error);font-weight:600;">⚠ 超时</td><td style="font-weight:500;">内部培训材料v2</td><td>标签审核</td><td>等待 24h</td><td><button class="btn btn-primary btn-sm">立即处理</button></td></tr>
+    </table>
+  </div>
+  <div class="sla-group">
+    <div class="sla-group-header warning">🟡 今日 — 4 条</div>
+    <table>
+      <tr><td style="color:var(--warning);">今日</td><td style="font-weight:500;">产教融合案例集</td><td>质量复核</td><td>等待 5h</td><td><button class="btn btn-sm">处理</button></td></tr>
+      <tr><td style="color:var(--warning);">今日</td><td style="font-weight:500;">课程大纲v5</td><td>分类确认</td><td>等待 6h</td><td><button class="btn btn-sm">处理</button></td></tr>
+    </table>
+  </div>
+  <div class="sla-group">
+    <div class="sla-group-header normal">🟢 正常 — 2 条</div>
+    <table>
+      <tr><td>正常</td><td style="font-weight:500;">教学大纲2025</td><td>标签补全</td><td>等待 12h</td><td><button class="btn btn-sm">处理</button></td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ========== PLACEHOLDER PAGES ========== -->
+<div class="page" id="page-datasources"><div class="page-header"><h1>数据源管理</h1><button class="btn btn-primary">+ 新建数据源</button></div><div class="card"><p style="text-align:center;padding:60px;color:var(--text-tertiary);">数据源管理页面（卡片网格布局）— 详见文档 NX-02</p></div></div>
+<div class="page" id="page-ingest"><div class="page-header"><h1>数据接入</h1></div><div class="card"><p style="text-align:center;padding:60px;color:var(--text-tertiary);">数据接入页面（三步引导式上传）— 详见文档 NX-03</p></div></div>
+<div class="page" id="page-raw"><div class="page-header"><h1>原始数据台账</h1></div><div class="card"><p style="text-align:center;padding:60px;color:var(--text-tertiary);">原始数据台账页面（批次+对象双层视图）— 详见文档 NX-04</p></div></div>
+<div class="page" id="page-jobs"><div class="page-header"><h1>作业中心</h1></div><div class="card"><p style="text-align:center;padding:60px;color:var(--text-tertiary);">作业中心页面（流水线可视化）— 详见文档 NX-05</p></div></div>
+<div class="page" id="page-rules"><div class="page-header"><h1>规则配置</h1><button class="btn btn-primary">+ 新建规则集</button></div><div class="card"><p style="text-align:center;padding:60px;color:var(--text-tertiary);">规则配置页面（可视化+JSON双模式编辑器）— 详见文档 NX-09</p></div></div>
+<div class="page" id="page-prompt"><div class="page-header"><h1>AI Prompt 配置</h1></div><div class="card"><p style="text-align:center;padding:60px;color:var(--text-tertiary);">AI Prompt 配置页面（Prompt编辑器+版本对比）— 详见文档 NX-13</p></div></div>
+<div class="page" id="page-search"><div class="page-header"><h1>检索测试</h1></div><div class="card"><p style="text-align:center;padding:60px;color:var(--text-tertiary);">检索测试页面（类ChatGPT双栏界面）— 详见文档 NX-11</p></div></div>
+<div class="page" id="page-knowledge"><div class="page-header"><h1>知识资产</h1></div><div class="card"><p style="text-align:center;padding:60px;color:var(--text-tertiary);">知识资产页面（知识库卡片管理）— 详见文档 NX-12</p></div></div>
+<div class="page" id="page-permissions"><div class="page-header"><h1>权限与审计</h1></div><div class="card"><p style="text-align:center;padding:60px;color:var(--text-tertiary);">权限与审计页面（权限矩阵+审计时间线+安全网）— 详见文档 NX-10</p></div></div>
+
+</main>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<script>
+// Navigation
+let navCollapsed = false;
+function toggleNav() {
+  navCollapsed = !navCollapsed;
+  const nav = document.getElementById('nav');
+  if (navCollapsed) {
+    nav.classList.add('collapsed');
+  } else {
+    nav.classList.remove('collapsed');
+  }
+}
+
+// Page navigation
+document.querySelectorAll('.nav-item[data-page]').forEach(item => {
+  item.addEventListener('click', function(e) {
+    e.preventDefault();
+    const page = this.dataset.page;
+    navigateTo(page);
+  });
+});
+
+function navigateTo(page) {
+  // Update nav
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+  const navItem = document.querySelector(`.nav-item[data-page="${page}"]`);
+  if (navItem) navItem.classList.add('active');
+
+  // Update page
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const pageEl = document.getElementById('page-' + page);
+  if (pageEl) pageEl.classList.add('active');
+}
+
+// Asset view switch
+function switchAssetView(view) {
+  document.getElementById('asset-card-view').style.display = view === 'card' ? 'grid' : 'none';
+  document.getElementById('asset-list-view').style.display = view === 'list' ? 'block' : 'none';
+  document.getElementById('view-card-btn').style.background = view === 'card' ? 'var(--primary-pale)' : '';
+  document.getElementById('view-card-btn').style.color = view === 'card' ? 'var(--primary)' : '';
+  document.getElementById('view-list-btn').style.background = view === 'list' ? 'var(--primary-pale)' : '';
+  document.getElementById('view-list-btn').style.color = view === 'list' ? 'var(--primary)' : '';
+}
+
+// Batch operations
+function toggleBatch(cb) {
+  const checked = document.querySelectorAll('input[type="checkbox"]:checked').length;
+  const bar = document.getElementById('batch-bar');
+  if (cb) {
+    bar.style.display = checked > 0 ? 'flex' : 'none';
+    document.getElementById('batch-count').textContent = checked;
+  }
+}
+
+function hideBatch() {
+  document.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = false);
+  document.getElementById('batch-bar').style.display = 'none';
+}
+
+// Toast
+function showToast(msg) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = msg + ' <span style="color:var(--primary);cursor:pointer;margin-left:auto;" onclick="this.parentElement.remove()">[撤销]</span>';
+  container.appendChild(toast);
+  setTimeout(() => { if (toast.parentElement) toast.remove(); }, 5000);
+}
+
+// Tab switching in governance
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', function() {
+    this.parentElement.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+
+// Show toast on batch adopt
+document.querySelector('.queue-section.info .btn-primary')?.addEventListener('click', function(e) {
+  if (e.target.textContent.includes('一键采纳')) {
+    showToast('✓ 已批量采纳 3 条 AI 建议，规则校验中...');
+  }
+});
+</script>
+
+</body>
+</html>
