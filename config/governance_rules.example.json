@@ -1,0 +1,130 @@
+{
+  "_comment": "This is an example governance_rules.json. Copy to governance_rules.json and customize for your organization.",
+  "schema_version": "1.0",
+  "classifications": [
+    {
+      "code": "D1",
+      "name": "企业基础数据",
+      "description": "Description of D1 domain",
+      "criteria": [
+        "Criterion 1 for D1 classification",
+        "Criterion 2 for D1 classification"
+      ],
+      "examples": [
+        "Example document type 1",
+        "Example document type 2"
+      ]
+    }
+  ],
+  "levels": [
+    {
+      "code": "L1",
+      "name": "公开",
+      "description": "Publicly accessible data",
+      "criteria": [
+        "Content is approved for public release",
+        "Does not contain personal or sensitive information"
+      ],
+      "requires_approval": false
+    },
+    {
+      "code": "L2",
+      "name": "内部",
+      "description": "Internal use only",
+      "criteria": [
+        "For internal employee use only",
+        "Requires internal authentication"
+      ],
+      "requires_approval": false
+    },
+    {
+      "code": "L3",
+      "name": "机密",
+      "description": "Confidential, requires explicit authorization",
+      "criteria": [
+        "Contains sensitive personal information",
+        "Requires explicit access grant and audit trail"
+      ],
+      "requires_approval": true
+    },
+    {
+      "code": "L4",
+      "name": "绝密",
+      "description": "Top secret, strictly controlled",
+      "criteria": [
+        "Highest sensitivity level",
+        "Prohibited from external systems and AI models"
+      ],
+      "requires_approval": true
+    }
+  ],
+  "tags": [
+    {
+      "code": "example_tag",
+      "name": "Example Tag",
+      "description": "An example tag definition",
+      "criteria": [
+        "Criterion for applying this tag"
+      ],
+      "applicable_classifications": ["D1"]
+    }
+  ],
+  "quality_scoring": {
+    "dimensions": [
+      {
+        "name": "completeness",
+        "weight": 0.3,
+        "description": "Content completeness check",
+        "check_items": [
+          {
+            "name": "has_title",
+            "description": "Document must have a title",
+            "severity": "blocking"
+          }
+        ]
+      },
+      {
+        "name": "accuracy",
+        "weight": 0.25,
+        "description": "Content accuracy check",
+        "check_items": [
+          {
+            "name": "classification_confidence",
+            "description": "Classification confidence must meet threshold",
+            "severity": "warning"
+          }
+        ]
+      },
+      {
+        "name": "consistency",
+        "weight": 0.25,
+        "description": "Consistency check",
+        "check_items": [
+          {
+            "name": "level_matches_classification",
+            "description": "Level should be consistent with classification",
+            "severity": "warning"
+          }
+        ]
+      },
+      {
+        "name": "usability",
+        "weight": 0.2,
+        "description": "Usability check",
+        "check_items": [
+          {
+            "name": "content_length_adequate",
+            "description": "Content should meet minimum length",
+            "severity": "warning"
+          }
+        ]
+      }
+    ],
+    "thresholds": {
+      "pass": 80,
+      "warning": 60,
+      "fail": 0
+    },
+    "confidence_threshold_auto_adopt": 0.85
+  }
+}

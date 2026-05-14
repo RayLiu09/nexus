@@ -135,6 +135,20 @@ class PromptProfileStatus(StrEnum):
     ARCHIVED = "archived"
 
 
+class AIGovernanceRunValidationStatus(StrEnum):
+    SCHEMA_VALID      = "schema_valid"
+    SCHEMA_INVALID    = "schema_invalid"
+    POLICY_BLOCKED    = "policy_blocked"
+    FAILED            = "failed"
+
+
+class AIGovernanceRunAdoptionStatus(StrEnum):
+    REVIEW_REQUIRED        = "review_required"
+    PENDING_RULE_GUARDRAIL = "pending_rule_guardrail"
+    AUTO_ADOPTED           = "auto_adopted"
+    REJECTED               = "rejected"
+
+
 class AuditEventType(StrEnum):
     # Ingest pipeline
     INGEST_BATCH_SUBMITTED          = "IngestBatchSubmitted"
@@ -151,3 +165,10 @@ class AuditEventType(StrEnum):
     # API caller management
     API_CALLER_CREATED              = "ApiCallerCreated"
     API_CALLER_REVOKED              = "ApiCallerRevoked"
+    # AI governance
+    PROMPT_PROFILE_CREATED          = "PromptProfileCreated"
+    PROMPT_PROFILE_UPDATED          = "PromptProfileUpdated"
+    PROMPT_PROFILE_DISABLED         = "PromptProfileDisabled"
+    AI_GOVERNANCE_RUN_CREATED       = "AIGovernanceRunCreated"
+    AI_GOVERNANCE_RUN_FAILED        = "AIGovernanceRunFailed"
+    GOVERNANCE_RULES_RELOADED       = "GovernanceRulesReloaded"

@@ -1,0 +1,297 @@
+{
+  "schema_version": "1.0",
+  "classifications": [
+    {
+      "code": "D1",
+      "name": "企业基础数据",
+      "description": "企业组织架构、人员信息、基础配置等核心基础数据",
+      "criteria": [
+        "包含组织架构信息、部门层级、岗位职责",
+        "包含人员基本信息、联系方式、职务等",
+        "包含企业基础配置、规章制度、流程规范",
+        "数据来源于内部管理系统，具有权威性"
+      ],
+      "examples": [
+        "组织架构图",
+        "人员名册",
+        "岗位说明书",
+        "管理制度文件"
+      ]
+    },
+    {
+      "code": "D2",
+      "name": "业务运营数据",
+      "description": "企业日常业务运营产生的数据，包括交易记录、业务报告等",
+      "criteria": [
+        "包含业务交易记录、订单、合同等运营数据",
+        "包含业务分析报告、绩效数据、运营指标",
+        "包含客户信息、供应商信息、合作伙伴数据",
+        "数据具有时效性，需定期更新"
+      ],
+      "examples": [
+        "销售报告",
+        "财务报表",
+        "客户档案",
+        "合同文件"
+      ]
+    },
+    {
+      "code": "D3",
+      "name": "人才培养数据",
+      "description": "人才培养计划、培训材料、学习资源等教育类数据",
+      "criteria": [
+        "包含人才培养方案、培训计划、课程体系",
+        "包含学习材料、培训内容、考核标准",
+        "包含员工学习记录、能力评估、成长档案",
+        "数据服务于人力资源发展和能力建设目标"
+      ],
+      "examples": [
+        "培训计划书",
+        "学习手册",
+        "能力评估报告",
+        "人才发展方案"
+      ]
+    },
+    {
+      "code": "D4",
+      "name": "教学资料数据",
+      "description": "教学课件、教材内容、知识库资料等教学类知识资产",
+      "criteria": [
+        "包含教学课件、PPT、教材、讲义等教学材料",
+        "包含知识库文章、技术文档、操作手册",
+        "包含案例库、题库、评估材料",
+        "内容具有知识性、系统性，适合检索和问答"
+      ],
+      "examples": [
+        "培训课件",
+        "技术手册",
+        "操作指南",
+        "知识库文章"
+      ]
+    }
+  ],
+  "levels": [
+    {
+      "code": "L1",
+      "name": "公开",
+      "description": "可对外公开的数据，无敏感性限制",
+      "criteria": [
+        "数据内容已经过审批可对外发布",
+        "不包含个人隐私、商业机密或敏感业务信息",
+        "可在公开渠道分享和传播",
+        "适用于D1基础数据和D4公开教学资料"
+      ],
+      "requires_approval": false
+    },
+    {
+      "code": "L2",
+      "name": "内部",
+      "description": "仅限内部员工访问的数据，不得对外分享",
+      "criteria": [
+        "数据仅供企业内部使用",
+        "包含内部流程、规范或一般性业务信息",
+        "需要内部身份认证才能访问",
+        "不包含高度敏感的个人信息或核心商业机密"
+      ],
+      "requires_approval": false
+    },
+    {
+      "code": "L3",
+      "name": "机密",
+      "description": "敏感业务数据，需要明确授权才能访问",
+      "criteria": [
+        "包含敏感个人信息（如绩效、薪资、医疗等）",
+        "包含核心商业机密、竞争策略、未公开财务数据",
+        "包含重要合同条款、客户核心信息",
+        "需要明确的访问授权和审计记录",
+        "外部AI模型不得接收未脱敏的L3内容"
+      ],
+      "requires_approval": true
+    },
+    {
+      "code": "L4",
+      "name": "绝密",
+      "description": "最高敏感级别数据，严格控制访问",
+      "criteria": [
+        "包含国家秘密、监管要求保护的数据",
+        "包含最高级别商业机密、核心技术秘密",
+        "包含重大未公开事项、重要人事决策",
+        "必须经过最高级别审批才能访问",
+        "禁止传输到任何外部系统或AI模型"
+      ],
+      "requires_approval": true
+    }
+  ],
+  "tags": [
+    {
+      "code": "pii",
+      "name": "个人身份信息",
+      "description": "包含可识别自然人身份的个人信息",
+      "criteria": [
+        "包含姓名、身份证号、手机号、邮箱等直接标识符",
+        "包含可与其他信息组合识别个人的间接标识符",
+        "需要遵循隐私保护要求处理"
+      ],
+      "applicable_classifications": ["D1", "D2", "D3"]
+    },
+    {
+      "code": "financial",
+      "name": "财务敏感",
+      "description": "包含财务数据或涉及资金的敏感信息",
+      "criteria": [
+        "包含财务报表、账目、预算等财务数据",
+        "包含薪资、奖金、报销等个人财务信息",
+        "包含合同金额、采购价格等商业敏感财务信息"
+      ],
+      "applicable_classifications": ["D2"]
+    },
+    {
+      "code": "hr_sensitive",
+      "name": "人力资源敏感",
+      "description": "包含人力资源管理相关的敏感信息",
+      "criteria": [
+        "包含员工绩效评价、晋升决策、纪律处分",
+        "包含招聘评估、人才测评结果",
+        "包含组织调整、人事变动等未公开信息"
+      ],
+      "applicable_classifications": ["D1", "D3"]
+    },
+    {
+      "code": "knowledge_asset",
+      "name": "知识资产",
+      "description": "具有知识价值、适合纳入知识库检索的内容",
+      "criteria": [
+        "内容具有系统性、可复用性",
+        "适合通过关键词或语义检索",
+        "可作为问答系统的参考来源",
+        "内容质量经过审核"
+      ],
+      "applicable_classifications": ["D3", "D4"]
+    },
+    {
+      "code": "training_material",
+      "name": "培训材料",
+      "description": "用于培训和教学的材料",
+      "criteria": [
+        "内容经过教学设计，具有学习目标",
+        "适合用于培训课程或自学",
+        "包含示例、练习或评估内容"
+      ],
+      "applicable_classifications": ["D3", "D4"]
+    },
+    {
+      "code": "external_facing",
+      "name": "对外可用",
+      "description": "经审批可对外提供的内容",
+      "criteria": [
+        "内容已经过合规审查",
+        "不包含内部敏感信息",
+        "适合提供给外部合作方或客户"
+      ],
+      "applicable_classifications": ["D1", "D4"]
+    }
+  ],
+  "quality_scoring": {
+    "dimensions": [
+      {
+        "name": "completeness",
+        "weight": 0.3,
+        "description": "内容完整性：标题、摘要、分类、来源、时间等必要字段是否完整",
+        "check_items": [
+          {
+            "name": "has_title",
+            "description": "文档必须有标题",
+            "severity": "blocking"
+          },
+          {
+            "name": "has_content",
+            "description": "文档必须有实质性内容",
+            "severity": "blocking"
+          },
+          {
+            "name": "has_source_type",
+            "description": "必须标注数据来源类型",
+            "severity": "warning"
+          },
+          {
+            "name": "has_language",
+            "description": "建议标注主要语言",
+            "severity": "info"
+          }
+        ]
+      },
+      {
+        "name": "accuracy",
+        "weight": 0.25,
+        "description": "内容准确性：分类建议与内容的匹配程度，证据引用的可信度",
+        "check_items": [
+          {
+            "name": "classification_confidence",
+            "description": "分类置信度必须达到阈值",
+            "severity": "warning"
+          },
+          {
+            "name": "level_evidence_present",
+            "description": "分级建议需要有证据引用",
+            "severity": "warning"
+          },
+          {
+            "name": "no_conflicting_signals",
+            "description": "分类和分级建议不应有矛盾信号",
+            "severity": "blocking"
+          }
+        ]
+      },
+      {
+        "name": "consistency",
+        "weight": 0.25,
+        "description": "一致性：与同类资产的分类分级是否一致，元数据是否前后一致",
+        "check_items": [
+          {
+            "name": "level_matches_classification",
+            "description": "分级应与分类对应的默认级别范围一致",
+            "severity": "warning"
+          },
+          {
+            "name": "tags_match_classification",
+            "description": "标签应在对应分类的适用范围内",
+            "severity": "info"
+          },
+          {
+            "name": "org_scope_valid",
+            "description": "组织范围引用必须是有效的组织单元",
+            "severity": "blocking"
+          }
+        ]
+      },
+      {
+        "name": "usability",
+        "weight": 0.2,
+        "description": "可用性：内容是否适合被检索、问答和业务使用",
+        "check_items": [
+          {
+            "name": "content_length_adequate",
+            "description": "内容长度应满足最低要求",
+            "severity": "warning"
+          },
+          {
+            "name": "no_parse_errors",
+            "description": "解析结果不应有严重错误",
+            "severity": "blocking"
+          },
+          {
+            "name": "images_accessible",
+            "description": "引用的图片应可访问",
+            "severity": "info"
+          }
+        ]
+      }
+    ],
+    "thresholds": {
+      "pass": 80,
+      "warning": 60,
+      "fail": 0
+    },
+    "confidence_threshold_auto_adopt": 0.85
+  }
+}

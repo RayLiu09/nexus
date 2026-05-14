@@ -7,6 +7,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from nexus_app.database import Base
 from nexus_app.enums import (
+    AIGovernanceRunAdoptionStatus,
+    AIGovernanceRunValidationStatus,
     AuditEventType,
     AssetKind,
     AssetVersionStatus,
@@ -20,6 +22,7 @@ from nexus_app.enums import (
     OrgUnitStatus,
     ParseArtifactStatus,
     PrincipalStatus,
+    PromptProfileStatus,
     RawObjectStatus,
     StageStatus,
     UserRole,
@@ -420,3 +423,78 @@ class NormalizedAssetRef(TimestampMixin, Base):
         comment="Source, business, temporal metadata for search enrichment")
 
     version: Mapped[DocumentVersion] = relationship()
+
+
+class AIPromptProfile(TimestampMixin, Base):
+    """AI Prompt configuration with version management."""
+    __tablename__ = "ai_prompt_profile"
+    __table_args__ = (
+        Index("ix_ai_prompt_profile_name_status", "profile_name", "status"),
+        UniqueConstraint("profile_name", "profile_version", name="uq_ai_prompt_profile_name_ver"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    profile_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    profile_version: Mapped[int] = mapped_column(nullable=False, default=1)
+    task_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    status: Mapped[PromptProfileStatus] = mapped_column(
+        Enum(PromptProfileStatus, values_callable=lambda enum: [item.value for item in enum]),
+        default=PromptProfileStatus.ACTIVE,
+        nullable=False,
+    )
+    litellm_model_alias: Mapped[str] = mapped_column(String(128), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    prompt_template: Mapped[str] = mapped_column(Text, nullable=False)
+    output_schema_version: Mapped[str] = mapped_column(String(40), nullable=False, default="1.0")
+    scoring_weight_version: Mapped[str] = mapped_column(String(40), nullable=False, default="1.0")
+    temperature: Mapped[float] = mapped_column(nullable=False, default=0.2)
+    max_input_tokens: Mapped[int] = mapped_column(nullable=False, default=4096)
+    redaction_policy: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                   default="masked_content")
+    created_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class AIGovernanceRun(TimestampMixin, Base):
+    """AI governance execution record — one record per LiteLLM call."""
+    __tablename__ = "ai_governance_run"
+    __table_args__ = (
+        Index("ix_ai_governance_run_ref_id", "normalized_ref_id"),
+        Index("ix_ai_governance_run_profile_id", "profile_id"),
+        Index("ix_ai_governance_run_validation_status", "validation_status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("normalized_asset_ref.id"), nullable=False
+    )
+    profile_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("ai_prompt_profile.id"), nullable=False
+    )
+    model_alias: Mapped[str] = mapped_column(String(128), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    raw_output: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai_output: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    quality_summary: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    validation_status: Mapped[AIGovernanceRunValidationStatus] = mapped_column(
+        Enum(AIGovernanceRunValidationStatus,
+             values_callable=lambda enum: [item.value for item in enum]),
+        nullable=False,
+        default=AIGovernanceRunValidationStatus.FAILED,
+    )
+    adoption_status: Mapped[AIGovernanceRunAdoptionStatus] = mapped_column(
+        Enum(AIGovernanceRunAdoptionStatus,
+             values_callable=lambda enum: [item.value for item in enum]),
+        nullable=False,
+        default=AIGovernanceRunAdoptionStatus.REVIEW_REQUIRED,
+    )
+    validation_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    call_latency_ms: Mapped[float | None] = mapped_column(nullable=True)
+    request_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+    profile: Mapped[AIPromptProfile] = relationship()

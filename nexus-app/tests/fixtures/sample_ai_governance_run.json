@@ -1,0 +1,52 @@
+{
+  "_comment": "Sample AI governance run output fixture for testing and demo",
+  "valid_governance_output": {
+    "classification": "D4",
+    "level": "L2",
+    "tags": ["knowledge_asset", "training_material"],
+    "org_scope": "all",
+    "quality_scores": {
+      "completeness": 85.0,
+      "accuracy": 80.0,
+      "consistency": 90.0,
+      "usability": 75.0
+    },
+    "overall_score": 83.0,
+    "evidence_refs": [
+      {
+        "field": "title",
+        "value": "企业内训教材：数字化转型基础",
+        "confidence": 0.92,
+        "source_position": null
+      },
+      {
+        "field": "content_snippet",
+        "value": "数字化转型是指企业利用数字技术从根本上改变业务模式",
+        "confidence": 0.88,
+        "source_position": {"page": 1, "paragraph": 1}
+      }
+    ],
+    "confidence": 0.88,
+    "reasoning": "文档标题和内容明确指向企业内训教学材料，属于D4分类。内容不含敏感个人信息，适合L2内部使用级别。"
+  },
+  "invalid_governance_output": {
+    "invalid_field": "this output is missing required fields",
+    "partial_data": "classification and level are missing"
+  },
+  "low_confidence_output": {
+    "classification": "D1",
+    "level": "L3",
+    "tags": [],
+    "org_scope": "all",
+    "quality_scores": {
+      "completeness": 45.0,
+      "accuracy": 40.0,
+      "consistency": 50.0,
+      "usability": 35.0
+    },
+    "overall_score": 43.0,
+    "evidence_refs": [],
+    "confidence": 0.42,
+    "reasoning": "内容不明确，无法确定准确分类，需要人工审核"
+  }
+}

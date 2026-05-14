@@ -4,6 +4,8 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from nexus_app.enums import (
+    AIGovernanceRunAdoptionStatus,
+    AIGovernanceRunValidationStatus,
     AssetKind,
     AssetVersionStatus,
     DataSourceStatus,
@@ -16,6 +18,7 @@ from nexus_app.enums import (
     OrgUnitStatus,
     ParseArtifactStatus,
     PrincipalStatus,
+    PromptProfileStatus,
     RawObjectStatus,
     StageStatus,
     UserRole,
@@ -366,3 +369,77 @@ class RuntimeStateRead(BaseModel):
     workers: str
     queue: str
     recent_error: str | None = None
+
+
+# AI Governance schemas
+
+class PromptProfileCreate(BaseModel):
+    profile_name: str = Field(min_length=1, max_length=128)
+    task_type: str = Field(min_length=1, max_length=80)
+    litellm_model_alias: str = Field(min_length=1, max_length=128)
+    prompt_version: str = Field(min_length=1, max_length=40)
+    prompt_template: str = Field(min_length=1)
+    output_schema_version: str = "1.0"
+    scoring_weight_version: str = "1.0"
+    temperature: float = Field(default=0.2, ge=0, le=2)
+    max_input_tokens: int = Field(default=4096, gt=0)
+    redaction_policy: str = Field(default="masked_content",
+                                   pattern="^(metadata_only|masked_content|full_content_private)$")
+
+
+class PromptProfileUpdate(BaseModel):
+    litellm_model_alias: str | None = Field(default=None, max_length=128)
+    prompt_version: str | None = Field(default=None, max_length=40)
+    prompt_template: str | None = None
+    output_schema_version: str | None = None
+    scoring_weight_version: str | None = None
+    temperature: float | None = Field(default=None, ge=0, le=2)
+    max_input_tokens: int | None = Field(default=None, gt=0)
+    redaction_policy: str | None = Field(
+        default=None,
+        pattern="^(metadata_only|masked_content|full_content_private)$",
+    )
+
+
+class PromptProfileRead(ORMModel):
+    id: str
+    profile_name: str
+    profile_version: int
+    task_type: str
+    status: PromptProfileStatus
+    litellm_model_alias: str
+    prompt_version: str
+    output_schema_version: str
+    scoring_weight_version: str
+    temperature: float
+    max_input_tokens: int
+    redaction_policy: str
+    created_by: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AIGovernanceRunCreate(BaseModel):
+    normalized_ref_id: str
+    profile_id: str
+
+
+class AIGovernanceRunRead(ORMModel):
+    id: str
+    normalized_ref_id: str
+    profile_id: str
+    model_alias: str
+    prompt_version: str
+    input_hash: str
+    input_summary: dict[str, Any]
+    ai_output: dict[str, Any] | None
+    quality_summary: dict[str, Any] | None
+    validation_status: AIGovernanceRunValidationStatus
+    adoption_status: AIGovernanceRunAdoptionStatus
+    validation_error: str | None
+    call_latency_ms: float | None
+    request_id: str | None
+    created_by: str | None
+    trace_id: str | None
+    created_at: datetime
+    updated_at: datetime

@@ -6,12 +6,32 @@ from sqlalchemy.orm import Session
 from nexus_api import schemas
 from nexus_api.responses import list_response, response
 from nexus_app import models, pipeline, schemas as domain_schemas, services
+from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
+from nexus_app.ai_governance.services import (
+    AIGovernanceError,
+    AIGovernanceService,
+    PromptProfileNotFoundError,
+    PromptProfileService,
+)
 from nexus_app.config import Settings, get_settings
 from nexus_app.database import get_db
 from nexus_app.enums import DataSourceType
 from nexus_app.ingest import gateway as ingest_gateway
 
 router = APIRouter(prefix="/v1")
+
+_prompt_svc = PromptProfileService()
+_ai_gov_svc = AIGovernanceService()
+_rules_registry = GovernanceRulesRegistry()
+
+try:
+    _rules_registry.load()
+except Exception:
+    pass  # registry loads lazily if config file not present during import
+
+
+def _get_registry() -> GovernanceRulesRegistry | None:
+    return _rules_registry if _rules_registry._config is not None else None
 
 _CONNECTION_CONFIG_SCHEMAS = {
     DataSourceType.NAS: domain_schemas.NasConnectionConfig,
@@ -390,3 +410,191 @@ def get_asset(asset_id: str, request: Request, session: Session = Depends(get_db
 def list_asset_versions(asset_id: str, request: Request, session: Session = Depends(get_db)):
     services.get_row(session, models.DocumentAsset, asset_id, "asset")
     return list_response(pipeline.list_asset_versions(session, asset_id), request)
+
+
+# ---------------------------------------------------------------------------
+# AI Prompt Profile endpoints
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/ai/prompt-profiles",
+    response_model=schemas.ApiResponse[domain_schemas.PromptProfileRead],
+    status_code=201,
+)
+def create_prompt_profile(
+    payload: domain_schemas.PromptProfileCreate,
+    request: Request,
+    session: Session = Depends(get_db),
+):
+    profile = _prompt_svc.create_profile(
+        session,
+        profile_name=payload.profile_name,
+        task_type=payload.task_type,
+        litellm_model_alias=payload.litellm_model_alias,
+        prompt_version=payload.prompt_version,
+        prompt_template=payload.prompt_template,
+        output_schema_version=payload.output_schema_version,
+        scoring_weight_version=payload.scoring_weight_version,
+        temperature=payload.temperature,
+        max_input_tokens=payload.max_input_tokens,
+        redaction_policy=payload.redaction_policy,
+    )
+    session.commit()
+    return response(domain_schemas.PromptProfileRead.model_validate(profile), request)
+
+
+@router.get(
+    "/ai/prompt-profiles",
+    response_model=schemas.ListResponse[domain_schemas.PromptProfileRead],
+)
+def list_prompt_profiles(
+    request: Request,
+    profile_name: str | None = None,
+    session: Session = Depends(get_db),
+):
+    profiles = _prompt_svc.list_profiles(session, profile_name=profile_name)
+    return list_response(
+        [domain_schemas.PromptProfileRead.model_validate(p) for p in profiles], request
+    )
+
+
+@router.get(
+    "/ai/prompt-profiles/{profile_id}",
+    response_model=schemas.ApiResponse[domain_schemas.PromptProfileRead],
+)
+def get_prompt_profile(
+    profile_id: str, request: Request, session: Session = Depends(get_db)
+):
+    try:
+        profile = _prompt_svc.get_profile(session, profile_id)
+    except PromptProfileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return response(domain_schemas.PromptProfileRead.model_validate(profile), request)
+
+
+@router.put(
+    "/ai/prompt-profiles/{profile_name}/active",
+    response_model=schemas.ApiResponse[domain_schemas.PromptProfileRead],
+)
+def update_prompt_profile(
+    profile_name: str,
+    payload: domain_schemas.PromptProfileUpdate,
+    request: Request,
+    session: Session = Depends(get_db),
+):
+    try:
+        profile = _prompt_svc.update_profile(
+            session, profile_name, **payload.model_dump(exclude_none=True)
+        )
+    except PromptProfileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    session.commit()
+    return response(domain_schemas.PromptProfileRead.model_validate(profile), request)
+
+
+@router.post(
+    "/ai/prompt-profiles/{profile_id}/disable",
+    response_model=schemas.ApiResponse[domain_schemas.PromptProfileRead],
+)
+def disable_prompt_profile(
+    profile_id: str, request: Request, session: Session = Depends(get_db)
+):
+    try:
+        profile = _prompt_svc.disable_profile(session, profile_id)
+    except PromptProfileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    session.commit()
+    return response(domain_schemas.PromptProfileRead.model_validate(profile), request)
+
+
+# ---------------------------------------------------------------------------
+# AI Governance Run endpoints
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/ai/governance-runs",
+    response_model=schemas.ApiResponse[domain_schemas.AIGovernanceRunRead],
+    status_code=201,
+)
+def create_governance_run(
+    payload: domain_schemas.AIGovernanceRunCreate,
+    request: Request,
+    session: Session = Depends(get_db),
+):
+    registry = _get_registry()
+    try:
+        run = _ai_gov_svc.run_governance(
+            session,
+            normalized_ref_id=payload.normalized_ref_id,
+            profile_id=payload.profile_id,
+            registry=registry,
+        )
+    except AIGovernanceError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    session.commit()
+    return response(domain_schemas.AIGovernanceRunRead.model_validate(run), request)
+
+
+@router.get(
+    "/ai/governance-runs",
+    response_model=schemas.ListResponse[domain_schemas.AIGovernanceRunRead],
+)
+def list_governance_runs(
+    request: Request,
+    normalized_ref_id: str | None = None,
+    profile_id: str | None = None,
+    session: Session = Depends(get_db),
+):
+    runs = _ai_gov_svc.list_governance_runs(
+        session, normalized_ref_id=normalized_ref_id, profile_id=profile_id
+    )
+    return list_response(
+        [domain_schemas.AIGovernanceRunRead.model_validate(r) for r in runs], request
+    )
+
+
+@router.get(
+    "/ai/governance-runs/{run_id}",
+    response_model=schemas.ApiResponse[domain_schemas.AIGovernanceRunRead],
+)
+def get_governance_run(
+    run_id: str, request: Request, session: Session = Depends(get_db)
+):
+    try:
+        run = _ai_gov_svc.get_governance_run(session, run_id)
+    except AIGovernanceError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return response(domain_schemas.AIGovernanceRunRead.model_validate(run), request)
+
+
+@router.get(
+    "/ai/governance-runs/{run_id}/quality-summary",
+    response_model=schemas.ApiResponse[dict],
+)
+def get_governance_run_quality_summary(
+    run_id: str, request: Request, session: Session = Depends(get_db)
+):
+    try:
+        summary = _ai_gov_svc.get_quality_summary(session, run_id)
+    except AIGovernanceError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if summary is None:
+        raise HTTPException(status_code=404, detail="No quality summary available for this run")
+    return response(summary, request)
+
+
+# ---------------------------------------------------------------------------
+# Admin: governance rules hot-reload
+# ---------------------------------------------------------------------------
+
+@router.post("/admin/governance-rules/reload", response_model=schemas.ApiResponse[dict])
+def reload_governance_rules(request: Request):
+    try:
+        config = _rules_registry.reload()
+    except Exception as exc:
+        raise HTTPException(status_code=500,
+                            detail=f"Failed to reload governance rules: {exc}") from exc
+    return response({"schema_version": config.schema_version,
+                     "classifications": len(config.classifications),
+                     "levels": len(config.levels),
+                     "tags": len(config.tags)}, request)
