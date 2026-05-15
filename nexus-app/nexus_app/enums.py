@@ -172,3 +172,7 @@ class AuditEventType(StrEnum):
     AI_GOVERNANCE_RUN_CREATED       = "AIGovernanceRunCreated"
     AI_GOVERNANCE_RUN_FAILED        = "AIGovernanceRunFailed"
     GOVERNANCE_RULES_RELOADED       = "GovernanceRulesReloaded"
+    # Consumption-side lineage foundation (P1)
+    ASSET_VERSION_ACCESSED          = "AssetVersionAccessed"
+    SEARCH_QUERY_EXECUTED           = "SearchQueryExecuted"
+    QA_ANSWER_GENERATED             = "QAAnswerGenerated"

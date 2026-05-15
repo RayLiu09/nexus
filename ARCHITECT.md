@@ -205,6 +205,19 @@ Produces: `normalized_asset_ref(type=record)`.
 | `DataSourceStatusChanged` | Data source status change | — |
 | `ApiCallerCreated` | API key created | — |
 | `ApiCallerRevoked` | API key revoked | — |
+| `AssetVersionAccessed` | api_caller or user accessed an asset version via `/v1` API | — |
+| `SearchQueryExecuted` | Search query executed; records caller_id, query hash, hit normalized_ref_ids | — |
+| `QAAnswerGenerated` | QA answer generated; records caller_id, question hash, cited normalized_ref_ids and chunk_ids | — |
+
+**Consumption-side audit event field contract:**
+
+`AssetVersionAccessed`: `caller_id`, `caller_type` (api_caller / user), `asset_id`, `version_id`, `normalized_ref_id`, `access_type` (read / search_hit / qa_citation), `trace_id`.
+
+`SearchQueryExecuted`: `caller_id`, `caller_type`, `query_hash` (SHA-256 of query text, not plaintext), `hit_normalized_ref_ids` (list), `hit_count`, `data_source_ids` (distinct), `trace_id`.
+
+`QAAnswerGenerated`: `caller_id`, `caller_type`, `question_hash` (SHA-256), `cited_normalized_ref_ids` (list), `cited_chunk_ids` (list), `answer_confidence`, `trace_id`.
+
+These three events are the foundation for Phase 2 consumption-side data lineage analysis. They must be written by `nexus-api` search/QA handlers before returning results. Logs must not contain query plaintext, answer content, or L3/L4 data.
 
 ## Auto-Tagging Contract
 
@@ -350,6 +363,56 @@ Single-node capacity (16 Core / 64 GB / 48 GB GPU):
 | MinerU single node | Parse queue P95 > 20 min for 3 days, or GPU utilization peak > 80% sustained |
 | Knowledge Pipeline 1 only | Need QA corpus, process corpus, knowledge graph, or evaluation standard library |
 | `document_asset`/`document_version` table names | Execute v2.6 M15 migration |
+| Consumption-side audit events only | Need downstream dependency graph, impact analysis, or data lineage visualization across systems |
+
+## Consumption-Side Data Lineage Extension Point
+
+> **Phase 2 extension — not P0/P1 required. Foundation is the three consumption-side audit events above.**
+
+### Problem
+
+The current `normalized_asset_ref.lineage` field covers production-side lineage only:
+`raw_object → parse_artifact → normalized_asset_ref → knowledge_chunk`
+
+It does not capture who consumed the asset, through which system, or what downstream business processes depend on it. When an asset is updated, deprecated, or reclassified, there is no mechanism to identify affected callers or assess impact.
+
+### Phase 2 Capability Scope
+
+When the following trigger is met — **consumption-side audit event volume reaches a level where manual impact assessment becomes impractical, or a governance/compliance requirement mandates downstream traceability** — implement:
+
+**1. Consumption lineage read model (`asset_consumption_lineage`)**
+
+Materialized from `AssetVersionAccessed`, `SearchQueryExecuted`, `QAAnswerGenerated` audit events. Fields:
+- `normalized_ref_id` → `caller_id` + `caller_type` + `last_accessed_at` + `access_count`
+- `asset_id` → distinct `caller_ids` + `data_source_ids` touched
+
+**2. Downstream dependency query APIs**
+
+```
+GET /v1/assets/{id}/downstream-callers
+  → list of api_callers that accessed this asset (from audit events)
+
+GET /v1/api-callers/{id}/asset-dependencies
+  → list of assets accessed by this caller (from audit events)
+
+GET /v1/assets/{id}/impact-analysis
+  → { affected_callers, affected_search_sessions, last_access_at, risk_level }
+```
+
+**3. Full lineage graph**
+
+Merge production-side lineage (`raw_object → parse_artifact → normalized_asset_ref → chunk`) with consumption-side lineage (`chunk → search/QA → api_caller → business system`) into a unified directed graph, queryable per asset and visualizable in the asset detail page.
+
+### Design Constraints
+
+- The read model is derived from audit events; it does not require `api_caller` to explicitly register asset subscriptions (business systems cannot reliably self-report dependencies).
+- Query plaintext and answer content must never be stored; only hashes and `normalized_ref_id` references.
+- The lineage graph is eventually consistent; real-time accuracy is not required.
+- Phase 2 implementation must not modify the `audit_log` schema; it reads from existing events.
+
+### Upgrade Trigger
+
+Activate Phase 2 when: governance or compliance requires downstream impact assessment before asset deprecation, OR manual impact analysis takes > 30 min per asset change, OR audit event volume for consumption events exceeds 10k/day.
 
 ## P0 Architecture Acceptance
 

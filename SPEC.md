@@ -53,6 +53,7 @@ Role constraints:
 - Basic reports for assets, quality, search, API calls.
 - Rule effect analysis.
 - AI effect analysis.
+- Consumption-side audit events: `AssetVersionAccessed`, `SearchQueryExecuted`, `QAAnswerGenerated` written by search/QA handlers in `nexus-api`. These events are the data foundation for Phase 2 consumption-side data lineage analysis.
 
 ## P2 Reserved
 
@@ -118,6 +119,9 @@ Search and QA:
 - Search and QA must enforce permissions before returning content.
 - Results must cite asset version, normalized ref, chunk ID (with normalized_ref_id), and source position including image_uris where applicable.
 - Unauthorized or masked content must never be returned.
+- Search handler must write `SearchQueryExecuted` audit event (query hash, hit normalized_ref_ids, caller_id) before returning results.
+- QA handler must write `QAAnswerGenerated` audit event (question hash, cited normalized_ref_ids, cited chunk_ids, caller_id) before returning answer.
+- These audit events must not contain query plaintext, answer content, or L3/L4 data.
 
 ## Public API Groups
 
