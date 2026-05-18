@@ -233,7 +233,7 @@ class AIGovernanceService:
     ) -> models.AIGovernanceRun:
         client = litellm_client or FakeLiteLLMClient()
         builder = input_builder or DefaultAIInputBuilder()
-        validator = output_validator or PydanticOutputValidator()
+        validator = output_validator or PydanticOutputValidator(registry=registry)
         trace_id = str(uuid.uuid4())
 
         ref = session.get(models.NormalizedAssetRef, normalized_ref_id)
@@ -362,8 +362,64 @@ class AIGovernanceService:
     def _build_messages(
         prompt_template: str, payload: dict[str, Any]
     ) -> list[dict[str, str]]:
+        """Build chat messages for LiteLLM call.
+
+        governance_context is extracted from payload and rendered as structured
+        instructions so the AI is explicitly guided to use registry-defined
+        criteria when selecting classification, level, and tags.
+        """
         import json as _json
+
+        governance_context = payload.get("governance_context", {})
+        content_payload = {k: v for k, v in payload.items() if k != "governance_context"}
+
+        rules_section = _build_rules_section(governance_context)
+        system_content = f"{prompt_template}\n\n{rules_section}" if rules_section else prompt_template
+
         return [
-            {"role": "system", "content": prompt_template},
-            {"role": "user", "content": _json.dumps(payload, ensure_ascii=False, default=str)},
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": _json.dumps(content_payload, ensure_ascii=False,
+                                                     default=str)},
         ]
+
+
+def _build_rules_section(governance_context: dict[str, Any]) -> str:
+    """Render governance_context criteria as structured prompt instructions."""
+    if not governance_context:
+        return ""
+
+    lines: list[str] = ["## 治理规则定义（必须严格遵守）\n"]
+
+    classifications = governance_context.get("classifications", [])
+    if classifications:
+        lines.append("### 数据域分类（classification 字段必须从以下 code 中选择）")
+        for c in classifications:
+            criteria_text = "；".join(c.get("criteria", []))
+            lines.append(f"- **{c['code']}**（{c.get('name', '')}）：{criteria_text}")
+        lines.append("")
+
+    levels = governance_context.get("levels", [])
+    if levels:
+        lines.append("### 数据分级（level 字段必须从以下 code 中选择）")
+        for lv in levels:
+            criteria_text = "；".join(lv.get("criteria", []))
+            lines.append(f"- **{lv['code']}**（{lv.get('name', '')}）：{criteria_text}")
+        lines.append("")
+
+    tags = governance_context.get("tags", [])
+    if tags:
+        lines.append("### 数据标签（tags 字段只能包含以下 code，不得自造标签）")
+        for t in tags:
+            applicable = t.get("applicable_classifications", [])
+            scope = f"适用分类：{applicable}" if applicable else "通用"
+            criteria_text = "；".join(t.get("criteria", []))
+            lines.append(f"- **{t['code']}**（{t.get('name', '')}，{scope}）：{criteria_text}")
+        lines.append("")
+
+    lines.append(
+        "**输出约束**：classification 必须是上述分类 code 之一；"
+        "level 必须是上述分级 code 之一；"
+        "tags 中每个值必须是上述标签 code 之一，不得包含未定义的标签。"
+    )
+    return "\n".join(lines)
+

@@ -81,7 +81,14 @@ class AIOutputValidator(Protocol):
 
 
 class PydanticOutputValidator:
-    """Validates AI raw JSON output against AIGovernanceOutput schema."""
+    """Validates AI raw JSON output against AIGovernanceOutput schema.
+
+    When a GovernanceRulesRegistry is provided, also validates that
+    classification and tags are within the registry-defined valid sets.
+    """
+
+    def __init__(self, registry: Any | None = None) -> None:
+        self._registry = registry
 
     def validate(self, raw_output: str) -> tuple[AIGovernanceOutput | None, str | None]:
         import json
@@ -93,7 +100,33 @@ class PydanticOutputValidator:
 
         try:
             output = AIGovernanceOutput.model_validate(parsed)
-            return output, None
         except Exception as exc:
             logger.warning("AI output schema validation failed: %s", exc)
             return None, f"Schema validation error: {exc}"
+
+        if self._registry is not None:
+            error = self._validate_against_registry(output)
+            if error:
+                logger.warning("AI output registry validation failed: %s", error)
+                return None, error
+
+        return output, None
+
+    def _validate_against_registry(self, output: AIGovernanceOutput) -> str | None:
+        """Validate classification and tags against registry-defined valid sets."""
+        valid_classifications = {c.code for c in self._registry.get_classifications()}
+        if output.classification not in valid_classifications:
+            return (
+                f"classification '{output.classification}' is not in registry-defined "
+                f"classifications {sorted(valid_classifications)}"
+            )
+
+        valid_tags = {t.code for t in self._registry.get_tags()}
+        invalid_tags = [t for t in output.tags if t not in valid_tags]
+        if invalid_tags:
+            return (
+                f"tags {invalid_tags} are not in registry-defined tags "
+                f"{sorted(valid_tags)}"
+            )
+
+        return None

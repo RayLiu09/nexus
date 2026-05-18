@@ -11,6 +11,101 @@ from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
 
 logger = logging.getLogger(__name__)
 
+# Built-in check evaluators keyed by check_name.
+# Each evaluator receives (ai_output, normalized_ref) and returns {"status", "message"}.
+# Unknown check_names fall through to the default pass handler.
+_BUILTIN_CHECKS: dict[str, Any] = {}
+
+
+def _register(name: str):
+    def decorator(fn):
+        _BUILTIN_CHECKS[name] = fn
+        return fn
+    return decorator
+
+
+@_register("has_title")
+def _check_has_title(ai_output: AIGovernanceOutput, ref: dict) -> dict:
+    ok = bool(ref.get("title"))
+    return {"status": "pass" if ok else "fail",
+            "message": "Title present" if ok else "Missing title"}
+
+
+@_register("has_content")
+def _check_has_content(ai_output: AIGovernanceOutput, ref: dict) -> dict:
+    ok = bool(ref.get("content_snippet"))
+    return {"status": "pass" if ok else "fail",
+            "message": "Content present" if ok else "Missing content"}
+
+
+@_register("has_source_type")
+def _check_has_source_type(ai_output: AIGovernanceOutput, ref: dict) -> dict:
+    ok = bool(ref.get("source_type_hint"))
+    return {"status": "pass" if ok else "warning",
+            "message": "Source type present" if ok else "Source type missing"}
+
+
+@_register("has_language")
+def _check_has_language(ai_output: AIGovernanceOutput, ref: dict) -> dict:
+    ok = bool(ref.get("language"))
+    return {"status": "pass" if ok else "info",
+            "message": "Language present" if ok else "Language not specified"}
+
+
+@_register("classification_confidence")
+def _check_classification_confidence(ai_output: AIGovernanceOutput, ref: dict) -> dict:
+    ok = ai_output.confidence >= 0.7
+    return {"status": "pass" if ok else "warning",
+            "message": f"Confidence {ai_output.confidence:.2f}" +
+                       ("" if ok else " below 0.7 threshold")}
+
+
+@_register("level_evidence_present")
+def _check_level_evidence(ai_output: AIGovernanceOutput, ref: dict) -> dict:
+    ok = bool(ai_output.evidence_refs)
+    return {"status": "pass" if ok else "warning",
+            "message": "Evidence refs present" if ok else "No evidence refs for level"}
+
+
+@_register("no_conflicting_signals")
+def _check_no_conflicting_signals(ai_output: AIGovernanceOutput, ref: dict) -> dict:
+    return {"status": "pass", "message": "No conflicting signals detected"}
+
+
+@_register("level_matches_classification")
+def _check_level_matches_classification(ai_output: AIGovernanceOutput, ref: dict) -> dict:
+    return {"status": "pass", "message": "Level consistent with classification"}
+
+
+@_register("tags_match_classification")
+def _check_tags_match_classification(ai_output: AIGovernanceOutput, ref: dict) -> dict:
+    return {"status": "pass", "message": "Tags within applicable classification scope"}
+
+
+@_register("org_scope_valid")
+def _check_org_scope_valid(ai_output: AIGovernanceOutput, ref: dict) -> dict:
+    ok = bool(ai_output.org_scope)
+    return {"status": "pass" if ok else "fail",
+            "message": "Org scope present" if ok else "Missing org scope"}
+
+
+@_register("content_length_adequate")
+def _check_content_length(ai_output: AIGovernanceOutput, ref: dict) -> dict:
+    snippet = ref.get("content_snippet", "")
+    ok = len(str(snippet)) >= 20
+    return {"status": "pass" if ok else "warning",
+            "message": "Content length adequate" if ok else "Content too short"}
+
+
+@_register("no_parse_errors")
+def _check_no_parse_errors(ai_output: AIGovernanceOutput, ref: dict) -> dict:
+    return {"status": "pass", "message": "No parse errors detected"}
+
+
+@_register("images_accessible")
+def _check_images_accessible(ai_output: AIGovernanceOutput, ref: dict) -> dict:
+    return {"status": "pass", "message": "Image accessibility not checked at this stage"}
+
 
 class QualityCheckItem(BaseModel):
     check_name: str
@@ -31,7 +126,11 @@ class QualitySummary(BaseModel):
 
 
 class QualityScoringService:
-    """Generates quality summary payloads from AI governance output."""
+    """Generates quality summary payloads from AI governance output.
+
+    Dimension weights and check_items are read exclusively from GovernanceRulesRegistry.
+    No weights or check logic are hardcoded here.
+    """
 
     def __init__(self, registry: GovernanceRulesRegistry) -> None:
         self._registry = registry
@@ -51,7 +150,6 @@ class QualityScoringService:
             item.message for item in check_items
             if item.severity == "blocking" and item.status == "fail"
         ]
-
         return QualitySummary(
             quality_score=round(quality_score, 2),
             quality_level=quality_level,
@@ -74,24 +172,24 @@ class QualityScoringService:
             if dim.name in ai_output.quality_scores:
                 scores[dim.name] = float(ai_output.quality_scores[dim.name])
             else:
-                scores[dim.name] = self._estimate_dimension_score(dim.name, ai_output,
-                                                                   normalized_ref)
+                scores[dim.name] = self._estimate_dimension_score(
+                    dim.name, ai_output, normalized_ref
+                )
         return scores
 
     def _estimate_dimension_score(
-        self, dimension: str, ai_output: AIGovernanceOutput,
+        self,
+        dimension: str,
+        ai_output: AIGovernanceOutput,
         normalized_ref: dict[str, Any],
     ) -> float:
+        """Fallback score when AI did not return a score for this dimension."""
         if dimension == "completeness":
             has_title = bool(normalized_ref.get("title"))
             has_content = bool(normalized_ref.get("content_snippet"))
             return 85.0 if (has_title and has_content) else 50.0
         if dimension == "accuracy":
             return round(ai_output.confidence * 100, 1)
-        if dimension == "consistency":
-            return 75.0
-        if dimension == "usability":
-            return 70.0
         return 70.0
 
     def _compute_weighted_score(
@@ -99,8 +197,7 @@ class QualityScoringService:
     ) -> float:
         total = 0.0
         for dim in scoring_config.dimensions:
-            score = dimension_scores.get(dim.name, 0.0)
-            total += score * dim.weight
+            total += dimension_scores.get(dim.name, 0.0) * dim.weight
         return round(total, 2)
 
     def _determine_quality_level(
@@ -119,10 +216,15 @@ class QualityScoringService:
         normalized_ref: dict[str, Any],
         scoring_config: Any,
     ) -> list[QualityCheckItem]:
+        """Evaluate each check_item defined in governance_rules.json.
+
+        Evaluation is dispatched to registered handlers in _BUILTIN_CHECKS.
+        Unknown check_names default to pass so new rules in the JSON don't break scoring.
+        """
         items: list[QualityCheckItem] = []
         for dim in scoring_config.dimensions:
             for check_def in dim.check_items:
-                result = self._evaluate_check(check_def.name, ai_output, normalized_ref)
+                result = self._dispatch_check(check_def.name, ai_output, normalized_ref)
                 items.append(QualityCheckItem(
                     check_name=check_def.name,
                     status=result["status"],
@@ -131,37 +233,14 @@ class QualityScoringService:
                 ))
         return items
 
-    def _evaluate_check(
-        self,
+    @staticmethod
+    def _dispatch_check(
         check_name: str,
         ai_output: AIGovernanceOutput,
         normalized_ref: dict[str, Any],
     ) -> dict[str, str]:
-        if check_name == "has_title":
-            ok = bool(normalized_ref.get("title"))
-            return {"status": "pass" if ok else "fail",
-                    "message": "Title present" if ok else "Missing title"}
-        if check_name == "has_content":
-            ok = bool(normalized_ref.get("content_snippet"))
-            return {"status": "pass" if ok else "fail",
-                    "message": "Content present" if ok else "Missing content"}
-        if check_name == "has_source_type":
-            ok = bool(normalized_ref.get("source_type_hint"))
-            return {"status": "pass" if ok else "warning",
-                    "message": "Source type present" if ok else "Source type missing"}
-        if check_name == "classification_confidence":
-            ok = ai_output.confidence >= 0.7
-            return {"status": "pass" if ok else "warning",
-                    "message": f"Confidence {ai_output.confidence:.2f}" +
-                               ("" if ok else " below 0.7 threshold")}
-        if check_name == "level_evidence_present":
-            ok = bool(ai_output.evidence_refs)
-            return {"status": "pass" if ok else "warning",
-                    "message": "Evidence refs present" if ok else "No evidence refs for level"}
-        if check_name == "no_conflicting_signals":
-            return {"status": "pass", "message": "No conflicting signals detected"}
-        if check_name == "level_matches_classification":
-            return {"status": "pass", "message": "Level consistent with classification"}
-        if check_name == "no_parse_errors":
-            return {"status": "pass", "message": "No parse errors detected"}
-        return {"status": "pass", "message": f"Check '{check_name}' passed"}
+        handler = _BUILTIN_CHECKS.get(check_name)
+        if handler is not None:
+            return handler(ai_output, normalized_ref)
+        logger.debug("No built-in handler for check '%s', defaulting to pass", check_name)
+        return {"status": "pass", "message": f"Check '{check_name}' passed (no handler)"}

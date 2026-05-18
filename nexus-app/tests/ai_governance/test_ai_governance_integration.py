@@ -116,7 +116,12 @@ def registry(tmp_path):
             {"code": "L4", "name": "绝密", "description": "Top secret",
              "criteria": ["Top secret"], "requires_approval": True},
         ],
-        "tags": [],
+        "tags": [
+            {"code": "knowledge_asset", "name": "知识资产", "description": "Knowledge",
+             "criteria": ["Knowledge content"], "applicable_classifications": ["D4"]},
+            {"code": "training_material", "name": "培训材料", "description": "Training",
+             "criteria": ["Training content"], "applicable_classifications": ["D4"]},
+        ],
         "quality_scoring": {
             "dimensions": [
                 {"name": "completeness", "weight": 0.3, "description": "c",
