@@ -587,6 +587,33 @@ def get_governance_run_quality_summary(
 # Admin: governance rules hot-reload
 # ---------------------------------------------------------------------------
 
+@router.get("/admin/governance-rules", response_model=schemas.ApiResponse[dict])
+def get_governance_rules(request: Request):
+    try:
+        raw = _rules_registry.get_raw()
+    except Exception as exc:
+        raise HTTPException(status_code=500,
+                            detail=f"Failed to read governance rules: {exc}") from exc
+    return response(raw, request)
+
+
+@router.put("/admin/governance-rules", response_model=schemas.ApiResponse[dict])
+def update_governance_rules(payload: dict, request: Request):
+    """Validate, persist, and immediately hot-reload governance_rules.json."""
+    try:
+        config = _rules_registry.save_and_reload(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500,
+                            detail=f"Failed to save governance rules: {exc}") from exc
+    return response({"schema_version": config.schema_version,
+                     "classifications": len(config.classifications),
+                     "levels": len(config.levels),
+                     "tags": len(config.tags),
+                     "quality_dimensions": len(config.quality_scoring.dimensions)}, request)
+
+
 @router.post("/admin/governance-rules/reload", response_model=schemas.ApiResponse[dict])
 def reload_governance_rules(request: Request):
     try:

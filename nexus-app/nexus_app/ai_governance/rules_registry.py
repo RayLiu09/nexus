@@ -55,6 +55,30 @@ class GovernanceRulesRegistry:
     def get_quality_scoring(self) -> QualityScoringConfig:
         return self._ensure_loaded().quality_scoring
 
+    def get_raw(self) -> dict:
+        """Return the raw JSON dict of the current rules file (for API read-back)."""
+        if self._path is None:
+            raise RuntimeError("GovernanceRulesRegistry not initialized; call load() first")
+        return json.loads(Path(self._path).read_text(encoding="utf-8"))
+
+    def save_and_reload(self, new_rules: dict) -> GovernanceRulesConfig:
+        """Validate new_rules, persist to disk, then hot-reload in memory.
+
+        Validation happens before write so a bad payload never corrupts the file.
+        """
+        if self._path is None:
+            raise RuntimeError("GovernanceRulesRegistry not initialized; call load() first")
+        validated = GovernanceRulesConfig.model_validate(new_rules)
+        path = Path(self._path)
+        path.write_text(
+            json.dumps(new_rules, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        self._config = validated
+        logger.info("Saved and reloaded governance rules at %s (schema_version=%s)",
+                    self._path, validated.schema_version)
+        return validated
+
     # ------------------------------------------------------------------
     def _ensure_loaded(self) -> GovernanceRulesConfig:
         if self._config is None:
