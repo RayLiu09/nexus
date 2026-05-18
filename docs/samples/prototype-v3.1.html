@@ -3,993 +3,1952 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NEXUS v3.1 — 企业数据与知识资产平台 Prototype</title>
+<title>NEXUS v3.1 Optimized Prototype</title>
 <style>
-/* ===== Design Tokens ===== */
 :root {
-  --primary: #6c5ce7;
-  --primary-light: #a29bfe;
-  --primary-pale: #f0eeff;
-  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --bg: #f4f6f8;
   --surface: #ffffff;
-  --bg: #f8f9fc;
-  --border: #e8ecf1;
-  --text: #1a1a2e;
-  --text-secondary: #6b7280;
-  --text-tertiary: #9ca3af;
-  --success: #10b981;
-  --warning: #f59e0b;
-  --error: #ef4444;
-  --info: #3b82f6;
-  --neutral: #6b7280;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
-  --shadow-lg: 0 8px 24px rgba(0,0,0,0.08);
-  --shadow-xl: 0 16px 48px rgba(0,0,0,0.10);
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
-  --nav-width: 220px;
-  --topbar-h: 56px;
-  --transition: 250ms ease-in-out;
-  /* domain colors */
-  --d1: #6366f1; --d2: #8b5cf6; --d3: #06b6d4;
-  --d4: #10b981; --d5: #f59e0b; --d6: #ef4444;
+  --surface-muted: #f8fafc;
+  --surface-strong: #eef4ff;
+  --border: #dde3ea;
+  --border-strong: #c5d0dc;
+  --text: #16202a;
+  --text-secondary: #52606d;
+  --text-tertiary: #7b8794;
+  --primary: #2563eb;
+  --primary-soft: #dbeafe;
+  --accent: #0f766e;
+  --success: #15803d;
+  --success-soft: #dcfce7;
+  --warning: #b45309;
+  --warning-soft: #fef3c7;
+  --danger: #b42318;
+  --danger-soft: #fee4e2;
+  --neutral: #475467;
+  --neutral-soft: #e4e7ec;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 10px 24px rgba(16, 24, 40, 0.08);
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --nav-width: 248px;
+  --nav-collapsed: 72px;
+  --topbar-h: 58px;
+  --transition: 180ms ease;
 }
 
-* { margin:0; padding:0; box-sizing:border-box; }
-body {
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6;
-  display: flex; min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
-/* ===== Navigation ===== */
-nav {
-  width: var(--nav-width); background: var(--surface); border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; position: fixed; top:0; left:0; bottom:0; z-index:100;
-  transition: width var(--transition); overflow: hidden;
-}
-nav.collapsed { width: 64px; }
-nav .logo {
-  padding: 16px 20px; font-size: 18px; font-weight: 700;
-  background: var(--primary-gradient); -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent; white-space: nowrap;
-  display: flex; align-items: center; gap: 10px; height: var(--topbar-h);
-}
-nav .logo .icon { font-size: 24px; -webkit-text-fill-color: initial; flex-shrink: 0; }
-nav .nav-group { padding: 8px 12px; }
-nav .nav-group-title {
-  font-size: 11px; font-weight: 600; text-transform: uppercase;
-  color: var(--text-tertiary); padding: 8px 8px 4px; letter-spacing: 0.5px;
-  white-space: nowrap; overflow: hidden;
-}
-nav.collapsed .nav-group-title { display: none; }
-nav .nav-item {
-  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-sm);
-  color: var(--text-secondary); text-decoration: none; font-size: 14px; font-weight: 500;
-  transition: all 150ms; cursor: pointer; white-space: nowrap; position: relative;
-}
-nav .nav-item:hover { background: var(--primary-pale); color: var(--primary); }
-nav .nav-item.active { background: var(--primary-pale); color: var(--primary); font-weight: 600; }
-nav .nav-item .badge {
-  position: absolute; right: 12px; background: var(--error); color: #fff;
-  font-size: 11px; min-width: 18px; height: 18px; border-radius: 9px;
-  display: flex; align-items: center; justify-content: center; padding: 0 5px;
-}
-nav.collapsed .nav-item .badge { right: 6px; top: 6px; }
-nav .nav-sep { height: 1px; background: var(--border); margin: 4px 16px; }
-nav .nav-item .label { transition: opacity var(--transition); }
-nav.collapsed .nav-item .label { opacity: 0; width: 0; }
-nav .collapse-btn {
-  margin: auto 12px 16px; padding: 8px; border-radius: var(--radius-sm);
-  cursor: pointer; color: var(--text-tertiary); text-align: center;
-  font-size: 13px; transition: all 150ms;
-}
-nav .collapse-btn:hover { background: var(--primary-pale); color: var(--primary); }
+button, input, select, textarea { font: inherit; }
+body { display: flex; }
+a { color: inherit; text-decoration: none; }
 
-/* ===== Top Bar ===== */
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--nav-width);
+  background: #101828;
+  color: #e5edf5;
+  border-right: 1px solid rgba(255,255,255,0.08);
+  display: flex;
+  flex-direction: column;
+  transition: width var(--transition);
+  z-index: 20;
+}
+
+.sidebar.collapsed { width: var(--nav-collapsed); }
+
+.brand {
+  height: var(--topbar-h);
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #60a5fa 0%, #0f766e 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.brand-title { font-size: 15px; font-weight: 700; color: #f8fafc; }
+.brand-subtitle { font-size: 11px; color: rgba(229,237,245,0.7); }
+
+.sidebar.collapsed .brand-text,
+.sidebar.collapsed .nav-section-title,
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .nav-badge,
+.sidebar.collapsed .sidebar-toggle span:last-child { display: none; }
+
+.nav-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 12px 18px;
+}
+
+.nav-section + .nav-section { margin-top: 14px; }
+.nav-section-title {
+  color: rgba(229,237,245,0.48);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0 10px 8px;
+}
+
+.nav-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: rgba(229,237,245,0.82);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition), color var(--transition);
+  position: relative;
+}
+
+.nav-item:hover {
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+}
+
+.nav-item.active {
+  background: rgba(37,99,235,0.18);
+  color: #fff;
+}
+
+.nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: #60a5fa;
+}
+
+.nav-icon { width: 18px; text-align: center; flex-shrink: 0; }
+.nav-label { flex: 1; white-space: nowrap; }
+.nav-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(180,83,9,0.26);
+  color: #fcd34d;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-toggle {
+  margin: 8px 12px 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: transparent;
+  color: rgba(229,237,245,0.82);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.sidebar-toggle:hover { background: rgba(255,255,255,0.08); }
+
 .topbar {
-  position: fixed; top:0; left: var(--nav-width); right:0; height: var(--topbar-h);
-  background: var(--surface); border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; padding: 0 24px; gap: 16px; z-index: 90;
+  position: fixed;
+  top: 0;
+  left: var(--nav-width);
+  right: 0;
+  height: var(--topbar-h);
+  background: rgba(255,255,255,0.96);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 20px;
   transition: left var(--transition);
-}
-nav.collapsed ~ .topbar { left: 64px; }
-.topbar .search-box {
-  flex: 1; max-width: 480px; display: flex; align-items: center; gap: 8px;
-  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
-  padding: 8px 16px; color: var(--text-tertiary); font-size: 13px;
-}
-.topbar .search-box .shortcut {
-  margin-left: auto; font-size: 11px; background: var(--border); padding: 2px 6px;
-  border-radius: 4px; color: var(--text-secondary);
-}
-.topbar .topbar-actions { display: flex; align-items: center; gap: 12px; margin-left: auto; }
-.topbar .topbar-actions .icon-btn {
-  width: 36px; height: 36px; border-radius: 50%; border: none; background: transparent;
-  cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center;
-  position: relative; color: var(--text-secondary); transition: all 150ms;
-}
-.topbar .topbar-actions .icon-btn:hover { background: var(--bg); color: var(--primary); }
-.topbar .topbar-actions .icon-btn .dot {
-  position: absolute; top: 6px; right: 6px; width: 8px; height: 8px;
-  background: var(--error); border-radius: 50%; border: 1.5px solid #fff;
-}
-.topbar .avatar {
-  width: 32px; height: 32px; border-radius: 50%;
-  background: var(--primary-gradient); color: #fff; display: flex;
-  align-items: center; justify-content: center; font-size: 13px; font-weight: 600;
+  z-index: 10;
 }
 
-/* ===== Main Content ===== */
-main {
-  margin-left: var(--nav-width); margin-top: var(--topbar-h);
-  padding: 24px; flex: 1; min-width: 0;
-  transition: margin-left var(--transition);
-}
-nav.collapsed ~ main { margin-left: 64px; }
-nav.collapsed ~ .topbar { left: 64px; }
+.sidebar.collapsed ~ .topbar { left: var(--nav-collapsed); }
+.topbar-left, .topbar-right { display: flex; align-items: center; gap: 14px; }
 
-/* ===== Page Components ===== */
-.page-header {
-  display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
 }
-.page-header h1 { font-size: 24px; font-weight: 700; }
-.page-header .actions { display:flex; gap: 8px; }
 
-/* Buttons */
-.btn {
-  display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
-  border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
-  border: 1px solid var(--border); background: var(--surface); color: var(--text);
-  cursor: pointer; transition: all 150ms; white-space: nowrap;
-}
-.btn:hover { background: var(--bg); border-color: var(--primary-light); }
-.btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
-.btn-primary:hover { background: #5b4bd5; }
-.btn-sm { padding: 4px 10px; font-size: 12px; }
-.btn-ghost { border: none; background: transparent; color: var(--text-secondary); }
-.btn-ghost:hover { background: var(--bg); color: var(--primary); }
-.btn-danger { color: var(--error); border-color: var(--error); }
-.btn-danger:hover { background: #fef2f2; }
+.crumb strong { color: var(--text); }
 
-/* Badges */
-.badge {
-  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px;
-  border-radius: 4px; font-size: 11px; font-weight: 600; white-space: nowrap;
-}
-.badge-success { background: #d1fae5; color: #059669; }
-.badge-info { background: #dbeafe; color: #2563eb; }
-.badge-warning { background: #fef3c7; color: #d97706; }
-.badge-error { background: #fee2e2; color: #dc2626; }
-.badge-neutral { background: #f3f4f6; color: #4b5563; }
-.badge-d1 { background: #e0e7ff; color: #4338ca; }
-.badge-d2 { background: #ede9fe; color: #6d28d9; }
-.badge-d3 { background: #cffafe; color: #0e7490; }
-.badge-d4 { background: #d1fae5; color: #047857; }
-.badge-d5 { background: #fef3c7; color: #b45309; }
-.badge-d6 { background: #fee2e2; color: #b91c1c; }
-.badge-l1 { background: #d1fae5; color: #047857; }
-.badge-l2 { background: #dbeafe; color: #1d4ed8; }
-.badge-l3 { background: #fef3c7; color: #b45309; }
-.badge-l4 { background: #fee2e2; color: #b91c1c; }
-
-/* Stat Cards */
-.stat-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-bottom: 24px; }
-.stat-card {
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
-  padding: 16px 20px; cursor: pointer; transition: all 150ms;
-}
-.stat-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
-.stat-card .stat-value { font-size: 28px; font-weight: 700; line-height: 1.2; }
-.stat-card .stat-trend { font-size: 12px; margin-top: 4px; }
-.stat-card .stat-trend.up { color: var(--success); }
-.stat-card .stat-trend.down { color: var(--error); }
-.stat-card .stat-label { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
-
-/* Card Grid */
-.card-grid { display: grid; gap: 16px; }
-.card-grid.cols-2 { grid-template-columns: 1fr 1fr; }
-.card-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
-.card-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
-.card {
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
-  padding: 20px;
-}
-.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; font-weight: 600; font-size: 15px; }
-
-/* Tabs */
-.tabs { display: flex; gap: 4px; margin-bottom: 20px; background: var(--surface); border-radius: var(--radius-sm); padding: 4px; border: 1px solid var(--border); }
-.tab {
-  padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 500;
-  cursor: pointer; color: var(--text-secondary); border: none; background: none;
-  transition: all 150ms;
-}
-.tab:hover { color: var(--text); }
-.tab.active { background: var(--primary-pale); color: var(--primary); font-weight: 600; }
-.tab .count { font-size: 11px; background: var(--border); padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
-
-/* Table */
-table { width: 100%; border-collapse: collapse; }
-th { text-align: left; padding: 10px 12px; font-size: 12px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
-td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
-tr:hover { background: var(--bg); }
-tr.selected { background: var(--primary-pale); }
-
-/* Asset Cards */
-.asset-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-.asset-card {
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
-  overflow: hidden; cursor: pointer; transition: all 150ms;
-}
-.asset-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
-.asset-card .card-thumb {
-  height: 100px; background: linear-gradient(135deg, #f8f9fc 0%, #e8ecf1 100%);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 32px; position: relative; overflow: hidden;
-}
-.asset-card .card-thumb.d1 { background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%); }
-.asset-card .card-thumb.d2 { background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%); }
-.asset-card .card-thumb.d4 { background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); }
-.asset-card .card-thumb.d6 { background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); }
-.asset-card .card-thumb .domain-tag {
-  position: absolute; top: 8px; right: 8px; padding: 2px 8px; border-radius: 4px;
-  font-size: 10px; font-weight: 600; background: rgba(255,255,255,0.9); backdrop-filter: blur(4px);
-}
-.asset-card .card-body { padding: 12px 14px; }
-.asset-card .card-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; line-height: 1.3; }
-.asset-card .card-meta { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
-.asset-card .quality-bar {
-  height: 4px; border-radius: 2px; background: #e8ecf1; margin-bottom: 8px; overflow: hidden;
-}
-.asset-card .quality-bar-fill { height: 100%; border-radius: 2px; }
-.asset-card .quality-bar-fill.high { background: var(--success); }
-.asset-card .quality-bar-fill.mid { background: var(--warning); }
-.asset-card .card-footer { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-tertiary); }
-
-/* SLA indicators */
-.sla-critical { color: var(--error); font-weight: 600; }
-.sla-warning { color: var(--warning); font-weight: 600; }
-.sla-normal { color: var(--text-secondary); }
-
-/* Queue sections */
-.queue-section {
-  border-left: 3px solid transparent; margin-bottom: 24px;
-  background: var(--surface); border-radius: var(--radius-md);
+.global-search {
+  width: min(520px, 42vw);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
   border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+  color: var(--text-tertiary);
 }
-.queue-section.critical { border-left-color: var(--error); }
-.queue-section.warning { border-left-color: var(--warning); }
-.queue-section.info { border-left-color: var(--success); }
-.queue-section.neutral { border-left-color: var(--neutral); }
-.queue-header {
-  padding: 14px 20px; display: flex; align-items: center; justify-content: space-between;
-  border-bottom: 1px solid var(--border); font-weight: 600;
-}
-.queue-header.critical { color: var(--error); }
-.queue-header.warning { color: var(--warning); }
-.queue-header.info { color: var(--success); }
-.queue-body { padding: 0; }
 
-/* Lineage DAG */
-.lineage-dag {
-  display: flex; flex-direction: column; align-items: center; gap: 0; padding: 20px;
+.global-search code {
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.topbar-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
   font-size: 12px;
 }
-.dag-node {
-  padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border);
-  background: var(--surface); font-weight: 500; display: flex; align-items: center;
-  gap: 8px; cursor: pointer; transition: all 150ms; white-space: nowrap; position: relative;
-}
-.dag-node:hover { box-shadow: var(--shadow-md); border-color: var(--primary-light); }
-.dag-node .dot { width: 8px; height: 8px; border-radius: 50%; }
-.dag-node .dot.done { background: var(--success); }
-.dag-node .dot.progress { background: var(--info); animation: pulse 1.5s ease-in-out infinite; }
-.dag-node .dot.pending { background: var(--border); }
-.dag-node .dot.failed { background: var(--error); }
-.dag-arrow { color: var(--text-tertiary); font-size: 16px; line-height: 1; padding: 2px 0; text-align: center; }
-.dag-row { display: flex; gap: 24px; align-items: flex-start; justify-content: center; }
-.dag-col { display: flex; flex-direction: column; align-items: center; }
-.dag-branch { display: flex; gap: 40px; }
-.dag-merge { display: flex; gap: 40px; }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #dbeafe;
+  color: #1d4ed8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
 }
 
-/* Notification center */
-.notif-list { list-style: none; }
-.notif-item {
-  display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border);
-  font-size: 13px; align-items: flex-start;
+main {
+  margin-left: var(--nav-width);
+  margin-top: var(--topbar-h);
+  padding: 22px;
+  width: calc(100% - var(--nav-width));
+  transition: margin-left var(--transition), width var(--transition);
 }
-.notif-item .notif-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
-.notif-item .notif-dot.err { background: var(--error); }
-.notif-item .notif-dot.ok { background: var(--success); }
-.notif-item .notif-dot.warn { background: var(--warning); }
-.notif-item .notif-time { color: var(--text-tertiary); font-size: 11px; margin-left: auto; white-space: nowrap; }
 
-/* Confidence bars */
-.conf-bar { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
-.conf-bar .conf-label { width: 70px; font-size: 12px; color: var(--text-secondary); }
-.conf-bar .conf-track { flex: 1; height: 6px; background: #e8ecf1; border-radius: 3px; overflow: hidden; }
-.conf-bar .conf-fill { height: 100%; border-radius: 3px; }
-.conf-bar .conf-fill.high { background: var(--success); }
-.conf-bar .conf-fill.mid { background: var(--warning); }
-.conf-bar .conf-fill.low { background: var(--error); }
-.conf-bar .conf-val { font-size: 12px; font-weight: 600; width: 40px; text-align: right; }
+.sidebar.collapsed ~ main {
+  margin-left: var(--nav-collapsed);
+  width: calc(100% - var(--nav-collapsed));
+}
 
-/* Page visibility */
 .page { display: none; }
 .page.active { display: block; }
 
-/* Batch bar */
-.batch-bar {
-  background: var(--primary-pale); border: 1px solid var(--primary-light); border-radius: var(--radius-md);
-  padding: 10px 16px; display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
-  font-size: 13px; font-weight: 500;
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
 }
 
-/* My workspace SLA groups */
-.sla-group { margin-bottom: 20px; }
-.sla-group-header {
-  font-size: 13px; font-weight: 600; padding: 8px 0; display: flex; align-items: center; gap: 8px;
+.eyebrow {
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
 }
-.sla-group-header.critical { color: var(--error); }
-.sla-group-header.warning { color: var(--warning); }
-.sla-group-header.normal { color: var(--success); }
 
-/* Toast */
+.page-head h1 {
+  font-size: 24px;
+  line-height: 1.2;
+  margin-bottom: 6px;
+}
+
+.page-desc {
+  color: var(--text-secondary);
+  max-width: 880px;
+}
+
+.page-actions,
+.toolbar,
+.filters,
+.field-row,
+.inline-actions,
+.summary-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.toolbar, .filters { margin-bottom: 16px; }
+
+.btn, .control {
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn:hover, .control:hover { border-color: var(--border-strong); }
+.btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-secondary { background: var(--surface-strong); border-color: #bfdbfe; color: #1d4ed8; }
+.btn-danger { background: var(--danger-soft); border-color: #fda29b; color: var(--danger); }
+.btn-ghost { background: transparent; box-shadow: none; }
+.control { color: var(--text-secondary); }
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.metric-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.metric-label { color: var(--text-secondary); font-size: 12px; margin-bottom: 8px; }
+.metric-value { font-size: 28px; line-height: 1; font-weight: 700; margin-bottom: 8px; }
+.metric-sub { color: var(--text-tertiary); font-size: 12px; }
+.metric-card.warning .metric-value, .metric-card.warning .metric-sub { color: var(--warning); }
+.metric-card.danger .metric-value, .metric-card.danger .metric-sub { color: var(--danger); }
+.metric-card.success .metric-value, .metric-card.success .metric-sub { color: var(--success); }
+
+.layout { display: grid; gap: 18px; margin-bottom: 18px; }
+.layout-2-1 { grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr); }
+.layout-1-1 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.layout-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.panel-title { font-size: 16px; font-weight: 700; }
+.panel-subtitle, .panel-note, .muted { color: var(--text-secondary); font-size: 12px; }
+.section-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 600; }
+
+.status, .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-success, .chip-success { background: var(--success-soft); color: var(--success); }
+.status-info, .chip-info { background: var(--primary-soft); color: var(--primary); }
+.status-warning, .chip-warning { background: var(--warning-soft); color: var(--warning); }
+.status-danger, .chip-danger { background: var(--danger-soft); color: var(--danger); }
+.status-neutral, .chip-neutral { background: var(--neutral-soft); color: var(--neutral); }
+.chip { font-weight: 600; }
+.chip::before { display: none; }
+
+.chip-domain-d1 { background: #e0e7ff; color: #3730a3; }
+.chip-domain-d2 { background: #ede9fe; color: #6d28d9; }
+.chip-domain-d3 { background: #cffafe; color: #0f766e; }
+.chip-domain-d4 { background: #dcfce7; color: #166534; }
+.chip-domain-d6 { background: #fee4e2; color: #b42318; }
+.chip-level-l1 { background: #dcfce7; color: #166534; }
+.chip-level-l2 { background: #dbeafe; color: #1d4ed8; }
+.chip-level-l3 { background: #fef3c7; color: #b45309; }
+.chip-level-l4 { background: #fee4e2; color: #b42318; }
+
+.summary-strip { margin-bottom: 12px; }
+.summary-item {
+  min-width: 140px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+}
+.summary-item b { display: block; font-size: 18px; margin-top: 4px; }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+td {
+  padding: 11px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+tbody tr:hover { background: #fafcff; }
+
+.table-link { color: var(--primary); font-weight: 600; cursor: pointer; }
+.table-main { font-weight: 600; color: var(--text); }
+.table-sub { color: var(--text-secondary); font-size: 12px; margin-top: 3px; }
+.mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 12px; }
+
+.stack, .stack-sm { display: grid; }
+.stack { gap: 12px; }
+.stack-sm { gap: 8px; }
+
+.notice {
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+}
+.notice-info { background: #f0f7ff; border-color: #bfdbfe; }
+.notice-warning { background: #fff7ed; border-color: #fed7aa; }
+.notice-danger { background: #fef3f2; border-color: #fecdca; }
+.notice strong { display: block; margin-bottom: 4px; }
+
+.funnel-row {
+  display: grid;
+  grid-template-columns: 148px minmax(0, 1fr) 48px 42px;
+  gap: 10px;
+  align-items: center;
+}
+.funnel-row + .funnel-row { margin-top: 10px; }
+.funnel-track, .progress-track, .small-chart-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: #edf2f7;
+  overflow: hidden;
+}
+.funnel-fill, .progress-fill, .small-chart-fill {
+  height: 100%;
+  border-radius: inherit;
+}
+.funnel-fill { background: linear-gradient(90deg, #2563eb 0%, #0f766e 100%); }
+.progress-fill { background: var(--primary); }
+.small-chart-fill { background: #0f766e; }
+
+.risk-list, .simple-list, .timeline { list-style: none; }
+.risk-item, .simple-list li, .timeline li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.risk-item:last-child, .simple-list li:last-child, .timeline li:last-child { border-bottom: none; }
+
+.risk-dot, .timeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.risk-dot.danger, .timeline-dot.danger { background: var(--danger); }
+.risk-dot.warning, .timeline-dot.warning { background: var(--warning); }
+.risk-dot.info, .timeline-dot.info { background: var(--primary); }
+.risk-dot.success, .timeline-dot.success { background: var(--success); }
+
+.split-card, .definition-grid, .compare-card, .mask-preview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.definition-item, .compare-side, .mask-cell, .audit-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  background: var(--surface-muted);
+}
+
+.definition-item span { display: block; color: var(--text-secondary); font-size: 12px; margin-bottom: 4px; }
+.definition-item strong { display: block; word-break: break-word; }
+.compare-side h4 { margin-bottom: 10px; font-size: 14px; }
+
+.tag-cloud { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.dropzone {
+  padding: 22px;
+  border: 1.5px dashed #93c5fd;
+  background: #f8fbff;
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+.dropzone h3 { font-size: 18px; margin-bottom: 8px; }
+.dropzone p { color: var(--text-secondary); }
+
+.kanban-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+}
+.kanban-item strong { display: block; margin-bottom: 4px; }
+
+.stage-steps { display: grid; gap: 10px; }
+.stage-step {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 70px;
+  gap: 10px;
+  align-items: start;
+}
+.stage-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+}
+.stage-icon.done { background: var(--success); }
+.stage-icon.run { background: var(--primary); }
+.stage-icon.wait { background: var(--neutral); }
+.stage-icon.fail { background: var(--danger); }
+
+.anchor-nav { position: sticky; top: 82px; }
+.anchor-list { display: grid; gap: 8px; }
+.anchor-link { color: var(--text-secondary); font-size: 13px; }
+.anchor-link.active { color: var(--primary); font-weight: 700; }
+
+.code-block {
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: #0f172a;
+  color: #dbeafe;
+  overflow-x: auto;
+  border: 1px solid #1e293b;
+}
+
+.tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  margin-bottom: 16px;
+}
+
+.tab {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.tab.active {
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.tab-panels > .tab-panel { display: none; }
+.tab-panels > .tab-panel.active { display: block; }
+
+.bulk-bar {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  margin-bottom: 12px;
+}
+
+.audit-stream { display: grid; gap: 10px; }
+.audit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.small-chart { display: grid; gap: 8px; }
+.small-chart-row {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) 40px;
+  gap: 8px;
+  align-items: center;
+}
+
+.toast-host {
+  position: fixed;
+  right: 22px;
+  top: 74px;
+  z-index: 30;
+  display: grid;
+  gap: 10px;
+}
 .toast {
-  position: fixed; top: 72px; right: 24px; z-index: 999;
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg); padding: 14px 20px; font-size: 13px;
-  display: flex; align-items: center; gap: 12px; min-width: 320px;
-  animation: slideIn 250ms ease-out;
+  min-width: 320px;
+  max-width: 440px;
+  background: #111827;
+  color: #f9fafb;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 12px 14px;
 }
-@keyframes slideIn {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
+.toast small { display: block; color: #cbd5e1; margin-top: 5px; }
 
-/* Confirm dialog */
-.overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 200;
-  display: flex; align-items: center; justify-content: center;
+@media (max-width: 1440px) {
+  .metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-.dialog {
-  background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-xl);
-  padding: 24px; max-width: 440px; width: 90%;
+@media (max-width: 1180px) {
+  .layout-2-1, .layout-1-1, .layout-3, .split-card, .definition-grid, .compare-card, .mask-preview {
+    grid-template-columns: 1fr;
+  }
+  .topbar { padding-inline: 14px; }
+  .global-search { width: min(320px, 46vw); }
 }
-.dialog h3 { font-size: 16px; margin-bottom: 8px; }
-.dialog p { color: var(--text-secondary); font-size: 13px; margin-bottom: 16px; }
-.dialog .confirm-input { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; margin-bottom: 16px; }
-.dialog .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
-
-/* Responsive simulation note */
-.responsive-note {
-  background: #fef3c7; color: #92400e; padding: 8px 16px; border-radius: var(--radius-sm);
-  font-size: 12px; margin-bottom: 16px; text-align: center;
+@media (max-width: 960px) {
+  .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .topbar-left .crumb, .global-search code, .topbar-pill:first-child { display: none; }
 }
 </style>
 </head>
 <body>
 
-<!-- ===== NAVIGATION ===== -->
-<nav id="nav">
-  <div class="logo"><span class="icon">◉</span><span class="label">NEXUS</span></div>
-  <div class="nav-group">
-    <a class="nav-item active" data-page="workbench"><span>📊</span><span class="label">工作台</span></a>
+<aside class="sidebar" id="sidebar">
+  <div class="brand">
+    <div class="brand-mark">N</div>
+    <div class="brand-text">
+      <div class="brand-title">NEXUS</div>
+      <div class="brand-subtitle">企业数据与知识资产平台</div>
+    </div>
   </div>
-  <div class="nav-sep"></div>
-  <div class="nav-group-title">数据工程</div>
-  <div class="nav-group">
-    <a class="nav-item" data-page="datasources"><span>📡</span><span class="label">数据源管理</span></a>
-    <a class="nav-item" data-page="ingest"><span>📤</span><span class="label">数据接入</span></a>
-    <a class="nav-item" data-page="raw"><span>📦</span><span class="label">原始数据台账</span></a>
-    <a class="nav-item" data-page="jobs"><span>⚙</span><span class="label">作业中心</span></a>
+  <div class="nav-scroll">
+    <div class="nav-section">
+      <div class="nav-section-title">总览</div>
+      <button class="nav-item active" data-page="workbench"><span class="nav-icon">▦</span><span class="nav-label">工作台</span></button>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-title">数据工程</div>
+      <button class="nav-item" data-page="datasources"><span class="nav-icon">◎</span><span class="nav-label">数据源管理</span></button>
+      <button class="nav-item" data-page="ingest"><span class="nav-icon">⇪</span><span class="nav-label">数据接入</span></button>
+      <button class="nav-item" data-page="raw"><span class="nav-icon">▤</span><span class="nav-label">原始数据台账</span></button>
+      <button class="nav-item" data-page="jobs"><span class="nav-icon">◫</span><span class="nav-label">作业中心</span></button>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-title">资产与治理</div>
+      <button class="nav-item" data-page="assets"><span class="nav-icon">▥</span><span class="nav-label">资产目录</span></button>
+      <button class="nav-item" data-page="governance"><span class="nav-icon">◈</span><span class="nav-label">治理中心</span><span class="nav-badge">19</span></button>
+      <button class="nav-item" data-page="tag-review"><span class="nav-icon">#</span><span class="nav-label">标签审核</span><span class="nav-badge">12</span></button>
+      <button class="nav-item" data-page="rules"><span class="nav-icon">≡</span><span class="nav-label">规则配置</span></button>
+      <button class="nav-item" data-page="prompt"><span class="nav-icon">AI</span><span class="nav-label">AI Prompt</span></button>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-title">访问与审计</div>
+      <button class="nav-item" data-page="permissions"><span class="nav-icon">⌘</span><span class="nav-label">权限与审计</span></button>
+      <button class="nav-item" data-page="search"><span class="nav-icon">?</span><span class="nav-label">检索验证</span></button>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-title">个人工作</div>
+      <button class="nav-item" data-page="workspace"><span class="nav-icon">◌</span><span class="nav-label">我的工作区</span></button>
+    </div>
   </div>
-  <div class="nav-sep"></div>
-  <div class="nav-group-title">资产</div>
-  <div class="nav-group">
-    <a class="nav-item" data-page="assets"><span>📚</span><span class="label">资产目录</span></a>
-  </div>
-  <div class="nav-sep"></div>
-  <div class="nav-group-title">治理</div>
-  <div class="nav-group">
-    <a class="nav-item" data-page="governance"><span>🛡</span><span class="label">治理中心</span><span class="badge">3</span></a>
-    <a class="nav-item" data-page="rules"><span>📋</span><span class="label">规则配置</span></a>
-    <a class="nav-item" data-page="prompt"><span>🧠</span><span class="label">AI Prompt</span></a>
-  </div>
-  <div class="nav-sep"></div>
-  <div class="nav-group-title">工具</div>
-  <div class="nav-group">
-    <a class="nav-item" data-page="search"><span>🔍</span><span class="label">检索测试</span></a>
-    <a class="nav-item" data-page="knowledge"><span>📖</span><span class="label">知识资产</span></a>
-  </div>
-  <div class="nav-sep"></div>
-  <div class="nav-group-title">系统</div>
-  <div class="nav-group">
-    <a class="nav-item" data-page="permissions"><span>🔑</span><span class="label">权限与审计</span></a>
-    <a class="nav-item" data-page="workspace"><span>👤</span><span class="label">我的工作区</span></a>
-  </div>
-  <div class="collapse-btn" onclick="toggleNav()" title="收起/展开导航">◀ 收起导航</div>
-</nav>
+  <button class="sidebar-toggle" onclick="toggleNav()"><span>◀</span><span>收起导航</span></button>
+</aside>
 
-<!-- ===== TOP BAR ===== -->
-<div class="topbar">
-  <div class="search-box">
-    <span>🔍</span> 搜索资产、作业、规则...
-    <span class="shortcut">⌘K</span>
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="crumb"><strong>NEXUS 控制台</strong><span>/</span><span>P0 业务原型</span></div>
+    <div class="global-search">搜索 batch_id / raw_object / asset / rule / trace_id<code>Ctrl K</code></div>
   </div>
-  <div class="topbar-actions">
-    <button class="icon-btn"><span>🔔</span><span class="dot"></span></button>
-    <button class="icon-btn">💡</button>
+  <div class="topbar-right">
+    <div class="topbar-pill">环境: Demo</div>
+    <div class="topbar-pill">角色: 平台管理员</div>
+    <div class="topbar-pill">组织: 产教融合中心</div>
     <div class="avatar">张</div>
   </div>
-</div>
+</header>
 
-<!-- ===== MAIN CONTENT ===== -->
-<main id="main">
-
-<!-- ========== WORKBENCH PAGE ========== -->
-<div class="page active" id="page-workbench">
-  <div class="page-header">
-    <h1>工作台</h1>
-    <div class="actions">
-      <select class="btn btn-sm"><option>近7天</option><option>今日</option><option>近30天</option></select>
-      <button class="btn btn-sm">↻ 刷新</button>
-    </div>
-  </div>
-
-  <div class="stat-grid">
-    <div class="stat-card" onclick="navigateTo('ingest')">
-      <div class="stat-value">128</div>
-      <div class="stat-trend up">↑ 12%</div>
-      <div class="stat-label">接入批次</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value">1,234</div>
-      <div class="stat-trend">→ 持平</div>
-      <div class="stat-label">处理对象</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value">89%</div>
-      <div class="stat-trend up">↑ 3%</div>
-      <div class="stat-label">自动化通过率</div>
-    </div>
-    <div class="stat-card" style="border-color: var(--warning);">
-      <div class="stat-value" style="color: var(--warning);">23</div>
-      <div class="stat-trend down">↓ 5</div>
-      <div class="stat-label">待复核资产</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value">95%</div>
-      <div class="stat-trend">→ 持平</div>
-      <div class="stat-label">索引覆盖率</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value" style="font-size: 24px;">●</div>
-      <div class="stat-trend" style="color: var(--success);">健康</div>
-      <div class="stat-label">系统状态</div>
-    </div>
-  </div>
-
-  <div class="card-grid cols-3" style="margin-bottom: 24px;">
-    <div class="card">
-      <div class="card-header">数据域分布（资产数）</div>
-      <div style="font-size:12px; line-height:2;">
-        <div style="display:flex;justify-content:space-between;"><span style="color:var(--d1);">● D1 教研教学</span><b>32</b></div>
-        <div style="display:flex;justify-content:space-between;"><span style="color:var(--d2);">● D2 人才培养</span><b>24</b></div>
-        <div style="display:flex;justify-content:space-between;"><span style="color:var(--d3);">● D3 就业创业</span><b>12</b></div>
-        <div style="display:flex;justify-content:space-between;"><span style="color:var(--d4);">● D4 产教融合</span><b>45</b></div>
-        <div style="display:flex;justify-content:space-between;"><span style="color:var(--d5);">● D5 平台运营</span><b>3</b></div>
-        <div style="display:flex;justify-content:space-between;"><span style="color:var(--d6);">● D6 政策法规</span><b>15</b></div>
+<main>
+  <section class="page active" id="page-workbench">
+    <div class="page-head">
+      <div>
+        <div class="eyebrow">平台运营总览</div>
+        <h1>工作台</h1>
+        <p class="page-desc">围绕批次接入、标准化资产生成、AI 治理、规则护栏、索引入库和权限审计构建日常运营视图。重点突出异常、待决策事项和闭环效率，而不是堆砌装饰性看板。</p>
       </div>
-      <div style="margin-top:12px;text-align:right;"><a href="#" style="color:var(--primary);font-size:12px;" onclick="navigateTo('assets');return false;">查看全部资产 →</a></div>
-    </div>
-    <div class="card">
-      <div class="card-header">分级分布</div>
-      <div style="display:flex; gap:12px; align-items:flex-end; height:100px;">
-        <div style="flex:1;text-align:center;"><div style="height:60px;background:var(--success);border-radius:4px 4px 0 0;"></div><small>L1 30%</small></div>
-        <div style="flex:1;text-align:center;"><div style="height:90px;background:var(--info);border-radius:4px 4px 0 0;"></div><small>L2 45%</small></div>
-        <div style="flex:1;text-align:center;"><div style="height:36px;background:var(--warning);border-radius:4px 4px 0 0;"></div><small>L3 18%</small></div>
-        <div style="flex:1;text-align:center;"><div style="height:14px;background:var(--error);border-radius:4px 4px 0 0;"></div><small style="color:var(--error);">L4 7%</small></div>
-      </div>
-      <div style="color:var(--error);font-size:11px;margin-top:8px;">⚠ L4 资产较上周新增 2 项</div>
-    </div>
-    <div class="card">
-      <div class="card-header">我最近的资产</div>
-      <div style="font-size:13px; line-height:2;">
-        <div>📄 电子商务基础（第3版）<span style="color:var(--text-tertiary);float:right;">2h前</span></div>
-        <div>📄 人才培养方案2025<span style="color:var(--text-tertiary);float:right;">5h前</span></div>
-        <div>📄 产教融合案例集<span style="color:var(--text-tertiary);float:right;">1d前</span></div>
-        <div>📄 教研方法论v2<span style="color:var(--text-tertiary);float:right;">2d前</span></div>
+      <div class="page-actions">
+        <div class="control">近 7 天</div>
+        <button class="btn btn-primary" onclick="navigateTo('ingest')">新建接入批次</button>
+        <button class="btn" onclick="navigateTo('governance')">处理待复核</button>
       </div>
     </div>
-  </div>
 
-  <div class="card-grid cols-2" style="margin-bottom: 24px;">
-    <div class="card">
-      <div class="card-header">⚡ 待处理事项（按紧急度）</div>
-      <div style="font-size:13px;line-height:2.4;">
-        <div style="color:var(--error);">🔴 待人工复核 <b>23</b> 条 · 最早等待 3h · 超时 2 条</div>
-        <div style="color:var(--warning);">🟡 规则冲突 <b>5</b> 条 · 最早等待 1h</div>
-        <div style="color:var(--warning);">🟡 标签待审核 <b>12</b> 条 · 最早等待 5h</div>
-        <div>🟢 索引失败 <b>3</b> 条</div>
-      </div>
-      <div style="margin-top:12px;"><button class="btn btn-primary btn-sm" onclick="navigateTo('governance')">处理待复核</button> <button class="btn btn-sm">查看全部待办</button></div>
+    <div class="metric-grid">
+      <div class="metric-card"><div class="metric-label">今日新增批次</div><div class="metric-value">18</div><div class="metric-sub">11 批已完成，3 批处理中，4 批待补料</div></div>
+      <div class="metric-card"><div class="metric-label">处理中 raw 对象</div><div class="metric-value">246</div><div class="metric-sub">文档 172，记录 74</div></div>
+      <div class="metric-card success"><div class="metric-label">当前可用版本</div><div class="metric-value">1,286</div><div class="metric-sub">可检索 1,241，待重建索引 45</div></div>
+      <div class="metric-card warning"><div class="metric-label">待复核资产</div><div class="metric-value">19</div><div class="metric-sub">规则冲突 8，组织范围不明 5</div></div>
+      <div class="metric-card warning"><div class="metric-label">低置信标签草稿</div><div class="metric-value">12</div><div class="metric-sub">全部来源于 normalized asset</div></div>
+      <div class="metric-card danger"><div class="metric-label">今日失败作业</div><div class="metric-value">3</div><div class="metric-sub">2 个可重试，1 个待人工排障</div></div>
     </div>
-    <div class="card">
-      <div class="card-header">📋 最近作业</div>
-      <table>
-        <tr><td>◉ normalize_document</td><td style="color:var(--info);">处理中</td><td style="color:var(--text-tertiary);">2min前</td></tr>
-        <tr><td>✓ index_build</td><td style="color:var(--success);">完成</td><td style="color:var(--text-tertiary);">15min前</td></tr>
-        <tr><td>⚠ governance_evaluate</td><td style="color:var(--warning);">需复核</td><td style="color:var(--text-tertiary);">1h前</td></tr>
-        <tr><td>✕ document_parse</td><td style="color:var(--error);">失败</td><td style="color:var(--text-tertiary);">3h前</td></tr>
-      </table>
-    </div>
-  </div>
 
-  <div class="card" style="margin-bottom: 24px;">
-    <div class="card-header">🔔 通知中心 <span style="font-weight:400;font-size:12px;color:var(--text-tertiary);float:right;cursor:pointer;">全部已读</span></div>
-    <ul class="notif-list">
-      <li class="notif-item"><span class="notif-dot err"></span><span>作业 job-g7h8i9 解析失败：文档格式不支持</span><span class="notif-time">2min前</span></li>
-      <li class="notif-item"><span class="notif-dot ok"></span><span>批次 B20260514-001 全部处理完成，12个资产已可用</span><span class="notif-time">15min前</span></li>
-      <li class="notif-item"><span class="notif-dot warn"></span><span>规则集「文档分类规则 v4」校验通过，待发布</span><span class="notif-time">1h前</span></li>
-    </ul>
-  </div>
-</div>
-
-<!-- ========== ASSET CATALOG PAGE ========== -->
-<div class="page" id="page-assets">
-  <div class="page-header">
-    <h1>资产目录</h1>
-    <div class="actions">
-      <button class="btn btn-sm" id="view-card-btn" onclick="switchAssetView('card')" style="background:var(--primary-pale);color:var(--primary);">▣ 卡片</button>
-      <button class="btn btn-sm" id="view-list-btn" onclick="switchAssetView('list')">☰ 列表</button>
-      <button class="btn btn-sm">保存视图</button>
-    </div>
-  </div>
-  <div class="tabs">
-    <button class="tab active">全部</button>
-    <button class="tab">D1 教研</button><button class="tab">D2 培养</button>
-    <button class="tab">D3 就业</button><button class="tab">D4 产教</button>
-    <button class="tab">D6 政策</button>
-  </div>
-
-  <!-- Card View -->
-  <div id="asset-card-view" class="asset-cards">
-    <div class="asset-card" onclick="navigateTo('asset-detail')">
-      <div class="card-thumb d4"><span style="font-size:40px;">📕</span><span class="domain-tag">D4</span></div>
-      <div class="card-body">
-        <div class="card-title">电子商务基础（第3版）</div>
-        <div class="card-meta"><span class="badge badge-d4">D4 产教</span><span class="badge badge-l2">L2</span></div>
-        <div class="quality-bar"><div class="quality-bar-fill high" style="width:92%;"></div></div>
-        <div class="card-footer"><span>质量 <b>92</b></span><span style="color:var(--success);">● 已索引</span></div>
-      </div>
-    </div>
-    <div class="asset-card">
-      <div class="card-thumb d2"><span style="font-size:40px;">📘</span><span class="domain-tag">D2</span></div>
-      <div class="card-body">
-        <div class="card-title">人才培养方案2025</div>
-        <div class="card-meta"><span class="badge badge-d2">D2 培养</span><span class="badge badge-l2">L2</span></div>
-        <div class="quality-bar"><div class="quality-bar-fill high" style="width:88%;"></div></div>
-        <div class="card-footer"><span>质量 <b>88</b></span><span style="color:var(--success);">● 已索引</span></div>
-      </div>
-    </div>
-    <div class="asset-card">
-      <div class="card-thumb d4"><span style="font-size:40px;">📙</span><span class="domain-tag">D4</span></div>
-      <div class="card-body">
-        <div class="card-title">产教融合案例集</div>
-        <div class="card-meta"><span class="badge badge-d4">D4 产教</span><span class="badge badge-l3">L3</span></div>
-        <div class="quality-bar"><div class="quality-bar-fill mid" style="width:72%;"></div></div>
-        <div class="card-footer"><span>质量 <b style="color:var(--warning);">72</b></span><span style="color:var(--text-tertiary);">○ 未索引</span></div>
-      </div>
-    </div>
-    <div class="asset-card">
-      <div class="card-thumb d6"><span style="font-size:40px;">📗</span><span class="domain-tag">D6</span></div>
-      <div class="card-body">
-        <div class="card-title">政策汇编2025</div>
-        <div class="card-meta"><span class="badge badge-d6">D6 政策</span><span class="badge badge-l1">L1</span></div>
-        <div class="quality-bar"><div class="quality-bar-fill high" style="width:95%;"></div></div>
-        <div class="card-footer"><span>质量 <b>95</b></span><span style="color:var(--success);">● 已索引</span></div>
-      </div>
-    </div>
-    <div class="asset-card">
-      <div class="card-thumb d1"><span style="font-size:40px;">📓</span><span class="domain-tag">D1</span></div>
-      <div class="card-body">
-        <div class="card-title">教研方法论v2</div>
-        <div class="card-meta"><span class="badge badge-d1">D1 教研</span><span class="badge badge-l2">L2</span></div>
-        <div class="quality-bar"><div class="quality-bar-fill mid" style="width:68%;"></div></div>
-        <div class="card-footer"><span>质量 <b style="color:var(--warning);">68</b></span><span style="color:var(--warning);">⚠ 待复核</span></div>
-      </div>
-    </div>
-    <div class="asset-card">
-      <div class="card-thumb d3"><span style="font-size:40px;">📔</span><span class="domain-tag">D3</span></div>
-      <div class="card-body">
-        <div class="card-title">就业数据分析报告v2</div>
-        <div class="card-meta"><span class="badge badge-d3">D3 就业</span><span class="badge badge-l2">L2</span></div>
-        <div class="quality-bar"><div class="quality-bar-fill high" style="width:88%;"></div></div>
-        <div class="card-footer"><span>质量 <b>88</b></span><span style="color:var(--success);">● 已索引</span></div>
-      </div>
-    </div>
-    <div class="asset-card">
-      <div class="card-thumb d1"><span style="font-size:40px;">📒</span><span class="domain-tag">D1</span></div>
-      <div class="card-body">
-        <div class="card-title">教学大纲2025</div>
-        <div class="card-meta"><span class="badge badge-d1">D1 教研</span><span class="badge badge-l2">L2</span></div>
-        <div class="quality-bar"><div class="quality-bar-fill high" style="width:85%;"></div></div>
-        <div class="card-footer"><span>质量 <b>85</b></span><span style="color:var(--success);">● 已索引</span></div>
-      </div>
-    </div>
-    <div class="asset-card" style="display:flex;align-items:center;justify-content:center;border:2px dashed var(--border);min-height:220px;">
-      <div style="text-align:center;color:var(--text-tertiary);">
-        <div style="font-size:32px;">➕</div>
-        <div>新增资产</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- List View (hidden by default) -->
-  <div id="asset-list-view" style="display:none;">
-    <table>
-      <thead><tr><th>☐</th><th>标题</th><th>域</th><th>类型</th><th>分级</th><th>质量</th><th>AI采纳</th><th>索引</th><th>状态</th><th>时间</th></tr></thead>
-      <tbody>
-        <tr><td><input type="checkbox"></td><td style="font-weight:500;">电子商务基础（第3版）</td><td><span class="badge badge-d4">D4</span></td><td>教材</td><td><span class="badge badge-l2">L2</span></td><td><b>92</b></td><td>✓已采纳</td><td>● 已索引</td><td>● 可用</td><td>2h前</td></tr>
-        <tr><td><input type="checkbox"></td><td style="font-weight:500;">人才培养方案2025</td><td><span class="badge badge-d2">D2</span></td><td>方案</td><td><span class="badge badge-l2">L2</span></td><td><b>88</b></td><td>⚡部分</td><td>● 已索引</td><td>● 可用</td><td>5h前</td></tr>
-        <tr><td><input type="checkbox"></td><td style="font-weight:500;">产教融合案例集</td><td><span class="badge badge-d4">D4</span></td><td>案例</td><td><span class="badge badge-l3">L3</span></td><td><b style="color:var(--warning)">72</b></td><td>⚠待复核</td><td>○ 未索引</td><td>⚠ 复核</td><td>1d前</td></tr>
-        <tr><td><input type="checkbox"></td><td style="font-weight:500;">政策汇编2025</td><td><span class="badge badge-d6">D6</span></td><td>法规</td><td><span class="badge badge-l1">L1</span></td><td><b>95</b></td><td>✓已采纳</td><td>● 已索引</td><td>● 可用</td><td>3d前</td></tr>
-        <tr><td><input type="checkbox"></td><td style="font-weight:500;">教研方法论v2</td><td><span class="badge badge-d1">D1</span></td><td>报告</td><td><span class="badge badge-l2">L2</span></td><td><b style="color:var(--warning)">68</b></td><td>⚠待复核</td><td>○ 未索引</td><td>⚠ 复核</td><td>2d前</td></tr>
-        <tr><td><input type="checkbox"></td><td style="font-weight:500;">就业数据分析报告v2</td><td><span class="badge badge-d3">D3</span></td><td>报告</td><td><span class="badge badge-l2">L2</span></td><td><b>88</b></td><td>✓已采纳</td><td>● 已索引</td><td>● 可用</td><td>3d前</td></tr>
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<!-- ========== GOVERNANCE CENTER PAGE ========== -->
-<div class="page" id="page-governance">
-  <div class="page-header">
-    <h1>治理中心</h1>
-    <div class="actions">
-      <button class="btn btn-sm">批量操作 ▼</button>
-      <button class="btn btn-sm">我的视图 ▼</button>
-    </div>
-  </div>
-  <div class="tabs">
-    <button class="tab active">全部 67</button>
-    <button class="tab">待复核 <span class="count" style="background:var(--error);color:#fff;">23</span></button>
-    <button class="tab">质量待审 <span class="count" style="background:var(--warning);color:#fff;">15</span></button>
-    <button class="tab">AI建议 <span class="count">20</span></button>
-    <button class="tab">决策追踪 <span class="count">9</span></button>
-  </div>
-
-  <div class="batch-bar" id="batch-bar" style="display:none;">
-    ☑ 已选 <b id="batch-count">0</b> 项
-    <button class="btn btn-primary btn-sm">批量确认</button>
-    <button class="btn btn-sm">批量打标</button>
-    <button class="btn btn-sm">批量导出</button>
-    <button class="btn btn-ghost btn-sm" onclick="hideBatch()">✕</button>
-  </div>
-
-  <!-- Queue: Critical - Pending Review -->
-  <div class="queue-section critical">
-    <div class="queue-header critical">🔴 待复核 23 条 — 需人工裁定</div>
-    <div class="queue-body">
-      <table>
-        <thead><tr><th>☐</th><th>SLA</th><th>资产</th><th>复核原因</th><th>等待</th><th>置信度</th><th>操作</th></tr></thead>
-        <tbody>
-          <tr><td><input type="checkbox" onchange="toggleBatch(this)"></td><td class="sla-critical">超时</td><td style="font-weight:500;">政策法规汇编2025</td><td>高敏风险 + 低置信度</td><td>26h</td><td><span style="color:var(--error);font-weight:600;">45%</span></td><td><button class="btn btn-primary btn-sm" onclick="navigateTo('asset-detail')">裁定</button></td></tr>
-          <tr><td><input type="checkbox" onchange="toggleBatch(this)"></td><td class="sla-critical">超时</td><td style="font-weight:500;">内部培训材料v2</td><td>组织范围不明</td><td>24h</td><td><span style="color:var(--warning);font-weight:600;">62%</span></td><td><button class="btn btn-primary btn-sm">裁定</button></td></tr>
-          <tr><td><input type="checkbox" onchange="toggleBatch(this)"></td><td class="sla-warning">今日</td><td style="font-weight:500;">产教融合案例集</td><td>质量不达标</td><td>5h</td><td><span style="color:var(--warning);font-weight:600;">72%</span></td><td><button class="btn btn-sm">裁定</button></td></tr>
-          <tr><td><input type="checkbox" onchange="toggleBatch(this)"></td><td class="sla-normal">正常</td><td style="font-weight:500;">教学大纲2025</td><td>规则冲突</td><td>8h</td><td><span style="color:var(--warning);font-weight:600;">78%</span></td><td><button class="btn btn-sm">裁定</button></td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- Queue: Warning - Quality Review -->
-  <div class="queue-section warning">
-    <div class="queue-header warning">🟡 质量待审 15 条 — 建议人工校准</div>
-    <div class="queue-body">
-      <table>
-        <thead><tr><th>☐</th><th>资产</th><th>质量分</th><th>问题</th><th>时间</th><th>操作</th></tr></thead>
-        <tbody>
-          <tr><td><input type="checkbox" onchange="toggleBatch(this)"></td><td style="font-weight:500;">教研方法论v2</td><td><b style="color:var(--warning);">68</b></td><td>正文完整性不足</td><td>2d前</td><td><button class="btn btn-sm">校准</button></td></tr>
-          <tr><td><input type="checkbox" onchange="toggleBatch(this)"></td><td style="font-weight:500;">课程大纲v5</td><td><b style="color:var(--warning);">65</b></td><td>切片结构不连续</td><td>3d前</td><td><button class="btn btn-sm">校准</button></td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- Queue: Info - AI Suggestions -->
-  <div class="queue-section info">
-    <div class="queue-header info">🟢 AI 建议 20 条 — 高置信度可批量采纳</div>
-    <div class="queue-body">
-      <div style="padding:12px 20px;border-bottom:1px solid var(--border);font-size:13px;">
-        <label><input type="checkbox" checked> 全选高置信度条目（≥85%）</label>
-        <span style="margin-left:12px;color:var(--text-tertiary);">低置信度条目已自动排除，不可批量操作</span>
-      </div>
-      <table>
-        <thead><tr><th>☐</th><th>资产</th><th>建议分类</th><th>建议分级</th><th>置信度</th><th>操作</th></tr></thead>
-        <tbody>
-          <tr class="selected"><td><input type="checkbox" checked onchange="toggleBatch(this)"></td><td style="font-weight:500;">电子商务基础v3</td><td>D4 教材</td><td>L2</td><td><span style="color:var(--success);font-weight:600;">94%</span></td><td><button class="btn btn-sm">查看</button></td></tr>
-          <tr class="selected"><td><input type="checkbox" checked onchange="toggleBatch(this)"></td><td style="font-weight:500;">人才培养方案v1</td><td>D2 方案</td><td>L2</td><td><span style="color:var(--success);font-weight:600;">90%</span></td><td><button class="btn btn-sm">查看</button></td></tr>
-          <tr class="selected"><td><input type="checkbox" checked onchange="toggleBatch(this)"></td><td style="font-weight:500;">就业数据分析v2</td><td>D3 报告</td><td>L2</td><td><span style="color:var(--success);font-weight:600;">88%</span></td><td><button class="btn btn-sm">查看</button></td></tr>
-          <tr><td><input type="checkbox" disabled></td><td style="font-weight:500;color:var(--text-tertiary);">课程大纲v5</td><td>D1 大纲</td><td>L3</td><td><span style="color:var(--error);font-weight:600;">62%</span></td><td><span style="font-size:11px;color:var(--error);">⚠ 需人工复核</span></td></tr>
-        </tbody>
-      </table>
-      <div style="padding:12px 20px;"><button class="btn btn-primary btn-sm" onclick="showToast('✓ 已批量采纳 3 条 AI 建议，规则校验中...')">一键采纳高置信度 (3条)</button></div>
-    </div>
-  </div>
-
-  <!-- Queue: Neutral - Decision Trail -->
-  <div class="queue-section neutral">
-    <div class="queue-header">📋 决策追踪 9 条 — 已完成记录</div>
-    <div class="queue-body">
-      <table>
-        <thead><tr><th>资产</th><th>结果</th><th>方式</th><th>时间</th><th>操作</th></tr></thead>
-        <tbody>
-          <tr><td style="font-weight:500;">政策法规汇编2025</td><td><span class="badge badge-l4">L4 机密</span></td><td>人工裁定</td><td>2h前</td><td><button class="btn btn-sm">查看决策</button></td></tr>
-          <tr><td style="font-weight:500;">教研教材v2</td><td><span class="badge badge-d4">D4 教材</span></td><td>AI自动</td><td>1d前</td><td><button class="btn btn-sm">查看决策</button></td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- ========== ASSET DETAIL PAGE ========== -->
-<div class="page" id="page-asset-detail">
-  <div class="page-header">
-    <div><span style="color:var(--primary);cursor:pointer;" onclick="navigateTo('assets')">← 资产目录</span> / <h1 style="display:inline;font-size:20px;">电子商务基础（第3版）</h1></div>
-    <div class="actions">
-      <button class="btn btn-sm">重处理</button>
-      <button class="btn btn-sm">重治理</button>
-      <button class="btn btn-sm">AI 重评分</button>
-      <button class="btn btn-sm">···</button>
-    </div>
-  </div>
-
-  <div style="display:grid;grid-template-columns:1fr 180px;gap:24px;">
-    <div>
-      <!-- Overview Card -->
-      <div class="card" style="margin-bottom:24px;">
-        <div class="card-header">概览</div>
-        <div style="display:flex;gap:20px;">
-          <div style="width:200px;height:140px;background:linear-gradient(135deg,#d1fae5,#a7f3d0);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:48px;flex-shrink:0;">📕</div>
-          <div style="flex:1;font-size:13px;line-height:2.2;">
-            <div><b>标题：</b>电子商务基础（第3版）</div>
-            <div><b>数据域：</b><span class="badge badge-d4">D4 产教融合</span> · <b>分级：</b><span class="badge badge-l2">L2 内部</span> · <b>类型：</b>教材</div>
-            <div><b>组织范围：</b>教研组、教务处</div>
-            <div><b>标签：</b><span class="badge badge-d4">#电子商务</span> <span class="badge badge-d2">#职业教育</span> <span class="badge badge-d1">#教材</span> <span class="badge badge-neutral">#2025版</span></div>
-            <div><b>来源：</b>教研教材上传 · 2h前 · <b>版本：</b>v3 <span class="badge badge-success">● 当前可用</span></div>
+    <div class="layout layout-2-1">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">主链路漏斗</div>
+            <div class="panel-subtitle">按统一对象链路组织: batch → raw_object → asset_version → normalized_asset_ref → governance_result → index_manifest</div>
           </div>
+          <div class="status status-info">Pipeline A + B</div>
+        </div>
+        <div class="stack">
+          <div class="funnel-row"><span>接入批次</span><div class="funnel-track"><div class="funnel-fill" style="width:100%;"></div></div><strong>18</strong><span class="muted">批</span></div>
+          <div class="funnel-row"><span>raw_object</span><div class="funnel-track"><div class="funnel-fill" style="width:94%;"></div></div><strong>246</strong><span class="muted">个</span></div>
+          <div class="funnel-row"><span>asset_version</span><div class="funnel-track"><div class="funnel-fill" style="width:89%;"></div></div><strong>231</strong><span class="muted">版</span></div>
+          <div class="funnel-row"><span>normalized_ref</span><div class="funnel-track"><div class="funnel-fill" style="width:87%;"></div></div><strong>227</strong><span class="muted">个</span></div>
+          <div class="funnel-row"><span>available</span><div class="funnel-track"><div class="funnel-fill" style="width:80%;"></div></div><strong>208</strong><span class="muted">版</span></div>
+          <div class="funnel-row"><span>indexed</span><div class="funnel-track"><div class="funnel-fill" style="width:78%;"></div></div><strong>204</strong><span class="muted">版</span></div>
         </div>
       </div>
 
-      <!-- AI Governance & Quality -->
-      <div class="card" style="margin-bottom:24px;">
-        <div class="card-header">AI 治理与质量评分</div>
-        <div style="display:flex;gap:24px;">
-          <div style="flex:1;">
-            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">质量评分</div>
-            <div style="font-size:36px;font-weight:700;color:var(--success);">92<span style="font-size:16px;color:var(--text-tertiary);">/100</span></div>
-            <div style="font-size:12px;margin-top:8px;">
-              <div>完整性 <span style="float:right;color:var(--success);">95</span></div>
-              <div style="height:3px;background:#e8ecf1;border-radius:2px;margin:2px 0;"><div style="height:100%;width:95%;background:var(--success);border-radius:2px;"></div></div>
-              <div>结构性 <span style="float:right;color:var(--info);">90</span></div>
-              <div style="height:3px;background:#e8ecf1;border-radius:2px;margin:2px 0;"><div style="height:100%;width:90%;background:var(--info);border-radius:2px;"></div></div>
-              <div>可读性 <span style="float:right;color:var(--warning);">88</span></div>
-              <div style="height:3px;background:#e8ecf1;border-radius:2px;margin:2px 0;"><div style="height:100%;width:88%;background:var(--warning);border-radius:2px;"></div></div>
-              <div>安全性 <span style="float:right;color:var(--success);">98</span></div>
-              <div style="height:3px;background:#e8ecf1;border-radius:2px;margin:2px 0;"><div style="height:100%;width:98%;background:var(--success);border-radius:2px;"></div></div>
-            </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">当前风险</div>
+            <div class="panel-subtitle">只展示会影响资产可用或权限合规的问题</div>
           </div>
-          <div style="flex:1;font-size:12px;line-height:2;">
-            <div><b>模型：</b>LiteLLM/qwen-plus</div>
-            <div><b>Prompt：</b>文档治理 v3</div>
-            <div><b>采纳状态：</b><span class="badge badge-success">✓ 自动采纳</span></div>
-            <div><b>阻断原因：</b>无</div>
-            <div style="margin-top:8px;">
-              <div class="conf-bar"><span class="conf-label">分类 D4</span><div class="conf-track"><div class="conf-fill high" style="width:94%;"></div></div><span class="conf-val" style="color:var(--success);">94%</span></div>
-              <div class="conf-bar"><span class="conf-label">分级 L2</span><div class="conf-track"><div class="conf-fill high" style="width:92%;"></div></div><span class="conf-val" style="color:var(--success);">92%</span></div>
-              <div class="conf-bar"><span class="conf-label">标签</span><div class="conf-track"><div class="conf-fill high" style="width:88%;"></div></div><span class="conf-val" style="color:var(--success);">88%</span></div>
-              <div class="conf-bar"><span class="conf-label">组织范围</span><div class="conf-track"><div class="conf-fill mid" style="width:78%;"></div></div><span class="conf-val" style="color:var(--warning);">78%</span></div>
-            </div>
+        </div>
+        <ul class="risk-list">
+          <li class="risk-item"><span class="risk-dot danger"></span><div><div class="table-main">L4 例外资产新增 2 项</div><div class="table-sub">均来自 D6 法规文档，需补充审批链和脱敏策略</div></div></li>
+          <li class="risk-item"><span class="risk-dot warning"></span><div><div class="table-main">5 个资产组织范围不明</div><div class="table-sub">AI 置信度不足，规则未能收敛到更窄范围</div></div></li>
+          <li class="risk-item"><span class="risk-dot warning"></span><div><div class="table-main">3 个索引清单处于 stale</div><div class="table-sub">规则集发布后触发 re-governance</div></div></li>
+          <li class="risk-item"><span class="risk-dot info"></span><div><div class="table-main">1 个 parse 失败待人工确认</div><div class="table-sub">扫描 PDF 页面损坏，Worker 已落失败摘要</div></div></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="layout layout-2-1">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">批次进度看板</div>
+            <div class="panel-subtitle">以批次聚合状态呈现，不把文件级细节塞进首页</div>
           </div>
+          <button class="btn btn-ghost" onclick="navigateTo('raw')">查看批次台账</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>批次</th><th>数据源</th><th>对象数</th><th>聚合状态</th><th>当前瓶颈</th><th>更新时间</th></tr></thead>
+            <tbody>
+              <tr><td><span class="table-link" onclick="navigateTo('ingest')">B20260515-004</span></td><td>教研教材上传</td><td>12</td><td><span class="status status-info">processing</span></td><td>2 个 document 正在 normalize</td><td>2 分钟前</td></tr>
+              <tr><td><span class="table-link" onclick="navigateTo('raw')">B20260515-003</span></td><td>就业创业 crawler</td><td>48</td><td><span class="status status-warning">partial_failed</span></td><td>3 个 record 标准化失败</td><td>18 分钟前</td></tr>
+              <tr><td><span class="table-link" onclick="navigateTo('raw')">B20260515-002</span></td><td>制度 NAS 同步</td><td>6</td><td><span class="status status-success">completed</span></td><td>已生成 6 个 normalized refs</td><td>27 分钟前</td></tr>
+              <tr><td><span class="table-link" onclick="navigateTo('raw')">B20260515-001</span></td><td>教务 webhook</td><td>19</td><td><span class="status status-danger">failed</span></td><td>源包字段缺失，ingest_validate 阻断</td><td>1 小时前</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <!-- Interactive Lineage DAG -->
-      <div class="card" style="margin-bottom:24px;">
-        <div class="card-header">血缘追溯 <span style="font-weight:400;font-size:12px;color:var(--text-tertiary);">图例：●完成 ◉进行中 ○待执行 ✕失败</span></div>
-        <div class="lineage-dag">
-          <div class="dag-node"><span class="dot done"></span> raw_object · 已落库 <span style="color:var(--text-tertiary);margin-left:8px;">📦</span></div>
-          <div class="dag-arrow">│</div>
-          <div class="dag-node"><span class="dot done"></span> ingest_validate · 通过 <span style="color:var(--text-tertiary);margin-left:8px;">✓</span></div>
-          <div class="dag-arrow">│</div>
-          <div class="dag-node"><span class="dot done"></span> parse_artifact · 完成 <span style="color:var(--primary);margin-left:8px;cursor:pointer;">[查看解析结果]</span></div>
-          <div class="dag-arrow">│</div>
-          <div class="dag-node"><span class="dot done"></span> normalize · 完成 <span style="color:var(--primary);margin-left:8px;cursor:pointer;">[查看标准化内容]</span></div>
-          <div class="dag-arrow">│</div>
-          <div class="dag-row">
-            <div class="dag-col">
-              <div class="dag-node"><span class="dot done"></span> ai_governance_run</div>
-            </div>
-            <div style="padding:0 8px;color:var(--text-tertiary);">+</div>
-            <div class="dag-col">
-              <div class="dag-node"><span class="dot done"></span> metadata_enrich</div>
-            </div>
-            <div style="padding:0 8px;color:var(--text-tertiary);">+</div>
-            <div class="dag-col">
-              <div class="dag-node"><span class="dot done"></span> quality_score · 92分</div>
-            </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">决策待办</div>
+            <div class="panel-subtitle">需要人工介入的事项才进入这里</div>
           </div>
-          <div class="dag-arrow">│</div>
-          <div class="dag-node"><span class="dot done"></span> governance_result · 通过 <span style="color:var(--primary);margin-left:8px;cursor:pointer;">[查看治理结果]</span></div>
-          <div class="dag-arrow">│</div>
-          <div class="dag-node"><span class="dot done"></span> index_build · 已索引 → RAGFlow<span style="color:var(--primary);margin-left:8px;cursor:pointer;">[查看索引清单]</span></div>
         </div>
-        <div style="text-align:center;padding-bottom:12px;font-size:12px;">
-          <span style="cursor:pointer;color:var(--primary);">[展开全部节点]</span>
-          <span style="cursor:pointer;color:var(--primary);margin-left:12px;">[导出 SVG]</span>
+        <div class="stack">
+          <div class="notice notice-danger"><strong>超时复核 2 项</strong>政策法规汇编 2025、内部培训材料 v2 已超过 SLA。</div>
+          <div class="notice notice-warning"><strong>规则发布待确认</strong>D4 文档规则集 v4 校验通过，等待 save-to-activate。</div>
+          <div class="notice notice-info"><strong>Prompt 版本待切换</strong>“文档治理-默认”已有 v7 草稿，与当前 alias 兼容。</div>
+          <div class="notice"><strong>标签低置信队列</strong>12 条标签草稿需业务专家确认或改写。</div>
         </div>
       </div>
     </div>
 
-    <!-- Right anchor nav -->
-    <div style="position:sticky;top:80px;align-self:start;">
-      <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px;">📍 页面锚点</div>
-      <div style="font-size:13px;line-height:2.4;color:var(--text-secondary);">
-        <div>概览</div><div>版本历史</div><div>标准化内容</div>
-        <div style="color:var(--primary);font-weight:500;">AI 治理</div>
-        <div style="color:var(--primary);font-weight:500;">质量评分</div>
-        <div>治理结果</div><div>决策追踪</div>
-        <div>知识切片</div><div>索引清单</div>
-        <div style="color:var(--primary);font-weight:500;">血缘追溯</div><div>审计日志</div>
+    <div class="layout layout-3">
+      <div class="panel">
+        <div class="panel-head"><div><div class="panel-title">基础运行状态</div><div class="panel-subtitle">P0 只保留必要运行态，不扩展为独立运维中心</div></div></div>
+        <div class="stack-sm">
+          <div class="kanban-item"><div><strong>Worker Lease</strong><div class="table-sub">8 个活动 Worker / 2 个空闲</div></div><span class="status status-success">healthy</span></div>
+          <div class="kanban-item"><div><strong>MinIO 存储</strong><div class="table-sub">raw / parsed / normalized 读写正常</div></div><span class="status status-success">healthy</span></div>
+          <div class="kanban-item"><div><strong>RAGFlow 连接</strong><div class="table-sub">index push 平均耗时 42s</div></div><span class="status status-info">stable</span></div>
+          <div class="kanban-item"><div><strong>LiteLLM Alias</strong><div class="table-sub">qwen-plus、gpt-4.1-mini 均可用</div></div><span class="status status-success">ready</span></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><div class="panel-title">最近配置变更</div><div class="panel-subtitle">聚焦会影响治理结果的变更</div></div></div>
+        <ul class="simple-list">
+          <li><div><div class="table-main">规则集 D4 文档治理 v4</div><div class="table-sub">新增“组织范围取更窄值”冲突策略</div></div><span class="muted">1h 前</span></li>
+          <li><div><div class="table-main">Prompt 文档治理默认 v7</div><div class="table-sub">增加标题清洗和页眉噪声忽略指令</div></div><span class="muted">3h 前</span></li>
+          <li><div><div class="table-main">脱敏策略 L4 文本外发限制</div><div class="table-sub">仅私有 alias 允许非脱敏调用</div></div><span class="muted">昨日</span></li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><div class="panel-title">最近审计</div><div class="panel-subtitle">关键动作必须可追溯</div></div><button class="btn btn-ghost" onclick="navigateTo('permissions')">查看全部</button></div>
+        <div class="audit-stream">
+          <div class="audit-item"><div class="audit-head"><strong>VersionStatusChanged</strong><span class="muted mono">trace_49ab2</span></div><div class="table-sub">asset_d4_120 由 processing → available</div></div>
+          <div class="audit-item"><div class="audit-head"><strong>RuleSetActivated</strong><span class="muted mono">trace_49aa7</span></div><div class="table-sub">D4 文档治理 v4 已发布</div></div>
+          <div class="audit-item"><div class="audit-head"><strong>QAAnswerGenerated</strong><span class="muted mono">trace_49a31</span></div><div class="table-sub">仅记录 question_hash 和 cited_chunk_ids，无明文答案</div></div>
+        </div>
       </div>
     </div>
-  </div>
-</div>
+  </section>
 
-<!-- ========== MY WORKSPACE PAGE ========== -->
-<div class="page" id="page-workspace">
-  <div class="page-header">
-    <h1>我的工作区</h1>
-    <div class="actions"><button class="btn btn-sm">自定义视图 ▼</button></div>
-  </div>
-  <div class="tabs">
-    <button class="tab active">我的待办 8</button>
-    <button class="tab">我负责的资产 45</button>
-    <button class="tab">我的草稿 2</button>
-    <button class="tab">我提交的作业 12</button>
-  </div>
+  <section class="page" id="page-datasources">
+    <div class="page-head">
+      <div>
+        <div class="eyebrow">接入边界管理</div>
+        <h1>数据源管理</h1>
+        <p class="page-desc">把数据源看作长期接入契约，而不是一次性上传入口。这里定义默认数据域、默认分级、管道类型、去重策略和责任人。</p>
+      </div>
+      <div class="page-actions"><button class="btn btn-primary" onclick="showToast('已打开数据源创建抽屉。', '下一步需要录入 source_type、默认数据域、默认分级和幂等策略。')">新建数据源</button></div>
+    </div>
 
-  <div class="sla-group">
-    <div class="sla-group-header critical">🔴 超时 — 2 条</div>
-    <table>
-      <tr><td style="color:var(--error);font-weight:600;">⚠ 超时</td><td style="font-weight:500;">政策法规汇编2025</td><td>分级裁定</td><td>等待 26h</td><td><button class="btn btn-primary btn-sm">立即处理</button></td></tr>
-      <tr><td style="color:var(--error);font-weight:600;">⚠ 超时</td><td style="font-weight:500;">内部培训材料v2</td><td>标签审核</td><td>等待 24h</td><td><button class="btn btn-primary btn-sm">立即处理</button></td></tr>
-    </table>
-  </div>
-  <div class="sla-group">
-    <div class="sla-group-header warning">🟡 今日 — 4 条</div>
-    <table>
-      <tr><td style="color:var(--warning);">今日</td><td style="font-weight:500;">产教融合案例集</td><td>质量复核</td><td>等待 5h</td><td><button class="btn btn-sm">处理</button></td></tr>
-      <tr><td style="color:var(--warning);">今日</td><td style="font-weight:500;">课程大纲v5</td><td>分类确认</td><td>等待 6h</td><td><button class="btn btn-sm">处理</button></td></tr>
-    </table>
-  </div>
-  <div class="sla-group">
-    <div class="sla-group-header normal">🟢 正常 — 2 条</div>
-    <table>
-      <tr><td>正常</td><td style="font-weight:500;">教学大纲2025</td><td>标签补全</td><td>等待 12h</td><td><button class="btn btn-sm">处理</button></td></tr>
-    </table>
-  </div>
-</div>
+    <div class="metric-grid">
+      <div class="metric-card"><div class="metric-label">启用中的数据源</div><div class="metric-value">14</div><div class="metric-sub">file_upload 6，crawler 4，NAS 3，webhook 1</div></div>
+      <div class="metric-card"><div class="metric-label">今日活跃数据源</div><div class="metric-value">7</div><div class="metric-sub">产生新 batch 或增量推送</div></div>
+      <div class="metric-card warning"><div class="metric-label">待校验接入策略</div><div class="metric-value">2</div><div class="metric-sub">字段映射和默认分级未确认</div></div>
+      <div class="metric-card"><div class="metric-label">跨源重复命中</div><div class="metric-value">9</div><div class="metric-sub">按 checksum 检测，未新建有效版本</div></div>
+      <div class="metric-card success"><div class="metric-label">默认 L1/L2 源</div><div class="metric-value">12</div><div class="metric-sub">符合导入默认策略</div></div>
+      <div class="metric-card warning"><div class="metric-label">L3/L4 例外源</div><div class="metric-value">2</div><div class="metric-sub">均带审批依据和审计链</div></div>
+    </div>
 
-<!-- ========== PLACEHOLDER PAGES ========== -->
-<div class="page" id="page-datasources"><div class="page-header"><h1>数据源管理</h1><button class="btn btn-primary">+ 新建数据源</button></div><div class="card"><p style="text-align:center;padding:60px;color:var(--text-tertiary);">数据源管理页面（卡片网格布局）— 详见文档 NX-02</p></div></div>
-<div class="page" id="page-ingest"><div class="page-header"><h1>数据接入</h1></div><div class="card"><p style="text-align:center;padding:60px;color:var(--text-tertiary);">数据接入页面（三步引导式上传）— 详见文档 NX-03</p></div></div>
-<div class="page" id="page-raw"><div class="page-header"><h1>原始数据台账</h1></div><div class="card"><p style="text-align:center;padding:60px;color:var(--text-tertiary);">原始数据台账页面（批次+对象双层视图）— 详见文档 NX-04</p></div></div>
-<div class="page" id="page-jobs"><div class="page-header"><h1>作业中心</h1></div><div class="card"><p style="text-align:center;padding:60px;color:var(--text-tertiary);">作业中心页面（流水线可视化）— 详见文档 NX-05</p></div></div>
-<div class="page" id="page-rules"><div class="page-header"><h1>规则配置</h1><button class="btn btn-primary">+ 新建规则集</button></div><div class="card"><p style="text-align:center;padding:60px;color:var(--text-tertiary);">规则配置页面（可视化+JSON双模式编辑器）— 详见文档 NX-09</p></div></div>
-<div class="page" id="page-prompt"><div class="page-header"><h1>AI Prompt 配置</h1></div><div class="card"><p style="text-align:center;padding:60px;color:var(--text-tertiary);">AI Prompt 配置页面（Prompt编辑器+版本对比）— 详见文档 NX-13</p></div></div>
-<div class="page" id="page-search"><div class="page-header"><h1>检索测试</h1></div><div class="card"><p style="text-align:center;padding:60px;color:var(--text-tertiary);">检索测试页面（类ChatGPT双栏界面）— 详见文档 NX-11</p></div></div>
-<div class="page" id="page-knowledge"><div class="page-header"><h1>知识资产</h1></div><div class="card"><p style="text-align:center;padding:60px;color:var(--text-tertiary);">知识资产页面（知识库卡片管理）— 详见文档 NX-12</p></div></div>
-<div class="page" id="page-permissions"><div class="page-header"><h1>权限与审计</h1></div><div class="card"><p style="text-align:center;padding:60px;color:var(--text-tertiary);">权限与审计页面（权限矩阵+审计时间线+安全网）— 详见文档 NX-10</p></div></div>
+    <div class="filters">
+      <div class="control">全部 source_type</div>
+      <div class="control">全部数据域</div>
+      <div class="control">全部默认分级</div>
+      <div class="control">启用中</div>
+      <div class="control">责任人: 全部</div>
+    </div>
 
+    <div class="layout layout-2-1">
+      <div class="panel">
+        <div class="panel-head"><div><div class="panel-title">数据源清单</div><div class="panel-subtitle">侧重接入契约和默认治理策略，不在这里做文件级操作</div></div></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>数据源</th><th>类型</th><th>默认域 / 分级</th><th>管道</th><th>最近批次</th><th>状态</th><th>责任人</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td><div class="table-main">教研教材上传</div><div class="table-sub mono">ds_file_001</div></td><td>file_upload</td><td><span class="chip chip-domain-d4">D4</span> <span class="chip chip-level-l2">L2</span></td><td>document</td><td>B20260515-004</td><td><span class="status status-success">enabled</span></td><td>张敏</td><td><span class="table-link" onclick="navigateTo('ingest')">发起接入</span></td></tr>
+              <tr><td><div class="table-main">就业创业 crawler</div><div class="table-sub mono">ds_crawler_007</div></td><td>crawler</td><td><span class="chip chip-domain-d3">D3</span> <span class="chip chip-level-l2">L2</span></td><td>record</td><td>B20260515-003</td><td><span class="status status-success">enabled</span></td><td>李杰</td><td><span class="table-link" onclick="navigateTo('raw')">查看原始包</span></td></tr>
+              <tr><td><div class="table-main">制度 NAS 同步</div><div class="table-sub mono">ds_nas_012</div></td><td>nas</td><td><span class="chip chip-domain-d6">D6</span> <span class="chip chip-level-l1">L1</span></td><td>document</td><td>B20260515-002</td><td><span class="status status-info">scheduled</span></td><td>周岚</td><td><span class="table-link" onclick="showToast('已打开 NAS 配置侧栏。', '可配置目录映射、文件掩码和巡检周期。')">配置</span></td></tr>
+              <tr><td><div class="table-main">教务 webhook</div><div class="table-sub mono">ds_hook_003</div></td><td>webhook</td><td><span class="chip chip-domain-d1">D1</span> <span class="chip chip-level-l2">L2</span></td><td>record</td><td>B20260515-001</td><td><span class="status status-warning">reviewing</span></td><td>王青</td><td><span class="table-link" onclick="navigateTo('jobs')">查看失败作业</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">默认接入策略</div><div class="panel-subtitle">配置层面的策略，不与 batch 操作混用</div></div></div>
+          <div class="stack-sm">
+            <div class="notice notice-info"><strong>文档源</strong>进入 Pipeline A，执行 ingest_validate → assetize → parse → normalize。</div>
+            <div class="notice"><strong>记录源</strong>进入 Pipeline B，执行 ingest_validate → assetize → normalize，不调用 MinerU。</div>
+            <div class="notice notice-warning"><strong>L3/L4 例外</strong>必须显式审批，不允许通过默认 source 规则隐式抬升。</div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">治理前置提醒</div><div class="panel-subtitle">避免源配置直接替代治理</div></div></div>
+          <ul class="simple-list">
+            <li><div><div class="table-main">默认域与默认分级只是初始建议</div><div class="table-sub">最终仍由 normalized 结果 + AI + 规则护栏共同决定</div></div></li>
+            <li><div><div class="table-main">源配置不直接产出 governance_result</div><div class="table-sub">治理目标永远是 normalized_asset_ref</div></div></li>
+            <li><div><div class="table-main">跨源重复按 checksum + source_object_key 处理</div><div class="table-sub">避免无效新版本和重复 raw_object</div></div></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="page-ingest">
+    <div class="page-head">
+      <div>
+        <div class="eyebrow">批次创建与文件追加</div>
+        <h1>数据接入</h1>
+        <p class="page-desc">将“创建批次”和“追加文件/记录”明确拆开，让业务人员理解接入是批次级过程，处理则在对象级并行推进。</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-primary" onclick="showToast('已创建批次 B20260515-005。', '当前状态为 open，可继续追加文件。')">创建空批次</button>
+        <button class="btn" onclick="navigateTo('raw')">查看接入台账</button>
+      </div>
+    </div>
+
+    <div class="layout layout-2-1">
+      <div class="stack">
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">批次元信息</div><div class="panel-subtitle">先定义批次上下文，再写入 raw_object</div></div></div>
+          <div class="summary-strip">
+            <div class="summary-item"><span>batch_id</span><b class="mono">B20260515-005</b></div>
+            <div class="summary-item"><span>data_source</span><b>教研教材上传</b></div>
+            <div class="summary-item"><span>状态</span><b><span class="status status-info">open</span></b></div>
+            <div class="summary-item"><span>幂等键</span><b class="mono">bk_20260515_005</b></div>
+          </div>
+          <div class="filters">
+            <div class="control">数据源: 教研教材上传</div>
+            <div class="control">接入模式: 批量文件</div>
+            <div class="control">owner_user_id: 张敏</div>
+            <div class="control">summary: 2025 教材补充</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">文件追加工作区</div><div class="panel-subtitle">同一事务内创建 RawObject、Job，并把 batch 从 open 推进到 submitted</div></div></div>
+          <div class="dropzone">
+            <h3>将文件拖拽到这里，或选择目录批量导入</h3>
+            <p>建议单批次不超过 100 个 raw 对象。超过 20 个时前端提示分批，但不硬性阻断。</p>
+            <div class="inline-actions" style="justify-content:center; margin-top:14px;">
+              <button class="btn btn-primary" onclick="showToast('已向批次追加 6 个文件。', '每个文件均生成独立 raw_object 和 queued job。')">追加 6 个示例文件</button>
+              <button class="btn">选择目录</button>
+            </div>
+          </div>
+          <div class="table-wrap" style="margin-top:16px;">
+            <table>
+              <thead><tr><th>文件</th><th>file_idempotency_key</th><th>pipeline</th><th>raw_object</th><th>job</th><th>状态</th></tr></thead>
+              <tbody>
+                <tr><td><div class="table-main">电子商务基础_第三版.pdf</div><div class="table-sub">87.4 MB / application/pdf</div></td><td class="mono">fk_001</td><td>document</td><td class="mono">raw_9a1f</td><td class="mono">job_3p91</td><td><span class="status status-info">queued</span></td></tr>
+                <tr><td><div class="table-main">产教融合案例_附录.docx</div><div class="table-sub">14.8 MB / application/vnd...</div></td><td class="mono">fk_002</td><td>document</td><td class="mono">raw_9a20</td><td class="mono">job_3p92</td><td><span class="status status-info">queued</span></td></tr>
+                <tr><td><div class="table-main">封面图扫描件.tiff</div><div class="table-sub">9.1 MB / image/tiff</div></td><td class="mono">fk_003</td><td>document</td><td class="mono">raw_9a21</td><td class="mono">job_3p93</td><td><span class="status status-info">queued</span></td></tr>
+                <tr><td><div class="table-main">教学目录.pdf</div><div class="table-sub">重复文件，checksum 已命中</div></td><td class="mono">fk_004</td><td>document</td><td class="mono">raw_8122</td><td class="mono">job_2c77</td><td><span class="status status-neutral">duplicate-returned</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">批次运行态</div><div class="panel-subtitle">聚合状态来自对象级 job，不在运行时反推 pipeline 类型</div></div><span class="status status-info">submitted</span></div>
+          <div class="small-chart">
+            <div class="small-chart-row"><span>queued</span><div class="small-chart-bar"><div class="small-chart-fill" style="width:68%; background:#2563eb;"></div></div><strong>4</strong></div>
+            <div class="small-chart-row"><span>running</span><div class="small-chart-bar"><div class="small-chart-fill" style="width:24%; background:#0f766e;"></div></div><strong>2</strong></div>
+            <div class="small-chart-row"><span>succeeded</span><div class="small-chart-bar"><div class="small-chart-fill" style="width:10%; background:#15803d;"></div></div><strong>0</strong></div>
+            <div class="small-chart-row"><span>failed</span><div class="small-chart-bar"><div class="small-chart-fill" style="width:4%; background:#b42318;"></div></div><strong>0</strong></div>
+          </div>
+          <div class="stack" style="margin-top:14px;">
+            <div class="kanban-item"><div><strong>ingest_validate</strong><div class="table-sub">6/6 已通过</div></div><span class="status status-success">done</span></div>
+            <div class="kanban-item"><div><strong>assetize</strong><div class="table-sub">已生成 5 个新 version，1 个重复返回</div></div><span class="status status-success">done</span></div>
+            <div class="kanban-item"><div><strong>parse / normalize</strong><div class="table-sub">2 个文档正在处理中</div></div><span class="status status-info">running</span></div>
+            <div class="kanban-item"><div><strong>governance / metadata_enrich</strong><div class="table-sub">等待 normalized refs 生成后继续</div></div><span class="status status-neutral">pending</span></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">接入约束</div><div class="panel-subtitle">用户最容易犯错的地方直接放在操作面板旁边</div></div></div>
+          <div class="stack-sm">
+            <div class="notice notice-warning"><strong>只能在 open 状态追加文件</strong>一旦任一对象进入 running 或 succeeded，将拒绝继续 append。</div>
+            <div class="notice"><strong>治理输入不是 raw 文件</strong>raw_object 只用于保留原始证据和回放，治理对象是 normalized_asset_ref。</div>
+            <div class="notice notice-info"><strong>MinerU 由系统自动选型</strong>PDF / image / tiff 自动开启 OCR，HTML 自动使用 MinerU-HTML。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="page-raw">
+    <div class="page-head">
+      <div>
+        <div class="eyebrow">批次与对象台账</div>
+        <h1>原始数据台账</h1>
+        <p class="page-desc">这里保留 batch 和 raw_object 的账本关系、校验结果、checksum、存储地址和回放入口，帮助定位接入问题。它不承担治理结果展示职责。</p>
+      </div>
+      <div class="page-actions">
+        <div class="control">最近 24 小时</div>
+        <button class="btn" onclick="navigateTo('jobs')">看关联作业</button>
+      </div>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric-card"><div class="metric-label">今日批次</div><div class="metric-value">18</div><div class="metric-sub">含 4 个 record 批次</div></div>
+      <div class="metric-card"><div class="metric-label">raw_object</div><div class="metric-value">246</div><div class="metric-sub">binary 172 / json package 74</div></div>
+      <div class="metric-card warning"><div class="metric-label">重复返回</div><div class="metric-value">11</div><div class="metric-sub">相同 checksum 未重复入库</div></div>
+      <div class="metric-card danger"><div class="metric-label">校验失败</div><div class="metric-value">4</div><div class="metric-sub">字段缺失 2，格式损坏 2</div></div>
+      <div class="metric-card"><div class="metric-label">回放请求</div><div class="metric-value">6</div><div class="metric-sub">全部带 trace_id</div></div>
+      <div class="metric-card success"><div class="metric-label">原始存证完整率</div><div class="metric-value">100%</div><div class="metric-sub">raw / checksum / storage 均保留</div></div>
+    </div>
+
+    <div class="layout layout-1-1">
+      <div class="panel">
+        <div class="panel-head"><div><div class="panel-title">批次视图</div><div class="panel-subtitle">先定位哪个 batch 出问题，再下钻 raw_object</div></div></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>batch_id</th><th>数据源</th><th>对象数</th><th>batch 状态</th><th>摘要</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">B20260515-004</td><td>教研教材上传</td><td>12</td><td><span class="status status-info">processing</span></td><td>2 个 raw 正在 parse，4 个已 assetize</td></tr>
+              <tr><td class="mono">B20260515-003</td><td>就业创业 crawler</td><td>48</td><td><span class="status status-warning">partial_failed</span></td><td>3 个 JSON 包校验通过但 normalize 失败</td></tr>
+              <tr><td class="mono">B20260515-001</td><td>教务 webhook</td><td>19</td><td><span class="status status-danger">failed</span></td><td>字段缺失，ingest_validate 阻断</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><div class="panel-title">对象视图</div><div class="panel-subtitle">展示 checksum、source_object_key、存储位置和关联 Job</div></div></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>raw_object</th><th>类型</th><th>source_object_key</th><th>校验</th><th>关联 job</th></tr></thead>
+            <tbody>
+              <tr><td><div class="table-main mono">raw_9a1f</div><div class="table-sub mono">sha256: a9c1...88f2</div></td><td>application/pdf</td><td class="mono">/教材/电子商务基础_第三版.pdf</td><td><span class="status status-success">passed</span></td><td class="mono">job_3p91</td></tr>
+              <tr><td><div class="table-main mono">raw_9a20</div><div class="table-sub mono">sha256: 72f0...71ab</div></td><td>application/vnd.openxmlformats...</td><td class="mono">/教材/产教融合案例_附录.docx</td><td><span class="status status-success">passed</span></td><td class="mono">job_3p92</td></tr>
+              <tr><td><div class="table-main mono">raw_9a33</div><div class="table-sub mono">sha256: 51cc...2fab</div></td><td>application/json</td><td class="mono">crawler://jobfair/2026/05/15/23</td><td><span class="status status-warning">partial-validated</span></td><td class="mono">job_3n08</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="layout layout-2-1">
+      <div class="panel">
+        <div class="panel-head"><div><div class="panel-title">选中 raw_object 明细</div><div class="panel-subtitle">示例对象: raw_9a1f</div></div><button class="btn btn-ghost" onclick="showToast('已生成回放请求。', 'trace_id 已附带到 replay 任务中。')">回放</button></div>
+        <div class="definition-grid">
+          <div class="definition-item"><span>存储地址</span><strong class="mono">raw/2026/05/15/B20260515-004/raw_9a1f.bin</strong></div>
+          <div class="definition-item"><span>data_source_id</span><strong class="mono">ds_file_001</strong></div>
+          <div class="definition-item"><span>pipeline_type</span><strong>document</strong></div>
+          <div class="definition-item"><span>ingest_validate 结果</span><strong>mime 合法 / checksum 完整 / 无毒扫阻断</strong></div>
+          <div class="definition-item"><span>关联 asset_version</span><strong class="mono">ver_d4_120_v3</strong></div>
+          <div class="definition-item"><span>trace_id</span><strong class="mono">trace_49bf3a8</strong></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><div class="panel-title">台账使用边界</div><div class="panel-subtitle">避免把这里误用为治理页</div></div></div>
+        <div class="stack-sm">
+          <div class="notice"><strong>这里保留原始证据</strong>用于回放、稽核和 checksum 去重。</div>
+          <div class="notice notice-info"><strong>治理不读取 raw 结构做决策</strong>治理读取标准化产物 normalized_document / normalized_record。</div>
+          <div class="notice notice-warning"><strong>记录类源保留原始 JSON 包</strong>但 AI 治理仍面向 normalized_record。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="page-jobs">
+    <div class="page-head">
+      <div>
+        <div class="eyebrow">对象级处理队列</div>
+        <h1>作业中心</h1>
+        <p class="page-desc">以 job 为最小处理单元展示 ingest_validate、assetize、parse、normalize、governance、metadata_enrich 和 index_build 的推进状态，用于定位失败阶段和重试入口。</p>
+      </div>
+      <div class="page-actions">
+        <div class="control">全部 pipeline</div>
+        <div class="control">状态: 处理中</div>
+        <button class="btn" onclick="showToast('已执行失败作业重试。', '仅对 retryable_failed 的作业创建新调度。')">批量重试</button>
+      </div>
+    </div>
+
+    <div class="layout layout-2-1">
+      <div class="panel">
+        <div class="panel-head"><div><div class="panel-title">作业列表</div><div class="panel-subtitle">列表聚焦阶段、阻塞点和产物，不展示无关装饰</div></div></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>job</th><th>pipeline</th><th>当前阶段</th><th>状态</th><th>已产出</th><th>更新时间</th></tr></thead>
+            <tbody>
+              <tr><td><div class="table-main mono">job_3p91</div><div class="table-sub">电子商务基础_第三版.pdf</div></td><td>document</td><td>metadata_enrich</td><td><span class="status status-info">running</span></td><td>asset_version / normalized_ref</td><td>2 分钟前</td></tr>
+              <tr><td><div class="table-main mono">job_3p92</div><div class="table-sub">产教融合案例_附录.docx</div></td><td>document</td><td>normalize</td><td><span class="status status-info">running</span></td><td>parse_artifact</td><td>4 分钟前</td></tr>
+              <tr><td><div class="table-main mono">job_3n08</div><div class="table-sub">crawler package #23</div></td><td>record</td><td>normalize</td><td><span class="status status-danger">retryable_failed</span></td><td>asset_version</td><td>18 分钟前</td></tr>
+              <tr><td><div class="table-main mono">job_2c77</div><div class="table-sub">教学目录.pdf</div></td><td>document</td><td>assetize</td><td><span class="status status-success">duplicate-returned</span></td><td>existing asset_version</td><td>31 分钟前</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">选中作业详情</div><div class="panel-subtitle mono">job_3p91 / pipeline=document</div></div><span class="status status-info">running</span></div>
+          <div class="stage-steps">
+            <div class="stage-step"><span class="stage-icon done">1</span><div><strong>ingest_validate</strong><div class="table-sub">通过 MIME、checksum、病毒扫描校验</div></div><span class="muted">03s</span></div>
+            <div class="stage-step"><span class="stage-icon done">2</span><div><strong>assetize</strong><div class="table-sub">创建 asset_d4_120 / ver_d4_120_v3</div></div><span class="muted">01s</span></div>
+            <div class="stage-step"><span class="stage-icon done">3</span><div><strong>parse</strong><div class="table-sub">MinerU pipeline + OCR，产出 image_uris</div></div><span class="muted">46s</span></div>
+            <div class="stage-step"><span class="stage-icon done">4</span><div><strong>normalize</strong><div class="table-sub">生成 normalized_document 与 normalized_asset_ref</div></div><span class="muted">11s</span></div>
+            <div class="stage-step"><span class="stage-icon done">5</span><div><strong>ai_governance</strong><div class="table-sub">输出结构化建议与 quality_summary</div></div><span class="muted">09s</span></div>
+            <div class="stage-step"><span class="stage-icon run">6</span><div><strong>metadata_enrich</strong><div class="table-sub">基于 normalized asset 生成标签草稿，不操作 chunk</div></div><span class="muted">进行中</span></div>
+            <div class="stage-step"><span class="stage-icon wait">7</span><div><strong>index_build</strong><div class="table-sub">等待 governance_result 进入 available 后触发</div></div><span class="muted">待执行</span></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">失败定位经验</div><div class="panel-subtitle">把排障入口做在作业中心，而不是分散到多个页面</div></div></div>
+          <div class="stack-sm">
+            <div class="notice notice-warning"><strong>record normalize 失败</strong>优先检查字段映射和 domain rules，不要误判为 parse 问题。</div>
+            <div class="notice notice-danger"><strong>parse 失败</strong>查看 MinerU model_version、OCR 自动启用和 image_uris 是否落盘。</div>
+            <div class="notice notice-info"><strong>index stale</strong>通常不是作业失败，而是 governance 或 rule 变更触发重建。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="page-assets">
+    <div class="page-head">
+      <div>
+        <div class="eyebrow">主数据与当前视图</div>
+        <h1>资产目录</h1>
+        <p class="page-desc">目录页以“当前可读视图”服务运营和消费方，核心是 current version / current normalized ref / index state 的组合，而不是只列标题卡片。</p>
+      </div>
+      <div class="page-actions">
+        <div class="control">全部数据域</div>
+        <div class="control">全部分级</div>
+        <div class="control">available + review_required</div>
+        <button class="btn" onclick="showToast('已保存当前视图。', '后续可作为“治理待处理”快捷视图复用。')">保存视图</button>
+      </div>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric-card success"><div class="metric-label">available</div><div class="metric-value">1,286</div><div class="metric-sub">满足质量、分类、分级、org_scope 和唯一性</div></div>
+      <div class="metric-card warning"><div class="metric-label">review_required</div><div class="metric-value">19</div><div class="metric-sub">未进入检索索引</div></div>
+      <div class="metric-card"><div class="metric-label">current normalized refs</div><div class="metric-value">1,301</div><div class="metric-sub">current view derived，不落反向指针</div></div>
+      <div class="metric-card warning"><div class="metric-label">stale index</div><div class="metric-value">45</div><div class="metric-sub">规则或 Prompt 变更触发</div></div>
+      <div class="metric-card"><div class="metric-label">L3/L4 资产</div><div class="metric-value">73</div><div class="metric-sub">L4 需额外审批和脱敏</div></div>
+      <div class="metric-card"><div class="metric-label">自动采纳率</div><div class="metric-value">78%</div><div class="metric-sub">基于最近 7 天治理结果</div></div>
+    </div>
+
+    <div class="layout layout-2-1">
+      <div class="panel">
+        <div class="panel-head"><div><div class="panel-title">资产列表</div><div class="panel-subtitle">当前视图优先，历史 version 和 raw 通过详情页下钻</div></div></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>资产</th><th>当前版本</th><th>当前标准化引用</th><th>域 / 分级</th><th>质量</th><th>治理</th><th>索引</th><th>组织范围</th><th>更新时间</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><div class="table-main"><span class="table-link" onclick="navigateTo('asset-detail')">电子商务基础（第 3 版）</span></div><div class="table-sub mono">asset_d4_120</div></td>
+                <td><div class="table-main mono">ver_d4_120_v3</div><div class="table-sub">processing chain 完整</div></td>
+                <td><div class="table-main mono">ref_doc_20260515_003</div><div class="table-sub">type=document / zh-CN</div></td>
+                <td><span class="chip chip-domain-d4">D4</span> <span class="chip chip-level-l2">L2</span></td>
+                <td>92</td>
+                <td><span class="status status-success">auto_passed</span></td>
+                <td><span class="status status-success">indexed</span></td>
+                <td>教研组 / 教务处</td>
+                <td>2 小时前</td>
+              </tr>
+              <tr>
+                <td><div class="table-main">产教融合案例集</div><div class="table-sub mono">asset_d4_066</div></td>
+                <td><div class="table-main mono">ver_d4_066_v2</div><div class="table-sub">待人工校准</div></td>
+                <td><div class="table-main mono">ref_doc_20260514_102</div><div class="table-sub">type=document / zh-CN</div></td>
+                <td><span class="chip chip-domain-d4">D4</span> <span class="chip chip-level-l3">L3</span></td>
+                <td>72</td>
+                <td><span class="status status-warning">review_required</span></td>
+                <td><span class="status status-neutral">blocked</span></td>
+                <td>产教办</td>
+                <td>1 天前</td>
+              </tr>
+              <tr>
+                <td><div class="table-main">就业数据分析报告 v2</div><div class="table-sub mono">asset_d3_044</div></td>
+                <td><div class="table-main mono">ver_d3_044_v2</div><div class="table-sub">rule republished</div></td>
+                <td><div class="table-main mono">ref_record_20260514_077</div><div class="table-sub">type=record / zh-CN</div></td>
+                <td><span class="chip chip-domain-d3">D3</span> <span class="chip chip-level-l2">L2</span></td>
+                <td>88</td>
+                <td><span class="status status-success">auto_passed</span></td>
+                <td><span class="status status-warning">stale</span></td>
+                <td>招生就业处</td>
+                <td>3 天前</td>
+              </tr>
+              <tr>
+                <td><div class="table-main">政策法规汇编 2025</div><div class="table-sub mono">asset_d6_011</div></td>
+                <td><div class="table-main mono">ver_d6_011_v5</div><div class="table-sub">人工裁定</div></td>
+                <td><div class="table-main mono">ref_doc_20260513_009</div><div class="table-sub">type=document / zh-CN</div></td>
+                <td><span class="chip chip-domain-d6">D6</span> <span class="chip chip-level-l4">L4</span></td>
+                <td>95</td>
+                <td><span class="status status-info">manual_overridden</span></td>
+                <td><span class="status status-success">indexed</span></td>
+                <td>法规办（受控）</td>
+                <td>昨日</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">数据域分布</div><div class="panel-subtitle">目录页只保留必要分布，避免首页式大图表</div></div></div>
+          <div class="small-chart">
+            <div class="small-chart-row"><span>D1</span><div class="small-chart-bar"><div class="small-chart-fill" style="width:42%; background:#4f46e5;"></div></div><strong>312</strong></div>
+            <div class="small-chart-row"><span>D2</span><div class="small-chart-bar"><div class="small-chart-fill" style="width:38%; background:#7c3aed;"></div></div><strong>281</strong></div>
+            <div class="small-chart-row"><span>D3</span><div class="small-chart-bar"><div class="small-chart-fill" style="width:26%; background:#0f766e;"></div></div><strong>196</strong></div>
+            <div class="small-chart-row"><span>D4</span><div class="small-chart-bar"><div class="small-chart-fill" style="width:58%; background:#15803d;"></div></div><strong>421</strong></div>
+            <div class="small-chart-row"><span>D6</span><div class="small-chart-bar"><div class="small-chart-fill" style="width:14%; background:#b42318;"></div></div><strong>91</strong></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">目录页解释</div><div class="panel-subtitle">避免后续开发误解字段含义</div></div></div>
+          <div class="stack-sm">
+            <div class="notice"><strong>current version</strong>来自 read model，不在 asset 表上存储反向指针。</div>
+            <div class="notice notice-info"><strong>current normalized ref</strong>只表示当前可读标准化引用，不与 version 双向绑定。</div>
+            <div class="notice notice-warning"><strong>stale index</strong>表示需要重建索引，不等于资产不可读。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="page-asset-detail" data-nav-parent="assets">
+    <div class="page-head">
+      <div>
+        <div class="eyebrow">资产全链路详情</div>
+        <h1>电子商务基础（第 3 版）</h1>
+        <p class="page-desc">详情页同时承担业务阅读、追溯、治理解释和索引核查职责。页面主轴是 version 与 normalized ref，不再把 raw、AI、规则、chunk 拆成孤岛。</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn" onclick="navigateTo('assets')">返回目录</button>
+        <button class="btn">重处理</button>
+        <button class="btn">重治理</button>
+        <button class="btn btn-secondary">AI 重评分</button>
+        <button class="btn">重建索引</button>
+      </div>
+    </div>
+
+    <div class="layout layout-2-1">
+      <div class="stack">
+        <div class="panel" id="detail-overview">
+          <div class="panel-head">
+            <div><div class="panel-title">概览</div><div class="panel-subtitle">当前版本和当前标准化引用都是派生视图，不是冗余反向字段</div></div>
+            <div class="summary-strip">
+              <span class="chip chip-domain-d4">D4 产教融合</span>
+              <span class="chip chip-level-l2">L2 内部</span>
+              <span class="status status-success">available</span>
+              <span class="status status-success">indexed</span>
+            </div>
+          </div>
+          <div class="definition-grid">
+            <div class="definition-item"><span>asset_id</span><strong class="mono">asset_d4_120</strong></div>
+            <div class="definition-item"><span>current_version_view</span><strong class="mono">ver_d4_120_v3</strong></div>
+            <div class="definition-item"><span>current_normalized_ref_view</span><strong class="mono">ref_doc_20260515_003</strong></div>
+            <div class="definition-item"><span>org_scope</span><strong>教研组、教务处</strong></div>
+            <div class="definition-item"><span>source_type / content_type</span><strong>file_upload / document</strong></div>
+            <div class="definition-item"><span>title / language</span><strong>电子商务基础（第 3 版） / zh-CN</strong></div>
+          </div>
+          <div class="tag-cloud" style="margin-top:14px;">
+            <span class="chip chip-neutral">#电子商务</span>
+            <span class="chip chip-neutral">#职业教育</span>
+            <span class="chip chip-neutral">#教材</span>
+            <span class="chip chip-neutral">#2025版</span>
+          </div>
+        </div>
+
+        <div class="panel" id="detail-version">
+          <div class="panel-head"><div><div class="panel-title">版本历史</div><div class="panel-subtitle">一个资产同一时间只能有一个 available 版本</div></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>version</th><th>来源 raw</th><th>normalized_ref</th><th>状态</th><th>说明</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">ver_d4_120_v3</td><td class="mono">raw_9a1f</td><td class="mono">ref_doc_20260515_003</td><td><span class="status status-success">available</span></td><td>当前可用版本，已索引</td></tr>
+                <tr><td class="mono">ver_d4_120_v2</td><td class="mono">raw_8612</td><td class="mono">ref_doc_20260421_018</td><td><span class="status status-neutral">archived</span></td><td>内容更新后自动归档</td></tr>
+                <tr><td class="mono">ver_d4_120_v1</td><td class="mono">raw_5401</td><td class="mono">ref_doc_20260315_006</td><td><span class="status status-neutral">archived</span></td><td>初版导入</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel" id="detail-ref">
+          <div class="panel-head"><div><div class="panel-title">标准化引用</div><div class="panel-subtitle">治理目标是 normalized_asset_ref，不是 asset_version</div></div><span class="status status-success">generated</span></div>
+          <div class="definition-grid">
+            <div class="definition-item"><span>ref_id</span><strong class="mono">ref_doc_20260515_003</strong></div>
+            <div class="definition-item"><span>normalized_type</span><strong>document</strong></div>
+            <div class="definition-item"><span>object_uri</span><strong class="mono">normalized/document/ver_d4_120_v3/ref_doc_20260515_003/schema-v1/c2a1.json</strong></div>
+            <div class="definition-item"><span>schema_version</span><strong>schema-v1</strong></div>
+            <div class="definition-item"><span>governance</span><strong>D4 / L2 / org_scope 已补齐</strong></div>
+            <div class="definition-item"><span>quality</span><strong>quality_level = pass，综合分 92</strong></div>
+            <div class="definition-item"><span>lineage</span><strong class="mono">raw_9a1f → parse_artifact_91e2 → ref_doc_20260515_003</strong></div>
+            <div class="definition-item"><span>image_uris</span><strong class="mono">parsed/ver_d4_120_v3/art_91e2/images/fig_01.png ...</strong></div>
+          </div>
+        </div>
+
+        <div class="panel" id="detail-governance">
+          <div class="panel-head"><div><div class="panel-title">治理结果与 AI 解释</div><div class="panel-subtitle">页面显式区分 AI 建议、规则命中和正式治理结果</div></div></div>
+          <div class="compare-card">
+            <div class="compare-side">
+              <h4>正式治理结果</h4>
+              <div class="stack-sm">
+                <div><strong>target</strong><div class="table-sub mono">governance_result → ref_doc_20260515_003</div></div>
+                <div><strong>结果</strong><div class="table-sub">分类 D4，分级 L2，状态 available</div></div>
+                <div><strong>quality_summary</strong><div class="table-sub">完整性 95 / 结构性 90 / 安全性 98</div></div>
+                <div><strong>rule outcome</strong><div class="table-sub">命中 3 条规则，未触发 review_required</div></div>
+              </div>
+            </div>
+            <div class="compare-side">
+              <h4>AI 建议</h4>
+              <div class="stack-sm">
+                <div><strong>LiteLLM alias</strong><div class="table-sub">qwen-plus</div></div>
+                <div><strong>Prompt profile</strong><div class="table-sub">文档治理默认 v6</div></div>
+                <div><strong>分类 / 分级置信度</strong><div class="table-sub">D4 = 94%，L2 = 92%，org_scope = 78%</div></div>
+                <div><strong>采纳方式</strong><div class="table-sub">高置信字段自动采纳，组织范围由规则补窄</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" id="detail-trail">
+          <div class="panel-head"><div><div class="panel-title">决策追踪</div><div class="panel-subtitle">把候选值、规则命中和最终值串成可追溯链</div></div></div>
+          <ul class="timeline">
+            <li><span class="timeline-dot info"></span><div><div class="table-main">AI 建议生成</div><div class="table-sub">分类 D4，分级 L2，组织范围“教研组 + 教务处”，质量分 92</div></div><span class="muted">09:18</span></li>
+            <li><span class="timeline-dot success"></span><div><div class="table-main">规则命中: D4-ORG-NARROWER</div><div class="table-sub">组织范围取更窄集合，未触发冲突</div></div><span class="muted">09:18</span></li>
+            <li><span class="timeline-dot success"></span><div><div class="table-main">governance_result 写入</div><div class="table-sub">target=normalized_ref，version_status 更新为 available</div></div><span class="muted">09:19</span></li>
+            <li><span class="timeline-dot success"></span><div><div class="table-main">index admission</div><div class="table-sub">通过质量、权限、索引准入校验，提交 RAGFlow</div></div><span class="muted">09:21</span></li>
+          </ul>
+        </div>
+
+        <div class="panel" id="detail-index">
+          <div class="panel-head"><div><div class="panel-title">切片与索引</div><div class="panel-subtitle">chunk 通过 normalized_ref_id 追溯到标准化资产</div></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>chunk_id</th><th>normalized_ref_id</th><th>页码 / image_uri</th><th>索引状态</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">chunk_7ab2</td><td class="mono">ref_doc_20260515_003</td><td>p12 / fig_01.png</td><td><span class="status status-success">indexed</span></td></tr>
+                <tr><td class="mono">chunk_7ab3</td><td class="mono">ref_doc_20260515_003</td><td>p13 / fig_02.png</td><td><span class="status status-success">indexed</span></td></tr>
+                <tr><td class="mono">chunk_7ab4</td><td class="mono">ref_doc_20260515_003</td><td>p14 / none</td><td><span class="status status-success">indexed</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel" id="detail-audit">
+          <div class="panel-head"><div><div class="panel-title">血缘与审计</div><div class="panel-subtitle">生产侧链路和消费侧审计都要落 trace_id</div></div></div>
+          <div class="stack">
+            <div class="code-block mono">raw_object raw_9a1f
+→ parse_artifact art_91e2
+→ normalized_asset_ref ref_doc_20260515_003
+→ knowledge_chunk chunk_7ab2 / chunk_7ab3 / chunk_7ab4
+→ search / qa citations (authorized only)</div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>事件</th><th>对象</th><th>说明</th><th>trace_id</th></tr></thead>
+                <tbody>
+                  <tr><td>VersionStatusChanged</td><td class="mono">ver_d4_120_v3</td><td>processing → available</td><td class="mono">trace_49ab2</td></tr>
+                  <tr><td>SearchQueryExecuted</td><td class="mono">ref_doc_20260515_003</td><td>仅记录 query_hash / hit_normalized_ref_ids</td><td class="mono">trace_49ac8</td></tr>
+                  <tr><td>QAAnswerGenerated</td><td class="mono">chunk_7ab2</td><td>记录 cited_chunk_ids，无答案明文</td><td class="mono">trace_49b10</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="anchor-nav">
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">页内导航</div><div class="panel-subtitle">围绕 version / ref / governance / chunk / audit 展开</div></div></div>
+          <div class="anchor-list">
+            <a class="anchor-link active" href="#detail-overview">概览</a>
+            <a class="anchor-link" href="#detail-version">版本历史</a>
+            <a class="anchor-link" href="#detail-ref">标准化引用</a>
+            <a class="anchor-link" href="#detail-governance">治理结果</a>
+            <a class="anchor-link" href="#detail-trail">决策追踪</a>
+            <a class="anchor-link" href="#detail-index">切片与索引</a>
+            <a class="anchor-link" href="#detail-audit">血缘与审计</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="page-governance">
+    <div class="page-head">
+      <div>
+        <div class="eyebrow">AI + 规则 + 人工协同</div>
+        <h1>治理中心</h1>
+        <p class="page-desc">治理中心以任务和裁定为中心组织，而不是把 AI 建议直接当最终结果。页面同时承载待复核、AI 建议、质量校准和决策追踪。</p>
+      </div>
+      <div class="page-actions">
+        <div class="control">队列: 全部</div>
+        <div class="control">责任人: 我</div>
+        <button class="btn btn-primary" onclick="showToast('已批量采纳 3 条高置信建议。', '系统将继续执行规则校验和状态机判断。')">一键采纳高置信建议</button>
+      </div>
+    </div>
+
+    <div class="summary-strip">
+      <div class="summary-item"><span>待人工复核</span><b>19</b></div>
+      <div class="summary-item"><span>规则冲突</span><b>8</b></div>
+      <div class="summary-item"><span>质量待审</span><b>11</b></div>
+      <div class="summary-item"><span>高置信可采纳</span><b>7</b></div>
+      <div class="summary-item"><span>已完成决策</span><b>42</b></div>
+    </div>
+
+    <div class="tabs" data-tab-group="governance-tabs">
+      <button class="tab active" data-tab="review">待复核</button>
+      <button class="tab" data-tab="ai">AI 建议</button>
+      <button class="tab" data-tab="quality">质量校准</button>
+      <button class="tab" data-tab="trail">决策追踪</button>
+    </div>
+
+    <div class="tab-panels">
+      <div class="tab-panel active" data-panel-group="governance-tabs" data-panel="review" id="governance-review">
+        <div class="bulk-bar" data-bulk-bar>
+          已选 <strong data-bulk-count>0</strong> 项
+          <button class="btn btn-primary" onclick="showToast('已提交批量裁定。', '每条记录都会生成独立审计事件。')">批量裁定</button>
+          <button class="btn">批量改派</button>
+          <button class="btn btn-ghost" onclick="clearBulk('governance-review')">清空</button>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">人工复核队列</div><div class="panel-subtitle">只收敛低置信、规则冲突、高敏异常和组织范围不明的对象</div></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>选择</th><th>资产</th><th>原因</th><th>建议动作</th><th>SLA</th><th>置信度</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr><td><input type="checkbox" data-bulk-item onchange="updateBulk('governance-review')"></td><td><div class="table-main">政策法规汇编 2025</div><div class="table-sub mono">ref_doc_20260513_009</div></td><td>高敏风险 + 低置信度</td><td>确认分级并指定受控 org_scope</td><td><span class="status status-danger">超时</span></td><td>45%</td><td><span class="table-link" onclick="navigateTo('asset-detail')">裁定</span></td></tr>
+                <tr><td><input type="checkbox" data-bulk-item onchange="updateBulk('governance-review')"></td><td><div class="table-main">内部培训材料 v2</div><div class="table-sub mono">ref_doc_20260514_055</div></td><td>组织范围不明</td><td>缩窄范围或退回补充元数据</td><td><span class="status status-warning">今日</span></td><td>62%</td><td><span class="table-link" onclick="showToast('已打开裁定抽屉。', '请填写人工覆盖原因和反馈标签。')">裁定</span></td></tr>
+                <tr><td><input type="checkbox" data-bulk-item onchange="updateBulk('governance-review')"></td><td><div class="table-main">产教融合案例集</div><div class="table-sub mono">ref_doc_20260514_102</div></td><td>质量分不足</td><td>人工校准后决定是否准入索引</td><td><span class="status status-neutral">正常</span></td><td>72%</td><td><span class="table-link">校准</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-panel" data-panel-group="governance-tabs" data-panel="ai">
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">AI 建议队列</div><div class="panel-subtitle">高置信仅代表可进入规则护栏，不代表已经是正式治理结果</div></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>资产</th><th>AI 建议</th><th>置信度</th><th>规则结果</th><th>采纳状态</th></tr></thead>
+              <tbody>
+                <tr><td>电子商务基础 v3</td><td>D4 / L2 / 教研组、教务处</td><td>94%</td><td>规则补齐 tags，准入通过</td><td><span class="status status-success">auto_adopted</span></td></tr>
+                <tr><td>人才培养方案 2025</td><td>D2 / L2 / 教务处</td><td>90%</td><td>组织范围被收窄</td><td><span class="status status-info">partially_adopted</span></td></tr>
+                <tr><td>课程大纲 v5</td><td>D1 / L3 / 未确定</td><td>62%</td><td>触发 review_required</td><td><span class="status status-warning">manual_review</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-panel" data-panel-group="governance-tabs" data-panel="quality">
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">质量校准</div><div class="panel-subtitle">质量分只作为治理输入之一，需要说明维度和修复建议</div></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>资产</th><th>综合分</th><th>低分维度</th><th>修复建议</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr><td>产教融合案例集</td><td>72</td><td>结构性 64</td><td>补齐目录层级并合并断裂切片</td><td><span class="table-link">校准</span></td></tr>
+                <tr><td>教研方法论 v2</td><td>68</td><td>完整性 61</td><td>确认正文是否缺页，必要时触发重解析</td><td><span class="table-link">重处理</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-panel" data-panel-group="governance-tabs" data-panel="trail">
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">决策追踪清单</div><div class="panel-subtitle">展示最终值如何被 AI、规则和人工共同收敛</div></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>对象</th><th>最终结果</th><th>达成方式</th><th>证据</th><th>时间</th></tr></thead>
+              <tbody>
+                <tr><td>政策法规汇编 2025</td><td>L4 / available</td><td>人工覆盖</td><td>审批单 + 脱敏策略</td><td>2 小时前</td></tr>
+                <tr><td>电子商务基础 v3</td><td>D4 / L2 / indexed</td><td>AI 自动通过</td><td>Prompt v6 + 规则集 v4</td><td>今日 09:21</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="page-tag-review">
+    <div class="page-head">
+      <div>
+        <div class="eyebrow">normalized asset 标签运营</div>
+        <h1>标签审核</h1>
+        <p class="page-desc">标签生成在 metadata_enrich 阶段针对 normalized asset 执行。高置信标签自动提交并写审计；低置信标签进入人工审核队列。chunk 不参与标签生成。</p>
+      </div>
+      <div class="page-actions"><button class="btn btn-primary" onclick="showToast('已批量确认标签草稿。', '所有确认动作都将写入审计日志。')">批量确认</button></div>
+    </div>
+
+    <div class="layout layout-2-1">
+      <div class="stack" id="tag-review-scope">
+        <div class="bulk-bar" data-bulk-bar>
+          已选 <strong data-bulk-count>0</strong> 项
+          <button class="btn btn-primary">确认</button>
+          <button class="btn">改写</button>
+          <button class="btn btn-danger">驳回</button>
+          <button class="btn btn-ghost" onclick="clearBulk('tag-review-scope')">清空</button>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">低置信标签草稿</div><div class="panel-subtitle">业务专家需决定 confirm / revise / reject</div></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>选择</th><th>normalized_ref</th><th>候选标签</th><th>证据片段</th><th>置信度</th></tr></thead>
+              <tbody>
+                <tr><td><input type="checkbox" data-bulk-item onchange="updateBulk('tag-review-scope')"></td><td class="mono">ref_doc_20260514_102</td><td>#课程思政 / #案例教学</td><td>“课程融入产业真实案例...”</td><td>63%</td></tr>
+                <tr><td><input type="checkbox" data-bulk-item onchange="updateBulk('tag-review-scope')"></td><td class="mono">ref_record_20260514_077</td><td>#就业趋势 / #区域画像</td><td>“重点城市需求增长...”</td><td>69%</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">自动提交历史</div><div class="panel-subtitle">高置信标签自动落库，但允许事后追溯和撤销</div></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>normalized_ref</th><th>已提交标签</th><th>置信度</th><th>方式</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">ref_doc_20260515_003</td><td>#电子商务 #教材 #职业教育</td><td>91%</td><td>auto_commit</td><td><span class="table-link">撤销</span></td></tr>
+                <tr><td class="mono">ref_record_20260514_077</td><td>#就业分析 #区域用工</td><td>88%</td><td>auto_commit</td><td><span class="table-link">查看审计</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">标签流程说明</div><div class="panel-subtitle">把边界讲清楚，避免后续开发混淆</div></div></div>
+          <div class="stack-sm">
+            <div class="notice notice-info"><strong>输入对象</strong>normalized_document / normalized_record。</div>
+            <div class="notice"><strong>生成阶段</strong>metadata_enrich，在 chunk 生成之前执行。</div>
+            <div class="notice notice-warning"><strong>低置信策略</strong>进入人工审核队列，不自动提交。</div>
+            <div class="notice"><strong>审计要求</strong>自动提交、撤销、人工改写都需要审计。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="page-rules">
+    <div class="page-head">
+      <div>
+        <div class="eyebrow">受限表达式规则</div>
+        <h1>规则配置</h1>
+        <p class="page-desc">规则页服务于分类、分级、标签、org_scope、质量准入和 review trigger。强调 save-to-activate、命中追踪和冲突策略，不引入任意代码执行能力。</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn">校验草稿</button>
+        <button class="btn btn-primary" onclick="showToast('规则集 D4 文档治理 v4 已发布。', '系统将对受影响资产标记 stale index 或触发 re-governance。')">发布规则集</button>
+      </div>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric-card"><div class="metric-label">active 规则集</div><div class="metric-value">11</div><div class="metric-sub">document 7，record 4</div></div>
+      <div class="metric-card warning"><div class="metric-label">待发布草稿</div><div class="metric-value">3</div><div class="metric-sub">均已通过 restricted expression 校验</div></div>
+      <div class="metric-card"><div class="metric-label">今日命中</div><div class="metric-value">842</div><div class="metric-sub">分类 301，org_scope 277，准入 264</div></div>
+      <div class="metric-card danger"><div class="metric-label">触发 review_required</div><div class="metric-value">17</div><div class="metric-sub">规则冲突 8，高敏异常 9</div></div>
+      <div class="metric-card"><div class="metric-label">重治理影响面</div><div class="metric-value">45</div><div class="metric-sub">需重算 governance_result</div></div>
+      <div class="metric-card"><div class="metric-label">索引待重建</div><div class="metric-value">31</div><div class="metric-sub">规则变更后标记 stale</div></div>
+    </div>
+
+    <div class="layout layout-2-1">
+      <div class="panel">
+        <div class="panel-head"><div><div class="panel-title">规则集列表</div><div class="panel-subtitle">面向业务域和对象类型管理，不混入模型供应商配置</div></div></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>规则集</th><th>适用对象</th><th>状态</th><th>最近变更</th><th>命中量</th></tr></thead>
+            <tbody>
+              <tr><td><div class="table-main">D4 文档治理 v4</div><div class="table-sub">分类 / 组织范围 / 准入</div></td><td>normalized_document</td><td><span class="status status-success">active</span></td><td>今日 08:40</td><td>211</td></tr>
+              <tr><td><div class="table-main">D3 记录治理 v3</div><div class="table-sub">分类 / 标签 / 质量阈值</div></td><td>normalized_record</td><td><span class="status status-warning">draft-ready</span></td><td>今日 10:10</td><td>83</td></tr>
+              <tr><td><div class="table-main">L4 例外保护规则</div><div class="table-sub">高敏检测 / review trigger / masking</div></td><td>all normalized refs</td><td><span class="status status-success">active</span></td><td>昨日</td><td>9</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">选中规则集: D4 文档治理 v4</div><div class="panel-subtitle">save-to-activate，不保留隐式“草稿但生效中”状态</div></div></div>
+          <div class="stack-sm">
+            <div class="notice notice-info"><strong>冲突策略</strong>level 取更高值；org_scope 取更窄值；无法收敛则 review_required。</div>
+            <div class="code-block mono">when normalized_type == "document"
+and domain_candidate == "D4"
+and ai.org_scope_confidence &lt; 0.8
+then narrow_org_scope()
+else keep_ai_candidate()</div>
+            <div class="notice"><strong>命中效果</strong>最近 24 小时将 27 条 org_scope 从“学校全体”收窄为“教研组 / 教务处”。</div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">发布检查</div><div class="panel-subtitle">发布前必须可解释影响范围</div></div></div>
+          <ul class="simple-list">
+            <li><div><div class="table-main">restricted expression 校验通过</div><div class="table-sub">无任意代码执行路径</div></div><span class="status status-success">ok</span></li>
+            <li><div><div class="table-main">命中样本回放完成</div><div class="table-sub">抽样 20 条 normalized refs</div></div><span class="status status-success">ok</span></li>
+            <li><div><div class="table-main">重治理影响面已评估</div><div class="table-sub">45 条 ref，31 条索引 stale</div></div><span class="status status-warning">review</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="page-prompt">
+    <div class="page-head">
+      <div>
+        <div class="eyebrow">NEXUS 自有 Prompt 资产</div>
+        <h1>AI Prompt 配置</h1>
+        <p class="page-desc">页面只维护 Prompt profile、LiteLLM alias 引用、输出 Schema、评分权重和脱敏策略。模型密钥和网关限流不属于这里。</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn">复制新版本</button>
+        <button class="btn btn-primary" onclick="showToast('Prompt profile 文档治理默认 v7 已激活。', '新版本仍复用 LiteLLM alias:qwen-plus。')">切换激活版本</button>
+      </div>
+    </div>
+
+    <div class="layout layout-2-1">
+      <div class="stack">
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">Prompt Profiles</div><div class="panel-subtitle">一个 profile 描述一个治理任务，而不是一个底层模型</div></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Profile</th><th>对象类型</th><th>激活版本</th><th>LiteLLM alias</th><th>状态</th></tr></thead>
+              <tbody>
+                <tr><td><div class="table-main">文档治理默认</div><div class="table-sub">分类 / 分级 / org_scope / quality</div></td><td>normalized_document</td><td>v6</td><td>qwen-plus</td><td><span class="status status-success">active</span></td></tr>
+                <tr><td><div class="table-main">记录治理默认</div><div class="table-sub">record 补全 / quality / tags</div></td><td>normalized_record</td><td>v4</td><td>gpt-4.1-mini</td><td><span class="status status-success">active</span></td></tr>
+                <tr><td><div class="table-main">高敏内容复核</div><div class="table-sub">L3/L4 风险提示</div></td><td>all normalized refs</td><td>v2</td><td>private-secure-zh</td><td><span class="status status-info">restricted</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">输出 Schema 与评分权重</div><div class="panel-subtitle">NEXUS 拥有输出结构，不把它交给网关或模型自由发挥</div></div></div>
+          <div class="definition-grid">
+            <div class="definition-item"><span>Schema fields</span><strong>classification, level, org_scope, tags, quality_summary, evidence</strong></div>
+            <div class="definition-item"><span>Redaction policy</span><strong>L3/L4 默认脱敏，除私有 alias 外不出网</strong></div>
+            <div class="definition-item"><span>Weight: 质量</span><strong>完整性 0.30 / 结构性 0.25 / 可读性 0.20 / 安全性 0.25</strong></div>
+            <div class="definition-item"><span>Adoption threshold</span><strong>高置信字段 0.85，低于阈值进入 review</strong></div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">版本对比</div><div class="panel-subtitle">文档治理默认 v6 vs v7 草稿</div></div></div>
+          <div class="compare-card">
+            <div class="compare-side">
+              <h4>v6 当前激活</h4>
+              <ul class="simple-list">
+                <li><div><div class="table-main">alias</div><div class="table-sub">qwen-plus</div></div></li>
+                <li><div><div class="table-main">标题清洗</div><div class="table-sub">处理目录噪声一般</div></div></li>
+                <li><div><div class="table-main">页眉页脚处理</div><div class="table-sub">弱规则</div></div></li>
+              </ul>
+            </div>
+            <div class="compare-side">
+              <h4>v7 待激活</h4>
+              <ul class="simple-list">
+                <li><div><div class="table-main">alias</div><div class="table-sub">qwen-plus</div></div></li>
+                <li><div><div class="table-main">标题清洗</div><div class="table-sub">增强目录、页码、版次识别</div></div></li>
+                <li><div><div class="table-main">页眉页脚处理</div><div class="table-sub">新增 ignore block 指令</div></div></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">边界说明</div><div class="panel-subtitle">避免把 Prompt 页做成 AI 网关配置页</div></div></div>
+          <div class="stack-sm">
+            <div class="notice"><strong>这里没有 API Key 管理</strong>密钥和 provider 适配属于 LiteLLM 平台。</div>
+            <div class="notice notice-info"><strong>这里引用 alias</strong>例如 qwen-plus、private-secure-zh，而不是直接配置底层供应商。</div>
+            <div class="notice"><strong>这里管理输出 Schema</strong>保证治理结果结构稳定、可审计、可回放。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="page-permissions">
+    <div class="page-head">
+      <div>
+        <div class="eyebrow">本地身份、授权与审计</div>
+        <h1>权限与审计</h1>
+        <p class="page-desc">权限页覆盖本地用户、角色、API 调用方、org_scope 和关键审计事件。重点是“先鉴权再返回”，以及 L3/L4 默认脱敏。</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn">新建 API 调用方</button>
+        <button class="btn btn-primary" onclick="showToast('已导出审计结果。', '导出内容不包含 query 明文、答案正文和 L3/L4 明文。')">导出审计</button>
+      </div>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric-card"><div class="metric-label">本地用户</div><div class="metric-value">36</div><div class="metric-sub">平台管理员 4，业务专家 18，运维 6</div></div>
+      <div class="metric-card"><div class="metric-label">API 调用方</div><div class="metric-value">9</div><div class="metric-sub">全部绑定 org_scope 和速率策略</div></div>
+      <div class="metric-card warning"><div class="metric-label">L3/L4 授权</div><div class="metric-value">7</div><div class="metric-sub">均为例外授权，默认脱敏</div></div>
+      <div class="metric-card"><div class="metric-label">今日审计事件</div><div class="metric-value">1,284</div><div class="metric-sub">覆盖治理、权限、搜索、QA 和版本状态</div></div>
+      <div class="metric-card success"><div class="metric-label">权限泄漏率</div><div class="metric-value">0</div><div class="metric-sub">验收目标保持为 0</div></div>
+      <div class="metric-card"><div class="metric-label">trace_id 覆盖</div><div class="metric-value">100%</div><div class="metric-sub">关键动作全部带链路标识</div></div>
+    </div>
+
+    <div class="layout layout-1-1">
+      <div class="panel">
+        <div class="panel-head"><div><div class="panel-title">主体与角色</div><div class="panel-subtitle">本地身份是基线，不依赖企业 IAM</div></div></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>主体</th><th>类型</th><th>角色</th><th>org_scope</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr><td>张敏</td><td>user</td><td>平台管理员</td><td>教研组 / 教务处</td><td><span class="status status-success">active</span></td></tr>
+              <tr><td>李杰</td><td>user</td><td>业务专家</td><td>招生就业处</td><td><span class="status status-success">active</span></td></tr>
+              <tr><td>mobile-app-prod</td><td>api_caller</td><td>检索消费方</td><td>D4 公开教学资料</td><td><span class="status status-success">active</span></td></tr>
+              <tr><td>risk-review-bot</td><td>api_caller</td><td>审计辅助</td><td>L4 受控</td><td><span class="status status-warning">restricted</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><div class="panel-title">权限矩阵</div><div class="panel-subtitle">按能力和级别说明谁能看什么、能改什么</div></div></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>能力</th><th>平台管理员</th><th>业务专家</th><th>运维</th><th>API 调用方</th></tr></thead>
+            <tbody>
+              <tr><td>治理裁定</td><td>可执行</td><td>可参与</td><td>不可见</td><td>不可见</td></tr>
+              <tr><td>规则发布</td><td>可执行</td><td>可评审</td><td>不可见</td><td>不可见</td></tr>
+              <tr><td>作业重试</td><td>可执行</td><td>申请</td><td>可执行</td><td>按授权</td></tr>
+              <tr><td>L4 明文访问</td><td>审批后</td><td>审批后</td><td>默认不可见</td><td>默认脱敏</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="layout layout-2-1">
+      <div class="panel">
+        <div class="panel-head"><div><div class="panel-title">审计事件流</div><div class="panel-subtitle">对 Prompt、规则、权限、版本状态、搜索和 QA 的关键动作完整留痕</div></div></div>
+        <div class="audit-stream">
+          <div class="audit-item"><div class="audit-head"><strong>SearchQueryExecuted</strong><span class="mono">trace_4ae20</span></div><div class="table-sub">caller_id=mobile-app-prod，query_hash=sha256:98aa...，hit_normalized_ref_ids=3</div></div>
+          <div class="audit-item"><div class="audit-head"><strong>QAAnswerGenerated</strong><span class="mono">trace_4ae27</span></div><div class="table-sub">记录 cited_chunk_ids 和 cited_normalized_ref_ids，不记录答案明文</div></div>
+          <div class="audit-item"><div class="audit-head"><strong>ApiCallerRevoked</strong><span class="mono">trace_4acf9</span></div><div class="table-sub">caller=legacy-sync，原因=权限范围超期</div></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><div class="panel-title">脱敏预览</div><div class="panel-subtitle">先过滤权限，再决定是否展示内容</div></div></div>
+        <div class="mask-preview">
+          <div class="mask-cell"><div class="section-label">授权用户</div><div class="table-main">政策法规汇编 2025</div><div class="table-sub">返回正文片段、页码和 image_uri</div></div>
+          <div class="mask-cell"><div class="section-label">未授权调用方</div><div class="table-main">政策法规汇编 2025</div><div class="table-sub">仅返回命中摘要和“内容受限”提示，不返回原文</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="page-search">
+    <div class="page-head">
+      <div>
+        <div class="eyebrow">检索与问答验证</div>
+        <h1>检索验证</h1>
+        <p class="page-desc">这是消费侧的验证页面，用来确认权限过滤、引用追溯和 QA 审计是否可用。它不是面向最终业务用户的搜索门户，而是平台验收和调优入口。</p>
+      </div>
+      <div class="page-actions">
+        <div class="control">调用方: mobile-app-prod</div>
+        <div class="control">权限画像: D4/L2</div>
+      </div>
+    </div>
+
+    <div class="layout layout-1-1">
+      <div class="panel">
+        <div class="panel-head"><div><div class="panel-title">查询构造</div><div class="panel-subtitle">验证 query hash、命中范围和 QA 引用</div></div></div>
+        <div class="stack">
+          <div class="control" style="justify-content:flex-start; min-height: 44px;">查询: 如何在职业教育课程中引入企业真实案例？</div>
+          <div class="control" style="justify-content:flex-start; min-height: 44px;">问答模式: RAG QA</div>
+          <div class="control" style="justify-content:flex-start; min-height: 44px;">重排序: bge-reranker-large</div>
+          <button class="btn btn-primary" onclick="showToast('已执行检索与问答。', '系统先完成权限过滤，再返回 chunk 与 answer。')">执行验证</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><div class="panel-title">结果与引用</div><div class="panel-subtitle">引用必须能回到 version / normalized_ref / chunk / source position</div></div></div>
+        <div class="stack">
+          <div class="notice notice-info"><strong>回答摘要</strong>平台检索到 3 条 D4 教材内容，主要集中在“案例驱动教学”“校企双元场景设计”和“课程章节重构”三个主题。</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>引用资产</th><th>normalized_ref_id</th><th>chunk_id</th><th>定位</th></tr></thead>
+              <tbody>
+                <tr><td>电子商务基础（第 3 版）</td><td class="mono">ref_doc_20260515_003</td><td class="mono">chunk_7ab2</td><td>p12 / fig_01.png</td></tr>
+                <tr><td>产教融合案例集</td><td class="mono">ref_doc_20260514_102</td><td class="mono">chunk_6410</td><td>p08 / none</td></tr>
+                <tr><td>课程大纲 2025</td><td class="mono">ref_doc_20260502_071</td><td class="mono">chunk_5028</td><td>p03 / none</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="page-workspace">
+    <div class="page-head">
+      <div>
+        <div class="eyebrow">个人执行面</div>
+        <h1>我的工作区</h1>
+        <p class="page-desc">把跨页面散落的“我的待办、我负责的资产、我的草稿”收成一个工作入口，帮助平台管理员和业务专家做日常处理。</p>
+      </div>
+      <div class="page-actions"><button class="btn">自定义视图</button></div>
+    </div>
+
+    <div class="tabs" data-tab-group="workspace-tabs">
+      <button class="tab active" data-tab="todo">我的待办</button>
+      <button class="tab" data-tab="assets">我负责的资产</button>
+      <button class="tab" data-tab="drafts">我的草稿</button>
+    </div>
+
+    <div class="tab-panels">
+      <div class="tab-panel active" data-panel-group="workspace-tabs" data-panel="todo">
+        <div class="layout layout-1-1">
+          <div class="panel">
+            <div class="panel-head"><div><div class="panel-title">SLA 临近</div><div class="panel-subtitle">按超时、今日、正常分层</div></div></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>优先级</th><th>对象</th><th>任务</th><th>等待</th><th>操作</th></tr></thead>
+                <tbody>
+                  <tr><td><span class="status status-danger">超时</span></td><td>政策法规汇编 2025</td><td>分级裁定</td><td>26 小时</td><td><span class="table-link" onclick="navigateTo('governance')">立即处理</span></td></tr>
+                  <tr><td><span class="status status-warning">今日</span></td><td>产教融合案例集</td><td>质量复核</td><td>5 小时</td><td><span class="table-link">处理</span></td></tr>
+                  <tr><td><span class="status status-neutral">正常</span></td><td>教学大纲 2025</td><td>标签补全</td><td>12 小时</td><td><span class="table-link">处理</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div><div class="panel-title">我的最近动作</div><div class="panel-subtitle">回到对应页面继续工作</div></div></div>
+            <ul class="simple-list">
+              <li><div><div class="table-main">发布 D4 文档治理 v4</div><div class="table-sub">影响 45 条 normalized refs</div></div><span class="muted">1h 前</span></li>
+              <li><div><div class="table-main">确认标签 #电子商务</div><div class="table-sub">对象 ref_doc_20260515_003</div></div><span class="muted">2h 前</span></li>
+              <li><div><div class="table-main">重试 job_3n08</div><div class="table-sub">record normalize 失败</div></div><span class="muted">今天</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="tab-panel" data-panel-group="workspace-tabs" data-panel="assets">
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">我负责的资产</div><div class="panel-subtitle">按版本状态和风险排序</div></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>资产</th><th>当前版本</th><th>状态</th><th>下一步</th></tr></thead>
+              <tbody>
+                <tr><td>电子商务基础（第 3 版）</td><td class="mono">ver_d4_120_v3</td><td><span class="status status-success">available</span></td><td>观察索引表现</td></tr>
+                <tr><td>产教融合案例集</td><td class="mono">ver_d4_066_v2</td><td><span class="status status-warning">review_required</span></td><td>质量校准</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="tab-panel" data-panel-group="workspace-tabs" data-panel="drafts">
+        <div class="panel">
+          <div class="panel-head"><div><div class="panel-title">我的草稿</div><div class="panel-subtitle">规则、Prompt、裁定草稿统一汇总</div></div></div>
+          <ul class="simple-list">
+            <li><div><div class="table-main">Prompt profile: 文档治理默认 v7</div><div class="table-sub">待激活</div></div><span class="muted">今天</span></li>
+            <li><div><div class="table-main">人工覆盖说明: 政策法规汇编 2025</div><div class="table-sub">待提交</div></div><span class="muted">今天</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
 </main>
 
-<!-- Toast container -->
-<div id="toast-container"></div>
+<div class="toast-host" id="toast-host"></div>
 
 <script>
-// Navigation
 let navCollapsed = false;
+
 function toggleNav() {
   navCollapsed = !navCollapsed;
-  const nav = document.getElementById('nav');
-  if (navCollapsed) {
-    nav.classList.add('collapsed');
-  } else {
-    nav.classList.remove('collapsed');
+  const sidebar = document.getElementById("sidebar");
+  const toggle = document.querySelector(".sidebar-toggle span:last-child");
+  sidebar.classList.toggle("collapsed", navCollapsed);
+  if (toggle) {
+    toggle.textContent = navCollapsed ? "展开导航" : "收起导航";
   }
 }
-
-// Page navigation
-document.querySelectorAll('.nav-item[data-page]').forEach(item => {
-  item.addEventListener('click', function(e) {
-    e.preventDefault();
-    const page = this.dataset.page;
-    navigateTo(page);
-  });
-});
 
 function navigateTo(page) {
-  // Update nav
-  document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-  const navItem = document.querySelector(`.nav-item[data-page="${page}"]`);
-  if (navItem) navItem.classList.add('active');
-
-  // Update page
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  const pageEl = document.getElementById('page-' + page);
-  if (pageEl) pageEl.classList.add('active');
+  const target = document.getElementById("page-" + page);
+  if (!target) return;
+  document.querySelectorAll(".page").forEach((node) => node.classList.remove("active"));
+  target.classList.add("active");
+  const navParent = target.dataset.navParent || page;
+  document.querySelectorAll(".nav-item").forEach((node) => {
+    node.classList.toggle("active", node.dataset.page === navParent);
+  });
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-// Asset view switch
-function switchAssetView(view) {
-  document.getElementById('asset-card-view').style.display = view === 'card' ? 'grid' : 'none';
-  document.getElementById('asset-list-view').style.display = view === 'list' ? 'block' : 'none';
-  document.getElementById('view-card-btn').style.background = view === 'card' ? 'var(--primary-pale)' : '';
-  document.getElementById('view-card-btn').style.color = view === 'card' ? 'var(--primary)' : '';
-  document.getElementById('view-list-btn').style.background = view === 'list' ? 'var(--primary-pale)' : '';
-  document.getElementById('view-list-btn').style.color = view === 'list' ? 'var(--primary)' : '';
-}
+document.querySelectorAll(".nav-item[data-page]").forEach((item) => {
+  item.addEventListener("click", () => navigateTo(item.dataset.page));
+});
 
-// Batch operations
-function toggleBatch(cb) {
-  const checked = document.querySelectorAll('input[type="checkbox"]:checked').length;
-  const bar = document.getElementById('batch-bar');
-  if (cb) {
-    bar.style.display = checked > 0 ? 'flex' : 'none';
-    document.getElementById('batch-count').textContent = checked;
-  }
-}
-
-function hideBatch() {
-  document.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = false);
-  document.getElementById('batch-bar').style.display = 'none';
-}
-
-// Toast
-function showToast(msg) {
-  const container = document.getElementById('toast-container');
-  const toast = document.createElement('div');
-  toast.className = 'toast';
-  toast.innerHTML = msg + ' <span style="color:var(--primary);cursor:pointer;margin-left:auto;" onclick="this.parentElement.remove()">[撤销]</span>';
-  container.appendChild(toast);
-  setTimeout(() => { if (toast.parentElement) toast.remove(); }, 5000);
-}
-
-// Tab switching in governance
-document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', function() {
-    this.parentElement.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    this.classList.add('active');
+document.querySelectorAll("[data-tab-group]").forEach((group) => {
+  const groupName = group.dataset.tabGroup;
+  group.querySelectorAll("[data-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      group.querySelectorAll("[data-tab]").forEach((tab) => tab.classList.remove("active"));
+      button.classList.add("active");
+      document.querySelectorAll('[data-panel-group="' + groupName + '"]').forEach((panel) => {
+        panel.classList.toggle("active", panel.dataset.panel === button.dataset.tab);
+      });
+    });
   });
 });
 
-// Show toast on batch adopt
-document.querySelector('.queue-section.info .btn-primary')?.addEventListener('click', function(e) {
-  if (e.target.textContent.includes('一键采纳')) {
-    showToast('✓ 已批量采纳 3 条 AI 建议，规则校验中...');
-  }
-});
-</script>
+function updateBulk(scopeId) {
+  const scope = document.getElementById(scopeId);
+  if (!scope) return;
+  const checked = scope.querySelectorAll("[data-bulk-item]:checked").length;
+  const bar = scope.querySelector("[data-bulk-bar]");
+  const count = scope.querySelector("[data-bulk-count]");
+  if (count) count.textContent = checked;
+  if (bar) bar.style.display = checked > 0 ? "flex" : "none";
+}
 
+function clearBulk(scopeId) {
+  const scope = document.getElementById(scopeId);
+  if (!scope) return;
+  scope.querySelectorAll("[data-bulk-item]").forEach((item) => {
+    item.checked = false;
+  });
+  updateBulk(scopeId);
+}
+
+function showToast(message, detail) {
+  const host = document.getElementById("toast-host");
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.innerHTML = "<strong>" + message + "</strong>" + (detail ? "<small>" + detail + "</small>" : "");
+  host.appendChild(toast);
+  setTimeout(() => {
+    if (toast.parentNode) toast.parentNode.removeChild(toast);
+  }, 3200);
+}
+</script>
 </body>
 </html>
