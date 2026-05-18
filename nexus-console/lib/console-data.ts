@@ -1,5 +1,6 @@
 import {
   type ApiCaller,
+  type AIGovernanceRun,
   type AuditLog,
   type DataSource,
   type DocumentAsset,
@@ -23,7 +24,8 @@ export async function loadWorkbenchData() {
     jobs,
     assets,
     normalizedRefs,
-    audits
+    audits,
+    governanceRuns
   ] = await Promise.all([
     getApiData<RuntimeState | null>("/v1/runtime/state", null),
     getApiData<DataSource[]>("/v1/data-sources", []),
@@ -32,7 +34,8 @@ export async function loadWorkbenchData() {
     getApiData<Job[]>("/v1/jobs", []),
     getApiData<DocumentAsset[]>("/v1/assets", []),
     getApiData<NormalizedAssetRef[]>("/v1/normalized-refs", []),
-    getApiData<AuditLog[]>("/v1/audit-logs", [])
+    getApiData<AuditLog[]>("/v1/audit-logs", []),
+    getApiData<AIGovernanceRun[]>("/v1/ai/governance-runs", [])
   ]);
 
   return {
@@ -44,6 +47,7 @@ export async function loadWorkbenchData() {
     assets,
     normalizedRefs,
     audits,
+    governanceRuns,
     ok: [
       runtime,
       dataSources,
@@ -52,7 +56,8 @@ export async function loadWorkbenchData() {
       jobs,
       assets,
       normalizedRefs,
-      audits
+      audits,
+      governanceRuns
     ].every((item) => item.ok),
     error:
       [
@@ -63,7 +68,8 @@ export async function loadWorkbenchData() {
         jobs,
         assets,
         normalizedRefs,
-        audits
+        audits,
+        governanceRuns
       ].find((item) => item.error)?.error ?? null,
     traceId: runtime.traceId ?? dataSources.traceId ?? batches.traceId ?? null
   };

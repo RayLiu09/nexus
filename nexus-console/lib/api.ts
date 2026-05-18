@@ -190,6 +190,21 @@ export type AssetDetail = {
   current_normalized_ref: NormalizedAssetRef | null;
 };
 
+export type AIGovernanceRun = {
+  id: string;
+  normalized_ref_id: string;
+  profile_id: string;
+  model_alias: string;
+  prompt_version: string;
+  ai_output: Record<string, unknown> | null;
+  quality_summary: Record<string, unknown> | null;
+  validation_status: string;
+  adoption_status: string;
+  validation_error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type AuditLog = {
   id: string;
   event_type: string;
