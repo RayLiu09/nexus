@@ -11,13 +11,12 @@ export const dynamic = "force-dynamic";
 export default async function IamAuditPage() {
   const { orgUnits, users, apiCallers, audits } = await loadIdentityData();
   const ok = orgUnits.ok && users.ok && apiCallers.ok && audits.ok;
-  const error =
-    orgUnits.error ?? users.error ?? apiCallers.error ?? audits.error ?? null;
+  const error = orgUnits.error ?? users.error ?? apiCallers.error ?? audits.error ?? null;
 
   return (
     <>
       <PageHeader
-        prototypeId="NX-10"
+        eyebrow="访问与审计 — 组织、角色、API 调用方"
         title="权限与审计"
         description="本地组织用户、角色、API 调用方、组织范围和安全审计日志。"
       />
@@ -40,12 +39,20 @@ export default async function IamAuditPage() {
         <div className="card-body" style={{ padding: 0 }}>
           {apiCallers.data.length ? (
             apiCallers.data.map((caller) => (
-              <div className="table-row" key={caller.id} style={{ gridTemplateColumns: "1fr 1.5fr 1fr 100px 140px" }}>
+              <div
+                className="table-row"
+                key={caller.id}
+                style={{ gridTemplateColumns: "1fr 1.5fr 1fr 100px 140px" }}
+              >
                 <span style={{ fontWeight: 500 }}>{caller.name}</span>
-                <span className="text-sm text-muted">{caller.permission_scope.join(", ") || "-"}</span>
-                <span className="text-sm text-muted">{caller.org_scope.map(shortId).join(", ") || "-"}</span>
+                <span className="text-muted text-sm">
+                  {caller.permission_scope.join(", ") || "-"}
+                </span>
+                <span className="text-muted text-sm">
+                  {caller.org_scope.map(shortId).join(", ") || "-"}
+                </span>
                 <StatusLabel value={caller.status} />
-                <span className="text-sm text-muted">{formatDateTime(caller.updated_at)}</span>
+                <span className="text-muted text-sm">{formatDateTime(caller.updated_at)}</span>
               </div>
             ))
           ) : (
@@ -58,19 +65,26 @@ export default async function IamAuditPage() {
       <div className="card">
         <div className="card-header">
           <span className="card-title">审计日志</span>
-          <span className="text-xs text-muted">{audits.data.length} events</span>
+          <span className="text-muted text-xs">{audits.data.length} events</span>
         </div>
         <div className="card-body" style={{ padding: 0 }}>
           {audits.data.length ? (
             audits.data.map((event) => (
-              <div className="table-row" key={event.id} style={{ gridTemplateColumns: "160px 1fr 140px 1fr 140px" }}>
+              <div
+                className="table-row"
+                key={event.id}
+                style={{ gridTemplateColumns: "160px 1fr 140px 1fr 140px" }}
+              >
                 <span style={{ fontWeight: 500 }}>{event.event_type}</span>
                 <span className="text-sm">
-                  {event.target_type} / <span className="mono-cell">{shortId(event.target_id)}</span>
+                  {event.target_type} /{" "}
+                  <span className="mono-cell">{shortId(event.target_id)}</span>
                 </span>
                 <span className="mono-cell">{event.trace_id ?? "-"}</span>
-                <span className="text-sm text-muted mono-cell truncate">{JSON.stringify(event.summary)}</span>
-                <span className="text-sm text-muted">{formatDateTime(event.created_at)}</span>
+                <span className="text-muted mono-cell truncate text-sm">
+                  {JSON.stringify(event.summary)}
+                </span>
+                <span className="text-muted text-sm">{formatDateTime(event.created_at)}</span>
               </div>
             ))
           ) : (

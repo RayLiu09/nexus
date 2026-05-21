@@ -106,7 +106,8 @@
         "需要明确的访问授权和审计记录",
         "外部AI模型不得接收未脱敏的L3内容"
       ],
-      "requires_approval": true
+      "requires_approval": true,
+      "forbid_external_llm": true
     },
     {
       "code": "L4",
@@ -119,7 +120,8 @@
         "必须经过最高级别审批才能访问",
         "禁止传输到任何外部系统或AI模型"
       ],
-      "requires_approval": true
+      "requires_approval": true,
+      "forbid_external_llm": true
     }
   ],
   "tags": [
@@ -290,8 +292,453 @@
     "thresholds": {
       "pass": 80,
       "warning": 60,
-      "fail": 0
+      "review_required_below": 50
     },
     "confidence_threshold_auto_adopt": 0.85
-  }
+  },
+  "manual_review_triggers": [],
+  "knowledge_types": [
+    {
+      "code": "textbook_kb",
+      "name": "教材知识库",
+      "description": "教材、课件、讲义等教学材料，适合语义检索和问答",
+      "applicable_classifications": ["D4"],
+      "default_level": "L1",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "passthrough_to_ragflow",
+      "rag_pipeline": "pipeline_1",
+      "source_criteria": [
+        "包含教材章节、知识点、案例",
+        "内容具有系统性、教学性",
+        "适合通过关键词或语义检索"
+      ],
+      "chunking_strategy": "semantic",
+      "chunking_config": {
+        "chunk_size": 512,
+        "overlap": 64,
+        "min_chunk_size": 100,
+        "max_chunk_size": 1024,
+        "split_by": "sentence"
+      },
+      "ragflow": {
+        "chunk_method": "book",
+        "parser_config": {
+          "chunk_token_num": 512,
+          "delimiter": "\n",
+          "layout_recognize": true
+        }
+      },
+      "chunk_type": "semantic",
+      "co_emission_rules": [
+        { "target_code": "qa_corpus", "condition": "contains_qa_pairs", "min_confidence": 0.6 },
+        { "target_code": "course_knowledge_graph", "condition": "contains_concept_relations", "min_confidence": 0.7 }
+      ],
+      "implementation_tier": "A"
+    },
+    {
+      "code": "talent_training_dataset",
+      "name": "人才培养方案数据集",
+      "description": "人才培养方案、课程体系、毕业要求等结构化教育数据",
+      "applicable_classifications": ["D3"],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_1",
+      "source_criteria": [
+        "包含培养目标、课程体系、毕业要求",
+        "包含岗位映射、能力矩阵",
+        "数据具有结构化特征"
+      ],
+      "chunking_strategy": "structured_decompose",
+      "chunking_config": {
+        "decompose_fields": [
+          "培养目标",
+          "课程体系",
+          "毕业要求",
+          "岗位映射",
+          "能力矩阵"
+        ],
+        "field_chunk_size": 256,
+        "field_overlap": 32
+      },
+      "ragflow": {
+        "chunk_method": "naive",
+        "parser_config": {
+          "chunk_token_num": 256,
+          "delimiter": "\n"
+        }
+      },
+      "chunk_type": "structured_field",
+      "co_emission_rules": [
+        { "target_code": "competency_graph", "condition": "contains_competency_matrix", "min_confidence": 0.7 },
+        { "target_code": "skill_tag_library", "condition": "contains_skill_tags", "min_confidence": 0.65 }
+      ],
+      "implementation_tier": "A"
+    },
+    {
+      "code": "qa_corpus",
+      "name": "教学问答语料库",
+      "description": "面向教学场景的问答对语料库，用于问答检索与教学辅助",
+      "applicable_classifications": ["D4"],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_2",
+      "source_criteria": [
+        "包含明确的问答对结构",
+        "问题与答案可以一一对应",
+        "内容来自教材、讲义、答疑或在线问答记录"
+      ],
+      "chunking_strategy": "qa_extract",
+      "chunking_config": {
+        "qa_pattern": "auto",
+        "min_question_length": 5,
+        "min_answer_length": 10,
+        "merge_short_answers": true
+      },
+      "ragflow": {
+        "chunk_method": "qa",
+        "parser_config": {
+          "chunk_token_num": 256,
+          "delimiter": "\n"
+        }
+      },
+      "chunk_type": "qa_pair",
+      "co_emission_rules": [],
+      "implementation_tier": "B"
+    },
+    {
+      "code": "textbook_authoring_process",
+      "name": "教材编写流程语料",
+      "description": "教材编写过程文档，含步骤、规范、模板、检查清单",
+      "applicable_classifications": ["D4"],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_3",
+      "source_criteria": [
+        "描述教材编写阶段、流程、产物",
+        "包含步骤化操作或规范说明"
+      ],
+      "chunking_strategy": "process_step_extract",
+      "chunking_config": {
+        "step_indicators": ["步骤", "阶段", "Step", "第一步", "第二步"],
+        "extract_inputs_outputs": true,
+        "extract_role": true
+      },
+      "ragflow": {
+        "chunk_method": "manual",
+        "parser_config": {
+          "chunk_token_num": 384,
+          "delimiter": "\n"
+        }
+      },
+      "chunk_type": "process_step",
+      "co_emission_rules": [],
+      "implementation_tier": "B"
+    },
+    {
+      "code": "lab_guide_authoring_process",
+      "name": "实训指导书编写流程语料",
+      "description": "实训指导书编写过程文档，含实训目标、步骤、考核要点",
+      "applicable_classifications": ["D4"],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_3",
+      "source_criteria": [
+        "描述实训指导书编写阶段、流程",
+        "包含实训目标、步骤设计、考核标准"
+      ],
+      "chunking_strategy": "process_step_extract",
+      "chunking_config": {
+        "step_indicators": ["步骤", "阶段", "Step"],
+        "extract_inputs_outputs": true,
+        "extract_role": true
+      },
+      "ragflow": {
+        "chunk_method": "manual",
+        "parser_config": {
+          "chunk_token_num": 384,
+          "delimiter": "\n"
+        }
+      },
+      "chunk_type": "process_step",
+      "co_emission_rules": [
+        { "target_code": "lab_evaluation_indicator", "condition": "contains_evaluation_criteria", "min_confidence": 0.7 }
+      ],
+      "implementation_tier": "B"
+    },
+    {
+      "code": "course_standard_authoring_process",
+      "name": "课程标准编写流程语料",
+      "description": "课程标准编写过程文档，含标准条款、能力指标、评价要求",
+      "applicable_classifications": ["D4"],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_3",
+      "source_criteria": [
+        "描述课程标准编写阶段、流程",
+        "包含课程目标、能力指标、评价要求"
+      ],
+      "chunking_strategy": "process_step_extract",
+      "chunking_config": {
+        "step_indicators": ["步骤", "阶段", "Step"],
+        "extract_inputs_outputs": true,
+        "extract_role": true
+      },
+      "ragflow": {
+        "chunk_method": "manual",
+        "parser_config": {
+          "chunk_token_num": 384,
+          "delimiter": "\n"
+        }
+      },
+      "chunk_type": "process_step",
+      "co_emission_rules": [
+        { "target_code": "competency_graph", "condition": "contains_competency_indicators", "min_confidence": 0.65 }
+      ],
+      "implementation_tier": "B"
+    },
+    {
+      "code": "instructional_design_authoring_process",
+      "name": "教学设计编写流程语料",
+      "description": "教学设计编写过程文档，含教学目标、教学活动、评估方式",
+      "applicable_classifications": ["D4"],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_3",
+      "source_criteria": [
+        "描述教学设计编写阶段、流程",
+        "包含教学目标、教学活动、评估方式"
+      ],
+      "chunking_strategy": "process_step_extract",
+      "chunking_config": {
+        "step_indicators": ["步骤", "阶段", "Step"],
+        "extract_inputs_outputs": true,
+        "extract_role": true
+      },
+      "ragflow": {
+        "chunk_method": "manual",
+        "parser_config": {
+          "chunk_token_num": 384,
+          "delimiter": "\n"
+        }
+      },
+      "chunk_type": "process_step",
+      "co_emission_rules": [],
+      "implementation_tier": "B"
+    },
+    {
+      "code": "lab_evaluation_indicator",
+      "name": "实训评价标准库",
+      "description": "实训评价指标体系，含维度、权重、评分标准",
+      "applicable_classifications": ["D3"],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_5",
+      "source_criteria": [
+        "包含评价维度、指标、权重",
+        "评分标准结构化、可量化"
+      ],
+      "chunking_strategy": "indicator_decompose",
+      "chunking_config": {
+        "indicator_fields": ["维度", "指标", "权重", "评分标准", "等级"],
+        "extract_weight": true,
+        "extract_scale": true
+      },
+      "ragflow": {
+        "chunk_method": "table",
+        "parser_config": {
+          "chunk_token_num": 256
+        }
+      },
+      "chunk_type": "indicator",
+      "co_emission_rules": [],
+      "implementation_tier": "B"
+    },
+    {
+      "code": "teaching_evaluation_indicator",
+      "name": "教学评价标准库",
+      "description": "教学评价指标体系，含课堂表现、学习成果、综合素质",
+      "applicable_classifications": ["D3"],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_5",
+      "source_criteria": [
+        "包含教学评价维度、指标、权重",
+        "覆盖课堂、作业、考试、综合等"
+      ],
+      "chunking_strategy": "indicator_decompose",
+      "chunking_config": {
+        "indicator_fields": ["维度", "指标", "权重", "评分标准", "等级"],
+        "extract_weight": true,
+        "extract_scale": true
+      },
+      "ragflow": {
+        "chunk_method": "table",
+        "parser_config": {
+          "chunk_token_num": 256
+        }
+      },
+      "chunk_type": "indicator",
+      "co_emission_rules": [],
+      "implementation_tier": "B"
+    },
+    {
+      "code": "ecommerce_case_library",
+      "name": "电商项目案例库",
+      "description": "电商项目案例集合，用于案例教学与项目化课程",
+      "applicable_classifications": ["D2", "D4"],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_1",
+      "source_criteria": [
+        "包含案例背景、问题、解决方案、效果评估",
+        "围绕电商业务场景"
+      ],
+      "chunking_strategy": "case_decompose",
+      "chunking_config": {
+        "case_sections": ["背景", "问题", "解决方案", "效果", "反思"],
+        "section_chunk_size": 384,
+        "section_overlap": 32
+      },
+      "ragflow": {
+        "chunk_method": "paper",
+        "parser_config": {
+          "chunk_token_num": 384,
+          "delimiter": "\n"
+        }
+      },
+      "chunk_type": "case_section",
+      "co_emission_rules": [],
+      "implementation_tier": "C"
+    },
+    {
+      "code": "enterprise_task_library",
+      "name": "企业项目任务库",
+      "description": "源自真实企业的项目任务集合，用于产教融合教学",
+      "applicable_classifications": ["D2", "D4"],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_1",
+      "source_criteria": [
+        "包含任务背景、目标、交付物、评估要点",
+        "来源于企业真实项目"
+      ],
+      "chunking_strategy": "case_decompose",
+      "chunking_config": {
+        "case_sections": ["背景", "目标", "任务", "交付物", "评估"],
+        "section_chunk_size": 384,
+        "section_overlap": 32
+      },
+      "ragflow": {
+        "chunk_method": "paper",
+        "parser_config": {
+          "chunk_token_num": 384,
+          "delimiter": "\n"
+        }
+      },
+      "chunk_type": "case_section",
+      "co_emission_rules": [],
+      "implementation_tier": "C"
+    },
+    {
+      "code": "course_knowledge_graph",
+      "name": "课程知识图谱数据",
+      "description": "课程相关的知识点、概念、关系，用于知识图谱构建与检索",
+      "applicable_classifications": ["D3", "D4"],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_4",
+      "source_criteria": [
+        "包含知识点、概念、关系、依赖",
+        "能够构成图结构"
+      ],
+      "chunking_strategy": "graph_extract",
+      "chunking_config": {
+        "node_types": ["概念", "知识点", "技能", "案例"],
+        "relation_types": ["先修", "包含", "应用", "案例化"],
+        "extract_attributes": true
+      },
+      "ragflow": {
+        "chunk_method": "knowledge_graph",
+        "parser_config": {
+          "chunk_token_num": 256,
+          "entity_types": ["概念", "知识点", "技能", "案例"]
+        }
+      },
+      "chunk_type": "graph_node",
+      "co_emission_rules": [],
+      "implementation_tier": "C"
+    },
+    {
+      "code": "competency_graph",
+      "name": "能力图谱数据",
+      "description": "岗位能力、能力分解、能力关系，用于能力图谱与人才画像",
+      "applicable_classifications": ["D3"],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_4",
+      "source_criteria": [
+        "包含能力项、子能力、关系",
+        "围绕岗位/职业能力建模"
+      ],
+      "chunking_strategy": "graph_extract",
+      "chunking_config": {
+        "node_types": ["能力", "子能力", "岗位", "技能"],
+        "relation_types": ["包含", "依赖", "对应"],
+        "extract_attributes": true
+      },
+      "ragflow": {
+        "chunk_method": "knowledge_graph",
+        "parser_config": {
+          "chunk_token_num": 256,
+          "entity_types": ["能力", "子能力", "岗位", "技能"]
+        }
+      },
+      "chunk_type": "graph_node",
+      "co_emission_rules": [
+        { "target_code": "skill_tag_library", "condition": "contains_skill_tags", "min_confidence": 0.65 }
+      ],
+      "implementation_tier": "C"
+    },
+    {
+      "code": "skill_tag_library",
+      "name": "技能标签库",
+      "description": "技能、标签、分类的规范化标签库，用于标签关联与检索",
+      "applicable_classifications": ["D3"],
+      "default_level": "L1",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_4",
+      "source_criteria": [
+        "包含技能名、同义词、分类、层级",
+        "标签可用于关联资产或人才"
+      ],
+      "chunking_strategy": "tag_decompose",
+      "chunking_config": {
+        "tag_fields": ["标签名", "同义词", "分类", "层级", "描述"],
+        "extract_aliases": true,
+        "extract_hierarchy": true
+      },
+      "ragflow": {
+        "chunk_method": "tag",
+        "parser_config": {
+          "chunk_token_num": 128
+        }
+      },
+      "chunk_type": "tag",
+      "co_emission_rules": [],
+      "implementation_tier": "C"
+    }
+  ]
 }

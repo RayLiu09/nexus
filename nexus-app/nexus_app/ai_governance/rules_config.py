@@ -20,6 +20,7 @@ class LevelDef(BaseModel):
     description: str
     criteria: list[str]
     requires_approval: bool = False
+    forbid_external_llm: bool = False
 
 
 class TagDef(BaseModel):
@@ -46,6 +47,7 @@ class QualityDimensionDef(BaseModel):
 class QualityThresholds(BaseModel):
     pass_: int = Field(alias="pass", ge=0, le=100)
     warning: int = Field(ge=0, le=100)
+    review_required_below: int = Field(default=0, ge=0, le=100)
 
     model_config = {"populate_by_name": True}
 
@@ -63,12 +65,20 @@ class QualityScoringConfig(BaseModel):
         return self
 
 
+class ManualReviewTriggerDef(BaseModel):
+    code: str
+    name: str
+    description: str
+    condition: str
+
+
 class GovernanceRulesConfig(BaseModel):
     schema_version: str
     classifications: list[ClassificationDef] = Field(min_length=1)
     levels: list[LevelDef] = Field(min_length=1)
     tags: list[TagDef] = []
     quality_scoring: QualityScoringConfig
+    manual_review_triggers: list[ManualReviewTriggerDef] = []
 
     @model_validator(mode="after")
     def check_tag_classification_refs(self) -> "GovernanceRulesConfig":

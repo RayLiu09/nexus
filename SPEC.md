@@ -75,7 +75,7 @@ P0 pages:
 - **资产目录**: asset list, current version read model, versions, normalized refs (with governance/quality/lineage fields), index status.
 - **资产详情**: overview, versions, normalized refs, AI governance, quality score, governance result, decision tracking, chunks (with normalized_ref_id), index manifest, lineage (including image_uris), audit.
 - **治理中心**: AI suggestions, AI quality score, AI Prompt config, review tasks, rule config, save-to-activate changes, decision tracking, quality review.
-- **规则配置**: rule sets, rules, validation, save-to-activate, disable, effect.
+- **规则配置**: structured editor for `config/governance_rules.json` (classifications, levels, tags, quality scoring, knowledge types); ETag-based concurrency control; save takes effect immediately for future governance runs.
 - **权限与审计**: local users, roles, API keys, org scopes, approvals, audit logs.
 - **AI Prompt 配置**: Prompt templates, LiteLLM alias references, output schema, scoring weights, redaction policies.
 - **标签审核**: tag draft review (confirm / revise / reject), auto-committed tag history.
@@ -101,14 +101,14 @@ Level inheritance: asset → asset_version → normalized_document → knowledge
 
 AI governance:
 - Input: `normalized_document` or `normalized_record` (via `normalized_asset_ref`).
-- Output pipeline: schema validation → field whitelist → redaction policy → rule guardrails → confidence threshold → state-machine decision.
+- Output pipeline: schema validation → field whitelist → redaction policy → `governance_rules.json` threshold checks (confidence_threshold_auto_adopt, quality pass/warning, level requires_approval) → state-machine decision (available / review_required).
 - Results persisted in `ai_governance_run`. Human feedback in `governance_result.decision_trail`.
-- High-confidence + clean rules → `available`. Conflict or low confidence → `review_required`.
+- High-confidence AI + quality pass → `available`. Low-confidence AI or quality below threshold → `review_required`.
 
 Rules and decisions:
-- Rule sets use save-to-activate: create/update validates restricted expressions and immediately activates; disable is supported.
-- Rules cover classification, level, tags, org scope, quality admission, manual review triggers, and index admission.
-- `governance_result.decision_trail` must record input summary, AI Prompt config, LiteLLM alias, Prompt version, AI suggestion, quality score, rule set, matched rules, candidate values, final value, confidence, adoption status, and conflict reason.
+- Business rules live exclusively in `config/governance_rules.json` (file-based, single source of truth). Edits via console must pass schema validation, ETag optimistic locking, and fcntl exclusive write lock; saves take effect immediately for future governance runs and do not retroactively re-govern existing assets.
+- Rules cover classifications, levels, tags, quality scoring (dimensions, check_items, thresholds, confidence_threshold_auto_adopt), and knowledge types.
+- `governance_result.decision_trail` must record input summary, AI Prompt config, LiteLLM alias, Prompt version, AI suggestion, quality score, `rules_schema_version` + `rules_content_hash` (rules snapshot), final value, confidence, adoption status, and review reason (when entering `review_required`).
 
 Auto-tagging:
 - `metadata_enrich` generates tag drafts from normalized asset content (not chunks — they don't exist yet).
@@ -134,7 +134,7 @@ P0 API groups include:
 - Job query, retry, reprocess.
 - Asset list/detail/version/current read model.
 - Search and QA.
-- Governance rule sets, validation, save-to-activate updates, disable.
+- Governance rules read/edit (`config/governance_rules.json` via `/v1/admin/governance-rules`, ETag-protected).
 - Governance decision query.
 - AI Prompt profile query/create/update (save-to-activate)/disable/version query.
 - AI governance run query, AI re-score, AI feedback.
@@ -150,7 +150,6 @@ Performance:
 - `POST /v1/search` P95 < 1 s.
 - `POST /v1/qa` P95 < 5 s.
 - Small-batch ingestion to searchable target < 15 minutes.
-- Single-asset rule governance P95 < 3 s, excluding parse/index.
 - Single-asset AI governance P95 < 30 s for small batches, excluding parse/index.
 
 Quality:
@@ -172,8 +171,8 @@ Security:
 - External models cannot receive unmasked L3/L4 plain text unless policy allows an approved private LiteLLM alias.
 - Imported data source defaults are L1/L2. Any L3/L4 elevation must be explicit, evidence-backed, and audited.
 - Logs must not include sensitive fields, API keys, or large raw content.
-- Rule expressions cannot execute arbitrary code.
-- AI output cannot bypass permissions, classification, masking, or rule guardrails.
+- `governance_rules.json` writes go through schema validation; the API never executes user-supplied code or expressions.
+- AI output cannot bypass permissions, classification, masking, or `governance_rules.json` threshold checks.
 
 ## Acceptance Tests
 
@@ -183,11 +182,11 @@ P0 end-to-end cases:
 - HTML file ingestion: `model_version = MinerU-HTML` auto-selected; parse succeeds and images stored alongside JSON.
 - Image/scanned PDF ingestion: `ocr_enable = true` auto-set; parse succeeds.
 - D1 crawler JSON batch: `ingest_validate` passes → `assetize` (Pipeline B, no MinerU) → `normalized_record` with full `normalized_asset_ref` fields → queryable and searchable.
-- High-confidence AI + clean rules → `available`.
-- AI/rule conflict → `review_required` with evidence and conflict reason in `governance_result.decision_trail`.
+- High-confidence AI + quality pass → `available`.
+- Low-confidence AI or quality below threshold → `review_required`, with reason recorded in `governance_result.decision_trail`.
 - Tag generation: high-confidence tags auto-committed with audit log; low-confidence tags appear in review queue.
 - Same `source_object_key` + different content re-ingested → new `asset_version`, old `available` archived; `AssetVersionArchived` audit event written.
-- Rule save-to-activate and re-governance → updated `governance_result.decision_trail`, index marked stale if needed.
+- Rule edit (`config/governance_rules.json`) and re-governance → updated `governance_result.decision_trail`, index marked stale if needed.
 - Unauthorized caller cannot retrieve L3/L4 exception content.
 - QA response includes source citations with `normalized_ref_id` and image_uri references where applicable.
 - Reprocess creates new job/version → `available` or `review_required`.

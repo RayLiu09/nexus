@@ -1,0 +1,11 @@
+node_modules
+.next
+.turbo
+dist
+build
+out
+coverage
+package-lock.json
+*.min.js
+*.min.css
+public

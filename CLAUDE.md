@@ -46,7 +46,8 @@ P0 is the smallest usable loop: data source → raw object → ingest_validate �
 - Parsing (Pipeline A only): `parse_artifact`.
 - Standardization: `normalized_asset_ref` (with full governance/quality/lineage/source_type/content_type/title/language fields), `normalized_document`, `normalized_record`.
 - AI governance: `ai_prompt_profile`, `ai_governance_run`.
-- Rules and governance result: `governance_rule_set`, `governance_rule`, `governance_result` (includes embedded `quality_summary` and `decision_trail`).
+- Governance rules (file-based): `config/governance_rules.json` — the single source of truth for business rules (classifications, levels, tags, quality scoring, knowledge types), maintained by business experts via console, protected by schema validation + ETag optimistic lock + fcntl write lock.
+- Governance result: `governance_result` (includes embedded `quality_summary` and `decision_trail`; records `rules_schema_version` + `rules_content_hash` as snapshot evidence).
 - Knowledge and index: `knowledge_chunk` (with `normalized_ref_id`), `index_manifest`.
 - Jobs and audit: `job`, `job_stage`, `audit_log`.
 
@@ -97,7 +98,7 @@ Only one `available` version may exist for the same asset at a time. Current ver
 - Use `uv` for Python dependency management. Prefer `pyproject.toml` and `uv.lock`.
 - Use React + Next.js + TypeScript for console work.
 - Use PostgreSQL for master data and P0 job queue, MinIO for object storage, MinerU for parsing, RAGFlow for chunking/index/search execution. The P0 job queue must use row-level claim locking, lock lease/heartbeat, retry/backoff, and dead-letter states.
-- Rules should be table-driven with a restricted JSON expression or JSONLogic-style subset. Never execute arbitrary user-supplied code.
+- Business governance rules (classifications, levels, tags, quality scoring, knowledge types) are stored exclusively in `config/governance_rules.json`. This file is the single source of truth for AI governance decisions. Console edits must pass Pydantic schema validation, ETag optimistic locking (to prevent lost updates), and fcntl exclusive file lock (to guarantee atomic writes). Never execute arbitrary user-supplied code or expressions.
 - All mutating API and job operations need idempotency strategy, audit events, and trace IDs.
 - Logs must not contain sensitive fields, API keys, raw L3/L4 content, or large document bodies.
 - Any code that changes governance, permission, Prompt, rule, version status, API key, or AI adoption state must write audit logs.

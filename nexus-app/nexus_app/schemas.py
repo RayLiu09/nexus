@@ -442,4 +442,23 @@ class AIGovernanceRunRead(ORMModel):
     created_by: str | None
     trace_id: str | None
     created_at: datetime
+
+
+class GovernanceResultRead(ORMModel):
+    id: str
+    normalized_ref_id: str
+    ai_run_id: str | None
+    classification: str | None
+    level: str | None
+    tags: list[str]
+    org_scope: str | None
+    index_admission: bool
+    quality_summary: dict[str, Any] | None
+    decision_trail: list[dict[str, Any]]
+    rules_schema_version: str | None
+    rules_content_hash: str | None
+    status: str
+    created_by: str | None
+    trace_id: str | None
+    created_at: datetime
     updated_at: datetime

@@ -66,6 +66,7 @@ export type DataSource = {
   owner_user_id: string | null;
   org_scope_hint: string[];
   default_governance_hints: Record<string, unknown>;
+  connection_config: Record<string, unknown> | null;
   description: string | null;
   created_at: string;
   updated_at: string;
@@ -240,33 +241,33 @@ export async function getApiData<T>(path: string, fallback: T): Promise<ApiResul
       data: envelope.data,
       ok: true,
       error: null,
-      traceId: envelope.meta?.trace_id ?? null
+      traceId: envelope.meta?.trace_id ?? null,
     };
   } catch (error) {
     return {
       data: fallback,
       ok: false,
       error: error instanceof Error ? error.message : String(error),
-      traceId: error instanceof NexusApiError ? error.traceId : null
+      traceId: error instanceof NexusApiError ? error.traceId : null,
     };
   }
 }
 
 export async function postApiData<T>(
   path: string,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
 ): Promise<ApiEnvelope<T>> {
   return requestApi<T>(path, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
 }
 
 async function requestApi<T>(path: string, init: RequestInit): Promise<ApiEnvelope<T>> {
   const response = await fetch(`${apiBaseUrl()}${path}`, {
     ...init,
-    cache: "no-store"
+    cache: "no-store",
   });
   const raw = await response.text();
   const parsed = raw ? JSON.parse(raw) : {};
@@ -294,7 +295,7 @@ export function formatDateTime(value: string | null | undefined) {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false
+    hour12: false,
   });
 }
 

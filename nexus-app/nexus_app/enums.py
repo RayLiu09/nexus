@@ -68,6 +68,7 @@ class StageStatus(StrEnum):
     RUNNING   = "running"
     SUCCEEDED = "succeeded"
     FAILED    = "failed"
+    SKIPPED   = "skipped"
 
 
 class ParseArtifactStatus(StrEnum):
@@ -124,9 +125,15 @@ class AIAdoptionStatus(StrEnum):
     OVERRIDDEN        = "overridden"
 
 
-class RuleSetStatus(StrEnum):
-    ACTIVE   = "active"
-    DISABLED = "disabled"
+class GovernanceResultStatus(StrEnum):
+    AVAILABLE       = "available"
+    REVIEW_REQUIRED = "review_required"
+
+
+class IndexManifestStatus(StrEnum):
+    PENDING = "pending"
+    INDEXED = "indexed"
+    FAILED  = "failed"
 
 
 class PromptProfileStatus(StrEnum):
@@ -176,3 +183,51 @@ class AuditEventType(StrEnum):
     ASSET_VERSION_ACCESSED          = "AssetVersionAccessed"
     SEARCH_QUERY_EXECUTED           = "SearchQueryExecuted"
     QA_ANSWER_GENERATED             = "QAAnswerGenerated"
+    # Governance rules and results (Week 4)
+    GOVERNANCE_RULES_UPDATED            = "GovernanceRulesUpdated"
+    GOVERNANCE_RESULT_CREATED       = "GovernanceResultCreated"
+    VERSION_STATUS_TRANSITIONED     = "VersionStatusTransitioned"
+    INDEX_MANIFEST_CREATED          = "IndexManifestCreated"
+    # Knowledge Pipeline (Week 4 - TP-W4-05A)
+    KNOWLEDGE_EMISSIONS_INFERRED    = "KnowledgeEmissionsInferred"
+    KNOWLEDGE_CHUNKS_CREATED        = "KnowledgeChunksCreated"
+    KNOWLEDGE_CHUNKS_INDEXED        = "KnowledgeChunksIndexed"
+
+
+class ChunkingMode(StrEnum):
+    PASSTHROUGH_TO_RAGFLOW = "passthrough_to_ragflow"
+    NEXUS_EXTRACT          = "nexus_extract"
+
+
+class ChunkType(StrEnum):
+    PASSTHROUGH_DESCRIPTOR = "passthrough_descriptor"
+    STRUCTURED_FIELD       = "structured_field"
+    QA_PAIR                = "qa_pair"
+    PROCESS_STEP           = "process_step"
+    INDICATOR              = "indicator"
+    CASE_SECTION           = "case_section"
+    GRAPH_NODE             = "graph_node"
+    TAG                    = "tag"
+
+
+class ChunkingStrategy(StrEnum):
+    PASSTHROUGH_TO_RAGFLOW = "passthrough_to_ragflow"
+    STRUCTURED_DECOMPOSE   = "structured_decompose"
+    QA_EXTRACT             = "qa_extract"
+    PROCESS_STEP_EXTRACT   = "process_step_extract"
+    INDICATOR_DECOMPOSE    = "indicator_decompose"
+    CASE_DECOMPOSE         = "case_decompose"
+    GRAPH_EXTRACT          = "graph_extract"
+    TAG_DECOMPOSE          = "tag_decompose"
+
+
+class SourceKind(StrEnum):
+    EXTRACTED_FROM_NORMALIZED = "extracted_from_normalized"
+    COAUTHORED_WITH_TEMPLATE  = "coauthored_with_template"
+    MANUALLY_AUTHORED         = "manually_authored"
+
+
+class EmbeddingStatus(StrEnum):
+    PENDING  = "pending"
+    EMBEDDED = "embedded"
+    FAILED   = "failed"
