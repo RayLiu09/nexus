@@ -1,21 +1,21 @@
 import type { ReactNode } from "react";
 
 type PageHeaderProps = {
-  /** NX prototype ID (e.g. "NX-01") */
-  prototypeId: string;
-  /** Page title */
+  eyebrow?: string;
+  /** @deprecated Use eyebrow instead */
+  prototypeId?: string;
   title: string;
-  /** Page description / summary */
   description?: string;
-  /** Primary action slot (button, link, etc.) */
   actions?: ReactNode;
 };
 
-export function PageHeader({ prototypeId, title, description, actions }: PageHeaderProps) {
+export function PageHeader({ eyebrow, prototypeId, title, description, actions }: PageHeaderProps) {
+  const badge = eyebrow ?? prototypeId;
+
   return (
     <div className="page-header">
       <div className="page-header-left">
-        <span className="page-header-badge">{prototypeId}</span>
+        {badge && <span className="page-header-badge">{badge}</span>}
         <h1>{title}</h1>
         {description && <p>{description}</p>}
       </div>

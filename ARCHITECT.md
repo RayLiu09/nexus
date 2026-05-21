@@ -141,7 +141,8 @@ Produces: `normalized_asset_ref(type=record)`.
 - Parsing: `parse_artifact` (Pipeline A only).
 - Standardization: `normalized_asset_ref`, `normalized_document`, `normalized_record`.
 - AI governance: `ai_prompt_profile`, `ai_governance_run`.
-- Rules and governance result: `governance_rule_set`, `governance_rule`, `governance_result` (embedded `quality_summary` + `decision_trail`).
+- Governance rules (file-based): `config/governance_rules.json` — single source of truth for business rules, maintained by business experts via console, protected by schema validation + ETag + fcntl write lock.
+- Governance result: `governance_result` (embedded `quality_summary` + `decision_trail`; records `rules_schema_version` + `rules_content_hash` as snapshot evidence).
 - Knowledge and index: `knowledge_chunk`, `index_manifest`.
 - Jobs and audit: `job`, `job_stage`, `audit_log`.
 
@@ -300,15 +301,17 @@ Single-node capacity (16 Core / 64 GB / 48 GB GPU):
 - NEXUS does not build `llm-gateway`; uses existing LiteLLM.
 - `ai_prompt_profile` is P0: save-to-activate, auto-increment version, old version archived. No draft state.
 - Governance input must be `normalized_document` or `normalized_record` (accessed via `normalized_asset_ref`). Raw files and raw JSON are not valid inputs.
-- AI output pipeline: schema validation → field whitelist → redaction policy → rule guardrails → confidence threshold → state-machine decision.
+- AI output pipeline: schema validation → field whitelist → redaction policy → `governance_rules.json` threshold checks (confidence_threshold_auto_adopt, quality pass/warning/fail, level requires_approval) → state-machine decision (available / review_required).
 - L3/L4 plain text must not reach external models unless using an approved private LiteLLM alias or explicit security exception.
 
 ## Rule Governance Architecture
 
-- P0: PostgreSQL config tables + restricted JSON expression evaluator.
-- Save-to-activate: rule set `version` auto-increments on each save. No draft state.
-- Rule types: classification inference, level override, tag suggestion/restriction, org scope inference, sensitive admission, quality admission, manual review trigger, index admission.
-- Conflict resolution (fixed, not configurable in P0): level → L4 > L3 > L2 > L1; classification/tag → highest-priority rule wins; org scope → narrower scope wins, irresolvable → `review_required`.
+- Business governance rules are stored exclusively in `config/governance_rules.json` (file-based, not DB tables).
+- AI is the primary governance executor: it receives the full rule context (classifications, levels, tags, quality scoring criteria) as structured prompt instructions and produces classification/level/tags + confidence + evidence.
+- Human review is triggered only when AI confidence falls below `quality_scoring.confidence_threshold_auto_adopt` or quality score falls below thresholds — this is the "low-confidence human review" mechanism.
+- Console provides a structured editor for business experts to maintain rules; writes are protected by Pydantic schema validation, ETag optimistic locking, and fcntl exclusive file lock.
+- Rule changes take effect immediately for future governance runs; already-governed assets are not retroactively affected unless explicitly re-governed.
+- State decision: confidence ≥ threshold AND quality ≥ pass AND no blocking items → `available`; otherwise → `review_required`.
 
 ## Technology Baseline
 

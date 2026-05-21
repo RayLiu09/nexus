@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from nexus_app.database import Base
@@ -12,8 +12,14 @@ from nexus_app.enums import (
     AuditEventType,
     AssetKind,
     AssetVersionStatus,
+    ChunkingMode,
+    ChunkingStrategy,
+    ChunkType,
     DataSourceStatus,
     DataSourceType,
+    EmbeddingStatus,
+    GovernanceResultStatus,
+    IndexManifestStatus,
     IngestBatchStatus,
     JobStatus,
     JobType,
@@ -24,6 +30,7 @@ from nexus_app.enums import (
     PrincipalStatus,
     PromptProfileStatus,
     RawObjectStatus,
+    SourceKind,
     StageStatus,
     UserRole,
 )
@@ -498,3 +505,116 @@ class AIGovernanceRun(TimestampMixin, Base):
 
     normalized_ref: Mapped[NormalizedAssetRef] = relationship()
     profile: Mapped[AIPromptProfile] = relationship()
+
+
+class GovernanceResult(TimestampMixin, Base):
+    """Official governance result for a normalized_asset_ref.
+
+    Records the governance_rules.json snapshot (schema_version + content_hash)
+    used at decision time, so historical results stay interpretable even after
+    rules are edited.
+    """
+    __tablename__ = "governance_result"
+    __table_args__ = (
+        Index("ix_governance_result_normalized_ref_id", "normalized_ref_id"),
+        Index("ix_governance_result_status", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("normalized_asset_ref.id"), nullable=False
+    )
+    ai_run_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("ai_governance_run.id"), nullable=True
+    )
+    classification: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    level: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    org_scope: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    index_admission: Mapped[bool] = mapped_column(nullable=False, default=False)
+    quality_summary: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True,
+        comment="Embedded QualitySummary payload from AI governance run")
+    decision_trail: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list,
+        nullable=False, comment="List of DecisionTrail entries")
+    rules_schema_version: Mapped[str | None] = mapped_column(String(32), nullable=True,
+        comment="schema_version of governance_rules.json at decision time")
+    rules_content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True,
+        comment="sha256 of governance_rules.json content at decision time")
+    status: Mapped[GovernanceResultStatus] = mapped_column(
+        Enum(GovernanceResultStatus, values_callable=lambda e: [i.value for i in e]),
+        nullable=False, default=GovernanceResultStatus.REVIEW_REQUIRED,
+    )
+    created_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+    ai_run: Mapped[AIGovernanceRun | None] = relationship()
+
+
+class IndexManifest(TimestampMixin, Base):
+    """RAGFlow index manifest for a normalized_asset_ref."""
+    __tablename__ = "index_manifest"
+    __table_args__ = (
+        Index("ix_index_manifest_normalized_ref_id", "normalized_ref_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("normalized_asset_ref.id"), nullable=False
+    )
+    index_status: Mapped[IndexManifestStatus] = mapped_column(
+        Enum(IndexManifestStatus, values_callable=lambda e: [i.value for i in e]),
+        nullable=False, default=IndexManifestStatus.PENDING,
+    )
+    ragflow_kb_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    ragflow_doc_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    chunk_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    indexed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+
+
+class KnowledgeChunk(TimestampMixin, Base):
+    """Knowledge unit produced by Knowledge Pipeline from a normalized_asset_ref."""
+    __tablename__ = "knowledge_chunk"
+    __table_args__ = (
+        Index("ix_knowledge_chunk_ref_type", "normalized_ref_id", "knowledge_type_code"),
+        Index("ix_knowledge_chunk_type_created", "knowledge_type_code", "created_at"),
+        Index("ix_knowledge_chunk_ragflow_doc", "ragflow_doc_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("normalized_asset_ref.id"), nullable=False
+    )
+    knowledge_type_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    chunk_type: Mapped[ChunkType] = mapped_column(
+        Enum(ChunkType, values_callable=lambda e: [i.value for i in e]),
+        nullable=False,
+    )
+    chunking_strategy: Mapped[ChunkingStrategy] = mapped_column(
+        Enum(ChunkingStrategy, values_callable=lambda e: [i.value for i in e]),
+        nullable=False,
+    )
+    source_kind: Mapped[SourceKind] = mapped_column(
+        Enum(SourceKind, values_callable=lambda e: [i.value for i in e]),
+        nullable=False, default=SourceKind.EXTRACTED_FROM_NORMALIZED,
+    )
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    chunk_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSON, default=dict, nullable=False
+    )
+    co_emission_origin: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    ragflow_chunk_method: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    ragflow_doc_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    ragflow_chunk_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    embedding_status: Mapped[EmbeddingStatus] = mapped_column(
+        Enum(EmbeddingStatus, values_callable=lambda e: [i.value for i in e]),
+        nullable=False, default=EmbeddingStatus.PENDING,
+    )
+
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()

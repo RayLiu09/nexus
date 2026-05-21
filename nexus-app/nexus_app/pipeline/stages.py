@@ -460,3 +460,296 @@ def _persist_normalized_ref(
     )
     return ref
 
+
+# ---------------------------------------------------------------------------
+# Governance Decision — runs after normalize for both pipelines
+# ---------------------------------------------------------------------------
+
+def run_governance_decision(
+    ctx: PipelineContext,
+    version: models.DocumentVersion,
+    normalized_ref: models.NormalizedAssetRef,
+) -> models.GovernanceResult | None:
+    """Stage 4 (both pipelines): AI governance + decision + version status transition.
+
+    Returns None if no active prompt profile is configured (governance skipped).
+    """
+    from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
+    from nexus_app.ai_governance.services import AIGovernanceService
+    from nexus_app.governance.decision_service import GovernanceDecisionService
+    from nexus_app.metadata.version_state import VersionStateManager
+
+    registry = GovernanceRulesRegistry()
+    try:
+        registry.load()
+    except Exception as exc:
+        logger.warning("Governance rules not available, skipping decision: %s", exc)
+        _add_stage(ctx, "governance_decision", StageStatus.SKIPPED,
+                   {"reason": f"rules not available: {exc}"})
+        return None
+
+    profile = _find_active_governance_profile(ctx.session)
+    if profile is None:
+        logger.info("No active governance prompt profile, skipping AI governance")
+        _add_stage(ctx, "governance_decision", StageStatus.SKIPPED,
+                   {"reason": "no active governance prompt profile"})
+        return None
+
+    ai_svc = AIGovernanceService()
+    ai_run = ai_svc.run_governance(
+        ctx.session,
+        normalized_ref_id=normalized_ref.id,
+        profile_id=profile.id,
+        registry=registry,
+    )
+
+    if ai_run.ai_output is None:
+        logger.warning("AI governance run %s produced no output", ai_run.id)
+        _add_stage(ctx, "governance_decision", StageStatus.FAILED,
+                   {"ai_run_id": ai_run.id, "reason": "no ai_output"},
+                   failure_reason=ai_run.validation_error)
+        return None
+
+    decision_svc = GovernanceDecisionService(registry)
+    result = decision_svc.execute_governance(ctx.session, ai_run)
+
+    state_mgr = VersionStateManager()
+    target_status = state_mgr.determine_version_status(ctx.session, result)
+
+    if target_status == AssetVersionStatus.AVAILABLE:
+        state_mgr.transition_to_available(ctx.session, version, result)
+    else:
+        state_mgr.transition_to_review_required(ctx.session, version, result)
+
+    _add_stage(
+        ctx,
+        "governance_decision",
+        StageStatus.SUCCEEDED,
+        {
+            "ai_run_id": ai_run.id,
+            "governance_result_id": result.id,
+            "status": result.status.value,
+            "version_status": version.version_status.value,
+        },
+    )
+    return result
+
+
+def _find_active_governance_profile(
+    session: "Session",
+) -> models.AIPromptProfile | None:
+    """Find the active prompt profile for governance task type."""
+    from sqlalchemy import select
+    from nexus_app.enums import PromptProfileStatus
+
+    return session.scalars(
+        select(models.AIPromptProfile)
+        .where(
+            models.AIPromptProfile.task_type == "governance",
+            models.AIPromptProfile.status == PromptProfileStatus.ACTIVE,
+        )
+        .limit(1)
+    ).first()
+
+
+# ---------------------------------------------------------------------------
+# Knowledge Chunking — Pipeline 5a: only for available assets with emissions
+# ---------------------------------------------------------------------------
+
+def run_knowledge_chunking(
+    ctx: PipelineContext,
+    version: models.DocumentVersion,
+    normalized_ref: models.NormalizedAssetRef,
+) -> list[models.KnowledgeChunk]:
+    """Stage 5a: Generate KnowledgeChunk records via Knowledge Pipeline.
+
+    Skipped when:
+    - version.version_status != available (only RAG-eligible assets)
+    - normalized_ref.metadata_summary.knowledge_emissions is missing/empty
+    """
+    if version.version_status != AssetVersionStatus.AVAILABLE:
+        _add_stage(ctx, "knowledge_chunking", StageStatus.SKIPPED,
+                   {"reason": f"version not available (status={version.version_status.value})"})
+        return []
+
+    emissions = (normalized_ref.metadata_summary or {}).get("knowledge_emissions", [])
+    if not emissions:
+        _add_stage(ctx, "knowledge_chunking", StageStatus.SKIPPED,
+                   {"reason": "no knowledge_emissions on normalized_ref"})
+        return []
+
+    from nexus_app.knowledge.services import run_knowledge_pipeline
+
+    content = _load_normalized_content(ctx, normalized_ref)
+    chunks = run_knowledge_pipeline(content, emissions, normalized_ref.id)
+    for chunk in chunks:
+        ctx.session.add(chunk)
+    ctx.session.flush()
+
+    _add_stage(
+        ctx,
+        "knowledge_chunking",
+        StageStatus.SUCCEEDED,
+        {
+            "normalized_ref_id": normalized_ref.id,
+            "emission_count": len(emissions),
+            "chunk_count": len(chunks),
+        },
+    )
+    return chunks
+
+
+def _load_normalized_content(
+    ctx: PipelineContext,
+    normalized_ref: models.NormalizedAssetRef,
+) -> str:
+    """Read the normalized content payload from object storage."""
+    uri = normalized_ref.object_uri
+    key = uri.split("/", 3)[-1] if uri.startswith("s3://") else uri
+    raw = ctx.storage.get_bytes(key)
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return raw.decode("utf-8", errors="ignore")
+    return (
+        payload.get("body_markdown")
+        or json.dumps(payload.get("record_body", {}), ensure_ascii=False)
+        or ""
+    )
+
+
+# ---------------------------------------------------------------------------
+# Index Submit — Pipeline 5b: submit chunks to RAGFlow per emission
+# ---------------------------------------------------------------------------
+
+def run_index_submit(
+    ctx: PipelineContext,
+    version: models.DocumentVersion,
+    normalized_ref: models.NormalizedAssetRef,
+    chunks: list[models.KnowledgeChunk],
+) -> list[models.IndexManifest]:
+    """Stage 5b: Submit chunks to RAGFlow per knowledge type, persist IndexManifest.
+
+    Skipped when:
+    - chunks is empty (knowledge chunking was skipped or produced nothing)
+    - version is not available
+    """
+    if version.version_status != AssetVersionStatus.AVAILABLE:
+        _add_stage(ctx, "index_submit", StageStatus.SKIPPED,
+                   {"reason": f"version not available (status={version.version_status.value})"})
+        return []
+    if not chunks:
+        _add_stage(ctx, "index_submit", StageStatus.SKIPPED,
+                   {"reason": "no knowledge chunks to index"})
+        return []
+
+    from nexus_app.enums import IndexManifestStatus, ChunkType
+    from nexus_app.index.kb_registry import get_kb_registry
+    from nexus_app.index.ragflow_adapter import get_ragflow_adapter
+    from nexus_app.knowledge.config_loader import get_knowledge_type_config
+
+    adapter = get_ragflow_adapter(ctx.settings)
+    kb_registry = get_kb_registry()
+    normalized_content = _load_normalized_content(ctx, normalized_ref)
+    doc_name_base = (normalized_ref.title or normalized_ref.id)[:120]
+
+    chunks_by_kt: dict[str, list[models.KnowledgeChunk]] = {}
+    for chunk in chunks:
+        chunks_by_kt.setdefault(chunk.knowledge_type_code, []).append(chunk)
+
+    manifests: list[models.IndexManifest] = []
+    error_messages: list[str] = []
+
+    for kt_code, kt_chunks in chunks_by_kt.items():
+        try:
+            kt_config = get_knowledge_type_config(kt_code)
+            kb_id = kb_registry.ensure_kb(kt_code)
+            chunk_method = kt_config.ragflow.get("chunk_method", "naive")
+            parser_config = kt_config.ragflow.get("parser_config")
+
+            is_passthrough = any(
+                c.chunk_type == ChunkType.PASSTHROUGH_DESCRIPTOR for c in kt_chunks
+            )
+            doc_name = f"{doc_name_base}__{kt_code}"
+
+            if is_passthrough:
+                doc_result = adapter.create_document(
+                    kb_id=kb_id,
+                    doc_name=doc_name,
+                    content=normalized_content,
+                    chunk_method=chunk_method,
+                    parser_config=parser_config,
+                )
+                doc_id = doc_result["doc_id"]
+                indexed_chunk_count = len(kt_chunks)
+                for chunk in kt_chunks:
+                    chunk.ragflow_doc_id = doc_id
+                    metadata = dict(chunk.chunk_metadata or {})
+                    metadata["ragflow_doc_id"] = doc_id
+                    chunk.chunk_metadata = metadata
+            else:
+                doc_result = adapter.create_document(
+                    kb_id=kb_id,
+                    doc_name=doc_name,
+                    content=None,
+                    chunk_method=chunk_method,
+                    parser_config=parser_config,
+                )
+                doc_id = doc_result["doc_id"]
+                submit_result = adapter.submit_chunks(
+                    kb_id=kb_id,
+                    doc_id=doc_id,
+                    chunks=kt_chunks,
+                    chunk_method=chunk_method,
+                )
+                chunk_ids = submit_result.get("chunk_ids", [])
+                indexed_chunk_count = len(chunk_ids)
+                for idx, chunk in enumerate(kt_chunks):
+                    chunk.ragflow_doc_id = doc_id
+                    if idx < len(chunk_ids):
+                        chunk.ragflow_chunk_id = chunk_ids[idx]
+
+            manifest = models.IndexManifest(
+                normalized_ref_id=normalized_ref.id,
+                index_status=IndexManifestStatus.INDEXED,
+                ragflow_kb_id=kb_id,
+                ragflow_doc_id=doc_id,
+                chunk_count=indexed_chunk_count,
+                indexed_at=models.utcnow(),
+                trace_id=ctx.trace_id,
+            )
+            ctx.session.add(manifest)
+            ctx.session.flush()
+            manifests.append(manifest)
+
+        except Exception as exc:
+            err = f"index_submit failed for kt={kt_code}: {type(exc).__name__}: {exc}"
+            logger.warning(err)
+            error_messages.append(err)
+            manifest = models.IndexManifest(
+                normalized_ref_id=normalized_ref.id,
+                index_status=IndexManifestStatus.FAILED,
+                ragflow_kb_id=kb_registry.get_cached(kt_code),
+                chunk_count=0,
+                error_message=err[:1000],
+                trace_id=ctx.trace_id,
+            )
+            ctx.session.add(manifest)
+            ctx.session.flush()
+            manifests.append(manifest)
+
+    overall_status = StageStatus.SUCCEEDED if not error_messages else StageStatus.FAILED
+    _add_stage(
+        ctx,
+        "index_submit",
+        overall_status,
+        {
+            "normalized_ref_id": normalized_ref.id,
+            "knowledge_types": list(chunks_by_kt.keys()),
+            "manifest_count": len(manifests),
+            "errors": error_messages,
+        },
+        failure_reason="; ".join(error_messages)[:1000] if error_messages else None,
+    )
+    return manifests
+

@@ -1,13 +1,14 @@
-// ================================================================
-// NEXUS v3.2 Navigation — 4 functional groups with collapse support
-// ================================================================
-
-export type NavGroupId = "data-engineering" | "assets" | "governance" | "tools-system";
+export type NavGroupId =
+  | "overview"
+  | "data-engineering"
+  | "assets-governance"
+  | "access-audit"
+  | "personal";
 
 export type NavItem = {
   href: string;
   label: string;
-  icon: string; // emoji or icon identifier
+  icon: string;
   badge?: number | string;
   badgeTone?: "default" | "warning" | "danger";
 };
@@ -22,46 +23,48 @@ export type Navigation = NavGroup[];
 
 export const navigation: Navigation = [
   {
+    id: "overview",
+    label: "总览",
+    items: [{ href: "/workbench", label: "工作台", icon: "▦" }],
+  },
+  {
     id: "data-engineering",
     label: "数据工程",
     items: [
-      { href: "/workbench", label: "工作台", icon: "⊞" },
       { href: "/data-sources", label: "数据源管理", icon: "◎" },
-      { href: "/ingest", label: "数据接入", icon: "↥" },
-      { href: "/raw-ledger", label: "原始数据台账", icon: "☰" },
-      { href: "/jobs", label: "作业中心", icon: "⚙" }
-    ]
+      { href: "/ingest", label: "数据接入", icon: "⇪" },
+      { href: "/raw-ledger", label: "原始数据台账", icon: "▤" },
+      { href: "/jobs", label: "作业中心", icon: "◫" },
+    ],
   },
   {
-    id: "assets",
-    label: "资产",
+    id: "assets-governance",
+    label: "资产与治理",
     items: [
-      { href: "/assets", label: "资产目录", icon: "◈" },
-      { href: "/my-workspace", label: "我的工作区", icon: "♨" }
-    ]
+      { href: "/assets", label: "资产目录", icon: "▥" },
+      { href: "/governance", label: "治理中心", icon: "◈", badge: 19, badgeTone: "warning" },
+      { href: "/tag-review", label: "标签审核", icon: "#", badge: 12, badgeTone: "warning" },
+      { href: "/rules", label: "规则配置", icon: "≡" },
+      { href: "/ai-prompts", label: "AI Prompt", icon: "AI" },
+    ],
   },
   {
-    id: "governance",
-    label: "治理",
+    id: "access-audit",
+    label: "访问与审计",
     items: [
-      { href: "/governance", label: "治理中心", icon: "⛬" },
-      { href: "/rules", label: "规则配置", icon: "⚖" },
-      { href: "/ai-prompts", label: "AI Prompt 配置", icon: "✦" }
-    ]
+      { href: "/iam-audit", label: "权限与审计", icon: "⌘" },
+      { href: "/search", label: "检索验证", icon: "?" },
+    ],
   },
   {
-    id: "tools-system",
-    label: "工具 / 系统",
-    items: [
-      { href: "/iam-audit", label: "权限与审计", icon: "⊡" }
-    ]
-  }
+    id: "personal",
+    label: "个人工作",
+    items: [{ href: "/my-workspace", label: "我的工作区", icon: "◌" }],
+  },
 ];
 
-// -- Legacy flat list for backward compat (deprecated, use navigation) --
 export const navItems: NavItem[] = navigation.flatMap((g) => g.items);
 
-// -- Derive active group from pathname --
 export function getActiveGroup(pathname: string): NavGroupId | null {
   for (const group of navigation) {
     if (group.items.some((item) => pathname.startsWith(item.href))) {
@@ -69,4 +72,19 @@ export function getActiveGroup(pathname: string): NavGroupId | null {
     }
   }
   return null;
+}
+
+export function getBreadcrumb(pathname: string): { label: string; href?: string }[] {
+  const crumbs: { label: string; href?: string }[] = [{ label: "NEXUS 控制台" }];
+
+  for (const group of navigation) {
+    for (const item of group.items) {
+      if (pathname === item.href || pathname.startsWith(item.href + "/")) {
+        crumbs.push({ label: item.label, href: item.href });
+        break;
+      }
+    }
+  }
+
+  return crumbs;
 }

@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
@@ -6,7 +7,7 @@ from sqlalchemy.orm import Session
 from nexus_api import schemas
 from nexus_api.responses import list_response, response
 from nexus_app import models, pipeline, schemas as domain_schemas, services
-from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
+from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry, RulesEtagMismatchError
 from nexus_app.ai_governance.services import (
     AIGovernanceError,
     AIGovernanceService,
@@ -587,31 +588,86 @@ def get_governance_run_quality_summary(
 # Admin: governance rules hot-reload
 # ---------------------------------------------------------------------------
 
-@router.get("/admin/governance-rules", response_model=schemas.ApiResponse[dict])
+@router.get("/admin/governance-rules")
 def get_governance_rules(request: Request):
     try:
         raw = _rules_registry.get_raw()
+        etag = _rules_registry.get_etag()
     except Exception as exc:
         raise HTTPException(status_code=500,
                             detail=f"Failed to read governance rules: {exc}") from exc
-    return response(raw, request)
+    body = schemas.ApiResponse(
+        data=raw,
+        meta=schemas.ResponseMeta(trace_id=str(getattr(request.state, "trace_id", ""))),
+    ).model_dump()
+    return JSONResponse(content=body, headers={"ETag": etag})
 
 
 @router.put("/admin/governance-rules", response_model=schemas.ApiResponse[dict])
-def update_governance_rules(payload: dict, request: Request):
-    """Validate, persist, and immediately hot-reload governance_rules.json."""
+def update_governance_rules(
+    payload: dict,
+    request: Request,
+    if_match: str | None = Header(None, alias="If-Match"),
+    session: Session = Depends(get_db),
+):
+    """Validate, persist (with file lock), and immediately hot-reload governance_rules.json."""
+    if if_match is None:
+        raise HTTPException(
+            status_code=428,
+            detail="If-Match header is required to prevent lost updates",
+        )
+    before_etag = if_match
     try:
-        config = _rules_registry.save_and_reload(payload)
+        config = _rules_registry.save_and_reload(payload, expected_etag=if_match)
+    except RulesEtagMismatchError as exc:
+        current_raw = _rules_registry.get_raw()
+        return JSONResponse(
+            status_code=409,
+            content={
+                "detail": "governance_rules.json has been modified by another editor",
+                "current_etag": exc.current_etag,
+                "current_rules": current_raw,
+            },
+            headers={"ETag": exc.current_etag},
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500,
                             detail=f"Failed to save governance rules: {exc}") from exc
-    return response({"schema_version": config.schema_version,
-                     "classifications": len(config.classifications),
-                     "levels": len(config.levels),
-                     "tags": len(config.tags),
-                     "quality_dimensions": len(config.quality_scoring.dimensions)}, request)
+    new_etag = _rules_registry.get_etag()
+
+    from nexus_app.audit import write_audit
+    from nexus_app.enums import AuditEventType
+    trace_id = str(getattr(request.state, "trace_id", ""))
+    write_audit(
+        session,
+        AuditEventType.GOVERNANCE_RULES_UPDATED,
+        target_type="governance_rules",
+        target_id="governance_rules.json",
+        trace_id=trace_id,
+        summary={
+            "before_etag": before_etag,
+            "after_etag": new_etag,
+            "schema_version": config.schema_version,
+            "classifications": len(config.classifications),
+            "levels": len(config.levels),
+            "tags": len(config.tags),
+        },
+    )
+    session.commit()
+
+    body = schemas.ApiResponse(
+        data={
+            "schema_version": config.schema_version,
+            "classifications": len(config.classifications),
+            "levels": len(config.levels),
+            "tags": len(config.tags),
+            "quality_dimensions": len(config.quality_scoring.dimensions),
+        },
+        meta=schemas.ResponseMeta(trace_id=trace_id),
+    ).model_dump()
+    return JSONResponse(content=body, headers={"ETag": new_etag})
 
 
 @router.post("/admin/governance-rules/reload", response_model=schemas.ApiResponse[dict])
@@ -625,3 +681,110 @@ def reload_governance_rules(request: Request):
                      "classifications": len(config.classifications),
                      "levels": len(config.levels),
                      "tags": len(config.tags)}, request)
+
+
+# ---------------------------------------------------------------------------
+# Governance Results endpoints
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/governance-results/{result_id}",
+    response_model=schemas.ApiResponse[domain_schemas.GovernanceResultRead],
+)
+def get_governance_result(
+    result_id: str, request: Request, session: Session = Depends(get_db)
+):
+    result = session.get(models.GovernanceResult, result_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"GovernanceResult '{result_id}' not found")
+    return response(domain_schemas.GovernanceResultRead.model_validate(result), request)
+
+
+@router.get(
+    "/normalized-refs/{ref_id}/governance-result",
+    response_model=schemas.ApiResponse[domain_schemas.GovernanceResultRead],
+)
+def get_governance_result_for_ref(
+    ref_id: str, request: Request, session: Session = Depends(get_db)
+):
+    result = session.scalars(
+        select(models.GovernanceResult)
+        .where(models.GovernanceResult.normalized_ref_id == ref_id)
+        .order_by(models.GovernanceResult.created_at.desc())
+        .limit(1)
+    ).first()
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No governance result found for normalized_ref '{ref_id}'",
+        )
+    return response(domain_schemas.GovernanceResultRead.model_validate(result), request)
+
+
+# ---------------------------------------------------------------------------
+# Search & QA endpoints (RAGFlow-backed)
+# ---------------------------------------------------------------------------
+
+@router.get("/search")
+def search_knowledge(
+    q: str,
+    request: Request,
+    kb: str | None = None,
+    top_k: int = 10,
+    similarity_threshold: float = 0.7,
+):
+    """Search indexed knowledge base via RAGFlow.
+
+    Args:
+        q: Search query
+        kb: Knowledge type code (e.g. 'textbook_kb'). If omitted, searches default KB.
+        top_k: Max results
+        similarity_threshold: Minimum similarity score
+    """
+    from nexus_app.index.kb_registry import get_kb_registry
+    from nexus_app.index.ragflow_adapter import get_ragflow_adapter
+
+    adapter = get_ragflow_adapter()
+    registry = get_kb_registry()
+
+    if kb:
+        kb_id = registry.ensure_kb(kb)
+    else:
+        kb_id = registry.ensure_kb("textbook_kb")
+
+    results = adapter.search(
+        kb_id=kb_id,
+        query=q,
+        top_k=top_k,
+        similarity_threshold=similarity_threshold,
+    )
+    return response({"query": q, "kb": kb, "results": results, "count": len(results)}, request)
+
+
+@router.get("/qa")
+def qa_knowledge(
+    q: str,
+    request: Request,
+    kb: str | None = None,
+    top_k: int = 5,
+):
+    """Question answering with source citations via RAGFlow.
+
+    Args:
+        q: Question
+        kb: Knowledge type code. If omitted, uses default KB.
+        top_k: Max source chunks to retrieve
+    """
+    from nexus_app.index.kb_registry import get_kb_registry
+    from nexus_app.index.ragflow_adapter import get_ragflow_adapter
+
+    adapter = get_ragflow_adapter()
+    registry = get_kb_registry()
+
+    if kb:
+        kb_id = registry.ensure_kb(kb)
+    else:
+        kb_id = registry.ensure_kb("textbook_kb")
+
+    result = adapter.qa(kb_id=kb_id, question=q, top_k=top_k)
+    return response({"question": q, "kb": kb, **result}, request)

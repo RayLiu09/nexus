@@ -25,6 +25,9 @@ from nexus_app.models import utcnow
 from nexus_app.pipeline.context import PipelineContext
 from nexus_app.pipeline.stages import (
     run_assetize,
+    run_governance_decision,
+    run_index_submit,
+    run_knowledge_chunking,
     run_normalize_document,
     run_normalize_record,
     run_parse,
@@ -136,19 +139,19 @@ def _mark_job_outcome(
 def _run_document_pipeline(
     ctx: PipelineContext,
     version: models.DocumentVersion,
-) -> None:
+) -> models.NormalizedAssetRef:
     """Pipeline A: parse (MinerU) → normalize_document."""
     artifact = run_parse(ctx, version)
-    run_normalize_document(ctx, version, artifact)
+    return run_normalize_document(ctx, version, artifact)
 
 
 def _run_record_pipeline(
     ctx: PipelineContext,
     version: models.DocumentVersion,
     raw_payload: dict[str, Any],
-) -> None:
+) -> models.NormalizedAssetRef:
     """Pipeline B: normalize_record (no parse stage)."""
-    run_normalize_record(ctx, version, raw_payload)
+    return run_normalize_record(ctx, version, raw_payload)
 
 
 def _load_record_payload(
@@ -292,9 +295,18 @@ def execute_job(
     # Stages 2+: pipeline-specific — failures are committed as failed state (no rollback)
     try:
         if pipeline_type == PipelineType.DOCUMENT:
-            _run_document_pipeline(ctx, version)
+            normalized_ref = _run_document_pipeline(ctx, version)
         else:
-            _run_record_pipeline(ctx, version, raw_payload)  # type: ignore[arg-type]
+            normalized_ref = _run_record_pipeline(ctx, version, raw_payload)  # type: ignore[arg-type]
+
+        # Stage 4: governance decision (optional — skipped if no profile/rules)
+        run_governance_decision(ctx, version, normalized_ref)
+
+        # Stage 5a: knowledge chunking (RAG knowledge base only — skipped otherwise)
+        chunks = run_knowledge_chunking(ctx, version, normalized_ref)
+
+        # Stage 5b: submit chunks to RAGFlow (skipped if no chunks or version not available)
+        run_index_submit(ctx, version, normalized_ref, chunks)
 
         batch.status = IngestBatchStatus.COMPLETED
         job.status = JobStatus.SUCCEEDED

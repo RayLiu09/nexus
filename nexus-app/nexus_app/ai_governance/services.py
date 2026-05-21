@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from nexus_app import models
 from nexus_app.ai_governance.input_builder import DefaultAIInputBuilder
+from nexus_app.ai_governance.knowledge_type_inference import infer_knowledge_emissions
 from nexus_app.ai_governance.litellm_client import (
     FakeLiteLLMClient,
     LiteLLMCallError,
@@ -303,6 +304,23 @@ class AIGovernanceService:
                 run.quality_summary = quality_summary.model_dump()
             except Exception as exc:
                 logger.warning("Quality scoring failed for run %s: %s", run.id, exc)
+
+            # Infer knowledge_emissions and write to normalized_asset_ref
+            try:
+                knowledge_emissions = infer_knowledge_emissions(
+                    run.ai_output or {}, ref_dict, registry
+                )
+                if knowledge_emissions:
+                    # Update normalized_asset_ref.metadata_summary.knowledge_emissions
+                    if ref.metadata_summary is None:
+                        ref.metadata_summary = {}
+                    ref.metadata_summary["knowledge_emissions"] = knowledge_emissions
+                    session.flush()
+                    logger.info(
+                        f"Inferred {len(knowledge_emissions)} knowledge_emissions for ref {normalized_ref_id}"
+                    )
+            except Exception as exc:
+                logger.warning("Knowledge type inference failed for run %s: %s", run.id, exc)
 
         _write_audit(session, AuditEventType.AI_GOVERNANCE_RUN_CREATED,
                      "ai_governance_run", run.id, user_id, trace_id,

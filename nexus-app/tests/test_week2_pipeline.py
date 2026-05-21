@@ -80,7 +80,10 @@ def test_file_ingest_to_document_asset_pipeline(session):
     assert refs[0].object_uri.startswith("s3://nexus-test-objects/normalized/")
 
     stages = pipeline.list_job_stages(session, accepted.job.id)
-    assert [s.stage_name for s in stages] == ["assetize", "parse", "normalize"]
+    assert [s.stage_name for s in stages] == [
+        "assetize", "parse", "normalize", "governance_decision",
+        "knowledge_chunking", "index_submit",
+    ]
 
 
 def test_crawler_package_ingest_to_normalized_record(session):

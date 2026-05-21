@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     mineru_timeout: int = 300
     ragflow_endpoint: str | None = None
     ragflow_api_key: str | None = None
+    ragflow_timeout: int = 60
+    ragflow_kb_name_prefix: str = "nexus-dev"
+    ragflow_kb_eager_preload: bool = False
+    ragflow_embedding_model: str = "BAAI/bge-large-zh-v1.5@BAAI"
     litellm_endpoint: str | None = None
     litellm_api_key: str | None = None
 

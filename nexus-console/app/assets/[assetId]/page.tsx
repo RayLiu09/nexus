@@ -29,28 +29,23 @@ export default async function AssetDetailPage({
 
   const asset = result.data?.asset;
   const latestVersion = result.data?.current_version ?? result.data?.versions[0] ?? null;
-  const latestRef =
-    result.data?.current_normalized_ref ?? result.data?.normalized_refs[0] ?? null;
+  const latestRef = result.data?.current_normalized_ref ?? result.data?.normalized_refs[0] ?? null;
   const relatedArtifact =
-    parseArtifacts.data.find(
-      (a) => a.document_version_id === latestVersion?.id
-    ) ??
-    parseArtifacts.data.find(
-      (a) => a.raw_object_id === latestVersion?.raw_object_id
-    );
+    parseArtifacts.data.find((a) => a.document_version_id === latestVersion?.id) ??
+    parseArtifacts.data.find((a) => a.raw_object_id === latestVersion?.raw_object_id);
 
   // Fetch AI governance runs for the latest normalized ref
   const governanceRuns = latestRef
     ? await getApiData<AIGovernanceRun[]>(
         `/v1/ai/governance-runs?normalized_ref_id=${latestRef.id}`,
-        []
+        [],
       )
     : { data: [], ok: true, error: null, traceId: null };
 
   return (
     <>
       <PageHeader
-        prototypeId="NX-07"
+        eyebrow="资产目录 — 详情与血缘"
         title={`资产详情 · ${asset?.title ?? shortId(assetId)}`}
         description="从资产版本追溯标准化引用、解析产物和原始对象，查看完整血缘链路。"
         actions={

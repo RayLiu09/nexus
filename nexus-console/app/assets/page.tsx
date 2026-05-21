@@ -1,23 +1,20 @@
-import { ApiState } from "@/components/ApiState";
 import { PageHeader } from "@/components/PageHeader";
-import { AssetsContent } from "@/components/AssetsContent";
-import { getApiData, type DocumentAsset } from "@/lib/api";
+import { AssetsContent } from "./_components/AssetsContent";
+import { getApiData } from "@/lib/api";
+import type { AssetWithMeta } from "./_lib/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function AssetsPage() {
-  const result = await getApiData<DocumentAsset[]>("/v1/assets", []);
+  const result = await getApiData<AssetWithMeta[]>("/v1/assets", []);
 
   return (
     <>
       <PageHeader
-        prototypeId="NX-06"
+        eyebrow="主数据与当前视图"
         title="资产目录"
-        description="展示由接入链路生成的资产、派生当前版本和标准化引用。支持卡片和列表双视图。"
+        description="目录页以「当前可读视图」服务运营和消费方，核心是 current version / current normalized ref / index state 的组合。"
       />
-
-      <ApiState ok={result.ok} error={result.error} traceId={result.traceId} />
-
       <AssetsContent assets={result.data} />
     </>
   );
