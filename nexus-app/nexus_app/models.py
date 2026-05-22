@@ -556,16 +556,28 @@ class GovernanceResult(TimestampMixin, Base):
 
 
 class IndexManifest(TimestampMixin, Base):
-    """RAGFlow index manifest for a normalized_asset_ref."""
+    """RAGFlow index manifest for a (normalized_asset_ref, knowledge_type_code) pair.
+
+    One ref can produce multiple manifests — one per emitted knowledge type —
+    because each knowledge type targets its own RAGFlow dataset (KB) with a
+    distinct chunk_method. The (normalized_ref_id, knowledge_type_code) pair is
+    unique among INDEXED manifests so retries don't double-write.
+    """
     __tablename__ = "index_manifest"
     __table_args__ = (
         Index("ix_index_manifest_normalized_ref_id", "normalized_ref_id"),
+        Index("ix_index_manifest_kt_code", "knowledge_type_code"),
+        UniqueConstraint(
+            "normalized_ref_id", "knowledge_type_code",
+            name="uq_index_manifest_ref_kt",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     normalized_ref_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("normalized_asset_ref.id"), nullable=False
     )
+    knowledge_type_code: Mapped[str] = mapped_column(String(64), nullable=False)
     index_status: Mapped[IndexManifestStatus] = mapped_column(
         Enum(IndexManifestStatus, values_callable=lambda e: [i.value for i in e]),
         nullable=False, default=IndexManifestStatus.PENDING,

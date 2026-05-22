@@ -69,6 +69,7 @@ class StageStatus(StrEnum):
     SUCCEEDED = "succeeded"
     FAILED    = "failed"
     SKIPPED   = "skipped"
+    PARTIAL   = "partial"
 
 
 class ParseArtifactStatus(StrEnum):
@@ -185,6 +186,7 @@ class AuditEventType(StrEnum):
     QA_ANSWER_GENERATED             = "QAAnswerGenerated"
     # Governance rules and results (Week 4)
     GOVERNANCE_RULES_UPDATED            = "GovernanceRulesUpdated"
+    GOVERNANCE_RULES_RECOMPUTE_REQUESTED = "GovernanceRulesRecomputeRequested"
     GOVERNANCE_RESULT_CREATED       = "GovernanceResultCreated"
     VERSION_STATUS_TRANSITIONED     = "VersionStatusTransitioned"
     INDEX_MANIFEST_CREATED          = "IndexManifestCreated"

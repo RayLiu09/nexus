@@ -546,6 +546,304 @@ class TestRagflowErrorHandling:
 # 6.6 — knowledge_emissions edge cases
 # ---------------------------------------------------------------------------
 
+class TestIndexSubmitPerKtIdempotency:
+    """1.5: per-kt manifest uniqueness lets a retry skip already-indexed kts
+    and only re-attempt the ones that failed."""
+
+    def test_resumes_only_failed_kts(self, session, make_ai_run, monkeypatch):
+        from nexus_app.pipeline import stages
+
+        _, version, ref = make_ai_run(ai_output={"classification": "D4",
+                                                 "level": "L1", "tags": [],
+                                                 "org_scope": "all",
+                                                 "confidence": 0.9})
+        version.version_status = AssetVersionStatus.AVAILABLE
+        session.flush()
+
+        # Seed an already-indexed manifest for textbook_kb
+        seeded = models.IndexManifest(
+            normalized_ref_id=ref.id,
+            knowledge_type_code="textbook_kb",
+            index_status=IndexManifestStatus.INDEXED,
+            ragflow_kb_id="kb-existing",
+            ragflow_doc_id="doc-existing",
+            chunk_count=3,
+            indexed_at=models.utcnow(),
+        )
+        session.add(seeded)
+        session.flush()
+
+        fake_adapter = FakeRAGFlowAdapter()
+        from nexus_app.index import ragflow_adapter as ra_mod
+        from nexus_app.index import kb_registry as kb_mod
+        monkeypatch.setattr(ra_mod, "get_ragflow_adapter", lambda settings=None: fake_adapter)
+        kb_mod._default_registry = KbRegistry(adapter=fake_adapter, settings=get_settings())
+        monkeypatch.setattr(stages, "_load_normalized_content",
+                            lambda ctx, ref: "content")
+
+        try:
+            chunks = [
+                models.KnowledgeChunk(
+                    normalized_ref_id=ref.id,
+                    knowledge_type_code="textbook_kb",
+                    chunk_type=ChunkType.PASSTHROUGH_DESCRIPTOR,
+                    chunking_strategy="passthrough_to_ragflow",
+                    chunk_index=0, content="x", chunk_metadata={},
+                ),
+            ]
+            for c in chunks:
+                session.add(c)
+            session.flush()
+
+            class _Ctx:
+                pass
+            ctx = _Ctx()
+            ctx.session = session
+            ctx.settings = get_settings()
+            ctx.storage = InMemoryObjectStorage()
+            ctx.trace_id = "trace-resume"
+            ctx.job = _existing_job_for_ref(session, ref.id)
+
+            manifests = stages.run_index_submit(ctx, version, ref, chunks)
+            assert len(manifests) == 1
+            # Manifest should be the seeded one — adapter must not have been
+            # called for the already-indexed kt.
+            assert manifests[0].id == seeded.id
+            assert len(fake_adapter._docs) == 0
+        finally:
+            reset_kb_registry()
+
+
+class TestRagflowDocIdempotency:
+    """2.1: a RAGFlow doc that already exists for (kb, doc_name) is reused
+    instead of duplicated when index_submit retries after a partial failure."""
+
+    def test_reuses_existing_doc(self, session, make_ai_run, monkeypatch):
+        from nexus_app.pipeline import stages
+
+        _, version, ref = make_ai_run(ai_output={"classification": "D4",
+                                                 "level": "L1", "tags": [],
+                                                 "org_scope": "all",
+                                                 "confidence": 0.9})
+        version.version_status = AssetVersionStatus.AVAILABLE
+        session.flush()
+
+        fake_adapter = FakeRAGFlowAdapter()
+        # Pre-seed the doc as if a previous attempt created it.
+        doc_name = f"{(ref.title or ref.id)[:120]}__textbook_kb"
+        fake_adapter.create_dataset(name="nexus-test-textbook_kb",
+                                     chunk_method="book")
+        kb_id = next(iter(fake_adapter._datasets.keys()))
+        fake_adapter.create_document(
+            kb_id=kb_id, doc_name=doc_name, content="x", chunk_method="book"
+        )
+        pre_existing_doc_id = next(iter(fake_adapter._docs.keys()))
+
+        from nexus_app.index import ragflow_adapter as ra_mod
+        from nexus_app.index import kb_registry as kb_mod
+        monkeypatch.setattr(ra_mod, "get_ragflow_adapter", lambda settings=None: fake_adapter)
+        # Force KbRegistry to map textbook_kb -> our pre-seeded kb_id
+        registry = KbRegistry(adapter=fake_adapter, settings=get_settings())
+        registry._cache["textbook_kb"] = kb_id
+        kb_mod._default_registry = registry
+        monkeypatch.setattr(stages, "_load_normalized_content",
+                            lambda ctx, ref: "synthetic")
+
+        try:
+            chunks = [
+                models.KnowledgeChunk(
+                    normalized_ref_id=ref.id,
+                    knowledge_type_code="textbook_kb",
+                    chunk_type=ChunkType.PASSTHROUGH_DESCRIPTOR,
+                    chunking_strategy="passthrough_to_ragflow",
+                    chunk_index=0, content="c", chunk_metadata={},
+                ),
+            ]
+            for c in chunks:
+                session.add(c)
+            session.flush()
+
+            class _Ctx:
+                pass
+            ctx = _Ctx()
+            ctx.session = session
+            ctx.settings = get_settings()
+            ctx.storage = InMemoryObjectStorage()
+            ctx.trace_id = "trace-idem"
+            ctx.job = _existing_job_for_ref(session, ref.id)
+
+            doc_count_before = len(fake_adapter._docs)
+            manifests = stages.run_index_submit(ctx, version, ref, chunks)
+
+            # No new doc should have been created.
+            assert len(fake_adapter._docs) == doc_count_before
+            assert manifests[0].ragflow_doc_id == pre_existing_doc_id
+            assert manifests[0].index_status == IndexManifestStatus.INDEXED
+        finally:
+            reset_kb_registry()
+
+
+class TestIndexSubmitPartialSuccess:
+    """2.2: when some kts succeed and others fail, the stage is PARTIAL
+    (not FAILED) so callers can distinguish from a total wipeout."""
+
+    def test_one_kt_succeeds_one_fails(self, session, make_ai_run, monkeypatch):
+        import httpx
+        from nexus_app.pipeline import stages
+
+        _, version, ref = make_ai_run(ai_output={"classification": "D4",
+                                                 "level": "L1", "tags": [],
+                                                 "org_scope": "all",
+                                                 "confidence": 0.9})
+        version.version_status = AssetVersionStatus.AVAILABLE
+        session.flush()
+
+        class _FlakyAdapter(FakeRAGFlowAdapter):
+            def __init__(self):
+                super().__init__()
+                self._call_count = 0
+
+            def create_document(self, *args, **kwargs):  # type: ignore[override]
+                self._call_count += 1
+                # First create succeeds, second fails
+                if self._call_count == 1:
+                    return super().create_document(*args, **kwargs)
+                raise httpx.ConnectError("simulated transient")
+
+        flaky = _FlakyAdapter()
+        from nexus_app.index import ragflow_adapter as ra_mod
+        from nexus_app.index import kb_registry as kb_mod
+        monkeypatch.setattr(ra_mod, "get_ragflow_adapter", lambda settings=None: flaky)
+        kb_mod._default_registry = KbRegistry(adapter=flaky, settings=get_settings())
+        monkeypatch.setattr(stages, "_load_normalized_content",
+                            lambda ctx, ref: "x")
+
+        try:
+            chunks = [
+                models.KnowledgeChunk(
+                    normalized_ref_id=ref.id,
+                    knowledge_type_code="textbook_kb",
+                    chunk_type=ChunkType.PASSTHROUGH_DESCRIPTOR,
+                    chunking_strategy="passthrough_to_ragflow",
+                    chunk_index=0, content="c1", chunk_metadata={},
+                ),
+                models.KnowledgeChunk(
+                    normalized_ref_id=ref.id,
+                    knowledge_type_code="qa_corpus",
+                    chunk_type=ChunkType.QA_PAIR,
+                    chunking_strategy="qa_extract",
+                    chunk_index=0, content="c2", chunk_metadata={},
+                ),
+            ]
+            for c in chunks:
+                session.add(c)
+            session.flush()
+
+            class _Ctx:
+                pass
+            ctx = _Ctx()
+            ctx.session = session
+            ctx.settings = get_settings()
+            ctx.storage = InMemoryObjectStorage()
+            ctx.trace_id = "trace-partial"
+            ctx.job = _existing_job_for_ref(session, ref.id)
+
+            manifests = stages.run_index_submit(ctx, version, ref, chunks)
+
+            statuses = sorted(m.index_status.value for m in manifests)
+            assert statuses == ["failed", "indexed"]
+
+            from nexus_app.enums import StageStatus
+            stage_row = session.scalars(
+                select(models.JobStage)
+                .where(
+                    models.JobStage.job_id == ctx.job.id,
+                    models.JobStage.stage_name == "index_submit",
+                )
+                .order_by(models.JobStage.created_at.desc())
+            ).first()
+            assert stage_row.status == StageStatus.PARTIAL
+            assert stage_row.detail["indexed_count"] == 1
+            assert stage_row.detail["failed_count"] == 1
+        finally:
+            reset_kb_registry()
+
+
+class TestAIGovernanceFailureRestartable:
+    """1.1: when AI run produces no output, version is marked FAILED and the
+    governance_decision stage records `restartable=True` for the restart API."""
+
+    def test_failed_ai_run_marks_version_failed_and_restartable(
+        self, session, make_ai_run, monkeypatch
+    ):
+        """Stub AIGovernanceService.run_governance to return a failed run object;
+        verify run_governance_decision flips the version to FAILED with restartable
+        detail (so the restart-governance API can accept it later)."""
+        from nexus_app.ai_governance import services as ai_services
+        from nexus_app.enums import (
+            AIGovernanceRunAdoptionStatus,
+            AIGovernanceRunValidationStatus,
+        )
+        from nexus_app.pipeline import stages
+
+        _, version, ref = make_ai_run(ai_output={"classification": "D4",
+                                                 "level": "L1", "tags": [],
+                                                 "org_scope": "all",
+                                                 "confidence": 0.9})
+
+        # Patch the rules registry that stages.run_governance_decision constructs.
+        # We don't need real rules — only AI run failure path matters here.
+        from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
+        monkeypatch.setattr(GovernanceRulesRegistry, "load", lambda self, path=None: None)
+
+        def _fake_run_governance(self, session_, normalized_ref_id, profile_id, **_):
+            run = models.AIGovernanceRun(
+                normalized_ref_id=normalized_ref_id,
+                profile_id=profile_id,
+                model_alias="fake",
+                prompt_version="v1",
+                input_hash="x",
+                input_summary={},
+                ai_output=None,
+                validation_status=AIGovernanceRunValidationStatus.FAILED,
+                adoption_status=AIGovernanceRunAdoptionStatus.REVIEW_REQUIRED,
+                validation_error="simulated LLM failure",
+            )
+            session_.add(run)
+            session_.flush()
+            return run
+
+        monkeypatch.setattr(
+            ai_services.AIGovernanceService, "run_governance", _fake_run_governance
+        )
+
+        class _Ctx:
+            pass
+        ctx = _Ctx()
+        ctx.session = session
+        ctx.settings = get_settings()
+        ctx.storage = InMemoryObjectStorage()
+        ctx.trace_id = "trace-aifail"
+        ctx.job = _existing_job_for_ref(session, ref.id)
+
+        result = stages.run_governance_decision(ctx, version, ref)
+        assert result is None
+        assert version.version_status == AssetVersionStatus.FAILED
+        assert version.failure_reason and "ai_governance_failed" in version.failure_reason
+
+        # Pick the latest governance_decision stage — fixture's earlier pipeline
+        # run already created an initial (SKIPPED) one before this test's call.
+        stage = session.scalars(
+            select(models.JobStage).where(
+                models.JobStage.job_id == ctx.job.id,
+                models.JobStage.stage_name == "governance_decision",
+            ).order_by(models.JobStage.created_at.desc())
+        ).first()
+        assert stage is not None
+        assert stage.status == StageStatus.FAILED
+        assert stage.detail.get("restartable") is True
+
+
 class TestKnowledgeEmissionsEdgeCases:
     """6.6: empty / missing / malformed metadata_summary handled safely."""
 

@@ -14,7 +14,9 @@ from nexus_app.ai_governance.knowledge_type_inference import infer_knowledge_emi
 from nexus_app.ai_governance.litellm_client import (
     FakeLiteLLMClient,
     LiteLLMCallError,
+    LiteLLMCallSummary,
     LiteLLMClientProtocol,
+    LiteLLMErrorType,
 )
 from nexus_app.ai_governance.output_validator import AIOutputValidator, PydanticOutputValidator
 from nexus_app.ai_governance.quality_scorer import QualityScoringService
@@ -28,6 +30,18 @@ from nexus_app.enums import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# Retry policy for transient LiteLLM failures. After exhausting retries the
+# AIGovernanceRun is marked FAILED and the version_status is set to FAILED so
+# the workbench can surface a manual restart action.
+_AI_CALL_MAX_RETRIES = 3
+_AI_CALL_RETRY_BACKOFF_SECONDS = (1.0, 2.0, 4.0)
+_AI_CALL_RETRIABLE_ERRORS = frozenset({
+    LiteLLMErrorType.TIMEOUT,
+    LiteLLMErrorType.RATE_LIMIT,
+    LiteLLMErrorType.SERVER_ERROR,
+})
 
 
 def _write_audit(
@@ -270,7 +284,8 @@ class AIGovernanceService:
 
         try:
             messages = self._build_messages(profile.prompt_template, built["payload"])
-            raw_output, call_summary = client.call(
+            raw_output, call_summary, attempts = self._call_llm_with_retry(
+                client,
                 profile.litellm_model_alias,
                 messages,
                 temperature=profile.temperature,
@@ -279,12 +294,24 @@ class AIGovernanceService:
             run.raw_output = raw_output
             run.call_latency_ms = call_summary.latency_ms
             run.request_id = call_summary.request_id
+            if attempts > 1:
+                logger.info(
+                    "LiteLLM call succeeded after %d attempts (run=%s)",
+                    attempts, run.id,
+                )
         except LiteLLMCallError as exc:
             run.validation_status = AIGovernanceRunValidationStatus.FAILED
             run.validation_error = str(exc)
+            error_type_value = exc.error_type.value if exc.error_type else "unknown"
             _write_audit(session, AuditEventType.AI_GOVERNANCE_RUN_FAILED,
                          "ai_governance_run", run.id, user_id, trace_id,
-                         {"error": str(exc), "normalized_ref_id": normalized_ref_id})
+                         {
+                             "error": str(exc),
+                             "error_type": error_type_value,
+                             "normalized_ref_id": normalized_ref_id,
+                             "max_retries": _AI_CALL_MAX_RETRIES,
+                             "retriable": exc.error_type in _AI_CALL_RETRIABLE_ERRORS,
+                         })
             return run
 
         ai_output_obj, error = validator.validate(run.raw_output or "")
@@ -305,22 +332,10 @@ class AIGovernanceService:
             except Exception as exc:
                 logger.warning("Quality scoring failed for run %s: %s", run.id, exc)
 
-            # Infer knowledge_emissions and write to normalized_asset_ref
-            try:
-                knowledge_emissions = infer_knowledge_emissions(
-                    run.ai_output or {}, ref_dict, registry
-                )
-                if knowledge_emissions:
-                    # Update normalized_asset_ref.metadata_summary.knowledge_emissions
-                    if ref.metadata_summary is None:
-                        ref.metadata_summary = {}
-                    ref.metadata_summary["knowledge_emissions"] = knowledge_emissions
-                    session.flush()
-                    logger.info(
-                        f"Inferred {len(knowledge_emissions)} knowledge_emissions for ref {normalized_ref_id}"
-                    )
-            except Exception as exc:
-                logger.warning("Knowledge type inference failed for run %s: %s", run.id, exc)
+            # knowledge_emissions is written separately via
+            # AIGovernanceService.write_knowledge_emissions(); the pipeline calls
+            # it explicitly after governance_decision so the write timing is
+            # part of the documented stage contract (see Review §1.4).
 
         _write_audit(session, AuditEventType.AI_GOVERNANCE_RUN_CREATED,
                      "ai_governance_run", run.id, user_id, trace_id,
@@ -360,6 +375,104 @@ class AIGovernanceService:
     ) -> dict[str, Any] | None:
         run = self.get_governance_run(session, run_id)
         return run.quality_summary
+
+    def write_knowledge_emissions(
+        self,
+        session: Session,
+        ai_run: models.AIGovernanceRun,
+        registry: GovernanceRulesRegistry,
+    ) -> list[dict[str, Any]]:
+        """Infer knowledge_emissions from an AI run and persist them on the
+        bound NormalizedAssetRef.
+
+        Idempotent: skips when ai_run has no validated output or when emissions
+        already exist on the ref. Returns the emissions list that was either
+        written or already present (empty list if nothing applies).
+        Errors are caught and logged — emissions are best-effort; callers should
+        not abort the pipeline if this returns an empty list.
+        """
+        if ai_run.ai_output is None:
+            return []
+        ref = session.get(models.NormalizedAssetRef, ai_run.normalized_ref_id)
+        if ref is None:
+            return []
+        existing = (ref.metadata_summary or {}).get("knowledge_emissions")
+        if existing:
+            return list(existing)
+        try:
+            ref_dict = self._build_ref_dict(ref)
+            emissions = infer_knowledge_emissions(
+                ai_run.ai_output or {}, ref_dict, registry
+            )
+            if not emissions:
+                return []
+            summary = dict(ref.metadata_summary or {})
+            summary["knowledge_emissions"] = emissions
+            ref.metadata_summary = summary
+            session.flush()
+            logger.info(
+                "Wrote %d knowledge_emissions for ref %s (run %s)",
+                len(emissions), ref.id, ai_run.id,
+            )
+            return emissions
+        except Exception as exc:
+            logger.warning(
+                "Knowledge type inference failed for run %s: %s", ai_run.id, exc
+            )
+            return []
+
+    @staticmethod
+    def _call_llm_with_retry(
+        client: LiteLLMClientProtocol,
+        model_alias: str,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float,
+        max_tokens: int,
+    ) -> tuple[str, LiteLLMCallSummary, int]:
+        """Call LiteLLM with exponential backoff for transient errors.
+
+        Retries on TIMEOUT / RATE_LIMIT / SERVER_ERROR up to _AI_CALL_MAX_RETRIES.
+        Non-retriable errors (INVALID_REQUEST, UNKNOWN) bubble up immediately.
+        Returns (raw_output, summary, total_attempts).
+        """
+        import time as _time
+
+        attempt = 0
+        last_exc: LiteLLMCallError | None = None
+        max_attempts = _AI_CALL_MAX_RETRIES + 1  # 1 initial + N retries
+        while attempt < max_attempts:
+            attempt += 1
+            try:
+                raw_output, summary = client.call(
+                    model_alias, messages,
+                    temperature=temperature, max_tokens=max_tokens,
+                )
+                return raw_output, summary, attempt
+            except LiteLLMCallError as exc:
+                last_exc = exc
+                if exc.error_type not in _AI_CALL_RETRIABLE_ERRORS:
+                    logger.info(
+                        "LiteLLM non-retriable error (%s), aborting after attempt %d",
+                        exc.error_type, attempt,
+                    )
+                    raise
+                if attempt >= max_attempts:
+                    logger.warning(
+                        "LiteLLM retries exhausted (%d attempts, error_type=%s)",
+                        attempt, exc.error_type,
+                    )
+                    raise
+                backoff_idx = min(attempt - 1, len(_AI_CALL_RETRY_BACKOFF_SECONDS) - 1)
+                delay = _AI_CALL_RETRY_BACKOFF_SECONDS[backoff_idx]
+                logger.warning(
+                    "LiteLLM call attempt %d failed (%s), retrying in %.1fs",
+                    attempt, exc.error_type, delay,
+                )
+                _time.sleep(delay)
+        # unreachable — loop either returns or raises
+        assert last_exc is not None
+        raise last_exc
 
     @staticmethod
     def _build_ref_dict(ref: models.NormalizedAssetRef) -> dict[str, Any]:

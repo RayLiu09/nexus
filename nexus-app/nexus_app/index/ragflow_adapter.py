@@ -44,6 +44,16 @@ class RAGFlowAdapterProtocol(Protocol):
         """
         ...
 
+    def find_document_by_name(
+        self, kb_id: str, doc_name: str
+    ) -> dict[str, Any] | None:
+        """Find a document in a KB by exact name match.
+
+        Returns:
+            {"doc_id": str, "name": str, "status": str} or None.
+        """
+        ...
+
     def create_document(
         self,
         kb_id: str,
@@ -158,6 +168,14 @@ class FakeRAGFlowAdapter:
         }
         logger.info(f"FakeRAGFlowAdapter: created dataset {kb_id} (name={name})")
         return {"id": kb_id, "name": name}
+
+    def find_document_by_name(
+        self, kb_id: str, doc_name: str
+    ) -> dict[str, Any] | None:
+        for doc_id, doc in self._docs.items():
+            if doc["kb_id"] == kb_id and doc["doc_name"] == doc_name:
+                return {"doc_id": doc_id, "name": doc_name, "status": doc["status"]}
+        return None
 
     def create_document(
         self,
@@ -345,6 +363,43 @@ class RealRAGFlowAdapter:
         except httpx.HTTPError as e:
             logger.error(f"RAGFlow create_dataset failed: {e}")
             raise
+
+    def find_document_by_name(
+        self, kb_id: str, doc_name: str
+    ) -> dict[str, Any] | None:
+        """Look up a doc in a KB by exact name (server filters by `keywords`,
+        which is a substring match — we compare names ourselves)."""
+        try:
+            response = self._client.get(
+                f"/api/v1/datasets/{kb_id}/documents",
+                params={"keywords": doc_name, "page_size": 50},
+            )
+            response.raise_for_status()
+            data = response.json()
+            if data.get("code") != 0:
+                logger.warning(
+                    "RAGFlow find_document_by_name non-zero code: %s", data
+                )
+                return None
+            for doc in (data.get("data", {}) or {}).get("docs", []) or []:
+                if doc.get("name") == doc_name:
+                    return {
+                        "doc_id": doc.get("id"),
+                        "name": doc.get("name"),
+                        "status": doc.get("run", "unknown"),
+                    }
+            # Some RAGFlow versions return the list directly under data
+            for doc in data.get("data") or []:
+                if isinstance(doc, dict) and doc.get("name") == doc_name:
+                    return {
+                        "doc_id": doc.get("id"),
+                        "name": doc.get("name"),
+                        "status": doc.get("run", "unknown"),
+                    }
+            return None
+        except httpx.HTTPError as e:
+            logger.warning("RAGFlow find_document_by_name failed: %s", e)
+            return None
 
     def create_document(
         self,

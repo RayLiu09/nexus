@@ -44,7 +44,10 @@ def _add_stage(
     """
     finished_at = models.utcnow()
     actual_start = started_at or finished_at
-    terminal = status in {StageStatus.SUCCEEDED, StageStatus.FAILED, StageStatus.SKIPPED}
+    terminal = status in {
+        StageStatus.SUCCEEDED, StageStatus.FAILED,
+        StageStatus.SKIPPED, StageStatus.PARTIAL,
+    }
     stage = models.JobStage(
         job_id=ctx.job.id,
         stage_name=stage_name,
@@ -535,14 +538,43 @@ def run_governance_decision(
 
     if ai_run.ai_output is None:
         logger.warning("AI governance run %s produced no output", ai_run.id)
+        # Surface AI failure on the version so the workbench can show a manual
+        # restart action; the job itself is left COMPLETED so the worker doesn't
+        # auto-retry indefinitely once retries are exhausted upstream.
+        version.version_status = AssetVersionStatus.FAILED
+        version.failure_reason = (
+            f"ai_governance_failed: {ai_run.validation_error or 'no ai_output'}"
+        )[:2000]
+        write_audit(
+            ctx.session,
+            AuditEventType.VERSION_STATUS_CHANGED,
+            "document_version", version.id, ctx.trace_id,
+            {
+                "from_status": AssetVersionStatus.PROCESSING.value,
+                "to_status": AssetVersionStatus.FAILED.value,
+                "reason": "ai_governance_failed",
+                "ai_run_id": ai_run.id,
+                "restartable": True,
+            },
+        )
         _add_stage(ctx, "governance_decision", StageStatus.FAILED,
-                   {"ai_run_id": ai_run.id, "reason": "no ai_output"},
+                   {
+                       "ai_run_id": ai_run.id,
+                       "reason": "no ai_output",
+                       "version_status": AssetVersionStatus.FAILED.value,
+                       "restartable": True,
+                   },
                    failure_reason=ai_run.validation_error,
                    started_at=started_at)
         return None
 
     decision_svc = GovernanceDecisionService(registry)
     result = decision_svc.execute_governance(ctx.session, ai_run)
+
+    # Explicit emissions write: materializes knowledge_emissions on the ref so
+    # downstream run_knowledge_chunking can find them. Best-effort; failures
+    # are logged but don't block the version state transition.
+    ai_svc.write_knowledge_emissions(ctx.session, ai_run, registry)
 
     state_mgr = VersionStateManager()
     target_status = state_mgr.determine_version_status(ctx.session, result)
@@ -703,25 +735,18 @@ def run_index_submit(
 
     from nexus_app.enums import IndexManifestStatus, ChunkType
 
-    # Idempotency: if there are already INDEXED manifests for this ref, skip.
-    existing_manifests = list(ctx.session.scalars(
-        select(models.IndexManifest).where(
-            models.IndexManifest.normalized_ref_id == normalized_ref.id,
-            models.IndexManifest.index_status == IndexManifestStatus.INDEXED,
-        )
-    ).all())
-    if existing_manifests:
-        _add_stage(
-            ctx,
-            "index_submit",
-            StageStatus.SKIPPED,
-            {
-                "reason": "index manifests already indexed (idempotent skip)",
-                "existing_manifest_count": len(existing_manifests),
-            },
-            started_at=started_at,
-        )
-        return existing_manifests
+    # Idempotency: load existing INDEXED manifests per knowledge_type so a
+    # partial-success retry only re-attempts the kts that previously failed.
+    existing_by_kt: dict[str, models.IndexManifest] = {
+        m.knowledge_type_code: m
+        for m in ctx.session.scalars(
+            select(models.IndexManifest).where(
+                models.IndexManifest.normalized_ref_id == normalized_ref.id,
+                models.IndexManifest.index_status == IndexManifestStatus.INDEXED,
+            )
+        ).all()
+    }
+
     from nexus_app.index.kb_registry import get_kb_registry
     from nexus_app.index.ragflow_adapter import get_ragflow_adapter
     from nexus_app.knowledge.config_loader import get_knowledge_type_config
@@ -739,6 +764,9 @@ def run_index_submit(
     error_messages: list[str] = []
 
     for kt_code, kt_chunks in chunks_by_kt.items():
+        if kt_code in existing_by_kt:
+            manifests.append(existing_by_kt[kt_code])
+            continue
         try:
             kt_config = get_knowledge_type_config(kt_code)
             kb_id = kb_registry.ensure_kb(kt_code)
@@ -750,15 +778,27 @@ def run_index_submit(
             )
             doc_name = f"{doc_name_base}__{kt_code}"
 
+            # RAGFlow side idempotency: if a previous attempt created the doc
+            # but failed before we could write the IndexManifest, reuse the
+            # existing doc_id rather than creating a duplicate.
+            existing_doc = adapter.find_document_by_name(kb_id, doc_name)
+
             if is_passthrough:
-                doc_result = adapter.create_document(
-                    kb_id=kb_id,
-                    doc_name=doc_name,
-                    content=normalized_content,
-                    chunk_method=chunk_method,
-                    parser_config=parser_config,
-                )
-                doc_id = doc_result["doc_id"]
+                if existing_doc is not None:
+                    doc_id = existing_doc["doc_id"]
+                    logger.info(
+                        "Reusing existing RAGFlow doc %s for kt=%s (idempotent)",
+                        doc_id, kt_code,
+                    )
+                else:
+                    doc_result = adapter.create_document(
+                        kb_id=kb_id,
+                        doc_name=doc_name,
+                        content=normalized_content,
+                        chunk_method=chunk_method,
+                        parser_config=parser_config,
+                    )
+                    doc_id = doc_result["doc_id"]
                 indexed_chunk_count = len(kt_chunks)
                 for chunk in kt_chunks:
                     chunk.ragflow_doc_id = doc_id
@@ -766,14 +806,22 @@ def run_index_submit(
                     metadata["ragflow_doc_id"] = doc_id
                     chunk.chunk_metadata = metadata
             else:
-                doc_result = adapter.create_document(
-                    kb_id=kb_id,
-                    doc_name=doc_name,
-                    content=None,
-                    chunk_method=chunk_method,
-                    parser_config=parser_config,
-                )
-                doc_id = doc_result["doc_id"]
+                if existing_doc is not None:
+                    doc_id = existing_doc["doc_id"]
+                    logger.info(
+                        "Reusing existing RAGFlow doc %s for kt=%s (idempotent)",
+                        doc_id, kt_code,
+                    )
+                    doc_result = {"doc_id": doc_id}
+                else:
+                    doc_result = adapter.create_document(
+                        kb_id=kb_id,
+                        doc_name=doc_name,
+                        content=None,
+                        chunk_method=chunk_method,
+                        parser_config=parser_config,
+                    )
+                    doc_id = doc_result["doc_id"]
                 submit_result = adapter.submit_chunks(
                     kb_id=kb_id,
                     doc_id=doc_id,
@@ -789,6 +837,7 @@ def run_index_submit(
 
             manifest = models.IndexManifest(
                 normalized_ref_id=normalized_ref.id,
+                knowledge_type_code=kt_code,
                 index_status=IndexManifestStatus.INDEXED,
                 ragflow_kb_id=kb_id,
                 ragflow_doc_id=doc_id,
@@ -806,6 +855,7 @@ def run_index_submit(
             error_messages.append(err)
             manifest = models.IndexManifest(
                 normalized_ref_id=normalized_ref.id,
+                knowledge_type_code=kt_code,
                 index_status=IndexManifestStatus.FAILED,
                 ragflow_kb_id=kb_registry.get_cached(kt_code),
                 chunk_count=0,
@@ -816,7 +866,16 @@ def run_index_submit(
             ctx.session.flush()
             manifests.append(manifest)
 
-    overall_status = StageStatus.SUCCEEDED if not error_messages else StageStatus.FAILED
+    indexed_count = sum(
+        1 for m in manifests if m.index_status == IndexManifestStatus.INDEXED
+    )
+    failed_count = len(error_messages)
+    if failed_count == 0:
+        overall_status = StageStatus.SUCCEEDED
+    elif indexed_count == 0:
+        overall_status = StageStatus.FAILED
+    else:
+        overall_status = StageStatus.PARTIAL
     _add_stage(
         ctx,
         "index_submit",
@@ -825,6 +884,8 @@ def run_index_submit(
             "normalized_ref_id": normalized_ref.id,
             "knowledge_types": list(chunks_by_kt.keys()),
             "manifest_count": len(manifests),
+            "indexed_count": indexed_count,
+            "failed_count": failed_count,
             "errors": error_messages,
         },
         failure_reason="; ".join(error_messages)[:1000] if error_messages else None,

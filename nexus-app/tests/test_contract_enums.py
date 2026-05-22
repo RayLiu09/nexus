@@ -50,6 +50,8 @@ def test_principal_status_has_no_archived():
 
 
 def test_stage_status_is_restricted_to_execution_states():
-    assert values(StageStatus) == {"running", "succeeded", "failed", "skipped"}
+    assert values(StageStatus) == {
+        "running", "succeeded", "failed", "skipped", "partial",
+    }
     assert "queued" not in values(StageStatus)
     assert "dead_lettered" not in values(StageStatus)

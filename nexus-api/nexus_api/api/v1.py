@@ -609,9 +609,21 @@ def update_governance_rules(
     payload: dict,
     request: Request,
     if_match: str | None = Header(None, alias="If-Match"),
+    recompute: bool = False,
+    recompute_scope: str = "review_required_only",
     session: Session = Depends(get_db),
 ):
-    """Validate, persist (with file lock), and immediately hot-reload governance_rules.json."""
+    """Validate, persist (with file lock), and immediately hot-reload governance_rules.json.
+
+    Optional query params (Review §5.4):
+    - `recompute=true` — after a successful save, reschedule affected versions for
+      re-governance. The console exposes this as a checkbox so business experts
+      can opt in.
+    - `recompute_scope=review_required_only|all_affected` — default
+      `review_required_only` only flips REVIEW_REQUIRED versions back to
+      processing. AVAILABLE versions are listed in the audit log but not
+      auto-rerun (publish/index disruption requires per-asset approval).
+    """
     if if_match is None:
         raise HTTPException(
             status_code=428,
@@ -654,8 +666,27 @@ def update_governance_rules(
             "classifications": len(config.classifications),
             "levels": len(config.levels),
             "tags": len(config.tags),
+            "recompute_requested": recompute,
         },
     )
+
+    recompute_summary: dict | None = None
+    if recompute:
+        if recompute_scope not in ("review_required_only", "all_affected"):
+            raise HTTPException(
+                status_code=422,
+                detail=f"invalid recompute_scope '{recompute_scope}'; "
+                "must be 'review_required_only' or 'all_affected'",
+            )
+        from nexus_app.governance.recompute import trigger_recompute
+        recompute_summary = trigger_recompute(
+            session,
+            current_schema_version=config.schema_version,
+            current_content_hash=new_etag.split("-", 1)[-1],
+            scope=recompute_scope,  # type: ignore[arg-type]
+            trace_id=trace_id,
+        )
+
     session.commit()
 
     body = schemas.ApiResponse(
@@ -665,6 +696,7 @@ def update_governance_rules(
             "levels": len(config.levels),
             "tags": len(config.tags),
             "quality_dimensions": len(config.quality_scoring.dimensions),
+            "recompute": recompute_summary,
         },
         meta=schemas.ResponseMeta(trace_id=trace_id),
     ).model_dump()
@@ -682,6 +714,52 @@ def reload_governance_rules(request: Request):
                      "classifications": len(config.classifications),
                      "levels": len(config.levels),
                      "tags": len(config.tags)}, request)
+
+
+@router.post(
+    "/admin/governance-rules/recompute",
+    response_model=schemas.ApiResponse[dict],
+)
+def recompute_governance_rules(
+    request: Request,
+    scope: str = "review_required_only",
+    session: Session = Depends(get_db),
+):
+    """Standalone recompute trigger (Review §5.4) — for the case where the
+    operator wants to rerun governance against the currently-loaded rules
+    without re-uploading the JSON.
+
+    `scope=review_required_only` (default) flips REVIEW_REQUIRED versions back
+    to processing. `scope=all_affected` does the same plus logs the AVAILABLE
+    versions in the audit summary (still no auto re-publish).
+    """
+    if scope not in ("review_required_only", "all_affected"):
+        raise HTTPException(
+            status_code=422,
+            detail=f"invalid scope '{scope}'; must be "
+            "'review_required_only' or 'all_affected'",
+        )
+    try:
+        config = _rules_registry._ensure_loaded()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"governance rules not loaded: {exc}",
+        ) from exc
+
+    etag = _rules_registry.get_etag()
+    trace_id = str(getattr(request.state, "trace_id", ""))
+    from nexus_app.governance.recompute import trigger_recompute
+
+    summary = trigger_recompute(
+        session,
+        current_schema_version=config.schema_version,
+        current_content_hash=etag.split("-", 1)[-1],
+        scope=scope,  # type: ignore[arg-type]
+        trace_id=trace_id,
+    )
+    session.commit()
+    return response(summary, request)
 
 
 # ---------------------------------------------------------------------------
@@ -720,6 +798,93 @@ def get_governance_result_for_ref(
             detail=f"No governance result found for normalized_ref '{ref_id}'",
         )
     return response(domain_schemas.GovernanceResultRead.model_validate(result), request)
+
+
+# ---------------------------------------------------------------------------
+# Manual stage restart — for human intervention when AI governance fails
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/asset-versions/{version_id}/restart-governance",
+    response_model=schemas.ApiResponse[dict],
+)
+def restart_governance_for_version(
+    version_id: str,
+    request: Request,
+    session: Session = Depends(get_db),
+):
+    """Restart a version stuck in `failed` after AI governance exhausted retries.
+
+    Eligibility is determined by the latest `governance_decision` JobStage carrying
+    `detail.restartable == True` (set by `run_governance_decision` when AI returned
+    no output). Other failure paths (parse/normalize crashes) are not restartable
+    here — they require re-ingest.
+
+    The version is flipped back to `processing` and audited; the worker picks up
+    the existing job on its next poll.
+    """
+    from nexus_app.audit import write_audit as _write_audit
+    from nexus_app.enums import AssetVersionStatus, AuditEventType, StageStatus
+
+    version = session.get(models.DocumentVersion, version_id)
+    if version is None:
+        raise HTTPException(status_code=404, detail=f"version '{version_id}' not found")
+    if version.version_status != AssetVersionStatus.FAILED:
+        raise HTTPException(
+            status_code=409,
+            detail=f"version is in status '{version.version_status.value}', "
+            "only 'failed' versions can be restarted",
+        )
+
+    latest_governance_stage = session.scalars(
+        select(models.JobStage)
+        .join(models.Job, models.Job.id == models.JobStage.job_id)
+        .where(
+            models.Job.raw_object_id == version.raw_object_id,
+            models.JobStage.stage_name == "governance_decision",
+            models.JobStage.status == StageStatus.FAILED,
+        )
+        .order_by(models.JobStage.created_at.desc())
+        .limit(1)
+    ).first()
+    if latest_governance_stage is None or not (
+        latest_governance_stage.detail or {}
+    ).get("restartable"):
+        raise HTTPException(
+            status_code=409,
+            detail="version is not restartable — no governance_decision stage "
+            "with detail.restartable=true found (only AI governance failures "
+            "are restartable; other failures require re-ingest)",
+        )
+
+    previous_reason = version.failure_reason
+    version.version_status = AssetVersionStatus.PROCESSING
+    version.failure_reason = None
+
+    trace_id = str(getattr(request.state, "trace_id", ""))
+    _write_audit(
+        session,
+        AuditEventType.VERSION_STATUS_CHANGED,
+        target_type="document_version",
+        target_id=version.id,
+        trace_id=trace_id,
+        summary={
+            "from_status": AssetVersionStatus.FAILED.value,
+            "to_status": AssetVersionStatus.PROCESSING.value,
+            "reason": "manual_restart",
+            "previous_failure_reason": previous_reason,
+            "restarted_stage": "governance_decision",
+        },
+    )
+    session.commit()
+    return response(
+        {
+            "version_id": version.id,
+            "new_status": AssetVersionStatus.PROCESSING.value,
+            "previous_failure_reason": previous_reason,
+        },
+        request,
+    )
 
 
 # ---------------------------------------------------------------------------
