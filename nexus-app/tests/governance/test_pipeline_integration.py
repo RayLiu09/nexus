@@ -21,6 +21,13 @@ import httpx
 import pytest
 from sqlalchemy import select
 
+
+@pytest.fixture(autouse=True)
+def _no_real_sleep():
+    """Globally short-circuit time.sleep so retry-driven tests stay fast."""
+    with patch("nexus_app.index.ragflow_adapter.time.sleep"):
+        yield
+
 from nexus_app import models, services
 from nexus_app.ai_governance.litellm_client import LiteLLMClientProtocol
 from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry

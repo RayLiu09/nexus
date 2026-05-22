@@ -778,10 +778,16 @@ def run_index_submit(
             )
             doc_name = f"{doc_name_base}__{kt_code}"
 
+            from nexus_app.index.ragflow_adapter import call_ragflow_with_retry
+
             # RAGFlow side idempotency: if a previous attempt created the doc
             # but failed before we could write the IndexManifest, reuse the
-            # existing doc_id rather than creating a duplicate.
-            existing_doc = adapter.find_document_by_name(kb_id, doc_name)
+            # existing doc_id rather than creating a duplicate. Retriable on
+            # transient errors via call_ragflow_with_retry.
+            existing_doc = call_ragflow_with_retry(
+                lambda: adapter.find_document_by_name(kb_id, doc_name),
+                operation="find_document_by_name",
+            )
 
             if is_passthrough:
                 if existing_doc is not None:
@@ -791,12 +797,15 @@ def run_index_submit(
                         doc_id, kt_code,
                     )
                 else:
-                    doc_result = adapter.create_document(
-                        kb_id=kb_id,
-                        doc_name=doc_name,
-                        content=normalized_content,
-                        chunk_method=chunk_method,
-                        parser_config=parser_config,
+                    doc_result = call_ragflow_with_retry(
+                        lambda: adapter.create_document(
+                            kb_id=kb_id,
+                            doc_name=doc_name,
+                            content=normalized_content,
+                            chunk_method=chunk_method,
+                            parser_config=parser_config,
+                        ),
+                        operation="create_document",
                     )
                     doc_id = doc_result["doc_id"]
                 indexed_chunk_count = len(kt_chunks)
@@ -814,19 +823,25 @@ def run_index_submit(
                     )
                     doc_result = {"doc_id": doc_id}
                 else:
-                    doc_result = adapter.create_document(
-                        kb_id=kb_id,
-                        doc_name=doc_name,
-                        content=None,
-                        chunk_method=chunk_method,
-                        parser_config=parser_config,
+                    doc_result = call_ragflow_with_retry(
+                        lambda: adapter.create_document(
+                            kb_id=kb_id,
+                            doc_name=doc_name,
+                            content=None,
+                            chunk_method=chunk_method,
+                            parser_config=parser_config,
+                        ),
+                        operation="create_document",
                     )
                     doc_id = doc_result["doc_id"]
-                submit_result = adapter.submit_chunks(
-                    kb_id=kb_id,
-                    doc_id=doc_id,
-                    chunks=kt_chunks,
-                    chunk_method=chunk_method,
+                submit_result = call_ragflow_with_retry(
+                    lambda: adapter.submit_chunks(
+                        kb_id=kb_id,
+                        doc_id=doc_id,
+                        chunks=kt_chunks,
+                        chunk_method=chunk_method,
+                    ),
+                    operation="submit_chunks",
                 )
                 chunk_ids = submit_result.get("chunk_ids", [])
                 indexed_chunk_count = len(chunk_ids)
@@ -850,7 +865,19 @@ def run_index_submit(
             manifests.append(manifest)
 
         except Exception as exc:
-            err = f"index_submit failed for kt={kt_code}: {type(exc).__name__}: {exc}"
+            from nexus_app.index.ragflow_adapter import (
+                RAGFlowAdapterError,
+                RAGFlowErrorType,
+            )
+            error_type = (
+                exc.error_type.value
+                if isinstance(exc, RAGFlowAdapterError) and exc.error_type
+                else RAGFlowErrorType.UNKNOWN.value
+            )
+            err = (
+                f"index_submit failed for kt={kt_code} "
+                f"[{error_type}]: {type(exc).__name__}: {exc}"
+            )
             logger.warning(err)
             error_messages.append(err)
             manifest = models.IndexManifest(

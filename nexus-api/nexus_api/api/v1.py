@@ -766,26 +766,65 @@ def recompute_governance_rules(
 # Governance Results endpoints
 # ---------------------------------------------------------------------------
 
+_VALID_TRAIL_VIEWS = {"full", "operator", "public"}
+
+
+def _validate_view(view: str) -> str:
+    if view not in _VALID_TRAIL_VIEWS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"invalid view '{view}'; must be one of "
+            f"{sorted(_VALID_TRAIL_VIEWS)}",
+        )
+    return view
+
+
+def _serialize_result_with_view(
+    result: models.GovernanceResult, view: str
+) -> dict:
+    """Run the result through GovernanceResultRead, then apply the redaction."""
+    from nexus_app.governance.redaction import redact_governance_result
+
+    serialized = domain_schemas.GovernanceResultRead.model_validate(result).model_dump()
+    return redact_governance_result(serialized, view)  # type: ignore[arg-type]
+
+
 @router.get(
     "/governance-results/{result_id}",
-    response_model=schemas.ApiResponse[domain_schemas.GovernanceResultRead],
+    response_model=schemas.ApiResponse[dict],
 )
 def get_governance_result(
-    result_id: str, request: Request, session: Session = Depends(get_db)
+    result_id: str,
+    request: Request,
+    view: str = "full",
+    session: Session = Depends(get_db),
 ):
+    """Fetch a governance result.
+
+    `view=full` (default) — admin / business_expert: full decision_trail.
+    `view=operator` — ops dashboards: AI suggestions and confidence redacted.
+    `view=public` — external api_callers: decision_trail returned as []."""
+    _validate_view(view)
     result = session.get(models.GovernanceResult, result_id)
     if result is None:
         raise HTTPException(status_code=404, detail=f"GovernanceResult '{result_id}' not found")
-    return response(domain_schemas.GovernanceResultRead.model_validate(result), request)
+    return response(_serialize_result_with_view(result, view), request)
 
 
 @router.get(
     "/normalized-refs/{ref_id}/governance-result",
-    response_model=schemas.ApiResponse[domain_schemas.GovernanceResultRead],
+    response_model=schemas.ApiResponse[dict],
 )
 def get_governance_result_for_ref(
-    ref_id: str, request: Request, session: Session = Depends(get_db)
+    ref_id: str,
+    request: Request,
+    view: str = "full",
+    session: Session = Depends(get_db),
 ):
+    """Fetch the latest governance result for a normalized_asset_ref.
+
+    See `view` semantics on /v1/governance-results/{id}."""
+    _validate_view(view)
     result = session.scalars(
         select(models.GovernanceResult)
         .where(models.GovernanceResult.normalized_ref_id == ref_id)
@@ -797,7 +836,7 @@ def get_governance_result_for_ref(
             status_code=404,
             detail=f"No governance result found for normalized_ref '{ref_id}'",
         )
-    return response(domain_schemas.GovernanceResultRead.model_validate(result), request)
+    return response(_serialize_result_with_view(result, view), request)
 
 
 # ---------------------------------------------------------------------------

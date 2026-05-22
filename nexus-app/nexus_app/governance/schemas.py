@@ -9,6 +9,17 @@ from pydantic import BaseModel, Field
 AdoptionStatus = Literal["auto_adopted", "review_required", "rejected"]
 
 
+# Read-side visibility tiers for governance_result.decision_trail (Review §4.3).
+# `full`     : AI suggestion + confidence + threshold internals exposed
+#              (platform_data_admin / business_expert)
+# `operator` : final values + adoption_status + review_reason only — used by
+#              ops dashboards that need to know what was decided and why,
+#              without seeing AI reasoning details
+# `public`   : decision_trail is replaced with an empty list — for api_callers
+#              that only need the outcome fields on GovernanceResult itself
+DecisionTrailView = Literal["full", "operator", "public"]
+
+
 class DecisionTrailEntry(BaseModel):
     """One field's decision record in governance_result.decision_trail."""
 

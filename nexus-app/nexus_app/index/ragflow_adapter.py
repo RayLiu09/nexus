@@ -8,13 +8,125 @@ Supports two modes:
 from __future__ import annotations
 
 import logging
-from typing import Any, Protocol
+import time
+from enum import StrEnum
+from typing import Any, Callable, Protocol, TypeVar
 
 import httpx
 
 from nexus_app.models import KnowledgeChunk
 
 logger = logging.getLogger(__name__)
+
+
+class RAGFlowErrorType(StrEnum):
+    """Classification of RAGFlow failure modes (Review §6.5-fine)."""
+
+    TIMEOUT     = "timeout"      # request timed out — retriable
+    CONNECTION  = "connection"   # network/connect refused — retriable
+    SERVER      = "server"       # 5xx response — retriable
+    CLIENT      = "client"       # 4xx response — NOT retriable
+    PROTOCOL    = "protocol"     # 200 but body shape/contract violation — NOT retriable
+    UNKNOWN     = "unknown"      # safe default = NOT retriable
+
+
+# Error types we retry on. Anything outside this set surfaces immediately.
+RETRIABLE_RAGFLOW_ERRORS = frozenset({
+    RAGFlowErrorType.TIMEOUT,
+    RAGFlowErrorType.CONNECTION,
+    RAGFlowErrorType.SERVER,
+})
+
+
+class RAGFlowAdapterError(Exception):
+    """Typed adapter exception so callers can branch on `error_type`."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        error_type: RAGFlowErrorType = RAGFlowErrorType.UNKNOWN,
+        status_code: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.error_type = error_type
+        self.status_code = status_code
+
+
+def classify_httpx_error(exc: Exception) -> RAGFlowErrorType:
+    """Map an httpx exception (or response status) into a RAGFlowErrorType."""
+    if isinstance(exc, httpx.TimeoutException):
+        return RAGFlowErrorType.TIMEOUT
+    if isinstance(exc, httpx.ConnectError):
+        return RAGFlowErrorType.CONNECTION
+    if isinstance(exc, httpx.NetworkError):
+        return RAGFlowErrorType.CONNECTION
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code if exc.response is not None else None
+        if status is not None and 500 <= status < 600:
+            return RAGFlowErrorType.SERVER
+        if status is not None and 400 <= status < 500:
+            return RAGFlowErrorType.CLIENT
+    if isinstance(exc, httpx.HTTPError):
+        return RAGFlowErrorType.UNKNOWN
+    return RAGFlowErrorType.UNKNOWN
+
+
+T = TypeVar("T")
+
+_RAGFLOW_RETRY_BACKOFF_SECONDS = (1.0, 2.0, 4.0)
+
+
+def call_ragflow_with_retry(
+    func: Callable[[], T],
+    *,
+    operation: str,
+    max_retries: int = 3,
+) -> T:
+    """Run `func` retrying on retriable RAGFlow errors with exponential backoff.
+
+    Wraps the eventual exception in `RAGFlowAdapterError` so callers can branch
+    on `error_type`. Non-retriable types (CLIENT, PROTOCOL, UNKNOWN) abort
+    immediately on the first attempt.
+    """
+    max_attempts = max_retries + 1
+    last_exc: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return func()
+        except RAGFlowAdapterError as exc:
+            last_exc = exc
+            error_type = exc.error_type
+        except Exception as exc:
+            last_exc = exc
+            error_type = classify_httpx_error(exc)
+            if not isinstance(exc, RAGFlowAdapterError):
+                last_exc = RAGFlowAdapterError(
+                    f"RAGFlow {operation} failed: {exc}",
+                    error_type=error_type,
+                )
+        if error_type not in RETRIABLE_RAGFLOW_ERRORS:
+            logger.info(
+                "RAGFlow %s non-retriable (%s), aborting after attempt %d",
+                operation, error_type, attempt,
+            )
+            raise last_exc
+        if attempt >= max_attempts:
+            logger.warning(
+                "RAGFlow %s retries exhausted (%d attempts, type=%s)",
+                operation, attempt, error_type,
+            )
+            raise last_exc
+        delay = _RAGFLOW_RETRY_BACKOFF_SECONDS[
+            min(attempt - 1, len(_RAGFLOW_RETRY_BACKOFF_SECONDS) - 1)
+        ]
+        logger.warning(
+            "RAGFlow %s attempt %d failed (%s), retrying in %.1fs",
+            operation, attempt, error_type, delay,
+        )
+        time.sleep(delay)
+    assert last_exc is not None
+    raise last_exc
 
 
 class RAGFlowAdapterProtocol(Protocol):
@@ -323,8 +435,11 @@ class RealRAGFlowAdapter:
                     }
             return None
         except httpx.HTTPError as e:
-            logger.error(f"RAGFlow find_dataset_by_name failed: {e}")
-            raise
+            logger.error("RAGFlow find_dataset_by_name failed: %s", e)
+            raise RAGFlowAdapterError(
+                f"find_dataset_by_name failed: {e}",
+                error_type=classify_httpx_error(e),
+            ) from e
 
     def create_dataset(
         self,
@@ -355,14 +470,20 @@ class RealRAGFlowAdapter:
             response.raise_for_status()
             data = response.json()
             if data.get("code") != 0 or "data" not in data:
-                raise ValueError(f"RAGFlow create_dataset failed: {data}")
+                raise RAGFlowAdapterError(
+                    f"RAGFlow create_dataset protocol violation: {data}",
+                    error_type=RAGFlowErrorType.PROTOCOL,
+                )
             return {
                 "id": data["data"].get("id"),
                 "name": data["data"].get("name"),
             }
         except httpx.HTTPError as e:
-            logger.error(f"RAGFlow create_dataset failed: {e}")
-            raise
+            logger.error("RAGFlow create_dataset failed: %s", e)
+            raise RAGFlowAdapterError(
+                f"create_dataset failed: {e}",
+                error_type=classify_httpx_error(e),
+            ) from e
 
     def find_document_by_name(
         self, kb_id: str, doc_name: str
@@ -437,11 +558,17 @@ class RealRAGFlowAdapter:
                 doc_id = data["data"].get("doc_id")
                 return {"doc_id": doc_id, "status": "created"}
 
-            raise ValueError(f"Unexpected RAGFlow response: {data}")
+            raise RAGFlowAdapterError(
+                f"Unexpected RAGFlow response: {data}",
+                error_type=RAGFlowErrorType.PROTOCOL,
+            )
 
         except httpx.HTTPError as e:
-            logger.error(f"RAGFlow create_document failed: {e}")
-            raise
+            logger.error("RAGFlow create_document failed: %s", e)
+            raise RAGFlowAdapterError(
+                f"create_document failed: {e}",
+                error_type=classify_httpx_error(e),
+            ) from e
 
     def submit_chunks(
         self,
@@ -474,11 +601,17 @@ class RealRAGFlowAdapter:
                 chunk_ids = data["data"].get("chunk_ids", [])
                 return {"chunk_ids": chunk_ids, "status": "indexed"}
 
-            raise ValueError(f"Unexpected RAGFlow response: {data}")
+            raise RAGFlowAdapterError(
+                f"Unexpected RAGFlow response: {data}",
+                error_type=RAGFlowErrorType.PROTOCOL,
+            )
 
         except httpx.HTTPError as e:
-            logger.error(f"RAGFlow submit_chunks failed: {e}")
-            raise
+            logger.error("RAGFlow submit_chunks failed: %s", e)
+            raise RAGFlowAdapterError(
+                f"submit_chunks failed: {e}",
+                error_type=classify_httpx_error(e),
+            ) from e
 
     def get_document_status(self, kb_id: str, doc_id: str) -> dict[str, Any]:
         """Get document status from RAGFlow.
@@ -500,11 +633,17 @@ class RealRAGFlowAdapter:
                     "error": doc_data.get("error"),
                 }
 
-            raise ValueError(f"Unexpected RAGFlow response: {data}")
+            raise RAGFlowAdapterError(
+                f"Unexpected RAGFlow response: {data}",
+                error_type=RAGFlowErrorType.PROTOCOL,
+            )
 
         except httpx.HTTPError as e:
-            logger.error(f"RAGFlow get_document_status failed: {e}")
-            raise
+            logger.error("RAGFlow get_document_status failed: %s", e)
+            raise RAGFlowAdapterError(
+                f"get_document_status failed: {e}",
+                error_type=classify_httpx_error(e),
+            ) from e
 
     def search(
         self,
@@ -532,11 +671,17 @@ class RealRAGFlowAdapter:
             if data.get("code") == 0 and "data" in data:
                 return data["data"].get("chunks", [])
 
-            raise ValueError(f"Unexpected RAGFlow response: {data}")
+            raise RAGFlowAdapterError(
+                f"Unexpected RAGFlow response: {data}",
+                error_type=RAGFlowErrorType.PROTOCOL,
+            )
 
         except httpx.HTTPError as e:
-            logger.error(f"RAGFlow search failed: {e}")
-            raise
+            logger.error("RAGFlow search failed: %s", e)
+            raise RAGFlowAdapterError(
+                f"search failed: {e}",
+                error_type=classify_httpx_error(e),
+            ) from e
 
     def qa(
         self,
@@ -566,11 +711,17 @@ class RealRAGFlowAdapter:
                     "sources": result.get("reference", []),
                 }
 
-            raise ValueError(f"Unexpected RAGFlow response: {data}")
+            raise RAGFlowAdapterError(
+                f"Unexpected RAGFlow response: {data}",
+                error_type=RAGFlowErrorType.PROTOCOL,
+            )
 
         except httpx.HTTPError as e:
-            logger.error(f"RAGFlow QA failed: {e}")
-            raise
+            logger.error("RAGFlow QA failed: %s", e)
+            raise RAGFlowAdapterError(
+                f"QA failed: {e}",
+                error_type=classify_httpx_error(e),
+            ) from e
 
     def __del__(self) -> None:
         if hasattr(self, "_client"):
