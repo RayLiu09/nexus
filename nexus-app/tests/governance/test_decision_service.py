@@ -63,6 +63,13 @@ def _make_ai_run(ai_output: dict, quality_summary: dict | None = None):
     return run
 
 
+def _make_session(existing_result=None):
+    """Create a mock session whose idempotency lookup returns `existing_result`."""
+    session = MagicMock()
+    session.scalars.return_value.first.return_value = existing_result
+    return session
+
+
 class TestHighConfidenceAutoAdopt:
     """High confidence + quality pass → available."""
 
@@ -81,7 +88,7 @@ class TestHighConfidenceAutoAdopt:
             "confidence": 0.95,
         }
         run = _make_ai_run(ai_output, quality_summary)
-        session = MagicMock()
+        session = _make_session()
 
         result = svc.execute_governance(session, run)
 
@@ -111,7 +118,7 @@ class TestLowConfidenceReviewRequired:
             "confidence": 0.5,
         }
         run = _make_ai_run(ai_output, quality_summary)
-        session = MagicMock()
+        session = _make_session()
 
         result = svc.execute_governance(session, run)
 
@@ -140,7 +147,7 @@ class TestQualityFailReviewRequired:
             "confidence": 0.95,
         }
         run = _make_ai_run(ai_output, quality_summary)
-        session = MagicMock()
+        session = _make_session()
 
         result = svc.execute_governance(session, run)
 
@@ -170,7 +177,7 @@ class TestLevelRequiresApproval:
             "confidence": 0.95,
         }
         run = _make_ai_run(ai_output, quality_summary)
-        session = MagicMock()
+        session = _make_session()
 
         result = svc.execute_governance(session, run)
 
@@ -182,6 +189,28 @@ class TestLevelRequiresApproval:
         assert "requires_approval" in level_entry["review_reason"]
 
 
+class TestIdempotency:
+    """Re-invoking execute_governance for the same (ref, run) returns existing result."""
+
+    def test_returns_existing_result(self, rules_registry):
+        svc = GovernanceDecisionService(rules_registry)
+        ai_output = {
+            "classification": "D1", "level": "L1", "tags": [],
+            "org_scope": "all", "confidence": 0.95,
+        }
+        quality_summary = {"quality_score": 85.0, "quality_level": "pass", "confidence": 0.95}
+        run = _make_ai_run(ai_output, quality_summary)
+
+        sentinel = MagicMock()
+        sentinel.id = "existing-result-001"
+        session = _make_session(existing_result=sentinel)
+
+        result = svc.execute_governance(session, run)
+
+        assert result is sentinel
+        session.add.assert_not_called()
+
+
 class TestNoAiOutput:
     """Missing ai_output raises GovernanceDecisionError."""
 
@@ -189,7 +218,7 @@ class TestNoAiOutput:
         svc = GovernanceDecisionService(rules_registry)
         run = _make_ai_run(None)
         run.ai_output = None
-        session = MagicMock()
+        session = _make_session()
 
         with pytest.raises(GovernanceDecisionError):
             svc.execute_governance(session, run)

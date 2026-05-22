@@ -11,6 +11,7 @@ import logging
 import uuid
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from nexus_app import models
@@ -46,6 +47,21 @@ class GovernanceDecisionService:
             raise GovernanceDecisionError(
                 f"AI run {ai_run.id} has no ai_output; cannot produce decision"
             )
+
+        # Idempotency: return existing result if this (normalized_ref_id, ai_run_id)
+        # has already been processed (e.g. job retry after a transient failure).
+        existing = session.scalars(
+            select(models.GovernanceResult).where(
+                models.GovernanceResult.normalized_ref_id == ai_run.normalized_ref_id,
+                models.GovernanceResult.ai_run_id == ai_run.id,
+            ).limit(1)
+        ).first()
+        if existing is not None:
+            logger.info(
+                "Idempotent: reusing GovernanceResult %s for ai_run %s",
+                existing.id, ai_run.id,
+            )
+            return existing
 
         config = self._registry._ensure_loaded()
         rules_snapshot = self._take_rules_snapshot(config)

@@ -5,6 +5,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
+from nexus_api.auth import require_api_caller
 from nexus_api.responses import list_response, response
 from nexus_app import models, pipeline, schemas as domain_schemas, services
 from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry, RulesEtagMismatchError
@@ -732,6 +733,7 @@ def search_knowledge(
     kb: str | None = None,
     top_k: int = 10,
     similarity_threshold: float = 0.7,
+    caller: models.ApiCaller = Depends(require_api_caller),
 ):
     """Search indexed knowledge base via RAGFlow.
 
@@ -758,7 +760,16 @@ def search_knowledge(
         top_k=top_k,
         similarity_threshold=similarity_threshold,
     )
-    return response({"query": q, "kb": kb, "results": results, "count": len(results)}, request)
+    return response(
+        {
+            "query": q,
+            "kb": kb,
+            "results": results,
+            "count": len(results),
+            "caller_id": caller.id,
+        },
+        request,
+    )
 
 
 @router.get("/qa")
@@ -767,6 +778,7 @@ def qa_knowledge(
     request: Request,
     kb: str | None = None,
     top_k: int = 5,
+    caller: models.ApiCaller = Depends(require_api_caller),
 ):
     """Question answering with source citations via RAGFlow.
 
@@ -787,4 +799,4 @@ def qa_knowledge(
         kb_id = registry.ensure_kb("textbook_kb")
 
     result = adapter.qa(kb_id=kb_id, question=q, top_k=top_k)
-    return response({"question": q, "kb": kb, **result}, request)
+    return response({"question": q, "kb": kb, "caller_id": caller.id, **result}, request)

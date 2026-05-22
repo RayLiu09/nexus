@@ -14,6 +14,7 @@ import uuid
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from nexus_app import models
@@ -48,16 +49,27 @@ class VersionStateManager:
         *,
         user_id: str | None = None,
     ) -> models.DocumentVersion:
-        """Transition version to available, enforcing unique-available."""
+        """Transition version to available, enforcing unique-available.
+
+        Serializes concurrent transitions for the same asset by acquiring a row-level
+        lock on document_asset. The DB partial unique index (Alembic 0014) is the
+        final safety net should two workers race past this lock.
+        """
         if not self._check_admission_criteria(governance_result):
             raise StateTransitionError(
                 f"Admission criteria not met for version {version.id}"
             )
 
+        self._lock_asset_row(session, version.asset_id)
         self._archive_old_available(session, version.asset_id, exclude_version_id=version.id)
 
         version.version_status = AssetVersionStatus.AVAILABLE
-        session.flush()
+        try:
+            session.flush()
+        except IntegrityError as exc:
+            raise StateTransitionError(
+                f"Another available version already exists for asset {version.asset_id}"
+            ) from exc
 
         trace_id = str(uuid.uuid4())
         write_audit(
@@ -121,6 +133,19 @@ class VersionStateManager:
             if entry.get("adoption_status") != "auto_adopted":
                 return False
         return True
+
+    @staticmethod
+    def _lock_asset_row(session: Session, asset_id: str) -> None:
+        """SELECT ... FOR UPDATE on document_asset to serialize transitions per asset.
+
+        SQLite ignores `with_for_update`, but the partial unique index still enforces
+        correctness; PostgreSQL acquires a row lock.
+        """
+        session.execute(
+            select(models.DocumentAsset)
+            .where(models.DocumentAsset.id == asset_id)
+            .with_for_update()
+        ).first()
 
     def _archive_old_available(
         self, session: Session, asset_id: str, *, exclude_version_id: str

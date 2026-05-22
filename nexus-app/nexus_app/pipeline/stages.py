@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func, select
@@ -32,14 +33,24 @@ def _add_stage(
     status: StageStatus,
     detail: dict[str, Any] | None = None,
     failure_reason: str | None = None,
+    *,
+    started_at: "datetime | None" = None,
 ) -> models.JobStage:
-    now = models.utcnow()
+    """Record a finished stage row. If `started_at` is provided, the actual elapsed
+    duration is preserved; otherwise the stage appears instantaneous.
+
+    Stages that may take noticeable time (LLM calls, MinerU parse, RAGFlow submit)
+    should call `_stage_started()` at entry and pass the timestamp here.
+    """
+    finished_at = models.utcnow()
+    actual_start = started_at or finished_at
+    terminal = status in {StageStatus.SUCCEEDED, StageStatus.FAILED, StageStatus.SKIPPED}
     stage = models.JobStage(
         job_id=ctx.job.id,
         stage_name=stage_name,
         status=status,
-        started_at=now,
-        finished_at=now if status in {StageStatus.SUCCEEDED, StageStatus.FAILED} else None,
+        started_at=actual_start,
+        finished_at=finished_at if terminal else None,
         failure_reason=failure_reason,
         detail=detail or {},
     )
@@ -47,6 +58,11 @@ def _add_stage(
     ctx.session.add(stage)
     ctx.session.flush()
     return stage
+
+
+def _stage_started() -> "datetime":
+    """Capture the start timestamp for a stage; pair with `_add_stage(started_at=...)`."""
+    return models.utcnow()
 
 
 def title_from(raw_object: models.RawObject, payload: dict[str, Any] | None = None) -> str:
@@ -166,6 +182,7 @@ def run_parse(
     version: models.DocumentVersion,
 ) -> models.ParseArtifact:
     """Stage 2 (Pipeline A only): Call MinerU, store artifact + images, create ParseArtifact."""
+    started_at = _stage_started()
     if ctx.mineru is None:
         raise RuntimeError("run_parse called on a context without a MinerU adapter (record pipeline?)")
 
@@ -230,6 +247,7 @@ def run_parse(
             "artifact_uri": artifact.artifact_uri,
             "image_count": len(image_uris),
         },
+        started_at=started_at,
     )
     return artifact
 
@@ -244,6 +262,7 @@ def run_normalize_document(
     artifact: models.ParseArtifact,
 ) -> models.NormalizedAssetRef:
     """Stage 3 (Pipeline A): Build normalized_document from MinerU parse artifact."""
+    started_at = _stage_started()
     raw_object = ctx.raw_object
     artifact_uri = artifact.artifact_uri
     artifact_key_path = artifact_uri.split("/", 3)[-1] if artifact_uri.startswith("s3://") else artifact_uri
@@ -256,7 +275,9 @@ def run_normalize_document(
             "markdown": raw_bytes.decode("utf-8", errors="ignore")[:4000],
         }
     normalized_payload = _build_normalized_document(raw_object, artifact, parse_payload, ctx)
-    return _persist_normalized_ref(ctx, version, NormalizedType.DOCUMENT, normalized_payload)
+    return _persist_normalized_ref(
+        ctx, version, NormalizedType.DOCUMENT, normalized_payload, started_at=started_at
+    )
 
 
 def run_normalize_record(
@@ -265,8 +286,11 @@ def run_normalize_record(
     raw_payload: dict[str, Any],
 ) -> models.NormalizedAssetRef:
     """Stage 3 (Pipeline B): Build normalized_record from raw JSON payload (no MinerU)."""
+    started_at = _stage_started()
     normalized_payload = _build_normalized_record(ctx.raw_object, raw_payload)
-    return _persist_normalized_ref(ctx, version, NormalizedType.RECORD, normalized_payload)
+    return _persist_normalized_ref(
+        ctx, version, NormalizedType.RECORD, normalized_payload, started_at=started_at
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -395,6 +419,8 @@ def _persist_normalized_ref(
     version: models.DocumentVersion,
     normalized_type: NormalizedType,
     normalized_payload: dict[str, Any],
+    *,
+    started_at: datetime | None = None,
 ) -> models.NormalizedAssetRef:
     """Shared: back-fill IDs, store to MinIO, create NormalizedAssetRef, write audit."""
     normalized_payload["asset_id"] = version.asset_id
@@ -457,6 +483,7 @@ def _persist_normalized_ref(
         "normalize",
         StageStatus.SUCCEEDED,
         {"normalized_ref_id": ref.id, "normalized_uri": ref.object_uri},
+        started_at=started_at,
     )
     return ref
 
@@ -474,6 +501,7 @@ def run_governance_decision(
 
     Returns None if no active prompt profile is configured (governance skipped).
     """
+    started_at = _stage_started()
     from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
     from nexus_app.ai_governance.services import AIGovernanceService
     from nexus_app.governance.decision_service import GovernanceDecisionService
@@ -485,14 +513,16 @@ def run_governance_decision(
     except Exception as exc:
         logger.warning("Governance rules not available, skipping decision: %s", exc)
         _add_stage(ctx, "governance_decision", StageStatus.SKIPPED,
-                   {"reason": f"rules not available: {exc}"})
+                   {"reason": f"rules not available: {exc}"},
+                   started_at=started_at)
         return None
 
     profile = _find_active_governance_profile(ctx.session)
     if profile is None:
         logger.info("No active governance prompt profile, skipping AI governance")
         _add_stage(ctx, "governance_decision", StageStatus.SKIPPED,
-                   {"reason": "no active governance prompt profile"})
+                   {"reason": "no active governance prompt profile"},
+                   started_at=started_at)
         return None
 
     ai_svc = AIGovernanceService()
@@ -507,7 +537,8 @@ def run_governance_decision(
         logger.warning("AI governance run %s produced no output", ai_run.id)
         _add_stage(ctx, "governance_decision", StageStatus.FAILED,
                    {"ai_run_id": ai_run.id, "reason": "no ai_output"},
-                   failure_reason=ai_run.validation_error)
+                   failure_reason=ai_run.validation_error,
+                   started_at=started_at)
         return None
 
     decision_svc = GovernanceDecisionService(registry)
@@ -531,6 +562,7 @@ def run_governance_decision(
             "status": result.status.value,
             "version_status": version.version_status.value,
         },
+        started_at=started_at,
     )
     return result
 
@@ -567,16 +599,38 @@ def run_knowledge_chunking(
     - version.version_status != available (only RAG-eligible assets)
     - normalized_ref.metadata_summary.knowledge_emissions is missing/empty
     """
+    started_at = _stage_started()
     if version.version_status != AssetVersionStatus.AVAILABLE:
         _add_stage(ctx, "knowledge_chunking", StageStatus.SKIPPED,
-                   {"reason": f"version not available (status={version.version_status.value})"})
+                   {"reason": f"version not available (status={version.version_status.value})"},
+                   started_at=started_at)
         return []
 
     emissions = (normalized_ref.metadata_summary or {}).get("knowledge_emissions", [])
     if not emissions:
         _add_stage(ctx, "knowledge_chunking", StageStatus.SKIPPED,
-                   {"reason": "no knowledge_emissions on normalized_ref"})
+                   {"reason": "no knowledge_emissions on normalized_ref"},
+                   started_at=started_at)
         return []
+
+    # Idempotency: if chunks already exist for this ref (job retry), reuse them.
+    existing = list(ctx.session.scalars(
+        select(models.KnowledgeChunk).where(
+            models.KnowledgeChunk.normalized_ref_id == normalized_ref.id
+        )
+    ).all())
+    if existing:
+        _add_stage(
+            ctx,
+            "knowledge_chunking",
+            StageStatus.SKIPPED,
+            {
+                "reason": "chunks already exist (idempotent skip)",
+                "existing_chunk_count": len(existing),
+            },
+            started_at=started_at,
+        )
+        return existing
 
     from nexus_app.knowledge.services import run_knowledge_pipeline
 
@@ -595,6 +649,7 @@ def run_knowledge_chunking(
             "emission_count": len(emissions),
             "chunk_count": len(chunks),
         },
+        started_at=started_at,
     )
     return chunks
 
@@ -634,16 +689,39 @@ def run_index_submit(
     - chunks is empty (knowledge chunking was skipped or produced nothing)
     - version is not available
     """
+    started_at = _stage_started()
     if version.version_status != AssetVersionStatus.AVAILABLE:
         _add_stage(ctx, "index_submit", StageStatus.SKIPPED,
-                   {"reason": f"version not available (status={version.version_status.value})"})
+                   {"reason": f"version not available (status={version.version_status.value})"},
+                   started_at=started_at)
         return []
     if not chunks:
         _add_stage(ctx, "index_submit", StageStatus.SKIPPED,
-                   {"reason": "no knowledge chunks to index"})
+                   {"reason": "no knowledge chunks to index"},
+                   started_at=started_at)
         return []
 
     from nexus_app.enums import IndexManifestStatus, ChunkType
+
+    # Idempotency: if there are already INDEXED manifests for this ref, skip.
+    existing_manifests = list(ctx.session.scalars(
+        select(models.IndexManifest).where(
+            models.IndexManifest.normalized_ref_id == normalized_ref.id,
+            models.IndexManifest.index_status == IndexManifestStatus.INDEXED,
+        )
+    ).all())
+    if existing_manifests:
+        _add_stage(
+            ctx,
+            "index_submit",
+            StageStatus.SKIPPED,
+            {
+                "reason": "index manifests already indexed (idempotent skip)",
+                "existing_manifest_count": len(existing_manifests),
+            },
+            started_at=started_at,
+        )
+        return existing_manifests
     from nexus_app.index.kb_registry import get_kb_registry
     from nexus_app.index.ragflow_adapter import get_ragflow_adapter
     from nexus_app.knowledge.config_loader import get_knowledge_type_config
@@ -750,6 +828,7 @@ def run_index_submit(
             "errors": error_messages,
         },
         failure_reason="; ".join(error_messages)[:1000] if error_messages else None,
+        started_at=started_at,
     )
     return manifests
 

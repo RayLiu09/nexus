@@ -335,6 +335,10 @@ class DocumentAsset(TimestampMixin, Base):
 
 class DocumentVersion(TimestampMixin, Base):
     __tablename__ = "document_version"
+    # Partial unique index `uq_document_version_one_available_per_asset` is
+    # PostgreSQL-only and lives in Alembic 0014. Not declared here because
+    # SQLAlchemy's `postgresql_where` is silently ignored by SQLite and would
+    # create a full UNIQUE(asset_id) — fatally broken for non-PG environments.
     __table_args__ = (
         UniqueConstraint("asset_id", "version_no", name="uq_document_version_asset_no"),
         Index("ix_document_version_asset_status", "asset_id", "version_status"),
