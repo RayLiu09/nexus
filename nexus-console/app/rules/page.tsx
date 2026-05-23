@@ -1,36 +1,93 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Modal, message } from "antd";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  App,
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  Descriptions,
+  Drawer,
+  Modal,
+  Radio,
+  Skeleton,
+  Space,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
+import type { CheckboxChangeEvent } from "antd/es/checkbox";
+import type { ColumnsType } from "antd/es/table";
 import { PageHeader } from "@/components/PageHeader";
-import { Badge } from "@/components/Badge";
 import {
   fetchGovernanceRules,
   saveGovernanceRules,
   type GovernanceRules,
+  type RecomputeScope,
+  type RecomputeSummary,
 } from "@/lib/governance-rules-api";
 
+type ClassificationRow = {
+  code: string;
+  name: string;
+  criteria: string[];
+};
+
+type LevelRow = {
+  code: string;
+  name: string;
+  requires_approval: boolean;
+  forbid_external_llm: boolean;
+  criteria: string[];
+};
+
+type TagRow = {
+  code: string;
+  name: string;
+  applicable_classifications: string[];
+  criteria: string[];
+};
+
+type DimensionRow = {
+  name: string;
+  weight: number;
+  check_items: unknown[];
+  description: string;
+};
+
+const DEFAULT_RECOMPUTE_SCOPE: RecomputeScope = "review_required_only";
+
 export default function RulesPage() {
+  const { message } = App.useApp();
   const [rules, setRules] = useState<GovernanceRules | null>(null);
   const [editorText, setEditorText] = useState("");
   const [etag, setEtag] = useState("");
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [editorError, setEditorError] = useState<string | null>(null);
+
+  const [recompute, setRecompute] = useState(false);
+  const [recomputeScope, setRecomputeScope] = useState<RecomputeScope>(
+    DEFAULT_RECOMPUTE_SCOPE,
+  );
+  const [recomputeSummary, setRecomputeSummary] = useState<RecomputeSummary | null>(
+    null,
+  );
 
   const loadRules = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     const result = await fetchGovernanceRules();
     if (result.ok) {
       setRules(result.data);
       setEditorText(JSON.stringify(result.data, null, 2));
       setEtag(result.etag);
     } else {
-      setError("无法加载治理规则，请检查后端连接");
+      setLoadError(`无法加载治理规则：${result.error}`);
     }
     setLoading(false);
   }, []);
@@ -39,6 +96,7 @@ export default function RulesPage() {
     loadRules();
   }, [loadRules]);
 
+  // 编辑态下离开页面前提示，避免丢失未保存的改动
   useEffect(() => {
     if (!editing) return;
     const handler = (e: BeforeUnloadEvent) => {
@@ -50,43 +108,49 @@ export default function RulesPage() {
 
   function handleEdit() {
     setEditing(true);
-    setValidationError(null);
-    setSuccessMsg(null);
+    setEditorError(null);
   }
 
   function handleCancel() {
     setEditing(false);
     setEditorText(JSON.stringify(rules, null, 2));
-    setValidationError(null);
-  }
-
-  function handleEditorChange(val: string) {
-    setEditorText(val);
-    setValidationError(null);
+    setEditorError(null);
+    setRecompute(false);
+    setRecomputeScope(DEFAULT_RECOMPUTE_SCOPE);
   }
 
   async function handleSave() {
-    setValidationError(null);
+    setEditorError(null);
+
     let parsed: GovernanceRules;
     try {
       parsed = JSON.parse(editorText);
     } catch (e) {
-      setValidationError("JSON 格式错误：" + (e instanceof Error ? e.message : String(e)));
+      setEditorError(
+        "JSON 格式错误：" + (e instanceof Error ? e.message : String(e)),
+      );
       return;
     }
+
     setSaving(true);
-    const result = await saveGovernanceRules(parsed, etag);
+    const result = await saveGovernanceRules(parsed, etag, {
+      recompute,
+      recomputeScope,
+    });
     setSaving(false);
 
     if (result.ok) {
       setRules(parsed);
       setEtag(result.etag);
       setEditing(false);
+      setRecomputeSummary(result.summary.recompute ?? null);
       message.success(
-        `规则已保存 — 分类: ${result.summary.classifications}，` +
-        `分级: ${result.summary.levels}，标签: ${result.summary.tags}，` +
-        `质量维度: ${result.summary.quality_dimensions}`,
+        `规则已保存 — 分类 ${result.summary.classifications} / 分级 ${result.summary.levels} / ` +
+          `标签 ${result.summary.tags} / 质量维度 ${result.summary.quality_dimensions}`,
       );
+      // 关闭后重置勾选，避免下次编辑无意触发批量重跑
+      setRecompute(false);
+      setRecomputeScope(DEFAULT_RECOMPUTE_SCOPE);
     } else if (result.status === 409) {
       Modal.confirm({
         title: "规则已被他人更新",
@@ -99,183 +163,519 @@ export default function RulesPage() {
         },
       });
     } else {
-      setValidationError(result.error ?? "保存失败");
+      setEditorError(result.error ?? "保存失败");
     }
   }
 
-  const classifs = (Array.isArray((rules as Record<string, unknown>)?.classifications)
-    ? (rules as Record<string, unknown[]>).classifications : []) as Record<string, unknown>[];
-  const levels = (Array.isArray((rules as Record<string, unknown>)?.levels)
-    ? (rules as Record<string, unknown[]>).levels : []) as Record<string, unknown>[];
-  const tags = (Array.isArray((rules as Record<string, unknown>)?.tags)
-    ? (rules as Record<string, unknown[]>).tags : []) as Record<string, unknown>[];
-  const dims = (Array.isArray(
-    ((rules as Record<string, unknown>)?.quality_scoring as Record<string, unknown>)?.dimensions,
-  ) ? ((rules as Record<string, unknown>)?.quality_scoring as Record<string, unknown[]>).dimensions : []) as Record<string, unknown>[];
+  const { classifications, levels, tags, dimensions, thresholds, autoAdoptThreshold } =
+    useMemo(() => extractTables(rules), [rules]);
 
   return (
     <>
       <PageHeader
         eyebrow="资产与治理 — governance_rules.json"
         title="规则配置"
-        description="治理规则定义了 AI 提取元数据时使用的分类、分级、标签和质量评分标准。规则保存后立即生效，仅影响未来接入资产。"
+        description="治理规则定义了 AI 提取元数据时使用的分类、分级、标签和质量评分标准。规则保存后立即生效，可选择对受影响数据触发批量重跑。"
         actions={
           !editing ? (
-            <button className="btn btn-primary btn-sm" onClick={handleEdit} disabled={loading || !rules}>
+            <Button
+              type="primary"
+              onClick={handleEdit}
+              disabled={loading || !rules}
+            >
               编辑规则
-            </button>
+            </Button>
           ) : (
-            <div className="flex gap-2">
-              <button className="btn btn-ghost btn-sm" onClick={handleCancel} disabled={saving}>取消</button>
-              <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>
-                {saving ? "保存中..." : "保存并生效"}
-              </button>
-            </div>
+            <Space>
+              <Button onClick={handleCancel} disabled={saving}>
+                取消
+              </Button>
+              <Button type="primary" onClick={handleSave} loading={saving}>
+                保存并生效
+              </Button>
+            </Space>
           )
         }
       />
 
-      {successMsg && <div className="notice notice-success">{successMsg}</div>}
-      {error && <div className="notice notice-error">{error}</div>}
+      {loadError && <Alert type="error" showIcon className="mb-4" message={loadError} />}
 
-      <div className="notice notice-info">
-        规则变更保存后立即生效，仅对未来新接入的数据资产生效。已完成治理的历史资产不受影响。
-      </div>
+      <Alert
+        className="mb-4"
+        type="info"
+        showIcon
+        message="规则变更保存后立即生效，但默认只影响未来新接入的数据；如需对历史 review_required 资产重跑，请勾选下方的批量重跑选项。"
+      />
 
       {loading ? (
-        <div className="card">
-          <div className="card-body text-center py-8">
-            <span className="text-muted">加载规则中...</span>
-          </div>
-        </div>
+        <Card>
+          <Skeleton active paragraph={{ rows: 6 }} />
+        </Card>
       ) : editing ? (
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">编辑 governance_rules.json</span>
-            <Badge label="编辑中" variant="warning" />
-          </div>
-          <div className="card-body p-0">
-            <textarea
-              value={editorText}
-              onChange={(e) => handleEditorChange(e.target.value)}
-              className="w-full min-h-[480px] font-mono text-[13px] leading-relaxed p-4 border-none outline-none bg-[var(--gray-900)] text-[#e5e7eb] rounded-b-lg resize-y"
-              spellCheck={false}
-            />
-          </div>
-          {validationError && (
-            <div className="card-footer">
-              <span className="text-sm text-[var(--danger-600)]">{validationError}</span>
-            </div>
-          )}
-        </div>
+        <RulesEditor
+          editorText={editorText}
+          onChange={setEditorText}
+          editorError={editorError}
+          recompute={recompute}
+          recomputeScope={recomputeScope}
+          onRecomputeChange={(e: CheckboxChangeEvent) => setRecompute(e.target.checked)}
+          onScopeChange={(v) => setRecomputeScope(v)}
+        />
       ) : (
-        <RulesReadView classifs={classifs} levels={levels} tags={tags} dims={dims} rules={rules} />
+        <RulesReadView
+          classifications={classifications}
+          levels={levels}
+          tags={tags}
+          dimensions={dimensions}
+          thresholds={thresholds}
+          autoAdoptThreshold={autoAdoptThreshold}
+        />
       )}
+
+      <RecomputeSummaryDrawer
+        summary={recomputeSummary}
+        onClose={() => setRecomputeSummary(null)}
+      />
     </>
   );
 }
 
-type ReadViewProps = {
-  classifs: Record<string, unknown>[];
-  levels: Record<string, unknown>[];
-  tags: Record<string, unknown>[];
-  dims: Record<string, unknown>[];
-  rules: GovernanceRules | null;
-};
+// ── Editor ───────────────────────────────────────────────────────────────
 
-function RulesReadView({ classifs, levels, tags, dims, rules }: ReadViewProps) {
-  const qs = (rules as Record<string, unknown>)?.quality_scoring as Record<string, unknown> | undefined;
-  const thresholds = qs?.thresholds as Record<string, unknown> | undefined;
+interface RulesEditorProps {
+  editorText: string;
+  onChange: (val: string) => void;
+  editorError: string | null;
+  recompute: boolean;
+  recomputeScope: RecomputeScope;
+  onRecomputeChange: (e: CheckboxChangeEvent) => void;
+  onScopeChange: (v: RecomputeScope) => void;
+}
 
+function RulesEditor({
+  editorText,
+  onChange,
+  editorError,
+  recompute,
+  recomputeScope,
+  onRecomputeChange,
+  onScopeChange,
+}: RulesEditorProps) {
   return (
-    <div className="flex flex-col gap-4">
-      <SummaryTable title="数据域分类（classification）" count={classifs.length} headers={["Code", "名称", "判断标准"]}>
-        {classifs.map((c) => (
-          <tr key={String(c.code)}>
-            <td><Badge label={String(c.code)} variant="brand" /></td>
-            <td>{String(c.name)}</td>
-            <td className="text-xs text-[var(--text-muted)]">
-              {Array.isArray(c.criteria) ? (c.criteria as string[]).join("；") : "-"}
-            </td>
-          </tr>
-        ))}
-      </SummaryTable>
+    <Space direction="vertical" size="middle" className="w-full">
+      <Card
+        title={
+          <Space>
+            <span>编辑 governance_rules.json</span>
+            <Tag color="warning">编辑中</Tag>
+          </Space>
+        }
+        styles={{ body: { padding: 0 } }}
+      >
+        <textarea
+          value={editorText}
+          onChange={(e) => onChange(e.target.value)}
+          className="block w-full min-h-[480px] resize-y border-none p-4 font-mono text-[13px] leading-relaxed outline-none rounded-b-lg bg-[var(--gray-900)] text-[#e5e7eb]"
+          spellCheck={false}
+          aria-label="governance_rules.json 编辑器"
+        />
+        {editorError && (
+          <Alert
+            className="m-3"
+            type="error"
+            showIcon
+            message={editorError}
+          />
+        )}
+      </Card>
 
-      <SummaryTable title="数据分级（level）" count={levels.length} headers={["Code", "名称", "需审批", "禁外部LLM", "判断标准"]}>
-        {levels.map((l) => (
-          <tr key={String(l.code)}>
-            <td><Badge label={String(l.code)} variant={l.code === "L3" || l.code === "L4" ? "danger" : "neutral"} /></td>
-            <td>{String(l.name)}</td>
-            <td>{l.requires_approval ? "是" : "否"}</td>
-            <td>{l.forbid_external_llm ? "是" : "-"}</td>
-            <td className="text-xs text-[var(--text-muted)]">
-              {Array.isArray(l.criteria) ? (l.criteria as string[]).join("；") : "-"}
-            </td>
-          </tr>
-        ))}
-      </SummaryTable>
+      <Card title="保存选项 — 批量重跑（Review §5.4）">
+        <Space direction="vertical" size="small">
+          <Checkbox checked={recompute} onChange={onRecomputeChange}>
+            保存后对受影响的数据触发批量重跑
+          </Checkbox>
+          <Typography.Paragraph
+            type="secondary"
+            className="!mb-0 text-[12px]"
+          >
+            勾选后，本次规则变更命中的 normalized_ref 会按下方范围重新调度治理。AVAILABLE
+            版本不会被自动改写（仅写入审计），避免破坏已发布索引。
+          </Typography.Paragraph>
+          <Radio.Group
+            disabled={!recompute}
+            value={recomputeScope}
+            onChange={(e) => onScopeChange(e.target.value)}
+            optionType="default"
+          >
+            <Space direction="vertical">
+              <Radio value="review_required_only">
+                仅 <code>review_required</code> 版本回流到 processing（默认 / 较安全）
+              </Radio>
+              <Radio value="all_affected">
+                包含 <code>available</code>：仍只把 review_required 版本回流，
+                额外把 available 版本登记到审计日志，便于人工逐条决定是否重跑
+              </Radio>
+            </Space>
+          </Radio.Group>
+        </Space>
+      </Card>
+    </Space>
+  );
+}
 
-      <SummaryTable title="数据标签（tags）" count={tags.length} headers={["Code", "名称", "适用分类", "判断标准"]}>
-        {tags.map((t) => (
-          <tr key={String(t.code)}>
-            <td><Badge label={String(t.code)} variant="neutral" /></td>
-            <td>{String(t.name)}</td>
-            <td className="text-xs">
-              {Array.isArray(t.applicable_classifications) && (t.applicable_classifications as string[]).length > 0
-                ? (t.applicable_classifications as string[]).join(", ") : "通用"}
-            </td>
-            <td className="text-xs text-[var(--text-muted)]">
-              {Array.isArray(t.criteria) ? (t.criteria as string[]).join("；") : "-"}
-            </td>
-          </tr>
-        ))}
-      </SummaryTable>
+// ── Read view ────────────────────────────────────────────────────────────
 
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">质量评分维度（quality_scoring）</span>
-          <Badge label={`${dims.length} 维度`} variant="brand" />
-        </div>
-        <div className="card-body">
-          <table className="table w-full">
-            <thead><tr><th>维度</th><th>权重</th><th>检查项数</th><th>说明</th></tr></thead>
-            <tbody>
-              {dims.map((d) => (
-                <tr key={String(d.name)}>
-                  <td><strong>{String(d.name)}</strong></td>
-                  <td>{(Number(d.weight) * 100).toFixed(0)}%</td>
-                  <td>{Array.isArray(d.check_items) ? (d.check_items as unknown[]).length : 0}</td>
-                  <td className="text-xs text-[var(--text-muted)]">{String(d.description ?? "-")}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {thresholds && (
-            <div className="mt-3 text-[13px] text-[var(--text-muted)]">
-              通过阈值：≥{String(thresholds.pass ?? "-")} 分 | 预警：≥{String(thresholds.warning ?? "-")} 分 | 复核线：&lt;{String(thresholds.review_required_below ?? "-")} 分 | AI 自动采纳置信度：{String(qs?.confidence_threshold_auto_adopt ?? "-")}
-            </div>
-          )}
-        </div>
+interface RulesReadViewProps {
+  classifications: ClassificationRow[];
+  levels: LevelRow[];
+  tags: TagRow[];
+  dimensions: DimensionRow[];
+  thresholds: Record<string, unknown> | null;
+  autoAdoptThreshold: number | string | null;
+}
+
+function RulesReadView({
+  classifications,
+  levels,
+  tags,
+  dimensions,
+  thresholds,
+  autoAdoptThreshold,
+}: RulesReadViewProps) {
+  return (
+    <Space direction="vertical" size="middle" className="w-full">
+      <Card
+        title={
+          <Space>
+            <span>数据域分类（classification）</span>
+            <Badge count={classifications.length} color="var(--brand)" />
+          </Space>
+        }
+      >
+        <Table<ClassificationRow>
+          rowKey="code"
+          dataSource={classifications}
+          pagination={false}
+          size="middle"
+          columns={CLASSIFICATION_COLUMNS}
+        />
+      </Card>
+
+      <Card
+        title={
+          <Space>
+            <span>数据分级（level）</span>
+            <Badge count={levels.length} color="var(--brand)" />
+          </Space>
+        }
+      >
+        <Table<LevelRow>
+          rowKey="code"
+          dataSource={levels}
+          pagination={false}
+          size="middle"
+          columns={LEVEL_COLUMNS}
+        />
+      </Card>
+
+      <Card
+        title={
+          <Space>
+            <span>数据标签（tags）</span>
+            <Badge count={tags.length} color="var(--brand)" />
+          </Space>
+        }
+      >
+        <Table<TagRow>
+          rowKey="code"
+          dataSource={tags}
+          pagination={false}
+          size="middle"
+          columns={TAG_COLUMNS}
+        />
+      </Card>
+
+      <Card
+        title={
+          <Space>
+            <span>质量评分维度（quality_scoring）</span>
+            <Badge count={dimensions.length} color="var(--brand)" />
+          </Space>
+        }
+      >
+        <Table<DimensionRow>
+          rowKey="name"
+          dataSource={dimensions}
+          pagination={false}
+          size="middle"
+          columns={DIMENSION_COLUMNS}
+        />
+        {thresholds && (
+          <Typography.Paragraph
+            type="secondary"
+            className="!mt-3 !mb-0 text-[13px]"
+          >
+            通过阈值：≥{String(thresholds.pass ?? "-")} 分 ｜ 预警：≥
+            {String(thresholds.warning ?? "-")} 分 ｜ 复核线：&lt;
+            {String(thresholds.review_required_below ?? "-")} 分 ｜ AI 自动采纳置信度：
+            {autoAdoptThreshold ?? "-"}
+          </Typography.Paragraph>
+        )}
+      </Card>
+    </Space>
+  );
+}
+
+const CLASSIFICATION_COLUMNS: ColumnsType<ClassificationRow> = [
+  {
+    title: "Code",
+    dataIndex: "code",
+    width: 110,
+    render: (code: string) => <Tag color="purple">{code}</Tag>,
+  },
+  { title: "名称", dataIndex: "name", width: 200 },
+  {
+    title: "判断标准",
+    dataIndex: "criteria",
+    render: (criteria: string[]) =>
+      criteria.length > 0 ? (
+        <span className="text-xs text-[var(--text-muted)]">{criteria.join("；")}</span>
+      ) : (
+        "-"
+      ),
+  },
+];
+
+const LEVEL_COLUMNS: ColumnsType<LevelRow> = [
+  {
+    title: "Code",
+    dataIndex: "code",
+    width: 90,
+    render: (code: string) => {
+      const dangerous = code === "L3" || code === "L4";
+      return <Tag color={dangerous ? "error" : "default"}>{code}</Tag>;
+    },
+  },
+  { title: "名称", dataIndex: "name", width: 180 },
+  {
+    title: "需审批",
+    dataIndex: "requires_approval",
+    width: 90,
+    render: (v: boolean) => (v ? "是" : "否"),
+  },
+  {
+    title: "禁外部 LLM",
+    dataIndex: "forbid_external_llm",
+    width: 110,
+    render: (v: boolean) => (v ? "是" : "-"),
+  },
+  {
+    title: "判断标准",
+    dataIndex: "criteria",
+    render: (criteria: string[]) =>
+      criteria.length > 0 ? (
+        <span className="text-xs text-[var(--text-muted)]">{criteria.join("；")}</span>
+      ) : (
+        "-"
+      ),
+  },
+];
+
+const TAG_COLUMNS: ColumnsType<TagRow> = [
+  {
+    title: "Code",
+    dataIndex: "code",
+    width: 140,
+    render: (code: string) => <Tag>{code}</Tag>,
+  },
+  { title: "名称", dataIndex: "name", width: 180 },
+  {
+    title: "适用分类",
+    dataIndex: "applicable_classifications",
+    width: 200,
+    render: (xs: string[]) =>
+      xs.length > 0 ? (
+        <span className="text-xs">{xs.join(", ")}</span>
+      ) : (
+        <span className="text-xs text-[var(--text-muted)]">通用</span>
+      ),
+  },
+  {
+    title: "判断标准",
+    dataIndex: "criteria",
+    render: (criteria: string[]) =>
+      criteria.length > 0 ? (
+        <span className="text-xs text-[var(--text-muted)]">{criteria.join("；")}</span>
+      ) : (
+        "-"
+      ),
+  },
+];
+
+const DIMENSION_COLUMNS: ColumnsType<DimensionRow> = [
+  {
+    title: "维度",
+    dataIndex: "name",
+    width: 160,
+    render: (n: string) => <strong>{n}</strong>,
+  },
+  {
+    title: "权重",
+    dataIndex: "weight",
+    width: 90,
+    render: (w: number) => `${(w * 100).toFixed(0)}%`,
+  },
+  {
+    title: "检查项数",
+    dataIndex: "check_items",
+    width: 100,
+    render: (items: unknown[]) => items.length,
+  },
+  {
+    title: "说明",
+    dataIndex: "description",
+    render: (d: string) => (
+      <span className="text-xs text-[var(--text-muted)]">{d || "-"}</span>
+    ),
+  },
+];
+
+// ── Recompute Summary Drawer ─────────────────────────────────────────────
+
+function RecomputeSummaryDrawer({
+  summary,
+  onClose,
+}: {
+  summary: RecomputeSummary | null;
+  onClose: () => void;
+}) {
+  return (
+    <Drawer
+      title="批量重跑结果"
+      width={520}
+      open={summary !== null}
+      onClose={onClose}
+      destroyOnClose
+    >
+      {summary && (
+        <Space direction="vertical" size="middle" className="w-full">
+          <Descriptions bordered size="small" column={1}>
+            <Descriptions.Item label="重跑范围">
+              <Tag color="processing">{summary.scope}</Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="受影响 normalized_ref 总数">
+              {summary.affected_total}
+            </Descriptions.Item>
+            <Descriptions.Item label="已回流到 processing 的版本数">
+              <Tag color="success">{summary.rescheduled_count}</Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="保留 available 不变（仅审计）">
+              <Tag color="default">{summary.available_skipped_count}</Tag>
+            </Descriptions.Item>
+          </Descriptions>
+
+          <VersionIdList
+            title="被重新调度的版本"
+            ids={summary.rescheduled_version_ids}
+            emptyLabel="无"
+          />
+          <VersionIdList
+            title="登记审计但未自动重跑的 available 版本"
+            ids={summary.available_skipped_version_ids}
+            emptyLabel="无"
+          />
+        </Space>
+      )}
+    </Drawer>
+  );
+}
+
+function VersionIdList({
+  title,
+  ids,
+  emptyLabel,
+}: {
+  title: string;
+  ids: string[];
+  emptyLabel: string;
+}) {
+  return (
+    <div>
+      <Typography.Text strong>{title}</Typography.Text>
+      <div className="mt-2">
+        {ids.length === 0 ? (
+          <Typography.Text type="secondary">{emptyLabel}</Typography.Text>
+        ) : (
+          <Space size={4} wrap>
+            {ids.map((id) => (
+              <Tag key={id} className="font-mono" style={{ fontSize: 12 }}>
+                {id}
+              </Tag>
+            ))}
+          </Space>
+        )}
       </div>
     </div>
   );
 }
 
-function SummaryTable({ title, count, headers, children }: {
-  title: string; count: number; headers: string[]; children: React.ReactNode;
-}) {
-  return (
-    <div className="card">
-      <div className="card-header">
-        <span className="card-title">{title}</span>
-        <Badge label={`${count} 条`} variant="brand" />
-      </div>
-      <div className="card-body">
-        <table className="table w-full">
-          <thead><tr>{headers.map((h) => <th key={h}>{h}</th>)}</tr></thead>
-          <tbody>{children}</tbody>
-        </table>
-      </div>
-    </div>
-  );
+// ── Helpers ──────────────────────────────────────────────────────────────
+
+interface ExtractedTables {
+  classifications: ClassificationRow[];
+  levels: LevelRow[];
+  tags: TagRow[];
+  dimensions: DimensionRow[];
+  thresholds: Record<string, unknown> | null;
+  autoAdoptThreshold: number | string | null;
+}
+
+function extractTables(rules: GovernanceRules | null): ExtractedTables {
+  const root = (rules ?? {}) as Record<string, unknown>;
+
+  const classifications = asArray(root.classifications).map((c) => ({
+    code: String(c.code ?? ""),
+    name: String(c.name ?? ""),
+    criteria: asStringArray(c.criteria),
+  }));
+
+  const levels = asArray(root.levels).map((l) => ({
+    code: String(l.code ?? ""),
+    name: String(l.name ?? ""),
+    requires_approval: Boolean(l.requires_approval),
+    forbid_external_llm: Boolean(l.forbid_external_llm),
+    criteria: asStringArray(l.criteria),
+  }));
+
+  const tags = asArray(root.tags).map((t) => ({
+    code: String(t.code ?? ""),
+    name: String(t.name ?? ""),
+    applicable_classifications: asStringArray(t.applicable_classifications),
+    criteria: asStringArray(t.criteria),
+  }));
+
+  const qs = root.quality_scoring as Record<string, unknown> | undefined;
+  const dimensions = asArray(qs?.dimensions).map((d) => ({
+    name: String(d.name ?? ""),
+    weight: Number(d.weight ?? 0),
+    check_items: Array.isArray(d.check_items) ? (d.check_items as unknown[]) : [],
+    description: String(d.description ?? ""),
+  }));
+
+  const thresholds = (qs?.thresholds as Record<string, unknown> | undefined) ?? null;
+  const autoAdoptRaw = qs?.confidence_threshold_auto_adopt;
+  const autoAdoptThreshold =
+    typeof autoAdoptRaw === "number" || typeof autoAdoptRaw === "string"
+      ? autoAdoptRaw
+      : null;
+
+  return { classifications, levels, tags, dimensions, thresholds, autoAdoptThreshold };
+}
+
+function asArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(String) : [];
 }

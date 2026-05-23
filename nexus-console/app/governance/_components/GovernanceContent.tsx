@@ -31,6 +31,7 @@ import {
   getOrgScope,
 } from "../_lib/types";
 import { SummaryStrip } from "./SummaryStrip";
+import { DecisionTrailDrawer } from "./DecisionTrailDrawer";
 import { formatTime, slaTier, formatSla } from "@/lib/format-time";
 
 // ── 工具：徽标渲染 ────────────────────────────────────────────
@@ -525,7 +526,13 @@ function QualityTab({
 
 // ── Decision Trail Tab ────────────────────────────────────────
 
-function DecisionTrailTab({ runs }: { runs: GovernanceRun[] }) {
+function DecisionTrailTab({
+  runs,
+  onOpenTrail,
+}: {
+  runs: GovernanceRun[];
+  onOpenTrail: (refId: string) => void;
+}) {
   const decided = runs.filter(
     (r) =>
       r.adoption_status === "auto_adopted" ||
@@ -577,6 +584,15 @@ function DecisionTrailTab({ runs }: { runs: GovernanceRun[] }) {
         );
       },
     },
+    {
+      title: "",
+      width: 110,
+      render: (_: unknown, r: GovernanceRun) => (
+        <Button type="link" size="small" onClick={() => onOpenTrail(r.normalized_ref_id)}>
+          决策追踪
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -597,10 +613,12 @@ function DetailDrawer({
   run,
   open,
   onClose,
+  onOpenTrail,
 }: {
   run: GovernanceRun | null;
   open: boolean;
   onClose: () => void;
+  onOpenTrail: (refId: string) => void;
 }) {
   if (!run) return null;
 
@@ -620,8 +638,10 @@ function DetailDrawer({
       destroyOnClose
       footer={
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <Button onClick={onClose}>取消</Button>
-          <Button type="primary">提交裁定</Button>
+          <Button onClick={onClose}>关闭</Button>
+          <Button type="primary" onClick={() => onOpenTrail(run.normalized_ref_id)}>
+            查看决策追踪
+          </Button>
         </div>
       }
     >
@@ -719,6 +739,7 @@ function DetailDrawer({
 
 export function GovernanceContent({ runs }: { runs: GovernanceRun[] }) {
   const [drawerRun, setDrawerRun] = useState<GovernanceRun | null>(null);
+  const [trailRefId, setTrailRefId] = useState<string | null>(null);
   const { message } = App.useApp();
   const stats = deriveStats(runs);
 
@@ -759,7 +780,7 @@ export function GovernanceContent({ runs }: { runs: GovernanceRun[] }) {
     {
       key: "trail",
       label: "决策追踪",
-      children: <DecisionTrailTab runs={runs} />,
+      children: <DecisionTrailTab runs={runs} onOpenTrail={setTrailRefId} />,
     },
   ];
 
@@ -823,7 +844,21 @@ export function GovernanceContent({ runs }: { runs: GovernanceRun[] }) {
 
       <Tabs items={tabItems} size="large" />
 
-      <DetailDrawer run={drawerRun} open={drawerRun !== null} onClose={() => setDrawerRun(null)} />
+      <DetailDrawer
+        run={drawerRun}
+        open={drawerRun !== null}
+        onClose={() => setDrawerRun(null)}
+        onOpenTrail={(refId) => {
+          setDrawerRun(null);
+          setTrailRefId(refId);
+        }}
+      />
+
+      <DecisionTrailDrawer
+        open={trailRefId !== null}
+        normalizedRefId={trailRefId}
+        onClose={() => setTrailRefId(null)}
+      />
     </>
   );
 }

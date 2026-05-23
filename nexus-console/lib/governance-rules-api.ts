@@ -8,7 +8,29 @@ export type RulesSummary = {
   levels: number;
   tags: number;
   quality_dimensions: number;
+  /**
+   * 仅当保存时携带 recompute=true 时由后端填充：
+   * 列出被重新调度回 processing 的版本数、被记录但未自动重跑的版本数等。
+   * 与 nexus_app/governance/recompute.py:trigger_recompute 返回值结构对齐。
+   */
+  recompute?: RecomputeSummary | null;
 };
+
+export type RecomputeScope = "review_required_only" | "all_affected";
+
+export interface RecomputeSummary {
+  scope: RecomputeScope;
+  affected_total: number;
+  rescheduled_count: number;
+  available_skipped_count: number;
+  rescheduled_version_ids: string[];
+  available_skipped_version_ids: string[];
+}
+
+export interface SaveRulesOptions {
+  recompute?: boolean;
+  recomputeScope?: RecomputeScope;
+}
 
 export type FetchRulesResult = {
   ok: true;
@@ -49,10 +71,22 @@ export async function fetchGovernanceRules(): Promise<FetchRulesResult> {
 
 export async function saveGovernanceRules(
   rules: GovernanceRules,
-  ifMatch: string
+  ifMatch: string,
+  options: SaveRulesOptions = {},
 ): Promise<SaveRulesResult> {
   try {
-    const res = await fetch(`${apiBaseUrl()}/v1/admin/governance-rules`, {
+    const params = new URLSearchParams();
+    if (options.recompute) {
+      params.set("recompute", "true");
+      params.set(
+        "recompute_scope",
+        options.recomputeScope ?? "review_required_only",
+      );
+    }
+    const queryString = params.toString();
+    const url = `${apiBaseUrl()}/v1/admin/governance-rules${queryString ? `?${queryString}` : ""}`;
+
+    const res = await fetch(url, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
