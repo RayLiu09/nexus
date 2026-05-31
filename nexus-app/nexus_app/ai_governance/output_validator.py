@@ -67,6 +67,7 @@ class AIGovernanceOutput(BaseModel):
     evidence_refs: list[EvidenceRef] = []
     confidence: float = Field(ge=0, le=1)
     reasoning: str = ""
+    knowledge_type: str | None = None
 
     @field_validator("level")
     @classmethod

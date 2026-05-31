@@ -124,6 +124,11 @@ def _infer_primary_knowledge_type(
             evidence = kt_output.get("evidence", [])
             if code:
                 return code, confidence, evidence
+        elif isinstance(kt_output, str) and kt_output:
+            # AIGovernanceOutput.knowledge_type schema is a plain string for P0;
+            # use AI output confidence (or default 0.8) and no evidence list.
+            confidence = float(ai_output.get("confidence", 0.8))
+            return kt_output, confidence, [f"AI output knowledge_type='{kt_output}'"]
 
     # Fallback: infer from classification and content_type
     classification = ai_output.get("classification")

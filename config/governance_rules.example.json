@@ -10,10 +10,7 @@
         "Criterion 1 for D1 classification",
         "Criterion 2 for D1 classification"
       ],
-      "examples": [
-        "Example document type 1",
-        "Example document type 2"
-      ]
+      "examples": ["Example document type 1", "Example document type 2"]
     }
   ],
   "levels": [
@@ -63,9 +60,7 @@
       "code": "example_tag",
       "name": "Example Tag",
       "description": "An example tag definition",
-      "criteria": [
-        "Criterion for applying this tag"
-      ],
+      "criteria": ["Criterion for applying this tag"],
       "applicable_classifications": ["D1"]
     }
   ],
@@ -126,5 +121,6 @@
       "fail": 0
     },
     "confidence_threshold_auto_adopt": 0.85
-  }
+  },
+  "approved_private_model_aliases": []
 }

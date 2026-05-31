@@ -357,7 +357,9 @@ class FakeRAGFlowAdapter:
     ) -> list[dict[str, Any]]:
         logger.info(f"FakeRAGFlowAdapter: search query='{query}' top_k={top_k}")
 
-        # Return mock search results
+        # Return mock search results including NEXUS-side citation fields so
+        # demos surface a complete SourceCitation without DB lookup. Real
+        # adapter relies on v1 enrichment to populate these from KnowledgeChunk.
         return [
             {
                 "chunk_id": f"fake_chunk_{i}",
@@ -368,6 +370,10 @@ class FakeRAGFlowAdapter:
                     "doc_name": f"document_{i}.pdf",
                     "page": i + 1,
                 },
+                "normalized_ref_id": f"fake_ref_{i}",
+                "version_id": f"fake_version_{i}",
+                "asset_id": f"fake_asset_{i}",
+                "nexus_chunk_id": f"fake_nexus_chunk_{i}",
             }
             for i in range(1, min(top_k, 3) + 1)
         ]
@@ -389,6 +395,10 @@ class FakeRAGFlowAdapter:
                     "chunk_id": f"fake_chunk_{i}",
                     "content": f"Source content {i}",
                     "page": i + 1,
+                    "normalized_ref_id": f"fake_ref_{i}",
+                    "version_id": f"fake_version_{i}",
+                    "asset_id": f"fake_asset_{i}",
+                    "nexus_chunk_id": f"fake_nexus_chunk_{i}",
                 }
                 for i in range(1, min(top_k, 3) + 1)
             ],

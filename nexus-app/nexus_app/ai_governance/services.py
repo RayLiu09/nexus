@@ -1,6 +1,7 @@
 """AI governance services: PromptProfileService and AIGovernanceService."""
 from __future__ import annotations
 
+import hashlib
 import logging
 import uuid
 from typing import Any
@@ -9,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from nexus_app import models
-from nexus_app.ai_governance.input_builder import DefaultAIInputBuilder
+from nexus_app.ai_governance.input_builder import DefaultAIInputBuilder, RedactionPolicyError
 from nexus_app.ai_governance.knowledge_type_inference import infer_knowledge_emissions
 from nexus_app.ai_governance.litellm_client import (
     FakeLiteLLMClient,
@@ -264,8 +265,55 @@ class AIGovernanceService:
         sensitivity_level = (ref.governance or {}).get("level", "L1")
         ref_dict = self._build_ref_dict(ref)
 
-        built = builder.build(ref_dict, profile.redaction_policy, sensitivity_level,
-                              registry=registry)
+        try:
+            built = builder.build(
+                ref_dict, profile.redaction_policy, sensitivity_level,
+                registry=registry, model_alias=profile.litellm_model_alias,
+            )
+        except RedactionPolicyError as exc:
+            # Policy blocked the call before any LiteLLM request — record an
+            # AIGovernanceRun with POLICY_BLOCKED status so the audit trail and
+            # downstream decision service can react without an LLM round-trip.
+            blocked_hash = hashlib.sha256(
+                (
+                    f"policy_blocked:{normalized_ref_id}:{profile_id}:"
+                    f"{sensitivity_level}:{profile.redaction_policy}"
+                ).encode()
+            ).hexdigest()
+            run = models.AIGovernanceRun(
+                normalized_ref_id=normalized_ref_id,
+                profile_id=profile_id,
+                model_alias=profile.litellm_model_alias,
+                prompt_version=profile.prompt_version,
+                input_hash=blocked_hash,
+                input_summary={
+                    "blocked_reason": "redaction_policy",
+                    "level": sensitivity_level,
+                    "policy": profile.redaction_policy,
+                },
+                validation_status=AIGovernanceRunValidationStatus.POLICY_BLOCKED,
+                adoption_status=AIGovernanceRunAdoptionStatus.REJECTED,
+                validation_error=str(exc),
+                created_by=user_id,
+                trace_id=trace_id,
+            )
+            session.add(run)
+            session.flush()
+            _write_audit(
+                session,
+                AuditEventType.AI_GOVERNANCE_RUN_FAILED,
+                "ai_governance_run", run.id, user_id, trace_id,
+                {
+                    "normalized_ref_id": normalized_ref_id,
+                    "profile_id": profile_id,
+                    "blocked_reason": "redaction_policy",
+                    "level": sensitivity_level,
+                    "policy": profile.redaction_policy,
+                    "model_alias": profile.litellm_model_alias,
+                    "error": str(exc)[:500],
+                },
+            )
+            return run
 
         run = models.AIGovernanceRun(
             normalized_ref_id=normalized_ref_id,
@@ -547,10 +595,25 @@ def _build_rules_section(governance_context: dict[str, Any]) -> str:
             lines.append(f"- **{t['code']}**（{t.get('name', '')}，{scope}）：{criteria_text}")
         lines.append("")
 
+    knowledge_types = governance_context.get("knowledge_types", [])
+    if knowledge_types:
+        lines.append(
+            "### 知识类型（knowledge_type 字段为可选，若内容明显属于某种类型则从下列 code 中选择）"
+        )
+        for kt in knowledge_types:
+            applicable = kt.get("applicable_classifications", [])
+            scope = f"适用分类：{applicable}" if applicable else "通用"
+            criteria_text = "；".join(kt.get("source_criteria", []))
+            lines.append(
+                f"- **{kt['code']}**（{kt.get('name', '')}，{scope}）：{criteria_text}"
+            )
+        lines.append("")
+
     lines.append(
         "**输出约束**：classification 必须是上述分类 code 之一；"
         "level 必须是上述分级 code 之一；"
-        "tags 中每个值必须是上述标签 code 之一，不得包含未定义的标签。"
+        "tags 中每个值必须是上述标签 code 之一，不得包含未定义的标签；"
+        "knowledge_type 可空；若提供，必须是上述知识类型 code 之一。"
     )
     return "\n".join(lines)
 

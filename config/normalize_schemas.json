@@ -1,0 +1,88 @@
+{
+  "schema_version": "1.0",
+  "contracts": {
+    "file_upload|application/pdf": {
+      "description": "PDF documents normalized to document schema",
+      "normalized_type": "document",
+      "required_fields": ["title", "language", "content_blocks"],
+      "format_constraints": {
+        "language": {
+          "pattern": "^[a-z]{2}(-[A-Z]{2})?$",
+          "description": "BCP-47 language tag"
+        },
+        "title": {
+          "min_length": 1,
+          "max_length": 500
+        },
+        "content_blocks": {
+          "min_items": 1
+        }
+      },
+      "classification_hint_whitelist": ["D1", "D2", "D3", "D4"]
+    },
+    "file_upload|text/html": {
+      "description": "HTML pages normalized to document schema",
+      "normalized_type": "document",
+      "required_fields": ["title", "language", "content_blocks"],
+      "format_constraints": {
+        "language": {
+          "pattern": "^[a-z]{2}(-[A-Z]{2})?$",
+          "description": "BCP-47 language tag"
+        },
+        "title": {
+          "min_length": 1,
+          "max_length": 500
+        }
+      },
+      "classification_hint_whitelist": ["D1", "D2", "D3", "D4"]
+    },
+    "file_upload|application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
+      "description": "DOCX documents normalized to document schema",
+      "normalized_type": "document",
+      "required_fields": ["title", "language", "content_blocks"],
+      "format_constraints": {
+        "language": { "pattern": "^[a-z]{2}(-[A-Z]{2})?$" },
+        "title": { "min_length": 1, "max_length": 500 }
+      },
+      "classification_hint_whitelist": ["D1", "D2", "D3", "D4"]
+    },
+    "crawler|application/json": {
+      "description": "Crawler-pushed records normalized to record schema",
+      "normalized_type": "record",
+      "required_fields": ["primary_key", "columns"],
+      "format_constraints": {
+        "primary_key": { "min_length": 1 },
+        "columns": { "min_items": 1 }
+      },
+      "classification_hint_whitelist": ["D1", "D2"]
+    },
+    "database|application/json": {
+      "description": "Database rows normalized to record schema",
+      "normalized_type": "record",
+      "required_fields": ["primary_key", "columns"],
+      "format_constraints": {
+        "primary_key": { "min_length": 1 },
+        "columns": { "min_items": 1 }
+      },
+      "classification_hint_whitelist": ["D1", "D2"]
+    },
+    "webhook|application/json": {
+      "description": "Webhook-pushed records normalized to record schema",
+      "normalized_type": "record",
+      "required_fields": ["primary_key", "columns"],
+      "format_constraints": {
+        "primary_key": { "min_length": 1 }
+      },
+      "classification_hint_whitelist": ["D1", "D2"]
+    }
+  },
+  "fallback_contract": {
+    "description": "Used when no contract matches source_type|content_type",
+    "normalized_type": "document",
+    "required_fields": ["title", "language"],
+    "format_constraints": {
+      "language": { "pattern": "^[a-z]{2}(-[A-Z]{2})?$" }
+    },
+    "classification_hint_whitelist": ["D1", "D2", "D3", "D4"]
+  }
+}

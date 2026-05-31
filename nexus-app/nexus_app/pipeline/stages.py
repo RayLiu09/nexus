@@ -196,7 +196,12 @@ def run_parse(
 
     filename = str(raw_object.metadata_summary.get("filename", raw_object.id))
     mime_type = raw_object.mime_type
-    parsed = ctx.mineru.parse(filename, raw_content, mime_type)
+    # Explicit override from Job.payload takes precedence over auto-selection
+    # so ops can pin a specific backend (e.g. vlm) for a single run.
+    model_version_override = (ctx.job.payload or {}).get("model_version_override")
+    parsed = ctx.mineru.parse(
+        filename, raw_content, mime_type, model_version=model_version_override
+    )
 
     artifact = models.ParseArtifact(
         raw_object_id=raw_object.id,
@@ -278,6 +283,9 @@ def run_normalize_document(
             "markdown": raw_bytes.decode("utf-8", errors="ignore")[:4000],
         }
     normalized_payload = _build_normalized_document(raw_object, artifact, parse_payload, ctx)
+    normalized_payload = _apply_normalize_service(
+        ctx, normalized_payload, raw_object.source_type.value, "document"
+    )
     return _persist_normalized_ref(
         ctx, version, NormalizedType.DOCUMENT, normalized_payload, started_at=started_at
     )
@@ -291,9 +299,62 @@ def run_normalize_record(
     """Stage 3 (Pipeline B): Build normalized_record from raw JSON payload (no MinerU)."""
     started_at = _stage_started()
     normalized_payload = _build_normalized_record(ctx.raw_object, raw_payload)
+    normalized_payload = _apply_normalize_service(
+        ctx,
+        normalized_payload,
+        ctx.raw_object.source_type.value,
+        ctx.raw_object.mime_type or "application/json",
+    )
     return _persist_normalized_ref(
         ctx, version, NormalizedType.RECORD, normalized_payload, started_at=started_at
     )
+
+
+def _apply_normalize_service(
+    ctx: PipelineContext,
+    normalized_payload: dict[str, Any],
+    source_type: str,
+    content_type: str,
+) -> dict[str, Any]:
+    """LLM + rule-engine fallback validation layer over the basic payload.
+
+    Runs only when a NormalizeService is wired through PipelineContext (production
+    path: lifespan-loaded registry + LiteLLM client). Issues found are appended
+    to `payload.quality.normalize_issues` so AI governance can use them as
+    blocking evidence; remaining issues do NOT fail the pipeline at this stage —
+    governance decision is the authoritative gate.
+
+    If no service is wired (e.g. test harnesses), the original payload is
+    returned unchanged for backward compatibility.
+    """
+    service = ctx.normalize_service
+    if service is None:
+        return normalized_payload
+    # Pipeline B content type may already be e.g. application/json; for documents
+    # the normalize contract key uses the raw_object's MIME type.
+    if content_type == "document":
+        content_type = ctx.raw_object.mime_type or "application/octet-stream"
+    try:
+        result = service.normalize(
+            normalized_payload,
+            source_type=source_type,
+            content_type=content_type,
+        )
+    except Exception as exc:  # noqa: BLE001  defensive: never let normalize service break pipeline
+        logger.warning("NormalizeService raised %s; keeping pre-service payload", exc)
+        return normalized_payload
+
+    enhanced = dict(result.payload)
+    quality = dict(enhanced.get("quality") or {})
+    quality["normalize_contract_key"] = result.contract_key
+    quality["normalize_schema_version"] = result.schema_version
+    quality["normalize_llm_used"] = result.llm_used
+    if result.llm_fallback_reason:
+        quality["normalize_llm_fallback_reason"] = result.llm_fallback_reason
+    if result.issues:
+        quality["normalize_issues"] = [i.model_dump() for i in result.issues]
+    enhanced["quality"] = quality
+    return enhanced
 
 
 # ---------------------------------------------------------------------------

@@ -17,9 +17,19 @@ from nexus_app.storage import checksum_value
 def _select_backend(mime_type: str | None) -> str:
     """Map MIME type to MinerU v3 backend name.
 
-    - text/html → pipeline  (HTML parser, no GPU needed)
-    - default   → pipeline  (most compatible; vlm/hybrid are opt-in)
+    Per ARCHITECT.md §115-119:
+      - text/html, application/xhtml+xml → MinerU-HTML  (dedicated HTML pipeline)
+      - default                           → pipeline    (most compatible)
+      - vlm / hybrid                      → opt-in via Job.payload.model_version_override
+
+    The caller (run_parse) is responsible for overriding this selection when
+    the job payload explicitly requests a specific backend.
     """
+    if not mime_type:
+        return "pipeline"
+    mt = mime_type.lower()
+    if "html" in mt or "xhtml" in mt:
+        return "MinerU-HTML"
     return "pipeline"
 
 

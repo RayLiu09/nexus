@@ -79,6 +79,7 @@ class GovernanceRulesConfig(BaseModel):
     tags: list[TagDef] = []
     quality_scoring: QualityScoringConfig
     manual_review_triggers: list[ManualReviewTriggerDef] = []
+    approved_private_model_aliases: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def check_tag_classification_refs(self) -> "GovernanceRulesConfig":

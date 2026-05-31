@@ -6,9 +6,14 @@ from sqlalchemy.orm import Session
 
 from nexus_api import schemas
 from nexus_api.auth import require_api_caller
+from nexus_api.permissions import apply_permission_filter
 from nexus_api.responses import list_response, response
 from nexus_app import models, pipeline, schemas as domain_schemas, services
-from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry, RulesEtagMismatchError
+from nexus_app.ai_governance.rules_registry import (
+    GovernanceRulesRegistry,
+    RulesEtagMismatchError,
+    get_governance_rules_registry,
+)
 from nexus_app.ai_governance.services import (
     AIGovernanceError,
     AIGovernanceService,
@@ -24,12 +29,15 @@ router = APIRouter(prefix="/v1")
 
 _prompt_svc = PromptProfileService()
 _ai_gov_svc = AIGovernanceService()
-_rules_registry = GovernanceRulesRegistry()
-
+# Production fail-fast load is in main.py lifespan. We additionally do a tolerant
+# eager load here so test harnesses that instantiate TestClient(app) without the
+# `with` context (which would trigger lifespan) still get a populated registry.
+_rules_registry = get_governance_rules_registry()
 try:
-    _rules_registry.load()
+    if _rules_registry._config is None:
+        _rules_registry.load()
 except Exception:
-    pass  # registry loads lazily if config file not present during import
+    pass  # lifespan will surface the failure in production startup
 
 
 def _get_registry() -> GovernanceRulesRegistry | None:
@@ -930,6 +938,74 @@ def restart_governance_for_version(
 # Search & QA endpoints (RAGFlow-backed)
 # ---------------------------------------------------------------------------
 
+def _enrich_with_nexus_refs(
+    session: Session, hits: list[dict]
+) -> list[dict]:
+    """Enrich RAGFlow hits with NEXUS-side citation fields (normalized_ref_id,
+    version_id, asset_id, nexus_chunk_id) by looking up KnowledgeChunk via
+    `ragflow_chunk_id`. Items that already carry these fields (e.g. fake adapter
+    output) are left untouched. Best-effort; missing chunks leave fields null.
+    """
+    if not hits:
+        return hits
+
+    pending: dict[str, list[dict]] = {}
+    for hit in hits:
+        if hit.get("nexus_chunk_id") or hit.get("normalized_ref_id"):
+            continue
+        ragflow_chunk_id = hit.get("chunk_id")
+        if ragflow_chunk_id:
+            pending.setdefault(ragflow_chunk_id, []).append(hit)
+
+    if not pending:
+        return hits
+
+    chunks = session.scalars(
+        select(models.KnowledgeChunk)
+        .where(models.KnowledgeChunk.ragflow_chunk_id.in_(pending.keys()))
+    ).all()
+    chunk_map = {c.ragflow_chunk_id: c for c in chunks if c.ragflow_chunk_id}
+
+    ref_ids = {c.normalized_ref_id for c in chunk_map.values()}
+    refs: dict[str, models.NormalizedAssetRef] = {}
+    if ref_ids:
+        for ref in session.scalars(
+            select(models.NormalizedAssetRef).where(
+                models.NormalizedAssetRef.id.in_(ref_ids)
+            )
+        ).all():
+            refs[ref.id] = ref
+
+    version_ids = {r.version_id for r in refs.values()}
+    versions: dict[str, models.DocumentVersion] = {}
+    if version_ids:
+        for ver in session.scalars(
+            select(models.DocumentVersion).where(
+                models.DocumentVersion.id.in_(version_ids)
+            )
+        ).all():
+            versions[ver.id] = ver
+
+    for ragflow_chunk_id, items in pending.items():
+        chunk = chunk_map.get(ragflow_chunk_id)
+        if chunk is None:
+            continue
+        ref = refs.get(chunk.normalized_ref_id)
+        ver = versions.get(ref.version_id) if ref is not None else None
+        for item in items:
+            item["nexus_chunk_id"] = chunk.id
+            item["normalized_ref_id"] = chunk.normalized_ref_id
+            if ver is not None:
+                item["version_id"] = ver.id
+                item["asset_id"] = ver.asset_id
+
+    return hits
+
+
+def _hit_ref_ids(hits: list[dict]) -> list[str]:
+    return [h["normalized_ref_id"] for h in hits if h.get("normalized_ref_id")]
+
+
 @router.get("/search")
 def search_knowledge(
     q: str,
@@ -938,6 +1014,7 @@ def search_knowledge(
     top_k: int = 10,
     similarity_threshold: float = 0.7,
     caller: models.ApiCaller = Depends(require_api_caller),
+    session: Session = Depends(get_db),
 ):
     """Search indexed knowledge base via RAGFlow.
 
@@ -947,16 +1024,18 @@ def search_knowledge(
         top_k: Max results
         similarity_threshold: Minimum similarity score
     """
+    import hashlib as _hashlib
+
+    from nexus_app.audit import write_audit as _write_audit
+    from nexus_app.enums import AuditEventType as _AuditEventType
     from nexus_app.index.kb_registry import get_kb_registry
     from nexus_app.index.ragflow_adapter import get_ragflow_adapter
 
     adapter = get_ragflow_adapter()
     registry = get_kb_registry()
 
-    if kb:
-        kb_id = registry.ensure_kb(kb)
-    else:
-        kb_id = registry.ensure_kb("textbook_kb")
+    kb_code = kb or "textbook_kb"
+    kb_id = registry.ensure_kb(kb_code)
 
     results = adapter.search(
         kb_id=kb_id,
@@ -964,10 +1043,34 @@ def search_knowledge(
         top_k=top_k,
         similarity_threshold=similarity_threshold,
     )
+    results = _enrich_with_nexus_refs(session, results)
+    results = apply_permission_filter(caller, results)
+
+    trace_id = request.headers.get("x-trace-id")
+    query_hash = _hashlib.sha256(q.encode("utf-8")).hexdigest()[:16]
+    _write_audit(
+        session,
+        _AuditEventType.SEARCH_QUERY_EXECUTED,
+        target_type="search",
+        target_id=trace_id or query_hash,
+        trace_id=trace_id,
+        summary={
+            "query_hash": query_hash,
+            "kb": kb_code,
+            "hit_count": len(results),
+            "hit_normalized_ref_ids": _hit_ref_ids(results),
+            "top_k": top_k,
+            "similarity_threshold": similarity_threshold,
+        },
+        actor_type="api_caller",
+        actor_id=caller.id,
+    )
+    session.commit()
+
     return response(
         {
             "query": q,
-            "kb": kb,
+            "kb": kb_code,
             "results": results,
             "count": len(results),
             "caller_id": caller.id,
@@ -983,6 +1086,7 @@ def qa_knowledge(
     kb: str | None = None,
     top_k: int = 5,
     caller: models.ApiCaller = Depends(require_api_caller),
+    session: Session = Depends(get_db),
 ):
     """Question answering with source citations via RAGFlow.
 
@@ -991,16 +1095,44 @@ def qa_knowledge(
         kb: Knowledge type code. If omitted, uses default KB.
         top_k: Max source chunks to retrieve
     """
+    import hashlib as _hashlib
+
+    from nexus_app.audit import write_audit as _write_audit
+    from nexus_app.enums import AuditEventType as _AuditEventType
     from nexus_app.index.kb_registry import get_kb_registry
     from nexus_app.index.ragflow_adapter import get_ragflow_adapter
 
     adapter = get_ragflow_adapter()
     registry = get_kb_registry()
 
-    if kb:
-        kb_id = registry.ensure_kb(kb)
-    else:
-        kb_id = registry.ensure_kb("textbook_kb")
+    kb_code = kb or "textbook_kb"
+    kb_id = registry.ensure_kb(kb_code)
 
     result = adapter.qa(kb_id=kb_id, question=q, top_k=top_k)
-    return response({"question": q, "kb": kb, "caller_id": caller.id, **result}, request)
+    sources = result.get("sources", []) or []
+    sources = _enrich_with_nexus_refs(session, sources)
+    sources = apply_permission_filter(caller, sources)
+    result["sources"] = sources
+
+    trace_id = request.headers.get("x-trace-id")
+    question_hash = _hashlib.sha256(q.encode("utf-8")).hexdigest()[:16]
+    _write_audit(
+        session,
+        _AuditEventType.QA_ANSWER_GENERATED,
+        target_type="qa",
+        target_id=trace_id or question_hash,
+        trace_id=trace_id,
+        summary={
+            "question_hash": question_hash,
+            "kb": kb_code,
+            "answer_length": len(result.get("answer", "") or ""),
+            "source_count": len(sources),
+            "cited_normalized_ref_ids": _hit_ref_ids(sources),
+            "top_k": top_k,
+        },
+        actor_type="api_caller",
+        actor_id=caller.id,
+    )
+    session.commit()
+
+    return response({"question": q, "kb": kb_code, "caller_id": caller.id, **result}, request)

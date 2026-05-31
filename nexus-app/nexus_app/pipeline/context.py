@@ -9,6 +9,7 @@ from nexus_app.config import Settings
 from nexus_app.enums import PipelineType
 from nexus_app.image_analysis import ImageAnalyzer
 from nexus_app.mineru import MinerUAdapter
+from nexus_app.normalize.service import NormalizeService
 from nexus_app.storage import ObjectStorage
 
 
@@ -24,3 +25,4 @@ class PipelineContext:
     trace_id: str | None
     pipeline_type: PipelineType = PipelineType.DOCUMENT
     image_analyzer: ImageAnalyzer | None = None  # None disables VLM image analysis
+    normalize_service: NormalizeService | None = None  # None disables LLM+rule normalize layer

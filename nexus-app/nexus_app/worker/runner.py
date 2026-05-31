@@ -20,6 +20,10 @@ from nexus_app.enums import (
     StageStatus,
 )
 from nexus_app.image_analysis import ImageAnalyzer, get_image_analyzer
+from nexus_app.ingest.config_loader import (
+    IngestValidateRegistry,
+    get_ingest_validate_registry,
+)
 from nexus_app.mineru import MinerUAdapter, get_mineru_adapter
 from nexus_app.models import utcnow
 from nexus_app.pipeline.context import PipelineContext
@@ -154,6 +158,111 @@ def _run_record_pipeline(
     return run_normalize_record(ctx, version, raw_payload)
 
 
+def _run_ingest_validate(
+    job: models.Job,
+    raw_object: models.RawObject,
+    session: Session,
+    trace_id: str | None,
+    pipeline_type: PipelineType,
+    *,
+    registry: IngestValidateRegistry | None = None,
+) -> None:
+    """Platform-level ingest validation: MIME whitelist, file size, extension whitelist.
+
+    Reads from `ingest_validate.json` via IngestValidateRegistry. On failure,
+    marks the job FAILED, writes INGEST_VALIDATE_FAILED audit, and raises
+    NonRetryableError. On success, writes INGEST_VALIDATE_COMPLETED.
+
+    If the registry is not initialized (e.g. in unit tests without lifespan),
+    only the success audit is written — platform-level checks are skipped.
+    Production startup loads the registry via the nexus-api lifespan.
+    """
+    reg = registry or get_ingest_validate_registry()
+    try:
+        config = reg.get_config()
+    except RuntimeError:
+        logger.debug(
+            "ingest_validate registry not initialized; skipping platform-level checks"
+        )
+        write_audit(
+            session,
+            AuditEventType.INGEST_VALIDATE_COMPLETED,
+            "raw_object",
+            raw_object.id,
+            trace_id,
+            {
+                "pipeline_type": pipeline_type.value,
+                "job_id": job.id,
+                "platform_checks": "skipped",
+            },
+        )
+        return
+
+    violations: list[dict[str, Any]] = []
+
+    mime = (raw_object.mime_type or "").lower()
+    mime_whitelist = {m.lower() for m in config.mime_whitelist}
+    if mime_whitelist and mime not in mime_whitelist:
+        violations.append({"check": "mime_whitelist", "value": raw_object.mime_type})
+
+    size = raw_object.size_bytes or 0
+    if size > config.file_size_max_bytes:
+        violations.append(
+            {"check": "file_size_max_bytes", "value": size, "limit": config.file_size_max_bytes}
+        )
+
+    filename = str(raw_object.metadata_summary.get("filename", "") or "")
+    ext = ""
+    if "." in filename:
+        ext = "." + filename.rsplit(".", 1)[-1].lower()
+    extension_whitelist = {e.lower() for e in config.extension_whitelist}
+    # Skip extension check when filename has no extension (e.g. crawler payloads without filenames).
+    if ext and extension_whitelist and ext not in extension_whitelist:
+        violations.append({"check": "extension_whitelist", "value": ext})
+
+    if violations:
+        reason = (
+            "ingest_validate rejected raw_object: "
+            + json.dumps(violations, ensure_ascii=False)
+        )
+        job.status = JobStatus.FAILED
+        job.failure_reason = reason[:2000]
+        job.last_error_code = "invalid_ingest_payload"
+        job.last_error_message = reason[:2000]
+        _release_lock(job)
+        write_audit(
+            session,
+            AuditEventType.INGEST_VALIDATE_FAILED,
+            "raw_object",
+            raw_object.id,
+            trace_id,
+            {
+                "pipeline_type": pipeline_type.value,
+                "job_id": job.id,
+                "violations": violations,
+                "rules_etag": reg.get_etag(),
+            },
+        )
+        session.commit()
+        raise NonRetryableError(
+            reason,
+            error_code="invalid_ingest_payload",
+        )
+
+    write_audit(
+        session,
+        AuditEventType.INGEST_VALIDATE_COMPLETED,
+        "raw_object",
+        raw_object.id,
+        trace_id,
+        {
+            "pipeline_type": pipeline_type.value,
+            "job_id": job.id,
+            "rules_etag": reg.get_etag(),
+        },
+    )
+
+
 def _load_record_payload(
     job: models.Job,
     raw_object: models.RawObject,
@@ -252,19 +361,12 @@ def execute_job(
 
     pipeline_type = PipelineType(job.payload.get("pipeline_type", PipelineType.DOCUMENT))
 
-    # ingest_validate: for Pipeline B, load and validate the JSON payload before any DB writes
+    # ingest_validate stage — platform-level checks (MIME, size, extension) FIRST,
+    # then for Pipeline B also decode and validate the JSON payload structure.
+    _run_ingest_validate(job, raw_object, session, trace_id, pipeline_type)
     raw_payload: dict[str, Any] | None = None
     if pipeline_type == PipelineType.RECORD:
         raw_payload = _load_record_payload(job, raw_object, storage, session, trace_id)
-
-    write_audit(
-        session,
-        AuditEventType.INGEST_VALIDATE_COMPLETED,
-        "raw_object",
-        raw_object.id,
-        trace_id,
-        {"pipeline_type": pipeline_type.value, "job_id": job.id},
-    )
 
     ctx = PipelineContext(
         session=session,

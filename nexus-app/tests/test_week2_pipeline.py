@@ -165,7 +165,7 @@ def test_duplicate_checksum_marks_batch_skipped_without_second_raw_object(sessio
 
 
 class FailingMinerUAdapter:
-    def parse(self, filename, content, content_type=None):
+    def parse(self, filename, content, content_type=None, model_version=None):
         raise RuntimeError("mineru unavailable")
 
 

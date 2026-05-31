@@ -11,12 +11,7 @@
         "包含企业基础配置、规章制度、流程规范",
         "数据来源于内部管理系统，具有权威性"
       ],
-      "examples": [
-        "组织架构图",
-        "人员名册",
-        "岗位说明书",
-        "管理制度文件"
-      ]
+      "examples": ["组织架构图", "人员名册", "岗位说明书", "管理制度文件"]
     },
     {
       "code": "D2",
@@ -28,12 +23,7 @@
         "包含客户信息、供应商信息、合作伙伴数据",
         "数据具有时效性，需定期更新"
       ],
-      "examples": [
-        "销售报告",
-        "财务报表",
-        "客户档案",
-        "合同文件"
-      ]
+      "examples": ["销售报告", "财务报表", "客户档案", "合同文件"]
     },
     {
       "code": "D3",
@@ -45,12 +35,7 @@
         "包含员工学习记录、能力评估、成长档案",
         "数据服务于人力资源发展和能力建设目标"
       ],
-      "examples": [
-        "培训计划书",
-        "学习手册",
-        "能力评估报告",
-        "人才发展方案"
-      ]
+      "examples": ["培训计划书", "学习手册", "能力评估报告", "人才发展方案"]
     },
     {
       "code": "D4",
@@ -62,12 +47,7 @@
         "包含案例库、题库、评估材料",
         "内容具有知识性、系统性，适合检索和问答"
       ],
-      "examples": [
-        "培训课件",
-        "技术手册",
-        "操作指南",
-        "知识库文章"
-      ]
+      "examples": ["培训课件", "技术手册", "操作指南", "知识库文章"]
     }
   ],
   "levels": [
@@ -297,6 +277,7 @@
     "confidence_threshold_auto_adopt": 0.85
   },
   "manual_review_triggers": [],
+  "approved_private_model_aliases": [],
   "knowledge_types": [
     {
       "code": "textbook_kb",
@@ -330,8 +311,16 @@
       },
       "chunk_type": "semantic",
       "co_emission_rules": [
-        { "target_code": "qa_corpus", "condition": "contains_qa_pairs", "min_confidence": 0.6 },
-        { "target_code": "course_knowledge_graph", "condition": "contains_concept_relations", "min_confidence": 0.7 }
+        {
+          "target_code": "qa_corpus",
+          "condition": "contains_qa_pairs",
+          "min_confidence": 0.6
+        },
+        {
+          "target_code": "course_knowledge_graph",
+          "condition": "contains_concept_relations",
+          "min_confidence": 0.7
+        }
       ],
       "implementation_tier": "A"
     },
@@ -370,8 +359,16 @@
       },
       "chunk_type": "structured_field",
       "co_emission_rules": [
-        { "target_code": "competency_graph", "condition": "contains_competency_matrix", "min_confidence": 0.7 },
-        { "target_code": "skill_tag_library", "condition": "contains_skill_tags", "min_confidence": 0.65 }
+        {
+          "target_code": "competency_graph",
+          "condition": "contains_competency_matrix",
+          "min_confidence": 0.7
+        },
+        {
+          "target_code": "skill_tag_library",
+          "condition": "contains_skill_tags",
+          "min_confidence": 0.65
+        }
       ],
       "implementation_tier": "A"
     },
@@ -465,7 +462,11 @@
       },
       "chunk_type": "process_step",
       "co_emission_rules": [
-        { "target_code": "lab_evaluation_indicator", "condition": "contains_evaluation_criteria", "min_confidence": 0.7 }
+        {
+          "target_code": "lab_evaluation_indicator",
+          "condition": "contains_evaluation_criteria",
+          "min_confidence": 0.7
+        }
       ],
       "implementation_tier": "B"
     },
@@ -497,7 +498,11 @@
       },
       "chunk_type": "process_step",
       "co_emission_rules": [
-        { "target_code": "competency_graph", "condition": "contains_competency_indicators", "min_confidence": 0.65 }
+        {
+          "target_code": "competency_graph",
+          "condition": "contains_competency_indicators",
+          "min_confidence": 0.65
+        }
       ],
       "implementation_tier": "B"
     },
@@ -540,10 +545,7 @@
       "source_kind": "extracted_from_normalized",
       "chunking_mode": "nexus_extract",
       "rag_pipeline": "pipeline_5",
-      "source_criteria": [
-        "包含评价维度、指标、权重",
-        "评分标准结构化、可量化"
-      ],
+      "source_criteria": ["包含评价维度、指标、权重", "评分标准结构化、可量化"],
       "chunking_strategy": "indicator_decompose",
       "chunking_config": {
         "indicator_fields": ["维度", "指标", "权重", "评分标准", "等级"],
@@ -658,10 +660,7 @@
       "source_kind": "extracted_from_normalized",
       "chunking_mode": "nexus_extract",
       "rag_pipeline": "pipeline_4",
-      "source_criteria": [
-        "包含知识点、概念、关系、依赖",
-        "能够构成图结构"
-      ],
+      "source_criteria": ["包含知识点、概念、关系、依赖", "能够构成图结构"],
       "chunking_strategy": "graph_extract",
       "chunking_config": {
         "node_types": ["概念", "知识点", "技能", "案例"],
@@ -688,10 +687,7 @@
       "source_kind": "extracted_from_normalized",
       "chunking_mode": "nexus_extract",
       "rag_pipeline": "pipeline_4",
-      "source_criteria": [
-        "包含能力项、子能力、关系",
-        "围绕岗位/职业能力建模"
-      ],
+      "source_criteria": ["包含能力项、子能力、关系", "围绕岗位/职业能力建模"],
       "chunking_strategy": "graph_extract",
       "chunking_config": {
         "node_types": ["能力", "子能力", "岗位", "技能"],
@@ -707,7 +703,11 @@
       },
       "chunk_type": "graph_node",
       "co_emission_rules": [
-        { "target_code": "skill_tag_library", "condition": "contains_skill_tags", "min_confidence": 0.65 }
+        {
+          "target_code": "skill_tag_library",
+          "condition": "contains_skill_tags",
+          "min_confidence": 0.65
+        }
       ],
       "implementation_tier": "C"
     },

@@ -1,0 +1,12 @@
+{
+  "_comment": "Platform-level ingest validation constraints. Copy to ingest_validate.json and customize. NOT for AI governance business rules — those live in governance_rules.json.",
+  "schema_version": "1.0",
+  "mime_whitelist": [
+    "application/pdf",
+    "text/html",
+    "text/plain",
+    "application/json"
+  ],
+  "extension_whitelist": [".pdf", ".html", ".txt", ".json"],
+  "file_size_max_bytes": 524288000
+}

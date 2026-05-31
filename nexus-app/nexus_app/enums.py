@@ -162,6 +162,7 @@ class AuditEventType(StrEnum):
     INGEST_BATCH_SUBMITTED          = "IngestBatchSubmitted"
     RAW_OBJECT_PERSISTED            = "RawObjectPersisted"
     INGEST_VALIDATE_COMPLETED       = "IngestValidateCompleted"
+    INGEST_VALIDATE_FAILED          = "IngestValidateFailed"
     CROSS_SOURCE_DUPLICATE_DETECTED = "CrossSourceDuplicateDetected"
     VERSION_STATUS_CHANGED          = "VersionStatusChanged"
     PIPELINE_FAILED                 = "PipelineFailed"

@@ -1,4 +1,4 @@
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -78,13 +78,28 @@ def create_data_source(
     row = models.DataSource(**payload.model_dump())
     session.add(row)
     session.flush()
+
+    hints = row.default_governance_hints or {}
+    level = hints.get("level")
+    summary: dict[str, Any] = {
+        "code": row.code,
+        "source_type": row.source_type.value,
+        "status": row.status.value,
+    }
+    if level:
+        summary["default_level"] = level
+    if level in {"L3", "L4"}:
+        # L1/L2 is the P0 default; L3/L4 is an exception that must carry approval evidence.
+        summary["level_elevated"] = True
+        summary["approval_evidence"] = hints.get("approval_evidence")
+
     write_audit(
         session,
         AuditEventType.DATA_SOURCE_CREATED,
         "data_source",
         row.id,
         trace_id,
-        {"code": row.code, "source_type": row.source_type.value, "status": row.status.value},
+        summary,
         actor_type=actor_type,
         actor_id=actor_id,
     )

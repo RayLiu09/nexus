@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from nexus_app.enums import (
     AIGovernanceRunAdoptionStatus,
@@ -149,6 +149,33 @@ class DataSourceCreate(BaseModel):
     connection_config: dict[str, Any] | None = None
     description: str | None = None
     status: DataSourceStatus = DataSourceStatus.ENABLED
+
+    @model_validator(mode="after")
+    def enforce_default_level_policy(self) -> "DataSourceCreate":
+        """Imported data sources default to L1/L2 unless explicit approval is recorded.
+
+        Rule (CLAUDE.md §"P0 imported data sources default to L1/L2"):
+          - default_governance_hints.level absent or in {L1, L2}: allowed.
+          - level in {L3, L4}: must carry non-empty approval_evidence (free-form
+            dict with at least {approver, approved_at, reason} or a non-empty
+            string). Audit log additionally records the elevation.
+        """
+        hints = self.default_governance_hints or {}
+        level = hints.get("level")
+        if level is None:
+            return self
+        if level not in {"L1", "L2", "L3", "L4"}:
+            raise ValueError(
+                f"default_governance_hints.level must be one of L1/L2/L3/L4, got '{level}'"
+            )
+        if level in {"L3", "L4"}:
+            evidence = hints.get("approval_evidence")
+            if not evidence:
+                raise ValueError(
+                    f"default_governance_hints.level={level} requires non-empty "
+                    "approval_evidence (e.g. {'approver': ..., 'approved_at': ..., 'reason': ...})"
+                )
+        return self
 
 
 class DataSourceRead(ORMModel):

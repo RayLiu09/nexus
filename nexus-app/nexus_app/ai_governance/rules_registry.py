@@ -69,6 +69,31 @@ class GovernanceRulesRegistry:
     def get_quality_scoring(self) -> QualityScoringConfig:
         return self._ensure_loaded().quality_scoring
 
+    def get_approved_private_aliases(self) -> list[str]:
+        return list(self._ensure_loaded().approved_private_model_aliases)
+
+    def get_knowledge_types(self) -> list[dict]:
+        """Return knowledge_types raw entries from governance_rules.json.
+
+        Not modeled as Pydantic because the schema is consumed by both AI
+        governance and Knowledge Pipeline with overlapping but non-identical
+        fields; the raw dict keeps both consumers decoupled from a shared model.
+        """
+        self._ensure_loaded()
+        if self._content_bytes is None:
+            return []
+        try:
+            raw = json.loads(self._content_bytes)
+        except json.JSONDecodeError:
+            return []
+        return raw.get("knowledge_types", []) or []
+
+    def get_knowledge_type(self, code: str) -> dict | None:
+        for kt in self.get_knowledge_types():
+            if kt.get("code") == code:
+                return kt
+        return None
+
     def get_etag(self) -> str:
         """Return ETag for current in-memory content: `{schema_version}-{sha256[:16]}`."""
         config = self._ensure_loaded()
@@ -149,3 +174,14 @@ class GovernanceRulesRegistry:
         except json.JSONDecodeError as exc:
             raise ValueError(f"governance_rules.json is not valid JSON: {exc}") from exc
         return GovernanceRulesConfig.model_validate(raw)
+
+
+_singleton: GovernanceRulesRegistry | None = None
+
+
+def get_governance_rules_registry() -> GovernanceRulesRegistry:
+    """Return process-wide singleton (lazy-loaded; raises if not yet loaded)."""
+    global _singleton
+    if _singleton is None:
+        _singleton = GovernanceRulesRegistry()
+    return _singleton
