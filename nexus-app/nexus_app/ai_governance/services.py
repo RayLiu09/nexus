@@ -82,6 +82,7 @@ class PromptProfileService:
         litellm_model_alias: str,
         prompt_version: str,
         prompt_template: str,
+        scenario: str = "default",
         *,
         output_schema_version: str = "1.0",
         scoring_weight_version: str = "1.0",
@@ -98,6 +99,7 @@ class PromptProfileService:
             profile_name=profile_name,
             profile_version=next_ver,
             task_type=task_type,
+            scenario=scenario,
             status=PromptProfileStatus.ACTIVE,
             litellm_model_alias=litellm_model_alias,
             prompt_version=prompt_version,
@@ -115,7 +117,7 @@ class PromptProfileService:
 
         _write_audit(session, AuditEventType.PROMPT_PROFILE_CREATED, "ai_prompt_profile",
                      profile.id, user_id, trace_id,
-                     {"profile_name": profile_name, "version": next_ver})
+                     {"profile_name": profile_name, "version": next_ver, "scenario": scenario})
         return profile
 
     def update_profile(
@@ -125,6 +127,7 @@ class PromptProfileService:
         *,
         prompt_template: str | None = None,
         litellm_model_alias: str | None = None,
+        scenario: str | None = None,
         prompt_version: str | None = None,
         temperature: float | None = None,
         redaction_policy: str | None = None,
@@ -145,6 +148,7 @@ class PromptProfileService:
             profile_name=current.profile_name,
             profile_version=next_ver,
             task_type=current.task_type,
+            scenario=scenario or current.scenario,
             status=PromptProfileStatus.ACTIVE,
             litellm_model_alias=litellm_model_alias or current.litellm_model_alias,
             prompt_version=prompt_version or current.prompt_version,
@@ -161,7 +165,7 @@ class PromptProfileService:
         session.flush()
         _write_audit(session, AuditEventType.PROMPT_PROFILE_UPDATED, "ai_prompt_profile",
                      profile.id, user_id, trace_id,
-                     {"profile_name": profile_name, "version": next_ver})
+                     {"profile_name": profile_name, "version": next_ver, "scenario": profile.scenario})
         return profile
 
     def disable_profile(
@@ -205,6 +209,114 @@ class PromptProfileService:
         )
         return list(session.scalars(q).all())
 
+    def dry_run(
+        self,
+        session: Session,
+        profile_id: str,
+        normalized_ref_id: str,
+        *,
+        input_overrides: dict[str, Any] | None = None,
+        litellm_client: LiteLLMClientProtocol | None = None,
+        input_builder: DefaultAIInputBuilder | None = None,
+        output_validator: AIOutputValidator | None = None,
+        registry: GovernanceRulesRegistry | None = None,
+    ) -> dict[str, Any]:
+        """Preview prompt execution without persisting a governance run.
+
+        The dry-run follows the same redaction, whitelist, LiteLLM call, schema
+        validation, and quality-scoring path as official governance. It never
+        inserts `ai_governance_run`, `governance_result`, or state transitions.
+        """
+        client = litellm_client or FakeLiteLLMClient()
+        builder = input_builder or DefaultAIInputBuilder()
+        validator = output_validator or PydanticOutputValidator(registry=registry)
+
+        ref = session.get(models.NormalizedAssetRef, normalized_ref_id)
+        if ref is None:
+            raise AIGovernanceError(f"NormalizedAssetRef '{normalized_ref_id}' not found")
+        profile = self.get_profile(session, profile_id)
+        if profile.status == PromptProfileStatus.DISABLED:
+            raise PromptProfileDisabledError(f"Profile '{profile_id}' is disabled")
+
+        sensitivity_level = (ref.governance or {}).get("level", "L1")
+        ref_dict = AIGovernanceService._build_ref_dict(ref)
+        if input_overrides:
+            ref_dict.update(input_overrides)
+
+        try:
+            built = builder.build(
+                ref_dict,
+                profile.redaction_policy,
+                sensitivity_level,
+                registry=registry,
+                model_alias=profile.litellm_model_alias,
+            )
+        except RedactionPolicyError as exc:
+            return _dry_run_payload(
+                profile,
+                normalized_ref_id,
+                input_hash=f"policy_blocked:{normalized_ref_id}:{profile_id}",
+                input_summary={"blocked_reason": "redaction_policy"},
+                validation_status=AIGovernanceRunValidationStatus.POLICY_BLOCKED,
+                adoption_status=AIGovernanceRunAdoptionStatus.REJECTED,
+                validation_error=str(exc),
+            )
+
+        try:
+            messages = AIGovernanceService._build_messages(profile.prompt_template, built["payload"])
+            raw_output, call_summary, _ = AIGovernanceService._call_llm_with_retry(
+                client,
+                profile.litellm_model_alias,
+                messages,
+                temperature=profile.temperature,
+                max_tokens=profile.max_input_tokens,
+            )
+        except LiteLLMCallError as exc:
+            return _dry_run_payload(
+                profile,
+                normalized_ref_id,
+                input_hash=built["input_hash"],
+                input_summary=built["input_summary"],
+                validation_status=AIGovernanceRunValidationStatus.FAILED,
+                adoption_status=AIGovernanceRunAdoptionStatus.REVIEW_REQUIRED,
+                validation_error=str(exc),
+            )
+
+        ai_output_obj, error = validator.validate(raw_output)
+        if ai_output_obj is None:
+            return _dry_run_payload(
+                profile,
+                normalized_ref_id,
+                input_hash=built["input_hash"],
+                input_summary=built["input_summary"],
+                validation_status=AIGovernanceRunValidationStatus.SCHEMA_INVALID,
+                adoption_status=AIGovernanceRunAdoptionStatus.REVIEW_REQUIRED,
+                validation_error=error,
+                call_latency_ms=call_summary.latency_ms,
+                request_id=call_summary.request_id,
+            )
+
+        quality_summary: dict[str, Any] | None = None
+        if registry is not None:
+            try:
+                scorer = QualityScoringService(registry)
+                quality_summary = scorer.generate_quality_summary(ai_output_obj, ref_dict).model_dump()
+            except Exception as exc:
+                logger.warning("Dry-run quality scoring failed: %s", exc)
+
+        return _dry_run_payload(
+            profile,
+            normalized_ref_id,
+            input_hash=built["input_hash"],
+            input_summary=built["input_summary"],
+            validation_status=AIGovernanceRunValidationStatus.SCHEMA_VALID,
+            adoption_status=AIGovernanceRunAdoptionStatus.PENDING_RULE_GUARDRAIL,
+            ai_output=ai_output_obj.model_dump(),
+            quality_summary=quality_summary,
+            call_latency_ms=call_summary.latency_ms,
+            request_id=call_summary.request_id,
+        )
+
     def _generate_next_version(self, session: Session, profile_name: str) -> int:
         row = session.scalars(
             select(models.AIPromptProfile.profile_version)
@@ -230,6 +342,41 @@ class PromptProfileService:
             )
             .limit(1)
         ).first()
+
+
+def _dry_run_payload(
+    profile: models.AIPromptProfile,
+    normalized_ref_id: str,
+    *,
+    input_hash: str,
+    input_summary: dict[str, Any],
+    validation_status: AIGovernanceRunValidationStatus,
+    adoption_status: AIGovernanceRunAdoptionStatus,
+    ai_output: dict[str, Any] | None = None,
+    quality_summary: dict[str, Any] | None = None,
+    validation_error: str | None = None,
+    call_latency_ms: float | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "profile_id": profile.id,
+        "profile_name": profile.profile_name,
+        "profile_version": profile.profile_version,
+        "scenario": profile.scenario,
+        "normalized_ref_id": normalized_ref_id,
+        "model_alias": profile.litellm_model_alias,
+        "prompt_version": profile.prompt_version,
+        "input_hash": input_hash,
+        "input_summary": input_summary,
+        "validation_status": validation_status,
+        "adoption_status": adoption_status,
+        "ai_output": ai_output,
+        "quality_summary": quality_summary,
+        "validation_error": validation_error,
+        "call_latency_ms": call_latency_ms,
+        "request_id": request_id,
+        "persisted": False,
+    }
 
 
 class AIGovernanceService:

@@ -35,6 +35,7 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
 | `metadata-service.ai-governance` | Internal AI governance submodule: Prompt/profile management, LiteLLM calls, AI suggestions, quality scoring | Independent deployment, bypassing rule guardrails |
 | RAGFlow | Chunking execution, index construction, retrieval execution | NEXUS master data, permissions, audit authority |
 | Crawler systems | Dynamic data source push | Governance, index governance, permissions |
+| Scan-task orchestration | Turns NAS/Webhook/crawler/database scan items into `raw_object` + PostgreSQL ingest jobs using existing pipeline routing | Live filesystem crawler daemon, MQ scheduler, or new execution engine |
 | Upper systems | Consume NEXUS APIs | Direct calls to MinerU, RAGFlow, LiteLLM, or internal DBs |
 
 ## Design Principles
@@ -140,7 +141,7 @@ Produces: `normalized_asset_ref(type=record)`.
 - Asset master data: `asset` (table: `document_asset`, pending migration), `asset_version` (table: `document_version`, pending migration).
 - Parsing: `parse_artifact` (Pipeline A only).
 - Standardization: `normalized_asset_ref`, `normalized_document`, `normalized_record`.
-- AI governance: `ai_prompt_profile`, `ai_governance_run`.
+- AI governance: `ai_prompt_profile` (including `scenario` and dry-run preview contract), `ai_governance_run`.
 - Governance rules (file-based): `config/governance_rules.json` — single source of truth for business rules, maintained by business experts via console, protected by schema validation + ETag + fcntl write lock.
 - Governance result: `governance_result` (embedded `quality_summary` + `decision_trail`; records `rules_schema_version` + `rules_content_hash` as snapshot evidence).
 - Knowledge and index: `knowledge_chunk`, `index_manifest`.
@@ -299,7 +300,7 @@ Single-node capacity (16 Core / 64 GB / 48 GB GPU):
 ## AI Governance Architecture
 
 - NEXUS does not build `llm-gateway`; uses existing LiteLLM.
-- `ai_prompt_profile` is P0: save-to-activate, auto-increment version, old version archived. No draft state.
+- `ai_prompt_profile` is P0: save-to-activate, auto-increment version, old version archived, scenario-aware, and supports dry-run previews that do not persist `ai_governance_run` or official governance results. No draft state.
 - Governance input must be `normalized_document` or `normalized_record` (accessed via `normalized_asset_ref`). Raw files and raw JSON are not valid inputs.
 - AI output pipeline: schema validation → field whitelist → redaction policy → `governance_rules.json` threshold checks (confidence_threshold_auto_adopt, quality pass/warning/fail, level requires_approval) → state-machine decision (available / review_required).
 - L3/L4 plain text must not reach external models unless using an approved private LiteLLM alias or explicit security exception.

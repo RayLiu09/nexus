@@ -17,6 +17,11 @@ POST /v1/ingest/batches  (创建批次)
   -> IngestBatch.status = completed / partial_failed / failed
 ```
 
+补充缺口修复（2026-06-01）：
+
+- **TP-W5-05 / NX-13 Prompt dry-run 与 scenario**：`ai_prompt_profile` 增加 `scenario` 字段，用于区分治理、标签、知识场景等 Prompt 试验语义；新增 `/v1/ai/prompt-profiles/{profile_id}/dry-run`，只执行输入构建、LiteLLM 调用、Schema/规则校验和质量评分预览，不写入 `ai_governance_run`、`governance_result` 或版本状态。
+- **TP-W5-06 / NX-03 Mode B 扫描编排端点**：DataSource 已支持 NAS/Webhook 配置时，新增 `/v1/data-sources/{data_source_id}/scan-tasks`，从请求 items 或 webhook payload 生成 scan batch、`raw_object` 和现有 `INGEST_PROCESS` Job。Worker 继续读取 `Job.payload.pipeline_type`；`crawler/database/webhook` 默认进入 record pipeline，`nas` 按 mime type 路由 document/record。P0 不引入 RabbitMQ/Celery 或运行时目录扫描器。
+
 ---
 
 ## 2. 前置条件

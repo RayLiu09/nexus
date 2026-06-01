@@ -1,3 +1,5 @@
+import base64
+
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
@@ -23,7 +25,9 @@ from nexus_app.ai_governance.services import (
 from nexus_app.config import Settings, get_settings
 from nexus_app.database import get_db
 from nexus_app.enums import DataSourceType
+from nexus_app.ingest import batch as ingest_batch
 from nexus_app.ingest import gateway as ingest_gateway
+from nexus_app.ingest import scan as ingest_scan
 
 router = APIRouter(prefix="/v1")
 
@@ -195,14 +199,189 @@ def get_data_source(data_source_id: str, request: Request, session: Session = De
 
 
 @router.post(
+    "/data-sources/{data_source_id}/scan-tasks",
+    response_model=schemas.ApiResponse[domain_schemas.DataSourceScanTaskRead],
+    status_code=202,
+)
+def create_data_source_scan_task(
+    data_source_id: str,
+    payload: domain_schemas.DataSourceScanTaskCreate,
+    request: Request,
+    session: Session = Depends(get_db),
+):
+    try:
+        result = ingest_scan.create_scan_task(
+            session,
+            data_source_id,
+            payload,
+            trace_id=str(getattr(request.state, "trace_id", "")),
+        )
+    except ingest_batch.DataSourceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ingest_scan.ScanTaskUnsupportedSourceError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ingest_scan.ScanTaskError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ingest_batch.BatchClosedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ingest_batch.BatchFullError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return response(
+        domain_schemas.DataSourceScanTaskRead(
+            batch=domain_schemas.IngestBatchRead.model_validate(result.batch),
+            items=[_append_read(item) for item in result.items],
+        ),
+        request,
+    )
+
+
+@router.post(
     "/ingest/batches",
     response_model=schemas.ApiResponse[domain_schemas.IngestBatchRead],
     status_code=201,
 )
-def create_ingest_batch(
-    payload: domain_schemas.IngestBatchCreate, request: Request, session: Session = Depends(get_db)
+def create_multi_raw_batch(
+    payload: domain_schemas.MultiRawBatchCreate,
+    request: Request,
+    session: Session = Depends(get_db),
 ):
-    return response(services.create_ingest_batch(session, payload), request)
+    """TP-W5-01: create an empty batch in `open` state for subsequent file append."""
+    try:
+        batch = ingest_batch.create_batch(
+            session,
+            data_source_id=payload.data_source_id,
+            batch_idempotency_key=payload.batch_idempotency_key,
+            owner_user_id=payload.owner_user_id,
+            summary=payload.summary,
+            trace_id=str(getattr(request.state, "trace_id", "")),
+        )
+    except ingest_batch.DataSourceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return response(domain_schemas.IngestBatchRead.model_validate(batch), request)
+
+
+def _append_read(result: ingest_batch.BatchAppendResult) -> domain_schemas.IngestFileAppendRead:
+    return domain_schemas.IngestFileAppendRead(
+        raw_object_id=result.raw_object.id,
+        job_id=result.job.id,
+        job_status=result.job.status,
+        file_idempotency_key=result.raw_object.file_idempotency_key or "",
+        duplicate=result.duplicate,
+    )
+
+
+@router.post(
+    "/ingest/batches/{batch_id}/files",
+    response_model=schemas.ApiResponse[domain_schemas.IngestFileAppendRead],
+    status_code=202,
+)
+def append_file_to_batch(
+    batch_id: str,
+    payload: domain_schemas.IngestFileAppend,
+    request: Request,
+    session: Session = Depends(get_db),
+):
+    """TP-W5-01: append a single file to an open batch.
+
+    Idempotent on `(batch_id, file_idempotency_key)`. Returns 409 when the batch
+    is no longer open, 422 when batch capacity is exceeded, 404 when the batch
+    or its data source is missing.
+    """
+    try:
+        content = base64.b64decode(payload.content_base64)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"invalid content_base64: {exc}") from exc
+    try:
+        result = ingest_batch.append_file_to_batch(
+            session,
+            batch_id,
+            file_idempotency_key=payload.file_idempotency_key,
+            filename=payload.filename,
+            content=content,
+            mime_type=payload.content_type or "application/octet-stream",
+            source_uri=payload.source_uri,
+            trace_id=str(getattr(request.state, "trace_id", "")),
+        )
+    except ingest_batch.BatchNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ingest_batch.DataSourceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ingest_batch.BatchClosedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ingest_batch.BatchFullError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return response(_append_read(result), request)
+
+
+@router.post(
+    "/ingest/files/multi",
+    response_model=schemas.ApiResponse[domain_schemas.IngestMultiFileResult],
+    status_code=202,
+)
+def submit_ingest_multi_file(
+    payload: domain_schemas.IngestMultiFileSubmit,
+    request: Request,
+    session: Session = Depends(get_db),
+):
+    """TP-W5-04: single-call convenience that creates a batch and appends all files.
+
+    On any append error the entire transaction is rolled back (no partial batch).
+    """
+    MAX_FILES_PER_REQUEST = 20
+    if len(payload.files) > MAX_FILES_PER_REQUEST:
+        raise HTTPException(
+            status_code=422,
+            detail=f"max {MAX_FILES_PER_REQUEST} files per multi submit (got {len(payload.files)})",
+        )
+
+    trace_id = str(getattr(request.state, "trace_id", ""))
+    try:
+        batch = ingest_batch.create_batch(
+            session,
+            data_source_id=payload.data_source_id,
+            batch_idempotency_key=payload.batch_idempotency_key,
+            owner_user_id=payload.owner_user_id,
+            trace_id=trace_id,
+        )
+    except ingest_batch.DataSourceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    items: list[domain_schemas.IngestFileAppendRead] = []
+    try:
+        for item in payload.files:
+            try:
+                content = base64.b64decode(item.content_base64)
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"invalid content_base64 for {item.file_idempotency_key}: {exc}",
+                ) from exc
+            result = ingest_batch.append_file_to_batch(
+                session,
+                batch.id,
+                file_idempotency_key=item.file_idempotency_key,
+                filename=item.filename,
+                content=content,
+                mime_type=item.content_type or "application/octet-stream",
+                source_uri=item.source_uri,
+                trace_id=trace_id,
+            )
+            items.append(_append_read(result))
+    except ingest_batch.BatchClosedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ingest_batch.BatchFullError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    # refresh the batch so status_detail reflects all appended jobs
+    session.refresh(batch)
+    return response(
+        domain_schemas.IngestMultiFileResult(
+            batch=domain_schemas.IngestBatchRead.model_validate(batch),
+            items=items,
+        ),
+        request,
+    )
 
 
 def _accepted_read(result: ingest_gateway.IngestAccepted) -> domain_schemas.IngestAcceptedRead:
@@ -443,6 +622,7 @@ def create_prompt_profile(
         litellm_model_alias=payload.litellm_model_alias,
         prompt_version=payload.prompt_version,
         prompt_template=payload.prompt_template,
+        scenario=payload.scenario,
         output_schema_version=payload.output_schema_version,
         scoring_weight_version=payload.scoring_weight_version,
         temperature=payload.temperature,
@@ -515,6 +695,32 @@ def disable_prompt_profile(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     session.commit()
     return response(domain_schemas.PromptProfileRead.model_validate(profile), request)
+
+
+@router.post(
+    "/ai/prompt-profiles/{profile_id}/dry-run",
+    response_model=schemas.ApiResponse[domain_schemas.PromptDryRunRead],
+)
+def dry_run_prompt_profile(
+    profile_id: str,
+    payload: domain_schemas.PromptDryRunCreate,
+    request: Request,
+    session: Session = Depends(get_db),
+):
+    registry = _get_registry()
+    try:
+        result = _prompt_svc.dry_run(
+            session,
+            profile_id,
+            payload.normalized_ref_id,
+            input_overrides=payload.input_overrides,
+            registry=registry,
+        )
+    except PromptProfileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AIGovernanceError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return response(domain_schemas.PromptDryRunRead.model_validate(result), request)
 
 
 # ---------------------------------------------------------------------------

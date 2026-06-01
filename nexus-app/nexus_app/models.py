@@ -171,6 +171,12 @@ class IngestBatch(TimestampMixin, Base):
         String(36), ForeignKey("user_account.id"), nullable=True
     )
     summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    batch_status_detail: Mapped[dict[str, Any]] = mapped_column(
+        JSON,
+        default=dict,
+        nullable=False,
+        comment="Per-raw-object status snapshot keyed by raw_object_id; updated by aggregator.",
+    )
 
     data_source: Mapped[DataSource] = relationship()
     owner_user: Mapped[UserAccount | None] = relationship()
@@ -180,11 +186,19 @@ class RawObject(TimestampMixin, Base):
     __tablename__ = "raw_object"
     __table_args__ = (
         UniqueConstraint("data_source_id", "checksum", name="uq_raw_object_source_checksum"),
+        UniqueConstraint(
+            "batch_id", "file_idempotency_key", name="uq_raw_object_batch_file_idem"
+        ),
         Index("ix_raw_object_batch_id", "batch_id"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     batch_id: Mapped[str] = mapped_column(String(36), ForeignKey("ingest_batch.id"), nullable=False)
+    file_idempotency_key: Mapped[str | None] = mapped_column(
+        String(128),
+        nullable=True,
+        comment="Caller-supplied idempotency key for multi-raw batch file append; NULL for legacy single-file ingest.",
+    )
     data_source_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("data_source.id"), nullable=False
     )
@@ -448,6 +462,7 @@ class AIPromptProfile(TimestampMixin, Base):
     profile_name: Mapped[str] = mapped_column(String(128), nullable=False)
     profile_version: Mapped[int] = mapped_column(nullable=False, default=1)
     task_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    scenario: Mapped[str] = mapped_column(String(80), nullable=False, default="default")
     status: Mapped[PromptProfileStatus] = mapped_column(
         Enum(PromptProfileStatus, values_callable=lambda enum: [item.value for item in enum]),
         default=PromptProfileStatus.ACTIVE,

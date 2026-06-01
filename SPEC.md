@@ -26,7 +26,7 @@ Role constraints:
 ## P0 Scope
 
 - Local org/user/API caller management.
-- Data source registration and file/NAS/crawler ingestion.
+- Data source registration and file/NAS/crawler ingestion, plus Mode B scan-task orchestration for configured NAS/Webhook/crawler/database sources.
 - Raw object retention and ingest ledger.
 - `ingest_validate` job stage: format validation, virus scan, hash calculation, deduplication; writes `INGEST_VALIDATE_COMPLETED` / `INGEST_VALIDATE_FAILED` audit events.
 - `assetize` job stage: create/re-version `asset`/`asset_version` by `(data_source_id, source_object_key)` idempotency anchor.
@@ -128,7 +128,7 @@ Search and QA:
 P0 API groups include:
 
 - Identity/org/API caller management.
-- Data sources.
+- Data sources, including scan-task creation for NAS/Webhook/crawler/database Mode B orchestration.
 - Ingest submit and batch query.
 - Raw object query.
 - Job query, retry, reprocess.
@@ -136,7 +136,7 @@ P0 API groups include:
 - Search and QA.
 - Governance rules read/edit (`config/governance_rules.json` via `/v1/admin/governance-rules`, ETag-protected).
 - Governance decision query.
-- AI Prompt profile query/create/update (save-to-activate)/disable/version query.
+- AI Prompt profile query/create/update (save-to-activate)/disable/version query, including `scenario` and dry-run preview.
 - AI governance run query, AI re-score, AI feedback.
 - Auth verification.
 

@@ -33,6 +33,7 @@ class DataSourceType(StrEnum):
 
 
 class IngestBatchStatus(StrEnum):
+    OPEN             = "open"
     SUBMITTED        = "submitted"
     RAW_PERSISTED    = "raw_persisted"
     PROCESSING       = "processing"

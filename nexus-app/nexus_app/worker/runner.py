@@ -20,6 +20,7 @@ from nexus_app.enums import (
     StageStatus,
 )
 from nexus_app.image_analysis import ImageAnalyzer, get_image_analyzer
+from nexus_app.ingest.batch import update_batch_aggregate_status
 from nexus_app.ingest.config_loader import (
     IngestValidateRegistry,
     get_ingest_validate_registry,
@@ -108,6 +109,8 @@ def _mark_job_outcome(
         job.next_run_at = utcnow() + timedelta(seconds=delay)
         job.failure_reason = reason[:2000]
         job.last_error_message = reason[:2000]
+        _maybe_aggregate_batch(session, job)
+        return
     elif job.attempt_count >= job.max_attempts:
         job.status = JobStatus.DEAD_LETTERED
         job.failure_reason = reason[:2000]
@@ -134,6 +137,21 @@ def _mark_job_outcome(
             trace_id,
             {"error_code": error_code, "reason": reason[:500]},
         )
+    _maybe_aggregate_batch(session, job)
+
+
+def _maybe_aggregate_batch(session: Session, job: models.Job) -> None:
+    """Recompute the parent batch's aggregate status if the job belongs to one.
+
+    Called after every job-state transition (terminal or retry) so the batch's
+    rollup remains consistent with all owned jobs.
+    """
+    if job.ingest_batch_id is None:
+        return
+    try:
+        update_batch_aggregate_status(session, job.ingest_batch_id)
+    except Exception:
+        logger.exception("batch aggregation failed for batch_id=%s", job.ingest_batch_id)
 
 
 # ---------------------------------------------------------------------------
@@ -243,6 +261,7 @@ def _run_ingest_validate(
                 "rules_etag": reg.get_etag(),
             },
         )
+        _maybe_aggregate_batch(session, job)
         session.commit()
         raise NonRetryableError(
             reason,
@@ -291,6 +310,7 @@ def _load_record_payload(
             trace_id,
             {"error_code": "invalid_record_payload", "reason": f"{type(exc).__name__}: {exc}"[:500]},
         )
+        _maybe_aggregate_batch(session, job)
         session.commit()
         raise NonRetryableError(
             f"record pipeline payload decode failed: {type(exc).__name__}: {exc}",
@@ -312,6 +332,7 @@ def _load_record_payload(
             trace_id,
             {"error_code": "invalid_record_payload", "reason": "payload must be a non-empty JSON object"},
         )
+        _maybe_aggregate_batch(session, job)
         session.commit()
         raise NonRetryableError(
             "record pipeline payload must be a non-empty JSON object",
@@ -410,11 +431,11 @@ def execute_job(
         # Stage 5b: submit chunks to RAGFlow (skipped if no chunks or version not available)
         run_index_submit(ctx, version, normalized_ref, chunks)
 
-        batch.status = IngestBatchStatus.COMPLETED
         job.status = JobStatus.SUCCEEDED
         job.current_stage = "completed"
         job.failure_reason = None
         _release_lock(job)
+        _maybe_aggregate_batch(session, job)
         session.commit()
 
     except Exception as exc:
@@ -425,7 +446,6 @@ def execute_job(
         version.failure_reason = reason[:2000]
         asset.status = AssetVersionStatus.FAILED
         raw_object.status = RawObjectStatus.FAILED
-        batch.status = IngestBatchStatus.FAILED
 
         _add_failure_stage(session, job, failed_stage, reason)
         _mark_job_outcome(session, job, reason, trace_id, exc)

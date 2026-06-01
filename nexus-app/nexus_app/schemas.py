@@ -210,8 +210,26 @@ class IngestBatchRead(ORMModel):
     status: IngestBatchStatus
     owner_user_id: str | None
     summary: dict[str, Any]
+    batch_status_detail: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
+
+
+class MultiRawBatchCreate(BaseModel):
+    """Two-step API: create empty batch in `open` state, then append files."""
+
+    data_source_id: str
+    batch_idempotency_key: str = Field(min_length=1, max_length=128)
+    owner_user_id: str | None = None
+    summary: dict[str, Any] = Field(default_factory=dict)
+
+
+class IngestFileAppend(BaseModel):
+    file_idempotency_key: str = Field(min_length=1, max_length=128)
+    filename: str = Field(min_length=1, max_length=255)
+    content_base64: str = Field(min_length=1)
+    content_type: str = Field(default="application/octet-stream", max_length=128)
+    source_uri: str | None = Field(default=None, max_length=1024)
 
 
 class RawObjectCreate(BaseModel):
@@ -238,9 +256,38 @@ class RawObjectRead(ORMModel):
     mime_type: str | None
     size_bytes: int | None
     status: RawObjectStatus
+    file_idempotency_key: str | None = None
     metadata_summary: dict[str, Any]
     created_at: datetime
     updated_at: datetime
+
+
+class IngestFileAppendRead(BaseModel):
+    raw_object_id: str
+    job_id: str
+    job_status: JobStatus
+    file_idempotency_key: str
+    duplicate: bool = False
+
+
+class IngestMultiFileItem(BaseModel):
+    file_idempotency_key: str = Field(min_length=1, max_length=128)
+    filename: str = Field(min_length=1, max_length=255)
+    content_base64: str = Field(min_length=1)
+    content_type: str = Field(default="application/octet-stream", max_length=128)
+    source_uri: str | None = Field(default=None, max_length=1024)
+
+
+class IngestMultiFileSubmit(BaseModel):
+    data_source_id: str
+    batch_idempotency_key: str = Field(min_length=1, max_length=128)
+    owner_user_id: str | None = None
+    files: list[IngestMultiFileItem] = Field(min_length=1)
+
+
+class IngestMultiFileResult(BaseModel):
+    batch: IngestBatchRead
+    items: list[IngestFileAppendRead]
 
 
 class AuditLogRead(ORMModel):
@@ -403,6 +450,7 @@ class RuntimeStateRead(BaseModel):
 class PromptProfileCreate(BaseModel):
     profile_name: str = Field(min_length=1, max_length=128)
     task_type: str = Field(min_length=1, max_length=80)
+    scenario: str = Field(default="default", min_length=1, max_length=80)
     litellm_model_alias: str = Field(min_length=1, max_length=128)
     prompt_version: str = Field(min_length=1, max_length=40)
     prompt_template: str = Field(min_length=1)
@@ -415,6 +463,7 @@ class PromptProfileCreate(BaseModel):
 
 
 class PromptProfileUpdate(BaseModel):
+    scenario: str | None = Field(default=None, min_length=1, max_length=80)
     litellm_model_alias: str | None = Field(default=None, max_length=128)
     prompt_version: str | None = Field(default=None, max_length=40)
     prompt_template: str | None = None
@@ -433,6 +482,7 @@ class PromptProfileRead(ORMModel):
     profile_name: str
     profile_version: int
     task_type: str
+    scenario: str
     status: PromptProfileStatus
     litellm_model_alias: str
     prompt_version: str
@@ -449,6 +499,60 @@ class PromptProfileRead(ORMModel):
 class AIGovernanceRunCreate(BaseModel):
     normalized_ref_id: str
     profile_id: str
+
+
+class PromptDryRunCreate(BaseModel):
+    normalized_ref_id: str
+    input_overrides: dict[str, Any] = Field(default_factory=dict)
+
+
+class PromptDryRunRead(BaseModel):
+    profile_id: str
+    profile_name: str
+    profile_version: int
+    scenario: str
+    normalized_ref_id: str
+    model_alias: str
+    prompt_version: str
+    input_hash: str
+    input_summary: dict[str, Any]
+    validation_status: AIGovernanceRunValidationStatus
+    adoption_status: AIGovernanceRunAdoptionStatus
+    ai_output: dict[str, Any] | None = None
+    quality_summary: dict[str, Any] | None = None
+    validation_error: str | None = None
+    call_latency_ms: float | None = None
+    request_id: str | None = None
+    persisted: bool = False
+
+
+class DataSourceScanItem(BaseModel):
+    item_id: str | None = Field(default=None, max_length=128)
+    source_object_key: str | None = Field(default=None, max_length=512)
+    source_uri: str | None = Field(default=None, max_length=1024)
+    filename: str | None = Field(default=None, max_length=255)
+    content_base64: str | None = None
+    content_type: str = Field(default="application/json", max_length=128)
+    payload: dict[str, Any] | None = None
+    metadata_summary: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def require_content(self) -> "DataSourceScanItem":
+        if self.content_base64 is None and self.payload is None:
+            raise ValueError("either content_base64 or payload is required")
+        return self
+
+
+class DataSourceScanTaskCreate(BaseModel):
+    idempotency_key: str = Field(min_length=1, max_length=128)
+    owner_user_id: str | None = None
+    summary: dict[str, Any] = Field(default_factory=dict)
+    items: list[DataSourceScanItem] = Field(min_length=1)
+
+
+class DataSourceScanTaskRead(BaseModel):
+    batch: IngestBatchRead
+    items: list[IngestFileAppendRead]
 
 
 class AIGovernanceRunRead(ORMModel):

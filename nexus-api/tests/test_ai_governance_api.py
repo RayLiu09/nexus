@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from nexus_app import models
@@ -88,6 +89,7 @@ class TestPromptProfileAPI:
         payload = {
             "profile_name": "test-profile",
             "task_type": "governance",
+            "scenario": "metadata_enrich",
             "litellm_model_alias": "nexus-gpt-4o",
             "prompt_version": "v1.0",
             "prompt_template": "You are a governance assistant.",
@@ -98,6 +100,7 @@ class TestPromptProfileAPI:
         assert resp.status_code == 201
         data = resp.json()["data"]
         assert data["profile_name"] == "test-profile"
+        assert data["scenario"] == "metadata_enrich"
         assert data["status"] == "active"
         assert data["profile_version"] == 1
 
@@ -171,6 +174,33 @@ class TestPromptProfileAPI:
             "prompt_template": "T.", "redaction_policy": "invalid_policy",
         })
         assert resp.status_code == 422
+
+    def test_prompt_dry_run_does_not_persist_governance_run(self, app, session):
+        client = TestClient(app)
+        seeded = _seed_data(session)
+        profile = client.post("/v1/ai/prompt-profiles", json={
+            "profile_name": "dry-run-test",
+            "task_type": "governance",
+            "scenario": "prompt_lab",
+            "litellm_model_alias": "alias",
+            "prompt_version": "v1",
+            "prompt_template": "T.",
+        }).json()["data"]
+
+        before = len(session.scalars(select(models.AIGovernanceRun)).all())
+        resp = client.post(f"/v1/ai/prompt-profiles/{profile['id']}/dry-run", json={
+            "normalized_ref_id": seeded["ref"].id,
+            "input_overrides": {"summary": "dry-run override"},
+        })
+        after = len(session.scalars(select(models.AIGovernanceRun)).all())
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["profile_id"] == profile["id"]
+        assert data["scenario"] == "prompt_lab"
+        assert data["persisted"] is False
+        assert data["normalized_ref_id"] == seeded["ref"].id
+        assert after == before
 
 
 # ---------------------------------------------------------------------------

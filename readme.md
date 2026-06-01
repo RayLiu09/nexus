@@ -78,7 +78,7 @@ Root documents are distilled implementation contracts:
 
 - NEXUS does not depend on enterprise IAM. It uses local `identity-org-service`; DingTalk sync is optional.
 - NEXUS does not develop `llm-gateway`. Existing LiteLLM is the AI gateway platform.
-- Prompt templates, Prompt versions, output schema, scoring weights, redaction policy, and governance audit data are maintained in NEXUS through `ai_prompt_profile`.
+- Prompt templates, Prompt versions, scenario, output schema, scoring weights, redaction policy, dry-run previews, and governance audit data are maintained in NEXUS through `ai_prompt_profile`.
 - AI governance is implemented as `metadata-service.ai-governance`, not an independent service.
 - Governance starts from `normalized_document` or `normalized_record` (via `normalized_asset_ref`), not raw objects or MinerU raw output. `governance_result` target is `normalized_asset_ref`.
 - `asset.current_version_id`, `asset_version.normalized_ref_id`, and quality-report reverse pointers must not be introduced.
@@ -89,7 +89,7 @@ Root documents are distilled implementation contracts:
 ## Core P0 Capabilities
 
 - Local organization, user, role, API caller, and API key management.
-- Data source registration and file/NAS/crawler ingestion.
+- Data source registration and file/NAS/crawler ingestion, including scan-task orchestration for NAS/Webhook/record sources.
 - Raw object and original JSON package retention.
 - Persistent job center with stage, failure reason, retry, reprocess, and re-governance.
 - MinerU parsing (auto model_version, OCR, image extraction) and standardization into `normalized_document` / `normalized_record` with full `normalized_asset_ref` fields.
