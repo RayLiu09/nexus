@@ -41,7 +41,6 @@ export function JobsContent({ jobs, stages }: { jobs: Job[]; stages: JobStage[] 
   const [pollingState, setPollingState] = useState<"active" | "paused" | "error">("active");
 
   const hasActiveJobs = jobs.some((j) => j.status === "running" || j.status === "queued");
-  const expandedJob = jobs.find((j) => j.id === expandedJobId);
 
   function toggleExpand(jobId: string) {
     setExpandedJobId((prev) => (prev === jobId ? null : jobId));
@@ -109,7 +108,6 @@ export function JobsContent({ jobs, stages }: { jobs: Job[]; stages: JobStage[] 
                       <div className="pipeline-flow">
                         {PIPELINE_STAGES.map((stage, idx) => {
                           const status = getStageStatus(stage.key, job, jobStages);
-                          const stageRecord = jobStages.find((s) => s.stage_name === stage.key);
                           const stepNumber = idx + 1;
 
                           return (

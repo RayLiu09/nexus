@@ -20,7 +20,6 @@ import type { ColumnsType } from "antd/es/table";
 import { CheckOutlined, WarningOutlined, CloseOutlined, SwapOutlined } from "@ant-design/icons";
 import {
   type GovernanceRun,
-  type GovernanceStats,
   deriveStats,
   getClassification,
   getLevel,
@@ -729,7 +728,7 @@ function DetailDrawer({
       )}
 
       {run.validation_error && (
-        <Alert type="error" message="验证错误" description={run.validation_error} />
+        <Alert type="error" title="验证错误" description={run.validation_error} />
       )}
     </Drawer>
   );

@@ -34,7 +34,7 @@ export function DomainDistribution({ items }: { items: DomainDistItem[] }) {
               percent={Math.round((item.count / max) * 100)}
               showInfo={false}
               strokeColor={DOMAIN_COLOR[item.domain]}
-              trailColor="var(--line-light)"
+              railColor="var(--line-light)"
               size="small"
             />
             <strong className="domain-dist-count">{item.count}</strong>

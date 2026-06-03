@@ -1,6 +1,5 @@
 import { PageHeader } from "@/components/PageHeader";
 import { ApiState } from "@/components/ApiState";
-import { Card } from "@/components/shared/Card";
 import { getApiData, type AIGovernanceRun, type AuditLog } from "@/lib/api";
 import { WorkspaceContent } from "./_components/WorkspaceContent";
 

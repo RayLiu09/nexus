@@ -1,19 +1,7 @@
-const STAGES = [
-  "接入校验",
-  "解析完成",
-  "资产化完成",
-  "标准化处理中",
-  "AI治理待执行",
-  "规则待执行",
-  "索引待执行",
-  "完成"
-];
-
 type StageStatus = "done" | "active" | "pending" | "failed";
 
 type JobPipelineProps = {
   stages: { name: string; status: StageStatus; detail?: string }[];
-  currentStage?: string;
 };
 
 function stageClass(status: StageStatus): string {
@@ -23,7 +11,7 @@ function stageClass(status: StageStatus): string {
   return "";
 }
 
-export function JobPipeline({ stages, currentStage }: JobPipelineProps) {
+export function JobPipeline({ stages }: JobPipelineProps) {
   return (
     <div className="m1-flow">
       {stages.map((stage, i) => (
@@ -80,5 +68,5 @@ export function DefaultDocPipeline({
     return { name: label, status };
   });
 
-  return <JobPipeline stages={stages} currentStage={currentStage} />;
+  return <JobPipeline stages={stages} />;
 }

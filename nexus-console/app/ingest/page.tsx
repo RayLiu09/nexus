@@ -168,7 +168,7 @@ export default async function IngestPage({ searchParams }: IngestPageProps) {
                     )}
                   </select>
                   {sources.data.length === 0 && (
-                    <a
+                    <Link
                       href="/data-sources/new"
                       style={{
                         fontSize: 12,
@@ -178,7 +178,7 @@ export default async function IngestPage({ searchParams }: IngestPageProps) {
                       }}
                     >
                       → 前往注册数据源
-                    </a>
+                    </Link>
                   )}
                 </div>
                 <div className="form-group">

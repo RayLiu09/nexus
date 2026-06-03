@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { navigation, type NavGroupId } from "@/lib/navigation";
+import { navigation } from "@/lib/navigation";
 
 type SidebarProps = {
   collapsed: boolean;

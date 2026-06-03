@@ -134,7 +134,7 @@ function DrawerBody({ loading, error, view, result }: DrawerBodyProps) {
   }
 
   if (error) {
-    return <Alert type="error" showIcon message="无法加载决策追踪" description={error} />;
+    return <Alert type="error" showIcon title="无法加载决策追踪" description={error} />;
   }
 
   if (!result) {
@@ -242,7 +242,7 @@ function TrailItem({ entry, view }: { entry: DecisionTrailEntry; view: DecisionT
       )}
 
       {entry.review_reason && (
-        <Alert type="warning" showIcon message={entry.review_reason} className="mt-1" />
+        <Alert type="warning" showIcon title={entry.review_reason} className="mt-1" />
       )}
 
       <ThresholdView check={entry.threshold_check} />

@@ -198,7 +198,7 @@ export default function RulesPage() {
         }
       />
 
-      {loadError && <Alert type="error" showIcon className="mb-4" message={loadError} />}
+      {loadError && <Alert type="error" showIcon className="mb-4" title={loadError} />}
 
       <Alert
         className="mb-4"

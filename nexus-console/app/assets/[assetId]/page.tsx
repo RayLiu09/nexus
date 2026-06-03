@@ -2,10 +2,8 @@ import Link from "next/link";
 import { ApiState } from "@/components/ApiState";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusLabel } from "@/components/StatusLabel";
-import { EmptyState } from "@/components/EmptyState";
 import { AssetDetailTabs } from "@/components/AssetDetailTabs";
 import {
-  formatDateTime,
   getApiData,
   shortId,
   type AssetDetail,

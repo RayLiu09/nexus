@@ -49,7 +49,7 @@ export default async function SearchPage() {
       />
 
       {warning && (
-        <Alert type="warning" showIcon className="mb-4" message={warning} />
+        <Alert type="warning" showIcon className="mb-4" title={warning} />
       )}
 
       <SearchPlayground knowledgeTypes={knowledgeTypes} />

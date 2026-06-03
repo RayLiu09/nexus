@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Button, Drawer, Tag, Descriptions, App, Input, InputNumber, Select } from "antd";
 import { PlusOutlined, EditOutlined, CopyOutlined, StopOutlined } from "@ant-design/icons";
-import { Card } from "@/components/shared/Card";
 import { Empty } from "@/components/shared/Empty";
 import { formatTime } from "@/lib/format-time";
 import { apiBaseUrl } from "@/lib/api";
