@@ -7,6 +7,7 @@ import { Empty } from "@/components/shared/Empty";
 import { formatTime } from "@/lib/format-time";
 import { getApiData, shortId, type DataSource, type IngestBatch, type RawObject } from "@/lib/api";
 import { ConnectorConfig } from "./_components/ConnectorConfig";
+import { DeleteDataSourceButton } from "./_components/DeleteDataSourceButton";
 
 export const dynamic = "force-dynamic";
 
@@ -163,6 +164,25 @@ export default async function DataSourceDetailPage({
               </pre>
             </div>
           )}
+
+          {/* ── Danger Zone ── */}
+          <div
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--danger-200, #fecaca)",
+              borderRadius: "var(--radius-xl)",
+              padding: 20,
+              marginBottom: 20,
+            }}
+          >
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4, color: "var(--danger-600, #dc2626)" }}>
+              危险操作
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 12 }}>
+              删除数据源是不可逆操作。请确认已无关联的活跃作业后再执行。
+            </div>
+            <DeleteDataSourceButton dataSourceId={ds.id} dataSourceName={ds.name} />
+          </div>
 
           {/* ── Related Batches ── */}
           <div

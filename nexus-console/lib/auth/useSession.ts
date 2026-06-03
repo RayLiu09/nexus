@@ -2,46 +2,48 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { clearClientSession, getClientSession, setClientSession, type Session } from "./session";
+import { getClientSession, logout as doLogout, type Session } from "./session";
 
 export interface UseSessionResult {
   session: Session | null;
   isLoading: boolean;
-  login: (s: Session) => void;
+  /** Trigger login by navigating to /login (clears current session first). */
+  login: () => void;
   logout: () => void;
-  /** 服务端 prefetch 的 session（避免 hydration 闪烁）。 */
-  setInitial: (s: Session | null) => void;
+  /** Re-read session from JWT cookie. Call after token refresh. */
+  refresh: () => Promise<void>;
 }
 
 /**
- * 客户端 session hook。SSR 阶段返回 isLoading=true 占位，挂载后从
- * cookie/localStorage 读真值。可通过 `setInitial` 提前注入服务端读到的
- * session，避免首次渲染闪烁。
+ * Client-side session hook. Reads JWT from cookie on mount and exposes
+ * session state. login() navigates to /login; logout() clears tokens.
  */
 export function useSession(): UseSessionResult {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time init from localStorage/cookie on mount
-    setSession(getClientSession());
-    setIsLoading(false);
+  const refresh = useCallback(async () => {
+    const s = await getClientSession();
+    setSession(s);
   }, []);
 
-  const login = useCallback((s: Session) => {
-    setClientSession(s);
-    setSession(s);
+  useEffect(() => {
+    // One-time init from JWT cookie on mount
+    getClientSession().then((s) => {
+      setSession(s);
+      setIsLoading(false);
+    });
+  }, []);
+
+  const login = useCallback(() => {
+    // Clear any stale session and navigate to login
+    doLogout();
   }, []);
 
   const logout = useCallback(() => {
-    clearClientSession();
+    doLogout();
     setSession(null);
   }, []);
 
-  const setInitial = useCallback((s: Session | null) => {
-    setSession(s);
-    setIsLoading(false);
-  }, []);
-
-  return { session, isLoading, login, logout, setInitial };
+  return { session, isLoading, login, logout, refresh };
 }

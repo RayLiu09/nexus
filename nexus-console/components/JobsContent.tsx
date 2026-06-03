@@ -4,7 +4,9 @@ import { useState } from "react";
 import { StatusLabel } from "@/components/StatusLabel";
 import { PollingIndicator } from "@/components/PollingIndicator";
 import { EmptyState } from "@/components/EmptyState";
-import { formatDateTime, shortId, type Job, type JobStage } from "@/lib/api";
+import { ConfirmButton } from "@/components/shared/ConfirmButton";
+import { useOptimisticMutation } from "@/lib/useOptimisticMutation";
+import { formatDateTime, shortId, postApiData, type Job, type JobStage } from "@/lib/api";
 
 const PIPELINE_STAGES = [
   { key: "ingest_validate", label: "接入校验" },
@@ -36,7 +38,8 @@ function getStageStatus(stageName: string, job: Job, stages: JobStage[]): "done"
   return "pending";
 }
 
-export function JobsContent({ jobs, stages }: { jobs: Job[]; stages: JobStage[] }) {
+export function JobsContent({ jobs: initialJobs, stages }: { jobs: Job[]; stages: JobStage[] }) {
+  const [jobs, setJobs] = useState<Job[]>(initialJobs);
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
   const [pollingState, setPollingState] = useState<"active" | "paused" | "error">("active");
 
@@ -45,6 +48,36 @@ export function JobsContent({ jobs, stages }: { jobs: Job[]; stages: JobStage[] 
   function toggleExpand(jobId: string) {
     setExpandedJobId((prev) => (prev === jobId ? null : jobId));
   }
+
+  // Optimistic retry: optimistically set to "queued", rollback on failure
+  const retryMutation = useOptimisticMutation({
+    mutationFn: (jobId: string) => postApiData(`/v1/jobs/${jobId}/retry`, {}),
+    onMutate: (jobId: string) => {
+      setJobs((prev) =>
+        prev.map((j) => (j.id === jobId ? { ...j, status: "queued", failure_reason: null } : j)),
+      );
+    },
+    rollback: (snapshot: unknown) => {
+      setJobs(snapshot as Job[]);
+    },
+    getSnapshot: () => jobs,
+    successMessage: "作业已重新入队",
+  });
+
+  // Optimistic cancel: optimistically set to "cancelled", rollback on failure
+  const cancelMutation = useOptimisticMutation({
+    mutationFn: (jobId: string) => postApiData(`/v1/jobs/${jobId}/cancel`, {}),
+    onMutate: (jobId: string) => {
+      setJobs((prev) =>
+        prev.map((j) => (j.id === jobId ? { ...j, status: "cancelled" } : j)),
+      );
+    },
+    rollback: (snapshot: unknown) => {
+      setJobs(snapshot as Job[]);
+    },
+    getSnapshot: () => jobs,
+    successMessage: "作业已取消",
+  });
 
   return (
     <>
@@ -155,6 +188,35 @@ export function JobsContent({ jobs, stages }: { jobs: Job[]; stages: JobStage[] 
                           </div>
                         );
                       })()}
+
+                      {/* Danger actions */}
+                      {(job.status === "failed" || job.status === "dead_lettered") && (
+                        <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+                          <ConfirmButton
+                            title="重试作业"
+                            description="重新将作业加入队列。如果失败原因未解决，作业可能再次失败。"
+                            severity="warning"
+                            buttonProps={{ size: "small" }}
+                            onConfirm={() => retryMutation.execute(job.id)}
+                          >
+                            重试
+                          </ConfirmButton>
+                        </div>
+                      )}
+                      {(job.status === "running" || job.status === "queued") && (
+                        <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+                          <ConfirmButton
+                            title="取消作业"
+                            description="终止当前作业的执行。已完成的阶段不会回溯。"
+                            severity="warning"
+                            danger
+                            buttonProps={{ size: "small" }}
+                            onConfirm={() => cancelMutation.execute(job.id)}
+                          >
+                            取消
+                          </ConfirmButton>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

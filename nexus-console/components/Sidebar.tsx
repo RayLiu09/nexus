@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { navigation } from "@/lib/navigation";
+import { navigation, roleCanAccess } from "@/lib/navigation";
+import { useSession } from "@/lib/auth/useSession";
 
 type SidebarProps = {
   collapsed: boolean;
@@ -11,6 +12,7 @@ type SidebarProps = {
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const { session } = useSession();
 
   return (
     <aside className="sidebar">
@@ -25,30 +27,36 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       {/* Navigation groups */}
       <nav className="sidebar-nav" aria-label="主导航">
-        {navigation.map((group) => (
-          <div className="sidebar-group" key={group.id}>
-            <div className="sidebar-group-label">{group.label}</div>
-            {group.items.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-              return (
-                <Link
-                  className={`nav-item${isActive ? " active" : ""}`}
-                  href={item.href}
-                  key={item.href}
-                  title={collapsed ? item.label : undefined}
-                >
-                  <span className="nav-item-icon">{item.icon}</span>
-                  <span className="nav-item-label">{item.label}</span>
-                  {item.badge != null && !collapsed && (
-                    <span className={`nav-item-badge ${item.badgeTone ?? ""}`}>
-                      {item.badge}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-        ))}
+        {navigation.map((group) => {
+          const visibleItems = group.items.filter(
+            (item) => !item.minRole || roleCanAccess(session?.role, item.minRole),
+          );
+          if (visibleItems.length === 0) return null;
+          return (
+            <div className="sidebar-group" key={group.id}>
+              <div className="sidebar-group-label">{group.label}</div>
+              {visibleItems.map((item) => {
+                const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                return (
+                  <Link
+                    className={`nav-item${isActive ? " active" : ""}`}
+                    href={item.href}
+                    key={item.href}
+                    title={collapsed ? item.label : undefined}
+                  >
+                    <span className="nav-item-icon">{item.icon}</span>
+                    <span className="nav-item-label">{item.label}</span>
+                    {item.badge != null && !collapsed && (
+                      <span className={`nav-item-badge ${item.badgeTone ?? ""}`}>
+                        {item.badge}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          );
+        })}
       </nav>
 
       {/* Collapse toggle */}

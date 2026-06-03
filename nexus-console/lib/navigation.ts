@@ -1,3 +1,5 @@
+import type { SessionRole } from "@/lib/auth/session";
+
 export type NavGroupId =
   | "overview"
   | "data-engineering"
@@ -5,12 +7,31 @@ export type NavGroupId =
   | "access-audit"
   | "personal";
 
+/**
+ * Role hierarchy for UI visibility.
+ * Higher numeric value = more privileged.
+ */
+const ROLE_LEVEL: Record<SessionRole, number> = {
+  platform_admin: 4,
+  data_steward: 3,
+  reviewer: 2,
+  reader: 1,
+};
+
+/** Check if a role meets or exceeds the minimum required level. */
+export function roleCanAccess(userRole: SessionRole | undefined, minRole: SessionRole): boolean {
+  if (!userRole) return false;
+  return (ROLE_LEVEL[userRole] ?? 0) >= (ROLE_LEVEL[minRole] ?? 0);
+}
+
 export type NavItem = {
   href: string;
   label: string;
   icon: string;
   badge?: number | string;
   badgeTone?: "default" | "warning" | "danger";
+  /** Minimum role required to see this nav item. If omitted, visible to all. */
+  minRole?: SessionRole;
 };
 
 export type NavGroup = {
@@ -44,8 +65,8 @@ export const navigation: Navigation = [
       { href: "/assets", label: "资产目录", icon: "▥" },
       { href: "/governance", label: "治理中心", icon: "◈", badge: 19, badgeTone: "warning" },
       { href: "/tag-review", label: "标签审核", icon: "#", badge: 12, badgeTone: "warning" },
-      { href: "/rules", label: "规则配置", icon: "≡" },
-      { href: "/ai-prompts", label: "AI Prompt", icon: "AI" },
+      { href: "/rules", label: "规则配置", icon: "≡", minRole: "data_steward" },
+      { href: "/ai-prompts", label: "AI Prompt", icon: "AI", minRole: "data_steward" },
     ],
   },
   {
@@ -53,6 +74,7 @@ export const navigation: Navigation = [
     label: "访问与审计",
     items: [
       { href: "/iam-audit", label: "权限与审计", icon: "⌘" },
+      { href: "/api-callers", label: "API Caller", icon: "⊡" },
       { href: "/search", label: "检索验证", icon: "?" },
     ],
   },

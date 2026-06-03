@@ -1,15 +1,38 @@
 /**
- * 服务端读 session（RSC / route handler 入口）。
+ * Server-side session reader for RSC and route handlers.
  *
- * 与 `lib/auth/session.ts` 配对：客户端写 cookie，服务端通过
- * `next/headers` 的 `cookies()` 读出来。仅供 server components 使用。
+ * Reads the access token cookie, decodes the JWT payload, and returns
+ * a Session. Does NOT verify the signature — that's the backend's job.
  */
 import { cookies } from "next/headers";
 
-import { SESSION_COOKIE, decodeSession, type Session } from "./session";
+import { ACCESS_TOKEN_COOKIE, decodeJwtPayload, isTokenExpired } from "./token";
+import type { Session, SessionRole } from "./session";
+
+function sessionFromPayload(payload: Record<string, unknown>): Session {
+  return {
+    id: String(payload.sub ?? ""),
+    username: String(payload.username ?? payload.sub ?? ""),
+    displayName: String(payload.display_name ?? payload.sub ?? ""),
+    role: (payload.role as SessionRole) ?? "reader",
+    orgUnit: {
+      id: String(payload.org_id ?? ""),
+      name: String(payload.org_name ?? ""),
+    },
+    env: (payload.env as Session["env"]) ?? "demo",
+    loggedInAt: (Number(payload.iat) || Math.floor(Date.now() / 1000)) * 1000,
+  };
+}
 
 export async function getServerSession(): Promise<Session | null> {
-  const store = await cookies();
-  const raw = store.get(SESSION_COOKIE)?.value;
-  return decodeSession(raw ?? null);
+  try {
+    const store = await cookies();
+    const token = store.get(ACCESS_TOKEN_COOKIE)?.value;
+    if (!token) return null;
+    const payload = decodeJwtPayload(token);
+    if (!payload || isTokenExpired(payload)) return null;
+    return sessionFromPayload(payload as unknown as Record<string, unknown>);
+  } catch {
+    return null;
+  }
 }

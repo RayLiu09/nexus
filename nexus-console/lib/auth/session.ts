@@ -1,14 +1,16 @@
 /**
- * Dev-mode session helpers.
+ * Session type and helpers — JWT-based (Bearer token).
  *
- * 本周只做"开发态假登录"：用户在 /login 页选一个 mock 角色，session 写入
- * cookie（可被服务端 RSC 读取）+ localStorage（客户端容错）。等后端真正
- * 引入 IAM 时，只需替换 `setSession` / `clearSession` / `useSession`
- * 三个入口，业务代码不动。
- *
- * 注意：cookie 不设 httpOnly（需要客户端可读以做 redirect / Topbar 显示），
- * 也不签名 —— 这是 dev 模式的边界，真 IAM 上线时要严格收口。
+ * Session is derived from the access token's JWT payload.
+ * The backend is the authority for token issuance and verification;
+ * the frontend only decodes the payload for UI display.
  */
+
+import type { JwtPayload } from "./token";
+import { getJwtPayload, clearTokens } from "./token";
+
+// ── Types ─────────────────────────────────────────────────────────────────
+
 export type SessionRole = "platform_admin" | "data_steward" | "reviewer" | "reader";
 
 export interface SessionOrg {
@@ -23,94 +25,98 @@ export interface Session {
   role: SessionRole;
   orgUnit: SessionOrg;
   env: "demo" | "staging" | "prod";
-  /** 创建时间（epoch ms），用于 UI 显示登录时长。 */
   loggedInAt: number;
 }
 
-export const SESSION_COOKIE = "nexus_session";
+// ── Cookie constants (for server-side reading) ────────────────────────────
+
+export const SESSION_COOKIE = "nexus_access_token";
 export const SESSION_STORAGE_KEY = "nexus.session";
 
-/** 7 天有效期；dev 模式无需 refresh token 概念。 */
-const COOKIE_MAX_AGE_S = 60 * 60 * 24 * 7;
+// ── JWT → Session ─────────────────────────────────────────────────────────
 
-function isSession(value: unknown): value is Session {
-  if (!value || typeof value !== "object") return false;
-  const v = value as Record<string, unknown>;
-  return (
-    typeof v.id === "string" &&
-    typeof v.username === "string" &&
-    typeof v.displayName === "string" &&
-    typeof v.role === "string" &&
-    typeof v.env === "string" &&
-    typeof v.orgUnit === "object" &&
-    v.orgUnit !== null
-  );
+function sessionFromPayload(payload: JwtPayload): Session {
+  return {
+    id: payload.sub,
+    username: payload.username ?? payload.sub,
+    displayName: payload.display_name ?? payload.sub,
+    role: (payload.role as SessionRole) ?? "reader",
+    orgUnit: {
+      id: payload.org_id ?? "",
+      name: payload.org_name ?? "",
+    },
+    env: (payload.env as Session["env"]) ?? "demo",
+    loggedInAt: (payload.iat ?? Math.floor(Date.now() / 1000)) * 1000,
+  };
 }
 
+// ── Client-side auth helpers ──────────────────────────────────────────────
+
+/** Return current session from JWT access token (client or server). */
+export async function getClientSession(): Promise<Session | null> {
+  const payload = await getJwtPayload();
+  return payload ? sessionFromPayload(payload) : null;
+}
+
+/** Synchronous version — client only, from document.cookie. */
+export function getClientSessionSync(): Session | null {
+  // Dynamic import avoided: inline cookie read + decode for sync client path
+  const raw = typeof document !== "undefined"
+    ? document.cookie.split(";").find((c) => c.trim().startsWith("nexus_access_token="))
+    : undefined;
+  if (!raw) return null;
+  const token = raw.split("=").slice(1).join("=").trim();
+  if (!token) return null;
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const json = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
+    const payload = JSON.parse(json);
+    if (typeof payload.exp !== "number" || typeof payload.sub !== "string") return null;
+    if (Date.now() / 1000 >= payload.exp - 30) return null;
+    return sessionFromPayload(payload);
+  } catch {
+    return null;
+  }
+}
+
+/** Logout: clear tokens and redirect to /login. */
+export function logout(): void {
+  clearTokens();
+  if (typeof window !== "undefined") {
+    // Also call server endpoint to clear httpOnly refresh cookie
+    fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    window.location.href = "/login";
+  }
+}
+
+// ── Deprecated mock helpers (kept for backward compat during migration) ───
+
+/** @deprecated Use getClientSession() — JWT based. */
 export function encodeSession(s: Session): string {
   return encodeURIComponent(JSON.stringify(s));
 }
 
+/** @deprecated Use getClientSession() — JWT based. */
 export function decodeSession(raw: string | null | undefined): Session | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(decodeURIComponent(raw));
-    return isSession(parsed) ? parsed : null;
+    if (parsed && typeof parsed.id === "string" && typeof parsed.role === "string") {
+      return parsed as Session;
+    }
+    return null;
   } catch {
     return null;
   }
 }
 
-/** 客户端读 session（cookie 优先；localStorage 回填）。 */
-export function getClientSession(): Session | null {
-  if (typeof document === "undefined") return null;
-  const cookie = readCookie(SESSION_COOKIE);
-  const fromCookie = decodeSession(cookie);
-  if (fromCookie) return fromCookie;
-  try {
-    const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
-    return decodeSession(raw);
-  } catch {
-    return null;
-  }
-}
-
-/** 客户端写 session（cookie + localStorage 双写）。 */
-export function setClientSession(s: Session): void {
-  if (typeof document === "undefined") return;
-  writeCookie(SESSION_COOKIE, encodeSession(s), COOKIE_MAX_AGE_S);
-  try {
-    window.localStorage.setItem(SESSION_STORAGE_KEY, encodeSession(s));
-  } catch {
-    /* localStorage 可能被禁；忽略 */
-  }
-}
-
+/** @deprecated Use logout() instead. */
 export function clearClientSession(): void {
-  if (typeof document === "undefined") return;
-  writeCookie(SESSION_COOKIE, "", 0);
-  try {
-    window.localStorage.removeItem(SESSION_STORAGE_KEY);
-  } catch {
-    /* ignore */
-  }
+  logout();
 }
 
-function readCookie(name: string): string | null {
-  const all = document.cookie.split(";");
-  for (const part of all) {
-    const idx = part.indexOf("=");
-    if (idx < 0) continue;
-    const key = part.slice(0, idx).trim();
-    if (key === name) return part.slice(idx + 1).trim();
-  }
-  return null;
-}
-
-function writeCookie(name: string, value: string, maxAgeS: number): void {
-  const parts = [`${name}=${value}`, "path=/", `max-age=${maxAgeS}`, "samesite=lax"];
-  if (typeof location !== "undefined" && location.protocol === "https:") {
-    parts.push("secure");
-  }
-  document.cookie = parts.join("; ");
+/** @deprecated Use getClientSessionSync() instead. */
+export function setClientSession(_s: Session): void {
+  void _s; // no-op in JWT mode — tokens come from backend
 }

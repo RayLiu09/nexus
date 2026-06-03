@@ -234,6 +234,56 @@ export function apiBaseUrl() {
   return (process.env.NEXUS_API_BASE_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 }
 
+// ── Token helpers (inline to avoid circular deps) ────────────────────────
+
+async function getAuthHeader(): Promise<string | null> {
+  try {
+    // Server-side: read from cookies()
+    if (typeof window === "undefined") {
+      const { cookies } = await import("next/headers");
+      const store = await cookies();
+      const token = store.get("nexus_access_token")?.value;
+      return token ? `Bearer ${token}` : null;
+    }
+  } catch {
+    // Not in a request context (e.g., build time)
+    return null;
+  }
+  // Client-side: read from document.cookie
+  if (typeof document !== "undefined") {
+    const all = document.cookie.split(";");
+    for (const part of all) {
+      const [key, ...rest] = part.trim().split("=");
+      if (key === "nexus_access_token") {
+        return `Bearer ${rest.join("=")}`;
+      }
+    }
+  }
+  return null;
+}
+
+async function tryRefreshToken(): Promise<boolean> {
+  try {
+    const resp = await fetch("/api/auth/refresh", { method: "POST" });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+// ── Idempotency Key ──────────────────────────────────────────────────────
+
+let _idempotencyCounter = 0;
+function generateIdempotencyKey(): string {
+  _idempotencyCounter += 1;
+  const ts = Date.now().toString(36);
+  const rand = Math.random().toString(36).slice(2, 8);
+  const seq = _idempotencyCounter.toString(36);
+  return `${ts}-${rand}-${seq}`;
+}
+
+// ── Core request ──────────────────────────────────────────────────────────
+
 export async function getApiData<T>(path: string, fallback: T): Promise<ApiResult<T>> {
   try {
     const envelope = await requestApi<T>(path, { method: "GET" });
@@ -256,19 +306,67 @@ export async function getApiData<T>(path: string, fallback: T): Promise<ApiResul
 export async function postApiData<T>(
   path: string,
   payload: Record<string, unknown>,
+  options?: { idempotencyKey?: string },
 ): Promise<ApiEnvelope<T>> {
+  const key = options?.idempotencyKey ?? generateIdempotencyKey();
   return requestApi<T>(path, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": key,
+    },
     body: JSON.stringify(payload),
   });
 }
 
+export async function putApiData<T>(
+  path: string,
+  payload: Record<string, unknown>,
+  options?: { etag?: string },
+): Promise<ApiEnvelope<T>> {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (options?.etag) headers["if-match"] = options.etag;
+  return requestApi<T>(path, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteApiData<T = void>(path: string): Promise<ApiEnvelope<T>> {
+  return requestApi<T>(path, { method: "DELETE" });
+}
+
 async function requestApi<T>(path: string, init: RequestInit): Promise<ApiEnvelope<T>> {
-  const response = await fetch(`${apiBaseUrl()}${path}`, {
+  const authHeader = await getAuthHeader();
+  const headers: Record<string, string> = {};
+  if (init.headers) {
+    for (const [k, v] of Object.entries(init.headers)) {
+      headers[k.toLowerCase()] = v as string;
+    }
+  }
+  if (authHeader) headers["authorization"] = authHeader;
+
+  let response = await fetch(`${apiBaseUrl()}${path}`, {
     ...init,
+    headers,
     cache: "no-store",
   });
+
+  // On 401, attempt refresh and retry once (client-side only)
+  if (response.status === 401 && typeof window !== "undefined") {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      const newAuth = await getAuthHeader();
+      if (newAuth) headers["authorization"] = newAuth;
+      response = await fetch(`${apiBaseUrl()}${path}`, {
+        ...init,
+        headers,
+        cache: "no-store",
+      });
+    }
+  }
+
   const raw = await response.text();
   const parsed = raw ? JSON.parse(raw) : {};
   const traceId = parsed?.meta?.trace_id ?? null;
