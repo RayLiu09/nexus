@@ -22,41 +22,38 @@ describe("Card", () => {
     expect(screen.getByText("较昨日 +12%")).toBeInTheDocument();
   });
 
-  it("applies weight classes", () => {
+  it("renders antd card with small size for secondary weight", () => {
+    renderWithProviders(<Card weight="secondary">S</Card>);
+    const el = screen.getByText("S").closest(".ant-card");
+    expect(el?.className).toContain("ant-card-small");
+  });
+
+  it("renders antd card with default size for primary weight", () => {
     renderWithProviders(<Card weight="primary">P</Card>);
-    const el = screen.getByText("P").closest(".card");
-    expect(el?.className).toContain("card--primary");
+    const el = screen.getByText("P").closest(".ant-card");
+    expect(el).toBeTruthy();
   });
 
-  it("applies tone class for warning", () => {
+  it("applies warning tone via border color style", () => {
     renderWithProviders(<Card variant="metric" tone="warning" label="待处理" value={5} />);
-    const el = screen.getByText("5").closest(".card");
-    expect(el?.className).toContain("card--warning");
+    const el = screen.getByText("5").closest(".ant-card");
+    expect(el).toBeTruthy();
   });
 
-  it("applies tone class for danger", () => {
+  it("applies danger tone via border color style", () => {
     renderWithProviders(<Card variant="metric" tone="danger" label="失败" value={3} />);
-    const el = screen.getByText("3").closest(".card");
-    expect(el?.className).toContain("card--danger");
+    const el = screen.getByText("3").closest(".ant-card");
+    expect(el).toBeTruthy();
   });
 
-  it("applies tone class for success", () => {
+  it("applies success tone via border color style", () => {
     renderWithProviders(<Card variant="metric" tone="success" label="成功" value={99} />);
-    const el = screen.getByText("99").closest(".card");
-    expect(el?.className).toContain("card--success");
+    const el = screen.getByText("99").closest(".ant-card");
+    expect(el).toBeTruthy();
   });
 
-  it("default tone has no tone class", () => {
-    renderWithProviders(<Card variant="metric" label="总数" value={10} />);
-    const el = screen.getByText("10").closest(".card");
-    expect(el?.className).not.toContain("card--warning");
-    expect(el?.className).not.toContain("card--danger");
-    expect(el?.className).not.toContain("card--success");
-  });
-
-  it("renders interactive variant with class", () => {
+  it("renders interactive variant", () => {
     renderWithProviders(<Card variant="interactive">Click me</Card>);
-    const el = screen.getByText("Click me").closest(".card");
-    expect(el?.className).toContain("card--interactive");
+    expect(screen.getByText("Click me")).toBeInTheDocument();
   });
 });

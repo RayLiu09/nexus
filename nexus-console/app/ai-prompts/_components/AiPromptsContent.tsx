@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button, Drawer, Tag, Descriptions, App, Input, InputNumber, Select } from "antd";
 import { PlusOutlined, EditOutlined, CopyOutlined, StopOutlined } from "@ant-design/icons";
-import { Empty } from "@/components/shared/Empty";
+import { Empty } from "antd";
 import { formatTime } from "@/lib/format-time";
 import { apiBaseUrl } from "@/lib/api";
 
@@ -259,7 +259,7 @@ export default function AiPromptsContent({ profiles }: { profiles: PromptProfile
 
       {/* Profile Cards */}
       {items.length === 0 ? (
-        <Empty title="暂无 Prompt 配置" description="创建第一个 Prompt 配置以启用 AI 治理" />
+        <Empty description="暂无 Prompt 配置" />
       ) : (
         <div style={{ display: "grid", gap: 12 }}>
           {items.map((p) => {

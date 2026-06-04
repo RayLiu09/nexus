@@ -1,8 +1,7 @@
+import { Card, Empty, Statistic } from "antd";
 import { ApiState } from "@/components/ApiState";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusLabel } from "@/components/StatusLabel";
-import { StatCard } from "@/components/StatCard";
-import { EmptyState } from "@/components/EmptyState";
 import { formatDateTime, shortId } from "@/lib/api";
 import { loadIdentityData } from "@/lib/console-data";
 
@@ -25,10 +24,10 @@ export default async function IamAuditPage() {
 
       {/* Count cards */}
       <div className="stat-grid">
-        <StatCard label="组织" value={orgUnits.data.length} variant="brand" />
-        <StatCard label="用户" value={users.data.length} />
-        <StatCard label="API 调用方" value={apiCallers.data.length} />
-        <StatCard label="审计事件" value={audits.data.length} variant="warning" />
+        <Card size="small"><Statistic title="组织" value={orgUnits.data.length} /></Card>
+        <Card size="small"><Statistic title="用户" value={users.data.length} /></Card>
+        <Card size="small"><Statistic title="API 调用方" value={apiCallers.data.length} /></Card>
+        <Card size="small"><Statistic title="审计事件" value={audits.data.length} /></Card>
       </div>
 
       {/* API Callers */}
@@ -56,7 +55,7 @@ export default async function IamAuditPage() {
               </div>
             ))
           ) : (
-            <EmptyState icon="⊡" title="暂无 API 调用方" />
+            <Empty description="暂无 API 调用方" />
           )}
         </div>
       </div>
@@ -88,7 +87,7 @@ export default async function IamAuditPage() {
               </div>
             ))
           ) : (
-            <EmptyState icon="📋" title="暂无审计事件" />
+            <Empty description="暂无审计事件" />
           )}
         </div>
       </div>

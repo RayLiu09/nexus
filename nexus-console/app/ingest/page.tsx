@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { ApiState } from "@/components/ApiState";
 import { StatusLabel } from "@/components/StatusLabel";
 import { Card } from "@/components/shared/Card";
-import { Empty } from "@/components/shared/Empty";
+import { Empty } from "antd";
 import { formatTime } from "@/lib/format-time";
 import { getApiData, postApiData, shortId, type DataSource, type IngestBatch } from "@/lib/api";
 import Link from "next/link";
@@ -338,7 +338,7 @@ export default async function IngestPage({ searchParams }: IngestPageProps) {
           </Link>
         </div>
         {batches.data.length === 0 ? (
-          <Empty title="暂无批次" description="提交第一个数据批次后将在此显示处理历史" />
+          <Empty description="暂无批次" />
         ) : (
           <div style={{ display: "grid", gap: 0 }}>
             {batches.data.map((batch) => {

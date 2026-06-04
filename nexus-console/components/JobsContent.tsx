@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { StatusLabel } from "@/components/StatusLabel";
 import { PollingIndicator } from "@/components/PollingIndicator";
-import { EmptyState } from "@/components/EmptyState";
+import { Empty } from "antd";
 import { ConfirmButton } from "@/components/shared/ConfirmButton";
 import { useOptimisticMutation } from "@/lib/useOptimisticMutation";
 import { useElapsed } from "@/lib/useElapsed";
@@ -94,7 +94,7 @@ export function JobsContent({ jobs: initialJobs, stages }: { jobs: Job[]; stages
       )}
 
       {jobs.length === 0 ? (
-        <EmptyState icon="⚙" title="暂无作业" description="提交数据接入后将自动创建作业" />
+        <Empty description="暂无作业" />
       ) : (
         <div className="card">
           <div className="card-header">

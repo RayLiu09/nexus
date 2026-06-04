@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { ApiState } from "@/components/ApiState";
 import { StatusLabel } from "@/components/StatusLabel";
 import { Card } from "@/components/shared/Card";
-import { Empty } from "@/components/shared/Empty";
+import { Empty } from "antd";
 import { formatTime } from "@/lib/format-time";
 import { getApiData, shortId, type DataSource, type IngestBatch, type RawObject } from "@/lib/api";
 import { ConnectorConfig } from "./_components/ConnectorConfig";
@@ -53,7 +53,7 @@ export default async function DataSourceDetailPage({
       <ApiState ok={dsResult.ok} error={dsResult.error} traceId={dsResult.traceId} />
 
       {!ds ? (
-        <Empty title="数据源不存在" description="该数据源可能已被删除或 ID 错误" />
+        <Empty description="数据源不存在" />
       ) : (
         <>
           {/* ── Metrics ── */}

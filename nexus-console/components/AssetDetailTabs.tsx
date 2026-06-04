@@ -1,12 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Tabs } from "@/components/Tabs";
+import { Tabs, Tag, Progress, Empty } from "antd";
 import { StatusLabel } from "@/components/StatusLabel";
-import { Badge } from "@/components/Badge";
 import { ConfidenceBadge } from "@/components/ConfidenceBadge";
-import { ProgressBar } from "@/components/ProgressBar";
-import { EmptyState } from "@/components/EmptyState";
 import {
   formatDateTime,
   shortId,
@@ -27,10 +24,10 @@ type Props = {
 };
 
 const TABS = [
-  { id: "lineage", label: "血缘追溯" },
-  { id: "ai-governance", label: "AI 治理" },
-  { id: "quality", label: "质量评分" },
-  { id: "versions", label: "版本历史" },
+  { key: "lineage", label: "血缘追溯" },
+  { key: "ai-governance", label: "AI 治理" },
+  { key: "quality", label: "质量评分" },
+  { key: "versions", label: "版本历史" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -115,7 +112,7 @@ function LineageTab({ asset, latestVersion, latestRef, relatedArtifact }: Omit<P
           </div>
         )}
         {!latestVersion && !relatedArtifact && !latestRef && (
-          <EmptyState icon="🔗" title="暂无血缘数据" description="继续完成接入和标准化流水线以生成完整血缘链路" />
+          <Empty description="暂无血缘数据" />
         )}
       </div>
     </>
@@ -130,11 +127,7 @@ function AIGovernanceTab({ runs }: { runs: AIGovernanceRun[] }) {
 
   if (runs.length === 0) {
     return (
-      <EmptyState
-        icon="✦"
-        title="暂无 AI 治理记录"
-        description="对该资产的标准化引用触发 AI 治理后，执行记录将显示在此处"
-      />
+      <Empty description="暂无 AI 治理记录" />
     );
   }
 
@@ -177,8 +170,8 @@ function AIGovernanceTab({ runs }: { runs: AIGovernanceRun[] }) {
         <div className="card-header">
           <span className="card-title">AI 建议</span>
           <div className="flex gap-2">
-            <Badge label={run.model_alias} variant="neutral" />
-            <Badge label={run.prompt_version} variant="neutral" />
+            <Tag>{run.model_alias}</Tag>
+            <Tag>{run.prompt_version}</Tag>
             <StatusLabel value={run.adoption_status} />
           </div>
         </div>
@@ -187,16 +180,15 @@ function AIGovernanceTab({ runs }: { runs: AIGovernanceRun[] }) {
             <div>
               <span>分类建议</span>
               {(aiOutput.classification as string)
-                ? <Badge label={aiOutput.classification as string} variant="brand" />
+                ? <Tag color="blue">{aiOutput.classification as string}</Tag>
                 : <span className="text-muted">-</span>}
             </div>
             <div>
               <span>分级建议</span>
               {(aiOutput.level as string) ? (
-                <Badge
-                  label={aiOutput.level as string}
-                  variant={["L3", "L4"].includes(aiOutput.level as string) ? "danger" : "neutral"}
-                />
+                <Tag color={["L3", "L4"].includes(aiOutput.level as string) ? "red" : undefined}>
+                  {aiOutput.level as string}
+                </Tag>
               ) : <span className="text-muted">-</span>}
             </div>
             <div>
@@ -207,7 +199,7 @@ function AIGovernanceTab({ runs }: { runs: AIGovernanceRun[] }) {
               <span>标签建议</span>
               <div className="flex gap-1 flex-wrap">
                 {Array.isArray(aiOutput.tags) && (aiOutput.tags as string[]).length > 0
-                  ? (aiOutput.tags as string[]).map((t) => <span key={t} className="tag">{t}</span>)
+                  ? (aiOutput.tags as string[]).map((t) => <Tag key={t}>{t}</Tag>)
                   : <span className="text-muted text-sm">-</span>}
               </div>
             </div>
@@ -232,7 +224,7 @@ function AIGovernanceTab({ runs }: { runs: AIGovernanceRun[] }) {
         <div className="card">
           <div className="card-header">
             <span className="card-title">证据引用</span>
-            <Badge label={`${evidenceRefs.length} 条`} variant="neutral" />
+            <Tag>{evidenceRefs.length} 条</Tag>
           </div>
           <div className="card-body" style={{ padding: 0 }}>
             {evidenceRefs.map((ref, i) => (
@@ -272,11 +264,7 @@ function QualityTab({ runs }: { runs: AIGovernanceRun[] }) {
 
   if (!runWithQuality?.quality_summary) {
     return (
-      <EmptyState
-        icon="📊"
-        title="暂无质量评分"
-        description="AI 治理执行完成后，质量评分摘要将显示在此处"
-      />
+      <Empty description="暂无质量评分" />
     );
   }
 
@@ -327,10 +315,13 @@ function QualityTab({ runs }: { runs: AIGovernanceRun[] }) {
               {Object.entries(dimScores).map(([dim, score]) => (
                 <div key={dim} className="flex items-center gap-3">
                   <span style={{ width: 80, fontSize: 13, color: "var(--text-muted)" }}>{dim}</span>
-                  <ProgressBar
-                    value={score}
-                    variant={score >= 80 ? "success" : score >= 60 ? "warning" : "default"}
-                    showLabel
+                  <Progress
+                    percent={Math.round(score)}
+                    size="small"
+                    style={{ flex: 1 }}
+                    strokeColor={
+                      score >= 80 ? "var(--success)" : score >= 60 ? "var(--warning)" : undefined
+                    }
                   />
                 </div>
               ))}
@@ -344,7 +335,7 @@ function QualityTab({ runs }: { runs: AIGovernanceRun[] }) {
         <div className="card">
           <div className="card-header">
             <span className="card-title">阻断原因</span>
-            <Badge label={`${blockingReasons.length} 条`} variant="danger" />
+            <Tag color="red">{blockingReasons.length} 条</Tag>
           </div>
           <div className="card-body">
             {blockingReasons.map((r, i) => (
@@ -397,7 +388,7 @@ function QualityTab({ runs }: { runs: AIGovernanceRun[] }) {
 // ---------------------------------------------------------------------------
 function VersionsTab({ versions }: { versions: DocumentVersion[] }) {
   if (versions.length === 0) {
-    return <EmptyState icon="📋" title="暂无版本记录" />;
+    return <Empty description="暂无版本记录" />;
   }
   return (
     <div className="table-frame">
@@ -436,18 +427,39 @@ export function AssetDetailTabs({
 }: Props) {
   const [activeTab, setActiveTab] = useState("lineage");
 
-  const tabs = TABS.map((t) => {
-    if (t.id === "ai-governance") {
-      return { ...t, badge: governanceRuns.length > 0 ? governanceRuns.length : undefined };
-    }
-    return t;
+  const tabItems = TABS.map((t) => {
+    const badgeCount = t.key === "ai-governance" && governanceRuns.length > 0
+      ? governanceRuns.length
+      : undefined;
+    return {
+      key: t.key,
+      label: (
+        <span>
+          {t.label}
+          {badgeCount != null && (
+            <span
+              style={{
+                marginLeft: 6,
+                background: "var(--brand-100)",
+                color: "var(--brand-700)",
+                borderRadius: 10,
+                padding: "0 6px",
+                fontSize: 12,
+              }}
+            >
+              {badgeCount}
+            </span>
+          )}
+        </span>
+      ),
+    };
   });
 
   return (
     <>
       <div className="card" style={{ marginBottom: 0 }}>
         <div className="card-header" style={{ borderBottom: "1px solid var(--line)" }}>
-          <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+          <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
         </div>
       </div>
 
