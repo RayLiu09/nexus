@@ -17,18 +17,14 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
   const currentPage = page ?? 1;
   const currentPageSize = pageSize ?? DEFAULT_PAGE_SIZE;
 
-  // Dedicated aggregate endpoint for stats summary and domain distribution.
-  const summaryResult = await getApiData<AssetSummary | null>("/v1/assets/summary", null);
-
-  // Paginated page for the table
-  const tableResult = await getApiData<AssetWithMeta[]>(
-    "/v1/assets",
-    [],
-    {
+  // Aggregate + paginated list are independent — fetch in parallel.
+  const [summaryResult, tableResult] = await Promise.all([
+    getApiData<AssetSummary | null>("/v1/assets/summary", null),
+    getApiData<AssetWithMeta[]>("/v1/assets", [], {
       page: String(currentPage),
       pageSize: String(currentPageSize),
-    },
-  );
+    }),
+  ]);
 
   const tableData = tableResult.data;
   const totalCount = summaryResult.data?.total ?? tableData.length;

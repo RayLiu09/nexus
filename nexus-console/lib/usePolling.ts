@@ -23,6 +23,8 @@ export interface UsePollingOptions<T> {
   backoffMs?: number[];
   /** 启用条件：false 时不发起请求（用于 batchId/jobId 尚未就绪场景）。 */
   enabled?: boolean;
+  /** 后台标签页是否继续轮询；默认 false（切到后台即暂停）。 */
+  refetchIntervalInBackground?: boolean;
 }
 
 export interface UsePollingResult<T> {
@@ -43,6 +45,11 @@ export interface UsePollingResult<T> {
 
 const DEFAULT_BACKOFF: ReadonlyArray<number> = [1_000, 3_000, 9_000];
 
+/** 三级刷新频率（毫秒）— 生产就绪 P2.2 */
+export const POLL_FAST = 30_000;    // 作业/ingest 状态
+export const POLL_NORMAL = 60_000;  // 资产列表
+export const POLL_SLOW = 300_000;   // 摘要统计
+
 export function usePolling<T>(options: UsePollingOptions<T>): UsePollingResult<T> {
   const {
     fn,
@@ -51,6 +58,7 @@ export function usePolling<T>(options: UsePollingOptions<T>): UsePollingResult<T
     pauseOnHidden = true,
     backoffMs = DEFAULT_BACKOFF,
     enabled = true,
+    refetchIntervalInBackground = false,
   } = options;
 
   const [data, setData] = useState<T | null>(null);
@@ -190,8 +198,9 @@ export function usePolling<T>(options: UsePollingOptions<T>): UsePollingResult<T
   }, [isPaused, enabled, clearTimer, startLoop]);
 
   // 标签切走暂停（不影响用户主动 pause/resume 的状态）
+  // refetchIntervalInBackground 为 true 时跳过可见性暂停。
   useEffect(() => {
-    if (!pauseOnHidden) return;
+    if (!pauseOnHidden || refetchIntervalInBackground) return;
     if (typeof document === "undefined") return;
     const onVisibility = () => {
       if (document.hidden) {
@@ -203,7 +212,7 @@ export function usePolling<T>(options: UsePollingOptions<T>): UsePollingResult<T
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, [pauseOnHidden, enabled, clearTimer, startLoop]);
+  }, [pauseOnHidden, refetchIntervalInBackground, enabled, clearTimer, startLoop]);
 
   const pause = useCallback(() => setIsPaused(true), []);
   const resume = useCallback(() => setIsPaused(false), []);

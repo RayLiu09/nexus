@@ -25,15 +25,14 @@ export default async function RawLedgerPage({ searchParams }: RawLedgerPageProps
   const currentPage = page ?? 1;
   const currentPageSize = pageSize ?? DEFAULT_PAGE_SIZE;
 
-  // Dedicated aggregate endpoint for metric cards.
-  const summaryResult = await getApiData<RawObjectSummary | null>("/v1/raw-objects/summary", null);
-
-  // Paginated page for the table
-  const tableResult = await getApiData<RawObject[]>(
-    "/v1/raw-objects",
-    [],
-    { page: String(currentPage), pageSize: String(currentPageSize) },
-  );
+  // Aggregate + paginated list are independent — fetch in parallel.
+  const [summaryResult, tableResult] = await Promise.all([
+    getApiData<RawObjectSummary | null>("/v1/raw-objects/summary", null),
+    getApiData<RawObject[]>("/v1/raw-objects", [], {
+      page: String(currentPage),
+      pageSize: String(currentPageSize),
+    }),
+  ]);
 
   const summary = summaryResult.data;
   const totalCount = summary?.total ?? tableResult.data.length;

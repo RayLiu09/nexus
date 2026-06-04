@@ -6,6 +6,7 @@ import { PollingIndicator } from "@/components/PollingIndicator";
 import { EmptyState } from "@/components/EmptyState";
 import { ConfirmButton } from "@/components/shared/ConfirmButton";
 import { useOptimisticMutation } from "@/lib/useOptimisticMutation";
+import { useElapsed } from "@/lib/useElapsed";
 import { formatDateTime, shortId, postApiData, type Job, type JobStage } from "@/lib/api";
 
 const PIPELINE_STAGES = [
@@ -159,35 +160,7 @@ export function JobsContent({ jobs: initialJobs, stages }: { jobs: Job[]; stages
                         })}
                       </div>
 
-                      {/* Current stage info */}
-                      {(() => {
-                        const currentStage = PIPELINE_STAGES.find((s) => s.key === job.current_stage);
-                        const currentStageRecord = jobStages.find((s) => s.stage_name === job.current_stage);
-                        if (!currentStage) return null;
-                        return (
-                          <div className="pipeline-stage-info">
-                            <strong>当前阶段：{currentStage.label}</strong>
-                            {currentStageRecord?.started_at && (
-                              <span className="text-xs text-muted">
-                                开始于 {formatDateTime(currentStageRecord.started_at)}
-                              </span>
-                            )}
-                            {currentStageRecord?.finished_at && (
-                              <span className="text-xs text-muted">
-                                完成于 {formatDateTime(currentStageRecord.finished_at)}
-                              </span>
-                            )}
-                            {currentStageRecord?.failure_reason && (
-                              <span className="text-xs" style={{ color: "var(--danger-600)" }}>
-                                错误：{currentStageRecord.failure_reason}
-                              </span>
-                            )}
-                            <span className="text-xs text-muted">
-                              状态：<StatusLabel value={currentStageRecord?.status ?? job.status} />
-                            </span>
-                          </div>
-                        );
-                      })()}
+                      <CurrentStageInfo job={job} stages={jobStages} />
 
                       {/* Danger actions */}
                       {(job.status === "failed" || job.status === "dead_lettered") && (
@@ -226,5 +199,45 @@ export function JobsContent({ jobs: initialJobs, stages }: { jobs: Job[]; stages
         </div>
       )}
     </>
+  );
+}
+
+// ── Current stage timing with live elapsed counter ──────────────────────
+
+function CurrentStageInfo({ job, stages }: { job: Job; stages: JobStage[] }) {
+  const currentStage = PIPELINE_STAGES.find((s) => s.key === job.current_stage);
+  const record = stages.find((s) => s.stage_name === job.current_stage);
+  const { elapsed, isRunning } = useElapsed({
+    startedAt: record?.started_at ?? null,
+    finishedAt: record?.finished_at ?? null,
+  });
+
+  if (!currentStage) return null;
+
+  return (
+    <div className="pipeline-stage-info">
+      <strong>当前阶段：{currentStage.label}</strong>
+      {record?.started_at && (
+        <span className="text-xs text-muted">
+          开始于 {formatDateTime(record.started_at)}
+          {isRunning && (
+            <span style={{ color: "var(--brand)", marginLeft: 6 }}>已运行 {elapsed}</span>
+          )}
+        </span>
+      )}
+      {record?.finished_at && (
+        <span className="text-xs text-muted">
+          完成于 {formatDateTime(record.finished_at)}（耗时 {elapsed}）
+        </span>
+      )}
+      {record?.failure_reason && (
+        <span className="text-xs" style={{ color: "var(--danger-600)" }}>
+          错误：{record.failure_reason}
+        </span>
+      )}
+      <span className="text-xs text-muted">
+        状态：<StatusLabel value={record?.status ?? job.status} />
+      </span>
+    </div>
   );
 }
