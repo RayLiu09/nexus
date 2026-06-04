@@ -68,7 +68,13 @@ class UserRead(ORMModel):
 
 
 class ApiCallerCreate(BaseModel):
-    caller_key: str = Field(min_length=1, max_length=80)
+    """Request body for POST /v1/api-callers.
+
+    `caller_key` is OPTIONAL: when omitted, the server mints a fresh key and
+    stores only its sha256 digest. Supplying `caller_key` is supported for
+    legacy seed scripts and tests but is discouraged for human callers.
+    """
+    caller_key: str | None = Field(default=None, min_length=1, max_length=80)
     name: str = Field(min_length=1, max_length=128)
     org_scope: list[str] = Field(default_factory=list)
     permission_scope: list[str] = Field(default_factory=list)
@@ -78,14 +84,25 @@ class ApiCallerCreate(BaseModel):
 
 class ApiCallerRead(ORMModel):
     id: str
-    caller_key: str
+    # Legacy plaintext slot; NULL for server-minted callers (only the hash is stored).
+    caller_key: str | None
     name: str
     org_scope: list[str]
     permission_scope: list[str]
     owner_user_id: str | None
     expired_at: datetime | None
+    revoked_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class ApiCallerMintRead(ApiCallerRead):
+    """Returned by POST /v1/api-callers for newly server-minted callers.
+
+    `caller_key_plaintext` is the only place this secret is ever surfaced.
+    The client must persist it client-side; subsequent reads return None.
+    """
+    caller_key_plaintext: str | None = None
 
 
 class NasConnectionConfig(BaseModel):

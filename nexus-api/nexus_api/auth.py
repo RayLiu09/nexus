@@ -1,7 +1,15 @@
 """API authentication dependencies.
 
 Caller authenticates with `X-API-Key: <caller_key>` (or `Authorization: Bearer <caller_key>`).
-The key is looked up against `api_caller.caller_key`; expired callers are rejected.
+
+Lookup strategy:
+  1. Hash the incoming key (sha256) and look up by `caller_key_hash` — the
+     supported path for server-minted callers where the plaintext is never
+     stored.
+  2. Fall back to a plaintext lookup against `caller_key` — covers legacy
+     seed rows and pre-migration test fixtures that wrote the key directly.
+
+Callers with `revoked_at` set or `expired_at` in the past are rejected.
 
 P0 scope: bind protection to retrieval-facing endpoints (search, qa).
 P1+: expand to other mutating endpoints; add per-call permission_scope checks.
@@ -15,6 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from nexus_app import models
+from nexus_app.auth_service import hash_api_caller_key
 from nexus_app.database import get_db
 
 
@@ -35,7 +44,7 @@ def require_api_caller(
 
     Raises:
         HTTPException(401) — no key supplied or no matching caller
-        HTTPException(403) — caller expired
+        HTTPException(403) — caller expired or revoked
     """
     key = _extract_key(x_api_key, authorization)
     if not key:
@@ -44,11 +53,20 @@ def require_api_caller(
             detail="API key required (X-API-Key header or Authorization: Bearer <key>)",
         )
 
+    digest = hash_api_caller_key(key)
     caller = session.scalars(
-        select(models.ApiCaller).where(models.ApiCaller.caller_key == key)
+        select(models.ApiCaller).where(models.ApiCaller.caller_key_hash == digest)
     ).first()
     if caller is None:
+        # Legacy seed rows pre-date caller_key_hash; fall back to plaintext.
+        caller = session.scalars(
+            select(models.ApiCaller).where(models.ApiCaller.caller_key == key)
+        ).first()
+    if caller is None:
         raise HTTPException(status_code=401, detail="invalid API key")
+
+    if caller.revoked_at is not None:
+        raise HTTPException(status_code=403, detail="API key revoked")
 
     if caller.expired_at is not None and caller.expired_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=403, detail="API key expired")

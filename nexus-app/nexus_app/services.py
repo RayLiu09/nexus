@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Any, TypeVar
 
 from sqlalchemy import select
@@ -5,9 +6,19 @@ from sqlalchemy.orm import Session
 
 from nexus_app import models
 from nexus_app.audit import write_audit
+from nexus_app.auth_service import generate_api_caller_key, hash_api_caller_key
 from nexus_app.enums import AuditEventType
 
 ModelT = TypeVar("ModelT")
+
+
+@dataclass
+class ApiCallerMintResult:
+    """Returned by `create_api_caller` so the route can surface the plaintext
+    key to the operator exactly once. `caller_key_plaintext` is None for
+    legacy (caller-supplied) keys — the caller already has it."""
+    caller: "models.ApiCaller"
+    caller_key_plaintext: str | None
 
 
 class ResourceNotFoundError(Exception):
@@ -50,7 +61,52 @@ def create_api_caller(
     actor_type: str | None = None,
     actor_id: str | None = None,
 ) -> models.ApiCaller:
-    row = models.ApiCaller(**payload.model_dump())
+    """Legacy single-return signature. Mints/stores caller exactly like
+    `mint_api_caller` but discards the plaintext, since callers using this
+    signature always supplied their own `caller_key`."""
+    result = mint_api_caller(
+        session,
+        payload,
+        trace_id=trace_id,
+        actor_type=actor_type,
+        actor_id=actor_id,
+    )
+    return result.caller
+
+
+def mint_api_caller(
+    session: Session,
+    payload,
+    trace_id: str | None = None,
+    actor_type: str | None = None,
+    actor_id: str | None = None,
+) -> ApiCallerMintResult:
+    """Create an ApiCaller and audit it.
+
+    Behavior keyed off whether the caller supplied `caller_key`:
+      * Supplied (legacy path): store the plaintext + its hash; return
+        plaintext=None because the caller already has the key.
+      * Omitted (recommended): mint a fresh key server-side; persist ONLY the
+        hash and return the plaintext exactly once so the route can surface it.
+    """
+    data: dict[str, Any] = payload.model_dump()
+    provided_key = data.pop("caller_key", None)
+
+    plaintext: str | None
+    if provided_key:
+        plaintext = None  # caller supplied it; no need to echo back
+        caller_key_to_store = provided_key
+        caller_key_hash = hash_api_caller_key(provided_key)
+    else:
+        plaintext = generate_api_caller_key()
+        caller_key_to_store = None  # do NOT persist the plaintext
+        caller_key_hash = hash_api_caller_key(plaintext)
+
+    row = models.ApiCaller(
+        caller_key=caller_key_to_store,
+        caller_key_hash=caller_key_hash,
+        **data,
+    )
     session.add(row)
     session.flush()
     write_audit(
@@ -59,13 +115,17 @@ def create_api_caller(
         "api_caller",
         row.id,
         trace_id,
-        {"name": row.name, "org_scope": row.org_scope},
+        {
+            "name": row.name,
+            "org_scope": row.org_scope,
+            "key_source": "server_minted" if plaintext else "client_supplied",
+        },
         actor_type=actor_type,
         actor_id=actor_id,
     )
     session.commit()
     session.refresh(row)
-    return row
+    return ApiCallerMintResult(caller=row, caller_key_plaintext=plaintext)
 
 
 def create_data_source(

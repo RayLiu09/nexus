@@ -90,19 +90,59 @@ class UserAccount(TimestampMixin, Base):
         default=PrincipalStatus.ACTIVE,
         nullable=False,
     )
+    # bcrypt hash (~60 chars). NULL = SSO/external-only user, no password login.
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     org_unit: Mapped[OrgUnit | None] = relationship()
+
+
+class RefreshToken(TimestampMixin, Base):
+    """Persisted refresh-token records backing the JWT auth flow.
+
+    The JWT itself is never stored — only `jti` (the unique token id encoded in
+    the JWT payload). On `/v1/auth/refresh`, we look up the row by jti, check it
+    is not expired or revoked, then revoke it and mint a fresh one (rotation).
+    `parent_jti` keeps a thin chain for forensics on token replay.
+    """
+    __tablename__ = "refresh_token"
+    __table_args__ = (
+        Index("ix_refresh_token_user_id", "user_id"),
+        Index("ix_refresh_token_expires_at", "expires_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    jti: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("user_account.id"), nullable=False
+    )
+    issued_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    parent_jti: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    user: Mapped[UserAccount] = relationship()
 
 
 class ApiCaller(TimestampMixin, Base):
     __tablename__ = "api_caller"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
-    caller_key: Mapped[str] = mapped_column(String(80), nullable=False, unique=True)
+    # Legacy plaintext caller_key — preserved for backward-compat with seed data
+    # and existing tests, but new server-minted callers leave this NULL and store
+    # only the sha256 hash. Lookups during request authentication use caller_key_hash.
+    caller_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # sha256(caller_key) hex digest. Populated on every new caller; backfilled
+    # for legacy rows by the same migration that adds this column.
+    caller_key_hash: Mapped[str | None] = mapped_column(
+        String(128), nullable=True, unique=True
+    )
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     org_scope: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     permission_scope: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     owner_user_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("user_account.id"), nullable=True
     )
@@ -143,6 +183,8 @@ class DataSource(TimestampMixin, Base):
         comment="Source-type specific config: NasConnectionConfig, CrawlerConnectionConfig, etc.",
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Soft-delete tombstone. NULL = live; populated = removed from list/get APIs.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     owner_user: Mapped[UserAccount | None] = relationship()
 
@@ -296,6 +338,11 @@ class Job(TimestampMixin, Base):
     trace_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     metadata_summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    # Operator cancel signal. Set by POST /v1/jobs/{id}/cancel when the job is
+    # currently RUNNING; the worker honors it at the next stage boundary.
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     ingest_batch: Mapped[IngestBatch | None] = relationship()
     raw_object: Mapped[RawObject | None] = relationship()

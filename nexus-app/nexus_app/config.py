@@ -76,6 +76,17 @@ class Settings(BaseSettings):
     litellm_endpoint: str | None = None
     litellm_api_key: str | None = None
 
+    # ── Auth (P1 JWT) ──────────────────────────────────────────────────────
+    # HS256 symmetric secret. MUST be set in production; an in-memory default is
+    # generated only when running tests/dev to avoid breaking conftest setups.
+    # The fallback is deliberately ephemeral (different per process) so it cannot
+    # be relied on in production.
+    jwt_secret: str | None = Field(default=None, alias="NEXUS_JWT_SECRET")
+    jwt_algorithm: str = "HS256"
+    jwt_access_ttl_seconds: int = 900       # 15 min — matches console cookie maxAge
+    jwt_refresh_ttl_seconds: int = 604800   # 7 days — matches console cookie maxAge
+    jwt_issuer: str = "nexus"
+
     @computed_field
     @property
     def database_url(self) -> str:

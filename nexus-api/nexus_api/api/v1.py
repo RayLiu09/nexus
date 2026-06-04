@@ -1,4 +1,5 @@
 import base64
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
@@ -10,7 +11,7 @@ from nexus_api import schemas
 from nexus_api.auth import require_api_caller
 from nexus_api.permissions import apply_permission_filter
 from nexus_api.responses import list_response, response
-from nexus_app import models, pipeline, schemas as domain_schemas, services
+from nexus_app import auth_service, models, pipeline, schemas as domain_schemas, services
 from nexus_app.ai_governance.rules_registry import (
     GovernanceRulesRegistry,
     RulesEtagMismatchError,
@@ -22,9 +23,16 @@ from nexus_app.ai_governance.services import (
     PromptProfileNotFoundError,
     PromptProfileService,
 )
+from nexus_app.audit import write_audit
 from nexus_app.config import Settings, get_settings
 from nexus_app.database import get_db
-from nexus_app.enums import DataSourceType
+from nexus_app.enums import (
+    AssetVersionStatus,
+    AuditEventType,
+    DataSourceStatus,
+    DataSourceType,
+    JobStatus,
+)
 from nexus_app.ingest import batch as ingest_batch
 from nexus_app.ingest import gateway as ingest_gateway
 from nexus_app.ingest import scan as ingest_scan
@@ -99,6 +107,244 @@ def runtime_state(request: Request, session: Session = Depends(get_db)):
     )
 
 
+# ---------------------------------------------------------------------------
+# Auth endpoints — JWT user session (login / refresh / logout)
+#
+# Contract mirrors `nexus-console/app/api/auth/*/route.ts`. The console proxies
+# username/password here and stores tokens in cookies (access non-httpOnly,
+# refresh httpOnly). All flows write an audit event so the IAM page can trace
+# session activity.
+# ---------------------------------------------------------------------------
+
+
+def _auth_user_payload(
+    user: models.UserAccount, settings: Settings
+) -> schemas.AuthUser:
+    org_name = user.org_unit.name if user.org_unit is not None else None
+    return schemas.AuthUser(
+        id=user.id,
+        username=user.username,
+        display_name=user.display_name,
+        role=user.role.value if hasattr(user.role, "value") else str(user.role),
+        org_id=user.org_unit_id,
+        org_name=org_name,
+        env=settings.nexus_env,
+    )
+
+
+@router.post(
+    "/auth/login",
+    response_model=schemas.ApiResponse[schemas.TokenPair],
+)
+def auth_login(
+    payload: schemas.LoginRequest,
+    request: Request,
+    session: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    """Verify username/password and mint a short-lived access token plus a
+    long-lived rotating refresh token. The refresh token is persisted as a
+    `refresh_token` row so logout/refresh can revoke it server-side."""
+    trace_id = str(getattr(request.state, "trace_id", ""))
+
+    user = session.scalars(
+        select(models.UserAccount).where(models.UserAccount.username == payload.username)
+    ).first()
+
+    # Constant-time-ish: still hash a dummy on a missing user to dampen timing
+    # signal between "no such user" and "wrong password".
+    if user is None or not auth_service.verify_password(
+        payload.password, user.password_hash
+    ):
+        write_audit(
+            session,
+            AuditEventType.USER_LOGIN_FAILED,
+            target_type="user_account",
+            target_id=payload.username,
+            trace_id=trace_id,
+            summary={"reason": "invalid_credentials"},
+        )
+        session.commit()
+        raise HTTPException(status_code=401, detail="invalid username or password")
+
+    if user.status.value != "active":
+        write_audit(
+            session,
+            AuditEventType.USER_LOGIN_FAILED,
+            target_type="user_account",
+            target_id=user.id,
+            trace_id=trace_id,
+            summary={"reason": "user_disabled"},
+            actor_type="user",
+            actor_id=user.id,
+        )
+        session.commit()
+        raise HTTPException(status_code=403, detail="user is disabled")
+
+    access_token, _ = auth_service.encode_access_token(
+        settings,
+        user=user,
+        org_name=user.org_unit.name if user.org_unit is not None else None,
+    )
+    jti, refresh_row = auth_service.issue_refresh_token(
+        session, settings, user_id=user.id
+    )
+    refresh_token = auth_service.encode_refresh_token(
+        settings, jti=jti, user_id=user.id
+    )
+
+    write_audit(
+        session,
+        AuditEventType.USER_LOGIN_SUCCEEDED,
+        target_type="user_account",
+        target_id=user.id,
+        trace_id=trace_id,
+        summary={"jti": jti, "username": user.username},
+        actor_type="user",
+        actor_id=user.id,
+    )
+    session.commit()
+
+    return response(
+        schemas.TokenPair(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer",
+            user=_auth_user_payload(user, settings),
+        ),
+        request,
+    )
+
+
+@router.post(
+    "/auth/refresh",
+    response_model=schemas.ApiResponse[schemas.TokenRefresh],
+)
+def auth_refresh(
+    payload: schemas.RefreshRequest,
+    request: Request,
+    session: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    """Rotate the refresh token: verify signature, look up the jti, revoke it,
+    and issue a fresh access+refresh pair. Reusing a revoked jti is logged but
+    rejected — this catches replay attempts."""
+    trace_id = str(getattr(request.state, "trace_id", ""))
+
+    try:
+        claims = auth_service.decode_refresh_token(settings, payload.refresh_token)
+    except auth_service.InvalidTokenError as exc:
+        write_audit(
+            session,
+            AuditEventType.TOKEN_REFRESH_FAILED,
+            target_type="refresh_token",
+            target_id="invalid",
+            trace_id=trace_id,
+            summary={"reason": "decode_failed", "detail": str(exc)[:200]},
+        )
+        session.commit()
+        raise HTTPException(status_code=401, detail="invalid refresh token") from exc
+
+    jti = claims.get("jti", "")
+    row = auth_service.lookup_refresh_token(session, jti)
+    if row is None or not auth_service.refresh_token_is_usable(row):
+        write_audit(
+            session,
+            AuditEventType.TOKEN_REFRESH_FAILED,
+            target_type="refresh_token",
+            target_id=jti or "missing",
+            trace_id=trace_id,
+            summary={
+                "reason": "revoked_or_expired_or_unknown",
+                "found": row is not None,
+            },
+            actor_type="user",
+            actor_id=claims.get("sub"),
+        )
+        session.commit()
+        raise HTTPException(status_code=401, detail="refresh token expired or revoked")
+
+    user = session.get(models.UserAccount, row.user_id)
+    if user is None or user.status.value != "active":
+        auth_service.revoke_refresh_token(row)
+        session.commit()
+        raise HTTPException(status_code=401, detail="user no longer active")
+
+    # Rotate: revoke the old jti and issue a new one.
+    auth_service.revoke_refresh_token(row)
+    new_jti, new_row = auth_service.issue_refresh_token(
+        session, settings, user_id=user.id, parent_jti=jti
+    )
+    access_token, _ = auth_service.encode_access_token(
+        settings,
+        user=user,
+        org_name=user.org_unit.name if user.org_unit is not None else None,
+    )
+    refresh_token = auth_service.encode_refresh_token(
+        settings, jti=new_jti, user_id=user.id
+    )
+
+    write_audit(
+        session,
+        AuditEventType.TOKEN_REFRESHED,
+        target_type="refresh_token",
+        target_id=new_jti,
+        trace_id=trace_id,
+        summary={"parent_jti": jti, "username": user.username},
+        actor_type="user",
+        actor_id=user.id,
+    )
+    session.commit()
+
+    return response(
+        schemas.TokenRefresh(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer",
+        ),
+        request,
+    )
+
+
+@router.post(
+    "/auth/logout",
+    response_model=schemas.ApiResponse[schemas.LogoutResult],
+)
+def auth_logout(
+    payload: schemas.LogoutRequest,
+    request: Request,
+    session: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    """Best-effort revoke of the supplied refresh token. Always returns 200 —
+    the console treats logout as terminal regardless. Idempotent."""
+    trace_id = str(getattr(request.state, "trace_id", ""))
+
+    try:
+        claims = auth_service.decode_refresh_token(settings, payload.refresh_token)
+    except auth_service.InvalidTokenError:
+        # Treat as already-invalid — nothing to revoke, still return ok.
+        return response(schemas.LogoutResult(ok=True), request)
+
+    jti = claims.get("jti", "")
+    row = auth_service.lookup_refresh_token(session, jti)
+    if row is not None and row.revoked_at is None:
+        auth_service.revoke_refresh_token(row)
+        write_audit(
+            session,
+            AuditEventType.USER_LOGOUT,
+            target_type="refresh_token",
+            target_id=jti,
+            trace_id=trace_id,
+            summary={"user_id": row.user_id},
+            actor_type="user",
+            actor_id=row.user_id,
+        )
+        session.commit()
+
+    return response(schemas.LogoutResult(ok=True), request)
+
+
 @router.post(
     "/org-units", response_model=schemas.ApiResponse[domain_schemas.OrgUnitRead], status_code=201
 )
@@ -139,18 +385,40 @@ def get_user(user_id: str, request: Request, session: Session = Depends(get_db))
 
 @router.post(
     "/api-callers",
-    response_model=schemas.ApiResponse[domain_schemas.ApiCallerRead],
+    response_model=schemas.ApiResponse[domain_schemas.ApiCallerMintRead],
     status_code=201,
 )
 def create_api_caller(
     payload: domain_schemas.ApiCallerCreate, request: Request, session: Session = Depends(get_db)
 ):
-    return response(services.create_api_caller(session, payload), request)
+    """Mint a new ApiCaller. If `caller_key` is omitted (recommended), the
+    server generates a high-entropy key, stores only its sha256 hash, and
+    returns the plaintext in `caller_key_plaintext` exactly once. The console
+    must surface this to the operator and they must save it; subsequent reads
+    return `caller_key_plaintext=null`."""
+    result = services.mint_api_caller(
+        session,
+        payload,
+        trace_id=str(getattr(request.state, "trace_id", "")),
+    )
+    read = domain_schemas.ApiCallerMintRead.model_validate(result.caller)
+    if result.caller_key_plaintext is not None:
+        # Re-validate with the plaintext attached — model_validate won't pick up
+        # a field that doesn't exist on the ORM row.
+        read = read.model_copy(
+            update={"caller_key_plaintext": result.caller_key_plaintext}
+        )
+    return response(read, request)
 
 
 @router.get("/api-callers", response_model=schemas.ListResponse[domain_schemas.ApiCallerRead])
 def list_api_callers(request: Request, session: Session = Depends(get_db)):
-    return list_response(services.list_rows(session, models.ApiCaller), request)
+    rows = list(
+        session.scalars(
+            select(models.ApiCaller).order_by(models.ApiCaller.created_at.desc())
+        ).all()
+    )
+    return list_response(rows, request)
 
 
 @router.get(
@@ -161,6 +429,36 @@ def get_api_caller(api_caller_id: str, request: Request, session: Session = Depe
     return response(
         services.get_row(session, models.ApiCaller, api_caller_id, "api_caller"), request
     )
+
+
+@router.delete(
+    "/api-callers/{api_caller_id}",
+    response_model=schemas.ApiResponse[domain_schemas.ApiCallerRead],
+)
+def revoke_api_caller(
+    api_caller_id: str, request: Request, session: Session = Depends(get_db)
+):
+    """Soft-revoke: mark `revoked_at`, leaving the row intact for audit. Future
+    auth attempts fail with 403. Idempotent — re-deleting a revoked caller
+    returns the existing row unchanged."""
+    caller = session.get(models.ApiCaller, api_caller_id)
+    if caller is None:
+        raise HTTPException(
+            status_code=404, detail=f"api_caller '{api_caller_id}' not found"
+        )
+    if caller.revoked_at is None:
+        caller.revoked_at = datetime.now(timezone.utc)
+        write_audit(
+            session,
+            AuditEventType.API_CALLER_REVOKED,
+            target_type="api_caller",
+            target_id=caller.id,
+            trace_id=str(getattr(request.state, "trace_id", "")),
+            summary={"name": caller.name},
+        )
+        session.commit()
+        session.refresh(caller)
+    return response(domain_schemas.ApiCallerRead.model_validate(caller), request)
 
 
 @router.post(
@@ -184,8 +482,17 @@ def create_data_source(
 
 
 @router.get("/data-sources", response_model=schemas.ListResponse[domain_schemas.DataSourceRead])
-def list_data_sources(request: Request, session: Session = Depends(get_db)):
-    return list_response(services.list_rows(session, models.DataSource), request)
+def list_data_sources(
+    request: Request,
+    include_deleted: bool = False,
+    session: Session = Depends(get_db),
+):
+    """List data sources, hiding soft-deleted rows by default. Pass
+    `include_deleted=true` to surface tombstones for audit views."""
+    stmt = select(models.DataSource).order_by(models.DataSource.created_at.desc())
+    if not include_deleted:
+        stmt = stmt.where(models.DataSource.deleted_at.is_(None))
+    return list_response(list(session.scalars(stmt).all()), request)
 
 
 @router.get(
@@ -195,6 +502,89 @@ def list_data_sources(request: Request, session: Session = Depends(get_db)):
 def get_data_source(data_source_id: str, request: Request, session: Session = Depends(get_db)):
     return response(
         services.get_row(session, models.DataSource, data_source_id, "data_source"), request
+    )
+
+
+@router.delete(
+    "/data-sources/{data_source_id}",
+    response_model=schemas.ApiResponse[schemas.DataSourceDeleteResult],
+)
+def delete_data_source(
+    data_source_id: str,
+    request: Request,
+    force: bool = False,
+    session: Session = Depends(get_db),
+):
+    """Soft-delete a data source (`deleted_at` + status `disabled`).
+
+    Refuses with 409 when any `raw_object` or `document_asset` still references
+    the source — these would lose their lineage anchor. Pass `force=true` only
+    when the operator has confirmed that downstream lineage is acceptable to
+    orphan; force still soft-deletes (lineage stays inspectable through the
+    tombstone), it does NOT cascade-delete the referenced rows.
+    """
+    source = session.get(models.DataSource, data_source_id)
+    if source is None:
+        raise HTTPException(
+            status_code=404, detail=f"data_source '{data_source_id}' not found"
+        )
+    if source.deleted_at is not None:
+        # Idempotent — return the existing tombstone.
+        return response(
+            schemas.DataSourceDeleteResult(
+                data_source_id=source.id,
+                deleted_at=source.deleted_at.isoformat(),
+                status=source.status.value,
+            ),
+            request,
+        )
+
+    if not force:
+        raw_count = session.scalar(
+            select(models.RawObject.id)
+            .where(models.RawObject.data_source_id == source.id)
+            .limit(1)
+        )
+        asset_count = session.scalar(
+            select(models.DocumentAsset.id)
+            .where(models.DocumentAsset.data_source_id == source.id)
+            .limit(1)
+        )
+        if raw_count is not None or asset_count is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "data_source has dependent raw_objects or assets; "
+                    "pass force=true to soft-delete anyway "
+                    "(downstream lineage will be preserved but orphaned)"
+                ),
+            )
+
+    now = datetime.now(timezone.utc)
+    source.deleted_at = now
+    source.status = DataSourceStatus.DISABLED
+
+    write_audit(
+        session,
+        AuditEventType.DATA_SOURCE_DELETED,
+        target_type="data_source",
+        target_id=source.id,
+        trace_id=str(getattr(request.state, "trace_id", "")),
+        summary={
+            "code": source.code,
+            "source_type": source.source_type.value,
+            "force": force,
+        },
+    )
+    session.commit()
+    session.refresh(source)
+    return response(
+        schemas.DataSourceDeleteResult(
+            data_source_id=source.id,
+            deleted_at=source.deleted_at.isoformat(),
+            status=source.status.value,
+        ),
+        request,
     )
 
 
@@ -528,6 +918,184 @@ def get_job(job_id: str, request: Request, session: Session = Depends(get_db)):
 def list_job_stages(job_id: str, request: Request, session: Session = Depends(get_db)):
     services.get_row(session, models.Job, job_id, "job")
     return list_response(pipeline.list_job_stages(session, job_id), request)
+
+
+_JOB_RETRIABLE_STATUSES = {
+    JobStatus.FAILED,
+    JobStatus.DEAD_LETTERED,
+    JobStatus.CANCELLED,
+}
+
+_JOB_IMMEDIATE_CANCEL_STATUSES = {
+    JobStatus.QUEUED,
+    JobStatus.FAILED,
+    JobStatus.DEAD_LETTERED,
+}
+
+
+@router.post(
+    "/jobs/{job_id}/retry",
+    response_model=schemas.ApiResponse[schemas.JobActionResult],
+)
+def retry_job(job_id: str, request: Request, session: Session = Depends(get_db)):
+    """Reschedule a stalled job. Allowed only when the job is in `failed`,
+    `dead_lettered`, or `cancelled` — running jobs already have automatic
+    retry, succeeded jobs cannot meaningfully be re-run.
+
+    Side effects: status → `queued`, `attempt_count` reset to 0, lock cleared,
+    `next_run_at` set to now so the worker picks it up immediately.
+    """
+    job = session.get(models.Job, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"job '{job_id}' not found")
+    if job.status not in _JOB_RETRIABLE_STATUSES:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"job is in status '{job.status.value}', only "
+                f"{[s.value for s in _JOB_RETRIABLE_STATUSES]} are retriable"
+            ),
+        )
+
+    previous_status = job.status.value
+    previous_attempt_count = job.attempt_count
+
+    job.status = JobStatus.QUEUED
+    job.attempt_count = 0
+    job.locked_by = None
+    job.locked_at = None
+    job.lock_expires_at = None
+    job.heartbeat_at = None
+    job.failure_reason = None
+    job.cancel_requested_at = None
+    job.next_run_at = datetime.now(timezone.utc)
+
+    trace_id = str(getattr(request.state, "trace_id", ""))
+    write_audit(
+        session,
+        AuditEventType.JOB_RETRIED,
+        target_type="job",
+        target_id=job.id,
+        trace_id=trace_id,
+        summary={
+            "previous_status": previous_status,
+            "previous_attempt_count": previous_attempt_count,
+            "retry_count": job.retry_count,
+        },
+    )
+    # Surface the operator-initiated retry to the version lineage too if the
+    # job is tied to a failed version.
+    if job.raw_object_id is not None:
+        version = session.scalars(
+            select(models.DocumentVersion).where(
+                models.DocumentVersion.raw_object_id == job.raw_object_id
+            )
+        ).first()
+        if version is not None and version.version_status == AssetVersionStatus.FAILED:
+            version.version_status = AssetVersionStatus.PROCESSING
+            version.failure_reason = None
+            write_audit(
+                session,
+                AuditEventType.VERSION_STATUS_CHANGED,
+                target_type="document_version",
+                target_id=version.id,
+                trace_id=trace_id,
+                summary={
+                    "from_status": AssetVersionStatus.FAILED.value,
+                    "to_status": AssetVersionStatus.PROCESSING.value,
+                    "reason": "operator_retry",
+                    "job_id": job.id,
+                },
+            )
+
+    session.commit()
+    session.refresh(job)
+    return response(
+        schemas.JobActionResult(
+            job_id=job.id,
+            status=job.status.value,
+            attempt_count=job.attempt_count,
+        ),
+        request,
+    )
+
+
+@router.post(
+    "/jobs/{job_id}/cancel",
+    response_model=schemas.ApiResponse[schemas.JobActionResult],
+)
+def cancel_job(job_id: str, request: Request, session: Session = Depends(get_db)):
+    """Cancel a job.
+
+    - `queued` / `failed` / `dead_lettered` — flipped to `cancelled` immediately.
+    - `running` — sets `cancel_requested_at` so the worker can honor it at the
+      next stage boundary. Status stays `running` until the worker observes
+      the flag; status code 202.
+    - `succeeded` / `cancelled` — 409 (terminal).
+    """
+    job = session.get(models.Job, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"job '{job_id}' not found")
+
+    trace_id = str(getattr(request.state, "trace_id", ""))
+
+    if job.status in _JOB_IMMEDIATE_CANCEL_STATUSES:
+        previous_status = job.status.value
+        job.status = JobStatus.CANCELLED
+        job.cancel_requested_at = datetime.now(timezone.utc)
+        job.locked_by = None
+        job.lock_expires_at = None
+        write_audit(
+            session,
+            AuditEventType.JOB_CANCELLED,
+            target_type="job",
+            target_id=job.id,
+            trace_id=trace_id,
+            summary={"previous_status": previous_status, "effective": "immediate"},
+        )
+        session.commit()
+        session.refresh(job)
+        return response(
+            schemas.JobActionResult(
+                job_id=job.id,
+                status=job.status.value,
+                cancel_requested_at=job.cancel_requested_at.isoformat(),
+            ),
+            request,
+        )
+
+    if job.status == JobStatus.RUNNING:
+        if job.cancel_requested_at is None:
+            job.cancel_requested_at = datetime.now(timezone.utc)
+            write_audit(
+                session,
+                AuditEventType.JOB_CANCELLED,
+                target_type="job",
+                target_id=job.id,
+                trace_id=trace_id,
+                summary={
+                    "previous_status": JobStatus.RUNNING.value,
+                    "effective": "requested_pending_worker",
+                },
+            )
+            session.commit()
+            session.refresh(job)
+        return JSONResponse(
+            status_code=202,
+            content=schemas.ApiResponse[schemas.JobActionResult](
+                data=schemas.JobActionResult(
+                    job_id=job.id,
+                    status=job.status.value,
+                    cancel_requested_at=job.cancel_requested_at.isoformat(),
+                ),
+                meta=schemas.ResponseMeta(trace_id=trace_id),
+            ).model_dump(),
+        )
+
+    raise HTTPException(
+        status_code=409,
+        detail=f"job is in terminal status '{job.status.value}' and cannot be cancelled",
+    )
 
 
 @router.get(

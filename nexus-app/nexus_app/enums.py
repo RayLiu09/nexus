@@ -172,9 +172,19 @@ class AuditEventType(StrEnum):
     # Data source management
     DATA_SOURCE_CREATED             = "DataSourceCreated"
     DATA_SOURCE_STATUS_CHANGED      = "DataSourceStatusChanged"
+    DATA_SOURCE_DELETED             = "DataSourceDeleted"
     # API caller management
     API_CALLER_CREATED              = "ApiCallerCreated"
     API_CALLER_REVOKED              = "ApiCallerRevoked"
+    # Auth (JWT user session)
+    USER_LOGIN_SUCCEEDED            = "UserLoginSucceeded"
+    USER_LOGIN_FAILED               = "UserLoginFailed"
+    USER_LOGOUT                     = "UserLogout"
+    TOKEN_REFRESHED                 = "TokenRefreshed"
+    TOKEN_REFRESH_FAILED            = "TokenRefreshFailed"
+    # Job control (operator actions)
+    JOB_RETRIED                     = "JobRetried"
+    JOB_CANCELLED                   = "JobCancelled"
     # AI governance
     PROMPT_PROFILE_CREATED          = "PromptProfileCreated"
     PROMPT_PROFILE_UPDATED          = "PromptProfileUpdated"
