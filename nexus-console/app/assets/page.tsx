@@ -1,12 +1,37 @@
 import { PageHeader } from "@/components/PageHeader";
 import { AssetsContent } from "./_components/AssetsContent";
 import { getApiData } from "@/lib/api";
-import type { AssetWithMeta } from "./_lib/types";
+import { parsePaginationParams, DEFAULT_PAGE_SIZE } from "@/lib/pagination";
+import type { AssetWithMeta, AssetSummary } from "./_lib/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function AssetsPage() {
-  const result = await getApiData<AssetWithMeta[]>("/v1/assets", []);
+interface AssetsPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function AssetsPage({ searchParams }: AssetsPageProps) {
+  const params = await searchParams;
+  const { page, pageSize } = parsePaginationParams(params);
+
+  const currentPage = page ?? 1;
+  const currentPageSize = pageSize ?? DEFAULT_PAGE_SIZE;
+
+  // Dedicated aggregate endpoint for stats summary and domain distribution.
+  const summaryResult = await getApiData<AssetSummary | null>("/v1/assets/summary", null);
+
+  // Paginated page for the table
+  const tableResult = await getApiData<AssetWithMeta[]>(
+    "/v1/assets",
+    [],
+    {
+      page: String(currentPage),
+      pageSize: String(currentPageSize),
+    },
+  );
+
+  const tableData = tableResult.data;
+  const totalCount = summaryResult.data?.total ?? tableData.length;
 
   return (
     <>
@@ -15,7 +40,16 @@ export default async function AssetsPage() {
         title="资产目录"
         description="目录页以「当前可读视图」服务运营和消费方，核心是 current version / current normalized ref / index state 的组合。"
       />
-      <AssetsContent assets={result.data} />
+      <AssetsContent
+        assets={tableData}
+        summary={summaryResult.data}
+        totalCount={totalCount}
+        currentPage={currentPage}
+        pageSize={currentPageSize}
+        ok={tableResult.ok}
+        error={tableResult.error}
+        traceId={tableResult.traceId}
+      />
     </>
   );
 }

@@ -1,12 +1,28 @@
 import { PageHeader } from "@/components/PageHeader";
-import { ApiState } from "@/components/ApiState";
 import { getApiData, type ApiCaller } from "@/lib/api";
+import { parsePaginationParams, DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 import { ApiCallersContent } from "./_components/ApiCallersContent";
 
 export const dynamic = "force-dynamic";
 
-export default async function ApiCallersPage() {
-  const result = await getApiData<ApiCaller[]>("/v1/api-callers", []);
+interface ApiCallersPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function ApiCallersPage({ searchParams }: ApiCallersPageProps) {
+  const params = await searchParams;
+  const { page, pageSize } = parsePaginationParams(params);
+
+  const currentPage = page ?? 1;
+  const currentPageSize = pageSize ?? DEFAULT_PAGE_SIZE;
+
+  const result = await getApiData<ApiCaller[]>(
+    "/v1/api-callers",
+    [],
+    { page: String(currentPage), pageSize: String(currentPageSize) },
+  );
+
+  const totalCount = result.data.length;
 
   return (
     <>
@@ -16,9 +32,15 @@ export default async function ApiCallersPage() {
         description="创建、管理和吊销 API 调用方凭证，用于外部系统访问 NEXUS API。"
       />
 
-      <ApiState ok={result.ok} error={result.error} traceId={result.traceId} />
-
-      <ApiCallersContent callers={result.data} />
+      <ApiCallersContent
+        callers={result.data}
+        totalCount={totalCount}
+        currentPage={currentPage}
+        pageSize={currentPageSize}
+        ok={result.ok}
+        error={result.error}
+        traceId={result.traceId}
+      />
     </>
   );
 }

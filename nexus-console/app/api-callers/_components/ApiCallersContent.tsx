@@ -1,16 +1,26 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { App, Button, Form, Input, Modal, Select, Space, Table, Tag, Tooltip, Typography } from "antd";
 import { PlusOutlined, CopyOutlined, KeyOutlined } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
+import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
+import type { FilterValue, SorterResult } from "antd/es/table/interface";
 
 import type { ApiCaller } from "@/lib/api";
 import { postApiData, deleteApiData, formatDateTime, shortId } from "@/lib/api";
 import { ConfirmButton } from "@/components/shared/ConfirmButton";
+import { ApiState } from "@/components/ApiState";
+import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 
 interface ApiCallersContentProps {
   callers: ApiCaller[];
+  totalCount: number;
+  currentPage: number;
+  pageSize: number;
+  ok: boolean;
+  error: string | null;
+  traceId: string | null;
 }
 
 interface CreateFormValues {
@@ -33,13 +43,42 @@ const PERMISSION_OPTIONS = [
   { label: "read:knowledge", value: "read:knowledge" },
 ];
 
-export function ApiCallersContent({ callers: initialCallers }: ApiCallersContentProps) {
+export function ApiCallersContent({
+  callers: initialCallers,
+  totalCount,
+  currentPage,
+  pageSize,
+  ok,
+  error,
+  traceId,
+}: ApiCallersContentProps) {
   const { message } = App.useApp();
+  const router = useRouter();
+  const pathname = usePathname();
   const [callers, setCallers] = useState<ApiCaller[]>(initialCallers);
   const [createOpen, setCreateOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [createdCaller, setCreatedCaller] = useState<CreatedCaller | null>(null);
   const [form] = Form.useForm<CreateFormValues>();
+
+  const handleTableChange = useCallback(
+    (
+      pagination: TablePaginationConfig,
+      _filters: Record<string, FilterValue | null>,
+      _sorter: SorterResult<ApiCaller> | SorterResult<ApiCaller>[],
+    ) => {
+      const params = new URLSearchParams();
+      if (pagination.current && pagination.current > 1) {
+        params.set("page", String(pagination.current));
+      }
+      if (pagination.pageSize && pagination.pageSize !== DEFAULT_PAGE_SIZE) {
+        params.set("pageSize", String(pagination.pageSize));
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    },
+    [router, pathname],
+  );
 
   const handleCreate = useCallback(async (values: CreateFormValues) => {
     setCreateLoading(true);
@@ -193,9 +232,11 @@ export function ApiCallersContent({ callers: initialCallers }: ApiCallersContent
 
   return (
     <>
+      <ApiState ok={ok} error={error} traceId={traceId} />
+
       <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between" }}>
         <Typography.Text type="secondary">
-          共 {callers.length} 个 API 调用方
+          共 {totalCount} 个 API 调用方
         </Typography.Text>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
           创建 API Caller
@@ -206,7 +247,15 @@ export function ApiCallersContent({ callers: initialCallers }: ApiCallersContent
         columns={columns}
         dataSource={callers}
         rowKey="id"
-        pagination={{ pageSize: 20, showSizeChanger: false }}
+        pagination={{
+          current: currentPage,
+          pageSize,
+          total: totalCount,
+          showSizeChanger: true,
+          showTotal: (total, range) => `${range[0]}-${range[1]} / ${total} 项`,
+          pageSizeOptions: ["10", "20", "50"],
+        }}
+        onChange={handleTableChange}
         locale={{ emptyText: "暂无 API 调用方" }}
       />
 

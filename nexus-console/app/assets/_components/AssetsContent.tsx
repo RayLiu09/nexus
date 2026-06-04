@@ -1,29 +1,27 @@
 "use client";
 
+import { useCallback } from "react";
 import Link from "next/link";
+import { useRouter, usePathname } from "next/navigation";
 import { Table, Tag, Select, Button, Alert, Card } from "antd";
 import { SaveOutlined } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
+import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
+import type { FilterValue, SorterResult } from "antd/es/table/interface";
 import { formatDateTime } from "@/lib/api";
-import type { AssetWithMeta } from "../_lib/types";
-import { deriveStats, deriveDomainDist } from "../_lib/types";
+import { ApiState } from "@/components/ApiState";
+import type { AssetWithMeta, AssetSummary, AssetStats, DomainDistItem } from "../_lib/types";
+import { toAssetStats, toDomainDistItems } from "../_lib/types";
 import { AssetsSummary } from "./AssetsSummary";
 import { DomainDistribution } from "./DomainDistribution";
+import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 
 const DOMAIN_COLOR_KEY: Record<string, string> = {
-  D1: "geekblue",
-  D2: "cyan",
-  D3: "green",
-  D4: "gold",
-  D5: "orange",
-  D6: "magenta",
+  D1: "geekblue", D2: "cyan", D3: "green",
+  D4: "gold", D5: "orange", D6: "magenta",
 };
 
 const LEVEL_COLOR_KEY: Record<string, string> = {
-  L1: "success",
-  L2: "processing",
-  L3: "warning",
-  L4: "error",
+  L1: "success", L2: "processing", L3: "warning", L4: "error",
 };
 
 function statusTag(status: string) {
@@ -64,9 +62,61 @@ function governanceTag(s?: string) {
   return <Tag color={m.color}>{m.label}</Tag>;
 }
 
-export function AssetsContent({ assets }: { assets: AssetWithMeta[] }) {
-  const stats = deriveStats(assets);
-  const domainDist = deriveDomainDist(assets);
+const EMPTY_STATS: AssetStats = {
+  available: 0,
+  reviewRequired: 0,
+  currentNormalizedRefs: 0,
+  staleIndex: 0,
+  l3l4: 0,
+  autoAdoptionRate: 0,
+};
+
+interface AssetsContentProps {
+  assets: AssetWithMeta[];
+  /** Pre-computed aggregate from /v1/assets/summary. */
+  summary: AssetSummary | null;
+  totalCount: number;
+  currentPage: number;
+  pageSize: number;
+  ok: boolean;
+  error: string | null;
+  traceId: string | null;
+}
+
+export function AssetsContent({
+  assets,
+  summary,
+  totalCount,
+  currentPage,
+  pageSize,
+  ok,
+  error,
+  traceId,
+}: AssetsContentProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const stats = summary ? toAssetStats(summary) : EMPTY_STATS;
+  const domainDist: DomainDistItem[] = summary ? toDomainDistItems(summary) : [];
+
+  const handleTableChange = useCallback(
+    (
+      pagination: TablePaginationConfig,
+      _filters: Record<string, FilterValue | null>,
+      _sorter: SorterResult<AssetWithMeta> | SorterResult<AssetWithMeta>[],
+    ) => {
+      const params = new URLSearchParams();
+      if (pagination.current && pagination.current > 1) {
+        params.set("page", String(pagination.current));
+      }
+      if (pagination.pageSize && pagination.pageSize !== DEFAULT_PAGE_SIZE) {
+        params.set("pageSize", String(pagination.pageSize));
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    },
+    [router, pathname],
+  );
 
   const columns: ColumnsType<AssetWithMeta> = [
     {
@@ -127,7 +177,6 @@ export function AssetsContent({ assets }: { assets: AssetWithMeta[] }) {
       dataIndex: "quality_score",
       width: 80,
       align: "center" as const,
-      sorter: (a, b) => (a.quality_score ?? 0) - (b.quality_score ?? 0),
       render: (s?: number) =>
         s != null ? <strong>{s}</strong> : <span style={{ color: "var(--text-muted)" }}>-</span>,
     },
@@ -147,18 +196,11 @@ export function AssetsContent({ assets }: { assets: AssetWithMeta[] }) {
       title: "状态",
       width: 130,
       render: (_, r) => statusTag(r.status),
-      filters: [
-        { text: "available", value: "available" },
-        { text: "review_required", value: "review_required" },
-        { text: "archived", value: "archived" },
-      ],
-      onFilter: (val, r) => r.status === val,
     },
     {
       title: "更新时间",
       dataIndex: "updated_at",
       width: 150,
-      sorter: (a, b) => new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime(),
       render: (t: string) => (
         <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{formatDateTime(t)}</span>
       ),
@@ -167,6 +209,8 @@ export function AssetsContent({ assets }: { assets: AssetWithMeta[] }) {
 
   return (
     <>
+      <ApiState ok={ok} error={error} traceId={traceId} />
+
       <AssetsSummary stats={stats} />
 
       <div className="assets-toolbar">
@@ -213,7 +257,15 @@ export function AssetsContent({ assets }: { assets: AssetWithMeta[] }) {
             dataSource={assets}
             columns={columns}
             size="middle"
-            pagination={{ pageSize: 20, showSizeChanger: false }}
+            pagination={{
+              current: currentPage,
+              pageSize,
+              total: totalCount,
+              showSizeChanger: true,
+              showTotal: (total, range) => `${range[0]}-${range[1]} / ${total} 项`,
+              pageSizeOptions: ["10", "20", "50"],
+            }}
+            onChange={handleTableChange}
             scroll={{ x: 1280 }}
             locale={{ emptyText: "暂无资产" }}
           />

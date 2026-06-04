@@ -1,21 +1,45 @@
 import { ApiState } from "@/components/ApiState";
 import { PageHeader } from "@/components/PageHeader";
-import { StatusLabel } from "@/components/StatusLabel";
 import { Card } from "@/components/shared/Card";
-import { Empty } from "@/components/shared/Empty";
-import { formatTime } from "@/lib/format-time";
-import { getApiData, shortId, type RawObject } from "@/lib/api";
+import { getApiData, type RawObject } from "@/lib/api";
+import { parsePaginationParams, DEFAULT_PAGE_SIZE } from "@/lib/pagination";
+import { RawLedgerContent } from "./_components/RawLedgerContent";
 
 export const dynamic = "force-dynamic";
 
-export default async function RawLedgerPage() {
-  const result = await getApiData<RawObject[]>("/v1/raw-objects", []);
-  const objects = result.data;
+interface RawObjectSummary {
+  total: number;
+  validated: number;
+  pending: number;
+  failed: number;
+}
 
-  const totalCount = objects.length;
-  const validatedCount = objects.filter((o) => o.status === "validated").length;
-  const pendingCount = objects.filter((o) => o.status === "pending").length;
-  const failedCount = objects.filter((o) => o.status === "failed").length;
+interface RawLedgerPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function RawLedgerPage({ searchParams }: RawLedgerPageProps) {
+  const params = await searchParams;
+  const { page, pageSize } = parsePaginationParams(params);
+
+  const currentPage = page ?? 1;
+  const currentPageSize = pageSize ?? DEFAULT_PAGE_SIZE;
+
+  // Dedicated aggregate endpoint for metric cards.
+  const summaryResult = await getApiData<RawObjectSummary | null>("/v1/raw-objects/summary", null);
+
+  // Paginated page for the table
+  const tableResult = await getApiData<RawObject[]>(
+    "/v1/raw-objects",
+    [],
+    { page: String(currentPage), pageSize: String(currentPageSize) },
+  );
+
+  const summary = summaryResult.data;
+  const totalCount = summary?.total ?? tableResult.data.length;
+  const validatedCount = summary?.validated ?? 0;
+  const pendingCount = summary?.pending ?? 0;
+  const failedCount = summary?.failed ?? 0;
 
   return (
     <>
@@ -25,9 +49,9 @@ export default async function RawLedgerPage() {
         description="按批次和对象追溯原始留存位置、checksum、来源和接入状态。每个原始对象对应一次接入校验记录。"
       />
 
-      <ApiState ok={result.ok} error={result.error} traceId={result.traceId} />
+      <ApiState ok={summaryResult.ok} error={summaryResult.error} traceId={summaryResult.traceId} />
 
-      {/* ── Metrics ── */}
+      {/* Metrics — from aggregate endpoint */}
       <div className="metric-grid-4">
         <Card variant="metric" weight="secondary">
           <div className="card-label">原始对象总数</div>
@@ -47,125 +71,16 @@ export default async function RawLedgerPage() {
         </Card>
       </div>
 
-      {/* ── Object List ── */}
-      {objects.length === 0 ? (
-        <Empty title="暂无原始对象" description="完成数据接入后原始对象将在此处显示" />
-      ) : (
-        <div
-          style={{
-            background: "var(--surface)",
-            border: "1px solid var(--line)",
-            borderRadius: "var(--radius-xl)",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              padding: "16px 20px",
-              borderBottom: "1px solid var(--line-light)",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ fontSize: 15, fontWeight: 600 }}>原始对象列表</div>
-            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{totalCount} 条记录</span>
-          </div>
-          <div style={{ overflowX: "auto" }}>
-            <div style={{ minWidth: 900 }}>
-              {/* Header */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "130px 130px 1.5fr 1fr 130px 90px",
-                  gap: 12,
-                  padding: "8px 20px",
-                  borderBottom: "1px solid var(--line-light)",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "var(--text-secondary)",
-                }}
-              >
-                <span>对象 ID</span>
-                <span>批次号</span>
-                <span>对象 URI</span>
-                <span>Checksum</span>
-                <span>创建时间</span>
-                <span>状态</span>
-              </div>
-              {/* Rows */}
-              {objects.map((obj) => {
-                const { display, iso } = formatTime(obj.created_at);
-                return (
-                  <div
-                    key={obj.id}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "130px 130px 1.5fr 1fr 130px 90px",
-                      gap: 12,
-                      padding: "10px 20px",
-                      borderBottom: "1px solid var(--line-light)",
-                      fontSize: 13,
-                      alignItems: "center",
-                    }}
-                  >
-                    <code
-                      style={{
-                        fontSize: 11,
-                        fontFamily: "var(--font-mono)",
-                        color: "var(--text-secondary)",
-                      }}
-                    >
-                      {shortId(obj.id)}
-                    </code>
-                    <code
-                      style={{
-                        fontSize: 11,
-                        fontFamily: "var(--font-mono)",
-                        color: "var(--text-muted)",
-                      }}
-                    >
-                      {shortId(obj.batch_id)}
-                    </code>
-                    <span
-                      style={{
-                        fontSize: 12,
-                        fontFamily: "var(--font-mono)",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                      title={obj.object_uri}
-                    >
-                      {obj.object_uri}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontFamily: "var(--font-mono)",
-                        color: "var(--text-muted)",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                      title={obj.checksum}
-                    >
-                      {obj.checksum}
-                    </span>
-                    <time
-                      dateTime={iso}
-                      title={iso}
-                      style={{ fontSize: 12, color: "var(--text-muted)" }}
-                    >
-                      {display}
-                    </time>
-                    <StatusLabel value={obj.status} />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Paginated table */}
+      <RawLedgerContent
+        objects={tableResult.data}
+        totalCount={totalCount}
+        currentPage={currentPage}
+        pageSize={currentPageSize}
+        ok={tableResult.ok}
+        error={tableResult.error}
+        traceId={tableResult.traceId}
+      />
     </>
   );
 }

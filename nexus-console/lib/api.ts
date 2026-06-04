@@ -284,9 +284,15 @@ function generateIdempotencyKey(): string {
 
 // ── Core request ──────────────────────────────────────────────────────────
 
-export async function getApiData<T>(path: string, fallback: T): Promise<ApiResult<T>> {
+export async function getApiData<T>(
+  path: string,
+  fallback: T,
+  searchParams?: Record<string, string>,
+): Promise<ApiResult<T>> {
   try {
-    const envelope = await requestApi<T>(path, { method: "GET" });
+    const qs = searchParams ? new URLSearchParams(searchParams).toString() : "";
+    const fullPath = qs ? `${path}?${qs}` : path;
+    const envelope = await requestApi<T>(fullPath, { method: "GET" });
     return {
       data: envelope.data,
       ok: true,

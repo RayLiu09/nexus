@@ -10,6 +10,8 @@ export type AssetWithMeta = DocumentAsset & {
   index_status?: string;
 };
 
+// ── Stats (derived client-side, pre-aggregate-endpoint fallback) ──────────
+
 export type AssetStats = {
   available: number;
   reviewRequired: number;
@@ -20,6 +22,41 @@ export type AssetStats = {
 };
 
 export type DomainDistItem = { domain: string; label: string; count: number };
+
+// ── Aggregate endpoint contract: GET /v1/assets/summary ──────────────────
+
+/** Response from GET /v1/assets/summary — pre-computed aggregate stats. */
+export interface AssetSummary {
+  total: number;
+  available: number;
+  review_required: number;
+  current_normalized_refs: number;
+  stale_index: number;
+  l3l4: number;
+  auto_adoption_rate: number;
+  domain_distribution: { domain: string; count: number }[];
+}
+
+/** Map AssetSummary to the shape AssetsSummary component expects. */
+export function toAssetStats(s: AssetSummary): AssetStats {
+  return {
+    available: s.available,
+    reviewRequired: s.review_required,
+    currentNormalizedRefs: s.current_normalized_refs,
+    staleIndex: s.stale_index,
+    l3l4: s.l3l4,
+    autoAdoptionRate: s.auto_adoption_rate,
+  };
+}
+
+/** Map AssetSummary.domain_distribution to the shape DomainDistribution expects. */
+export function toDomainDistItems(s: AssetSummary): DomainDistItem[] {
+  return Object.entries(DOMAIN_LABELS).map(([domain, label]) => ({
+    domain,
+    label,
+    count: s.domain_distribution.find((d) => d.domain === domain)?.count ?? 0,
+  }));
+}
 
 const DOMAIN_LABELS: Record<string, string> = {
   D1: "教学资源",
