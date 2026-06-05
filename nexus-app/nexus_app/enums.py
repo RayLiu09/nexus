@@ -192,7 +192,7 @@ class AuditEventType(StrEnum):
     AI_GOVERNANCE_RUN_CREATED       = "AIGovernanceRunCreated"
     AI_GOVERNANCE_RUN_FAILED        = "AIGovernanceRunFailed"
     GOVERNANCE_RULES_RELOADED       = "GovernanceRulesReloaded"
-    # Consumption-side lineage foundation (P1)
+    # Consumption-side lineage foundation
     ASSET_VERSION_ACCESSED          = "AssetVersionAccessed"
     SEARCH_QUERY_EXECUTED           = "SearchQueryExecuted"
     QA_ANSWER_GENERATED             = "QAAnswerGenerated"
@@ -206,6 +206,20 @@ class AuditEventType(StrEnum):
     KNOWLEDGE_EMISSIONS_INFERRED    = "KnowledgeEmissionsInferred"
     KNOWLEDGE_CHUNKS_CREATED        = "KnowledgeChunksCreated"
     KNOWLEDGE_CHUNKS_INDEXED        = "KnowledgeChunksIndexed"
+
+
+class AssetAccessType(StrEnum):
+    """`ASSET_VERSION_ACCESSED.summary.access_type` discriminator.
+
+    Each value identifies which `/open/v1` read endpoint emitted the audit
+    event. Used by the consumption-side lineage view to reconstruct how an
+    upstream application reached a given normalized asset.
+    """
+    ASSET_DETAIL       = "asset_detail"
+    VERSION_LIST       = "version_list"
+    NORMALIZED_REF     = "normalized_ref"
+    GOVERNANCE_RESULT  = "governance_result"
+    KNOWLEDGE_CHUNK    = "knowledge_chunk"
 
 
 class ChunkingMode(StrEnum):

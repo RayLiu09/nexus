@@ -35,9 +35,14 @@ from nexus_api.dependencies import require_api_caller
 from nexus_api.permissions import apply_permission_filter
 from nexus_api.responses import list_response, response
 from nexus_app import models, pipeline, schemas as domain_schemas, services
-from nexus_app.audit import write_audit
+from nexus_app.audit import write_asset_version_accessed_audit, write_audit
 from nexus_app.database import get_db
-from nexus_app.enums import AssetVersionStatus, AuditEventType
+from nexus_app.enums import AssetAccessType, AssetVersionStatus, AuditEventType
+
+
+def _trace_id(request: Request) -> str | None:
+    value = getattr(request.state, "trace_id", None)
+    return str(value) if value is not None else None
 
 router = APIRouter(
     prefix="/open/v1",
@@ -163,6 +168,19 @@ def get_available_asset(
             else None
         ),
     )
+
+    write_asset_version_accessed_audit(
+        session,
+        caller=caller,
+        access_type=AssetAccessType.ASSET_DETAIL,
+        target_id=asset_id,
+        asset_id=asset_id,
+        version_id=current_version.id if current_version is not None else None,
+        normalized_ref_id=current_ref.id if current_ref is not None else None,
+        trace_id=_trace_id(request),
+    )
+    session.commit()
+
     return response(detail, request)
 
 
@@ -176,13 +194,24 @@ def list_available_asset_versions(
     caller: models.ApiCaller = Depends(require_api_caller),
     session: Session = Depends(get_db),
 ):
-    _ = caller
     services.get_row(session, models.DocumentAsset, asset_id, "asset")
     versions = [
         v
         for v in pipeline.list_asset_versions(session, asset_id)
         if v.version_status == AssetVersionStatus.AVAILABLE
     ]
+
+    write_asset_version_accessed_audit(
+        session,
+        caller=caller,
+        access_type=AssetAccessType.VERSION_LIST,
+        target_id=asset_id,
+        asset_id=asset_id,
+        version_ids=[v.id for v in versions],
+        trace_id=_trace_id(request),
+    )
+    session.commit()
+
     return list_response(versions, request)
 
 
@@ -201,13 +230,26 @@ def get_available_normalized_ref(
     session: Session = Depends(get_db),
 ):
     """Return a normalized_asset_ref only when its anchoring version is `available`."""
-    _ = caller
     ref = session.get(models.NormalizedAssetRef, ref_id)
     if ref is None or not _ref_anchors_available_version(session, ref):
         raise HTTPException(
             status_code=404,
             detail=f"normalized_ref '{ref_id}' not available",
         )
+    version = session.get(models.DocumentVersion, ref.version_id)
+
+    write_asset_version_accessed_audit(
+        session,
+        caller=caller,
+        access_type=AssetAccessType.NORMALIZED_REF,
+        target_id=ref.id,
+        asset_id=version.asset_id if version is not None else None,
+        version_id=ref.version_id,
+        normalized_ref_id=ref.id,
+        trace_id=_trace_id(request),
+    )
+    session.commit()
+
     return response(domain_schemas.NormalizedAssetRefRead.model_validate(ref), request)
 
 
@@ -229,7 +271,6 @@ def get_public_governance_result_for_ref(
     """
     from nexus_app.governance.redaction import redact_governance_result
 
-    _ = caller
     ref = session.get(models.NormalizedAssetRef, ref_id)
     if ref is None or not _ref_anchors_available_version(session, ref):
         raise HTTPException(
@@ -248,6 +289,19 @@ def get_public_governance_result_for_ref(
             status_code=404,
             detail=f"No governance result found for normalized_ref '{ref_id}'",
         )
+
+    version = session.get(models.DocumentVersion, ref.version_id)
+    write_asset_version_accessed_audit(
+        session,
+        caller=caller,
+        access_type=AssetAccessType.GOVERNANCE_RESULT,
+        target_id=ref.id,
+        asset_id=version.asset_id if version is not None else None,
+        version_id=ref.version_id,
+        normalized_ref_id=ref.id,
+        trace_id=_trace_id(request),
+    )
+    session.commit()
 
     serialized = domain_schemas.GovernanceResultRead.model_validate(result).model_dump()
     return response(redact_governance_result(serialized, "public"), request)
@@ -270,7 +324,6 @@ def get_public_knowledge_chunk(
     upstream apps must not be able to dereference chunks belonging to
     review_required / archived / disabled material.
     """
-    _ = caller
     chunk = session.get(models.KnowledgeChunk, chunk_id)
     if chunk is None:
         raise HTTPException(status_code=404, detail=f"knowledge_chunk '{chunk_id}' not found")
@@ -281,6 +334,19 @@ def get_public_knowledge_chunk(
             detail=f"knowledge_chunk '{chunk_id}' is not part of an available asset",
         )
     version = session.get(models.DocumentVersion, ref.version_id)
+
+    write_asset_version_accessed_audit(
+        session,
+        caller=caller,
+        access_type=AssetAccessType.KNOWLEDGE_CHUNK,
+        target_id=chunk.id,
+        asset_id=version.asset_id if version is not None else None,
+        version_id=ref.version_id,
+        normalized_ref_id=chunk.normalized_ref_id,
+        trace_id=_trace_id(request),
+    )
+    session.commit()
+
     return response(
         {
             "id": chunk.id,

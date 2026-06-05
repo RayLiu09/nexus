@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from nexus_app import models
-from nexus_app.enums import AuditEventType
+from nexus_app.enums import AssetAccessType, AuditEventType
 
 # Keys (case-insensitive substrings) whose values are stripped from audit
 # summaries before persistence. Compared after lower-casing the key.
@@ -108,3 +108,59 @@ def write_audit(
     session.add(audit)
     session.flush()
     return audit
+
+
+# Stable mapping of access_type → audit target_type. Lets callers stay focused
+# on the access verb while keeping audit `target_type` aligned with the
+# resource being requested (`/open/v1/...` path leaf).
+_ACCESS_TYPE_TARGET: dict[AssetAccessType, str] = {
+    AssetAccessType.ASSET_DETAIL:      "document_asset",
+    AssetAccessType.VERSION_LIST:      "document_asset",
+    AssetAccessType.NORMALIZED_REF:    "normalized_asset_ref",
+    AssetAccessType.GOVERNANCE_RESULT: "normalized_asset_ref",
+    AssetAccessType.KNOWLEDGE_CHUNK:   "knowledge_chunk",
+}
+
+
+def write_asset_version_accessed_audit(
+    session: Session,
+    *,
+    caller: models.ApiCaller,
+    access_type: AssetAccessType,
+    target_id: str,
+    asset_id: str | None = None,
+    version_id: str | None = None,
+    version_ids: list[str] | None = None,
+    normalized_ref_id: str | None = None,
+    trace_id: str | None = None,
+) -> models.AuditLog:
+    """Emit `ASSET_VERSION_ACCESSED` for an `/open/v1` consumption read.
+
+    The summary holds the minimal lineage triple — `asset_id`, `version_id`,
+    `normalized_ref_id` — plus the `access_type` discriminator. Caller identity
+    is recorded via `actor_type=api_caller` + `actor_id=caller.id`, not
+    duplicated in the summary.
+
+    `version_ids` is used by `version_list` accesses where the caller
+    enumerated multiple available versions in a single request.
+    """
+    summary: dict[str, Any] = {"access_type": access_type.value}
+    if asset_id is not None:
+        summary["asset_id"] = asset_id
+    if version_id is not None:
+        summary["version_id"] = version_id
+    if version_ids is not None:
+        summary["version_ids"] = version_ids
+    if normalized_ref_id is not None:
+        summary["normalized_ref_id"] = normalized_ref_id
+
+    return write_audit(
+        session,
+        AuditEventType.ASSET_VERSION_ACCESSED,
+        target_type=_ACCESS_TYPE_TARGET[access_type],
+        target_id=target_id,
+        trace_id=trace_id,
+        summary=summary,
+        actor_type="api_caller",
+        actor_id=caller.id,
+    )
