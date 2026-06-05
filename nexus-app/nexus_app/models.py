@@ -295,7 +295,11 @@ class Job(TimestampMixin, Base):
         Index("ix_job_ingest_batch_id", "ingest_batch_id"),
         Index("ix_job_raw_object_id", "raw_object_id"),
         Index("idx_job_polling", "status", "next_run_at", "priority", "created_at"),
-        Index("idx_job_lock_expiry", "status", "lock_expires_at"),
+        # Partial index `idx_job_running_lock_expiry ON job(lock_expires_at)
+        # WHERE status='running'` lives in Alembic 0021 (PostgreSQL-only).
+        # Not declared here because SQLAlchemy's `postgresql_where` would
+        # silently turn into a full index on SQLite, which is both wasteful
+        # and inconsistent with the production schema.
         Index("idx_job_idempotency", "job_type", "idempotency_key"),
     )
 
