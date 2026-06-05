@@ -12,8 +12,11 @@ from nexus_api.api.open import router as open_router
 from nexus_api.errors import (
     http_exception_handler,
     integrity_exception_handler,
+    resource_not_found_handler,
+    unhandled_exception_handler,
     validation_exception_handler,
 )
+from nexus_app.services import ResourceNotFoundError
 from nexus_api.logging import configure_logging
 from nexus_api.middleware import TraceIdMiddleware
 from nexus_api.responses import response
@@ -118,6 +121,9 @@ def create_app() -> FastAPI:
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(IntegrityError, integrity_exception_handler)
+    app.add_exception_handler(ResourceNotFoundError, resource_not_found_handler)
+    # Catch-all — must come AFTER the specific handlers so they win by priority.
+    app.add_exception_handler(Exception, unhandled_exception_handler)
 
     @app.get(
         "/health",
