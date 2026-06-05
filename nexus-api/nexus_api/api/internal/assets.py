@@ -121,7 +121,7 @@ def restart_governance_for_version(
     write_audit(
         session,
         AuditEventType.VERSION_STATUS_CHANGED,
-        target_type="document_version",
+        target_type="asset_version",
         target_id=version.id,
         trace_id=trace_id,
         summary={

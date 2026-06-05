@@ -114,8 +114,8 @@ def write_audit(
 # on the access verb while keeping audit `target_type` aligned with the
 # resource being requested (`/open/v1/...` path leaf).
 _ACCESS_TYPE_TARGET: dict[AssetAccessType, str] = {
-    AssetAccessType.ASSET_DETAIL:      "document_asset",
-    AssetAccessType.VERSION_LIST:      "document_asset",
+    AssetAccessType.ASSET_DETAIL:      "asset",
+    AssetAccessType.VERSION_LIST:      "asset",
     AssetAccessType.NORMALIZED_REF:    "normalized_asset_ref",
     AssetAccessType.GOVERNANCE_RESULT: "normalized_asset_ref",
     AssetAccessType.KNOWLEDGE_CHUNK:   "knowledge_chunk",

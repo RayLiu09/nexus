@@ -52,7 +52,7 @@ class VersionStateManager:
         """Transition version to available, enforcing unique-available.
 
         Serializes concurrent transitions for the same asset by acquiring a row-level
-        lock on document_asset. The DB partial unique index (Alembic 0014) is the
+        lock on asset. The DB partial unique index (Alembic 0014) is the
         final safety net should two workers race past this lock.
         """
         if not self._check_admission_criteria(governance_result):
@@ -75,7 +75,7 @@ class VersionStateManager:
         write_audit(
             session,
             AuditEventType.VERSION_STATUS_CHANGED,
-            target_type="document_version",
+            target_type="asset_version",
             target_id=version.id,
             trace_id=trace_id,
             summary={
@@ -103,7 +103,7 @@ class VersionStateManager:
         write_audit(
             session,
             AuditEventType.VERSION_STATUS_CHANGED,
-            target_type="document_version",
+            target_type="asset_version",
             target_id=version.id,
             trace_id=trace_id,
             summary={
@@ -136,7 +136,7 @@ class VersionStateManager:
 
     @staticmethod
     def _lock_asset_row(session: Session, asset_id: str) -> None:
-        """SELECT ... FOR UPDATE on document_asset to serialize transitions per asset.
+        """SELECT ... FOR UPDATE on asset to serialize transitions per asset.
 
         SQLite ignores `with_for_update`, but the partial unique index still enforces
         correctness; PostgreSQL acquires a row lock.
@@ -162,7 +162,7 @@ class VersionStateManager:
             write_audit(
                 session,
                 AuditEventType.ASSET_VERSION_ARCHIVED,
-                target_type="document_version",
+                target_type="asset_version",
                 target_id=old_v.id,
                 trace_id=str(uuid.uuid4()),
                 summary={

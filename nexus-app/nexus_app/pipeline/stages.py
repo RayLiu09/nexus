@@ -122,7 +122,7 @@ def run_assetize(
             write_audit(
                 ctx.session,
                 AuditEventType.ASSET_VERSION_ARCHIVED,
-                "document_version",
+                "asset_version",
                 old_v.id,
                 ctx.trace_id,
                 {
@@ -532,7 +532,7 @@ def _persist_normalized_ref(
     write_audit(
         ctx.session,
         AuditEventType.VERSION_STATUS_CHANGED,
-        "document_version",
+        "asset_version",
         version.id,
         ctx.trace_id,
         {
@@ -609,7 +609,7 @@ def run_governance_decision(
         write_audit(
             ctx.session,
             AuditEventType.VERSION_STATUS_CHANGED,
-            "document_version", version.id, ctx.trace_id,
+            "asset_version", version.id, ctx.trace_id,
             {
                 "from_status": AssetVersionStatus.PROCESSING.value,
                 "to_status": AssetVersionStatus.FAILED.value,

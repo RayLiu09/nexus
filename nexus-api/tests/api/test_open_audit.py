@@ -204,7 +204,7 @@ def test_asset_detail_emits_audit(app_no_auth_override, session, caller, availab
     assert len(rows) == 1
     entry = rows[0]
     assert entry.actor_type == "api_caller"
-    assert entry.target_type == "document_asset"
+    assert entry.target_type == "asset"
     assert entry.target_id == ASSET_ID
 
     summary = _summary(entry)

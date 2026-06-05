@@ -374,7 +374,10 @@ class JobStage(TimestampMixin, Base):
 
 
 class DocumentAsset(TimestampMixin, Base):
-    __tablename__ = "document_asset"
+    # Table renamed `document_asset` → `asset` in Alembic 0020 to align with
+    # ARCHITECT.md. Python class name preserved to avoid a separate cascade
+    # through console TypeScript types in this PR.
+    __tablename__ = "asset"
     __table_args__ = (
         UniqueConstraint("data_source_id", "source_object_key", name="uq_document_asset_source_key"),
     )
@@ -401,7 +404,8 @@ class DocumentAsset(TimestampMixin, Base):
 
 
 class DocumentVersion(TimestampMixin, Base):
-    __tablename__ = "document_version"
+    # Table renamed `document_version` → `asset_version` in Alembic 0020.
+    __tablename__ = "asset_version"
     # Partial unique index `uq_document_version_one_available_per_asset` is
     # PostgreSQL-only and lives in Alembic 0014. Not declared here because
     # SQLAlchemy's `postgresql_where` is silently ignored by SQLite and would
@@ -413,7 +417,7 @@ class DocumentVersion(TimestampMixin, Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     asset_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("document_asset.id"), nullable=False
+        String(36), ForeignKey("asset.id"), nullable=False
     )
     raw_object_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("raw_object.id"), nullable=False
@@ -441,7 +445,7 @@ class ParseArtifact(TimestampMixin, Base):
         String(36), ForeignKey("raw_object.id"), nullable=False
     )
     document_version_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("document_version.id"), nullable=True
+        String(36), ForeignKey("asset_version.id"), nullable=True
     )
     artifact_uri: Mapped[str] = mapped_column(String(1024), nullable=False)
     parse_mode: Mapped[str] = mapped_column(String(80), nullable=False)
@@ -467,7 +471,7 @@ class NormalizedAssetRef(TimestampMixin, Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     version_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("document_version.id"), nullable=False
+        String(36), ForeignKey("asset_version.id"), nullable=False
     )
     normalized_type: Mapped[NormalizedType] = mapped_column(
         Enum(NormalizedType, values_callable=lambda enum: [item.value for item in enum]),

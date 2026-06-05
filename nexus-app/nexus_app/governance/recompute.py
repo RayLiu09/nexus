@@ -92,7 +92,7 @@ def trigger_recompute(
                 write_audit(
                     session,
                     AuditEventType.VERSION_STATUS_CHANGED,
-                    target_type="document_version",
+                    target_type="asset_version",
                     target_id=version.id,
                     trace_id=trace_id or str(uuid.uuid4()),
                     summary={

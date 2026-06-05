@@ -114,7 +114,7 @@ def retry_job(job_id: str, request: Request, session: Session = Depends(get_db))
             write_audit(
                 session,
                 AuditEventType.VERSION_STATUS_CHANGED,
-                target_type="document_version",
+                target_type="asset_version",
                 target_id=version.id,
                 trace_id=trace_id,
                 summary={

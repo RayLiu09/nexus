@@ -82,7 +82,7 @@ def delete_data_source(
 ):
     """Soft-delete a data source (`deleted_at` + status `disabled`).
 
-    Refuses with 409 when any `raw_object` or `document_asset` still references
+    Refuses with 409 when any `raw_object` or `asset` still references
     the source. Pass `force=true` to soft-delete anyway (lineage preserved but
     orphaned).
     """
