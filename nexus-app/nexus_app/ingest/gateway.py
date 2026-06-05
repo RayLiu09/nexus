@@ -91,6 +91,8 @@ def _create_queued_job(
     pipeline_type: str = "document",
     source_object_key: str | None = None,
 ) -> models.Job:
+    from nexus_app.pipeline.payload_schema import JOB_PAYLOAD_SCHEMA_VERSION
+
     job = models.Job(
         job_type=JobType.INGEST_PROCESS,
         status=JobStatus.QUEUED,
@@ -105,6 +107,7 @@ def _create_queued_job(
             "pipeline_type": pipeline_type,
             "source_object_key": source_object_key,
         },
+        payload_schema_version=JOB_PAYLOAD_SCHEMA_VERSION,
         metadata_summary={"pipeline": "ingest_to_asset"},
     )
     session.add(job)

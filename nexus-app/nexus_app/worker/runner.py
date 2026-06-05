@@ -28,6 +28,7 @@ from nexus_app.ingest.config_loader import (
 from nexus_app.mineru import MinerUAdapter, get_mineru_adapter
 from nexus_app.models import utcnow
 from nexus_app.pipeline.context import PipelineContext
+from nexus_app.pipeline.payload_schema import SUPPORTED_JOB_PAYLOAD_VERSIONS
 from nexus_app.pipeline.stages import (
     run_assetize,
     run_governance_decision,
@@ -377,6 +378,36 @@ def execute_job(
         job.failure_reason = "missing raw_object or ingest_batch"
         job.last_error_code = "missing_references"
         _release_lock(job)
+        session.commit()
+        return
+
+    # Refuse jobs whose payload schema this worker does not recognize.
+    # Sends the row straight to the dead-letter state so an operator can decide
+    # whether to re-ingest under the new schema (no retry — this is a permanent
+    # incompatibility, not a transient fault).
+    if job.payload_schema_version not in SUPPORTED_JOB_PAYLOAD_VERSIONS:
+        unsupported = job.payload_schema_version
+        reason = (
+            f"unsupported_payload_schema_version: {unsupported!r} "
+            f"(worker accepts {sorted(SUPPORTED_JOB_PAYLOAD_VERSIONS)})"
+        )
+        job.status = JobStatus.DEAD_LETTERED
+        job.failure_reason = reason[:2000]
+        job.last_error_code = "unsupported_payload_schema_version"
+        job.last_error_message = reason[:2000]
+        _release_lock(job)
+        write_audit(
+            session,
+            AuditEventType.PIPELINE_FAILED,
+            "job",
+            job.id,
+            trace_id,
+            {
+                "error_code": "unsupported_payload_schema_version",
+                "payload_schema_version": unsupported,
+                "supported": sorted(SUPPORTED_JOB_PAYLOAD_VERSIONS),
+            },
+        )
         session.commit()
         return
 
