@@ -5,6 +5,7 @@ Currently exposes:
 - `require_api_caller`: re-exported from `nexus_api.auth` for symmetry.
 """
 from nexus_api.auth import require_api_caller
+from nexus_api.dependencies.idempotency import require_idempotency_key
 from nexus_api.dependencies.user import require_user
 
-__all__ = ["require_api_caller", "require_user"]
+__all__ = ["require_api_caller", "require_idempotency_key", "require_user"]

@@ -24,7 +24,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
-from nexus_api.dependencies import require_user
+from nexus_api.dependencies import require_idempotency_key, require_user
 from nexus_api.responses import list_response, response
 from nexus_app import auth_service, models, pipeline, schemas as domain_schemas, services
 from nexus_app.ai_governance.rules_registry import (
@@ -654,6 +654,7 @@ def create_data_source_scan_task(
     "/ingest/batches",
     response_model=schemas.ApiResponse[domain_schemas.IngestBatchRead],
     status_code=201,
+    dependencies=[Depends(require_idempotency_key)],
 )
 def create_multi_raw_batch(
     payload: domain_schemas.MultiRawBatchCreate,
@@ -689,6 +690,7 @@ def _append_read(result: ingest_batch.BatchAppendResult) -> domain_schemas.Inges
     "/ingest/batches/{batch_id}/files",
     response_model=schemas.ApiResponse[domain_schemas.IngestFileAppendRead],
     status_code=202,
+    dependencies=[Depends(require_idempotency_key)],
 )
 def append_file_to_batch(
     batch_id: str,
@@ -732,6 +734,7 @@ def append_file_to_batch(
     "/ingest/files/multi",
     response_model=schemas.ApiResponse[domain_schemas.IngestMultiFileResult],
     status_code=202,
+    dependencies=[Depends(require_idempotency_key)],
 )
 def submit_ingest_multi_file(
     payload: domain_schemas.IngestMultiFileSubmit,
@@ -809,6 +812,7 @@ def _accepted_read(result: ingest_gateway.IngestAccepted) -> domain_schemas.Inge
     "/ingest/files",
     response_model=schemas.ApiResponse[domain_schemas.IngestAcceptedRead],
     status_code=202,
+    dependencies=[Depends(require_idempotency_key)],
 )
 def submit_ingest_file(
     payload: domain_schemas.IngestFileSubmit, request: Request, session: Session = Depends(get_db)
@@ -828,6 +832,7 @@ def submit_ingest_file(
     "/ingest/files/upload",
     response_model=schemas.ApiResponse[domain_schemas.IngestAcceptedRead],
     status_code=202,
+    dependencies=[Depends(require_idempotency_key)],
 )
 async def submit_ingest_file_upload(
     data_source_id: str = Form(...),
@@ -861,6 +866,7 @@ async def submit_ingest_file_upload(
     "/ingest/crawler-packages",
     response_model=schemas.ApiResponse[domain_schemas.IngestAcceptedRead],
     status_code=202,
+    dependencies=[Depends(require_idempotency_key)],
 )
 def submit_crawler_package(
     payload: domain_schemas.CrawlerPackageSubmit,
@@ -1203,6 +1209,7 @@ def list_asset_versions(asset_id: str, request: Request, session: Session = Depe
     "/ai/prompt-profiles",
     response_model=schemas.ApiResponse[domain_schemas.PromptProfileRead],
     status_code=201,
+    dependencies=[Depends(require_idempotency_key)],
 )
 def create_prompt_profile(
     payload: domain_schemas.PromptProfileCreate,
@@ -1325,6 +1332,7 @@ def dry_run_prompt_profile(
     "/ai/governance-runs",
     response_model=schemas.ApiResponse[domain_schemas.AIGovernanceRunRead],
     status_code=201,
+    dependencies=[Depends(require_idempotency_key)],
 )
 def create_governance_run(
     payload: domain_schemas.AIGovernanceRunCreate,
