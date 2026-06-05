@@ -35,6 +35,43 @@ _CONFIG_REGISTRIES: list[tuple[str, callable]] = [
 ]
 
 
+# Environment values that trip the dev-friendly JWT secret fallback in
+# `nexus_app.auth_service._effective_jwt_secret`. Anything outside this set
+# is treated as a non-dev deployment and must ship with a real secret.
+_DEV_LIKE_ENVS: frozenset[str] = frozenset(
+    {"development", "dev", "test", "testing", "local"}
+)
+
+_MIN_JWT_SECRET_LEN = 32
+
+
+def check_production_secrets(settings: Settings) -> None:
+    """Fail-fast when running outside a dev env without a strong JWT secret.
+
+    `nexus_app.auth_service._effective_jwt_secret` falls back to an
+    ephemeral per-process secret when `NEXUS_JWT_SECRET` is unset. The
+    fallback is harmless in tests/dev but catastrophic in production: each
+    replica would mint tokens the others can't verify, and any restart would
+    invalidate every outstanding session.
+
+    Raises:
+        RuntimeError: when `nexus_env` indicates production-like deployment
+            and `jwt_secret` is missing or too short.
+    """
+    if settings.nexus_env.lower() in _DEV_LIKE_ENVS:
+        return
+    if not settings.jwt_secret:
+        raise RuntimeError(
+            f"NEXUS_JWT_SECRET is required for nexus_env={settings.nexus_env!r}; "
+            f"set a high-entropy secret of at least {_MIN_JWT_SECRET_LEN} characters."
+        )
+    if len(settings.jwt_secret) < _MIN_JWT_SECRET_LEN:
+        raise RuntimeError(
+            f"NEXUS_JWT_SECRET is too short ({len(settings.jwt_secret)} chars); "
+            f"need at least {_MIN_JWT_SECRET_LEN} for nexus_env={settings.nexus_env!r}."
+        )
+
+
 def _load_registries_fail_fast() -> None:
     """Eagerly load all 3 config registries. Raises RuntimeError on any failure
     unless NEXUS_ALLOW_MISSING_RULES=true (dev-only escape hatch)."""
@@ -61,6 +98,7 @@ def _load_registries_fail_fast() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    check_production_secrets(get_settings())
     _load_registries_fail_fast()
     yield
 
