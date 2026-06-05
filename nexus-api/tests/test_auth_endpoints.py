@@ -45,7 +45,7 @@ def seeded_user(session) -> models.UserAccount:
 def test_login_returns_tokens_and_user_payload(app, session, seeded_user):
     client = TestClient(app)
     resp = client.post(
-        "/v1/auth/login",
+        "/internal/v1/auth/login",
         json={"username": "alice", "password": "correcthorse"},
     )
     assert resp.status_code == 200, resp.text
@@ -82,7 +82,7 @@ def test_login_returns_tokens_and_user_payload(app, session, seeded_user):
 def test_login_rejects_wrong_password(app, session, seeded_user):
     client = TestClient(app)
     resp = client.post(
-        "/v1/auth/login",
+        "/internal/v1/auth/login",
         json={"username": "alice", "password": "wrong"},
     )
     assert resp.status_code == 401
@@ -99,7 +99,7 @@ def test_login_rejects_wrong_password(app, session, seeded_user):
 def test_login_rejects_unknown_user(app, session):
     client = TestClient(app)
     resp = client.post(
-        "/v1/auth/login",
+        "/internal/v1/auth/login",
         json={"username": "ghost", "password": "x"},
     )
     assert resp.status_code == 401
@@ -110,7 +110,7 @@ def test_login_rejects_disabled_user(app, session, seeded_user):
     session.commit()
     client = TestClient(app)
     resp = client.post(
-        "/v1/auth/login",
+        "/internal/v1/auth/login",
         json={"username": "alice", "password": "correcthorse"},
     )
     assert resp.status_code == 403
@@ -119,19 +119,19 @@ def test_login_rejects_disabled_user(app, session, seeded_user):
 def test_refresh_rotates_jti_and_invalidates_old_token(app, session, seeded_user):
     client = TestClient(app)
     login = client.post(
-        "/v1/auth/login",
+        "/internal/v1/auth/login",
         json={"username": "alice", "password": "correcthorse"},
     ).json()["data"]
     old_refresh = login["refresh_token"]
 
-    resp = client.post("/v1/auth/refresh", json={"refresh_token": old_refresh})
+    resp = client.post("/internal/v1/auth/refresh", json={"refresh_token": old_refresh})
     assert resp.status_code == 200, resp.text
     new = resp.json()["data"]
     assert new["access_token"]
     assert new["refresh_token"] != old_refresh
 
     # Reusing the old refresh now fails with 401 (replay detection).
-    replay = client.post("/v1/auth/refresh", json={"refresh_token": old_refresh})
+    replay = client.post("/internal/v1/auth/refresh", json={"refresh_token": old_refresh})
     assert replay.status_code == 401
 
     # Two refresh-token rows exist (rotated chain), and the first is revoked.
@@ -143,7 +143,7 @@ def test_refresh_rotates_jti_and_invalidates_old_token(app, session, seeded_user
 
 def test_refresh_rejects_garbage_token(app, session):
     client = TestClient(app)
-    resp = client.post("/v1/auth/refresh", json={"refresh_token": "not-a-jwt"})
+    resp = client.post("/internal/v1/auth/refresh", json={"refresh_token": "not-a-jwt"})
     assert resp.status_code == 401
 
 
@@ -172,23 +172,23 @@ def test_refresh_rejects_expired_token(app, session, seeded_user):
     )
 
     client = TestClient(app)
-    resp = client.post("/v1/auth/refresh", json={"refresh_token": token})
+    resp = client.post("/internal/v1/auth/refresh", json={"refresh_token": token})
     assert resp.status_code == 401
 
 
 def test_logout_revokes_refresh_and_is_idempotent(app, session, seeded_user):
     client = TestClient(app)
     refresh = client.post(
-        "/v1/auth/login",
+        "/internal/v1/auth/login",
         json={"username": "alice", "password": "correcthorse"},
     ).json()["data"]["refresh_token"]
 
-    resp = client.post("/v1/auth/logout", json={"refresh_token": refresh})
+    resp = client.post("/internal/v1/auth/logout", json={"refresh_token": refresh})
     assert resp.status_code == 200
     assert resp.json()["data"]["ok"] is True
 
     # Second logout still returns 200.
-    resp2 = client.post("/v1/auth/logout", json={"refresh_token": refresh})
+    resp2 = client.post("/internal/v1/auth/logout", json={"refresh_token": refresh})
     assert resp2.status_code == 200
 
     # The refresh row is revoked exactly once.
@@ -197,11 +197,11 @@ def test_logout_revokes_refresh_and_is_idempotent(app, session, seeded_user):
     assert rows[0].revoked_at is not None
 
     # And refresh is now rejected.
-    bounce = client.post("/v1/auth/refresh", json={"refresh_token": refresh})
+    bounce = client.post("/internal/v1/auth/refresh", json={"refresh_token": refresh})
     assert bounce.status_code == 401
 
 
 def test_logout_tolerates_invalid_token(app, session):
     client = TestClient(app)
-    resp = client.post("/v1/auth/logout", json={"refresh_token": "not-a-jwt"})
+    resp = client.post("/internal/v1/auth/logout", json={"refresh_token": "not-a-jwt"})
     assert resp.status_code == 200

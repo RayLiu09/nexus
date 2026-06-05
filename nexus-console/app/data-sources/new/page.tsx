@@ -60,7 +60,7 @@ async function createDataSource(formData: FormData) {
       default_governance_hints: {},
       connection_config: buildConnectionConfig(formData),
     };
-    const result = await postApiData<{ id: string }>("/v1/data-sources", payload);
+    const result = await postApiData<{ id: string }>("/internal/v1/data-sources", payload);
     if (result?.data?.id) {
       target = `/data-sources/${result.data.id}`;
     }

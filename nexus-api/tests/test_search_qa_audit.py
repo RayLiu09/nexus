@@ -50,7 +50,7 @@ def _auth_headers(caller_client_id: str) -> dict:
 
 class TestSearchEndpoint:
     def test_search_returns_results_with_source_citation(self, app, session, monkeypatch):
-        from nexus_api.api import v1
+        from nexus_api.api import internal as v1
         caller = _seed_caller(session)
 
         async def _override_caller():
@@ -60,7 +60,7 @@ class TestSearchEndpoint:
         app.dependency_overrides[require_api_caller] = lambda: caller
 
         client = TestClient(app)
-        resp = client.get("/v1/search?q=test+query&kb=textbook_kb&top_k=2")
+        resp = client.get("/open/v1/search?q=test+query&kb=textbook_kb&top_k=2")
         assert resp.status_code == 200
         data = resp.json()["data"]
         assert "results" in data
@@ -76,7 +76,7 @@ class TestSearchEndpoint:
         app.dependency_overrides[require_api_caller] = lambda: caller
 
         client = TestClient(app)
-        client.get("/v1/search?q=hello&kb=textbook_kb")
+        client.get("/open/v1/search?q=hello&kb=textbook_kb")
         events = _audits(session, AuditEventType.SEARCH_QUERY_EXECUTED)
         assert events
         last = events[-1]
@@ -93,7 +93,7 @@ class TestQAEndpoint:
         app.dependency_overrides[require_api_caller] = lambda: caller
 
         client = TestClient(app)
-        resp = client.get("/v1/qa?q=what+is+x&kb=textbook_kb")
+        resp = client.get("/open/v1/qa?q=what+is+x&kb=textbook_kb")
         assert resp.status_code == 200
         data = resp.json()["data"]
         assert "answer" in data
@@ -107,7 +107,7 @@ class TestQAEndpoint:
         app.dependency_overrides[require_api_caller] = lambda: caller
 
         client = TestClient(app)
-        client.get("/v1/qa?q=what+is+nexus&kb=textbook_kb")
+        client.get("/open/v1/qa?q=what+is+nexus&kb=textbook_kb")
         events = _audits(session, AuditEventType.QA_ANSWER_GENERATED)
         assert events
         last = events[-1]

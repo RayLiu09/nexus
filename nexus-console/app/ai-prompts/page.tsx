@@ -23,7 +23,7 @@ type PromptProfile = {
 };
 
 export default async function AiPromptsPage() {
-  const result = await getApiData<PromptProfile[]>("/v1/ai/prompt-profiles", []);
+  const result = await getApiData<PromptProfile[]>("/internal/v1/ai/prompt-profiles", []);
 
   return (
     <>

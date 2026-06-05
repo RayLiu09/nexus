@@ -7,7 +7,7 @@ import { BatchUploadPage } from "./_components/BatchUploadPage";
 export const dynamic = "force-dynamic";
 
 export default async function MultiFileBatchPage() {
-  const sources = await getApiData<DataSource[]>("/v1/data-sources", []);
+  const sources = await getApiData<DataSource[]>("/internal/v1/data-sources", []);
 
   return (
     <>

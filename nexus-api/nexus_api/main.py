@@ -2,11 +2,13 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import IntegrityError
 
-from nexus_api.api.v1 import router as v1_router
+from nexus_api import schemas
+from nexus_api.api.internal import auth_router as internal_auth_router, router as internal_router
+from nexus_api.api.open import router as open_router
 from nexus_api.errors import (
     http_exception_handler,
     integrity_exception_handler,
@@ -14,8 +16,9 @@ from nexus_api.errors import (
 )
 from nexus_api.logging import configure_logging
 from nexus_api.middleware import TraceIdMiddleware
+from nexus_api.responses import response
 from nexus_app.ai_governance.rules_registry import get_governance_rules_registry
-from nexus_app.config import get_settings
+from nexus_app.config import Settings, get_settings
 from nexus_app.ingest.config_loader import get_ingest_validate_registry
 from nexus_app.normalize.config_loader import get_normalize_schemas_registry
 
@@ -77,7 +80,28 @@ def create_app() -> FastAPI:
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(IntegrityError, integrity_exception_handler)
-    app.include_router(v1_router)
+
+    @app.get(
+        "/health",
+        response_model=schemas.ApiResponse[schemas.HealthRead],
+        tags=["system"],
+    )
+    def health(request: Request, settings: Settings = Depends(get_settings)):
+        """Public liveness probe — no auth required (K8s/LB)."""
+        return response(
+            schemas.HealthRead(
+                status="ok",
+                service=settings.app_name,
+                environment=settings.nexus_env,
+            ),
+            request,
+        )
+
+    # Auth router (login/refresh/logout) must be mounted BEFORE the main internal
+    # router so its public routes are matched first.
+    app.include_router(internal_auth_router)
+    app.include_router(internal_router)
+    app.include_router(open_router)
     return app
 
 

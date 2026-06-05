@@ -1,7 +1,7 @@
 import base64
 from io import BytesIO
 
-from nexus_api.api import v1
+from nexus_api.api import internal as v1
 from nexus_app import models, services
 from nexus_app.ingest import gateway as ingest_gateway
 from nexus_app.schemas import CrawlerPackageSubmit, DataSourceCreate, IngestFileSubmit
@@ -22,19 +22,19 @@ def create_source(session, source_type="file_upload"):
 def test_week2_routes_are_registered(app):
     paths = {route.path for route in app.routes}
 
-    assert "/v1/ingest/files" in paths
-    assert "/v1/ingest/files/upload" in paths
-    assert "/v1/ingest/crawler-packages" in paths
-    assert "/v1/jobs" in paths
-    assert "/v1/jobs/{job_id}/stages" in paths
-    assert "/v1/assets" in paths
-    assert "/v1/assets/{asset_id}" in paths
-    assert "/v1/assets/{asset_id}/versions" in paths
-    assert "/v1/normalized-refs" in paths
-    assert "/v1/parse-artifacts" in paths
-    assert "/v1/audit-logs" in paths
-    assert "/v1/ingest/batches/{batch_id}/raw-objects" in paths
-    assert "/v1/raw-objects" not in {
+    assert "/internal/v1/ingest/files" in paths
+    assert "/internal/v1/ingest/files/upload" in paths
+    assert "/internal/v1/ingest/crawler-packages" in paths
+    assert "/internal/v1/jobs" in paths
+    assert "/internal/v1/jobs/{job_id}/stages" in paths
+    assert "/internal/v1/assets" in paths
+    assert "/internal/v1/assets/{asset_id}" in paths
+    assert "/internal/v1/assets/{asset_id}/versions" in paths
+    assert "/internal/v1/normalized-refs" in paths
+    assert "/internal/v1/parse-artifacts" in paths
+    assert "/internal/v1/audit-logs" in paths
+    assert "/internal/v1/ingest/batches/{batch_id}/raw-objects" in paths
+    assert "/internal/v1/raw-objects" not in {
         route.path for route in app.routes if "POST" in getattr(route, "methods", set())
     }
 

@@ -27,9 +27,9 @@ export default async function DataSourceDetailPage({
   const { id } = await params;
 
   const [dsResult, batchesResult, rawResult] = await Promise.all([
-    getApiData<DataSource | null>(`/v1/data-sources/${id}`, null),
-    getApiData<IngestBatch[]>("/v1/ingest/batches", []),
-    getApiData<RawObject[]>("/v1/raw-objects", []),
+    getApiData<DataSource | null>(`/internal/v1/data-sources/${id}`, null),
+    getApiData<IngestBatch[]>("/internal/v1/ingest/batches", []),
+    getApiData<RawObject[]>("/internal/v1/raw-objects", []),
   ]);
 
   const ds = dsResult.data;

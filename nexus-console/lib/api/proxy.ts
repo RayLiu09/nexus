@@ -1,5 +1,5 @@
 /**
- * Generic server-side proxy for `/v1/*` NEXUS API endpoints.
+ * Generic server-side proxy for `/internal/v1/*` NEXUS API endpoints.
  *
  * Use this in Next.js route handlers (`app/api/.../route.ts`) so the browser
  * never sees `NEXUS_API_BASE_URL`. Mirrors the envelope contract used by
@@ -46,6 +46,12 @@ export interface ProxyOptions {
   forwardHeaders?: Record<string, string | undefined>;
   /** Optional query string already encoded (without leading `?`). */
   search?: string;
+  /**
+   * Skip auto-injection of `Authorization: Bearer <nexus_access_token>`.
+   * Use when the upstream path is `/open/v1/*` (API-caller-gated) or
+   * `/internal/v1/auth/*` (public).
+   */
+  noAuth?: boolean;
 }
 
 const FORWARDED_HEADER_ALLOWLIST: ReadonlyArray<string> = [
@@ -115,10 +121,22 @@ async function readEnvelope<T>(response: Response): Promise<ProxyResult<T>> {
  * network failures and HTTP errors are folded into `ProxyError`.
  */
 export async function proxy<T>(path: string, options: ProxyOptions = {}): Promise<ProxyResult<T>> {
-  const { method = "GET", body, forwardHeaders, search } = options;
+  const { method = "GET", body, forwardHeaders, search, noAuth } = options;
   const url = `${apiBaseUrl()}${path}${search ? `?${search}` : ""}`;
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["content-type"] = "application/json";
+  if (!noAuth) {
+    // Read the JWT from the request's cookie jar (set by /api/auth/login) and
+    // forward it as a Bearer token so backend `require_user` accepts the call.
+    try {
+      const { cookies } = await import("next/headers");
+      const store = await cookies();
+      const token = store.get("nexus_access_token")?.value;
+      if (token) headers["authorization"] = `Bearer ${token}`;
+    } catch {
+      // Not in a request context (build-time, etc.) — caller will see a 401.
+    }
+  }
   if (forwardHeaders) {
     for (const [k, v] of Object.entries(forwardHeaders)) {
       if (v) headers[k] = v;

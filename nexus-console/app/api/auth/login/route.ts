@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await proxy<LoginResponse>("/v1/auth/login", {
+  const result = await proxy<LoginResponse>("/internal/v1/auth/login", {
     method: "POST",
     body: { username: body.username, password: body.password },
   });

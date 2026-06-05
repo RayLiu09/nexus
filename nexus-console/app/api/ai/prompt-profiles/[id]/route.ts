@@ -23,7 +23,7 @@ export async function GET(_request: Request, context: RouteContext): Promise<Nex
       { status: 400 },
     );
   }
-  const result = await proxy<unknown>(`/v1/ai/prompt-profiles/${encodeURIComponent(id)}`);
+  const result = await proxy<unknown>(`/internal/v1/ai/prompt-profiles/${encodeURIComponent(id)}`);
   return NextResponse.json(result, {
     status: result.ok ? 200 : result.status,
     headers: pickResponseHeaders(result),
@@ -50,7 +50,7 @@ export async function PUT(request: Request, context: RouteContext): Promise<Next
       { status: 400 },
     );
   }
-  const result = await proxy<unknown>(`/v1/ai/prompt-profiles/${encodeURIComponent(id)}`, {
+  const result = await proxy<unknown>(`/internal/v1/ai/prompt-profiles/${encodeURIComponent(id)}`, {
     method: "PUT",
     body,
     forwardHeaders: forwardedHeadersFrom(request),

@@ -68,7 +68,14 @@ def require_api_caller(
     if caller.revoked_at is not None:
         raise HTTPException(status_code=403, detail="API key revoked")
 
-    if caller.expired_at is not None and caller.expired_at < datetime.now(timezone.utc):
-        raise HTTPException(status_code=403, detail="API key expired")
+    if caller.expired_at is not None:
+        expired_at = caller.expired_at
+        if expired_at.tzinfo is None:
+            # SQLite drops tzinfo on roundtrip even when the column is
+            # DateTime(timezone=True); treat naive values as UTC so the
+            # comparison below doesn't raise TypeError.
+            expired_at = expired_at.replace(tzinfo=timezone.utc)
+        if expired_at < datetime.now(timezone.utc):
+            raise HTTPException(status_code=403, detail="API key expired")
 
     return caller

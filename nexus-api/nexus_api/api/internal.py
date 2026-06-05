@@ -1,3 +1,19 @@
+"""Internal console control-plane API (`/internal/v1/*`).
+
+Mounted with a router-level `Depends(require_user)` so every request requires a
+valid JWT — issued via `/internal/v1/auth/login`. The auth endpoints themselves
+(`/auth/login`, `/auth/refresh`, `/auth/logout`) opt out of the dependency by
+declaring `dependencies=[]` at the decorator level.
+
+Endpoints here back the nexus-console UI: identity, data sources, ingest,
+raw objects, jobs, assets/versions (full state), parse artifacts, normalized
+refs, audit logs, AI prompt profiles & governance runs, governance results
+(view=full|operator|public — view chosen by caller's role), governance rules
+admin, and manual version restart.
+
+Strictly out of scope: anything consumed by upstream applications — that lives
+in `/open/v1/*` (see `open.py`).
+"""
 import base64
 from datetime import datetime, timezone
 
@@ -8,8 +24,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
-from nexus_api.auth import require_api_caller
-from nexus_api.permissions import apply_permission_filter
+from nexus_api.dependencies import require_user
 from nexus_api.responses import list_response, response
 from nexus_app import auth_service, models, pipeline, schemas as domain_schemas, services
 from nexus_app.ai_governance.rules_registry import (
@@ -37,7 +52,16 @@ from nexus_app.ingest import batch as ingest_batch
 from nexus_app.ingest import gateway as ingest_gateway
 from nexus_app.ingest import scan as ingest_scan
 
-router = APIRouter(prefix="/v1")
+router = APIRouter(
+    prefix="/internal/v1",
+    dependencies=[Depends(require_user)],
+)
+
+# Auth endpoints share the `/internal/v1` prefix but must NOT carry the
+# `require_user` dependency — they exist so clients can *obtain* a token.
+# FastAPI does not let a decorator-level `dependencies=[]` override the
+# router-level deps, so we use a sibling router with no shared deps.
+auth_router = APIRouter(prefix="/internal/v1/auth")
 
 _prompt_svc = PromptProfileService()
 _ai_gov_svc = AIGovernanceService()
@@ -54,6 +78,7 @@ except Exception:
 
 def _get_registry() -> GovernanceRulesRegistry | None:
     return _rules_registry if _rules_registry._config is not None else None
+
 
 _CONNECTION_CONFIG_SCHEMAS = {
     DataSourceType.NAS: domain_schemas.NasConnectionConfig,
@@ -76,19 +101,14 @@ def _validate_connection_config(source_type: DataSourceType, config: dict) -> No
         ) from exc
 
 
-@router.get("/health", response_model=schemas.ApiResponse[schemas.HealthRead])
-def health(request: Request, settings: Settings = Depends(get_settings)):
-    return response(
-        schemas.HealthRead(
-            status="ok",
-            service=settings.app_name,
-            environment=settings.nexus_env,
-        ),
-        request,
-    )
+# ---------------------------------------------------------------------------
+# Runtime / state
+# ---------------------------------------------------------------------------
 
-
-@router.get("/runtime/state", response_model=schemas.ApiResponse[domain_schemas.RuntimeStateRead])
+@router.get(
+    "/runtime/state",
+    response_model=schemas.ApiResponse[domain_schemas.RuntimeStateRead],
+)
 def runtime_state(request: Request, session: Session = Depends(get_db)):
     database = "ok"
     try:
@@ -110,10 +130,9 @@ def runtime_state(request: Request, session: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 # Auth endpoints — JWT user session (login / refresh / logout)
 #
-# Contract mirrors `nexus-console/app/api/auth/*/route.ts`. The console proxies
-# username/password here and stores tokens in cookies (access non-httpOnly,
-# refresh httpOnly). All flows write an audit event so the IAM page can trace
-# session activity.
+# These three endpoints opt out of the router-level `require_user` dependency:
+# they are how a client *obtains* a token in the first place. Each uses
+# `dependencies=_AUTH_PUBLIC` to override.
 # ---------------------------------------------------------------------------
 
 
@@ -132,10 +151,10 @@ def _auth_user_payload(
     )
 
 
-@router.post(
-    "/auth/login",
+@auth_router.post(
+    "/login",
     response_model=schemas.ApiResponse[schemas.TokenPair],
-)
+)  # public — no require_user
 def auth_login(
     payload: schemas.LoginRequest,
     request: Request,
@@ -151,8 +170,6 @@ def auth_login(
         select(models.UserAccount).where(models.UserAccount.username == payload.username)
     ).first()
 
-    # Constant-time-ish: still hash a dummy on a missing user to dampen timing
-    # signal between "no such user" and "wrong password".
     if user is None or not auth_service.verify_password(
         payload.password, user.password_hash
     ):
@@ -216,8 +233,8 @@ def auth_login(
     )
 
 
-@router.post(
-    "/auth/refresh",
+@auth_router.post(
+    "/refresh",
     response_model=schemas.ApiResponse[schemas.TokenRefresh],
 )
 def auth_refresh(
@@ -270,7 +287,6 @@ def auth_refresh(
         session.commit()
         raise HTTPException(status_code=401, detail="user no longer active")
 
-    # Rotate: revoke the old jti and issue a new one.
     auth_service.revoke_refresh_token(row)
     new_jti, new_row = auth_service.issue_refresh_token(
         session, settings, user_id=user.id, parent_jti=jti
@@ -306,8 +322,8 @@ def auth_refresh(
     )
 
 
-@router.post(
-    "/auth/logout",
+@auth_router.post(
+    "/logout",
     response_model=schemas.ApiResponse[schemas.LogoutResult],
 )
 def auth_logout(
@@ -323,7 +339,6 @@ def auth_logout(
     try:
         claims = auth_service.decode_refresh_token(settings, payload.refresh_token)
     except auth_service.InvalidTokenError:
-        # Treat as already-invalid — nothing to revoke, still return ok.
         return response(schemas.LogoutResult(ok=True), request)
 
     jti = claims.get("jti", "")
@@ -345,8 +360,14 @@ def auth_logout(
     return response(schemas.LogoutResult(ok=True), request)
 
 
+# ---------------------------------------------------------------------------
+# Identity
+# ---------------------------------------------------------------------------
+
 @router.post(
-    "/org-units", response_model=schemas.ApiResponse[domain_schemas.OrgUnitRead], status_code=201
+    "/org-units",
+    response_model=schemas.ApiResponse[domain_schemas.OrgUnitRead],
+    status_code=201,
 )
 def create_org_unit(
     payload: domain_schemas.OrgUnitCreate, request: Request, session: Session = Depends(get_db)
@@ -403,8 +424,6 @@ def create_api_caller(
     )
     read = domain_schemas.ApiCallerMintRead.model_validate(result.caller)
     if result.caller_key_plaintext is not None:
-        # Re-validate with the plaintext attached — model_validate won't pick up
-        # a field that doesn't exist on the ORM row.
         read = read.model_copy(
             update={"caller_key_plaintext": result.caller_key_plaintext}
         )
@@ -460,6 +479,10 @@ def revoke_api_caller(
         session.refresh(caller)
     return response(domain_schemas.ApiCallerRead.model_validate(caller), request)
 
+
+# ---------------------------------------------------------------------------
+# Data sources
+# ---------------------------------------------------------------------------
 
 @router.post(
     "/data-sources",
@@ -518,10 +541,8 @@ def delete_data_source(
     """Soft-delete a data source (`deleted_at` + status `disabled`).
 
     Refuses with 409 when any `raw_object` or `document_asset` still references
-    the source — these would lose their lineage anchor. Pass `force=true` only
-    when the operator has confirmed that downstream lineage is acceptable to
-    orphan; force still soft-deletes (lineage stays inspectable through the
-    tombstone), it does NOT cascade-delete the referenced rows.
+    the source. Pass `force=true` to soft-delete anyway (lineage preserved but
+    orphaned).
     """
     source = session.get(models.DataSource, data_source_id)
     if source is None:
@@ -529,7 +550,6 @@ def delete_data_source(
             status_code=404, detail=f"data_source '{data_source_id}' not found"
         )
     if source.deleted_at is not None:
-        # Idempotent — return the existing tombstone.
         return response(
             schemas.DataSourceDeleteResult(
                 data_source_id=source.id,
@@ -625,6 +645,10 @@ def create_data_source_scan_task(
         request,
     )
 
+
+# ---------------------------------------------------------------------------
+# Ingest
+# ---------------------------------------------------------------------------
 
 @router.post(
     "/ingest/batches",
@@ -763,7 +787,6 @@ def submit_ingest_multi_file(
     except ingest_batch.BatchFullError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    # refresh the batch so status_detail reflects all appended jobs
     session.refresh(batch)
     return response(
         domain_schemas.IngestMultiFileResult(
@@ -901,6 +924,10 @@ def get_raw_object(raw_object_id: str, request: Request, session: Session = Depe
     )
 
 
+# ---------------------------------------------------------------------------
+# Jobs
+# ---------------------------------------------------------------------------
+
 @router.get("/jobs", response_model=schemas.ListResponse[domain_schemas.JobRead])
 def list_jobs(request: Request, session: Session = Depends(get_db)):
     return list_response(pipeline.list_jobs(session), request)
@@ -941,9 +968,6 @@ def retry_job(job_id: str, request: Request, session: Session = Depends(get_db))
     """Reschedule a stalled job. Allowed only when the job is in `failed`,
     `dead_lettered`, or `cancelled` — running jobs already have automatic
     retry, succeeded jobs cannot meaningfully be re-run.
-
-    Side effects: status → `queued`, `attempt_count` reset to 0, lock cleared,
-    `next_run_at` set to now so the worker picks it up immediately.
     """
     job = session.get(models.Job, job_id)
     if job is None:
@@ -983,8 +1007,6 @@ def retry_job(job_id: str, request: Request, session: Session = Depends(get_db))
             "retry_count": job.retry_count,
         },
     )
-    # Surface the operator-initiated retry to the version lineage too if the
-    # job is tied to a failed version.
     if job.raw_object_id is not None:
         version = session.scalars(
             select(models.DocumentVersion).where(
@@ -1097,6 +1119,10 @@ def cancel_job(job_id: str, request: Request, session: Session = Depends(get_db)
         detail=f"job is in terminal status '{job.status.value}' and cannot be cancelled",
     )
 
+
+# ---------------------------------------------------------------------------
+# Assets, parse artifacts, normalized refs, audit logs
+# ---------------------------------------------------------------------------
 
 @router.get(
     "/parse-artifacts",
@@ -1395,17 +1421,7 @@ def update_governance_rules(
     recompute_scope: str = "review_required_only",
     session: Session = Depends(get_db),
 ):
-    """Validate, persist (with file lock), and immediately hot-reload governance_rules.json.
-
-    Optional query params (Review §5.4):
-    - `recompute=true` — after a successful save, reschedule affected versions for
-      re-governance. The console exposes this as a checkbox so business experts
-      can opt in.
-    - `recompute_scope=review_required_only|all_affected` — default
-      `review_required_only` only flips REVIEW_REQUIRED versions back to
-      processing. AVAILABLE versions are listed in the audit log but not
-      auto-rerun (publish/index disruption requires per-asset approval).
-    """
+    """Validate, persist (with file lock), and immediately hot-reload governance_rules.json."""
     if if_match is None:
         raise HTTPException(
             status_code=428,
@@ -1432,8 +1448,6 @@ def update_governance_rules(
                             detail=f"Failed to save governance rules: {exc}") from exc
     new_etag = _rules_registry.get_etag()
 
-    from nexus_app.audit import write_audit
-    from nexus_app.enums import AuditEventType
     trace_id = str(getattr(request.state, "trace_id", ""))
     write_audit(
         session,
@@ -1507,14 +1521,7 @@ def recompute_governance_rules(
     scope: str = "review_required_only",
     session: Session = Depends(get_db),
 ):
-    """Standalone recompute trigger (Review §5.4) — for the case where the
-    operator wants to rerun governance against the currently-loaded rules
-    without re-uploading the JSON.
-
-    `scope=review_required_only` (default) flips REVIEW_REQUIRED versions back
-    to processing. `scope=all_affected` does the same plus logs the AVAILABLE
-    versions in the audit summary (still no auto re-publish).
-    """
+    """Standalone recompute trigger — rerun governance against the currently-loaded rules."""
     if scope not in ("review_required_only", "all_affected"):
         raise HTTPException(
             status_code=422,
@@ -1585,7 +1592,7 @@ def get_governance_result(
 
     `view=full` (default) — admin / business_expert: full decision_trail.
     `view=operator` — ops dashboards: AI suggestions and confidence redacted.
-    `view=public` — external api_callers: decision_trail returned as []."""
+    `view=public` — same redaction as the external `/open/v1` variant."""
     _validate_view(view)
     result = session.get(models.GovernanceResult, result_id)
     if result is None:
@@ -1603,9 +1610,7 @@ def get_governance_result_for_ref(
     view: str = "full",
     session: Session = Depends(get_db),
 ):
-    """Fetch the latest governance result for a normalized_asset_ref.
-
-    See `view` semantics on /v1/governance-results/{id}."""
+    """Fetch the latest governance result for a normalized_asset_ref."""
     _validate_view(view)
     result = session.scalars(
         select(models.GovernanceResult)
@@ -1634,16 +1639,7 @@ def restart_governance_for_version(
     request: Request,
     session: Session = Depends(get_db),
 ):
-    """Restart a version stuck in `failed` after AI governance exhausted retries.
-
-    Eligibility is determined by the latest `governance_decision` JobStage carrying
-    `detail.restartable == True` (set by `run_governance_decision` when AI returned
-    no output). Other failure paths (parse/normalize crashes) are not restartable
-    here — they require re-ingest.
-
-    The version is flipped back to `processing` and audited; the worker picks up
-    the existing job on its next poll.
-    """
+    """Restart a version stuck in `failed` after AI governance exhausted retries."""
     from nexus_app.audit import write_audit as _write_audit
     from nexus_app.enums import AssetVersionStatus, AuditEventType, StageStatus
 
@@ -1706,207 +1702,3 @@ def restart_governance_for_version(
         },
         request,
     )
-
-
-# ---------------------------------------------------------------------------
-# Search & QA endpoints (RAGFlow-backed)
-# ---------------------------------------------------------------------------
-
-def _enrich_with_nexus_refs(
-    session: Session, hits: list[dict]
-) -> list[dict]:
-    """Enrich RAGFlow hits with NEXUS-side citation fields (normalized_ref_id,
-    version_id, asset_id, nexus_chunk_id) by looking up KnowledgeChunk via
-    `ragflow_chunk_id`. Items that already carry these fields (e.g. fake adapter
-    output) are left untouched. Best-effort; missing chunks leave fields null.
-    """
-    if not hits:
-        return hits
-
-    pending: dict[str, list[dict]] = {}
-    for hit in hits:
-        if hit.get("nexus_chunk_id") or hit.get("normalized_ref_id"):
-            continue
-        ragflow_chunk_id = hit.get("chunk_id")
-        if ragflow_chunk_id:
-            pending.setdefault(ragflow_chunk_id, []).append(hit)
-
-    if not pending:
-        return hits
-
-    chunks = session.scalars(
-        select(models.KnowledgeChunk)
-        .where(models.KnowledgeChunk.ragflow_chunk_id.in_(pending.keys()))
-    ).all()
-    chunk_map = {c.ragflow_chunk_id: c for c in chunks if c.ragflow_chunk_id}
-
-    ref_ids = {c.normalized_ref_id for c in chunk_map.values()}
-    refs: dict[str, models.NormalizedAssetRef] = {}
-    if ref_ids:
-        for ref in session.scalars(
-            select(models.NormalizedAssetRef).where(
-                models.NormalizedAssetRef.id.in_(ref_ids)
-            )
-        ).all():
-            refs[ref.id] = ref
-
-    version_ids = {r.version_id for r in refs.values()}
-    versions: dict[str, models.DocumentVersion] = {}
-    if version_ids:
-        for ver in session.scalars(
-            select(models.DocumentVersion).where(
-                models.DocumentVersion.id.in_(version_ids)
-            )
-        ).all():
-            versions[ver.id] = ver
-
-    for ragflow_chunk_id, items in pending.items():
-        chunk = chunk_map.get(ragflow_chunk_id)
-        if chunk is None:
-            continue
-        ref = refs.get(chunk.normalized_ref_id)
-        ver = versions.get(ref.version_id) if ref is not None else None
-        for item in items:
-            item["nexus_chunk_id"] = chunk.id
-            item["normalized_ref_id"] = chunk.normalized_ref_id
-            if ver is not None:
-                item["version_id"] = ver.id
-                item["asset_id"] = ver.asset_id
-
-    return hits
-
-
-def _hit_ref_ids(hits: list[dict]) -> list[str]:
-    return [h["normalized_ref_id"] for h in hits if h.get("normalized_ref_id")]
-
-
-@router.get("/search")
-def search_knowledge(
-    q: str,
-    request: Request,
-    kb: str | None = None,
-    top_k: int = 10,
-    similarity_threshold: float = 0.7,
-    caller: models.ApiCaller = Depends(require_api_caller),
-    session: Session = Depends(get_db),
-):
-    """Search indexed knowledge base via RAGFlow.
-
-    Args:
-        q: Search query
-        kb: Knowledge type code (e.g. 'textbook_kb'). If omitted, searches default KB.
-        top_k: Max results
-        similarity_threshold: Minimum similarity score
-    """
-    import hashlib as _hashlib
-
-    from nexus_app.audit import write_audit as _write_audit
-    from nexus_app.enums import AuditEventType as _AuditEventType
-    from nexus_app.index.kb_registry import get_kb_registry
-    from nexus_app.index.ragflow_adapter import get_ragflow_adapter
-
-    adapter = get_ragflow_adapter()
-    registry = get_kb_registry()
-
-    kb_code = kb or "textbook_kb"
-    kb_id = registry.ensure_kb(kb_code)
-
-    results = adapter.search(
-        kb_id=kb_id,
-        query=q,
-        top_k=top_k,
-        similarity_threshold=similarity_threshold,
-    )
-    results = _enrich_with_nexus_refs(session, results)
-    results = apply_permission_filter(caller, results)
-
-    trace_id = request.headers.get("x-trace-id")
-    query_hash = _hashlib.sha256(q.encode("utf-8")).hexdigest()[:16]
-    _write_audit(
-        session,
-        _AuditEventType.SEARCH_QUERY_EXECUTED,
-        target_type="search",
-        target_id=trace_id or query_hash,
-        trace_id=trace_id,
-        summary={
-            "query_hash": query_hash,
-            "kb": kb_code,
-            "hit_count": len(results),
-            "hit_normalized_ref_ids": _hit_ref_ids(results),
-            "top_k": top_k,
-            "similarity_threshold": similarity_threshold,
-        },
-        actor_type="api_caller",
-        actor_id=caller.id,
-    )
-    session.commit()
-
-    return response(
-        {
-            "query": q,
-            "kb": kb_code,
-            "results": results,
-            "count": len(results),
-            "caller_id": caller.id,
-        },
-        request,
-    )
-
-
-@router.get("/qa")
-def qa_knowledge(
-    q: str,
-    request: Request,
-    kb: str | None = None,
-    top_k: int = 5,
-    caller: models.ApiCaller = Depends(require_api_caller),
-    session: Session = Depends(get_db),
-):
-    """Question answering with source citations via RAGFlow.
-
-    Args:
-        q: Question
-        kb: Knowledge type code. If omitted, uses default KB.
-        top_k: Max source chunks to retrieve
-    """
-    import hashlib as _hashlib
-
-    from nexus_app.audit import write_audit as _write_audit
-    from nexus_app.enums import AuditEventType as _AuditEventType
-    from nexus_app.index.kb_registry import get_kb_registry
-    from nexus_app.index.ragflow_adapter import get_ragflow_adapter
-
-    adapter = get_ragflow_adapter()
-    registry = get_kb_registry()
-
-    kb_code = kb or "textbook_kb"
-    kb_id = registry.ensure_kb(kb_code)
-
-    result = adapter.qa(kb_id=kb_id, question=q, top_k=top_k)
-    sources = result.get("sources", []) or []
-    sources = _enrich_with_nexus_refs(session, sources)
-    sources = apply_permission_filter(caller, sources)
-    result["sources"] = sources
-
-    trace_id = request.headers.get("x-trace-id")
-    question_hash = _hashlib.sha256(q.encode("utf-8")).hexdigest()[:16]
-    _write_audit(
-        session,
-        _AuditEventType.QA_ANSWER_GENERATED,
-        target_type="qa",
-        target_id=trace_id or question_hash,
-        trace_id=trace_id,
-        summary={
-            "question_hash": question_hash,
-            "kb": kb_code,
-            "answer_length": len(result.get("answer", "") or ""),
-            "source_count": len(sources),
-            "cited_normalized_ref_ids": _hit_ref_ids(sources),
-            "top_k": top_k,
-        },
-        actor_type="api_caller",
-        actor_id=caller.id,
-    )
-    session.commit()
-
-    return response({"question": q, "kb": kb_code, "caller_id": caller.id, **result}, request)

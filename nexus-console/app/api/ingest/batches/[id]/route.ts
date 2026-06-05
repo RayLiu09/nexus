@@ -30,6 +30,6 @@ export async function GET(_request: Request, context: RouteContext): Promise<Nex
       { status: 400 },
     );
   }
-  const result = await ingestProxyGet<BatchDetail>(`/v1/ingest/batches/${encodeURIComponent(id)}`);
+  const result = await ingestProxyGet<BatchDetail>(`/internal/v1/ingest/batches/${encodeURIComponent(id)}`);
   return NextResponse.json(result, { status: result.ok ? 200 : result.status });
 }

@@ -50,6 +50,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       { status: 400 },
     );
   }
-  const result = await ingestProxyPost<MultiFileResult>("/v1/ingest/files/multi", payload);
+  const result = await ingestProxyPost<MultiFileResult>("/internal/v1/ingest/files/multi", payload);
   return NextResponse.json(result, { status: result.ok ? 202 : result.status });
 }

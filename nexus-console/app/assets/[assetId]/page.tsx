@@ -21,8 +21,8 @@ export default async function AssetDetailPage({
   const { assetId } = await params;
 
   const [result, parseArtifacts] = await Promise.all([
-    getApiData<AssetDetail | null>(`/v1/assets/${assetId}`, null),
-    getApiData<ParseArtifact[]>("/v1/parse-artifacts", []),
+    getApiData<AssetDetail | null>(`/internal/v1/assets/${assetId}`, null),
+    getApiData<ParseArtifact[]>("/internal/v1/parse-artifacts", []),
   ]);
 
   const asset = result.data?.asset;
@@ -35,7 +35,7 @@ export default async function AssetDetailPage({
   // Fetch AI governance runs for the latest normalized ref
   const governanceRuns = latestRef
     ? await getApiData<AIGovernanceRun[]>(
-        `/v1/ai/governance-runs?normalized_ref_id=${latestRef.id}`,
+        `/internal/v1/ai/governance-runs?normalized_ref_id=${latestRef.id}`,
         [],
       )
     : { data: [], ok: true, error: null, traceId: null };

@@ -44,6 +44,38 @@ def verify_password(plain: str, hashed: str | None) -> bool:
         return False
 
 
+# ── Header helpers ───────────────────────────────────────────────────────
+
+
+def extract_bearer(authorization: str | None) -> str | None:
+    """Return the token from `Authorization: Bearer <token>` or None."""
+    if not authorization:
+        return None
+    parts = authorization.strip().split(None, 1)
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        return None
+    token = parts[1].strip()
+    return token or None
+
+
+_ACCESS_COOKIE_NAME = "nexus_access_token"
+
+
+def extract_access_token_from_cookie(cookie_header: str | None) -> str | None:
+    """Return the access token from a raw `Cookie` header, or None.
+
+    Matches the `nexus_access_token` cookie set by nexus-console
+    (`nexus-console/lib/auth/session.ts`).
+    """
+    if not cookie_header:
+        return None
+    for chunk in cookie_header.split(";"):
+        name, _, value = chunk.strip().partition("=")
+        if name == _ACCESS_COOKIE_NAME and value:
+            return value
+    return None
+
+
 # ── API caller key ───────────────────────────────────────────────────────
 
 # A 32-byte URL-safe random string (~43 chars). Prefixed `nx_` for log greppability.

@@ -7,10 +7,10 @@ import { getApiData, type Job, type JobStage } from "@/lib/api";
 export const dynamic = "force-dynamic";
 
 export default async function JobsPage() {
-  const jobs = await getApiData<Job[]>("/v1/jobs", []);
+  const jobs = await getApiData<Job[]>("/internal/v1/jobs", []);
   const firstJob = jobs.data[0];
   const stages = await getApiData<JobStage[]>(
-    firstJob ? `/v1/jobs/${firstJob.id}/stages` : "/v1/jobs/-/stages",
+    firstJob ? `/internal/v1/jobs/${firstJob.id}/stages` : "/internal/v1/jobs/-/stages",
     [],
   );
 

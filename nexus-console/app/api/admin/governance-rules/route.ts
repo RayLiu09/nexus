@@ -16,7 +16,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<NextResponse> {
-  const result = await proxy<unknown>("/v1/admin/governance-rules");
+  const result = await proxy<unknown>("/internal/v1/admin/governance-rules");
   const init = {
     status: result.ok ? 200 : result.status,
     headers: pickResponseHeaders(result),
@@ -34,7 +34,7 @@ export async function PUT(request: Request): Promise<NextResponse> {
       { status: 400 },
     );
   }
-  const result = await proxy<unknown>("/v1/admin/governance-rules", {
+  const result = await proxy<unknown>("/internal/v1/admin/governance-rules", {
     method: "PUT",
     body,
     forwardHeaders: forwardedHeadersFrom(request),

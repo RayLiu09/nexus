@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request): Promise<NextResponse> {
   const url = new URL(request.url);
   const search = url.searchParams.toString();
-  const result = await proxy<unknown>("/v1/ai/prompt-profiles", {
+  const result = await proxy<unknown>("/internal/v1/ai/prompt-profiles", {
     method: "GET",
     search: search || undefined,
   });
@@ -31,7 +31,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       { status: 400 },
     );
   }
-  const result = await proxy<unknown>("/v1/ai/prompt-profiles", {
+  const result = await proxy<unknown>("/internal/v1/ai/prompt-profiles", {
     method: "POST",
     body,
     forwardHeaders: forwardedHeadersFrom(request),

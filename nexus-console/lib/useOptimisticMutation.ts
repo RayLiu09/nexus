@@ -16,7 +16,7 @@ import { App } from "antd";
  * Usage:
  * ```
  * const { execute, isPending } = useOptimisticMutation({
- *   mutationFn: (id: string) => deleteApiData(`/v1/items/${id}`),
+ *   mutationFn: (id: string) => deleteApiData(`/internal/v1/items/${id}`),
  *   onMutate: (id: string) => {
  *     setItems((prev) => prev.filter((i) => i.id !== id));
  *   },

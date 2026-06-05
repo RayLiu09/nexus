@@ -36,7 +36,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   if (threshold) backendParams.set("similarity_threshold", threshold);
 
   const result = await proxyBackendGet<SearchResult>(
-    `/v1/search?${backendParams.toString()}`,
+    `/open/v1/search?${backendParams.toString()}`,
   );
   if (!result.ok) {
     return NextResponse.json(result, { status: result.status });

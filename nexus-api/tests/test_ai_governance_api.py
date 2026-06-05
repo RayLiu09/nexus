@@ -96,7 +96,7 @@ class TestPromptProfileAPI:
             "temperature": 0.2,
             "redaction_policy": "masked_content",
         }
-        resp = client.post("/v1/ai/prompt-profiles", json=payload)
+        resp = client.post("/internal/v1/ai/prompt-profiles", json=payload)
         assert resp.status_code == 201
         data = resp.json()["data"]
         assert data["profile_name"] == "test-profile"
@@ -113,7 +113,7 @@ class TestPromptProfileAPI:
             "prompt_version": "v1.0",
             "prompt_template": "Original.",
         }
-        resp1 = client.post("/v1/ai/prompt-profiles", json=base)
+        resp1 = client.post("/internal/v1/ai/prompt-profiles", json=base)
         assert resp1.status_code == 201
 
         update = {
@@ -123,52 +123,52 @@ class TestPromptProfileAPI:
             "prompt_version": "v2.0",
             "prompt_template": "Updated.",
         }
-        resp2 = client.post("/v1/ai/prompt-profiles", json=update)
+        resp2 = client.post("/internal/v1/ai/prompt-profiles", json=update)
         assert resp2.status_code == 201
         assert resp2.json()["data"]["profile_version"] == 2
 
     def test_list_profiles(self, app, session):
         client = TestClient(app)
-        client.post("/v1/ai/prompt-profiles", json={
+        client.post("/internal/v1/ai/prompt-profiles", json={
             "profile_name": "list-test", "task_type": "governance",
             "litellm_model_alias": "alias", "prompt_version": "v1",
             "prompt_template": "T.",
         })
-        resp = client.get("/v1/ai/prompt-profiles")
+        resp = client.get("/internal/v1/ai/prompt-profiles")
         assert resp.status_code == 200
         items = resp.json()["data"]
         assert len(items) >= 1
 
     def test_get_profile_by_id(self, app, session):
         client = TestClient(app)
-        created = client.post("/v1/ai/prompt-profiles", json={
+        created = client.post("/internal/v1/ai/prompt-profiles", json={
             "profile_name": "get-test", "task_type": "governance",
             "litellm_model_alias": "alias", "prompt_version": "v1",
             "prompt_template": "T.",
         }).json()["data"]
-        resp = client.get(f"/v1/ai/prompt-profiles/{created['id']}")
+        resp = client.get(f"/internal/v1/ai/prompt-profiles/{created['id']}")
         assert resp.status_code == 200
         assert resp.json()["data"]["id"] == created["id"]
 
     def test_get_profile_not_found(self, app, session):
         client = TestClient(app)
-        resp = client.get("/v1/ai/prompt-profiles/nonexistent-id")
+        resp = client.get("/internal/v1/ai/prompt-profiles/nonexistent-id")
         assert resp.status_code == 404
 
     def test_disable_profile(self, app, session):
         client = TestClient(app)
-        created = client.post("/v1/ai/prompt-profiles", json={
+        created = client.post("/internal/v1/ai/prompt-profiles", json={
             "profile_name": "disable-test", "task_type": "governance",
             "litellm_model_alias": "alias", "prompt_version": "v1",
             "prompt_template": "T.",
         }).json()["data"]
-        resp = client.post(f"/v1/ai/prompt-profiles/{created['id']}/disable")
+        resp = client.post(f"/internal/v1/ai/prompt-profiles/{created['id']}/disable")
         assert resp.status_code == 200
         assert resp.json()["data"]["status"] == "disabled"
 
     def test_invalid_redaction_policy_422(self, app, session):
         client = TestClient(app)
-        resp = client.post("/v1/ai/prompt-profiles", json={
+        resp = client.post("/internal/v1/ai/prompt-profiles", json={
             "profile_name": "bad-policy", "task_type": "governance",
             "litellm_model_alias": "alias", "prompt_version": "v1",
             "prompt_template": "T.", "redaction_policy": "invalid_policy",
@@ -178,7 +178,7 @@ class TestPromptProfileAPI:
     def test_prompt_dry_run_does_not_persist_governance_run(self, app, session):
         client = TestClient(app)
         seeded = _seed_data(session)
-        profile = client.post("/v1/ai/prompt-profiles", json={
+        profile = client.post("/internal/v1/ai/prompt-profiles", json={
             "profile_name": "dry-run-test",
             "task_type": "governance",
             "scenario": "prompt_lab",
@@ -188,7 +188,7 @@ class TestPromptProfileAPI:
         }).json()["data"]
 
         before = len(session.scalars(select(models.AIGovernanceRun)).all())
-        resp = client.post(f"/v1/ai/prompt-profiles/{profile['id']}/dry-run", json={
+        resp = client.post(f"/internal/v1/ai/prompt-profiles/{profile['id']}/dry-run", json={
             "normalized_ref_id": seeded["ref"].id,
             "input_overrides": {"summary": "dry-run override"},
         })
@@ -209,7 +209,7 @@ class TestPromptProfileAPI:
 
 class TestAIGovernanceRunAPI:
     def _create_profile(self, client) -> dict:
-        resp = client.post("/v1/ai/prompt-profiles", json={
+        resp = client.post("/internal/v1/ai/prompt-profiles", json={
             "profile_name": "gov-run-profile",
             "task_type": "governance",
             "litellm_model_alias": "nexus-gpt-4o",
@@ -222,7 +222,7 @@ class TestAIGovernanceRunAPI:
         client = TestClient(app)
         data = _seed_data(session)
         profile = self._create_profile(client)
-        resp = client.post("/v1/ai/governance-runs", json={
+        resp = client.post("/internal/v1/ai/governance-runs", json={
             "normalized_ref_id": data["ref"].id,
             "profile_id": profile["id"],
         })
@@ -234,7 +234,7 @@ class TestAIGovernanceRunAPI:
     def test_create_governance_run_ref_not_found(self, app, session):
         client = TestClient(app)
         profile = self._create_profile(client)
-        resp = client.post("/v1/ai/governance-runs", json={
+        resp = client.post("/internal/v1/ai/governance-runs", json={
             "normalized_ref_id": "nonexistent-ref-id",
             "profile_id": profile["id"],
         })
@@ -244,10 +244,10 @@ class TestAIGovernanceRunAPI:
         client = TestClient(app)
         data = _seed_data(session)
         profile = self._create_profile(client)
-        client.post("/v1/ai/governance-runs", json={
+        client.post("/internal/v1/ai/governance-runs", json={
             "normalized_ref_id": data["ref"].id, "profile_id": profile["id"],
         })
-        resp = client.get(f"/v1/ai/governance-runs?normalized_ref_id={data['ref'].id}")
+        resp = client.get(f"/internal/v1/ai/governance-runs?normalized_ref_id={data['ref'].id}")
         assert resp.status_code == 200
         assert len(resp.json()["data"]) >= 1
 
@@ -255,27 +255,27 @@ class TestAIGovernanceRunAPI:
         client = TestClient(app)
         data = _seed_data(session)
         profile = self._create_profile(client)
-        created = client.post("/v1/ai/governance-runs", json={
+        created = client.post("/internal/v1/ai/governance-runs", json={
             "normalized_ref_id": data["ref"].id, "profile_id": profile["id"],
         }).json()["data"]
-        resp = client.get(f"/v1/ai/governance-runs/{created['id']}")
+        resp = client.get(f"/internal/v1/ai/governance-runs/{created['id']}")
         assert resp.status_code == 200
         assert resp.json()["data"]["id"] == created["id"]
 
     def test_get_governance_run_not_found(self, app, session):
         client = TestClient(app)
-        resp = client.get("/v1/ai/governance-runs/nonexistent-id")
+        resp = client.get("/internal/v1/ai/governance-runs/nonexistent-id")
         assert resp.status_code == 404
 
     def test_quality_summary_endpoint(self, app, session):
         client = TestClient(app)
         data = _seed_data(session)
         profile = self._create_profile(client)
-        run = client.post("/v1/ai/governance-runs", json={
+        run = client.post("/internal/v1/ai/governance-runs", json={
             "normalized_ref_id": data["ref"].id, "profile_id": profile["id"],
         }).json()["data"]
         if run["validation_status"] == "schema_valid":
-            resp = client.get(f"/v1/ai/governance-runs/{run['id']}/quality-summary")
+            resp = client.get(f"/internal/v1/ai/governance-runs/{run['id']}/quality-summary")
             assert resp.status_code == 200
             assert "quality_score" in resp.json()["data"]
 
@@ -287,6 +287,6 @@ class TestAIGovernanceRunAPI:
 class TestAdminReloadAPI:
     def test_reload_governance_rules(self, app, session):
         client = TestClient(app)
-        resp = client.post("/v1/admin/governance-rules/reload")
+        resp = client.post("/internal/v1/admin/governance-rules/reload")
         # May succeed or fail depending on environment config
         assert resp.status_code in (200, 500)

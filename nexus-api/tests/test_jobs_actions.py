@@ -67,7 +67,7 @@ def _seed_job(session, status: JobStatus, attempt_count: int = 1) -> models.Job:
 def test_retry_resets_failed_job_to_queued(app, session):
     job = _seed_job(session, JobStatus.FAILED, attempt_count=2)
     client = TestClient(app)
-    resp = client.post(f"/v1/jobs/{job.id}/retry")
+    resp = client.post(f"/internal/v1/jobs/{job.id}/retry")
     assert resp.status_code == 200
     body = resp.json()["data"]
     assert body["status"] == JobStatus.QUEUED.value
@@ -94,7 +94,7 @@ def test_retry_allows_dead_lettered_and_cancelled(app, session):
     for status in (JobStatus.DEAD_LETTERED, JobStatus.CANCELLED):
         job = _seed_job(session, status)
         client = TestClient(app)
-        resp = client.post(f"/v1/jobs/{job.id}/retry")
+        resp = client.post(f"/internal/v1/jobs/{job.id}/retry")
         assert resp.status_code == 200
         assert resp.json()["data"]["status"] == JobStatus.QUEUED.value
 
@@ -103,14 +103,14 @@ def test_retry_rejects_succeeded_or_running(app, session):
     client = TestClient(app)
     for status in (JobStatus.SUCCEEDED, JobStatus.RUNNING, JobStatus.QUEUED):
         job = _seed_job(session, status)
-        resp = client.post(f"/v1/jobs/{job.id}/retry")
+        resp = client.post(f"/internal/v1/jobs/{job.id}/retry")
         assert resp.status_code == 409, f"{status} should not be retriable"
 
 
 def test_cancel_queued_flips_to_cancelled_immediately(app, session):
     job = _seed_job(session, JobStatus.QUEUED)
     client = TestClient(app)
-    resp = client.post(f"/v1/jobs/{job.id}/cancel")
+    resp = client.post(f"/internal/v1/jobs/{job.id}/cancel")
     assert resp.status_code == 200
     body = resp.json()["data"]
     assert body["status"] == JobStatus.CANCELLED.value
@@ -123,7 +123,7 @@ def test_cancel_queued_flips_to_cancelled_immediately(app, session):
 def test_cancel_running_sets_request_and_returns_202(app, session):
     job = _seed_job(session, JobStatus.RUNNING)
     client = TestClient(app)
-    resp = client.post(f"/v1/jobs/{job.id}/cancel")
+    resp = client.post(f"/internal/v1/jobs/{job.id}/cancel")
     assert resp.status_code == 202, resp.text
     body = resp.json()["data"]
     # Status stays running — worker hasn't observed the flag yet.
@@ -137,12 +137,12 @@ def test_cancel_running_sets_request_and_returns_202(app, session):
 def test_cancel_succeeded_or_already_cancelled_is_409(app, session):
     client = TestClient(app)
     succ = _seed_job(session, JobStatus.SUCCEEDED)
-    assert client.post(f"/v1/jobs/{succ.id}/cancel").status_code == 409
+    assert client.post(f"/internal/v1/jobs/{succ.id}/cancel").status_code == 409
 
     canc = _seed_job(session, JobStatus.CANCELLED)
-    assert client.post(f"/v1/jobs/{canc.id}/cancel").status_code == 409
+    assert client.post(f"/internal/v1/jobs/{canc.id}/cancel").status_code == 409
 
 
 def test_cancel_returns_404_for_unknown_job(app):
     client = TestClient(app)
-    assert client.post("/v1/jobs/missing/cancel").status_code == 404
+    assert client.post("/internal/v1/jobs/missing/cancel").status_code == 404

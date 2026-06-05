@@ -6,7 +6,7 @@ import type { GovernanceRun } from "./_lib/types";
 export const dynamic = "force-dynamic";
 
 export default async function GovernancePage() {
-  const result = await getApiData<GovernanceRun[]>("/v1/ai/governance-runs", []);
+  const result = await getApiData<GovernanceRun[]>("/internal/v1/ai/governance-runs", []);
 
   return (
     <>

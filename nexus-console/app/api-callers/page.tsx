@@ -17,7 +17,7 @@ export default async function ApiCallersPage({ searchParams }: ApiCallersPagePro
   const currentPageSize = pageSize ?? DEFAULT_PAGE_SIZE;
 
   const result = await getApiData<ApiCaller[]>(
-    "/v1/api-callers",
+    "/internal/v1/api-callers",
     [],
     { page: String(currentPage), pageSize: String(currentPageSize) },
   );

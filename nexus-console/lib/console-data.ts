@@ -27,15 +27,15 @@ export async function loadWorkbenchData() {
     audits,
     governanceRuns
   ] = await Promise.all([
-    getApiData<RuntimeState | null>("/v1/runtime/state", null),
-    getApiData<DataSource[]>("/v1/data-sources", []),
-    getApiData<IngestBatch[]>("/v1/ingest/batches", []),
-    getApiData<RawObject[]>("/v1/raw-objects", []),
-    getApiData<Job[]>("/v1/jobs", []),
-    getApiData<DocumentAsset[]>("/v1/assets", []),
-    getApiData<NormalizedAssetRef[]>("/v1/normalized-refs", []),
-    getApiData<AuditLog[]>("/v1/audit-logs", []),
-    getApiData<AIGovernanceRun[]>("/v1/ai/governance-runs", [])
+    getApiData<RuntimeState | null>("/internal/v1/runtime/state", null),
+    getApiData<DataSource[]>("/internal/v1/data-sources", []),
+    getApiData<IngestBatch[]>("/internal/v1/ingest/batches", []),
+    getApiData<RawObject[]>("/internal/v1/raw-objects", []),
+    getApiData<Job[]>("/internal/v1/jobs", []),
+    getApiData<DocumentAsset[]>("/internal/v1/assets", []),
+    getApiData<NormalizedAssetRef[]>("/internal/v1/normalized-refs", []),
+    getApiData<AuditLog[]>("/internal/v1/audit-logs", []),
+    getApiData<AIGovernanceRun[]>("/internal/v1/ai/governance-runs", [])
   ]);
 
   return {
@@ -77,10 +77,10 @@ export async function loadWorkbenchData() {
 
 export async function loadIdentityData() {
   const [orgUnits, users, apiCallers, audits] = await Promise.all([
-    getApiData<OrgUnit[]>("/v1/org-units", []),
-    getApiData<UserAccount[]>("/v1/users", []),
-    getApiData<ApiCaller[]>("/v1/api-callers", []),
-    getApiData<AuditLog[]>("/v1/audit-logs", [])
+    getApiData<OrgUnit[]>("/internal/v1/org-units", []),
+    getApiData<UserAccount[]>("/internal/v1/users", []),
+    getApiData<ApiCaller[]>("/internal/v1/api-callers", []),
+    getApiData<AuditLog[]>("/internal/v1/audit-logs", [])
   ]);
   return { orgUnits, users, apiCallers, audits };
 }
@@ -88,13 +88,13 @@ export async function loadIdentityData() {
 export async function loadWeek2Lists() {
   const [dataSources, batches, rawObjects, jobs, parseArtifacts, normalizedRefs, assets] =
     await Promise.all([
-      getApiData<DataSource[]>("/v1/data-sources", []),
-      getApiData<IngestBatch[]>("/v1/ingest/batches", []),
-      getApiData<RawObject[]>("/v1/raw-objects", []),
-      getApiData<Job[]>("/v1/jobs", []),
-      getApiData<ParseArtifact[]>("/v1/parse-artifacts", []),
-      getApiData<NormalizedAssetRef[]>("/v1/normalized-refs", []),
-      getApiData<DocumentAsset[]>("/v1/assets", [])
+      getApiData<DataSource[]>("/internal/v1/data-sources", []),
+      getApiData<IngestBatch[]>("/internal/v1/ingest/batches", []),
+      getApiData<RawObject[]>("/internal/v1/raw-objects", []),
+      getApiData<Job[]>("/internal/v1/jobs", []),
+      getApiData<ParseArtifact[]>("/internal/v1/parse-artifacts", []),
+      getApiData<NormalizedAssetRef[]>("/internal/v1/normalized-refs", []),
+      getApiData<DocumentAsset[]>("/internal/v1/assets", [])
     ]);
 
   return { dataSources, batches, rawObjects, jobs, parseArtifacts, normalizedRefs, assets };

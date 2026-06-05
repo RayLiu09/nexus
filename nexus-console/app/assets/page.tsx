@@ -19,8 +19,8 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
 
   // Aggregate + paginated list are independent — fetch in parallel.
   const [summaryResult, tableResult] = await Promise.all([
-    getApiData<AssetSummary | null>("/v1/assets/summary", null),
-    getApiData<AssetWithMeta[]>("/v1/assets", [], {
+    getApiData<AssetSummary | null>("/internal/v1/assets/summary", null),
+    getApiData<AssetWithMeta[]>("/internal/v1/assets", [], {
       page: String(currentPage),
       pageSize: String(currentPageSize),
     }),

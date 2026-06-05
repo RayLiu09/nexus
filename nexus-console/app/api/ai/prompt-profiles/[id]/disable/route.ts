@@ -17,7 +17,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Nex
     );
   }
   const result = await proxy<unknown>(
-    `/v1/ai/prompt-profiles/${encodeURIComponent(id)}/disable`,
+    `/internal/v1/ai/prompt-profiles/${encodeURIComponent(id)}/disable`,
     {
       method: "POST",
       forwardHeaders: forwardedHeadersFrom(request),

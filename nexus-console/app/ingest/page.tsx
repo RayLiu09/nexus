@@ -24,7 +24,7 @@ async function submitFileIngest(formData: FormData) {
       content_base64: Buffer.from(content, "utf-8").toString("base64"),
       process_now: formData.get("process_now") === "on",
     };
-    await postApiData("/v1/ingest/files", payload);
+    await postApiData("/internal/v1/ingest/files", payload);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     target = `/ingest?error=${encodeURIComponent(message.slice(0, 160))}`;
@@ -39,8 +39,8 @@ type IngestPageProps = {
 export default async function IngestPage({ searchParams }: IngestPageProps) {
   const params = await searchParams;
   const [sources, batches] = await Promise.all([
-    getApiData<DataSource[]>("/v1/data-sources", []),
-    getApiData<IngestBatch[]>("/v1/ingest/batches", []),
+    getApiData<DataSource[]>("/internal/v1/data-sources", []),
+    getApiData<IngestBatch[]>("/internal/v1/ingest/batches", []),
   ]);
   const error = typeof params.error === "string" ? params.error : null;
   const submitted = params.submitted === "1";

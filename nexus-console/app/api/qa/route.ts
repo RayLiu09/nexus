@@ -1,7 +1,7 @@
 /**
  * Route handler: GET /api/qa?q=...&kb=...&top_k=...
  *
- * 服务端代理 /v1/qa，避免 caller_key 暴露到浏览器。
+ * 服务端代理 /open/v1/qa，避免 caller_key 暴露到浏览器。
  */
 import { NextResponse } from "next/server";
 import { proxyBackendGet } from "@/lib/searchProxy";
@@ -33,7 +33,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   const topK = url.searchParams.get("top_k");
   if (topK) backendParams.set("top_k", topK);
 
-  const result = await proxyBackendGet<QaResult>(`/v1/qa?${backendParams.toString()}`);
+  const result = await proxyBackendGet<QaResult>(`/open/v1/qa?${backendParams.toString()}`);
   if (!result.ok) {
     return NextResponse.json(result, { status: result.status });
   }

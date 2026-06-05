@@ -7,8 +7,8 @@ export const dynamic = "force-dynamic";
 
 export default async function MyWorkspacePage() {
   const [grResult, auditResult] = await Promise.all([
-    getApiData<AIGovernanceRun[]>("/v1/ai/governance-runs", []),
-    getApiData<AuditLog[]>("/v1/audit-logs", []),
+    getApiData<AIGovernanceRun[]>("/internal/v1/ai/governance-runs", []),
+    getApiData<AuditLog[]>("/internal/v1/audit-logs", []),
   ]);
 
   const pendingReview = grResult.data.filter(

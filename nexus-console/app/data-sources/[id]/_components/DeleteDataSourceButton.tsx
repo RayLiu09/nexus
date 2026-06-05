@@ -18,7 +18,7 @@ export function DeleteDataSourceButton({
   const { message } = App.useApp();
 
   async function handleDelete() {
-    await deleteApiData(`/v1/data-sources/${dataSourceId}`);
+    await deleteApiData(`/internal/v1/data-sources/${dataSourceId}`);
     message.success(`数据源「${dataSourceName}」已删除`);
     router.push("/data-sources");
   }

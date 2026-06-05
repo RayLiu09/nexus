@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import base64
 
-from nexus_api.api import v1
+from nexus_api.api import internal as v1
 from nexus_app import models, services
 from nexus_app.ingest import batch as ingest_batch
 from nexus_app.schemas import (
@@ -32,9 +32,9 @@ def _source(session):
 
 def test_multi_raw_batch_routes_registered(app):
     paths = {route.path for route in app.routes}
-    assert "/v1/ingest/batches" in paths
-    assert "/v1/ingest/batches/{batch_id}/files" in paths
-    assert "/v1/ingest/files/multi" in paths
+    assert "/internal/v1/ingest/batches" in paths
+    assert "/internal/v1/ingest/batches/{batch_id}/files" in paths
+    assert "/internal/v1/ingest/files/multi" in paths
 
 
 def test_create_batch_returns_open_status(monkeypatch, session, fake_request):

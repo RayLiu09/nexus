@@ -5,7 +5,7 @@ import { forwardedHeadersFrom, pickResponseHeaders, proxy } from "@/lib/api/prox
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request): Promise<NextResponse> {
-  const result = await proxy<unknown>("/v1/admin/governance-rules/reload", {
+  const result = await proxy<unknown>("/internal/v1/admin/governance-rules/reload", {
     method: "POST",
     forwardHeaders: forwardedHeadersFrom(request),
   });

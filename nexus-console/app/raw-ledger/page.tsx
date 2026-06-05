@@ -27,8 +27,8 @@ export default async function RawLedgerPage({ searchParams }: RawLedgerPageProps
 
   // Aggregate + paginated list are independent — fetch in parallel.
   const [summaryResult, tableResult] = await Promise.all([
-    getApiData<RawObjectSummary | null>("/v1/raw-objects/summary", null),
-    getApiData<RawObject[]>("/v1/raw-objects", [], {
+    getApiData<RawObjectSummary | null>("/internal/v1/raw-objects/summary", null),
+    getApiData<RawObject[]>("/internal/v1/raw-objects", [], {
       page: String(currentPage),
       pageSize: String(currentPageSize),
     }),

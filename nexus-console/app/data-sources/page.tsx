@@ -6,7 +6,7 @@ import { getApiData, type DataSource } from "@/lib/api";
 export const dynamic = "force-dynamic";
 
 export default async function DataSourcesPage() {
-  const result = await getApiData<DataSource[]>("/v1/data-sources", []);
+  const result = await getApiData<DataSource[]>("/internal/v1/data-sources", []);
 
   return (
     <>

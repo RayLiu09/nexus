@@ -29,7 +29,7 @@ export async function POST() {
     );
   }
 
-  const result = await proxy<RefreshResponse>("/v1/auth/refresh", {
+  const result = await proxy<RefreshResponse>("/internal/v1/auth/refresh", {
     method: "POST",
     body: { refresh_token: refreshToken },
   });

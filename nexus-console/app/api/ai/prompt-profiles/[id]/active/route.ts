@@ -31,7 +31,7 @@ export async function PUT(request: Request, context: RouteContext): Promise<Next
     );
   }
   const result = await proxy<unknown>(
-    `/v1/ai/prompt-profiles/${encodeURIComponent(profileName)}/active`,
+    `/internal/v1/ai/prompt-profiles/${encodeURIComponent(profileName)}/active`,
     {
       method: "PUT",
       body,

@@ -29,7 +29,7 @@ export async function PATCH(request: Request, context: RouteContext): Promise<Ne
       { status: 400 },
     );
   }
-  const result = await proxy<unknown>(`/v1/data-sources/${encodeURIComponent(id)}`, {
+  const result = await proxy<unknown>(`/internal/v1/data-sources/${encodeURIComponent(id)}`, {
     method: "PATCH",
     body,
     forwardHeaders: forwardedHeadersFrom(request),

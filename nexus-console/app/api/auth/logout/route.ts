@@ -16,7 +16,7 @@ export async function POST() {
 
   // Fire-and-forget: tell backend to invalidate refresh token
   if (refreshToken) {
-    proxy("/v1/auth/logout", {
+    proxy("/internal/v1/auth/logout", {
       method: "POST",
       body: { refresh_token: refreshToken },
     }).catch(() => {
