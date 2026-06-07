@@ -283,6 +283,18 @@ function generateIdempotencyKey(): string {
   return `${ts}-${rand}-${seq}`;
 }
 
+// ── Timeout ──────────────────────────────────────────────────────────────
+
+const REQUEST_TIMEOUT_MS = 30_000;
+
+function withTimeout(signal?: AbortSignal | null): AbortSignal {
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  if (signal) {
+    return AbortSignal.any([signal, timeout]);
+  }
+  return timeout;
+}
+
 // ── Core request ──────────────────────────────────────────────────────────
 
 export async function getApiData<T>(
@@ -369,6 +381,7 @@ async function requestApi<T>(path: string, init: RequestInit): Promise<ApiEnvelo
   let response = await fetch(`${apiBaseUrl()}${path}`, {
     ...init,
     headers,
+    signal: withTimeout(init.signal),
     cache: "no-store",
     // On the client, ensure the httpOnly access cookie tags along on
     // same-origin /api fetches. No-op server-side.
@@ -382,6 +395,7 @@ async function requestApi<T>(path: string, init: RequestInit): Promise<ApiEnvelo
       response = await fetch(`${apiBaseUrl()}${path}`, {
         ...init,
         headers,
+        signal: withTimeout(init.signal),
         cache: "no-store",
         credentials: "include",
       });
@@ -389,11 +403,22 @@ async function requestApi<T>(path: string, init: RequestInit): Promise<ApiEnvelo
   }
 
   const raw = await response.text();
-  const parsed = raw ? JSON.parse(raw) : {};
-  const traceId = parsed?.meta?.trace_id ?? null;
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = raw ? JSON.parse(raw) : {};
+  } catch {
+    throw new NexusApiError(
+      `Invalid JSON response (status ${response.status})`,
+      response.status,
+      null,
+    );
+  }
+  const meta = (parsed.meta ?? {}) as { trace_id?: string };
+  const traceId = meta.trace_id ?? null;
 
   if (!response.ok) {
-    const message = parsed?.error?.message ?? `NEXUS API ${response.status}`;
+    const errBody = (parsed.error ?? {}) as { message?: string };
+    const message = errBody.message ?? `NEXUS API ${response.status}`;
     throw new NexusApiError(message, response.status, traceId);
   }
 
