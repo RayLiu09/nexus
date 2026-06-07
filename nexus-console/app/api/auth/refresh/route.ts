@@ -52,8 +52,9 @@ export async function POST() {
     meta: { trace_id: result.traceId },
   });
 
+  // httpOnly so XSS cannot exfiltrate the rotated access token.
   response.cookies.set(ACCESS_TOKEN_COOKIE, access_token, {
-    httpOnly: false,
+    httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",

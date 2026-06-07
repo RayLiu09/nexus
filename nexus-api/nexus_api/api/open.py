@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import hashlib
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -466,21 +466,21 @@ def _hit_ref_ids(hits: list[dict]) -> list[str]:
 
 @router.get("/search")
 def search_knowledge(
-    q: str,
     request: Request,
-    kb: str | None = None,
-    top_k: int = 10,
-    similarity_threshold: float = 0.7,
+    q: str = Query(..., min_length=1, max_length=1024),
+    kb: str | None = Query(None, max_length=128),
+    top_k: int = Query(10, ge=1, le=100),
+    similarity_threshold: float = Query(0.7, ge=0.0, le=1.0),
     caller: models.ApiCaller = Depends(require_api_caller),
     session: Session = Depends(get_db),
 ):
     """Search indexed knowledge base via RAGFlow.
 
     Args:
-        q: Search query
-        kb: Knowledge type code (e.g. 'textbook_kb'). If omitted, searches default KB.
-        top_k: Max results
-        similarity_threshold: Minimum similarity score
+        q: Search query (1–1024 chars)
+        kb: Knowledge type code (e.g. 'textbook_kb'). If omitted, default KB is used.
+        top_k: Max results, 1–100 (DoS guard against unbounded fan-out)
+        similarity_threshold: Minimum similarity score, 0.0–1.0
     """
     from nexus_app.index.kb_registry import get_kb_registry
     from nexus_app.index.ragflow_adapter import get_ragflow_adapter
@@ -536,19 +536,19 @@ def search_knowledge(
 
 @router.get("/qa")
 def qa_knowledge(
-    q: str,
     request: Request,
-    kb: str | None = None,
-    top_k: int = 5,
+    q: str = Query(..., min_length=1, max_length=2048),
+    kb: str | None = Query(None, max_length=128),
+    top_k: int = Query(5, ge=1, le=50),
     caller: models.ApiCaller = Depends(require_api_caller),
     session: Session = Depends(get_db),
 ):
     """Question answering with source citations via RAGFlow.
 
     Args:
-        q: Question
+        q: Question (1–2048 chars)
         kb: Knowledge type code. If omitted, uses default KB.
-        top_k: Max source chunks to retrieve
+        top_k: Max source chunks to retrieve, 1–50
     """
     from nexus_app.index.kb_registry import get_kb_registry
     from nexus_app.index.ragflow_adapter import get_ragflow_adapter

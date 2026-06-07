@@ -81,9 +81,11 @@ export async function POST(request: Request) {
     meta: { trace_id: result.traceId },
   });
 
-  // Set access token — readable by JS
+  // Access token is httpOnly so XSS cannot read it. Client requests stay
+  // same-origin via /api/* route handlers, which forward Bearer via the
+  // server-side cookie read in `lib/api/proxy.ts`.
   response.cookies.set(ACCESS_TOKEN_COOKIE, access_token, {
-    httpOnly: false,
+    httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",

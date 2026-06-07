@@ -231,35 +231,36 @@ export class NexusApiError extends Error {
 }
 
 export function apiBaseUrl() {
+  // On the server (RSC, route handlers) we hit the NEXUS backend directly.
+  // On the client we MUST stay same-origin: requests go through the Next.js
+  // `/api/*` route handlers so the httpOnly access cookie can be read via
+  // `next/headers` and converted into a Bearer header — the browser never
+  // sees the token.
+  if (typeof window !== "undefined") {
+    return "";
+  }
   return (process.env.NEXUS_API_BASE_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 }
 
 // ── Token helpers (inline to avoid circular deps) ────────────────────────
 
 async function getAuthHeader(): Promise<string | null> {
-  try {
-    // Server-side: read from cookies()
-    if (typeof window === "undefined") {
-      const { cookies } = await import("next/headers");
-      const store = await cookies();
-      const token = store.get("nexus_access_token")?.value;
-      return token ? `Bearer ${token}` : null;
-    }
-  } catch {
-    // Not in a request context (e.g., build time)
+  // Server-side only: the access cookie is `httpOnly: true` so the browser
+  // cannot read it. Client requests rely on `credentials: "include"` to send
+  // the cookie alongside same-origin /api fetches; the route handler turns
+  // it into Bearer via `lib/api/proxy.ts`.
+  if (typeof window !== "undefined") {
     return null;
   }
-  // Client-side: read from document.cookie
-  if (typeof document !== "undefined") {
-    const all = document.cookie.split(";");
-    for (const part of all) {
-      const [key, ...rest] = part.trim().split("=");
-      if (key === "nexus_access_token") {
-        return `Bearer ${rest.join("=")}`;
-      }
-    }
+  try {
+    const { cookies } = await import("next/headers");
+    const store = await cookies();
+    const token = store.get("nexus_access_token")?.value;
+    return token ? `Bearer ${token}` : null;
+  } catch {
+    // Not in a request context (e.g., build time).
+    return null;
   }
-  return null;
 }
 
 async function tryRefreshToken(): Promise<boolean> {
@@ -344,6 +345,18 @@ export async function deleteApiData<T = void>(path: string): Promise<ApiEnvelope
 }
 
 async function requestApi<T>(path: string, init: RequestInit): Promise<ApiEnvelope<T>> {
+  // Client-side requests must never hit `/internal/v1/*` directly — the
+  // backend is on a different origin and the access cookie is httpOnly.
+  // Use `/api/*` so the Next.js route handler reads the cookie and forwards
+  // the request server-side.
+  if (typeof window !== "undefined" && path.startsWith("/internal/v1/")) {
+    throw new NexusApiError(
+      `Direct /internal/v1 call from client is forbidden: ${path} — use the matching /api/* proxy route instead`,
+      400,
+      null,
+    );
+  }
+
   const authHeader = await getAuthHeader();
   const headers: Record<string, string> = {};
   if (init.headers) {
@@ -357,18 +370,20 @@ async function requestApi<T>(path: string, init: RequestInit): Promise<ApiEnvelo
     ...init,
     headers,
     cache: "no-store",
+    // On the client, ensure the httpOnly access cookie tags along on
+    // same-origin /api fetches. No-op server-side.
+    credentials: typeof window !== "undefined" ? "include" : "same-origin",
   });
 
   // On 401, attempt refresh and retry once (client-side only)
   if (response.status === 401 && typeof window !== "undefined") {
     const refreshed = await tryRefreshToken();
     if (refreshed) {
-      const newAuth = await getAuthHeader();
-      if (newAuth) headers["authorization"] = newAuth;
       response = await fetch(`${apiBaseUrl()}${path}`, {
         ...init,
         headers,
         cache: "no-store",
+        credentials: "include",
       });
     }
   }

@@ -92,7 +92,7 @@ export function ApiCallersContent({
         status: string;
         created_at: string;
         updated_at: string;
-      }>("/internal/v1/api-callers", {
+      }>("/api/api-callers", {
         name: values.name,
         permission_scope: values.permission_scope,
       });
@@ -129,7 +129,7 @@ export function ApiCallersContent({
   }, [form, message]);
 
   const handleRevoke = useCallback(async (caller: ApiCaller) => {
-    await deleteApiData(`/internal/v1/api-callers/${caller.id}`);
+    await deleteApiData(`/api/api-callers/${caller.id}`);
     setCallers((prev) => prev.map((c) =>
       c.id === caller.id ? { ...c, status: "revoked" } : c,
     ));

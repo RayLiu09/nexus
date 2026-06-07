@@ -3,8 +3,10 @@
  * client (browser) environments.
  *
  * Token layout:
- * - nexus_access_token  — non-httpOnly cookie, short-lived (15 min)
- *   Readable by both client JS and server cookies() for direct Bearer attachment.
+ * - nexus_access_token  — httpOnly cookie, short-lived (15 min)
+ *   Read by RSC and Next route handlers via `cookies()` for Bearer
+ *   attachment. The browser never sees the token in JS — client fetches
+ *   stay same-origin via `/api/*` and rely on cookie auto-send.
  * - nexus_refresh_token  — httpOnly cookie, long-lived (7 days)
  *   Only server can read; used by /api/auth/refresh to rotate access tokens.
  *

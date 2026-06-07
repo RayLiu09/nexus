@@ -5,8 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Alert, App, Button, Card, Form, Input, Space, Typography } from "antd";
 import { LockOutlined, UserOutlined } from "@ant-design/icons";
 
-import { getClientSessionSync } from "@/lib/auth/session";
-
 interface LoginFormValues {
   username: string;
   password: string;
@@ -20,16 +18,27 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
 
-  // Redirect if already logged in
+  // The access cookie is httpOnly — JS can't read it. Ask the server.
   useEffect(() => {
-    const session = getClientSessionSync();
-    if (session) {
-      const redirect = searchParams.get("redirect") ?? "/workbench";
-      router.replace(redirect);
-    } else {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time session check on mount
-      setCheckingSession(false);
-    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await fetch("/api/auth/session", { cache: "no-store" });
+        if (resp.ok && !cancelled) {
+          const redirect = searchParams.get("redirect") ?? "/workbench";
+          router.replace(redirect);
+          return;
+        }
+      } catch {
+        /* fall through — show login form */
+      }
+      if (!cancelled) {
+        setCheckingSession(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [router, searchParams]);
 
   const handleLogin = useCallback(
