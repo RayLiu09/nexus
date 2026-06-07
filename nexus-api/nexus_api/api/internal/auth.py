@@ -7,6 +7,8 @@ token, so they must be reachable unauthenticated. Mounted directly by
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -18,6 +20,15 @@ from nexus_app.audit import write_audit
 from nexus_app.config import Settings, get_settings
 from nexus_app.database import get_db
 from nexus_app.enums import AuditEventType
+
+
+def _as_utc(value: datetime) -> datetime:
+    """SQLite drops tzinfo on roundtrip even when the column is
+    DateTime(timezone=True); normalize naive timestamps to UTC so
+    comparisons don't TypeError."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
 
 router = APIRouter(prefix="/internal/v1/auth")
 
@@ -48,21 +59,75 @@ def auth_login(
     long-lived rotating refresh token. The refresh token is persisted as a
     `refresh_token` row so logout/refresh can revoke it server-side."""
     trace_id = str(getattr(request.state, "trace_id", ""))
+    now = datetime.now(timezone.utc)
 
     user = session.scalars(
         select(models.UserAccount).where(models.UserAccount.username == payload.username)
     ).first()
 
+    # Lockout precheck — refuse before doing any password work. Unknown users
+    # fall through (no row to lock) so the unknown-vs-locked timing signal is
+    # below brute-force noise.
+    if user is not None and user.lockout_until is not None:
+        lockout_until = _as_utc(user.lockout_until)
+        if lockout_until > now:
+            remaining = int((lockout_until - now).total_seconds()) or 1
+            write_audit(
+                session,
+                AuditEventType.USER_LOGIN_FAILED,
+                target_type="user_account",
+                target_id=user.id,
+                trace_id=trace_id,
+                summary={"reason": "locked_out", "retry_after_seconds": remaining},
+                actor_type="user",
+                actor_id=user.id,
+            )
+            session.commit()
+            raise HTTPException(
+                status_code=429,
+                detail=f"account is locked for {remaining}s after repeated failed logins",
+                headers={"Retry-After": str(remaining)},
+            )
+        # Lockout window expired — clear so the counter restarts from this attempt.
+        user.lockout_until = None
+        user.failed_login_count = 0
+
     if user is None or not auth_service.verify_password(
         payload.password, user.password_hash
     ):
+        summary: dict[str, object] = {"reason": "invalid_credentials"}
+        # Real user → increment failure counter and lock if past threshold.
+        if user is not None:
+            user.failed_login_count = (user.failed_login_count or 0) + 1
+            summary["failed_login_count"] = user.failed_login_count
+            if user.failed_login_count >= auth_service.MAX_FAILED_LOGIN_ATTEMPTS:
+                user.lockout_until = auth_service.lockout_until(now)
+                summary["locked_until"] = user.lockout_until.isoformat()
+                write_audit(
+                    session,
+                    AuditEventType.USER_LOGIN_LOCKED,
+                    target_type="user_account",
+                    target_id=user.id,
+                    trace_id=trace_id,
+                    summary={
+                        "failed_login_count": user.failed_login_count,
+                        "locked_until": user.lockout_until.isoformat(),
+                        "lockout_window_seconds": int(
+                            auth_service.LOCKOUT_DURATION.total_seconds()
+                        ),
+                    },
+                    actor_type="user",
+                    actor_id=user.id,
+                )
         write_audit(
             session,
             AuditEventType.USER_LOGIN_FAILED,
             target_type="user_account",
-            target_id=payload.username,
+            target_id=user.id if user is not None else payload.username,
             trace_id=trace_id,
-            summary={"reason": "invalid_credentials"},
+            summary=summary,
+            actor_type="user" if user is not None else None,
+            actor_id=user.id if user is not None else None,
         )
         session.commit()
         raise HTTPException(status_code=401, detail="invalid username or password")
@@ -80,6 +145,11 @@ def auth_login(
         )
         session.commit()
         raise HTTPException(status_code=403, detail="user is disabled")
+
+    # Successful login — reset the throttle window.
+    if user.failed_login_count or user.lockout_until is not None:
+        user.failed_login_count = 0
+        user.lockout_until = None
 
     access_token, _ = auth_service.encode_access_token(
         settings,

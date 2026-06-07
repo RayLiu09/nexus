@@ -75,11 +75,13 @@ def test_400_uses_envelope_with_bad_request_code(app):
     _assert_envelope(resp.json(), code="BAD_REQUEST", status=400, resp_status=resp.status_code)
 
 
-def test_428_uses_envelope_with_generic_http_code(app):
-    """428 isn't mapped to a custom code yet — generic HTTP_ERROR is correct."""
+def test_428_uses_envelope_with_precondition_required_code(app):
+    """428 is mapped to PRECONDITION_REQUIRED in `_HTTP_STATUS_CODES`."""
     with TestClient(app) as client:
         resp = client.post("/internal/v1/ingest/files", json={})
-    _assert_envelope(resp.json(), code="HTTP_ERROR", status=428, resp_status=resp.status_code)
+    _assert_envelope(
+        resp.json(), code="PRECONDITION_REQUIRED", status=428, resp_status=resp.status_code
+    )
 
 
 # ── RequestValidationError → validation_exception_handler ─────────────────

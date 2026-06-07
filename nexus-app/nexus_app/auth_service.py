@@ -26,6 +26,23 @@ from sqlalchemy.orm import Session
 from nexus_app import models
 from nexus_app.config import Settings
 
+# ── Brute-force lockout knobs ────────────────────────────────────────────
+
+# How many consecutive failed logins put a user_account into lockout.
+MAX_FAILED_LOGIN_ATTEMPTS: int = 5
+
+# How long the account stays locked after the threshold is hit. The window
+# is intentionally short — long enough to slow brute force to one-per-minutes,
+# short enough not to weaponize the lockout into a DoS against legitimate
+# users by an adversary spamming wrong passwords.
+LOCKOUT_DURATION: timedelta = timedelta(minutes=15)
+
+
+def lockout_until(now: datetime) -> datetime:
+    """Compute when a freshly-locked account should reopen."""
+    return now + LOCKOUT_DURATION
+
+
 # ── Password hashing ─────────────────────────────────────────────────────
 
 

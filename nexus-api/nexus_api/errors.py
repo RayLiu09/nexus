@@ -17,28 +17,46 @@ def _trace_id(request: Request) -> str:
 
 
 def error_response(
-    request: Request, *, status_code: int, code: str, message: str, details: list[object] | None = None
+    request: Request,
+    *,
+    status_code: int,
+    code: str,
+    message: str,
+    details: list[object] | None = None,
+    headers: dict[str, str] | None = None,
 ) -> JSONResponse:
     payload = ErrorResponse(
         error=ErrorPayload(code=code, message=message, details=details or []),
         meta=ResponseMeta(trace_id=_trace_id(request)),
     )
-    return JSONResponse(status_code=status_code, content=payload.model_dump(mode="json"))
+    return JSONResponse(
+        status_code=status_code,
+        content=payload.model_dump(mode="json"),
+        headers=headers,
+    )
+
+
+_HTTP_STATUS_CODES: dict[int, str] = {
+    400: "BAD_REQUEST",
+    404: "NOT_FOUND",
+    409: "CONFLICT",
+    428: "PRECONDITION_REQUIRED",
+    429: "TOO_MANY_REQUESTS",
+}
 
 
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
-    code = "HTTP_ERROR"
-    if exc.status_code == 404:
-        code = "NOT_FOUND"
-    elif exc.status_code == 409:
-        code = "CONFLICT"
-    elif exc.status_code == 400:
-        code = "BAD_REQUEST"
+    code = _HTTP_STATUS_CODES.get(exc.status_code, "HTTP_ERROR")
+    # Preserve response headers the handler set (e.g. Retry-After on 429,
+    # WWW-Authenticate on 401, ETag on optimistic-lock conflicts). FastAPI's
+    # default raises HTTPException with `headers=...`; we must forward them
+    # or downstream clients lose the signal.
     return error_response(
         request,
         status_code=exc.status_code,
         code=code,
         message=str(exc.detail),
+        headers=exc.headers,
     )
 
 

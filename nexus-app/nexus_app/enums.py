@@ -179,6 +179,7 @@ class AuditEventType(StrEnum):
     # Auth (JWT user session)
     USER_LOGIN_SUCCEEDED            = "UserLoginSucceeded"
     USER_LOGIN_FAILED               = "UserLoginFailed"
+    USER_LOGIN_LOCKED               = "UserLoginLocked"
     USER_LOGOUT                     = "UserLogout"
     TOKEN_REFRESHED                 = "TokenRefreshed"
     TOKEN_REFRESH_FAILED            = "TokenRefreshFailed"

@@ -92,6 +92,14 @@ class UserAccount(TimestampMixin, Base):
     )
     # bcrypt hash (~60 chars). NULL = SSO/external-only user, no password login.
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Brute-force throttling — reset to 0 on every successful login. When the
+    # counter reaches `MAX_FAILED_LOGIN_ATTEMPTS` (see `auth_service`), the
+    # row gets stamped with `lockout_until` and further login attempts are
+    # refused with 429 until that timestamp passes.
+    failed_login_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    lockout_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     org_unit: Mapped[OrgUnit | None] = relationship()
 
