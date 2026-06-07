@@ -15,12 +15,14 @@ surfaces resources whose anchoring asset version is `available`:
 
 The `available`-only filter is the read-side hinge that keeps in-progress,
 review-required, archived, disabled, or failed material out of upstream
-consumption. `apply_open_scope` centralizes the rule so it cannot drift across
-handlers.
+consumption. Three private helpers carry the rule: `_available_asset_ids`,
+`_ref_anchors_available_version`, and `_filter_hits_to_available`. They are
+deliberately small so the contract stays auditable in one place per handler.
 
-Future P1+ `org_scope` filtering plugs into `apply_open_scope` without changing
-the surface API; today it is a no-op (per project memory
-`project_p0_search_permission_scope.md`).
+Future P1+ `org_scope` filtering will intersect with these helpers — for now
+the `caller` parameter is unused inside the filters (per project memory
+`project_p0_search_permission_scope.md`: credential auth is the only gate
+at P0; the hook stays a noop).
 """
 from __future__ import annotations
 
@@ -47,6 +49,18 @@ from nexus_app.enums import AssetAccessType, AssetVersionStatus, AuditEventType
 def _trace_id(request: Request) -> str | None:
     value = getattr(request.state, "trace_id", None)
     return str(value) if value is not None else None
+
+
+def _assert_caller_still_active(session: Session, caller: models.ApiCaller) -> None:
+    """Re-verify the caller hasn't been revoked while the request was in flight.
+
+    `require_api_caller` checks `revoked_at` at request entry, but search/qa
+    can take seconds. If an operator revokes the key mid-flight, the request
+    should still fail closed before we write the audit row or return data —
+    otherwise the audit log credits a revoked caller for the access."""
+    fresh = session.get(models.ApiCaller, caller.id)
+    if fresh is None or fresh.revoked_at is not None:
+        raise HTTPException(status_code=403, detail="API key revoked")
 
 router = APIRouter(
     prefix="/open/v1",
@@ -101,7 +115,7 @@ def list_available_assets(
     P1 will additionally intersect with `caller.org_scope`; today the org_scope
     hook is a no-op.
     """
-    _ = caller  # placeholder for future apply_open_scope(caller=...)
+    _ = caller  # P0: credential auth is the only gate; org_scope is noop
     available_ids = _available_asset_ids(session)
     if not available_ids:
         return list_response(
@@ -209,11 +223,17 @@ def list_available_asset_versions(
     session: Session = Depends(get_db),
 ):
     services.get_row(session, models.DocumentAsset, asset_id, "asset")
-    versions = [
-        v
-        for v in pipeline.list_asset_versions(session, asset_id)
-        if v.version_status == AssetVersionStatus.AVAILABLE
-    ]
+    # SQL-side filter — pipeline.list_asset_versions returns all states.
+    versions = list(
+        session.scalars(
+            select(models.DocumentVersion)
+            .where(
+                models.DocumentVersion.asset_id == asset_id,
+                models.DocumentVersion.version_status == AssetVersionStatus.AVAILABLE,
+            )
+            .order_by(models.DocumentVersion.version_no.desc())
+        ).all()
+    )
 
     write_asset_version_accessed_audit(
         session,
@@ -515,6 +535,9 @@ def search_knowledge(
     results = _filter_hits_to_available(session, results)
     results = apply_permission_filter(caller, results)
 
+    # Caller may have been revoked while the RAGFlow round-trip was in flight.
+    _assert_caller_still_active(session, caller)
+
     trace_id = request.headers.get("x-trace-id")
     query_hash = hashlib.sha256(q.encode("utf-8")).hexdigest()[:16]
     write_audit(
@@ -579,6 +602,10 @@ def qa_knowledge(
     sources = _filter_hits_to_available(session, sources)
     sources = apply_permission_filter(caller, sources)
     result["sources"] = sources
+
+    # Same liveness check as /search — RAGFlow qa is the slowest of the
+    # consumption paths and most likely to outlive a revocation event.
+    _assert_caller_still_active(session, caller)
 
     trace_id = request.headers.get("x-trace-id")
     question_hash = hashlib.sha256(q.encode("utf-8")).hexdigest()[:16]

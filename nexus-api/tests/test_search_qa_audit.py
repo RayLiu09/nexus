@@ -11,12 +11,17 @@ from nexus_app.enums import AuditEventType
 
 @pytest.fixture(autouse=True)
 def use_fake_ragflow(monkeypatch):
-    """Force FakeRAGFlowAdapter for these tests so we don't hit a real RAGFlow."""
+    """Force FakeRAGFlowAdapter for these tests so we don't hit a real RAGFlow.
+
+    Two patches are needed: kb_registry pulls `get_ragflow_adapter` via
+    `from ... import ...`, so the name inside `kb_registry`'s module
+    globals is a frozen copy of the original. Patching `ra.get_ragflow_adapter`
+    alone does NOT redirect `KbRegistry.__init__`'s lookup."""
+    from nexus_app.index import kb_registry as kr
     from nexus_app.index import ragflow_adapter as ra
     fake = ra.FakeRAGFlowAdapter()
     monkeypatch.setattr(ra, "get_ragflow_adapter", lambda settings=None: fake)
-    # Also reset kb_registry singleton so its cached adapter is replaced
-    from nexus_app.index import kb_registry as kr
+    monkeypatch.setattr(kr, "get_ragflow_adapter", lambda settings=None: fake)
     kr._default_registry = None
     yield fake
     kr._default_registry = None
