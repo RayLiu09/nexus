@@ -15,8 +15,21 @@ def response(data: Any, request: Request) -> ApiResponse[Any]:
 
 
 def list_response(
-    data: list[Any], request: Request, *, page: int = 1, page_size: int = 100, total: int | None = None
+    data: list[Any],
+    request: Request,
+    *,
+    page: int = 1,
+    page_size: int = 100,
+    total: int | None = None,
 ) -> ListResponse[Any]:
+    """Standard list envelope.
+
+    `total` is the size of the underlying result set (i.e. SELECT COUNT(*)),
+    not the size of `data`. Pass it explicitly whenever pagination is applied
+    so clients can render correct page counts. When `None` we fall back to
+    `len(data)` for non-paginated callers (a no-op when the full set is
+    returned).
+    """
     return ListResponse(
         data=data,
         meta=ResponseMeta(

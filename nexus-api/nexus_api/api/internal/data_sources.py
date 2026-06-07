@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from nexus_api import schemas
 from nexus_api.api.internal._helpers import append_read, validate_connection_config
+from nexus_api.dependencies import Pagination, pagination_params
 from nexus_api.responses import list_response, response
 from nexus_app import models, schemas as domain_schemas, services
 from nexus_app.audit import write_audit
@@ -49,14 +50,33 @@ def create_data_source(
 def list_data_sources(
     request: Request,
     include_deleted: bool = False,
+    pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
 ):
     """List data sources, hiding soft-deleted rows by default. Pass
     `include_deleted=true` to surface tombstones for audit views."""
-    stmt = select(models.DataSource).order_by(models.DataSource.created_at.desc())
+    base = select(models.DataSource)
     if not include_deleted:
-        stmt = stmt.where(models.DataSource.deleted_at.is_(None))
-    return list_response(list(session.scalars(stmt).all()), request)
+        base = base.where(models.DataSource.deleted_at.is_(None))
+
+    rows = list(
+        session.scalars(
+            base.order_by(models.DataSource.created_at.desc())
+            .offset(pagination.offset)
+            .limit(pagination.limit)
+        ).all()
+    )
+    from sqlalchemy import func as _func
+    total = int(
+        session.scalar(
+            select(_func.count()).select_from(base.subquery())
+        )
+        or 0
+    )
+    return list_response(
+        rows, request,
+        page=pagination.page, page_size=pagination.page_size, total=total,
+    )
 
 
 @router.get(

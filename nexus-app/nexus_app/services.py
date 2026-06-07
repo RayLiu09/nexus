@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from nexus_app import models
@@ -27,8 +27,29 @@ class ResourceNotFoundError(Exception):
         self.resource_name = resource_name
 
 
-def list_rows(session: Session, model: type[ModelT]) -> list[ModelT]:
-    return list(session.scalars(select(model).order_by(model.created_at.desc())).all())
+def list_rows(
+    session: Session,
+    model: type[ModelT],
+    *,
+    limit: int | None = None,
+    offset: int | None = None,
+) -> list[ModelT]:
+    """Ordered list of rows. `limit`/`offset` enable pagination at the SQL
+    layer so unbounded result sets can never reach the response serializer.
+    Both `None` (backward compat) returns the full table."""
+    stmt = select(model).order_by(model.created_at.desc())
+    if offset is not None:
+        stmt = stmt.offset(offset)
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    return list(session.scalars(stmt).all())
+
+
+def count_rows(session: Session, model: type[ModelT]) -> int:
+    """Total row count for `model`. Pairs with `list_rows` so the response
+    `meta.total` reflects the underlying table size, not just the returned
+    slice — required for client-side pagination UI."""
+    return int(session.scalar(select(func.count()).select_from(model)) or 0)
 
 
 def get_row(session: Session, model: type[ModelT], row_id: str, resource_name: str) -> ModelT:

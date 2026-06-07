@@ -10,7 +10,11 @@ from sqlalchemy.orm import Session
 
 from nexus_api import schemas
 from nexus_api.api.internal._helpers import get_rules_registry, prompt_svc
-from nexus_api.dependencies import require_idempotency_key
+from nexus_api.dependencies import (
+    Pagination,
+    pagination_params,
+    require_idempotency_key,
+)
 from nexus_api.responses import list_response, response
 from nexus_app import schemas as domain_schemas
 from nexus_app.ai_governance.services import (
@@ -58,11 +62,21 @@ def create_prompt_profile(
 def list_prompt_profiles(
     request: Request,
     profile_name: str | None = None,
+    pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
 ):
+    # Prompt profiles are bounded in practice (≤ tens per task_type), so a
+    # full-list-then-slice is acceptable — keeps the service-layer signature
+    # free of pagination plumbing.
     profiles = prompt_svc.list_profiles(session, profile_name=profile_name)
+    total = len(profiles)
+    page_slice = profiles[pagination.offset : pagination.offset + pagination.limit]
     return list_response(
-        [domain_schemas.PromptProfileRead.model_validate(p) for p in profiles], request
+        [domain_schemas.PromptProfileRead.model_validate(p) for p in page_slice],
+        request,
+        page=pagination.page,
+        page_size=pagination.page_size,
+        total=total,
     )
 
 

@@ -1,14 +1,28 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from nexus_app import models
 from nexus_app.enums import AssetVersionStatus, NormalizedAssetRefStatus
 
 
-def list_jobs(session: Session) -> list[models.Job]:
-    return list(session.scalars(select(models.Job).order_by(models.Job.created_at.desc())).all())
+def list_jobs(
+    session: Session,
+    *,
+    limit: int | None = None,
+    offset: int | None = None,
+) -> list[models.Job]:
+    stmt = select(models.Job).order_by(models.Job.created_at.desc())
+    if offset is not None:
+        stmt = stmt.offset(offset)
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    return list(session.scalars(stmt).all())
+
+
+def count_jobs(session: Session) -> int:
+    return int(session.scalar(select(func.count()).select_from(models.Job)) or 0)
 
 
 def list_job_stages(session: Session, job_id: str) -> list[models.JobStage]:
@@ -21,15 +35,27 @@ def list_job_stages(session: Session, job_id: str) -> list[models.JobStage]:
     )
 
 
-def list_assets(session: Session) -> list[models.DocumentAsset]:
-    return list(
-        session.scalars(
-            select(models.DocumentAsset).order_by(models.DocumentAsset.created_at.desc())
-        ).all()
-    )
+def list_assets(
+    session: Session,
+    *,
+    limit: int | None = None,
+    offset: int | None = None,
+) -> list[models.DocumentAsset]:
+    stmt = select(models.DocumentAsset).order_by(models.DocumentAsset.created_at.desc())
+    if offset is not None:
+        stmt = stmt.offset(offset)
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    return list(session.scalars(stmt).all())
+
+
+def count_assets(session: Session) -> int:
+    return int(session.scalar(select(func.count()).select_from(models.DocumentAsset)) or 0)
 
 
 def list_asset_versions(session: Session, asset_id: str) -> list[models.DocumentVersion]:
+    """Versions of a single asset — bounded by domain (a handful per asset)
+    so pagination at the API layer would just add noise."""
     return list(
         session.scalars(
             select(models.DocumentVersion)

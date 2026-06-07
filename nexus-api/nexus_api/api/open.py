@@ -31,7 +31,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
-from nexus_api.dependencies import require_api_caller
+from nexus_api.dependencies import (
+    Pagination,
+    pagination_params,
+    require_api_caller,
+)
 from nexus_api.permissions import apply_permission_filter
 from nexus_api.responses import list_response, response
 from nexus_app import models, pipeline, schemas as domain_schemas, services
@@ -89,6 +93,7 @@ def _ref_anchors_available_version(
 def list_available_assets(
     request: Request,
     caller: models.ApiCaller = Depends(require_api_caller),
+    pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
 ):
     """List assets that currently have an `available` version.
@@ -99,15 +104,24 @@ def list_available_assets(
     _ = caller  # placeholder for future apply_open_scope(caller=...)
     available_ids = _available_asset_ids(session)
     if not available_ids:
-        return list_response([], request)
+        return list_response(
+            [], request,
+            page=pagination.page, page_size=pagination.page_size, total=0,
+        )
+    total = len(available_ids)
     assets = list(
         session.scalars(
             select(models.DocumentAsset)
             .where(models.DocumentAsset.id.in_(available_ids))
             .order_by(models.DocumentAsset.created_at.desc())
+            .offset(pagination.offset)
+            .limit(pagination.limit)
         ).all()
     )
-    return list_response(assets, request)
+    return list_response(
+        assets, request,
+        page=pagination.page, page_size=pagination.page_size, total=total,
+    )
 
 
 @router.get(

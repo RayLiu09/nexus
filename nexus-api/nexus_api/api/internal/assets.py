@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
+from nexus_api.dependencies import Pagination, pagination_params
 from nexus_api.responses import list_response, response
 from nexus_app import models, pipeline, schemas as domain_schemas, services
 from nexus_app.audit import write_audit
@@ -20,8 +21,19 @@ router = APIRouter()
 
 
 @router.get("/assets", response_model=schemas.ListResponse[domain_schemas.DocumentAssetRead])
-def list_assets(request: Request, session: Session = Depends(get_db)):
-    return list_response(pipeline.list_assets(session), request)
+def list_assets(
+    request: Request,
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+):
+    rows = pipeline.list_assets(
+        session, limit=pagination.limit, offset=pagination.offset
+    )
+    total = pipeline.count_assets(session)
+    return list_response(
+        rows, request,
+        page=pagination.page, page_size=pagination.page_size, total=total,
+    )
 
 
 @router.get(

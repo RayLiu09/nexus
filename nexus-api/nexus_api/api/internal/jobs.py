@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
+from nexus_api.dependencies import Pagination, pagination_params
 from nexus_api.responses import list_response, response
 from nexus_app import models, pipeline, schemas as domain_schemas, services
 from nexus_app.audit import write_audit
@@ -37,8 +38,19 @@ _JOB_IMMEDIATE_CANCEL_STATUSES = {
 
 
 @router.get("/jobs", response_model=schemas.ListResponse[domain_schemas.JobRead])
-def list_jobs(request: Request, session: Session = Depends(get_db)):
-    return list_response(pipeline.list_jobs(session), request)
+def list_jobs(
+    request: Request,
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+):
+    rows = pipeline.list_jobs(
+        session, limit=pagination.limit, offset=pagination.offset
+    )
+    total = pipeline.count_jobs(session)
+    return list_response(
+        rows, request,
+        page=pagination.page, page_size=pagination.page_size, total=total,
+    )
 
 
 @router.get("/jobs/{job_id}", response_model=schemas.ApiResponse[domain_schemas.JobRead])
@@ -222,18 +234,51 @@ def cancel_job(job_id: str, request: Request, session: Session = Depends(get_db)
     "/parse-artifacts",
     response_model=schemas.ListResponse[domain_schemas.ParseArtifactRead],
 )
-def list_parse_artifacts(request: Request, session: Session = Depends(get_db)):
-    return list_response(services.list_rows(session, models.ParseArtifact), request)
+def list_parse_artifacts(
+    request: Request,
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+):
+    rows = services.list_rows(
+        session, models.ParseArtifact, limit=pagination.limit, offset=pagination.offset
+    )
+    total = services.count_rows(session, models.ParseArtifact)
+    return list_response(
+        rows, request,
+        page=pagination.page, page_size=pagination.page_size, total=total,
+    )
 
 
 @router.get(
     "/normalized-refs",
     response_model=schemas.ListResponse[domain_schemas.NormalizedAssetRefRead],
 )
-def list_normalized_refs(request: Request, session: Session = Depends(get_db)):
-    return list_response(services.list_rows(session, models.NormalizedAssetRef), request)
+def list_normalized_refs(
+    request: Request,
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+):
+    rows = services.list_rows(
+        session, models.NormalizedAssetRef, limit=pagination.limit, offset=pagination.offset
+    )
+    total = services.count_rows(session, models.NormalizedAssetRef)
+    return list_response(
+        rows, request,
+        page=pagination.page, page_size=pagination.page_size, total=total,
+    )
 
 
 @router.get("/audit-logs", response_model=schemas.ListResponse[domain_schemas.AuditLogRead])
-def list_audit_logs(request: Request, session: Session = Depends(get_db)):
-    return list_response(services.list_rows(session, models.AuditLog), request)
+def list_audit_logs(
+    request: Request,
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+):
+    rows = services.list_rows(
+        session, models.AuditLog, limit=pagination.limit, offset=pagination.offset
+    )
+    total = services.count_rows(session, models.AuditLog)
+    return list_response(
+        rows, request,
+        page=pagination.page, page_size=pagination.page_size, total=total,
+    )

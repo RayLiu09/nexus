@@ -6,7 +6,11 @@ from sqlalchemy.orm import Session
 
 from nexus_api import schemas
 from nexus_api.api.internal._helpers import ai_gov_svc, get_rules_registry
-from nexus_api.dependencies import require_idempotency_key
+from nexus_api.dependencies import (
+    Pagination,
+    pagination_params,
+    require_idempotency_key,
+)
 from nexus_api.responses import list_response, response
 from nexus_app import schemas as domain_schemas
 from nexus_app.ai_governance.services import AIGovernanceError
@@ -48,13 +52,23 @@ def list_governance_runs(
     request: Request,
     normalized_ref_id: str | None = None,
     profile_id: str | None = None,
+    pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
 ):
+    # In-Python slice — runs are filtered by ref/profile in the typical
+    # console usage so the candidate set is small. SQL-side pagination is a
+    # follow-up if the unfiltered list ever needs to scale.
     runs = ai_gov_svc.list_governance_runs(
         session, normalized_ref_id=normalized_ref_id, profile_id=profile_id
     )
+    total = len(runs)
+    page_slice = runs[pagination.offset : pagination.offset + pagination.limit]
     return list_response(
-        [domain_schemas.AIGovernanceRunRead.model_validate(r) for r in runs], request
+        [domain_schemas.AIGovernanceRunRead.model_validate(r) for r in page_slice],
+        request,
+        page=pagination.page,
+        page_size=pagination.page_size,
+        total=total,
     )
 
 

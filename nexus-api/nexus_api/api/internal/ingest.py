@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from nexus_api import schemas
 from nexus_api.api.internal._helpers import accepted_read, append_read
-from nexus_api.dependencies import require_idempotency_key
+from nexus_api.dependencies import Pagination, pagination_params, require_idempotency_key
 from nexus_api.responses import list_response, response
 from nexus_app import models, schemas as domain_schemas, services
 from nexus_app.database import get_db
@@ -244,8 +244,19 @@ def submit_crawler_package(
     "/ingest/batches",
     response_model=schemas.ListResponse[domain_schemas.IngestBatchRead],
 )
-def list_ingest_batches(request: Request, session: Session = Depends(get_db)):
-    return list_response(services.list_rows(session, models.IngestBatch), request)
+def list_ingest_batches(
+    request: Request,
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+):
+    rows = services.list_rows(
+        session, models.IngestBatch, limit=pagination.limit, offset=pagination.offset
+    )
+    total = services.count_rows(session, models.IngestBatch)
+    return list_response(
+        rows, request,
+        page=pagination.page, page_size=pagination.page_size, total=total,
+    )
 
 
 @router.get(
@@ -264,25 +275,47 @@ def get_ingest_batch(batch_id: str, request: Request, session: Session = Depends
     response_model=schemas.ListResponse[domain_schemas.RawObjectRead],
 )
 def list_raw_objects_for_batch(
-    batch_id: str, request: Request, session: Session = Depends(get_db)
+    batch_id: str,
+    request: Request,
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
 ):
     services.get_row(session, models.IngestBatch, batch_id, "ingest_batch")
+    base = select(models.RawObject).where(models.RawObject.batch_id == batch_id)
     rows = list(
         session.scalars(
-            select(models.RawObject)
-            .where(models.RawObject.batch_id == batch_id)
-            .order_by(models.RawObject.created_at.desc())
+            base.order_by(models.RawObject.created_at.desc())
+            .offset(pagination.offset)
+            .limit(pagination.limit)
         ).all()
     )
-    return list_response(rows, request)
+    from sqlalchemy import func as _func
+    total = int(
+        session.scalar(select(_func.count()).select_from(base.subquery())) or 0
+    )
+    return list_response(
+        rows, request,
+        page=pagination.page, page_size=pagination.page_size, total=total,
+    )
 
 
 @router.get(
     "/raw-objects",
     response_model=schemas.ListResponse[domain_schemas.RawObjectRead],
 )
-def list_raw_objects(request: Request, session: Session = Depends(get_db)):
-    return list_response(services.list_rows(session, models.RawObject), request)
+def list_raw_objects(
+    request: Request,
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+):
+    rows = services.list_rows(
+        session, models.RawObject, limit=pagination.limit, offset=pagination.offset
+    )
+    total = services.count_rows(session, models.RawObject)
+    return list_response(
+        rows, request,
+        page=pagination.page, page_size=pagination.page_size, total=total,
+    )
 
 
 @router.get(

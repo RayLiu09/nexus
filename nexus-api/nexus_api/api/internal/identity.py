@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
+from nexus_api.dependencies import Pagination, pagination_params
 from nexus_api.responses import list_response, response
 from nexus_app import models, schemas as domain_schemas, services
 from nexus_app.audit import write_audit
@@ -32,8 +33,19 @@ def create_org_unit(
 
 
 @router.get("/org-units", response_model=schemas.ListResponse[domain_schemas.OrgUnitRead])
-def list_org_units(request: Request, session: Session = Depends(get_db)):
-    return list_response(services.list_rows(session, models.OrgUnit), request)
+def list_org_units(
+    request: Request,
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+):
+    rows = services.list_rows(
+        session, models.OrgUnit, limit=pagination.limit, offset=pagination.offset
+    )
+    total = services.count_rows(session, models.OrgUnit)
+    return list_response(
+        rows, request,
+        page=pagination.page, page_size=pagination.page_size, total=total,
+    )
 
 
 @router.get(
@@ -59,8 +71,19 @@ def create_user(
 
 
 @router.get("/users", response_model=schemas.ListResponse[domain_schemas.UserRead])
-def list_users(request: Request, session: Session = Depends(get_db)):
-    return list_response(services.list_rows(session, models.UserAccount), request)
+def list_users(
+    request: Request,
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+):
+    rows = services.list_rows(
+        session, models.UserAccount, limit=pagination.limit, offset=pagination.offset
+    )
+    total = services.count_rows(session, models.UserAccount)
+    return list_response(
+        rows, request,
+        page=pagination.page, page_size=pagination.page_size, total=total,
+    )
 
 
 @router.get("/users/{user_id}", response_model=schemas.ApiResponse[domain_schemas.UserRead])
@@ -98,13 +121,24 @@ def create_api_caller(
 
 
 @router.get("/api-callers", response_model=schemas.ListResponse[domain_schemas.ApiCallerRead])
-def list_api_callers(request: Request, session: Session = Depends(get_db)):
+def list_api_callers(
+    request: Request,
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+):
     rows = list(
         session.scalars(
-            select(models.ApiCaller).order_by(models.ApiCaller.created_at.desc())
+            select(models.ApiCaller)
+            .order_by(models.ApiCaller.created_at.desc())
+            .offset(pagination.offset)
+            .limit(pagination.limit)
         ).all()
     )
-    return list_response(rows, request)
+    total = services.count_rows(session, models.ApiCaller)
+    return list_response(
+        rows, request,
+        page=pagination.page, page_size=pagination.page_size, total=total,
+    )
 
 
 @router.get(
