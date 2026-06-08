@@ -33,8 +33,6 @@ describe("statusDefinitions", () => {
   it("has no duplicate labels across different statuses", () => {
     const labels = Object.values(statusDefinitions).map((d) => d.label);
     // "处理中" and "启用" are legitimate duplicates in the source
-    // Filter them out and check remaining
-    const uniqueLabels = new Set(labels);
     const duplicateLabels = labels.filter((l) => labels.filter((x) => x === l).length > 1);
     const uniqueDuplicates = [...new Set(duplicateLabels)];
     // Only known duplicates: "处理中" (processing + running), "启用" (active + enabled)

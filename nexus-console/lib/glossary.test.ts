@@ -31,7 +31,7 @@ describe("glossary", () => {
       search: ["trace_id", "qa_answer_generated", "search_query_executed"],
     };
 
-    for (const [domain, keys] of Object.entries(domains)) {
+    for (const keys of Object.values(domains)) {
       for (const key of keys) {
         expect(glossary[key]).toBeDefined();
       }
@@ -39,7 +39,7 @@ describe("glossary", () => {
   });
 
   it("has no empty or whitespace-only definitions", () => {
-    for (const [key, value] of Object.entries(glossary)) {
+    for (const value of Object.values(glossary)) {
       expect(value.trim()).not.toBe("");
     }
   });

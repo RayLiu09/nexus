@@ -14,8 +14,8 @@ describe("StatusDot", () => {
   });
 
   it("has a colored dot (aria-hidden)", () => {
-    render(<StatusDot tone="success">OK</StatusDot>);
-    const dot = screen.getByRole("status").querySelector('[aria-hidden="true"]');
+    const { container } = render(<StatusDot tone="success">OK</StatusDot>);
+    const dot = container.querySelector('[aria-hidden="true"]');
     expect(dot).toBeInTheDocument();
     expect(dot?.tagName).toBe("SPAN");
   });
