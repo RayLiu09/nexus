@@ -352,6 +352,17 @@ export async function putApiData<T>(
   });
 }
 
+export async function patchApiData<T>(
+  path: string,
+  payload: Record<string, unknown>,
+): Promise<ApiEnvelope<T>> {
+  return requestApi<T>(path, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function deleteApiData<T = void>(path: string): Promise<ApiEnvelope<T>> {
   return requestApi<T>(path, { method: "DELETE" });
 }

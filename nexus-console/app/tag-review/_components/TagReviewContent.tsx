@@ -14,9 +14,9 @@
  */
 
 import { useState } from "react";
-import { Table, Tag, Button, Progress, Tooltip, App } from "antd";
+import { Table, Tag, Button, Progress, Tooltip, App, Alert } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { CheckOutlined, CloseOutlined, EditOutlined } from "@ant-design/icons";
+import { CheckOutlined, CloseOutlined, EditOutlined, ExperimentOutlined } from "@ant-design/icons";
 
 // ── mock 数据（实际接 /v1/tags/pending 与 /v1/tags/committed） ──
 
@@ -111,6 +111,8 @@ function ConfidenceBar({ value }: { value: number }) {
 }
 
 // ── TagReviewPage ─────────────────────────────────────────────
+
+const IS_DEMO = true; // switch to false when backend tag endpoints are ready
 
 export default function TagReviewContent() {
   const [drafts, setDrafts] = useState<TagDraft[]>(MOCK_DRAFTS);
@@ -313,6 +315,15 @@ export default function TagReviewContent() {
     >
       {/* ── 左侧主区 ── */}
       <div style={{ display: "grid", gap: 16 }}>
+        {IS_DEMO && (
+          <Alert
+            type="warning"
+            showIcon
+            icon={<ExperimentOutlined />}
+            title="演示数据 — 标签审核接口尚未接入，当前为 mock 数据"
+            className="!mb-0"
+          />
+        )}
         {/* BulkBar */}
         {selectedIds.length > 0 && (
           <div

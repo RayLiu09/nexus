@@ -98,7 +98,7 @@ export function SearchPlayground({
   }, [mode, query, kb, topK, threshold, reset]);
 
   return (
-    <Space direction="vertical" size="middle" className="w-full">
+    <Space orientation="vertical" size="middle" className="w-full">
       <Card>
         <Form layout="vertical" onFinish={handleSubmit}>
           <Space size="middle" wrap>
@@ -171,7 +171,7 @@ export function SearchPlayground({
               type="error"
               showIcon
               className="!mt-2"
-              message={error}
+              title={error}
               action={
                 <Button size="small" onClick={handleSubmit}>
                   重试
@@ -253,7 +253,7 @@ function SearchResultList({ data }: { data: SearchResponse }) {
         dataSource={data.results}
         renderItem={(item) => (
           <List.Item key={item.chunk_id}>
-            <Space direction="vertical" size={4} className="w-full">
+            <Space orientation="vertical" size={4} className="w-full">
               <Space size={6} wrap>
                 <Tag color="blue">score {item.score?.toFixed?.(3) ?? "-"}</Tag>
                 {item.source?.doc_name && (
@@ -284,7 +284,7 @@ function SearchResultList({ data }: { data: SearchResponse }) {
 
 function QaResult({ data }: { data: QaResponse }) {
   return (
-    <Space direction="vertical" size="middle" className="w-full">
+    <Space orientation="vertical" size="middle" className="w-full">
       <Card title="AI 回答">
         <Typography.Paragraph className="!mb-0 whitespace-pre-wrap">
           {data.answer || "（空回答）"}
@@ -306,7 +306,7 @@ function QaResult({ data }: { data: QaResponse }) {
             dataSource={data.sources}
             renderItem={(src, idx) => (
               <List.Item key={src.chunk_id ?? `src-${idx}`}>
-                <Space direction="vertical" size={4} className="w-full">
+                <Space orientation="vertical" size={4} className="w-full">
                   <Space size={6} wrap>
                     {src.doc_name && <Tag>{String(src.doc_name)}</Tag>}
                     {src.page !== undefined && <Tag>page {String(src.page)}</Tag>}

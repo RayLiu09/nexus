@@ -100,7 +100,7 @@ export function ConfirmButton({
         confirmLoading={loading}
         destroyOnClose
       >
-        <Space direction="vertical" size="middle" className="w-full">
+        <Space orientation="vertical" size="middle" className="w-full">
           {description && (
             <Typography.Text type="secondary">{description}</Typography.Text>
           )}

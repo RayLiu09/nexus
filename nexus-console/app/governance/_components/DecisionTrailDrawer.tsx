@@ -146,7 +146,7 @@ function DrawerBody({ loading, error, view, result }: DrawerBodyProps) {
   const trail = result.decision_trail ?? [];
 
   return (
-    <Space direction="vertical" size="large" className="w-full">
+    <Space orientation="vertical" size="large" className="w-full">
       <OutcomeSummary result={result} />
 
       {view === "public" ? (

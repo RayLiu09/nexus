@@ -26,9 +26,16 @@ async function fetchBatch(batchId: string, signal: AbortSignal): Promise<BatchDe
     signal,
     cache: "no-store",
   });
-  const body = (await response.json()) as BatchProxyResult;
+  // JSON.parse protection — guard against malformed proxy responses
+  const text = await response.text();
+  let body: BatchProxyResult;
+  try {
+    body = JSON.parse(text) as BatchProxyResult;
+  } catch {
+    throw new Error(`Invalid JSON from batch proxy: ${text.slice(0, 200)}`);
+  }
   if (!body.ok) {
-    throw new Error(body.message);
+    throw new Error(body.message ?? `Batch proxy returned status ${response.status}`);
   }
   return body.data;
 }

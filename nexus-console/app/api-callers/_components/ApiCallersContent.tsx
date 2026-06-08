@@ -279,7 +279,7 @@ export function ApiCallersContent({
         destroyOnClose
       >
         {createdCaller ? (
-          <Space direction="vertical" size="middle" className="w-full">
+          <Space orientation="vertical" size="middle" className="w-full">
             <Typography.Text>
               API Caller <strong>{createdCaller.name}</strong> 创建成功。
               请立即复制以下 Token，<strong>关闭后将无法再次查看</strong>。

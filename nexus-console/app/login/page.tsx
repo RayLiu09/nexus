@@ -90,7 +90,7 @@ function LoginForm() {
         className="w-full max-w-sm shadow-sm"
         styles={{ body: { padding: 32 } }}
       >
-        <Space direction="vertical" size="large" className="w-full">
+        <Space orientation="vertical" size="large" className="w-full">
           {/* Brand */}
           <div className="text-center">
             <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#2563eb] to-[#0d9488]">

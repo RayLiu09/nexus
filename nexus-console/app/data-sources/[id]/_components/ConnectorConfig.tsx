@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button, Drawer, Input, App, Descriptions, Tag } from "antd";
 import { EditOutlined } from "@ant-design/icons";
-import { apiBaseUrl, type DataSource } from "@/lib/api";
+import { patchApiData, type DataSource } from "@/lib/api";
 
 type ConnectorField = {
   key: string;
@@ -107,15 +107,10 @@ export function ConnectorConfig({ dataSource }: { dataSource: DataSource }) {
           payload[f.key] = val;
         }
       }
-      const res = await fetch(`${apiBaseUrl()}/v1/data-sources/${dataSource.id}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ connection_config: payload }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error((body as Record<string, string>).detail ?? `HTTP ${res.status}`);
-      }
+      await patchApiData(
+        `/api/data-sources/${dataSource.id}`,
+        { connection_config: payload },
+      );
       message.success("连接器配置已保存");
       setDrawerOpen(false);
       window.location.reload();
