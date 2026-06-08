@@ -198,7 +198,7 @@ function OutcomeSummary({ result }: { result: GovernanceResultRead }) {
       </Descriptions.Item>
       <Descriptions.Item label="状态">{result.status}</Descriptions.Item>
       <Descriptions.Item label="规则版本">
-        <Typography.Text className="font-mono" style={{ fontSize: 12 }}>
+        <Typography.Text className="font-mono text-xs">
           {result.rules_schema_version ?? "-"}
         </Typography.Text>
       </Descriptions.Item>
@@ -263,7 +263,7 @@ function ValueChip({ value }: { value: unknown }) {
   }
   if (typeof value === "object") {
     return (
-      <Typography.Text className="font-mono" style={{ fontSize: 12 }}>
+      <Typography.Text className="font-mono text-xs">
         {JSON.stringify(value)}
       </Typography.Text>
     );

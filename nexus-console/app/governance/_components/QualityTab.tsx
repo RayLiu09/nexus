@@ -34,7 +34,7 @@ export function QualityTab({
             percent={score}
             size="small"
             status={score < 60 ? "exception" : "normal"}
-            style={{ width: 120 }}
+            className="w-[120px]"
           />
         );
       },
