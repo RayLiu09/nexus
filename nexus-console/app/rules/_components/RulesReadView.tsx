@@ -28,7 +28,7 @@ type DimensionRow = {
   name: string;
   weight: number;
   check_items: unknown[];
-  content: string;
+  description: string;
 };
 
 interface RulesReadViewProps {

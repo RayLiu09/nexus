@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Drawer, Tag, Descriptions, App, Input, InputNumber, Select } from "antd";
-import { PlusOutlined, EditOutlined, CopyOutlined, StopOutlined } from "@ant-design/icons";
+import { Button, Drawer, Tag, Descriptions, App, Input, InputNumber, Select, Alert } from "antd";
+import { PlusOutlined, EditOutlined, CopyOutlined, StopOutlined, ExperimentOutlined } from "@ant-design/icons";
 import { Empty } from "antd";
 import { formatTime } from "@/lib/format-time";
-import { apiBaseUrl } from "@/lib/api";
+import { postApiData, putApiData } from "@/lib/api";
 
 type PromptProfile = {
   id: string;
@@ -133,7 +133,8 @@ const DEFAULT_FORM: FormState = {
 };
 
 export default function AiPromptsContent({ profiles }: { profiles: PromptProfile[] }) {
-  const data = profiles.length > 0 ? profiles : MOCK_FALLBACK;
+  const isDemo = profiles.length === 0;
+  const data = isDemo ? MOCK_FALLBACK : profiles;
   const [items, setItems] = useState<PromptProfile[]>(data);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -186,26 +187,19 @@ export default function AiPromptsContent({ profiles }: { profiles: PromptProfile
     }
     setSaving(true);
     try {
-      const base = apiBaseUrl();
       if (editingId) {
-        const res = await fetch(`${base}/v1/ai/prompt-profiles/${editingId}`, {
-          method: "PUT",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(form),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        setItems((prev) => prev.map((p) => (p.id === editingId ? { ...p, ...json.data } : p)));
+        const result = await putApiData<PromptProfile>(
+          `/v1/ai/prompt-profiles/${editingId}`,
+          form as unknown as Record<string, unknown>,
+        );
+        setItems((prev) => prev.map((p) => (p.id === editingId ? { ...p, ...result.data } : p)));
         message.success("配置已更新");
       } else {
-        const res = await fetch(`${base}/v1/ai/prompt-profiles`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(form),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        setItems((prev) => [json.data, ...prev]);
+        const result = await postApiData<PromptProfile>(
+          "/v1/ai/prompt-profiles",
+          form as unknown as Record<string, unknown>,
+        );
+        setItems((prev) => [result.data, ...prev]);
         message.success("配置已创建");
       }
       setDrawerOpen(false);
@@ -225,10 +219,7 @@ export default function AiPromptsContent({ profiles }: { profiles: PromptProfile
       cancelText: "取消",
       onOk: async () => {
         try {
-          const res = await fetch(`${apiBaseUrl()}/v1/ai/prompt-profiles/${p.id}/disable`, {
-            method: "POST",
-          });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          await postApiData<void>(`/v1/ai/prompt-profiles/${p.id}/disable`, {});
           setItems((prev) => prev.map((x) => (x.id === p.id ? { ...x, status: "disabled" } : x)));
           message.success("已禁用");
         } catch (e) {
@@ -249,9 +240,20 @@ export default function AiPromptsContent({ profiles }: { profiles: PromptProfile
           marginBottom: 16,
         }}
       >
-        <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-          {items.length} 个配置 · {items.filter((p) => p.status === "active").length} 个生效中
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+            {items.length} 个配置 · {items.filter((p) => p.status === "active").length} 个生效中
+          </span>
+          {isDemo && (
+            <Alert
+              type="warning"
+              showIcon
+              icon={<ExperimentOutlined />}
+              title="演示数据"
+              className="!mb-0 !py-0.5 !px-2.5 text-xs"
+            />
+          )}
+        </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
           新建配置
         </Button>

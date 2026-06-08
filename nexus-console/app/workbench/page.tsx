@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/PageHeader";
-import { ApiState } from "@/components/ApiState";
+import { ErrorState } from "@/components/shared/ErrorState";
 import { loadWorkbenchData } from "@/lib/console-data";
 import type { AIGovernanceRun, AuditLog, IngestBatch } from "@/lib/api";
 import { WorkbenchContent } from "./_components/WorkbenchContent";
@@ -134,8 +134,16 @@ export default async function WorkbenchPage() {
         title="工作台"
         description="问题驱动的运营首页。关注异常项、流水线健康度和待办决策。"
       />
-      <ApiState ok={data.ok} error={data.error} traceId={data.traceId} />
-      <WorkbenchContent data={workbenchData} />
+
+      {data.ok ? (
+        <WorkbenchContent data={workbenchData} />
+      ) : (
+        <ErrorState
+          title="工作台数据加载失败"
+          description={data.error || "无法连接到后端服务，请检查网络后重试。"}
+          traceId={data.traceId ?? undefined}
+        />
+      )}
     </>
   );
 }

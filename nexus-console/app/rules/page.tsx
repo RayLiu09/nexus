@@ -4,22 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   App,
-  Badge,
   Button,
   Card,
-  Checkbox,
-  Descriptions,
-  Drawer,
   Modal,
-  Radio,
   Skeleton,
   Space,
-  Table,
-  Tag,
-  Typography,
 } from "antd";
-import type { CheckboxChangeEvent } from "antd/es/checkbox";
-import type { ColumnsType } from "antd/es/table";
 import { PageHeader } from "@/components/PageHeader";
 import {
   fetchGovernanceRules,
@@ -28,6 +18,9 @@ import {
   type RecomputeScope,
   type RecomputeSummary,
 } from "@/lib/governance-rules-api";
+import { RulesEditor } from "./_components/RulesEditor";
+import { RulesReadView } from "./_components/RulesReadView";
+import { RecomputeSummaryDrawer } from "./_components/RecomputeSummaryDrawer";
 
 type ClassificationRow = {
   code: string;
@@ -204,7 +197,7 @@ export default function RulesPage() {
         className="mb-4"
         type="info"
         showIcon
-        message="规则变更保存后立即生效，但默认只影响未来新接入的数据；如需对历史 review_required 资产重跑，请勾选下方的批量重跑选项。"
+        title="规则变更保存后立即生效，但默认只影响未来新接入的数据；如需对历史 review_required 资产重跑，请勾选下方的批量重跑选项。"
       />
 
       {loading ? (
@@ -218,7 +211,7 @@ export default function RulesPage() {
           editorError={editorError}
           recompute={recompute}
           recomputeScope={recomputeScope}
-          onRecomputeChange={(e: CheckboxChangeEvent) => setRecompute(e.target.checked)}
+          onRecomputeChange={(e) => setRecompute(e.target.checked)}
           onScopeChange={(v) => setRecomputeScope(v)}
         />
       ) : (
@@ -237,385 +230,6 @@ export default function RulesPage() {
         onClose={() => setRecomputeSummary(null)}
       />
     </>
-  );
-}
-
-// ── Editor ───────────────────────────────────────────────────────────────
-
-interface RulesEditorProps {
-  editorText: string;
-  onChange: (val: string) => void;
-  editorError: string | null;
-  recompute: boolean;
-  recomputeScope: RecomputeScope;
-  onRecomputeChange: (e: CheckboxChangeEvent) => void;
-  onScopeChange: (v: RecomputeScope) => void;
-}
-
-function RulesEditor({
-  editorText,
-  onChange,
-  editorError,
-  recompute,
-  recomputeScope,
-  onRecomputeChange,
-  onScopeChange,
-}: RulesEditorProps) {
-  return (
-    <Space direction="vertical" size="middle" className="w-full">
-      <Card
-        title={
-          <Space>
-            <span>编辑 governance_rules.json</span>
-            <Tag color="warning">编辑中</Tag>
-          </Space>
-        }
-        styles={{ body: { padding: 0 } }}
-      >
-        <textarea
-          value={editorText}
-          onChange={(e) => onChange(e.target.value)}
-          className="block w-full min-h-[480px] resize-y border-none p-4 font-mono text-[13px] leading-relaxed outline-none rounded-b-lg bg-[var(--gray-900)] text-[#e5e7eb]"
-          spellCheck={false}
-          aria-label="governance_rules.json 编辑器"
-        />
-        {editorError && (
-          <Alert
-            className="m-3"
-            type="error"
-            showIcon
-            message={editorError}
-          />
-        )}
-      </Card>
-
-      <Card title="保存选项 — 批量重跑（Review §5.4）">
-        <Space direction="vertical" size="small">
-          <Checkbox checked={recompute} onChange={onRecomputeChange}>
-            保存后对受影响的数据触发批量重跑
-          </Checkbox>
-          <Typography.Paragraph
-            type="secondary"
-            className="!mb-0 text-[12px]"
-          >
-            勾选后，本次规则变更命中的 normalized_ref 会按下方范围重新调度治理。AVAILABLE
-            版本不会被自动改写（仅写入审计），避免破坏已发布索引。
-          </Typography.Paragraph>
-          <Radio.Group
-            disabled={!recompute}
-            value={recomputeScope}
-            onChange={(e) => onScopeChange(e.target.value)}
-            optionType="default"
-          >
-            <Space direction="vertical">
-              <Radio value="review_required_only">
-                仅 <code>review_required</code> 版本回流到 processing（默认 / 较安全）
-              </Radio>
-              <Radio value="all_affected">
-                包含 <code>available</code>：仍只把 review_required 版本回流，
-                额外把 available 版本登记到审计日志，便于人工逐条决定是否重跑
-              </Radio>
-            </Space>
-          </Radio.Group>
-        </Space>
-      </Card>
-    </Space>
-  );
-}
-
-// ── Read view ────────────────────────────────────────────────────────────
-
-interface RulesReadViewProps {
-  classifications: ClassificationRow[];
-  levels: LevelRow[];
-  tags: TagRow[];
-  dimensions: DimensionRow[];
-  thresholds: Record<string, unknown> | null;
-  autoAdoptThreshold: number | string | null;
-}
-
-function RulesReadView({
-  classifications,
-  levels,
-  tags,
-  dimensions,
-  thresholds,
-  autoAdoptThreshold,
-}: RulesReadViewProps) {
-  return (
-    <Space direction="vertical" size="middle" className="w-full">
-      <Card
-        title={
-          <Space>
-            <span>数据域分类（classification）</span>
-            <Badge count={classifications.length} color="var(--brand)" />
-          </Space>
-        }
-      >
-        <Table<ClassificationRow>
-          rowKey="code"
-          dataSource={classifications}
-          pagination={false}
-          size="middle"
-          columns={CLASSIFICATION_COLUMNS}
-        />
-      </Card>
-
-      <Card
-        title={
-          <Space>
-            <span>数据分级（level）</span>
-            <Badge count={levels.length} color="var(--brand)" />
-          </Space>
-        }
-      >
-        <Table<LevelRow>
-          rowKey="code"
-          dataSource={levels}
-          pagination={false}
-          size="middle"
-          columns={LEVEL_COLUMNS}
-        />
-      </Card>
-
-      <Card
-        title={
-          <Space>
-            <span>数据标签（tags）</span>
-            <Badge count={tags.length} color="var(--brand)" />
-          </Space>
-        }
-      >
-        <Table<TagRow>
-          rowKey="code"
-          dataSource={tags}
-          pagination={false}
-          size="middle"
-          columns={TAG_COLUMNS}
-        />
-      </Card>
-
-      <Card
-        title={
-          <Space>
-            <span>质量评分维度（quality_scoring）</span>
-            <Badge count={dimensions.length} color="var(--brand)" />
-          </Space>
-        }
-      >
-        <Table<DimensionRow>
-          rowKey="name"
-          dataSource={dimensions}
-          pagination={false}
-          size="middle"
-          columns={DIMENSION_COLUMNS}
-        />
-        {thresholds && (
-          <Typography.Paragraph
-            type="secondary"
-            className="!mt-3 !mb-0 text-[13px]"
-          >
-            通过阈值：≥{String(thresholds.pass ?? "-")} 分 ｜ 预警：≥
-            {String(thresholds.warning ?? "-")} 分 ｜ 复核线：&lt;
-            {String(thresholds.review_required_below ?? "-")} 分 ｜ AI 自动采纳置信度：
-            {autoAdoptThreshold ?? "-"}
-          </Typography.Paragraph>
-        )}
-      </Card>
-    </Space>
-  );
-}
-
-const CLASSIFICATION_COLUMNS: ColumnsType<ClassificationRow> = [
-  {
-    title: "Code",
-    dataIndex: "code",
-    width: 110,
-    render: (code: string) => <Tag color="purple">{code}</Tag>,
-  },
-  { title: "名称", dataIndex: "name", width: 200 },
-  {
-    title: "判断标准",
-    dataIndex: "criteria",
-    render: (criteria: string[]) =>
-      criteria.length > 0 ? (
-        <span className="text-xs text-[var(--text-muted)]">{criteria.join("；")}</span>
-      ) : (
-        "-"
-      ),
-  },
-];
-
-const LEVEL_COLUMNS: ColumnsType<LevelRow> = [
-  {
-    title: "Code",
-    dataIndex: "code",
-    width: 90,
-    render: (code: string) => {
-      const dangerous = code === "L3" || code === "L4";
-      return <Tag color={dangerous ? "error" : "default"}>{code}</Tag>;
-    },
-  },
-  { title: "名称", dataIndex: "name", width: 180 },
-  {
-    title: "需审批",
-    dataIndex: "requires_approval",
-    width: 90,
-    render: (v: boolean) => (v ? "是" : "否"),
-  },
-  {
-    title: "禁外部 LLM",
-    dataIndex: "forbid_external_llm",
-    width: 110,
-    render: (v: boolean) => (v ? "是" : "-"),
-  },
-  {
-    title: "判断标准",
-    dataIndex: "criteria",
-    render: (criteria: string[]) =>
-      criteria.length > 0 ? (
-        <span className="text-xs text-[var(--text-muted)]">{criteria.join("；")}</span>
-      ) : (
-        "-"
-      ),
-  },
-];
-
-const TAG_COLUMNS: ColumnsType<TagRow> = [
-  {
-    title: "Code",
-    dataIndex: "code",
-    width: 140,
-    render: (code: string) => <Tag>{code}</Tag>,
-  },
-  { title: "名称", dataIndex: "name", width: 180 },
-  {
-    title: "适用分类",
-    dataIndex: "applicable_classifications",
-    width: 200,
-    render: (xs: string[]) =>
-      xs.length > 0 ? (
-        <span className="text-xs">{xs.join(", ")}</span>
-      ) : (
-        <span className="text-xs text-[var(--text-muted)]">通用</span>
-      ),
-  },
-  {
-    title: "判断标准",
-    dataIndex: "criteria",
-    render: (criteria: string[]) =>
-      criteria.length > 0 ? (
-        <span className="text-xs text-[var(--text-muted)]">{criteria.join("；")}</span>
-      ) : (
-        "-"
-      ),
-  },
-];
-
-const DIMENSION_COLUMNS: ColumnsType<DimensionRow> = [
-  {
-    title: "维度",
-    dataIndex: "name",
-    width: 160,
-    render: (n: string) => <strong>{n}</strong>,
-  },
-  {
-    title: "权重",
-    dataIndex: "weight",
-    width: 90,
-    render: (w: number) => `${(w * 100).toFixed(0)}%`,
-  },
-  {
-    title: "检查项数",
-    dataIndex: "check_items",
-    width: 100,
-    render: (items: unknown[]) => items.length,
-  },
-  {
-    title: "说明",
-    dataIndex: "description",
-    render: (d: string) => (
-      <span className="text-xs text-[var(--text-muted)]">{d || "-"}</span>
-    ),
-  },
-];
-
-// ── Recompute Summary Drawer ─────────────────────────────────────────────
-
-function RecomputeSummaryDrawer({
-  summary,
-  onClose,
-}: {
-  summary: RecomputeSummary | null;
-  onClose: () => void;
-}) {
-  return (
-    <Drawer
-      title="批量重跑结果"
-      width={520}
-      open={summary !== null}
-      onClose={onClose}
-      destroyOnClose
-    >
-      {summary && (
-        <Space direction="vertical" size="middle" className="w-full">
-          <Descriptions bordered size="small" column={1}>
-            <Descriptions.Item label="重跑范围">
-              <Tag color="processing">{summary.scope}</Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="受影响 normalized_ref 总数">
-              {summary.affected_total}
-            </Descriptions.Item>
-            <Descriptions.Item label="已回流到 processing 的版本数">
-              <Tag color="success">{summary.rescheduled_count}</Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="保留 available 不变（仅审计）">
-              <Tag color="default">{summary.available_skipped_count}</Tag>
-            </Descriptions.Item>
-          </Descriptions>
-
-          <VersionIdList
-            title="被重新调度的版本"
-            ids={summary.rescheduled_version_ids}
-            emptyLabel="无"
-          />
-          <VersionIdList
-            title="登记审计但未自动重跑的 available 版本"
-            ids={summary.available_skipped_version_ids}
-            emptyLabel="无"
-          />
-        </Space>
-      )}
-    </Drawer>
-  );
-}
-
-function VersionIdList({
-  title,
-  ids,
-  emptyLabel,
-}: {
-  title: string;
-  ids: string[];
-  emptyLabel: string;
-}) {
-  return (
-    <div>
-      <Typography.Text strong>{title}</Typography.Text>
-      <div className="mt-2">
-        {ids.length === 0 ? (
-          <Typography.Text type="secondary">{emptyLabel}</Typography.Text>
-        ) : (
-          <Space size={4} wrap>
-            {ids.map((id) => (
-              <Tag key={id} className="font-mono" style={{ fontSize: 12 }}>
-                {id}
-              </Tag>
-            ))}
-          </Space>
-        )}
-      </div>
-    </div>
   );
 }
 

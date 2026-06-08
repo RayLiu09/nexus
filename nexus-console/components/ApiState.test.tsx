@@ -1,45 +1,45 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { ApiState } from "@/components/ApiState";
 
 describe("ApiState", () => {
-  it("shows connected message when ok=true", () => {
-    render(<ApiState ok error={null} />);
-    expect(screen.getByText("API 已连接")).toBeInTheDocument();
+  it("renders nothing when ok=true", () => {
+    const { container } = render(<ApiState ok error={null} />);
+    expect(container.firstChild).toBeNull();
   });
 
-  it("shows unavailable message when ok=false", () => {
+  it("shows unavailable alert when ok=false", () => {
     render(<ApiState ok={false} error="Connection refused" />);
     expect(screen.getByText("API 不可用")).toBeInTheDocument();
   });
 
-  it("displays error message when provided", () => {
+  it("displays error message in description", () => {
     render(<ApiState ok={false} error="Network Error" />);
     expect(screen.getByText("Network Error")).toBeInTheDocument();
   });
 
-  it("does not show error when ok=true and no error", () => {
-    const { container } = render(<ApiState ok error={null} />);
-    expect(container.querySelector("strong")).not.toBeInTheDocument();
-  });
-
   it("displays traceId when provided", () => {
-    render(<ApiState ok error={null} traceId="abc12345" />);
+    render(<ApiState ok={false} error="fail" traceId="abc12345" />);
     expect(screen.getByText("trace: abc12345")).toBeInTheDocument();
   });
 
-  it("does not display traceId when null", () => {
-    const { container } = render(<ApiState ok error={null} traceId={null} />);
-    expect(container.querySelector(".mono-cell")).not.toBeInTheDocument();
+  it("shows retry button when onRetry provided", async () => {
+    const onRetry = vi.fn();
+    render(<ApiState ok={false} error="fail" onRetry={onRetry} />);
+    const btn = screen.getByRole("button", { name: /重\s*试/ });
+    expect(btn).toBeInTheDocument();
+    await userEvent.click(btn);
+    expect(onRetry).toHaveBeenCalledOnce();
   });
 
-  it("applies error CSS class when !ok", () => {
-    const { container } = render(<ApiState ok={false} error="fail" />);
-    expect(container.querySelector(".api-state-error")).toBeInTheDocument();
+  it("does not show retry button when onRetry is omitted", () => {
+    render(<ApiState ok={false} error="fail" />);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("applies ok CSS class when ok", () => {
-    const { container } = render(<ApiState ok error={null} />);
-    expect(container.querySelector(".api-state-ok")).toBeInTheDocument();
+  it("uses generic message when error is null", () => {
+    render(<ApiState ok={false} error={null} />);
+    expect(screen.getByText("无法连接到后端服务")).toBeInTheDocument();
   });
 });
