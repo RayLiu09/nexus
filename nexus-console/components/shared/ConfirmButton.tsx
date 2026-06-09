@@ -63,6 +63,10 @@ export function ConfirmButton({
     try {
       await onConfirm();
       setOpen(false);
+    } catch (e: unknown) {
+      // Keep modal open and let the caller show its own error feedback.
+      // If onConfirm throws without user-visible feedback, log a warning.
+      console.warn("ConfirmButton: onConfirm threw an unhandled error", e);
     } finally {
       setLoading(false);
       setTyped("");

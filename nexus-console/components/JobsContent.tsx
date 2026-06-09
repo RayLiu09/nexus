@@ -52,7 +52,7 @@ export function JobsContent({ jobs: initialJobs, stages }: { jobs: Job[]; stages
 
   // Optimistic retry: optimistically set to "queued", rollback on failure
   const retryMutation = useOptimisticMutation({
-    mutationFn: (jobId: string) => postApiData(`/v1/jobs/${jobId}/retry`, {}),
+    mutationFn: (jobId: string) => postApiData(`/api/jobs/${jobId}/retry`, {}),
     onMutate: (jobId: string) => {
       setJobs((prev) =>
         prev.map((j) => (j.id === jobId ? { ...j, status: "queued", failure_reason: null } : j)),
@@ -67,7 +67,7 @@ export function JobsContent({ jobs: initialJobs, stages }: { jobs: Job[]; stages
 
   // Optimistic cancel: optimistically set to "cancelled", rollback on failure
   const cancelMutation = useOptimisticMutation({
-    mutationFn: (jobId: string) => postApiData(`/v1/jobs/${jobId}/cancel`, {}),
+    mutationFn: (jobId: string) => postApiData(`/api/jobs/${jobId}/cancel`, {}),
     onMutate: (jobId: string) => {
       setJobs((prev) =>
         prev.map((j) => (j.id === jobId ? { ...j, status: "cancelled" } : j)),

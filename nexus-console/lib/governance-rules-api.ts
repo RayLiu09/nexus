@@ -55,7 +55,7 @@ export type SaveRulesResult = {
 
 export async function fetchGovernanceRules(): Promise<FetchRulesResult> {
   try {
-    const res = await fetch(`${apiBaseUrl()}/v1/admin/governance-rules`, {
+    const res = await fetch(`${apiBaseUrl()}/api/admin/governance-rules`, {
       cache: "no-store",
     });
     if (!res.ok) {
@@ -84,7 +84,7 @@ export async function saveGovernanceRules(
       );
     }
     const queryString = params.toString();
-    const url = `${apiBaseUrl()}/v1/admin/governance-rules${queryString ? `?${queryString}` : ""}`;
+    const url = `${apiBaseUrl()}/api/admin/governance-rules${queryString ? `?${queryString}` : ""}`;
 
     const res = await fetch(url, {
       method: "PUT",

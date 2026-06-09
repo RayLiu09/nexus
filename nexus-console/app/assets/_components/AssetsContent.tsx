@@ -53,7 +53,7 @@ function governanceTag(s?: string) {
   if (!s) return <span style={{ color: "var(--text-muted)" }}>-</span>;
   const map: Record<string, { color: string; label: string }> = {
     auto_passed: { color: "success", label: "auto_passed" },
-    auto_adopted: { color: "success", label: "auto_passed" },
+    auto_adopted: { color: "success", label: "auto_adopted" },
     review_required: { color: "warning", label: "review_required" },
     manual_overridden: { color: "processing", label: "manual_overridden" },
     rejected: { color: "error", label: "rejected" },
