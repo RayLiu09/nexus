@@ -89,7 +89,7 @@ def _seed_asset_with_versions(
     )
     session.add(batch)
     session.flush()
-    asset = models.DocumentAsset(
+    asset = models.Asset(
         id="asset-race",
         data_source_id=ds.id,
         source_object_key="race-key",
@@ -110,7 +110,7 @@ def _seed_asset_with_versions(
         )
         session.add(raw)
         session.flush()
-        version = models.DocumentVersion(
+        version = models.AssetVersion(
             id=f"version-race-{i}",
             asset_id=asset.id, raw_object_id=raw.id, version_no=i,
             source_checksum=raw.checksum,
@@ -162,9 +162,9 @@ def _seed_governance_result(session: Session, version_id: str) -> models.Governa
 def _count_available(session: Session, asset_id: str) -> int:
     return len(
         session.scalars(
-            select(models.DocumentVersion).where(
-                models.DocumentVersion.asset_id == asset_id,
-                models.DocumentVersion.version_status == AssetVersionStatus.AVAILABLE,
+            select(models.AssetVersion).where(
+                models.AssetVersion.asset_id == asset_id,
+                models.AssetVersion.version_status == AssetVersionStatus.AVAILABLE,
             )
         ).all()
     )
@@ -172,9 +172,9 @@ def _count_available(session: Session, asset_id: str) -> int:
 
 def _statuses(session: Session, asset_id: str) -> dict[str, str]:
     rows = session.scalars(
-        select(models.DocumentVersion)
-        .where(models.DocumentVersion.asset_id == asset_id)
-        .order_by(models.DocumentVersion.version_no.asc())
+        select(models.AssetVersion)
+        .where(models.AssetVersion.asset_id == asset_id)
+        .order_by(models.AssetVersion.version_no.asc())
     ).all()
     return {v.id: v.version_status.value for v in rows}
 
@@ -195,11 +195,11 @@ def test_sequential_promotion_archives_predecessor(session_factory):
         result2 = _seed_governance_result(session, v2)
 
         mgr = VersionStateManager()
-        mgr.transition_to_available(session, session.get(models.DocumentVersion, v1), result1)
+        mgr.transition_to_available(session, session.get(models.AssetVersion, v1), result1)
         session.commit()
         assert _count_available(session, asset_id) == 1
 
-        mgr.transition_to_available(session, session.get(models.DocumentVersion, v2), result2)
+        mgr.transition_to_available(session, session.get(models.AssetVersion, v2), result2)
         session.commit()
         assert _count_available(session, asset_id) == 1
 
@@ -216,9 +216,9 @@ def test_repeated_promotion_of_same_version_is_idempotent(session_factory):
         result1 = _seed_governance_result(session, v1)
 
         mgr = VersionStateManager()
-        mgr.transition_to_available(session, session.get(models.DocumentVersion, v1), result1)
+        mgr.transition_to_available(session, session.get(models.AssetVersion, v1), result1)
         session.commit()
-        mgr.transition_to_available(session, session.get(models.DocumentVersion, v1), result1)
+        mgr.transition_to_available(session, session.get(models.AssetVersion, v1), result1)
         session.commit()
 
         statuses = _statuses(session, asset_id)
@@ -254,12 +254,12 @@ def test_interleaved_transitions_converge_to_single_available(session_factory):
         try:
             mgr.transition_to_available(
                 session_a,
-                session_a.get(models.DocumentVersion, v1),
+                session_a.get(models.AssetVersion, v1),
                 session_a.get(models.GovernanceResult, f"gov-{v1}"),
             )
             mgr.transition_to_available(
                 session_b,
-                session_b.get(models.DocumentVersion, v2),
+                session_b.get(models.AssetVersion, v2),
                 session_b.get(models.GovernanceResult, f"gov-{v2}"),
             )
             session_a.commit()

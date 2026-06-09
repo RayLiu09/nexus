@@ -223,22 +223,22 @@ def main(pdf_path: str) -> None:
         assets = list_assets(session)
         asset = next((a for a in assets if a.data_source_id == data_source_id), None)
         if asset is None:
-            _fail("No DocumentAsset found for this data source")
-        _ok(f"DocumentAsset  id={asset.id}  kind={asset.asset_kind}  title={asset.title[:60]!r}")
+            _fail("No Asset found for this data source")
+        _ok(f"Asset  id={asset.id}  kind={asset.asset_kind}  title={asset.title[:60]!r}")
 
         # version
         versions = list_asset_versions(session, asset.id)
         if not versions:
-            _fail("No DocumentVersion found")
+            _fail("No AssetVersion found")
         version = versions[0]
-        _ok(f"DocumentVersion  id={version.id}  version_no={version.version_no}  "
+        _ok(f"AssetVersion  id={version.id}  version_no={version.version_no}  "
             f"status={version.version_status}")
         _ok(f"  m1_ready_for_governance={version.metadata_summary.get('m1_ready_for_governance')}")
 
         # parse artifact
         artifact = session.scalar(
             select(models.ParseArtifact).where(
-                models.ParseArtifact.document_version_id == version.id
+                models.ParseArtifact.asset_version_id == version.id
             )
         )
         if artifact is None:

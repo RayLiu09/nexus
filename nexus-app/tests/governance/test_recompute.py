@@ -26,7 +26,7 @@ def _prepare_governed_version(
     *,
     snapshot_schema_version: str,
     final_status: AssetVersionStatus,
-) -> tuple[models.DocumentVersion, models.GovernanceResult]:
+) -> tuple[models.AssetVersion, models.GovernanceResult]:
     """Drive the ingest pipeline once, then synthesize a governance_result
     with a specific snapshot schema_version + version_status."""
     source = services.create_data_source(
@@ -54,10 +54,10 @@ def _prepare_governed_version(
             pass
 
     version = session.scalars(
-        select(models.DocumentVersion)
-        .join(models.DocumentAsset,
-              models.DocumentAsset.id == models.DocumentVersion.asset_id)
-        .where(models.DocumentAsset.data_source_id == source.id)
+        select(models.AssetVersion)
+        .join(models.Asset,
+              models.Asset.id == models.AssetVersion.asset_id)
+        .where(models.Asset.data_source_id == source.id)
     ).first()
     ref = session.scalars(
         select(models.NormalizedAssetRef)

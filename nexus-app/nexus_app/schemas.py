@@ -360,7 +360,7 @@ class JobRead(ORMModel):
 class ParseArtifactRead(ORMModel):
     id: str
     raw_object_id: str
-    document_version_id: str | None
+    asset_version_id: str | None
     artifact_uri: str
     parse_mode: str
     checksum: str
@@ -371,7 +371,7 @@ class ParseArtifactRead(ORMModel):
     updated_at: datetime
 
 
-class DocumentAssetRead(ORMModel):
+class AssetRead(ORMModel):
     id: str
     data_source_id: str
     source_object_key: str
@@ -384,7 +384,7 @@ class DocumentAssetRead(ORMModel):
     updated_at: datetime
 
 
-class DocumentVersionRead(ORMModel):
+class AssetVersionRead(ORMModel):
     id: str
     asset_id: str
     raw_object_id: str
@@ -413,10 +413,10 @@ class NormalizedAssetRefRead(ORMModel):
 
 
 class AssetDetailRead(BaseModel):
-    asset: DocumentAssetRead
-    versions: list[DocumentVersionRead]
+    asset: AssetRead
+    versions: list[AssetVersionRead]
     normalized_refs: list[NormalizedAssetRefRead]
-    current_version: DocumentVersionRead | None = None
+    current_version: AssetVersionRead | None = None
     current_normalized_ref: NormalizedAssetRefRead | None = None
 
 
@@ -448,8 +448,8 @@ class IngestToAssetResultRead(BaseModel):
     batch: IngestBatchRead
     raw_object: RawObjectRead
     job: JobRead
-    asset: DocumentAssetRead | None = None
-    version: DocumentVersionRead | None = None
+    asset: AssetRead | None = None
+    version: AssetVersionRead | None = None
     parse_artifact: ParseArtifactRead | None = None
     normalized_ref: NormalizedAssetRefRead | None = None
 

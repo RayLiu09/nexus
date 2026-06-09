@@ -6,14 +6,14 @@ import {
   makeJobStage,
   makeIngestBatch,
   makeRawObject,
-  makeDocumentAsset,
+  makeAsset,
   makeAuditLog,
 } from "./factories";
 import type {
   JobStageInput,
   IngestBatchInput,
   RawObjectInput,
-  DocumentAssetInput,
+  AssetInput,
   AuditLogInput,
 } from "./factories";
 
@@ -71,10 +71,10 @@ export function getRawObjects(overrides?: Partial<RawObjectInput>[]) {
 
 // ── Assets ─────────────────────────────────────────────────────────────────
 
-export function getAssets(overrides?: Partial<DocumentAssetInput>[]) {
-  const items = overrides?.map((o) => makeDocumentAsset({ ...o, data_source_id: o.data_source_id ?? "ds-00000000" })) ?? [
-    makeDocumentAsset({ data_source_id: "ds-00000000" }),
-    makeDocumentAsset({ data_source_id: "ds-00000000", title: "Second Doc", asset_kind: "record" }),
+export function getAssets(overrides?: Partial<AssetInput>[]) {
+  const items = overrides?.map((o) => makeAsset({ ...o, data_source_id: o.data_source_id ?? "ds-00000000" })) ?? [
+    makeAsset({ data_source_id: "ds-00000000" }),
+    makeAsset({ data_source_id: "ds-00000000", title: "Second Doc", asset_kind: "record" }),
   ];
   return http.get(`${BASE}/v1/assets`, () => HttpResponse.json(envelope(items, { total: items.length })));
 }

@@ -7,19 +7,19 @@ import { ConfidenceBadge } from "@/components/ConfidenceBadge";
 import {
   formatDateTime,
   shortId,
-  type DocumentAsset,
-  type DocumentVersion,
+  type Asset,
+  type AssetVersion,
   type NormalizedAssetRef,
   type ParseArtifact,
   type AIGovernanceRun,
 } from "@/lib/api";
 
 type Props = {
-  asset: DocumentAsset | null;
-  latestVersion: DocumentVersion | null;
+  asset: Asset | null;
+  latestVersion: AssetVersion | null;
   latestRef: NormalizedAssetRef | null;
   relatedArtifact: ParseArtifact | null;
-  versions: DocumentVersion[];
+  versions: AssetVersion[];
   governanceRuns: AIGovernanceRun[];
 };
 
@@ -386,7 +386,7 @@ function QualityTab({ runs }: { runs: AIGovernanceRun[] }) {
 // ---------------------------------------------------------------------------
 // Version history tab
 // ---------------------------------------------------------------------------
-function VersionsTab({ versions }: { versions: DocumentVersion[] }) {
+function VersionsTab({ versions }: { versions: AssetVersion[] }) {
   if (versions.length === 0) {
     return <Empty description="暂无版本记录" />;
   }

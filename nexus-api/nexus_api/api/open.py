@@ -76,14 +76,14 @@ router = APIRouter(
 def _available_asset_ids(session: Session) -> list[str]:
     """Asset IDs that have at least one `available` version."""
     rows = session.scalars(
-        select(models.DocumentVersion.asset_id)
-        .where(models.DocumentVersion.version_status == AssetVersionStatus.AVAILABLE)
+        select(models.AssetVersion.asset_id)
+        .where(models.AssetVersion.version_status == AssetVersionStatus.AVAILABLE)
         .distinct()
     ).all()
     return list(rows)
 
 
-def _version_is_available(version: models.DocumentVersion | None) -> bool:
+def _version_is_available(version: models.AssetVersion | None) -> bool:
     return version is not None and version.version_status == AssetVersionStatus.AVAILABLE
 
 
@@ -92,7 +92,7 @@ def _ref_anchors_available_version(
 ) -> bool:
     if ref is None:
         return False
-    version = session.get(models.DocumentVersion, ref.version_id)
+    version = session.get(models.AssetVersion, ref.version_id)
     return _version_is_available(version)
 
 
@@ -102,7 +102,7 @@ def _ref_anchors_available_version(
 
 @router.get(
     "/assets",
-    response_model=schemas.ListResponse[domain_schemas.DocumentAssetRead],
+    response_model=schemas.ListResponse[domain_schemas.AssetRead],
 )
 def list_available_assets(
     request: Request,
@@ -125,9 +125,9 @@ def list_available_assets(
     total = len(available_ids)
     assets = list(
         session.scalars(
-            select(models.DocumentAsset)
-            .where(models.DocumentAsset.id.in_(available_ids))
-            .order_by(models.DocumentAsset.created_at.desc())
+            select(models.Asset)
+            .where(models.Asset.id.in_(available_ids))
+            .order_by(models.Asset.created_at.desc())
             .offset(pagination.offset)
             .limit(pagination.limit)
         ).all()
@@ -154,7 +154,7 @@ def get_available_asset(
     in other states (the upstream contract is "exists for consumption").
     """
     _ = caller
-    asset = services.get_row(session, models.DocumentAsset, asset_id, "asset")
+    asset = services.get_row(session, models.Asset, asset_id, "asset")
     available_versions = [
         version
         for version in pipeline.list_asset_versions(session, asset_id)
@@ -177,16 +177,16 @@ def get_available_asset(
     )
 
     detail = domain_schemas.AssetDetailRead(
-        asset=domain_schemas.DocumentAssetRead.model_validate(asset),
+        asset=domain_schemas.AssetRead.model_validate(asset),
         versions=[
-            domain_schemas.DocumentVersionRead.model_validate(version)
+            domain_schemas.AssetVersionRead.model_validate(version)
             for version in available_versions
         ],
         normalized_refs=[
             domain_schemas.NormalizedAssetRefRead.model_validate(ref) for ref in refs
         ],
         current_version=(
-            domain_schemas.DocumentVersionRead.model_validate(current_version)
+            domain_schemas.AssetVersionRead.model_validate(current_version)
             if current_version is not None
             else None
         ),
@@ -214,7 +214,7 @@ def get_available_asset(
 
 @router.get(
     "/assets/{asset_id}/versions",
-    response_model=schemas.ListResponse[domain_schemas.DocumentVersionRead],
+    response_model=schemas.ListResponse[domain_schemas.AssetVersionRead],
 )
 def list_available_asset_versions(
     asset_id: str,
@@ -222,16 +222,16 @@ def list_available_asset_versions(
     caller: models.ApiCaller = Depends(require_api_caller),
     session: Session = Depends(get_db),
 ):
-    services.get_row(session, models.DocumentAsset, asset_id, "asset")
+    services.get_row(session, models.Asset, asset_id, "asset")
     # SQL-side filter — pipeline.list_asset_versions returns all states.
     versions = list(
         session.scalars(
-            select(models.DocumentVersion)
+            select(models.AssetVersion)
             .where(
-                models.DocumentVersion.asset_id == asset_id,
-                models.DocumentVersion.version_status == AssetVersionStatus.AVAILABLE,
+                models.AssetVersion.asset_id == asset_id,
+                models.AssetVersion.version_status == AssetVersionStatus.AVAILABLE,
             )
-            .order_by(models.DocumentVersion.version_no.desc())
+            .order_by(models.AssetVersion.version_no.desc())
         ).all()
     )
 
@@ -270,7 +270,7 @@ def get_available_normalized_ref(
             status_code=404,
             detail=f"normalized_ref '{ref_id}' not available",
         )
-    version = session.get(models.DocumentVersion, ref.version_id)
+    version = session.get(models.AssetVersion, ref.version_id)
 
     write_asset_version_accessed_audit(
         session,
@@ -324,7 +324,7 @@ def get_public_governance_result_for_ref(
             detail=f"No governance result found for normalized_ref '{ref_id}'",
         )
 
-    version = session.get(models.DocumentVersion, ref.version_id)
+    version = session.get(models.AssetVersion, ref.version_id)
     write_asset_version_accessed_audit(
         session,
         caller=caller,
@@ -367,7 +367,7 @@ def get_public_knowledge_chunk(
             status_code=404,
             detail=f"knowledge_chunk '{chunk_id}' is not part of an available asset",
         )
-    version = session.get(models.DocumentVersion, ref.version_id)
+    version = session.get(models.AssetVersion, ref.version_id)
 
     write_asset_version_accessed_audit(
         session,
@@ -441,11 +441,11 @@ def _enrich_with_nexus_refs(
             refs[ref.id] = ref
 
     version_ids = {r.version_id for r in refs.values()}
-    versions: dict[str, models.DocumentVersion] = {}
+    versions: dict[str, models.AssetVersion] = {}
     if version_ids:
         for ver in session.scalars(
-            select(models.DocumentVersion).where(
-                models.DocumentVersion.id.in_(version_ids)
+            select(models.AssetVersion).where(
+                models.AssetVersion.id.in_(version_ids)
             )
         ).all():
             versions[ver.id] = ver
@@ -481,9 +481,9 @@ def _filter_hits_to_available(
         return hits
     available_ids: set[str] = set(
         session.scalars(
-            select(models.DocumentVersion.id).where(
-                models.DocumentVersion.id.in_(version_ids),
-                models.DocumentVersion.version_status == AssetVersionStatus.AVAILABLE,
+            select(models.AssetVersion.id).where(
+                models.AssetVersion.id.in_(version_ids),
+                models.AssetVersion.version_status == AssetVersionStatus.AVAILABLE,
             )
         ).all()
     )

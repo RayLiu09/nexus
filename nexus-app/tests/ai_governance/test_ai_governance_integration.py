@@ -58,15 +58,15 @@ def _make_raw_object(session: Session, ds: models.DataSource) -> models.RawObjec
 
 
 def _make_asset_version(session: Session, ds: models.DataSource,
-                         raw: models.RawObject) -> models.DocumentVersion:
-    asset = models.DocumentAsset(
+                         raw: models.RawObject) -> models.AssetVersion:
+    asset = models.Asset(
         data_source_id=ds.id, source_object_key="test.pdf",
         title="Test Asset",
         asset_kind=models.AssetKind.DOCUMENT,
     )
     session.add(asset)
     session.flush()
-    version = models.DocumentVersion(
+    version = models.AssetVersion(
         asset_id=asset.id, raw_object_id=raw.id,
         version_no=1, source_checksum="abc123",
         version_status=models.AssetVersionStatus.PROCESSING,
@@ -77,7 +77,7 @@ def _make_asset_version(session: Session, ds: models.DataSource,
 
 
 def _make_normalized_ref(session: Session,
-                          version: models.DocumentVersion) -> models.NormalizedAssetRef:
+                          version: models.AssetVersion) -> models.NormalizedAssetRef:
     ref = models.NormalizedAssetRef(
         version_id=version.id,
         normalized_type=NormalizedType.DOCUMENT,

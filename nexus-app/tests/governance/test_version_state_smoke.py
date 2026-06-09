@@ -32,7 +32,7 @@ def _seed_asset_with_versions(session, num_versions: int):
     )
     session.add(batch)
     session.flush()
-    asset = models.DocumentAsset(
+    asset = models.Asset(
         data_source_id=source.id,
         source_object_key=f"key-{n}",
         title=f"asset-{n}",
@@ -51,7 +51,7 @@ def _seed_asset_with_versions(session, num_versions: int):
         )
         session.add(raw)
         session.flush()
-        v = models.DocumentVersion(
+        v = models.AssetVersion(
             asset_id=asset.id,
             raw_object_id=raw.id,
             version_no=i + 1,

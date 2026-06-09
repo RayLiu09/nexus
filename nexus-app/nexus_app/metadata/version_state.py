@@ -44,11 +44,11 @@ class VersionStateManager:
     def transition_to_available(
         self,
         session: Session,
-        version: models.DocumentVersion,
+        version: models.AssetVersion,
         governance_result: models.GovernanceResult,
         *,
         user_id: str | None = None,
-    ) -> models.DocumentVersion:
+    ) -> models.AssetVersion:
         """Transition version to available, enforcing unique-available.
 
         Serializes concurrent transitions for the same asset by acquiring a row-level
@@ -90,11 +90,11 @@ class VersionStateManager:
     def transition_to_review_required(
         self,
         session: Session,
-        version: models.DocumentVersion,
+        version: models.AssetVersion,
         governance_result: models.GovernanceResult,
         *,
         user_id: str | None = None,
-    ) -> models.DocumentVersion:
+    ) -> models.AssetVersion:
         """Transition version to review_required."""
         version.version_status = AssetVersionStatus.REVIEW_REQUIRED
         session.flush()
@@ -142,8 +142,8 @@ class VersionStateManager:
         correctness; PostgreSQL acquires a row lock.
         """
         session.execute(
-            select(models.DocumentAsset)
-            .where(models.DocumentAsset.id == asset_id)
+            select(models.Asset)
+            .where(models.Asset.id == asset_id)
             .with_for_update()
         ).first()
 
@@ -151,10 +151,10 @@ class VersionStateManager:
         self, session: Session, asset_id: str, *, exclude_version_id: str
     ) -> None:
         old_available = session.scalars(
-            select(models.DocumentVersion).where(
-                models.DocumentVersion.asset_id == asset_id,
-                models.DocumentVersion.version_status == AssetVersionStatus.AVAILABLE,
-                models.DocumentVersion.id != exclude_version_id,
+            select(models.AssetVersion).where(
+                models.AssetVersion.asset_id == asset_id,
+                models.AssetVersion.version_status == AssetVersionStatus.AVAILABLE,
+                models.AssetVersion.id != exclude_version_id,
             )
         ).all()
         for old_v in old_available:

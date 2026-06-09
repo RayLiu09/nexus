@@ -160,9 +160,9 @@ export function makeRawObject(overrides: Partial<RawObjectInput> & { batch_id: s
   };
 }
 
-// ── DocumentAsset ──────────────────────────────────────────────────────────
+// ── Asset ──────────────────────────────────────────────────────────────────
 
-export interface DocumentAssetInput {
+export interface AssetInput {
   id: string;
   data_source_id: string;
   source_object_key: string;
@@ -175,7 +175,7 @@ export interface DocumentAssetInput {
   updated_at: string;
 }
 
-export function makeDocumentAsset(overrides: Partial<DocumentAssetInput> & { data_source_id: string }): DocumentAssetInput {
+export function makeAsset(overrides: Partial<AssetInput> & { data_source_id: string }): AssetInput {
   return {
     id: crypto.randomUUID(),
     source_object_key: "doc/001",

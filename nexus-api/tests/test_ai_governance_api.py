@@ -48,14 +48,14 @@ def _seed_data(session: Session):
     session.add(raw)
     session.flush()
 
-    asset = models.DocumentAsset(
+    asset = models.Asset(
         data_source_id=ds.id, source_object_key="api-test.pdf",
         title="API Test Asset", asset_kind=AssetKind.DOCUMENT,
     )
     session.add(asset)
     session.flush()
 
-    version = models.DocumentVersion(
+    version = models.AssetVersion(
         asset_id=asset.id, raw_object_id=raw.id,
         version_no=1, source_checksum="api-abc123",
         version_status=AssetVersionStatus.PROCESSING,

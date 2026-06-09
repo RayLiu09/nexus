@@ -305,10 +305,10 @@ def _seed_asset_with_version(
     ds: models.DataSource,
     version_no: int,
     version_status: AssetVersionStatus,
-) -> tuple[models.DocumentAsset, models.DocumentVersion]:
-    asset = session.get(models.DocumentAsset, asset_id)
+) -> tuple[models.Asset, models.AssetVersion]:
+    asset = session.get(models.Asset, asset_id)
     if asset is None:
-        asset = models.DocumentAsset(
+        asset = models.Asset(
             id=asset_id,
             data_source_id=ds.id,
             source_object_key=f"{asset_id}-key",
@@ -332,7 +332,7 @@ def _seed_asset_with_version(
     session.add(raw)
     session.flush()
 
-    version = models.DocumentVersion(
+    version = models.AssetVersion(
         id=f"{asset_id}-v{version_no}",
         asset_id=asset.id,
         raw_object_id=raw.id,

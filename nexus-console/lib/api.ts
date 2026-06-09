@@ -131,7 +131,7 @@ export type JobStage = {
 export type ParseArtifact = {
   id: string;
   raw_object_id: string;
-  document_version_id: string | null;
+  asset_version_id: string | null;
   artifact_uri: string;
   parse_mode: string;
   checksum: string;
@@ -157,7 +157,7 @@ export type NormalizedAssetRef = {
   updated_at: string;
 };
 
-export type DocumentAsset = {
+export type Asset = {
   id: string;
   data_source_id: string;
   source_object_key: string;
@@ -170,7 +170,7 @@ export type DocumentAsset = {
   updated_at: string;
 };
 
-export type DocumentVersion = {
+export type AssetVersion = {
   id: string;
   asset_id: string;
   raw_object_id: string;
@@ -184,10 +184,10 @@ export type DocumentVersion = {
 };
 
 export type AssetDetail = {
-  asset: DocumentAsset;
-  versions: DocumentVersion[];
+  asset: Asset;
+  versions: AssetVersion[];
   normalized_refs: NormalizedAssetRef[];
-  current_version: DocumentVersion | null;
+  current_version: AssetVersion | null;
   current_normalized_ref: NormalizedAssetRef | null;
 };
 

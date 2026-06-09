@@ -40,8 +40,8 @@ def list_assets(
     *,
     limit: int | None = None,
     offset: int | None = None,
-) -> list[models.DocumentAsset]:
-    stmt = select(models.DocumentAsset).order_by(models.DocumentAsset.created_at.desc())
+) -> list[models.Asset]:
+    stmt = select(models.Asset).order_by(models.Asset.created_at.desc())
     if offset is not None:
         stmt = stmt.offset(offset)
     if limit is not None:
@@ -50,31 +50,31 @@ def list_assets(
 
 
 def count_assets(session: Session) -> int:
-    return int(session.scalar(select(func.count()).select_from(models.DocumentAsset)) or 0)
+    return int(session.scalar(select(func.count()).select_from(models.Asset)) or 0)
 
 
-def list_asset_versions(session: Session, asset_id: str) -> list[models.DocumentVersion]:
+def list_asset_versions(session: Session, asset_id: str) -> list[models.AssetVersion]:
     """Versions of a single asset — bounded by domain (a handful per asset)
     so pagination at the API layer would just add noise."""
     return list(
         session.scalars(
-            select(models.DocumentVersion)
-            .where(models.DocumentVersion.asset_id == asset_id)
-            .order_by(models.DocumentVersion.version_no.desc())
+            select(models.AssetVersion)
+            .where(models.AssetVersion.asset_id == asset_id)
+            .order_by(models.AssetVersion.version_no.desc())
         ).all()
     )
 
 
 def get_current_version(
     session: Session, asset_id: str
-) -> models.DocumentVersion | None:
+) -> models.AssetVersion | None:
     return session.scalar(
-        select(models.DocumentVersion)
+        select(models.AssetVersion)
         .where(
-            models.DocumentVersion.asset_id == asset_id,
-            models.DocumentVersion.version_status == AssetVersionStatus.AVAILABLE,
+            models.AssetVersion.asset_id == asset_id,
+            models.AssetVersion.version_status == AssetVersionStatus.AVAILABLE,
         )
-        .order_by(models.DocumentVersion.created_at.desc())
+        .order_by(models.AssetVersion.created_at.desc())
     )
 
 

@@ -385,13 +385,13 @@ class JobStage(TimestampMixin, Base):
     job: Mapped[Job] = relationship()
 
 
-class DocumentAsset(TimestampMixin, Base):
+class Asset(TimestampMixin, Base):
     # Table renamed `document_asset` → `asset` in Alembic 0020 to align with
     # ARCHITECT.md. Python class name preserved to avoid a separate cascade
     # through console TypeScript types in this PR.
     __tablename__ = "asset"
     __table_args__ = (
-        UniqueConstraint("data_source_id", "source_object_key", name="uq_document_asset_source_key"),
+        UniqueConstraint("data_source_id", "source_object_key", name="uq_asset_source_key"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
@@ -415,16 +415,16 @@ class DocumentAsset(TimestampMixin, Base):
     data_source: Mapped[DataSource] = relationship()
 
 
-class DocumentVersion(TimestampMixin, Base):
+class AssetVersion(TimestampMixin, Base):
     # Table renamed `document_version` → `asset_version` in Alembic 0020.
     __tablename__ = "asset_version"
-    # Partial unique index `uq_document_version_one_available_per_asset` is
+    # Partial unique index `uq_asset_version_one_available_per_asset` is
     # PostgreSQL-only and lives in Alembic 0014. Not declared here because
     # SQLAlchemy's `postgresql_where` is silently ignored by SQLite and would
     # create a full UNIQUE(asset_id) — fatally broken for non-PG environments.
     __table_args__ = (
-        UniqueConstraint("asset_id", "version_no", name="uq_document_version_asset_no"),
-        Index("ix_document_version_asset_status", "asset_id", "version_status"),
+        UniqueConstraint("asset_id", "version_no", name="uq_asset_version_asset_no"),
+        Index("ix_asset_version_asset_status", "asset_id", "version_status"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
@@ -444,7 +444,7 @@ class DocumentVersion(TimestampMixin, Base):
     failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
-    asset: Mapped[DocumentAsset] = relationship()
+    asset: Mapped[Asset] = relationship()
     raw_object: Mapped[RawObject] = relationship()
 
 
@@ -456,7 +456,7 @@ class ParseArtifact(TimestampMixin, Base):
     raw_object_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("raw_object.id"), nullable=False
     )
-    document_version_id: Mapped[str | None] = mapped_column(
+    asset_version_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("asset_version.id"), nullable=True
     )
     artifact_uri: Mapped[str] = mapped_column(String(1024), nullable=False)
@@ -471,7 +471,7 @@ class ParseArtifact(TimestampMixin, Base):
     metadata_summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
     raw_object: Mapped[RawObject] = relationship()
-    document_version: Mapped[DocumentVersion | None] = relationship()
+    asset_version: Mapped[AssetVersion | None] = relationship()
 
 
 class NormalizedAssetRef(TimestampMixin, Base):
@@ -516,7 +516,7 @@ class NormalizedAssetRef(TimestampMixin, Base):
     metadata_summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False,
         comment="Source, business, temporal metadata for search enrichment")
 
-    version: Mapped[DocumentVersion] = relationship()
+    version: Mapped[AssetVersion] = relationship()
 
 
 class AIPromptProfile(TimestampMixin, Base):

@@ -161,7 +161,7 @@ def _maybe_aggregate_batch(session: Session, job: models.Job) -> None:
 
 def _run_document_pipeline(
     ctx: PipelineContext,
-    version: models.DocumentVersion,
+    version: models.AssetVersion,
 ) -> models.NormalizedAssetRef:
     """Pipeline A: parse (MinerU) → normalize_document."""
     artifact = run_parse(ctx, version)
@@ -170,7 +170,7 @@ def _run_document_pipeline(
 
 def _run_record_pipeline(
     ctx: PipelineContext,
-    version: models.DocumentVersion,
+    version: models.AssetVersion,
     raw_payload: dict[str, Any],
 ) -> models.NormalizedAssetRef:
     """Pipeline B: normalize_record (no parse stage)."""
@@ -434,8 +434,8 @@ def execute_job(
     )
 
     # Stage 1: assetize — failures here are rolled back (no significant partial state)
-    asset: models.DocumentAsset | None = None
-    version: models.DocumentVersion | None = None
+    asset: models.Asset | None = None
+    version: models.AssetVersion | None = None
     try:
         asset, version = run_assetize(ctx, raw_payload)
     except Exception as exc:

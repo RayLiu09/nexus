@@ -128,8 +128,8 @@ def delete_data_source(
             .limit(1)
         )
         asset_count = session.scalar(
-            select(models.DocumentAsset.id)
-            .where(models.DocumentAsset.data_source_id == source.id)
+            select(models.Asset.id)
+            .where(models.Asset.data_source_id == source.id)
             .limit(1)
         )
         if raw_count is not None or asset_count is not None:

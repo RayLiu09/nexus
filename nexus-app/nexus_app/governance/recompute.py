@@ -40,21 +40,21 @@ RecomputeScope = Literal["review_required_only", "all_affected"]
 
 def enumerate_affected_refs(
     session: Session, *, current_schema_version: str
-) -> list[tuple[models.GovernanceResult, models.DocumentVersion]]:
+) -> list[tuple[models.GovernanceResult, models.AssetVersion]]:
     """Find governance_result rows whose snapshot does not match the new rules,
-    paired with the DocumentVersion (via the NormalizedAssetRef) they belong to.
+    paired with the AssetVersion (via the NormalizedAssetRef) they belong to.
     """
     rows = session.scalars(
         select(models.GovernanceResult).where(
             models.GovernanceResult.rules_schema_version != current_schema_version
         )
     ).all()
-    pairs: list[tuple[models.GovernanceResult, models.DocumentVersion]] = []
+    pairs: list[tuple[models.GovernanceResult, models.AssetVersion]] = []
     for result in rows:
         ref = session.get(models.NormalizedAssetRef, result.normalized_ref_id)
         if ref is None:
             continue
-        version = session.get(models.DocumentVersion, ref.version_id)
+        version = session.get(models.AssetVersion, ref.version_id)
         if version is None:
             continue
         pairs.append((result, version))

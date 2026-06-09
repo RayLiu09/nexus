@@ -65,9 +65,9 @@ from nexus_app.worker.runner import execute_job
 def _existing_job_for_ref(session, ref_id: str) -> models.Job:
     """Locate the Job row that was created when the ingest pipeline ran for this ref."""
     version = session.scalars(
-        select(models.DocumentVersion)
+        select(models.AssetVersion)
         .join(models.NormalizedAssetRef,
-              models.NormalizedAssetRef.version_id == models.DocumentVersion.id)
+              models.NormalizedAssetRef.version_id == models.AssetVersion.id)
         .where(models.NormalizedAssetRef.id == ref_id)
     ).first()
     job = session.scalars(
@@ -158,13 +158,13 @@ def make_ai_run(session):
                 pass
 
         asset_id = session.scalars(
-            select(models.DocumentAsset.id).where(
-                models.DocumentAsset.data_source_id == source.id
+            select(models.Asset.id).where(
+                models.Asset.data_source_id == source.id
             )
         ).first()
         version = session.scalars(
-            select(models.DocumentVersion).where(
-                models.DocumentVersion.asset_id == asset_id
+            select(models.AssetVersion).where(
+                models.AssetVersion.asset_id == asset_id
             )
         ).first()
         ref = session.scalars(
@@ -429,7 +429,7 @@ class TestVersionStateRace:
         assert version1.version_status == AssetVersionStatus.AVAILABLE
 
         # Promote v2 (new version on the same asset)
-        version2 = models.DocumentVersion(
+        version2 = models.AssetVersion(
             asset_id=version1.asset_id,
             raw_object_id=version1.raw_object_id,
             version_no=2,
@@ -473,9 +473,9 @@ class TestVersionStateRace:
         assert version2.version_status == AssetVersionStatus.AVAILABLE
 
         all_available = session.scalars(
-            select(models.DocumentVersion).where(
-                models.DocumentVersion.asset_id == version1.asset_id,
-                models.DocumentVersion.version_status == AssetVersionStatus.AVAILABLE,
+            select(models.AssetVersion).where(
+                models.AssetVersion.asset_id == version1.asset_id,
+                models.AssetVersion.version_status == AssetVersionStatus.AVAILABLE,
             )
         ).all()
         assert len(all_available) == 1

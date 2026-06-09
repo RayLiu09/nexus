@@ -1,6 +1,6 @@
-import type { DocumentAsset } from "@/lib/api";
+import type { Asset } from "@/lib/api";
 
-export type AssetWithMeta = DocumentAsset & {
+export type AssetWithMeta = Asset & {
   domain?: string;
   level?: string;
   current_version_no?: string;

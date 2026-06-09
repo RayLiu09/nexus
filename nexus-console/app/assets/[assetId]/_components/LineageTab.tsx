@@ -10,15 +10,15 @@ import {
 import { StatusLabel } from "@/components/StatusLabel";
 import {
   shortId,
-  type DocumentAsset,
-  type DocumentVersion,
+  type Asset,
+  type AssetVersion,
   type NormalizedAssetRef,
   type ParseArtifact,
 } from "@/lib/api";
 
 type Props = {
-  asset: DocumentAsset | null;
-  latestVersion: DocumentVersion | null;
+  asset: Asset | null;
+  latestVersion: AssetVersion | null;
   latestRef: NormalizedAssetRef | null;
   relatedArtifact: ParseArtifact | null;
 };

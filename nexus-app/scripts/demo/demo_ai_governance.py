@@ -70,7 +70,7 @@ def seed_demo_data(session) -> tuple[models.AIPromptProfile, models.NormalizedAs
     session.flush()
 
     # Asset + version
-    asset = models.DocumentAsset(
+    asset = models.Asset(
         data_source_id=ds.id, source_object_key="demo-teaching-material.pdf",
         title="Demo Teaching Material",
         asset_kind=AssetKind.DOCUMENT,
@@ -78,7 +78,7 @@ def seed_demo_data(session) -> tuple[models.AIPromptProfile, models.NormalizedAs
     session.add(asset)
     session.flush()
 
-    version = models.DocumentVersion(
+    version = models.AssetVersion(
         asset_id=asset.id, raw_object_id=raw.id,
         version_no=1, source_checksum="demo-abc123",
         version_status=AssetVersionStatus.PROCESSING,

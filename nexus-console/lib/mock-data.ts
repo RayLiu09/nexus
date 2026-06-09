@@ -4,8 +4,8 @@ import type {
   Job,
   JobStage,
   RawObject,
-  DocumentAsset,
-  DocumentVersion,
+  Asset,
+  AssetVersion,
   NormalizedAssetRef,
   AssetDetail,
   AIGovernanceRun,
@@ -202,7 +202,7 @@ export const MOCK_JOBS: Job[] = [
 
 // ── Assets ─────────────────────────────────────────────────────
 
-export const MOCK_DOCUMENT_VERSIONS: DocumentVersion[] = [
+export const MOCK_ASSET_VERSIONS: AssetVersion[] = [
   { id: "ver-001", asset_id: "asset-001", raw_object_id: "raw-001", version_no: 1, version_status: "available", source_checksum: "sha256:a1b2c3...", failure_reason: null, metadata_summary: {}, created_at: "2026-06-01T08:00:30Z", updated_at: "2026-06-01T08:03:15Z" },
   { id: "ver-003", asset_id: "asset-003", raw_object_id: "raw-003", version_no: 1, version_status: "processing", source_checksum: "sha256:c3d4e5...", failure_reason: null, metadata_summary: {}, created_at: "2026-06-01T09:01:00Z", updated_at: "2026-06-01T09:15:00Z" },
   { id: "ver-004", asset_id: "asset-004", raw_object_id: "raw-004", version_no: 1, version_status: "available", source_checksum: "sha256:d4e5f6...", failure_reason: null, metadata_summary: {}, created_at: "2026-05-31T14:00:30Z", updated_at: "2026-05-31T14:03:00Z" },
@@ -213,7 +213,7 @@ export const MOCK_NORMALIZED_REFS: NormalizedAssetRef[] = [
   { id: "ref-004", version_id: "ver-004", normalized_type: "document", object_uri: "s3://nexus-norm/ref-004.json", schema_version: "v3.1", checksum: "sha256:n4...", status: "available", block_count: 28, record_count: 0, metadata_summary: {}, created_at: "2026-05-31T14:02:00Z", updated_at: "2026-05-31T14:03:00Z" },
 ];
 
-export const MOCK_ASSETS: DocumentAsset[] = [
+export const MOCK_ASSETS: Asset[] = [
   { id: "asset-001", data_source_id: "ds-001", source_object_key: "nas/teaching-resources/math/advanced-math-v3.2.pdf", title: "高等数学教学大纲 v3.2", asset_kind: "document", status: "available", org_scope: ["教务处"], metadata_summary: { author: "数学教研室", pages: 42 }, created_at: "2026-06-01T08:00:30Z", updated_at: "2026-06-01T08:03:15Z" },
   { id: "asset-002", data_source_id: "ds-002", source_object_key: "crawler/gov/zhengce/2026-work-plan.html", title: "教育部2026年工作要点", asset_kind: "document", status: "available", org_scope: ["教务处", "信息中心"], metadata_summary: { source: "gov.cn", sections: 8 }, created_at: "2026-06-01T08:31:00Z", updated_at: "2026-06-01T08:32:45Z" },
   { id: "asset-003", data_source_id: "ds-003", source_object_key: "db/hr/employee-training-2026Q2", title: "员工培训记录 2026Q2", asset_kind: "record", status: "processing", org_scope: ["人事部"], metadata_summary: { records: 1280 }, created_at: "2026-06-01T09:01:00Z", updated_at: "2026-06-01T09:15:00Z" },
@@ -222,9 +222,9 @@ export const MOCK_ASSETS: DocumentAsset[] = [
 
 export const MOCK_ASSET_DETAIL: AssetDetail = {
   asset: MOCK_ASSETS[0],
-  versions: [MOCK_DOCUMENT_VERSIONS[0]],
+  versions: [MOCK_ASSET_VERSIONS[0]],
   normalized_refs: [MOCK_NORMALIZED_REFS[0]],
-  current_version: MOCK_DOCUMENT_VERSIONS[0],
+  current_version: MOCK_ASSET_VERSIONS[0],
   current_normalized_ref: MOCK_NORMALIZED_REFS[0],
 };
 

@@ -3,7 +3,7 @@ import {
   type AIGovernanceRun,
   type AuditLog,
   type DataSource,
-  type DocumentAsset,
+  type Asset,
   type IngestBatch,
   type Job,
   type NormalizedAssetRef,
@@ -32,7 +32,7 @@ export async function loadWorkbenchData() {
     getApiData<IngestBatch[]>("/internal/v1/ingest/batches", []),
     getApiData<RawObject[]>("/internal/v1/raw-objects", []),
     getApiData<Job[]>("/internal/v1/jobs", []),
-    getApiData<DocumentAsset[]>("/internal/v1/assets", []),
+    getApiData<Asset[]>("/internal/v1/assets", []),
     getApiData<NormalizedAssetRef[]>("/internal/v1/normalized-refs", []),
     getApiData<AuditLog[]>("/internal/v1/audit-logs", []),
     getApiData<AIGovernanceRun[]>("/internal/v1/ai/governance-runs", [])
@@ -94,7 +94,7 @@ export async function loadWeek2Lists() {
       getApiData<Job[]>("/internal/v1/jobs", []),
       getApiData<ParseArtifact[]>("/internal/v1/parse-artifacts", []),
       getApiData<NormalizedAssetRef[]>("/internal/v1/normalized-refs", []),
-      getApiData<DocumentAsset[]>("/internal/v1/assets", [])
+      getApiData<Asset[]>("/internal/v1/assets", [])
     ]);
 
   return { dataSources, batches, rawObjects, jobs, parseArtifacts, normalizedRefs, assets };

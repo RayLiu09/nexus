@@ -94,7 +94,7 @@ def available_graph(session: Session) -> None:
     session.add(raw)
     session.flush()
 
-    asset = models.DocumentAsset(
+    asset = models.Asset(
         id=ASSET_ID,
         data_source_id=ds.id,
         source_object_key="audit-key",
@@ -104,7 +104,7 @@ def available_graph(session: Session) -> None:
     session.add(asset)
     session.flush()
 
-    version = models.DocumentVersion(
+    version = models.AssetVersion(
         id=VERSION_ID,
         asset_id=asset.id,
         raw_object_id=raw.id,

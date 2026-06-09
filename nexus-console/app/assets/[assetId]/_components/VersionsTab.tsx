@@ -3,13 +3,13 @@
 import { Empty, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { StatusLabel } from "@/components/StatusLabel";
-import { formatDateTime, shortId, type DocumentVersion } from "@/lib/api";
+import { formatDateTime, shortId, type AssetVersion } from "@/lib/api";
 
 type Props = {
-  versions: DocumentVersion[];
+  versions: AssetVersion[];
 };
 
-const COLUMNS: ColumnsType<DocumentVersion> = [
+const COLUMNS: ColumnsType<AssetVersion> = [
   {
     title: "版本ID",
     dataIndex: "id",

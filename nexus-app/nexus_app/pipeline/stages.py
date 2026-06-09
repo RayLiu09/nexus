@@ -87,8 +87,8 @@ def _json_bytes(value: dict[str, Any]) -> bytes:
 def run_assetize(
     ctx: PipelineContext,
     raw_payload: dict[str, Any] | None = None,
-) -> tuple[models.DocumentAsset, models.DocumentVersion]:
-    """Stage 1 (both pipelines): Create or re-version DocumentAsset + DocumentVersion.
+) -> tuple[models.Asset, models.AssetVersion]:
+    """Stage 1 (both pipelines): Create or re-version Asset + AssetVersion.
 
     Idempotency anchor: (data_source_id, source_object_key).
     - Same source_object_key, same checksum → caller should have skipped via duplicate check.
@@ -104,17 +104,17 @@ def run_assetize(
     )
 
     existing_asset = ctx.session.scalar(
-        select(models.DocumentAsset).where(
-            models.DocumentAsset.data_source_id == raw_object.data_source_id,
-            models.DocumentAsset.source_object_key == source_key,
+        select(models.Asset).where(
+            models.Asset.data_source_id == raw_object.data_source_id,
+            models.Asset.source_object_key == source_key,
         )
     )
 
     if existing_asset is not None:
         existing_available = ctx.session.scalars(
-            select(models.DocumentVersion).where(
-                models.DocumentVersion.asset_id == existing_asset.id,
-                models.DocumentVersion.version_status == AssetVersionStatus.AVAILABLE,
+            select(models.AssetVersion).where(
+                models.AssetVersion.asset_id == existing_asset.id,
+                models.AssetVersion.version_status == AssetVersionStatus.AVAILABLE,
             )
         ).all()
         for old_v in existing_available:
@@ -133,8 +133,8 @@ def run_assetize(
             )
 
         max_version_no = ctx.session.scalar(
-            select(func.max(models.DocumentVersion.version_no)).where(
-                models.DocumentVersion.asset_id == existing_asset.id,
+            select(func.max(models.AssetVersion.version_no)).where(
+                models.AssetVersion.asset_id == existing_asset.id,
             )
         ) or 0
 
@@ -145,7 +145,7 @@ def run_assetize(
         asset = existing_asset
         version_no = max_version_no + 1
     else:
-        asset = models.DocumentAsset(
+        asset = models.Asset(
             data_source_id=raw_object.data_source_id,
             source_object_key=source_key,
             title=title_from(raw_object, raw_payload),
@@ -158,7 +158,7 @@ def run_assetize(
         ctx.session.flush()
         version_no = 1
 
-    version = models.DocumentVersion(
+    version = models.AssetVersion(
         asset_id=asset.id,
         raw_object_id=raw_object.id,
         version_no=version_no,
@@ -182,7 +182,7 @@ def run_assetize(
 
 def run_parse(
     ctx: PipelineContext,
-    version: models.DocumentVersion,
+    version: models.AssetVersion,
 ) -> models.ParseArtifact:
     """Stage 2 (Pipeline A only): Call MinerU, store artifact + images, create ParseArtifact."""
     started_at = _stage_started()
@@ -205,7 +205,7 @@ def run_parse(
 
     artifact = models.ParseArtifact(
         raw_object_id=raw_object.id,
-        document_version_id=version.id,
+        asset_version_id=version.id,
         artifact_uri="pending",
         parse_mode=parsed.parse_mode,
         checksum=checksum_value(parsed.content),
@@ -266,7 +266,7 @@ def run_parse(
 
 def run_normalize_document(
     ctx: PipelineContext,
-    version: models.DocumentVersion,
+    version: models.AssetVersion,
     artifact: models.ParseArtifact,
 ) -> models.NormalizedAssetRef:
     """Stage 3 (Pipeline A): Build normalized_document from MinerU parse artifact."""
@@ -293,7 +293,7 @@ def run_normalize_document(
 
 def run_normalize_record(
     ctx: PipelineContext,
-    version: models.DocumentVersion,
+    version: models.AssetVersion,
     raw_payload: dict[str, Any],
 ) -> models.NormalizedAssetRef:
     """Stage 3 (Pipeline B): Build normalized_record from raw JSON payload (no MinerU)."""
@@ -480,7 +480,7 @@ def _build_normalized_record(
 
 def _persist_normalized_ref(
     ctx: PipelineContext,
-    version: models.DocumentVersion,
+    version: models.AssetVersion,
     normalized_type: NormalizedType,
     normalized_payload: dict[str, Any],
     *,
@@ -558,7 +558,7 @@ def _persist_normalized_ref(
 
 def run_governance_decision(
     ctx: PipelineContext,
-    version: models.DocumentVersion,
+    version: models.AssetVersion,
     normalized_ref: models.NormalizedAssetRef,
 ) -> models.GovernanceResult | None:
     """Stage 4 (both pipelines): AI governance + decision + version status transition.
@@ -683,7 +683,7 @@ def _find_active_governance_profile(
 
 def run_knowledge_chunking(
     ctx: PipelineContext,
-    version: models.DocumentVersion,
+    version: models.AssetVersion,
     normalized_ref: models.NormalizedAssetRef,
 ) -> list[models.KnowledgeChunk]:
     """Stage 5a: Generate KnowledgeChunk records via Knowledge Pipeline.
@@ -772,7 +772,7 @@ def _load_normalized_content(
 
 def run_index_submit(
     ctx: PipelineContext,
-    version: models.DocumentVersion,
+    version: models.AssetVersion,
     normalized_ref: models.NormalizedAssetRef,
     chunks: list[models.KnowledgeChunk],
 ) -> list[models.IndexManifest]:

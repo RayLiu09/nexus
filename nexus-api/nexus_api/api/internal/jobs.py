@@ -116,8 +116,8 @@ def retry_job(job_id: str, request: Request, session: Session = Depends(get_db))
     )
     if job.raw_object_id is not None:
         version = session.scalars(
-            select(models.DocumentVersion).where(
-                models.DocumentVersion.raw_object_id == job.raw_object_id
+            select(models.AssetVersion).where(
+                models.AssetVersion.raw_object_id == job.raw_object_id
             )
         ).first()
         if version is not None and version.version_status == AssetVersionStatus.FAILED:

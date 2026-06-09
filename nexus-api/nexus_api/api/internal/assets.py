@@ -20,7 +20,7 @@ from nexus_app.enums import AssetVersionStatus, AuditEventType, StageStatus
 router = APIRouter()
 
 
-@router.get("/assets", response_model=schemas.ListResponse[domain_schemas.DocumentAssetRead])
+@router.get("/assets", response_model=schemas.ListResponse[domain_schemas.AssetRead])
 def list_assets(
     request: Request,
     pagination: Pagination = Depends(pagination_params),
@@ -41,7 +41,7 @@ def list_assets(
     response_model=schemas.ApiResponse[domain_schemas.AssetDetailRead],
 )
 def get_asset(asset_id: str, request: Request, session: Session = Depends(get_db)):
-    asset = services.get_row(session, models.DocumentAsset, asset_id, "asset")
+    asset = services.get_row(session, models.Asset, asset_id, "asset")
     versions = pipeline.list_asset_versions(session, asset_id)
     refs = pipeline.list_normalized_refs_for_versions(
         session, [version.id for version in versions]
@@ -53,16 +53,16 @@ def get_asset(asset_id: str, request: Request, session: Session = Depends(get_db
         else None
     )
     detail = domain_schemas.AssetDetailRead(
-        asset=domain_schemas.DocumentAssetRead.model_validate(asset),
+        asset=domain_schemas.AssetRead.model_validate(asset),
         versions=[
-            domain_schemas.DocumentVersionRead.model_validate(version)
+            domain_schemas.AssetVersionRead.model_validate(version)
             for version in versions
         ],
         normalized_refs=[
             domain_schemas.NormalizedAssetRefRead.model_validate(ref) for ref in refs
         ],
         current_version=(
-            domain_schemas.DocumentVersionRead.model_validate(current_version)
+            domain_schemas.AssetVersionRead.model_validate(current_version)
             if current_version is not None
             else None
         ),
@@ -77,10 +77,10 @@ def get_asset(asset_id: str, request: Request, session: Session = Depends(get_db
 
 @router.get(
     "/assets/{asset_id}/versions",
-    response_model=schemas.ListResponse[domain_schemas.DocumentVersionRead],
+    response_model=schemas.ListResponse[domain_schemas.AssetVersionRead],
 )
 def list_asset_versions(asset_id: str, request: Request, session: Session = Depends(get_db)):
-    services.get_row(session, models.DocumentAsset, asset_id, "asset")
+    services.get_row(session, models.Asset, asset_id, "asset")
     return list_response(pipeline.list_asset_versions(session, asset_id), request)
 
 
@@ -94,7 +94,7 @@ def restart_governance_for_version(
     session: Session = Depends(get_db),
 ):
     """Restart a version stuck in `failed` after AI governance exhausted retries."""
-    version = session.get(models.DocumentVersion, version_id)
+    version = session.get(models.AssetVersion, version_id)
     if version is None:
         raise HTTPException(status_code=404, detail=f"version '{version_id}' not found")
     if version.version_status != AssetVersionStatus.FAILED:

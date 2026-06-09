@@ -29,7 +29,7 @@ export default async function AssetDetailPage({
   const latestVersion = result.data?.current_version ?? result.data?.versions[0] ?? null;
   const latestRef = result.data?.current_normalized_ref ?? result.data?.normalized_refs[0] ?? null;
   const relatedArtifact =
-    parseArtifacts.data.find((a) => a.document_version_id === latestVersion?.id) ??
+    parseArtifacts.data.find((a) => a.asset_version_id === latestVersion?.id) ??
     parseArtifacts.data.find((a) => a.raw_object_id === latestVersion?.raw_object_id);
 
   // Fetch AI governance runs for the latest normalized ref

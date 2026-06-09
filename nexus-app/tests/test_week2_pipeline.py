@@ -212,7 +212,7 @@ def test_record_pipeline_fails_fast_on_invalid_raw_payload(session):
     batch = accepted.batch
     raw = accepted.raw_object
 
-    versions = services.list_rows(session, models.DocumentVersion)
+    versions = services.list_rows(session, models.AssetVersion)
     stages = pipeline.list_job_stages(session, job.id)
 
     assert job.status == JobStatus.FAILED
@@ -226,9 +226,9 @@ def test_record_pipeline_fails_fast_on_invalid_raw_payload(session):
 
 
 def test_week2_forbidden_reverse_pointers_are_not_present():
-    assert not hasattr(models.DocumentAsset, "current_version_id")
-    assert not hasattr(models.DocumentVersion, "normalized_ref_id")
-    assert not hasattr(models.DocumentVersion, "quality_report_id")
+    assert not hasattr(models.Asset, "current_version_id")
+    assert not hasattr(models.AssetVersion, "normalized_ref_id")
+    assert not hasattr(models.AssetVersion, "quality_report_id")
 
 
 def test_pipeline_type_is_document_for_file_upload(session):
