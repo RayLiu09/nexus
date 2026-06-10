@@ -7,6 +7,7 @@ AND quality_level == pass AND level not requiring approval
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import uuid
 from typing import Any
@@ -92,6 +93,7 @@ class GovernanceDecisionService:
             decision_trail=[e.model_dump() for e in trail],
             rules_schema_version=rules_snapshot["schema_version"],
             rules_content_hash=rules_snapshot["content_hash"],
+            rules_version_id=rules_snapshot.get("rules_version_id"),
             status=overall_status,
             created_by=user_id,
             trace_id=trace_id,
@@ -120,11 +122,11 @@ class GovernanceDecisionService:
     # ------------------------------------------------------------------
 
     def _take_rules_snapshot(self, config: GovernanceRulesConfig) -> dict[str, str]:
-        content_bytes = self._registry._content_bytes or b""
-        content_hash = hashlib.sha256(content_bytes).hexdigest()[:16]
+        content_hash = self._registry.get_rules_content_hash()
         return {
             "schema_version": config.schema_version,
             "content_hash": content_hash,
+            "rules_version_id": self._registry.get_rules_version_id(),
         }
 
     def _check_classification(

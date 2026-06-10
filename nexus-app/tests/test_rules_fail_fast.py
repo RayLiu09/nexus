@@ -34,16 +34,12 @@ def test_lifespan_fails_when_rules_missing():
 
 
 class TestFailFastBehaviour:
-    def test_invalid_governance_rules_raises_runtime_error(self, monkeypatch, tmp_path):
-        """A garbled rules file must cause a Pydantic validation error during load."""
-        bad = tmp_path / "bad_rules.json"
-        bad.write_text(json.dumps({"schema_version": "1.0", "classifications": []}))
-        monkeypatch.setenv("NEXUS_GOVERNANCE_RULES_PATH", str(bad))
-
+    def test_invalid_governance_rules_raises_runtime_error(self):
+        """A rules dict missing required fields must cause a Pydantic validation error."""
         from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
         reg = GovernanceRulesRegistry()
         with pytest.raises(Exception):
-            reg.load()
+            reg.load_dict({"schema_version": "1.0", "classifications": []})
 
     def test_missing_ingest_validate_raises_filenotfound(self, monkeypatch, tmp_path):
         monkeypatch.setenv("NEXUS_INGEST_VALIDATE_PATH", str(tmp_path / "missing.json"))

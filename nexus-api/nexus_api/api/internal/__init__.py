@@ -26,6 +26,7 @@ from nexus_api.api.internal.assets import router as _assets_router
 from nexus_api.api.internal.ai_prompts import router as _ai_prompts_router
 from nexus_api.api.internal.ai_governance import router as _ai_governance_router
 from nexus_api.api.internal.governance import router as _governance_router
+from nexus_api.api.internal.governance_prompts import router as _governance_prompts_router
 
 # Auth router — separate top-level mount, no shared deps.
 from nexus_api.api.internal.auth import router as auth_router
@@ -107,6 +108,14 @@ from nexus_api.api.internal.governance import (  # noqa: F401
     update_governance_rules,
     reload_governance_rules,
     recompute_governance_rules,
+    list_governance_rules_versions,
+    get_governance_rules_version,
+)
+from nexus_api.api.internal.governance_prompts import (  # noqa: F401
+    list_prompt_templates,
+    get_prompt_template,
+    update_prompt_template,
+    disable_prompt_template,
 )
 
 
@@ -127,6 +136,7 @@ router.include_router(_assets_router)
 router.include_router(_ai_prompts_router)
 router.include_router(_ai_governance_router)
 router.include_router(_governance_router)
+router.include_router(_governance_prompts_router)
 
 
 __all__ = ["router", "auth_router"]

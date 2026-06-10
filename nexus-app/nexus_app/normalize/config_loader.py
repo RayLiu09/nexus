@@ -5,7 +5,7 @@ fields, format constraints, classification hint whitelist). Separate from
 governance_rules.json (AI/business rules) and ingest_validate.json (platform
 ingest constraints).
 
-Uses the same ETag + fcntl + Pydantic triple protection as the other registries.
+Uses ETag + fcntl + Pydantic triple protection (file-based config).
 """
 from __future__ import annotations
 

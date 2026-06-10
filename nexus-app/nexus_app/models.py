@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from nexus_app.database import Base
@@ -19,6 +19,9 @@ from nexus_app.enums import (
     DataSourceType,
     EmbeddingStatus,
     GovernanceResultStatus,
+    GovernancePromptTemplateStatus,
+    GovernanceRulesVersionStatus,
+    GovernanceTaskType,
     IndexManifestStatus,
     IngestBatchStatus,
     JobStatus,
@@ -563,8 +566,8 @@ class AIGovernanceRun(TimestampMixin, Base):
     normalized_ref_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("normalized_asset_ref.id"), nullable=False
     )
-    profile_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("ai_prompt_profile.id"), nullable=False
+    profile_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("ai_prompt_profile.id"), nullable=True
     )
     model_alias: Mapped[str] = mapped_column(String(128), nullable=False)
     prompt_version: Mapped[str] = mapped_column(String(40), nullable=False)
@@ -590,6 +593,8 @@ class AIGovernanceRun(TimestampMixin, Base):
     request_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
     trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    prompt_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True,
+        comment="Snapshot of prompt template ids used for multi-stage governance")
 
     normalized_ref: Mapped[NormalizedAssetRef] = relationship()
     profile: Mapped[AIPromptProfile] = relationship()
@@ -628,6 +633,9 @@ class GovernanceResult(TimestampMixin, Base):
         comment="schema_version of governance_rules.json at decision time")
     rules_content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True,
         comment="sha256 of governance_rules.json content at decision time")
+    rules_version_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("governance_rules_version.id"), nullable=True,
+        comment="FK to governance_rules_version used at decision time")
     status: Mapped[GovernanceResultStatus] = mapped_column(
         Enum(GovernanceResultStatus, values_callable=lambda e: [i.value for i in e]),
         nullable=False, default=GovernanceResultStatus.REVIEW_REQUIRED,
@@ -637,6 +645,59 @@ class GovernanceResult(TimestampMixin, Base):
 
     normalized_ref: Mapped[NormalizedAssetRef] = relationship()
     ai_run: Mapped[AIGovernanceRun | None] = relationship()
+    rules_version: Mapped["GovernanceRulesVersion | None"] = relationship()
+
+
+class GovernanceRulesVersion(TimestampMixin, Base):
+    """Versioned governance rules definition — only one active at a time."""
+    __tablename__ = "governance_rules_version"
+    __table_args__ = (
+        Index("ix_grv_status", "status"),
+        Index("uq_grv_active", "status", unique=True,
+              postgresql_where=text("status = 'active'")),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    version: Mapped[int] = mapped_column(nullable=False)
+    status: Mapped[GovernanceRulesVersionStatus] = mapped_column(
+        Enum(GovernanceRulesVersionStatus, values_callable=lambda e: [i.value for i in e]),
+        default=GovernanceRulesVersionStatus.ACTIVE, nullable=False)
+    rules_content: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    change_summary: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    created_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class GovernancePromptTemplate(TimestampMixin, Base):
+    """Governance prompt template — one active per task_type at a time."""
+    __tablename__ = "governance_prompt_template"
+    __table_args__ = (
+        Index("ix_gpt_task_type", "task_type"),
+        Index("ix_gpt_status", "status"),
+        Index("uq_gpt_task_type_active", "task_type", unique=True,
+              postgresql_where=text("status = 'active'")),
+        UniqueConstraint("task_type", "template_version",
+                         name="uq_gpt_task_type_version"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    task_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    template_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    template_version: Mapped[int] = mapped_column(nullable=False, default=1)
+    status: Mapped[GovernancePromptTemplateStatus] = mapped_column(
+        Enum(GovernancePromptTemplateStatus, values_callable=lambda e: [i.value for i in e]),
+        default=GovernancePromptTemplateStatus.ACTIVE, nullable=False)
+    prompt_template: Mapped[str] = mapped_column(Text, nullable=False)
+    output_schema_version: Mapped[str] = mapped_column(String(40), nullable=False, default="1.0")
+    litellm_model_alias: Mapped[str] = mapped_column(String(128), nullable=False)
+    temperature: Mapped[float] = mapped_column(nullable=False, default=0.2)
+    max_input_tokens: Mapped[int] = mapped_column(nullable=False, default=4096)
+    redaction_policy: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                   default="masked_content")
+    change_summary: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    created_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class IndexManifest(TimestampMixin, Base):

@@ -6,15 +6,24 @@ import {
   App,
   Button,
   Card,
+  Drawer,
   Modal,
   Skeleton,
   Space,
+  Table,
+  Tag,
+  Typography,
 } from "antd";
+import { HistoryOutlined } from "@ant-design/icons";
 import { PageHeader } from "@/components/PageHeader";
 import {
   fetchGovernanceRules,
   saveGovernanceRules,
+  fetchGovernanceRulesVersions,
+  fetchGovernanceRulesVersion,
   type GovernanceRules,
+  type GovernanceRulesVersion,
+  type GovernanceRulesVersionDetail,
   type RecomputeScope,
   type RecomputeSummary,
 } from "@/lib/governance-rules-api";
@@ -56,7 +65,6 @@ export default function RulesPage() {
   const { message } = App.useApp();
   const [rules, setRules] = useState<GovernanceRules | null>(null);
   const [editorText, setEditorText] = useState("");
-  const [etag, setEtag] = useState("");
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -71,6 +79,13 @@ export default function RulesPage() {
     null,
   );
 
+  // Version history drawer state
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [versions, setVersions] = useState<GovernanceRulesVersion[]>([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+  const [versionDetail, setVersionDetail] = useState<GovernanceRulesVersionDetail | null>(null);
+  const [versionDetailOpen, setVersionDetailOpen] = useState(false);
+
   const loadRules = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -78,7 +93,6 @@ export default function RulesPage() {
     if (result.ok) {
       setRules(result.data);
       setEditorText(JSON.stringify(result.data, null, 2));
-      setEtag(result.etag);
     } else {
       setLoadError(`无法加载治理规则：${result.error}`);
     }
@@ -126,7 +140,7 @@ export default function RulesPage() {
     }
 
     setSaving(true);
-    const result = await saveGovernanceRules(parsed, etag, {
+    const result = await saveGovernanceRules(parsed, {
       recompute,
       recomputeScope,
     });
@@ -134,34 +148,78 @@ export default function RulesPage() {
 
     if (result.ok) {
       setRules(parsed);
-      setEtag(result.etag);
       setEditing(false);
       setRecomputeSummary(result.summary.recompute ?? null);
       message.success(
         `规则已保存 — 分类 ${result.summary.classifications} / 分级 ${result.summary.levels} / ` +
           `标签 ${result.summary.tags} / 质量维度 ${result.summary.quality_dimensions}`,
       );
-      // 关闭后重置勾选，避免下次编辑无意触发批量重跑
       setRecompute(false);
       setRecomputeScope(DEFAULT_RECOMPUTE_SCOPE);
-    } else if (result.status === 409) {
-      Modal.confirm({
-        title: "规则已被他人更新",
-        content: "另一位管理员在您编辑期间修改了治理规则。请重新加载最新版本后再编辑。",
-        okText: "重新加载",
-        cancelText: "取消",
-        onOk: async () => {
-          await loadRules();
-          setEditing(false);
-        },
-      });
     } else {
       setEditorError(result.error ?? "保存失败");
     }
   }
 
+  async function openVersions() {
+    setVersionsOpen(true);
+    setVersionsLoading(true);
+    const result = await fetchGovernanceRulesVersions();
+    if (result.ok) {
+      setVersions(result.versions);
+    } else {
+      message.error(`加载版本历史失败：${result.error}`);
+    }
+    setVersionsLoading(false);
+  }
+
+  async function viewVersionDetail(versionId: string) {
+    setVersionDetailOpen(true);
+    setVersionDetail(null);
+    const result = await fetchGovernanceRulesVersion(versionId);
+    if (result.ok) {
+      setVersionDetail(result.version);
+    } else {
+      message.error(`加载版本详情失败：${result.error}`);
+      setVersionDetailOpen(false);
+    }
+  }
+
   const { classifications, levels, tags, dimensions, thresholds, autoAdoptThreshold } =
     useMemo(() => extractTables(rules), [rules]);
+
+  const versionColumns = [
+    { title: "版本号", dataIndex: "version", key: "version", width: 80 },
+    { title: "Schema", dataIndex: "schema_version", key: "schema_version", width: 100 },
+    {
+      title: "状态",
+      dataIndex: "status",
+      key: "status",
+      width: 90,
+      render: (s: string) => (
+        <Tag color={s === "active" ? "green" : "default"}>{s}</Tag>
+      ),
+    },
+    { title: "变更摘要", dataIndex: "change_summary", key: "change_summary", ellipsis: true },
+    { title: "分类数", dataIndex: "classifications_count", key: "classifications_count", width: 80 },
+    {
+      title: "创建时间",
+      dataIndex: "created_at",
+      key: "created_at",
+      width: 170,
+      render: (v: string | null) => v ? new Date(v).toLocaleString("zh-CN") : "-",
+    },
+    {
+      title: "操作",
+      key: "actions",
+      width: 80,
+      render: (_: unknown, record: GovernanceRulesVersion) => (
+        <Button type="link" size="small" onClick={() => viewVersionDetail(record.id)}>
+          查看
+        </Button>
+      ),
+    },
+  ];
 
   return (
     <>
@@ -171,13 +229,22 @@ export default function RulesPage() {
         description="治理规则定义了 AI 提取元数据时使用的分类、分级、标签和质量评分标准。规则保存后立即生效，可选择对受影响数据触发批量重跑。"
         actions={
           !editing ? (
-            <Button
-              type="primary"
-              onClick={handleEdit}
-              disabled={loading || !rules}
-            >
-              编辑规则
-            </Button>
+            <Space>
+              <Button
+                icon={<HistoryOutlined />}
+                onClick={openVersions}
+                disabled={loading || !rules}
+              >
+                版本历史
+              </Button>
+              <Button
+                type="primary"
+                onClick={handleEdit}
+                disabled={loading || !rules}
+              >
+                编辑规则
+              </Button>
+            </Space>
           ) : (
             <Space>
               <Button onClick={handleCancel} disabled={saving}>
@@ -229,6 +296,54 @@ export default function RulesPage() {
         summary={recomputeSummary}
         onClose={() => setRecomputeSummary(null)}
       />
+
+      {/* Version history drawer */}
+      <Drawer
+        title="规则版本历史"
+        open={versionsOpen}
+        onClose={() => setVersionsOpen(false)}
+        width={720}
+      >
+        <Table
+          columns={versionColumns}
+          dataSource={versions}
+          rowKey="id"
+          loading={versionsLoading}
+          size="small"
+          pagination={false}
+        />
+      </Drawer>
+
+      {/* Version detail modal */}
+      <Modal
+        title={
+          versionDetail
+            ? `版本 v${versionDetail.version} — ${versionDetail.schema_version}`
+            : "版本详情"
+        }
+        open={versionDetailOpen}
+        onCancel={() => setVersionDetailOpen(false)}
+        footer={null}
+        width={800}
+      >
+        {versionDetail ? (
+          <>
+            <Space className="mb-4">
+              <Tag color={versionDetail.status === "active" ? "green" : "default"}>
+                {versionDetail.status}
+              </Tag>
+              {versionDetail.change_summary && (
+                <Typography.Text type="secondary">{versionDetail.change_summary}</Typography.Text>
+              )}
+            </Space>
+            <pre className="max-h-96 overflow-auto rounded bg-gray-50 p-3 text-xs dark:bg-gray-800">
+              {JSON.stringify(versionDetail.rules_content, null, 2)}
+            </pre>
+          </>
+        ) : (
+          <Skeleton active paragraph={{ rows: 8 }} />
+        )}
+      </Modal>
     </>
   );
 }

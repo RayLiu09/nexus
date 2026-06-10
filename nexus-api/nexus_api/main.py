@@ -20,8 +20,10 @@ from nexus_app.services import ResourceNotFoundError
 from nexus_api.logging import configure_logging
 from nexus_api.middleware import TraceIdMiddleware
 from nexus_api.responses import response
+from nexus_app.ai_governance.prompt_registry import get_governance_prompt_registry
 from nexus_app.ai_governance.rules_registry import get_governance_rules_registry
 from nexus_app.config import Settings, get_settings
+from nexus_app.database import SessionLocal
 from nexus_app.ingest.config_loader import get_ingest_validate_registry
 from nexus_app.normalize.config_loader import get_normalize_schemas_registry
 
@@ -32,7 +34,6 @@ _ALLOW_MISSING_ENV = "NEXUS_ALLOW_MISSING_RULES"
 
 
 _CONFIG_REGISTRIES: list[tuple[str, callable]] = [
-    ("governance_rules.json", get_governance_rules_registry),
     ("ingest_validate.json", get_ingest_validate_registry),
     ("normalize_schemas.json", get_normalize_schemas_registry),
 ]
@@ -76,27 +77,53 @@ def check_production_secrets(settings: Settings) -> None:
 
 
 def _load_registries_fail_fast() -> None:
-    """Eagerly load all 3 config registries. Raises RuntimeError on any failure
-    unless NEXUS_ALLOW_MISSING_RULES=true (dev-only escape hatch)."""
+    """Eagerly load file-based config registries + DB-based governance rules.
+
+    Raises RuntimeError on any failure unless NEXUS_ALLOW_MISSING_RULES=true
+    (dev-only escape hatch).
+    """
     allow_missing = os.environ.get(_ALLOW_MISSING_ENV, "").lower() == "true"
+
+    # 1. File-based registries
     for filename, getter in _CONFIG_REGISTRIES:
         registry = getter()
         try:
             registry.load()
-            logger.info("%s loaded, etag=%s", filename, registry.get_etag())
+            logger.info("%s loaded", filename)
         except Exception as exc:
             if allow_missing:
-                logger.warning(
-                    "Skipped loading %s (allowed by %s=true): %s",
-                    filename,
-                    _ALLOW_MISSING_ENV,
-                    exc,
-                )
+                logger.warning("Skipped loading %s (allowed by %s=true): %s",
+                               filename, _ALLOW_MISSING_ENV, exc)
                 continue
             raise RuntimeError(
                 f"failed to load {filename}: {exc}. "
                 f"Set {_ALLOW_MISSING_ENV}=true to bypass in dev only."
             ) from exc
+
+    # 2. DB-based governance rules registry
+    session = SessionLocal()
+    try:
+        gov_registry = get_governance_rules_registry()
+        gov_registry.load(session)
+        logger.info("governance_rules loaded from DB (version_id=%s)",
+                    gov_registry.get_rules_version_id())
+
+        # 3. DB-based governance prompt registry
+        prompt_registry = get_governance_prompt_registry()
+        prompt_registry.load(session)
+        logger.info("governance_prompts loaded from DB (%d templates)",
+                    len(prompt_registry.get_all_prompts()))
+    except Exception as exc:
+        if allow_missing:
+            logger.warning("Skipped loading governance rules (allowed by %s=true): %s",
+                           _ALLOW_MISSING_ENV, exc)
+        else:
+            raise RuntimeError(
+                f"failed to load governance rules from DB: {exc}. "
+                f"Set {_ALLOW_MISSING_ENV}=true to bypass in dev only."
+            ) from exc
+    finally:
+        session.close()
 
 
 @asynccontextmanager

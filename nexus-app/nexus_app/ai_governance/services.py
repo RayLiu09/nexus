@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
+import re
 import uuid
 from typing import Any
 
@@ -21,6 +23,7 @@ from nexus_app.ai_governance.litellm_client import (
 )
 from nexus_app.ai_governance.output_validator import AIOutputValidator, PydanticOutputValidator
 from nexus_app.ai_governance.quality_scorer import QualityScoringService
+from nexus_app.ai_governance.prompt_registry import GovernancePromptRegistry
 from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
 from nexus_app.audit import write_audit as _write_audit_raw
 from nexus_app.enums import (
@@ -538,6 +541,376 @@ class AIGovernanceService:
                       "validation_status": run.validation_status.value})
         return run
 
+    def run_governance_multi(
+        self,
+        session: Session,
+        normalized_ref_id: str,
+        *,
+        prompt_registry: "GovernancePromptRegistry",
+        rules_registry: "GovernanceRulesRegistry | None" = None,
+        litellm_client: LiteLLMClientProtocol | None = None,
+        user_id: str | None = None,
+    ) -> models.AIGovernanceRun:
+        """Multi-stage governance: 5 independent LLM calls + quality scoring.
+
+        Stages:
+          1. classification       → LLM (determine category)
+          2. level_assessment     → LLM (sensitivity level L1-L4)
+          3. tagging              → LLM (5-dimension tags)
+          4. quality_scoring      → Rule engine (QualityScoringService)
+          5. knowledge_type       → LLM (infer knowledge types)
+
+        All stage outputs are aggregated into a single ``AIGovernanceRun``
+        record with per-stage details in ``ai_output._stages``.
+        """
+        client = litellm_client or FakeLiteLLMClient()
+        trace_id = str(uuid.uuid4())
+
+        ref = session.get(models.NormalizedAssetRef, normalized_ref_id)
+        if ref is None:
+            raise AIGovernanceError(
+                f"NormalizedAssetRef '{normalized_ref_id}' not found"
+            )
+        ref_dict = self._build_ref_dict(ref)
+        sensitivity_level = (ref.governance or {}).get("level", "L1")
+
+        # Snapshot: record which prompt-templates were used
+        prompt_ids: dict[str, str] = {}
+        for task_type in ("classification", "level_assessment", "tagging",
+                          "knowledge_type_inference"):
+            try:
+                tmpl = prompt_registry.get_prompt(task_type)
+                prompt_ids[task_type] = tmpl.id
+            except Exception:
+                pass
+
+        # Create the run record (profile_id is nullable for multi-stage)
+        classification_tmpl = prompt_registry.get_prompt("classification")
+        run = models.AIGovernanceRun(
+            normalized_ref_id=normalized_ref_id,
+            profile_id=None,
+            model_alias=classification_tmpl.litellm_model_alias,
+            prompt_version=f"multi-stage/{classification_tmpl.template_version}",
+            input_hash="",
+            input_summary={"mode": "multi_stage", "task_types": sorted(prompt_ids)},
+            validation_status=AIGovernanceRunValidationStatus.FAILED,
+            adoption_status=AIGovernanceRunAdoptionStatus.REVIEW_REQUIRED,
+            prompt_snapshot=prompt_ids,
+            created_by=user_id,
+            trace_id=trace_id,
+        )
+        session.add(run)
+        session.flush()
+
+        stage_outputs: dict[str, Any] = {}
+        total_latency_ms = 0.0
+
+        # ---- Stage 1: Classification ----
+        cls_output = self._run_llm_stage(
+            client, prompt_registry, "classification",
+            ref_dict, sensitivity_level, rules_registry,
+        )
+        if cls_output is not None:
+            stage_outputs["classification"] = cls_output
+            total_latency_ms += cls_output.get("_latency_ms", 0)
+
+        # ---- Stage 2: Level Assessment ----
+        lvl_output = self._run_llm_stage(
+            client, prompt_registry, "level_assessment",
+            ref_dict, sensitivity_level, rules_registry,
+        )
+        if lvl_output is not None:
+            stage_outputs["level_assessment"] = lvl_output
+            total_latency_ms += lvl_output.get("_latency_ms", 0)
+
+        # ---- Stage 3: Tagging (with classification context) ----
+        tag_context = ref_dict.copy()
+        if cls_output:
+            tag_context["_classification"] = cls_output.get("classification_code", "")
+        tag_output = self._run_llm_stage(
+            client, prompt_registry, "tagging",
+            tag_context, sensitivity_level, rules_registry,
+        )
+        if tag_output is not None:
+            stage_outputs["tagging"] = tag_output
+            total_latency_ms += tag_output.get("_latency_ms", 0)
+
+        # ---- Stage 4: Quality Scoring (rule engine, not LLM) ----
+        quality_summary: dict[str, Any] | None = None
+        if rules_registry is not None and cls_output:
+            try:
+                scorer = QualityScoringService(rules_registry)
+                # Build an AI-output-like object for the scorer
+                scoring_input = self._build_quality_input(
+                    cls_output, lvl_output or {}, tag_output or {}
+                )
+                qs = scorer.generate_quality_summary(scoring_input, ref_dict)
+                quality_summary = qs.model_dump()
+                stage_outputs["quality_scoring"] = quality_summary
+            except Exception as exc:
+                logger.warning("Quality scoring failed: %s", exc)
+                stage_outputs["quality_scoring"] = {"error": str(exc)}
+
+        # ---- Stage 5: Knowledge Type Inference ----
+        kt_output = self._run_llm_stage(
+            client, prompt_registry, "knowledge_type_inference",
+            ref_dict, sensitivity_level, rules_registry,
+        )
+        if kt_output is not None:
+            stage_outputs["knowledge_type_inference"] = kt_output
+            total_latency_ms += kt_output.get("_latency_ms", 0)
+
+        # ---- Aggregate ----
+        ai_output = self._aggregate_stage_outputs(stage_outputs)
+        any_failed = any(
+            s.get("_error") for s in stage_outputs.values()
+            if isinstance(s, dict)
+        )
+
+        run.ai_output = ai_output
+        run.raw_output = json.dumps(stage_outputs, ensure_ascii=False, default=str)
+        run.call_latency_ms = total_latency_ms
+        run.input_hash = self._compute_multi_input_hash(ref_dict, prompt_ids)
+        run.validation_status = (
+            AIGovernanceRunValidationStatus.SCHEMA_VALID
+            if not any_failed
+            else AIGovernanceRunValidationStatus.FAILED
+        )
+        run.adoption_status = AIGovernanceRunAdoptionStatus.PENDING_RULE_GUARDRAIL
+
+        if quality_summary is not None:
+            run.quality_summary = quality_summary
+
+        _write_audit(
+            session, AuditEventType.AI_GOVERNANCE_RUN_CREATED,
+            "ai_governance_run", run.id, user_id, trace_id,
+            {
+                "normalized_ref_id": normalized_ref_id,
+                "mode": "multi_stage",
+                "task_types": sorted(prompt_ids),
+                "validation_status": run.validation_status.value,
+                "total_latency_ms": total_latency_ms,
+            },
+        )
+        return run
+
+    # ------------------------------------------------------------------
+    # Multi-stage helpers
+    # ------------------------------------------------------------------
+
+    def _run_llm_stage(
+        self,
+        client: LiteLLMClientProtocol,
+        prompt_registry: "GovernancePromptRegistry",
+        task_type: str,
+        ref_dict: dict[str, Any],
+        sensitivity_level: str,
+        rules_registry: "GovernanceRulesRegistry | None",
+    ) -> dict[str, Any] | None:
+        """Execute one LLM governance stage. Returns output dict or None on failure."""
+        try:
+            tmpl = prompt_registry.get_prompt(task_type)
+        except Exception as exc:
+            logger.warning("No prompt for task_type=%s: %s", task_type, exc)
+            return {"_error": f"no_prompt: {exc}", "_task_type": task_type}
+
+        builder = DefaultAIInputBuilder()
+        try:
+            built = builder.build(
+                ref_dict, tmpl.redaction_policy, sensitivity_level,
+                registry=rules_registry, model_alias=tmpl.litellm_model_alias,
+            )
+        except RedactionPolicyError as exc:
+            logger.warning("Redaction blocked for %s: %s", task_type, exc)
+            return {"_error": f"redaction_blocked: {exc}", "_task_type": task_type}
+
+        # Build stage-specific rules section
+        rules_text = self._build_stage_rules(task_type, rules_registry)
+
+        # Render the prompt template
+        document_json = json.dumps(built["payload"], ensure_ascii=False, default=str)
+        rendered = tmpl.prompt_template.replace("{{RULES}}", rules_text).replace(
+            "{{DOCUMENT}}", document_json
+        )
+
+        messages = [
+            {"role": "system", "content": rendered},
+        ]
+
+        try:
+            raw_output, call_summary, attempts = self._call_llm_with_retry(
+                client,
+                tmpl.litellm_model_alias,
+                messages,
+                temperature=tmpl.temperature,
+                max_tokens=tmpl.max_input_tokens,
+            )
+        except LiteLLMCallError as exc:
+            logger.warning("LLM call failed for %s: %s", task_type, exc)
+            return {
+                "_error": f"llm_call_failed: {exc}",
+                "_task_type": task_type,
+                "_error_type": exc.error_type.value if exc.error_type else "unknown",
+            }
+
+        # Parse JSON from LLM output
+        parsed = self._parse_llm_json(raw_output)
+        if parsed is None:
+            return {
+                "_error": "json_parse_failed",
+                "_task_type": task_type,
+                "_raw": raw_output[:500],
+            }  # type: ignore[dict-item]
+
+        parsed["_latency_ms"] = call_summary.latency_ms
+        parsed["_attempts"] = attempts
+        parsed["_task_type"] = task_type
+        parsed["_model_alias"] = tmpl.litellm_model_alias
+        return parsed
+
+    # ------------------------------------------------------------------
+    # Stage-specific rules rendering
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _build_stage_rules(
+        task_type: str,
+        rules_registry: "GovernanceRulesRegistry | None",
+    ) -> str:
+        """Build the {{RULES}} replacement text for a given stage."""
+        if rules_registry is None:
+            return ""
+
+        if task_type == "classification":
+            return _render_classification_rules(rules_registry)
+        elif task_type == "level_assessment":
+            return _render_level_rules(rules_registry)
+        elif task_type == "tagging":
+            return _render_tagging_rules(rules_registry)
+        elif task_type == "quality_scoring":
+            return _render_quality_rules(rules_registry)
+        elif task_type == "knowledge_type_inference":
+            return _render_knowledge_type_rules(rules_registry)
+        return ""
+
+    @staticmethod
+    def _parse_llm_json(raw: str) -> dict[str, Any] | None:
+        """Extract a JSON object from LLM output (may be wrapped in markdown)."""
+        text = raw.strip()
+        # Try direct parse first
+        try:
+            val = json.loads(text)
+            if isinstance(val, dict):
+                return val
+        except (json.JSONDecodeError, ValueError):
+            pass
+        # Try extracting from ```json ... ``` block
+        m = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+        if m:
+            try:
+                val = json.loads(m.group(1).strip())
+                if isinstance(val, dict):
+                    return val
+            except (json.JSONDecodeError, ValueError):
+                pass
+        # Try finding the first { ... } block
+        m = re.search(r"\{[\s\S]*\}", text)
+        if m:
+            try:
+                val = json.loads(m.group(0))
+                if isinstance(val, dict):
+                    return val
+            except (json.JSONDecodeError, ValueError):
+                pass
+        return None
+
+    @staticmethod
+    def _aggregate_stage_outputs(stage_outputs: dict[str, Any]) -> dict[str, Any]:
+        """Merge per-stage outputs into a single ai_output dict.
+
+        Top-level fields maintain backward compatibility with
+        decision_service.py expectations; full stage details stored in _stages.
+        """
+        cls = stage_outputs.get("classification", {})
+        lvl = stage_outputs.get("level_assessment", {})
+        tag = stage_outputs.get("tagging", {})
+        qual = stage_outputs.get("quality_scoring", {})
+        kt = stage_outputs.get("knowledge_type_inference", {})
+
+        # Extract tags list from tagging stage
+        tags_list: list[str] = []
+        if isinstance(tag, dict):
+            for dim_k, dim_v in tag.items():
+                if dim_k.startswith("_"):
+                    continue
+                if isinstance(dim_v, list):
+                    for item in dim_v:
+                        if isinstance(item, dict) and "value" in item:
+                            tags_list.append(item["value"])
+                        elif isinstance(item, str):
+                            tags_list.append(item)
+
+        # Overall confidence: average across non-error stages
+        confidences = []
+        for s in (cls, lvl, tag, kt):
+            if isinstance(s, dict) and "_error" not in s:
+                c = s.get("confidence")
+                if isinstance(c, (int, float)):
+                    confidences.append(float(c))
+        avg_confidence = (
+            sum(confidences) / len(confidences) if confidences else 0.0
+        )
+
+        return {
+            "classification": cls.get("classification_code") or cls.get("code", ""),
+            "classification_name": cls.get("classification_name") or cls.get("name", ""),
+            "level": lvl.get("level_code") or lvl.get("code", ""),
+            "level_name": lvl.get("level_name") or lvl.get("name", ""),
+            "tags": tags_list,
+            "confidence": avg_confidence,
+            "_stages": stage_outputs,
+            "_mode": "multi_stage",
+        }
+
+    @staticmethod
+    def _build_quality_input(
+        cls_output: dict[str, Any],
+        lvl_output: dict[str, Any],
+        tag_output: dict[str, Any],
+    ) -> Any:
+        """Build a lightweight object for QualityScoringService input.
+
+        QualityScoringService expects an object with model_dump(); we create
+        a simple namespace to hold the aggregated AI outputs.
+        """
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            classification=cls_output.get("classification_code", ""),
+            level=lvl_output.get("level_code", ""),
+            tags=tag_output.get("tags", []),
+            model_dump=lambda: {
+                "classification": cls_output.get("classification_code", ""),
+                "level": lvl_output.get("level_code", ""),
+                "tags": tag_output.get("tags", []),
+            },
+        )
+
+    @staticmethod
+    def _compute_multi_input_hash(
+        ref_dict: dict[str, Any],
+        prompt_ids: dict[str, str],
+    ) -> str:
+        serialized = json.dumps(
+            {"ref_keys": sorted(ref_dict.keys()), "prompt_ids": prompt_ids},
+            sort_keys=True, ensure_ascii=False,
+        )
+        return hashlib.sha256(serialized.encode()).hexdigest()
+
+    # ------------------------------------------------------------------
+    # Query helpers (unchanged)
+    # ------------------------------------------------------------------
+
     def get_governance_run(
         self, session: Session, run_id: str
     ) -> models.AIGovernanceRun:
@@ -694,8 +1067,6 @@ class AIGovernanceService:
         instructions so the AI is explicitly guided to use registry-defined
         criteria when selecting classification, level, and tags.
         """
-        import json as _json
-
         governance_context = payload.get("governance_context", {})
         content_payload = {k: v for k, v in payload.items() if k != "governance_context"}
 
@@ -704,7 +1075,7 @@ class AIGovernanceService:
 
         return [
             {"role": "system", "content": system_content},
-            {"role": "user", "content": _json.dumps(content_payload, ensure_ascii=False,
+            {"role": "user", "content": json.dumps(content_payload, ensure_ascii=False,
                                                      default=str)},
         ]
 
@@ -761,6 +1132,138 @@ def _build_rules_section(governance_context: dict[str, Any]) -> str:
         "level 必须是上述分级 code 之一；"
         "tags 中每个值必须是上述标签 code 之一，不得包含未定义的标签；"
         "knowledge_type 可空；若提供，必须是上述知识类型 code 之一。"
+    )
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Stage-specific rules rendering (used by AIGovernanceService._build_stage_rules)
+# ---------------------------------------------------------------------------
+
+
+def _render_classification_rules(registry: GovernanceRulesRegistry) -> str:
+    """Render classifications as {{RULES}} for the classification stage."""
+    lines: list[str] = ["## 数据域分类\n"]
+    lines.append("你必须从以下分类代码中选择一个最匹配的：\n")
+    for c in registry.get_classifications():
+        criteria_text = "；".join(c.criteria or [])
+        desc = c.description or ""
+        lines.append(
+            f"- **{c.code}**（{c.name}）"
+            + (f"：{desc}" if desc else "")
+            + (f" 关键词：{criteria_text}" if criteria_text else "")
+        )
+    lines.append("")
+    lines.append(
+        "**约束**：classification_code 必须是上述 code 之一。"
+        "如果文档匹配多个分类，选择匹配度最高的一个。"
+    )
+    return "\n".join(lines)
+
+
+def _render_level_rules(registry: GovernanceRulesRegistry) -> str:
+    """Render sensitivity levels as {{RULES}} for the level_assessment stage."""
+    lines: list[str] = ["## 数据安全分级\n"]
+    lines.append("你必须从以下分级代码中选择一个：\n")
+    for lv in registry.get_levels():
+        criteria_text = "；".join(lv.criteria or [])
+        desc = lv.description or ""
+        lines.append(
+            f"- **{lv.code}**（{lv.name}）"
+            + (f"：{desc}" if desc else "")
+            + (f" 标准：{criteria_text}" if criteria_text else "")
+        )
+    lines.append("")
+    lines.append(
+        "**约束**：level_code 必须是上述 code 之一（L1/L2/L3/L4）。"
+        "默认新导入数据判定为 L1 或 L2，除非有明确证据支持更高等级。"
+        "涉及个人身份信息（姓名、身份证号、手机号、薪资等）至少判定为 L3。"
+    )
+    return "\n".join(lines)
+
+
+def _render_tagging_rules(registry: GovernanceRulesRegistry) -> str:
+    """Render 5-dimension tag definitions as {{RULES}} for the tagging stage."""
+    content = registry.get_rules_content()
+    tag_dims = content.get("tag_dimensions", {}) or {}
+
+    lines: list[str] = ["## 标签维度\n"]
+    lines.append("文档标签包含以下 5 个维度，每维度从允许值中选择：\n")
+
+    dim_labels = {
+        "professional_domain": "专业领域",
+        "education_level": "学历层次",
+        "geographic_scope": "地域范围",
+        "timeliness": "时效性",
+        "data_source_type": "数据来源",
+    }
+
+    for dim_key, dim_label in dim_labels.items():
+        dim_values = tag_dims.get(dim_key, [])
+        lines.append(f"### {dim_label}（{dim_key}）")
+        if dim_values:
+            for item in dim_values:
+                if isinstance(item, dict):
+                    val = item.get("value", item.get("code", ""))
+                    criteria = item.get("criteria", item.get("description", ""))
+                    lines.append(f"- **{val}**" + (f"：{criteria}" if criteria else ""))
+                elif isinstance(item, str):
+                    lines.append(f"- **{item}**")
+        lines.append("")
+
+    lines.append(
+        "**约束**：每个维度从上述允许值中选择。"
+        "professional_domain 可选 1-3 个标签，其余维度各选 1 个。"
+        "返回格式：每个维度是一个数组，每项包含 value 和 criteria 字段。"
+    )
+    return "\n".join(lines)
+
+
+def _render_quality_rules(registry: GovernanceRulesRegistry) -> str:
+    """Render quality scoring config as {{RULES}} for the quality stage."""
+    qs = registry.get_quality_scoring()
+    lines: list[str] = ["## 质量评分维度\n"]
+
+    for dim in qs.dimensions:
+        items = [f"- **{item.name}**" for item in dim.check_items]
+        lines.append(f"### {dim.name}（权重 {dim.weight}）")
+        if dim.description:
+            lines.append(f"{dim.description}")
+        lines.extend(items)
+        lines.append("")
+
+    lines.append("### 阈值")
+    lines.append(f"- 通过（pass）：{qs.thresholds.pass_}")
+    lines.append(f"- 警告（warning）：{qs.thresholds.warning}")
+    if qs.thresholds.review_required_below > 0:
+        lines.append(f"- 需审核低于（review_required_below）：{qs.thresholds.review_required_below}")
+    lines.append(f"- 自动采纳置信度阈值：{qs.confidence_threshold_auto_adopt}")
+    return "\n".join(lines)
+
+
+def _render_knowledge_type_rules(registry: GovernanceRulesRegistry) -> str:
+    """Render knowledge_types as {{RULES}} for the knowledge_type stage."""
+    kts = registry.get_knowledge_types()
+    lines: list[str] = ["## 知识类型\n"]
+    lines.append("你必须从以下知识类型代码中选择适用的类型：\n")
+
+    for kt in kts:
+        code = kt.get("code", "")
+        name = kt.get("name", "")
+        desc = kt.get("description", "")
+        criteria = "；".join(kt.get("source_criteria", []))
+        applicable = kt.get("applicable_classifications", [])
+        scope = f"适用分类：{applicable}" if applicable else "通用"
+        lines.append(
+            f"- **{code}**（{name}，{scope}）"
+            + (f"：{desc}" if desc else "")
+            + (f" 判断依据：{criteria}" if criteria else "")
+        )
+
+    lines.append("")
+    lines.append(
+        "**约束**：knowledge_types 数组中每个对象的 code 必须是上述 code 之一。"
+        "primary_type 是置信度最高的知识类型。可以为空数组。"
     )
     return "\n".join(lines)
 

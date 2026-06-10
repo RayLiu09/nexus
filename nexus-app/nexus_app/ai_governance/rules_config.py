@@ -9,9 +9,11 @@ from pydantic import BaseModel, Field, model_validator
 class ClassificationDef(BaseModel):
     code: str
     name: str
-    description: str
-    criteria: list[str]
+    description: str = ""
+    criteria: list[str] = []
     examples: list[str] = []
+
+    model_config = {"extra": "ignore"}
 
 
 class LevelDef(BaseModel):
@@ -76,10 +78,13 @@ class GovernanceRulesConfig(BaseModel):
     schema_version: str
     classifications: list[ClassificationDef] = Field(min_length=1)
     levels: list[LevelDef] = Field(min_length=1)
-    tags: list[TagDef] = []
+    tags: list[TagDef] = Field(default_factory=list)
     quality_scoring: QualityScoringConfig
-    manual_review_triggers: list[ManualReviewTriggerDef] = []
+    manual_review_triggers: list[ManualReviewTriggerDef] = Field(default_factory=list)
     approved_private_model_aliases: list[str] = Field(default_factory=list)
+    tag_dimensions: dict = Field(default_factory=dict)
+
+    model_config = {"extra": "ignore"}
 
     @model_validator(mode="after")
     def check_tag_classification_refs(self) -> "GovernanceRulesConfig":

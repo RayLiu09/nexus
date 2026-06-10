@@ -1,27 +1,22 @@
 /**
  * Route handlers: /api/admin/governance-rules
  *
- * GET  → proxy to GET /v1/admin/governance-rules，透传 ETag
- * PUT  → proxy to PUT /v1/admin/governance-rules，透传 If-Match / Idempotency-Key
- *        支持 ?recompute=true&recompute_scope=... 与上游一致
+ * GET  → proxy to GET /internal/v1/admin/governance-rules
+ * PUT  → proxy to PUT /internal/v1/admin/governance-rules
+ *        支持 ?recompute=true&recompute_scope=...
+ *
+ * Concurrency is handled server-side via DB row-level locking
+ * (GovernanceRulesService); the frontend no longer sends If-Match.
  */
 import { NextResponse } from "next/server";
 
-import {
-  forwardedHeadersFrom,
-  pickResponseHeaders,
-  proxy,
-} from "@/lib/api/proxy";
+import { proxy } from "@/lib/api/proxy";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<NextResponse> {
   const result = await proxy<unknown>("/internal/v1/admin/governance-rules");
-  const init = {
-    status: result.ok ? 200 : result.status,
-    headers: pickResponseHeaders(result),
-  };
-  return NextResponse.json(result, init);
+  return NextResponse.json(result, { status: result.ok ? 200 : result.status });
 }
 
 export async function PUT(request: Request): Promise<NextResponse> {
@@ -37,12 +32,7 @@ export async function PUT(request: Request): Promise<NextResponse> {
   const result = await proxy<unknown>("/internal/v1/admin/governance-rules", {
     method: "PUT",
     body,
-    forwardHeaders: forwardedHeadersFrom(request),
     search: search || undefined,
   });
-  const init = {
-    status: result.ok ? 200 : result.status,
-    headers: pickResponseHeaders(result),
-  };
-  return NextResponse.json(result, init);
+  return NextResponse.json(result, { status: result.ok ? 200 : result.status });
 }

@@ -21,7 +21,7 @@ from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
-def registry(tmp_path):
+def registry():
     rules = {
         "schema_version": "1.0",
         "classifications": [
@@ -61,10 +61,8 @@ def registry(tmp_path):
             "confidence_threshold_auto_adopt": 0.85,
         },
     }
-    rules_file = tmp_path / "governance_rules.json"
-    rules_file.write_text(json.dumps(rules))
     reg = GovernanceRulesRegistry()
-    reg.load(str(rules_file))
+    reg.load_dict(rules)
     return reg
 
 
@@ -112,23 +110,27 @@ class TestGovernanceRulesRegistry:
         total_weight = sum(d.weight for d in qs.dimensions)
         assert abs(total_weight - 1.0) < 0.001
 
-    def test_reload(self, registry, tmp_path):
-        registry.reload()
+    def test_reload_from_dict(self, registry):
+        new_rules = {
+            "schema_version": "1.0",
+            "classifications": [{"code": "D2", "name": "D2", "description": "d",
+                                  "criteria": ["c"]}],
+            "levels": [{"code": "L1", "name": "L1", "description": "d",
+                        "criteria": ["c"], "requires_approval": False}],
+            "tags": [],
+            "quality_scoring": {
+                "dimensions": [{"name": "completeness", "weight": 1.0, "description": "c",
+                                 "check_items": []}],
+                "thresholds": {"pass": 80, "warning": 60},
+                "confidence_threshold_auto_adopt": 0.85,
+            },
+        }
+        registry.load_dict(new_rules)
         assert registry._config is not None
+        assert len(registry.get_classifications()) == 1
+        assert registry.get_classifications()[0].code == "D2"
 
-    def test_missing_file_raises(self, tmp_path):
-        reg = GovernanceRulesRegistry()
-        with pytest.raises(FileNotFoundError):
-            reg.load(str(tmp_path / "nonexistent.json"))
-
-    def test_invalid_json_raises(self, tmp_path):
-        bad_file = tmp_path / "bad.json"
-        bad_file.write_text("not json {{{")
-        reg = GovernanceRulesRegistry()
-        with pytest.raises(ValueError, match="not valid JSON"):
-            reg.load(str(bad_file))
-
-    def test_weight_sum_not_one_raises(self, tmp_path):
+    def test_weight_sum_not_one_raises(self):
         rules = {
             "schema_version": "1.0",
             "classifications": [{"code": "D1", "name": "D1", "description": "D1",
@@ -146,13 +148,11 @@ class TestGovernanceRulesRegistry:
                 "confidence_threshold_auto_adopt": 0.85,
             },
         }
-        f = tmp_path / "bad_weights.json"
-        f.write_text(json.dumps(rules))
         reg = GovernanceRulesRegistry()
         with pytest.raises(ValueError, match="weights must sum to 1.0"):
-            reg.load(str(f))
+            reg.load_dict(rules)
 
-    def test_tag_invalid_classification_ref_raises(self, tmp_path):
+    def test_tag_invalid_classification_ref_raises(self):
         rules = {
             "schema_version": "1.0",
             "classifications": [{"code": "D1", "name": "D1", "description": "D1",
@@ -168,11 +168,9 @@ class TestGovernanceRulesRegistry:
                 "confidence_threshold_auto_adopt": 0.85,
             },
         }
-        f = tmp_path / "bad_tag_ref.json"
-        f.write_text(json.dumps(rules))
         reg = GovernanceRulesRegistry()
         with pytest.raises(ValueError, match="unknown classification"):
-            reg.load(str(f))
+            reg.load_dict(rules)
 
     def test_not_loaded_raises(self):
         reg = GovernanceRulesRegistry()

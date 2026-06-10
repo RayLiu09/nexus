@@ -3,7 +3,7 @@
 Platform-level ingest constraints (MIME whitelist, extension whitelist, file size
 limit). Separate from AI/business governance rules in governance_rules.json.
 
-Uses the same ETag + fcntl + Pydantic triple protection as GovernanceRulesRegistry.
+Uses ETag + fcntl + Pydantic triple protection (file-based config).
 """
 from __future__ import annotations
 

@@ -1,8 +1,6 @@
 """Tests for GovernanceDecisionService — decision trail and status determination."""
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,7 +14,7 @@ from nexus_app.governance.decision_service import (
 
 
 @pytest.fixture
-def rules_registry(tmp_path: Path) -> GovernanceRulesRegistry:
+def rules_registry() -> GovernanceRulesRegistry:
     rules = {
         "schema_version": "1.0",
         "classifications": [
@@ -46,10 +44,8 @@ def rules_registry(tmp_path: Path) -> GovernanceRulesRegistry:
             "confidence_threshold_auto_adopt": 0.8,
         },
     }
-    rules_path = tmp_path / "governance_rules.json"
-    rules_path.write_text(json.dumps(rules), encoding="utf-8")
     registry = GovernanceRulesRegistry()
-    registry.load(str(rules_path))
+    registry.load_dict(rules)
     return registry
 
 

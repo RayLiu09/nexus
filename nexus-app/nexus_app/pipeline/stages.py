@@ -566,6 +566,10 @@ def run_governance_decision(
     Returns None if no active prompt profile is configured (governance skipped).
     """
     started_at = _stage_started()
+    from nexus_app.ai_governance.prompt_registry import (
+        GovernancePromptNotFoundError,
+        get_governance_prompt_registry,
+    )
     from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
     from nexus_app.ai_governance.services import AIGovernanceService
     from nexus_app.governance.decision_service import GovernanceDecisionService
@@ -573,7 +577,7 @@ def run_governance_decision(
 
     registry = GovernanceRulesRegistry()
     try:
-        registry.load()
+        registry.load(ctx.session)
     except Exception as exc:
         logger.warning("Governance rules not available, skipping decision: %s", exc)
         _add_stage(ctx, "governance_decision", StageStatus.SKIPPED,
@@ -581,20 +585,34 @@ def run_governance_decision(
                    started_at=started_at)
         return None
 
-    profile = _find_active_governance_profile(ctx.session)
-    if profile is None:
-        logger.info("No active governance prompt profile, skipping AI governance")
+    prompt_registry = get_governance_prompt_registry()
+    if not prompt_registry.is_loaded():
+        try:
+            prompt_registry.load(ctx.session)
+        except Exception as exc:
+            logger.warning(
+                "Prompt registry not available, skipping governance: %s", exc
+            )
+            _add_stage(ctx, "governance_decision", StageStatus.SKIPPED,
+                       {"reason": f"prompt registry not available: {exc}"},
+                       started_at=started_at)
+            return None
+
+    try:
+        prompt_registry.get_prompt("classification")
+    except GovernancePromptNotFoundError:
+        logger.info("No active governance prompt templates, skipping AI governance")
         _add_stage(ctx, "governance_decision", StageStatus.SKIPPED,
-                   {"reason": "no active governance prompt profile"},
+                   {"reason": "no active governance prompt templates"},
                    started_at=started_at)
         return None
 
     ai_svc = AIGovernanceService()
-    ai_run = ai_svc.run_governance(
+    ai_run = ai_svc.run_governance_multi(
         ctx.session,
         normalized_ref_id=normalized_ref.id,
-        profile_id=profile.id,
-        registry=registry,
+        prompt_registry=prompt_registry,
+        rules_registry=registry,
     )
 
     if ai_run.ai_output is None:
@@ -658,23 +676,6 @@ def run_governance_decision(
         started_at=started_at,
     )
     return result
-
-
-def _find_active_governance_profile(
-    session: "Session",
-) -> models.AIPromptProfile | None:
-    """Find the active prompt profile for governance task type."""
-    from sqlalchemy import select
-    from nexus_app.enums import PromptProfileStatus
-
-    return session.scalars(
-        select(models.AIPromptProfile)
-        .where(
-            models.AIPromptProfile.task_type == "governance",
-            models.AIPromptProfile.status == PromptProfileStatus.ACTIVE,
-        )
-        .limit(1)
-    ).first()
 
 
 # ---------------------------------------------------------------------------

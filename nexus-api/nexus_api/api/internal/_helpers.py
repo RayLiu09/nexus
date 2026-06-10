@@ -10,6 +10,10 @@ from pydantic import ValidationError
 from fastapi import HTTPException
 
 from nexus_app import models, schemas as domain_schemas
+from nexus_app.ai_governance.prompt_registry import (
+    GovernancePromptRegistry,
+    get_governance_prompt_registry,
+)
 from nexus_app.ai_governance.rules_registry import (
     GovernanceRulesRegistry,
     get_governance_rules_registry,
@@ -26,16 +30,12 @@ from nexus_app.ingest import gateway as ingest_gateway
 prompt_svc = PromptProfileService()
 ai_gov_svc = AIGovernanceService()
 
-# Production fail-fast load is in main.py lifespan. We additionally do a
-# tolerant eager load here so test harnesses that instantiate TestClient(app)
-# without the `with` context (which would trigger lifespan) still get a
-# populated registry.
+# The governance rules registry is loaded at startup via main.py lifespan.
+# Module-level access returns the singleton (may not be loaded yet —
+# callers should handle RulesNotLoadedError gracefully or rely on the
+# lifespan having populated the cache).
 _rules_registry = get_governance_rules_registry()
-try:
-    if _rules_registry._config is None:
-        _rules_registry.load()
-except Exception:
-    pass  # lifespan will surface the failure in production startup
+_prompt_registry = get_governance_prompt_registry()
 
 
 def get_rules_registry() -> GovernanceRulesRegistry | None:
@@ -45,6 +45,11 @@ def get_rules_registry() -> GovernanceRulesRegistry | None:
 def rules_registry() -> GovernanceRulesRegistry:
     """Direct access for handlers that need the registry without a None check."""
     return _rules_registry
+
+
+def prompt_registry() -> GovernancePromptRegistry:
+    """Direct access for handlers that need the prompt registry."""
+    return _prompt_registry
 
 
 _CONNECTION_CONFIG_SCHEMAS = {

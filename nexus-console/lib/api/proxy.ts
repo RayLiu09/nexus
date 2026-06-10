@@ -2,11 +2,10 @@
  * Generic server-side proxy for `/internal/v1/*` NEXUS API endpoints.
  *
  * Use this in Next.js route handlers (`app/api/.../route.ts`) so the browser
- * never sees `NEXUS_API_BASE_URL`. Mirrors the envelope contract used by
- * `lib/ingestProxy.ts` but adds:
+ * never sees `NEXUS_API_BASE_URL`. Supports:
  *  - all HTTP verbs (GET/POST/PUT/PATCH/DELETE)
- *  - `If-Match` / `ETag` round-trip (NX-09 规则配置)
- *  - `Idempotency-Key` passthrough (NX-03/ingest mutations)
+ *  - `Idempotency-Key` passthrough
+ *  - `ETag` / `If-Match` round-trip (for file-based config endpoints)
  *  - non-JSON / empty body tolerance
  */
 import { apiBaseUrl } from "../api";

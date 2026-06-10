@@ -8,11 +8,6 @@ export type RulesSummary = {
   levels: number;
   tags: number;
   quality_dimensions: number;
-  /**
-   * 仅当保存时携带 recompute=true 时由后端填充：
-   * 列出被重新调度回 processing 的版本数、被记录但未自动重跑的版本数等。
-   * 与 nexus_app/governance/recompute.py:trigger_recompute 返回值结构对齐。
-   */
   recompute?: RecomputeSummary | null;
 };
 
@@ -32,28 +27,28 @@ export interface SaveRulesOptions {
   recomputeScope?: RecomputeScope;
 }
 
-export type FetchRulesResult = {
+export interface GovernanceRulesVersion {
+  id: string;
+  version: number;
+  schema_version: string;
+  status: string;
+  change_summary: string | null;
+  classifications_count: number;
+  created_at: string | null;
+  created_by: string | null;
+}
+
+export interface GovernanceRulesVersionDetail extends GovernanceRulesVersion {
+  rules_content: GovernanceRules | null;
+}
+
+export async function fetchGovernanceRules(): Promise<{
   ok: true;
   data: GovernanceRules;
-  etag: string;
 } | {
   ok: false;
   error: string;
-};
-
-export type SaveRulesResult = {
-  ok: true;
-  summary: RulesSummary;
-  etag: string;
-} | {
-  ok: false;
-  status: number;
-  error: string;
-  currentRules?: GovernanceRules;
-  currentEtag?: string;
-};
-
-export async function fetchGovernanceRules(): Promise<FetchRulesResult> {
+}> {
   try {
     const res = await fetch(`${apiBaseUrl()}/api/admin/governance-rules`, {
       cache: "no-store",
@@ -62,8 +57,7 @@ export async function fetchGovernanceRules(): Promise<FetchRulesResult> {
       return { ok: false, error: `HTTP ${res.status}` };
     }
     const json = await res.json();
-    const etag = res.headers.get("ETag") ?? "";
-    return { ok: true, data: json.data as GovernanceRules, etag };
+    return { ok: true, data: json.data as GovernanceRules };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
@@ -71,9 +65,15 @@ export async function fetchGovernanceRules(): Promise<FetchRulesResult> {
 
 export async function saveGovernanceRules(
   rules: GovernanceRules,
-  ifMatch: string,
   options: SaveRulesOptions = {},
-): Promise<SaveRulesResult> {
+): Promise<{
+  ok: true;
+  summary: RulesSummary;
+} | {
+  ok: false;
+  status: number;
+  error: string;
+}> {
   try {
     const params = new URLSearchParams();
     if (options.recompute) {
@@ -88,28 +88,10 @@ export async function saveGovernanceRules(
 
     const res = await fetch(url, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        "If-Match": ifMatch,
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(rules),
       cache: "no-store",
     });
-
-    if (res.status === 409) {
-      const body = await res.json();
-      return {
-        ok: false,
-        status: 409,
-        error: body.detail ?? "已被他人更新",
-        currentRules: body.current_rules as GovernanceRules | undefined,
-        currentEtag: body.current_etag as string | undefined,
-      };
-    }
-
-    if (res.status === 428) {
-      return { ok: false, status: 428, error: "缺少 If-Match 头" };
-    }
 
     const json = await res.json();
     if (!res.ok) {
@@ -120,13 +102,58 @@ export async function saveGovernanceRules(
       };
     }
 
-    const etag = res.headers.get("ETag") ?? "";
-    return { ok: true, summary: json.data as RulesSummary, etag };
+    return { ok: true, summary: json.data as RulesSummary };
   } catch (e) {
     return {
       ok: false,
       status: 0,
       error: e instanceof Error ? e.message : String(e),
     };
+  }
+}
+
+export async function fetchGovernanceRulesVersions(): Promise<{
+  ok: true;
+  versions: GovernanceRulesVersion[];
+} | {
+  ok: false;
+  error: string;
+}> {
+  try {
+    const res = await fetch(
+      `${apiBaseUrl()}/api/admin/governance-rules/versions`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) {
+      return { ok: false, error: `HTTP ${res.status}` };
+    }
+    const json = await res.json();
+    return { ok: true, versions: json.data as GovernanceRulesVersion[] };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+export async function fetchGovernanceRulesVersion(
+  versionId: string,
+): Promise<{
+  ok: true;
+  version: GovernanceRulesVersionDetail;
+} | {
+  ok: false;
+  error: string;
+}> {
+  try {
+    const res = await fetch(
+      `${apiBaseUrl()}/api/admin/governance-rules/versions/${versionId}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) {
+      return { ok: false, error: `HTTP ${res.status}` };
+    }
+    const json = await res.json();
+    return { ok: true, version: json.data as GovernanceRulesVersionDetail };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 }

@@ -39,16 +39,29 @@ RecomputeScope = Literal["review_required_only", "all_affected"]
 
 
 def enumerate_affected_refs(
-    session: Session, *, current_schema_version: str
+    session: Session,
+    *,
+    current_schema_version: str,
+    current_rules_version_id: str | None = None,
 ) -> list[tuple[models.GovernanceResult, models.AssetVersion]]:
-    """Find governance_result rows whose snapshot does not match the new rules,
-    paired with the AssetVersion (via the NormalizedAssetRef) they belong to.
+    """Find governance_result rows whose snapshot does not match the current rules.
+
+    Preference: matches on ``rules_version_id`` (exact version FK).
+    Fallback: matches on ``rules_schema_version`` for results created before
+    ``rules_version_id`` was tracked.
     """
-    rows = session.scalars(
-        select(models.GovernanceResult).where(
+    q = select(models.GovernanceResult)
+    if current_rules_version_id:
+        # Primary comparison: version_id
+        q = q.where(
+            models.GovernanceResult.rules_version_id != current_rules_version_id
+        )
+    else:
+        # Fallback: schema_version
+        q = q.where(
             models.GovernanceResult.rules_schema_version != current_schema_version
         )
-    ).all()
+    rows = session.scalars(q).all()
     pairs: list[tuple[models.GovernanceResult, models.AssetVersion]] = []
     for result in rows:
         ref = session.get(models.NormalizedAssetRef, result.normalized_ref_id)
@@ -66,6 +79,7 @@ def trigger_recompute(
     *,
     current_schema_version: str,
     current_content_hash: str,
+    current_rules_version_id: str | None = None,
     scope: RecomputeScope = "review_required_only",
     actor_id: str | None = None,
     trace_id: str | None = None,
@@ -76,7 +90,9 @@ def trigger_recompute(
     audit log entry whether or not anything was rescheduled.
     """
     pairs = enumerate_affected_refs(
-        session, current_schema_version=current_schema_version
+        session,
+        current_schema_version=current_schema_version,
+        current_rules_version_id=current_rules_version_id,
     )
     review_required_ids: list[str] = []
     available_skipped_ids: list[str] = []

@@ -6,8 +6,6 @@ longer writes them as a side effect.
 """
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -24,7 +22,7 @@ from nexus_app.enums import (
 
 
 @pytest.fixture
-def rules_path(tmp_path: Path) -> Path:
+def registry() -> GovernanceRulesRegistry:
     rules = {
         "schema_version": "1.0",
         "classifications": [
@@ -44,15 +42,8 @@ def rules_path(tmp_path: Path) -> Path:
             "confidence_threshold_auto_adopt": 0.8,
         },
     }
-    path = tmp_path / "governance_rules.json"
-    path.write_text(json.dumps(rules), encoding="utf-8")
-    return path
-
-
-@pytest.fixture
-def registry(rules_path: Path) -> GovernanceRulesRegistry:
     r = GovernanceRulesRegistry()
-    r.load(str(rules_path))
+    r.load_dict(rules)
     return r
 
 

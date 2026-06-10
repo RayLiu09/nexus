@@ -132,6 +132,25 @@ class GovernanceResultStatus(StrEnum):
     REVIEW_REQUIRED = "review_required"
 
 
+class GovernanceRulesVersionStatus(StrEnum):
+    ACTIVE   = "active"
+    ARCHIVED = "archived"
+
+
+class GovernancePromptTemplateStatus(StrEnum):
+    ACTIVE   = "active"
+    ARCHIVED = "archived"
+    DISABLED = "disabled"
+
+
+class GovernanceTaskType(StrEnum):
+    CLASSIFICATION              = "classification"
+    LEVEL_ASSESSMENT            = "level_assessment"
+    TAGGING                     = "tagging"
+    QUALITY_SCORING             = "quality_scoring"
+    KNOWLEDGE_TYPE_INFERENCE    = "knowledge_type_inference"
+
+
 class IndexManifestStatus(StrEnum):
     PENDING = "pending"
     INDEXED = "indexed"
@@ -207,6 +226,14 @@ class AuditEventType(StrEnum):
     KNOWLEDGE_EMISSIONS_INFERRED    = "KnowledgeEmissionsInferred"
     KNOWLEDGE_CHUNKS_CREATED        = "KnowledgeChunksCreated"
     KNOWLEDGE_CHUNKS_INDEXED        = "KnowledgeChunksIndexed"
+    # Governance rules version management
+    GOVERNANCE_RULES_VERSION_CREATED   = "GovernanceRulesVersionCreated"
+    GOVERNANCE_RULES_VERSION_ARCHIVED  = "GovernanceRulesVersionArchived"
+    # Governance prompt template management
+    GOVERNANCE_PROMPT_TEMPLATE_CREATED   = "GovernancePromptTemplateCreated"
+    GOVERNANCE_PROMPT_TEMPLATE_UPDATED   = "GovernancePromptTemplateUpdated"
+    GOVERNANCE_PROMPT_TEMPLATE_ARCHIVED  = "GovernancePromptTemplateArchived"
+    GOVERNANCE_PROMPT_TEMPLATE_DISABLED  = "GovernancePromptTemplateDisabled"
 
 
 class AssetAccessType(StrEnum):

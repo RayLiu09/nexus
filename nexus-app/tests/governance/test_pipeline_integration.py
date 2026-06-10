@@ -11,9 +11,7 @@ Covers:
 from __future__ import annotations
 
 import base64
-import json
 import threading
-from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
@@ -82,8 +80,8 @@ def _existing_job_for_ref(session, ref_id: str) -> models.Job:
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
-def rules_registry(tmp_path: Path) -> GovernanceRulesRegistry:
-    """A registry loaded from a minimal in-memory rules file."""
+def rules_registry() -> GovernanceRulesRegistry:
+    """A registry loaded from a minimal in-memory rules dict."""
     rules = {
         "schema_version": "1.0",
         "classifications": [
@@ -111,10 +109,8 @@ def rules_registry(tmp_path: Path) -> GovernanceRulesRegistry:
             "confidence_threshold_auto_adopt": 0.8,
         },
     }
-    path = tmp_path / "governance_rules.json"
-    path.write_text(json.dumps(rules), encoding="utf-8")
     registry = GovernanceRulesRegistry()
-    registry.load(str(path))
+    registry.load_dict(rules)
     return registry
 
 
