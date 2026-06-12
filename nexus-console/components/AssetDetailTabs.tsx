@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Tabs, Tag, Progress, Empty } from "antd";
 import { StatusLabel } from "@/components/StatusLabel";
 import { ConfidenceBadge } from "@/components/ConfidenceBadge";
+import { ChunkListSection } from "@/app/assets/[assetId]/_components/ChunkListSection";
+import { SourcePreviewSection } from "@/app/assets/[assetId]/_components/SourcePreviewSection";
 import {
   formatDateTime,
   shortId,
@@ -25,6 +27,7 @@ type Props = {
 
 const TABS = [
   { key: "lineage", label: "血缘追溯" },
+  { key: "preview", label: "原文预览" },
   { key: "ai-governance", label: "AI 治理" },
   { key: "quality", label: "质量评分" },
   { key: "versions", label: "版本历史" },
@@ -33,21 +36,26 @@ const TABS = [
 // ---------------------------------------------------------------------------
 // Lineage tab
 // ---------------------------------------------------------------------------
-function LineageTab({ asset, latestVersion, latestRef, relatedArtifact }: Omit<Props, "versions" | "governanceRuns">) {
+function LineageTab({
+  asset,
+  latestVersion,
+  latestRef,
+  relatedArtifact,
+}: Omit<Props, "versions" | "governanceRuns">) {
   return (
     <>
       {/* Flow diagram */}
       <div className="card">
         <div className="card-header">
           <span className="card-title">处理链路</span>
-          <span className="text-xs text-muted">raw → parse → normalize → asset</span>
+          <span className="text-muted text-xs">raw → parse → normalize → asset</span>
         </div>
         <div className="card-body">
           <div className="m1-flow">
             <span className={latestVersion ? "done" : ""}>
               Raw Object
               {latestVersion && (
-                <span className="text-xs text-muted" style={{ display: "block" }}>
+                <span className="text-muted text-xs" style={{ display: "block" }}>
                   {shortId(latestVersion.raw_object_id)}
                 </span>
               )}
@@ -55,7 +63,7 @@ function LineageTab({ asset, latestVersion, latestRef, relatedArtifact }: Omit<P
             <span className={relatedArtifact ? "done" : ""}>
               Parse Artifact
               {relatedArtifact && (
-                <span className="text-xs text-muted" style={{ display: "block" }}>
+                <span className="text-muted text-xs" style={{ display: "block" }}>
                   {relatedArtifact.parse_mode}
                 </span>
               )}
@@ -63,7 +71,7 @@ function LineageTab({ asset, latestVersion, latestRef, relatedArtifact }: Omit<P
             <span className={latestRef ? "done" : ""}>
               Normalized
               {latestRef && (
-                <span className="text-xs text-muted" style={{ display: "block" }}>
+                <span className="text-muted text-xs" style={{ display: "block" }}>
                   {latestRef.normalized_type}
                 </span>
               )}
@@ -71,7 +79,7 @@ function LineageTab({ asset, latestVersion, latestRef, relatedArtifact }: Omit<P
             <span className={asset?.status === "available" ? "done" : "active"}>
               Asset
               {asset && (
-                <span className="text-xs text-muted" style={{ display: "block" }}>
+                <span className="text-muted text-xs" style={{ display: "block" }}>
                   {asset.status}
                 </span>
               )}
@@ -84,7 +92,10 @@ function LineageTab({ asset, latestVersion, latestRef, relatedArtifact }: Omit<P
       <div className="table-frame">
         <div className="table-head">
           <div className="table-row" style={{ gridTemplateColumns: "80px 140px 1fr 100px" }}>
-            <span>层级</span><span>对象ID</span><span>URI / 校验</span><span>状态</span>
+            <span>层级</span>
+            <span>对象ID</span>
+            <span>URI / 校验</span>
+            <span>状态</span>
           </div>
         </div>
         {latestVersion && (
@@ -111,10 +122,11 @@ function LineageTab({ asset, latestVersion, latestRef, relatedArtifact }: Omit<P
             <StatusLabel value={latestRef.status} />
           </div>
         )}
-        {!latestVersion && !relatedArtifact && !latestRef && (
-          <Empty description="暂无血缘数据" />
-        )}
+        {!latestVersion && !relatedArtifact && !latestRef && <Empty description="暂无血缘数据" />}
       </div>
+
+      {/* Stage 2.x lineage: per-chunk drill-down with locator + presigned source */}
+      <ChunkListSection refId={latestRef?.id ?? null} />
     </>
   );
 }
@@ -126,9 +138,7 @@ function AIGovernanceTab({ runs }: { runs: AIGovernanceRun[] }) {
   const [selected, setSelected] = useState<AIGovernanceRun | null>(null);
 
   if (runs.length === 0) {
-    return (
-      <Empty description="暂无 AI 治理记录" />
-    );
+    return <Empty description="暂无 AI 治理记录" />;
   }
 
   const run = selected ?? runs[0];
@@ -142,7 +152,9 @@ function AIGovernanceTab({ runs }: { runs: AIGovernanceRun[] }) {
       {/* Run selector */}
       {runs.length > 1 && (
         <div className="card">
-          <div className="card-header"><span className="card-title">执行记录</span></div>
+          <div className="card-header">
+            <span className="card-title">执行记录</span>
+          </div>
           <div className="card-body" style={{ padding: 0 }}>
             {runs.map((r) => (
               <div
@@ -158,7 +170,7 @@ function AIGovernanceTab({ runs }: { runs: AIGovernanceRun[] }) {
                 <span className="mono-cell">{shortId(r.id)}</span>
                 <span className="text-sm">{r.model_alias.split("/").pop()}</span>
                 <StatusLabel value={r.validation_status} />
-                <span className="text-xs text-muted">{formatDateTime(r.created_at)}</span>
+                <span className="text-muted text-xs">{formatDateTime(r.created_at)}</span>
               </div>
             ))}
           </div>
@@ -179,9 +191,11 @@ function AIGovernanceTab({ runs }: { runs: AIGovernanceRun[] }) {
           <div className="detail-grid">
             <div>
               <span>分类建议</span>
-              {(aiOutput.classification as string)
-                ? <Tag color="blue">{aiOutput.classification as string}</Tag>
-                : <span className="text-muted">-</span>}
+              {(aiOutput.classification as string) ? (
+                <Tag color="blue">{aiOutput.classification as string}</Tag>
+              ) : (
+                <span className="text-muted">-</span>
+              )}
             </div>
             <div>
               <span>分级建议</span>
@@ -189,7 +203,9 @@ function AIGovernanceTab({ runs }: { runs: AIGovernanceRun[] }) {
                 <Tag color={["L3", "L4"].includes(aiOutput.level as string) ? "red" : undefined}>
                   {aiOutput.level as string}
                 </Tag>
-              ) : <span className="text-muted">-</span>}
+              ) : (
+                <span className="text-muted">-</span>
+              )}
             </div>
             <div>
               <span>置信度</span>
@@ -197,10 +213,12 @@ function AIGovernanceTab({ runs }: { runs: AIGovernanceRun[] }) {
             </div>
             <div>
               <span>标签建议</span>
-              <div className="flex gap-1 flex-wrap">
-                {Array.isArray(aiOutput.tags) && (aiOutput.tags as string[]).length > 0
-                  ? (aiOutput.tags as string[]).map((t) => <Tag key={t}>{t}</Tag>)
-                  : <span className="text-muted text-sm">-</span>}
+              <div className="flex flex-wrap gap-1">
+                {Array.isArray(aiOutput.tags) && (aiOutput.tags as string[]).length > 0 ? (
+                  (aiOutput.tags as string[]).map((t) => <Tag key={t}>{t}</Tag>)
+                ) : (
+                  <span className="text-muted text-sm">-</span>
+                )}
               </div>
             </div>
           </div>
@@ -208,9 +226,13 @@ function AIGovernanceTab({ runs }: { runs: AIGovernanceRun[] }) {
           {(aiOutput.reasoning as string) && (
             <div
               style={{
-                marginTop: "var(--space-3)", padding: "var(--space-3)",
-                background: "var(--gray-50)", borderRadius: "var(--radius-md)",
-                fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6,
+                marginTop: "var(--space-3)",
+                padding: "var(--space-3)",
+                background: "var(--gray-50)",
+                borderRadius: "var(--radius-md)",
+                fontSize: 13,
+                color: "var(--text-muted)",
+                lineHeight: 1.6,
               }}
             >
               {aiOutput.reasoning as string}
@@ -228,12 +250,8 @@ function AIGovernanceTab({ runs }: { runs: AIGovernanceRun[] }) {
           </div>
           <div className="card-body" style={{ padding: 0 }}>
             {evidenceRefs.map((ref, i) => (
-              <div
-                key={i}
-                className="table-row"
-                style={{ gridTemplateColumns: "120px 1fr 80px" }}
-              >
-                <span className="text-sm text-muted">{String(ref.field)}</span>
+              <div key={i} className="table-row" style={{ gridTemplateColumns: "120px 1fr 80px" }}>
+                <span className="text-muted text-sm">{String(ref.field)}</span>
                 <span className="text-sm">{String(ref.value)}</span>
                 <ConfidenceBadge confidence={(ref.confidence as number) ?? 0} />
               </div>
@@ -245,8 +263,11 @@ function AIGovernanceTab({ runs }: { runs: AIGovernanceRun[] }) {
       {run.validation_error && (
         <div
           style={{
-            padding: "var(--space-3)", background: "var(--error-50)",
-            borderRadius: "var(--radius-md)", fontSize: 13, color: "var(--error)",
+            padding: "var(--space-3)",
+            background: "var(--error-50)",
+            borderRadius: "var(--radius-md)",
+            fontSize: 13,
+            color: "var(--error)",
           }}
         >
           ❌ 验证错误：{run.validation_error}
@@ -263,9 +284,7 @@ function QualityTab({ runs }: { runs: AIGovernanceRun[] }) {
   const runWithQuality = runs.find((r) => r.quality_summary !== null);
 
   if (!runWithQuality?.quality_summary) {
-    return (
-      <Empty description="暂无质量评分" />
-    );
+    return <Empty description="暂无质量评分" />;
   }
 
   const qs = runWithQuality.quality_summary;
@@ -288,23 +307,32 @@ function QualityTab({ runs }: { runs: AIGovernanceRun[] }) {
           <StatusLabel value={qualityLevel} />
         </div>
         <div className="card-body">
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)", marginBottom: "var(--space-4)" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-4)",
+              marginBottom: "var(--space-4)",
+            }}
+          >
             <span
               style={{
-                fontSize: 48, fontWeight: 700,
-                color: qualityScore >= 80
-                  ? "var(--success)"
-                  : qualityScore >= 60
-                  ? "var(--warning)"
-                  : "var(--error)",
+                fontSize: 48,
+                fontWeight: 700,
+                color:
+                  qualityScore >= 80
+                    ? "var(--success)"
+                    : qualityScore >= 60
+                      ? "var(--warning)"
+                      : "var(--error)",
               }}
             >
               {qualityScore.toFixed(0)}
             </span>
             <div>
-              <div className="text-sm text-muted">满分 100</div>
-              <div className="text-sm text-muted">
-                置信度 {((qs.confidence as number ?? 0) * 100).toFixed(0)}%
+              <div className="text-muted text-sm">满分 100</div>
+              <div className="text-muted text-sm">
+                置信度 {(((qs.confidence as number) ?? 0) * 100).toFixed(0)}%
               </div>
             </div>
           </div>
@@ -361,8 +389,8 @@ function QualityTab({ runs }: { runs: AIGovernanceRun[] }) {
                 status === "pass"
                   ? "var(--success)"
                   : status === "fail"
-                  ? "var(--error)"
-                  : "var(--warning)";
+                    ? "var(--error)"
+                    : "var(--warning)";
               return (
                 <div
                   key={i}
@@ -371,8 +399,8 @@ function QualityTab({ runs }: { runs: AIGovernanceRun[] }) {
                 >
                   <span style={{ color, fontWeight: 700 }}>{icon}</span>
                   <span className="text-sm">{String(item.check_name)}</span>
-                  <span className="text-sm text-muted">{String(item.message)}</span>
-                  <span className="text-xs text-muted">{String(item.severity)}</span>
+                  <span className="text-muted text-sm">{String(item.message)}</span>
+                  <span className="text-muted text-xs">{String(item.severity)}</span>
                 </div>
               );
             })}
@@ -394,7 +422,11 @@ function VersionsTab({ versions }: { versions: AssetVersion[] }) {
     <div className="table-frame">
       <div className="table-head">
         <div className="table-row" style={{ gridTemplateColumns: "140px 60px 140px 140px 100px" }}>
-          <span>版本ID</span><span>版本号</span><span>原始对象</span><span>更新时间</span><span>状态</span>
+          <span>版本ID</span>
+          <span>版本号</span>
+          <span>原始对象</span>
+          <span>更新时间</span>
+          <span>状态</span>
         </div>
       </div>
       {versions.map((v) => (
@@ -406,7 +438,7 @@ function VersionsTab({ versions }: { versions: AssetVersion[] }) {
           <span className="mono-cell">{shortId(v.id)}</span>
           <span>v{v.version_no}</span>
           <span className="mono-cell">{shortId(v.raw_object_id)}</span>
-          <span className="text-sm text-muted">{formatDateTime(v.updated_at)}</span>
+          <span className="text-muted text-sm">{formatDateTime(v.updated_at)}</span>
           <StatusLabel value={v.version_status} />
         </div>
       ))}
@@ -428,9 +460,8 @@ export function AssetDetailTabs({
   const [activeTab, setActiveTab] = useState("lineage");
 
   const tabItems = TABS.map((t) => {
-    const badgeCount = t.key === "ai-governance" && governanceRuns.length > 0
-      ? governanceRuns.length
-      : undefined;
+    const badgeCount =
+      t.key === "ai-governance" && governanceRuns.length > 0 ? governanceRuns.length : undefined;
     return {
       key: t.key,
       label: (
@@ -472,15 +503,10 @@ export function AssetDetailTabs({
             relatedArtifact={relatedArtifact}
           />
         )}
-        {activeTab === "ai-governance" && (
-          <AIGovernanceTab runs={governanceRuns} />
-        )}
-        {activeTab === "quality" && (
-          <QualityTab runs={governanceRuns} />
-        )}
-        {activeTab === "versions" && (
-          <VersionsTab versions={versions} />
-        )}
+        {activeTab === "preview" && <SourcePreviewSection refId={latestRef?.id ?? null} />}
+        {activeTab === "ai-governance" && <AIGovernanceTab runs={governanceRuns} />}
+        {activeTab === "quality" && <QualityTab runs={governanceRuns} />}
+        {activeTab === "versions" && <VersionsTab versions={versions} />}
       </div>
     </>
   );

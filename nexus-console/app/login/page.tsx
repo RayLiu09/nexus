@@ -24,7 +24,8 @@ function LoginForm() {
     (async () => {
       try {
         const resp = await fetch("/api/auth/session", { cache: "no-store" });
-        if (resp.ok && !cancelled) {
+        // 200 = session exists; 204 = no cookie / expired → show login form
+        if (resp.status === 200 && !cancelled) {
           const redirect = searchParams.get("redirect") ?? "/workbench";
           router.replace(redirect);
           return;

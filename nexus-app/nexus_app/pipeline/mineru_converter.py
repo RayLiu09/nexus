@@ -14,17 +14,60 @@ Composite blocks  (image / chart / table)
     body span types:  image | chart | table  (carry image_path; table also has html)
     caption span type: text
 
+Per-block markdown offset (Stage 2.2)
+─────────────────────────────────────
+Each block carries an OPTIONAL ``md_char_range = [start, end]`` field giving
+its character span inside the returned body_markdown. The markdown text itself
+is byte-identical to the value emitted before this index was added — index
+data lives ONLY on the blocks list, never injected into the markdown stream.
+Downstream LLM/RAGFlow inputs are therefore unaffected.
+
 Public API
 ──────────
     convert(pdf_info, image_uris, image_analyzer, storage) → (blocks, body_markdown)
+    assert_no_anchor_pollution(text) -> None
 """
 from __future__ import annotations
 
 import logging
+import os
 import re
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Anchor-pollution guardrail
+# ---------------------------------------------------------------------------
+# md_char_range is out-of-band — markdown body MUST NOT carry block anchors.
+# These patterns are forbidden in any text that flows to LLM/RAGFlow/render.
+# See ARCHITECT.md "Chunk Locator Contract" / memory feedback_md_char_range_out_of_band.
+
+_FORBIDDEN_ANCHOR_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"<!--\s*block:", re.IGNORECASE),
+    re.compile(r"\[#block-"),
+    re.compile(r"\{\{\s*anchor"),
+    # Zero-width characters that some tokenizers misread as content
+    re.compile(r"[\u200B\u200C\u200D\uFEFF]"),
+)
+
+_ENV_ASSERT_FLAG = "NEXUS_ASSERT_NO_ANCHORS"
+
+
+def assert_no_anchor_pollution(text: str) -> None:
+    """Raise AssertionError if `text` contains any forbidden block-anchor marker.
+
+    Runtime check intended for dev/staging only. Enabled when env
+    ``NEXUS_ASSERT_NO_ANCHORS=1``; otherwise a no-op (production stays cheap).
+    Production safety still rests on the byte-stability snapshot test.
+    """
+    if os.environ.get(_ENV_ASSERT_FLAG) != "1":
+        return
+    for pat in _FORBIDDEN_ANCHOR_PATTERNS:
+        if pat.search(text):
+            raise AssertionError(
+                f"block anchor leaked into markdown stream (pattern={pat.pattern!r})"
+            )
 
 # ---------------------------------------------------------------------------
 # Span-level text extraction
@@ -223,7 +266,60 @@ def convert(
                     blocks, md_parts,
                 )
 
-    return blocks, "\n\n".join(md_parts)
+    body_markdown = "\n\n".join(md_parts)
+    _annotate_md_ranges(blocks, md_parts)
+    # body_markdown is what reaches RAGFlow upload / LLM Prompt builders.
+    # Anchor-pollution guard is opt-in via env (dev/staging); see module docstring.
+    assert_no_anchor_pollution(body_markdown)
+    return blocks, body_markdown
+
+
+# ---------------------------------------------------------------------------
+# md_char_range computation (out-of-band; never mutates body_markdown)
+# ---------------------------------------------------------------------------
+
+_MD_SEPARATOR = "\n\n"
+
+
+def _annotate_md_ranges(
+    blocks: list[dict[str, Any]],
+    md_parts: list[str],
+) -> None:
+    """Attach ``md_char_range`` to each block based on ``\\n\\n``-joined offsets.
+
+    Contract (see ARCHITECT.md "Chunk Locator Contract"):
+      - ``md_char_range = [start, end]`` such that
+        ``body_markdown[start:end] == md_parts[i]`` for each populated block.
+      - Empty md_parts entry → ``md_char_range = None``. Block existed in the
+        normalized list (e.g. a visual block with no caption/table/VLM text)
+        but has zero footprint in the markdown stream; reverse-lookup will
+        never resolve to it, which is the intended behaviour.
+      - Strict 1:1 ordering between blocks[] and md_parts[] is required by the
+        convert() loop (every handler that appends to blocks also appends to
+        md_parts and vice versa). If they desync, this function bails out
+        early without setting md_char_range to avoid emitting wrong offsets.
+    """
+    if len(blocks) != len(md_parts):
+        logger.error(
+            "mineru_converter: blocks/md_parts length mismatch "
+            "(blocks=%d, md_parts=%d); skipping md_char_range",
+            len(blocks), len(md_parts),
+        )
+        return
+
+    cursor = 0
+    sep_len = len(_MD_SEPARATOR)
+    last_idx = len(md_parts) - 1
+    for i, (block, part) in enumerate(zip(blocks, md_parts)):
+        if part:
+            block["md_char_range"] = [cursor, cursor + len(part)]
+            cursor += len(part)
+        else:
+            block["md_char_range"] = None
+        # join inserts a separator between every adjacent pair — including
+        # around an empty entry — so advance the cursor for every gap.
+        if i != last_idx:
+            cursor += sep_len
 
 
 # ---------------------------------------------------------------------------

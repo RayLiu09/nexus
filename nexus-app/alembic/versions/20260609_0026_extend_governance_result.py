@@ -43,6 +43,14 @@ def upgrade() -> None:
         "'GovernancePromptTemplateDisabled'"
     )
 
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    tables = inspector.get_table_names()
+
+    if "governance_result" not in tables:
+        # Table doesn't exist — nothing to migrate (fresh DB from models)
+        return
+
     op.add_column(
         "governance_result",
         sa.Column(

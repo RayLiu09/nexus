@@ -17,6 +17,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    tables = inspector.get_table_names()
+
+    if "ai_governance_run" not in tables:
+        # Table doesn't exist — nothing to migrate (fresh DB from models)
+        return
+
     # ai_governance_run: record which prompt templates were used (multi-stage)
     op.add_column("ai_governance_run",
                   sa.Column("prompt_snapshot", sa.JSON(), nullable=True))

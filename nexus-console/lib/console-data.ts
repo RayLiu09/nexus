@@ -38,6 +38,19 @@ export async function loadWorkbenchData() {
     getApiData<AIGovernanceRun[]>("/internal/v1/ai/governance-runs", [])
   ]);
 
+  const results = [
+    runtime,
+    dataSources,
+    batches,
+    rawObjects,
+    jobs,
+    assets,
+    normalizedRefs,
+    audits,
+    governanceRuns
+  ];
+  const failed = results.find((item) => !item.ok);
+
   return {
     runtime,
     dataSources,
@@ -48,30 +61,9 @@ export async function loadWorkbenchData() {
     normalizedRefs,
     audits,
     governanceRuns,
-    ok: [
-      runtime,
-      dataSources,
-      batches,
-      rawObjects,
-      jobs,
-      assets,
-      normalizedRefs,
-      audits,
-      governanceRuns
-    ].every((item) => item.ok),
-    error:
-      [
-        runtime,
-        dataSources,
-        batches,
-        rawObjects,
-        jobs,
-        assets,
-        normalizedRefs,
-        audits,
-        governanceRuns
-      ].find((item) => item.error)?.error ?? null,
-    traceId: runtime.traceId ?? dataSources.traceId ?? batches.traceId ?? null
+    ok: results.every((item) => item.ok),
+    error: failed?.error ?? null,
+    traceId: failed?.traceId ?? results.find((item) => item.traceId)?.traceId ?? null
   };
 }
 

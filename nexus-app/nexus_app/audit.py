@@ -119,6 +119,8 @@ _ACCESS_TYPE_TARGET: dict[AssetAccessType, str] = {
     AssetAccessType.NORMALIZED_REF:    "normalized_asset_ref",
     AssetAccessType.GOVERNANCE_RESULT: "normalized_asset_ref",
     AssetAccessType.KNOWLEDGE_CHUNK:   "knowledge_chunk",
+    AssetAccessType.CHUNK_LIST:        "normalized_asset_ref",
+    AssetAccessType.RAW_DOWNLOAD:      "raw_object",
 }
 
 

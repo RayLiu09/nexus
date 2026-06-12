@@ -21,10 +21,18 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.execute(
-        "CREATE TYPE governanceprompttemplatestatus AS ENUM "
-        "('active', 'archived', 'disabled')"
-    )
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    tables = inspector.get_table_names()
+
+    if "governance_prompt_template" in tables:
+        return
+
+    # Only create enum if it doesn't already exist (idempotent)
+    result = conn.execute(
+        sa.text("SELECT 1 FROM pg_type WHERE typname = 'governanceprompttemplatestatus'")
+    ).fetchone()
+    enum_exists = result is not None
 
     op.create_table(
         "governance_prompt_template",
@@ -35,7 +43,8 @@ def upgrade() -> None:
         sa.Column(
             "status",
             sa.Enum("active", "archived", "disabled",
-                    name="governanceprompttemplatestatus"),
+                    name="governanceprompttemplatestatus",
+                    create_type=not enum_exists),
             nullable=False,
             server_default="active",
         ),

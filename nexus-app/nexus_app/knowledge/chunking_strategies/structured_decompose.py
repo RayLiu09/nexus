@@ -26,15 +26,23 @@ class StructuredDecomposeStrategy:
         emission: dict[str, Any],
         kt_config: Any,
         normalized_ref_id: str,
+        content_blocks: list[dict[str, Any]] | None = None,
     ) -> list[KnowledgeChunk]:
         field_map = self._decompose_to_fields(content)
         max_chunks = kt_config.max_chunks_per_unit
         chunks: list[KnowledgeChunk] = []
 
+        # Stage 2.1: heading-bounded mapping. Group blocks under each field
+        # heading; all windows of one field share that field's block set.
+        # Sub-window-level mapping requires md_char_range (Stage 2.2).
+        field_block_map = self._group_blocks_by_field(content_blocks)
+        doc_fallback = content_blocks or None
+
         for field_name, field_text in field_map.items():
             if not field_text.strip():
                 continue
             windows = self._sliding_window(field_text)
+            field_blocks = field_block_map.get(field_name) or doc_fallback
             for window_idx, text in enumerate(windows):
                 if len(chunks) >= max_chunks:
                     break
@@ -47,6 +55,7 @@ class StructuredDecomposeStrategy:
                         "field_name": field_name,
                         "field_chunk_index": window_idx,
                     },
+                    source_blocks=field_blocks,
                 ))
             if len(chunks) >= max_chunks:
                 if chunks:
@@ -83,6 +92,43 @@ class StructuredDecomposeStrategy:
                 field_map[field] = ""
 
         return field_map
+
+    def _group_blocks_by_field(
+        self,
+        content_blocks: list[dict[str, Any]] | None,
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Walk blocks and group them under the most recent matching heading.
+
+        A heading block whose text contains a configured field name opens a
+        section; all subsequent non-heading blocks belong to that section.
+        Encountering another field-named heading switches the active section.
+        Blocks before the first matched heading and blocks under non-matching
+        headings are dropped (we cannot attribute them to a known field).
+
+        Returns: dict[field_name -> list[block]]. Empty when no blocks or no
+        fields configured — callers should fall back to document-level locator.
+        """
+        if not content_blocks or not self.fields:
+            return {}
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        current: str | None = None
+        for block in content_blocks:
+            btype = block.get("block_type")
+            if btype in ("heading", "title"):
+                text = (block.get("text") or "").strip()
+                matched: str | None = None
+                for f in self.fields:
+                    if f and f in text:
+                        matched = f
+                        break
+                if matched is not None:
+                    current = matched
+                    grouped.setdefault(current, [])
+                    continue
+                # Non-matching heading: keep accumulating under current section
+            if current is not None:
+                grouped.setdefault(current, []).append(block)
+        return grouped
 
     def _sliding_window(self, text: str) -> list[str]:
         """Split text into overlapping windows by character count."""

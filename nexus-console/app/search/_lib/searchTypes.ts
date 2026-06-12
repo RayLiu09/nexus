@@ -1,37 +1,18 @@
-/** 与 /api/search 路由的响应对齐（见 nexus-console/app/api/search/route.ts） */
-export interface SearchChunkSource {
-  doc_id?: string;
-  doc_name?: string;
-  page?: number;
-  normalized_ref_id?: string;
-  [k: string]: unknown;
-}
-
-export interface SearchChunk {
-  chunk_id: string;
-  content: string;
-  score: number;
-  source: SearchChunkSource;
-  [k: string]: unknown;
-}
+/**
+ * Wire types specific to the search / QA playground envelopes.
+ *
+ * Shared chunk-citation types (LocatorInfo, KnowledgeChunkHit, RawDownloadResponse)
+ * live in `lib/chunkTypes.ts` and are used by both this playground and the
+ * asset detail lineage view.
+ */
+import type { KnowledgeChunkHit } from "@/lib/chunkTypes";
 
 export interface SearchResponse {
   query: string;
   kb: string | null;
-  results: SearchChunk[];
+  results: KnowledgeChunkHit[];
   count: number;
   caller_id: string;
-}
-
-/** 与 /api/qa 对齐 */
-export interface QaSource {
-  doc_id?: string;
-  doc_name?: string;
-  chunk_id?: string;
-  content?: string;
-  page?: number;
-  normalized_ref_id?: string;
-  [k: string]: unknown;
 }
 
 export interface QaResponse {
@@ -39,10 +20,12 @@ export interface QaResponse {
   kb: string | null;
   caller_id: string;
   answer: string;
-  sources: QaSource[];
+  /** P0 derived: max(sources[].score). Null when no scored sources. */
+  answer_confidence: number | null;
+  sources: KnowledgeChunkHit[];
 }
 
-/** 知识类型选项（仅展示 code + name，足以渲染 Select） */
+/** Knowledge type option (Select uses only code + name). */
 export interface KnowledgeTypeOption {
   code: string;
   name: string;

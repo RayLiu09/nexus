@@ -4,20 +4,20 @@ This document is the concise architecture baseline for implementation. It is dis
 
 ## Key Changes in v3.0
 
-| Change | v2.6 | v3.0 |
-|--------|------|------|
-| `ingest_validate` job type | Not defined; validation implicit in gateway | Explicit `ingest_validate` job stage; writes `INGEST_VALIDATE_COMPLETED` / `INGEST_VALIDATE_FAILED` audit events |
-| assetize vs normalize | Both labeled "normalize" loosely | **assetize** = create asset/asset_version anchor (job-orchestrator + metadata-service); **normalize** = content standardization contract (normalize-service). Distinct stages with distinct responsibilities. |
-| MinerU model_version | Hardcoded `hybrid-auto-engine` | Auto-selected by mime_type: HTML → `MinerU-HTML`; default → `pipeline`; complex layout → `vlm` (opt-in). Caller can override via `Job.payload.model_version_override`. |
-| MinerU OCR | No explicit control | Auto-enabled for `image/*`, `application/pdf`, `tiff` mime types |
-| MinerU image output | Not stored | Images extracted from ZIP response, stored at `parsed/<version_id>/<artifact_id>/images/<name>`; URIs recorded in `parse_artifact.metadata_summary.image_uris` and `normalized_asset_ref.lineage.image_uris` |
-| MinerU cluster | Single node only | CPU Worker group (pipeline model) + GPU Worker group (vlm/MinerU-HTML) + MinerU Router; cluster scale-up triggers documented |
-| normalize-service mechanism | Not specified | LLM semantic extraction + rule-engine fallback validation (dual-layer); rules defined by domain experts |
-| `normalized_asset_ref` fields | `block_count`, `record_count`, `metadata_summary` only | Added: `source_type`, `content_type`, `title`, `language`, `governance` (JSONB), `quality` (JSONB), `lineage` (JSONB) |
-| `governance_result` target | Implicitly `asset_version` | Explicitly `normalized_asset_ref`; `knowledge_chunk.normalized_ref_id` links chunk to normalized ref |
-| Auto-tagging subject | Implied from chunks/asset | `metadata_enrich` targets **normalized assets**; chunks do not exist yet at tag generation time |
-| Auto-tagging admission | All tags go to draft queue | High-confidence tags auto-committed (audit logged); low-confidence tags enter human review queue |
-| Knowledge Pipeline | Coupled to Asset Pipeline | **Decoupled**: Knowledge Pipeline is independent, triggered by `normalized_asset_ref`; P0 scope = Pipeline 1 (RAG retrieval KB) only |
+| Change                        | v2.6                                                   | v3.0                                                                                                                                                                                                          |
+| ----------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ingest_validate` job type    | Not defined; validation implicit in gateway            | Explicit `ingest_validate` job stage; writes `INGEST_VALIDATE_COMPLETED` / `INGEST_VALIDATE_FAILED` audit events                                                                                              |
+| assetize vs normalize         | Both labeled "normalize" loosely                       | **assetize** = create asset/asset_version anchor (job-orchestrator + metadata-service); **normalize** = content standardization contract (normalize-service). Distinct stages with distinct responsibilities. |
+| MinerU model_version          | Hardcoded `hybrid-auto-engine`                         | Auto-selected by mime_type: HTML → `MinerU-HTML`; default → `pipeline`; complex layout → `vlm` (opt-in). Caller can override via `Job.payload.model_version_override`.                                        |
+| MinerU OCR                    | No explicit control                                    | Auto-enabled for `image/*`, `application/pdf`, `tiff` mime types                                                                                                                                              |
+| MinerU image output           | Not stored                                             | Images extracted from ZIP response, stored at `parsed/<version_id>/<artifact_id>/images/<name>`; URIs recorded in `parse_artifact.metadata_summary.image_uris` and `normalized_asset_ref.lineage.image_uris`  |
+| MinerU cluster                | Single node only                                       | CPU Worker group (pipeline model) + GPU Worker group (vlm/MinerU-HTML) + MinerU Router; cluster scale-up triggers documented                                                                                  |
+| normalize-service mechanism   | Not specified                                          | LLM semantic extraction + rule-engine fallback validation (dual-layer); rules defined by domain experts                                                                                                       |
+| `normalized_asset_ref` fields | `block_count`, `record_count`, `metadata_summary` only | Added: `source_type`, `content_type`, `title`, `language`, `governance` (JSONB), `quality` (JSONB), `lineage` (JSONB)                                                                                         |
+| `governance_result` target    | Implicitly `asset_version`                             | Explicitly `normalized_asset_ref`; `knowledge_chunk.normalized_ref_id` links chunk to normalized ref                                                                                                          |
+| Auto-tagging subject          | Implied from chunks/asset                              | `metadata_enrich` targets **normalized assets**; chunks do not exist yet at tag generation time                                                                                                               |
+| Auto-tagging admission        | All tags go to draft queue                             | High-confidence tags auto-committed (audit logged); low-confidence tags enter human review queue                                                                                                              |
+| Knowledge Pipeline            | Coupled to Asset Pipeline                              | **Decoupled**: Knowledge Pipeline is independent, triggered by `normalized_asset_ref`; P0 scope = Pipeline 1 (RAG retrieval KB) only                                                                          |
 
 ## Architecture Goal
 
@@ -25,18 +25,18 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
 
 ## System Boundaries
 
-| Component | Responsibility | Explicitly Not Responsible For |
-|-----------|----------------|-------------------------------|
-| NEXUS | Asset master data, versions, governance, rules, jobs, permissions, audit, console, APIs | OCR/layout internals, vector engine internals, enterprise-wide IAM |
-| `identity-org-service` | Local org units, users, roles, API callers, org scopes | Enterprise IAM or company-wide identity governance |
-| DingTalk adapter | Optional department/user sync | Runtime dependency or permission decision authority |
-| MinerU | PDF/Office/image/scanned-document parsing; image extraction | Asset governance, permissions, indexes |
-| LiteLLM | Existing AI gateway: model routing, provider adaptation, credentials, gateway-side limits | NEXUS Prompt versions, governance states, asset master data |
-| `metadata-service.ai-governance` | Internal AI governance submodule: Prompt/profile management, LiteLLM calls, AI suggestions, quality scoring | Independent deployment, bypassing rule guardrails |
-| RAGFlow | Chunking execution, index construction, retrieval execution | NEXUS master data, permissions, audit authority |
-| Crawler systems | Dynamic data source push | Governance, index governance, permissions |
-| Scan-task orchestration | Turns NAS/Webhook/crawler/database scan items into `raw_object` + PostgreSQL ingest jobs using existing pipeline routing | Live filesystem crawler daemon, MQ scheduler, or new execution engine |
-| Upper systems | Consume NEXUS APIs | Direct calls to MinerU, RAGFlow, LiteLLM, or internal DBs |
+| Component                        | Responsibility                                                                                                           | Explicitly Not Responsible For                                        |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| NEXUS                            | Asset master data, versions, governance, rules, jobs, permissions, audit, console, APIs                                  | OCR/layout internals, vector engine internals, enterprise-wide IAM    |
+| `identity-org-service`           | Local org units, users, roles, API callers, org scopes                                                                   | Enterprise IAM or company-wide identity governance                    |
+| DingTalk adapter                 | Optional department/user sync                                                                                            | Runtime dependency or permission decision authority                   |
+| MinerU                           | PDF/Office/image/scanned-document parsing; image extraction                                                              | Asset governance, permissions, indexes                                |
+| LiteLLM                          | Existing AI gateway: model routing, provider adaptation, credentials, gateway-side limits                                | NEXUS Prompt versions, governance states, asset master data           |
+| `metadata-service.ai-governance` | Internal AI governance submodule: Prompt/profile management, LiteLLM calls, AI suggestions, quality scoring              | Independent deployment, bypassing rule guardrails                     |
+| RAGFlow                          | Chunking execution, index construction, retrieval execution                                                              | NEXUS master data, permissions, audit authority                       |
+| Crawler systems                  | Dynamic data source push                                                                                                 | Governance, index governance, permissions                             |
+| Scan-task orchestration          | Turns NAS/Webhook/crawler/database scan items into `raw_object` + PostgreSQL ingest jobs using existing pipeline routing | Live filesystem crawler daemon, MQ scheduler, or new execution engine |
+| Upper systems                    | Consume NEXUS APIs                                                                                                       | Direct calls to MinerU, RAGFlow, LiteLLM, or internal DBs             |
 
 ## Design Principles
 
@@ -75,11 +75,11 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
 
 Pipeline routing stored in `Job.payload.pipeline_type` at job creation. Workers read from payload; no runtime inference.
 
-| `DataSource.source_type` | `raw_object.mime_type` | `pipeline_type` |
-|--------------------------|------------------------|-----------------|
-| `file_upload`, `nas` | non-`application/json` | `"document"` |
-| `file_upload`, `nas` | `application/json` | `"record"` |
-| `crawler`, `database`, `webhook` | any | `"record"` |
+| `DataSource.source_type`         | `raw_object.mime_type` | `pipeline_type` |
+| -------------------------------- | ---------------------- | --------------- |
+| `file_upload`, `nas`             | non-`application/json` | `"document"`    |
+| `file_upload`, `nas`             | `application/json`     | `"record"`      |
+| `crawler`, `database`, `webhook` | any                    | `"record"`      |
 
 **Pipeline A — Document Processing:**
 
@@ -96,16 +96,17 @@ Stages: ingest → `ingest_validate` → `assetize` → **normalize** (`normaliz
 Produces: `normalized_asset_ref(type=record)`.
 
 **Shared by both pipelines:**
+
 - Same `asset`/`asset_version` model (distinguished by `asset_kind`).
 - Same version state machine.
 - Required audit events: `INGEST_BATCH_SUBMITTED`, `RAW_OBJECT_PERSISTED`, `INGEST_VALIDATE_COMPLETED`, `VERSION_STATUS_CHANGED`, `PIPELINE_FAILED`.
 
 ## assetize vs normalize Stages
 
-| Stage | Owner | Responsibility | Rules |
-|-------|-------|----------------|-------|
-| **assetize** | `job-orchestrator` + `metadata-service` | Create `asset`/`asset_version` master data anchor via `(data_source_id, source_object_key)` idempotency | Same key + same checksum → skip; same key + different checksum → archive old available version, create version_no+1; different key → new asset |
-| **normalize** | `normalize-service` | Convert MinerU artifacts or raw JSON to unified standard asset contract | Rules defined by domain experts; executed via LLM semantic extraction (content understanding, field filling, language detection) + rule-engine fallback validation (required fields, format constraints, classification compliance) |
+| Stage         | Owner                                   | Responsibility                                                                                          | Rules                                                                                                                                                                                                                               |
+| ------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **assetize**  | `job-orchestrator` + `metadata-service` | Create `asset`/`asset_version` master data anchor via `(data_source_id, source_object_key)` idempotency | Same key + same checksum → skip; same key + different checksum → archive old available version, create version_no+1; different key → new asset                                                                                      |
+| **normalize** | `normalize-service`                     | Convert MinerU artifacts or raw JSON to unified standard asset contract                                 | Rules defined by domain experts; executed via LLM semantic extraction (content understanding, field filling, language detection) + rule-engine fallback validation (required fields, format constraints, classification compliance) |
 
 `asset_version.id` established by assetize is the anchor for all downstream artifacts (`parse_artifact`, `normalized_asset_ref`, `governance_result`, `knowledge_chunk`).
 
@@ -113,15 +114,16 @@ Produces: `normalized_asset_ref(type=record)`.
 
 **model_version selection:**
 
-| mime_type | model_version | Notes |
-|-----------|--------------|-------|
-| `text/html`, `application/xhtml+xml` | `MinerU-HTML` | Must be explicit |
-| default (PDF, Word, PPT, images) | `pipeline` | Low cost, high throughput |
-| complex layout / mixed graphics (opt-in) | `vlm` | Higher GPU cost; trigger via `Job.payload.model_version_override` |
+| mime_type                                | model_version | Notes                                                             |
+| ---------------------------------------- | ------------- | ----------------------------------------------------------------- |
+| `text/html`, `application/xhtml+xml`     | `MinerU-HTML` | Must be explicit                                                  |
+| default (PDF, Word, PPT, images)         | `pipeline`    | Low cost, high throughput                                         |
+| complex layout / mixed graphics (opt-in) | `vlm`         | Higher GPU cost; trigger via `Job.payload.model_version_override` |
 
 **OCR auto-enable:** enabled for `image/*`, `application/pdf`, `tiff`; disabled for all other types.
 
 **Image storage:** MinerU called with `return_images=true, response_format_zip=true`. ZIP unpacked:
+
 - JSON → `parsed/<version_id>/<artifact_id>/mineru-result.json`
 - Images → `parsed/<version_id>/<artifact_id>/images/<image_name>`
 
@@ -129,6 +131,7 @@ Produces: `normalized_asset_ref(type=record)`.
 `normalized_asset_ref.lineage` records `image_uris` for downstream rendering.
 
 **Cluster extension points (pre-reserved, not P0 required):**
+
 - CPU Worker group for `pipeline` model tasks.
 - GPU Worker group for `vlm`/`MinerU-HTML` tasks (GPU isolated).
 - MinerU Router for health check and load distribution; task state managed externally by NEXUS job center.
@@ -149,25 +152,110 @@ Produces: `normalized_asset_ref(type=record)`.
 
 ## normalized_asset_ref Fields (v3.0)
 
-| Field | Type | Required | Notes |
-|-------|------|----------|-------|
-| `id` | string | yes | PK |
-| `version_id` | string | yes | FK → `asset_version.id` |
-| `normalized_type` | enum | yes | `document` / `record` |
-| `object_uri` | string | yes | MinIO path |
-| `schema_version` | string | yes | Contract version |
-| `checksum` | string | yes | SHA-256 |
-| `status` | enum | yes | `generated` / `failed` / `deprecated` |
-| `block_count` | int | yes | — |
-| `record_count` | int | yes | — |
-| `source_type` | string | no | Copied from raw_object for fast filtering |
-| `content_type` | string | no | `document`/`slide_deck`/`table_sheet`/`web_record`/`media_meta` |
-| `title` | string | no | Asset title |
-| `language` | string | no | Primary language code, default `zh-CN` |
-| `governance` | JSONB | yes | Classification, sensitivity level, org_scope, version_status snapshot |
-| `quality` | JSONB | yes | Quality scores, anomaly items, manual review status |
-| `lineage` | JSONB | yes | raw_object_id, parse_artifact_id, image_uris, processing chain trace |
-| `metadata_summary` | JSONB | yes | Source, business, temporal metadata for search enrichment |
+| Field              | Type   | Required | Notes                                                                 |
+| ------------------ | ------ | -------- | --------------------------------------------------------------------- |
+| `id`               | string | yes      | PK                                                                    |
+| `version_id`       | string | yes      | FK → `asset_version.id`                                               |
+| `normalized_type`  | enum   | yes      | `document` / `record`                                                 |
+| `object_uri`       | string | yes      | MinIO path                                                            |
+| `schema_version`   | string | yes      | Contract version                                                      |
+| `checksum`         | string | yes      | SHA-256                                                               |
+| `status`           | enum   | yes      | `generated` / `failed` / `deprecated`                                 |
+| `block_count`      | int    | yes      | —                                                                     |
+| `record_count`     | int    | yes      | —                                                                     |
+| `source_type`      | string | no       | Copied from raw_object for fast filtering                             |
+| `content_type`     | string | no       | `document`/`slide_deck`/`table_sheet`/`web_record`/`media_meta`       |
+| `title`            | string | no       | Asset title                                                           |
+| `language`         | string | no       | Primary language code, default `zh-CN`                                |
+| `governance`       | JSONB  | yes      | Classification, sensitivity level, org_scope, version_status snapshot |
+| `quality`          | JSONB  | yes      | Quality scores, anomaly items, manual review status                   |
+| `lineage`          | JSONB  | yes      | raw_object_id, parse_artifact_id, image_uris, processing chain trace  |
+| `metadata_summary` | JSONB  | yes      | Source, business, temporal metadata for search enrichment             |
+
+## Chunk Locator Contract
+
+`knowledge_chunk.locator` carries chunk-to-source coordinate provenance for citation, audit, and original-document jump-back. The contract is:
+
+```json
+{
+  "page_start": 3,
+  "page_end": 3,
+  "bbox_union": [72.5, 120.0, 540.0, 380.0],
+  "blocks": [
+    {
+      "block_id": "block-p03-014",
+      "page": 3,
+      "bbox": [72.5, 120.0, 540.0, 200.0]
+    },
+    {
+      "block_id": "block-p03-015",
+      "page": 3,
+      "bbox": [72.5, 210.0, 540.0, 380.0]
+    }
+  ]
+}
+```
+
+Rules:
+
+- `locator` is required when `source_kind = extracted_from_normalized` AND the underlying `normalized_asset_ref.normalized_type = document`.
+- `locator` is null for `normalized_type = record` chunks and for `chunk_type = passthrough_descriptor` (RAGFlow owns chunking).
+- `bbox_union` is set only when all source blocks share a single page; cross-page chunks set `bbox_union = null` and consumers fall back to `blocks[]`.
+- `source_block_ids` is the flat list of origin `block_id`s in `normalized_document.blocks[]`, kept as a column for index-friendly reverse lookup.
+- `/v1/search` and `/v1/qa` responses MUST surface `locator` and `raw_object_uri` per hit so callers can jump to the source coordinates without re-querying.
+- `SearchQueryExecuted` and `QAAnswerGenerated` audit events MAY include `cited_locators` for downstream consumption-lineage analysis; query/answer plaintext is still never persisted.
+
+Chunking strategies that consume `normalized_document.blocks[]` should pass the origin blocks into `build_chunk(..., source_blocks=[...])`; strategies that only see flattened text may omit them. Existing strategies remain backward compatible — `locator` is added incrementally per strategy.
+
+### md_char_range — out-of-band block offsets
+
+`normalized_document.blocks[].md_char_range = [start, end]` is the contract that lets chunking strategies reverse-map a regex match span back to its source blocks. The contract:
+
+- Computed once by `mineru_converter._annotate_md_ranges` against the `"\n\n".join(md_parts)` cursor.
+- `body_markdown[start:end] == md_parts[i]` for every populated block (substring invariant; locked by `tests/pipeline/test_mineru_markdown_stability.py`).
+- Blocks with no markdown footprint (e.g. visual blocks with no caption / table / VLM output) carry `md_char_range = None`.
+- **`body_markdown` itself is byte-identical with or without md_char_range** — the index lives only on the blocks list, never injected as anchors / comments / zero-width characters into the markdown stream. This keeps LLM Prompts, RAGFlow upload, and asset detail preview unaffected.
+- `mineru_converter.assert_no_anchor_pollution(text)` is the runtime tripwire (enabled via env `NEXUS_ASSERT_NO_ANCHORS=1` in dev/staging). Forbidden patterns: `<!--block:…`, `[#block-…`, `{{anchor:…}}`, U+200B/200C/200D/FEFF.
+
+`nexus_app.knowledge.chunk_builder.resolve_blocks_for_span(blocks, span, doc_fallback=...)` is the reverse-lookup helper used by strategies (`qa_extract`, `process_step_extract`, `case_decompose`, `indicator_decompose`). When no block overlaps it falls back to `doc_fallback`, preserving Stage 1 document-level locator behaviour. Omitting the kwarg defaults to `content_blocks`; passing an explicit `None` (used by `graph_extract`) disables the fallback so primary-extraction blocks can be distinguished from supporting evidence.
+
+### graph_extract: primary vs evidence
+
+Concept-level chunks (`graph_extract`) carry a richer source-block partition:
+
+- `primary_block_ids` — the block(s) whose `md_char_range` covers the line where the (subject, predicate, object) triple was stated.
+- `evidence_block_ids` — additional blocks whose text mentions `subject` or `object` verbatim (per-concept cap = 5 to bound runaway evidence on common terms; dedup across subject/object).
+- `source_blocks` / `locator.blocks[]` = primary ∪ evidence.
+
+Both partitions are persisted in `knowledge_chunk.chunk_metadata` and surfaced at the **top level** of the public API responses (`/open/v1/knowledge-chunks/{id}`, `/open/v1/normalized-refs/{id}/chunks`, and search/QA hits) only when present — non-graph chunks omit them to keep response shape stable.
+
+## Lineage-Facing API Endpoints
+
+Two read endpoints added to support consumption-side traceability without exposing MinIO credentials to clients:
+
+- `GET /open/v1/normalized-refs/{ref_id}/chunks?page=&pageSize=` — paginated `knowledge_chunk` list anchored on the given normalized_ref. Same `available`-only gate as `/knowledge-chunks/{id}`. Each item carries `locator`, `source_block_ids`, plus the graph-only `primary_block_ids` / `evidence_block_ids` when present. Audit: `ASSET_VERSION_ACCESSED` with `access_type=chunk_list`.
+
+- `GET /open/v1/raw-objects/{raw_object_id}/download-url?ttl_seconds=` — mints a short-lived presigned download URL for the original uploaded file. Default TTL 900 s, clamped 60–3600 s. The raw_object must back at least one `available` asset version. MinIO credentials live exclusively in `nexus-app.storage.S3ObjectStorage.generate_presigned_download` — no client ever holds them. Returns `{raw_object_id, download_url, expires_at, ttl_seconds}`. Audit: `ASSET_VERSION_ACCESSED` with `access_type=raw_download`.
+
+Two new `AssetAccessType` discriminators: `chunk_list`, `raw_download`. Both flow into the same consumption-lineage read model that powers Phase 2 downstream-impact analysis.
+
+## Parsing Profile Extension Point
+
+P0 routes parsing exclusively by `raw_object.mime_type` (see "MinerU Calling Contract"). MinerU internally covers layout, tables, scans, and handwriting, so genre-specific routing is not required at P0.
+
+For future scenarios where mime_type is insufficient (e.g., distinguishing engineering drawings from generic PDFs, applying a vendor-specific contract template), `Job.payload` reserves an optional `parsing_profile` slot:
+
+```json
+{
+  "pipeline_type": "document",
+  "model_version_override": null,
+  "parsing_profile": null
+}
+```
+
+When `parsing_profile` is null (P0 default), Workers use the standard MinerU selection. When non-null (future), Workers MUST resolve it against a profile registry to pick parser, post-processing, and extraction template. No table or enum is created at P0; only the payload key is reserved.
+
+Upgrade trigger: mime_type-based routing produces visibly degraded structure quality on a recognizable document genre (e.g., engineering drawings) for ≥ 2 weeks, or a new business domain demands a dedicated extraction template.
 
 ## Modeling Constraints
 
@@ -180,44 +268,44 @@ Produces: `normalized_asset_ref(type=record)`.
 
 ## Version State Contract
 
-| Status | Meaning | Searchable |
-|--------|---------|-----------|
-| `processing` | Ingest, parse, standardize, govern, or index in progress | No |
-| `available` | Passed admission; serves authorized users | Yes |
-| `review_required` | Needs manual review | No |
-| `archived` | Replaced historical version | No (default) |
-| `disabled` | Manually disabled | No |
-| `failed` | Unrecoverable failure | No |
+| Status            | Meaning                                                  | Searchable   |
+| ----------------- | -------------------------------------------------------- | ------------ |
+| `processing`      | Ingest, parse, standardize, govern, or index in progress | No           |
+| `available`       | Passed admission; serves authorized users                | Yes          |
+| `review_required` | Needs manual review                                      | No           |
+| `archived`        | Replaced historical version                              | No (default) |
+| `disabled`        | Manually disabled                                        | No           |
+| `failed`          | Unrecoverable failure                                    | No           |
 
 `available` requires: effective `normalized_asset_ref`; `governance.quality_level = pass`; required classification, level, tags, org_scope populated; no blocking rule; sufficient AI confidence; uniqueness (no other available version, or old version archived atomically).
 
 ## Audit Event Contract
 
-| Event | Trigger | Pipelines |
-|-------|---------|-----------|
-| `IngestBatchSubmitted` | Batch submitted | A / B |
-| `RawObjectPersisted` | Raw object written to MinIO | A / B |
-| `IngestValidateCompleted` | ingest_validate job succeeded | A / B |
-| `IngestValidateFailed` | ingest_validate job failed | A / B |
-| `CrossSourceDuplicateDetected` | Same checksum in different data_source | A / B |
-| `VersionStatusChanged` | asset_version status transition | A / B |
-| `AssetVersionArchived` | Old version archived by re-ingest | A / B |
-| `PipelineFailed` | Any stage non-retryable failure | A / B |
-| `DataSourceCreated` | Data source registered | — |
-| `DataSourceStatusChanged` | Data source status change | — |
-| `ApiCallerCreated` | API key created | — |
-| `ApiCallerRevoked` | API key revoked | — |
-| `AssetVersionAccessed` | api_caller or user accessed an asset version via `/v1` API | — |
-| `SearchQueryExecuted` | Search query executed; records caller_id, query hash, hit normalized_ref_ids | — |
-| `QAAnswerGenerated` | QA answer generated; records caller_id, question hash, cited normalized_ref_ids and chunk_ids | — |
+| Event                          | Trigger                                                                                       | Pipelines |
+| ------------------------------ | --------------------------------------------------------------------------------------------- | --------- |
+| `IngestBatchSubmitted`         | Batch submitted                                                                               | A / B     |
+| `RawObjectPersisted`           | Raw object written to MinIO                                                                   | A / B     |
+| `IngestValidateCompleted`      | ingest_validate job succeeded                                                                 | A / B     |
+| `IngestValidateFailed`         | ingest_validate job failed                                                                    | A / B     |
+| `CrossSourceDuplicateDetected` | Same checksum in different data_source                                                        | A / B     |
+| `VersionStatusChanged`         | asset_version status transition                                                               | A / B     |
+| `AssetVersionArchived`         | Old version archived by re-ingest                                                             | A / B     |
+| `PipelineFailed`               | Any stage non-retryable failure                                                               | A / B     |
+| `DataSourceCreated`            | Data source registered                                                                        | —         |
+| `DataSourceStatusChanged`      | Data source status change                                                                     | —         |
+| `ApiCallerCreated`             | API key created                                                                               | —         |
+| `ApiCallerRevoked`             | API key revoked                                                                               | —         |
+| `AssetVersionAccessed`         | api_caller or user accessed an asset version via `/v1` API                                    | —         |
+| `SearchQueryExecuted`          | Search query executed; records caller_id, query hash, hit normalized_ref_ids                  | —         |
+| `QAAnswerGenerated`            | QA answer generated; records caller_id, question hash, cited normalized_ref_ids and chunk_ids | —         |
 
 **Consumption-side audit event field contract:**
 
 `AssetVersionAccessed`: `caller_id`, `caller_type` (api_caller / user), `asset_id`, `version_id`, `normalized_ref_id`, `access_type` (read / search_hit / qa_citation), `trace_id`.
 
-`SearchQueryExecuted`: `caller_id`, `caller_type`, `query_hash` (SHA-256 of query text, not plaintext), `hit_normalized_ref_ids` (list), `hit_count`, `data_source_ids` (distinct), `trace_id`.
+`SearchQueryExecuted`: `caller_id`, `caller_type`, `query_hash` (SHA-256 of query text, not plaintext), `hit_normalized_ref_ids` (list), `cited_chunk_ids` (list of `knowledge_chunk.id`), `cited_locators` (compact list `[{chunk_id, page_start, page_end}]`; full locator stays in `knowledge_chunk.locator`), `hit_count`, `data_source_ids` (distinct), `trace_id`.
 
-`QAAnswerGenerated`: `caller_id`, `caller_type`, `question_hash` (SHA-256), `cited_normalized_ref_ids` (list), `cited_chunk_ids` (list), `answer_confidence`, `trace_id`.
+`QAAnswerGenerated`: `caller_id`, `caller_type`, `question_hash` (SHA-256), `cited_normalized_ref_ids` (list), `cited_chunk_ids` (list of `knowledge_chunk.id`), `cited_locators` (compact list `[{chunk_id, page_start, page_end}]`), `data_source_ids` (distinct), `answer_confidence` (P0: derived as `max(sources[].score)`; null when no scored sources; future RAGFlow-native confidence will be preferred when available), `trace_id`.
 
 These three events are the foundation for Phase 2 consumption-side data lineage analysis. They must be written by `nexus-api` search/QA handlers before returning results. Logs must not contain query plaintext, answer content, or L3/L4 data.
 
@@ -266,6 +354,7 @@ The ingest gateway uses the `IngestAdapter` protocol:
 - `submit_file_bytes()` for multipart uploads: bypasses base64 encoding, accepts raw bytes directly.
 
 Storage key naming:
+
 ```
 raw/<source_type>/<source_id>/<YYYY>/<MM>/<DD>/<idempotency_key>/<checksum_prefix>/<filename>
 parsed/<version_id>/<artifact_id>/mineru-result.json
@@ -274,6 +363,7 @@ normalized/<normalized_type>/<version_id>/<ref_id>/schema-v1/<checksum_prefix>.j
 ```
 
 Idempotency:
+
 - Same `(data_source_id, idempotency_key)` → return existing batch.
 - Same `data_source_id` + same `checksum` → `DUPLICATE_SKIPPED`.
 - Different `data_source_id` + same `checksum` → `CrossSourceDuplicateDetected` audit, ingestion continues.
@@ -289,13 +379,13 @@ Idempotency:
 
 Single-node capacity (16 Core / 64 GB / 48 GB GPU):
 
-| Concurrency Item | Recommended | P0 Limit |
-|-----------------|-------------|----------|
-| Active pipeline jobs | 8-12 | 16 |
-| MinerU parse jobs (Pipeline A) | 2-4 | 4 |
-| Standardization jobs (Pipeline B) | 4-8 | 8 |
-| AI governance / quality jobs | 2-4 | 6 |
-| RAGFlow sync jobs | 2-4 | 6 |
+| Concurrency Item                  | Recommended | P0 Limit |
+| --------------------------------- | ----------- | -------- |
+| Active pipeline jobs              | 8-12        | 16       |
+| MinerU parse jobs (Pipeline A)    | 2-4         | 4        |
+| Standardization jobs (Pipeline B) | 4-8         | 8        |
+| AI governance / quality jobs      | 2-4         | 6        |
+| RAGFlow sync jobs                 | 2-4         | 6        |
 
 ## AI Governance Architecture
 
@@ -316,20 +406,20 @@ Single-node capacity (16 Core / 64 GB / 48 GB GPU):
 
 ## Technology Baseline
 
-| Area | P0 Baseline | Scale-Up Path |
-|------|-------------|---------------|
-| API/control plane | Python 3.11, FastAPI 0.115+, Pydantic v2 | — |
-| Python deps | uv, `pyproject.toml`, `uv.lock` | — |
-| Persistence | PostgreSQL 15+, SQLAlchemy 2.x, Alembic | — |
-| Object storage | MinIO | — |
-| Cache | In-process TTL cache | Redis 7.x |
-| Async jobs | PostgreSQL job table + Worker poller | RabbitMQ + Celery |
-| Frontend | React 19, Next.js 16 App Router, TypeScript | — |
-| Charts | ECharts 5.x | — |
-| Parsing | MinerU (pipeline / vlm / MinerU-HTML, auto-selected) | MinerU cluster (CPU + GPU Worker groups) |
-| AI gateway | Existing LiteLLM | — |
-| Search/index | RAGFlow | — |
-| Embedding/rerank | `bge-large-zh-v1.5`, `bge-reranker-large` | — |
+| Area              | P0 Baseline                                          | Scale-Up Path                            |
+| ----------------- | ---------------------------------------------------- | ---------------------------------------- |
+| API/control plane | Python 3.11, FastAPI 0.115+, Pydantic v2             | —                                        |
+| Python deps       | uv, `pyproject.toml`, `uv.lock`                      | —                                        |
+| Persistence       | PostgreSQL 15+, SQLAlchemy 2.x, Alembic              | —                                        |
+| Object storage    | MinIO                                                | —                                        |
+| Cache             | In-process TTL cache                                 | Redis 7.x                                |
+| Async jobs        | PostgreSQL job table + Worker poller                 | RabbitMQ + Celery                        |
+| Frontend          | React 19, Next.js 16 App Router, TypeScript          | —                                        |
+| Charts            | ECharts 5.x                                          | —                                        |
+| Parsing           | MinerU (pipeline / vlm / MinerU-HTML, auto-selected) | MinerU cluster (CPU + GPU Worker groups) |
+| AI gateway        | Existing LiteLLM                                     | —                                        |
+| Search/index      | RAGFlow                                              | —                                        |
+| Embedding/rerank  | `bge-large-zh-v1.5`, `bge-reranker-large`            | —                                        |
 
 ## Security and Audit
 
@@ -354,20 +444,20 @@ Single-node capacity (16 Core / 64 GB / 48 GB GPU):
 
 ## Scale-Up Triggers
 
-| Simplified Capability | Upgrade Trigger |
-|-----------------------|-----------------|
-| `quality_summary` as embedded JSONB | Need independent quality history queries, compliance audit, or quality workflow |
-| `decision_trail` as embedded JSONB | Need per-rule hit rate analysis, AI acceptance rate stats, or compliance audit |
-| `ai_prompt_profile` save-to-activate | Multi-person Prompt review, approval workflow, or gray release |
-| Rule save-to-activate | Rule change approval flow, time-window rollback, or gray release |
-| PostgreSQL job queue | Active jobs > 16 sustained, queue wait P95 > 5 min for 3 days, or routing/dead-letter needs exceed PG poller |
-| In-process cache | Horizontal scaling, distributed cache invalidation, or distributed locks |
-| ABAC extension | Cross-org sharing, temporary approval, or attribute-based dynamic permissions |
-| Default L1/L2 source level | Source approved to contain L3/L4 data with explicit review, masking, and audit |
-| MinerU single node | Parse queue P95 > 20 min for 3 days, or GPU utilization peak > 80% sustained |
-| Knowledge Pipeline 1 only | Need QA corpus, process corpus, knowledge graph, or evaluation standard library |
-| `document_asset`/`document_version` table names | Execute v2.6 M15 migration |
-| Consumption-side audit events only | Need downstream dependency graph, impact analysis, or data lineage visualization across systems |
+| Simplified Capability                           | Upgrade Trigger                                                                                              |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `quality_summary` as embedded JSONB             | Need independent quality history queries, compliance audit, or quality workflow                              |
+| `decision_trail` as embedded JSONB              | Need per-rule hit rate analysis, AI acceptance rate stats, or compliance audit                               |
+| `ai_prompt_profile` save-to-activate            | Multi-person Prompt review, approval workflow, or gray release                                               |
+| Rule save-to-activate                           | Rule change approval flow, time-window rollback, or gray release                                             |
+| PostgreSQL job queue                            | Active jobs > 16 sustained, queue wait P95 > 5 min for 3 days, or routing/dead-letter needs exceed PG poller |
+| In-process cache                                | Horizontal scaling, distributed cache invalidation, or distributed locks                                     |
+| ABAC extension                                  | Cross-org sharing, temporary approval, or attribute-based dynamic permissions                                |
+| Default L1/L2 source level                      | Source approved to contain L3/L4 data with explicit review, masking, and audit                               |
+| MinerU single node                              | Parse queue P95 > 20 min for 3 days, or GPU utilization peak > 80% sustained                                 |
+| Knowledge Pipeline 1 only                       | Need QA corpus, process corpus, knowledge graph, or evaluation standard library                              |
+| `document_asset`/`document_version` table names | Execute v2.6 M15 migration                                                                                   |
+| Consumption-side audit events only              | Need downstream dependency graph, impact analysis, or data lineage visualization across systems              |
 
 ## Consumption-Side Data Lineage Extension Point
 
@@ -387,6 +477,7 @@ When the following trigger is met — **consumption-side audit event volume reac
 **1. Consumption lineage read model (`asset_consumption_lineage`)**
 
 Materialized from `AssetVersionAccessed`, `SearchQueryExecuted`, `QAAnswerGenerated` audit events. Fields:
+
 - `normalized_ref_id` → `caller_id` + `caller_type` + `last_accessed_at` + `access_count`
 - `asset_id` → distinct `caller_ids` + `data_source_ids` touched
 

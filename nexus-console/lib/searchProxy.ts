@@ -15,11 +15,19 @@ export interface ProxyError {
   message: string;
 }
 
+export interface ProxyListMeta {
+  page?: number;
+  pageSize?: number;
+  total?: number;
+}
+
 export interface ProxySuccess<T> {
   ok: true;
   status: number;
   data: T;
   traceId: string | null;
+  /** Populated for list endpoints; absent for scalar responses. */
+  listMeta?: ProxyListMeta;
 }
 
 export type ProxyResult<T> = ProxySuccess<T> | ProxyError;
@@ -77,7 +85,12 @@ export async function proxyBackendGet<T>(path: string): Promise<ProxyResult<T>> 
   const envelope = (body ?? {}) as {
     data?: T;
     error?: { message?: string };
-    meta?: { trace_id?: string };
+    meta?: {
+      trace_id?: string;
+      page?: number;
+      page_size?: number;
+      total?: number;
+    };
   };
 
   if (!response.ok) {
@@ -88,10 +101,21 @@ export async function proxyBackendGet<T>(path: string): Promise<ProxyResult<T>> 
     };
   }
 
+  const meta = envelope.meta ?? {};
+  const listMeta: ProxyListMeta | undefined =
+    meta.page !== undefined || meta.page_size !== undefined || meta.total !== undefined
+      ? {
+          page: meta.page,
+          pageSize: meta.page_size,
+          total: meta.total,
+        }
+      : undefined;
+
   return {
     ok: true,
     status: response.status,
     data: envelope.data as T,
-    traceId: envelope.meta?.trace_id ?? null,
+    traceId: meta.trace_id ?? null,
+    listMeta,
   };
 }

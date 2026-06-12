@@ -248,6 +248,8 @@ class AssetAccessType(StrEnum):
     NORMALIZED_REF     = "normalized_ref"
     GOVERNANCE_RESULT  = "governance_result"
     KNOWLEDGE_CHUNK    = "knowledge_chunk"
+    RAW_DOWNLOAD       = "raw_download"
+    CHUNK_LIST         = "chunk_list"
 
 
 class ChunkingMode(StrEnum):

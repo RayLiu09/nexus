@@ -40,3 +40,6 @@ minio-data/
 postgres-data/
 redis-data/
 elasticsearch-data/
+
+# Local sample files
+docs/samples/

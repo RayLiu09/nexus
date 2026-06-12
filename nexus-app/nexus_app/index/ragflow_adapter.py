@@ -374,6 +374,20 @@ class FakeRAGFlowAdapter:
                 "version_id": f"fake_version_{i}",
                 "asset_id": f"fake_asset_{i}",
                 "nexus_chunk_id": f"fake_nexus_chunk_{i}",
+                "locator": {
+                    "page_start": i + 1,
+                    "page_end": i + 1,
+                    "bbox_union": [72.0, 120.0, 540.0, 240.0],
+                    "blocks": [
+                        {"block_id": f"block-p{i+1:02d}-001",
+                         "page": i + 1,
+                         "bbox": [72.0, 120.0, 540.0, 240.0]},
+                    ],
+                },
+                "source_block_ids": [f"block-p{i+1:02d}-001"],
+                "raw_object_id": f"fake_raw_{i}",
+                "raw_object_uri": f"s3://nexus-raw/fake/{i}/source.pdf",
+                "data_source_id": f"fake_ds_{i}",
             }
             for i in range(1, min(top_k, 3) + 1)
         ]
@@ -395,10 +409,25 @@ class FakeRAGFlowAdapter:
                     "chunk_id": f"fake_chunk_{i}",
                     "content": f"Source content {i}",
                     "page": i + 1,
+                    "score": 0.9 - (i * 0.1),
                     "normalized_ref_id": f"fake_ref_{i}",
                     "version_id": f"fake_version_{i}",
                     "asset_id": f"fake_asset_{i}",
                     "nexus_chunk_id": f"fake_nexus_chunk_{i}",
+                    "data_source_id": f"fake_ds_{i}",
+                    "locator": {
+                        "page_start": i + 1,
+                        "page_end": i + 1,
+                        "bbox_union": [72.0, 120.0, 540.0, 240.0],
+                        "blocks": [
+                            {"block_id": f"block-p{i+1:02d}-001",
+                             "page": i + 1,
+                             "bbox": [72.0, 120.0, 540.0, 240.0]},
+                        ],
+                    },
+                    "source_block_ids": [f"block-p{i+1:02d}-001"],
+                    "raw_object_id": f"fake_raw_{i}",
+                    "raw_object_uri": f"s3://nexus-raw/fake/{i}/source.pdf",
                 }
                 for i in range(1, min(top_k, 3) + 1)
             ],

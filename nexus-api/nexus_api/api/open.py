@@ -342,6 +342,95 @@ def get_public_governance_result_for_ref(
 
 
 # ---------------------------------------------------------------------------
+# Normalized ref content — body_markdown + blocks for Asset Detail preview
+# ---------------------------------------------------------------------------
+
+@router.get("/normalized-refs/{ref_id}/content")
+def get_normalized_ref_content(
+    ref_id: str,
+    request: Request,
+    caller: models.ApiCaller = Depends(require_api_caller),
+    session: Session = Depends(get_db),
+):
+    """Read the normalized payload from object storage and surface
+    ``body_markdown`` + ``blocks`` (document type) or ``record_body``
+    (record type) for the Asset Detail "原文预览" tab.
+
+    The markdown stream is returned **byte-identical** to what was
+    persisted in MinIO — see ARCHITECT "Chunk Locator Contract" and
+    `mineru_converter._FORBIDDEN_ANCHOR_PATTERNS`. The frontend is
+    contracted to render block-level DOM anchors from ``blocks[].md_char_range``
+    without ever mutating the markdown text.
+    """
+    import json as _json
+
+    ref = session.get(models.NormalizedAssetRef, ref_id)
+    if ref is None or not _ref_anchors_available_version(session, ref):
+        raise HTTPException(
+            status_code=404, detail=f"normalized_ref '{ref_id}' not available",
+        )
+    version = session.get(models.AssetVersion, ref.version_id)
+
+    from nexus_app.storage import (
+        ObjectNotFoundError,
+        ObjectStorageError,
+        get_object_storage,
+    )
+
+    storage = get_object_storage()
+    uri = ref.object_uri
+    key = uri.split("/", 3)[-1] if uri.startswith("s3://") else uri
+    try:
+        raw_bytes = storage.get_bytes(key)
+    except ObjectNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"normalized_ref '{ref_id}' payload missing in object storage",
+        )
+    except ObjectStorageError:
+        raise HTTPException(
+            status_code=503,
+            detail="object storage temporarily unavailable",
+        )
+
+    try:
+        payload = _json.loads(raw_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, _json.JSONDecodeError):
+        raise HTTPException(
+            status_code=500,
+            detail="normalized payload is not valid JSON",
+        )
+
+    normalized_type = (
+        ref.normalized_type.value
+        if hasattr(ref.normalized_type, "value")
+        else str(ref.normalized_type)
+    )
+    out: dict = {
+        "ref_id": ref.id,
+        "asset_id": version.asset_id if version is not None else None,
+        "version_id": ref.version_id,
+        "normalized_type": normalized_type,
+        "body_markdown": payload.get("body_markdown") or None,
+        "blocks": payload.get("blocks") if isinstance(payload.get("blocks"), list) else None,
+        "record_body": payload.get("record_body") if isinstance(payload.get("record_body"), dict) else None,
+    }
+
+    write_asset_version_accessed_audit(
+        session,
+        caller=caller,
+        access_type=AssetAccessType.NORMALIZED_REF,
+        target_id=ref.id,
+        asset_id=version.asset_id if version is not None else None,
+        version_id=ref.version_id,
+        normalized_ref_id=ref.id,
+        trace_id=_trace_id(request),
+    )
+    session.commit()
+    return response(out, request)
+
+
+# ---------------------------------------------------------------------------
 # Knowledge chunks — citation lookup for search/qa results
 # ---------------------------------------------------------------------------
 
@@ -381,18 +470,193 @@ def get_public_knowledge_chunk(
     )
     session.commit()
 
+    return response(_serialize_chunk(chunk, ref, version), request)
+
+
+def _serialize_chunk(
+    chunk: models.KnowledgeChunk,
+    ref: models.NormalizedAssetRef,
+    version: models.AssetVersion | None,
+) -> dict:
+    """Common serialization for both single-chunk and chunk-list endpoints.
+
+    Lifts ``primary_block_ids`` / ``evidence_block_ids`` from
+    ``chunk_metadata`` to the top level. graph_extract writes them there
+    (Stage 2.4); other chunk types omit them, so we surface them only when
+    actually present to keep the response shape stable for non-graph chunks.
+    """
+    out: dict = {
+        "id": chunk.id,
+        "normalized_ref_id": chunk.normalized_ref_id,
+        "knowledge_type_code": chunk.knowledge_type_code,
+        "chunk_type": chunk.chunk_type.value
+        if hasattr(chunk.chunk_type, "value")
+        else str(chunk.chunk_type),
+        "chunk_index": chunk.chunk_index,
+        "content": chunk.content,
+        "version_id": ref.version_id,
+        "asset_id": version.asset_id if version is not None else None,
+        "locator": chunk.locator,
+        "source_block_ids": chunk.source_block_ids,
+    }
+    meta = chunk.chunk_metadata or {}
+    if "primary_block_ids" in meta:
+        out["primary_block_ids"] = meta["primary_block_ids"]
+    if "evidence_block_ids" in meta:
+        out["evidence_block_ids"] = meta["evidence_block_ids"]
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Knowledge chunks — list by normalized_ref (Asset Detail "associated chunks")
+# ---------------------------------------------------------------------------
+
+@router.get("/normalized-refs/{ref_id}/chunks")
+def list_chunks_for_normalized_ref(
+    ref_id: str,
+    request: Request,
+    pagination: Pagination = Depends(pagination_params),
+    caller: models.ApiCaller = Depends(require_api_caller),
+    session: Session = Depends(get_db),
+):
+    """Paginated chunks anchored on a normalized_ref.
+
+    Returns 404 when the ref does not exist or its anchoring version is not
+    `available` — same gate as `/knowledge-chunks/{chunk_id}`. Each chunk
+    carries `locator`, `source_block_ids`, and (when present) the
+    graph_extract `primary_block_ids` / `evidence_block_ids` at the top
+    level, so the Asset Detail consumer can render lineage without a second
+    round-trip to chunk_metadata.
+    """
+    from sqlalchemy import func
+
+    ref = session.get(models.NormalizedAssetRef, ref_id)
+    if not _ref_anchors_available_version(session, ref):
+        raise HTTPException(
+            status_code=404, detail=f"normalized_ref '{ref_id}' not found",
+        )
+    version = session.get(models.AssetVersion, ref.version_id)
+
+    total = session.scalar(
+        select(func.count(models.KnowledgeChunk.id)).where(
+            models.KnowledgeChunk.normalized_ref_id == ref_id
+        )
+    ) or 0
+    items = list(session.scalars(
+        select(models.KnowledgeChunk)
+        .where(models.KnowledgeChunk.normalized_ref_id == ref_id)
+        .order_by(models.KnowledgeChunk.chunk_index)
+        .offset(pagination.offset)
+        .limit(pagination.limit)
+    ).all())
+
+    write_asset_version_accessed_audit(
+        session,
+        caller=caller,
+        access_type=AssetAccessType.CHUNK_LIST,
+        target_id=ref_id,
+        asset_id=version.asset_id if version is not None else None,
+        version_id=ref.version_id,
+        normalized_ref_id=ref_id,
+        trace_id=_trace_id(request),
+    )
+    session.commit()
+
+    serialized = [_serialize_chunk(c, ref, version) for c in items]
+    return list_response(
+        serialized,
+        request,
+        page=pagination.page,
+        page_size=pagination.page_size,
+        total=total,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Raw object — presigned download URL for "view original file"
+# ---------------------------------------------------------------------------
+
+@router.get("/raw-objects/{raw_object_id}/download-url")
+def get_raw_object_download_url(
+    raw_object_id: str,
+    request: Request,
+    ttl_seconds: int = Query(900, ge=60, le=3600),
+    caller: models.ApiCaller = Depends(require_api_caller),
+    session: Session = Depends(get_db),
+):
+    """Mint a short-lived presigned download URL for the raw object.
+
+    Gate: the raw_object must back at least one `available` asset version.
+    MinIO credentials live exclusively in nexus-app; this endpoint is the
+    sole choke-point. Default TTL 15 min (clamped 60s–1h).
+    """
+    raw = session.get(models.RawObject, raw_object_id)
+    if raw is None:
+        raise HTTPException(
+            status_code=404, detail=f"raw_object '{raw_object_id}' not found",
+        )
+    # The raw_object is reachable only when at least one available version
+    # references it. We don't expose pre-ingest or governance-failed material.
+    version = session.scalar(
+        select(models.AssetVersion).where(
+            models.AssetVersion.raw_object_id == raw_object_id,
+            models.AssetVersion.version_status == AssetVersionStatus.AVAILABLE,
+        ).limit(1)
+    )
+    if version is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"raw_object '{raw_object_id}' is not part of an available asset",
+        )
+
+    from nexus_app.storage import (
+        ObjectNotFoundError,
+        ObjectStorageError,
+        get_object_storage,
+    )
+
+    storage = get_object_storage()
+    # raw.object_uri is stored as `s3://<bucket>/<key>`; strip scheme + bucket
+    # to obtain the key for presigning (mirrors _load_normalized_content).
+    object_uri = raw.object_uri
+    key = (
+        object_uri.split("/", 3)[-1]
+        if object_uri.startswith("s3://")
+        else object_uri
+    )
+    try:
+        presigned = storage.generate_presigned_download(
+            key, ttl_seconds=ttl_seconds,
+        )
+    except ObjectNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"raw_object '{raw_object_id}' backing file is missing",
+        )
+    except ObjectStorageError:
+        raise HTTPException(
+            status_code=503,
+            detail="object storage temporarily unavailable",
+        )
+
+    write_asset_version_accessed_audit(
+        session,
+        caller=caller,
+        access_type=AssetAccessType.RAW_DOWNLOAD,
+        target_id=raw_object_id,
+        asset_id=version.asset_id,
+        version_id=version.id,
+        normalized_ref_id=None,
+        trace_id=_trace_id(request),
+    )
+    session.commit()
+
     return response(
         {
-            "id": chunk.id,
-            "normalized_ref_id": chunk.normalized_ref_id,
-            "knowledge_type_code": chunk.knowledge_type_code,
-            "chunk_type": chunk.chunk_type.value
-            if hasattr(chunk.chunk_type, "value")
-            else str(chunk.chunk_type),
-            "chunk_index": chunk.chunk_index,
-            "content": chunk.content,
-            "version_id": ref.version_id,
-            "asset_id": version.asset_id if version is not None else None,
+            "raw_object_id": raw_object_id,
+            "download_url": presigned.download_url,
+            "expires_at": presigned.expires_at.isoformat(),
+            "ttl_seconds": ttl_seconds,
         },
         request,
     )
@@ -405,10 +669,14 @@ def get_public_knowledge_chunk(
 def _enrich_with_nexus_refs(
     session: Session, hits: list[dict]
 ) -> list[dict]:
-    """Enrich RAGFlow hits with NEXUS-side citation fields (normalized_ref_id,
-    version_id, asset_id, nexus_chunk_id) by looking up KnowledgeChunk via
-    `ragflow_chunk_id`. Items that already carry these fields (e.g. fake adapter
-    output) are left untouched. Best-effort; missing chunks leave fields null.
+    """Enrich RAGFlow hits with NEXUS-side citation fields by looking up
+    KnowledgeChunk via `ragflow_chunk_id`. Adds:
+        - nexus_chunk_id, normalized_ref_id, version_id, asset_id
+        - locator, source_block_ids (chunk-to-source coordinate provenance)
+        - raw_object_uri (MinIO key of the original uploaded file)
+    Items that already carry `nexus_chunk_id` or `normalized_ref_id`
+    (e.g. fake adapter output) are left untouched. Best-effort; missing
+    rows along the chain leave fields null.
     """
     if not hits:
         return hits
@@ -450,18 +718,43 @@ def _enrich_with_nexus_refs(
         ).all():
             versions[ver.id] = ver
 
+    raw_object_ids = {v.raw_object_id for v in versions.values() if v.raw_object_id}
+    raw_objects: dict[str, models.RawObject] = {}
+    if raw_object_ids:
+        for ro in session.scalars(
+            select(models.RawObject).where(models.RawObject.id.in_(raw_object_ids))
+        ).all():
+            raw_objects[ro.id] = ro
+
     for ragflow_chunk_id, items in pending.items():
         chunk = chunk_map.get(ragflow_chunk_id)
         if chunk is None:
             continue
         ref = refs.get(chunk.normalized_ref_id)
         ver = versions.get(ref.version_id) if ref is not None else None
+        raw = raw_objects.get(ver.raw_object_id) if ver is not None else None
+        meta = chunk.chunk_metadata or {}
+        primary_ids = meta.get("primary_block_ids")
+        evidence_ids = meta.get("evidence_block_ids")
         for item in items:
             item["nexus_chunk_id"] = chunk.id
             item["normalized_ref_id"] = chunk.normalized_ref_id
+            item["locator"] = chunk.locator
+            item["source_block_ids"] = chunk.source_block_ids
+            # Stage 2.4 fields: surface at top level only when graph_extract
+            # wrote them. Other chunk types omit them to keep response shape
+            # consistent with non-graph result sets.
+            if primary_ids is not None:
+                item["primary_block_ids"] = primary_ids
+            if evidence_ids is not None:
+                item["evidence_block_ids"] = evidence_ids
             if ver is not None:
                 item["version_id"] = ver.id
                 item["asset_id"] = ver.asset_id
+            if raw is not None:
+                item["raw_object_id"] = raw.id
+                item["raw_object_uri"] = raw.object_uri
+                item["data_source_id"] = raw.data_source_id
 
     return hits
 
@@ -496,6 +789,51 @@ def _filter_hits_to_available(
 
 def _hit_ref_ids(hits: list[dict]) -> list[str]:
     return [h["normalized_ref_id"] for h in hits if h.get("normalized_ref_id")]
+
+
+def _hit_chunk_ids(hits: list[dict]) -> list[str]:
+    return [h["nexus_chunk_id"] for h in hits if h.get("nexus_chunk_id")]
+
+
+def _hit_data_source_ids(hits: list[dict]) -> list[str]:
+    """Distinct data_source_ids touched by a result set, sorted for stable audit."""
+    return sorted({h["data_source_id"] for h in hits if h.get("data_source_id")})
+
+
+def _derive_answer_confidence(sources: list[dict]) -> float | None:
+    """Derive an answer confidence from cited source scores.
+
+    P0 strategy: take the max retrieval score across cited chunks as a proxy
+    for "strength of strongest evidence". RAGFlow does not surface a native
+    confidence field today; if a future RAGFlow upgrade provides one, prefer
+    that value and demote this to a fallback. Returns None when no scored
+    source is available.
+    """
+    scores = [
+        s["score"] for s in sources
+        if isinstance(s.get("score"), (int, float))
+    ]
+    return max(scores) if scores else None
+
+
+def _compact_locators(hits: list[dict]) -> list[dict]:
+    """Compact form for audit logs: keep only chunk_id + page range.
+
+    Drops bbox_union and per-block details to keep audit_log rows small;
+    full locator can always be re-joined via cited_chunk_ids -> knowledge_chunk.
+    """
+    out: list[dict] = []
+    for h in hits:
+        loc = h.get("locator")
+        chunk_id = h.get("nexus_chunk_id")
+        if not loc or not chunk_id:
+            continue
+        out.append({
+            "chunk_id": chunk_id,
+            "page_start": loc.get("page_start"),
+            "page_end": loc.get("page_end"),
+        })
+    return out
 
 
 @router.get("/search")
@@ -551,6 +889,9 @@ def search_knowledge(
             "kb": kb_code,
             "hit_count": len(results),
             "hit_normalized_ref_ids": _hit_ref_ids(results),
+            "cited_chunk_ids": _hit_chunk_ids(results),
+            "cited_locators": _compact_locators(results),
+            "data_source_ids": _hit_data_source_ids(results),
             "top_k": top_k,
             "similarity_threshold": similarity_threshold,
         },
@@ -602,6 +943,8 @@ def qa_knowledge(
     sources = _filter_hits_to_available(session, sources)
     sources = apply_permission_filter(caller, sources)
     result["sources"] = sources
+    answer_confidence = _derive_answer_confidence(sources)
+    result["answer_confidence"] = answer_confidence
 
     # Same liveness check as /search — RAGFlow qa is the slowest of the
     # consumption paths and most likely to outlive a revocation event.
@@ -621,6 +964,10 @@ def qa_knowledge(
             "answer_length": len(result.get("answer", "") or ""),
             "source_count": len(sources),
             "cited_normalized_ref_ids": _hit_ref_ids(sources),
+            "cited_chunk_ids": _hit_chunk_ids(sources),
+            "cited_locators": _compact_locators(sources),
+            "data_source_ids": _hit_data_source_ids(sources),
+            "answer_confidence": answer_confidence,
             "top_k": top_k,
         },
         actor_type="api_caller",

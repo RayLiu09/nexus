@@ -728,8 +728,10 @@ def run_knowledge_chunking(
 
     from nexus_app.knowledge.services import run_knowledge_pipeline
 
-    content = _load_normalized_content(ctx, normalized_ref)
-    chunks = run_knowledge_pipeline(content, emissions, normalized_ref.id)
+    content, content_blocks = _load_normalized_payload(ctx, normalized_ref)
+    chunks = run_knowledge_pipeline(
+        content, emissions, normalized_ref.id, content_blocks=content_blocks
+    )
     for chunk in chunks:
         ctx.session.add(chunk)
     ctx.session.flush()
@@ -752,19 +754,47 @@ def _load_normalized_content(
     ctx: PipelineContext,
     normalized_ref: models.NormalizedAssetRef,
 ) -> str:
-    """Read the normalized content payload from object storage."""
+    """Read just the textual content from normalized payload.
+
+    Retained for callers that do not need block locators (e.g. AI governance
+    input building). For knowledge chunking use _load_normalized_payload to
+    receive blocks alongside content.
+    """
+    content, _ = _load_normalized_payload(ctx, normalized_ref)
+    return content
+
+
+def _load_normalized_payload(
+    ctx: PipelineContext,
+    normalized_ref: models.NormalizedAssetRef,
+) -> tuple[str, list[dict[str, Any]] | None]:
+    """Read normalized payload and return ``(content, content_blocks)``.
+
+    ``content`` is the canonical text passed into chunking strategies and
+    LLM Prompt builders — byte-for-byte the value persisted in MinIO. Adding
+    block-level locators here MUST NOT mutate ``content`` (see ARCHITECT
+    "Chunk Locator Contract" and the md_char_range out-of-band rule).
+
+    ``content_blocks`` is the ``normalized_document.blocks[]`` list when the
+    payload describes a document; None for ``normalized_record`` payloads so
+    record-type chunks correctly carry ``locator=None``.
+    """
     uri = normalized_ref.object_uri
     key = uri.split("/", 3)[-1] if uri.startswith("s3://") else uri
     raw = ctx.storage.get_bytes(key)
     try:
         payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
-        return raw.decode("utf-8", errors="ignore")
-    return (
+        return raw.decode("utf-8", errors="ignore"), None
+    content = (
         payload.get("body_markdown")
         or json.dumps(payload.get("record_body", {}), ensure_ascii=False)
         or ""
     )
+    blocks = payload.get("blocks")
+    if isinstance(blocks, list) and blocks:
+        return content, blocks
+    return content, None
 
 
 # ---------------------------------------------------------------------------

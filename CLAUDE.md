@@ -87,7 +87,7 @@ Only one `available` version may exist for the same asset at a time. Current ver
 ## API And UI Contract
 
 - Public API baseline uses `/v1`.
-- P0 API groups: identity, data sources, ingest, raw objects, jobs, assets, search, QA, governance rules, governance results, AI Prompt profiles, AI governance runs, auth verification.
+- P0 API groups: identity, data sources, ingest, raw objects (incl. presigned download-url), jobs, assets, normalized refs (incl. chunk list), knowledge chunks, search, QA, governance rules, governance results, AI Prompt profiles, AI governance runs, auth verification.
 - P0 console pages: workbench, data source management, data ingestion, raw object ledger, job center, asset catalog, asset detail, governance center, rule config, permission and audit, AI Prompt config.
 - P1 console pages: retrieval test, knowledge assets, optional DingTalk sync, API Key operation enhancements, reporting.
 - `nexus-console` control-plane APIs are internal to the admin console and must not be exposed as business-facing APIs. Business-facing APIs belong in `nexus-api`.

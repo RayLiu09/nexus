@@ -23,7 +23,7 @@ from nexus_api.responses import response
 from nexus_app.ai_governance.prompt_registry import get_governance_prompt_registry
 from nexus_app.ai_governance.rules_registry import get_governance_rules_registry
 from nexus_app.config import Settings, get_settings
-from nexus_app.database import SessionLocal
+from nexus_app.database import get_session_local
 from nexus_app.ingest.config_loader import get_ingest_validate_registry
 from nexus_app.normalize.config_loader import get_normalize_schemas_registry
 
@@ -101,7 +101,7 @@ def _load_registries_fail_fast() -> None:
             ) from exc
 
     # 2. DB-based governance rules registry
-    session = SessionLocal()
+    session = get_session_local()()
     try:
         gov_registry = get_governance_rules_registry()
         gov_registry.load(session)

@@ -777,5 +777,13 @@ class KnowledgeChunk(TimestampMixin, Base):
         Enum(EmbeddingStatus, values_callable=lambda e: [i.value for i in e]),
         nullable=False, default=EmbeddingStatus.PENDING,
     )
+    # Origin block_ids in normalized_document.blocks[]. Null for record-type chunks
+    # or legacy rows where source provenance was not preserved.
+    source_block_ids: Mapped[list[str] | None] = mapped_column(
+        JSON, nullable=True
+    )
+    # Coordinate locator contract — see ARCHITECT.md "Chunk Locator Contract".
+    # Shape: {page_start, page_end, bbox_union, blocks: [{block_id, page, bbox}]}
+    locator: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
     normalized_ref: Mapped[NormalizedAssetRef] = relationship()

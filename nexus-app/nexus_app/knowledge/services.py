@@ -21,14 +21,28 @@ def run_knowledge_pipeline(
     content: str,
     knowledge_emissions: list[dict[str, Any]],
     normalized_ref_id: str,
+    content_blocks: list[dict[str, Any]] | None = None,
 ) -> list[KnowledgeChunk]:
-    """Process all emissions for a normalized_asset_ref, return all produced chunks."""
+    """Process all emissions for a normalized_asset_ref, return all produced chunks.
+
+    Args:
+        content_blocks: Optional list of ``normalized_document.blocks[]``. When
+            provided, strategies that have not yet implemented block-level
+            mapping (Stage 2) will pass the full list to ``build_chunk`` so
+            each produced chunk carries at least a document-level locator
+            (page span + raw_object jump-back). Pass None for record-pipeline
+            inputs — chunks then carry no locator, matching the contract for
+            ``normalized_type=record``.
+    """
     all_chunks: list[KnowledgeChunk] = []
 
     for emission in knowledge_emissions:
         code = emission["code"]
         kt_config = get_knowledge_type_config(code)
-        chunks = route_and_chunk(content, emission, kt_config, normalized_ref_id)
+        chunks = route_and_chunk(
+            content, emission, kt_config, normalized_ref_id,
+            content_blocks=content_blocks,
+        )
         all_chunks.extend(chunks)
 
     return all_chunks

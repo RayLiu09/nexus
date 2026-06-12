@@ -17,6 +17,14 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    tables = inspector.get_table_names()
+
+    if "ai_prompt_profile" not in tables:
+        # Table doesn't exist — nothing to migrate (fresh DB from models)
+        return
+
     op.add_column(
         "ai_prompt_profile",
         sa.Column("scenario", sa.String(length=80), nullable=False, server_default="default"),

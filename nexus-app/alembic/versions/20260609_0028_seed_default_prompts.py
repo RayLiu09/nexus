@@ -13,6 +13,7 @@ Create Date: 2026-06-09
 
 from collections.abc import Sequence
 
+import sqlalchemy as sa
 from alembic import op
 
 revision: str = "20260609_0028"
@@ -24,23 +25,26 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     from nexus_app.ai_governance.default_prompts import DEFAULT_PROMPTS
 
+    bind = op.get_bind()
     for task_type, cfg in DEFAULT_PROMPTS.items():
-        op.execute(
-            """
-            INSERT INTO governance_prompt_template
-                (id, task_type, template_name, template_version, status,
-                 prompt_template, output_schema_version,
-                 litellm_model_alias, temperature, max_input_tokens,
-                 redaction_policy, change_summary, created_by, trace_id,
-                 created_at, updated_at)
-            VALUES
-                (gen_random_uuid(), :task_type, :template_name, 1, 'active',
-                 :prompt_template, :output_schema_version,
-                 :litellm_model_alias, :temperature, :max_input_tokens,
-                 :redaction_policy, 'Initial seed from default_prompts.py',
-                 'system', :trace_id, now(), now())
-            """,
-            parameters={
+        bind.execute(
+            sa.text(
+                """
+                INSERT INTO governance_prompt_template
+                    (id, task_type, template_name, template_version, status,
+                     prompt_template, output_schema_version,
+                     litellm_model_alias, temperature, max_input_tokens,
+                     redaction_policy, change_summary, created_by, trace_id,
+                     created_at, updated_at)
+                VALUES
+                    (gen_random_uuid(), :task_type, :template_name, 1, 'active',
+                     :prompt_template, :output_schema_version,
+                     :litellm_model_alias, :temperature, :max_input_tokens,
+                     :redaction_policy, 'Initial seed from default_prompts.py',
+                     'system', :trace_id, now(), now())
+                """
+            ),
+            {
                 "task_type": task_type,
                 "template_name": cfg["template_name"],
                 "prompt_template": cfg["prompt_template"],

@@ -15,14 +15,23 @@ def route_and_chunk(
     emission: dict[str, Any],
     kt_config: KnowledgeTypeConfig,
     normalized_ref_id: str,
+    content_blocks: list[dict[str, Any]] | None = None,
 ) -> list[KnowledgeChunk]:
-    """Route a single emission to the appropriate chunking path."""
+    """Route a single emission to the appropriate chunking path.
+
+    Passthrough descriptors do not carry a locator: RAGFlow owns the actual
+    chunking and emits its own chunk_ids. Nexus-extract strategies receive
+    ``content_blocks`` and decide whether to forward them to ``build_chunk``.
+    """
     mode = kt_config.chunking_mode
 
     if mode == "passthrough_to_ragflow":
         return [_create_passthrough_descriptor(normalized_ref_id, emission, kt_config)]
     elif mode == "nexus_extract":
-        return _run_nexus_extract(content, emission, kt_config, normalized_ref_id)
+        return _run_nexus_extract(
+            content, emission, kt_config, normalized_ref_id,
+            content_blocks=content_blocks,
+        )
     else:
         raise ValueError(f"Unknown chunking_mode: {mode}")
 
@@ -59,6 +68,7 @@ def _run_nexus_extract(
     emission: dict[str, Any],
     kt_config: KnowledgeTypeConfig,
     normalized_ref_id: str,
+    content_blocks: list[dict[str, Any]] | None = None,
 ) -> list[KnowledgeChunk]:
     """Run a registered chunking strategy for nexus_extract mode."""
     strategy_name = kt_config.chunking_strategy
@@ -69,4 +79,7 @@ def _run_nexus_extract(
         )
     strategy_cls = STRATEGY_REGISTRY[strategy_name]
     strategy = strategy_cls(kt_config.chunking_config)
-    return strategy.chunk(content, emission, kt_config, normalized_ref_id)
+    return strategy.chunk(
+        content, emission, kt_config, normalized_ref_id,
+        content_blocks=content_blocks,
+    )

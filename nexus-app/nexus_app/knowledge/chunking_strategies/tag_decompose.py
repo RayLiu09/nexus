@@ -25,11 +25,15 @@ class TagDecomposeStrategy:
         emission: dict[str, Any],
         kt_config: Any,
         normalized_ref_id: str,
+        content_blocks: list[dict[str, Any]] | None = None,
     ) -> list[KnowledgeChunk]:
         tags = self._extract_tags(content)
         max_chunks = kt_config.max_chunks_per_unit
         chunks: list[KnowledgeChunk] = []
 
+        # Tag semantics are inherently cross-block; document-level locator is
+        # the intended terminal state for this strategy (no Stage 2.x finer
+        # mapping planned — see ARCHITECT roadmap).
         for i, tag in enumerate(tags):
             if len(chunks) >= max_chunks:
                 break
@@ -40,6 +44,7 @@ class TagDecomposeStrategy:
                 index=i,
                 content=name,
                 extra_metadata=tag,
+                source_blocks=content_blocks or None,
             ))
 
         return chunks

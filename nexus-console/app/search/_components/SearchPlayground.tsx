@@ -3,11 +3,12 @@
 /**
  * SearchPlayground — 检索/QA 验证入口（消费侧 demo，非最终用户搜索门户）。
  *
- * 设计要点：
- * - 数据请求经 Next.js route handler /api/search 与 /api/qa 服务端代理，
- *   caller_key 不暴露到浏览器（见 lib/searchProxy.ts）。
- * - Tab 切换检索 / QA 两种模式；两侧共享 KB 选择、top_k、查询输入。
- * - 错误态、空态、loading 态走 Antd Skeleton / Empty / Alert。
+ * 数据流：
+ * - 所有后端调用走 Next.js route handler（/api/search、/api/qa、
+ *   /api/raw-objects/[id]/download-url），caller_key 不暴露到浏览器
+ *   （见 lib/searchProxy.ts）。
+ * - chunk 列表通过 ChunkCard 渲染；点击"展开详情"开 ChunkDetailDrawer。
+ * - QA 模式答案区顶部展示 AnswerConfidenceBadge。
  */
 
 import { useCallback, useState } from "react";
@@ -28,12 +29,11 @@ import {
   Tag,
   Typography,
 } from "antd";
-import type {
-  KnowledgeTypeOption,
-  QaResponse,
-  SearchChunk,
-  SearchResponse,
-} from "../_lib/searchTypes";
+import type { KnowledgeTypeOption, QaResponse, SearchResponse } from "../_lib/searchTypes";
+import type { KnowledgeChunkHit } from "@/lib/chunkTypes";
+import { ChunkCard } from "@/components/chunk/ChunkCard";
+import { ChunkDetailDrawer } from "@/components/chunk/ChunkDetailDrawer";
+import { AnswerConfidenceBadge } from "./AnswerConfidenceBadge";
 
 type Mode = "search" | "qa";
 
@@ -52,11 +52,7 @@ interface ProxyErrorEnvelope {
 const DEFAULT_TOP_K = 5;
 const DEFAULT_THRESHOLD = 0.7;
 
-export function SearchPlayground({
-  knowledgeTypes,
-}: {
-  knowledgeTypes: KnowledgeTypeOption[];
-}) {
+export function SearchPlayground({ knowledgeTypes }: { knowledgeTypes: KnowledgeTypeOption[] }) {
   const [mode, setMode] = useState<Mode>("search");
   const [query, setQuery] = useState("");
   const [kb, setKb] = useState<string | undefined>(undefined);
@@ -67,6 +63,9 @@ export function SearchPlayground({
   const [error, setError] = useState<string | null>(null);
   const [searchData, setSearchData] = useState<SearchResponse | null>(null);
   const [qaData, setQaData] = useState<QaResponse | null>(null);
+
+  const [selectedChunk, setSelectedChunk] = useState<KnowledgeChunkHit | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const reset = useCallback(() => {
     setSearchData(null);
@@ -97,98 +96,108 @@ export function SearchPlayground({
     }
   }, [mode, query, kb, topK, threshold, reset]);
 
+  const openChunkDetail = useCallback((chunk: KnowledgeChunkHit) => {
+    setSelectedChunk(chunk);
+    setDrawerOpen(true);
+  }, []);
+
   return (
-    <Space orientation="vertical" size="middle" className="w-full">
-      <Card>
-        <Form layout="vertical" onFinish={handleSubmit}>
-          <Space size="middle" wrap>
-            <Segmented<Mode>
-              value={mode}
-              onChange={(v) => {
-                setMode(v);
-                reset();
-              }}
-              options={[
-                { label: "语义检索", value: "search" },
-                { label: "问答 (QA)", value: "qa" },
-              ]}
-            />
-            <Form.Item label="知识库" className="!mb-0" style={{ minWidth: 220 }}>
-              <Select
-                allowClear
-                placeholder="默认 textbook_kb"
-                value={kb}
-                onChange={(v) => setKb(v ?? undefined)}
-                options={knowledgeTypes.map((kt) => ({
-                  value: kt.code,
-                  label: `${kt.name}（${kt.code}）`,
-                }))}
+    <>
+      <Space orientation="vertical" size="middle" className="w-full">
+        <Card>
+          <Form layout="vertical" onFinish={handleSubmit}>
+            <Space size="middle" wrap>
+              <Segmented<Mode>
+                value={mode}
+                onChange={(v) => {
+                  setMode(v);
+                  reset();
+                }}
+                options={[
+                  { label: "语义检索", value: "search" },
+                  { label: "问答 (QA)", value: "qa" },
+                ]}
               />
-            </Form.Item>
-            <Form.Item label="top_k" className="!mb-0">
-              <InputNumber
-                min={1}
-                max={50}
-                value={topK}
-                onChange={(v) => setTopK(typeof v === "number" ? v : DEFAULT_TOP_K)}
-              />
-            </Form.Item>
-            {mode === "search" && (
-              <Form.Item
-                label="相似度阈值"
-                className="!mb-0"
-                style={{ minWidth: 200 }}
-              >
-                <Slider
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={threshold}
-                  onChange={(v) => setThreshold(v)}
+              <Form.Item label="知识库" className="!mb-0" style={{ minWidth: 220 }}>
+                <Select
+                  allowClear
+                  placeholder="默认 textbook_kb"
+                  value={kb}
+                  onChange={(v) => setKb(v ?? undefined)}
+                  options={knowledgeTypes.map((kt) => ({
+                    value: kt.code,
+                    label: `${kt.name}（${kt.code}）`,
+                  }))}
                 />
               </Form.Item>
+              <Form.Item label="top_k" className="!mb-0">
+                <InputNumber
+                  min={1}
+                  max={50}
+                  value={topK}
+                  onChange={(v) => setTopK(typeof v === "number" ? v : DEFAULT_TOP_K)}
+                />
+              </Form.Item>
+              {mode === "search" && (
+                <Form.Item label="相似度阈值" className="!mb-0" style={{ minWidth: 200 }}>
+                  <Slider
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={threshold}
+                    onChange={(v) => setThreshold(v)}
+                  />
+                </Form.Item>
+              )}
+            </Space>
+
+            <Form.Item label={mode === "search" ? "检索关键词" : "问题"} className="!mt-4 !mb-2">
+              <Input.Search
+                size="large"
+                enterButton={mode === "search" ? "检索" : "提问"}
+                loading={loading}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onSearch={handleSubmit}
+                placeholder={
+                  mode === "search"
+                    ? "例如：教材中关于光合作用的章节"
+                    : "例如：光合作用的暗反应阶段发生在哪里？"
+                }
+              />
+            </Form.Item>
+
+            {error && (
+              <Alert
+                type="error"
+                showIcon
+                className="!mt-2"
+                title={error}
+                action={
+                  <Button size="small" onClick={handleSubmit}>
+                    重试
+                  </Button>
+                }
+              />
             )}
-          </Space>
+          </Form>
+        </Card>
 
-          <Form.Item label={mode === "search" ? "检索关键词" : "问题"} className="!mt-4 !mb-2">
-            <Input.Search
-              size="large"
-              enterButton={mode === "search" ? "检索" : "提问"}
-              loading={loading}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onSearch={handleSubmit}
-              placeholder={
-                mode === "search"
-                  ? "例如：教材中关于光合作用的章节"
-                  : "例如：光合作用的暗反应阶段发生在哪里？"
-              }
-            />
-          </Form.Item>
+        <ResultPanel
+          mode={mode}
+          loading={loading}
+          searchData={searchData}
+          qaData={qaData}
+          onSelectChunk={openChunkDetail}
+        />
+      </Space>
 
-          {error && (
-            <Alert
-              type="error"
-              showIcon
-              className="!mt-2"
-              title={error}
-              action={
-                <Button size="small" onClick={handleSubmit}>
-                  重试
-                </Button>
-              }
-            />
-          )}
-        </Form>
-      </Card>
-
-      <ResultPanel
-        mode={mode}
-        loading={loading}
-        searchData={searchData}
-        qaData={qaData}
+      <ChunkDetailDrawer
+        chunk={selectedChunk}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
       />
-    </Space>
+    </>
   );
 }
 
@@ -199,9 +208,10 @@ interface ResultPanelProps {
   loading: boolean;
   searchData: SearchResponse | null;
   qaData: QaResponse | null;
+  onSelectChunk: (chunk: KnowledgeChunkHit) => void;
 }
 
-function ResultPanel({ mode, loading, searchData, qaData }: ResultPanelProps) {
+function ResultPanel({ mode, loading, searchData, qaData, onSelectChunk }: ResultPanelProps) {
   if (loading) {
     return (
       <Card>
@@ -218,7 +228,7 @@ function ResultPanel({ mode, loading, searchData, qaData }: ResultPanelProps) {
         </Card>
       );
     }
-    return <SearchResultList data={searchData} />;
+    return <SearchResultList data={searchData} onSelectChunk={onSelectChunk} />;
   }
 
   if (!qaData) {
@@ -228,10 +238,16 @@ function ResultPanel({ mode, loading, searchData, qaData }: ResultPanelProps) {
       </Card>
     );
   }
-  return <QaResult data={qaData} />;
+  return <QaResult data={qaData} onSelectChunk={onSelectChunk} />;
 }
 
-function SearchResultList({ data }: { data: SearchResponse }) {
+function SearchResultList({
+  data,
+  onSelectChunk,
+}: {
+  data: SearchResponse;
+  onSelectChunk: (chunk: KnowledgeChunkHit) => void;
+}) {
   if (data.results.length === 0) {
     return (
       <Card>
@@ -249,32 +265,11 @@ function SearchResultList({ data }: { data: SearchResponse }) {
         </Space>
       }
     >
-      <List<SearchChunk>
+      <List<KnowledgeChunkHit>
         dataSource={data.results}
         renderItem={(item) => (
           <List.Item key={item.chunk_id}>
-            <Space orientation="vertical" size={4} className="w-full">
-              <Space size={6} wrap>
-                <Tag color="blue">score {item.score?.toFixed?.(3) ?? "-"}</Tag>
-                {item.source?.doc_name && (
-                  <Tag>{String(item.source.doc_name)}</Tag>
-                )}
-                {item.source?.page !== undefined && (
-                  <Tag>page {String(item.source.page)}</Tag>
-                )}
-                {item.source?.normalized_ref_id && (
-                  <Typography.Text className="font-mono" style={{ fontSize: 12 }}>
-                    {String(item.source.normalized_ref_id)}
-                  </Typography.Text>
-                )}
-              </Space>
-              <Typography.Paragraph
-                className="!mb-0"
-                ellipsis={{ rows: 3, expandable: true, symbol: "展开" }}
-              >
-                {item.content}
-              </Typography.Paragraph>
-            </Space>
+            <ChunkCard chunk={item} onSelect={onSelectChunk} />
           </List.Item>
         )}
       />
@@ -282,10 +277,23 @@ function SearchResultList({ data }: { data: SearchResponse }) {
   );
 }
 
-function QaResult({ data }: { data: QaResponse }) {
+function QaResult({
+  data,
+  onSelectChunk,
+}: {
+  data: QaResponse;
+  onSelectChunk: (chunk: KnowledgeChunkHit) => void;
+}) {
   return (
     <Space orientation="vertical" size="middle" className="w-full">
-      <Card title="AI 回答">
+      <Card
+        title={
+          <Space>
+            <span>AI 回答</span>
+            <AnswerConfidenceBadge confidence={data.answer_confidence} />
+          </Space>
+        }
+      >
         <Typography.Paragraph className="!mb-0 whitespace-pre-wrap">
           {data.answer || "（空回答）"}
         </Typography.Paragraph>
@@ -302,29 +310,11 @@ function QaResult({ data }: { data: QaResponse }) {
         {data.sources.length === 0 ? (
           <Empty description="未返回引用源" />
         ) : (
-          <List
+          <List<KnowledgeChunkHit>
             dataSource={data.sources}
             renderItem={(src, idx) => (
               <List.Item key={src.chunk_id ?? `src-${idx}`}>
-                <Space orientation="vertical" size={4} className="w-full">
-                  <Space size={6} wrap>
-                    {src.doc_name && <Tag>{String(src.doc_name)}</Tag>}
-                    {src.page !== undefined && <Tag>page {String(src.page)}</Tag>}
-                    {src.normalized_ref_id && (
-                      <Typography.Text className="font-mono" style={{ fontSize: 12 }}>
-                        {String(src.normalized_ref_id)}
-                      </Typography.Text>
-                    )}
-                  </Space>
-                  {src.content && (
-                    <Typography.Paragraph
-                      className="!mb-0"
-                      ellipsis={{ rows: 3, expandable: true, symbol: "展开" }}
-                    >
-                      {String(src.content)}
-                    </Typography.Paragraph>
-                  )}
-                </Space>
+                <ChunkCard chunk={src} onSelect={onSelectChunk} />
               </List.Item>
             )}
           />
@@ -346,11 +336,7 @@ async function fetchSearch(
   return readEnvelope<SearchResponse>(await fetch(`/api/search?${params}`, { cache: "no-store" }));
 }
 
-async function fetchQa(
-  q: string,
-  kb: string | undefined,
-  topK: number,
-): Promise<QaResponse> {
+async function fetchQa(q: string, kb: string | undefined, topK: number): Promise<QaResponse> {
   const params = buildParams({ q, kb, top_k: topK });
   return readEnvelope<QaResponse>(await fetch(`/api/qa?${params}`, { cache: "no-store" }));
 }

@@ -31,23 +31,40 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    # governance_result: drop FK column, add rules snapshot fields
-    with op.batch_alter_table("governance_result") as batch:
-        batch.drop_column("rule_set_id")
-        batch.add_column(
-            sa.Column("rules_schema_version", sa.String(32), nullable=True)
-        )
-        batch.add_column(
-            sa.Column("rules_content_hash", sa.String(64), nullable=True)
-        )
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    tables = inspector.get_table_names()
+
+    # governance_result may not exist if DB was created from models directly
+    if "governance_result" in tables:
+        with op.batch_alter_table("governance_result") as batch:
+            cols = {c["name"] for c in inspector.get_columns("governance_result")}
+            if "rule_set_id" in cols:
+                batch.drop_column("rule_set_id")
+            if "rules_schema_version" not in cols:
+                batch.add_column(
+                    sa.Column("rules_schema_version", sa.String(32), nullable=True)
+                )
+            if "rules_content_hash" not in cols:
+                batch.add_column(
+                    sa.Column("rules_content_hash", sa.String(64), nullable=True)
+                )
 
     # Drop governance_rule first (it FK-references governance_rule_set)
-    op.drop_index("ix_governance_rule_rule_set_id", table_name="governance_rule")
-    op.drop_table("governance_rule")
+    if "governance_rule" in tables:
+        try:
+            op.drop_index("ix_governance_rule_rule_set_id", table_name="governance_rule")
+        except Exception:
+            pass
+        op.drop_table("governance_rule")
 
     # Drop governance_rule_set
-    op.drop_index("ix_governance_rule_set_status", table_name="governance_rule_set")
-    op.drop_table("governance_rule_set")
+    if "governance_rule_set" in tables:
+        try:
+            op.drop_index("ix_governance_rule_set_status", table_name="governance_rule_set")
+        except Exception:
+            pass
+        op.drop_table("governance_rule_set")
 
     # Drop enums that are no longer used by any table
     op.execute("DROP TYPE IF EXISTS ruletype")

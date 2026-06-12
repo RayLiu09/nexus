@@ -17,6 +17,14 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    tables = inspector.get_table_names()
+
+    if "index_manifest" not in tables:
+        # Table doesn't exist — nothing to migrate (fresh DB from models)
+        return
+
     # Step 1: add nullable column so existing rows survive
     op.add_column(
         "index_manifest",

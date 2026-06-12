@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Protocol
 
 from nexus_app.config import Settings, get_settings
@@ -15,6 +16,20 @@ class StoredObject:
     checksum: str
     size_bytes: int
     content_type: str
+
+
+@dataclass(frozen=True)
+class PresignedDownload:
+    download_url: str
+    expires_at: datetime  # UTC
+
+
+# Default TTL for presigned download URLs surfaced to the console / API
+# callers. Operators are expected to click through promptly; longer windows
+# expand the blast radius of a leaked URL.
+DEFAULT_PRESIGN_TTL_SECONDS = 900  # 15 minutes
+MIN_PRESIGN_TTL_SECONDS = 60
+MAX_PRESIGN_TTL_SECONDS = 3600  # 1 hour upper bound
 
 
 def sha256_hex(content: bytes) -> str:
@@ -32,6 +47,11 @@ class ObjectStorage(Protocol):
         ...
 
     def get_bytes(self, key: str) -> bytes:
+        ...
+
+    def generate_presigned_download(
+        self, key: str, *, ttl_seconds: int = DEFAULT_PRESIGN_TTL_SECONDS,
+    ) -> PresignedDownload:
         ...
 
 
@@ -69,6 +89,20 @@ class InMemoryObjectStorage:
             return self.objects[key][0]
         except KeyError as exc:
             raise ObjectNotFoundError(self.bucket, key) from exc
+
+    def generate_presigned_download(
+        self, key: str, *, ttl_seconds: int = DEFAULT_PRESIGN_TTL_SECONDS,
+    ) -> PresignedDownload:
+        if key not in self.objects:
+            raise ObjectNotFoundError(self.bucket, key)
+        ttl = _clamp_ttl(ttl_seconds)
+        # Deterministic fake URL so tests can assert without coupling to a
+        # signing implementation. Real signing happens in S3ObjectStorage.
+        url = f"https://memory/{self.bucket}/{key}?ttl={ttl}"
+        return PresignedDownload(
+            download_url=url,
+            expires_at=datetime.now(timezone.utc) + timedelta(seconds=ttl),
+        )
 
 
 class S3ObjectStorage:
@@ -121,6 +155,34 @@ class S3ObjectStorage:
                 raise ObjectNotFoundError(self.bucket, key) from exc
             raise ObjectStorageError(f"failed to read s3://{self.bucket}/{key}") from exc
 
+    def generate_presigned_download(
+        self, key: str, *, ttl_seconds: int = DEFAULT_PRESIGN_TTL_SECONDS,
+    ) -> PresignedDownload:
+        """Generate an S3 V4 presigned GET URL for a raw object.
+
+        The MinIO credentials live exclusively in nexus-app — never minted
+        client-side. Callers (nexus-api routes) request a presigned URL with
+        a bounded TTL, which the operator's browser uses to fetch directly.
+        """
+        ttl = _clamp_ttl(ttl_seconds)
+        # We DO NOT pre-check existence with HeadObject: that's an extra
+        # round-trip; the URL itself returns 404 on miss, which the caller
+        # surfaces as a downgrade in UI.
+        try:
+            url = self.client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": self.bucket, "Key": key},
+                ExpiresIn=ttl,
+            )
+        except Exception as exc:
+            raise ObjectStorageError(
+                f"failed to presign s3://{self.bucket}/{key}"
+            ) from exc
+        return PresignedDownload(
+            download_url=url,
+            expires_at=datetime.now(timezone.utc) + timedelta(seconds=ttl),
+        )
+
     @staticmethod
     def _is_not_found_error(exc: Exception) -> bool:
         try:
@@ -146,3 +208,11 @@ class S3ObjectStorage:
 
 def get_object_storage(settings: Settings | None = None) -> S3ObjectStorage:
     return S3ObjectStorage(settings)
+
+
+def _clamp_ttl(ttl_seconds: int) -> int:
+    if ttl_seconds < MIN_PRESIGN_TTL_SECONDS:
+        return MIN_PRESIGN_TTL_SECONDS
+    if ttl_seconds > MAX_PRESIGN_TTL_SECONDS:
+        return MAX_PRESIGN_TTL_SECONDS
+    return ttl_seconds
