@@ -23,6 +23,8 @@ type Props = {
   relatedArtifact: ParseArtifact | null;
   versions: AssetVersion[];
   governanceRuns: AIGovernanceRun[];
+  rawObjectNames?: Map<string, string>;
+  dataSourceName?: string | null;
 };
 
 const TABS = [
@@ -41,6 +43,8 @@ function LineageTab({
   latestVersion,
   latestRef,
   relatedArtifact,
+  rawObjectNames,
+  dataSourceName,
 }: Omit<Props, "versions" | "governanceRuns">) {
   return (
     <>
@@ -52,38 +56,60 @@ function LineageTab({
         </div>
         <div className="card-body">
           <div className="m1-flow">
-            <span className={latestVersion ? "done" : ""}>
-              Raw Object
-              {latestVersion && (
-                <span className="text-muted text-xs" style={{ display: "block" }}>
-                  {shortId(latestVersion.raw_object_id)}
-                </span>
-              )}
-            </span>
-            <span className={relatedArtifact ? "done" : ""}>
-              Parse Artifact
-              {relatedArtifact && (
-                <span className="text-muted text-xs" style={{ display: "block" }}>
-                  {relatedArtifact.parse_mode}
-                </span>
-              )}
-            </span>
-            <span className={latestRef ? "done" : ""}>
-              Normalized
-              {latestRef && (
-                <span className="text-muted text-xs" style={{ display: "block" }}>
-                  {latestRef.normalized_type}
-                </span>
-              )}
-            </span>
-            <span className={asset?.status === "available" ? "done" : "active"}>
-              Asset
-              {asset && (
-                <span className="text-muted text-xs" style={{ display: "block" }}>
-                  {asset.status}
-                </span>
-              )}
-            </span>
+            {/* Raw Object */}
+            <div className={`m1-stage ${latestVersion ? "status-done" : "status-pending"}`}>
+              <div className="m1-stage-dot" />
+              <div className="m1-stage-body">
+                <div className="m1-stage-label">Raw Object</div>
+                {latestVersion && (
+                  <div className="m1-stage-sub">
+                    {rawObjectNames?.get(latestVersion.raw_object_id) ?? shortId(latestVersion.raw_object_id)}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Arrow: Raw → Parse */}
+            <div className={`m1-arrow ${relatedArtifact ? "done" : ""}`} />
+
+            {/* Parse Artifact */}
+            <div className={`m1-stage ${relatedArtifact ? "status-done" : "status-pending"}`}>
+              <div className="m1-stage-dot" />
+              <div className="m1-stage-body">
+                <div className="m1-stage-label">Parse Artifact</div>
+                {relatedArtifact && (
+                  <div className="m1-stage-sub">{relatedArtifact.parse_mode}</div>
+                )}
+              </div>
+            </div>
+
+            {/* Arrow: Parse → Normalized */}
+            <div className={`m1-arrow ${latestRef ? "done" : ""}`} />
+
+            {/* Normalized */}
+            <div className={`m1-stage ${latestRef ? "status-done" : "status-pending"}`}>
+              <div className="m1-stage-dot" />
+              <div className="m1-stage-body">
+                <div className="m1-stage-label">Normalized</div>
+                {latestRef && (
+                  <div className="m1-stage-sub">{latestRef.normalized_type}</div>
+                )}
+              </div>
+            </div>
+
+            {/* Arrow: Normalized → Asset */}
+            <div className={`m1-arrow ${asset?.status === "available" ? "done" : ""}`} />
+
+            {/* Asset */}
+            <div className={`m1-stage ${asset?.status === "available" ? "status-done" : "status-active"}`}>
+              <div className="m1-stage-dot" />
+              <div className="m1-stage-body">
+                <div className="m1-stage-label">Asset</div>
+                {asset && (
+                  <div className="m1-stage-sub">{asset.status}</div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -414,7 +440,7 @@ function QualityTab({ runs }: { runs: AIGovernanceRun[] }) {
 // ---------------------------------------------------------------------------
 // Version history tab
 // ---------------------------------------------------------------------------
-function VersionsTab({ versions }: { versions: AssetVersion[] }) {
+function VersionsTab({ versions, rawObjectNames }: { versions: AssetVersion[]; rawObjectNames?: Map<string, string> }) {
   if (versions.length === 0) {
     return <Empty description="暂无版本记录" />;
   }
@@ -437,7 +463,9 @@ function VersionsTab({ versions }: { versions: AssetVersion[] }) {
         >
           <span className="mono-cell">{shortId(v.id)}</span>
           <span>v{v.version_no}</span>
-          <span className="mono-cell">{shortId(v.raw_object_id)}</span>
+          <span title={v.raw_object_id}>
+            {rawObjectNames?.get(v.raw_object_id) ?? shortId(v.raw_object_id)}
+          </span>
           <span className="text-muted text-sm">{formatDateTime(v.updated_at)}</span>
           <StatusLabel value={v.version_status} />
         </div>
@@ -456,6 +484,8 @@ export function AssetDetailTabs({
   relatedArtifact,
   versions,
   governanceRuns,
+  rawObjectNames,
+  dataSourceName,
 }: Props) {
   const [activeTab, setActiveTab] = useState("lineage");
 
@@ -501,12 +531,14 @@ export function AssetDetailTabs({
             latestVersion={latestVersion}
             latestRef={latestRef}
             relatedArtifact={relatedArtifact}
+            rawObjectNames={rawObjectNames}
+            dataSourceName={dataSourceName}
           />
         )}
         {activeTab === "preview" && <SourcePreviewSection refId={latestRef?.id ?? null} />}
         {activeTab === "ai-governance" && <AIGovernanceTab runs={governanceRuns} />}
         {activeTab === "quality" && <QualityTab runs={governanceRuns} />}
-        {activeTab === "versions" && <VersionsTab versions={versions} />}
+        {activeTab === "versions" && <VersionsTab versions={versions} rawObjectNames={rawObjectNames} />}
       </div>
     </>
   );

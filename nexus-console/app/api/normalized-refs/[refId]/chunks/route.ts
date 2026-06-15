@@ -1,11 +1,12 @@
 /**
  * Route handler: GET /api/normalized-refs/:refId/chunks?page=&pageSize=
  *
- * Server-side proxy to the backend's chunk-list endpoint. Used by the
- * asset detail "associated chunks" panel. Caller key stays server-side.
+ * Server-side proxy to the backend's internal chunk-list endpoint. Used by
+ * the asset detail "associated chunks" panel. Authenticated via JWT Bearer
+ * from the operator's access cookie — no API caller key needed.
  */
 import { NextResponse } from "next/server";
-import { proxyBackendGet } from "@/lib/searchProxy";
+import { internalBackendGet } from "@/lib/searchProxy";
 import type { ChunkListResponse } from "@/lib/chunkTypes";
 
 export const dynamic = "force-dynamic";
@@ -30,8 +31,8 @@ export async function GET(
   if (pageSize) backendParams.set("pageSize", pageSize);
 
   const query = backendParams.toString();
-  const result = await proxyBackendGet<ChunkListResponse["data"]>(
-    `/open/v1/normalized-refs/${encodeURIComponent(refId)}/chunks${query ? `?${query}` : ""}`,
+  const result = await internalBackendGet<ChunkListResponse["data"]>(
+    `/internal/v1/normalized-refs/${encodeURIComponent(refId)}/chunks${query ? `?${query}` : ""}`,
   );
   if (!result.ok) {
     return NextResponse.json(result, { status: result.status });

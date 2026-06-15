@@ -1,10 +1,13 @@
 /**
  * Route guard middleware.
  *
- * Checks for nexus_access_token cookie on protected routes.
- * Missing/expired token → redirect to /login.
+ * Page routes: missing nexus_access_token → redirect to /login.
+ * API routes (/api/*): let through — each route handler manages its own
+ *   auth via internalBackendGet / getApiData. Redirecting to /login breaks
+ *   JSON-based error handling on the client (fetch follows the redirect
+ *   and receives HTML instead of a structured 401 envelope).
  *
- * Excluded paths:
+ * Excluded paths (no cookie check):
  * - /login (auth page)
  * - /api/auth/* (login/refresh/logout handlers)
  * - /_next/* (static assets)
@@ -13,7 +16,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/api/auth/", "/_next/", "/favicon.ico"];
+const PUBLIC_PATHS = ["/login", "/api/", "/_next/", "/favicon.ico"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname.startsWith(p));
@@ -34,10 +37,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Optional: decode JWT and check expiry here.
-  // For now, existence check is sufficient; the backend validates on each API call.
-  // If the token is expired, the API layer will handle 401 → refresh → retry.
-
   return NextResponse.next();
 }
 
@@ -46,9 +45,9 @@ export const config = {
     /*
      * Match all paths except:
      * - /login (public)
-     * - /api/auth/* (auth handlers)
+     * - /api/* (API routes — auth handled by handlers)
      * - /_next/* (Next.js internals)
      */
-    "/((?!login|api/auth|_next|favicon.ico).*)",
+    "/((?!login|api/|_next|favicon.ico).*)",
   ],
 };

@@ -1,16 +1,16 @@
 /**
  * Route handler: GET /api/raw-objects/:rawObjectId/download-url?ttl_seconds=
  *
- * Server-side proxy for the backend's presigned-URL endpoint. MinIO
+ * Server-side proxy for the backend's internal presigned-URL endpoint. MinIO
  * credentials stay inside nexus-app — neither the operator's browser nor
- * the console process holds them. The console only forwards the caller key
- * (NEXUS_DEMO_CALLER_KEY) via the existing proxyBackendGet helper.
+ * the console process holds them. Authenticated via JWT Bearer from the
+ * operator's access cookie — no API caller key needed.
  *
  * The returned download_url is itself short-lived (default 15 min, clamped
  * 60s–1h by the backend), so leakage of the URL has a bounded blast radius.
  */
 import { NextResponse } from "next/server";
-import { proxyBackendGet } from "@/lib/searchProxy";
+import { internalBackendGet } from "@/lib/searchProxy";
 import type { RawDownloadResponse } from "@/lib/chunkTypes";
 
 export const dynamic = "force-dynamic";
@@ -33,8 +33,8 @@ export async function GET(
   if (ttl) backendParams.set("ttl_seconds", ttl);
 
   const query = backendParams.toString();
-  const result = await proxyBackendGet<RawDownloadResponse>(
-    `/open/v1/raw-objects/${encodeURIComponent(rawObjectId)}/download-url${
+  const result = await internalBackendGet<RawDownloadResponse>(
+    `/internal/v1/raw-objects/${encodeURIComponent(rawObjectId)}/download-url${
       query ? `?${query}` : ""
     }`,
   );

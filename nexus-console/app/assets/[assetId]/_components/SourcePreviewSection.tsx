@@ -3,34 +3,30 @@
 /**
  * SourcePreviewSection — Asset Detail "原文预览" tab.
  *
- * Renders ``body_markdown`` from a normalized_ref split into block-anchored
- * segments using ``blocks[].md_char_range``. The markdown bytes themselves
- * are NEVER mutated; anchors live only in the rendered DOM (see ARCHITECT
- * "Chunk Locator Contract" / memory feedback_md_char_range_out_of_band).
+ * Renders ``body_markdown`` from a normalized_ref through react-markdown
+ * with remark-gfm (GFM tables / strikethrough / task-lists).  The body is
+ * split into anchored segments at line-start boundaries nearest to each
+ * block's ``md_char_range[0]`` so that multi-line GFM structures (tables,
+ * code fences) are never cut in the middle.
  *
  * Record-type refs fall back to a JSON code block.
  *
- * Deep-link behaviour: a `#block-XXX` URL hash scrolls to and briefly
- * highlights the matching block on mount and on hashchange. Tab switching
- * still happens manually — wider URL state is P2.
+ * Deep-link: a `#block-XXX` URL hash scrolls to and briefly highlights the
+ * matching block on mount and on hashchange.
  */
-
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { Alert, Card, Empty, Skeleton } from "antd";
+import remarkGfm from "remark-gfm";
 import type { NormalizedBlock, NormalizedRefContent } from "@/lib/chunkTypes";
 
-// react-markdown ships a chunky parser; gate it behind a client-only dynamic
-// import so we don't bloat the asset-detail server bundle. SSR is off because
-// the viewer is purely a client tab.
+// react-markdown is chunked via next/dynamic — client-only, loaded on demand.
 const Markdown = dynamic(() => import("react-markdown"), {
   ssr: false,
   loading: () => <Skeleton active paragraph={{ rows: 3 }} />,
 });
 
-// remark-gfm enables GFM tables / strikethrough / task lists — closer to
-// what MinerU's table-rendering pipeline emits.
-const remarkGfmPromise = import("remark-gfm").then((m) => m.default);
+// ---- data-fetch response shapes ------------------------------------------
 
 interface ProxyEnvelope<T> {
   ok: true;
@@ -43,6 +39,8 @@ interface ProxyErrorEnvelope {
   status: number;
   message: string;
 }
+
+// ---- public component ----------------------------------------------------
 
 export interface SourcePreviewSectionProps {
   refId: string | null;
@@ -63,10 +61,13 @@ export function SourcePreviewSection({ refId }: SourcePreviewSectionProps) {
     setError(null);
     (async () => {
       try {
-        const res = await fetch(`/api/normalized-refs/${encodeURIComponent(refId)}/content`, {
-          cache: "no-store",
-        });
-        const body = (await res.json()) as ProxyEnvelope<NormalizedRefContent> | ProxyErrorEnvelope;
+        const res = await fetch(
+          `/api/normalized-refs/${encodeURIComponent(refId)}/content`,
+          { cache: "no-store" },
+        );
+        const body = (await res.json()) as
+          | ProxyEnvelope<NormalizedRefContent>
+          | ProxyErrorEnvelope;
         if (!body.ok) throw new Error(body.message || `HTTP ${res.status}`);
         if (!cancelled) setContent(body.data);
       } catch (err) {
@@ -107,7 +108,7 @@ export function SourcePreviewSection({ refId }: SourcePreviewSectionProps) {
     return (
       <Card title="记录类资产" className="!mt-4">
         {content.record_body ? (
-          <pre className="bg-bg m-0 max-h-[60vh] overflow-auto p-3 text-xs">
+          <pre className="max-h-[60vh] overflow-auto p-3 text-xs">
             {JSON.stringify(content.record_body, null, 2)}
           </pre>
         ) : (
@@ -124,30 +125,38 @@ export function SourcePreviewSection({ refId }: SourcePreviewSectionProps) {
     );
   }
   return (
-    <Card title="原文预览（按 block 锚定，可从 #block-xxx 跳转）" className="!mt-4">
-      <MarkdownViewer body={content.body_markdown} blocks={content.blocks ?? []} />
+    <Card title="原文预览" className="!mt-4">
+      <MarkdownViewer
+        body={content.body_markdown}
+        blocks={content.blocks ?? []}
+      />
     </Card>
   );
 }
+
+// ---- markdown viewer -----------------------------------------------------
 
 interface MarkdownViewerProps {
   body: string;
   blocks: NormalizedBlock[];
 }
 
-/**
- * Split body by md_char_range and render each block in its own anchor div.
- * body itself is sliced — substring extraction does not mutate the source.
- */
 function MarkdownViewer({ body, blocks }: MarkdownViewerProps) {
-  const segments = useMemo(() => buildSegments(body, blocks), [body, blocks]);
+  // Build segments aligned to line starts so tables stay intact.
+  const segments = useMemo(
+    () => buildSegments(body, blocks),
+    [body, blocks],
+  );
+
   const [activeBlock, setActiveBlock] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   const handleHash = useCallback(() => {
     const hash = window.location.hash.replace(/^#/, "");
     if (!hash.startsWith("block-")) return;
-    const el = rootRef.current?.querySelector<HTMLElement>(`#${cssEscape(hash)}`);
+    const el = rootRef.current?.querySelector<HTMLElement>(
+      `[id="${cssEscape(hash)}"]`,
+    );
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", block: "start" });
     setActiveBlock(hash.slice("block-".length));
@@ -160,70 +169,111 @@ function MarkdownViewer({ body, blocks }: MarkdownViewerProps) {
     return () => window.removeEventListener("hashchange", handleHash);
   }, [handleHash]);
 
-  const [remarkPlugins, setRemarkPlugins] = useState<unknown[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    remarkGfmPromise.then((p) => {
-      if (!cancelled) setRemarkPlugins([p]);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  // No blocks → render entire body as one Markdown (tables guaranteed intact).
   if (segments.length === 0) {
     return (
-      <div className="prose max-w-none">
-        <Markdown>{body}</Markdown>
+      <div className="md-preview max-h-[70vh] overflow-y-auto">
+        <Markdown remarkPlugins={[remarkGfm]}>{body}</Markdown>
       </div>
     );
   }
+
   return (
-    <div ref={rootRef} className="prose max-w-none">
+    <div ref={rootRef} className="md-preview max-h-[70vh] overflow-y-auto">
       {segments.map(({ blockId, text }) => (
         <div
           key={blockId}
           id={`block-${blockId}`}
           data-block-id={blockId}
           className={
-            activeBlock === blockId ? "bg-warning/10 rounded px-2 py-1 transition-colors" : ""
+            activeBlock === blockId
+              ? "bg-warning/10 rounded px-2 py-1 transition-colors"
+              : ""
           }
         >
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          <Markdown remarkPlugins={remarkPlugins as any}>{text}</Markdown>
+          <Markdown remarkPlugins={[remarkGfm]}>{text}</Markdown>
         </div>
       ))}
     </div>
   );
 }
 
+// ---- segment builder -----------------------------------------------------
+
 interface Segment {
   blockId: string;
   text: string;
 }
 
-function buildSegments(body: string, blocks: NormalizedBlock[]): Segment[] {
+/**
+ * Split `body` into segments anchored at block start positions.
+ *
+ * Each split is snapped to the nearest line-start boundary so that GFM
+ * tables, fenced code blocks, and other multiline structures are never
+ * cut in the middle — only at paragraph / heading / section breaks.
+ */
+function buildSegments(
+  body: string,
+  blocks: NormalizedBlock[],
+): Segment[] {
   if (!blocks || blocks.length === 0) return [];
-  const out: Segment[] = [];
-  // Sort by range start to render in document order regardless of input ordering
-  const ranged = blocks
-    .filter(
-      (b): b is NormalizedBlock & { md_char_range: [number, number] } =>
-        Array.isArray(b.md_char_range) && b.md_char_range.length === 2,
-    )
-    .sort((a, b) => a.md_char_range[0] - b.md_char_range[0]);
-  for (const block of ranged) {
-    const [start, end] = block.md_char_range;
-    if (start < 0 || end > body.length || end <= start) continue;
-    out.push({ blockId: block.block_id, text: body.slice(start, end) });
+
+  // Collect unique split positions → line starts.
+  const positions = new Set<number>();
+  for (const b of blocks) {
+    const r = b.md_char_range;
+    if (!Array.isArray(r) || r.length !== 2) continue;
+    const start = r[0];
+    if (start <= 0 || start >= body.length) continue;
+    positions.add(snapLineStart(body, start));
   }
-  return out;
+  // Remove position 0 (beginning of body — no split needed).
+  positions.delete(0);
+
+  if (positions.size === 0) return [];
+
+  const sorted = [...positions].sort((a, b) => a - b);
+
+  // Slice body at each position.
+  const segs: Segment[] = [];
+  let cursor = 0;
+  for (const pos of sorted) {
+    if (pos <= cursor) continue; // deduplicate after snapping
+    segs.push({
+      blockId: findBlockIdAt(blocks, cursor),
+      text: body.slice(cursor, pos),
+    });
+    cursor = pos;
+  }
+  // Tail segment.
+  if (cursor < body.length) {
+    segs.push({
+      blockId: findBlockIdAt(blocks, cursor),
+      text: body.slice(cursor),
+    });
+  }
+  return segs;
 }
 
-/**
- * CSS.escape polyfill — only used for the rare case where a block_id
- * contains characters that need escaping in a CSS selector.
- */
+/** Walk backwards from `pos` to find the nearest preceding newline. */
+function snapLineStart(body: string, pos: number): number {
+  if (pos <= 0) return 0;
+  let p = pos - 1;
+  while (p > 0 && body[p] !== "\n") p--;
+  return body[p] === "\n" ? p + 1 : 0;
+}
+
+function findBlockIdAt(blocks: NormalizedBlock[], pos: number): string {
+  for (const b of blocks) {
+    const r = b.md_char_range;
+    if (!Array.isArray(r) || r.length !== 2) continue;
+    if (r[0] <= pos && pos <= r[1]) return b.block_id;
+  }
+  return "unknown";
+}
+
+// ---- css-escape polyfill -------------------------------------------------
+
 function cssEscape(value: string): string {
   if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
     return CSS.escape(value);

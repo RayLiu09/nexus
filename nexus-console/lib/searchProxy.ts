@@ -1,13 +1,16 @@
 /**
- * Server-side helper for proxying /v1/search and /v1/qa to the backend
- * with the operator's caller key.
+ * Server-side proxy helpers for backend calls from Next.js route handlers.
  *
- * - 后端 /v1/search 与 /v1/qa 走 require_api_caller，需要 X-API-Key 头。
- * - 控制台不能把 caller_key 暴露在浏览器 JS 中：通过 Next.js route handler 服务端代理，
- *   key 仅从 process.env.NEXUS_DEMO_CALLER_KEY 读取。
- * - 缺少 key 时返回结构化错误，由前端引导运维补齐 env。
+ * Two strategies:
+ * - proxyBackendGet — open API (/open/v1/*) with X-API-Key from NEXUS_DEMO_CALLER_KEY.
+ *   Used by search/QA playgrounds that intentionally exercise the public API.
+ * - internalBackendGet — internal API (/internal/v1/*) with JWT Bearer from the
+ *   incoming request's nexus_access_token cookie. Used by asset detail chunks,
+ *   content preview, and download-url — console-internal features that should
+ *   not require an API caller key.
  */
 import { apiBaseUrl } from "./api";
+import { cookies } from "next/headers";
 
 export interface ProxyError {
   ok: false;
@@ -74,6 +77,103 @@ export async function proxyBackendGet<T>(path: string): Promise<ProxyResult<T>> 
       body = JSON.parse(text);
     } catch {
       // 后端通常返回 JSON envelope；解析失败时把原文当作错误消息
+      return {
+        ok: false,
+        status: response.status,
+        message: `后端返回非 JSON 响应：${text.slice(0, 200)}`,
+      };
+    }
+  }
+
+  const envelope = (body ?? {}) as {
+    data?: T;
+    error?: { message?: string };
+    meta?: {
+      trace_id?: string;
+      page?: number;
+      page_size?: number;
+      total?: number;
+    };
+  };
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: response.status,
+      message: envelope.error?.message ?? `后端返回 HTTP ${response.status}`,
+    };
+  }
+
+  const meta = envelope.meta ?? {};
+  const listMeta: ProxyListMeta | undefined =
+    meta.page !== undefined || meta.page_size !== undefined || meta.total !== undefined
+      ? {
+          page: meta.page,
+          pageSize: meta.page_size,
+          total: meta.total,
+        }
+      : undefined;
+
+  return {
+    ok: true,
+    status: response.status,
+    data: envelope.data as T,
+    traceId: meta.trace_id ?? null,
+    listMeta,
+  };
+}
+
+// ── Internal API proxy (JWT Bearer) ─────────────────────────────────────
+
+async function getInternalAuthHeader(): Promise<string | null> {
+  try {
+    const store = await cookies();
+    const token = store.get("nexus_access_token")?.value;
+    return token ? `Bearer ${token}` : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Proxy a GET call to the backend's **internal** API (/internal/v1/*) using
+ * JWT Bearer auth from the incoming request's httpOnly cookie.
+ *
+ * Used by console-internal features (asset detail chunks, content preview,
+ * download URLs) — these do NOT require an API caller key.
+ */
+export async function internalBackendGet<T>(path: string): Promise<ProxyResult<T>> {
+  // path must start with /internal/v1/
+  const authHeader = await getInternalAuthHeader();
+  if (!authHeader) {
+    return {
+      ok: false,
+      status: 401,
+      message: "未找到有效的访问令牌，请重新登录。",
+    };
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${apiBaseUrl()}${path}`, {
+      method: "GET",
+      headers: { authorization: authHeader },
+      cache: "no-store",
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      status: 502,
+      message: `调用 NEXUS 后端失败：${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  let body: unknown = null;
+  const text = await response.text();
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
       return {
         ok: false,
         status: response.status,

@@ -10,9 +10,22 @@ import {
   type AssetDetail,
   type ParseArtifact,
   type AIGovernanceRun,
+  type DataSource,
+  type RawObject,
 } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
+
+function extractFilename(obj: RawObject): string {
+  const metaName = obj.metadata_summary?.filename;
+  if (typeof metaName === "string" && metaName.length > 0) return metaName;
+  const uri = obj.source_uri || obj.object_uri;
+  if (uri) {
+    const last = uri.split("/").pop();
+    if (last && last.length > 0) return last;
+  }
+  return "-";
+}
 
 export default async function AssetDetailPage({
   params,
@@ -27,11 +40,32 @@ export default async function AssetDetailPage({
   ]);
 
   const asset = result.data?.asset;
-  const latestVersion = result.data?.current_version ?? result.data?.versions[0] ?? null;
+  const versions = result.data?.versions ?? [];
+  const latestVersion = result.data?.current_version ?? versions[0] ?? null;
   const latestRef = result.data?.current_normalized_ref ?? result.data?.normalized_refs[0] ?? null;
   const relatedArtifact =
     parseArtifacts.data.find((a) => a.asset_version_id === latestVersion?.id) ??
     parseArtifacts.data.find((a) => a.raw_object_id === latestVersion?.raw_object_id);
+
+  // Fetch data source and raw object names in parallel
+  const [dataSourceResult, rawObjectNames] = await (async () => {
+    const dsId = asset?.data_source_id;
+    const rawIds = [...new Set(versions.map((v) => v.raw_object_id).filter(Boolean))] as string[];
+
+    const [ds, ...rawResults] = await Promise.all([
+      dsId ? getApiData<DataSource>(`/internal/v1/data-sources/${dsId}`, null as unknown as DataSource) : null,
+      ...rawIds.map((id) => getApiData<RawObject>(`/internal/v1/raw-objects/${id}`, null as unknown as RawObject)),
+    ]);
+
+    const nameMap = new Map<string, string>();
+    for (const r of rawResults) {
+      if (r?.ok && r.data) nameMap.set(r.data.id, extractFilename(r.data));
+    }
+
+    return [ds, nameMap] as const;
+  })();
+
+  const dataSourceName = dataSourceResult?.ok ? dataSourceResult.data?.name ?? dataSourceResult.data?.code ?? null : null;
 
   // Fetch AI governance runs for the latest normalized ref
   const governanceRuns = latestRef
@@ -79,11 +113,17 @@ export default async function AssetDetailPage({
         </div>
         <div>
           <span>原始对象</span>
-          <strong className="mono-cell">{shortId(latestVersion?.raw_object_id)}</strong>
+          <strong title={latestVersion?.raw_object_id}>
+            {latestVersion?.raw_object_id
+              ? (rawObjectNames.get(latestVersion.raw_object_id) ?? shortId(latestVersion.raw_object_id))
+              : "-"}
+          </strong>
         </div>
         <div>
           <span>数据源</span>
-          <strong className="mono-cell">{shortId(asset?.data_source_id)}</strong>
+          <strong title={asset?.data_source_id}>
+            {dataSourceName ?? (asset?.data_source_id ? shortId(asset.data_source_id) : "-")}
+          </strong>
         </div>
       </div>
 
@@ -93,8 +133,10 @@ export default async function AssetDetailPage({
         latestRef={latestRef}
         relatedArtifact={relatedArtifact ?? null}
         asset={asset ?? null}
-        versions={result.data?.versions ?? []}
+        versions={versions}
         governanceRuns={governanceRuns.data}
+        rawObjectNames={rawObjectNames}
+        dataSourceName={dataSourceName}
       />
     </>
   );

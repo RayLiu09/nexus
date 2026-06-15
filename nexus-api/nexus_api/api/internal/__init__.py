@@ -27,6 +27,7 @@ from nexus_api.api.internal.ai_prompts import router as _ai_prompts_router
 from nexus_api.api.internal.ai_governance import router as _ai_governance_router
 from nexus_api.api.internal.governance import router as _governance_router
 from nexus_api.api.internal.governance_prompts import router as _governance_prompts_router
+from nexus_api.api.internal.normalized_refs import router as _normalized_refs_router
 
 # Auth router — separate top-level mount, no shared deps.
 from nexus_api.api.internal.auth import router as auth_router
@@ -137,6 +138,7 @@ router.include_router(_ai_prompts_router)
 router.include_router(_ai_governance_router)
 router.include_router(_governance_router)
 router.include_router(_governance_prompts_router)
+router.include_router(_normalized_refs_router)
 
 
 __all__ = ["router", "auth_router"]

@@ -1,13 +1,13 @@
 /**
  * Route handler: GET /api/normalized-refs/:refId/content
  *
- * Server-side proxy for the backend's normalized payload endpoint.
+ * Server-side proxy for the backend's internal normalized payload endpoint.
  * Returns body_markdown + blocks (document) or record_body (record) for
  * the asset detail "原文预览" tab. MinIO read happens server-side; the
- * console only forwards.
+ * console only forwards. Authenticated via JWT Bearer — no API caller key.
  */
 import { NextResponse } from "next/server";
-import { proxyBackendGet } from "@/lib/searchProxy";
+import { internalBackendGet } from "@/lib/searchProxy";
 import type { NormalizedRefContent } from "@/lib/chunkTypes";
 
 export const dynamic = "force-dynamic";
@@ -24,8 +24,8 @@ export async function GET(
     );
   }
 
-  const result = await proxyBackendGet<NormalizedRefContent>(
-    `/open/v1/normalized-refs/${encodeURIComponent(refId)}/content`,
+  const result = await internalBackendGet<NormalizedRefContent>(
+    `/internal/v1/normalized-refs/${encodeURIComponent(refId)}/content`,
   );
   if (!result.ok) {
     return NextResponse.json(result, { status: result.status });
