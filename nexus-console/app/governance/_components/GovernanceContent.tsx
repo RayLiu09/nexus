@@ -13,7 +13,7 @@
  */
 
 import { useState } from "react";
-import { Badge, Button, Tabs, App } from "antd";
+import { Badge, Button, Select, Tabs, App } from "antd";
 import { type GovernanceRun, deriveStats, getQualityScore } from "../_lib/types";
 import { SummaryStrip } from "./SummaryStrip";
 import { DecisionTrailDrawer } from "./DecisionTrailDrawer";
@@ -77,20 +77,24 @@ export function GovernanceContent({ runs }: { runs: GovernanceRun[] }) {
 
       <div className="flex justify-between items-center mb-4">
         <div className="flex gap-2">
-          <select
+          <Select
+            defaultValue="all"
             aria-label="队列筛选"
-            className="h-9 px-3 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--text)] text-sm cursor-pointer"
-          >
-            <option>队列：全部</option>
-            <option>仅我的</option>
-          </select>
-          <select
+            options={[
+              { value: "all", label: "队列：全部" },
+              { value: "mine", label: "仅我的" },
+            ]}
+            style={{ width: 140 }}
+          />
+          <Select
+            defaultValue="me"
             aria-label="责任人筛选"
-            className="h-9 px-3 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--text)] text-sm cursor-pointer"
-          >
-            <option>责任人：我</option>
-            <option>全部</option>
-          </select>
+            options={[
+              { value: "me", label: "责任人：我" },
+              { value: "all", label: "全部" },
+            ]}
+            style={{ width: 140 }}
+          />
         </div>
         <Button
           type="primary"

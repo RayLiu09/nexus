@@ -8,9 +8,12 @@ import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import type { FilterValue, SorterResult } from "antd/es/table/interface";
 
 import type { ApiCaller } from "@/lib/api";
-import { postApiData, deleteApiData, formatDateTime, shortId } from "@/lib/api";
+import { postApiData, deleteApiData, shortId } from "@/lib/api";
+import { StatusLabel } from "@/components/StatusLabel";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { ConfirmButton } from "@/components/shared/ConfirmButton";
 import { ApiState } from "@/components/ApiState";
+import { formatTime } from "@/lib/format-time";
 import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 
 interface ApiCallersContentProps {
@@ -186,21 +189,21 @@ export function ApiCallersContent({
       dataIndex: "status",
       key: "status",
       width: 100,
-      render: (status: string) => {
-        const color = status === "active" ? "green" : status === "revoked" ? "red" : "default";
-        return <Tag color={color}>{status === "active" ? "有效" : status === "revoked" ? "已吊销" : status}</Tag>;
-      },
+      render: (status: string) => <StatusLabel value={status} />,
     },
     {
       title: "创建时间",
       dataIndex: "created_at",
       key: "created_at",
       width: 160,
-      render: (v: string) => (
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          {formatDateTime(v)}
-        </Typography.Text>
-      ),
+      render: (v: string) => {
+        const ft = formatTime(v);
+        return (
+          <time dateTime={ft.iso} title={ft.iso} style={{ fontSize: 12, color: "var(--text-muted)" }}>
+            {ft.display}
+          </time>
+        );
+      },
     },
     {
       title: "操作",
@@ -243,21 +246,24 @@ export function ApiCallersContent({
         </Button>
       </div>
 
-      <Table
-        columns={columns}
-        dataSource={callers}
-        rowKey="id"
-        pagination={{
-          current: currentPage,
-          pageSize,
-          total: totalCount,
-          showSizeChanger: true,
-          showTotal: (total, range) => `${range[0]}-${range[1]} / ${total} 项`,
-          pageSizeOptions: ["10", "20", "50"],
-        }}
-        onChange={handleTableChange}
-        locale={{ emptyText: "暂无 API 调用方" }}
-      />
+      {callers.length === 0 ? (
+        <EmptyState title="暂无 API 调用方" hint="创建一个 API Caller 来开始使用" />
+      ) : (
+        <Table
+          columns={columns}
+          dataSource={callers}
+          rowKey="id"
+          pagination={{
+            current: currentPage,
+            pageSize,
+            total: totalCount,
+            showSizeChanger: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} / ${total} 项`,
+            pageSizeOptions: ["10", "20", "50"],
+          }}
+          onChange={handleTableChange}
+        />
+      )}
 
       {/* Create Modal */}
       <Modal

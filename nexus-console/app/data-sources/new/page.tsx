@@ -83,9 +83,9 @@ export default async function NewDataSourcePage({ searchParams }: Props) {
   return (
     <>
       <PageHeader
-        eyebrow="数据源管理 — 新建"
+        eyebrow="数据源 — 新建"
         title="注册数据源"
-        description="注册一个新的数据源连接器。注册后可在「数据接入」页面基于此数据源创建批次。"
+        description="按引导完成 4 步即可注册一个新的数据源连接器。"
         actions={
           <Link href="/data-sources" style={{ fontSize: 13, color: "var(--brand)" }}>
             ← 返回列表
@@ -150,7 +150,8 @@ export default async function NewDataSourcePage({ searchParams }: Props) {
               }}
             >
               <strong style={{ display: "block", marginBottom: 4 }}>注册后</strong>
-              数据源注册后即可在「数据接入」页面基于此数据源创建批次。
+              file_upload
+              类型可直接在顶栏「快速上传」入口提交文件；其他类型按调度计划或手动触发同步。
             </div>
             <div
               style={{

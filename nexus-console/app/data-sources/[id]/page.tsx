@@ -1,13 +1,18 @@
 import Link from "next/link";
+import { Empty } from "antd";
+
 import { PageHeader } from "@/components/PageHeader";
 import { ApiState } from "@/components/ApiState";
 import { StatusLabel } from "@/components/StatusLabel";
 import { Card } from "@/components/shared/Card";
-import { Empty } from "antd";
 import { formatTime } from "@/lib/format-time";
 import { getApiData, shortId, type DataSource, type IngestBatch, type RawObject } from "@/lib/api";
+
 import { ConnectorConfig } from "./_components/ConnectorConfig";
 import { DeleteDataSourceButton } from "./_components/DeleteDataSourceButton";
+import { DetailTabs } from "./_components/DetailTabs";
+import { SyncControlPanel } from "./_components/SyncControlPanel";
+import { SyncHistoryPanel } from "./_components/SyncHistoryPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +23,10 @@ const SOURCE_TYPE_META: Record<string, { icon: string; name: string }> = {
   database: { icon: "🗄", name: "数据库对接" },
   webhook: { icon: "⚡", name: "API 推送" },
 };
+
+function byUpdatedAtDesc(a: { updated_at: string }, b: { updated_at: string }) {
+  return b.updated_at.localeCompare(a.updated_at);
+}
 
 export default async function DataSourceDetailPage({
   params,
@@ -33,18 +42,20 @@ export default async function DataSourceDetailPage({
   ]);
 
   const ds = dsResult.data;
-  const relatedBatches = batchesResult.data.filter((b) => b.data_source_id === id);
+  const relatedBatches = batchesResult.data
+    .filter((b) => b.data_source_id === id)
+    .sort(byUpdatedAtDesc);
   const relatedRaw = rawResult.data.filter((r) => r.data_source_id === id);
   const meta = ds ? SOURCE_TYPE_META[ds.source_type] : null;
 
   return (
     <>
       <PageHeader
-        eyebrow="数据源管理 — 详情"
+        eyebrow="数据源 — 详情"
         title={ds ? `${meta?.icon ?? "◎"} ${ds.name}` : `数据源 ${shortId(id)}`}
-        description={ds?.description ?? "查看数据源配置、关联批次和原始对象。"}
+        description={ds?.description ?? "查看数据源配置、同步控制和接入历史。"}
         actions={
-          <Link href="/data-sources" style={{ fontSize: 13, color: "var(--brand)" }}>
+          <Link href="/data-sources" className="text-brand text-sm">
             ← 返回数据源列表
           </Link>
         }
@@ -88,195 +99,71 @@ export default async function DataSourceDetailPage({
             </Card>
           </div>
 
-          {/* ── Configuration ── */}
-          <div
-            style={{
-              background: "var(--surface)",
-              border: "1px solid var(--line)",
-              borderRadius: "var(--radius-xl)",
-              padding: 20,
-              marginBottom: 20,
-            }}
-          >
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>基础信息</div>
-            <div className="detail-grid">
-              <div>
-                <span>数据源编码</span>
-                <strong className="mono-cell">{ds.code}</strong>
-              </div>
-              <div>
-                <span>数据源 ID</span>
-                <strong className="mono-cell">{ds.id}</strong>
-              </div>
-              <div>
-                <span>负责人</span>
-                <strong className="mono-cell">{shortId(ds.owner_user_id) || "-"}</strong>
-              </div>
-              <div>
-                <span>组织范围</span>
-                <strong style={{ fontSize: 13 }}>
-                  {ds.org_scope_hint?.length > 0 ? ds.org_scope_hint.join(", ") : "-"}
-                </strong>
-              </div>
-              <div>
-                <span>创建时间</span>
-                <strong style={{ fontSize: 13 }}>{formatTime(ds.created_at).display}</strong>
-              </div>
-              <div>
-                <span>最近更新</span>
-                <strong style={{ fontSize: 13 }}>{formatTime(ds.updated_at).display}</strong>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Connector Config ── */}
-          <ConnectorConfig dataSource={ds} />
-
-          {/* ── Governance Hints ── */}
-          {Object.keys(ds.default_governance_hints || {}).length > 0 && (
-            <div
-              style={{
-                background: "var(--surface)",
-                border: "1px solid var(--line)",
-                borderRadius: "var(--radius-xl)",
-                padding: 20,
-                marginBottom: 20,
-              }}
-            >
-              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>默认治理预设</div>
-              <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 12 }}>
-                此数据源的默认治理建议（分类、分级、标签提示），由 AI 治理流水线参考使用
-              </div>
-              <pre
-                style={{
-                  margin: 0,
-                  padding: 12,
-                  background: "var(--surface-alt)",
-                  border: "1px solid var(--line-light)",
-                  borderRadius: "var(--radius-lg)",
-                  fontSize: 12,
-                  fontFamily: "var(--font-mono)",
-                  overflow: "auto",
-                  maxHeight: 200,
-                }}
-              >
-                {JSON.stringify(ds.default_governance_hints, null, 2)}
-              </pre>
-            </div>
-          )}
-
-          {/* ── Danger Zone ── */}
-          <div
-            style={{
-              background: "var(--surface)",
-              border: "1px solid var(--danger-200, #fecaca)",
-              borderRadius: "var(--radius-xl)",
-              padding: 20,
-              marginBottom: 20,
-            }}
-          >
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4, color: "var(--danger-600, #dc2626)" }}>
-              危险操作
-            </div>
-            <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 12 }}>
-              删除数据源是不可逆操作。请确认已无关联的活跃作业后再执行。
-            </div>
-            <DeleteDataSourceButton dataSourceId={ds.id} dataSourceName={ds.name} />
-          </div>
-
-          {/* ── Related Batches ── */}
-          <div
-            style={{
-              background: "var(--surface)",
-              border: "1px solid var(--line)",
-              borderRadius: "var(--radius-xl)",
-              overflow: "hidden",
-              marginBottom: 20,
-            }}
-          >
-            <div
-              style={{
-                padding: "16px 20px",
-                borderBottom: "1px solid var(--line-light)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 600 }}>关联批次</div>
-                <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
-                  {relatedBatches.length} 个批次通过此数据源接入
-                </div>
-              </div>
-              <Link href="/ingest" style={{ fontSize: 13, color: "var(--brand)" }}>
-                新建批次 →
-              </Link>
-            </div>
-            {relatedBatches.length === 0 ? (
-              <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>
-                暂无批次。前往{" "}
-                <Link href="/ingest" style={{ color: "var(--brand)" }}>
-                  数据接入
-                </Link>{" "}
-                提交首个批次。
-              </div>
-            ) : (
-              <>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "140px 1fr 100px 130px 90px",
-                    gap: 12,
-                    padding: "8px 20px",
-                    borderBottom: "1px solid var(--line-light)",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: "var(--text-secondary)",
-                  }}
-                >
-                  <span>批次 ID</span>
-                  <span>幂等键</span>
-                  <span>类型</span>
-                  <span>更新时间</span>
-                  <span>状态</span>
-                </div>
-                {relatedBatches.slice(0, 10).map((b) => {
-                  const t = formatTime(b.updated_at);
-                  return (
-                    <div
-                      key={b.id}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "140px 1fr 100px 130px 90px",
-                        gap: 12,
-                        padding: "10px 20px",
-                        borderBottom: "1px solid var(--line-light)",
-                        fontSize: 13,
-                        alignItems: "center",
-                      }}
-                    >
-                      <code style={{ fontSize: 11, fontFamily: "var(--font-mono)" }}>
-                        {shortId(b.id)}
-                      </code>
-                      <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-                        {b.idempotency_key}
-                      </span>
-                      <span style={{ fontSize: 12 }}>{b.source_type}</span>
-                      <time
-                        dateTime={t.iso}
-                        title={t.iso}
-                        style={{ fontSize: 12, color: "var(--text-muted)" }}
-                      >
-                        {t.display}
-                      </time>
-                      <StatusLabel value={b.status} />
+          <DetailTabs
+            config={
+              <div className="grid gap-4">
+                {/* ── 基础信息 ── */}
+                <div className="bg-surface border-line rounded-xl border p-5">
+                  <div className="mb-3 text-base font-semibold">基础信息</div>
+                  <div className="detail-grid">
+                    <div>
+                      <span>数据源编码</span>
+                      <strong className="mono-cell">{ds.code}</strong>
                     </div>
-                  );
-                })}
-              </>
-            )}
-          </div>
+                    <div>
+                      <span>数据源 ID</span>
+                      <strong className="mono-cell">{ds.id}</strong>
+                    </div>
+                    <div>
+                      <span>负责人</span>
+                      <strong className="mono-cell">{shortId(ds.owner_user_id) || "-"}</strong>
+                    </div>
+                    <div>
+                      <span>组织范围</span>
+                      <strong className="text-sm">
+                        {ds.org_scope_hint?.length > 0 ? ds.org_scope_hint.join(", ") : "-"}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>创建时间</span>
+                      <strong className="text-sm">{formatTime(ds.created_at).display}</strong>
+                    </div>
+                    <div>
+                      <span>最近更新</span>
+                      <strong className="text-sm">{formatTime(ds.updated_at).display}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── 连接器配置 ── */}
+                <ConnectorConfig dataSource={ds} />
+
+                {/* ── 默认治理预设 ── */}
+                {Object.keys(ds.default_governance_hints || {}).length > 0 && (
+                  <div className="bg-surface border-line rounded-xl border p-5">
+                    <div className="text-base font-semibold">默认治理预设</div>
+                    <div className="text-text-secondary mt-1 mb-3 text-xs">
+                      此数据源的默认治理建议（分类、分级、标签提示），由 AI 治理流水线参考使用
+                    </div>
+                    <pre className="bg-surface-alt border-line-light max-h-[200px] overflow-auto rounded-lg border p-3 font-mono text-xs">
+                      {JSON.stringify(ds.default_governance_hints, null, 2)}
+                    </pre>
+                  </div>
+                )}
+
+                {/* ── 危险操作 ── */}
+                <div className="bg-surface rounded-xl border border-red-200 p-5">
+                  <div className="text-danger text-base font-semibold">危险操作</div>
+                  <div className="text-text-secondary mt-1 mb-3 text-xs">
+                    删除数据源是不可逆操作。请确认已无关联的活跃作业后再执行。
+                  </div>
+                  <DeleteDataSourceButton dataSourceId={ds.id} dataSourceName={ds.name} />
+                </div>
+              </div>
+            }
+            sync={<SyncControlPanel dataSource={ds} relatedBatches={relatedBatches} />}
+            history={<SyncHistoryPanel batches={relatedBatches} />}
+          />
         </>
       )}
     </>

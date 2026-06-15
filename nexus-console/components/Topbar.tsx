@@ -2,8 +2,9 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { Avatar, Breadcrumb, Dropdown, Input, Tag, Tooltip } from "antd";
+import { Avatar, Breadcrumb, Button, Dropdown, Input, Tag, Tooltip } from "antd";
 import {
+  CloudUploadOutlined,
   SearchOutlined,
   LogoutOutlined,
   UserOutlined,
@@ -11,6 +12,7 @@ import {
 import { getBreadcrumb } from "@/lib/navigation";
 import { useSession } from "@/lib/auth/useSession";
 import { logout } from "@/lib/auth/session";
+import { useQuickUpload } from "@/components/QuickUploadProvider";
 
 const ENV_LABELS: Record<string, { label: string; color: string }> = {
   demo: { label: "环境: Demo", color: "default" },
@@ -29,6 +31,7 @@ export function Topbar() {
   const pathname = usePathname();
   const crumbs = getBreadcrumb(pathname);
   const { session } = useSession();
+  const { open: openQuickUpload } = useQuickUpload();
 
   const breadcrumbItems = crumbs.map((crumb, i) => ({
     key: i,
@@ -37,9 +40,9 @@ export function Topbar() {
 
   const displayName = session?.displayName ?? "用户";
   const initial = displayName.charAt(0);
-  const roleLabel = session?.role ? ROLE_LABELS[session.role] ?? session.role : "";
+  const roleLabel = session?.role ? (ROLE_LABELS[session.role] ?? session.role) : "";
   const orgName = session?.orgUnit?.name ?? "";
-  const envInfo = session?.env ? ENV_LABELS[session.env] ?? ENV_LABELS.demo : ENV_LABELS.demo;
+  const envInfo = session?.env ? (ENV_LABELS[session.env] ?? ENV_LABELS.demo) : ENV_LABELS.demo;
 
   const userMenuItems = [
     {
@@ -74,6 +77,11 @@ export function Topbar() {
       </div>
 
       <div className="topbar-right">
+        <Tooltip title="拖拽上传文件，自动入库并触发流水线">
+          <Button type="primary" icon={<CloudUploadOutlined />} onClick={() => openQuickUpload()}>
+            快速上传
+          </Button>
+        </Tooltip>
         <Tag color={envInfo.color}>{envInfo.label}</Tag>
         {session && <Tag color="default">角色: {roleLabel}</Tag>}
         {session?.orgUnit?.name && <Tag color="default">组织: {orgName}</Tag>}

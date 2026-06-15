@@ -13,9 +13,9 @@ import {
   Skeleton,
   Space,
   Table,
-  Tag,
 } from "antd";
 import { PageHeader } from "@/components/PageHeader";
+import { StatusLabel } from "@/components/StatusLabel";
 import {
   fetchPromptTemplates,
   updatePromptTemplate,
@@ -135,10 +135,7 @@ export default function GovernancePromptsPage() {
       dataIndex: "status",
       key: "status",
       width: 90,
-      render: (s: string) => {
-        const color = s === "active" ? "green" : s === "archived" ? "default" : "red";
-        return <Tag color={color}>{s}</Tag>;
-      },
+      render: (s: string) => <StatusLabel value={s} />,
     },
     {
       title: "模型别名",

@@ -1,12 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { Button, Tag } from "antd";
-import { PlusOutlined, SyncOutlined } from "@ant-design/icons";
-import { Card } from "@/components/shared/Card";
-import { StatusDot } from "@/components/shared/StatusDot";
+import { Button, Card, Statistic, Tag, Tooltip } from "antd";
+import { PlusOutlined } from "@ant-design/icons";
+import { Card as SharedCard } from "@/components/shared/Card";
+import { StatusLabel } from "@/components/StatusLabel";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { formatTime } from "@/lib/format-time";
 import { type DataSource } from "@/lib/api";
+
+export interface SyncInfo {
+  /** 最近一个相关 ingest_batch 的 updated_at（ISO） */
+  lastSync: string | null;
+  /** schedule_cron 推算的下次触发（ISO）；不支持的 cron 形态为 null */
+  nextSync: string | null;
+  /** 原始 cron 字符串，便于在缺失下次同步时回退展示 */
+  cron: string | null;
+}
 
 const SOURCE_TYPE_META: Record<string, { icon: string; name: string; desc: string }> = {
   file_upload: { icon: "📤", name: "本地文件上传", desc: "通过界面上传文件，即时校验" },
@@ -16,40 +26,38 @@ const SOURCE_TYPE_META: Record<string, { icon: string; name: string; desc: strin
   webhook: { icon: "⚡", name: "API 推送", desc: "通过 Webhook/API 批量提交" },
 };
 
-const STATUS_TONE: Record<string, "success" | "warning" | "danger" | "neutral" | "info"> = {
-  active: "success",
-  inactive: "neutral",
-  error: "danger",
-  syncing: "info",
-};
+interface DataSourcesContentProps {
+  dataSources: DataSource[];
+  syncInfoByDsId: Record<string, SyncInfo>;
+}
 
-export function DataSourcesContent({ dataSources }: { dataSources: DataSource[] }) {
+export function DataSourcesContent({ dataSources, syncInfoByDsId }: DataSourcesContentProps) {
   const activeCount = dataSources.filter((s) => s.status === "active").length;
   const typeCount = new Set(dataSources.map((s) => s.source_type)).size;
 
   return (
     <>
       {/* ── Metrics ── */}
-      <div className="metric-grid-4">
-        <Card variant="metric" weight="secondary">
-          <div className="card-label">已注册数据源</div>
-          <div className="card-value">{dataSources.length}</div>
-          <div className="card-sub">{typeCount} 种类型</div>
+      <div className="metric-grid-4 mb-5">
+        <Card size="small" className="metric-secondary">
+          <Statistic title="已注册数据源" value={dataSources.length} />
+          <div className="text-text-muted mt-1 text-xs">{typeCount} 种类型</div>
         </Card>
-        <Card variant="metric" weight="secondary" tone="success">
-          <div className="card-label">活跃连接</div>
-          <div className="card-value">{activeCount}</div>
-          <div className="card-sub">正常同步中</div>
+        <Card size="small" className="metric-secondary">
+          <Statistic
+            title="活跃连接"
+            value={activeCount}
+            valueStyle={{ color: "var(--success-600)" }}
+          />
+          <div className="text-text-muted mt-1 text-xs">正常同步中</div>
         </Card>
-        <Card variant="metric" weight="secondary">
-          <div className="card-label">数据源类型</div>
-          <div className="card-value">{Object.keys(SOURCE_TYPE_META).length}</div>
-          <div className="card-sub">支持的连接器类型</div>
+        <Card size="small" className="metric-secondary">
+          <Statistic title="数据源类型" value={Object.keys(SOURCE_TYPE_META).length} />
+          <div className="text-text-muted mt-1 text-xs">支持的连接器类型</div>
         </Card>
-        <Card variant="metric" weight="secondary">
-          <div className="card-label">默认治理策略</div>
-          <div className="card-value">自动</div>
-          <div className="card-sub">高置信自动采纳</div>
+        <Card size="small" className="metric-secondary">
+          <Statistic title="默认治理策略" value="自动" />
+          <div className="text-text-muted mt-1 text-xs">高置信自动采纳</div>
         </Card>
       </div>
 
@@ -78,7 +86,7 @@ export function DataSourcesContent({ dataSources }: { dataSources: DataSource[] 
           {Object.entries(SOURCE_TYPE_META).map(([type, meta]) => {
             const count = dataSources.filter((s) => s.source_type === type).length;
             return (
-              <Card key={type} variant="interactive" weight="tertiary">
+              <SharedCard key={type} variant="interactive" weight="tertiary" className="card-hover">
                 <Link
                   href={`/data-sources?type=${type}`}
                   style={{ display: "block", textDecoration: "none", color: "inherit" }}
@@ -94,14 +102,16 @@ export function DataSourcesContent({ dataSources }: { dataSources: DataSource[] 
                     </Tag>
                   )}
                 </Link>
-              </Card>
+              </SharedCard>
             );
           })}
         </div>
       </div>
 
-      {/* ── Registered Sources List ── */}
-      {dataSources.length === 0 ? null : (
+      {/* ── Registered Sources List —— 窄屏横向滚动避免列挤压 ── */}
+      {dataSources.length === 0 ? (
+        <EmptyState title="暂无已注册数据源" hint="新建一个数据源连接器来开始接入数据" />
+      ) : (
         <div
           style={{
             background: "var(--surface)",
@@ -125,56 +135,105 @@ export function DataSourcesContent({ dataSources }: { dataSources: DataSource[] 
                 {dataSources.length} 个数据源 · {activeCount} 个活跃
               </div>
             </div>
-            <Button size="small" icon={<SyncOutlined />}>
-              全部同步
-            </Button>
           </div>
-          <div style={{ display: "grid", gap: 0 }}>
-            {dataSources.map((source) => {
-              const meta = SOURCE_TYPE_META[source.source_type];
-              const { display, iso } = formatTime(source.updated_at);
-              const tone = STATUS_TONE[source.status] ?? "neutral";
-              return (
-                <Link
-                  key={source.id}
-                  href={`/data-sources/${source.id}`}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "40px 1.5fr 120px 140px 100px",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "12px 20px",
-                    borderBottom: "1px solid var(--line-light)",
-                    textDecoration: "none",
-                    color: "inherit",
-                    transition: "background var(--transition-fast)",
-                  }}
-                >
-                  <span style={{ fontSize: 20 }}>{meta?.icon ?? "◎"}</span>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{source.name}</div>
-                    <code
-                      style={{
-                        fontSize: 11,
-                        color: "var(--text-muted)",
-                        fontFamily: "var(--font-mono)",
-                      }}
+          {/* 列表表头 —— overflow-x-auto 让窄屏可横向滚动 */}
+          <div className="overflow-x-auto">
+            <div
+              className="text-text-secondary border-line-light grid items-center gap-3 border-b px-5 py-2 text-xs font-semibold"
+              style={{
+                gridTemplateColumns: "40px 1.3fr 100px 130px 130px 90px",
+                minWidth: "680px",
+              }}
+            >
+              <span />
+              <span>名称 / 编码</span>
+              <span>类型</span>
+              <span>上次同步</span>
+              <span>下次同步</span>
+              <span>状态</span>
+            </div>
+            <div style={{ display: "grid", gap: 0, minWidth: "680px" }}>
+              {dataSources.map((source) => {
+                const meta = SOURCE_TYPE_META[source.source_type];
+                const info = syncInfoByDsId[source.id];
+                const isFileUpload = source.source_type === "file_upload";
+
+                const lastSyncCell = info?.lastSync ? (
+                  (() => {
+                    const t = formatTime(info.lastSync);
+                    return (
+                      <time dateTime={t.iso} title={t.iso} className="text-text-muted text-xs">
+                        {t.display}
+                      </time>
+                    );
+                  })()
+                ) : (
+                  <span className="text-text-muted text-xs">从未同步</span>
+                );
+
+                let nextSyncCell: React.ReactNode;
+                if (isFileUpload) {
+                  nextSyncCell = (
+                    <Tooltip title="文件上传类型按需触发，无定时计划">
+                      <span className="text-text-muted text-xs">按需</span>
+                    </Tooltip>
+                  );
+                } else if (info?.nextSync) {
+                  const t = formatTime(info.nextSync);
+                  nextSyncCell = (
+                    <time
+                      dateTime={t.iso}
+                      title={info.cron ? `Cron: ${info.cron}` : t.iso}
+                      className="text-xs"
                     >
-                      {source.code}
-                    </code>
-                  </div>
-                  <Tag>{meta?.name ?? source.source_type}</Tag>
-                  <time
-                    dateTime={iso}
-                    title={iso}
-                    style={{ fontSize: 12, color: "var(--text-muted)" }}
+                      {t.display}
+                    </time>
+                  );
+                } else if (info?.cron) {
+                  nextSyncCell = (
+                    <Tooltip title={`Cron: ${info.cron}（无法解析展示）`}>
+                      <code className="text-text-muted font-mono text-xs">{info.cron}</code>
+                    </Tooltip>
+                  );
+                } else {
+                  nextSyncCell = (
+                    <Tooltip title="尚未配置定时同步">
+                      <span className="text-text-muted text-xs">未配置</span>
+                    </Tooltip>
+                  );
+                }
+
+                return (
+                  <Link
+                    key={source.id}
+                    href={`/data-sources/${source.id}`}
+                    className="border-line-light hover:bg-bg-alt grid items-center gap-3 border-b px-5 py-3 text-inherit no-underline transition-colors"
+                    style={{
+                      gridTemplateColumns: "40px 1.3fr 100px 130px 130px 90px",
+                      minWidth: "680px",
+                    }}
                   >
-                    {display}
-                  </time>
-                  <StatusDot tone={tone}>{source.status}</StatusDot>
-                </Link>
-              );
-            })}
+                    <span style={{ fontSize: 20 }}>{meta?.icon ?? "◎"}</span>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{source.name}</div>
+                      <code
+                        style={{
+                          fontSize: 11,
+                          color: "var(--text-muted)",
+                          fontFamily: "var(--font-mono)",
+                        }}
+                      >
+                        {source.code}
+                      </code>
+                    </div>
+                    <Tag>{meta?.name ?? source.source_type}</Tag>
+                    {lastSyncCell}
+                    {nextSyncCell}
+                    <StatusLabel value={source.status} />
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

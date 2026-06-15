@@ -1,26 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { StatusLabel } from "@/components/StatusLabel";
 import { PollingIndicator } from "@/components/PollingIndicator";
-import { Empty } from "antd";
+import { Button, Drawer, Table, Card, Tooltip } from "antd";
+import { EyeOutlined, ReloadOutlined, StopOutlined } from "@ant-design/icons";
 import { ConfirmButton } from "@/components/shared/ConfirmButton";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { useOptimisticMutation } from "@/lib/useOptimisticMutation";
 import { useElapsed } from "@/lib/useElapsed";
-import { formatDateTime, shortId, postApiData, type Job, type JobStage } from "@/lib/api";
+import { formatTime } from "@/lib/format-time";
+import { shortId, postApiData, type Job, type JobStage } from "@/lib/api";
+import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 
 const PIPELINE_STAGES = [
-  { key: "ingest_validate", label: "接入校验" },
-  { key: "document_parse", label: "文档解析" },
-  { key: "assetize", label: "资产化" },
-  { key: "normalize", label: "标准化" },
-  { key: "ai_governance", label: "AI 治理" },
-  { key: "rule_guard", label: "规则质检" },
-  { key: "index", label: "索引" },
-  { key: "complete", label: "完成" }
+  { key: "ingest_validate", label: "接入校验", desc: "校验原始数据的完整性、checksum 和格式，确保数据可被后续阶段处理。" },
+  { key: "document_parse", label: "文档解析", desc: "使用 MinerU 引擎解析文档内容，提取结构化文本、表格和图片。" },
+  { key: "assetize", label: "资产化", desc: "创建或更新资产与资产版本锚点，锁定数据快照。" },
+  { key: "normalize", label: "标准化", desc: "LLM 语义提取 + 规则引擎回退校验，生成标准化文档或记录。" },
+  { key: "ai_governance", label: "AI 治理", desc: "AI 驱动的分类、打标、质量评分与敏感信息脱敏处理。" },
+  { key: "rule_guard", label: "规则质检", desc: "业务规则校验：schema 合规、字段白名单、置信度阈值判定。" },
+  { key: "index", label: "索引", desc: "将治理通过的标准化资产索引到 RAGFlow 知识库，支持检索与问答。" },
+  { key: "complete", label: "完成", desc: "全部阶段执行完毕，资产已就绪可用。" },
 ];
 
-function getStageStatus(stageName: string, job: Job, stages: JobStage[]): "done" | "active" | "pending" | "failed" {
+type StageIcon = "done" | "active" | "pending" | "failed";
+
+function getStageStatus(stageName: string, job: Job, stages: JobStage[]): StageIcon {
   const currentIdx = PIPELINE_STAGES.findIndex((s) => s.key === job.current_stage);
   const thisIdx = PIPELINE_STAGES.findIndex((s) => s.key === stageName);
 
@@ -39,18 +46,70 @@ function getStageStatus(stageName: string, job: Job, stages: JobStage[]): "done"
   return "pending";
 }
 
-export function JobsContent({ jobs: initialJobs, stages }: { jobs: Job[]; stages: JobStage[] }) {
+const STAGE_DOT_COLORS: Record<StageIcon, string> = {
+  done: "var(--success-600)",
+  active: "var(--brand-600)",
+  pending: "var(--gray-300)",
+  failed: "var(--danger-600)",
+};
+
+const STAGE_DOT_TITLES: Record<StageIcon, string> = {
+  done: "已完成",
+  active: "进行中",
+  pending: "待执行",
+  failed: "失败",
+};
+
+interface JobsContentProps {
+  jobs: Job[];
+  stages: JobStage[];
+  rawObjectNames: Map<string, string>;
+  totalCount: number;
+  currentPage: number;
+  pageSize: number;
+}
+
+export function JobsContent({ jobs: initialJobs, stages, rawObjectNames, totalCount, currentPage, pageSize: currentPageSize }: JobsContentProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [jobs, setJobs] = useState<Job[]>(initialJobs);
-  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+  const [drawerJob, setDrawerJob] = useState<Job | null>(null);
   const [pollingState, setPollingState] = useState<"active" | "paused" | "error">("active");
+  const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null);
+  const isInitialRender = useRef(true);
+
+  // Sync jobs from server-side prop updates (router.refresh re-fetches server component)
+  useEffect(() => {
+    setJobs(initialJobs);
+    if (isInitialRender.current) {
+      isInitialRender.current = false;
+    } else {
+      setLastRefreshAt(new Date());
+    }
+  }, [initialJobs]);
 
   const hasActiveJobs = jobs.some((j) => j.status === "running" || j.status === "queued");
 
-  function toggleExpand(jobId: string) {
-    setExpandedJobId((prev) => (prev === jobId ? null : jobId));
-  }
+  // Auto-refresh every 15 seconds while polling is active and there are active jobs
+  useEffect(() => {
+    if (pollingState !== "active" || !hasActiveJobs) return;
+    const id = setInterval(() => {
+      router.refresh();
+    }, 15_000);
+    return () => clearInterval(id);
+  }, [pollingState, hasActiveJobs, router]);
 
-  // Optimistic retry: optimistically set to "queued", rollback on failure
+  const stagesByJob = useMemo(() => {
+    const map = new Map<string, JobStage[]>();
+    for (const s of stages) {
+      const list = map.get(s.job_id) ?? [];
+      list.push(s);
+      map.set(s.job_id, list);
+    }
+    return map;
+  }, [stages]);
+
   const retryMutation = useOptimisticMutation({
     mutationFn: (jobId: string) => postApiData(`/api/jobs/${jobId}/retry`, {}),
     onMutate: (jobId: string) => {
@@ -65,7 +124,6 @@ export function JobsContent({ jobs: initialJobs, stages }: { jobs: Job[]; stages
     successMessage: "作业已重新入队",
   });
 
-  // Optimistic cancel: optimistically set to "cancelled", rollback on failure
   const cancelMutation = useOptimisticMutation({
     mutationFn: (jobId: string) => postApiData(`/api/jobs/${jobId}/cancel`, {}),
     onMutate: (jobId: string) => {
@@ -80,164 +138,398 @@ export function JobsContent({ jobs: initialJobs, stages }: { jobs: Job[]; stages
     successMessage: "作业已取消",
   });
 
+  const drawerStages = drawerJob ? (stagesByJob.get(drawerJob.id) ?? []) : [];
+
+  // ── URL-driven pagination (same pattern as RawLedgerContent) ──
+  const buildUrl = useCallback(
+    (overrides: Record<string, string | undefined>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      for (const [k, v] of Object.entries(overrides)) {
+        if (v) params.set(k, v);
+        else params.delete(k);
+      }
+      const qs = params.toString();
+      return qs ? `${pathname}?${qs}` : pathname;
+    },
+    [pathname, searchParams],
+  );
+
+  const handleTableChange = useCallback(
+    (pagination: { current?: number; pageSize?: number }) => {
+      const overrides: Record<string, string | undefined> = {};
+      if (pagination.current && pagination.current > 1) {
+        overrides.page = String(pagination.current);
+      } else {
+        overrides.page = undefined;
+      }
+      if (pagination.pageSize && pagination.pageSize !== DEFAULT_PAGE_SIZE) {
+        overrides.pageSize = String(pagination.pageSize);
+      } else {
+        overrides.pageSize = undefined;
+      }
+      router.replace(buildUrl(overrides));
+    },
+    [router, buildUrl],
+  );
+
+  const handleManualRefresh = useCallback(() => {
+    router.refresh();
+  }, [router]);
+
+  // Compute relative "last update" display
+  const lastUpdateDisplay = lastRefreshAt ? formatTime(lastRefreshAt.toISOString()).display : null;
+
   return (
     <>
       {hasActiveJobs && (
         <PollingIndicator
           state={pollingState}
-          intervalSeconds={3}
-          lastUpdate="2s前"
-          responseMs={45}
-          onRefresh={() => window.location.reload()}
+          intervalSeconds={15}
+          lastUpdate={lastUpdateDisplay ?? undefined}
+          onRefresh={handleManualRefresh}
           onToggle={() => setPollingState((s) => (s === "active" ? "paused" : "active"))}
         />
       )}
 
       {jobs.length === 0 ? (
-        <Empty description="暂无作业" />
+        <EmptyState title="暂无作业" hint="作业由数据接入提交后自动创建" size="small" />
       ) : (
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">作业列表</span>
-            <span className="text-xs text-muted">{jobs.length} 个作业 · {jobs.filter(j => j.status === "running" || j.status === "queued").length} 活跃</span>
-          </div>
-          <div className="card-body" style={{ padding: 0 }}>
-            <div className="table-row table-head" style={{ gridTemplateColumns: "30px 140px 100px 1fr 100px 100px 140px" }}>
-              <span />
-              <span>作业ID</span>
-              <span>类型</span>
-              <span>关联对象</span>
-              <span>当前阶段</span>
-              <span>状态</span>
-              <span>创建时间</span>
-            </div>
-
-            {jobs.map((job) => {
-              const isExpanded = expandedJobId === job.id;
-              const jobStages = stages.filter((s) => s.job_id === job.id);
-              const currentStageLabel = PIPELINE_STAGES.find((s) => s.key === job.current_stage)?.label ?? job.current_stage ?? "-";
-
-              return (
-                <div key={job.id}>
-                  {/* Job row */}
-                  <div
-                    className={`table-row job-row-expandable${isExpanded ? " expanded" : ""}`}
-                    style={{ gridTemplateColumns: "30px 140px 100px 1fr 100px 100px 140px" }}
-                    onClick={() => toggleExpand(job.id)}
-                  >
-                    <span style={{ fontSize: 12, transition: "transform var(--transition-fast)", transform: isExpanded ? "rotate(90deg)" : "" }}>
-                      ▶
-                    </span>
-                    <span className="mono-cell">{shortId(job.id)}</span>
-                    <span>{job.job_type}</span>
-                    <span className="mono-cell">{shortId(job.raw_object_id)}</span>
-                    <span className="text-sm">{currentStageLabel}</span>
-                    <StatusLabel value={job.status} />
-                    <span className="text-sm text-muted">{formatDateTime(job.created_at)}</span>
+        <Card
+          title="作业列表"
+          extra={
+            <span className="text-xs text-muted">
+              共 {totalCount} 个作业 · {jobs.filter(j => j.status === "running" || j.status === "queued").length} 活跃
+            </span>
+          }
+        >
+          <Table
+            rowKey="id"
+            dataSource={jobs}
+            size="small"
+            pagination={{
+              current: currentPage,
+              pageSize: currentPageSize,
+              total: totalCount,
+              showSizeChanger: true,
+              showTotal: (total) => `共 ${total} 个作业`,
+              pageSizeOptions: ["10", "20", "50"],
+            }}
+            onChange={handleTableChange}
+          >
+            <Table.Column
+              title=""
+              width={40}
+              render={(_: unknown, r: Job) => (
+                <Tooltip title="查看详情">
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<EyeOutlined />}
+                    onClick={(e) => { e.stopPropagation(); setDrawerJob(r); }}
+                  />
+                </Tooltip>
+              )}
+            />
+            <Table.Column
+              title="作业ID"
+              width={140}
+              render={(_: unknown, r: Job) => <span className="mono-cell">{shortId(r.id)}</span>}
+            />
+            <Table.Column title="类型" dataIndex="job_type" width={100} />
+            <Table.Column
+              title="关联对象"
+              width={180}
+              ellipsis
+              render={(_: unknown, r: Job) => {
+                const name = r.raw_object_id ? (rawObjectNames.get(r.raw_object_id) ?? shortId(r.raw_object_id)) : "-";
+                return (
+                  <Tooltip title={name}>
+                    <span className="text-sm">{name}</span>
+                  </Tooltip>
+                );
+              }}
+            />
+            <Table.Column
+              title="阶段进度"
+              width={200}
+              render={(_: unknown, r: Job) => {
+                const jobStages = stagesByJob.get(r.id) ?? [];
+                return (
+                  <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                    {PIPELINE_STAGES.slice(0, -1).map((stage) => {
+                      const status = getStageStatus(stage.key, r, jobStages);
+                      return (
+                        <Tooltip key={stage.key} title={`${stage.label} — ${STAGE_DOT_TITLES[status]}`}>
+                          <span
+                            className="inline-block rounded-full"
+                            style={{
+                              width: 10,
+                              height: 10,
+                              backgroundColor: STAGE_DOT_COLORS[status],
+                              margin: "0 1px",
+                              transition: "background-color var(--transition-fast)",
+                            }}
+                          />
+                        </Tooltip>
+                      );
+                    })}
                   </div>
-
-                  {/* Expanded pipeline panel */}
-                  {isExpanded && (
-                    <div className="job-expand-panel">
-                      <div className="pipeline-flow">
-                        {PIPELINE_STAGES.map((stage, idx) => {
-                          const status = getStageStatus(stage.key, job, jobStages);
-                          const stepNumber = idx + 1;
-
-                          return (
-                            <div key={stage.key} style={{ display: "flex", alignItems: "flex-start", gap: 0 }}>
-                              <div className="pipeline-node">
-                                <div className={`pipeline-node-dot ${status}`}>
-                                  {status === "done" ? "✓" : status === "failed" ? "✗" : status === "active" ? "●" : stepNumber}
-                                </div>
-                                <span className="pipeline-node-label">{stage.label}</span>
-                              </div>
-                              {idx < PIPELINE_STAGES.length - 1 && (
-                                <div className={`pipeline-connector ${status === "done" ? "done" : status === "active" ? "active" : ""}`} />
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      <CurrentStageInfo job={job} stages={jobStages} />
-
-                      {/* Danger actions */}
-                      {(job.status === "failed" || job.status === "dead_lettered") && (
-                        <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-                          <ConfirmButton
-                            title="重试作业"
-                            description="重新将作业加入队列。如果失败原因未解决，作业可能再次失败。"
-                            severity="warning"
-                            buttonProps={{ size: "small" }}
-                            onConfirm={() => retryMutation.execute(job.id)}
-                          >
-                            重试
-                          </ConfirmButton>
-                        </div>
-                      )}
-                      {(job.status === "running" || job.status === "queued") && (
-                        <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-                          <ConfirmButton
-                            title="取消作业"
-                            description="终止当前作业的执行。已完成的阶段不会回溯。"
-                            severity="warning"
-                            danger
-                            buttonProps={{ size: "small" }}
-                            onConfirm={() => cancelMutation.execute(job.id)}
-                          >
-                            取消
-                          </ConfirmButton>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+                );
+              }}
+            />
+            <Table.Column
+              title="当前阶段"
+              width={100}
+              render={(_: unknown, r: Job) => {
+                const label = PIPELINE_STAGES.find((s) => s.key === r.current_stage)?.label ?? r.current_stage ?? "-";
+                return <span className="text-sm">{label}</span>;
+              }}
+            />
+            <Table.Column
+              title="状态"
+              width={100}
+              render={(_: unknown, r: Job) => <StatusLabel value={r.status} />}
+            />
+            <Table.Column
+              title="创建时间"
+              width={140}
+              render={(_: unknown, r: Job) => {
+                const t = formatTime(r.created_at);
+                return (
+                  <time dateTime={t.iso} title={t.iso} className="text-sm text-muted">
+                    {t.display}
+                  </time>
+                );
+              }}
+            />
+          </Table>
+        </Card>
       )}
+
+      {/* ── Detail Drawer ── */}
+      <Drawer
+        title={drawerJob ? `作业详情 — ${shortId(drawerJob.id)}` : ""}
+        open={drawerJob !== null}
+        onClose={() => setDrawerJob(null)}
+        width={520}
+        destroyOnClose
+      >
+        {drawerJob && (
+          <div className="space-y-4">
+            {/* Summary Card */}
+            <Card size="small" title="基本信息">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                <div>
+                  <div className="text-xs text-text-muted mb-0.5">作业类型</div>
+                  <div className="font-medium">{drawerJob.job_type}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-text-muted mb-0.5">状态</div>
+                  <StatusLabel value={drawerJob.status} />
+                </div>
+                <div>
+                  <div className="text-xs text-text-muted mb-0.5">关联对象</div>
+                  <div className="font-medium truncate">
+                    {drawerJob.raw_object_id
+                      ? (rawObjectNames.get(drawerJob.raw_object_id) ?? shortId(drawerJob.raw_object_id))
+                      : "-"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-text-muted mb-0.5">重试次数</div>
+                  <div className="font-medium tabular-nums">{drawerJob.retry_count}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-text-muted mb-0.5">创建时间</div>
+                  <div className="font-medium">{formatTime(drawerJob.created_at).display}</div>
+                </div>
+                {drawerJob.failure_reason && (
+                  <div className="col-span-2 mt-1 rounded-md bg-danger-bg px-3 py-2">
+                    <div className="text-xs text-text-muted mb-0.5">失败原因</div>
+                    <div className="text-sm text-danger-text font-medium">{drawerJob.failure_reason}</div>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* Stage Timeline Card */}
+            <Card
+              size="small"
+              title="阶段执行时间线"
+              extra={
+                <span className="text-xs text-text-muted">
+                  {drawerStages.filter((s) => s.status === "succeeded").length}/{PIPELINE_STAGES.length - 1} 完成
+                </span>
+              }
+            >
+              <StageTimeline drawerJob={drawerJob} drawerStages={drawerStages} />
+            </Card>
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              {(drawerJob.status === "failed" || drawerJob.status === "dead_lettered") && (
+                <ConfirmButton
+                  title="重试作业"
+                  description="重新将作业加入队列。如果失败原因未解决，作业可能再次失败。"
+                  severity="warning"
+                  buttonProps={{ size: "small", type: "primary", icon: <ReloadOutlined /> }}
+                  onConfirm={() => retryMutation.execute(drawerJob.id)}
+                >
+                  重试
+                </ConfirmButton>
+              )}
+              {(drawerJob.status === "running" || drawerJob.status === "queued") && (
+                <ConfirmButton
+                  title="取消作业"
+                  description="终止当前作业的执行。已完成的阶段不会回溯。"
+                  severity="warning"
+                  danger
+                  buttonProps={{ size: "small", icon: <StopOutlined /> }}
+                  onConfirm={() => cancelMutation.execute(drawerJob.id)}
+                >
+                  取消
+                </ConfirmButton>
+              )}
+            </div>
+          </div>
+        )}
+      </Drawer>
     </>
   );
 }
 
-// ── Current stage timing with live elapsed counter ──────────────────────
+// ── Stage timeline (card content) ──
 
-function CurrentStageInfo({ job, stages }: { job: Job; stages: JobStage[] }) {
-  const currentStage = PIPELINE_STAGES.find((s) => s.key === job.current_stage);
-  const record = stages.find((s) => s.stage_name === job.current_stage);
+function stageStatusLabel(status: StageIcon): string {
+  if (status === "done") return "succeeded";
+  if (status === "active") return "running";
+  if (status === "failed") return "failed";
+  return "pending";
+}
+
+const STAGE_LINE: Record<StageIcon, string> = {
+  done: "var(--success-500)",
+  active: "var(--brand-500)",
+  pending: "var(--gray-200)",
+  failed: "var(--danger-500)",
+};
+
+function StageTimeline({
+  drawerJob,
+  drawerStages,
+}: {
+  drawerJob: Job;
+  drawerStages: JobStage[];
+}) {
+  return (
+    <div>
+      {PIPELINE_STAGES.map((stage, idx) => {
+        const status = getStageStatus(stage.key, drawerJob, drawerStages);
+        const record = drawerStages.find((s) => s.stage_name === stage.key);
+        const isLast = idx === PIPELINE_STAGES.length - 1;
+        const isCurrent = status === "active";
+        const isFailed = status === "failed";
+        const hasTiming = !!(record && (record.started_at || record.finished_at));
+
+        return (
+          <StageTimelineItem
+            key={stage.key}
+            stage={stage}
+            status={status}
+            record={record}
+            isLast={isLast}
+            isHighlighted={isCurrent || isFailed}
+            hasTiming={hasTiming}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function StageTimelineItem({
+  stage,
+  status,
+  record,
+  isLast,
+  isHighlighted,
+  hasTiming,
+}: {
+  stage: (typeof PIPELINE_STAGES)[number];
+  status: StageIcon;
+  record: JobStage | undefined;
+  isLast: boolean;
+  isHighlighted: boolean;
+  hasTiming: boolean;
+}) {
   const { elapsed, isRunning } = useElapsed({
     startedAt: record?.started_at ?? null,
     finishedAt: record?.finished_at ?? null,
   });
 
-  if (!currentStage) return null;
-
   return (
-    <div className="pipeline-stage-info">
-      <strong>当前阶段：{currentStage.label}</strong>
-      {record?.started_at && (
-        <span className="text-xs text-muted">
-          开始于 {formatDateTime(record.started_at)}
-          {isRunning && (
-            <span style={{ color: "var(--brand)", marginLeft: 6 }}>已运行 {elapsed}</span>
-          )}
-        </span>
-      )}
-      {record?.finished_at && (
-        <span className="text-xs text-muted">
-          完成于 {formatDateTime(record.finished_at)}（耗时 {elapsed}）
-        </span>
-      )}
-      {record?.failure_reason && (
-        <span className="text-xs" style={{ color: "var(--danger-600)" }}>
-          错误：{record.failure_reason}
-        </span>
-      )}
-      <span className="text-xs text-muted">
-        状态：<StatusLabel value={record?.status ?? job.status} />
-      </span>
+    <div className="flex gap-3">
+      {/* Left rail: dot + vertical line */}
+      <div className="flex flex-col items-center pt-0.5" style={{ width: 12, flexShrink: 0 }}>
+        <span
+          className="inline-block rounded-full flex-shrink-0"
+          style={{
+            width: 12,
+            height: 12,
+            backgroundColor: STAGE_DOT_COLORS[status],
+            boxShadow: isHighlighted
+              ? `0 0 0 3px ${STAGE_DOT_COLORS[status]}22`
+              : undefined,
+            transition: "box-shadow var(--transition-fast)",
+          }}
+        />
+        {!isLast && (
+          <span
+            className="flex-1 w-px min-h-4"
+            style={{
+              backgroundColor: STAGE_LINE[status],
+              opacity: isHighlighted ? 1 : 0.5,
+            }}
+          />
+        )}
+      </div>
+
+      {/* Content */}
+      <div className={`flex-1 min-w-0 ${isLast ? "" : "pb-4"}`}>
+        {/* Header row */}
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-sm font-semibold">{stage.label}</span>
+          <StatusLabel value={stageStatusLabel(status)} label={STAGE_DOT_TITLES[status]} />
+        </div>
+
+        {/* Description */}
+        <div className="text-xs text-text-muted mb-2 leading-relaxed">{stage.desc}</div>
+
+        {/* Timing + failure */}
+        {hasTiming && record && (
+          <div className={`rounded-md px-3 py-2 text-xs ${isHighlighted ? "bg-surface-sunken" : ""}`}>
+            {record.started_at && (
+              <div className="flex items-baseline gap-2 text-text-muted">
+                <span className="flex-shrink-0">开始</span>
+                <time dateTime={record.started_at}>{formatTime(record.started_at).display}</time>
+                {isRunning && (
+                  <span className="text-brand-600 font-medium">已运行 {elapsed}</span>
+                )}
+              </div>
+            )}
+            {record.finished_at && (
+              <div className="flex items-baseline gap-2 text-text-muted mt-0.5">
+                <span className="flex-shrink-0">完成</span>
+                <time dateTime={record.finished_at}>{formatTime(record.finished_at).display}</time>
+                <span className="text-text-muted">耗时 {elapsed}</span>
+              </div>
+            )}
+            {record.failure_reason && (
+              <div className="text-danger-600 mt-1 font-medium">错误：{record.failure_reason}</div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

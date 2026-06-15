@@ -3,7 +3,7 @@
 import { Empty, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 
-import type { BatchDetail, BatchSubmitItem } from "./batch.types";
+import type { BatchDetail, BatchSubmitItem } from "@/lib/ingest/batchTypes";
 
 interface FileStatusRow {
   key: string;
@@ -98,7 +98,7 @@ export function FileStatusList({
       title: "幂等键",
       dataIndex: "fileKey",
       key: "fileKey",
-      render: (value: string) => <code className="font-mono text-xs text-text-muted">{value}</code>,
+      render: (value: string) => <code className="text-text-muted font-mono text-xs">{value}</code>,
     },
     {
       title: "Job 状态",
@@ -115,7 +115,7 @@ export function FileStatusList({
       dataIndex: "jobId",
       key: "jobId",
       render: (value: string) => (
-        <code className="font-mono text-xs text-text-muted">{value.slice(0, 8)}…</code>
+        <code className="text-text-muted font-mono text-xs">{value.slice(0, 8)}…</code>
       ),
     },
   ];

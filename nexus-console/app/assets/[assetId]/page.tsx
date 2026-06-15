@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Button } from "antd";
 import { ApiState } from "@/components/ApiState";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusLabel } from "@/components/StatusLabel";
@@ -49,8 +50,8 @@ export default async function AssetDetailPage({
         actions={
           <div className="flex gap-2">
             {asset && <StatusLabel value={asset.status} />}
-            <Link href="/assets" className="btn btn-ghost btn-sm">
-              ← 返回目录
+            <Link href="/assets">
+              <Button type="text">← 返回目录</Button>
             </Link>
           </div>
         }

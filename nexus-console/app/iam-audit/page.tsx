@@ -1,9 +1,7 @@
-import { Card, Empty, Statistic } from "antd";
 import { ApiState } from "@/components/ApiState";
 import { PageHeader } from "@/components/PageHeader";
-import { StatusLabel } from "@/components/StatusLabel";
-import { formatDateTime, shortId } from "@/lib/api";
 import { loadIdentityData } from "@/lib/console-data";
+import { IamAuditContent } from "./_components/IamAuditContent";
 
 export const dynamic = "force-dynamic";
 
@@ -22,75 +20,14 @@ export default async function IamAuditPage() {
 
       <ApiState ok={ok} error={error} traceId={orgUnits.traceId ?? audits.traceId} />
 
-      {/* Count cards */}
-      <div className="stat-grid">
-        <Card size="small"><Statistic title="组织" value={orgUnits.data.length} /></Card>
-        <Card size="small"><Statistic title="用户" value={users.data.length} /></Card>
-        <Card size="small"><Statistic title="API 调用方" value={apiCallers.data.length} /></Card>
-        <Card size="small"><Statistic title="审计事件" value={audits.data.length} /></Card>
-      </div>
-
-      {/* API Callers */}
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">API 调用方</span>
-        </div>
-        <div className="card-body" style={{ padding: 0 }}>
-          {apiCallers.data.length ? (
-            apiCallers.data.map((caller) => (
-              <div
-                className="table-row"
-                key={caller.id}
-                style={{ gridTemplateColumns: "1fr 1.5fr 1fr 100px 140px" }}
-              >
-                <span style={{ fontWeight: 500 }}>{caller.name}</span>
-                <span className="text-muted text-sm">
-                  {caller.permission_scope.join(", ") || "-"}
-                </span>
-                <span className="text-muted text-sm">
-                  {caller.org_scope.map(shortId).join(", ") || "-"}
-                </span>
-                <StatusLabel value={caller.status} />
-                <span className="text-muted text-sm">{formatDateTime(caller.updated_at)}</span>
-              </div>
-            ))
-          ) : (
-            <Empty description="暂无 API 调用方" />
-          )}
-        </div>
-      </div>
-
-      {/* Audit logs */}
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">审计日志</span>
-          <span className="text-muted text-xs">{audits.data.length} events</span>
-        </div>
-        <div className="card-body" style={{ padding: 0 }}>
-          {audits.data.length ? (
-            audits.data.map((event) => (
-              <div
-                className="table-row"
-                key={event.id}
-                style={{ gridTemplateColumns: "160px 1fr 140px 1fr 140px" }}
-              >
-                <span style={{ fontWeight: 500 }}>{event.event_type}</span>
-                <span className="text-sm">
-                  {event.target_type} /{" "}
-                  <span className="mono-cell">{shortId(event.target_id)}</span>
-                </span>
-                <span className="mono-cell">{event.trace_id ?? "-"}</span>
-                <span className="text-muted mono-cell truncate text-sm">
-                  {JSON.stringify(event.summary)}
-                </span>
-                <span className="text-muted text-sm">{formatDateTime(event.created_at)}</span>
-              </div>
-            ))
-          ) : (
-            <Empty description="暂无审计事件" />
-          )}
-        </div>
-      </div>
+      <IamAuditContent
+        apiCallers={apiCallers.data}
+        audits={audits.data}
+        orgCount={orgUnits.data.length}
+        userCount={users.data.length}
+        apiCallerCount={apiCallers.data.length}
+        auditCount={audits.data.length}
+      />
     </>
   );
 }

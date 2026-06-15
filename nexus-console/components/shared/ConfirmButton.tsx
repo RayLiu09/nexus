@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Input, Modal, Space, Typography } from "antd";
+import { App, Button, Input, Modal, Space, Typography } from "antd";
 import type { ButtonProps } from "antd";
 import { ExclamationCircleOutlined } from "@ant-design/icons";
 
@@ -47,6 +47,7 @@ export function ConfirmButton({
   buttonProps,
   severity = "warning",
 }: ConfirmButtonProps) {
+  const { message } = App.useApp();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [typed, setTyped] = useState("");
@@ -64,9 +65,8 @@ export function ConfirmButton({
       await onConfirm();
       setOpen(false);
     } catch (e: unknown) {
-      // Keep modal open and let the caller show its own error feedback.
-      // If onConfirm throws without user-visible feedback, log a warning.
-      console.warn("ConfirmButton: onConfirm threw an unhandled error", e);
+      const msg = e instanceof Error ? e.message : "操作失败，请稍后重试";
+      message.error(msg);
     } finally {
       setLoading(false);
       setTyped("");

@@ -47,6 +47,18 @@
   --color-domain-d4: var(--domain-d4);
   --color-domain-d5: var(--domain-d5);
   --color-domain-d6: var(--domain-d6);
+
+  --color-brand-soft: var(--brand-soft);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-sunken: var(--surface-sunken);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-elevated: var(--shadow-elevated);
+  --shadow-popover: var(--shadow-popover);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-display: var(--font-display);
 }
 
 /* ================================================================
@@ -56,24 +68,24 @@
 /* ── Design Tokens ─────────────────────────────────────────────── */
 
 :root {
-  /* Primary palette — Tailwind Blue (奠基蓝)
+  /* Primary palette — Refined Blue（冷紫向降饱和，避免荧光蓝在大面积场景刺眼）
      治理权威 + 数据信任；与暗色 sidebar 协同；与 D1-D6 域色色相距离 ≥ 20° */
-  --brand-50: #eff6ff;
-  --brand-100: #dbeafe;
-  --brand-200: #bfdbfe;
-  --brand-300: #93c5fd;
-  --brand-400: #60a5fa; /* sidebar active 左条（深底上需提亮一档） */
-  --brand-500: #3b82f6;
-  --brand-600: #2563eb; /* 主色 */
-  --brand-700: #1d4ed8; /* hover / pressed */
-  --brand-800: #1e40af;
-  --brand-900: #1e3a8a;
+  --brand-50: #eef1fb;
+  --brand-100: #dde3f5;
+  --brand-200: #c2cbeb;
+  --brand-300: #9aa9de;
+  --brand-400: #7e96e5; /* sidebar active 左条 */
+  --brand-500: #5775e0;
+  --brand-600: #3851d3; /* 主色 */
+  --brand-700: #2d40ad; /* hover / pressed */
+  --brand-800: #243388;
+  --brand-900: #1c2868;
 
   --brand: var(--brand-600);
   --brand-strong: var(--brand-700);
   --brand-soft: var(--brand-50);
-  --brand-gradient: linear-gradient(135deg, #2563eb 0%, #0d9488 100%);
-  --brand-gradient-soft: linear-gradient(135deg, #93c5fd 0%, #ccfbf1 100%);
+  --brand-gradient: linear-gradient(135deg, #3851d3 0%, #0d9488 100%);
+  --brand-gradient-soft: linear-gradient(135deg, #9aa9de 0%, #ccfbf1 100%);
 
   /* Accent — Teal (数据流 / pipeline / AI 建议) */
   --accent: #0d9488;
@@ -82,8 +94,8 @@
   --accent-bg: #f0fdfa;
 
   /* Focus ring — A2 a11y baseline */
-  --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.4);
-  --focus-ring-danger: 0 0 0 3px rgba(220, 38, 38, 0.4);
+  --focus-ring: 0 0 0 3px rgba(56, 81, 211, 0.35);
+  --focus-ring-danger: 0 0 0 3px rgba(192, 57, 70, 0.35);
 
   /* Neutral gray scale */
   --gray-50: #fafafa;
@@ -97,56 +109,58 @@
   --gray-800: #262626;
   --gray-900: #171717;
 
-  /* Surface */
-  --bg: #f8f9fb;
-  --bg-alt: #f3f4f7;
-  --surface: #ffffff;
-  --surface-alt: #fafbfc;
+  /* Surface —— 3 级 elevation */
+  --bg: #f3f5f8; /* 页面底 */
+  --bg-alt: #ecf0f4; /* 备用页面底 */
+  --surface: #ffffff; /* 标准卡片 */
+  --surface-alt: #f8fafc; /* 次级卡片 / 内嵌容器 */
   --surface-raised: #ffffff;
+  --surface-elevated: #ffffff; /* 悬浮态卡片（搭配 --shadow-elevated）*/
+  --surface-sunken: #eff2f6; /* 下沉容器，如内层列表底 */
 
-  /* Border */
-  --line: #e5e7eb;
-  --line-light: #f3f4f6;
-  --line-strong: #d1d5db;
+  /* Border —— hairline 半透明，跨任意背景自适应；保留旧 hex 以兼容历史样式 */
+  --line: rgba(15, 20, 36, 0.08);
+  --line-light: rgba(15, 20, 36, 0.04);
+  --line-strong: rgba(15, 20, 36, 0.14);
 
-  /* Text */
-  --text: #1f2937;
-  --text-secondary: #4b5563;
-  --text-muted: #9ca3af;
+  /* Text —— 更冷更深，与冷紫主色呼应 */
+  --text: #0f1424;
+  --text-secondary: #475063;
+  --text-muted: #6b7280;
   --text-inverse: #ffffff;
 
-  /* Semantic */
-  --success-50: #f0fdf4;
-  --success-100: #dcfce7;
-  --success-500: #22c55e;
-  --success-600: #16a34a;
-  --success-700: #15803d;
-  --success-bg: #f0fdf4;
-  --success-text: #166534;
+  /* Semantic —— 统一降饱和：苔绿 / 暖琥珀 / 砖红 / 冷蓝 */
+  --success-50: #ecf3ee;
+  --success-100: #d8e7de;
+  --success-500: #3da671;
+  --success-600: #2c8a5a;
+  --success-700: #1f6e45;
+  --success-bg: #ecf3ee;
+  --success-text: #1f6e45;
 
-  --warning-50: #fffbeb;
-  --warning-100: #fef3c7;
-  --warning-500: #f59e0b;
-  --warning-600: #d97706;
-  --warning-700: #b45309;
-  --warning-bg: #fffbeb;
-  --warning-text: #92400e;
+  --warning-50: #faf3e8;
+  --warning-100: #f3e3c8;
+  --warning-500: #e0942a;
+  --warning-600: #c2701f;
+  --warning-700: #9b5816;
+  --warning-bg: #faf3e8;
+  --warning-text: #9b5816;
 
-  --danger-50: #fef2f2;
-  --danger-100: #fee2e2;
-  --danger-500: #ef4444;
-  --danger-600: #dc2626;
-  --danger-700: #b91c1c;
-  --danger-bg: #fef2f2;
-  --danger-text: #b42318;
+  --danger-50: #f9ecee;
+  --danger-100: #f0d4d8;
+  --danger-500: #d24f59;
+  --danger-600: #c03946;
+  --danger-700: #9a2734;
+  --danger-bg: #f9ecee;
+  --danger-text: #9a2734;
 
-  --info-50: #eff6ff;
-  --info-100: #dbeafe;
-  --info-500: #3b82f6;
-  --info-600: #2563eb;
-  --info-700: #1d4ed8;
-  --info-bg: #eff6ff;
-  --info-text: #1e40af;
+  --info-50: #ecf1f9;
+  --info-100: #d6e1f1;
+  --info-500: #6595d2;
+  --info-600: #4a7ec9;
+  --info-700: #3460a3;
+  --info-bg: #ecf1f9;
+  --info-text: #3460a3;
 
   /* 6 data domain colors — 与 brand-600 蓝保持 ≥ 20° 色相距离 */
   --domain-d1: #4f46e5; /* indigo-600 — 教学资源（与 brand 同明度但不同色相）*/
@@ -213,23 +227,30 @@
   --radius-xl: 12px;
   --radius-2xl: 16px;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+  /* Shadows —— 冷紫底，细而克制；3 级 elevation 对应 surface tokens */
+  --shadow-sm: 0 1px 2px rgba(15, 20, 36, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(15, 20, 36, 0.07), 0 2px 4px -2px rgba(15, 20, 36, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(15, 20, 36, 0.08), 0 4px 6px -4px rgba(15, 20, 36, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(15, 20, 36, 0.1), 0 8px 10px -6px rgba(15, 20, 36, 0.04);
+  --shadow-card: 0 1px 0 rgba(15, 20, 36, 0.04), 0 1px 2px rgba(15, 20, 36, 0.04);
+  --shadow-elevated: 0 4px 12px -2px rgba(15, 20, 36, 0.08), 0 2px 4px -1px rgba(15, 20, 36, 0.04);
+  --shadow-popover: 0 10px 30px -8px rgba(15, 20, 36, 0.18);
 
   /* Transitions */
   --transition-fast: 150ms ease;
   --transition-base: 200ms ease;
   --transition-slow: 300ms ease;
 
-  /* Typography */
+  /* Typography —— Inter Tight（更紧凑、工程感强）+ JetBrains Mono；
+     CSS 变量 --font-sans-loaded / --font-mono-loaded 由 next/font 注入到 <html> */
   --font-sans:
-    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    sans-serif;
+    var(--font-sans-loaded, "Inter Tight"), "PingFang SC", "Hiragino Sans GB", system-ui,
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono:
-    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    var(--font-mono-loaded, "JetBrains Mono"), ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+    Consolas, "Liberation Mono", monospace;
+  --font-display: var(--font-sans);
+  --font-numeric: var(--font-sans);
 }
 
 /* ── Reset ────────────────────────────────────────────────────── */
@@ -1070,26 +1091,34 @@ a:focus-visible,
   color: var(--brand-700);
 }
 
-/* ── Status Label ─────────────────────────────────────────────── */
+/* ── Status Label ─────────────────────────────────────────────────
+   视觉系统 v2 —— 单一来源的状态 Pill：dot 指示 + 紧凑标签。
+   全站任何"状态"语义必须使用 <StatusLabel />，不要散落 <Tag color="...">。
+   ─────────────────────────────────────────────────────────────── */
 
 .status-label {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  min-height: 24px;
-  padding: 2px 10px;
-  border-radius: 12px;
+  gap: 5px;
+  min-height: 22px;
+  padding: 1px 8px;
+  border-radius: 11px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: 0.005em;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid transparent;
+  transition: background var(--transition-fast);
 }
 
 .status-label::before {
   content: "";
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.6);
 }
 
 .status-label-neutral {
@@ -2750,4 +2779,140 @@ a:focus-visible,
   .topbar-search-input {
     display: none;
   }
+}
+
+/* ── 视觉系统 v2 工具类 ────────────────────────────────────────────
+   仅当 Antd 与 Tailwind 都覆盖不到时使用，避免散落内联样式。
+   ─────────────────────────────────────────────────────────────── */
+
+/* 数值列对齐：tabular-nums + 适当的字偶距与字间距收紧 */
+.text-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings:
+    "tnum" 1,
+    "cv11" 1;
+  letter-spacing: 0;
+}
+
+/* Hero 指标（一屏最多 1 个，引导视觉焦点）*/
+.metric-hero {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  padding: 20px 24px;
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.metric-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--brand) 0%, var(--brand-400) 40%, transparent 75%);
+  pointer-events: none;
+}
+
+.metric-hero .metric-value {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.metric-hero .metric-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+
+.metric-hero .metric-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+/* 次级 Statistic 视觉重量（搭配 Antd Card / Statistic）*/
+.metric-secondary .ant-statistic-title {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.metric-secondary .ant-statistic-content {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: -0.01em;
+}
+
+/* 卡片悬浮微抬升（仅供可点击卡片）*/
+.card-hover {
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.card-hover:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-elevated);
+  border-color: var(--line-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-hover:hover {
+    transform: none;
+  }
+}
+
+/* 长文本截断 + Tooltip 友好（业务直接 .truncate-1 / .truncate-2）*/
+.truncate-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-all;
+}
+
+.truncate-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 工作台 Hero 网格底纹（页面级，仅装饰）*/
+.workbench-hero-bg {
+  position: relative;
+}
+
+.workbench-hero-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(56, 81, 211, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 81, 211, 0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+  mask-image: linear-gradient(180deg, black 0%, transparent 90%);
+  -webkit-mask-image: linear-gradient(180deg, black 0%, transparent 90%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.workbench-hero-bg > * {
+  position: relative;
+  z-index: 1;
 }

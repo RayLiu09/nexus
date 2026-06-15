@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { Button, Drawer, Tag, Descriptions, App, Input, InputNumber, Select, Alert } from "antd";
 import { PlusOutlined, EditOutlined, CopyOutlined, StopOutlined, ExperimentOutlined } from "@ant-design/icons";
-import { Empty } from "antd";
 import { formatTime } from "@/lib/format-time";
+import { StatusLabel } from "@/components/StatusLabel";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { postApiData, putApiData } from "@/lib/api";
 
 type PromptProfile = {
@@ -89,24 +90,6 @@ const REDACTION_POLICIES = [
   { value: "metadata_only", label: "仅元数据" },
   { value: "full_content_private", label: "全内容私有" },
 ];
-
-function redactionTag(policy: string) {
-  const map: Record<string, { color: string; label: string }> = {
-    masked_content: { color: "processing", label: "内容脱敏" },
-    metadata_only: { color: "default", label: "仅元数据" },
-    full_content_private: { color: "error", label: "全内容私有" },
-  };
-  const m = map[policy] ?? { color: "default", label: policy };
-  return <Tag color={m.color}>{m.label}</Tag>;
-}
-
-function statusTag(status: string) {
-  return status === "active" ? (
-    <Tag color="success">已生效</Tag>
-  ) : (
-    <Tag color="default">已禁用</Tag>
-  );
-}
 
 type FormState = {
   profile_name: string;
@@ -261,7 +244,7 @@ export default function AiPromptsContent({ profiles }: { profiles: PromptProfile
 
       {/* Profile Cards */}
       {items.length === 0 ? (
-        <Empty description="暂无 Prompt 配置" />
+        <EmptyState title="暂无 Prompt 配置" hint="新建 AI Prompt 配置来开始治理流水线" />
       ) : (
         <div style={{ display: "grid", gap: 12 }}>
           {items.map((p) => {
@@ -299,7 +282,7 @@ export default function AiPromptsContent({ profiles }: { profiles: PromptProfile
                       <strong style={{ fontSize: 15 }}>{p.profile_name}</strong>
                       <Tag color="blue">{p.task_type}</Tag>
                       <Tag>v{p.profile_version}</Tag>
-                      {statusTag(p.status)}
+                      <StatusLabel value={p.status} />
                     </div>
                     <Descriptions size="small" column={4}>
                       <Descriptions.Item label="模型">
@@ -308,7 +291,7 @@ export default function AiPromptsContent({ profiles }: { profiles: PromptProfile
                       <Descriptions.Item label="Temperature">{p.temperature}</Descriptions.Item>
                       <Descriptions.Item label="Max Tokens">{p.max_input_tokens}</Descriptions.Item>
                       <Descriptions.Item label="脱敏">
-                        {redactionTag(p.redaction_policy)}
+                        <StatusLabel value={p.redaction_policy} />
                       </Descriptions.Item>
                     </Descriptions>
                   </div>

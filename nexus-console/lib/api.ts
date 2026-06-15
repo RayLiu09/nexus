@@ -13,6 +13,7 @@ export type ApiResult<T> = {
   ok: boolean;
   error: string | null;
   traceId: string | null;
+  total: number | null;
 };
 
 export type RuntimeState = {
@@ -311,6 +312,7 @@ export async function getApiData<T>(
       ok: true,
       error: null,
       traceId: envelope.meta?.trace_id ?? null,
+      total: envelope.meta?.total ?? null,
     };
   } catch (error) {
     return {
@@ -318,6 +320,7 @@ export async function getApiData<T>(
       ok: false,
       error: error instanceof Error ? error.message : String(error),
       traceId: error instanceof NexusApiError ? error.traceId : null,
+      total: null,
     };
   }
 }

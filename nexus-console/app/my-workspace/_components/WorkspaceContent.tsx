@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Button, Tag } from "antd";
-import { Card } from "@/components/shared/Card";
+import { Button, Card, Statistic, Tag } from "antd";
 import { StatusLabel } from "@/components/StatusLabel";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { formatTime } from "@/lib/format-time";
-import type { AIGovernanceRun, AuditLog } from "@/lib/api";
+import { shortId, type AIGovernanceRun, type AuditLog } from "@/lib/api";
 
 type SlaCategory = "overdue" | "today" | "normal";
 
@@ -18,6 +18,12 @@ function categorizeSla(createdAt: string): SlaCategory {
   if (hoursSince > 24) return "today";
   return "normal";
 }
+
+const SLA_STATUS_VALUE: Record<SlaCategory, string> = {
+  overdue: "review_required",
+  today: "pending",
+  normal: "available",
+};
 
 const SLA_STYLE: Record<SlaCategory, { border: string; bg: string; label: string; color: string }> =
   {
@@ -60,25 +66,29 @@ export function WorkspaceContent({
     <>
       {/* ── SLA Metrics ── */}
       <div className="metric-grid-4">
-        <Card variant="metric" weight="secondary" tone={overdueCount > 0 ? "danger" : "default"}>
-          <div className="card-label">超时</div>
-          <div className="card-value">{overdueCount}</div>
-          <div className="card-sub">&gt;48h 未处理</div>
+        <Card size="small" className="metric-secondary">
+          <Statistic
+            title="超时"
+            value={overdueCount}
+            valueStyle={overdueCount > 0 ? { color: "var(--danger-600)" } : undefined}
+          />
+          <div className="text-text-muted mt-1 text-xs">&gt;48h 未处理</div>
         </Card>
-        <Card variant="metric" weight="secondary" tone={todayCount > 0 ? "warning" : "default"}>
-          <div className="card-label">今日待处理</div>
-          <div className="card-value">{todayCount}</div>
-          <div className="card-sub">24-48h</div>
+        <Card size="small" className="metric-secondary">
+          <Statistic
+            title="今日待处理"
+            value={todayCount}
+            valueStyle={todayCount > 0 ? { color: "var(--warning-600)" } : undefined}
+          />
+          <div className="text-text-muted mt-1 text-xs">24-48h</div>
         </Card>
-        <Card variant="metric" weight="secondary">
-          <div className="card-label">正常</div>
-          <div className="card-value">{normalCount}</div>
-          <div className="card-sub">&lt;24h</div>
+        <Card size="small" className="metric-secondary">
+          <Statistic title="正常" value={normalCount} />
+          <div className="text-text-muted mt-1 text-xs">&lt;24h</div>
         </Card>
-        <Card variant="metric" weight="secondary">
-          <div className="card-label">总计待办</div>
-          <div className="card-value">{pendingReview.length}</div>
-          <div className="card-sub">需复核治理项</div>
+        <Card size="small" className="metric-secondary">
+          <Statistic title="总计待办" value={pendingReview.length} />
+          <div className="text-text-muted mt-1 text-xs">需复核治理项</div>
         </Card>
       </div>
 
@@ -131,18 +141,11 @@ export function WorkspaceContent({
           </div>
 
           {filtered.length === 0 ? (
-            <div
-              style={{
-                padding: 40,
-                textAlign: "center",
-                color: "var(--text-muted)",
-                fontSize: 13,
-              }}
-            >
-              {pendingReview.length === 0
-                ? "暂无待办 — 所有治理项已处理完毕"
-                : "当前筛选无匹配任务"}
-            </div>
+            <EmptyState
+              title={pendingReview.length === 0 ? "暂无待办" : "无匹配任务"}
+              hint={pendingReview.length === 0 ? "所有治理项已处理完毕" : "当前筛选条件下无匹配任务"}
+              size="small"
+            />
           ) : (
             <div style={{ display: "grid", gap: 0 }}>
               {filtered.map((item) => {
@@ -180,18 +183,7 @@ export function WorkspaceContent({
                     <StatusLabel value={item.adoption_status} />
                     <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{display}</span>
                     <span style={{ fontSize: 12 }}>{item.model_alias.split("/").pop()}</span>
-                    <Tag
-                      color={
-                        item.sla === "overdue"
-                          ? "error"
-                          : item.sla === "today"
-                            ? "warning"
-                            : "default"
-                      }
-                      style={{ fontSize: 11 }}
-                    >
-                      {sla.label}
-                    </Tag>
+                    <StatusLabel value={SLA_STATUS_VALUE[item.sla]} label={sla.label} />
                   </Link>
                 );
               })}
@@ -210,16 +202,7 @@ export function WorkspaceContent({
         >
           <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>最近操作</div>
           {recentAudits.length === 0 ? (
-            <div
-              style={{
-                color: "var(--text-muted)",
-                fontSize: 13,
-                textAlign: "center",
-                padding: 20,
-              }}
-            >
-              暂无操作记录
-            </div>
+            <EmptyState title="暂无操作记录" size="small" />
           ) : (
             <div style={{ display: "grid", gap: 10 }}>
               {recentAudits.map((audit) => {
@@ -250,7 +233,7 @@ export function WorkspaceContent({
                       <span style={{ color: "var(--text-secondary)" }}>
                         by{" "}
                         <code style={{ fontFamily: "var(--font-mono)" }}>
-                          {audit.actor_id.slice(0, 12)}
+                          {shortId(audit.actor_id)}
                         </code>
                       </span>
                     )}

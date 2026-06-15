@@ -1,18 +1,11 @@
+import { Card, Statistic } from "antd";
 import { ApiState } from "@/components/ApiState";
 import { PageHeader } from "@/components/PageHeader";
-import { Card } from "@/components/shared/Card";
-import { getApiData, type RawObject } from "@/lib/api";
+import { getApiData, type DataSource, type RawObject } from "@/lib/api";
 import { parsePaginationParams, DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 import { RawLedgerContent } from "./_components/RawLedgerContent";
 
 export const dynamic = "force-dynamic";
-
-interface RawObjectSummary {
-  total: number;
-  validated: number;
-  pending: number;
-  failed: number;
-}
 
 interface RawLedgerPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -24,21 +17,36 @@ export default async function RawLedgerPage({ searchParams }: RawLedgerPageProps
 
   const currentPage = page ?? 1;
   const currentPageSize = pageSize ?? DEFAULT_PAGE_SIZE;
+  const filterBatchId = typeof params.batch_id === "string" ? params.batch_id : undefined;
+  const filterDataSourceId = typeof params.data_source_id === "string" ? params.data_source_id : undefined;
 
-  // Aggregate + paginated list are independent — fetch in parallel.
-  const [summaryResult, tableResult] = await Promise.all([
-    getApiData<RawObjectSummary | null>("/internal/v1/raw-objects/summary", null),
-    getApiData<RawObject[]>("/internal/v1/raw-objects", [], {
-      page: String(currentPage),
-      pageSize: String(currentPageSize),
+  const apiParams: Record<string, string> = {
+    page: String(currentPage),
+    pageSize: String(currentPageSize),
+  };
+  if (filterBatchId) apiParams.batch_id = filterBatchId;
+  if (filterDataSourceId) apiParams.data_source_id = filterDataSourceId;
+
+  const [tableResult, sourcesResult] = await Promise.all([
+    getApiData<RawObject[]>("/internal/v1/raw-objects", [], apiParams),
+    getApiData<DataSource[]>("/internal/v1/data-sources", [], {
+      includeDeleted: "true",
     }),
   ]);
 
-  const summary = summaryResult.data;
-  const totalCount = summary?.total ?? tableResult.data.length;
-  const validatedCount = summary?.validated ?? 0;
-  const pendingCount = summary?.pending ?? 0;
-  const failedCount = summary?.failed ?? 0;
+  const dataSourceNames = new Map<string, string>();
+  for (const ds of sourcesResult.data) {
+    dataSourceNames.set(ds.id, ds.name);
+  }
+
+  const totalCount = tableResult.total ?? tableResult.data.length;
+  const validatedCount = tableResult.data.filter((o) => o.status === "raw_persisted").length;
+  const failedCount = tableResult.data.filter(
+    (o) => o.status === "checksum_failed" || o.status === "failed",
+  ).length;
+  const duplicateCount = tableResult.data.filter(
+    (o) => o.status === "duplicate_skipped",
+  ).length;
 
   return (
     <>
@@ -48,25 +56,29 @@ export default async function RawLedgerPage({ searchParams }: RawLedgerPageProps
         description="按批次和对象追溯原始留存位置、checksum、来源和接入状态。每个原始对象对应一次接入校验记录。"
       />
 
-      <ApiState ok={summaryResult.ok} error={summaryResult.error} traceId={summaryResult.traceId} />
+      <ApiState ok={tableResult.ok} error={tableResult.error} traceId={tableResult.traceId} />
 
-      {/* Metrics — from aggregate endpoint */}
+      {/* Metrics */}
       <div className="metric-grid-4">
-        <Card variant="metric" weight="secondary">
-          <div className="card-label">原始对象总数</div>
-          <div className="card-value">{totalCount}</div>
+        <Card size="small" className="metric-secondary">
+          <Statistic title="原始对象总数" value={totalCount} />
         </Card>
-        <Card variant="metric" weight="secondary" tone="success">
-          <div className="card-label">已校验</div>
-          <div className="card-value">{validatedCount}</div>
+        <Card size="small" className="metric-secondary">
+          <Statistic
+            title="已校验"
+            value={validatedCount}
+            valueStyle={{ color: "var(--success-600)" }}
+          />
         </Card>
-        <Card variant="metric" weight="secondary" tone={pendingCount > 0 ? "warning" : "default"}>
-          <div className="card-label">待处理</div>
-          <div className="card-value">{pendingCount}</div>
+        <Card size="small" className="metric-secondary">
+          <Statistic
+            title="校验失败"
+            value={failedCount}
+            valueStyle={failedCount > 0 ? { color: "var(--danger-600)" } : undefined}
+          />
         </Card>
-        <Card variant="metric" weight="secondary" tone={failedCount > 0 ? "danger" : "default"}>
-          <div className="card-label">校验失败</div>
-          <div className="card-value">{failedCount}</div>
+        <Card size="small" className="metric-secondary">
+          <Statistic title="重复跳过" value={duplicateCount} />
         </Card>
       </div>
 
@@ -79,6 +91,9 @@ export default async function RawLedgerPage({ searchParams }: RawLedgerPageProps
         ok={tableResult.ok}
         error={tableResult.error}
         traceId={tableResult.traceId}
+        dataSourceNames={dataSourceNames}
+        filterBatchId={filterBatchId}
+        filterDataSourceId={filterDataSourceId}
       />
     </>
   );

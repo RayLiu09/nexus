@@ -1,16 +1,35 @@
 "use client";
 
 import Link from "next/link";
-import { Card, Statistic, Alert, Progress, Timeline } from "antd";
+import { Alert, Button, Card, Progress, Statistic, Tag, Tooltip } from "antd";
 import {
+  ArrowRightOutlined,
   CheckCircleOutlined,
-  WarningOutlined,
   CloseCircleOutlined,
+  RiseOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
-import { formatTime } from "@/lib/format-time";
-import { BatchList } from "./BatchList";
+
 import { DecisionList } from "./DecisionList";
+import { UnifiedActivityFeed } from "./UnifiedActivityFeed";
 import type { WorkbenchData } from "../page";
+
+const EM_DASH = "—";
+
+function qualityTone(score: number): "danger" | "warning" | "success" {
+  if (score < 60) return "danger";
+  if (score < 80) return "warning";
+  return "success";
+}
+
+function qualityColorVar(score: number): string {
+  const tone = qualityTone(score);
+  return tone === "danger"
+    ? "var(--danger-600)"
+    : tone === "warning"
+      ? "var(--warning-600)"
+      : "var(--success-600)";
+}
 
 export function WorkbenchContent({ data }: { data: WorkbenchData }) {
   const {
@@ -31,68 +50,84 @@ export function WorkbenchContent({ data }: { data: WorkbenchData }) {
     attentionItems,
     rawCount,
     funnelSteps,
-    recentAudits,
     batches,
+    audits,
+    dataSourceById,
     governanceRuns,
     processingBatches,
   } = data;
 
+  const hasQuality = avgQuality > 0;
+
   return (
     <>
-      {/* Hero Strip */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-5">
-        <Card size="small">
+      {/* ── Hero Strip ─── Hero (2 cols) + 3 Secondary ─────────────────── */}
+      <div className="workbench-hero-bg mb-5 grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        {/* Hero —— 流水线健康度（运营注意力锚点）*/}
+        <div className="metric-hero lg:col-span-2">
+          <div className="metric-label">流水线健康度</div>
+          <div className="flex items-baseline gap-3">
+            <span
+              className="metric-value text-num"
+              style={{ color: qualityColorVar(pipelineHealth) }}
+            >
+              {pipelineHealth}
+              <span className="ml-0.5 text-xl font-medium">%</span>
+            </span>
+            <Tag
+              color={pipelineHealth >= 80 ? "success" : pipelineHealth >= 60 ? "warning" : "error"}
+              className="text-[11px]"
+            >
+              {pipelineHealth >= 80 ? "健康" : pipelineHealth >= 60 ? "需关注" : "异常"}
+            </Tag>
+          </div>
+          <div className="metric-sub text-num">
+            {succeededJobs} 成功 · {runningJobs} 运行 ·{" "}
+            <span className={failedJobs > 0 ? "text-danger font-medium" : ""}>
+              {failedJobs} 失败
+            </span>
+          </div>
+        </div>
+
+        {/* Secondary 1 —— 数据资产 */}
+        <Card size="small" className="metric-secondary">
           <Statistic title="数据资产总量" value={assetCount} />
-          <div className="text-text-muted text-xs mt-1">已标准化 {refCount} 个引用</div>
+          <div className="text-text-muted text-num mt-1 text-xs">已标准化 {refCount} 个引用</div>
         </Card>
-        <Card
-          size="small"
-          className={pipelineHealth < 80 ? "border-warning" : "border-success"}
-        >
-          <Statistic
-            title="流水线健康度"
-            value={pipelineHealth}
-            suffix="%"
-            valueStyle={{ color: pipelineHealth < 80 ? "var(--warning-600)" : "var(--success-600)" }}
-          />
-          <div className="text-text-muted text-xs mt-1">
-            {succeededJobs} 成功 · {runningJobs} 运行 · {failedJobs} 失败
+
+        {/* Secondary 2 —— AI 治理覆盖率 */}
+        <Card size="small" className="metric-secondary">
+          <Statistic title="AI 治理覆盖率" value={governanceCoverage} suffix="%" />
+          <div className="text-text-muted text-num mt-1 text-xs">
+            {autoAdopted} 自动 · {reviewRequired} 待复核
           </div>
         </Card>
-        <Card size="small">
-          <Statistic
-            title="AI 治理覆盖率"
-            value={governanceCoverage}
-            suffix="%"
-          />
-          <div className="text-text-muted text-xs mt-1">
-            {autoAdopted} 自动采纳 · {reviewRequired} 待复核
-          </div>
-        </Card>
-        <Card
-          size="small"
-          className={
-            avgQuality < 60 ? "border-danger" : avgQuality < 80 ? "border-warning" : "border-success"
-          }
-        >
-          <Statistic
-            title="数据质量均分"
-            value={avgQuality || "-"}
-            valueStyle={{
-              color: avgQuality < 60
-                ? "var(--danger-600)"
-                : avgQuality < 80
-                  ? "var(--warning-600)"
-                  : "var(--success-600)",
-            }}
-          />
-          <div className="text-text-muted text-xs mt-1">
-            通过 {qualityPass} · 预警 {qualityWarning} · 未过 {qualityFail}
+
+        {/* Secondary 3 —— 数据质量均分（空态用 em-dash）*/}
+        <Card size="small" className="metric-secondary">
+          {hasQuality ? (
+            <Statistic
+              title="数据质量均分"
+              value={avgQuality}
+              valueStyle={{ color: qualityColorVar(avgQuality) }}
+            />
+          ) : (
+            <>
+              <div className="text-text-secondary mb-2 text-xs font-medium tracking-wide uppercase">
+                数据质量均分
+              </div>
+              <div className="text-text-muted text-2xl font-semibold">{EM_DASH}</div>
+            </>
+          )}
+          <div className="text-text-muted text-num mt-1 text-xs">
+            {hasQuality
+              ? `通过 ${qualityPass} · 预警 ${qualityWarning} · 未过 ${qualityFail}`
+              : "暂无评分数据"}
           </div>
         </Card>
       </div>
 
-      {/* Attention Zone */}
+      {/* ── Attention Zone —— 告警 + 直达操作按钮（闭环） ─────────────── */}
       {attentionItems.length === 0 ? (
         <Alert
           type="success"
@@ -102,16 +137,25 @@ export function WorkbenchContent({ data }: { data: WorkbenchData }) {
           className="mb-5"
         />
       ) : (
-        <div className="grid gap-2 mb-5">
+        <div className="mb-5 grid gap-2">
           {attentionItems.map((item, i) => (
             <Alert
               key={i}
               type={item.tone === "danger" ? "error" : "warning"}
               showIcon
               icon={item.tone === "danger" ? <CloseCircleOutlined /> : <WarningOutlined />}
-              title={
-                <Link href={item.href} className="text-inherit no-underline">
-                  {item.text} →
+              title={<span className="font-medium">{item.text}</span>}
+              action={
+                <Link href={item.href}>
+                  <Button
+                    size="small"
+                    type={item.tone === "danger" ? "primary" : "default"}
+                    danger={item.tone === "danger"}
+                    icon={<ArrowRightOutlined />}
+                    iconPosition="end"
+                  >
+                    {item.actionLabel}
+                  </Button>
                 </Link>
               }
             />
@@ -119,121 +163,116 @@ export function WorkbenchContent({ data }: { data: WorkbenchData }) {
         </div>
       )}
 
-      {/* Main Grid */}
-      <div className="grid gap-5 lg:grid-cols-[3fr_2fr]">
-        {/* Left Column */}
-        <div className="grid gap-4">
-          {/* Pipeline Funnel */}
-          <Card title="主链路漏斗" size="small">
-            <div className="grid gap-3">
-              {funnelSteps.map((step, i) => {
-                const pct = rawCount > 0 ? Math.round((step.value / rawCount) * 100) : 0;
-                const convRate =
-                  i > 0 && funnelSteps[i - 1].value > 0
-                    ? Math.round((step.value / funnelSteps[i - 1].value) * 100)
-                    : null;
-                return (
-                  <div key={step.label}>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span>{step.label}</span>
-                      <span className="font-semibold">
-                        {step.value}
-                        {convRate !== null && (
-                          <span className="text-text-muted text-xs ml-1.5">({convRate}%)</span>
-                        )}
-                      </span>
-                    </div>
-                    <Progress
-                      percent={pct}
-                      showInfo={false}
-                      size="small"
-                      strokeColor="var(--brand-gradient)"
-                    />
+      {/* ── Focus Modules ── 漏斗 + 决策待办 ─────────────────────────── */}
+      <div className="mb-5 grid gap-5 lg:grid-cols-[3fr_2fr]">
+        {/* Pipeline Funnel —— 进度条锁 100%，超额数值用 chip 旁挂 */}
+        <Card title="主链路漏斗" size="small">
+          <div className="grid gap-3">
+            {funnelSteps.map((step, i) => {
+              const rawPct = rawCount > 0 ? (step.value / rawCount) * 100 : 0;
+              const cappedPct = Math.min(100, Math.round(rawPct));
+              const overage = rawPct > 100 ? Math.round(rawPct - 100) : 0;
+              const convRate =
+                i > 0 && funnelSteps[i - 1].value > 0
+                  ? Math.round((step.value / funnelSteps[i - 1].value) * 100)
+                  : null;
+              const isEmpty = step.value === 0;
+              return (
+                <div key={step.label}>
+                  <div className="mb-1 flex items-center justify-between text-sm">
+                    <span className={isEmpty ? "text-text-muted" : ""}>{step.label}</span>
+                    <span className={`text-num ${isEmpty ? "text-text-muted" : "font-semibold"}`}>
+                      {step.value}
+                      {convRate !== null && (
+                        <span className="text-text-muted ml-1.5 text-xs">({convRate}%)</span>
+                      )}
+                      {overage > 0 && (
+                        <Tooltip
+                          title={`引用数 ${step.value} 超出原始对象 ${rawCount}，包含多版本或回溯生成`}
+                        >
+                          <Tag color="processing" className="ml-2 text-[11px]">
+                            <RiseOutlined className="mr-0.5" />+{overage}%
+                          </Tag>
+                        </Tooltip>
+                      )}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
-          </Card>
-
-          {/* Recent Activity */}
-          <Card title="最近活动" size="small">
-            {recentAudits.length === 0 ? (
-              <div className="text-text-muted text-sm text-center py-5">暂无审计事件</div>
-            ) : (
-              <Timeline
-                items={recentAudits.map((audit) => {
-                  const { display, iso } = formatTime(audit.created_at);
-                  return {
-                    children: (
-                      <div>
-                        <time dateTime={iso} title={iso} className="text-text-muted text-xs block">
-                          {display}
-                        </time>
-                        <span className="font-medium text-sm">{audit.event_type}</span>
-                        {audit.actor_id && (
-                          <span className="text-text-secondary text-xs ml-1.5">
-                            by {audit.actor_id.slice(0, 8)}
-                          </span>
-                        )}
-                      </div>
-                    ),
-                  };
-                })}
-              />
-            )}
-          </Card>
-        </div>
-
-        {/* Right Column */}
-        <div className="grid gap-4 content-start">
-          {/* Decision Queue */}
-          <Card
-            title="决策待办"
-            size="small"
-            extra={
-              <Link href="/governance" className="text-brand text-xs">
-                查看全部 →
-              </Link>
-            }
-          >
-            <DecisionList
-              items={governanceRuns
-                .filter(
-                  (gr) =>
-                    gr.adoption_status === "review_required" ||
-                    gr.adoption_status === "pending_rule_guardrail",
-                )
-                .slice(0, 5)}
-            />
-          </Card>
-
-          {/* Running Status */}
-          <div className="grid grid-cols-3 gap-3">
-            <Card size="small">
-              <Statistic title="运行中作业" value={runningJobs} />
-            </Card>
-            <Card size="small">
-              <Statistic title="处理中批次" value={processingBatches} />
-            </Card>
-            <Card size="small">
-              <Statistic title="治理队列" value={grCount} />
-            </Card>
+                  <Progress
+                    percent={cappedPct}
+                    showInfo={false}
+                    size="small"
+                    strokeColor={isEmpty ? "var(--line-strong)" : "var(--brand-gradient)"}
+                  />
+                </div>
+              );
+            })}
           </div>
+        </Card>
 
-          {/* Batch Progress */}
-          <Card
-            title="最近批次"
-            size="small"
-            extra={
-              <Link href="/ingest" className="text-brand text-xs">
-                接入仪表盘 →
-              </Link>
-            }
-          >
-            <BatchList batches={batches.slice(0, 4)} />
-          </Card>
-        </div>
+        {/* Decision Queue */}
+        <Card
+          title="决策待办"
+          size="small"
+          extra={
+            <Link href="/governance" className="text-brand text-xs">
+              查看全部 →
+            </Link>
+          }
+        >
+          <DecisionList
+            items={governanceRuns
+              .filter(
+                (gr) =>
+                  gr.adoption_status === "review_required" ||
+                  gr.adoption_status === "pending_rule_guardrail",
+              )
+              .slice(0, 5)}
+          />
+        </Card>
       </div>
+
+      {/* ── Running Status —— 满宽 3 列 ──────────────────────────────── */}
+      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Card size="small" className="metric-secondary">
+          <Statistic
+            title="运行中作业"
+            value={runningJobs}
+            valueStyle={runningJobs === 0 ? { color: "var(--text-muted)" } : undefined}
+          />
+        </Card>
+        <Card size="small" className="metric-secondary">
+          <Statistic
+            title="处理中批次"
+            value={processingBatches}
+            valueStyle={processingBatches === 0 ? { color: "var(--text-muted)" } : undefined}
+          />
+        </Card>
+        <Card size="small" className="metric-secondary">
+          <Statistic
+            title="治理队列"
+            value={grCount}
+            valueStyle={grCount === 0 ? { color: "var(--text-muted)" } : undefined}
+          />
+        </Card>
+      </div>
+
+      {/* ── Unified Activity Feed —— 接入 / 审计 / 全部 一站式视图 ───── */}
+      <Card
+        size="small"
+        title="活动流"
+        extra={
+          <Link href="/iam-audit" className="text-brand text-xs">
+            完整审计 →
+          </Link>
+        }
+      >
+        <UnifiedActivityFeed
+          batches={batches}
+          audits={audits}
+          dataSourceById={dataSourceById}
+          pageSize={10}
+        />
+      </Card>
     </>
   );
 }

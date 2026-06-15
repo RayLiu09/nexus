@@ -1,9 +1,8 @@
 /**
  * Server-side proxy for /v1/ingest/* endpoints.
  *
- * Unlike `searchProxy`, ingest endpoints do not require X-API-Key in P0
- * (they are mounted under the open ingest router), so this helper just
- * forwards the call to NEXUS_API_BASE_URL and returns a structured result.
+ * Forwards the NEXUS access token cookie as a Bearer header so the backend
+ * can authenticate the request.
  */
 import { apiBaseUrl } from "./api";
 
@@ -57,10 +56,26 @@ async function readEnvelope<T>(response: Response): Promise<IngestProxyResult<T>
   };
 }
 
+/** Read the access token cookie and return an Authorization header value. */
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {};
+  try {
+    const { cookies } = await import("next/headers");
+    const store = await cookies();
+    const token = store.get("nexus_access_token")?.value;
+    if (token) headers["authorization"] = `Bearer ${token}`;
+  } catch {
+    // Not in a request context.
+  }
+  return headers;
+}
+
 export async function ingestProxyGet<T>(path: string): Promise<IngestProxyResult<T>> {
   try {
+    const authHeaders = await getAuthHeaders();
     const response = await fetch(`${apiBaseUrl()}${path}`, {
       method: "GET",
+      headers: authHeaders,
       cache: "no-store",
     });
     return readEnvelope<T>(response);
@@ -78,9 +93,10 @@ export async function ingestProxyPost<T>(
   payload: unknown,
 ): Promise<IngestProxyResult<T>> {
   try {
+    const authHeaders = await getAuthHeaders();
     const response = await fetch(`${apiBaseUrl()}${path}`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...authHeaders },
       body: JSON.stringify(payload),
       cache: "no-store",
     });

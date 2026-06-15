@@ -11,11 +11,11 @@ import {
   Skeleton,
   Space,
   Table,
-  Tag,
   Typography,
 } from "antd";
 import { HistoryOutlined } from "@ant-design/icons";
 import { PageHeader } from "@/components/PageHeader";
+import { StatusLabel } from "@/components/StatusLabel";
 import {
   fetchGovernanceRules,
   saveGovernanceRules,
@@ -196,9 +196,7 @@ export default function RulesPage() {
       dataIndex: "status",
       key: "status",
       width: 90,
-      render: (s: string) => (
-        <Tag color={s === "active" ? "green" : "default"}>{s}</Tag>
-      ),
+      render: (s: string) => <StatusLabel value={s} />,
     },
     { title: "变更摘要", dataIndex: "change_summary", key: "change_summary", ellipsis: true },
     { title: "分类数", dataIndex: "classifications_count", key: "classifications_count", width: 80 },
@@ -329,9 +327,7 @@ export default function RulesPage() {
         {versionDetail ? (
           <>
             <Space className="mb-4">
-              <Tag color={versionDetail.status === "active" ? "green" : "default"}>
-                {versionDetail.status}
-              </Tag>
+              <StatusLabel value={versionDetail.status} />
               {versionDetail.change_summary && (
                 <Typography.Text type="secondary">{versionDetail.change_summary}</Typography.Text>
               )}

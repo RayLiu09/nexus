@@ -1,3 +1,8 @@
+"use client";
+
+import { Button } from "antd";
+import { PauseOutlined, CaretRightOutlined, ReloadOutlined } from "@ant-design/icons";
+
 type PollingState = "active" | "paused" | "error";
 
 type PollingIndicatorProps = {
@@ -35,14 +40,19 @@ export function PollingIndicator({
       {lastUpdate && <span className="text-muted">上次更新: {lastUpdate}</span>}
       {responseMs != null && <span className="text-muted">响应: {responseMs}ms</span>}
       {onRefresh && (
-        <button className="btn btn-ghost btn-sm" onClick={onRefresh}>
-          ↻ 手动刷新
-        </button>
+        <Button type="text" size="small" icon={<ReloadOutlined />} onClick={onRefresh}>
+          手动刷新
+        </Button>
       )}
       {onToggle && (
-        <button className="btn btn-ghost btn-sm" onClick={onToggle}>
-          {state === "active" ? "⏸ 暂停" : "▶ 恢复"}
-        </button>
+        <Button
+          type="text"
+          size="small"
+          icon={state === "active" ? <PauseOutlined /> : <CaretRightOutlined />}
+          onClick={onToggle}
+        >
+          {state === "active" ? "暂停" : "恢复"}
+        </Button>
       )}
     </div>
   );

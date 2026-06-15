@@ -1,13 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { List } from "antd";
+import { List, Tooltip } from "antd";
+import { CheckCircleOutlined } from "@ant-design/icons";
 import { StatusLabel } from "@/components/StatusLabel";
-import type { AIGovernanceRun } from "@/lib/api";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { shortId, type AIGovernanceRun } from "@/lib/api";
 
 export function DecisionList({ items }: { items: AIGovernanceRun[] }) {
   if (items.length === 0) {
-    return <div className="text-text-muted text-sm text-center py-4">待复核队列已清空</div>;
+    return (
+      <EmptyState
+        size="small"
+        icon={<CheckCircleOutlined />}
+        title="队列已清空"
+        hint="暂无需要人工复核的治理结果"
+        actions={[
+          { label: "前往治理中心", href: "/governance", type: "default" },
+          { label: "配置自动采纳规则", href: "/rules", type: "text" },
+        ]}
+      />
+    );
   }
 
   return (
@@ -19,9 +32,11 @@ export function DecisionList({ items }: { items: AIGovernanceRun[] }) {
         <Link
           href="/governance"
           key={gr.id}
-          className="flex justify-between items-center py-2 px-3 rounded border border-line-light text-xs text-text no-underline mb-2 last:mb-0"
+          className="border-line-light text-text hover:bg-bg-alt mb-2 flex items-center justify-between rounded border px-3 py-2 text-xs no-underline last:mb-0"
         >
-          <code>{gr.normalized_ref_id.slice(0, 20)}&hellip;</code>
+          <Tooltip title={gr.normalized_ref_id}>
+            <code className="font-mono">{shortId(gr.normalized_ref_id)}</code>
+          </Tooltip>
           <StatusLabel value={gr.adoption_status} />
         </Link>
       )}

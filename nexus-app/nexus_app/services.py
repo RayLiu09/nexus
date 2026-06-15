@@ -33,11 +33,19 @@ def list_rows(
     *,
     limit: int | None = None,
     offset: int | None = None,
+    filters: dict[str, Any] | None = None,
 ) -> list[ModelT]:
     """Ordered list of rows. `limit`/`offset` enable pagination at the SQL
     layer so unbounded result sets can never reach the response serializer.
-    Both `None` (backward compat) returns the full table."""
+    Both `None` (backward compat) returns the full table.
+    Optional `filters` dict maps column names to equality values."""
     stmt = select(model).order_by(model.created_at.desc())
+    if filters:
+        for col_name, value in filters.items():
+            if value is not None:
+                col = getattr(model, col_name, None)
+                if col is not None:
+                    stmt = stmt.where(col == value)
     if offset is not None:
         stmt = stmt.offset(offset)
     if limit is not None:
@@ -45,11 +53,23 @@ def list_rows(
     return list(session.scalars(stmt).all())
 
 
-def count_rows(session: Session, model: type[ModelT]) -> int:
+def count_rows(
+    session: Session,
+    model: type[ModelT],
+    filters: dict[str, Any] | None = None,
+) -> int:
     """Total row count for `model`. Pairs with `list_rows` so the response
     `meta.total` reflects the underlying table size, not just the returned
-    slice — required for client-side pagination UI."""
-    return int(session.scalar(select(func.count()).select_from(model)) or 0)
+    slice — required for client-side pagination UI.
+    Optional `filters` dict maps column names to equality values."""
+    stmt = select(func.count()).select_from(model)
+    if filters:
+        for col_name, value in filters.items():
+            if value is not None:
+                col = getattr(model, col_name, None)
+                if col is not None:
+                    stmt = stmt.where(col == value)
+    return int(session.scalar(stmt) or 0)
 
 
 def get_row(session: Session, model: type[ModelT], row_id: str, resource_name: str) -> ModelT:

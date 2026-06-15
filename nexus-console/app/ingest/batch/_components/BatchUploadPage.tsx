@@ -1,32 +1,17 @@
 "use client";
 
 import { CloudUploadOutlined, ReloadOutlined } from "@ant-design/icons";
-import {
-  Alert,
-  Button,
-  Card,
-  Form,
-  Progress,
-  Select,
-  Space,
-  Tag,
-  Upload,
-  message,
-} from "antd";
+import { Alert, Button, Card, Form, Progress, Select, Space, Tag, Upload, message } from "antd";
 import type { UploadFile, UploadProps } from "antd";
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 
 import type { DataSource } from "@/lib/api";
-import { postApiData, NexusApiError } from "@/lib/api";
-
-import type {
-  BatchSubmitItem,
-  BatchSubmitResult,
-  SelectedFile,
-} from "./batch.types";
-import { FileStatusList } from "./FileStatusList";
-import { useBatchStatus } from "./useBatchStatus";
+import { postApiData, NexusApiError, shortId } from "@/lib/api";
+import { FileStatusList } from "@/components/ingest/FileStatusList";
+import type { BatchSubmitItem, BatchSubmitResult, SelectedFile } from "@/lib/ingest/batchTypes";
+import { fileToBase64 } from "@/lib/ingest/fileToBase64";
+import { useBatchStatus } from "@/lib/ingest/useBatchStatus";
 
 const MAX_FILES = 20;
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
@@ -37,16 +22,6 @@ interface BatchUploadPageProps {
 
 interface FormValues {
   data_source_id: string;
-}
-
-async function fileToBase64(file: File): Promise<string> {
-  const buffer = await file.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary);
 }
 
 function statusTone(status: string): "default" | "success" | "warning" | "error" | "processing" {
@@ -198,7 +173,7 @@ export function BatchUploadPage({ sources }: BatchUploadPageProps) {
       <Card
         title="选择数据源与文件"
         extra={
-          <Link href="/ingest" className="text-xs text-brand">
+          <Link href="/ingest" className="text-brand text-xs">
             ← 返回单文件接入
           </Link>
         }
@@ -220,16 +195,13 @@ export function BatchUploadPage({ sources }: BatchUploadPageProps) {
               disabled={sources.length === 0 || batchId !== null}
             />
           </Form.Item>
-          <Form.Item
-            label={`文件列表（最多 ${MAX_FILES} 个，单文件 ≤ 100MB）`}
-            required
-          >
+          <Form.Item label={`文件列表（最多 ${MAX_FILES} 个，单文件 ≤ 100MB）`} required>
             <Upload.Dragger {...uploadProps} disabled={batchId !== null} className="!p-0">
               <p className="text-2xl">
                 <CloudUploadOutlined />
               </p>
               <p className="mt-2 text-sm">点击或拖拽多个文件到此处</p>
-              <p className="text-xs text-text-secondary">
+              <p className="text-text-secondary text-xs">
                 支持 PDF / 文档 / 表格 / 图片 / JSON 等常见格式
               </p>
             </Upload.Dragger>
@@ -266,14 +238,14 @@ export function BatchUploadPage({ sources }: BatchUploadPageProps) {
         title={
           <Space>
             <span>批次状态</span>
-            {batchDetail && <Tag color={statusTone(batchDetail.status)}>{statusLabel(batchDetail.status)}</Tag>}
+            {batchDetail && (
+              <Tag color={statusTone(batchDetail.status)}>{statusLabel(batchDetail.status)}</Tag>
+            )}
             {isPolling && <Tag color="processing">轮询中</Tag>}
           </Space>
         }
         extra={
-          batchId && (
-            <code className="font-mono text-xs text-text-muted">{batchId.slice(0, 8)}…</code>
-          )
+          batchId && <code className="text-text-muted font-mono text-xs">{shortId(batchId)}</code>
         }
       >
         {!batchId && (
@@ -289,7 +261,7 @@ export function BatchUploadPage({ sources }: BatchUploadPageProps) {
           <>
             <div className="mb-3">
               <Progress percent={percent} status={percent === 100 ? "success" : "active"} />
-              <p className="mt-1 text-xs text-text-secondary">
+              <p className="text-text-secondary mt-1 text-xs">
                 {finishedCount} / {totalFiles} 个文件已完成处理
               </p>
             </div>

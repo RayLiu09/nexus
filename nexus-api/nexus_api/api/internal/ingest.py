@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import base64
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -307,11 +307,20 @@ def list_raw_objects(
     request: Request,
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
+    batch_id: str | None = Query(default=None, description="按批次号过滤"),
+    data_source_id: str | None = Query(default=None, description="按数据源过滤"),
 ):
+    filters: dict[str, object] = {}
+    if batch_id:
+        filters["batch_id"] = batch_id
+    if data_source_id:
+        filters["data_source_id"] = data_source_id
     rows = services.list_rows(
-        session, models.RawObject, limit=pagination.limit, offset=pagination.offset
+        session, models.RawObject,
+        limit=pagination.limit, offset=pagination.offset,
+        filters=filters if filters else None,
     )
-    total = services.count_rows(session, models.RawObject)
+    total = services.count_rows(session, models.RawObject, filters=filters if filters else None)
     return list_response(
         rows, request,
         page=pagination.page, page_size=pagination.page_size, total=total,

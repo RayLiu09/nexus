@@ -17,6 +17,7 @@ import { useState } from "react";
 import { Table, Tag, Button, Progress, Tooltip, App, Alert } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { CheckOutlined, CloseOutlined, EditOutlined, ExperimentOutlined } from "@ant-design/icons";
+import { StatusLabel } from "@/components/StatusLabel";
 
 // ── mock 数据（实际接 /v1/tags/pending 与 /v1/tags/committed） ──
 
@@ -286,7 +287,7 @@ export default function TagReviewContent() {
     {
       title: "方式",
       width: 110,
-      render: () => <Tag>auto_commit</Tag>,
+      render: () => <StatusLabel value="auto_adopted" label="auto_commit" />,
     },
     {
       title: "操作",

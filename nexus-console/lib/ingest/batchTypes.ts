@@ -50,3 +50,11 @@ export interface SelectedFile {
   type: string;
   base64: string;
 }
+
+/** Terminal statuses for a batch — used to stop polling. */
+export const TERMINAL_BATCH_STATUSES = new Set([
+  "completed",
+  "partial_failed",
+  "failed",
+  "duplicate_skipped",
+]);

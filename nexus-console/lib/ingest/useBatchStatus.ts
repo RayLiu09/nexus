@@ -4,10 +4,9 @@ import { useCallback } from "react";
 
 import { usePolling } from "@/lib/usePolling";
 
-import type { BatchDetail, BatchProxyResult } from "./batch.types";
+import { TERMINAL_BATCH_STATUSES, type BatchDetail, type BatchProxyResult } from "./batchTypes";
 
 const POLL_INTERVAL_MS = 5_000;
-const TERMINAL_STATUSES = new Set(["completed", "partial_failed", "failed", "duplicate_skipped"]);
 
 interface UseBatchStatusResult {
   detail: BatchDetail | null;
@@ -26,7 +25,6 @@ async function fetchBatch(batchId: string, signal: AbortSignal): Promise<BatchDe
     signal,
     cache: "no-store",
   });
-  // JSON.parse protection — guard against malformed proxy responses
   const text = await response.text();
   let body: BatchProxyResult;
   try {
@@ -50,7 +48,7 @@ export function useBatchStatus(batchId: string | null): UseBatchStatusResult {
   );
 
   const stopWhen = useCallback(
-    (data: BatchDetail | null) => Boolean(data && TERMINAL_STATUSES.has(data.status)),
+    (data: BatchDetail | null) => Boolean(data && TERMINAL_BATCH_STATUSES.has(data.status)),
     [],
   );
 

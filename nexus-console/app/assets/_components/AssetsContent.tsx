@@ -7,8 +7,9 @@ import { Table, Tag, Select, Button, Alert, Card } from "antd";
 import { SaveOutlined } from "@ant-design/icons";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import type { FilterValue, SorterResult } from "antd/es/table/interface";
-import { formatDateTime } from "@/lib/api";
 import { ApiState } from "@/components/ApiState";
+import { StatusLabel } from "@/components/StatusLabel";
+import { formatTime } from "@/lib/format-time";
 import type { AssetWithMeta, AssetSummary, AssetStats, DomainDistItem } from "../_lib/types";
 import { toAssetStats, toDomainDistItems } from "../_lib/types";
 import { AssetsSummary } from "./AssetsSummary";
@@ -23,44 +24,6 @@ const DOMAIN_COLOR_KEY: Record<string, string> = {
 const LEVEL_COLOR_KEY: Record<string, string> = {
   L1: "success", L2: "processing", L3: "warning", L4: "error",
 };
-
-function statusTag(status: string) {
-  const map: Record<string, { color: string; label: string }> = {
-    available: { color: "success", label: "available" },
-    review_required: { color: "warning", label: "review_required" },
-    archived: { color: "default", label: "archived" },
-    disabled: { color: "default", label: "disabled" },
-    failed: { color: "error", label: "failed" },
-    processing: { color: "processing", label: "processing" },
-  };
-  const m = map[status] ?? { color: "default", label: status };
-  return <Tag color={m.color}>{m.label}</Tag>;
-}
-
-function indexTag(s?: string) {
-  if (!s) return <span style={{ color: "var(--text-muted)" }}>-</span>;
-  const map: Record<string, { color: string; label: string }> = {
-    indexed: { color: "success", label: "indexed" },
-    stale: { color: "warning", label: "stale" },
-    blocked: { color: "default", label: "blocked" },
-    pending: { color: "processing", label: "pending" },
-  };
-  const m = map[s] ?? { color: "default", label: s };
-  return <Tag color={m.color}>{m.label}</Tag>;
-}
-
-function governanceTag(s?: string) {
-  if (!s) return <span style={{ color: "var(--text-muted)" }}>-</span>;
-  const map: Record<string, { color: string; label: string }> = {
-    auto_passed: { color: "success", label: "auto_passed" },
-    auto_adopted: { color: "success", label: "auto_adopted" },
-    review_required: { color: "warning", label: "review_required" },
-    manual_overridden: { color: "processing", label: "manual_overridden" },
-    rejected: { color: "error", label: "rejected" },
-  };
-  const m = map[s] ?? { color: "default", label: s };
-  return <Tag color={m.color}>{m.label}</Tag>;
-}
 
 const EMPTY_STATS: AssetStats = {
   available: 0,
@@ -178,10 +141,10 @@ export function AssetsContent({
       width: 80,
       align: "center" as const,
       render: (s?: number) =>
-        s != null ? <strong>{s}</strong> : <span style={{ color: "var(--text-muted)" }}>-</span>,
+        s != null ? <strong className="text-num">{s}</strong> : <span style={{ color: "var(--text-muted)" }}>-</span>,
     },
-    { title: "治理", width: 160, render: (_, r) => governanceTag(r.governance_status) },
-    { title: "索引", width: 110, render: (_, r) => indexTag(r.index_status) },
+    { title: "治理", width: 160, render: (_, r) => r.governance_status ? <StatusLabel value={r.governance_status} /> : <span style={{ color: "var(--text-muted)" }}>-</span> },
+    { title: "索引", width: 110, render: (_, r) => r.index_status ? <StatusLabel value={r.index_status} /> : <span style={{ color: "var(--text-muted)" }}>-</span> },
     {
       title: "组织范围",
       width: 180,
@@ -195,15 +158,20 @@ export function AssetsContent({
     {
       title: "状态",
       width: 130,
-      render: (_, r) => statusTag(r.status),
+      render: (_, r) => <StatusLabel value={r.status} />,
     },
     {
       title: "更新时间",
       dataIndex: "updated_at",
       width: 150,
-      render: (t: string) => (
-        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{formatDateTime(t)}</span>
-      ),
+      render: (t: string) => {
+        const ft = formatTime(t);
+        return (
+          <time dateTime={ft.iso} title={ft.iso} style={{ fontSize: 12, color: "var(--text-muted)" }}>
+            {ft.display}
+          </time>
+        );
+      },
     },
   ];
 

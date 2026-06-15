@@ -40,7 +40,13 @@ export const statusDefinitions = {
   active: { label: "启用", tone: "success" },
 
   enabled: { label: "启用", tone: "success" },
-  error: { label: "异常", tone: "danger" }
+  error: { label: "异常", tone: "danger" },
+
+  auto_passed: { label: "自动通过", tone: "success" },
+  inactive: { label: "未激活", tone: "muted" },
+  open: { label: "已创建", tone: "neutral" },
+  revoked: { label: "已吊销", tone: "muted" },
+  expired: { label: "已过期", tone: "muted" }
 } satisfies Record<string, StatusDefinition>;
 
 export type StatusValue = keyof typeof statusDefinitions;

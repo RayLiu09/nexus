@@ -52,8 +52,7 @@ export const navigation: Navigation = [
     id: "data-engineering",
     label: "数据工程",
     items: [
-      { href: "/data-sources", label: "数据源管理", icon: "◎" },
-      { href: "/ingest", label: "数据接入", icon: "⇪" },
+      { href: "/data-sources", label: "数据源", icon: "◎" },
       { href: "/raw-ledger", label: "原始数据台账", icon: "▤" },
       { href: "/jobs", label: "作业中心", icon: "◫" },
     ],

@@ -1,7 +1,7 @@
 import { PageHeader } from "@/components/PageHeader";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { loadWorkbenchData } from "@/lib/console-data";
-import type { AIGovernanceRun, AuditLog, IngestBatch } from "@/lib/api";
+import type { AIGovernanceRun, AuditLog, DataSource, IngestBatch } from "@/lib/api";
 import { WorkbenchContent } from "./_components/WorkbenchContent";
 
 export const dynamic = "force-dynamic";
@@ -22,12 +22,20 @@ export interface WorkbenchData {
   qualityWarning: number;
   qualityFail: number;
   avgQuality: number;
-  attentionItems: { tone: "danger" | "warning"; text: string; href: string }[];
+  attentionItems: {
+    tone: "danger" | "warning";
+    text: string;
+    href: string;
+    actionLabel: string;
+  }[];
   rawCount: number;
   batchCount: number;
   funnelSteps: { label: string; value: number }[];
-  recentAudits: AuditLog[];
+  /** 全部 batches，按 updated_at desc 排序；UnifiedActivityFeed 内部切片 */
   batches: IngestBatch[];
+  /** 全部 audits，按 created_at desc 排序；UnifiedActivityFeed 内部切片 */
+  audits: AuditLog[];
+  dataSourceById: Record<string, DataSource | undefined>;
   governanceRuns: AIGovernanceRun[];
   processingBatches: number;
 }
@@ -81,13 +89,28 @@ export default async function WorkbenchPage() {
   });
   const avgQuality = qualityCountTotal > 0 ? Math.round(qualitySumTotal / qualityCountTotal) : 0;
 
-  const attentionItems: { tone: "danger" | "warning"; text: string; href: string }[] = [];
+  const attentionItems: WorkbenchData["attentionItems"] = [];
   if (failedJobs > 0)
-    attentionItems.push({ tone: "danger", text: `${failedJobs} 个作业失败，需排查`, href: "/jobs" });
+    attentionItems.push({
+      tone: "danger",
+      text: `${failedJobs} 个作业失败，需排查`,
+      href: "/jobs?status=failed",
+      actionLabel: "查看失败作业",
+    });
   if (reviewRequired > 0)
-    attentionItems.push({ tone: "warning", text: `${reviewRequired} 项治理待复核`, href: "/governance" });
+    attentionItems.push({
+      tone: "warning",
+      text: `${reviewRequired} 项治理待复核`,
+      href: "/governance",
+      actionLabel: "前往复核",
+    });
   if (qualityFail > 0)
-    attentionItems.push({ tone: "warning", text: `${qualityFail} 个资产质量未达标`, href: "/governance" });
+    attentionItems.push({
+      tone: "warning",
+      text: `${qualityFail} 个资产质量未达标`,
+      href: "/governance",
+      actionLabel: "查看未达标资产",
+    });
 
   const rawCount = data.rawObjects.data.length;
   const batchCount = data.batches.data.length;
@@ -98,8 +121,17 @@ export default async function WorkbenchPage() {
     { label: "已治理", value: governedRefIds.size },
   ];
 
-  const recentAudits = data.audits.data.slice(0, 5);
   const processingBatches = data.batches.data.filter((b) => b.status === "processing").length;
+
+  // 服务端预排序：UnifiedActivityFeed 切片即可
+  const sortedBatches = [...data.batches.data].sort((a, b) =>
+    b.updated_at.localeCompare(a.updated_at),
+  );
+  const sortedAudits = [...data.audits.data].sort((a, b) =>
+    b.created_at.localeCompare(a.created_at),
+  );
+  const dataSourceById: Record<string, DataSource | undefined> = {};
+  for (const ds of data.dataSources.data) dataSourceById[ds.id] = ds;
 
   const workbenchData: WorkbenchData = {
     assetCount,
@@ -121,8 +153,9 @@ export default async function WorkbenchPage() {
     rawCount,
     batchCount,
     funnelSteps,
-    recentAudits,
-    batches: data.batches.data,
+    batches: sortedBatches,
+    audits: sortedAudits,
+    dataSourceById,
     governanceRuns: data.governanceRuns.data,
     processingBatches,
   };
