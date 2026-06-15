@@ -1,5 +1,8 @@
 from collections.abc import Generator
 from datetime import datetime, timezone
+import os
+
+os.environ.setdefault("WORKER_POOL_ENABLED", "false")
 from types import SimpleNamespace
 
 import pytest

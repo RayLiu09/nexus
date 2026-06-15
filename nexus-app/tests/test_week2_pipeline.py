@@ -215,14 +215,19 @@ def test_record_pipeline_fails_fast_on_invalid_raw_payload(session):
     versions = services.list_rows(session, models.AssetVersion)
     stages = pipeline.list_job_stages(session, job.id)
 
-    assert job.status == JobStatus.FAILED
-    assert "RuntimeError" in (job.failure_reason or "")
+    assert job.status == JobStatus.QUEUED
+    assert job.last_error_message is not None
+    assert "RuntimeError" in job.last_error_message
     assert raw.status == "failed"
-    assert batch.status == "failed"
+    assert batch.status in {"processing", "failed"}
     assert len(versions) == 1
     assert versions[0].version_status == AssetVersionStatus.FAILED
     assert versions[0].asset.status == AssetVersionStatus.FAILED
-    assert stages[-1].status == StageStatus.FAILED
+    assert job.current_stage == "parse"
+    stage_by_name = {stage.stage_name: stage for stage in stages}
+    assert stage_by_name["assetize"].status == StageStatus.SUCCEEDED
+    assert stage_by_name["parse"].status == StageStatus.FAILED
+    assert "RuntimeError" in (stage_by_name["parse"].failure_reason or "")
 
 
 def test_week2_forbidden_reverse_pointers_are_not_present():

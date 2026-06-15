@@ -26,6 +26,7 @@ from nexus_app.config import Settings, get_settings
 from nexus_app.database import get_session_local
 from nexus_app.ingest.config_loader import get_ingest_validate_registry
 from nexus_app.normalize.config_loader import get_normalize_schemas_registry
+from nexus_app.worker.pool import WorkerPool
 
 logger = logging.getLogger(__name__)
 
@@ -128,9 +129,16 @@ def _load_registries_fail_fast() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    check_production_secrets(get_settings())
+    settings = get_settings()
+    check_production_secrets(settings)
     _load_registries_fail_fast()
-    yield
+    worker_pool = WorkerPool(settings)
+    app.state.worker_pool = worker_pool
+    worker_pool.start()
+    try:
+        yield
+    finally:
+        worker_pool.stop()
 
 
 def create_app() -> FastAPI:

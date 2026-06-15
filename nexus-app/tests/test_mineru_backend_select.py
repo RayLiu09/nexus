@@ -1,9 +1,12 @@
 """Tests for MinerU model_version auto-selection from MIME type."""
 from __future__ import annotations
 
+from urllib.error import URLError
+
 import pytest
 
-from nexus_app.mineru import _needs_ocr, _select_backend
+from nexus_app.config import Settings
+from nexus_app.mineru import MinerUHttpAdapter, MinerUUnavailableError, _needs_ocr, _select_backend
 
 
 class TestSelectBackend:
@@ -42,3 +45,23 @@ class TestOcrAutoEnable:
     )
     def test_ocr_per_mime(self, mime, expected):
         assert _needs_ocr(mime) is expected
+
+
+
+def test_http_adapter_parse_fails_fast_when_health_unavailable(monkeypatch):
+    settings = Settings(
+        mineru_endpoint="http://mineru.local",
+        mineru_health_timeout_seconds=0.01,
+        mineru_timeout=300,
+    )
+    adapter = MinerUHttpAdapter(settings)
+
+    def fail_health(*args, **kwargs):
+        raise URLError("connection refused")
+
+    monkeypatch.setattr(adapter, "health", fail_health)
+
+    with pytest.raises(MinerUUnavailableError) as exc_info:
+        adapter.parse("sample.pdf", b"pdf", "application/pdf")
+
+    assert "mineru_unavailable" in str(exc_info.value)

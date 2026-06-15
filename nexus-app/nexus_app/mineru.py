@@ -55,6 +55,12 @@ class ParseResult:
     """
 
 
+class MinerUUnavailableError(RuntimeError):
+    """Raised when MinerU fails the fast availability check before parse."""
+
+    error_code = "mineru_unavailable"
+
+
 class MinerUAdapter(Protocol):
     def parse(
         self,
@@ -111,15 +117,31 @@ class MinerUHttpAdapter:
         if not self.settings.mineru_endpoint:
             raise ValueError("MINERU_ENDPOINT is not configured")
 
-    def health(self) -> dict[str, object]:
+    def health(self, timeout: float | None = None) -> dict[str, object]:
         url = urljoin(self.settings.mineru_endpoint.rstrip("/") + "/", "health")
         request = Request(url, method="GET")
-        with urlopen(request, timeout=10) as response:
+        effective_timeout = (
+            timeout
+            if timeout is not None
+            else self.settings.mineru_health_timeout_seconds
+        )
+        with urlopen(request, timeout=effective_timeout) as response:
             body = response.read(4096)
         try:
             return json.loads(body.decode("utf-8"))
         except json.JSONDecodeError:
             return {"status": "ok", "raw_bytes": len(body)}
+
+    def ensure_available(self) -> None:
+        try:
+            result = self.health(timeout=self.settings.mineru_health_timeout_seconds)
+        except (HTTPError, URLError, TimeoutError, OSError) as exc:
+            raise MinerUUnavailableError(
+                f"mineru_unavailable: {type(exc).__name__}: {exc}"
+            ) from exc
+        status = str(result.get("status", "ok")).lower()
+        if status not in {"ok", "healthy", "up"}:
+            raise MinerUUnavailableError(f"mineru_unavailable: health status={status}")
 
     def parse(
         self,
@@ -128,6 +150,7 @@ class MinerUHttpAdapter:
         content_type: str | None = None,
         model_version: str | None = None,
     ) -> ParseResult:
+        self.ensure_available()
         # model_version kept for API compat; maps to MinerU v3 'backend' field
         backend = model_version or _select_backend(content_type)
         ocr_enabled = _needs_ocr(content_type)
@@ -238,8 +261,11 @@ def _unpack_mineru_response(
 
 def mineru_health(settings: Settings | None = None) -> dict[str, object]:
     try:
-        return MinerUHttpAdapter(settings).health()
-    except (HTTPError, URLError, TimeoutError, OSError) as exc:
+        current = settings or get_settings()
+        return MinerUHttpAdapter(current).health(
+            timeout=current.mineru_health_timeout_seconds
+        )
+    except (HTTPError, URLError, TimeoutError, OSError, MinerUUnavailableError) as exc:
         return {"status": "error", "error": f"{type(exc).__name__}: {exc}"}
 
 

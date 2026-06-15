@@ -67,6 +67,12 @@ class Settings(BaseSettings):
     mineru_endpoint: str | None = None
     mineru_use_fake: bool = False
     mineru_timeout: int = 300
+    mineru_health_timeout_seconds: float = 3.0
+    worker_pool_enabled: bool = True
+    worker_pool_size: int = 1
+    worker_poll_interval_seconds: float = 5.0
+    worker_lease_seconds: int = 120
+    worker_max_concurrent: int = 4
     ragflow_endpoint: str | None = None
     ragflow_api_key: str | None = None
     ragflow_timeout: int = 60

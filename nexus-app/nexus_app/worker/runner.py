@@ -5,6 +5,7 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from nexus_app import models
@@ -68,7 +69,7 @@ def _classify_error(exc: Exception) -> str:
         return "non_retryable"
     name = type(exc).__name__.lower()
     msg = str(exc).lower()
-    if any(w in name or w in msg for w in ("timeout", "connection", "deadlock", "operationalerror")):
+    if any(w in name or w in msg for w in ("timeout", "connection", "unavailable", "deadlock", "operationalerror")):
         return "retryable"
     return "non_retryable"
 
@@ -80,6 +81,22 @@ def _release_lock(job: models.Job) -> None:
 
 def _add_failure_stage(session: Session, job: models.Job, stage_name: str, reason: str) -> None:
     now = utcnow()
+    existing = session.scalar(
+        select(models.JobStage)
+        .where(
+            models.JobStage.job_id == job.id,
+            models.JobStage.stage_name == stage_name,
+            models.JobStage.status.in_([StageStatus.RUNNING, StageStatus.FAILED]),
+        )
+        .order_by(models.JobStage.created_at.desc())
+    )
+    if existing is not None:
+        existing.status = StageStatus.FAILED
+        existing.finished_at = existing.finished_at or now
+        existing.failure_reason = reason[:2000]
+        session.flush()
+        return
+
     stage = models.JobStage(
         job_id=job.id,
         stage_name=stage_name,

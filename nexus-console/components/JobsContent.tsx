@@ -16,8 +16,8 @@ import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 
 const PIPELINE_STAGES = [
   { key: "ingest_validate", label: "接入校验", desc: "校验原始数据的完整性、checksum 和格式，确保数据可被后续阶段处理。" },
-  { key: "document_parse", label: "文档解析", desc: "使用 MinerU 引擎解析文档内容，提取结构化文本、表格和图片。" },
   { key: "assetize", label: "资产化", desc: "创建或更新资产与资产版本锚点，锁定数据快照。" },
+  { key: "parse", label: "文档解析", desc: "使用 MinerU 引擎解析文档内容，提取结构化文本、表格和图片。" },
   { key: "normalize", label: "标准化", desc: "LLM 语义提取 + 规则引擎回退校验，生成标准化文档或记录。" },
   { key: "ai_governance", label: "AI 治理", desc: "AI 驱动的分类、打标、质量评分与敏感信息脱敏处理。" },
   { key: "rule_guard", label: "规则质检", desc: "业务规则校验：schema 合规、字段白名单、置信度阈值判定。" },
@@ -28,21 +28,18 @@ const PIPELINE_STAGES = [
 type StageIcon = "done" | "active" | "pending" | "failed";
 
 function getStageStatus(stageName: string, job: Job, stages: JobStage[]): StageIcon {
-  const currentIdx = PIPELINE_STAGES.findIndex((s) => s.key === job.current_stage);
-  const thisIdx = PIPELINE_STAGES.findIndex((s) => s.key === stageName);
-
-  if (job.status === "failed" && stageName === (job.current_stage ?? "")) return "failed";
-
-  const stageRecord = stages.find((s) => s.stage_name === stageName);
+  const stageRecord = [...stages]
+    .reverse()
+    .find((s) => s.stage_name === stageName);
   if (stageRecord) {
-    if (stageRecord.status === "succeeded") return "done";
+    if (stageRecord.status === "succeeded" || stageRecord.status === "skipped" || stageRecord.status === "partial") return "done";
     if (stageRecord.status === "failed") return "failed";
     if (stageRecord.status === "running") return "active";
   }
 
-  if (job.status === "succeeded" && thisIdx <= PIPELINE_STAGES.length - 1) return "done";
-  if (currentIdx >= 0 && thisIdx < currentIdx) return "done";
-  if (thisIdx === currentIdx) return "active";
+  if (job.status === "succeeded") return "done";
+  if ((job.status === "failed" || job.status === "dead_lettered") && stageName === (job.current_stage ?? "")) return "failed";
+  if ((job.status === "running" || job.status === "queued") && stageName === (job.current_stage ?? "")) return "active";
   return "pending";
 }
 

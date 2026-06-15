@@ -46,7 +46,7 @@ export function getJobs(overrides?: Parameters<typeof makeJob>[0][]) {
 export function getJobStages(jobId: string, overrides?: Partial<JobStageInput>[]) {
   const stages = overrides?.map((o) => makeJobStage({ ...o, job_id: jobId, stage_name: o.stage_name ?? "ingest_validate" })) ?? [
     makeJobStage({ job_id: jobId, stage_name: "ingest_validate", status: "succeeded", finished_at: new Date().toISOString() }),
-    makeJobStage({ job_id: jobId, stage_name: "document_parse", status: "running" }),
+    makeJobStage({ job_id: jobId, stage_name: "parse", status: "running" }),
   ];
   return http.get(`${BASE}/v1/jobs/${jobId}/stages`, () => HttpResponse.json(envelope(stages)));
 }

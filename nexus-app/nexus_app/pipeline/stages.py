@@ -68,6 +68,48 @@ def _stage_started() -> "datetime":
     return models.utcnow()
 
 
+def _begin_stage(
+    ctx: PipelineContext,
+    stage_name: str,
+    detail: dict[str, Any] | None = None,
+) -> models.JobStage:
+    now = models.utcnow()
+    stage = models.JobStage(
+        job_id=ctx.job.id,
+        stage_name=stage_name,
+        status=StageStatus.RUNNING,
+        started_at=now,
+        finished_at=None,
+        failure_reason=None,
+        detail=detail or {},
+    )
+    ctx.job.current_stage = stage_name
+    ctx.session.add(stage)
+    ctx.session.flush()
+    return stage
+
+
+def _finish_stage(
+    ctx: PipelineContext,
+    stage: models.JobStage,
+    status: StageStatus,
+    detail: dict[str, Any] | None = None,
+    failure_reason: str | None = None,
+) -> models.JobStage:
+    terminal = status in {
+        StageStatus.SUCCEEDED, StageStatus.FAILED,
+        StageStatus.SKIPPED, StageStatus.PARTIAL,
+    }
+    stage.status = status
+    stage.finished_at = models.utcnow() if terminal else None
+    stage.failure_reason = failure_reason[:2000] if failure_reason else None
+    if detail is not None:
+        stage.detail = detail
+    ctx.job.current_stage = stage.stage_name
+    ctx.session.flush()
+    return stage
+
+
 def title_from(raw_object: models.RawObject, payload: dict[str, Any] | None = None) -> str:
     if payload:
         for key in ("title", "name", "source_title"):
@@ -185,23 +227,43 @@ def run_parse(
     version: models.AssetVersion,
 ) -> models.ParseArtifact:
     """Stage 2 (Pipeline A only): Call MinerU, store artifact + images, create ParseArtifact."""
-    started_at = _stage_started()
     if ctx.mineru is None:
         raise RuntimeError("run_parse called on a context without a MinerU adapter (record pipeline?)")
 
     raw_object = ctx.raw_object
-    raw_uri = raw_object.object_uri
-    raw_key = raw_uri.split("/", 3)[-1] if raw_uri.startswith("s3://") else raw_uri
-    raw_content = ctx.storage.get_bytes(raw_key)
-
     filename = str(raw_object.metadata_summary.get("filename", raw_object.id))
     mime_type = raw_object.mime_type
-    # Explicit override from Job.payload takes precedence over auto-selection
-    # so ops can pin a specific backend (e.g. vlm) for a single run.
-    model_version_override = (ctx.job.payload or {}).get("model_version_override")
-    parsed = ctx.mineru.parse(
-        filename, raw_content, mime_type, model_version=model_version_override
+    parse_stage = _begin_stage(
+        ctx,
+        "parse",
+        {
+            "filename": filename,
+            "mime_type": mime_type,
+            "raw_object_id": raw_object.id,
+        },
     )
+    ctx.session.commit()
+
+    try:
+        raw_uri = raw_object.object_uri
+        raw_key = raw_uri.split("/", 3)[-1] if raw_uri.startswith("s3://") else raw_uri
+        raw_content = ctx.storage.get_bytes(raw_key)
+
+        # Explicit override from Job.payload takes precedence over auto-selection
+        # so ops can pin a specific backend (e.g. vlm) for a single run.
+        model_version_override = (ctx.job.payload or {}).get("model_version_override")
+        parsed = ctx.mineru.parse(
+            filename, raw_content, mime_type, model_version=model_version_override
+        )
+    except Exception as exc:
+        _finish_stage(
+            ctx,
+            parse_stage,
+            StageStatus.FAILED,
+            failure_reason=f"{type(exc).__name__}: {exc}",
+        )
+        ctx.session.commit()
+        raise
 
     artifact = models.ParseArtifact(
         raw_object_id=raw_object.id,
@@ -246,16 +308,15 @@ def run_parse(
 
     ctx.session.flush()
 
-    _add_stage(
+    _finish_stage(
         ctx,
-        "parse",
+        parse_stage,
         StageStatus.SUCCEEDED,
         {
             "parse_artifact_id": artifact.id,
             "artifact_uri": artifact.artifact_uri,
             "image_count": len(image_uris),
         },
-        started_at=started_at,
     )
     return artifact
 

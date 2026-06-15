@@ -91,12 +91,13 @@ export async function ingestProxyGet<T>(path: string): Promise<IngestProxyResult
 export async function ingestProxyPost<T>(
   path: string,
   payload: unknown,
+  headers: Record<string, string> = {},
 ): Promise<IngestProxyResult<T>> {
   try {
     const authHeaders = await getAuthHeaders();
     const response = await fetch(`${apiBaseUrl()}${path}`, {
       method: "POST",
-      headers: { "content-type": "application/json", ...authHeaders },
+      headers: { "content-type": "application/json", ...authHeaders, ...headers },
       body: JSON.stringify(payload),
       cache: "no-store",
     });

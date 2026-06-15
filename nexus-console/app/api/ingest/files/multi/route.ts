@@ -50,6 +50,18 @@ export async function POST(request: Request): Promise<NextResponse> {
       { status: 400 },
     );
   }
-  const result = await ingestProxyPost<MultiFileResult>("/internal/v1/ingest/files/multi", payload);
+  const idempotencyKey = payload.batch_idempotency_key?.trim();
+  if (!idempotencyKey) {
+    return NextResponse.json(
+      { ok: false, status: 400, message: "batch_idempotency_key 不能为空" },
+      { status: 400 },
+    );
+  }
+
+  const result = await ingestProxyPost<MultiFileResult>(
+    "/internal/v1/ingest/files/multi",
+    payload,
+    { "Idempotency-Key": idempotencyKey },
+  );
   return NextResponse.json(result, { status: result.ok ? 202 : result.status });
 }
