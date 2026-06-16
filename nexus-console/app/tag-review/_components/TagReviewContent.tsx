@@ -14,69 +14,14 @@
  */
 
 import { useState } from "react";
-import { Table, Tag, Button, Progress, Tooltip, App, Alert } from "antd";
+import { Table, Tag, Button, Progress, Tooltip, App } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { CheckOutlined, CloseOutlined, EditOutlined, ExperimentOutlined } from "@ant-design/icons";
+import { CheckOutlined, CloseOutlined, EditOutlined } from "@ant-design/icons";
+import { ApiState } from "@/components/ApiState";
 import { StatusLabel } from "@/components/StatusLabel";
-
-// ── mock 数据（实际接 /v1/tags/pending 与 /v1/tags/committed） ──
-
-interface TagDraft {
-  id: string;
-  normalizedRefId: string;
-  tags: string[];
-  evidence: string;
-  confidence: number;
-}
-
-interface CommittedTag {
-  id: string;
-  normalizedRefId: string;
-  tags: string[];
-  confidence: number;
-  committedAt: string;
-}
-
-const MOCK_DRAFTS: TagDraft[] = [
-  {
-    id: "d1",
-    normalizedRefId: "ref_doc_20260514_102",
-    tags: ["课程思政", "案例教学"],
-    evidence: "课程融入产业真实案例，以企业场景重构知识结构...",
-    confidence: 0.63,
-  },
-  {
-    id: "d2",
-    normalizedRefId: "ref_record_20260514_077",
-    tags: ["就业趋势", "区域画像"],
-    evidence: "重点城市需求增长 12%，新兴岗位集中在数字化领域...",
-    confidence: 0.69,
-  },
-  {
-    id: "d3",
-    normalizedRefId: "ref_doc_20260513_041",
-    tags: ["课程大纲", "双元制"],
-    evidence: "引入德国双元制职业教育模式，分阶段递进...",
-    confidence: 0.72,
-  },
-];
-
-const MOCK_COMMITTED: CommittedTag[] = [
-  {
-    id: "c1",
-    normalizedRefId: "ref_doc_20260515_003",
-    tags: ["电子商务", "教材", "职业教育"],
-    confidence: 0.91,
-    committedAt: "2026-05-15T09:21:00Z",
-  },
-  {
-    id: "c2",
-    normalizedRefId: "ref_record_20260514_077",
-    tags: ["就业分析", "区域用工"],
-    confidence: 0.88,
-    committedAt: "2026-05-14T16:05:00Z",
-  },
-];
+import { formatDateTime } from "@/lib/api";
+import { tagLabel, type TagDictionary } from "@/lib/tagLabels";
+import type { CommittedTag, TagDraft } from "../_lib/tagReviewData";
 
 // ── 置信度进度条 ──────────────────────────────────────────────
 
@@ -113,11 +58,25 @@ function ConfidenceBar({ value }: { value: number }) {
 
 // ── TagReviewPage ─────────────────────────────────────────────
 
-const IS_DEMO = true; // switch to false when backend tag endpoints are ready
+interface TagReviewContentProps {
+  initialDrafts: TagDraft[];
+  initialCommitted: CommittedTag[];
+  ok: boolean;
+  error: string | null;
+  traceId: string | null;
+  tagDictionary: TagDictionary;
+}
 
-export default function TagReviewContent() {
-  const [drafts, setDrafts] = useState<TagDraft[]>(MOCK_DRAFTS);
-  const [committed, setCommitted] = useState<CommittedTag[]>(MOCK_COMMITTED);
+export default function TagReviewContent({
+  initialDrafts,
+  initialCommitted,
+  ok,
+  error,
+  traceId,
+  tagDictionary,
+}: TagReviewContentProps) {
+  const [drafts, setDrafts] = useState<TagDraft[]>(initialDrafts);
+  const [committed, setCommitted] = useState<CommittedTag[]>(initialCommitted);
   const [selectedIds, setSelectedIds] = useState<React.Key[]>([]);
   const { message, modal, notification } = App.useApp();
 
@@ -131,7 +90,7 @@ export default function TagReviewContent() {
     notification.success({
       key,
       message: `已确认 ${toConfirm.length} 条标签草稿`,
-      description: "10 秒内可撤销。确认动作将写入审计日志。",
+      description: "当前后端尚未提供标签审核写入端点，本次确认仅更新当前页面状态。",
       duration: 10,
       btn: (
         <Button
@@ -147,7 +106,7 @@ export default function TagReviewContent() {
         </Button>
       ),
     });
-    // 同时加入自动提交历史（模拟写库）
+    // 后端标签审核写入端点接入前，仅在当前页面内预览确认后的状态。
     const now = new Date().toISOString();
     const newCommitted: CommittedTag[] = toConfirm.map((d) => ({
       id: `c${Date.now()}-${d.id}`,
@@ -164,7 +123,7 @@ export default function TagReviewContent() {
   const handleBulkReject = () => {
     modal.confirm({
       title: `确认驳回 ${selectedIds.length} 条标签草稿？`,
-      content: "驳回后这些标签草稿将从队列中移除，此操作写入审计日志且无法自动恢复。",
+      content: "当前后端尚未提供标签审核写入端点，驳回后仅从当前页面队列移除。",
       okText: "确认驳回",
       okButtonProps: { danger: true },
       cancelText: "取消",
@@ -183,7 +142,7 @@ export default function TagReviewContent() {
     notification.info({
       key,
       message: `已撤销 ${item.normalizedRefId} 的标签`,
-      description: "10 秒内可恢复。撤销操作写入审计日志。",
+      description: "当前后端尚未提供标签审核写入端点，本次撤销仅更新当前页面状态。",
       duration: 10,
       btn: (
         <Button
@@ -217,7 +176,7 @@ export default function TagReviewContent() {
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           {tags.map((t) => (
             <Tag key={t} color="default">
-              #{t}
+              #{tagLabel(t, tagDictionary)}
             </Tag>
           ))}
         </div>
@@ -272,7 +231,7 @@ export default function TagReviewContent() {
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           {tags.map((t) => (
             <Tag key={t} color="blue">
-              #{t}
+              #{tagLabel(t, tagDictionary)}
             </Tag>
           ))}
         </div>
@@ -288,6 +247,12 @@ export default function TagReviewContent() {
       title: "方式",
       width: 110,
       render: () => <StatusLabel value="auto_adopted" label="auto_commit" />,
+    },
+    {
+      title: "提交时间",
+      dataIndex: "committedAt",
+      width: 150,
+      render: (value: string) => <span className="text-caption text-muted">{formatDateTime(value)}</span>,
     },
     {
       title: "操作",
@@ -316,15 +281,7 @@ export default function TagReviewContent() {
     >
       {/* ── 左侧主区 ── */}
       <div style={{ display: "grid", gap: 16 }}>
-        {IS_DEMO && (
-          <Alert
-            type="warning"
-            showIcon
-            icon={<ExperimentOutlined />}
-            title="演示数据 — 标签审核接口尚未接入，当前为 mock 数据"
-            className="!mb-0"
-          />
-        )}
+        <ApiState ok={ok} error={error} traceId={traceId} />
         {/* BulkBar */}
         {selectedIds.length > 0 && (
           <div
@@ -430,7 +387,7 @@ export default function TagReviewContent() {
           >
             <div style={{ fontSize: 15, fontWeight: 600 }}>自动提交历史</div>
             <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
-              高置信标签自动落库，允许事后追溯和撤销
+              高置信标签来自真实 AI 治理运行记录；撤销写入端点接入前仅支持页面内预览
             </div>
           </div>
           <Table
@@ -501,7 +458,7 @@ export default function TagReviewContent() {
             }}
           >
             <strong style={{ display: "block", marginBottom: 4 }}>审计要求</strong>
-            自动提交、撤销、人工改写均写入审计日志，trace_id 关联。
+            自动提交数据来自真实 AI 治理运行记录；人工确认、撤销、改写待后端审核端点接入。
           </div>
         </div>
       </div>

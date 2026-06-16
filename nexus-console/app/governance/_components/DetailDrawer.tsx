@@ -1,6 +1,7 @@
 "use client";
 
 import { Drawer, Descriptions, Tag, Alert, Progress, Button } from "antd";
+import type { TagDictionary } from "@/lib/tagLabels";
 import { type GovernanceRun, getClassification, getLevel, getConfidence, getQualityScore, getQualityLevel, getTags, getOrgScope } from "../_lib/types";
 import { ConfidenceTag } from "./ConfidenceTag";
 import { DomainTag } from "./DomainTag";
@@ -12,9 +13,10 @@ interface DetailDrawerProps {
   open: boolean;
   onClose: () => void;
   onOpenTrail: (refId: string) => void;
+  tagDictionary: TagDictionary;
 }
 
-export function DetailDrawer({ run, open, onClose, onOpenTrail }: DetailDrawerProps) {
+export function DetailDrawer({ run, open, onClose, onOpenTrail, tagDictionary }: DetailDrawerProps) {
   if (!run) return null;
 
   const aiOutput = run.ai_output ?? {};
@@ -66,8 +68,8 @@ export function DetailDrawer({ run, open, onClose, onOpenTrail }: DetailDrawerPr
         </Descriptions.Item>
         <Descriptions.Item label="组织范围">{getOrgScope(run)}</Descriptions.Item>
         <Descriptions.Item label="标签" span={2}>
-          {getTags(run).length > 0 ? (
-            getTags(run).map((t) => <Tag key={t}>#{t}</Tag>)
+          {getTags(run, tagDictionary).length > 0 ? (
+            getTags(run, tagDictionary).map((t) => <Tag key={t}>#{t}</Tag>)
           ) : (
             <span className="text-muted">-</span>
           )}

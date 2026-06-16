@@ -1,7 +1,8 @@
 import type { Asset } from "@/lib/api";
 
 export type AssetWithMeta = Asset & {
-  domain?: string;
+  domain?: string | null;
+  domain_name?: string | null;
   level?: string;
   current_version_no?: number | null;
   current_normalized_ref_id?: string | null;
@@ -26,6 +27,31 @@ export type AssetStats = {
 
 export type DomainDistItem = { domain: string; label: string; count: number };
 
+export const DOMAIN_LABELS: Record<string, string> = {
+  industry_policy: "产业政策",
+  industry_report: "产业报告",
+  sector_report: "行业报告",
+  job_demand: "岗位需求数据",
+  competency_analysis: "职业能力分析表",
+  vocational_certificate: "职业类证书",
+  teaching_standard: "专业教学标准",
+  program_distribution: "专业布点数",
+  talent_demand_report: "专业人才需求报告",
+  talent_training_plan: "人才培养方案",
+  program_profile: "专业简介",
+};
+
+export const DOMAIN_OPTIONS = Object.entries(DOMAIN_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}));
+
+export function domainLabel(code: string | null | undefined, name?: string | null): string {
+  if (name) return name;
+  if (!code) return "-";
+  return DOMAIN_LABELS[code] ?? code;
+}
+
 // ── Aggregate endpoint contract: GET /v1/assets/summary ──────────────────
 
 /** Response from GET /v1/assets/summary — pre-computed aggregate stats. */
@@ -37,7 +63,7 @@ export interface AssetSummary {
   stale_index: number;
   l3l4: number;
   auto_adoption_rate: number;
-  domain_distribution: { domain: string; count: number }[];
+  domain_distribution: { domain: string; name?: string | null; count: number }[];
 }
 
 /** Map AssetSummary to the shape AssetsSummary component expects. */
@@ -54,21 +80,12 @@ export function toAssetStats(s: AssetSummary): AssetStats {
 
 /** Map AssetSummary.domain_distribution to the shape DomainDistribution expects. */
 export function toDomainDistItems(s: AssetSummary): DomainDistItem[] {
-  return Object.entries(DOMAIN_LABELS).map(([domain, label]) => ({
-    domain,
-    label,
-    count: s.domain_distribution.find((d) => d.domain === domain)?.count ?? 0,
+  return s.domain_distribution.map((item) => ({
+    domain: item.domain,
+    label: domainLabel(item.domain, item.name),
+    count: item.count,
   }));
 }
-
-const DOMAIN_LABELS: Record<string, string> = {
-  D1: "教学资源",
-  D2: "人才培养",
-  D3: "科研数据",
-  D4: "产教融合",
-  D5: "政策法规",
-  D6: "综合管理",
-};
 
 export function deriveStats(assets: AssetWithMeta[]): AssetStats {
   let available = 0;
@@ -103,9 +120,9 @@ export function deriveDomainDist(assets: AssetWithMeta[]): DomainDistItem[] {
   for (const a of assets) {
     if (a.domain) counts[a.domain] = (counts[a.domain] ?? 0) + 1;
   }
-  return Object.keys(DOMAIN_LABELS).map((d) => ({
-    domain: d,
-    label: DOMAIN_LABELS[d],
-    count: counts[d] ?? 0,
+  return Object.entries(counts).map(([domain, count]) => ({
+    domain,
+    label: domainLabel(domain),
+    count,
   }));
 }

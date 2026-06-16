@@ -15,6 +15,7 @@
 import { useState } from "react";
 import { Badge, Button, Select, Tabs, App } from "antd";
 import { type GovernanceRun, deriveStats, getQualityScore } from "../_lib/types";
+import type { TagDictionary } from "@/lib/tagLabels";
 import { SummaryStrip } from "./SummaryStrip";
 import { DecisionTrailDrawer } from "./DecisionTrailDrawer";
 import { ReviewTab } from "./ReviewTab";
@@ -25,7 +26,13 @@ import { DetailDrawer } from "./DetailDrawer";
 
 // ── Main Content ──────────────────────────────────────────────
 
-export function GovernanceContent({ runs }: { runs: GovernanceRun[] }) {
+export function GovernanceContent({
+  runs,
+  tagDictionary,
+}: {
+  runs: GovernanceRun[];
+  tagDictionary: TagDictionary;
+}) {
   const [drawerRun, setDrawerRun] = useState<GovernanceRun | null>(null);
   const [trailRefId, setTrailRefId] = useState<string | null>(null);
   const { message } = App.useApp();
@@ -116,12 +123,14 @@ export function GovernanceContent({ runs }: { runs: GovernanceRun[] }) {
           setDrawerRun(null);
           setTrailRefId(refId);
         }}
+        tagDictionary={tagDictionary}
       />
 
       <DecisionTrailDrawer
         open={trailRefId !== null}
         normalizedRefId={trailRefId}
         onClose={() => setTrailRefId(null)}
+        tagDictionary={tagDictionary}
       />
     </>
   );

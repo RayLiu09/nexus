@@ -391,6 +391,7 @@ class AssetCatalogRead(AssetRead):
     latest_version_no: int | None = None
     latest_normalized_ref_id: str | None = None
     domain: str | None = None
+    domain_name: str | None = None
     level: str | None = None
     quality_score: float | None = None
     governance_status: str | None = None

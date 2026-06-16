@@ -13,6 +13,7 @@ import {
   type DataSource,
   type RawObject,
 } from "@/lib/api";
+import { buildTagDictionary, type TagDictionaryEntry } from "@/lib/tagLabels";
 
 export const dynamic = "force-dynamic";
 
@@ -34,10 +35,12 @@ export default async function AssetDetailPage({
 }) {
   const { assetId } = await params;
 
-  const [result, parseArtifacts] = await Promise.all([
+  const [result, parseArtifacts, rulesResult] = await Promise.all([
     getApiData<AssetDetail | null>(`/internal/v1/assets/${assetId}`, null),
     getApiData<ParseArtifact[]>("/internal/v1/parse-artifacts", []),
+    getApiData<{ tags?: TagDictionaryEntry[] }>("/internal/v1/admin/governance-rules", {}),
   ]);
+  const tagDictionary = buildTagDictionary(rulesResult.data.tags);
 
   const asset = result.data?.asset;
   const versions = result.data?.versions ?? [];
@@ -141,6 +144,7 @@ export default async function AssetDetailPage({
         governanceRunsTraceId={governanceRuns.traceId}
         rawObjectNames={rawObjectNames}
         dataSourceName={dataSourceName}
+        tagDictionary={tagDictionary}
       />
     </>
   );

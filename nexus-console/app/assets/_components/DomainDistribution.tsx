@@ -3,14 +3,25 @@
 import { Card, Progress } from "antd";
 import type { DomainDistItem } from "../_lib/types";
 
-const DOMAIN_COLOR: Record<string, string> = {
-  D1: "var(--domain-d1)",
-  D2: "var(--domain-d2)",
-  D3: "var(--domain-d3)",
-  D4: "var(--domain-d4)",
-  D5: "var(--domain-d5)",
-  D6: "var(--domain-d6)",
-};
+const DOMAIN_COLORS = [
+  "var(--domain-d1)",
+  "var(--domain-d2)",
+  "var(--domain-d3)",
+  "var(--domain-d4)",
+  "var(--domain-d5)",
+  "var(--domain-d6)",
+  "var(--brand)",
+  "var(--success)",
+  "var(--warning)",
+  "var(--info)",
+  "var(--text-muted)",
+];
+
+function domainColor(domain: string): string {
+  let hash = 0;
+  for (const ch of domain) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return DOMAIN_COLORS[hash % DOMAIN_COLORS.length];
+}
 
 export function DomainDistribution({ items }: { items: DomainDistItem[] }) {
   const max = Math.max(1, ...items.map((i) => i.count));
@@ -25,15 +36,14 @@ export function DomainDistribution({ items }: { items: DomainDistItem[] }) {
         {items.map((item) => (
           <div key={item.domain} className="domain-dist-row">
             <span className="domain-dist-label">
-              <span className="domain-dist-code" style={{ color: DOMAIN_COLOR[item.domain] }}>
-                {item.domain}
+              <span className="domain-dist-code" style={{ color: domainColor(item.domain) }}>
+                {item.label}
               </span>
-              <span className="domain-dist-name">{item.label}</span>
             </span>
             <Progress
               percent={Math.round((item.count / max) * 100)}
               showInfo={false}
-              strokeColor={DOMAIN_COLOR[item.domain]}
+              strokeColor={domainColor(item.domain)}
               railColor="var(--line-light)"
               size="small"
             />

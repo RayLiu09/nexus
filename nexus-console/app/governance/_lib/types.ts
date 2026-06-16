@@ -1,3 +1,6 @@
+import type { TagDictionary } from "@/lib/tagLabels";
+import { tagLabels } from "@/lib/tagLabels";
+
 export type GovernanceRun = {
   id: string;
   normalized_ref_id: string;
@@ -55,8 +58,27 @@ export function deriveStats(runs: GovernanceRun[]): GovernanceStats {
   };
 }
 
+const CLASSIFICATION_LABELS: Record<string, string> = {
+  industry_policy: "产业政策",
+  industry_report: "产业报告",
+  sector_report: "行业报告",
+  job_demand: "岗位需求数据",
+  competency_analysis: "职业能力分析表",
+  vocational_certificate: "职业类证书",
+  teaching_standard: "专业教学标准",
+  program_distribution: "专业布点数",
+  talent_demand_report: "专业人才需求报告",
+  talent_training_plan: "人才培养方案",
+  program_profile: "专业简介",
+};
+
 export function getClassification(run: GovernanceRun): string {
-  return (run.ai_output?.classification as string) ?? "-";
+  const output = run.ai_output ?? {};
+  const name = output.classification_name as string | undefined;
+  if (name) return name;
+  const code = (output.classification_code as string | undefined) ?? (output.classification as string | undefined);
+  if (!code) return "-";
+  return CLASSIFICATION_LABELS[code] ?? code;
 }
 
 export function getLevel(run: GovernanceRun): string {
@@ -77,9 +99,13 @@ export function getQualityLevel(run: GovernanceRun): string {
   return (run.quality_summary?.quality_level as string) ?? "";
 }
 
-export function getTags(run: GovernanceRun): string[] {
+export function getTagCodes(run: GovernanceRun): string[] {
   const t = run.ai_output?.tags;
   return Array.isArray(t) ? (t as string[]) : [];
+}
+
+export function getTags(run: GovernanceRun, dictionary?: TagDictionary): string[] {
+  return tagLabels(getTagCodes(run), dictionary);
 }
 
 export function getOrgScope(run: GovernanceRun): string {

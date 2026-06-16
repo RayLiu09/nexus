@@ -11,15 +11,19 @@ import { ApiState } from "@/components/ApiState";
 import { StatusLabel } from "@/components/StatusLabel";
 import { formatTime } from "@/lib/format-time";
 import type { AssetWithMeta, AssetSummary, AssetStats, DomainDistItem } from "../_lib/types";
-import { toAssetStats, toDomainDistItems } from "../_lib/types";
+import { DOMAIN_OPTIONS, domainLabel, toAssetStats, toDomainDistItems } from "../_lib/types";
 import { AssetsSummary } from "./AssetsSummary";
 import { DomainDistribution } from "./DomainDistribution";
 import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 
-const DOMAIN_COLOR_KEY: Record<string, string> = {
-  D1: "geekblue", D2: "cyan", D3: "green",
-  D4: "gold", D5: "orange", D6: "magenta",
-};
+const DOMAIN_COLORS = ["geekblue", "cyan", "green", "gold", "orange", "magenta", "purple", "blue", "lime", "volcano", "default"];
+
+function domainColor(domain: string | null | undefined): string {
+  if (!domain) return "default";
+  let hash = 0;
+  for (const ch of domain) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return DOMAIN_COLORS[hash % DOMAIN_COLORS.length];
+}
 
 const LEVEL_COLOR_KEY: Record<string, string> = {
   L1: "success", L2: "processing", L3: "warning", L4: "error",
@@ -130,7 +134,7 @@ export function AssetsContent({
       width: 140,
       render: (_, r) => (
         <span>
-          {r.domain && <Tag color={DOMAIN_COLOR_KEY[r.domain] ?? "default"}>{r.domain}</Tag>}
+          {r.domain && <Tag color={domainColor(r.domain)}>{domainLabel(r.domain, r.domain_name)}</Tag>}
           {r.level && <Tag color={LEVEL_COLOR_KEY[r.level] ?? "default"}>{r.level}</Tag>}
         </span>
       ),
@@ -186,14 +190,9 @@ export function AssetsContent({
           defaultValue="all-domain"
           options={[
             { value: "all-domain", label: "全部数据域" },
-            { value: "D1", label: "D1 教学资源" },
-            { value: "D2", label: "D2 人才培养" },
-            { value: "D3", label: "D3 科研数据" },
-            { value: "D4", label: "D4 产教融合" },
-            { value: "D5", label: "D5 政策法规" },
-            { value: "D6", label: "D6 综合管理" },
+            ...DOMAIN_OPTIONS,
           ]}
-          style={{ width: 160 }}
+          style={{ width: 180 }}
         />
         <Select
           defaultValue="all-level"

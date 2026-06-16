@@ -19,6 +19,26 @@ from nexus_app.enums import AssetVersionStatus, AuditEventType, GovernanceResult
 
 router = APIRouter()
 
+_CLASSIFICATION_LABELS: dict[str, str] = {
+    "industry_policy": "产业政策",
+    "industry_report": "产业报告",
+    "sector_report": "行业报告",
+    "job_demand": "岗位需求数据",
+    "competency_analysis": "职业能力分析表",
+    "vocational_certificate": "职业类证书",
+    "teaching_standard": "专业教学标准",
+    "program_distribution": "专业布点数",
+    "talent_demand_report": "专业人才需求报告",
+    "talent_training_plan": "人才培养方案",
+    "program_profile": "专业简介",
+}
+
+
+def _classification_label(code: str | None) -> str | None:
+    if not code:
+        return None
+    return _CLASSIFICATION_LABELS.get(code)
+
 
 def _latest_version(session: Session, asset_id: str) -> models.AssetVersion | None:
     return session.scalar(
@@ -83,6 +103,8 @@ def _catalog_row(session: Session, asset: models.Asset) -> domain_schemas.AssetC
         session, ref_for_catalog.id if ref_for_catalog is not None else None
     )
     quality_summary = result.quality_summary if result is not None else None
+    domain = result.classification if result is not None else None
+    domain_name = _classification_label(domain)
     base = domain_schemas.AssetRead.model_validate(asset).model_dump()
     return domain_schemas.AssetCatalogRead(
         **base,
@@ -99,7 +121,8 @@ def _catalog_row(session: Session, asset: models.Asset) -> domain_schemas.AssetC
         latest_version_id=latest_version.id if latest_version is not None else None,
         latest_version_no=latest_version.version_no if latest_version is not None else None,
         latest_normalized_ref_id=latest_ref.id if latest_ref is not None else None,
-        domain=result.classification if result is not None else None,
+        domain=domain,
+        domain_name=domain_name,
         level=result.level if result is not None else None,
         quality_score=(
             (quality_summary or {}).get("quality_score")
@@ -116,12 +139,18 @@ def _catalog_row(session: Session, asset: models.Asset) -> domain_schemas.AssetC
 
 
 def _asset_summary(rows: list[domain_schemas.AssetCatalogRead]) -> domain_schemas.AssetSummaryRead:
-    domains: dict[str, int] = {}
+    domains: dict[str, dict[str, object]] = {}
     governed = 0
     auto_adopted = 0
     for row in rows:
         if row.domain:
-            domains[row.domain] = domains.get(row.domain, 0) + 1
+            item = domains.setdefault(
+                row.domain,
+                {"domain": row.domain, "name": row.domain_name, "count": 0},
+            )
+            item["count"] = int(item["count"] or 0) + 1
+            if row.domain_name and not item.get("name"):
+                item["name"] = row.domain_name
         if row.governance_status:
             governed += 1
             if row.governance_status == GovernanceResultStatus.AVAILABLE.value:
@@ -135,8 +164,7 @@ def _asset_summary(rows: list[domain_schemas.AssetCatalogRead]) -> domain_schema
         l3l4=sum(1 for row in rows if row.level in {"L3", "L4"}),
         auto_adoption_rate=round(auto_adopted / governed * 100) if governed else 0,
         domain_distribution=[
-            {"domain": domain, "count": count}
-            for domain, count in sorted(domains.items())
+            item for _, item in sorted(domains.items())
         ],
     )
 

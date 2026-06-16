@@ -34,6 +34,7 @@ import type {
   GovernanceResultRead,
 } from "../_lib/decisionTrail.types";
 import { fetchGovernanceResultForRef } from "../_lib/governanceResultApi";
+import { tagLabel, type TagDictionary } from "@/lib/tagLabels";
 
 const VIEW_OPTIONS: { label: string; value: DecisionTrailView }[] = [
   { label: "完整视图", value: "full" },
@@ -63,9 +64,10 @@ interface DecisionTrailDrawerProps {
   open: boolean;
   normalizedRefId: string | null;
   onClose: () => void;
+  tagDictionary: TagDictionary;
 }
 
-export function DecisionTrailDrawer({ open, normalizedRefId, onClose }: DecisionTrailDrawerProps) {
+export function DecisionTrailDrawer({ open, normalizedRefId, onClose, tagDictionary }: DecisionTrailDrawerProps) {
   const [view, setView] = useState<DecisionTrailView>("full");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<GovernanceResultRead | null>(null);
@@ -116,7 +118,7 @@ export function DecisionTrailDrawer({ open, normalizedRefId, onClose }: Decision
         />
       }
     >
-      <DrawerBody loading={loading} error={error} view={view} result={result} />
+      <DrawerBody loading={loading} error={error} view={view} result={result} tagDictionary={tagDictionary} />
     </Drawer>
   );
 }
@@ -126,9 +128,10 @@ interface DrawerBodyProps {
   error: string | null;
   view: DecisionTrailView;
   result: GovernanceResultRead | null;
+  tagDictionary: TagDictionary;
 }
 
-function DrawerBody({ loading, error, view, result }: DrawerBodyProps) {
+function DrawerBody({ loading, error, view, result, tagDictionary }: DrawerBodyProps) {
   if (loading) {
     return <Skeleton active paragraph={{ rows: 6 }} />;
   }
@@ -147,7 +150,7 @@ function DrawerBody({ loading, error, view, result }: DrawerBodyProps) {
 
   return (
     <Space orientation="vertical" size="large" className="w-full">
-      <OutcomeSummary result={result} />
+      <OutcomeSummary result={result} tagDictionary={tagDictionary} />
 
       {view === "public" ? (
         <Alert
@@ -162,7 +165,7 @@ function DrawerBody({ loading, error, view, result }: DrawerBodyProps) {
           items={trail.map((entry, i) => ({
             key: `${entry.field_name}-${i}`,
             color: ADOPTION_META[entry.adoption_status]?.color ?? "blue",
-            children: <TrailItem entry={entry} view={view} />,
+            children: <TrailItem entry={entry} view={view} tagDictionary={tagDictionary} />,
           }))}
         />
       )}
@@ -170,7 +173,7 @@ function DrawerBody({ loading, error, view, result }: DrawerBodyProps) {
   );
 }
 
-function OutcomeSummary({ result }: { result: GovernanceResultRead }) {
+function OutcomeSummary({ result, tagDictionary }: { result: GovernanceResultRead; tagDictionary: TagDictionary }) {
   return (
     <Descriptions size="small" bordered column={2}>
       <Descriptions.Item label="数据分类">
@@ -183,7 +186,7 @@ function OutcomeSummary({ result }: { result: GovernanceResultRead }) {
         {result.tags?.length ? (
           <Space size={4} wrap>
             {result.tags.map((t) => (
-              <Tag key={t}>#{t}</Tag>
+              <Tag key={t}>#{tagLabel(t, tagDictionary)}</Tag>
             ))}
           </Space>
         ) : (
@@ -206,7 +209,7 @@ function OutcomeSummary({ result }: { result: GovernanceResultRead }) {
   );
 }
 
-function TrailItem({ entry, view }: { entry: DecisionTrailEntry; view: DecisionTrailView }) {
+function TrailItem({ entry, view, tagDictionary }: { entry: DecisionTrailEntry; view: DecisionTrailView; tagDictionary: TagDictionary }) {
   const meta = ADOPTION_META[entry.adoption_status];
   const showSuggestion = view === "full" || view === "operator";
   const showConfidence = view === "full";
@@ -227,7 +230,7 @@ function TrailItem({ entry, view }: { entry: DecisionTrailEntry; view: DecisionT
 
       <div className="text-[13px]">
         最终值：
-        <ValueChip value={entry.final_value} />
+        <ValueChip value={entry.final_value} fieldName={entry.field_name} tagDictionary={tagDictionary} />
       </div>
 
       {showSuggestion && entry.ai_suggestion !== undefined && (
@@ -236,7 +239,7 @@ function TrailItem({ entry, view }: { entry: DecisionTrailEntry; view: DecisionT
           {entry.ai_suggestion === REDACTED_TOKEN ? (
             <Tag color="default">{REDACTED_TOKEN}</Tag>
           ) : (
-            <ValueChip value={entry.ai_suggestion} />
+            <ValueChip value={entry.ai_suggestion} fieldName={entry.field_name} tagDictionary={tagDictionary} />
           )}
         </div>
       )}
@@ -250,13 +253,13 @@ function TrailItem({ entry, view }: { entry: DecisionTrailEntry; view: DecisionT
   );
 }
 
-function ValueChip({ value }: { value: unknown }) {
+function ValueChip({ value, fieldName, tagDictionary }: { value: unknown; fieldName?: DecisionField; tagDictionary: TagDictionary }) {
   if (value === null || value === undefined) return <span>-</span>;
   if (Array.isArray(value)) {
     return (
       <Space size={4} wrap>
         {(value as unknown[]).map((v, i) => (
-          <Tag key={`${String(v)}-${i}`}>{String(v)}</Tag>
+          <Tag key={`${String(v)}-${i}`}>{fieldName === "tags" ? tagLabel(String(v), tagDictionary) : String(v)}</Tag>
         ))}
       </Space>
     );
@@ -268,7 +271,7 @@ function ValueChip({ value }: { value: unknown }) {
       </Typography.Text>
     );
   }
-  return <Tag color="blue">{String(value)}</Tag>;
+  return <Tag color="blue">{fieldName === "tags" ? tagLabel(String(value), tagDictionary) : String(value)}</Tag>;
 }
 
 function ThresholdView({ check }: { check: Record<string, unknown> }) {

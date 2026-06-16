@@ -102,6 +102,7 @@ def _seed_review_required_asset(session: Session):
         raw_output="{}",
         ai_output={
             "classification": "industry_report",
+            "classification_name": "产业报告",
             "level": "L1",
             "confidence": 0.83,
             "tags": ["report"],
@@ -176,6 +177,7 @@ def test_asset_catalog_uses_latest_review_required_ref_for_ui_metadata(app, sess
     assert row["latest_version_id"] == seeded["version"].id
     assert row["latest_normalized_ref_id"] == seeded["ref"].id
     assert row["domain"] == "industry_report"
+    assert row["domain_name"] == "产业报告"
     assert row["level"] == "L1"
     assert row["quality_score"] == 69.83
     assert row["governance_status"] == "review_required"
@@ -193,7 +195,9 @@ def test_asset_summary_counts_review_required_assets_with_latest_refs(app, sessi
     assert data["available"] == 0
     assert data["review_required"] == 1
     assert data["current_normalized_refs"] == 1
-    assert data["domain_distribution"] == [{"domain": "industry_report", "count": 1}]
+    assert data["domain_distribution"] == [
+        {"domain": "industry_report", "name": "产业报告", "count": 1}
+    ]
 
 
 def test_latest_ref_can_fetch_ai_governance_runs(app, session):

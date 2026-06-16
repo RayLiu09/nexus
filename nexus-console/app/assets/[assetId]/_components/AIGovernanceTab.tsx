@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { tagLabel, type TagDictionary } from "@/lib/tagLabels";
 import { Card, Empty, Tag, Alert } from "antd";
 import { StatusLabel } from "@/components/StatusLabel";
 import { ConfidenceBadge } from "@/components/ConfidenceBadge";
@@ -12,9 +13,32 @@ import {
 
 type Props = {
   runs: AIGovernanceRun[];
+  tagDictionary?: TagDictionary;
 };
 
-export function AIGovernanceTab({ runs }: Props) {
+const CLASSIFICATION_LABELS: Record<string, string> = {
+  industry_policy: "产业政策",
+  industry_report: "产业报告",
+  sector_report: "行业报告",
+  job_demand: "岗位需求数据",
+  competency_analysis: "职业能力分析表",
+  vocational_certificate: "职业类证书",
+  teaching_standard: "专业教学标准",
+  program_distribution: "专业布点数",
+  talent_demand_report: "专业人才需求报告",
+  talent_training_plan: "人才培养方案",
+  program_profile: "专业简介",
+};
+
+function classificationLabel(output: Record<string, unknown>): string {
+  const name = output.classification_name as string | undefined;
+  if (name) return name;
+  const code = (output.classification_code as string | undefined) ?? (output.classification as string | undefined);
+  if (!code) return "";
+  return CLASSIFICATION_LABELS[code] ?? code;
+}
+
+export function AIGovernanceTab({ runs, tagDictionary }: Props) {
   const [selected, setSelected] = useState<AIGovernanceRun | null>(null);
 
   if (runs.length === 0) {
@@ -28,6 +52,7 @@ export function AIGovernanceTab({ runs }: Props) {
   const evidenceRefs = Array.isArray(aiOutput.evidence_refs)
     ? (aiOutput.evidence_refs as Record<string, unknown>[])
     : [];
+  const classification = classificationLabel(aiOutput);
 
   return (
     <div className="grid gap-4">
@@ -67,8 +92,8 @@ export function AIGovernanceTab({ runs }: Props) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <div className="text-xs text-muted mb-1">分类建议</div>
-            {(aiOutput.classification as string)
-              ? <Tag>{(aiOutput.classification as string)}</Tag>
+            {classification
+              ? <Tag>{classification}</Tag>
               : <span className="text-muted">-</span>}
           </div>
           <div>
@@ -87,7 +112,7 @@ export function AIGovernanceTab({ runs }: Props) {
             <div className="text-xs text-muted mb-1">标签建议</div>
             <div className="flex gap-1 flex-wrap">
               {Array.isArray(aiOutput.tags) && (aiOutput.tags as string[]).length > 0
-                ? (aiOutput.tags as string[]).map((t) => <Tag key={t}>{t}</Tag>)
+                ? (aiOutput.tags as string[]).map((t) => <Tag key={t}>{tagLabel(t, tagDictionary)}</Tag>)
                 : <span className="text-muted text-sm">-</span>}
             </div>
           </div>

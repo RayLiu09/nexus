@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { tagLabel, type TagDictionary } from "@/lib/tagLabels";
 import { Tabs, Tag, Progress, Empty } from "antd";
 import { StatusLabel } from "@/components/StatusLabel";
 import { ConfidenceBadge } from "@/components/ConfidenceBadge";
@@ -30,7 +31,31 @@ type Props = {
   governanceRunsTraceId?: string | null;
   rawObjectNames?: Map<string, string>;
   dataSourceName?: string | null;
+  tagDictionary: TagDictionary;
 };
+
+
+const CLASSIFICATION_LABELS: Record<string, string> = {
+  industry_policy: "产业政策",
+  industry_report: "产业报告",
+  sector_report: "行业报告",
+  job_demand: "岗位需求数据",
+  competency_analysis: "职业能力分析表",
+  vocational_certificate: "职业类证书",
+  teaching_standard: "专业教学标准",
+  program_distribution: "专业布点数",
+  talent_demand_report: "专业人才需求报告",
+  talent_training_plan: "人才培养方案",
+  program_profile: "专业简介",
+};
+
+function classificationLabel(output: Record<string, unknown>): string {
+  const name = output.classification_name as string | undefined;
+  if (name) return name;
+  const code = (output.classification_code as string | undefined) ?? (output.classification as string | undefined);
+  if (!code) return "";
+  return CLASSIFICATION_LABELS[code] ?? code;
+}
 
 const TABS = [
   { key: "lineage", label: "血缘追溯" },
@@ -50,7 +75,7 @@ function LineageTab({
   relatedArtifact,
   rawObjectNames,
   dataSourceName,
-}: Omit<Props, "versions" | "governanceRuns" | "latestGovernanceResult" | "governanceRunsOk" | "governanceRunsError" | "governanceRunsTraceId">) {
+}: Omit<Props, "versions" | "governanceRuns" | "latestGovernanceResult" | "governanceRunsOk" | "governanceRunsError" | "governanceRunsTraceId" | "tagDictionary">) {
   return (
     <>
       {/* Flow diagram */}
@@ -171,12 +196,14 @@ function AIGovernanceTab({
   runsOk = true,
   runsError = null,
   runsTraceId = null,
+  tagDictionary,
 }: {
   runs: AIGovernanceRun[];
   result?: GovernanceResult | null;
   runsOk?: boolean;
   runsError?: string | null;
   runsTraceId?: string | null;
+  tagDictionary: TagDictionary;
 }) {
   const [selected, setSelected] = useState<AIGovernanceRun | null>(null);
 
@@ -203,6 +230,7 @@ function AIGovernanceTab({
   const evidenceRefs = Array.isArray(aiOutput.evidence_refs)
     ? (aiOutput.evidence_refs as Record<string, unknown>[])
     : [];
+  const classification = classificationLabel(aiOutput);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
@@ -255,8 +283,8 @@ function AIGovernanceTab({
           <div className="detail-grid">
             <div>
               <span>分类建议</span>
-              {(aiOutput.classification as string) ? (
-                <Tag color="blue">{aiOutput.classification as string}</Tag>
+              {classification ? (
+                <Tag color="blue">{classification}</Tag>
               ) : (
                 <span className="text-muted">-</span>
               )}
@@ -279,7 +307,7 @@ function AIGovernanceTab({
               <span>标签建议</span>
               <div className="flex flex-wrap gap-1">
                 {Array.isArray(aiOutput.tags) && (aiOutput.tags as string[]).length > 0 ? (
-                  (aiOutput.tags as string[]).map((t) => <Tag key={t}>{t}</Tag>)
+                  (aiOutput.tags as string[]).map((t) => <Tag key={t}>{tagLabel(t, tagDictionary)}</Tag>)
                 ) : (
                   <span className="text-muted text-sm">-</span>
                 )}
@@ -550,6 +578,7 @@ export function AssetDetailTabs({
   governanceRunsTraceId,
   rawObjectNames,
   dataSourceName,
+  tagDictionary,
 }: Props) {
   const [activeTab, setActiveTab] = useState("lineage");
 
@@ -609,6 +638,7 @@ export function AssetDetailTabs({
             runsOk={governanceRunsOk}
             runsError={governanceRunsError}
             runsTraceId={governanceRunsTraceId}
+            tagDictionary={tagDictionary}
           />
         )}
         {activeTab === "quality" && (

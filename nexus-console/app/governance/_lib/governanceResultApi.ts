@@ -12,7 +12,7 @@ export function fetchGovernanceResultForRef(
   // 注意：后端在没有 GovernanceResult 时返回 404，这里通过 fallback=null 兜底；
   // ApiResult.ok=false 即视为暂无 decision_trail。
   return getApiData<GovernanceResultRead | null>(
-    `/internal/v1/normalized-refs/${encodeURIComponent(refId)}/governance-result?view=${view}`,
+    `/api/normalized-refs/${encodeURIComponent(refId)}/governance-result?view=${view}`,
     null,
   );
 }
