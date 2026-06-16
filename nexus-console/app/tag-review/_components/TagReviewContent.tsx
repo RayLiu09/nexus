@@ -218,10 +218,16 @@ export default function TagReviewContent({
   // ── 自动提交历史列 ──
   const committedColumns: ColumnsType<CommittedTag> = [
     {
-      title: "normalized_ref",
-      dataIndex: "normalizedRefId",
-      render: (id: string) => (
-        <code style={{ fontSize: 12, fontFamily: "var(--font-mono)" }}>{id}</code>
+      title: "数据资产",
+      width: 180,
+      render: (_: unknown, record: CommittedTag) => (
+        <span className="text-sm font-medium">
+          {record.assetTitle ?? (
+            <code className="text-xs" style={{ fontFamily: "var(--font-mono)" }}>
+              {record.normalizedRefId.slice(0, 12)}
+            </code>
+          )}
+        </span>
       ),
     },
     {

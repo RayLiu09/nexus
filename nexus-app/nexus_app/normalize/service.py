@@ -39,6 +39,17 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_LANGUAGE = "zh-CN"
 _DEFAULT_LLM_MODEL_ALIAS = "nexus-normalize-default"
+# Snippet is the deterministic raw extract used by has_content / content_length_adequate
+# governance checks. Kept short to bound JSONB size in NormalizedAssetRef.metadata_summary.
+_CONTENT_SNIPPET_MAX_CHARS = 2000
+# Summary is LLM-generated; bounded to keep prompt cost predictable and storage small.
+_SUMMARY_MAX_CHARS = 600
+# Upper bound on body_markdown sent to LLM for summary generation.
+# Sized to comfortably hold an entire ~500-page textbook (CJK avg ≈ 600–800 chars/page,
+# so ~400k chars covers the long-tail without truncating real-world inputs). The
+# gateway-side LiteLLM alias is responsible for routing to a long-context model
+# (≥1M tokens) — on alias mismatch the call fails and we fall back to snippet head.
+_SUMMARY_INPUT_MAX_CHARS = 400_000
 
 
 class NormalizeContractError(Exception):
@@ -107,7 +118,12 @@ class NormalizeService:
         # 2. Rule-engine fallback: supply defaults for missing fields where safe.
         enhanced = self._apply_rule_fallback(enhanced, contract)
 
-        # 3. Validate against contract. Issues are returned (not raised) so callers
+        # 3. Derive metadata.content_snippet + metadata.summary so downstream
+        #    AI governance has the inputs it needs (has_content / content_length_adequate
+        #    quality checks read content_snippet; summary is shown in the asset UI).
+        enhanced = self._inject_summary_and_snippet(enhanced)
+
+        # 4. Validate against contract. Issues are returned (not raised) so callers
         #    can decide whether to proceed with degraded payload or escalate.
         issues = self._validate(enhanced, contract, classification_hint)
 
@@ -164,6 +180,104 @@ class NormalizeService:
         if "record_body" in payload:
             return json.dumps(payload["record_body"], ensure_ascii=False)[:limit]
         return ""
+
+    # ------------------------------------------------------------------
+    # Summary + content_snippet derivation
+    # ------------------------------------------------------------------
+    def _inject_summary_and_snippet(
+        self, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Generate summary (LLM) + content_snippet (deterministic) into payload.metadata.
+
+        Both fields end up persisted in NormalizedAssetRef.metadata_summary via
+        _persist_normalized_ref, where AI governance _build_ref_dict() reads them.
+
+        - content_snippet: cheap, reliable, used by has_content / content_length_adequate
+          quality checks. Never empty when body content exists.
+        - summary: LLM-generated semantic abstract; falls back to snippet head when LLM
+          unavailable. Surfaced to the asset detail UI.
+        """
+        enhanced = dict(payload)
+        metadata = dict(enhanced.get("metadata") or {})
+
+        body_text = self._derive_body_text(enhanced)
+        snippet = self._derive_snippet(body_text)
+
+        if snippet and not metadata.get("content_snippet"):
+            metadata["content_snippet"] = snippet
+
+        if not metadata.get("summary"):
+            summary = self._derive_summary(body_text, fallback=snippet)
+            if summary:
+                metadata["summary"] = summary
+
+        if metadata:
+            enhanced["metadata"] = metadata
+        return enhanced
+
+    @staticmethod
+    def _derive_body_text(payload: dict[str, Any]) -> str:
+        """Pick the canonical body text for snippet/summary derivation.
+
+        Pipeline A (document) → body_markdown.
+        Pipeline B (record)   → JSON-serialised record_body.
+        """
+        body = payload.get("body_markdown")
+        if isinstance(body, str) and body.strip():
+            return body
+        record_body = payload.get("record_body")
+        if record_body:
+            try:
+                return json.dumps(record_body, ensure_ascii=False, default=str)
+            except (TypeError, ValueError):
+                return str(record_body)
+        return ""
+
+    @staticmethod
+    def _derive_snippet(body_text: str) -> str:
+        """Collapse whitespace and truncate to a bounded snippet."""
+        if not body_text:
+            return ""
+        # Collapse runs of whitespace so the snippet doesn't waste characters on
+        # markdown indentation; this is purely for snippet — the full body
+        # remains untouched in the normalized payload.
+        collapsed = re.sub(r"\s+", " ", body_text).strip()
+        return collapsed[:_CONTENT_SNIPPET_MAX_CHARS]
+
+    def _derive_summary(self, body_text: str, *, fallback: str) -> str:
+        """LLM-based semantic summary; degrade gracefully to truncated snippet."""
+        if not body_text:
+            return ""
+        if self._llm is None:
+            return fallback[:_SUMMARY_MAX_CHARS]
+        try:
+            messages = [
+                {"role": "system", "content": _SUMMARY_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": _SUMMARY_USER_PROMPT_TEMPLATE.format(
+                        max_chars=_SUMMARY_MAX_CHARS,
+                        body=body_text[:_SUMMARY_INPUT_MAX_CHARS],
+                    ),
+                },
+            ]
+            content, _summary = self._llm.call(
+                self._llm_model_alias,
+                messages,
+                temperature=0.2,
+                max_tokens=512,
+            )
+        except LiteLLMCallError as exc:
+            logger.warning("normalize summary LLM call failed: %s — falling back to snippet head", exc)
+            return fallback[:_SUMMARY_MAX_CHARS]
+        except Exception as exc:  # noqa: BLE001 defensive: summary must never break normalize
+            logger.warning("normalize summary unexpected error: %s — falling back", exc)
+            return fallback[:_SUMMARY_MAX_CHARS]
+
+        summary = (content or "").strip()
+        if not summary:
+            return fallback[:_SUMMARY_MAX_CHARS]
+        return summary[:_SUMMARY_MAX_CHARS]
 
     @staticmethod
     def _merge_llm_output(
@@ -287,4 +401,19 @@ _SYSTEM_PROMPT = (
     "You are a normalization assistant. Extract the requested fields from the user-supplied "
     "content snippet and return ONLY a JSON object with those fields. Do not invent content; "
     "if a field cannot be inferred, omit it from the response."
+)
+
+_SUMMARY_SYSTEM_PROMPT = (
+    "你是企业数据资产平台的摘要助手。请基于用户提供的文档正文 Markdown，"
+    "生成一段忠实于原文、语义完整的中文摘要，作为该资产的 summary 字段供检索与人工审查使用。\n"
+    "硬约束：\n"
+    "1. 仅输出摘要纯文本，不要前缀、不要 Markdown 标题、不要列表、不要引号包裹。\n"
+    "2. 不臆造未在正文中出现的事实、数字或结论。\n"
+    "3. 字数不超过给定上限。\n"
+    "4. 若正文为表格或结构化片段，给出整体主题与覆盖范围，而非逐条复述。"
+)
+
+_SUMMARY_USER_PROMPT_TEMPLATE = (
+    "请基于下列文档正文生成不超过 {max_chars} 字的中文摘要，仅输出摘要本身。\n"
+    "<<<\n{body}\n>>>"
 )

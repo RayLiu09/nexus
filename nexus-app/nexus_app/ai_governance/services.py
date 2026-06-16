@@ -1168,11 +1168,24 @@ class AIGovernanceService:
 
     @staticmethod
     def _build_ref_dict(ref: models.NormalizedAssetRef) -> dict[str, Any]:
+        summary = (ref.metadata_summary or {}).get("summary", "")
+        content_snippet = (ref.metadata_summary or {}).get("content_snippet", "")
+        # Compatibility for historical refs created before normalize started
+        # writing summary/content_snippet into metadata_summary: fetch the
+        # normalized payload from object storage and derive a snippet from
+        # body_markdown / record_body. Failures are swallowed so governance
+        # still proceeds with the original (possibly empty) values.
+        if not content_snippet:
+            fetched = AIGovernanceService._fetch_snippet_fallback(ref)
+            if fetched:
+                content_snippet = fetched
+        if not summary and content_snippet:
+            summary = content_snippet[:600]
         return {
             "title": ref.title,
-            "summary": (ref.metadata_summary or {}).get("summary", ""),
+            "summary": summary,
             "schema_version": ref.schema_version,
-            "content_snippet": (ref.metadata_summary or {}).get("content_snippet", ""),
+            "content_snippet": content_snippet,
             "source_type_hint": ref.source_type,
             "sensitivity_summary": (ref.governance or {}).get("sensitivity_summary", ""),
             "org_context": (ref.governance or {}).get("org_scope", ""),
@@ -1180,6 +1193,44 @@ class AIGovernanceService:
             "language": ref.language,
             "normalized_type": ref.normalized_type.value if ref.normalized_type else None,
         }
+
+    @staticmethod
+    def _fetch_snippet_fallback(ref: models.NormalizedAssetRef) -> str:
+        """Pull body text from the normalized payload object when snippet is missing.
+
+        Used only as a compatibility path for historical refs. Errors are logged
+        and swallowed; the caller proceeds with an empty snippet (and governance
+        records "Missing content" as before).
+        """
+        object_uri = ref.object_uri
+        if not object_uri or object_uri == "pending":
+            return ""
+        try:
+            from nexus_app.storage import get_object_storage
+
+            storage = get_object_storage()
+            key = object_uri.split("/", 3)[-1] if object_uri.startswith("s3://") else object_uri
+            raw_bytes = storage.get_bytes(key)
+            payload = json.loads(raw_bytes.decode("utf-8"))
+        except Exception as exc:  # noqa: BLE001 defensive: never let fallback break governance
+            logger.warning(
+                "Normalized payload fetch failed for ref %s (%s); proceeding without snippet",
+                ref.id, exc,
+            )
+            return ""
+
+        body = payload.get("body_markdown")
+        if isinstance(body, str) and body.strip():
+            collapsed = re.sub(r"\s+", " ", body).strip()
+            return collapsed[:2000]
+        record_body = payload.get("record_body")
+        if record_body:
+            try:
+                text = json.dumps(record_body, ensure_ascii=False, default=str)
+            except (TypeError, ValueError):
+                text = str(record_body)
+            return re.sub(r"\s+", " ", text).strip()[:2000]
+        return ""
 
     @staticmethod
     def _build_messages(

@@ -35,6 +35,7 @@ export function GovernanceContent({
 }) {
   const [drawerRun, setDrawerRun] = useState<GovernanceRun | null>(null);
   const [trailRefId, setTrailRefId] = useState<string | null>(null);
+  const [trailRun, setTrailRun] = useState<GovernanceRun | null>(null);
   const { message } = App.useApp();
   const stats = deriveStats(runs);
 
@@ -74,7 +75,7 @@ export function GovernanceContent({
     {
       key: "trail",
       label: "决策追踪",
-      children: <DecisionTrailTab runs={runs} onOpenTrail={setTrailRefId} />,
+      children: <DecisionTrailTab runs={runs} onOpenTrail={(refId, run) => { setTrailRefId(refId); setTrailRun(run ?? null); }} />,
     },
   ];
 
@@ -129,8 +130,9 @@ export function GovernanceContent({
       <DecisionTrailDrawer
         open={trailRefId !== null}
         normalizedRefId={trailRefId}
-        onClose={() => setTrailRefId(null)}
+        onClose={() => { setTrailRefId(null); setTrailRun(null); }}
         tagDictionary={tagDictionary}
+        fallbackTags={trailRun?.ai_output?.tags}
       />
     </>
   );

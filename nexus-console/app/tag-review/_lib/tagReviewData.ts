@@ -14,6 +14,7 @@ export interface CommittedTag {
   tags: string[];
   confidence: number;
   committedAt: string;
+  assetTitle?: string;
 }
 
 function extractTags(run: AIGovernanceRun): string[] {

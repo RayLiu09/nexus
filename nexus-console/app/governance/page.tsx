@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function GovernancePage() {
   const [result, rulesResult] = await Promise.all([
-    getApiData<GovernanceRun[]>("/internal/v1/ai/governance-runs", []),
+    getApiData<GovernanceRun[]>("/internal/v1/ai/governance-runs", [], { pageSize: "100" }),
     getApiData<{ tags?: TagDictionaryEntry[] }>("/internal/v1/admin/governance-rules", {}),
   ]);
   const tagDictionary = buildTagDictionary(rulesResult.data.tags);

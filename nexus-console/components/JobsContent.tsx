@@ -88,12 +88,13 @@ export function JobsContent({ jobs: initialJobs, stages, rawObjectNames, totalCo
 
   const hasActiveJobs = jobs.some((j) => j.status === "running" || j.status === "queued");
 
-  // Auto-refresh every 15 seconds while polling is active and there are active jobs
+  // Auto-refresh: 15s when active jobs exist, 60s otherwise (catch new submissions)
   useEffect(() => {
-    if (pollingState !== "active" || !hasActiveJobs) return;
+    if (pollingState !== "active") return;
+    const interval = hasActiveJobs ? 15_000 : 60_000;
     const id = setInterval(() => {
       router.refresh();
-    }, 15_000);
+    }, interval);
     return () => clearInterval(id);
   }, [pollingState, hasActiveJobs, router]);
 

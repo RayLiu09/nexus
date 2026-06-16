@@ -14,7 +14,7 @@ export function DecisionTrailTab({
   onOpenTrail,
 }: {
   runs: GovernanceRun[];
-  onOpenTrail: (refId: string) => void;
+  onOpenTrail: (refId: string, run?: GovernanceRun) => void;
 }) {
   const decided = runs.filter(
     (r) =>
@@ -71,7 +71,7 @@ export function DecisionTrailTab({
       title: "",
       width: 110,
       render: (_: unknown, r: GovernanceRun) => (
-        <Button type="link" size="small" onClick={() => onOpenTrail(r.normalized_ref_id)}>
+        <Button type="link" size="small" onClick={() => onOpenTrail(r.normalized_ref_id, r)}>
           决策追踪
         </Button>
       ),

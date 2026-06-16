@@ -227,6 +227,9 @@ function AIGovernanceTab({
     level: result?.level ?? undefined,
     tags: result?.tags ?? [],
   };
+  // Merge tags: prefer run output, fall back to committed result tags
+  const runTags = Array.isArray(aiOutput.tags) ? (aiOutput.tags as string[]) : [];
+  const displayTags = runTags.length > 0 ? runTags : (result?.tags ?? []);
   const evidenceRefs = Array.isArray(aiOutput.evidence_refs)
     ? (aiOutput.evidence_refs as Record<string, unknown>[])
     : [];
@@ -306,8 +309,8 @@ function AIGovernanceTab({
             <div>
               <span>标签建议</span>
               <div className="flex flex-wrap gap-1">
-                {Array.isArray(aiOutput.tags) && (aiOutput.tags as string[]).length > 0 ? (
-                  (aiOutput.tags as string[]).map((t) => <Tag key={t}>{tagLabel(t, tagDictionary)}</Tag>)
+                {displayTags.length > 0 ? (
+                  displayTags.map((t) => <Tag key={t}>{tagLabel(t, tagDictionary)}</Tag>)
                 ) : (
                   <span className="text-muted text-sm">-</span>
                 )}
@@ -360,7 +363,28 @@ function AIGovernanceTab({
           </div>
           <div className="card-body">
             <div className="detail-grid">
-              <div><span>治理结果</span><strong>{result.status}</strong></div>
+              <div>
+                <span>数据分类</span>
+                {result.classification ? (
+                  <Tag color="blue">{classificationLabel({ classification: result.classification })}</Tag>
+                ) : (
+                  <span className="text-muted">-</span>
+                )}
+              </div>
+              <div>
+                <span>数据分级</span>
+                {result.level ? <Tag>{result.level}</Tag> : <span className="text-muted">-</span>}
+              </div>
+              <div>
+                <span>标签</span>
+                <div className="flex flex-wrap gap-1">
+                  {result.tags.length > 0 ? (
+                    result.tags.map((t) => <Tag key={t}>{tagLabel(t, tagDictionary)}</Tag>)
+                  ) : (
+                    <span className="text-muted text-sm">-</span>
+                  )}
+                </div>
+              </div>
               <div><span>组织范围</span><strong>{result.org_scope ?? "-"}</strong></div>
               <div><span>索引准入</span><strong>{result.index_admission ? "允许" : "不允许"}</strong></div>
               <div><span>结果ID</span><strong className="mono-cell">{shortId(result.id)}</strong></div>

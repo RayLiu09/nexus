@@ -28,6 +28,7 @@ from nexus_app.ingest.config_loader import (
 )
 from nexus_app.mineru import MinerUAdapter, get_mineru_adapter
 from nexus_app.models import utcnow
+from nexus_app.normalize.service import NormalizeService
 from nexus_app.pipeline.context import PipelineContext
 from nexus_app.pipeline.payload_schema import SUPPORTED_JOB_PAYLOAD_VERSIONS
 from nexus_app.pipeline.stages import (
@@ -77,6 +78,28 @@ def _classify_error(exc: Exception) -> str:
 def _release_lock(job: models.Job) -> None:
     job.locked_by = None
     job.lock_expires_at = None
+
+
+def _build_normalize_service(settings: Settings) -> NormalizeService:
+    """Construct NormalizeService for the worker.
+
+    When LiteLLM is configured we attach the default client so the service can
+    perform LLM-based summary generation and field extraction. When LiteLLM is
+    unavailable we still return a NormalizeService (without LLM client) so the
+    deterministic snippet/summary fallback and rule-engine validation still run.
+    """
+    try:
+        from nexus_app.ai_governance.services import _create_default_litellm_client
+
+        llm_client = _create_default_litellm_client(settings)
+    except Exception as exc:  # noqa: BLE001 defensive: never fail pipeline boot on LiteLLM config
+        logger.warning(
+            "NormalizeService LiteLLM client unavailable, running without LLM enhancement: %s",
+            exc,
+        )
+        llm_client = None
+    model_alias = settings.default_normalize_model or settings.default_governance_model
+    return NormalizeService(llm_client=llm_client, llm_model_alias=model_alias)
 
 
 def _add_failure_stage(session: Session, job: models.Job, stage_name: str, reason: str) -> None:
@@ -448,6 +471,7 @@ def execute_job(
         trace_id=trace_id,
         pipeline_type=pipeline_type,
         image_analyzer=image_analyzer if pipeline_type == PipelineType.DOCUMENT else None,
+        normalize_service=_build_normalize_service(settings),
     )
 
     # Stage 1: assetize — failures here are rolled back (no significant partial state)

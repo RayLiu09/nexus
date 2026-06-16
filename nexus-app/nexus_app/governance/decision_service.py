@@ -19,7 +19,11 @@ from nexus_app import models
 from nexus_app.ai_governance.rules_config import GovernanceRulesConfig
 from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
 from nexus_app.audit import write_audit
-from nexus_app.enums import AuditEventType, GovernanceResultStatus
+from nexus_app.enums import (
+    AIGovernanceRunAdoptionStatus,
+    AuditEventType,
+    GovernanceResultStatus,
+)
 from nexus_app.governance.schemas import AdoptionStatus, DecisionTrailEntry
 
 logger = logging.getLogger(__name__)
@@ -99,6 +103,12 @@ class GovernanceDecisionService:
             trace_id=trace_id,
         )
         session.add(result)
+
+        # Move the AI run out of pending_rule_guardrail now that the decision
+        # service has produced a result. Without this the workbench "待人工复核"
+        # filter — which keys on `run.adoption_status === pending_rule_guardrail`
+        # — would keep showing every historical run forever.
+        ai_run.adoption_status = self._derive_run_adoption_status(trail, overall_status)
         session.flush()
 
         write_audit(
@@ -111,11 +121,29 @@ class GovernanceDecisionService:
                 "normalized_ref_id": ai_run.normalized_ref_id,
                 "ai_run_id": ai_run.id,
                 "status": overall_status.value,
+                "ai_run_adoption_status": ai_run.adoption_status.value,
                 "rules_schema_version": rules_snapshot["schema_version"],
             },
             actor_id=user_id,
         )
         return result
+
+    @staticmethod
+    def _derive_run_adoption_status(
+        trail: list[DecisionTrailEntry],
+        overall_status: GovernanceResultStatus,
+    ) -> AIGovernanceRunAdoptionStatus:
+        """Project the decision trail onto the AI run adoption enum.
+
+        - Any entry rejected → run rejected.
+        - Otherwise any review_required entry (or overall review_required) → review_required.
+        - Otherwise → auto_adopted.
+        """
+        if any(e.adoption_status == "rejected" for e in trail):
+            return AIGovernanceRunAdoptionStatus.REJECTED
+        if overall_status == GovernanceResultStatus.REVIEW_REQUIRED:
+            return AIGovernanceRunAdoptionStatus.REVIEW_REQUIRED
+        return AIGovernanceRunAdoptionStatus.AUTO_ADOPTED
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -269,6 +297,7 @@ class GovernanceDecisionService:
         score = float(quality_summary.get("quality_score", 0))
         quality_level = quality_summary.get("quality_level", "fail")
         confidence = float(quality_summary.get("confidence", 0))
+        blocking_reasons = quality_summary.get("blocking_reasons") or []
         thresholds = config.quality_scoring.thresholds
 
         checks: dict[str, Any] = {
@@ -277,7 +306,26 @@ class GovernanceDecisionService:
             "review_required_below": thresholds.review_required_below,
             "actual_score": score,
             "actual_level": quality_level,
+            "blocking_reasons": list(blocking_reasons),
         }
+
+        # Any blocking check (severity=blocking, status=fail) forces review_required
+        # regardless of quality_level / score — otherwise warning-level results can
+        # slip through with non-empty blocking_reasons and end up "available", which
+        # is the state inconsistency we hit on ref 31df3090...84bd.
+        if blocking_reasons:
+            return DecisionTrailEntry(
+                field_name="quality",
+                ai_suggestion=score,
+                ai_confidence=confidence,
+                threshold_check=checks,
+                final_value=score,
+                adoption_status="review_required",
+                review_reason=(
+                    "blocking quality checks failed: "
+                    + "; ".join(str(r) for r in blocking_reasons)
+                ),
+            )
 
         if quality_level == "fail":
             return DecisionTrailEntry(

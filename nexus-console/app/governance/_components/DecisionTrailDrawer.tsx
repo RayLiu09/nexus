@@ -36,6 +36,25 @@ import type {
 import { fetchGovernanceResultForRef } from "../_lib/governanceResultApi";
 import { tagLabel, type TagDictionary } from "@/lib/tagLabels";
 
+const CLASS_LABELS: Record<string, string> = {
+  industry_policy: "产业政策",
+  industry_report: "产业报告",
+  sector_report: "行业报告",
+  job_demand: "岗位需求数据",
+  competency_analysis: "职业能力分析表",
+  vocational_certificate: "职业类证书",
+  teaching_standard: "专业教学标准",
+  program_distribution: "专业布点数",
+  talent_demand_report: "专业人才需求报告",
+  talent_training_plan: "人才培养方案",
+  program_profile: "专业简介",
+};
+
+function classLabel(code: string | null | undefined): string {
+  if (!code) return "-";
+  return CLASS_LABELS[code] ?? code;
+}
+
 const VIEW_OPTIONS: { label: string; value: DecisionTrailView }[] = [
   { label: "完整视图", value: "full" },
   { label: "运维视图", value: "operator" },
@@ -65,9 +84,12 @@ interface DecisionTrailDrawerProps {
   normalizedRefId: string | null;
   onClose: () => void;
   tagDictionary: TagDictionary;
+  /** Fallback tags from the AI governance run's ai_output — used when
+   *  result.tags is empty (e.g. governance result hasn't been persisted). */
+  fallbackTags?: unknown;
 }
 
-export function DecisionTrailDrawer({ open, normalizedRefId, onClose, tagDictionary }: DecisionTrailDrawerProps) {
+export function DecisionTrailDrawer({ open, normalizedRefId, onClose, tagDictionary, fallbackTags }: DecisionTrailDrawerProps) {
   const [view, setView] = useState<DecisionTrailView>("full");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<GovernanceResultRead | null>(null);
@@ -118,7 +140,7 @@ export function DecisionTrailDrawer({ open, normalizedRefId, onClose, tagDiction
         />
       }
     >
-      <DrawerBody loading={loading} error={error} view={view} result={result} tagDictionary={tagDictionary} />
+      <DrawerBody loading={loading} error={error} view={view} result={result} tagDictionary={tagDictionary} fallbackTags={fallbackTags} />
     </Drawer>
   );
 }
@@ -129,9 +151,10 @@ interface DrawerBodyProps {
   view: DecisionTrailView;
   result: GovernanceResultRead | null;
   tagDictionary: TagDictionary;
+  fallbackTags?: unknown;
 }
 
-function DrawerBody({ loading, error, view, result, tagDictionary }: DrawerBodyProps) {
+function DrawerBody({ loading, error, view, result, tagDictionary, fallbackTags }: DrawerBodyProps) {
   if (loading) {
     return <Skeleton active paragraph={{ rows: 6 }} />;
   }
@@ -146,11 +169,18 @@ function DrawerBody({ loading, error, view, result, tagDictionary }: DrawerBodyP
     );
   }
 
+  // Merge tags: prefer committed result tags, fall back to AI run output tags
+  const resolvedTags: string[] = (() => {
+    if (result.tags.length > 0) return result.tags;
+    if (Array.isArray(fallbackTags)) return fallbackTags.filter((t): t is string => typeof t === "string");
+    return [];
+  })();
+
   const trail = result.decision_trail ?? [];
 
   return (
     <Space orientation="vertical" size="large" className="w-full">
-      <OutcomeSummary result={result} tagDictionary={tagDictionary} />
+      <OutcomeSummary result={{ ...result, tags: resolvedTags }} tagDictionary={tagDictionary} />
 
       {view === "public" ? (
         <Alert
@@ -165,7 +195,7 @@ function DrawerBody({ loading, error, view, result, tagDictionary }: DrawerBodyP
           items={trail.map((entry, i) => ({
             key: `${entry.field_name}-${i}`,
             color: ADOPTION_META[entry.adoption_status]?.color ?? "blue",
-            children: <TrailItem entry={entry} view={view} tagDictionary={tagDictionary} />,
+            content: <TrailItem entry={entry} view={view} tagDictionary={tagDictionary} />,
           }))}
         />
       )}
@@ -177,7 +207,7 @@ function OutcomeSummary({ result, tagDictionary }: { result: GovernanceResultRea
   return (
     <Descriptions size="small" bordered column={2}>
       <Descriptions.Item label="数据分类">
-        {result.classification ? <Tag color="purple">{result.classification}</Tag> : "-"}
+        {result.classification ? <Tag color="purple">{classLabel(result.classification)}</Tag> : "-"}
       </Descriptions.Item>
       <Descriptions.Item label="数据分级">
         {result.level ? <Tag>{result.level}</Tag> : "-"}
@@ -254,8 +284,9 @@ function TrailItem({ entry, view, tagDictionary }: { entry: DecisionTrailEntry; 
 }
 
 function ValueChip({ value, fieldName, tagDictionary }: { value: unknown; fieldName?: DecisionField; tagDictionary: TagDictionary }) {
-  if (value === null || value === undefined) return <span>-</span>;
+  if (value === null || value === undefined) return <span className="text-muted">-</span>;
   if (Array.isArray(value)) {
+    if (value.length === 0) return <span className="text-muted">-</span>;
     return (
       <Space size={4} wrap>
         {(value as unknown[]).map((v, i) => (

@@ -79,21 +79,21 @@ export default async function JobsPage({ searchParams }: JobsPageProps) {
           <Statistic
             title="运行中"
             value={running}
-            valueStyle={running > 0 ? { color: "var(--warning-600)" } : undefined}
+            styles={{ content: running > 0 ? { color: "var(--warning-600)" } : undefined }}
           />
         </Card>
         <Card size="small" className="metric-secondary">
           <Statistic
             title="已完成"
             value={succeeded}
-            valueStyle={{ color: "var(--success-600)" }}
+            styles={{ content: { color: "var(--success-600)" } }}
           />
         </Card>
         <Card size="small" className="metric-secondary">
           <Statistic
             title="失败"
             value={failed}
-            valueStyle={failed > 0 ? { color: "var(--danger-600)" } : undefined}
+            styles={{ content: failed > 0 ? { color: "var(--danger-600)" } : undefined }}
           />
           <div className="text-text-muted mt-1 text-xs">{failed > 0 ? "需排查" : "无异常"}</div>
         </Card>

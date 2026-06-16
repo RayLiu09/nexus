@@ -55,7 +55,8 @@ export default async function WorkbenchPage() {
   const runningJobs = data.jobs.data.filter(
     (j) => j.status === "running" || j.status === "queued",
   ).length;
-  const pipelineHealth = jobCount > 0 ? Math.round((succeededJobs / jobCount) * 100) : 100;
+  const completedJobs = succeededJobs + failedJobs;
+  const pipelineHealth = completedJobs > 0 ? Math.round((succeededJobs / completedJobs) * 100) : 100;
 
   const governedRefIds = new Set(data.governanceRuns.data.map((gr) => gr.normalized_ref_id));
   const governanceCoverage = refCount > 0 ? Math.round((governedRefIds.size / refCount) * 100) : 0;

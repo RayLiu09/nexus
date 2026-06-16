@@ -87,6 +87,13 @@ class Settings(BaseSettings):
         default="gpt-4o-mini",
         alias="DEFAULT_GOVERNANCE_MODEL",
     )
+    # LLM alias used by NormalizeService for semantic field extraction and
+    # summary generation. When unset, falls back to DEFAULT_GOVERNANCE_MODEL so
+    # operators don't need to provision two separate keys in dev.
+    default_normalize_model: str | None = Field(
+        default=None,
+        alias="DEFAULT_NORMALIZE_MODEL",
+    )
 
     # ── Auth (P1 JWT) ──────────────────────────────────────────────────────
     # HS256 symmetric secret. MUST be set in production; an in-memory default is

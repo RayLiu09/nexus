@@ -70,7 +70,7 @@ export function WorkspaceContent({
           <Statistic
             title="超时"
             value={overdueCount}
-            valueStyle={overdueCount > 0 ? { color: "var(--danger-600)" } : undefined}
+            styles={{ content: overdueCount > 0 ? { color: "var(--danger-600)" } : undefined }}
           />
           <div className="text-text-muted mt-1 text-xs">&gt;48h 未处理</div>
         </Card>
@@ -78,7 +78,7 @@ export function WorkspaceContent({
           <Statistic
             title="今日待处理"
             value={todayCount}
-            valueStyle={todayCount > 0 ? { color: "var(--warning-600)" } : undefined}
+            styles={{ content: todayCount > 0 ? { color: "var(--warning-600)" } : undefined }}
           />
           <div className="text-text-muted mt-1 text-xs">24-48h</div>
         </Card>

@@ -47,7 +47,7 @@ export function DataSourcesContent({ dataSources, syncInfoByDsId }: DataSourcesC
           <Statistic
             title="活跃连接"
             value={activeCount}
-            valueStyle={{ color: "var(--success-600)" }}
+            styles={{ content: { color: "var(--success-600)" } }}
           />
           <div className="text-text-muted mt-1 text-xs">正常同步中</div>
         </Card>

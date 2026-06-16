@@ -65,14 +65,14 @@ export function SyncControlPanel({ dataSource, relatedBatches }: SyncControlPane
           <Statistic
             title="成功率"
             value={stats.successRate === null ? "—" : `${stats.successRate}%`}
-            valueStyle={{
+            styles={{ content: {
               color: stats.successRate !== null && stats.successRate < 80 ? "var(--warning-600)" : undefined,
-            }}
+            } }}
           />
           <Statistic
             title="失败批次"
             value={stats.failed}
-            valueStyle={{ color: stats.failed > 0 ? "var(--danger-600)" : undefined }}
+            styles={{ content: { color: stats.failed > 0 ? "var(--danger-600)" : undefined } }}
           />
           <Statistic title="最近活动" value={stats.lastUpdate} />
         </div>

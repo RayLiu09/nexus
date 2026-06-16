@@ -109,7 +109,7 @@ export function WorkbenchContent({ data }: { data: WorkbenchData }) {
             <Statistic
               title="数据质量均分"
               value={avgQuality}
-              valueStyle={{ color: qualityColorVar(avgQuality) }}
+              styles={{ content: { color: qualityColorVar(avgQuality) } }}
             />
           ) : (
             <>
@@ -237,21 +237,21 @@ export function WorkbenchContent({ data }: { data: WorkbenchData }) {
           <Statistic
             title="运行中作业"
             value={runningJobs}
-            valueStyle={runningJobs === 0 ? { color: "var(--text-muted)" } : undefined}
+            styles={{ content: runningJobs === 0 ? { color: "var(--text-muted)" } : undefined }}
           />
         </Card>
         <Card size="small" className="metric-secondary">
           <Statistic
             title="处理中批次"
             value={processingBatches}
-            valueStyle={processingBatches === 0 ? { color: "var(--text-muted)" } : undefined}
+            styles={{ content: processingBatches === 0 ? { color: "var(--text-muted)" } : undefined }}
           />
         </Card>
         <Card size="small" className="metric-secondary">
           <Statistic
             title="治理队列"
             value={grCount}
-            valueStyle={grCount === 0 ? { color: "var(--text-muted)" } : undefined}
+            styles={{ content: grCount === 0 ? { color: "var(--text-muted)" } : undefined }}
           />
         </Card>
       </div>

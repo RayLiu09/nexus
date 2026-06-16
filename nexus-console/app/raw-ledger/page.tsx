@@ -67,14 +67,14 @@ export default async function RawLedgerPage({ searchParams }: RawLedgerPageProps
           <Statistic
             title="已校验"
             value={validatedCount}
-            valueStyle={{ color: "var(--success-600)" }}
+            styles={{ content: { color: "var(--success-600)" } }}
           />
         </Card>
         <Card size="small" className="metric-secondary">
           <Statistic
             title="校验失败"
             value={failedCount}
-            valueStyle={failedCount > 0 ? { color: "var(--danger-600)" } : undefined}
+            styles={{ content: failedCount > 0 ? { color: "var(--danger-600)" } : undefined }}
           />
         </Card>
         <Card size="small" className="metric-secondary">
