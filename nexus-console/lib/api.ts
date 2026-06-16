@@ -184,18 +184,41 @@ export type AssetVersion = {
   updated_at: string;
 };
 
+export type GovernanceResult = {
+  id: string;
+  normalized_ref_id: string;
+  ai_run_id: string | null;
+  classification: string | null;
+  level: string | null;
+  tags: string[];
+  org_scope: string | null;
+  index_admission: boolean;
+  quality_summary: Record<string, unknown> | null;
+  decision_trail: Record<string, unknown>[];
+  rules_schema_version: string | null;
+  rules_content_hash: string | null;
+  status: string;
+  created_by: string | null;
+  trace_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type AssetDetail = {
   asset: Asset;
   versions: AssetVersion[];
   normalized_refs: NormalizedAssetRef[];
   current_version: AssetVersion | null;
   current_normalized_ref: NormalizedAssetRef | null;
+  latest_version?: AssetVersion | null;
+  latest_normalized_ref?: NormalizedAssetRef | null;
+  latest_governance_result?: GovernanceResult | null;
 };
 
 export type AIGovernanceRun = {
   id: string;
   normalized_ref_id: string;
-  profile_id: string;
+  profile_id: string | null;
   model_alias: string;
   prompt_version: string;
   ai_output: Record<string, unknown> | null;

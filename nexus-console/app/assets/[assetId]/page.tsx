@@ -41,11 +41,11 @@ export default async function AssetDetailPage({
 
   const asset = result.data?.asset;
   const versions = result.data?.versions ?? [];
-  const latestVersion = result.data?.current_version ?? versions[0] ?? null;
-  const latestRef = result.data?.current_normalized_ref ?? result.data?.normalized_refs[0] ?? null;
+  const displayVersion = result.data?.current_version ?? result.data?.latest_version ?? versions[0] ?? null;
+  const displayRef = result.data?.current_normalized_ref ?? result.data?.latest_normalized_ref ?? result.data?.normalized_refs[0] ?? null;
   const relatedArtifact =
-    parseArtifacts.data.find((a) => a.asset_version_id === latestVersion?.id) ??
-    parseArtifacts.data.find((a) => a.raw_object_id === latestVersion?.raw_object_id);
+    parseArtifacts.data.find((a) => a.asset_version_id === displayVersion?.id) ??
+    parseArtifacts.data.find((a) => a.raw_object_id === displayVersion?.raw_object_id);
 
   // Fetch data source and raw object names in parallel
   const [dataSourceResult, rawObjectNames] = await (async () => {
@@ -68,12 +68,12 @@ export default async function AssetDetailPage({
   const dataSourceName = dataSourceResult?.ok ? dataSourceResult.data?.name ?? dataSourceResult.data?.code ?? null : null;
 
   // Fetch AI governance runs for the latest normalized ref
-  const governanceRuns = latestRef
+  const governanceRuns = displayRef
     ? await getApiData<AIGovernanceRun[]>(
-        `/internal/v1/ai/governance-runs?normalized_ref_id=${latestRef.id}`,
+        `/internal/v1/ai/governance-runs?normalized_ref_id=${displayRef.id}`,
         [],
       )
-    : { data: [], ok: true, error: null, traceId: null };
+    : { data: [], ok: true, error: null, traceId: null, total: null };
 
   return (
     <>
@@ -105,17 +105,17 @@ export default async function AssetDetailPage({
         </div>
         <div>
           <span>当前版本</span>
-          <strong className="mono-cell">{shortId(result.data?.current_version?.id)}</strong>
+          <strong className="mono-cell">{shortId(displayVersion?.id)}</strong>
         </div>
         <div>
           <span>标准化引用</span>
-          <strong className="mono-cell">{shortId(result.data?.current_normalized_ref?.id)}</strong>
+          <strong className="mono-cell">{shortId(displayRef?.id)}</strong>
         </div>
         <div>
           <span>原始对象</span>
-          <strong title={latestVersion?.raw_object_id}>
-            {latestVersion?.raw_object_id
-              ? (rawObjectNames.get(latestVersion.raw_object_id) ?? shortId(latestVersion.raw_object_id))
+          <strong title={displayVersion?.raw_object_id}>
+            {displayVersion?.raw_object_id
+              ? (rawObjectNames.get(displayVersion.raw_object_id) ?? shortId(displayVersion.raw_object_id))
               : "-"}
           </strong>
         </div>
@@ -129,12 +129,16 @@ export default async function AssetDetailPage({
 
       {/* Tabs: 血缘 / AI治理 / 质量评分 / 版本历史 */}
       <AssetDetailTabs
-        latestVersion={latestVersion}
-        latestRef={latestRef}
+        latestVersion={displayVersion}
+        latestRef={displayRef}
         relatedArtifact={relatedArtifact ?? null}
         asset={asset ?? null}
         versions={versions}
         governanceRuns={governanceRuns.data}
+        latestGovernanceResult={result.data?.latest_governance_result ?? null}
+        governanceRunsOk={governanceRuns.ok}
+        governanceRunsError={governanceRuns.error}
+        governanceRunsTraceId={governanceRuns.traceId}
         rawObjectNames={rawObjectNames}
         dataSourceName={dataSourceName}
       />

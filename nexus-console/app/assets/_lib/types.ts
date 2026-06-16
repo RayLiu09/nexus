@@ -3,11 +3,14 @@ import type { Asset } from "@/lib/api";
 export type AssetWithMeta = Asset & {
   domain?: string;
   level?: string;
-  current_version_no?: string;
-  current_normalized_ref_id?: string;
-  quality_score?: number;
-  governance_status?: string;
-  index_status?: string;
+  current_version_no?: number | null;
+  current_normalized_ref_id?: string | null;
+  latest_version_id?: string | null;
+  latest_version_no?: number | null;
+  latest_normalized_ref_id?: string | null;
+  quality_score?: number | null;
+  governance_status?: string | null;
+  index_status?: string | null;
 };
 
 // ── Stats (derived client-side, pre-aggregate-endpoint fallback) ──────────

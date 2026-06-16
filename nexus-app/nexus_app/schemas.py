@@ -384,6 +384,30 @@ class AssetRead(ORMModel):
     updated_at: datetime
 
 
+class AssetCatalogRead(AssetRead):
+    current_version_no: int | None = None
+    current_normalized_ref_id: str | None = None
+    latest_version_id: str | None = None
+    latest_version_no: int | None = None
+    latest_normalized_ref_id: str | None = None
+    domain: str | None = None
+    level: str | None = None
+    quality_score: float | None = None
+    governance_status: str | None = None
+    index_status: str | None = None
+
+
+class AssetSummaryRead(BaseModel):
+    total: int
+    available: int
+    review_required: int
+    current_normalized_refs: int
+    stale_index: int
+    l3l4: int
+    auto_adoption_rate: int
+    domain_distribution: list[dict[str, Any]]
+
+
 class AssetVersionRead(ORMModel):
     id: str
     asset_id: str
@@ -418,6 +442,9 @@ class AssetDetailRead(BaseModel):
     normalized_refs: list[NormalizedAssetRefRead]
     current_version: AssetVersionRead | None = None
     current_normalized_ref: NormalizedAssetRefRead | None = None
+    latest_version: AssetVersionRead | None = None
+    latest_normalized_ref: NormalizedAssetRefRead | None = None
+    latest_governance_result: dict[str, Any] | None = None
 
 
 class IngestFileSubmit(BaseModel):
@@ -575,7 +602,7 @@ class DataSourceScanTaskRead(BaseModel):
 class AIGovernanceRunRead(ORMModel):
     id: str
     normalized_ref_id: str
-    profile_id: str
+    profile_id: str | None
     model_alias: str
     prompt_version: str
     input_hash: str
@@ -590,6 +617,7 @@ class AIGovernanceRunRead(ORMModel):
     created_by: str | None
     trace_id: str | None
     created_at: datetime
+    updated_at: datetime
 
 
 class GovernanceResultRead(ORMModel):

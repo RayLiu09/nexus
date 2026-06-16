@@ -20,6 +20,10 @@ export interface FormattedTime {
   iso: string;
 }
 
+function isValidDate(d: Date): boolean {
+  return Number.isFinite(d.getTime());
+}
+
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
 }
@@ -32,8 +36,14 @@ function sameDay(a: Date, b: Date): boolean {
   );
 }
 
-export function formatTime(input: string | number | Date, now: Date = new Date()): FormattedTime {
+export function formatTime(input: string | number | Date | null | undefined, now: Date = new Date()): FormattedTime {
+  if (input === null || input === undefined || input === "") {
+    return { display: "-", iso: "" };
+  }
   const d = input instanceof Date ? input : new Date(input);
+  if (!isValidDate(d)) {
+    return { display: "-", iso: "" };
+  }
   const iso = d.toISOString();
   const diffMs = now.getTime() - d.getTime();
   const diffSec = Math.round(diffMs / 1000);
@@ -66,16 +76,20 @@ export function formatTime(input: string | number | Date, now: Date = new Date()
  */
 export type SlaTier = "overdue" | "today" | "normal";
 
-export function slaTier(deadline: string | number | Date, now: Date = new Date()): SlaTier {
+export function slaTier(deadline: string | number | Date | null | undefined, now: Date = new Date()): SlaTier {
+  if (deadline === null || deadline === undefined || deadline === "") return "normal";
   const d = deadline instanceof Date ? deadline : new Date(deadline);
+  if (!isValidDate(d)) return "normal";
   const diffMs = d.getTime() - now.getTime();
   if (diffMs < 0) return "overdue";
   if (diffMs < 24 * 3600 * 1000) return "today";
   return "normal";
 }
 
-export function formatSla(deadline: string | number | Date, now: Date = new Date()): string {
+export function formatSla(deadline: string | number | Date | null | undefined, now: Date = new Date()): string {
+  if (deadline === null || deadline === undefined || deadline === "") return "-";
   const d = deadline instanceof Date ? deadline : new Date(deadline);
+  if (!isValidDate(d)) return "-";
   const diffMs = d.getTime() - now.getTime();
   const abs = Math.abs(diffMs);
   const hours = Math.floor(abs / 3600_000);

@@ -14,6 +14,7 @@ import {
   type NormalizedAssetRef,
   type ParseArtifact,
   type AIGovernanceRun,
+  type GovernanceResult,
 } from "@/lib/api";
 
 type Props = {
@@ -23,6 +24,10 @@ type Props = {
   relatedArtifact: ParseArtifact | null;
   versions: AssetVersion[];
   governanceRuns: AIGovernanceRun[];
+  latestGovernanceResult?: GovernanceResult | null;
+  governanceRunsOk?: boolean;
+  governanceRunsError?: string | null;
+  governanceRunsTraceId?: string | null;
   rawObjectNames?: Map<string, string>;
   dataSourceName?: string | null;
 };
@@ -45,7 +50,7 @@ function LineageTab({
   relatedArtifact,
   rawObjectNames,
   dataSourceName,
-}: Omit<Props, "versions" | "governanceRuns">) {
+}: Omit<Props, "versions" | "governanceRuns" | "latestGovernanceResult" | "governanceRunsOk" | "governanceRunsError" | "governanceRunsTraceId">) {
   return (
     <>
       {/* Flow diagram */}
@@ -160,21 +165,54 @@ function LineageTab({
 // ---------------------------------------------------------------------------
 // AI Governance tab
 // ---------------------------------------------------------------------------
-function AIGovernanceTab({ runs }: { runs: AIGovernanceRun[] }) {
+function AIGovernanceTab({
+  runs,
+  result,
+  runsOk = true,
+  runsError = null,
+  runsTraceId = null,
+}: {
+  runs: AIGovernanceRun[];
+  result?: GovernanceResult | null;
+  runsOk?: boolean;
+  runsError?: string | null;
+  runsTraceId?: string | null;
+}) {
   const [selected, setSelected] = useState<AIGovernanceRun | null>(null);
 
-  if (runs.length === 0) {
-    return <Empty description="暂无 AI 治理记录" />;
+  if (runs.length === 0 && !result) {
+    return (
+      <>
+        {!runsOk && (
+          <div className="api-state error" style={{ marginBottom: "var(--space-3)" }}>
+            AI 治理执行记录加载失败：{runsError ?? "未知错误"}
+            {runsTraceId ? `（trace ${runsTraceId}）` : ""}
+          </div>
+        )}
+        <Empty description="暂无 AI 治理记录" />
+      </>
+    );
   }
 
-  const run = selected ?? runs[0];
-  const aiOutput = run.ai_output ?? {};
+  const run = selected ?? runs[0] ?? null;
+  const aiOutput = run?.ai_output ?? {
+    classification: result?.classification ?? undefined,
+    level: result?.level ?? undefined,
+    tags: result?.tags ?? [],
+  };
   const evidenceRefs = Array.isArray(aiOutput.evidence_refs)
     ? (aiOutput.evidence_refs as Record<string, unknown>[])
     : [];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+      {!runsOk && (
+        <div className="api-state error">
+          AI 治理执行记录加载失败：{runsError ?? "未知错误"}
+          {runsTraceId ? `（trace ${runsTraceId}）` : ""}
+        </div>
+      )}
+
       {/* Run selector */}
       {runs.length > 1 && (
         <div className="card">
@@ -208,9 +246,9 @@ function AIGovernanceTab({ runs }: { runs: AIGovernanceRun[] }) {
         <div className="card-header">
           <span className="card-title">AI 建议</span>
           <div className="flex gap-2">
-            <Tag>{run.model_alias}</Tag>
-            <Tag>{run.prompt_version}</Tag>
-            <StatusLabel value={run.adoption_status} />
+            {run ? <Tag>{run.model_alias}</Tag> : <Tag>official result</Tag>}
+            {run ? <Tag>{run.prompt_version}</Tag> : null}
+            {run ? <StatusLabel value={run.adoption_status} /> : result ? <StatusLabel value={result.status} /> : null}
           </div>
         </div>
         <div className="card-body">
@@ -286,7 +324,24 @@ function AIGovernanceTab({ runs }: { runs: AIGovernanceRun[] }) {
         </div>
       )}
 
-      {run.validation_error && (
+      {result && !run && (
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">官方治理结果</span>
+            <StatusLabel value={result.status} />
+          </div>
+          <div className="card-body">
+            <div className="detail-grid">
+              <div><span>治理结果</span><strong>{result.status}</strong></div>
+              <div><span>组织范围</span><strong>{result.org_scope ?? "-"}</strong></div>
+              <div><span>索引准入</span><strong>{result.index_admission ? "允许" : "不允许"}</strong></div>
+              <div><span>结果ID</span><strong className="mono-cell">{shortId(result.id)}</strong></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {run?.validation_error && (
         <div
           style={{
             padding: "var(--space-3)",
@@ -296,7 +351,7 @@ function AIGovernanceTab({ runs }: { runs: AIGovernanceRun[] }) {
             color: "var(--error)",
           }}
         >
-          ❌ 验证错误：{run.validation_error}
+          验证错误：{run.validation_error}
         </div>
       )}
     </div>
@@ -306,14 +361,19 @@ function AIGovernanceTab({ runs }: { runs: AIGovernanceRun[] }) {
 // ---------------------------------------------------------------------------
 // Quality Score tab
 // ---------------------------------------------------------------------------
-function QualityTab({ runs }: { runs: AIGovernanceRun[] }) {
+function QualityTab({
+  runs,
+  result,
+}: {
+  runs: AIGovernanceRun[];
+  result?: GovernanceResult | null;
+}) {
   const runWithQuality = runs.find((r) => r.quality_summary !== null);
+  const qs = runWithQuality?.quality_summary ?? result?.quality_summary ?? null;
 
-  if (!runWithQuality?.quality_summary) {
+  if (!qs) {
     return <Empty description="暂无质量评分" />;
   }
-
-  const qs = runWithQuality.quality_summary;
   const dimScores = (qs.dimension_scores as Record<string, number>) ?? {};
   const checkItems = Array.isArray(qs.check_items)
     ? (qs.check_items as Record<string, unknown>[])
@@ -484,6 +544,10 @@ export function AssetDetailTabs({
   relatedArtifact,
   versions,
   governanceRuns,
+  latestGovernanceResult,
+  governanceRunsOk,
+  governanceRunsError,
+  governanceRunsTraceId,
   rawObjectNames,
   dataSourceName,
 }: Props) {
@@ -491,7 +555,9 @@ export function AssetDetailTabs({
 
   const tabItems = TABS.map((t) => {
     const badgeCount =
-      t.key === "ai-governance" && governanceRuns.length > 0 ? governanceRuns.length : undefined;
+      t.key === "ai-governance" && (governanceRuns.length > 0 || latestGovernanceResult)
+        ? Math.max(governanceRuns.length, 1)
+        : undefined;
     return {
       key: t.key,
       label: (
@@ -536,8 +602,18 @@ export function AssetDetailTabs({
           />
         )}
         {activeTab === "preview" && <SourcePreviewSection refId={latestRef?.id ?? null} />}
-        {activeTab === "ai-governance" && <AIGovernanceTab runs={governanceRuns} />}
-        {activeTab === "quality" && <QualityTab runs={governanceRuns} />}
+        {activeTab === "ai-governance" && (
+          <AIGovernanceTab
+            runs={governanceRuns}
+            result={latestGovernanceResult}
+            runsOk={governanceRunsOk}
+            runsError={governanceRunsError}
+            runsTraceId={governanceRunsTraceId}
+          />
+        )}
+        {activeTab === "quality" && (
+          <QualityTab runs={governanceRuns} result={latestGovernanceResult} />
+        )}
         {activeTab === "versions" && <VersionsTab versions={versions} rawObjectNames={rawObjectNames} />}
       </div>
     </>
