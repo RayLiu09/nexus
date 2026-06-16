@@ -343,3 +343,46 @@ def test_asset_reversion_same_source_object_key_different_checksum(session):
     statuses = {v.version_no: v.version_status for v in versions}
     assert statuses[1] == AssetVersionStatus.ARCHIVED
     assert statuses[2] == AssetVersionStatus.PROCESSING
+
+
+def test_retry_reuses_asset_version_and_success_clears_stale_error_state(session):
+    source = create_source(session)
+    storage = InMemoryObjectStorage()
+    payload = IngestFileSubmit(
+        data_source_id=source.id,
+        idempotency_key="file-retry-reuse-001",
+        filename="retry-reuse.pdf",
+        content_type="application/pdf",
+        content_base64=base64.b64encode(b"retry reuse").decode("ascii"),
+    )
+
+    accepted = ingest_gateway.submit_file_ingest(
+        session, payload, storage=storage, trace_id="trace-retry-reuse"
+    )
+    run_worker(session, storage, FailingMinerUAdapter())
+
+    session.refresh(accepted.job)
+    session.refresh(accepted.raw_object)
+    first_versions = services.list_rows(session, models.AssetVersion)
+    assert accepted.job.status == JobStatus.QUEUED
+    assert accepted.job.last_error_message is not None
+    assert accepted.raw_object.status == "failed"
+    assert len(first_versions) == 1
+    first_version_id = first_versions[0].id
+
+    accepted.job.next_run_at = models.utcnow()
+    session.flush()
+    run_worker(session, storage, FakeMinerUAdapter())
+
+    session.refresh(accepted.job)
+    session.refresh(accepted.raw_object)
+    versions = services.list_rows(session, models.AssetVersion)
+
+    assert accepted.job.status == JobStatus.SUCCEEDED
+    assert accepted.job.last_error_code is None
+    assert accepted.job.last_error_message is None
+    assert accepted.raw_object.status == "raw_persisted"
+    assert len(versions) == 1
+    assert versions[0].id == first_version_id
+    assert versions[0].version_status == AssetVersionStatus.PROCESSING
+    assert versions[0].metadata_summary["m1_ready_for_governance"] is True

@@ -161,6 +161,47 @@ def run_assetize(
     )
 
     if existing_asset is not None:
+        retry_version = ctx.session.scalar(
+            select(models.AssetVersion)
+            .where(
+                models.AssetVersion.asset_id == existing_asset.id,
+                models.AssetVersion.raw_object_id == raw_object.id,
+                models.AssetVersion.source_checksum == raw_object.checksum,
+                models.AssetVersion.version_status.in_(
+                    [
+                        AssetVersionStatus.PROCESSING,
+                        AssetVersionStatus.FAILED,
+                        AssetVersionStatus.REVIEW_REQUIRED,
+                    ]
+                ),
+            )
+            .order_by(models.AssetVersion.version_no.desc())
+            .limit(1)
+        )
+        if retry_version is not None:
+            existing_asset.status = AssetVersionStatus.PROCESSING
+            existing_asset.title = title_from(raw_object, raw_payload)
+            retry_version.version_status = AssetVersionStatus.PROCESSING
+            retry_version.failure_reason = None
+            retry_version.metadata_summary = {
+                **(retry_version.metadata_summary or {}),
+                "m1_ready_for_governance": False,
+                "reused_for_retry": True,
+            }
+            ctx.session.flush()
+            _add_stage(
+                ctx,
+                "assetize",
+                StageStatus.SUCCEEDED,
+                {
+                    "asset_id": existing_asset.id,
+                    "version_id": retry_version.id,
+                    "version_no": retry_version.version_no,
+                    "idempotent_reuse": True,
+                },
+            )
+            return existing_asset, retry_version
+
         existing_available = ctx.session.scalars(
             select(models.AssetVersion).where(
                 models.AssetVersion.asset_id == existing_asset.id,
@@ -242,6 +283,28 @@ def run_parse(
     """
     if ctx.mineru is None:
         raise RuntimeError("run_parse called on a context without a MinerU adapter (record pipeline?)")
+
+    existing_artifact = ctx.session.scalar(
+        select(models.ParseArtifact)
+        .where(
+            models.ParseArtifact.asset_version_id == version.id,
+            models.ParseArtifact.status == ParseArtifactStatus.GENERATED,
+        )
+        .order_by(models.ParseArtifact.created_at.desc())
+        .limit(1)
+    )
+    if existing_artifact is not None:
+        _add_stage(
+            ctx,
+            "parse",
+            StageStatus.SKIPPED,
+            {
+                "reason": "parse artifact already exists (idempotent reuse)",
+                "parse_artifact_id": existing_artifact.id,
+                "artifact_uri": existing_artifact.artifact_uri,
+            },
+        )
+        return existing_artifact
 
     raw_object = ctx.raw_object
     raw_object_id = raw_object.id
@@ -579,6 +642,34 @@ def _persist_normalized_ref(
     started_at: datetime | None = None,
 ) -> models.NormalizedAssetRef:
     """Shared: back-fill IDs, store to MinIO, create NormalizedAssetRef, write audit."""
+    existing_ref = ctx.session.scalar(
+        select(models.NormalizedAssetRef)
+        .where(
+            models.NormalizedAssetRef.version_id == version.id,
+            models.NormalizedAssetRef.status == NormalizedAssetRefStatus.GENERATED,
+        )
+        .order_by(models.NormalizedAssetRef.created_at.desc())
+        .limit(1)
+    )
+    if existing_ref is not None:
+        version.metadata_summary = {
+            **(version.metadata_summary or {}),
+            "m1_ready_for_governance": True,
+            "normalized_ref_id": existing_ref.id,
+        }
+        _add_stage(
+            ctx,
+            "normalize",
+            StageStatus.SKIPPED,
+            {
+                "reason": "normalized ref already exists (idempotent reuse)",
+                "normalized_ref_id": existing_ref.id,
+                "object_uri": existing_ref.object_uri,
+            },
+            started_at=started_at,
+        )
+        return existing_ref
+
     normalized_payload["asset_id"] = version.asset_id
     normalized_payload["version_id"] = version.id
 

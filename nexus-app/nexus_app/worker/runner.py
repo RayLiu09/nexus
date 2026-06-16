@@ -482,6 +482,10 @@ def execute_job(
         job.status = JobStatus.SUCCEEDED
         job.current_stage = "completed"
         job.failure_reason = None
+        job.last_error_code = None
+        job.last_error_message = None
+        raw_object.status = RawObjectStatus.RAW_PERSISTED
+        asset.status = version.version_status
         _release_lock(job)
         _maybe_aggregate_batch(session, job)
         session.commit()

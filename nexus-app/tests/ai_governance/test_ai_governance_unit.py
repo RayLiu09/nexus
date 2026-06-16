@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import time
 import pytest
 
 from nexus_app.ai_governance.input_builder import DefaultAIInputBuilder, RedactionPolicyError
@@ -363,3 +364,129 @@ class TestQualityScoringService:
         summary = svc.generate_quality_summary(ai_out, ref)
         assert len(summary.evidence_refs) == 1
         assert summary.evidence_refs[0].field == "title"
+
+
+class TestMultiStageGovernanceAggregation:
+    def test_aggregate_accepts_legacy_field_names_and_quality_scores(self):
+        from nexus_app.ai_governance.services import AIGovernanceService
+
+        output = AIGovernanceService._aggregate_stage_outputs({
+            "classification": {
+                "classification": "D4",
+                "level": "L2",
+                "tags": ["knowledge_asset"],
+                "org_scope": "all",
+                "quality_scores": {
+                    "completeness": 85.0,
+                    "accuracy": 80.0,
+                    "consistency": 90.0,
+                    "usability": 75.0,
+                },
+                "overall_score": 83.0,
+                "confidence": 0.88,
+                "evidence_refs": [],
+            },
+            "level_assessment": {"level": "L2", "confidence": 0.88},
+            "tagging": {"tags": ["knowledge_asset"], "confidence": 0.88},
+            "knowledge_type_inference": {"confidence": 0.88},
+        })
+
+        assert output["classification"] == "D4"
+        assert output["level"] == "L2"
+        assert output["tags"] == ["knowledge_asset"]
+        assert output["quality_scores"]["completeness"] == 85.0
+        assert output["overall_score"] == 83.0
+
+    def test_quality_input_matches_scorer_contract(self, registry):
+        from nexus_app.ai_governance.services import AIGovernanceService
+
+        scoring_input = AIGovernanceService._build_quality_input(
+            {
+                "classification": "D4",
+                "quality_scores": {
+                    "completeness": 85.0,
+                    "accuracy": 80.0,
+                    "consistency": 90.0,
+                    "usability": 75.0,
+                },
+                "overall_score": 83.0,
+                "confidence": 0.88,
+                "evidence_refs": [],
+            },
+            {"level": "L2", "confidence": 0.88},
+            {"tags": ["knowledge_asset"], "confidence": 0.88},
+        )
+
+        summary = QualityScoringService(registry).generate_quality_summary(
+            scoring_input, {"title": "doc", "content_snippet": "content"}
+        )
+
+        assert summary.quality_score > 0
+        assert summary.confidence == 0.88
+
+
+class TestMultiStageParallelExecution:
+    def test_llm_stages_run_in_parallel(self, registry):
+        from nexus_app.ai_governance.services import AIGovernanceService
+        from nexus_app.ai_governance.prompt_registry import GovernancePromptRegistry
+        from nexus_app.ai_governance.litellm_client import LiteLLMCallSummary
+        from nexus_app import models
+
+        class SlowFakeClient:
+            def call(self, model_alias, messages, *, temperature=0.2, max_tokens=2048, response_format=None):
+                time.sleep(0.05)
+                content = json.dumps({
+                    "classification": "D4",
+                    "level": "L2",
+                    "tags": ["knowledge_asset"],
+                    "org_scope": "all",
+                    "quality_scores": {
+                        "completeness": 85.0,
+                        "accuracy": 80.0,
+                        "consistency": 90.0,
+                        "usability": 75.0,
+                    },
+                    "overall_score": 83.0,
+                    "evidence_refs": [],
+                    "confidence": 0.88,
+                })
+                return content, LiteLLMCallSummary(
+                    model_alias=model_alias,
+                    request_id="slow-fake",
+                    latency_ms=50.0,
+                    status="success",
+                    input_hash="h",
+                )
+
+        prompt_registry = GovernancePromptRegistry()
+        prompt_registry._loaded = True
+        prompt_registry._prompts = {
+            task: models.GovernancePromptTemplate(
+                id=f"prompt-{task}",
+                task_type=task,
+                template_name=task,
+                template_version=1,
+                status="active",
+                prompt_template="{{DOCUMENT}}",
+                output_schema_version="1.0",
+                litellm_model_alias="fake",
+                temperature=0.1,
+                max_input_tokens=256,
+                redaction_policy="metadata_only",
+            )
+            for task in ("classification", "level_assessment", "tagging", "knowledge_type_inference")
+        }
+
+        start = time.monotonic()
+        outputs = AIGovernanceService()._run_llm_stages_parallel(
+            SlowFakeClient(),
+            prompt_registry,
+            ("classification", "level_assessment", "tagging", "knowledge_type_inference"),
+            {"title": "doc"},
+            "L1",
+            registry,
+        )
+        elapsed = time.monotonic() - start
+
+        assert set(outputs) == {"classification", "level_assessment", "tagging", "knowledge_type_inference"}
+        assert elapsed < 0.16

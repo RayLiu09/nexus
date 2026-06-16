@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
@@ -21,7 +22,7 @@ from nexus_app.ai_governance.rules_config import (
 logger = logging.getLogger(__name__)
 
 
-class RulesNotLoadedError(Exception):
+class RulesNotLoadedError(RuntimeError):
     """Raised when the registry is accessed before being loaded."""
 
 
@@ -43,8 +44,14 @@ class GovernanceRulesRegistry:
     # Lifecycle
     # ------------------------------------------------------------------
 
-    def load(self, session: Session) -> GovernanceRulesConfig:
-        """Load the active governance rules from the database into memory."""
+    def load(self, session: Session | str | Path) -> GovernanceRulesConfig:
+        """Load active governance rules from DB, or a JSON file in tests/demos."""
+        if isinstance(session, (str, Path)):
+            path = Path(session)
+            return self._load_from_row(
+                f"file:{path.name}", json.loads(path.read_text(encoding="utf-8"))
+            )
+
         row = session.scalars(
             select(models.GovernanceRulesVersion)
             .where(models.GovernanceRulesVersion.status == "active")

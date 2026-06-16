@@ -110,3 +110,16 @@ class TestVersionStateManager:
             assert False, "expected StateTransitionError"
         except StateTransitionError:
             pass
+
+
+
+def test_determine_status_uses_full_admission_gate(session):
+    _, [version] = _seed_asset_with_versions(session, 1)
+    version.version_status = AssetVersionStatus.PROCESSING
+    result = _passing_result(version)
+    result.quality_summary = {"quality_level": "warning", "quality_score": 75}
+
+    assert (
+        VersionStateManager().determine_version_status(session, result)
+        == AssetVersionStatus.REVIEW_REQUIRED
+    )

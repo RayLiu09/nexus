@@ -36,8 +36,8 @@ class VersionStateManager:
         session: Session,
         governance_result: models.GovernanceResult,
     ) -> AssetVersionStatus:
-        """Determine target status from governance_result fields."""
-        if governance_result.status == GovernanceResultStatus.AVAILABLE:
+        """Determine target status using the same admission gate as the transition."""
+        if self._check_admission_criteria(governance_result):
             return AssetVersionStatus.AVAILABLE
         return AssetVersionStatus.REVIEW_REQUIRED
 

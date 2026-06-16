@@ -6,6 +6,7 @@ import json
 import logging
 import re
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from sqlalchemy import select
@@ -20,12 +21,15 @@ from nexus_app.ai_governance.litellm_client import (
     LiteLLMCallSummary,
     LiteLLMClientProtocol,
     LiteLLMErrorType,
+    LiteLLMConfig,
+    create_litellm_client,
 )
 from nexus_app.ai_governance.output_validator import AIOutputValidator, PydanticOutputValidator
 from nexus_app.ai_governance.quality_scorer import QualityScoringService
 from nexus_app.ai_governance.prompt_registry import GovernancePromptRegistry
 from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
 from nexus_app.audit import write_audit as _write_audit_raw
+from nexus_app.config import Settings, get_settings
 from nexus_app.enums import (
     AIGovernanceRunAdoptionStatus,
     AIGovernanceRunValidationStatus,
@@ -230,7 +234,7 @@ class PromptProfileService:
         validation, and quality-scoring path as official governance. It never
         inserts `ai_governance_run`, `governance_result`, or state transitions.
         """
-        client = litellm_client or FakeLiteLLMClient()
+        client = litellm_client
         builder = input_builder or DefaultAIInputBuilder()
         validator = output_validator or PydanticOutputValidator(registry=registry)
 
@@ -252,7 +256,7 @@ class PromptProfileService:
                 profile.redaction_policy,
                 sensitivity_level,
                 registry=registry,
-                model_alias=profile.litellm_model_alias,
+                model_alias=_governance_model_alias(profile.litellm_model_alias),
             )
         except RedactionPolicyError as exc:
             return _dry_run_payload(
@@ -267,9 +271,10 @@ class PromptProfileService:
 
         try:
             messages = AIGovernanceService._build_messages(profile.prompt_template, built["payload"])
+            client = client or _create_default_litellm_client()
             raw_output, call_summary, _ = AIGovernanceService._call_llm_with_retry(
                 client,
-                profile.litellm_model_alias,
+                _governance_model_alias(profile.litellm_model_alias),
                 messages,
                 temperature=profile.temperature,
                 max_tokens=profile.max_input_tokens,
@@ -382,6 +387,31 @@ def _dry_run_payload(
     }
 
 
+def _create_default_litellm_client(settings: Settings | None = None) -> LiteLLMClientProtocol:
+    current = settings or get_settings()
+    if not current.litellm_endpoint:
+        raise AIGovernanceError(
+            "LiteLLM endpoint is not configured; set LITELLM_ENDPOINT in .env.dev"
+        )
+    if not current.litellm_api_key:
+        raise AIGovernanceError(
+            "LiteLLM API key is not configured; set LITELLM_API_KEY in .env.dev"
+        )
+    return create_litellm_client(
+        LiteLLMConfig(
+            base_url=current.litellm_endpoint.rstrip("/"),
+            api_key_ref="LITELLM_API_KEY",
+            timeout=current.litellm_timeout,
+        ),
+        current.litellm_api_key,
+    )
+
+
+def _governance_model_alias(configured_alias: str, settings: Settings | None = None) -> str:
+    current = settings or get_settings()
+    return current.default_governance_model or configured_alias
+
+
 class AIGovernanceService:
     """Runs AI governance for a normalized_asset_ref."""
 
@@ -397,7 +427,7 @@ class AIGovernanceService:
         registry: GovernanceRulesRegistry | None = None,
         user_id: str | None = None,
     ) -> models.AIGovernanceRun:
-        client = litellm_client or FakeLiteLLMClient()
+        client = litellm_client
         builder = input_builder or DefaultAIInputBuilder()
         validator = output_validator or PydanticOutputValidator(registry=registry)
         trace_id = str(uuid.uuid4())
@@ -418,7 +448,7 @@ class AIGovernanceService:
         try:
             built = builder.build(
                 ref_dict, profile.redaction_policy, sensitivity_level,
-                registry=registry, model_alias=profile.litellm_model_alias,
+                registry=registry, model_alias=_governance_model_alias(profile.litellm_model_alias),
             )
         except RedactionPolicyError as exc:
             # Policy blocked the call before any LiteLLM request — record an
@@ -433,7 +463,7 @@ class AIGovernanceService:
             run = models.AIGovernanceRun(
                 normalized_ref_id=normalized_ref_id,
                 profile_id=profile_id,
-                model_alias=profile.litellm_model_alias,
+                model_alias=_governance_model_alias(profile.litellm_model_alias),
                 prompt_version=profile.prompt_version,
                 input_hash=blocked_hash,
                 input_summary={
@@ -459,7 +489,7 @@ class AIGovernanceService:
                     "blocked_reason": "redaction_policy",
                     "level": sensitivity_level,
                     "policy": profile.redaction_policy,
-                    "model_alias": profile.litellm_model_alias,
+                    "model_alias": _governance_model_alias(profile.litellm_model_alias),
                     "error": str(exc)[:500],
                 },
             )
@@ -468,7 +498,7 @@ class AIGovernanceService:
         run = models.AIGovernanceRun(
             normalized_ref_id=normalized_ref_id,
             profile_id=profile_id,
-            model_alias=profile.litellm_model_alias,
+            model_alias=_governance_model_alias(profile.litellm_model_alias),
             prompt_version=profile.prompt_version,
             input_hash=built["input_hash"],
             input_summary=built["input_summary"],
@@ -482,9 +512,10 @@ class AIGovernanceService:
 
         try:
             messages = self._build_messages(profile.prompt_template, built["payload"])
+            client = client or _create_default_litellm_client()
             raw_output, call_summary, attempts = self._call_llm_with_retry(
                 client,
-                profile.litellm_model_alias,
+                _governance_model_alias(profile.litellm_model_alias),
                 messages,
                 temperature=profile.temperature,
                 max_tokens=profile.max_input_tokens,
@@ -563,7 +594,7 @@ class AIGovernanceService:
         All stage outputs are aggregated into a single ``AIGovernanceRun``
         record with per-stage details in ``ai_output._stages``.
         """
-        client = litellm_client or FakeLiteLLMClient()
+        client = litellm_client or _create_default_litellm_client()
         trace_id = str(uuid.uuid4())
 
         ref = session.get(models.NormalizedAssetRef, normalized_ref_id)
@@ -589,7 +620,7 @@ class AIGovernanceService:
         run = models.AIGovernanceRun(
             normalized_ref_id=normalized_ref_id,
             profile_id=None,
-            model_alias=classification_tmpl.litellm_model_alias,
+            model_alias=_governance_model_alias(classification_tmpl.litellm_model_alias),
             prompt_version=f"multi-stage/{classification_tmpl.template_version}",
             input_hash="",
             input_summary={"mode": "multi_stage", "task_types": sorted(prompt_ids)},
@@ -602,47 +633,38 @@ class AIGovernanceService:
         session.add(run)
         session.flush()
 
-        stage_outputs: dict[str, Any] = {}
-        total_latency_ms = 0.0
-
-        # ---- Stage 1: Classification ----
-        cls_output = self._run_llm_stage(
-            client, prompt_registry, "classification",
-            ref_dict, sensitivity_level, rules_registry,
+        stage_outputs: dict[str, Any] = self._run_llm_stages_parallel(
+            client,
+            prompt_registry,
+            ("classification", "level_assessment", "tagging", "knowledge_type_inference"),
+            ref_dict,
+            sensitivity_level,
+            rules_registry,
         )
-        if cls_output is not None:
-            stage_outputs["classification"] = cls_output
-            total_latency_ms += cls_output.get("_latency_ms", 0)
-
-        # ---- Stage 2: Level Assessment ----
-        lvl_output = self._run_llm_stage(
-            client, prompt_registry, "level_assessment",
-            ref_dict, sensitivity_level, rules_registry,
+        total_latency_ms = sum(
+            float(output.get("_latency_ms", 0.0))
+            for output in stage_outputs.values()
+            if isinstance(output, dict)
         )
-        if lvl_output is not None:
-            stage_outputs["level_assessment"] = lvl_output
-            total_latency_ms += lvl_output.get("_latency_ms", 0)
 
-        # ---- Stage 3: Tagging (with classification context) ----
-        tag_context = ref_dict.copy()
-        if cls_output:
-            tag_context["_classification"] = cls_output.get("classification_code", "")
-        tag_output = self._run_llm_stage(
-            client, prompt_registry, "tagging",
-            tag_context, sensitivity_level, rules_registry,
-        )
-        if tag_output is not None:
-            stage_outputs["tagging"] = tag_output
-            total_latency_ms += tag_output.get("_latency_ms", 0)
+        cls_output = stage_outputs.get("classification")
+        lvl_output = stage_outputs.get("level_assessment")
+        tag_output = stage_outputs.get("tagging")
+
+        if not isinstance(cls_output, dict):
+            cls_output = {}
+        if not isinstance(lvl_output, dict):
+            lvl_output = {}
+        if not isinstance(tag_output, dict):
+            tag_output = {}
 
         # ---- Stage 4: Quality Scoring (rule engine, not LLM) ----
         quality_summary: dict[str, Any] | None = None
-        if rules_registry is not None and cls_output:
+        if rules_registry is not None and cls_output and "_error" not in cls_output:
             try:
                 scorer = QualityScoringService(rules_registry)
-                # Build an AI-output-like object for the scorer
                 scoring_input = self._build_quality_input(
-                    cls_output, lvl_output or {}, tag_output or {}
+                    cls_output, lvl_output, tag_output
                 )
                 qs = scorer.generate_quality_summary(scoring_input, ref_dict)
                 quality_summary = qs.model_dump()
@@ -650,15 +672,10 @@ class AIGovernanceService:
             except Exception as exc:
                 logger.warning("Quality scoring failed: %s", exc)
                 stage_outputs["quality_scoring"] = {"error": str(exc)}
-
-        # ---- Stage 5: Knowledge Type Inference ----
-        kt_output = self._run_llm_stage(
-            client, prompt_registry, "knowledge_type_inference",
-            ref_dict, sensitivity_level, rules_registry,
-        )
-        if kt_output is not None:
-            stage_outputs["knowledge_type_inference"] = kt_output
-            total_latency_ms += kt_output.get("_latency_ms", 0)
+        elif rules_registry is not None:
+            stage_outputs["quality_scoring"] = {
+                "error": "classification stage unavailable; quality scoring skipped"
+            }
 
         # ---- Aggregate ----
         ai_output = self._aggregate_stage_outputs(stage_outputs)
@@ -697,6 +714,47 @@ class AIGovernanceService:
     # ------------------------------------------------------------------
     # Multi-stage helpers
     # ------------------------------------------------------------------
+
+    def _run_llm_stages_parallel(
+        self,
+        client: LiteLLMClientProtocol,
+        prompt_registry: "GovernancePromptRegistry",
+        task_types: tuple[str, ...],
+        ref_dict: dict[str, Any],
+        sensitivity_level: str,
+        rules_registry: "GovernanceRulesRegistry | None",
+    ) -> dict[str, Any]:
+        """Run independent LLM governance stages concurrently.
+
+        The worker session is not touched inside these threads. Each task only
+        builds prompt input and calls LiteLLM, then the main thread persists the
+        combined AIGovernanceRun.
+        """
+        outputs: dict[str, Any] = {}
+        max_workers = max(1, len(task_types))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(
+                    self._run_llm_stage,
+                    client,
+                    prompt_registry,
+                    task_type,
+                    dict(ref_dict),
+                    sensitivity_level,
+                    rules_registry,
+                ): task_type
+                for task_type in task_types
+            }
+            for future in as_completed(futures):
+                task_type = futures[future]
+                try:
+                    output = future.result()
+                except Exception as exc:  # defensive: stage failures must be visible, not fatal
+                    logger.warning("LLM stage %s raised unexpectedly: %s", task_type, exc)
+                    output = {"_error": f"stage_exception: {type(exc).__name__}: {exc}", "_task_type": task_type}
+                if output is not None:
+                    outputs[task_type] = output
+        return outputs
 
     def _run_llm_stage(
         self,
@@ -740,7 +798,7 @@ class AIGovernanceService:
         try:
             raw_output, call_summary, attempts = self._call_llm_with_retry(
                 client,
-                tmpl.litellm_model_alias,
+                _governance_model_alias(tmpl.litellm_model_alias),
                 messages,
                 temperature=tmpl.temperature,
                 max_tokens=tmpl.max_input_tokens,
@@ -765,7 +823,7 @@ class AIGovernanceService:
         parsed["_latency_ms"] = call_summary.latency_ms
         parsed["_attempts"] = attempts
         parsed["_task_type"] = task_type
-        parsed["_model_alias"] = tmpl.litellm_model_alias
+        parsed["_model_alias"] = _governance_model_alias(tmpl.litellm_model_alias)
         return parsed
 
     # ------------------------------------------------------------------
@@ -825,6 +883,43 @@ class AIGovernanceService:
         return None
 
     @staticmethod
+    def _first_str(source: dict[str, Any], *keys: str) -> str:
+        for key in keys:
+            value = source.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return ""
+
+    @staticmethod
+    def _extract_tags(tag_output: dict[str, Any]) -> list[str]:
+        tags: list[str] = []
+        seen: set[str] = set()
+
+        def add(value: Any) -> None:
+            if isinstance(value, dict):
+                value = value.get("value") or value.get("code") or value.get("tag")
+            if isinstance(value, str):
+                cleaned = value.strip()
+                if cleaned and cleaned not in seen:
+                    seen.add(cleaned)
+                    tags.append(cleaned)
+
+        explicit = tag_output.get("tags")
+        if isinstance(explicit, list):
+            for item in explicit:
+                add(item)
+
+        for dim_k, dim_v in tag_output.items():
+            if dim_k.startswith("_") or dim_k == "tags":
+                continue
+            if isinstance(dim_v, list):
+                for item in dim_v:
+                    add(item)
+            else:
+                add(dim_v)
+        return tags
+
+    @staticmethod
     def _aggregate_stage_outputs(stage_outputs: dict[str, Any]) -> dict[str, Any]:
         """Merge per-stage outputs into a single ai_output dict.
 
@@ -837,18 +932,16 @@ class AIGovernanceService:
         qual = stage_outputs.get("quality_scoring", {})
         kt = stage_outputs.get("knowledge_type_inference", {})
 
-        # Extract tags list from tagging stage
-        tags_list: list[str] = []
-        if isinstance(tag, dict):
-            for dim_k, dim_v in tag.items():
-                if dim_k.startswith("_"):
-                    continue
-                if isinstance(dim_v, list):
-                    for item in dim_v:
-                        if isinstance(item, dict) and "value" in item:
-                            tags_list.append(item["value"])
-                        elif isinstance(item, str):
-                            tags_list.append(item)
+        if not isinstance(cls, dict):
+            cls = {}
+        if not isinstance(lvl, dict):
+            lvl = {}
+        if not isinstance(tag, dict):
+            tag = {}
+        if not isinstance(qual, dict):
+            qual = {}
+        if not isinstance(kt, dict):
+            kt = {}
 
         # Overall confidence: average across non-error stages
         confidences = []
@@ -861,13 +954,41 @@ class AIGovernanceService:
             sum(confidences) / len(confidences) if confidences else 0.0
         )
 
+        quality_scores = cls.get("quality_scores")
+        if not isinstance(quality_scores, dict):
+            quality_scores = tag.get("quality_scores")
+        if not isinstance(quality_scores, dict):
+            quality_scores = {}
+
+        overall_score = cls.get("overall_score")
+        if not isinstance(overall_score, (int, float)):
+            overall_score = qual.get("quality_score")
+
         return {
-            "classification": cls.get("classification_code") or cls.get("code", ""),
-            "classification_name": cls.get("classification_name") or cls.get("name", ""),
-            "level": lvl.get("level_code") or lvl.get("code", ""),
-            "level_name": lvl.get("level_name") or lvl.get("name", ""),
-            "tags": tags_list,
+            "classification": AIGovernanceService._first_str(
+                cls, "classification_code", "code", "classification"
+            ),
+            "classification_name": AIGovernanceService._first_str(
+                cls, "classification_name", "name", "classification_name"
+            ),
+            "level": AIGovernanceService._first_str(
+                lvl, "level_code", "code", "level"
+            ) or AIGovernanceService._first_str(cls, "level"),
+            "level_name": AIGovernanceService._first_str(
+                lvl, "level_name", "name", "level_name"
+            ),
+            "tags": AIGovernanceService._extract_tags(tag),
+            "org_scope": (
+                cls.get("org_scope")
+                or lvl.get("org_scope")
+                or tag.get("org_scope")
+                or "all"
+            ),
+            "quality_scores": quality_scores,
+            "overall_score": float(overall_score) if isinstance(overall_score, (int, float)) else 0.0,
+            "evidence_refs": cls.get("evidence_refs") or lvl.get("evidence_refs") or [],
             "confidence": avg_confidence,
+            **({"quality_summary": qual} if qual and "error" not in qual else {}),
             "_stages": stage_outputs,
             "_mode": "multi_stage",
         }
@@ -878,23 +999,25 @@ class AIGovernanceService:
         lvl_output: dict[str, Any],
         tag_output: dict[str, Any],
     ) -> Any:
-        """Build a lightweight object for QualityScoringService input.
+        """Build an AIGovernanceOutput-compatible object for QualityScoringService."""
+        from nexus_app.ai_governance.output_validator import AIGovernanceOutput
 
-        QualityScoringService expects an object with model_dump(); we create
-        a simple namespace to hold the aggregated AI outputs.
-        """
-        from types import SimpleNamespace
-
-        return SimpleNamespace(
-            classification=cls_output.get("classification_code", ""),
-            level=lvl_output.get("level_code", ""),
-            tags=tag_output.get("tags", []),
-            model_dump=lambda: {
-                "classification": cls_output.get("classification_code", ""),
-                "level": lvl_output.get("level_code", ""),
-                "tags": tag_output.get("tags", []),
-            },
-        )
+        aggregate = AIGovernanceService._aggregate_stage_outputs({
+            "classification": cls_output,
+            "level_assessment": lvl_output,
+            "tagging": tag_output,
+        })
+        return AIGovernanceOutput.model_validate({
+            "classification": aggregate.get("classification") or "unknown",
+            "level": aggregate.get("level") or "L1",
+            "tags": aggregate.get("tags") or [],
+            "org_scope": aggregate.get("org_scope") or "all",
+            "quality_scores": aggregate.get("quality_scores") or {},
+            "overall_score": aggregate.get("overall_score") or 0.0,
+            "evidence_refs": aggregate.get("evidence_refs") or [],
+            "confidence": aggregate.get("confidence") or 0.0,
+            "reasoning": cls_output.get("reasoning") or "",
+        })
 
     @staticmethod
     def _compute_multi_input_hash(
@@ -1008,7 +1131,8 @@ class AIGovernanceService:
 
         attempt = 0
         last_exc: LiteLLMCallError | None = None
-        max_attempts = _AI_CALL_MAX_RETRIES + 1  # 1 initial + N retries
+        configured_attempts = max(1, get_settings().litellm_retry_attempts)
+        max_attempts = configured_attempts + 1  # 1 initial + N retries
         while attempt < max_attempts:
             attempt += 1
             try:

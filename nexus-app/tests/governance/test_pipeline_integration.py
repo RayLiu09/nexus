@@ -238,7 +238,7 @@ class TestGovernanceDecisionIntegration:
         assert len(result.decision_trail) == 4
         assert all(e["adoption_status"] == "auto_adopted" for e in result.decision_trail)
         assert result.rules_schema_version == "1.0"
-        assert result.rules_content_hash and len(result.rules_content_hash) == 16
+        assert result.rules_content_hash and len(result.rules_content_hash) == 64
 
     def test_writes_audit_log(self, session, rules_registry, make_ai_run):
         run, _, _ = make_ai_run(
@@ -793,16 +793,49 @@ class TestAIGovernanceFailureRestartable:
                                                  "level": "L1", "tags": [],
                                                  "org_scope": "all",
                                                  "confidence": 0.9})
+        prompt = models.GovernancePromptTemplate(
+            task_type="classification",
+            template_name="classification",
+            template_version=1,
+            status="active",
+            prompt_template="{{DOCUMENT}}",
+            output_schema_version="1.0",
+            litellm_model_alias="fake",
+            temperature=0.1,
+            max_input_tokens=1024,
+            redaction_policy="metadata_only",
+        )
+        session.add(prompt)
+        session.flush()
 
-        # Patch the rules registry that stages.run_governance_decision constructs.
-        # We don't need real rules — only AI run failure path matters here.
         from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
-        monkeypatch.setattr(GovernanceRulesRegistry, "load", lambda self, path=None: None)
 
-        def _fake_run_governance(self, session_, normalized_ref_id, profile_id, **_):
+        def _load_rules(self, session_):
+            self.load_dict({
+                "schema_version": "1.0",
+                "classifications": [
+                    {"code": "D4", "name": "Teaching", "description": "d", "criteria": ["c"]},
+                ],
+                "levels": [
+                    {"code": "L1", "name": "Public", "description": "d", "criteria": ["c"]},
+                ],
+                "tags": [],
+                "quality_scoring": {
+                    "dimensions": [
+                        {"name": "completeness", "weight": 1.0, "description": "d",
+                         "check_items": []},
+                    ],
+                    "thresholds": {"pass": 70, "warning": 50, "review_required_below": 50},
+                    "confidence_threshold_auto_adopt": 0.8,
+                },
+            })
+
+        monkeypatch.setattr(GovernanceRulesRegistry, "load", _load_rules)
+
+        def _fake_run_governance_multi(self, session_, normalized_ref_id, **_):
             run = models.AIGovernanceRun(
                 normalized_ref_id=normalized_ref_id,
-                profile_id=profile_id,
+                profile_id=None,
                 model_alias="fake",
                 prompt_version="v1",
                 input_hash="x",
@@ -817,7 +850,7 @@ class TestAIGovernanceFailureRestartable:
             return run
 
         monkeypatch.setattr(
-            ai_services.AIGovernanceService, "run_governance", _fake_run_governance
+            ai_services.AIGovernanceService, "run_governance_multi", _fake_run_governance_multi
         )
 
         class _Ctx:

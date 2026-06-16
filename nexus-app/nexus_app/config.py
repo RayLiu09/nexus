@@ -81,6 +81,12 @@ class Settings(BaseSettings):
     ragflow_embedding_model: str = "BAAI/bge-large-zh-v1.5@BAAI"
     litellm_endpoint: str | None = None
     litellm_api_key: str | None = None
+    litellm_timeout: float = Field(default=30.0, alias="LITELLM_TIMEOUT")
+    litellm_retry_attempts: int = Field(default=3, alias="LITELLM_RETRY_ATTEMPTS")
+    default_governance_model: str = Field(
+        default="gpt-4o-mini",
+        alias="DEFAULT_GOVERNANCE_MODEL",
+    )
 
     # ── Auth (P1 JWT) ──────────────────────────────────────────────────────
     # HS256 symmetric secret. MUST be set in production; an in-memory default is
