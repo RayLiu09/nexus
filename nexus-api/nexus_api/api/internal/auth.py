@@ -7,7 +7,7 @@ token, so they must be reachable unauthenticated. Mounted directly by
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
@@ -213,7 +213,35 @@ def auth_refresh(
         raise HTTPException(status_code=401, detail="invalid refresh token") from exc
 
     jti = claims.get("jti", "")
-    row = auth_service.lookup_refresh_token(session, jti)
+    row = session.scalars(
+        select(models.RefreshToken)
+        .where(models.RefreshToken.jti == jti)
+        .with_for_update()
+    ).first()
+    if row is not None and row.revoked_at is not None and row.rotated_to_jti:
+        revoked_at = _as_utc(row.revoked_at)
+        within_rotation_grace = datetime.now(timezone.utc) - revoked_at <= timedelta(seconds=30)
+        child = auth_service.lookup_refresh_token(session, row.rotated_to_jti)
+        if within_rotation_grace and child is not None and auth_service.refresh_token_is_usable(child):
+            user = session.get(models.UserAccount, child.user_id)
+            if user is not None and user.status.value == "active":
+                access_token, _ = auth_service.encode_access_token(
+                    settings,
+                    user=user,
+                    org_name=user.org_unit.name if user.org_unit is not None else None,
+                )
+                refresh_token = auth_service.encode_refresh_token(
+                    settings, jti=child.jti, user_id=user.id
+                )
+                return response(
+                    schemas.TokenRefresh(
+                        access_token=access_token,
+                        refresh_token=refresh_token,
+                        token_type="bearer",
+                    ),
+                    request,
+                )
+
     if row is None or not auth_service.refresh_token_is_usable(row):
         write_audit(
             session,
@@ -241,6 +269,7 @@ def auth_refresh(
     new_jti, _new_row = auth_service.issue_refresh_token(
         session, settings, user_id=user.id, parent_jti=jti
     )
+    row.rotated_to_jti = new_jti
     access_token, _ = auth_service.encode_access_token(
         settings,
         user=user,

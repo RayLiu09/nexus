@@ -130,15 +130,21 @@ def test_refresh_rotates_jti_and_invalidates_old_token(app, session, seeded_user
     assert new["access_token"]
     assert new["refresh_token"] != old_refresh
 
-    # Reusing the old refresh now fails with 401 (replay detection).
+    # Reusing the old refresh inside the short rotation grace window is
+    # idempotent, covering concurrent browser refresh requests.
     replay = client.post("/internal/v1/auth/refresh", json={"refresh_token": old_refresh})
-    assert replay.status_code == 401
+    assert replay.status_code == 200, replay.text
+    replayed = replay.json()["data"]
+    assert replayed["refresh_token"] == new["refresh_token"]
 
-    # Two refresh-token rows exist (rotated chain), and the first is revoked.
+    # Two refresh-token rows exist (rotated chain), and the first is revoked
+    # with a pointer to the child jti.
     rows = list(session.scalars(select(models.RefreshToken)))
     assert len(rows) == 2
     revoked = [r for r in rows if r.revoked_at is not None]
     assert len(revoked) == 1
+    active = [r for r in rows if r.revoked_at is None]
+    assert revoked[0].rotated_to_jti == active[0].jti
 
 
 def test_refresh_rejects_garbage_token(app, session):

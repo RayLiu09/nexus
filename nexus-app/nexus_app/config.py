@@ -66,7 +66,7 @@ class Settings(BaseSettings):
 
     mineru_endpoint: str | None = None
     mineru_use_fake: bool = False
-    mineru_timeout: int = 300
+    mineru_timeout: int = 1800
     mineru_health_timeout_seconds: float = 3.0
     worker_pool_enabled: bool = True
     worker_pool_size: int = 1

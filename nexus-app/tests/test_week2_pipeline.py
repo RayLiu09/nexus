@@ -86,6 +86,36 @@ def test_file_ingest_to_document_asset_pipeline(session):
     ]
 
 
+class TransactionProbeMinerUAdapter(FakeMinerUAdapter):
+    def __init__(self, session):
+        self.session = session
+        self.in_transaction_during_parse: bool | None = None
+
+    def parse(self, filename, content, content_type=None, model_version=None):
+        self.in_transaction_during_parse = self.session.in_transaction()
+        return super().parse(filename, content, content_type, model_version)
+
+
+def test_document_parse_external_call_runs_outside_db_transaction(session):
+    source = create_source(session)
+    storage = InMemoryObjectStorage()
+    mineru = TransactionProbeMinerUAdapter(session)
+    payload = IngestFileSubmit(
+        data_source_id=source.id,
+        idempotency_key="file-transaction-boundary-001",
+        filename="transaction-boundary.pdf",
+        content_type="application/pdf",
+        content_base64=base64.b64encode(b"transaction boundary").decode("ascii"),
+    )
+
+    accepted = ingest_gateway.submit_file_ingest(session, payload, storage=storage)
+    run_worker(session, storage, mineru)
+
+    session.refresh(accepted.job)
+    assert accepted.job.status == JobStatus.SUCCEEDED
+    assert mineru.in_transaction_during_parse is False
+
+
 def test_crawler_package_ingest_to_normalized_record(session):
     source = create_source(session, "crawler")
     storage = InMemoryObjectStorage()

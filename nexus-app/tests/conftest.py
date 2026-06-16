@@ -18,7 +18,13 @@ def session() -> Generator[Session, None, None]:
         future=True,
     )
     Base.metadata.create_all(bind=engine)
-    TestingSession = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    TestingSession = sessionmaker(
+        bind=engine,
+        autoflush=False,
+        autocommit=False,
+        expire_on_commit=False,
+        future=True,
+    )
     database.get_engine.cache_clear()
     database.get_session_local.cache_clear()
     with TestingSession() as db:

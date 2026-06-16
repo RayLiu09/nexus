@@ -266,6 +266,7 @@ async function getAuthHeader(): Promise<string | null> {
 
 async function tryRefreshToken(): Promise<boolean> {
   try {
+    if (typeof window === "undefined") return false;
     const resp = await fetch("/api/auth/refresh", { method: "POST" });
     return resp.ok;
   } catch {
@@ -402,16 +403,20 @@ async function requestApi<T>(path: string, init: RequestInit): Promise<ApiEnvelo
     credentials: typeof window !== "undefined" ? "include" : "same-origin",
   });
 
-  // On 401, attempt refresh and retry once (client-side only)
+  // On client-side 401, attempt refresh and retry once. Server-component
+  // page refreshes are handled by middleware redirecting through /api/auth/refresh.
   if (response.status === 401 && typeof window !== "undefined") {
     const refreshed = await tryRefreshToken();
     if (refreshed) {
+      const retryAuthHeader = await getAuthHeader();
+      const retryHeaders = { ...headers };
+      if (retryAuthHeader) retryHeaders["authorization"] = retryAuthHeader;
       response = await fetch(`${apiBaseUrl()}${path}`, {
         ...init,
-        headers,
+        headers: retryHeaders,
         signal: withTimeout(init.signal),
         cache: "no-store",
-        credentials: "include",
+        credentials: typeof window !== "undefined" ? "include" : "same-origin",
       });
     }
   }

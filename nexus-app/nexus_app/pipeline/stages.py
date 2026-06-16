@@ -126,6 +126,14 @@ def _json_bytes(value: dict[str, Any]) -> bytes:
     return json.dumps(value, ensure_ascii=False, sort_keys=True).encode("utf-8")
 
 
+def _cleanup_storage_keys(ctx: PipelineContext, keys: list[str]) -> None:
+    for key in reversed(keys):
+        try:
+            ctx.storage.delete_object(key)
+        except Exception:
+            logger.warning("failed to cleanup parse artifact object %s", key, exc_info=True)
+
+
 def run_assetize(
     ctx: PipelineContext,
     raw_payload: dict[str, Any] | None = None,
@@ -226,98 +234,121 @@ def run_parse(
     ctx: PipelineContext,
     version: models.AssetVersion,
 ) -> models.ParseArtifact:
-    """Stage 2 (Pipeline A only): Call MinerU, store artifact + images, create ParseArtifact."""
+    """Stage 2 (Pipeline A only): Call MinerU, store artifact + images, create ParseArtifact.
+
+    The MinerU HTTP call and object-storage writes intentionally run outside an
+    open DB transaction. Only short DB state transitions are committed before
+    and after the external work.
+    """
     if ctx.mineru is None:
         raise RuntimeError("run_parse called on a context without a MinerU adapter (record pipeline?)")
 
     raw_object = ctx.raw_object
+    raw_object_id = raw_object.id
+    raw_uri = raw_object.object_uri
     filename = str(raw_object.metadata_summary.get("filename", raw_object.id))
     mime_type = raw_object.mime_type
+    model_version_override = (ctx.job.payload or {}).get("model_version_override")
+    version_id = version.id
+
     parse_stage = _begin_stage(
         ctx,
         "parse",
         {
             "filename": filename,
             "mime_type": mime_type,
-            "raw_object_id": raw_object.id,
+            "raw_object_id": raw_object_id,
         },
     )
+    parse_stage_id = parse_stage.id
     ctx.session.commit()
 
+    # Do not touch ORM attributes in the long-running external block below.
+    # After commit the Session holds no active DB transaction/connection until
+    # the next DB operation, so MinerU and object-storage work stay outside DB
+    # transaction scope while existing ORM instances remain attached for runner
+    # outcome handling.
+
+    stored_keys: list[str] = []
+    artifact_id = models.new_uuid()
     try:
-        raw_uri = raw_object.object_uri
         raw_key = raw_uri.split("/", 3)[-1] if raw_uri.startswith("s3://") else raw_uri
         raw_content = ctx.storage.get_bytes(raw_key)
 
-        # Explicit override from Job.payload takes precedence over auto-selection
-        # so ops can pin a specific backend (e.g. vlm) for a single run.
-        model_version_override = (ctx.job.payload or {}).get("model_version_override")
         parsed = ctx.mineru.parse(
             filename, raw_content, mime_type, model_version=model_version_override
         )
-    except Exception as exc:
-        _finish_stage(
-            ctx,
-            parse_stage,
-            StageStatus.FAILED,
-            failure_reason=f"{type(exc).__name__}: {exc}",
+
+        artifact_storage_key = artifact_key(ctx.settings, version_id, artifact_id)
+        stored = ctx.storage.put_bytes(
+            artifact_storage_key,
+            parsed.content,
+            "application/json",
+            {"nexus-raw-object-id": raw_object_id, "nexus-version-id": version_id},
         )
-        ctx.session.commit()
+        stored_keys.append(artifact_storage_key)
+
+        image_uris: dict[str, str] = {}
+        for img_name, img_bytes in parsed.images.items():
+            img_key = artifact_image_key(ctx.settings, version_id, artifact_id, img_name)
+            ext = img_name.rsplit(".", 1)[-1].lower() if "." in img_name else "bin"
+            img_content_type = f"image/{ext}" if ext in {"png", "jpg", "jpeg", "webp", "gif", "tiff", "bmp"} else "application/octet-stream"
+            img_stored = ctx.storage.put_bytes(
+                img_key,
+                img_bytes,
+                img_content_type,
+                {"nexus-artifact-id": artifact_id, "nexus-image-name": img_name},
+            )
+            stored_keys.append(img_key)
+            image_uris[img_name] = img_stored.object_uri
+    except Exception as exc:
+        _cleanup_storage_keys(ctx, stored_keys)
+        parse_stage = ctx.session.get(models.JobStage, parse_stage_id)
+        if parse_stage is not None:
+            _finish_stage(
+                ctx,
+                parse_stage,
+                StageStatus.FAILED,
+                failure_reason=f"{type(exc).__name__}: {exc}",
+            )
         raise
 
     artifact = models.ParseArtifact(
-        raw_object_id=raw_object.id,
-        asset_version_id=version.id,
-        artifact_uri="pending",
+        id=artifact_id,
+        raw_object_id=raw_object_id,
+        asset_version_id=version_id,
+        artifact_uri=stored.object_uri,
         parse_mode=parsed.parse_mode,
         checksum=checksum_value(parsed.content),
         status=ParseArtifactStatus.GENERATED,
         metadata_summary={
             **parsed.metadata,
             "image_count": len(parsed.images),
+            **({"image_uris": image_uris} if image_uris else {}),
         },
     )
-    ctx.session.add(artifact)
-    ctx.session.flush()
 
-    stored = ctx.storage.put_bytes(
-        artifact_key(ctx.settings, version.id, artifact.id),
-        parsed.content,
-        "application/json",
-        {"nexus-raw-object-id": raw_object.id, "nexus-version-id": version.id},
-    )
-    artifact.artifact_uri = stored.object_uri
-
-    # Store extracted images alongside the JSON result so renderers can resolve
-    # image references in the middle-json without re-parsing the original file.
-    image_uris: dict[str, str] = {}
-    for img_name, img_bytes in parsed.images.items():
-        img_key = artifact_image_key(ctx.settings, version.id, artifact.id, img_name)
-        ext = img_name.rsplit(".", 1)[-1].lower() if "." in img_name else "bin"
-        img_content_type = f"image/{ext}" if ext in {"png", "jpg", "jpeg", "webp", "gif", "tiff", "bmp"} else "application/octet-stream"
-        img_stored = ctx.storage.put_bytes(
-            img_key,
-            img_bytes,
-            img_content_type,
-            {"nexus-artifact-id": artifact.id, "nexus-image-name": img_name},
+    try:
+        ctx.session.add(artifact)
+        parse_stage = ctx.session.get(models.JobStage, parse_stage_id)
+        if parse_stage is None:
+            raise RuntimeError(f"parse stage disappeared: {parse_stage_id}")
+        _finish_stage(
+            ctx,
+            parse_stage,
+            StageStatus.SUCCEEDED,
+            {
+                "parse_artifact_id": artifact.id,
+                "artifact_uri": artifact.artifact_uri,
+                "image_count": len(image_uris),
+            },
         )
-        image_uris[img_name] = img_stored.object_uri
+        ctx.session.flush()
+    except Exception:
+        ctx.session.rollback()
+        _cleanup_storage_keys(ctx, stored_keys)
+        raise
 
-    if image_uris:
-        artifact.metadata_summary = {**artifact.metadata_summary, "image_uris": image_uris}
-
-    ctx.session.flush()
-
-    _finish_stage(
-        ctx,
-        parse_stage,
-        StageStatus.SUCCEEDED,
-        {
-            "parse_artifact_id": artifact.id,
-            "artifact_uri": artifact.artifact_uri,
-            "image_count": len(image_uris),
-        },
-    )
     return artifact
 
 

@@ -49,6 +49,9 @@ class ObjectStorage(Protocol):
     def get_bytes(self, key: str) -> bytes:
         ...
 
+    def delete_object(self, key: str) -> None:
+        ...
+
     def generate_presigned_download(
         self, key: str, *, ttl_seconds: int = DEFAULT_PRESIGN_TTL_SECONDS,
     ) -> PresignedDownload:
@@ -89,6 +92,9 @@ class InMemoryObjectStorage:
             return self.objects[key][0]
         except KeyError as exc:
             raise ObjectNotFoundError(self.bucket, key) from exc
+
+    def delete_object(self, key: str) -> None:
+        self.objects.pop(key, None)
 
     def generate_presigned_download(
         self, key: str, *, ttl_seconds: int = DEFAULT_PRESIGN_TTL_SECONDS,
@@ -154,6 +160,12 @@ class S3ObjectStorage:
             if self._is_not_found_error(exc):
                 raise ObjectNotFoundError(self.bucket, key) from exc
             raise ObjectStorageError(f"failed to read s3://{self.bucket}/{key}") from exc
+
+    def delete_object(self, key: str) -> None:
+        try:
+            self.client.delete_object(Bucket=self.bucket, Key=key)
+        except Exception as exc:
+            raise ObjectStorageError(f"failed to delete s3://{self.bucket}/{key}") from exc
 
     def generate_presigned_download(
         self, key: str, *, ttl_seconds: int = DEFAULT_PRESIGN_TTL_SECONDS,

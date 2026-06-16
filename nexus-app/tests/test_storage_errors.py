@@ -69,3 +69,14 @@ def test_s3_storage_does_not_hide_missing_bucket_as_object_not_found():
     )
 
     assert not S3ObjectStorage._is_not_found_error(exc)
+
+
+def test_in_memory_storage_delete_object_is_idempotent():
+    storage = InMemoryObjectStorage()
+    storage.put_bytes("parsed/a.json", b"{}", "application/json")
+
+    storage.delete_object("parsed/a.json")
+    storage.delete_object("parsed/a.json")
+
+    with pytest.raises(ObjectNotFoundError):
+        storage.get_bytes("parsed/a.json")

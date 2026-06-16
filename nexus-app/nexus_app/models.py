@@ -132,6 +132,7 @@ class RefreshToken(TimestampMixin, Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     parent_jti: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    rotated_to_jti: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     user: Mapped[UserAccount] = relationship()
 

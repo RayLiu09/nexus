@@ -55,6 +55,7 @@ def claim_jobs(
             )
         )
         session.commit()
+        session.expire_all()
         return [session.get(models.Job, jid) for jid in job_ids]
 
     result = session.execute(
@@ -89,6 +90,7 @@ def claim_jobs(
     )
     job_ids = [row[0] for row in result.fetchall()]
     session.commit()
+    session.expire_all()
     return [session.get(models.Job, jid) for jid in job_ids]
 
 

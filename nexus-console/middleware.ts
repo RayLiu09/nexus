@@ -1,7 +1,7 @@
 /**
  * Route guard middleware.
  *
- * Page routes: missing nexus_access_token → redirect to /login.
+ * Page routes: missing both nexus_access_token and nexus_refresh_token → redirect to /login.
  * API routes (/api/*): let through — each route handler manages its own
  *   auth via internalBackendGet / getApiData. Redirecting to /login breaks
  *   JSON-based error handling on the client (fetch follows the redirect
@@ -30,6 +30,13 @@ export function middleware(request: NextRequest) {
   }
 
   const accessToken = request.cookies.get("nexus_access_token")?.value;
+  const refreshToken = request.cookies.get("nexus_refresh_token")?.value;
+
+  if (!accessToken && refreshToken) {
+    const refreshUrl = new URL("/api/auth/refresh", request.url);
+    refreshUrl.searchParams.set("redirect", `${pathname}${request.nextUrl.search}`);
+    return NextResponse.redirect(refreshUrl);
+  }
 
   if (!accessToken) {
     const loginUrl = new URL("/login", request.url);
