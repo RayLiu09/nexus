@@ -452,7 +452,7 @@ export function QuickUploadProvider({ children }: { children: React.ReactNode })
           </Space>
         }
         placement="right"
-        width={560}
+        size={560}
         open={isOpen}
         onClose={close}
         destroyOnHidden

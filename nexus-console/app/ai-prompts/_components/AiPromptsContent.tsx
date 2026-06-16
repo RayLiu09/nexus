@@ -332,7 +332,7 @@ export default function AiPromptsContent({ profiles }: { profiles: PromptProfile
       {/* Create/Edit Drawer */}
       <Drawer
         title={editingId ? "编辑 Prompt 配置" : "新建 Prompt 配置"}
-        width={480}
+        size={480}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         destroyOnClose

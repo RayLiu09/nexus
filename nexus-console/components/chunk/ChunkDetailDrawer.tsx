@@ -75,7 +75,7 @@ export function ChunkDetailDrawer({ chunk, open, onClose }: ChunkDetailDrawerPro
   }, [rawObjectId]);
 
   return (
-    <Drawer title="chunk 详情" open={open} onClose={onClose} width={560} destroyOnHidden>
+    <Drawer title="chunk 详情" open={open} onClose={onClose} size={560} destroyOnHidden>
       {chunk ? (
         <div
           id={`chunk-detail-${chunk.chunk_id ?? chunk.id ?? ""}`}

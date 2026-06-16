@@ -300,7 +300,7 @@ export default function RulesPage() {
         title="规则版本历史"
         open={versionsOpen}
         onClose={() => setVersionsOpen(false)}
-        width={720}
+        size={720}
       >
         <Table
           columns={versionColumns}

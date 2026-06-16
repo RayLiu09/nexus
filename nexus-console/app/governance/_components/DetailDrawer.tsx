@@ -29,7 +29,7 @@ export function DetailDrawer({ run, open, onClose, onOpenTrail, tagDictionary }:
   return (
     <Drawer
       title="决策追踪"
-      width={560}
+      size={560}
       open={open}
       onClose={onClose}
       destroyOnClose

@@ -242,7 +242,7 @@ export function ConnectorConfig({ dataSource }: { dataSource: DataSource }) {
       {/* Edit Drawer */}
       <Drawer
         title={`编辑连接器配置 — ${SOURCE_TYPE_LABELS[dataSource.source_type]}`}
-        width={480}
+        size={480}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         destroyOnClose

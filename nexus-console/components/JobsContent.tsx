@@ -308,7 +308,7 @@ export function JobsContent({ jobs: initialJobs, stages, rawObjectNames, totalCo
         title={drawerJob ? `作业详情 — ${shortId(drawerJob.id)}` : ""}
         open={drawerJob !== null}
         onClose={() => setDrawerJob(null)}
-        width={520}
+        size={520}
         destroyOnClose
       >
         {drawerJob && (

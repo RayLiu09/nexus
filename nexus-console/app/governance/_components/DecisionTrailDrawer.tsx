@@ -104,7 +104,7 @@ export function DecisionTrailDrawer({ open, normalizedRefId, onClose, tagDiction
   return (
     <Drawer
       title="决策追踪"
-      width={640}
+      size={640}
       open={open}
       onClose={handleClose}
       destroyOnClose

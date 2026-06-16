@@ -42,7 +42,7 @@ export function RecomputeSummaryDrawer({
   return (
     <Drawer
       title="批量重跑结果"
-      width={520}
+      size={520}
       open={summary !== null}
       onClose={onClose}
       destroyOnClose
