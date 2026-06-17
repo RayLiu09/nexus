@@ -8,16 +8,16 @@
 
 ## 基线信息（v0.2 — 2026-06-03）
 
-| 维度 | 版本/取值 |
-|------|-----------|
-| Next.js | 16.2.4（App Router） |
-| React | 19.0.0 |
-| Antd | 6.4.3 |
-| Tailwind CSS | 4.3.0 |
-| TypeScript | 5.6（strict: true） |
-| 包管理器 | npm（`package-lock.json`） |
-| 当前路由数 | 19（全部可构建，0 TS 错误，0 lint error） |
-| 构建状态 | 通过 |
+| 维度         | 版本/取值                                 |
+| ------------ | ----------------------------------------- |
+| Next.js      | 16.2.4（App Router）                      |
+| React        | 19.0.0                                    |
+| Antd         | 6.4.3                                     |
+| Tailwind CSS | 4.3.0                                     |
+| TypeScript   | 5.6（strict: true）                       |
+| 包管理器     | npm（`package-lock.json`）                |
+| 当前路由数   | 19（全部可构建，0 TS 错误，0 lint error） |
+| 构建状态     | 通过                                      |
 
 ---
 
@@ -25,42 +25,42 @@
 
 ### 已落地（严格执行）
 
-| 维度 | 选型 | 说明 |
-|------|------|------|
-| 语言 | TypeScript（`strict: true`） | 禁止 `any`，外部输入用 `unknown` 收窄 |
-| 包管理器 | **npm** | 严禁 `pnpm install` / `yarn` |
-| 框架 | **Next.js 16（App Router）+ React 19** | 默认 Server Component；`'use client'` 仅在确需交互时使用 |
-| **UI 组件库** | **Ant Design 6（`antd@^6`）** | 业务组件首选；自研组件逐步退役 |
-| **样式方案** | **Tailwind CSS v4** + Antd `ConfigProvider` token | 共用同一套 Design Token 真源（`app/globals.css`） |
-| 数据请求 | `lib/api.ts`（`getApiData<T>` / `postApiData<T>`） | 所有 API 调用必须经过它；禁止直接 `fetch` |
-| 图标 | **`@ant-design/icons`** + **lucide-react** 补充 | Antd 组件内用官方图标；非 Antd 场景用 lucide-react |
-| 错误边界 | **`react-error-boundary`** | 函数式 Error Boundary；禁止手写类组件版本 |
-| 输入校验 | **Zod** | API 边界、表单校验 + 类型推导（`z.infer`） |
-| 代码格式化 | **Prettier** + `prettier-plugin-tailwindcss` | `npm run format` |
-| Antd SSR 集成 | **`@ant-design/nextjs-registry`** | SSR 注水避免 FOUC |
+| 维度          | 选型                                               | 说明                                                     |
+| ------------- | -------------------------------------------------- | -------------------------------------------------------- |
+| 语言          | TypeScript（`strict: true`）                       | 禁止 `any`，外部输入用 `unknown` 收窄                    |
+| 包管理器      | **npm**                                            | 严禁 `pnpm install` / `yarn`                             |
+| 框架          | **Next.js 16（App Router）+ React 19**             | 默认 Server Component；`'use client'` 仅在确需交互时使用 |
+| **UI 组件库** | **Ant Design 6（`antd@^6`）**                      | 业务组件首选；自研组件逐步退役                           |
+| **样式方案**  | **Tailwind CSS v4** + Antd `ConfigProvider` token  | 共用同一套 Design Token 真源（`app/globals.css`）        |
+| 数据请求      | `lib/api.ts`（`getApiData<T>` / `postApiData<T>`） | 所有 API 调用必须经过它；禁止直接 `fetch`                |
+| 图标          | **`@ant-design/icons`** + **lucide-react** 补充    | Antd 组件内用官方图标；非 Antd 场景用 lucide-react       |
+| 错误边界      | **`react-error-boundary`**                         | 函数式 Error Boundary；禁止手写类组件版本                |
+| 输入校验      | **Zod**                                            | API 边界、表单校验 + 类型推导（`z.infer`）               |
+| 代码格式化    | **Prettier** + `prettier-plugin-tailwindcss`       | `npm run format`                                         |
+| Antd SSR 集成 | **`@ant-design/nextjs-registry`**                  | SSR 注水避免 FOUC                                        |
 
 ### 推荐引入（按优先级）
 
 #### P1 — 按页面改造时逐步迁移
 
-| 能力 | 选型 | 说明 |
-|------|------|------|
-| 客户端数据请求 | **TanStack Query v5** | 替代散落的 `useState + useEffect + fetch`；带缓存/失效/重试 |
-| 表单 | **Antd `Form` + `useForm` + Zod** | 复杂表单优先 Antd Form；极少数场景用 React Hook Form |
-| 单元测试 | **Vitest + Testing Library** | 未引入 |
-| 测试 mock | **MSW** | 与 `lib/api.ts` 配合 |
-| E2E 测试 | **Playwright** | 关键流程验证 |
+| 能力           | 选型                              | 说明                                                        |
+| -------------- | --------------------------------- | ----------------------------------------------------------- |
+| 客户端数据请求 | **TanStack Query v5**             | 替代散落的 `useState + useEffect + fetch`；带缓存/失效/重试 |
+| 表单           | **Antd `Form` + `useForm` + Zod** | 复杂表单优先 Antd Form；极少数场景用 React Hook Form        |
+| 单元测试       | **Vitest + Testing Library**      | 未引入                                                      |
+| 测试 mock      | **MSW**                           | 与 `lib/api.ts` 配合                                        |
+| E2E 测试       | **Playwright**                    | 关键流程验证                                                |
 
 #### P2 — 按业务需要再考虑
 
-| 能力 | 选型 | 触发条件 |
-|------|------|----------|
-| 全局客户端状态 | **Zustand** | 出现真正跨页面共享的客户端态时 |
-| 国际化 | **next-intl** | 多语言需求明确时 |
-| 长列表虚拟化 | Antd `Table.virtual` / TanStack Virtual | 单页 DOM > 1000 节点 |
-| 动效 | Framer Motion / CSS transition | 复杂过渡时；尊重 `prefers-reduced-motion` |
-| 错误上报 | Sentry | 生产环境上线前 |
-| 组件文档 | Ladle / Storybook 8 | 多团队协作时 |
+| 能力           | 选型                                    | 触发条件                                  |
+| -------------- | --------------------------------------- | ----------------------------------------- |
+| 全局客户端状态 | **Zustand**                             | 出现真正跨页面共享的客户端态时            |
+| 国际化         | **next-intl**                           | 多语言需求明确时                          |
+| 长列表虚拟化   | Antd `Table.virtual` / TanStack Virtual | 单页 DOM > 1000 节点                      |
+| 动效           | Framer Motion / CSS transition          | 复杂过渡时；尊重 `prefers-reduced-motion` |
+| 错误上报       | Sentry                                  | 生产环境上线前                            |
+| 组件文档       | Ladle / Storybook 8                     | 多团队协作时                              |
 
 ### 严禁项
 
@@ -79,15 +79,15 @@
 
 在 `nexus-console/` 目录下执行。
 
-| 任务 | 命令 | 备注 |
-|------|------|------|
-| 安装 | `npm install` | CI 用 `npm ci` |
-| 开发 | `npm run dev` | Next.js dev server |
-| Lint | `npm run lint` | `eslint .` |
-| Lint 修复 | `npm run lint:fix` | 自动修复 |
-| 类型检查 | `npm run typecheck` | `tsc --noEmit` |
-| 构建 | `npm run build` | |
-| 格式化 | `npm run format` | `prettier --write .` |
+| 任务       | 命令                   | 备注                 |
+| ---------- | ---------------------- | -------------------- |
+| 安装       | `npm install`          | CI 用 `npm ci`       |
+| 开发       | `npm run dev`          | Next.js dev server   |
+| Lint       | `npm run lint`         | `eslint .`           |
+| Lint 修复  | `npm run lint:fix`     | 自动修复             |
+| 类型检查   | `npm run typecheck`    | `tsc --noEmit`       |
+| 构建       | `npm run build`        |                      |
+| 格式化     | `npm run format`       | `prettier --write .` |
 | 格式化检查 | `npm run format:check` | `prettier --check .` |
 
 ---
@@ -158,27 +158,27 @@ const theme: ThemeConfig = {
   cssVar: { key: "nexus" },
   hashed: false,
   token: {
-    colorPrimary: "#2563eb",     // = --brand-600
-    colorInfo: "#3b82f6",        // = --brand-500
-    colorSuccess: "#16a34a",     // = --success-600
-    colorWarning: "#d97706",     // = --warning-600
-    colorError: "#dc2626",       // = --danger-600
-    colorTextBase: "#1f2937",    // = --text
-    colorBgBase: "#ffffff",      // = --surface
-    colorBorder: "#e5e7eb",      // = --line
+    colorPrimary: "#2563eb", // = --brand-600
+    colorInfo: "#3b82f6", // = --brand-500
+    colorSuccess: "#16a34a", // = --success-600
+    colorWarning: "#d97706", // = --warning-600
+    colorError: "#dc2626", // = --danger-600
+    colorTextBase: "#1f2937", // = --text
+    colorBgBase: "#ffffff", // = --surface
+    colorBorder: "#e5e7eb", // = --line
     colorBorderSecondary: "#f3f4f6", // = --line-light
-    borderRadius: 8,             // = --radius-lg
-    borderRadiusLG: 12,          // = --radius-xl
-    borderRadiusSM: 6,           // = --radius-md
+    borderRadius: 8, // = --radius-lg
+    borderRadiusLG: 12, // = --radius-xl
+    borderRadiusSM: 6, // = --radius-md
     fontFamily: "inherit",
     fontSize: 14,
     controlHeight: 36,
   },
   components: {
     Layout: {
-      headerBg: "#ffffff",       // = --surface
-      siderBg: "#0f172a",        // = --sidebar-bg
-      bodyBg: "#f8f9fb",         // = --bg
+      headerBg: "#ffffff", // = --surface
+      siderBg: "#0f172a", // = --sidebar-bg
+      bodyBg: "#f8f9fb", // = --bg
     },
     Menu: {
       itemSelectedBg: "rgba(37, 99, 235, 0.10)",
@@ -245,7 +245,7 @@ app/<route>/
 
 - **新增组件优先用 Antd**
 - **路由专属 UI 放 `app/<route>/_components/`**，不再往 `components/` 堆
-- **`components/shared/`** 仅保留确有跨页面业务规则的薄壳（如 `StatusDot`、`ErrorState`）
+- **`components/shared/`** 仅保留确有跨页面业务规则的薄壳（如 `ErrorState`、`ConfirmButton`）
 - **历史 `components/` 文件**：不改动时不强制迁移；改动时顺手替换为 Antd 版本
 
 ### 6. 错误处理
@@ -254,7 +254,7 @@ app/<route>/
 
 1. **Loading** — `loading.tsx` + Antd `Skeleton` / `Spin`
 2. **Error** — Antd `Alert type="error"` + 重试按钮；全局用 `react-error-boundary`
-3. **Empty** — Antd `Empty` 或 `components/shared/Empty`
+3. **Empty** — Antd `Empty` 或 `components/shared/EmptyState`
 4. **Success** — 正常数据展示
 
 `ApiState` 组件用于页面级 API 错误横幅（展示 `traceId` 和错误消息）。
@@ -279,16 +279,16 @@ app/<route>/
 
 Antd 6 相对 v5 有部分 API 重命名。新增代码遵循新 API；历史代码在触及该文件时顺手修正。
 
-| 旧 API (v5) | 新 API (v6) | 涉及组件 |
-|-------------|-------------|----------|
-| `Alert message="..."` | `Alert title="..."` | Alert |
-| `Progress trailColor` | `Progress railColor` | Progress |
-| `Tag bordered={false}` | `Tag variant="filled"` | Tag |
-| `Steps direction="vertical"` | `Steps orientation="vertical"` | Steps |
-| `Steps progressDot` | `Steps type="dot"` | Steps |
-| `Steps items[].description` | `Steps items[].content` | Steps |
-| `Space direction="vertical"` | `Space orientation="vertical"` | Space |
-| `Statistic valueStyle` | `Statistic styles.content` | Statistic |
+| 旧 API (v5)                  | 新 API (v6)                    | 涉及组件  |
+| ---------------------------- | ------------------------------ | --------- |
+| `Alert message="..."`        | `Alert title="..."`            | Alert     |
+| `Progress trailColor`        | `Progress railColor`           | Progress  |
+| `Tag bordered={false}`       | `Tag variant="filled"`         | Tag       |
+| `Steps direction="vertical"` | `Steps orientation="vertical"` | Steps     |
+| `Steps progressDot`          | `Steps type="dot"`             | Steps     |
+| `Steps items[].description`  | `Steps items[].content`        | Steps     |
+| `Space direction="vertical"` | `Space orientation="vertical"` | Space     |
+| `Statistic valueStyle`       | `Statistic styles.content`     | Statistic |
 
 **当前状态**：Alert `message→title` 和 Progress `trailColor→railColor` 已全局修正；其余 API 迁移在触及对应文件时进行。
 
@@ -298,37 +298,25 @@ Antd 6 相对 v5 有部分 API 重命名。新增代码遵循新 API；历史代
 
 ### 已完成的退役/替换
 
-| 原组件 | 替换为 | 状态 |
-|--------|--------|------|
-| `components/AiPromptsContent.tsx` | `app/ai-prompts/_components/AiPromptsContent.tsx` | 旧文件仍存于磁盘，页面已切到新路径 |
-| `components/DataSourcesContent.tsx` | `app/data-sources/_components/DataSourcesContent.tsx` | 旧文件仍存于磁盘，页面已切到新路径 |
+历史上 `components/AiPromptsContent.tsx`、`components/DataSourcesContent.tsx`、`components/JobPipeline.tsx`、`components/DomainTag.tsx`、`components/StatCard.tsx`、`components/Badge.tsx`、`components/Tabs.tsx`、`components/ProgressBar.tsx`、`components/EmptyState.tsx` 以及 `shared/BadgeRow|Forbidden|Loading|TermTip|StatusDot` 等已被移除或下沉。`EmptyState` 当前在 `components/shared/EmptyState.tsx`；governance/DomainTag 在 `app/governance/_components/DomainTag.tsx`。
 
 ### 仍在使用的历史自研组件（待迁移）
 
-| 组件文件 | 当前消费者 | 目标迁移方向 |
-|----------|-----------|-------------|
-| `shared/Card.tsx` | `/jobs`, `/data-sources/[id]`, `/raw-ledger`, `/ingest`（4 个页面） | `antd/Card` |
-| `shared/Empty.tsx` | 5 个页面 | `antd/Empty` |
-| `EmptyState.tsx` | `/iam-audit`, `/data-sources`, `/jobs`, `/ai-prompts`, `/assets/[assetId]` | `antd/Empty` |
-| `StatCard.tsx` | `/iam-audit` | `antd/Card` + `antd/Statistic` |
-| `Badge.tsx` | `AiPromptsContent`, `AssetDetailTabs` | `antd/Tag` |
-| `Tabs.tsx` | `AssetDetailTabs` | `antd/Tabs` |
-| `ProgressBar.tsx` | `AssetDetailTabs` | `antd/Progress` |
-| `JobsContent.tsx` | `/jobs` | `antd/Table` + `antd/Steps` |
-| `JobPipeline.tsx` | （零引用，待删除） | — |
-| `DomainTag.tsx` | （零引用，已有 governance 版本替代） | — |
+| 组件文件                           | 当前消费者                                                            | 目标迁移方向                |
+| ---------------------------------- | --------------------------------------------------------------------- | --------------------------- |
+| `components/shared/Card.tsx`       | `/jobs`, `/data-sources/[id]`, `/raw-ledger`, `/ingest`               | `antd/Card`                 |
+| `components/shared/EmptyState.tsx` | 多页面（governance/iam-audit/data-sources/jobs/ai-prompts/assets 等） | `antd/Empty`                |
+| `components/JobsContent.tsx`       | `/jobs`                                                               | `antd/Table` + `antd/Steps` |
+| `components/AssetDetailTabs.tsx`   | `/assets/[assetId]`                                                   | 已部分采用 Antd，渐进迁移   |
+
+> `components/shared/` 下的 `ConfirmButton` / `ErrorState` / `RouteBoundary` / `CopyableShortId` 属于"有跨页面业务规则的薄壳"，不在迁移目标内。
 
 ### 零引用的待清理文件
 
-| 文件 | 说明 |
-|------|------|
-| `components/JobPipeline.tsx` | 无任何导入 |
-| `components/DomainTag.tsx` | 已有 `app/governance/_components/DomainTag.tsx` 替代 |
-| `components/shared/BadgeRow.tsx` | 无任何导入 |
-| `components/shared/Forbidden.tsx` | 无任何导入 |
-| `components/shared/Loading.tsx` | 无任何导入 |
-| `components/shared/TermTip.tsx` | 无任何导入 |
-| `app/assets/[assetId]/_components/AssetDetailTabs.tsx` | 页面实际导入的是 `@/components/AssetDetailTabs` |
+当前已无已知零引用文件。新增孤儿请在 PR 描述里登记，或随手以 `chore(console): remove unused ...` 提交。
+
+> 判定标准：`Grep` 全仓搜索文件 basename 与 `@/...` 路径，仅自身或同名测试出现 → 视为零引用。
+> 例外：Next.js 约定文件（`page/layout/loading/error/route/not-found`）由路由引用，不算孤儿。
 
 ---
 
