@@ -2,8 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { navigation, roleCanAccess } from "@/lib/navigation";
+import { navigation, roleCanAccess, type NavItem } from "@/lib/navigation";
 import { useSession } from "@/lib/auth/useSession";
+import { useNavBadges } from "@/hooks/useNavBadges";
+
+function resolveBadge(item: NavItem, badgeOverrides: Record<string, number>): NavItem["badge"] {
+  if (badgeOverrides[item.href] != null) {
+    return badgeOverrides[item.href] > 0 ? badgeOverrides[item.href] : undefined;
+  }
+  return item.badge;
+}
 
 type SidebarProps = {
   collapsed: boolean;
@@ -13,6 +21,12 @@ type SidebarProps = {
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { session } = useSession();
+  const navBadges = useNavBadges();
+
+  const badgeOverrides: Record<string, number> = {
+    "/governance": navBadges.governancePendingCount,
+    "/tag-review": navBadges.tagReviewPendingCount,
+  };
 
   return (
     <aside className="sidebar">
@@ -37,6 +51,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               <div className="sidebar-group-label">{group.label}</div>
               {visibleItems.map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                const badge = resolveBadge(item, badgeOverrides);
                 return (
                   <Link
                     className={`nav-item${isActive ? " active" : ""}`}
@@ -46,9 +61,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   >
                     <span className="nav-item-icon">{item.icon}</span>
                     <span className="nav-item-label">{item.label}</span>
-                    {item.badge != null && !collapsed && (
+                    {badge != null && !collapsed && (
                       <span className={`nav-item-badge ${item.badgeTone ?? ""}`}>
-                        {item.badge}
+                        {badge}
                       </span>
                     )}
                   </Link>

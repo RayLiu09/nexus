@@ -246,7 +246,7 @@ export function AssetsContent({
               type="info"
               showIcon={false}
               banner
-              message={
+              title={
                 <span style={{ fontSize: 12 }}>
                   <strong>current version</strong> 来自 read model，不在 asset 表上存储反向指针。
                 </span>
@@ -257,7 +257,7 @@ export function AssetsContent({
               type="info"
               showIcon={false}
               banner
-              message={
+              title={
                 <span style={{ fontSize: 12 }}>
                   <strong>current normalized ref</strong> 只表示当前可读标准化引用，不与 version
                   双向绑定。
@@ -269,7 +269,7 @@ export function AssetsContent({
               type="warning"
               showIcon={false}
               banner
-              message={
+              title={
                 <span style={{ fontSize: 12 }}>
                   <strong>stale index</strong> 表示需要重建索引，不等于资产不可读。
                 </span>

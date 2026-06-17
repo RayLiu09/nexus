@@ -102,7 +102,7 @@ export function ConfirmButton({
           loading,
         }}
         confirmLoading={loading}
-        destroyOnClose
+        destroyOnHidden
       >
         <Space orientation="vertical" size="middle" className="w-full">
           {description && (
