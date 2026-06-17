@@ -180,6 +180,52 @@ class TestFreeFormTags:
         assert tag_entry["adoption_status"] == "auto_adopted"
         assert tag_entry["final_value"] == ["电子商务", "国际贸易"]
 
+    def test_multi_stage_tag_values_are_persisted_to_decision_trail(self, rules_registry):
+        svc = GovernanceDecisionService(rules_registry)
+        ai_output = {
+            "classification": "D1",
+            "level": "L1",
+            "tags": [],
+            "_stages": {
+                "tagging": {
+                    "tags": {
+                        "professional_domain": [
+                            {"value": "电子商务", "criteria": "跨境电商行业报告"},
+                            {"value": "doubao-seed-2-0-lite-260215", "criteria": "模型别名"},
+                        ],
+                        "data_source_type": [
+                            {"value": "文件上传", "criteria": "接入方式"},
+                            {"value": "第三方行业研究机构", "criteria": "AMZ123 出品"},
+                        ],
+                    },
+                    "_task_type": "tagging",
+                    "_model_alias": "doubao-seed-2-0-lite-260215",
+                },
+            },
+            "org_scope": "all",
+            "confidence": 0.95,
+        }
+        quality_summary = {
+            "quality_score": 85.0,
+            "quality_level": "pass",
+            "confidence": 0.95,
+        }
+        run = _make_ai_run(ai_output, quality_summary)
+        session = _make_session()
+
+        result = svc.execute_governance(session, run)
+
+        tag_entry = next(e for e in result.decision_trail if e["field_name"] == "tags")
+        assert result.tags == ["电子商务", "第三方行业研究机构"]
+        assert tag_entry["ai_suggestion"] == ["电子商务", "第三方行业研究机构"]
+        assert tag_entry["final_value"] == ["电子商务", "第三方行业研究机构"]
+        assert tag_entry["threshold_check"] == {
+            "confidence_threshold_auto_adopt": 0.8,
+            "actual_confidence": 0.95,
+            "tag_contract": "free_form_values_under_fixed_dimensions",
+            "extracted_tag_count": 2,
+        }
+
 
 class TestLevelRequiresApproval:
     """L3/L4 with requires_approval → review_required."""

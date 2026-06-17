@@ -21,6 +21,7 @@ import {
   selectLatestGovernanceRuns,
 } from "@/lib/governance-runs";
 import type { TagDictionary } from "@/lib/tagLabels";
+import type { ClassificationDictionary } from "@/lib/classificationLabels";
 import { SummaryStrip } from "./SummaryStrip";
 import { DecisionTrailDrawer } from "./DecisionTrailDrawer";
 import { ReviewTab } from "./ReviewTab";
@@ -34,9 +35,11 @@ import { DetailDrawer } from "./DetailDrawer";
 export function GovernanceContent({
   runs,
   tagDictionary,
+  classificationDictionary,
 }: {
   runs: GovernanceRun[];
   tagDictionary: TagDictionary;
+  classificationDictionary: ClassificationDictionary;
 }) {
   const [drawerRun, setDrawerRun] = useState<GovernanceRun | null>(null);
   const [trailRefId, setTrailRefId] = useState<string | null>(null);
@@ -122,9 +125,10 @@ export function GovernanceContent({
         run={drawerRun}
         open={drawerRun !== null}
         onClose={() => setDrawerRun(null)}
-        onOpenTrail={(refId) => {
+        onOpenTrail={(refId, run) => {
           setDrawerRun(null);
           setTrailRefId(refId);
+          setTrailRun(run ?? null);
         }}
         tagDictionary={tagDictionary}
       />
@@ -134,6 +138,7 @@ export function GovernanceContent({
         normalizedRefId={trailRefId}
         onClose={() => { setTrailRefId(null); setTrailRun(null); }}
         tagDictionary={tagDictionary}
+        classificationDictionary={classificationDictionary}
         fallbackTags={trailRun?.ai_output}
       />
     </>

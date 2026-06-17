@@ -12,7 +12,7 @@ interface DetailDrawerProps {
   run: GovernanceRun | null;
   open: boolean;
   onClose: () => void;
-  onOpenTrail: (refId: string) => void;
+  onOpenTrail: (refId: string, run: GovernanceRun) => void;
   tagDictionary: TagDictionary;
 }
 
@@ -36,7 +36,7 @@ export function DetailDrawer({ run, open, onClose, onOpenTrail, tagDictionary }:
       footer={
         <div className="flex gap-2.5 justify-end">
           <Button onClick={onClose}>关闭</Button>
-          <Button type="primary" onClick={() => onOpenTrail(run.normalized_ref_id)}>
+          <Button type="primary" onClick={() => onOpenTrail(run.normalized_ref_id, run)}>
             查看决策追踪
           </Button>
         </div>

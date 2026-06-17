@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import uuid
 from typing import Any
 
@@ -27,6 +28,73 @@ from nexus_app.enums import (
 from nexus_app.governance.schemas import AdoptionStatus, DecisionTrailEntry
 
 logger = logging.getLogger(__name__)
+
+_TAG_DIMENSION_KEYS = frozenset({
+    "professional_domain",
+    "education_level",
+    "geographic_scope",
+    "timeliness",
+    "data_source_type",
+})
+_NON_BUSINESS_TAG_VALUES = frozenset({
+    "file_upload",
+    "文件上传",
+    "本地文件上传",
+    "nas",
+    "crawler",
+    "爬虫",
+    "database",
+    "数据库",
+    "webhook",
+    "api推送",
+    "API推送",
+    "第三方API推送",
+})
+
+
+def _is_valid_tag_value(value: str) -> bool:
+    if value.startswith("#") or value.startswith("_"):
+        return False
+    if value in _NON_BUSINESS_TAG_VALUES:
+        return False
+    return not re.search(r"(?:gpt|doubao|qwen|deepseek|claude|gemini)[-_a-z0-9.]*", value, re.I)
+
+
+def _extract_governance_tags(ai_output: dict[str, Any]) -> list[str]:
+    tags: list[str] = []
+    seen: set[str] = set()
+
+    def add(value: Any) -> None:
+        if isinstance(value, dict):
+            value = value.get("value") or value.get("code") or value.get("tag")
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if cleaned and _is_valid_tag_value(cleaned) and cleaned not in seen:
+                seen.add(cleaned)
+                tags.append(cleaned)
+
+    def add_many(value: Any) -> None:
+        if isinstance(value, list):
+            for item in value:
+                add_many(item)
+        elif isinstance(value, dict):
+            if any(key in value for key in ("value", "code", "tag")):
+                add(value)
+            else:
+                for nested in value.values():
+                    add_many(nested)
+        else:
+            add(value)
+
+    add_many(ai_output.get("tags"))
+    stages = ai_output.get("_stages")
+    tagging_stage = stages.get("tagging") if isinstance(stages, dict) else None
+    if isinstance(tagging_stage, dict):
+        add_many(tagging_stage.get("tags"))
+    for dim_key in _TAG_DIMENSION_KEYS:
+        if dim_key in ai_output:
+            add_many(ai_output[dim_key])
+    return tags
 
 
 class GovernanceDecisionError(Exception):
@@ -90,7 +158,7 @@ class GovernanceDecisionService:
             ai_run_id=ai_run.id,
             classification=ai_output.get("classification"),
             level=ai_output.get("level"),
-            tags=ai_output.get("tags", []),
+            tags=_extract_governance_tags(ai_output),
             org_scope=ai_output.get("org_scope"),
             index_admission=index_admission,
             quality_summary=quality_summary,
@@ -250,14 +318,13 @@ class GovernanceDecisionService:
         self, ai_output: dict[str, Any], config: GovernanceRulesConfig, threshold: float
     ) -> DecisionTrailEntry:
         confidence = float(ai_output.get("confidence", 0))
-        suggestion = ai_output.get("tags", [])
-        if not isinstance(suggestion, list):
-            suggestion = []
+        suggestion = _extract_governance_tags(ai_output)
 
         checks: dict[str, Any] = {
             "confidence_threshold_auto_adopt": threshold,
             "actual_confidence": confidence,
             "tag_contract": "free_form_values_under_fixed_dimensions",
+            "extracted_tag_count": len(suggestion),
         }
 
         if confidence < threshold:

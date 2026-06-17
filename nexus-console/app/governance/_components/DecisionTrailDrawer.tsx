@@ -36,25 +36,7 @@ import type {
 import { fetchGovernanceResultForRef } from "../_lib/governanceResultApi";
 import { tagLabel, type TagDictionary } from "@/lib/tagLabels";
 import { extractGovernanceTags } from "@/lib/governance-tags";
-
-const CLASS_LABELS: Record<string, string> = {
-  industry_policy: "产业政策",
-  industry_report: "产业报告",
-  sector_report: "行业报告",
-  job_demand: "岗位需求数据",
-  competency_analysis: "职业能力分析表",
-  vocational_certificate: "职业类证书",
-  teaching_standard: "专业教学标准",
-  program_distribution: "专业布点数",
-  talent_demand_report: "专业人才需求报告",
-  talent_training_plan: "人才培养方案",
-  program_profile: "专业简介",
-};
-
-function classLabel(code: string | null | undefined): string {
-  if (!code) return "-";
-  return CLASS_LABELS[code] ?? code;
-}
+import { classificationLabel, type ClassificationDictionary } from "@/lib/classificationLabels";
 
 const VIEW_OPTIONS: { label: string; value: DecisionTrailView }[] = [
   { label: "完整视图", value: "full" },
@@ -85,11 +67,19 @@ interface DecisionTrailDrawerProps {
   normalizedRefId: string | null;
   onClose: () => void;
   tagDictionary: TagDictionary;
+  classificationDictionary: ClassificationDictionary;
   /** Fallback AI output from the governance run, used when result.tags is empty. */
   fallbackTags?: unknown;
 }
 
-export function DecisionTrailDrawer({ open, normalizedRefId, onClose, tagDictionary, fallbackTags }: DecisionTrailDrawerProps) {
+export function DecisionTrailDrawer({
+  open,
+  normalizedRefId,
+  onClose,
+  tagDictionary,
+  classificationDictionary,
+  fallbackTags,
+}: DecisionTrailDrawerProps) {
   const [view, setView] = useState<DecisionTrailView>("full");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<GovernanceResultRead | null>(null);
@@ -140,7 +130,15 @@ export function DecisionTrailDrawer({ open, normalizedRefId, onClose, tagDiction
         />
       }
     >
-      <DrawerBody loading={loading} error={error} view={view} result={result} tagDictionary={tagDictionary} fallbackTags={fallbackTags} />
+      <DrawerBody
+        loading={loading}
+        error={error}
+        view={view}
+        result={result}
+        tagDictionary={tagDictionary}
+        classificationDictionary={classificationDictionary}
+        fallbackTags={fallbackTags}
+      />
     </Drawer>
   );
 }
@@ -151,10 +149,19 @@ interface DrawerBodyProps {
   view: DecisionTrailView;
   result: GovernanceResultRead | null;
   tagDictionary: TagDictionary;
+  classificationDictionary: ClassificationDictionary;
   fallbackTags?: unknown;
 }
 
-function DrawerBody({ loading, error, view, result, tagDictionary, fallbackTags }: DrawerBodyProps) {
+function DrawerBody({
+  loading,
+  error,
+  view,
+  result,
+  tagDictionary,
+  classificationDictionary,
+  fallbackTags,
+}: DrawerBodyProps) {
   if (loading) {
     return <Skeleton active paragraph={{ rows: 6 }} />;
   }
@@ -180,7 +187,11 @@ function DrawerBody({ loading, error, view, result, tagDictionary, fallbackTags 
 
   return (
     <Space orientation="vertical" size="large" className="w-full">
-      <OutcomeSummary result={{ ...result, tags: resolvedTags }} tagDictionary={tagDictionary} />
+      <OutcomeSummary
+        result={{ ...result, tags: resolvedTags }}
+        tagDictionary={tagDictionary}
+        classificationDictionary={classificationDictionary}
+      />
 
       {view === "public" ? (
         <Alert
@@ -195,7 +206,15 @@ function DrawerBody({ loading, error, view, result, tagDictionary, fallbackTags 
           items={trail.map((entry, i) => ({
             key: `${entry.field_name}-${i}`,
             color: ADOPTION_META[entry.adoption_status]?.color ?? "blue",
-            content: <TrailItem entry={entry} view={view} tagDictionary={tagDictionary} />,
+            content: (
+              <TrailItem
+                entry={entry}
+                view={view}
+                tagDictionary={tagDictionary}
+                classificationDictionary={classificationDictionary}
+                fallbackTags={resolvedTags}
+              />
+            ),
           }))}
         />
       )}
@@ -203,11 +222,19 @@ function DrawerBody({ loading, error, view, result, tagDictionary, fallbackTags 
   );
 }
 
-function OutcomeSummary({ result, tagDictionary }: { result: GovernanceResultRead; tagDictionary: TagDictionary }) {
+function OutcomeSummary({
+  result,
+  tagDictionary,
+  classificationDictionary,
+}: {
+  result: GovernanceResultRead;
+  tagDictionary: TagDictionary;
+  classificationDictionary: ClassificationDictionary;
+}) {
   return (
     <Descriptions size="small" bordered column={2}>
       <Descriptions.Item label="数据分类">
-        {result.classification ? <Tag color="purple">{classLabel(result.classification)}</Tag> : "-"}
+        {result.classification ? <Tag color="purple">{classificationLabel(result.classification, classificationDictionary)}</Tag> : "-"}
       </Descriptions.Item>
       <Descriptions.Item label="数据分级">
         {result.level ? <Tag>{result.level}</Tag> : "-"}
@@ -239,10 +266,24 @@ function OutcomeSummary({ result, tagDictionary }: { result: GovernanceResultRea
   );
 }
 
-function TrailItem({ entry, view, tagDictionary }: { entry: DecisionTrailEntry; view: DecisionTrailView; tagDictionary: TagDictionary }) {
+function TrailItem({
+  entry,
+  view,
+  tagDictionary,
+  classificationDictionary,
+  fallbackTags,
+}: {
+  entry: DecisionTrailEntry;
+  view: DecisionTrailView;
+  tagDictionary: TagDictionary;
+  classificationDictionary: ClassificationDictionary;
+  fallbackTags: string[];
+}) {
   const meta = ADOPTION_META[entry.adoption_status];
   const showSuggestion = view === "full" || view === "operator";
   const showConfidence = view === "full";
+  const finalValue = resolveTrailValue(entry.final_value, entry.field_name, fallbackTags);
+  const aiSuggestion = resolveTrailValue(entry.ai_suggestion, entry.field_name, fallbackTags);
 
   return (
     <div className="flex flex-col gap-1">
@@ -260,16 +301,26 @@ function TrailItem({ entry, view, tagDictionary }: { entry: DecisionTrailEntry; 
 
       <div className="text-[13px]">
         最终值：
-        <ValueChip value={entry.final_value} fieldName={entry.field_name} tagDictionary={tagDictionary} />
+        <ValueChip
+          value={finalValue}
+          fieldName={entry.field_name}
+          tagDictionary={tagDictionary}
+          classificationDictionary={classificationDictionary}
+        />
       </div>
 
-      {showSuggestion && entry.ai_suggestion !== undefined && (
+      {showSuggestion && aiSuggestion !== undefined && (
         <div className="text-[13px] text-[var(--text-secondary)]">
           AI 建议：
-          {entry.ai_suggestion === REDACTED_TOKEN ? (
+          {aiSuggestion === REDACTED_TOKEN ? (
             <Tag color="default">{REDACTED_TOKEN}</Tag>
           ) : (
-            <ValueChip value={entry.ai_suggestion} fieldName={entry.field_name} tagDictionary={tagDictionary} />
+            <ValueChip
+              value={aiSuggestion}
+              fieldName={entry.field_name}
+              tagDictionary={tagDictionary}
+              classificationDictionary={classificationDictionary}
+            />
           )}
         </div>
       )}
@@ -278,19 +329,54 @@ function TrailItem({ entry, view, tagDictionary }: { entry: DecisionTrailEntry; 
         <Alert type="warning" showIcon title={entry.review_reason} className="mt-1" />
       )}
 
-      <ThresholdView check={entry.threshold_check} />
+      <ThresholdView check={normalizeThresholdCheck(entry.threshold_check, entry.field_name, fallbackTags)} />
     </div>
   );
 }
 
-function ValueChip({ value, fieldName, tagDictionary }: { value: unknown; fieldName?: DecisionField; tagDictionary: TagDictionary }) {
+function resolveTrailValue(value: unknown, fieldName: DecisionField, fallbackTags: string[]): unknown {
+  if (fieldName !== "tags") return value;
+  if (Array.isArray(value) && value.length === 0 && fallbackTags.length > 0) return fallbackTags;
+  return value;
+}
+
+function normalizeThresholdCheck(
+  check: Record<string, unknown>,
+  fieldName: DecisionField,
+  fallbackTags: string[],
+): Record<string, unknown> {
+  if (fieldName !== "tags") return check;
+  const next: Record<string, unknown> = { ...check };
+  if (Array.isArray(next.valid_tags) && next.valid_tags.length === 0) {
+    delete next.valid_tags;
+    next.tag_contract = next.tag_contract ?? "free_form_values_under_fixed_dimensions";
+  }
+  if (fallbackTags.length > 0 && next.extracted_tag_count === undefined) {
+    next.extracted_tag_count = fallbackTags.length;
+  }
+  return next;
+}
+
+function ValueChip({
+  value,
+  fieldName,
+  tagDictionary,
+  classificationDictionary,
+}: {
+  value: unknown;
+  fieldName?: DecisionField;
+  tagDictionary: TagDictionary;
+  classificationDictionary: ClassificationDictionary;
+}) {
   if (value === null || value === undefined) return <span className="text-muted">-</span>;
   if (Array.isArray(value)) {
     if (value.length === 0) return <span className="text-muted">-</span>;
     return (
       <Space size={4} wrap>
         {(value as unknown[]).map((v, i) => (
-          <Tag key={`${String(v)}-${i}`}>{fieldName === "tags" ? tagLabel(String(v), tagDictionary) : String(v)}</Tag>
+          <Tag key={String(v) + "-" + i}>
+            {formatDecisionValue(v, fieldName, tagDictionary, classificationDictionary)}
+          </Tag>
         ))}
       </Space>
     );
@@ -302,7 +388,18 @@ function ValueChip({ value, fieldName, tagDictionary }: { value: unknown; fieldN
       </Typography.Text>
     );
   }
-  return <Tag color="blue">{fieldName === "tags" ? tagLabel(String(value), tagDictionary) : String(value)}</Tag>;
+  return <Tag color="blue">{formatDecisionValue(value, fieldName, tagDictionary, classificationDictionary)}</Tag>;
+}
+
+function formatDecisionValue(
+  value: unknown,
+  fieldName: DecisionField | undefined,
+  tagDictionary: TagDictionary,
+  classificationDictionary: ClassificationDictionary,
+): string {
+  if (fieldName === "tags") return tagLabel(String(value), tagDictionary);
+  if (fieldName === "classification") return classificationLabel(String(value), classificationDictionary);
+  return String(value);
 }
 
 function ThresholdView({ check }: { check: Record<string, unknown> }) {
