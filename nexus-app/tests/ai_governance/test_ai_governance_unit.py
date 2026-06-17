@@ -312,6 +312,18 @@ class TestPydanticOutputValidator:
         out, err = v.validate(raw)
         assert out is None
 
+    def test_registry_validation_allows_free_form_tag_values(self, registry):
+        v = PydanticOutputValidator(registry)
+        raw = json.dumps({
+            "classification": "D4", "level": "L2", "tags": ["电子商务", "国际贸易"],
+            "org_scope": "all", "quality_scores": {}, "overall_score": 80,
+            "evidence_refs": [], "confidence": 0.9, "reasoning": "",
+        })
+        out, err = v.validate(raw)
+        assert err is None
+        assert out is not None
+        assert out.tags == ["电子商务", "国际贸易"]
+
 
 # ---------------------------------------------------------------------------
 # QualityScoringService tests
@@ -367,6 +379,60 @@ class TestQualityScoringService:
 
 
 class TestMultiStageGovernanceAggregation:
+    def test_aggregate_extracts_fixed_dimension_free_form_tag_values(self):
+        from nexus_app.ai_governance.services import AIGovernanceService
+
+        output = AIGovernanceService._aggregate_stage_outputs({
+            "classification": {"classification_code": "D4", "confidence": 0.9},
+            "level_assessment": {"level_code": "L1", "confidence": 0.9},
+            "tagging": {
+                "tags": {
+                    "professional_domain": [
+                        {"value": "电子商务", "criteria": "跨境电商行业报告"},
+                        {"value": "国际贸易", "criteria": "出口贸易数据"},
+                    ],
+                    "education_level": [{"value": "高等教育", "criteria": "行业研究学习"}],
+                    "geographic_scope": [{"value": "全球", "criteria": "覆盖全球市场"}],
+                },
+                "confidence": 0.91,
+            },
+        })
+
+        assert output["tags"] == ["电子商务", "国际贸易", "高等教育", "全球"]
+        assert output["tag_dimensions"]["professional_domain"][0] == {
+            "value": "电子商务",
+            "criteria": "跨境电商行业报告",
+        }
+
+    def test_aggregate_ignores_stage_metadata_and_ingest_channel_tags(self):
+        from nexus_app.ai_governance.services import AIGovernanceService
+
+        output = AIGovernanceService._aggregate_stage_outputs({
+            "classification": {"classification_code": "D4", "confidence": 0.9},
+            "level_assessment": {"level_code": "L1", "confidence": 0.9},
+            "tagging": {
+                "tags": {
+                    "professional_domain": [
+                        {"value": "电子商务", "criteria": "跨境电商行业报告"},
+                        {"value": "#tagging", "criteria": "展示 token，不是业务标签"},
+                        {"value": "doubao-seed-2-0-lite-260215", "criteria": "模型别名"},
+                    ],
+                    "data_source_type": [
+                        {"value": "文件上传", "criteria": "source_type_hint=file_upload"},
+                        {"value": "第三方行业研究机构", "criteria": "AMZ123 出品"},
+                    ],
+                },
+                "confidence": 0.91,
+                "_task_type": "tagging",
+                "_model_alias": "doubao-seed-2-0-lite-260215",
+            },
+        })
+
+        assert output["tags"] == ["电子商务", "第三方行业研究机构"]
+        assert output["tag_dimensions"]["data_source_type"] == [
+            {"value": "第三方行业研究机构", "criteria": "AMZ123 出品"}
+        ]
+
     def test_aggregate_accepts_legacy_field_names_and_quality_scores(self):
         from nexus_app.ai_governance.services import AIGovernanceService
 

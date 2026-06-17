@@ -1,5 +1,12 @@
 import type { TagDictionary } from "@/lib/tagLabels";
 import { tagLabels } from "@/lib/tagLabels";
+import {
+  getRunQualityScore,
+  isReviewPendingRun,
+  selectCurrentQualityCalibrationRuns,
+  selectCurrentReviewRuns,
+  selectLatestGovernanceRuns,
+} from "@/lib/governance-runs";
 
 export type GovernanceRun = {
   id: string;
@@ -25,21 +32,22 @@ export type GovernanceStats = {
 };
 
 export function deriveStats(runs: GovernanceRun[]): GovernanceStats {
+  const currentRuns = selectLatestGovernanceRuns(runs);
+  const currentReviewRuns = selectCurrentReviewRuns(runs);
+  const currentQualityRuns = selectCurrentQualityCalibrationRuns(runs);
   let pendingReview = 0;
   let ruleConflict = 0;
   let qualityPending = 0;
   let highConfidenceAdoptable = 0;
   let completedDecisions = 0;
 
-  for (const r of runs) {
+  for (const r of currentRuns) {
     const conf = getConfidence(r);
-    const score = getQualityScore(r);
 
-    if (r.adoption_status === "review_required" || r.adoption_status === "pending_rule_guardrail") {
+    if (isReviewPendingRun(r)) {
       pendingReview++;
       if (r.adoption_status === "pending_rule_guardrail") ruleConflict++;
     }
-    if (score !== null && score < 70) qualityPending++;
     if (r.validation_status === "schema_valid" && conf >= 0.85) highConfidenceAdoptable++;
     if (
       r.adoption_status === "auto_adopted" ||
@@ -48,6 +56,9 @@ export function deriveStats(runs: GovernanceRun[]): GovernanceStats {
     )
       completedDecisions++;
   }
+
+  pendingReview = currentReviewRuns.length;
+  qualityPending = currentQualityRuns.length;
 
   return {
     pendingReview,
@@ -90,9 +101,7 @@ export function getConfidence(run: GovernanceRun): number {
 }
 
 export function getQualityScore(run: GovernanceRun): number | null {
-  const qs = run.quality_summary;
-  if (!qs) return null;
-  return (qs.quality_score as number) ?? null;
+  return getRunQualityScore(run);
 }
 
 export function getQualityLevel(run: GovernanceRun): string {

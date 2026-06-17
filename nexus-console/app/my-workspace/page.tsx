@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/PageHeader";
 import { ApiState } from "@/components/ApiState";
 import { getApiData, type AIGovernanceRun, type AuditLog } from "@/lib/api";
+import { selectCurrentReviewRuns } from "@/lib/governance-runs";
 import { WorkspaceContent } from "./_components/WorkspaceContent";
 
 export const dynamic = "force-dynamic";
@@ -11,10 +12,7 @@ export default async function MyWorkspacePage() {
     getApiData<AuditLog[]>("/internal/v1/audit-logs", []),
   ]);
 
-  const pendingReview = grResult.data.filter(
-    (r) =>
-      r.adoption_status === "review_required" || r.adoption_status === "pending_rule_guardrail",
-  );
+  const pendingReview = selectCurrentReviewRuns(grResult.data);
   const recentAudits = auditResult.data.slice(0, 10);
 
   return (

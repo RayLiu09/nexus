@@ -14,7 +14,12 @@
 
 import { useState } from "react";
 import { Badge, Button, Select, Tabs, App } from "antd";
-import { type GovernanceRun, deriveStats, getQualityScore } from "../_lib/types";
+import { type GovernanceRun, deriveStats } from "../_lib/types";
+import {
+  selectCurrentQualityCalibrationRuns,
+  selectCurrentReviewRuns,
+  selectLatestGovernanceRuns,
+} from "@/lib/governance-runs";
 import type { TagDictionary } from "@/lib/tagLabels";
 import { SummaryStrip } from "./SummaryStrip";
 import { DecisionTrailDrawer } from "./DecisionTrailDrawer";
@@ -38,15 +43,12 @@ export function GovernanceContent({
   const [trailRun, setTrailRun] = useState<GovernanceRun | null>(null);
   const { message } = App.useApp();
   const stats = deriveStats(runs);
+  const currentRuns = selectLatestGovernanceRuns(runs);
+  const reviewRuns = selectCurrentReviewRuns(runs);
+  const qualityRuns = selectCurrentQualityCalibrationRuns(runs);
 
-  const reviewCount = runs.filter(
-    (r) =>
-      r.adoption_status === "review_required" || r.adoption_status === "pending_rule_guardrail",
-  ).length;
-  const qualityCount = runs.filter((r) => {
-    const s = getQualityScore(r);
-    return s !== null && s < 70;
-  }).length;
+  const reviewCount = reviewRuns.length;
+  const qualityCount = qualityRuns.length;
 
   const tabItems = [
     {
@@ -56,12 +58,12 @@ export function GovernanceContent({
           待复核
         </Badge>
       ),
-      children: <ReviewTab runs={runs} onViewDetail={setDrawerRun} />,
+      children: <ReviewTab runs={reviewRuns} onViewDetail={setDrawerRun} />,
     },
     {
       key: "ai",
       label: "AI 建议",
-      children: <AiSuggestionsTab runs={runs} onViewDetail={setDrawerRun} />,
+      children: <AiSuggestionsTab runs={currentRuns} onViewDetail={setDrawerRun} />,
     },
     {
       key: "quality",
@@ -70,7 +72,7 @@ export function GovernanceContent({
           质量校准
         </Badge>
       ),
-      children: <QualityTab runs={runs} onViewDetail={setDrawerRun} />,
+      children: <QualityTab runs={qualityRuns} onViewDetail={setDrawerRun} />,
     },
     {
       key: "trail",

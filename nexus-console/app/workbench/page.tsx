@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/PageHeader";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { loadWorkbenchData } from "@/lib/console-data";
+import { selectCurrentReviewRuns, selectLatestGovernanceRuns } from "@/lib/governance-runs";
 import type { AIGovernanceRun, AuditLog, DataSource, IngestBatch } from "@/lib/api";
 import { WorkbenchContent } from "./_components/WorkbenchContent";
 
@@ -46,7 +47,9 @@ export default async function WorkbenchPage() {
   const assetCount = data.assets.data.length;
   const refCount = data.normalizedRefs.data.length;
   const jobCount = data.jobs.data.length;
-  const grCount = data.governanceRuns.data.length;
+  const currentGovernanceRuns = selectLatestGovernanceRuns(data.governanceRuns.data);
+  const currentReviewRuns = selectCurrentReviewRuns(data.governanceRuns.data);
+  const grCount = currentGovernanceRuns.length;
 
   const succeededJobs = data.jobs.data.filter((j) => j.status === "succeeded").length;
   const failedJobs = data.jobs.data.filter(
@@ -58,15 +61,12 @@ export default async function WorkbenchPage() {
   const completedJobs = succeededJobs + failedJobs;
   const pipelineHealth = completedJobs > 0 ? Math.round((succeededJobs / completedJobs) * 100) : 100;
 
-  const governedRefIds = new Set(data.governanceRuns.data.map((gr) => gr.normalized_ref_id));
+  const governedRefIds = new Set(currentGovernanceRuns.map((gr) => gr.normalized_ref_id));
   const governanceCoverage = refCount > 0 ? Math.round((governedRefIds.size / refCount) * 100) : 0;
-  const autoAdopted = data.governanceRuns.data.filter(
+  const autoAdopted = currentGovernanceRuns.filter(
     (gr) => gr.adoption_status === "auto_adopted",
   ).length;
-  const reviewRequired = data.governanceRuns.data.filter(
-    (gr) =>
-      gr.adoption_status === "review_required" || gr.adoption_status === "pending_rule_guardrail",
-  ).length;
+  const reviewRequired = currentReviewRuns.length;
 
   let qualityPass = 0;
   let qualityWarning = 0;
@@ -74,7 +74,7 @@ export default async function WorkbenchPage() {
   let qualitySumTotal = 0;
   let qualityCountTotal = 0;
 
-  data.governanceRuns.data.forEach((gr) => {
+  currentGovernanceRuns.forEach((gr) => {
     const qs = gr.quality_summary as Record<string, unknown> | null;
     const score =
       (qs?.overall_score as number) ??
@@ -157,7 +157,7 @@ export default async function WorkbenchPage() {
     batches: sortedBatches,
     audits: sortedAudits,
     dataSourceById,
-    governanceRuns: data.governanceRuns.data,
+    governanceRuns: currentGovernanceRuns,
     processingBatches,
   };
 

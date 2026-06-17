@@ -12,11 +12,6 @@ export function QualityTab({
   runs: GovernanceRun[];
   onViewDetail: (r: GovernanceRun) => void;
 }) {
-  const filtered = runs.filter((r) => {
-    const score = getQualityScore(r);
-    return score !== null && score < 70;
-  });
-
   const columns: ColumnsType<GovernanceRun> = [
     {
       title: "资产",
@@ -85,7 +80,7 @@ export function QualityTab({
   return (
     <Table
       rowKey="id"
-      dataSource={filtered}
+      dataSource={runs}
       columns={columns}
       size="middle"
       pagination={false}

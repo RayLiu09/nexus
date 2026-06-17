@@ -51,6 +51,31 @@ _AI_CALL_RETRIABLE_ERRORS = frozenset({
     LiteLLMErrorType.SERVER_ERROR,
 })
 
+_TAG_DIMENSION_KEYS = frozenset({
+    "professional_domain",
+    "education_level",
+    "geographic_scope",
+    "timeliness",
+    "data_source_type",
+})
+_TAG_STAGE_INPUT_EXCLUDED_FIELDS = frozenset({
+    "source_type_hint",
+})
+_NON_BUSINESS_TAG_VALUES = frozenset({
+    "file_upload",
+    "文件上传",
+    "本地文件上传",
+    "nas",
+    "crawler",
+    "爬虫",
+    "database",
+    "数据库",
+    "webhook",
+    "api推送",
+    "API推送",
+    "第三方API推送",
+})
+
 
 def _write_audit(
     session: Session,
@@ -774,8 +799,12 @@ class AIGovernanceService:
 
         builder = DefaultAIInputBuilder()
         try:
+            stage_ref_dict = dict(ref_dict)
+            if task_type == "tagging":
+                for field in _TAG_STAGE_INPUT_EXCLUDED_FIELDS:
+                    stage_ref_dict.pop(field, None)
             built = builder.build(
-                ref_dict, tmpl.redaction_policy, sensitivity_level,
+                stage_ref_dict, tmpl.redaction_policy, sensitivity_level,
                 registry=rules_registry, model_alias=tmpl.litellm_model_alias,
             )
         except RedactionPolicyError as exc:
@@ -895,29 +924,75 @@ class AIGovernanceService:
         tags: list[str] = []
         seen: set[str] = set()
 
+        def is_valid_tag_value(value: str) -> bool:
+            if value.startswith("#") or value.startswith("_"):
+                return False
+            if value in _NON_BUSINESS_TAG_VALUES:
+                return False
+            if re.search(r"(?:gpt|doubao|qwen|deepseek|claude|gemini)[-_a-z0-9.]*", value, re.I):
+                return False
+            return True
+
         def add(value: Any) -> None:
             if isinstance(value, dict):
                 value = value.get("value") or value.get("code") or value.get("tag")
             if isinstance(value, str):
                 cleaned = value.strip()
-                if cleaned and cleaned not in seen:
+                if cleaned and is_valid_tag_value(cleaned) and cleaned not in seen:
                     seen.add(cleaned)
                     tags.append(cleaned)
 
-        explicit = tag_output.get("tags")
-        if isinstance(explicit, list):
-            for item in explicit:
-                add(item)
-
-        for dim_k, dim_v in tag_output.items():
-            if dim_k.startswith("_") or dim_k == "tags":
-                continue
-            if isinstance(dim_v, list):
-                for item in dim_v:
-                    add(item)
+        def add_many(value: Any) -> None:
+            if isinstance(value, list):
+                for item in value:
+                    add_many(item)
+            elif isinstance(value, dict):
+                if any(key in value for key in ("value", "code", "tag")):
+                    add(value)
+                else:
+                    for nested in value.values():
+                        add_many(nested)
             else:
-                add(dim_v)
+                add(value)
+
+        explicit = tag_output.get("tags")
+        add_many(explicit)
+        for dim_k in _TAG_DIMENSION_KEYS:
+            if dim_k in tag_output:
+                add_many(tag_output[dim_k])
         return tags
+
+    @staticmethod
+    def _extract_tag_dimensions(tag_output: dict[str, Any]) -> dict[str, list[dict[str, str]]]:
+        raw = tag_output.get("tags")
+        if not isinstance(raw, dict):
+            return {}
+
+        dimensions: dict[str, list[dict[str, str]]] = {}
+        for dim_key, dim_value in raw.items():
+            if not isinstance(dim_key, str):
+                continue
+            values = dim_value if isinstance(dim_value, list) else [dim_value]
+            items: list[dict[str, str]] = []
+            for value in values:
+                if isinstance(value, dict):
+                    label = value.get("value") or value.get("code") or value.get("tag")
+                    criteria = value.get("criteria") or value.get("evidence") or value.get("rationale") or ""
+                else:
+                    label = value
+                    criteria = ""
+                if isinstance(label, str) and label.strip():
+                    cleaned = label.strip()
+                    if (
+                        cleaned in _NON_BUSINESS_TAG_VALUES
+                        or cleaned.startswith("#")
+                        or re.search(r"(?:gpt|doubao|qwen|deepseek|claude|gemini)[-_a-z0-9.]*", cleaned, re.I)
+                    ):
+                        continue
+                    items.append({"value": cleaned, "criteria": str(criteria) if criteria else ""})
+            if items:
+                dimensions[dim_key] = items
+        return dimensions
 
     @staticmethod
     def _aggregate_stage_outputs(stage_outputs: dict[str, Any]) -> dict[str, Any]:
@@ -964,6 +1039,9 @@ class AIGovernanceService:
         if not isinstance(overall_score, (int, float)):
             overall_score = qual.get("quality_score")
 
+        tags = AIGovernanceService._extract_tags(tag)
+        tag_dimensions = AIGovernanceService._extract_tag_dimensions(tag)
+
         return {
             "classification": AIGovernanceService._first_str(
                 cls, "classification_code", "code", "classification"
@@ -977,7 +1055,8 @@ class AIGovernanceService:
             "level_name": AIGovernanceService._first_str(
                 lvl, "level_name", "name", "level_name"
             ),
-            "tags": AIGovernanceService._extract_tags(tag),
+            "tags": tags,
+            "tag_dimensions": tag_dimensions,
             "org_scope": (
                 cls.get("org_scope")
                 or lvl.get("org_scope")
@@ -1280,12 +1359,13 @@ def _build_rules_section(governance_context: dict[str, Any]) -> str:
 
     tags = governance_context.get("tags", [])
     if tags:
-        lines.append("### 数据标签（tags 字段只能包含以下 code，不得自造标签）")
+        lines.append("### 数据标签定义（用于判断标签维度和候选值语义，标签值允许按内容生成）")
         for t in tags:
             applicable = t.get("applicable_classifications", [])
             scope = f"适用分类：{applicable}" if applicable else "通用"
             criteria_text = "；".join(t.get("criteria", []))
-            lines.append(f"- **{t['code']}**（{t.get('name', '')}，{scope}）：{criteria_text}")
+            name = t.get("name") or t.get("code", "")
+            lines.append(f"- **{name}**（{scope}）：{criteria_text}")
         lines.append("")
 
     knowledge_types = governance_context.get("knowledge_types", [])
@@ -1305,7 +1385,7 @@ def _build_rules_section(governance_context: dict[str, Any]) -> str:
     lines.append(
         "**输出约束**：classification 必须是上述分类 code 之一；"
         "level 必须是上述分级 code 之一；"
-        "tags 中每个值必须是上述标签 code 之一，不得包含未定义的标签；"
+        "tags 是内容标签值列表或固定维度标签对象，标签值不是有限 code 集，不要自造分类/分级 code；"
         "knowledge_type 可空；若提供，必须是上述知识类型 code 之一。"
     )
     return "\n".join(lines)

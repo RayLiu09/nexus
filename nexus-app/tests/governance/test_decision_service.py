@@ -155,6 +155,32 @@ class TestQualityFailReviewRequired:
         assert "fail" in quality_entry["review_reason"]
 
 
+class TestFreeFormTags:
+    def test_free_form_tag_values_do_not_trigger_review(self, rules_registry):
+        svc = GovernanceDecisionService(rules_registry)
+        ai_output = {
+            "classification": "D1",
+            "level": "L1",
+            "tags": ["电子商务", "国际贸易"],
+            "org_scope": "all",
+            "confidence": 0.95,
+        }
+        quality_summary = {
+            "quality_score": 85.0,
+            "quality_level": "pass",
+            "confidence": 0.95,
+        }
+        run = _make_ai_run(ai_output, quality_summary)
+        session = _make_session()
+
+        result = svc.execute_governance(session, run)
+
+        assert result.status == GovernanceResultStatus.AVAILABLE
+        tag_entry = next(e for e in result.decision_trail if e["field_name"] == "tags")
+        assert tag_entry["adoption_status"] == "auto_adopted"
+        assert tag_entry["final_value"] == ["电子商务", "国际贸易"]
+
+
 class TestLevelRequiresApproval:
     """L3/L4 with requires_approval → review_required."""
 

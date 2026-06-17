@@ -17,10 +17,67 @@ export interface CommittedTag {
   assetTitle?: string;
 }
 
+const NON_BUSINESS_TAG_VALUES = new Set([
+  "file_upload",
+  "文件上传",
+  "本地文件上传",
+  "nas",
+  "crawler",
+  "爬虫",
+  "database",
+  "数据库",
+  "webhook",
+  "api推送",
+  "API推送",
+  "第三方API推送",
+]);
+
+function isValidTagValue(value: string): boolean {
+  if (value.startsWith("#") || value.startsWith("_")) return false;
+  if (NON_BUSINESS_TAG_VALUES.has(value)) return false;
+  return !/(?:gpt|doubao|qwen|deepseek|claude|gemini)[-_a-z0-9.]*/i.test(value);
+}
+
 function extractTags(run: AIGovernanceRun): string[] {
-  const raw = run.ai_output?.tags;
-  if (!Array.isArray(raw)) return [];
-  return raw.filter((tag): tag is string => typeof tag === "string" && tag.length > 0);
+  const tags: string[] = [];
+  const seen = new Set<string>();
+
+  function add(value: unknown): void {
+    if (typeof value === "object" && value !== null) {
+      const item = value as Record<string, unknown>;
+      value = item.value ?? item.code ?? item.tag;
+    }
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed && isValidTagValue(trimmed) && !seen.has(trimmed)) {
+        seen.add(trimmed);
+        tags.push(trimmed);
+      }
+    }
+  }
+
+  function addMany(value: unknown): void {
+    if (Array.isArray(value)) {
+      value.forEach(addMany);
+      return;
+    }
+    if (typeof value === "object" && value !== null) {
+      const item = value as Record<string, unknown>;
+      if ("value" in item || "code" in item || "tag" in item) {
+        add(item);
+        return;
+      }
+      Object.values(item).forEach(addMany);
+      return;
+    }
+    add(value);
+  }
+
+  addMany(run.ai_output?.tags);
+  const stages = run.ai_output?._stages as Record<string, unknown> | undefined;
+  const taggingStage = stages?.tagging as Record<string, unknown> | undefined;
+  addMany(taggingStage?.tags);
+  return tags;
 }
 
 function evidenceText(run: AIGovernanceRun): string {

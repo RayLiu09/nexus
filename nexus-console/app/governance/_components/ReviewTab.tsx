@@ -15,11 +15,6 @@ export function ReviewTab({ runs, onViewDetail }: ReviewTabProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { message, modal } = App.useApp();
 
-  const filtered = runs.filter(
-    (r) =>
-      r.adoption_status === "review_required" || r.adoption_status === "pending_rule_guardrail",
-  );
-
   const handleSelect = (id: string, checked: boolean) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -55,7 +50,7 @@ export function ReviewTab({ runs, onViewDetail }: ReviewTabProps) {
     });
   };
 
-  if (filtered.length === 0) {
+  if (runs.length === 0) {
     return (
       <div className="py-12 text-center text-secondary">
         <CheckOutlined className="text-[32px] text-[var(--success-600)] mb-3" />
@@ -95,7 +90,7 @@ export function ReviewTab({ runs, onViewDetail }: ReviewTabProps) {
       )}
 
       {/* review-card stack */}
-      {filtered.map((r) => (
+      {runs.map((r) => (
         <ReviewCard
           key={r.id}
           run={r}

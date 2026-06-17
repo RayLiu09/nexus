@@ -251,12 +251,13 @@ class GovernanceDecisionService:
     ) -> DecisionTrailEntry:
         confidence = float(ai_output.get("confidence", 0))
         suggestion = ai_output.get("tags", [])
-        valid_codes = {t.code for t in config.tags}
+        if not isinstance(suggestion, list):
+            suggestion = []
 
         checks: dict[str, Any] = {
             "confidence_threshold_auto_adopt": threshold,
             "actual_confidence": confidence,
-            "valid_tags": sorted(valid_codes),
+            "tag_contract": "free_form_values_under_fixed_dimensions",
         }
 
         if confidence < threshold:
@@ -268,18 +269,6 @@ class GovernanceDecisionService:
                 final_value=suggestion,
                 adoption_status="review_required",
                 review_reason=f"confidence {confidence:.2f} < threshold {threshold}",
-            )
-
-        invalid = [t for t in suggestion if t not in valid_codes]
-        if invalid:
-            return DecisionTrailEntry(
-                field_name="tags",
-                ai_suggestion=suggestion,
-                ai_confidence=confidence,
-                threshold_check=checks,
-                final_value=[t for t in suggestion if t in valid_codes],
-                adoption_status="review_required",
-                review_reason=f"invalid tags {invalid} not in valid set",
             )
 
         return DecisionTrailEntry(

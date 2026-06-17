@@ -10,6 +10,7 @@ import {
   WarningOutlined,
 } from "@ant-design/icons";
 
+import { selectCurrentReviewRuns } from "@/lib/governance-runs";
 import { DecisionList } from "./DecisionList";
 import { UnifiedActivityFeed } from "./UnifiedActivityFeed";
 import type { WorkbenchData } from "../page";
@@ -219,15 +220,7 @@ export function WorkbenchContent({ data }: { data: WorkbenchData }) {
             </Link>
           }
         >
-          <DecisionList
-            items={governanceRuns
-              .filter(
-                (gr) =>
-                  gr.adoption_status === "review_required" ||
-                  gr.adoption_status === "pending_rule_guardrail",
-              )
-              .slice(0, 5)}
-          />
+          <DecisionList items={selectCurrentReviewRuns(governanceRuns).slice(0, 5)} />
         </Card>
       </div>
 
