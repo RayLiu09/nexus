@@ -82,10 +82,21 @@ class ApiCallerCreate(BaseModel):
     expired_at: datetime | None = None
 
 
+class ApiCallerUpdate(BaseModel):
+    """Request body for PATCH /v1/api-callers/{id} — partial update.
+
+    Only permission_scope and expired_at can be updated. Changes to caller_key require
+    minting a new caller; name/org_scope changes are out of scope for P0.
+    """
+    permission_scope: list[str] | None = Field(default=None)
+    expired_at: datetime | None = Field(default=None)
+
+
 class ApiCallerRead(ORMModel):
     id: str
     # Legacy plaintext slot; NULL for server-minted callers (only the hash is stored).
     caller_key: str | None
+    caller_key_hash: str | None
     name: str
     org_scope: list[str]
     permission_scope: list[str]

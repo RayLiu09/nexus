@@ -48,12 +48,14 @@ export type UserAccount = {
 
 export type ApiCaller = {
   id: string;
-  caller_key: string;
+  caller_key: string | null;
+  caller_key_hash: string | null;
   name: string;
   org_scope: string[];
   permission_scope: string[];
   owner_user_id: string | null;
-  status: string;
+  expired_at: string | null;
+  revoked_at: string | null;
   created_at: string;
   updated_at: string;
 };

@@ -13,7 +13,9 @@ export default async function MyWorkspacePage() {
   ]);
 
   const pendingReview = selectCurrentReviewRuns(grResult.data);
-  const recentAudits = auditResult.data.slice(0, 10);
+  const recentAudits = auditResult.data
+    .filter((a) => a.event_type !== "TokenRefreshed" && a.event_type !== "TokenRefreshFailed")
+    .slice(0, 5);
 
   return (
     <>

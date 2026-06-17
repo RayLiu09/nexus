@@ -194,6 +194,7 @@ class AuditEventType(StrEnum):
     DATA_SOURCE_DELETED             = "DataSourceDeleted"
     # API caller management
     API_CALLER_CREATED              = "ApiCallerCreated"
+    API_CALLER_UPDATED              = "ApiCallerUpdated"
     API_CALLER_REVOKED              = "ApiCallerRevoked"
     # Auth (JWT user session)
     USER_LOGIN_SUCCEEDED            = "UserLoginSucceeded"

@@ -22,8 +22,6 @@ export default async function ApiCallersPage({ searchParams }: ApiCallersPagePro
     { page: String(currentPage), pageSize: String(currentPageSize) },
   );
 
-  const totalCount = result.data.length;
-
   return (
     <>
       <PageHeader
@@ -34,7 +32,7 @@ export default async function ApiCallersPage({ searchParams }: ApiCallersPagePro
 
       <ApiCallersContent
         callers={result.data}
-        totalCount={totalCount}
+        totalCount={result.total ?? result.data.length}
         currentPage={currentPage}
         pageSize={currentPageSize}
         ok={result.ok}

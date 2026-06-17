@@ -151,6 +151,57 @@ def get_api_caller(api_caller_id: str, request: Request, session: Session = Depe
     )
 
 
+@router.patch(
+    "/api-callers/{api_caller_id}",
+    response_model=schemas.ApiResponse[domain_schemas.ApiCallerRead],
+)
+async def update_api_caller(
+    api_caller_id: str,
+    request: Request,
+    session: Session = Depends(get_db),
+):
+    """Update ApiCaller fields (permission_scope, expired_at)."""
+    caller = session.get(models.ApiCaller, api_caller_id)
+    if caller is None:
+        raise HTTPException(
+            status_code=404, detail=f"api_caller '{api_caller_id}' not found"
+        )
+    if caller.revoked_at is not None:
+        raise HTTPException(
+            status_code=409, detail="cannot update a revoked api_caller"
+        )
+
+    body = await request.json()
+    payload = domain_schemas.ApiCallerUpdate(**body)
+
+    changed = False
+    summary: dict = {"name": caller.name}
+
+    if payload.permission_scope is not None:
+        caller.permission_scope = payload.permission_scope
+        summary["permission_scope"] = caller.permission_scope
+        changed = True
+
+    # Check raw body so we can distinguish "expired_at omitted" from "expired_at: null"
+    if "expired_at" in body:
+        caller.expired_at = payload.expired_at
+        summary["expired_at"] = caller.expired_at.isoformat() if caller.expired_at else None
+        changed = True
+
+    if changed:
+        write_audit(
+            session,
+            AuditEventType.API_CALLER_UPDATED,
+            target_type="api_caller",
+            target_id=caller.id,
+            trace_id=str(getattr(request.state, "trace_id", "")),
+            summary=summary,
+        )
+        session.commit()
+        session.refresh(caller)
+    return response(domain_schemas.ApiCallerRead.model_validate(caller), request)
+
+
 @router.delete(
     "/api-callers/{api_caller_id}",
     response_model=schemas.ApiResponse[domain_schemas.ApiCallerRead],

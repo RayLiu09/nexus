@@ -15,7 +15,7 @@ export default async function IamAuditPage() {
       <PageHeader
         eyebrow="访问与审计 — 组织、角色、API 调用方"
         title="权限与审计"
-        description="本地组织用户、角色、API 调用方、组织范围和安全审计日志。"
+        description="本地组织用户、角色、API 调用方、组织范围和安全审计日志。仅显示近30天记录，已过滤 token 自动刷新事件。"
       />
 
       <ApiState ok={ok} error={error} traceId={orgUnits.traceId ?? audits.traceId} />
@@ -26,7 +26,7 @@ export default async function IamAuditPage() {
         orgCount={orgUnits.data.length}
         userCount={users.data.length}
         apiCallerCount={apiCallers.data.length}
-        auditCount={audits.data.length}
+        auditTotal={audits.total ?? audits.data.length}
       />
     </>
   );

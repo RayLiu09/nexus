@@ -72,7 +72,7 @@ export async function loadIdentityData() {
     getApiData<OrgUnit[]>("/internal/v1/org-units", []),
     getApiData<UserAccount[]>("/internal/v1/users", []),
     getApiData<ApiCaller[]>("/internal/v1/api-callers", []),
-    getApiData<AuditLog[]>("/internal/v1/audit-logs", [])
+    getApiData<AuditLog[]>("/internal/v1/audit-logs", [], { pageSize: "100" }),
   ]);
   return { orgUnits, users, apiCallers, audits };
 }
