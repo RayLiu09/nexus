@@ -3,6 +3,7 @@ import { Button } from "antd";
 import { ApiState } from "@/components/ApiState";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusLabel } from "@/components/StatusLabel";
+import { CopyableShortId } from "@/components/shared/CopyableShortId";
 import { AssetDetailTabs } from "@/components/AssetDetailTabs";
 import {
   getApiData,
@@ -108,25 +109,33 @@ export default async function AssetDetailPage({
         </div>
         <div>
           <span>当前版本</span>
-          <strong className="mono-cell">{shortId(displayVersion?.id)}</strong>
+          <CopyableShortId value={displayVersion?.id} className="mono-cell" />
         </div>
         <div>
           <span>标准化引用</span>
-          <strong className="mono-cell">{shortId(displayRef?.id)}</strong>
+          <CopyableShortId value={displayRef?.id} className="mono-cell" />
         </div>
         <div>
           <span>原始对象</span>
-          <strong title={displayVersion?.raw_object_id}>
-            {displayVersion?.raw_object_id
-              ? (rawObjectNames.get(displayVersion.raw_object_id) ?? shortId(displayVersion.raw_object_id))
-              : "-"}
-          </strong>
+          {displayVersion?.raw_object_id ? (
+            rawObjectNames.has(displayVersion.raw_object_id) ? (
+              <strong title={displayVersion.raw_object_id}>{rawObjectNames.get(displayVersion.raw_object_id)}</strong>
+            ) : (
+              <CopyableShortId value={displayVersion.raw_object_id} className="mono-cell" />
+            )
+          ) : (
+            <strong>-</strong>
+          )}
         </div>
         <div>
           <span>数据源</span>
-          <strong title={asset?.data_source_id}>
-            {dataSourceName ?? (asset?.data_source_id ? shortId(asset.data_source_id) : "-")}
-          </strong>
+          {dataSourceName ? (
+            <strong title={asset?.data_source_id}>{dataSourceName}</strong>
+          ) : asset?.data_source_id ? (
+            <CopyableShortId value={asset.data_source_id} className="mono-cell" />
+          ) : (
+            <strong>-</strong>
+          )}
         </div>
       </div>
 

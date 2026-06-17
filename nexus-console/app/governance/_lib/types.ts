@@ -1,5 +1,6 @@
 import type { TagDictionary } from "@/lib/tagLabels";
 import { tagLabels } from "@/lib/tagLabels";
+import { extractGovernanceTags } from "@/lib/governance-tags";
 import {
   getRunQualityScore,
   isReviewPendingRun,
@@ -109,8 +110,7 @@ export function getQualityLevel(run: GovernanceRun): string {
 }
 
 export function getTagCodes(run: GovernanceRun): string[] {
-  const t = run.ai_output?.tags;
-  return Array.isArray(t) ? (t as string[]) : [];
+  return extractGovernanceTags(run.ai_output);
 }
 
 export function getTags(run: GovernanceRun, dictionary?: TagDictionary): string[] {

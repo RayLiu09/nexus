@@ -8,9 +8,9 @@ import {
   DatabaseOutlined,
 } from "@ant-design/icons";
 import { StatusLabel } from "@/components/StatusLabel";
+import { CopyableShortId } from "@/components/shared/CopyableShortId";
 import {
-  shortId,
-  type Asset,
+    type Asset,
   type AssetVersion,
   type NormalizedAssetRef,
   type ParseArtifact,
@@ -39,7 +39,7 @@ export function LineageTab({ asset, latestVersion, latestRef, relatedArtifact }:
           items={[
             {
               title: "Raw Object",
-              content: latestVersion ? shortId(latestVersion.raw_object_id) : undefined,
+              content: latestVersion ? <CopyableShortId value={latestVersion.raw_object_id} className="font-mono text-xs" /> : undefined,
               icon: <FileTextOutlined />,
             },
             {
@@ -78,7 +78,7 @@ export function LineageTab({ asset, latestVersion, latestRef, relatedArtifact }:
                 {latestVersion && (
                   <tr className="border-b border-[var(--line)]">
                     <td className="p-3 font-semibold">版本</td>
-                    <td className="p-3 font-mono text-xs">{shortId(latestVersion.id)}</td>
+                    <td className="p-3"><CopyableShortId value={latestVersion.id} className="font-mono text-xs" /></td>
                     <td className="p-3 font-mono text-xs">{latestVersion.source_checksum}</td>
                     <td className="p-3"><StatusLabel value={latestVersion.version_status} /></td>
                   </tr>
@@ -86,7 +86,7 @@ export function LineageTab({ asset, latestVersion, latestRef, relatedArtifact }:
                 {relatedArtifact && (
                   <tr className="border-b border-[var(--line)]">
                     <td className="p-3 font-semibold">解析产物</td>
-                    <td className="p-3 font-mono text-xs">{shortId(relatedArtifact.id)}</td>
+                    <td className="p-3"><CopyableShortId value={relatedArtifact.id} className="font-mono text-xs" /></td>
                     <td className="p-3 font-mono text-xs">{relatedArtifact.artifact_uri}</td>
                     <td className="p-3"><StatusLabel value={relatedArtifact.status} /></td>
                   </tr>
@@ -94,7 +94,7 @@ export function LineageTab({ asset, latestVersion, latestRef, relatedArtifact }:
                 {latestRef && (
                   <tr className="border-b border-[var(--line)]">
                     <td className="p-3 font-semibold">标准化引用</td>
-                    <td className="p-3 font-mono text-xs">{shortId(latestRef.id)}</td>
+                    <td className="p-3"><CopyableShortId value={latestRef.id} className="font-mono text-xs" /></td>
                     <td className="p-3 font-mono text-xs">{latestRef.object_uri}</td>
                     <td className="p-3"><StatusLabel value={latestRef.status} /></td>
                   </tr>

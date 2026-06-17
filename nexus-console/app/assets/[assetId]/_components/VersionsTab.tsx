@@ -3,7 +3,8 @@
 import { Empty, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { StatusLabel } from "@/components/StatusLabel";
-import { formatDateTime, shortId, type AssetVersion } from "@/lib/api";
+import { CopyableShortId } from "@/components/shared/CopyableShortId";
+import { formatDateTime, type AssetVersion } from "@/lib/api";
 
 type Props = {
   versions: AssetVersion[];
@@ -14,7 +15,7 @@ const COLUMNS: ColumnsType<AssetVersion> = [
     title: "版本ID",
     dataIndex: "id",
     width: 150,
-    render: (id: string) => <span className="font-mono text-xs">{shortId(id)}</span>,
+    render: (id: string) => <CopyableShortId value={id} className="font-mono text-xs" />,
   },
   {
     title: "版本号",
@@ -26,7 +27,7 @@ const COLUMNS: ColumnsType<AssetVersion> = [
     title: "原始对象",
     dataIndex: "raw_object_id",
     width: 150,
-    render: (id: string) => <span className="font-mono text-xs">{shortId(id)}</span>,
+    render: (id: string) => <CopyableShortId value={id} className="font-mono text-xs" />,
   },
   {
     title: "更新时间",

@@ -4,12 +4,13 @@ import { useState } from "react";
 import { tagLabel, type TagDictionary } from "@/lib/tagLabels";
 import { Card, Empty, Tag, Alert } from "antd";
 import { StatusLabel } from "@/components/StatusLabel";
+import { CopyableShortId } from "@/components/shared/CopyableShortId";
 import { ConfidenceBadge } from "@/components/ConfidenceBadge";
 import {
   formatDateTime,
-  shortId,
-  type AIGovernanceRun,
+    type AIGovernanceRun,
 } from "@/lib/api";
+import { extractGovernanceTags } from "@/lib/governance-tags";
 
 type Props = {
   runs: AIGovernanceRun[];
@@ -53,6 +54,7 @@ export function AIGovernanceTab({ runs, tagDictionary }: Props) {
     ? (aiOutput.evidence_refs as Record<string, unknown>[])
     : [];
   const classification = classificationLabel(aiOutput);
+  const tags = extractGovernanceTags(aiOutput);
 
   return (
     <div className="grid gap-4">
@@ -69,7 +71,7 @@ export function AIGovernanceTab({ runs, tagDictionary }: Props) {
               role="button"
               tabIndex={0}
             >
-              <span className="font-mono text-xs">{shortId(r.id)}</span>
+              <CopyableShortId value={r.id} className="font-mono text-xs" />
               <span className="text-sm">{r.model_alias.split("/").pop()}</span>
               <StatusLabel value={r.validation_status} />
               <span className="text-xs text-muted">{formatDateTime(r.created_at)}</span>
@@ -111,8 +113,8 @@ export function AIGovernanceTab({ runs, tagDictionary }: Props) {
           <div>
             <div className="text-xs text-muted mb-1">标签建议</div>
             <div className="flex gap-1 flex-wrap">
-              {Array.isArray(aiOutput.tags) && (aiOutput.tags as string[]).length > 0
-                ? (aiOutput.tags as string[]).map((t) => <Tag key={t}>{tagLabel(t, tagDictionary)}</Tag>)
+              {tags.length > 0
+                ? tags.map((t) => <Tag key={t}>{tagLabel(t, tagDictionary)}</Tag>)
                 : <span className="text-muted text-sm">-</span>}
             </div>
           </div>

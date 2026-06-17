@@ -134,7 +134,7 @@ export function GovernanceContent({
         normalizedRefId={trailRefId}
         onClose={() => { setTrailRefId(null); setTrailRun(null); }}
         tagDictionary={tagDictionary}
-        fallbackTags={trailRun?.ai_output?.tags}
+        fallbackTags={trailRun?.ai_output}
       />
     </>
   );

@@ -84,7 +84,12 @@ export function DecisionTrailTab({
       dataSource={decided}
       columns={columns}
       size="middle"
-      pagination={false}
+      pagination={{
+        pageSize: 10,
+        showSizeChanger: true,
+        pageSizeOptions: ["10", "20", "50"],
+        showTotal: (total, range) => range[0] + "-" + range[1] + " / " + total + " 条",
+      }}
       locale={{ emptyText: "暂无决策记录" }}
     />
   );

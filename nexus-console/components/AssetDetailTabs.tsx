@@ -4,6 +4,7 @@ import { useState } from "react";
 import { tagLabel, type TagDictionary } from "@/lib/tagLabels";
 import { Tabs, Tag, Progress, Empty } from "antd";
 import { StatusLabel } from "@/components/StatusLabel";
+import { CopyableShortId } from "@/components/shared/CopyableShortId";
 import { ConfidenceBadge } from "@/components/ConfidenceBadge";
 import { ChunkListSection } from "@/app/assets/[assetId]/_components/ChunkListSection";
 import { SourcePreviewSection } from "@/app/assets/[assetId]/_components/SourcePreviewSection";
@@ -17,6 +18,7 @@ import {
   type AIGovernanceRun,
   type GovernanceResult,
 } from "@/lib/api";
+import { extractGovernanceTags } from "@/lib/governance-tags";
 
 type Props = {
   asset: Asset | null;
@@ -93,7 +95,7 @@ function LineageTab({
                 <div className="m1-stage-label">Raw Object</div>
                 {latestVersion && (
                   <div className="m1-stage-sub">
-                    {rawObjectNames?.get(latestVersion.raw_object_id) ?? shortId(latestVersion.raw_object_id)}
+                    {rawObjectNames?.get(latestVersion.raw_object_id) ?? <CopyableShortId value={latestVersion.raw_object_id} className="mono-cell" />}
                   </div>
                 )}
               </div>
@@ -157,7 +159,7 @@ function LineageTab({
         {latestVersion && (
           <div className="table-row" style={{ gridTemplateColumns: "80px 140px 1fr 100px" }}>
             <span className="font-bold">版本</span>
-            <span className="mono-cell">{shortId(latestVersion.id)}</span>
+            <CopyableShortId value={latestVersion.id} className="mono-cell" />
             <span className="mono-cell">{latestVersion.source_checksum}</span>
             <StatusLabel value={latestVersion.version_status} />
           </div>
@@ -165,7 +167,7 @@ function LineageTab({
         {relatedArtifact && (
           <div className="table-row" style={{ gridTemplateColumns: "80px 140px 1fr 100px" }}>
             <span className="font-bold">解析产物</span>
-            <span className="mono-cell">{shortId(relatedArtifact.id)}</span>
+            <CopyableShortId value={relatedArtifact.id} className="mono-cell" />
             <span className="mono-cell">{relatedArtifact.artifact_uri}</span>
             <StatusLabel value={relatedArtifact.status} />
           </div>
@@ -173,7 +175,7 @@ function LineageTab({
         {latestRef && (
           <div className="table-row" style={{ gridTemplateColumns: "80px 140px 1fr 100px" }}>
             <span className="font-bold">标准化引用</span>
-            <span className="mono-cell">{shortId(latestRef.id)}</span>
+            <CopyableShortId value={latestRef.id} className="mono-cell" />
             <span className="mono-cell">{latestRef.object_uri}</span>
             <StatusLabel value={latestRef.status} />
           </div>
@@ -227,8 +229,8 @@ function AIGovernanceTab({
     level: result?.level ?? undefined,
     tags: result?.tags ?? [],
   };
-  // Merge tags: prefer run output, fall back to committed result tags
-  const runTags = Array.isArray(aiOutput.tags) ? (aiOutput.tags as string[]) : [];
+  // Merge tags: prefer structured AI output, fall back to committed result tags.
+  const runTags = extractGovernanceTags(aiOutput);
   const displayTags = runTags.length > 0 ? runTags : (result?.tags ?? []);
   const evidenceRefs = Array.isArray(aiOutput.evidence_refs)
     ? (aiOutput.evidence_refs as Record<string, unknown>[])
@@ -262,7 +264,7 @@ function AIGovernanceTab({
                 }}
                 onClick={() => setSelected(r)}
               >
-                <span className="mono-cell">{shortId(r.id)}</span>
+                <CopyableShortId value={r.id} className="mono-cell" />
                 <span className="text-sm">{r.model_alias.split("/").pop()}</span>
                 <StatusLabel value={r.validation_status} />
                 <span className="text-muted text-xs">{formatDateTime(r.created_at)}</span>
@@ -387,7 +389,7 @@ function AIGovernanceTab({
               </div>
               <div><span>组织范围</span><strong>{result.org_scope ?? "-"}</strong></div>
               <div><span>索引准入</span><strong>{result.index_admission ? "允许" : "不允许"}</strong></div>
-              <div><span>结果ID</span><strong className="mono-cell">{shortId(result.id)}</strong></div>
+              <div><span>结果ID</span><CopyableShortId value={result.id} className="mono-cell" /></div>
             </div>
           </div>
         </div>
@@ -573,10 +575,10 @@ function VersionsTab({ versions, rawObjectNames }: { versions: AssetVersion[]; r
           className="table-row"
           style={{ gridTemplateColumns: "140px 60px 140px 140px 100px" }}
         >
-          <span className="mono-cell">{shortId(v.id)}</span>
+          <CopyableShortId value={v.id} className="mono-cell" />
           <span>v{v.version_no}</span>
           <span title={v.raw_object_id}>
-            {rawObjectNames?.get(v.raw_object_id) ?? shortId(v.raw_object_id)}
+            {rawObjectNames?.get(v.raw_object_id) ?? <CopyableShortId value={v.raw_object_id} className="mono-cell" />}
           </span>
           <span className="text-muted text-sm">{formatDateTime(v.updated_at)}</span>
           <StatusLabel value={v.version_status} />

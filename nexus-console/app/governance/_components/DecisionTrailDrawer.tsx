@@ -35,6 +35,7 @@ import type {
 } from "../_lib/decisionTrail.types";
 import { fetchGovernanceResultForRef } from "../_lib/governanceResultApi";
 import { tagLabel, type TagDictionary } from "@/lib/tagLabels";
+import { extractGovernanceTags } from "@/lib/governance-tags";
 
 const CLASS_LABELS: Record<string, string> = {
   industry_policy: "产业政策",
@@ -84,8 +85,7 @@ interface DecisionTrailDrawerProps {
   normalizedRefId: string | null;
   onClose: () => void;
   tagDictionary: TagDictionary;
-  /** Fallback tags from the AI governance run's ai_output — used when
-   *  result.tags is empty (e.g. governance result hasn't been persisted). */
+  /** Fallback AI output from the governance run, used when result.tags is empty. */
   fallbackTags?: unknown;
 }
 
@@ -173,7 +173,7 @@ function DrawerBody({ loading, error, view, result, tagDictionary, fallbackTags 
   const resolvedTags: string[] = (() => {
     if (result.tags.length > 0) return result.tags;
     if (Array.isArray(fallbackTags)) return fallbackTags.filter((t): t is string => typeof t === "string");
-    return [];
+    return extractGovernanceTags(fallbackTags);
   })();
 
   const trail = result.decision_trail ?? [];

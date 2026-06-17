@@ -366,7 +366,12 @@ export default function TagReviewContent({
               dataSource={drafts}
               columns={draftColumns}
               size="middle"
-              pagination={false}
+              pagination={{
+                pageSize: 10,
+                showSizeChanger: true,
+                pageSizeOptions: ["10", "20", "50"],
+                showTotal: (total, range) => range[0] + "-" + range[1] + " / " + total + " 条",
+              }}
               rowSelection={{
                 selectedRowKeys: selectedIds,
                 onChange: setSelectedIds,
@@ -401,7 +406,12 @@ export default function TagReviewContent({
             dataSource={committed}
             columns={committedColumns}
             size="middle"
-            pagination={false}
+            pagination={{
+              pageSize: 10,
+              showSizeChanger: true,
+              pageSizeOptions: ["10", "20", "50"],
+              showTotal: (total, range) => range[0] + "-" + range[1] + " / " + total + " 条",
+            }}
             locale={{ emptyText: "暂无自动提交记录" }}
           />
         </div>
