@@ -544,14 +544,43 @@ def _make_pdf_renderer(
     pdf = pdfium.PdfDocument(raw_bytes)
     page_count = len(pdf)
 
-    def render(page_idx: int) -> bytes:
+    # 144 DPI keeps individual cells readable for OCR while staying under
+    # ~1.5 MB per JPEG for a Letter-sized page. The scale factor also bridges
+    # MinerU's PDF-point bbox coordinates and the rendered pixel coordinates
+    # (bbox_px = bbox_pt * scale).
+    _RENDER_SCALE = 144 / 72
+
+    def render(page_idx: int, bbox: list[float] | tuple[float, ...] | None = None) -> bytes:
+        """Render ``page_idx`` to JPEG.
+
+        When ``bbox`` is provided (MinerU PDF-point coordinates
+        ``[x0, y0, x1, y1]``), the result is cropped to that region. This
+        is critical for cross-page table rescue: rendering the full page
+        feeds the VLM headings / paragraphs / footnotes located outside
+        the table, which the model then mis-packs into table rows
+        (observed on sample 4abe6b71… p55: heading + paragraph + footnote
+        leaked into the rescued policy table as padding rows).
+        """
         if not (0 <= page_idx < page_count):
             return b""
         page = pdf[page_idx]
-        # 144 DPI keeps individual cells readable for OCR while staying under
-        # ~1.5 MB per JPEG for a Letter-sized page.
-        scale = 144 / 72
-        pil_image = page.render(scale=scale).to_pil()
+        pil_image = page.render(scale=_RENDER_SCALE).to_pil()
+        if bbox is not None and len(bbox) >= 4:
+            try:
+                x0, y0, x1, y1 = (float(v) * _RENDER_SCALE for v in bbox[:4])
+            except (TypeError, ValueError):
+                x0 = y0 = x1 = y1 = 0.0
+            if x1 > x0 and y1 > y0:
+                w, h = pil_image.size
+                # Clamp to image bounds; PIL .crop is forgiving but clamping
+                # keeps the resulting JPEG smaller and avoids confusing
+                # downstream VLM with empty margins.
+                x0 = max(0.0, min(float(w), x0))
+                y0 = max(0.0, min(float(h), y0))
+                x1 = max(0.0, min(float(w), x1))
+                y1 = max(0.0, min(float(h), y1))
+                if x1 > x0 and y1 > y0:
+                    pil_image = pil_image.crop((int(x0), int(y0), int(x1), int(y1)))
         from io import BytesIO
         buf = BytesIO()
         pil_image.save(buf, format="JPEG", quality=85)

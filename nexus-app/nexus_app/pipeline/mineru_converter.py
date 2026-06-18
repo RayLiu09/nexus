@@ -180,28 +180,148 @@ def _composite_caption(block: dict[str, Any]) -> str:
     return _join_lines(line_texts)
 
 
-def _table_html_to_markdown(html: str) -> str:
-    """Convert MinerU HTML table to Markdown.
+# Regex contracts (see docs/document_normalize_defects.md §9.3):
+#   - MinerU pipeline tables always carry ``colspan`` / ``rowspan`` even when
+#     the value is 1, so ``<tr>`` / ``<td>`` must accept arbitrary attributes.
+#   - Both ``<td>`` and ``<th>`` are valid cell tags. MinerU currently emits
+#     only ``<td>`` but other backends (HTML / future vlm) may emit ``<th>``.
+#   - Cell content can contain inline ``<br>``, ``<eq>...</eq>`` (already
+#     handled), and the four standard HTML entities.
 
-    MinerU wraps inline equations in <eq>...</eq>; these become $...$.
+_TABLE_TR_RE = re.compile(r"<tr[^>]*>(.*?)</tr>", re.DOTALL | re.IGNORECASE)
+_TABLE_CELL_RE = re.compile(
+    r"<(?P<tag>t[dh])(?P<attrs>[^>]*)>(?P<inner>.*?)</(?P=tag)>",
+    re.DOTALL | re.IGNORECASE,
+)
+_ATTR_INT_RE = re.compile(r'(?P<key>colspan|rowspan)\s*=\s*"?(?P<val>\d+)"?', re.IGNORECASE)
+
+
+def _cell_attr_int(attrs: str, key: str) -> int:
+    """Extract colspan / rowspan as int (default 1, never below 1)."""
+    for m in _ATTR_INT_RE.finditer(attrs or ""):
+        if m.group("key").lower() == key.lower():
+            try:
+                v = int(m.group("val"))
+                return max(1, v)
+            except ValueError:
+                return 1
+    return 1
+
+
+def _normalise_cell_text(inner: str) -> str:
+    """Flatten inline HTML inside a cell into single-line markdown-safe text.
+
+    Strip-then-decode order matters: HTML tags are stripped BEFORE entity
+    decoding so that ``&lt;x&gt;`` (a literal ``<x>`` the document author
+    typed) is not destroyed by the tag stripper. Pipe / backslash inside
+    cell text are escaped so they do not break the markdown table grammar.
     """
-    html = re.sub(r"<eq>(.*?)</eq>", lambda m: f"${m.group(1).strip()}$", html, flags=re.DOTALL)
-    html = (
-        html.replace("&quot;", '"')
+    text = re.sub(r"<\s*br\s*/?\s*>", " ", inner, flags=re.IGNORECASE)
+    text = re.sub(r"</?\s*(p|div|span)\b[^>]*>", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", "", text)  # drop any other inline HTML tag
+    # Now safe to decode entities — what's left of "<" or ">" must come from
+    # &lt;/&gt; that the author typed.
+    text = (
+        text.replace("&nbsp;", " ")
+            .replace("&quot;", '"')
             .replace("&amp;", "&")
             .replace("&lt;", "<")
             .replace("&gt;", ">")
     )
-    rows = re.findall(r"<tr>(.*?)</tr>", html, re.DOTALL)
-    if not rows:
+    text = text.replace("\n", " ").replace("\r", " ")
+    text = re.sub(r"\s+", " ", text).strip()
+    text = text.replace("\\", "\\\\").replace("|", "\\|")
+    return text
+
+
+def _table_html_to_markdown(html: str) -> str:
+    """Convert MinerU HTML table to GitHub-Flavoured Markdown.
+
+    Handles:
+      - ``<tr>`` / ``<td>`` / ``<th>`` with arbitrary attributes (colspan,
+        rowspan, class, style, …). MinerU emits ``colspan="1" rowspan="1"``
+        on every cell — the prior regex missed all of them, dropping 99.6%
+        of cell content (see docs/document_normalize_defects.md §9).
+      - ``colspan > 1``: cell content is duplicated across the spanned
+        columns (GFM does not support real merge); this keeps row width
+        consistent and content searchable.
+      - ``rowspan > 1``: the cell value is propagated downward into the
+        same column on subsequent rows so the row width matches the
+        column count and the value remains visible (no empty placeholder).
+      - Inline ``<eq>``, ``<br>``, simple block-inline wrappers; HTML
+        entities (``&amp; &lt; &gt; &quot;``).
+      - Pipe / backslash escaping inside cells so they do not break GFM.
+    """
+    # Inline equations first — keep them outside the tag-stripping pass
+    # since $...$ math must survive. Entity decoding happens per-cell to
+    # protect literal <x> typed as &lt;x&gt;.
+    html = re.sub(r"<eq>(.*?)</eq>", lambda m: f"${m.group(1).strip()}$", html, flags=re.DOTALL)
+
+    rows_raw = _TABLE_TR_RE.findall(html)
+    if not rows_raw:
         return ""
-    md_rows: list[str] = []
-    for i, row in enumerate(rows):
-        cells = [c.strip().replace("\n", " ") for c in re.findall(r"<td>(.*?)</td>", row, re.DOTALL)]
-        md_rows.append("| " + " | ".join(cells) + " |")
-        if i == 0:
-            md_rows.append("| " + " | ".join("---" for _ in cells) + " |")
-    return "\n".join(md_rows)
+
+    # First pass: parse each row into a list of (text, colspan, rowspan).
+    parsed_rows: list[list[tuple[str, int, int]]] = []
+    for row_html in rows_raw:
+        cells: list[tuple[str, int, int]] = []
+        for m in _TABLE_CELL_RE.finditer(row_html):
+            text = _normalise_cell_text(m.group("inner"))
+            cs = _cell_attr_int(m.group("attrs"), "colspan")
+            rs = _cell_attr_int(m.group("attrs"), "rowspan")
+            cells.append((text, cs, rs))
+        parsed_rows.append(cells)
+
+    if all(not r for r in parsed_rows):
+        return ""
+
+    # Compute total column count: the maximum sum of colspan in any row.
+    col_count = max((sum(c[1] for c in r) for r in parsed_rows), default=0)
+    if col_count == 0:
+        return ""
+
+    # Second pass: lay cells onto a fixed-width grid, propagating rowspan
+    # downward and expanding colspan rightward.
+    grid: list[list[str]] = []
+    # pending_rowspan[col] = (text, remaining_rows) — when remaining_rows>0
+    # the next row's column ``col`` must be filled with ``text`` instead of
+    # the next parsed cell. Decremented after each row.
+    pending: list[tuple[str, int] | None] = [None] * col_count
+
+    for cells in parsed_rows:
+        row: list[str] = []
+        cell_iter = iter(cells)
+        col = 0
+        while col < col_count:
+            if pending[col] is not None:
+                text, remaining = pending[col]
+                row.append(text)
+                remaining -= 1
+                pending[col] = (text, remaining) if remaining > 0 else None
+                col += 1
+                continue
+            try:
+                text, cs, rs = next(cell_iter)
+            except StopIteration:
+                # Row defined fewer cells than the grid — pad with empties.
+                row.append("")
+                col += 1
+                continue
+            for _ in range(cs):
+                if col >= col_count:
+                    break
+                row.append(text)
+                if rs > 1:
+                    pending[col] = (text, rs - 1)
+                col += 1
+        grid.append(row)
+
+    md_lines: list[str] = []
+    md_lines.append("| " + " | ".join(grid[0]) + " |")
+    md_lines.append("| " + " | ".join("---" for _ in range(col_count)) + " |")
+    for row in grid[1:]:
+        md_lines.append("| " + " | ".join(row) + " |")
+    return "\n".join(md_lines)
 
 
 def _vlm_blockquote(content: str) -> str:
@@ -433,16 +553,68 @@ def _classify_toc_line(md_part: str) -> dict[str, Any] | None:
     return None
 
 
+# A block whose text matches at least this many distinct TOC entries
+# (across line splits OR within a single concatenated line) is treated as a
+# "concatenated TOC block" — MinerU sometimes flattens the entire TOC into a
+# single paragraph block (sample 4abe6b71… p7 wrapped the full TOC under one
+# block-p07-023 paragraph).
+_TOC_CONCAT_MIN_HITS = 4
+# Catches dotted numbers / Chinese chapters / dot-leader fragments embedded
+# inside a single concatenated TOC paragraph. Greedier than the per-line
+# patterns above because we are matching substrings, not whole lines.
+_TOC_INLINE_RE = re.compile(
+    r"(?:"
+    r"第[一二三四五六七八九十百千]+[章节篇]\s*\S*?\s*[.\u2026]{2,}\s*-?\s*\d+\s*-?"
+    r"|\d+(?:\.\d+){0,4}\s*\S*?\s*[.\u2026]{2,}\s*-?\s*\d+\s*-?"
+    r"|\S+?\s*[.\u2026]{3,}\s*-?\s*\d+\s*-?"
+    r")",
+    re.UNICODE,
+)
+
+
+def _classify_toc_concat_block(md_part: str) -> list[dict[str, Any]] | None:
+    """Detect a single block whose text contains many TOC fragments
+    (numbered or dot-leader). Returns parsed entries, or None when the block
+    doesn't look like a concatenated TOC.
+    """
+    if not md_part or len(md_part) < 40:
+        return None
+    fragments = _TOC_INLINE_RE.findall(md_part)
+    if len(fragments) < _TOC_CONCAT_MIN_HITS:
+        return None
+    entries: list[dict[str, Any]] = []
+    for frag in fragments:
+        entry = _classify_toc_line(frag.strip())
+        if entry is None:
+            # Try once more after stripping trailing "- N -" markers some
+            # PDFs add around page numbers.
+            cleaned = re.sub(r"\s*-\s*(\d+)\s*-?\s*$", r" \1", frag.strip())
+            entry = _classify_toc_line(cleaned)
+        if entry is not None:
+            entries.append(entry)
+    return entries if len(entries) >= _TOC_CONCAT_MIN_HITS else None
+
+
 def _extract_toc(
     blocks: list[dict[str, Any]],
     md_parts: list[str],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
-    """Find TOC runs, return ``(toc, blocks_without_toc, md_parts_without_toc)``.
+    """Find TOC runs / concatenated TOC blocks, return
+    ``(toc, blocks_without_toc, md_parts_without_toc)``.
 
-    A TOC "run" is ≥``_TOC_MIN_RUN_LEN`` consecutive paragraph/heading blocks
-    each matching one of ``_TOC_PATTERNS``. All blocks inside any run are
-    extracted as TOC entries and removed from the markdown stream so they do
-    not become chunks. Isolated matches outside runs are kept (false-positive
+    Two detection modes (either triggers extraction):
+
+      1. **Run mode** (original): ≥ ``_TOC_MIN_RUN_LEN`` consecutive
+         paragraph/heading blocks each matching one of ``_TOC_PATTERNS``.
+
+      2. **Concatenated block mode** (added for sample 4abe6b71… p7 where
+         MinerU collapsed the entire TOC into one paragraph): a single
+         eligible block whose text contains ≥ ``_TOC_CONCAT_MIN_HITS``
+         distinct dot-leader / numbered-section / chapter fragments.
+
+    All blocks identified by either mode are extracted as TOC entries and
+    removed from the markdown stream. Isolated matches outside runs and
+    short blocks below the concat threshold are kept (false-positive
     suppression — body text occasionally ends with a number).
     """
     if len(blocks) != len(md_parts):
@@ -453,13 +625,17 @@ def _extract_toc(
 
     # Per-block precomputed match (None when ineligible).
     matches: list[dict[str, Any] | None] = []
+    # Per-block concat detection (None when not a concat-TOC block).
+    concat_hits: list[list[dict[str, Any]] | None] = []
     for b, part in zip(blocks, md_parts):
         if b.get("block_type") not in _TOC_ELIGIBLE_BLOCK_TYPES:
             matches.append(None)
+            concat_hits.append(None)
             continue
         matches.append(_classify_toc_line(part))
+        concat_hits.append(_classify_toc_concat_block(part))
 
-    # Find runs.
+    # Mode 1: runs of consecutive matches.
     in_toc_idx: set[int] = set()
     run_start: int | None = None
     for i, entry in enumerate(matches):
@@ -473,13 +649,23 @@ def _extract_toc(
     if run_start is not None and len(matches) - run_start >= _TOC_MIN_RUN_LEN:
         in_toc_idx.update(range(run_start, len(matches)))
 
-    if not in_toc_idx:
+    # Mode 2: concat blocks (any block where concat_hits[i] is not None).
+    concat_idx_to_entries: dict[int, list[dict[str, Any]]] = {
+        i: ent for i, ent in enumerate(concat_hits) if ent
+    }
+
+    if not in_toc_idx and not concat_idx_to_entries:
         return [], blocks, md_parts
 
     toc: list[dict[str, Any]] = []
     kept_blocks: list[dict[str, Any]] = []
     kept_parts: list[str] = []
     for i, (b, part) in enumerate(zip(blocks, md_parts)):
+        if i in concat_idx_to_entries:
+            for ent in concat_idx_to_entries[i]:
+                ent["block_id"] = b.get("block_id")
+                toc.append(ent)
+            continue
         if i in in_toc_idx:
             entry = matches[i] or {}
             entry["block_id"] = b.get("block_id")
@@ -527,6 +713,235 @@ _TABLE_BBOX_TOLERANCE_PX = 20
 # emitted by MinerU when a table cell is empty. Removing them is safe because
 # the original byte stream offered no information either.
 _EMPTY_TABLE_ROW_RE = re.compile(r"^\s*\|(?:\s*\|)+\s*$")
+
+
+# Structural meta-labels VLMs add when describing charts / figures.
+# Even when the prompt explicitly forbids them, models love to wrap content
+# in "Chart Type: …", "Axis Labels:", "Legend Entries:", "Key Data Values:",
+# closing "Trend:" / "Summary:" paragraphs etc. These add no information to
+# the transcribed values themselves and pollute chunk content downstream.
+#
+# A line is dropped when it is JUST one of these labels (with optional
+# bullet / bold markers) OR when it starts with the label followed by
+# explanatory prose (no useful data). When a line starts with a label but
+# also contains substantive content (e.g. axes statement built by the new
+# chart prompt), the label-prefix is stripped but the value remains.
+
+_VISUAL_META_LABELS = (
+    "chart type",
+    "axes",
+    "axis labels",
+    "axis label",
+    "x-axis",
+    "y-axis",
+    "left y-axis",
+    "right y-axis",
+    "legend",
+    "legend entries",
+    "key data",
+    "key data values",
+    "key data values / trends",
+    "key trends",
+    "trend",
+    "trends",
+    "summary",
+    "overall",
+    "note",
+    "interpretation",
+    "observation",
+    "observations",
+    "key observations",
+    "data points",
+)
+
+# Markers a model uses to introduce a meta-label line. Captures things like
+# "- **Chart Type**:", "* Trend:", "Trend：", "Y-axis (left):", optional
+# parenthetical qualifiers after the label, optional bold markers, etc.
+_VISUAL_META_LINE_RE = re.compile(
+    r"^\s*[-*•\d.)\s]*\**\s*("
+    + "|".join(re.escape(label) for label in _VISUAL_META_LABELS)
+    + r")\**\s*(?:\([^)]*\))?\s*[:：]",
+    re.IGNORECASE,
+)
+
+# Lines that are PURE label (no value after the colon) — always dropped.
+_VISUAL_META_LINE_PURE_RE = re.compile(
+    r"^\s*[-*•\d.)\s]*\**\s*("
+    + "|".join(re.escape(label) for label in _VISUAL_META_LABELS)
+    + r")\**\s*(?:\([^)]*\))?\s*[:：]?\s*$",
+    re.IGNORECASE,
+)
+
+# Chatty prologues. Drop the entire leading line when it matches.
+_VISUAL_CHATTY_PREFIX_RE = re.compile(
+    r"^\s*(当然可以|以下是|这是一(?:个|张|幅)|好的[，。!]?\s*以下|"
+    r"sure[,!]?\s*here|here\s+is|of\s+course|certainly|"
+    r"i\s+can|i\s+(?:will|'ll)\s+describe|let\s+me\s+describe)"
+    r"[\s\S]*?[:：。.]\s*$",
+    re.IGNORECASE,
+)
+
+
+def _sanitise_vlm_visual_response(text: str | None) -> str:
+    """Strip VLM meta-labels & chatty prose from a chart/image description.
+
+    Used for ``block_type in {"image", "chart"}`` responses. The §11 chart
+    prompt asks the model NOT to emit "Chart Type:" / "Axis Labels:" /
+    "Legend:" / "Key Data:" / "Trend:" / "Summary:" framing, but models
+    drift back to it. This sanitiser is the safety net:
+
+      - Drop leading chatty preambles ("Sure! Here is…", "当然可以…").
+      - Drop lines that are JUST a structural meta-label
+        (e.g. "Axis Labels:" alone, "Key Data Values / Trends:").
+      - For lines that START with a meta-label followed by content (e.g.
+        "X-axis: Years 2019–2024."), keep the trailing content and drop
+        the label prefix so the substantive value survives.
+      - Collapse runs of blank lines.
+
+    Returns empty string only when nothing substantive remains; callers
+    treat that as "sanitiser would erase everything, keep original".
+    """
+    if not text:
+        return ""
+    raw = text.strip()
+    if raw == "-":
+        return "-"
+    lines = raw.splitlines()
+    out: list[str] = []
+    # 1. Drop a leading chatty prologue line if present.
+    if lines and _VISUAL_CHATTY_PREFIX_RE.match(lines[0]):
+        lines = lines[1:]
+    # 2. Process remaining lines.
+    for ln in lines:
+        if _VISUAL_META_LINE_PURE_RE.match(ln):
+            # Pure meta-label with no value → drop entirely.
+            continue
+        m = _VISUAL_META_LINE_RE.match(ln)
+        if m:
+            # Strip the label + colon, keep the trailing content.
+            stripped_value = ln[m.end():].lstrip()
+            if not stripped_value:
+                continue
+            # Preserve list bullets when the original had one so the line
+            # still reads as part of a list.
+            bullet_match = re.match(r"^\s*([-*•])\s+", ln)
+            prefix = bullet_match.group(0) if bullet_match else ""
+            out.append(f"{prefix}{stripped_value}")
+            continue
+        out.append(ln)
+    # 3. Collapse multiple blank lines.
+    collapsed: list[str] = []
+    blank = False
+    for ln in out:
+        if not ln.strip():
+            if blank:
+                continue
+            blank = True
+        else:
+            blank = False
+        collapsed.append(ln)
+    cleaned = "\n".join(collapsed).strip()
+    return cleaned
+
+
+_TABULAR_HINT_RE = re.compile(
+    r"\b(tabular(?:\s+comparison)?|matrix|grid)\b|"
+    r"rows?\s*[:：]|columns?\s*[:：]",
+    re.IGNORECASE,
+)
+
+
+def _looks_tabular(text: str | None) -> bool:
+    """Return True when a chart-style VLM response strongly suggests the
+    underlying image is actually a table that was mis-classified as a chart.
+
+    Signals (any single match is enough — false positives just trigger an
+    extra LLM call, false negatives let the noisy chart description leak):
+      - Explicit "Tabular comparison" / "matrix" / "grid" in the description.
+      - Both "Rows:" and "Columns:" axis labels (charts have X/Y axes, not
+        rows/columns).
+      - ≥3 actual GFM pipe rows present in the response (the model
+        spontaneously emitted a markdown table inside the chart description).
+    """
+    if not text:
+        return False
+    if _TABULAR_HINT_RE.search(text) and re.search(r"\brows?\b", text, re.IGNORECASE):
+        return True
+    pipe_rows = sum(
+        1 for ln in text.splitlines()
+        if ln.strip().startswith("|") and ln.strip().endswith("|")
+    )
+    return pipe_rows >= 3
+
+
+def _is_padding_row(line: str) -> bool:
+    """A "padding row" is a pipe row where only 1 cell carries content and
+    the rest are blank — a tell-tale sign the VLM stuffed prose (heading,
+    paragraph, footnote, page number) into the table grid to keep emitting
+    rows after the real table ended (sample 4abe6b71… p55 — see §10).
+
+    Header rows (``| col1 | col2 | col3 |`` with all cells filled) and
+    GFM separator rows (``| --- | --- |``) are NEVER padding. A 2-column
+    table with one empty cell could be a real partial row, so we only
+    flag tables with ≥ 3 columns and exactly 1 non-empty cell.
+    """
+    stripped = line.strip()
+    if not (stripped.startswith("|") and stripped.endswith("|")):
+        return False
+    cells = [c.strip() for c in stripped.strip("|").split("|")]
+    if len(cells) < 3:
+        return False
+    # Separator rows ``--- :--- ---:`` are structural.
+    if all(set(c) <= {"-", ":", " "} for c in cells if c):
+        return False
+    non_empty = [c for c in cells if c]
+    return len(non_empty) == 1
+
+
+def _sanitise_vlm_table_response(text: str | None) -> str:
+    """Extract just the markdown-table portion from a chatty VLM response.
+
+    LLMs reliably append/prepend prose even when the prompt forbids it
+    (e.g. "当然可以。以下是…", "说明：表格共 N 列…", "若需导出为
+    CSV/Markdown/Excel…"). This sanitiser is the safety net contracted
+    in docs/document_normalize_defects.md §9.5(B) and §10:
+
+      - Locate the first and last lines matching ``^\\s*\\|.*\\|\\s*$``.
+      - Keep ONLY pipe-bordered lines between them (table rows or GFM
+        separator rows). Discard everything before, after, or in between
+        that does not match.
+      - Drop "padding rows" (single non-empty cell out of ≥3) which
+        are typically prose mis-packed into the table grid by the VLM
+        when its rendered image extended past the real table boundary.
+      - Return empty string when no qualifying lines are found — the
+        caller treats that as "rescue failed" and keeps the existing
+        MinerU content.
+
+    The sentinel ``"-"`` (model's "image is empty" response per our
+    prompt) is preserved verbatim.
+    """
+    if not text:
+        return ""
+    stripped = text.strip()
+    if stripped == "-":
+        return "-"
+    lines = text.splitlines()
+    pipe_indices = [
+        i for i, ln in enumerate(lines)
+        if ln.strip().startswith("|") and ln.strip().endswith("|")
+    ]
+    if not pipe_indices:
+        return ""
+    first, last = pipe_indices[0], pipe_indices[-1]
+    kept: list[str] = []
+    for i in range(first, last + 1):
+        ln = lines[i].strip()
+        if not (ln.startswith("|") and ln.endswith("|")):
+            continue
+        if _is_padding_row(ln):
+            continue
+        kept.append(ln)
+    return "\n".join(kept)
 
 
 def _strip_empty_table_rows(table_md: str) -> str:
@@ -612,16 +1027,25 @@ def _rescue_multipage_tables_via_pdf(
     slices under a single header row.
 
     This is mandatory whenever the merged table spans >1 page: MinerU's
-    cropped image (when present) only covers the anchor page, so any
-    earlier rescue (in ``_handle_visual``) at best recovered page 1's rows.
-    Rendering each underlying PDF page is the only way to recover the full
-    table when MinerU's pipeline backend produced no continuation content
-    AND the deployment's vlm-transformers backend is unusable (timeouts).
+    cropped image (when present) only covers the anchor page; the merged
+    block typically already carries the anchor's MinerU markdown for the
+    first page. So this pass:
+
+      - PRESERVES the anchor's existing ``content`` (the MinerU-parsed
+        markdown for the first page — ground truth after the §9 P0 regex
+        fix). That avoids spending an LLM call on a page MinerU already
+        parsed correctly, and avoids replacing accurate cells with VLM
+        approximations.
+      - For each CONTINUATION page (``page_range[0]+1 .. page_range[-1]``),
+        renders the underlying PDF page and calls VLM. The per-page result
+        is concatenated below the anchor's rows; the header row from the
+        first continuation is dropped to avoid duplication.
 
     No-op when:
       - pdf_renderer or image_analyzer is missing (test harnesses);
       - the table only spans a single page (anchor crop is sufficient);
-      - every per-page VLM call fails (the existing block is preserved).
+      - the anchor has NO existing content AND every per-page VLM call
+        fails (the original block is left unchanged in that case).
     """
     if pdf_renderer is None or image_analyzer is None:
         return blocks, md_parts
@@ -639,13 +1063,38 @@ def _rescue_multipage_tables_via_pdf(
         if not page_range or len(page_range) < 2:
             continue
         first, last = page_range[0], page_range[-1]
-        if first is None or last is None or last < first:
+        if first is None or last is None or last <= first:
             continue
         caption = block.get("caption") or ""
+
+        # Anchor's existing MinerU markdown is ground truth — keep it as
+        # the first slice (no LLM call for the page MinerU already
+        # parsed). When the anchor has no content we fall back to
+        # rendering page `first` too.
+        anchor_md = block.get("content") or ""
+        anchor_md = _strip_empty_table_rows(anchor_md).strip()
         per_page_md: list[str] = []
-        for page_idx in range(first, last + 1):
+        if anchor_md and _table_md_is_useful(anchor_md):
+            per_page_md.append(anchor_md)
+            cont_start = first + 1
+        else:
+            cont_start = first
+
+        page_bboxes = block.get("per_page_bboxes") or {}
+        for page_idx in range(cont_start, last + 1):
+            # Crop the rendered page to the table bbox MinerU recorded for
+            # this specific page (when available). Without cropping, VLM
+            # mis-packs surrounding headings / paragraphs / footnotes into
+            # the table — visible as duplicated section text on sample
+            # 4abe6b71… p55 (see docs §10).
+            bbox_for_page = page_bboxes.get(page_idx) if isinstance(page_bboxes, dict) else None
             try:
-                jpeg = pdf_renderer(page_idx)
+                # Renderer ignores the bbox kwarg when it does not support
+                # it (test harnesses), so this stays backwards-compatible.
+                try:
+                    jpeg = pdf_renderer(page_idx, bbox=bbox_for_page)
+                except TypeError:
+                    jpeg = pdf_renderer(page_idx)
             except Exception as exc:
                 logger.warning(
                     "_rescue_multipage_tables_via_pdf: render page %d failed: %s",
@@ -664,14 +1113,25 @@ def _rescue_multipage_tables_via_pdf(
                 continue
             if not vlm_md:
                 continue
-            cleaned = _strip_empty_table_rows(vlm_md).strip()
+            sanitised = _sanitise_vlm_table_response(vlm_md)
+            cleaned = _strip_empty_table_rows(sanitised).strip()
             if cleaned and cleaned != "-" and _table_md_is_useful(cleaned):
                 per_page_md.append(cleaned)
+        # Only update when we either kept the anchor or rescued at least
+        # one continuation. If neither happened the block stays as-is.
+        if len(per_page_md) < (1 if anchor_md else 1):
+            continue
         if not per_page_md:
             continue
+        # When anchor was preserved AND continuation slices were added,
+        # mark the merge as a partial rescue so downstream telemetry can
+        # tell "anchor + LLM continuations" apart from "anchor only".
         merged = _concat_table_md_keep_first_header(per_page_md)
         block["content"] = merged
-        block["parse_quality"] = "vlm_rescue_pages"
+        if anchor_md and len(per_page_md) > 1:
+            block["parse_quality"] = "vlm_rescue_continuations"
+        else:
+            block["parse_quality"] = "vlm_rescue_pages"
         md_parts[i] = _table_md_part(block)
         rescued += 1
 
@@ -761,6 +1221,15 @@ def _merge_cross_page_tables(
             if first_content:
                 content_parts.append(first_content)
             pages_in_run = [block.get("page")]
+            # Per-page bboxes are kept so the multi-page PDF rescue can crop
+            # each rendered page to the table region (see
+            # docs/document_normalize_defects.md §10 — VLM otherwise greedily
+            # packs neighbouring headings / paragraphs / footnotes into table
+            # rows when the page has content below the table).
+            per_page_bboxes: dict[int, list[float]] = {}
+            anchor_page = block.get("page")
+            if anchor_page is not None and len(merged["bbox"]) >= 4:
+                per_page_bboxes[anchor_page] = list(merged["bbox"])
             last_page = block.get("page", -1)
             j = i + 1
             while j < n and _is_continuation_table(merged, blocks[j], last_page):
@@ -773,12 +1242,16 @@ def _merge_cross_page_tables(
                     content_parts.append(cont["content"])
                 last_page = cont.get("page", last_page)
                 pages_in_run.append(cont.get("page"))
+                if cont.get("page") is not None and len(cbbox) >= 4:
+                    per_page_bboxes[cont.get("page")] = list(cbbox)
                 j += 1
 
             if j > i + 1:
                 merged_runs += 1
                 if len(pages_in_run) > 1:
                     merged["page_range"] = [pages_in_run[0], pages_in_run[-1]]
+                if per_page_bboxes:
+                    merged["per_page_bboxes"] = per_page_bboxes
 
             # (c) Clean up empty rows in merged content.
             joined = "\n".join(content_parts)
@@ -1055,6 +1528,7 @@ def _handle_visual(
     vlm_content: str | None = None
     decorative_reason: str | None = None
     table_rescued = False
+    chart_to_table = False
     if needs_vlm:
         # Defect #4: differentiate VLM calls — skip decorative images
         # (QR / logo / icon / barcode) at the source instead of letting them
@@ -1076,11 +1550,11 @@ def _handle_visual(
                     logger.warning("VLM analysis failed for %s: %s", img_paths[0], exc)
         # For tables, promote VLM output to table_md when it's the better
         # source (HTML was absent / useless). Keep the existing MinerU output
-        # only if VLM failed or returned a "no content" sentinel.
+        # only if VLM failed, returned the "-" sentinel, or returned chatty
+        # prose without a real markdown table block.
         if btype == "table" and vlm_content:
-            cleaned_vlm = _strip_empty_table_rows(vlm_content).strip()
-            # The prompt instructs the model to return a single "-" when the
-            # image shows no readable cells. Treat that as a non-rescue.
+            sanitised = _sanitise_vlm_table_response(vlm_content)
+            cleaned_vlm = _strip_empty_table_rows(sanitised).strip()
             if cleaned_vlm and cleaned_vlm != "-" and _table_md_is_useful(cleaned_vlm):
                 # Replace degraded HTML; track the rescue for quality telemetry.
                 table_md = cleaned_vlm
@@ -1097,6 +1571,60 @@ def _handle_visual(
                 )
                 vlm_content = None
 
+        # §11-C: chart→table re-route. When MinerU misclassified a table
+        # as a "chart" block (e.g. sample p73-215 治理阶段对照表), the chart
+        # prompt produces a meta-labelled description starting with
+        # "Chart Type: Tabular comparison …" that is itself the noise the
+        # user complained about. Detect that signal and re-call the model
+        # with the table prompt; if it returns a useful markdown table,
+        # promote the block to type="table" and track it.
+        if (
+            btype == "chart"
+            and vlm_content
+            and image_analyzer is not None
+            and img_paths
+            and storage is not None
+            and _looks_tabular(vlm_content)
+        ):
+            primary_uri = image_uris.get(img_paths[0], "")
+            if primary_uri:
+                try:
+                    key = primary_uri.split("/", 3)[-1] if primary_uri.startswith("s3://") else primary_uri
+                    table_retry = image_analyzer.analyze(storage.get_bytes(key), "table", caption)
+                except Exception as exc:
+                    logger.warning(
+                        "mineru_converter: chart→table retry failed for %s: %s",
+                        img_paths[0], exc,
+                    )
+                    table_retry = None
+                if table_retry:
+                    cleaned_retry = _strip_empty_table_rows(
+                        _sanitise_vlm_table_response(table_retry)
+                    ).strip()
+                    if (
+                        cleaned_retry
+                        and cleaned_retry != "-"
+                        and _table_md_is_useful(cleaned_retry)
+                    ):
+                        btype = "table"
+                        table_md = cleaned_retry
+                        chart_to_table = True
+                        vlm_content = None
+                        logger.info(
+                            "mineru_converter: chart→table recovered %s (cap=%r)",
+                            block_id, (caption or "")[:50],
+                        )
+
+        # §11-B: for image/chart blocks, strip meta-labels & chatty prose
+        # the model added despite §11-A's strict prompt. Only applied when
+        # there is content to clean; on edge cases where the sanitiser
+        # would erase everything we keep the original (better to show
+        # noisy content than nothing at all).
+        if btype in {"image", "chart"} and vlm_content:
+            cleaned_vlm = _sanitise_vlm_visual_response(vlm_content)
+            if cleaned_vlm:
+                vlm_content = cleaned_vlm
+
     block: dict[str, Any] = {
         "block_id": block_id,
         "block_type": btype,
@@ -1112,6 +1640,8 @@ def _handle_visual(
         block["parse_quality"] = "decorative"
     if table_rescued:
         block["parse_quality"] = "vlm_rescue"
+    if chart_to_table:
+        block["parse_quality"] = "chart_to_table_recovered"
     if table_md:
         block["content"] = table_md
     elif vlm_content:

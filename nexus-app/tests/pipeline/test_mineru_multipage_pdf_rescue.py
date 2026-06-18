@@ -125,12 +125,56 @@ def test_multipage_table_is_rescued_via_pdf():
     tables = [b for b in blocks_out if b.get("block_type") == "table"]
     assert len(tables) == 1
     t = tables[0]
-    assert t.get("parse_quality") == "vlm_rescue_pages"
+    # §9 P1 new behavior: anchor MinerU content is preserved; only
+    # continuation pages go through VLM. Status reflects the partial path.
+    assert t.get("parse_quality") == "vlm_rescue_continuations"
     assert t.get("page_range") == [50, 52]
-    for needle in ("2020.11", "2021.05", "2025.12"):
-        assert needle in t["content"], f"missing rescued row: {needle}"
-    # VLM was invoked 3 times, once per page.
+    # Anchor (MinerU) data must survive — "OLD" was the anchor cell value.
+    assert "OLD" in t["content"], "anchor MinerU data was overwritten by VLM"
+    assert "2020.11" in t["content"]
+    # Continuations come from VLM.
+    for needle in ("2021.05", "2025.12"):
+        assert needle in t["content"], f"missing rescued continuation row: {needle}"
+    # VLM was invoked exactly 2 times — once per CONTINUATION page (51, 52),
+    # NOT for page 50 (anchor MinerU was kept).
+    assert len(analyzer.calls) == 2
+
+
+def test_empty_anchor_triggers_full_pdf_rescue():
+    """When MinerU's anchor HTML is empty/degraded (rare) we cannot keep
+    anchor content as ground truth — fall back to rendering EVERY page in
+    page_range. Status is vlm_rescue_pages (full), not _continuations."""
+    pdf_info = [
+        {"page_idx": 50, "para_blocks": [{
+            "type": "table", "bbox": [82, 234, 510, 723],
+            "blocks": [
+                {"type": "table_caption",
+                 "lines": [{"spans": [{"type": "text", "content": "表 X 政策一览表"}]}]},
+                # No HTML, no rows — anchor is empty.
+                {"type": "table_body", "lines": []},
+            ],
+        }]},
+        {"page_idx": 51, "para_blocks": [{
+            "type": "table", "bbox": [82, 115, 510, 712], "blocks": [{"type": "table_body", "lines": []}],
+        }]},
+        {"page_idx": 52, "para_blocks": [{
+            "type": "table", "bbox": [82, 115, 510, 712], "blocks": [{"type": "table_body", "lines": []}],
+        }]},
+    ]
+    analyzer = _TableVLMAnalyzer()
+    renderer = _make_pdf_renderer()
+    blocks_out, _md, _toc = convert(
+        pdf_info, image_uris={}, image_analyzer=analyzer, storage=None,
+        pdf_renderer=renderer,
+    )
+    tables = [b for b in blocks_out if b.get("block_type") == "table"]
+    assert len(tables) == 1
+    t = tables[0]
+    # All 3 pages went through VLM since anchor was empty.
     assert len(analyzer.calls) == 3
+    assert t.get("parse_quality") == "vlm_rescue_pages"
+    for needle in ("2020.11", "2021.05", "2025.12"):
+        assert needle in t["content"], f"missing page row: {needle}"
 
 
 def test_singlepage_table_skips_pdf_rescue():

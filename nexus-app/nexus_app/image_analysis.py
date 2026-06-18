@@ -26,32 +26,80 @@ logger = logging.getLogger(__name__)
 # Vision model to use — must support image_url content parts via LiteLLM proxy
 _VISION_MODEL = "dashscope/qwen3-omni-flash"
 
+# Anti-chatter pre-amble shared by every prompt. Chinese LLMs default to
+# "helpful assistant" mode and append blurbs like "说明：...", "如需...",
+# "若需导出为 CSV、Markdown 或 Excel 格式...". This pre-amble plus the
+# explicit forbidden-phrase list reduces those substantially; the response
+# sanitisers in mineru_converter then enforce the contract as a safety net.
+_STRICT_OCR_PREFIX = (
+    "You are a strict OCR / transcription engine. Your only job is to "
+    "transcribe the visible content of the image into the exact format "
+    "requested. Do NOT explain, do NOT summarise, do NOT interpret, do NOT "
+    "comment on the structure or aesthetics, do NOT mention alternative "
+    "formats (CSV/Excel/etc.), do NOT offer further help. "
+    "FORBIDDEN phrases (do not emit any of them, in any language): "
+    "\"说明\", \"如需\", \"当然可以\", \"以下是\", \"若需\", \"可进一步\", "
+    "\"可以为您\", \"如有需要\", \"Note:\", \"Summary:\", \"Overall\", "
+    "\"In summary\", \"hope this helps\", \"let me know\", \"if you need\". "
+    "After the last content line, end the response immediately. "
+)
+
+# Backwards-compatible alias (was named for table use first; same content).
+_TABLE_PROMPT_PREFIX = _STRICT_OCR_PREFIX
+
 _PROMPTS: dict[str, str] = {
     "image": (
-        "This is a figure/diagram from an academic or technical document. "
+        _STRICT_OCR_PREFIX
+        + "This is a figure/diagram from a document. "
         "Caption: {caption}. "
-        "Extract all meaningful content: labels, annotations, structural relationships, "
-        "formulas, and key concepts shown. Be concise and precise."
+        "Transcribe ONLY what is visible: text labels, annotations, formulas, "
+        "numbers, and identifiers. Use a compact bullet list of the form "
+        "\"- <label>: <value>\" or \"- <text>\". "
+        "Do NOT prefix lines with \"Chart Type:\", \"Axis Labels:\", "
+        "\"Legend:\", \"Key Data:\", \"Trend:\", \"Summary:\" or any other "
+        "structural meta-label. "
+        "If the image is actually a TABLE, output a GitHub-Flavoured Markdown "
+        "table instead (header row → separator row '| --- | ... |' → data rows). "
+        "If nothing readable is visible, respond with the single character '-' only."
     ),
     "chart": (
-        "This is a chart/plot from a technical document. "
+        _STRICT_OCR_PREFIX
+        + "This is a chart/plot from a document. "
         "Caption: {caption}. "
-        "Extract: chart type, axis labels and ranges, legend entries, "
-        "key data values or trends. Be concise."
+        "Output ONLY the substantive content of the chart in this order, "
+        "each part as a single block separated by one blank line, omitting "
+        "any part that does not apply: \n"
+        "(1) one short sentence stating axes and units (e.g. \"X 年份 2019-2024，"
+        "Y 增速 0-60%\"); \n"
+        "(2) a compact markdown table whose columns are the chart's series "
+        "(legend entries) and whose rows are the data points read off the "
+        "chart, OR a bullet list of \"- <label>: <value>\" pairs when the "
+        "chart has no series. \n"
+        "Do NOT prefix lines with \"Chart Type:\", \"Axis Labels:\", "
+        "\"Legend Entries:\", \"Key Data Values:\", \"Trend:\", \"Summary:\", "
+        "\"Note:\" or any other structural meta-label. "
+        "Do NOT add a closing trend / summary / interpretation paragraph. "
+        "If the chart is actually a TABLE (rows × columns of cells, no axes), "
+        "output a GitHub-Flavoured Markdown table instead. "
+        "If nothing is readable, respond with the single character '-' only."
     ),
     "table": (
-        "This is a table from a technical document. "
+        _STRICT_OCR_PREFIX
+        + "This is a table from a technical document. "
         "Caption: {caption}. "
-        "Output ONLY a GitHub-Flavoured Markdown table — no preamble, no commentary, no closing remark. "
-        "Start the response with the header row '|...|', "
-        "follow with a separator row '|---|---|...', then every data row. "
+        "Output ONLY a GitHub-Flavoured Markdown table. "
+        "Line 1 = header row '| col1 | col2 | ... |'. "
+        "Line 2 = separator row '| --- | --- | ... |'. "
+        "Each subsequent line = one data row '| v1 | v2 | ... |'. "
+        "Every row MUST start with '|' and end with '|'. "
         "If a cell is unreadable use a single dash '-'. Do not invent values. "
-        "If the visible content is empty, respond with the single character '-' only."
+        "If the visible content is empty, respond with the single character '-' only. "
+        "Stop immediately after the final data row."
     ),
     "default": (
-        "This image is from a technical document. "
-        "Caption: {caption}. "
-        "Extract all meaningful information: text, data, formulas, labels."
+        _STRICT_OCR_PREFIX
+        + "Caption: {caption}. "
+        "Transcribe ONLY visible text, labels, numbers, and formulas."
     ),
 }
 
