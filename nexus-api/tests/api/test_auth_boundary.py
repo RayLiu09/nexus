@@ -139,13 +139,13 @@ def expired_caller(session: Session) -> tuple[models.ApiCaller, str]:
 
 
 # ---------------------------------------------------------------------------
-# /health is public
+# /v1/health is public
 # ---------------------------------------------------------------------------
 
 
 def test_health_is_public(app_no_auth_override):
     with TestClient(app_no_auth_override) as client:
-        resp = client.get("/health")
+        resp = client.get("/v1/health")
     assert resp.status_code == 200
     body = resp.json()
     assert body["data"]["status"] == "ok"

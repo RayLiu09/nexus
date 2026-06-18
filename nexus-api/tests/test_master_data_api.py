@@ -149,7 +149,7 @@ def test_week1_routes_are_registered(app):
     paths = {route.path for route in app.routes}
     post_paths = {route.path for route in app.routes if "POST" in getattr(route, "methods", set())}
 
-    assert "/health" in paths  # public, no prefix
+    assert "/v1/health" in paths  # public, /v1 prefix, no auth
     assert "/internal/v1/org-units" in paths
     assert "/internal/v1/users" in paths
     assert "/internal/v1/api-callers" in paths

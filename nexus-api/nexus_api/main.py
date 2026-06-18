@@ -161,7 +161,7 @@ def create_app() -> FastAPI:
     app.add_exception_handler(Exception, unhandled_exception_handler)
 
     @app.get(
-        "/health",
+        "/v1/health",
         response_model=schemas.ApiResponse[schemas.HealthRead],
         tags=["system"],
     )
