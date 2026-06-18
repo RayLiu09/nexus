@@ -4,6 +4,7 @@ import { Table, Button, Progress, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { GovernanceRun } from "../_lib/types";
 import { getQualityScore, getQualityLevel } from "../_lib/types";
+import { AssetRefCell } from "./AssetRefCell";
 
 export function QualityTab({
   runs,
@@ -16,8 +17,12 @@ export function QualityTab({
     {
       title: "资产",
       dataIndex: "normalized_ref_id",
-      render: (id: string) => (
-        <span className="font-mono text-xs">{id.slice(0, 20)}&hellip;</span>
+      render: (_: string, r: GovernanceRun) => (
+        <AssetRefCell
+          title={r.asset_title}
+          assetId={r.asset_id}
+          normalizedRefId={r.normalized_ref_id}
+        />
       ),
     },
     {
@@ -44,7 +49,7 @@ export function QualityTab({
           .map(([k]) => k)
           .join("、");
         return lowDim ? (
-          <span className="text-xs text-warning">{lowDim}</span>
+          <span className="text-warning text-xs">{lowDim}</span>
         ) : (
           <span className="text-muted">-</span>
         );
@@ -64,7 +69,7 @@ export function QualityTab({
     },
     {
       title: "修复建议",
-      render: () => <span className="text-xs text-secondary">补齐目录层级并合并断裂切片</span>,
+      render: () => <span className="text-secondary text-xs">补齐目录层级并合并断裂切片</span>,
     },
     {
       title: "操作",

@@ -12,11 +12,31 @@ from nexus_api.dependencies import (
     require_idempotency_key,
 )
 from nexus_api.responses import list_response, response
-from nexus_app import schemas as domain_schemas
+from nexus_app import models, schemas as domain_schemas
 from nexus_app.ai_governance.services import AIGovernanceError
 from nexus_app.database import get_db
 
 router = APIRouter()
+
+
+def _serialize_run(run: "models.AIGovernanceRun") -> domain_schemas.AIGovernanceRunRead:
+    """Read schema with asset_title/asset_id resolved via the relationship chain.
+
+    The console list view shows the underlying data asset, not the opaque
+    normalized_ref_id. Walking `run.normalized_ref.version.asset` keeps the
+    join logic next to its read schema and tolerates missing relations
+    (versions can be archived, refs can dangle in test fixtures).
+    """
+    read = domain_schemas.AIGovernanceRunRead.model_validate(run)
+    ref = run.normalized_ref
+    version = ref.version if ref is not None else None
+    asset = version.asset if version is not None else None
+    if asset is not None:
+        return read.model_copy(update={
+            "asset_title": asset.title,
+            "asset_id": asset.id,
+        })
+    return read
 
 
 @router.post(
@@ -41,7 +61,7 @@ def create_governance_run(
     except AIGovernanceError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     session.commit()
-    return response(domain_schemas.AIGovernanceRunRead.model_validate(run), request)
+    return response(_serialize_run(run), request)
 
 
 @router.get(
@@ -64,7 +84,7 @@ def list_governance_runs(
     total = len(runs)
     page_slice = runs[pagination.offset : pagination.offset + pagination.limit]
     return list_response(
-        [domain_schemas.AIGovernanceRunRead.model_validate(r) for r in page_slice],
+        [_serialize_run(r) for r in page_slice],
         request,
         page=pagination.page,
         page_size=pagination.page_size,
@@ -83,7 +103,7 @@ def get_governance_run(
         run = ai_gov_svc.get_governance_run(session, run_id)
     except AIGovernanceError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return response(domain_schemas.AIGovernanceRunRead.model_validate(run), request)
+    return response(_serialize_run(run), request)
 
 
 @router.get(

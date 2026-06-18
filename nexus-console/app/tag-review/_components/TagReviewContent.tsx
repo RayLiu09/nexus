@@ -19,6 +19,7 @@ import type { ColumnsType } from "antd/es/table";
 import { CheckOutlined, CloseOutlined, EditOutlined } from "@ant-design/icons";
 import { ApiState } from "@/components/ApiState";
 import { StatusLabel } from "@/components/StatusLabel";
+import { AssetRefCell } from "@/components/shared/AssetRefCell";
 import { formatDateTime } from "@/lib/api";
 import { tagLabel, type TagDictionary } from "@/lib/tagLabels";
 import type { CommittedTag, TagDraft } from "../_lib/tagReviewData";
@@ -163,10 +164,14 @@ export default function TagReviewContent({
   // ── 低置信草稿表列 ──
   const draftColumns: ColumnsType<TagDraft> = [
     {
-      title: "normalized_ref",
-      dataIndex: "normalizedRefId",
-      render: (id: string) => (
-        <code style={{ fontSize: 12, fontFamily: "var(--font-mono)" }}>{id}</code>
+      title: "数据资产",
+      width: 220,
+      render: (_: unknown, record: TagDraft) => (
+        <AssetRefCell
+          title={record.assetTitle}
+          assetId={record.assetId}
+          normalizedRefId={record.normalizedRefId}
+        />
       ),
     },
     {
@@ -219,15 +224,13 @@ export default function TagReviewContent({
   const committedColumns: ColumnsType<CommittedTag> = [
     {
       title: "数据资产",
-      width: 180,
+      width: 220,
       render: (_: unknown, record: CommittedTag) => (
-        <span className="text-sm font-medium">
-          {record.assetTitle ?? (
-            <code className="text-xs" style={{ fontFamily: "var(--font-mono)" }}>
-              {record.normalizedRefId.slice(0, 12)}
-            </code>
-          )}
-        </span>
+        <AssetRefCell
+          title={record.assetTitle}
+          assetId={record.assetId}
+          normalizedRefId={record.normalizedRefId}
+        />
       ),
     },
     {
@@ -258,7 +261,9 @@ export default function TagReviewContent({
       title: "提交时间",
       dataIndex: "committedAt",
       width: 150,
-      render: (value: string) => <span className="text-caption text-muted">{formatDateTime(value)}</span>,
+      render: (value: string) => (
+        <span className="text-caption text-muted">{formatDateTime(value)}</span>
+      ),
     },
     {
       title: "操作",

@@ -4,6 +4,8 @@ import { extractGovernanceTags } from "@/lib/governance-tags";
 export interface TagDraft {
   id: string;
   normalizedRefId: string;
+  assetId?: string | null;
+  assetTitle?: string | null;
   tags: string[];
   evidence: string;
   confidence: number;
@@ -12,16 +14,16 @@ export interface TagDraft {
 export interface CommittedTag {
   id: string;
   normalizedRefId: string;
+  assetId?: string | null;
+  assetTitle?: string | null;
   tags: string[];
   confidence: number;
   committedAt: string;
-  assetTitle?: string;
 }
 
 function extractTags(run: AIGovernanceRun): string[] {
   return extractGovernanceTags(run.ai_output);
 }
-
 
 function evidenceText(run: AIGovernanceRun): string {
   const refs = run.ai_output?.evidence_refs;
@@ -65,6 +67,8 @@ export function toTagReviewData(runs: AIGovernanceRun[]): {
       committed.push({
         id: `committed-${run.id}`,
         normalizedRefId: run.normalized_ref_id,
+        assetId: run.asset_id ?? null,
+        assetTitle: run.asset_title ?? null,
         tags,
         confidence,
         committedAt: run.updated_at ?? run.created_at,
@@ -73,6 +77,8 @@ export function toTagReviewData(runs: AIGovernanceRun[]): {
       drafts.push({
         id: `draft-${run.id}`,
         normalizedRefId: run.normalized_ref_id,
+        assetId: run.asset_id ?? null,
+        assetTitle: run.asset_title ?? null,
         tags,
         evidence: evidenceText(run),
         confidence,

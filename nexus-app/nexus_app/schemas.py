@@ -630,6 +630,11 @@ class AIGovernanceRunRead(ORMModel):
     trace_id: str | None
     created_at: datetime
     updated_at: datetime
+    # Denormalized read helpers for console list rendering. Populated by the
+    # route via the `normalized_ref → asset_version → asset` relationship chain
+    # (`asset.title`); left None when the chain is broken or not eager-loaded.
+    asset_title: str | None = None
+    asset_id: str | None = None
 
 
 class GovernanceResultRead(ORMModel):

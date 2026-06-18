@@ -1,12 +1,13 @@
 "use client";
 
-import { Table, Button } from "antd";
+import { Table, Button, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { GovernanceRun } from "../_lib/types";
-import { getClassification, getLevel } from "../_lib/types";
+import { getClassification, getConfidence, getLevel, getQualityScore } from "../_lib/types";
 import { DomainTag } from "./DomainTag";
 import { LevelTag } from "./LevelTag";
 import { AdoptionTag } from "./AdoptionTag";
+import { AssetRefCell } from "./AssetRefCell";
 import { formatTime } from "@/lib/format-time";
 
 export function DecisionTrailTab({
@@ -28,8 +29,12 @@ export function DecisionTrailTab({
     {
       title: "对象",
       dataIndex: "normalized_ref_id",
-      render: (id: string) => (
-        <span className="font-mono text-xs">{id.slice(0, 20)}&hellip;</span>
+      render: (_: string, r: GovernanceRun) => (
+        <AssetRefCell
+          title={r.asset_title}
+          assetId={r.asset_id}
+          normalizedRefId={r.normalized_ref_id}
+        />
       ),
     },
     {
@@ -48,11 +53,36 @@ export function DecisionTrailTab({
     },
     {
       title: "证据",
-      render: (_: unknown, r: GovernanceRun) => (
-        <span className="text-xs text-muted">
-          {r.model_alias.split("/").pop()} &middot; {r.prompt_version}
-        </span>
-      ),
+      width: 180,
+      render: (_: unknown, r: GovernanceRun) => {
+        const conf = getConfidence(r);
+        const quality = getQualityScore(r);
+        const confPct = conf > 0 ? `${Math.round(conf * 100)}%` : null;
+        const qualityPct = quality != null ? `${Math.round(quality)}` : null;
+        return (
+          <Tooltip title={`模型 ${r.model_alias} · Prompt ${r.prompt_version}`} placement="topLeft">
+            <span className="inline-flex items-center gap-2 text-xs">
+              {confPct ? (
+                <span>
+                  <span className="text-muted">置信度 </span>
+                  <span className="text-primary font-mono">{confPct}</span>
+                </span>
+              ) : (
+                <span className="text-muted">置信度 -</span>
+              )}
+              <span className="text-line">|</span>
+              {qualityPct ? (
+                <span>
+                  <span className="text-muted">质量分 </span>
+                  <span className="text-primary font-mono">{qualityPct}</span>
+                </span>
+              ) : (
+                <span className="text-muted">质量分 -</span>
+              )}
+            </span>
+          </Tooltip>
+        );
+      },
     },
     {
       title: "时间",
@@ -61,7 +91,7 @@ export function DecisionTrailTab({
       render: (t: string) => {
         const { display, iso } = formatTime(t);
         return (
-          <time dateTime={iso} title={iso} className="text-xs text-secondary">
+          <time dateTime={iso} title={iso} className="text-secondary text-xs">
             {display}
           </time>
         );

@@ -9,6 +9,7 @@ import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import type { FilterValue, SorterResult } from "antd/es/table/interface";
 import { ApiState } from "@/components/ApiState";
 import { StatusLabel } from "@/components/StatusLabel";
+import { CopyableShortId } from "@/components/shared/CopyableShortId";
 import { formatTime } from "@/lib/format-time";
 import type { AssetWithMeta, AssetSummary, AssetStats, DomainDistItem } from "../_lib/types";
 import { DOMAIN_OPTIONS, domainLabel, toAssetStats, toDomainDistItems } from "../_lib/types";
@@ -16,7 +17,19 @@ import { AssetsSummary } from "./AssetsSummary";
 import { DomainDistribution } from "./DomainDistribution";
 import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 
-const DOMAIN_COLORS = ["geekblue", "cyan", "green", "gold", "orange", "magenta", "purple", "blue", "lime", "volcano", "default"];
+const DOMAIN_COLORS = [
+  "geekblue",
+  "cyan",
+  "green",
+  "gold",
+  "orange",
+  "magenta",
+  "purple",
+  "blue",
+  "lime",
+  "volcano",
+  "default",
+];
 
 function domainColor(domain: string | null | undefined): string {
   if (!domain) return "default";
@@ -26,7 +39,10 @@ function domainColor(domain: string | null | undefined): string {
 }
 
 const LEVEL_COLOR_KEY: Record<string, string> = {
-  L1: "success", L2: "processing", L3: "warning", L4: "error",
+  L1: "success",
+  L2: "processing",
+  L3: "warning",
+  L4: "error",
 };
 
 const EMPTY_STATS: AssetStats = {
@@ -100,8 +116,8 @@ export function AssetsContent({
           >
             {title}
           </Link>
-          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
-            <code>{r.id.slice(0, 18)}…</code>
+          <div style={{ marginTop: 2 }}>
+            <CopyableShortId value={r.id} className="text-secondary font-mono text-[11px]" />
           </div>
         </div>
       ),
@@ -124,7 +140,10 @@ export function AssetsContent({
       width: 200,
       render: (_, r) =>
         r.current_normalized_ref_id ? (
-          <code style={{ fontSize: 12 }}>{r.current_normalized_ref_id.slice(0, 22)}…</code>
+          <CopyableShortId
+            value={r.current_normalized_ref_id}
+            className="text-secondary font-mono text-xs"
+          />
         ) : (
           <span style={{ color: "var(--text-muted)" }}>-</span>
         ),
@@ -134,7 +153,9 @@ export function AssetsContent({
       width: 140,
       render: (_, r) => (
         <span>
-          {r.domain && <Tag color={domainColor(r.domain)}>{domainLabel(r.domain, r.domain_name)}</Tag>}
+          {r.domain && (
+            <Tag color={domainColor(r.domain)}>{domainLabel(r.domain, r.domain_name)}</Tag>
+          )}
           {r.level && <Tag color={LEVEL_COLOR_KEY[r.level] ?? "default"}>{r.level}</Tag>}
         </span>
       ),
@@ -145,10 +166,32 @@ export function AssetsContent({
       width: 80,
       align: "center" as const,
       render: (s?: number) =>
-        s != null ? <strong className="text-num">{s}</strong> : <span style={{ color: "var(--text-muted)" }}>-</span>,
+        s != null ? (
+          <strong className="text-num">{s}</strong>
+        ) : (
+          <span style={{ color: "var(--text-muted)" }}>-</span>
+        ),
     },
-    { title: "治理", width: 160, render: (_, r) => r.governance_status ? <StatusLabel value={r.governance_status} /> : <span style={{ color: "var(--text-muted)" }}>-</span> },
-    { title: "索引", width: 110, render: (_, r) => r.index_status ? <StatusLabel value={r.index_status} /> : <span style={{ color: "var(--text-muted)" }}>-</span> },
+    {
+      title: "治理",
+      width: 160,
+      render: (_, r) =>
+        r.governance_status ? (
+          <StatusLabel value={r.governance_status} />
+        ) : (
+          <span style={{ color: "var(--text-muted)" }}>-</span>
+        ),
+    },
+    {
+      title: "索引",
+      width: 110,
+      render: (_, r) =>
+        r.index_status ? (
+          <StatusLabel value={r.index_status} />
+        ) : (
+          <span style={{ color: "var(--text-muted)" }}>-</span>
+        ),
+    },
     {
       title: "组织范围",
       width: 180,
@@ -171,7 +214,11 @@ export function AssetsContent({
       render: (t: string) => {
         const ft = formatTime(t);
         return (
-          <time dateTime={ft.iso} title={ft.iso} style={{ fontSize: 12, color: "var(--text-muted)" }}>
+          <time
+            dateTime={ft.iso}
+            title={ft.iso}
+            style={{ fontSize: 12, color: "var(--text-muted)" }}
+          >
             {ft.display}
           </time>
         );
@@ -188,10 +235,7 @@ export function AssetsContent({
       <div className="assets-toolbar">
         <Select
           defaultValue="all-domain"
-          options={[
-            { value: "all-domain", label: "全部数据域" },
-            ...DOMAIN_OPTIONS,
-          ]}
+          options={[{ value: "all-domain", label: "全部数据域" }, ...DOMAIN_OPTIONS]}
           style={{ width: 180 }}
         />
         <Select

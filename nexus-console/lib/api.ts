@@ -230,6 +230,10 @@ export type AIGovernanceRun = {
   validation_error: string | null;
   created_at: string;
   updated_at: string;
+  // Resolved by backend via `normalized_ref → version → asset` chain; null when
+  // the chain is broken. See nexus_api/api/internal/ai_governance.py::_serialize_run.
+  asset_title?: string | null;
+  asset_id?: string | null;
 };
 
 export type AuditLog = {

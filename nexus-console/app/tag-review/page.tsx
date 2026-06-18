@@ -9,7 +9,7 @@ import { buildTagDictionary, type TagDictionaryEntry } from "@/lib/tagLabels";
 
 export const dynamic = "force-dynamic";
 
-/** Thin subset of backend AssetCatalogRead needed for ref→title mapping. */
+/** Thin subset of backend AssetCatalogRead needed for ref→title fallback. */
 interface AssetCatalogEntry {
   id: string;
   title: string;
@@ -17,52 +17,74 @@ interface AssetCatalogEntry {
   latest_normalized_ref_id?: string | null;
 }
 
-/**
- * Resolve asset titles for committed tags by mapping normalized_ref_id → asset title.
- *
- * Uses the asset listing endpoint (single call, no S3 reads) instead of
- * the content endpoint (N calls, each hitting object storage). Builds a
- * bi-directional map from both current_ref and latest_ref to the asset title.
- */
-async function buildAssetNameMap(
-  committed: { normalizedRefId: string }[],
-): Promise<Map<string, string>> {
-  const nameMap = new Map<string, string>();
-  if (committed.length === 0) return nameMap;
+interface AssetLookup {
+  title: string | null;
+  assetId: string | null;
+}
 
-  const result = await getApiData<AssetCatalogEntry[]>(
-    "/internal/v1/assets",
-    [],
-    { pageSize: MAX_PAGE_SIZE },
-  );
-  if (!result.ok || !Array.isArray(result.data)) return nameMap;
+/**
+ * Fallback resolver: governance runs now carry `asset_title`/`asset_id`
+ * directly (see `_serialize_run` in nexus-api), but older or chain-broken
+ * runs may still be missing those. The asset catalog supplies a cheap
+ * map from current/latest normalized_ref_id → (title, asset_id) without
+ * touching object storage.
+ */
+async function buildAssetLookupMap(refIds: Iterable<string>): Promise<Map<string, AssetLookup>> {
+  const lookup = new Map<string, AssetLookup>();
+  const needed = new Set(refIds);
+  if (needed.size === 0) return lookup;
+
+  const result = await getApiData<AssetCatalogEntry[]>("/internal/v1/assets", [], {
+    pageSize: MAX_PAGE_SIZE,
+  });
+  if (!result.ok || !Array.isArray(result.data)) return lookup;
 
   for (const asset of result.data) {
+    const entry: AssetLookup = { title: asset.title, assetId: asset.id };
     if (asset.current_normalized_ref_id) {
-      nameMap.set(asset.current_normalized_ref_id, asset.title);
+      lookup.set(asset.current_normalized_ref_id, entry);
     }
     if (asset.latest_normalized_ref_id) {
-      nameMap.set(asset.latest_normalized_ref_id, asset.title);
+      lookup.set(asset.latest_normalized_ref_id, entry);
     }
   }
 
-  return nameMap;
+  return lookup;
+}
+
+function enrich<
+  T extends { normalizedRefId: string; assetId?: string | null; assetTitle?: string | null },
+>(rows: T[], lookup: Map<string, AssetLookup>): T[] {
+  return rows.map((r) => {
+    if (r.assetId && r.assetTitle) return r;
+    const hit = lookup.get(r.normalizedRefId);
+    if (!hit) return r;
+    return {
+      ...r,
+      assetId: r.assetId ?? hit.assetId,
+      assetTitle: r.assetTitle ?? hit.title,
+    };
+  });
 }
 
 export default async function TagReviewPage() {
   const [result, rulesResult] = await Promise.all([
-    getApiData<AIGovernanceRun[]>("/internal/v1/ai/governance-runs", [], { pageSize: MAX_PAGE_SIZE }),
+    getApiData<AIGovernanceRun[]>("/internal/v1/ai/governance-runs", [], {
+      pageSize: MAX_PAGE_SIZE,
+    }),
     getApiData<{ tags?: TagDictionaryEntry[] }>("/internal/v1/admin/governance-rules", {}),
   ]);
   const tagDictionary = buildTagDictionary(rulesResult.data.tags);
   const data = toTagReviewData(result.data);
 
-  // Resolve asset names for committed history
-  const assetNameMap = await buildAssetNameMap(data.committed);
-  const committedWithNames = data.committed.map((c) => ({
-    ...c,
-    assetTitle: assetNameMap.get(c.normalizedRefId),
-  }));
+  // Only hit the asset catalog if some rows still need enrichment after the
+  // backend join (keeps the page snappy when chains are intact).
+  const missing = [
+    ...data.drafts.filter((d) => !d.assetId || !d.assetTitle).map((d) => d.normalizedRefId),
+    ...data.committed.filter((c) => !c.assetId || !c.assetTitle).map((c) => c.normalizedRefId),
+  ];
+  const lookup =
+    missing.length > 0 ? await buildAssetLookupMap(missing) : new Map<string, AssetLookup>();
 
   return (
     <>
@@ -77,8 +99,8 @@ export default async function TagReviewPage() {
         }
       />
       <TagReviewContent
-        initialDrafts={data.drafts}
-        initialCommitted={committedWithNames}
+        initialDrafts={enrich(data.drafts, lookup)}
+        initialCommitted={enrich(data.committed, lookup)}
         ok={result.ok}
         error={result.error}
         traceId={result.traceId}

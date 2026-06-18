@@ -8,6 +8,7 @@ import { DomainTag } from "./DomainTag";
 import { LevelTag } from "./LevelTag";
 import { ConfidenceTag } from "./ConfidenceTag";
 import { AdoptionTag } from "./AdoptionTag";
+import { AssetRefCell } from "./AssetRefCell";
 
 export function AiSuggestionsTab({
   runs,
@@ -24,8 +25,12 @@ export function AiSuggestionsTab({
     {
       title: "资产",
       dataIndex: "normalized_ref_id",
-      render: (id: string) => (
-        <span className="font-semibold font-mono text-xs">{id.slice(0, 20)}&hellip;</span>
+      render: (_: string, r: GovernanceRun) => (
+        <AssetRefCell
+          title={r.asset_title}
+          assetId={r.asset_id}
+          normalizedRefId={r.normalized_ref_id}
+        />
       ),
     },
     {
@@ -34,7 +39,7 @@ export function AiSuggestionsTab({
         <span className="inline-flex items-center gap-1">
           <DomainTag classification={getClassification(r)} />
           <LevelTag level={getLevel(r)} />
-          <span className="text-xs text-secondary">{getOrgScope(r)}</span>
+          <span className="text-secondary text-xs">{getOrgScope(r)}</span>
         </span>
       ),
     },
@@ -51,7 +56,7 @@ export function AiSuggestionsTab({
     {
       title: "规则结果",
       render: (_: unknown, r: GovernanceRun) => (
-        <span className="text-xs text-secondary">
+        <span className="text-secondary text-xs">
           {r.validation_status === "schema_valid" ? "校验通过" : r.validation_status}
         </span>
       ),

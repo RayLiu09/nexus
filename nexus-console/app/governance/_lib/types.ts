@@ -22,6 +22,11 @@ export type GovernanceRun = {
   validation_error: string | null;
   created_at: string;
   updated_at: string;
+  // 后端从 normalized_ref → asset_version → asset 关系链解出（见
+  // nexus_api/api/internal/ai_governance.py::_serialize_run）。链路缺失时为
+  // null，由前端回退到 normalized_ref_id 的 shortId 显示。
+  asset_title?: string | null;
+  asset_id?: string | null;
 };
 
 export type GovernanceStats = {
