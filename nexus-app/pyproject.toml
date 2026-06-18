@@ -15,6 +15,13 @@ dependencies = [
   "sqlalchemy>=2.0.0",
   "httpx>=0.28.1",
   "openai>=2.41.1",
+  # PDF page rasteriser used by mineru_converter to rescue tables whose
+  # cells MinerU pipeline-mode failed to extract (cross-page tables in
+  # particular). MIT-licensed wrapper around PDFium with no system deps.
+  "pypdfium2>=4.30.0",
+  # Required by pypdfium2.PdfBitmap.to_pil for JPEG encoding the rendered
+  # pages before they are sent to the VLM.
+  "pillow>=10.0.0",
 ]
 
 [dependency-groups]

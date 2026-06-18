@@ -87,7 +87,7 @@ def test_body_markdown_byte_stable():
     md_char_range was the actual feature being added. Investigate before
     updating the snapshot.
     """
-    _, md = convert(_PDF_INFO, image_uris={}, image_analyzer=None, storage=None)
+    _, md, _ = convert(_PDF_INFO, image_uris={}, image_analyzer=None, storage=None)
     assert md == _GOLDEN_MARKDOWN
 
 
@@ -96,7 +96,7 @@ def test_substring_invariant_for_every_ranged_block():
 
     Locks the cursor-advance algorithm against off-by-one regressions.
     """
-    blocks, md = convert(_PDF_INFO, image_uris={}, image_analyzer=None, storage=None)
+    blocks, md, _ = convert(_PDF_INFO, image_uris={}, image_analyzer=None, storage=None)
     expected_segments = {
         "block-p00-001": "# Sample Title",
         "block-p00-002": "Hello world.",
@@ -126,7 +126,7 @@ def test_no_forbidden_anchor_in_markdown():
     Hard guarantee that md_char_range stays purely out-of-band — even if a
     future strategy author tries to embed coordinates inline.
     """
-    _, md = convert(_PDF_INFO, image_uris={}, image_analyzer=None, storage=None)
+    _, md, _ = convert(_PDF_INFO, image_uris={}, image_analyzer=None, storage=None)
     for pat in _FORBIDDEN_ANCHOR_PATTERNS:
         assert pat.search(md) is None, f"anchor leaked: {pat.pattern!r}"
 

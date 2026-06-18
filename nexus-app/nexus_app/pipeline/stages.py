@@ -516,6 +516,50 @@ def _apply_normalize_service(
 # Normalized payload builders
 # ---------------------------------------------------------------------------
 
+def _make_pdf_renderer(
+    raw_object: models.RawObject,
+    storage: Any,
+) -> "mineru_converter.PdfPageRenderer | None":
+    """Build a PDF-page rasteriser used by mineru_converter to rescue
+    image_only multi-page tables. Returns None for non-PDF sources or when
+    pypdfium2 is not importable (keeps the converter happy without the dep).
+    """
+    mime = (raw_object.mime_type or "").lower()
+    if "pdf" not in mime:
+        return None
+    try:
+        import pypdfium2 as pdfium  # type: ignore[import-not-found]
+    except ImportError:
+        return None
+
+    raw_key = (
+        raw_object.object_uri.split("/", 3)[-1]
+        if raw_object.object_uri.startswith("s3://")
+        else raw_object.object_uri
+    )
+    # Load + decode the PDF once; the renderer closure renders specific pages
+    # on demand. PdfDocument keeps the PDFium handle alive for the worker's
+    # normalize step (short-lived).
+    raw_bytes = storage.get_bytes(raw_key)
+    pdf = pdfium.PdfDocument(raw_bytes)
+    page_count = len(pdf)
+
+    def render(page_idx: int) -> bytes:
+        if not (0 <= page_idx < page_count):
+            return b""
+        page = pdf[page_idx]
+        # 144 DPI keeps individual cells readable for OCR while staying under
+        # ~1.5 MB per JPEG for a Letter-sized page.
+        scale = 144 / 72
+        pil_image = page.render(scale=scale).to_pil()
+        from io import BytesIO
+        buf = BytesIO()
+        pil_image.save(buf, format="JPEG", quality=85)
+        return buf.getvalue()
+
+    return render
+
+
 def _build_normalized_document(
     raw_object: models.RawObject,
     artifact: models.ParseArtifact,
@@ -525,12 +569,15 @@ def _build_normalized_document(
     image_uris: dict[str, str] = artifact.metadata_summary.get("image_uris", {})
 
     pdf_info = parse_payload.get("pdf_info")
+    toc: list[dict] = []
     if isinstance(pdf_info, list) and pdf_info:
-        blocks, body_markdown = mineru_converter.convert(
+        pdf_renderer = _make_pdf_renderer(raw_object, ctx.storage)
+        blocks, body_markdown, toc = mineru_converter.convert(
             pdf_info,
             image_uris,
             ctx.image_analyzer,
             ctx.storage,
+            pdf_renderer=pdf_renderer,
         )
     else:
         # Fallback: fake adapter or legacy format with top-level 'markdown'/'blocks'
@@ -559,7 +606,7 @@ def _build_normalized_document(
         "content_type": "document",
         "title": title_from(raw_object, parse_payload),
         "language": "zh-CN",
-        "toc": [],
+        "toc": toc,
         "blocks": blocks,
         "body_markdown": body_markdown,
         "attachments": _extract_attachments(artifact),

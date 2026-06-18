@@ -42,7 +42,11 @@ _PROMPTS: dict[str, str] = {
     "table": (
         "This is a table from a technical document. "
         "Caption: {caption}. "
-        "Extract the full table content as structured text: column headers and all rows."
+        "Output ONLY a GitHub-Flavoured Markdown table — no preamble, no commentary, no closing remark. "
+        "Start the response with the header row '|...|', "
+        "follow with a separator row '|---|---|...', then every data row. "
+        "If a cell is unreadable use a single dash '-'. Do not invent values. "
+        "If the visible content is empty, respond with the single character '-' only."
     ),
     "default": (
         "This image is from a technical document. "
@@ -105,7 +109,9 @@ class LiteLLMImageAnalyzer:
                     ],
                 }
             ],
-            "max_tokens": 1500,
+            # Tables can easily exceed 1.5K tokens — bump generously so a
+            # multi-row policy table is not truncated mid-cell.
+            "max_tokens": 4000 if block_type == "table" else 1500,
         }
         endpoint = self.settings.litellm_endpoint.rstrip("/")
         req = Request(
