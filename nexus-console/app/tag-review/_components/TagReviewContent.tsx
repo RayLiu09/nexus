@@ -4,13 +4,15 @@
  * /tag-review — 标签审核（P2.2）
  *
  * v3.2 布局：2-1
- *   左：bulk-bar + 低置信标签草稿表 + 自动提交历史表
+ *   左：bulk-bar + 低置信标签草稿表 + 自动提交历史表（只读）
  *   右：标签流程说明（notice × 4）
  *
  * 危险动作（A3）：
  *   - 批量确认  → undo-toast 10s
  *   - 批量驳回  → confirm-dialog
- *   - 撤销标签  → undo-toast
+ *
+ * 自动提交历史当前为只读视图；任何针对已自动提交结果的"异议"
+ * 走 ADR-002 中规划的申诉 + 人工覆盖通道，不在本页直接 mutate。
  */
 
 import { useState } from "react";
@@ -136,31 +138,6 @@ export default function TagReviewContent({
     });
   };
 
-  // ── 撤销已提交标签（undo-toast） ──
-  const handleRevoke = (item: CommittedTag) => {
-    const key = `revoke-${item.id}`;
-    setCommitted((prev) => prev.filter((c) => c.id !== item.id));
-    notification.info({
-      key,
-      message: `已撤销 ${item.normalizedRefId} 的标签`,
-      description: "当前后端尚未提供标签审核写入端点，本次撤销仅更新当前页面状态。",
-      duration: 10,
-      btn: (
-        <Button
-          type="link"
-          size="small"
-          onClick={() => {
-            setCommitted((prev) => [item, ...prev]);
-            notification.destroy(key);
-            message.info("已恢复标签");
-          }}
-        >
-          恢复
-        </Button>
-      ),
-    });
-  };
-
   // ── 低置信草稿表列 ──
   const draftColumns: ColumnsType<TagDraft> = [
     {
@@ -263,20 +240,6 @@ export default function TagReviewContent({
       width: 150,
       render: (value: string) => (
         <span className="text-caption text-muted">{formatDateTime(value)}</span>
-      ),
-    },
-    {
-      title: "操作",
-      width: 80,
-      render: (_: unknown, record: CommittedTag) => (
-        <Button
-          type="link"
-          size="small"
-          onClick={() => handleRevoke(record)}
-          aria-label={`撤销 ${record.normalizedRefId} 的标签`}
-        >
-          撤销
-        </Button>
       ),
     },
   ];
@@ -403,7 +366,7 @@ export default function TagReviewContent({
           >
             <div style={{ fontSize: 15, fontWeight: 600 }}>自动提交历史</div>
             <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
-              高置信标签来自真实 AI 治理运行记录；撤销写入端点接入前仅支持页面内预览
+              高置信标签来自真实 AI 治理运行记录
             </div>
           </div>
           <Table
