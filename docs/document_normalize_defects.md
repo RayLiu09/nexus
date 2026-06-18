@@ -339,7 +339,93 @@ cells = re.findall(r"<td>(.*?)</td>",  row,  re.DOTALL)
 
 ---
 
+## 十、§9 落地验证发现的新边界 — 跨页 VLM 越界 + 单段 TOC（2026-06-18 晚）
+
+§9 P0+P1 落地并重 normalize 后，用户报告政策表附近的章节标题在 body_markdown 出现 3 次。逐项定位：
+
+### 10.1 三次重复的来源
+
+| 出现位置                   | 原因                                                                                                                                                                                                 |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 偏移 2388（在文档开头）    | MinerU 把整张 TOC 塞进**单个 paragraph 块**（block-p07-023），§2 的「≥3 连续行」检测不命中，TOC 内容留在了 body_markdown 里                                                                          |
+| 偏移 37965（混在政策表内） | 续页救场把 p55 整页发给 VLM；p55 表格只占顶部 1/3（bbox [82,114,510,**281**]），下方还有「二、地方规范…」标题 + 段落 + 脚注 + 页码 -47-，VLM 把它们全部包装成 `\| 标题 \|  \|  \|  \|` 的 4 列填充行 |
+| 偏移 38470（正常正文）     | MinerU 在 p55 之后正确识别的 heading + paragraph 块                                                                                                                                                  |
+
+### 10.2 三项修复
+
+| 改动                                                             | 文件                                                    | 作用                                               |
+| ---------------------------------------------------------------- | ------------------------------------------------------- | -------------------------------------------------- |
+| renderer 增 `bbox` 参数，按 bbox 裁剪后输出 JPEG                 | `nexus_app/pipeline/stages.py::_make_pdf_renderer`      | 续页救场时 VLM 只看表格区域，越界的标题/段落被剪掉 |
+| `_merge_cross_page_tables` 保留 `per_page_bboxes` 映射           | `mineru_converter.py::_merge_cross_page_tables`         | 救场环节可按页查得 bbox                            |
+| 救场遍历每页时把 bbox 传给 renderer（兼容老 renderer）           | `mineru_converter.py::_rescue_multipage_tables_via_pdf` | 实际启用裁剪                                       |
+| sanitiser 新增 `_is_padding_row`：4 列只有 1 列有内容 → 丢弃     | `mineru_converter.py::_sanitise_vlm_table_response`     | 即使裁剪失败也兜底剔除 padding row                 |
+| TOC 抽取增加 `_classify_toc_concat_block`：单段落多 TOC 片段识别 | `mineru_converter.py::_extract_toc`                     | 适配 MinerU 把整 TOC 塞进单块的写法                |
+
+### 10.3 样本回归
+
+| 指标                                                               |        §9 修复后 |             §10 修复后 |
+| ------------------------------------------------------------------ | ---------------: | ---------------------: |
+| 「二、地方规范创新精准落地」出现次数                               |                3 |                  **1** |
+| 政策表 content 含「二、地方规范」/「在浙江省」/「十不准」/「-47-」 | 全部包含（污染） |           **全部不含** |
+| `payload.toc` 条目数                                               |                0 |                 **39** |
+| 政策表 content_len                                                 |   7918（含污染） |           7120（纯净） |
+| convert 总耗时                                                     |             213s | 177s（裁剪后图片更小） |
+
+### 10.4 新增测试
+
+- `tests/pipeline/test_mineru_section10_fixes.py` — 12 项：padding row 检测、sanitiser 过滤、merge 保留 per_page_bboxes、rescue 传 bbox 给 renderer、concat TOC 检测与抽取。
+- 全 pipeline 套件 66/66 通过。
+
+---
+
+## 十一、Chart/Image VLM 元标签污染 + 表被误分类为图 chart（2026-06-18 深夜）
+
+§10 落地后用户报告 `block-p73-215`（实为「我国直播电商规范化治理阶段划分及特征」对照表）产生大段「Chart Type: Tabular comparison... Axis Labels:... Legend:... Key Data Values:... Trend:...」结构化输出。
+
+### 11.1 根因
+
+| 层     | 问题                                                                                                               |
+| ------ | ------------------------------------------------------------------------------------------------------------------ |
+| Prompt | 原 chart prompt 主动要 "chart type / axis labels / legend / key data / trends"，模型严格执行，元标签是我们让它加的 |
+| 路由   | MinerU 把对照表识别为 `block_type=chart`，走的不是 table 路径，得不到 markdown 表                                  |
+| 后处理 | 仅 table 输出有 `_sanitise_vlm_table_response`；image/chart 输出无任何清洗                                         |
+
+样本全文 13 个 chart 块全部带这种结构化输出（差别只在内容详略），陪同的「Trend: Progressive institutionalization…」主观总结也是用户明令不要的"无关信息"。
+
+### 11.2 三层修复
+
+| 改动                                                                                                                                                                                                          | 文件                  | 作用                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- | ------------------------------ |
+| **A** — chart/image prompt 全部重写：复用 `_STRICT_OCR_PREFIX`、明确禁止 `Chart Type:` / `Axis Labels:` / `Legend:` / `Key Data:` / `Trend:` / `Summary:` 等结构标签                                          | `image_analysis.py`   | 源头不让模型产元标签           |
+| **B** — `_sanitise_vlm_visual_response`：剥头部 chatty 前言；丢弃纯元标签行；对"label: value"行剥标签留 value；折叠多空行                                                                                     | `mineru_converter.py` | 兜底清洗，模型偶发漏话也能消掉 |
+| **C** — `_looks_tabular` + chart→table 重路由：检测「Tabular/matrix/grid」+ Rows/Columns 字样或 ≥3 GFM pipe 行，用 table prompt 重跑，成功则 `block_type='table'`、`parse_quality='chart_to_table_recovered'` | `mineru_converter.py` | 救回 MinerU 把表错认为图的情况 |
+
+### 11.3 样本回归
+
+| 指标                                                    |                     §10 修复后 |                                                       §11 修复后 |
+| ------------------------------------------------------- | -----------------------------: | ---------------------------------------------------------------: |
+| body 含 `Chart Type:`                                   |                             13 |                                                            **0** |
+| body 含 `Axis Labels` / `X-axis:` / `Y-axis:`           |                           多处 |                                                            **0** |
+| body 含 `Legend:` / `Key Data:` / `Trend:` / `Summary:` |                           多处 |                                                            **0** |
+| 13 chart 块平均 content_len                             | ~700 字符（含元标签+主观总结） |                                          **~275 字符**（纯数据） |
+| p73-215                                                 |  chart 块，1278 字符元标签噪声 | **重路由为 table 并与 p72-214 跨页合并**，1 个干净的 markdown 表 |
+| `convert` 总耗时                                        |                           177s |                                   186s（+1 次 chart→table 调用） |
+
+### 11.4 新增测试
+
+`tests/pipeline/test_mineru_visual_response_sanitiser.py` — 11 项：
+
+- 视觉响应清洗：pure label 行丢弃、`X-axis:` 这类含值标签剥前缀留值、`Y-axis (left):` 这种带括号修饰也命中、chatty 前言剥掉、`-` sentinel 保留、空行折叠。
+- `_looks_tabular`：显式关键词 + Rows/Columns 命中、内含 ≥3 pipe 行命中、正常 chart 描述不命中、None/empty 安全。
+- 集成：误分类的"chart"实际是 table 时 chart→table 双轮调用 + 块类型提升 + `parse_quality='chart_to_table_recovered'`；真正的 chart 不重路由且元标签被清洗。
+
+pipeline 套件 78/78 全绿。
+
+---
+
 ## 历史
 
 - 2026-06-18 上午：基于资产 4abe6b71… 的实测分析触发；登记 4 类缺陷与修复顺序，按 1→4 实施并通过回归。
-- 2026-06-18 下午：复审发现 `_table_html_to_markdown` 正则不认属性导致 99.6% 数据丢失，是 table 内容缺失的真正根因；登记第九节，准备 P0 → P1 落地。
+- 2026-06-18 下午：复审发现 `_table_html_to_markdown` 正则不认属性导致 99.6% 数据丢失，是 table 内容缺失的真正根因；登记第九节，按 P0→P1 落地。
+- 2026-06-18 晚：§9 落地后用户复审发现跨页 VLM 越界 + 单段 TOC 两类残留问题；登记第十节并修复，sample 上目标指标全部达成。
+- 2026-06-18 深夜：§10 落地后用户报告 chart 块元标签污染 + 表被误分类为 chart；登记第十一节，三层修复（prompt 收紧 / 视觉响应清洗 / chart→table 重路由）落地，sample 上所有元标签清零，p73-215 被正确识别为表。
