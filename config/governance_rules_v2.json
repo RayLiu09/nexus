@@ -1,40 +1,5 @@
 {
-  "schema_version": "2.0",
-  "tag_dimensions": {
-    "professional_domain": {
-      "name": "专业领域",
-      "source": "per_classification",
-      "description": "从各分类 G 列（标签维度及打标依据）中按分类提取",
-      "binding_column": "tagging_basis"
-    },
-    "education_level": {
-      "name": "学历层次",
-      "source": "fixed",
-      "values": [
-        "全部",
-        "中职",
-        "高职",
-        "职业本科",
-        "本科及以上"
-      ]
-    },
-    "geographic_scope": {
-      "name": "地域范围",
-      "source": "per_classification",
-      "description": "按发布主体、适用范围、地区名称打标",
-      "binding_column": "geo_scope"
-    },
-    "timeliness": {
-      "name": "时效性",
-      "source": "per_classification",
-      "binding_column": "timeliness"
-    },
-    "data_source_type": {
-      "name": "数据来源",
-      "source": "per_classification",
-      "binding_column": "data_source"
-    }
-  },
+  "schema_version": "2.1",
   "classifications": [
     {
       "code": "industry_policy",
@@ -165,7 +130,10 @@
         }
       ],
       "decomposition_note": "",
-      "structure_description": ""
+      "structure_description": "",
+      "primary_knowledge_type": "industry_research_kb",
+      "default_level": "L1",
+      "co_emission_rules": []
     },
     {
       "code": "industry_report",
@@ -304,7 +272,10 @@
         }
       ],
       "decomposition_note": "",
-      "structure_description": ""
+      "structure_description": "",
+      "primary_knowledge_type": "industry_research_kb",
+      "default_level": "L1",
+      "co_emission_rules": []
     },
     {
       "code": "sector_report",
@@ -444,7 +415,10 @@
         }
       ],
       "decomposition_note": "",
-      "structure_description": ""
+      "structure_description": "",
+      "primary_knowledge_type": "industry_research_kb",
+      "default_level": "L1",
+      "co_emission_rules": []
     },
     {
       "code": "job_demand",
@@ -595,7 +569,10 @@
         }
       ],
       "decomposition_note": "结构清晰",
-      "structure_description": ""
+      "structure_description": "",
+      "primary_knowledge_type": "structured_record_table",
+      "default_level": "L2",
+      "co_emission_rules": []
     },
     {
       "code": "competency_analysis",
@@ -690,7 +667,16 @@
       ],
       "quality_dimensions": [],
       "decomposition_note": "结构清晰",
-      "structure_description": ""
+      "structure_description": "",
+      "primary_knowledge_type": "competency_graph",
+      "default_level": "L2",
+      "co_emission_rules": [
+        {
+          "target_code": "skill_tag_library",
+          "condition": "contains_skill_taxonomy",
+          "min_confidence": 0.6
+        }
+      ]
     },
     {
       "code": "vocational_certificate",
@@ -773,7 +759,10 @@
       ],
       "quality_dimensions": [],
       "decomposition_note": "结构清晰",
-      "structure_description": ""
+      "structure_description": "",
+      "primary_knowledge_type": "skill_tag_library",
+      "default_level": "L1",
+      "co_emission_rules": []
     },
     {
       "code": "teaching_standard",
@@ -832,7 +821,16 @@
       "data_source": [],
       "quality_dimensions": [],
       "decomposition_note": "相对固定的文档结构",
-      "structure_description": "专业名称，入学要求，进修年限，职业面向，培养目标，培养规格，课程设置与课时安排，师资队伍，教学条件，质量保证和毕业要求"
+      "structure_description": "专业名称，入学要求，进修年限，职业面向，培养目标，培养规格，课程设置与课时安排，师资队伍，教学条件，质量保证和毕业要求",
+      "primary_knowledge_type": "course_standard_authoring_process",
+      "default_level": "L2",
+      "co_emission_rules": [
+        {
+          "target_code": "course_knowledge_graph",
+          "condition": "contains_concept_relations",
+          "min_confidence": 0.7
+        }
+      ]
     },
     {
       "code": "program_distribution",
@@ -917,7 +915,10 @@
       ],
       "quality_dimensions": [],
       "decomposition_note": "结构清晰",
-      "structure_description": ""
+      "structure_description": "",
+      "primary_knowledge_type": "structured_record_table",
+      "default_level": "L1",
+      "co_emission_rules": []
     },
     {
       "code": "talent_demand_report",
@@ -987,7 +988,10 @@
         }
       ],
       "decomposition_note": "相对固定的文档结构",
-      "structure_description": "调研目的与意义，专业调研背景，专业调研的基本情况，调研情况分析；\n\n调研目的，调研方法，调研对象及内容，调研结果分析，调研结论及建议；"
+      "structure_description": "调研目的与意义，专业调研背景，专业调研的基本情况，调研情况分析；\n\n调研目的，调研方法，调研对象及内容，调研结果分析，调研结论及建议；",
+      "primary_knowledge_type": "industry_research_kb",
+      "default_level": "L2",
+      "co_emission_rules": []
     },
     {
       "code": "talent_training_plan",
@@ -1058,7 +1062,16 @@
         }
       ],
       "decomposition_note": "相对固定的文档结构",
-      "structure_description": "专业名称，入学要求，进修年限，职业面向，培养目标，培养规格，课程设置与要求，教学进程与总体安排，实施保障(师资队伍，教学条件，教学资源，教学方案，质量管理），毕业要求"
+      "structure_description": "专业名称，入学要求，进修年限，职业面向，培养目标，培养规格，课程设置与要求，教学进程与总体安排，实施保障(师资队伍，教学条件，教学资源，教学方案，质量管理），毕业要求",
+      "primary_knowledge_type": "talent_training_dataset",
+      "default_level": "L2",
+      "co_emission_rules": [
+        {
+          "target_code": "competency_graph",
+          "condition": "contains_competency_breakdown",
+          "min_confidence": 0.6
+        }
+      ]
     },
     {
       "code": "program_profile",
@@ -1168,7 +1181,10 @@
         }
       ],
       "decomposition_note": "相对固定的文档结构",
-      "structure_description": "专业代码，专业名称，进修年限，职业面向，培养目标，专业能力要求，专业课程与实训实习，职业证书类型，持续教育专业方向"
+      "structure_description": "专业代码，专业名称，进修年限，职业面向，培养目标，专业能力要求，专业课程与实训实习，职业证书类型，持续教育专业方向",
+      "primary_knowledge_type": "talent_training_dataset",
+      "default_level": "L1",
+      "co_emission_rules": []
     }
   ],
   "levels": [
@@ -1224,12 +1240,699 @@
       "forbid_external_llm": true
     }
   ],
+  "tag_dimensions": {
+    "professional_domain": {
+      "name": "专业领域",
+      "source": "per_classification",
+      "description": "从各分类 G 列（标签维度及打标依据）中按分类提取",
+      "binding_column": "tagging_basis"
+    },
+    "education_level": {
+      "name": "学历层次",
+      "source": "fixed",
+      "values": [
+        "全部",
+        "中职",
+        "高职",
+        "职业本科",
+        "本科及以上"
+      ]
+    },
+    "geographic_scope": {
+      "name": "地域范围",
+      "source": "per_classification",
+      "description": "按发布主体、适用范围、地区名称打标",
+      "binding_column": "geo_scope"
+    },
+    "timeliness": {
+      "name": "时效性",
+      "source": "per_classification",
+      "binding_column": "timeliness"
+    },
+    "data_source_type": {
+      "name": "数据来源",
+      "source": "per_classification",
+      "binding_column": "data_source"
+    }
+  },
+  "knowledge_types": [
+    {
+      "code": "textbook_kb",
+      "name": "教材知识库",
+      "description": "教材、课件、讲义等教学材料，适合语义检索和问答",
+      "applicable_classifications": [
+        "teaching_standard",
+        "talent_training_plan",
+        "program_profile"
+      ],
+      "default_level": "L1",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "passthrough_to_ragflow",
+      "rag_pipeline": "pipeline_1",
+      "source_criteria": [
+        "包含教材章节、知识点、案例",
+        "内容具有系统性、教学性",
+        "适合通过关键词或语义检索"
+      ],
+      "chunking_strategy": "semantic",
+      "chunking_config": {
+        "chunk_size": 512,
+        "overlap": 64,
+        "min_chunk_size": 100,
+        "max_chunk_size": 1024,
+        "split_by": "sentence"
+      },
+      "ragflow": {
+        "chunk_method": "book",
+        "parser_config": {
+          "chunk_token_num": 512,
+          "delimiter": "\n",
+          "layout_recognize": "DeepDOC"
+        }
+      },
+      "chunk_type": "semantic",
+      "co_emission_rules": [
+        {
+          "target_code": "qa_corpus",
+          "condition": "contains_qa_pairs",
+          "min_confidence": 0.6
+        },
+        {
+          "target_code": "course_knowledge_graph",
+          "condition": "contains_concept_relations",
+          "min_confidence": 0.7
+        }
+      ],
+      "implementation_tier": "A",
+      "kb_name": "nexus-kb-textbook"
+    },
+    {
+      "code": "talent_training_dataset",
+      "name": "人才培养方案数据集",
+      "description": "人才培养方案、课程体系、毕业要求等结构化教育数据",
+      "applicable_classifications": [
+        "talent_training_plan",
+        "program_profile"
+      ],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_1",
+      "source_criteria": [
+        "包含培养目标、课程体系、毕业要求",
+        "包含岗位映射、能力矩阵",
+        "数据具有结构化特征"
+      ],
+      "chunking_strategy": "structured_decompose",
+      "chunking_config": {
+        "decompose_fields": [
+          "培养目标",
+          "课程体系",
+          "毕业要求",
+          "岗位映射",
+          "能力矩阵"
+        ],
+        "field_chunk_size": 256,
+        "field_overlap": 32
+      },
+      "ragflow": {
+        "chunk_method": "naive",
+        "parser_config": {
+          "chunk_token_num": 256,
+          "delimiter": "\n"
+        }
+      },
+      "chunk_type": "structured_field",
+      "co_emission_rules": [
+        {
+          "target_code": "competency_graph",
+          "condition": "contains_competency_matrix",
+          "min_confidence": 0.7
+        },
+        {
+          "target_code": "skill_tag_library",
+          "condition": "contains_skill_tags",
+          "min_confidence": 0.65
+        }
+      ],
+      "implementation_tier": "A",
+      "kb_name": "nexus-kb-talent-training"
+    },
+    {
+      "code": "qa_corpus",
+      "name": "教学问答语料库",
+      "description": "面向教学场景的问答对语料库，用于问答检索与教学辅助",
+      "applicable_classifications": [],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_2",
+      "source_criteria": [
+        "包含明确的问答对结构",
+        "问题与答案可以一一对应",
+        "内容来自教材、讲义、答疑或在线问答记录"
+      ],
+      "chunking_strategy": "qa_extract",
+      "chunking_config": {
+        "qa_pattern": "auto",
+        "min_question_length": 5,
+        "min_answer_length": 10,
+        "merge_short_answers": true
+      },
+      "ragflow": {
+        "chunk_method": "qa",
+        "parser_config": {
+          "chunk_token_num": 256,
+          "delimiter": "\n"
+        }
+      },
+      "chunk_type": "qa_pair",
+      "co_emission_rules": [],
+      "implementation_tier": "B",
+      "kb_name": "nexus-kb-qa"
+    },
+    {
+      "code": "textbook_authoring_process",
+      "name": "教材编写流程语料",
+      "description": "教材编写过程文档，含步骤、规范、模板、检查清单",
+      "applicable_classifications": [],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_3",
+      "source_criteria": [
+        "描述教材编写阶段、流程、产物",
+        "包含步骤化操作或规范说明"
+      ],
+      "chunking_strategy": "process_step_extract",
+      "chunking_config": {
+        "step_indicators": [
+          "步骤",
+          "阶段",
+          "Step",
+          "第一步",
+          "第二步"
+        ],
+        "extract_inputs_outputs": true,
+        "extract_role": true
+      },
+      "ragflow": {
+        "chunk_method": "manual",
+        "parser_config": {
+          "chunk_token_num": 384,
+          "delimiter": "\n"
+        }
+      },
+      "chunk_type": "process_step",
+      "co_emission_rules": [],
+      "implementation_tier": "B",
+      "kb_name": "nexus-kb-textbook-process"
+    },
+    {
+      "code": "lab_guide_authoring_process",
+      "name": "实训指导书编写流程语料",
+      "description": "实训指导书编写过程文档，含实训目标、步骤、考核要点",
+      "applicable_classifications": [],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_3",
+      "source_criteria": [
+        "描述实训指导书编写阶段、流程",
+        "包含实训目标、步骤设计、考核标准"
+      ],
+      "chunking_strategy": "process_step_extract",
+      "chunking_config": {
+        "step_indicators": [
+          "步骤",
+          "阶段",
+          "Step"
+        ],
+        "extract_inputs_outputs": true,
+        "extract_role": true
+      },
+      "ragflow": {
+        "chunk_method": "manual",
+        "parser_config": {
+          "chunk_token_num": 384,
+          "delimiter": "\n"
+        }
+      },
+      "chunk_type": "process_step",
+      "co_emission_rules": [
+        {
+          "target_code": "lab_evaluation_indicator",
+          "condition": "contains_evaluation_criteria",
+          "min_confidence": 0.7
+        }
+      ],
+      "implementation_tier": "B",
+      "kb_name": "nexus-kb-lab-guide-process"
+    },
+    {
+      "code": "course_standard_authoring_process",
+      "name": "课程标准编写流程语料",
+      "description": "课程标准编写过程文档，含标准条款、能力指标、评价要求",
+      "applicable_classifications": [
+        "teaching_standard"
+      ],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_3",
+      "source_criteria": [
+        "描述课程标准编写阶段、流程",
+        "包含课程目标、能力指标、评价要求"
+      ],
+      "chunking_strategy": "process_step_extract",
+      "chunking_config": {
+        "step_indicators": [
+          "步骤",
+          "阶段",
+          "Step"
+        ],
+        "extract_inputs_outputs": true,
+        "extract_role": true
+      },
+      "ragflow": {
+        "chunk_method": "manual",
+        "parser_config": {
+          "chunk_token_num": 384,
+          "delimiter": "\n"
+        }
+      },
+      "chunk_type": "process_step",
+      "co_emission_rules": [
+        {
+          "target_code": "competency_graph",
+          "condition": "contains_competency_indicators",
+          "min_confidence": 0.65
+        }
+      ],
+      "implementation_tier": "B",
+      "kb_name": "nexus-kb-course-standard-process"
+    },
+    {
+      "code": "instructional_design_authoring_process",
+      "name": "教学设计编写流程语料",
+      "description": "教学设计编写过程文档，含教学目标、教学活动、评估方式",
+      "applicable_classifications": [],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_3",
+      "source_criteria": [
+        "描述教学设计编写阶段、流程",
+        "包含教学目标、教学活动、评估方式"
+      ],
+      "chunking_strategy": "process_step_extract",
+      "chunking_config": {
+        "step_indicators": [
+          "步骤",
+          "阶段",
+          "Step"
+        ],
+        "extract_inputs_outputs": true,
+        "extract_role": true
+      },
+      "ragflow": {
+        "chunk_method": "manual",
+        "parser_config": {
+          "chunk_token_num": 384,
+          "delimiter": "\n"
+        }
+      },
+      "chunk_type": "process_step",
+      "co_emission_rules": [],
+      "implementation_tier": "B",
+      "kb_name": "nexus-kb-instructional-design-process"
+    },
+    {
+      "code": "lab_evaluation_indicator",
+      "name": "实训评价标准库",
+      "description": "实训评价指标体系，含维度、权重、评分标准",
+      "applicable_classifications": [],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_5",
+      "source_criteria": [
+        "包含评价维度、指标、权重",
+        "评分标准结构化、可量化"
+      ],
+      "chunking_strategy": "indicator_decompose",
+      "chunking_config": {
+        "indicator_fields": [
+          "维度",
+          "指标",
+          "权重",
+          "评分标准",
+          "等级"
+        ],
+        "extract_weight": true,
+        "extract_scale": true
+      },
+      "ragflow": {
+        "chunk_method": "table",
+        "parser_config": {
+          "chunk_token_num": 256
+        }
+      },
+      "chunk_type": "indicator",
+      "co_emission_rules": [],
+      "implementation_tier": "B",
+      "kb_name": "nexus-kb-lab-evaluation"
+    },
+    {
+      "code": "teaching_evaluation_indicator",
+      "name": "教学评价标准库",
+      "description": "教学评价指标体系，含课堂表现、学习成果、综合素质",
+      "applicable_classifications": [],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_5",
+      "source_criteria": [
+        "包含教学评价维度、指标、权重",
+        "覆盖课堂、作业、考试、综合等"
+      ],
+      "chunking_strategy": "indicator_decompose",
+      "chunking_config": {
+        "indicator_fields": [
+          "维度",
+          "指标",
+          "权重",
+          "评分标准",
+          "等级"
+        ],
+        "extract_weight": true,
+        "extract_scale": true
+      },
+      "ragflow": {
+        "chunk_method": "table",
+        "parser_config": {
+          "chunk_token_num": 256
+        }
+      },
+      "chunk_type": "indicator",
+      "co_emission_rules": [],
+      "implementation_tier": "B",
+      "kb_name": "nexus-kb-teaching-evaluation"
+    },
+    {
+      "code": "ecommerce_case_library",
+      "name": "电商项目案例库",
+      "description": "电商项目案例集合，用于案例教学与项目化课程",
+      "applicable_classifications": [],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_1",
+      "source_criteria": [
+        "包含案例背景、问题、解决方案、效果评估",
+        "围绕电商业务场景"
+      ],
+      "chunking_strategy": "case_decompose",
+      "chunking_config": {
+        "case_sections": [
+          "背景",
+          "问题",
+          "解决方案",
+          "效果",
+          "反思"
+        ],
+        "section_chunk_size": 384,
+        "section_overlap": 32
+      },
+      "ragflow": {
+        "chunk_method": "paper",
+        "parser_config": {
+          "chunk_token_num": 384,
+          "delimiter": "\n"
+        }
+      },
+      "chunk_type": "case_section",
+      "co_emission_rules": [],
+      "implementation_tier": "C",
+      "kb_name": "nexus-kb-ecommerce-cases"
+    },
+    {
+      "code": "enterprise_task_library",
+      "name": "企业项目任务库",
+      "description": "源自真实企业的项目任务集合，用于产教融合教学",
+      "applicable_classifications": [],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_1",
+      "source_criteria": [
+        "包含任务背景、目标、交付物、评估要点",
+        "来源于企业真实项目"
+      ],
+      "chunking_strategy": "case_decompose",
+      "chunking_config": {
+        "case_sections": [
+          "背景",
+          "目标",
+          "任务",
+          "交付物",
+          "评估"
+        ],
+        "section_chunk_size": 384,
+        "section_overlap": 32
+      },
+      "ragflow": {
+        "chunk_method": "paper",
+        "parser_config": {
+          "chunk_token_num": 384,
+          "delimiter": "\n"
+        }
+      },
+      "chunk_type": "case_section",
+      "co_emission_rules": [],
+      "implementation_tier": "C",
+      "kb_name": "nexus-kb-enterprise-tasks"
+    },
+    {
+      "code": "course_knowledge_graph",
+      "name": "课程知识图谱数据",
+      "description": "课程相关的知识点、概念、关系，用于知识图谱构建与检索",
+      "applicable_classifications": [
+        "teaching_standard"
+      ],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_4",
+      "source_criteria": [
+        "包含知识点、概念、关系、依赖",
+        "能够构成图结构"
+      ],
+      "chunking_strategy": "graph_extract",
+      "chunking_config": {
+        "node_types": [
+          "概念",
+          "知识点",
+          "技能",
+          "案例"
+        ],
+        "relation_types": [
+          "先修",
+          "包含",
+          "应用",
+          "案例化"
+        ],
+        "extract_attributes": true
+      },
+      "ragflow": {
+        "chunk_method": "knowledge_graph",
+        "parser_config": {
+          "chunk_token_num": 256,
+          "entity_types": [
+            "概念",
+            "知识点",
+            "技能",
+            "案例"
+          ]
+        }
+      },
+      "chunk_type": "graph_node",
+      "co_emission_rules": [],
+      "implementation_tier": "C",
+      "kb_name": "nexus-kb-course-graph"
+    },
+    {
+      "code": "competency_graph",
+      "name": "能力图谱数据",
+      "description": "岗位能力、能力分解、能力关系，用于能力图谱与人才画像",
+      "applicable_classifications": [
+        "competency_analysis"
+      ],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_4",
+      "source_criteria": [
+        "包含能力项、子能力、关系",
+        "围绕岗位/职业能力建模"
+      ],
+      "chunking_strategy": "graph_extract",
+      "chunking_config": {
+        "node_types": [
+          "能力",
+          "子能力",
+          "岗位",
+          "技能"
+        ],
+        "relation_types": [
+          "包含",
+          "依赖",
+          "对应"
+        ],
+        "extract_attributes": true
+      },
+      "ragflow": {
+        "chunk_method": "knowledge_graph",
+        "parser_config": {
+          "chunk_token_num": 256,
+          "entity_types": [
+            "能力",
+            "子能力",
+            "岗位",
+            "技能"
+          ]
+        }
+      },
+      "chunk_type": "graph_node",
+      "co_emission_rules": [
+        {
+          "target_code": "skill_tag_library",
+          "condition": "contains_skill_tags",
+          "min_confidence": 0.65
+        }
+      ],
+      "implementation_tier": "C",
+      "kb_name": "nexus-kb-competency-graph"
+    },
+    {
+      "code": "skill_tag_library",
+      "name": "技能标签库",
+      "description": "技能、标签、分类的规范化标签库，用于标签关联与检索",
+      "applicable_classifications": [
+        "vocational_certificate"
+      ],
+      "default_level": "L1",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_4",
+      "source_criteria": [
+        "包含技能名、同义词、分类、层级",
+        "标签可用于关联资产或人才"
+      ],
+      "chunking_strategy": "tag_decompose",
+      "chunking_config": {
+        "tag_fields": [
+          "标签名",
+          "同义词",
+          "分类",
+          "层级",
+          "描述"
+        ],
+        "extract_aliases": true,
+        "extract_hierarchy": true
+      },
+      "ragflow": {
+        "chunk_method": "tag",
+        "parser_config": {
+          "chunk_token_num": 128
+        }
+      },
+      "chunk_type": "tag",
+      "co_emission_rules": [],
+      "implementation_tier": "C",
+      "kb_name": "nexus-kb-skill-tags"
+    },
+    {
+      "code": "industry_research_kb",
+      "name": "行业研究知识库",
+      "description": "产业政策、产业报告、行业报告、人才需求报告等研究性文档；语义切块入 RAG 检索。",
+      "applicable_classifications": [
+        "industry_policy",
+        "industry_report",
+        "sector_report",
+        "talent_demand_report"
+      ],
+      "default_level": "L1",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "passthrough_to_ragflow",
+      "rag_pipeline": "pipeline_1",
+      "source_criteria": [
+        "包含市场/行业/产业的研究分析",
+        "结构以章节-小节为主，含数据图表",
+        "适合语义检索 + QA 引用"
+      ],
+      "chunking_strategy": "semantic",
+      "chunking_config": {
+        "chunk_size": 512,
+        "overlap": 64,
+        "min_chunk_size": 100,
+        "max_chunk_size": 1024,
+        "split_by": "sentence"
+      },
+      "ragflow": {
+        "chunk_method": "paper",
+        "parser_config": {
+          "chunk_token_num": 512,
+          "delimiter": "\n",
+          "layout_recognize": "DeepDOC"
+        }
+      },
+      "chunk_type": "semantic",
+      "co_emission_rules": [],
+      "implementation_tier": "A",
+      "kb_name": "nexus-kb-industry-research"
+    },
+    {
+      "code": "structured_record_table",
+      "name": "结构化记录表",
+      "description": "岗位需求、专业布点数等结构清晰的表格记录；按记录行切片，每条作为独立检索单元。",
+      "applicable_classifications": [
+        "job_demand",
+        "program_distribution"
+      ],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "row_per_chunk",
+      "rag_pipeline": "pipeline_1",
+      "source_criteria": [
+        "数据呈表格形态，行=记录、列=字段",
+        "记录可独立成意，无强跨行依赖",
+        "适合精确字段检索"
+      ],
+      "chunking_strategy": "row_decompose",
+      "chunking_config": {
+        "row_size_target": 1,
+        "include_header_in_chunk": true
+      },
+      "ragflow": {
+        "chunk_method": "table",
+        "parser_config": {
+          "chunk_token_num": 256,
+          "delimiter": "\n"
+        }
+      },
+      "chunk_type": "structured",
+      "co_emission_rules": [],
+      "implementation_tier": "A",
+      "kb_name": "nexus-kb-structured-records"
+    }
+  ],
   "quality_scoring": {
     "dimensions": [
       {
         "name": "completeness",
         "weight": 0.3,
-        "description": "内容完整性：必要字段是否完整",
+        "description": "内容完整性：标题、摘要、分类、来源、时间等必要字段是否完整",
         "check_items": [
           {
             "name": "has_title",
@@ -1240,17 +1943,32 @@
             "name": "has_content",
             "description": "文档必须有实质性内容",
             "severity": "blocking"
+          },
+          {
+            "name": "has_source_type",
+            "description": "必须标注数据来源类型",
+            "severity": "warning"
+          },
+          {
+            "name": "has_language",
+            "description": "建议标注主要语言",
+            "severity": "info"
           }
         ]
       },
       {
         "name": "accuracy",
         "weight": 0.25,
-        "description": "内容准确性：分类建议与内容的匹配程度",
+        "description": "内容准确性：分类建议与内容的匹配程度，证据引用的可信度",
         "check_items": [
           {
             "name": "classification_confidence",
             "description": "分类置信度必须达到阈值",
+            "severity": "warning"
+          },
+          {
+            "name": "level_evidence_present",
+            "description": "分级建议需要有证据引用",
             "severity": "warning"
           },
           {
@@ -1263,12 +1981,17 @@
       {
         "name": "consistency",
         "weight": 0.25,
-        "description": "一致性：与同类资产的分类分级是否一致",
+        "description": "一致性：与同类资产的分类分级是否一致，元数据是否前后一致",
         "check_items": [
           {
             "name": "level_matches_classification",
             "description": "分级应与分类对应的默认级别范围一致",
             "severity": "warning"
+          },
+          {
+            "name": "tags_match_classification",
+            "description": "标签应在对应分类的适用范围内",
+            "severity": "info"
           },
           {
             "name": "org_scope_valid",
@@ -1291,6 +2014,11 @@
             "name": "no_parse_errors",
             "description": "解析结果不应有严重错误",
             "severity": "blocking"
+          },
+          {
+            "name": "images_accessible",
+            "description": "引用的图片应可访问",
+            "severity": "info"
           }
         ]
       }

@@ -6,12 +6,27 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 
+class ClassificationCoEmissionRule(BaseModel):
+    """A co-emission rule attached to a classification (NOT to a KT) — drives
+    secondary knowledge-type emissions when the primary KT is selected."""
+
+    target_code: str
+    condition: str
+    min_confidence: float = Field(default=0.6, ge=0, le=1)
+
+    model_config = {"extra": "ignore"}
+
+
 class ClassificationDef(BaseModel):
     code: str
     name: str
     description: str = ""
     criteria: list[str] = []
     examples: list[str] = []
+    # v3.0+ business-rules fields (governance_rules_v2.json §12):
+    primary_knowledge_type: str | None = None
+    default_level: str | None = None
+    co_emission_rules: list[ClassificationCoEmissionRule] = Field(default_factory=list)
 
     model_config = {"extra": "ignore"}
 

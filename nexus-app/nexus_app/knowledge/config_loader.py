@@ -1,4 +1,13 @@
-"""Load knowledge_types configuration from governance_rules.json."""
+"""Load knowledge_types configuration from governance_rules_v2.json.
+
+The legacy ``config/governance_rules.json`` (4 D-code classifications + 14
+teaching-oriented KTs) has been moved to ``config/archived/`` per
+docs/document_normalize_defects.md §12. The active source of truth is now
+the DB table ``governance_rules_version`` (read via
+``nexus_app.ai_governance.rules_registry``); this on-disk JSON mirror exists
+for proposal-staging and for the KT consumers that have not yet been
+migrated to read from the registry.
+"""
 
 from __future__ import annotations
 
@@ -7,7 +16,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-_CONFIG_PATH = Path(__file__).resolve().parents[3] / "config" / "governance_rules.json"
+_CONFIG_PATH = Path(__file__).resolve().parents[3] / "config" / "governance_rules_v2.json"
 
 
 class KnowledgeTypeConfig:
@@ -65,6 +74,15 @@ class KnowledgeTypeConfig:
         return self._raw.get("implementation_tier", "C")
 
     @property
+    def kb_name(self) -> str | None:
+        """RAGFlow dataset NAME assigned to this KT in governance_rules_v2.json.
+
+        None when the rule did not pin a name — caller falls back to the
+        ``{prefix}-{code}`` auto-derived form (see KbRegistry.kb_name_for).
+        """
+        return self._raw.get("kb_name")
+
+    @property
     def max_chunks_per_unit(self) -> int:
         return self._raw.get("max_chunks_per_unit", 500)
 
@@ -95,5 +113,5 @@ def get_all_knowledge_type_configs(config_path: str | None = None) -> dict[str, 
 
 
 def reload_config() -> None:
-    """Clear cached config — call after governance_rules.json is updated at runtime."""
+    """Clear cached KT config — call after governance_rules_v2.json is updated."""
     _load_all.cache_clear()
