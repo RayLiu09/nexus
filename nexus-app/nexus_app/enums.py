@@ -273,6 +273,11 @@ class ChunkType(StrEnum):
     CASE_SECTION           = "case_section"
     GRAPH_NODE             = "graph_node"
     TAG                    = "tag"
+    # Slice 2 — semantic-repack produces one SEMANTIC_BLOCK per coherent unit.
+    # Replaces the legacy PASSTHROUGH_DESCRIPTOR path: blocks no longer go to
+    # RAGFlow as one opaque whole-document chunk; instead Nexus does semantic
+    # segmentation on normalized blocks and emits N retrieval-grade chunks.
+    SEMANTIC_BLOCK         = "semantic_block"
 
 
 class ChunkingStrategy(StrEnum):
@@ -284,6 +289,8 @@ class ChunkingStrategy(StrEnum):
     CASE_DECOMPOSE         = "case_decompose"
     GRAPH_EXTRACT          = "graph_extract"
     TAG_DECOMPOSE          = "tag_decompose"
+    # Slice 2 — strategy code for semantic-repack output.
+    SEMANTIC_REPACK        = "semantic_repack"
 
 
 class SourceKind(StrEnum):

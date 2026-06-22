@@ -519,6 +519,19 @@ class NormalizedAssetRef(TimestampMixin, Base):
         comment="raw_object_id, parse_artifact_id, processing chain trace")
     metadata_summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False,
         comment="Source, business, temporal metadata for search enrichment")
+    # Document-level metadata extracted from blocks during normalize (RFC §17).
+    # Shape (all keys optional):
+    #   title, subtitle, authors[], publish_date (ISO yyyy or yyyy-mm),
+    #   publisher, doc_number, version, language, keywords[], abstract,
+    #   outline[{level, title, page, ...}], source_block_ids[]
+    # Belongs HERE (not in per-chunk chunk_metadata) so the same document
+    # title / author / abstract is not duplicated into every RAG chunk
+    # (chunks-table-growth concern, see docs/blocks_to_rag_chunks_optimization.md §三.3).
+    document_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True,
+        comment="Document-level metadata extracted from blocks (title, authors, "
+                "publish_date, keywords, abstract, outline, source_block_ids). "
+                "Used as every chunk's parent context and asset-detail rendering; "
+                "NEVER duplicated into per-chunk metadata.")
 
     version: Mapped[AssetVersion] = relationship()
 

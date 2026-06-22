@@ -18,20 +18,39 @@ def build_chunk(
     content: str,
     extra_metadata: dict[str, Any] | None = None,
     source_blocks: list[dict[str, Any]] | None = None,
+    heading_path: list[dict[str, Any]] | None = None,
+    md_spans: list[dict[str, Any]] | None = None,
+    anchor_role: str | None = None,
+    caption: str | None = None,
+    chunking_strategy: ChunkingStrategy | None = None,
 ) -> KnowledgeChunk:
     """Construct a KnowledgeChunk with standard fields populated.
 
     Args:
-        source_blocks: Optional list of origin block descriptors from
+        source_blocks: list of origin block descriptors from
             normalized_document.blocks[]. Each item should contain at least
-            ``block_id`` and may include ``page`` and ``bbox``. When provided,
-            ``source_block_ids`` and ``locator`` are populated; otherwise both
-            stay null (legitimate for record-type and passthrough chunks).
+            ``block_id`` and may include ``page``, ``bbox``, ``md_char_range``,
+            ``block_type``. When provided, ``source_block_ids`` and
+            ``locator`` are populated; otherwise both stay null (legitimate
+            for record-pipeline chunks).
+        heading_path / md_spans / anchor_role / caption: slice-2 locator-
+            contract extensions (see docs/rag_semantic_chunks_implementation_plan
+            §二.1). ``heading_path`` lands in ``locator``; ``anchor_role`` and
+            ``caption`` live in ``chunk_metadata`` to avoid namespace clash.
+        chunking_strategy: overrides ``kt_config.chunking_strategy`` — needed
+            because semantic-repack-produced chunks declare strategy
+            ``SEMANTIC_REPACK`` even when the host KT config still names
+            ``passthrough_to_ragflow`` (KT config is end-user facing; chunk
+            strategy is system-facing provenance).
     """
     meta: dict[str, Any] = {
         "chunking_config_snapshot": kt_config.chunking_config,
         "co_emission_origin": emission.get("co_emission_origin"),
     }
+    if anchor_role is not None:
+        meta["anchor_role"] = anchor_role
+    if caption is not None:
+        meta["caption"] = caption
     if extra_metadata:
         meta.update(extra_metadata)
 
@@ -41,14 +60,20 @@ def build_chunk(
         source_block_ids = [
             b["block_id"] for b in source_blocks if b.get("block_id")
         ] or None
-        locator = _aggregate_locator(source_blocks)
+        locator = _aggregate_locator(
+            source_blocks,
+            heading_path=heading_path,
+            md_spans=md_spans,
+        )
+
+    strategy = chunking_strategy or ChunkingStrategy(kt_config.chunking_strategy)
 
     return KnowledgeChunk(
         id=new_uuid(),
         normalized_ref_id=normalized_ref_id,
         knowledge_type_code=emission["code"],
         chunk_type=chunk_type,
-        chunking_strategy=ChunkingStrategy(kt_config.chunking_strategy),
+        chunking_strategy=strategy,
         source_kind=SourceKind(kt_config.source_kind),
         chunk_index=index,
         content=content,
@@ -61,19 +86,40 @@ def build_chunk(
     )
 
 
-def _aggregate_locator(blocks: list[dict[str, Any]]) -> dict[str, Any]:
-    """Aggregate per-block page/bbox into the chunk-level locator contract.
+def _aggregate_locator(
+    blocks: list[dict[str, Any]],
+    *,
+    heading_path: list[dict[str, Any]] | None = None,
+    md_spans: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Aggregate per-block page/bbox/md_char_range into the chunk-level locator.
 
-    Contract (see ARCHITECT.md):
-        {page_start, page_end, bbox_union, blocks: [{block_id, page, bbox}]}
-    bbox_union is computed only when all source blocks share a single page;
-    cross-page chunks set bbox_union to None and consumers fall back to blocks[].
+    Slice-2 contract (see docs/rag_semantic_chunks_implementation_plan §二.1):
+
+        {
+            "page_start":     int | None,
+            "page_end":       int | None,
+            "bbox_union":     [x0,y0,x1,y1] | None,
+            "blocks":         [{block_id, page, bbox, md_char_range}, ...],
+            "md_char_range":  [start, end] | None,
+            "md_spans":       [{start,end,block_id}, ...] | None,
+            "heading_path":   [{level,title}, ...],
+        }
+
+    Invariants:
+      - ``bbox_union`` is computed only when all source blocks share a single
+        page (cross-page chunks fall back to per-block bboxes via ``blocks``).
+      - ``md_char_range`` is the [min(start), max(end)] envelope of all
+        contributing blocks' ranges; ``md_spans`` lists per-block sub-ranges
+        (populated only for merged / multi-block chunks).
+      - ``heading_path`` defaults to ``[]`` (stable field for serialisation).
     """
     normalized = [
         {
             "block_id": b.get("block_id"),
             "page": b.get("page"),
             "bbox": b.get("bbox"),
+            "md_char_range": b.get("md_char_range"),
         }
         for b in blocks
     ]
@@ -92,11 +138,26 @@ def _aggregate_locator(blocks: list[dict[str, Any]]) -> dict[str, Any]:
                 max(box[3] for box in valid),
             ]
 
+    md_char_range: list[int] | None = None
+    ranges = [
+        b["md_char_range"] for b in normalized
+        if isinstance(b.get("md_char_range"), (list, tuple))
+        and len(b["md_char_range"]) == 2
+    ]
+    if ranges:
+        md_char_range = [
+            min(r[0] for r in ranges),
+            max(r[1] for r in ranges),
+        ]
+
     return {
         "page_start": page_start,
         "page_end": page_end,
         "bbox_union": bbox_union,
         "blocks": normalized,
+        "md_char_range": md_char_range,
+        "md_spans": md_spans,
+        "heading_path": heading_path or [],
     }
 
 

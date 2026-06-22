@@ -325,6 +325,52 @@ class TestIndexSubmitIntegration:
         finally:
             reset_kb_registry()
 
+    def test_nexus_owned_chunks_skip_ragflow_submit(self, session, make_ai_run, monkeypatch):
+        from nexus_app.pipeline import stages
+
+        _, version, ref = make_ai_run(ai_output={"classification": "D4",
+                                                 "level": "L1", "tags": [],
+                                                 "org_scope": "all",
+                                                 "confidence": 0.9})
+        version.version_status = AssetVersionStatus.AVAILABLE
+        session.flush()
+
+        fake_adapter = FakeRAGFlowAdapter()
+        from nexus_app.index import ragflow_adapter as ra_mod
+        from nexus_app.index import kb_registry as kb_mod
+        monkeypatch.setattr(ra_mod, "get_ragflow_adapter", lambda settings=None: fake_adapter)
+        kb_mod._default_registry = KbRegistry(adapter=fake_adapter, settings=get_settings())
+
+        try:
+            chunks = self._make_chunks(session, ref.id, "textbook_kb",
+                                        ChunkType.SEMANTIC_BLOCK, 2)
+
+            class _Ctx:
+                pass
+            ctx = _Ctx()
+            ctx.session = session
+            ctx.settings = get_settings()
+            ctx.storage = InMemoryObjectStorage()
+            ctx.trace_id = "trace-skip-nexus"
+            ctx.job = _existing_job_for_ref(session, ref.id)
+
+            manifests = stages.run_index_submit(ctx, version, ref, chunks)
+            assert manifests == []
+            assert len(fake_adapter._docs) == 0
+            assert all(c.ragflow_doc_id is None for c in chunks)
+
+            stage_row = session.scalars(
+                select(models.JobStage).where(
+                    models.JobStage.job_id == ctx.job.id,
+                    models.JobStage.stage_name == "index_submit",
+                )
+            ).all()[-1]
+            assert stage_row.status == StageStatus.SKIPPED
+            assert stage_row.detail["reason"] == "nexus-owned chunks are not submitted to RAGFlow yet"
+            assert stage_row.detail["skipped_knowledge_types"][0]["chunk_types"] == ["semantic_block"]
+        finally:
+            reset_kb_registry()
+
 
 # ---------------------------------------------------------------------------
 # 6.3 — Idempotency under retry
@@ -733,8 +779,8 @@ class TestIndexSubmitPartialSuccess:
                 models.KnowledgeChunk(
                     normalized_ref_id=ref.id,
                     knowledge_type_code="qa_corpus",
-                    chunk_type=ChunkType.QA_PAIR,
-                    chunking_strategy="qa_extract",
+                    chunk_type=ChunkType.PASSTHROUGH_DESCRIPTOR,
+                    chunking_strategy="passthrough_to_ragflow",
                     chunk_index=0, content="c2", chunk_metadata={},
                 ),
             ]

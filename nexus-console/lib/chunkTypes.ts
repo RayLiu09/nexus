@@ -100,6 +100,42 @@ export interface NormalizedBlock {
   md_char_range: [number, number] | null;
 }
 
+
+export interface MarkdownHighlightRange {
+  start: number;
+  end: number;
+  block_id?: string | null;
+}
+
+export interface PageAnchor {
+  page: number;
+  bbox: [number, number, number, number] | null;
+  block_id?: string | null;
+}
+
+export interface ChunkPreviewResponse {
+  chunk: KnowledgeChunkHit;
+  normalized_ref: {
+    ref_id: string;
+    asset_id: string | null;
+    version_id: string;
+    normalized_type: "document" | "record" | string;
+  };
+  source: {
+    body_markdown: string | null;
+    blocks: NormalizedBlock[] | null;
+    record_body: Record<string, unknown> | null;
+  };
+  highlight: {
+    md_char_range?: [number, number] | null;
+    md_spans?: Array<{ start: number; end: number; block_id?: string | null }> | null;
+    markdown_ranges: MarkdownHighlightRange[];
+    page_anchors: PageAnchor[];
+    heading_path: Array<{ level: number; title: string }>;
+    anchor_role?: string | null;
+  };
+}
+
 /** Response of `/api/normalized-refs/[id]/content`. */
 export interface NormalizedRefContent {
   ref_id: string;

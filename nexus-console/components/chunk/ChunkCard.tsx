@@ -20,9 +20,10 @@ export interface ChunkCardProps {
   onSelect: (chunk: KnowledgeChunkHit) => void;
   /** Hide AssetLink — useful inside the Asset Detail page (avoids self-link). */
   hideAssetLink?: boolean;
+  actionLabel?: string;
 }
 
-export function ChunkCard({ chunk, onSelect, hideAssetLink }: ChunkCardProps) {
+export function ChunkCard({ chunk, onSelect, hideAssetLink, actionLabel = "展开详情" }: ChunkCardProps) {
   const score = typeof chunk.score === "number" ? chunk.score : null;
   const docName = chunk.source?.doc_name;
 
@@ -50,7 +51,7 @@ export function ChunkCard({ chunk, onSelect, hideAssetLink }: ChunkCardProps) {
         aria-controls={`chunk-detail-${chunk.chunk_id ?? chunk.id ?? ""}`}
         className="text-brand self-start text-xs hover:underline"
       >
-        展开详情
+        {actionLabel}
       </button>
     </Space>
   );

@@ -621,6 +621,21 @@ def _build_normalized_document(
             "source_locator": {},
         }]
 
+    # Slice 0+1: extract document-level metadata (title / authors / publish_date
+    # / keywords / abstract / outline) so it lives ONCE on the ref and never
+    # gets duplicated into per-chunk metadata downstream. Contributing blocks
+    # are stamped with role=document_metadata so the semantic-repack layer
+    # (slice 2) skips them as RAG chunk candidates.
+    from nexus_app.normalize.document_metadata_extractor import extract as _extract_doc_md
+
+    doc_metadata, contributed_ids = _extract_doc_md(blocks, body_markdown, toc)
+    if contributed_ids:
+        for b in blocks:
+            if b.get("block_id") in contributed_ids:
+                meta = dict(b.get("metadata") or {})
+                meta["role"] = "document_metadata"
+                b["metadata"] = meta
+
     return {
         "schema_version": "normalized-document-v1",
         "asset_id": None,
@@ -636,6 +651,7 @@ def _build_normalized_document(
         "title": title_from(raw_object, parse_payload),
         "language": "zh-CN",
         "toc": toc,
+        "document_metadata": doc_metadata,
         "blocks": blocks,
         "body_markdown": body_markdown,
         "attachments": _extract_attachments(artifact),
@@ -769,6 +785,7 @@ def _persist_normalized_ref(
         quality=normalized_payload.get("quality", {}),
         lineage=normalized_payload.get("lineage", {}),
         metadata_summary=normalized_payload.get("metadata", {}),
+        document_metadata=normalized_payload.get("document_metadata"),
     )
     ctx.session.add(ref)
     ctx.session.flush()
@@ -1158,19 +1175,68 @@ def run_index_submit(
     from nexus_app.index.ragflow_adapter import get_ragflow_adapter
     from nexus_app.knowledge.config_loader import get_knowledge_type_config
 
+    chunks_by_kt: dict[str, list[models.KnowledgeChunk]] = {}
+    for chunk in chunks:
+        chunks_by_kt.setdefault(chunk.knowledge_type_code, []).append(chunk)
+
+    # Nexus-owned chunks are persisted for preview / downstream Nexus search,
+    # but are not submitted to RAGFlow in the current rollout. Only the legacy
+    # passthrough descriptor path still creates a RAGFlow document.
+    skipped_nexus_owned: list[dict[str, Any]] = []
+    ragflow_chunks_by_kt: dict[str, list[models.KnowledgeChunk]] = {}
+    for kt_code, kt_chunks in chunks_by_kt.items():
+        if all(c.chunk_type == ChunkType.PASSTHROUGH_DESCRIPTOR for c in kt_chunks):
+            ragflow_chunks_by_kt[kt_code] = kt_chunks
+            continue
+        skipped_nexus_owned.append({
+            "knowledge_type_code": kt_code,
+            "chunk_count": len(kt_chunks),
+            "chunk_types": sorted({
+                c.chunk_type.value if hasattr(c.chunk_type, "value") else str(c.chunk_type)
+                for c in kt_chunks
+            }),
+            "reason": "nexus-owned chunks are not submitted to RAGFlow yet",
+        })
+
+    if not ragflow_chunks_by_kt:
+        reason = "nexus-owned chunks are not submitted to RAGFlow yet"
+        _add_stage(
+            ctx,
+            "index_submit",
+            StageStatus.SKIPPED,
+            {
+                "reason": reason,
+                "normalized_ref_id": normalized_ref.id,
+                "chunk_count": len(chunks),
+                "skipped_knowledge_types": skipped_nexus_owned,
+            },
+            started_at=started_at,
+        )
+        write_audit(
+            ctx.session,
+            AuditEventType.INDEX_SUBMIT_SKIPPED,
+            target_type="normalized_asset_ref",
+            target_id=normalized_ref.id,
+            trace_id=ctx.trace_id,
+            summary={
+                "normalized_ref_id": normalized_ref.id,
+                "version_id": version.id,
+                "reason": reason,
+                "chunk_count": len(chunks),
+                "skipped_knowledge_types": skipped_nexus_owned,
+            },
+        )
+        return []
+
     adapter = get_ragflow_adapter(ctx.settings)
     kb_registry = get_kb_registry()
     normalized_content = _load_normalized_content(ctx, normalized_ref)
     doc_name_base = (normalized_ref.title or normalized_ref.id)[:120]
 
-    chunks_by_kt: dict[str, list[models.KnowledgeChunk]] = {}
-    for chunk in chunks:
-        chunks_by_kt.setdefault(chunk.knowledge_type_code, []).append(chunk)
-
     manifests: list[models.IndexManifest] = []
     error_messages: list[str] = []
 
-    for kt_code, kt_chunks in chunks_by_kt.items():
+    for kt_code, kt_chunks in ragflow_chunks_by_kt.items():
         if kt_code in existing_by_kt:
             manifests.append(existing_by_kt[kt_code])
             continue
@@ -1316,7 +1382,8 @@ def run_index_submit(
         overall_status,
         {
             "normalized_ref_id": normalized_ref.id,
-            "knowledge_types": list(chunks_by_kt.keys()),
+            "knowledge_types": list(ragflow_chunks_by_kt.keys()),
+            "skipped_knowledge_types": skipped_nexus_owned,
             "manifest_count": len(manifests),
             "indexed_count": indexed_count,
             "failed_count": failed_count,

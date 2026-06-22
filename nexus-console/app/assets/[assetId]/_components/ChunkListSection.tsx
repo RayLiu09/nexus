@@ -14,10 +14,11 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Card, Empty, List, Pagination, Skeleton, Space, Tag } from "antd";
+import { Alert, Card, Empty, Pagination, Skeleton, Space, Tag } from "antd";
 import type { KnowledgeChunkHit } from "@/lib/chunkTypes";
 import { ChunkCard } from "@/components/chunk/ChunkCard";
 import { ChunkDetailDrawer } from "@/components/chunk/ChunkDetailDrawer";
+import { ChunkPreviewDrawer } from "@/components/chunk/ChunkPreviewDrawer";
 
 interface ProxyEnvelope {
   ok: true;
@@ -37,9 +38,19 @@ const PAGE_SIZE = 10;
 export interface ChunkListSectionProps {
   /** Normalized ref id; section renders an info banner when null. */
   refId: string | null;
+  title?: string;
+  emptyDescription?: string;
+  mode?: "detail" | "preview";
+  actionLabel?: string;
 }
 
-export function ChunkListSection({ refId }: ChunkListSectionProps) {
+export function ChunkListSection({
+  refId,
+  title = "关联 Chunks",
+  emptyDescription = "该 ref 暂未生成 chunk（可能仍在索引中或属记录类型）",
+  mode = "detail",
+  actionLabel = mode === "preview" ? "预览定位" : "展开详情",
+}: ChunkListSectionProps) {
   const [page, setPage] = useState(1);
   const [data, setData] = useState<KnowledgeChunkHit[] | null>(null);
   const [total, setTotal] = useState(0);
@@ -91,7 +102,7 @@ export function ChunkListSection({ refId }: ChunkListSectionProps) {
       <Card
         title={
           <Space>
-            <span>关联 Chunks</span>
+            <span>{title}</span>
           </Space>
         }
         className="!mt-4"
@@ -106,7 +117,7 @@ export function ChunkListSection({ refId }: ChunkListSectionProps) {
       <Card
         title={
           <Space>
-            <span>关联 Chunks</span>
+            <span>{title}</span>
             {!loading && total > 0 && <Tag color="processing">{total}</Tag>}
           </Space>
         }
@@ -117,15 +128,19 @@ export function ChunkListSection({ refId }: ChunkListSectionProps) {
           <Skeleton active paragraph={{ rows: 3 }} />
         ) : data && data.length > 0 ? (
           <>
-            <List<KnowledgeChunkHit>
-              dataSource={data}
-              loading={loading}
-              renderItem={(item) => (
-                <List.Item key={item.id ?? item.chunk_id ?? item.nexus_chunk_id}>
-                  <ChunkCard chunk={item} onSelect={openChunkDetail} hideAssetLink />
-                </List.Item>
-              )}
-            />
+            {data.map((item) => (
+              <div
+                key={item.id ?? item.chunk_id ?? item.nexus_chunk_id}
+                className="border-0 border-b border-solid border-line py-3 last:border-b-0"
+              >
+                <ChunkCard
+                  chunk={item}
+                  onSelect={openChunkDetail}
+                  hideAssetLink
+                  actionLabel={actionLabel}
+                />
+              </div>
+            ))}
             {total > PAGE_SIZE && (
               <div className="mt-3 flex justify-end">
                 <Pagination
@@ -139,15 +154,23 @@ export function ChunkListSection({ refId }: ChunkListSectionProps) {
             )}
           </>
         ) : (
-          <Empty description="该 ref 暂未生成 chunk（可能仍在索引中或属记录类型）" />
+          <Empty description={emptyDescription} />
         )}
       </Card>
 
-      <ChunkDetailDrawer
-        chunk={selectedChunk}
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-      />
+      {mode === "preview" ? (
+        <ChunkPreviewDrawer
+          chunk={selectedChunk}
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+        />
+      ) : (
+        <ChunkDetailDrawer
+          chunk={selectedChunk}
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+        />
+      )}
     </>
   );
 }

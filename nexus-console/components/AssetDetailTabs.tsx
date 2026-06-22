@@ -62,6 +62,7 @@ function classificationLabel(output: Record<string, unknown>): string {
 const TABS = [
   { key: "lineage", label: "血缘追溯" },
   { key: "preview", label: "原文预览" },
+  { key: "knowledge-chunks", label: "知识块" },
   { key: "ai-governance", label: "AI 治理" },
   { key: "quality", label: "质量评分" },
   { key: "versions", label: "版本历史" },
@@ -183,9 +184,18 @@ function LineageTab({
         {!latestVersion && !relatedArtifact && !latestRef && <Empty description="暂无血缘数据" />}
       </div>
 
-      {/* Stage 2.x lineage: per-chunk drill-down with locator + presigned source */}
-      <ChunkListSection refId={latestRef?.id ?? null} />
     </>
+  );
+}
+
+function KnowledgeChunksTab({ latestRef }: { latestRef: NormalizedAssetRef | null }) {
+  return (
+    <ChunkListSection
+      refId={latestRef?.id ?? null}
+      title="RAG 语义知识块"
+      emptyDescription="该 ref 暂未生成 RAG 语义知识块。"
+      mode="preview"
+    />
   );
 }
 
@@ -657,6 +667,7 @@ export function AssetDetailTabs({
           />
         )}
         {activeTab === "preview" && <SourcePreviewSection refId={latestRef?.id ?? null} />}
+        {activeTab === "knowledge-chunks" && <KnowledgeChunksTab latestRef={latestRef} />}
         {activeTab === "ai-governance" && (
           <AIGovernanceTab
             runs={governanceRuns}
