@@ -227,6 +227,12 @@ class AuditEventType(StrEnum):
     KNOWLEDGE_EMISSIONS_INFERRED    = "KnowledgeEmissionsInferred"
     KNOWLEDGE_CHUNKS_CREATED        = "KnowledgeChunksCreated"
     KNOWLEDGE_CHUNKS_INDEXED        = "KnowledgeChunksIndexed"
+    # Knowledge / Index pipeline SKIPS — visible audit trail for assets that
+    # passed governance but never made it to the knowledge base (§13). Without
+    # these, operators see `status=available` + `index_admission=True` and
+    # incorrectly assume the asset is searchable.
+    KNOWLEDGE_CHUNKING_SKIPPED      = "KnowledgeChunkingSkipped"
+    INDEX_SUBMIT_SKIPPED            = "IndexSubmitSkipped"
     # Governance rules version management
     GOVERNANCE_RULES_VERSION_CREATED   = "GovernanceRulesVersionCreated"
     GOVERNANCE_RULES_VERSION_ARCHIVED  = "GovernanceRulesVersionArchived"

@@ -26,7 +26,11 @@ export const statusDefinitions = {
   dead_lettered: { label: "死信", tone: "danger" },
   cancelled: { label: "已取消", tone: "muted" },
 
-  not_indexed: { label: "未索引", tone: "neutral" },
+  // §13: backend returns "not_indexed" when governance_result.index_admission=True
+  // but no IndexManifest exists — i.e. the asset passed governance yet never
+  // reached the knowledge base. Render as a visible warning so operators don't
+  // mistake the asset for being live in search/QA.
+  not_indexed: { label: "未入索引（待处理）", tone: "warning" },
   pending: { label: "待处理", tone: "info" },
   building: { label: "索引中", tone: "info" },
   indexed: { label: "已索引", tone: "success" },

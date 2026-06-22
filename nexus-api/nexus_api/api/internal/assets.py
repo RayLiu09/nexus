@@ -67,7 +67,27 @@ def _latest_governance_result(
     )
 
 
-def _index_status(session: Session, ref_id: str | None) -> str | None:
+def _index_status(
+    session: Session,
+    ref_id: str | None,
+    governance_result: "models.GovernanceResult | None" = None,
+) -> str | None:
+    """Aggregate per-ref IndexManifest statuses into a single asset-level
+    string for the catalog read model.
+
+    Mapping:
+      - any FAILED → "failed"
+      - all INDEXED → "indexed"
+      - mixed → first manifest's raw status (rare; needs operator look)
+      - NO manifest AND governance approved (index_admission=True) →
+        ``"not_indexed"``. §13 visibility fix: previously this returned
+        None, which the console rendered as "—", indistinguishable from
+        "still being processed". The new value lets the UI render a
+        distinct "未入索引（待处理）" badge so operators know the asset
+        passed governance but never reached the knowledge base.
+      - NO manifest AND governance did NOT approve → None (genuinely
+        not-applicable; render as blank).
+    """
     if ref_id is None:
         return None
     statuses = list(
@@ -76,13 +96,20 @@ def _index_status(session: Session, ref_id: str | None) -> str | None:
             .where(models.IndexManifest.normalized_ref_id == ref_id)
         ).all()
     )
-    if not statuses:
-        return None
-    if any(status == IndexManifestStatus.FAILED for status in statuses):
-        return IndexManifestStatus.FAILED.value
-    if all(status == IndexManifestStatus.INDEXED for status in statuses):
-        return IndexManifestStatus.INDEXED.value
-    return statuses[0].value if hasattr(statuses[0], "value") else str(statuses[0])
+    if statuses:
+        if any(status == IndexManifestStatus.FAILED for status in statuses):
+            return IndexManifestStatus.FAILED.value
+        if all(status == IndexManifestStatus.INDEXED for status in statuses):
+            return IndexManifestStatus.INDEXED.value
+        return statuses[0].value if hasattr(statuses[0], "value") else str(statuses[0])
+
+    # No manifest yet — check whether governance admitted the asset.
+    if (
+        governance_result is not None
+        and getattr(governance_result, "index_admission", False)
+    ):
+        return "not_indexed"
+    return None
 
 
 def _catalog_row(session: Session, asset: models.Asset) -> domain_schemas.AssetCatalogRead:
@@ -134,7 +161,11 @@ def _catalog_row(session: Session, asset: models.Asset) -> domain_schemas.AssetC
             if result is not None and hasattr(result.status, "value")
             else str(result.status) if result is not None else None
         ),
-        index_status=_index_status(session, ref_for_catalog.id if ref_for_catalog is not None else None),
+        index_status=_index_status(
+            session,
+            ref_for_catalog.id if ref_for_catalog is not None else None,
+            governance_result=result,
+        ),
     )
 
 

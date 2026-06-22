@@ -78,7 +78,10 @@ class Settings(BaseSettings):
     ragflow_timeout: int = 60
     ragflow_kb_name_prefix: str = "nexus-dev"
     ragflow_kb_eager_preload: bool = False
-    ragflow_embedding_model: str = "BAAI/bge-large-zh-v1.5@BAAI"
+    # RAGFlow expects ``<model_name>@<provider>``. ``bge-m3:latest`` is
+    # registered on the dev RAGFlow under the Ollama provider (probed via
+    # /v1/llm/my_llms). Override via RAGFLOW_EMBEDDING_MODEL env var per env.
+    ragflow_embedding_model: str = "bge-m3:latest@Ollama"
     litellm_endpoint: str | None = None
     litellm_api_key: str | None = None
     litellm_timeout: float = Field(default=30.0, alias="LITELLM_TIMEOUT")

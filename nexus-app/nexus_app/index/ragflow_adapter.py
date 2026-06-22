@@ -571,37 +571,77 @@ class RealRAGFlowAdapter:
     ) -> dict[str, Any]:
         """Create document in RAGFlow.
 
-        RAGFlow API endpoint: POST /api/v1/dataset/{kb_id}/document
+        RAGFlow API endpoint (v0.20+): POST /api/v1/datasets/{kb_id}/documents
+        Payload: multipart/form-data with ``file`` field (raw bytes). Parser
+        configuration is applied via a follow-up update_document call (since
+        the upload endpoint only accepts the file blob).
+
+        For pass-through indexing (content provided), uploads the content as
+        a text blob. For pre-chunked indexing (content=None), uploads a tiny
+        placeholder so the doc exists; the actual chunks are POSTed via
+        ``submit_chunks``.
         """
-        payload: dict[str, Any] = {
-            "name": doc_name,
-            "parser_id": chunk_method,  # RAGFlow uses parser_id for chunk_method
-        }
-
-        if content:
-            payload["content"] = content
-
-        if parser_config:
-            payload["parser_config"] = parser_config
-
+        # RAGFlow sniffs the uploaded file's type from the extension. The
+        # ``doc_name`` carried in from upstream often retains the original
+        # PDF/Word extension (the asset's title), but the payload we upload
+        # here is the MinerU-normalised markdown. Force a .md suffix on the
+        # upload filename so RAGFlow treats it as supported text; persist
+        # the original asset title elsewhere (already in IndexManifest's
+        # related blocks). The dataset list / detail UI shows the
+        # normalised name.
+        body_bytes = (content or doc_name).encode("utf-8")
+        upload_name = doc_name.rsplit(".", 1)[0] if "." in doc_name else doc_name
+        upload_name = f"{upload_name}.md"
+        files = {"file": (upload_name, body_bytes, "text/markdown")}
         try:
             response = self._client.post(
-                f"/api/v1/dataset/{kb_id}/document",
-                json=payload,
+                f"/api/v1/datasets/{kb_id}/documents",
+                files=files,
             )
             response.raise_for_status()
             data = response.json()
+            if data.get("code") != 0:
+                raise RAGFlowAdapterError(
+                    f"Unexpected RAGFlow upload response: {data}",
+                    error_type=RAGFlowErrorType.PROTOCOL,
+                )
+            uploaded = (data.get("data") or [])
+            if not uploaded:
+                raise RAGFlowAdapterError(
+                    f"RAGFlow upload returned empty data: {data}",
+                    error_type=RAGFlowErrorType.PROTOCOL,
+                )
+            doc_id = uploaded[0].get("id") or uploaded[0].get("doc_id")
+            if not doc_id:
+                raise RAGFlowAdapterError(
+                    f"RAGFlow upload missing doc id: {uploaded[0]}",
+                    error_type=RAGFlowErrorType.PROTOCOL,
+                )
 
-            # RAGFlow response format: {"code": 0, "data": {"doc_id": "..."}}
-            if data.get("code") == 0 and "data" in data:
-                doc_id = data["data"].get("doc_id")
-                return {"doc_id": doc_id, "status": "created"}
+            # Apply parser config + parser_id via document update.
+            update_payload: dict[str, Any] = {"parser_method": chunk_method}
+            if parser_config:
+                update_payload["parser_config"] = parser_config
+            try:
+                upd = self._client.put(
+                    f"/api/v1/datasets/{kb_id}/documents/{doc_id}",
+                    json=update_payload,
+                )
+                upd.raise_for_status()
+                upd_data = upd.json()
+                if upd_data.get("code") != 0:
+                    logger.warning(
+                        "RAGFlow update parser_config non-zero code: %s", upd_data,
+                    )
+            except httpx.HTTPError as e:
+                logger.warning(
+                    "RAGFlow document update (parser_config) failed: %s "
+                    "(doc still created, will use default parsing)", e,
+                )
 
-            raise RAGFlowAdapterError(
-                f"Unexpected RAGFlow response: {data}",
-                error_type=RAGFlowErrorType.PROTOCOL,
-            )
-
+            return {"doc_id": doc_id, "status": "created"}
+        except RAGFlowAdapterError:
+            raise
         except httpx.HTTPError as e:
             logger.error("RAGFlow create_document failed: %s", e)
             raise RAGFlowAdapterError(
@@ -618,48 +658,47 @@ class RealRAGFlowAdapter:
     ) -> dict[str, Any]:
         """Submit pre-extracted chunks to RAGFlow.
 
-        RAGFlow API endpoint: POST /api/v1/dataset/{kb_id}/document/{doc_id}/chunk
+        RAGFlow API endpoint (v0.20+):
+            POST /api/v1/datasets/{kb_id}/documents/{doc_id}/chunks
+        Body: ``{"content": "<chunk text>", "important_keywords": [], ...}``
+        — one chunk per call (RAGFlow's v0.20 API does not accept batch).
         """
-        chunk_payloads = [
-            {
-                "content": chunk.content,
-                "metadata": chunk.chunk_metadata,
-            }
-            for chunk in chunks
-        ]
-
-        try:
-            response = self._client.post(
-                f"/api/v1/dataset/{kb_id}/document/{doc_id}/chunk",
-                json={"chunks": chunk_payloads},
-            )
-            response.raise_for_status()
-            data = response.json()
-
-            if data.get("code") == 0 and "data" in data:
-                chunk_ids = data["data"].get("chunk_ids", [])
-                return {"chunk_ids": chunk_ids, "status": "indexed"}
-
-            raise RAGFlowAdapterError(
-                f"Unexpected RAGFlow response: {data}",
-                error_type=RAGFlowErrorType.PROTOCOL,
-            )
-
-        except httpx.HTTPError as e:
-            logger.error("RAGFlow submit_chunks failed: %s", e)
-            raise RAGFlowAdapterError(
-                f"submit_chunks failed: {e}",
-                error_type=classify_httpx_error(e),
-            ) from e
+        chunk_ids: list[str] = []
+        for chunk in chunks:
+            try:
+                response = self._client.post(
+                    f"/api/v1/datasets/{kb_id}/documents/{doc_id}/chunks",
+                    json={"content": chunk.content},
+                )
+                response.raise_for_status()
+                data = response.json()
+                if data.get("code") != 0:
+                    raise RAGFlowAdapterError(
+                        f"submit_chunks non-zero code: {data}",
+                        error_type=RAGFlowErrorType.PROTOCOL,
+                    )
+                returned = (data.get("data") or {}).get("chunk") or data.get("data") or {}
+                chunk_id = returned.get("id") if isinstance(returned, dict) else None
+                if chunk_id:
+                    chunk_ids.append(chunk_id)
+            except httpx.HTTPError as e:
+                logger.error("RAGFlow submit_chunks (chunk %s) failed: %s",
+                             chunk.id, e)
+                raise RAGFlowAdapterError(
+                    f"submit_chunks failed: {e}",
+                    error_type=classify_httpx_error(e),
+                ) from e
+        return {"chunk_ids": chunk_ids, "status": "indexed"}
 
     def get_document_status(self, kb_id: str, doc_id: str) -> dict[str, Any]:
         """Get document status from RAGFlow.
 
-        RAGFlow API endpoint: GET /api/v1/dataset/{kb_id}/document/{doc_id}
+        RAGFlow API endpoint (v0.20+):
+            GET /api/v1/datasets/{kb_id}/documents/{doc_id}
         """
         try:
             response = self._client.get(
-                f"/api/v1/dataset/{kb_id}/document/{doc_id}"
+                f"/api/v1/datasets/{kb_id}/documents/{doc_id}"
             )
             response.raise_for_status()
             data = response.json()

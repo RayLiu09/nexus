@@ -941,6 +941,33 @@ def run_governance_decision(
 # Knowledge Chunking — Pipeline 5a: only for available assets with emissions
 # ---------------------------------------------------------------------------
 
+def _audit_chunking_skipped(
+    ctx: PipelineContext,
+    normalized_ref: models.NormalizedAssetRef,
+    reason: str,
+    extra: dict | None = None,
+) -> None:
+    """Persist a KNOWLEDGE_CHUNKING_SKIPPED audit event so operators can see
+    why an asset that passed governance never reached the knowledge base
+    (§13). Idempotent-skip cases (chunks already exist) are NOT audited —
+    they're a normal retry path, not a real skip."""
+    summary: dict = {
+        "normalized_ref_id": normalized_ref.id,
+        "version_id": normalized_ref.version_id,
+        "reason": reason,
+    }
+    if extra:
+        summary.update(extra)
+    write_audit(
+        ctx.session,
+        AuditEventType.KNOWLEDGE_CHUNKING_SKIPPED,
+        target_type="normalized_asset_ref",
+        target_id=normalized_ref.id,
+        trace_id=ctx.trace_id,
+        summary=summary,
+    )
+
+
 def run_knowledge_chunking(
     ctx: PipelineContext,
     version: models.AssetVersion,
@@ -954,16 +981,19 @@ def run_knowledge_chunking(
     """
     started_at = _stage_started()
     if version.version_status != AssetVersionStatus.AVAILABLE:
+        reason = f"version not available (status={version.version_status.value})"
         _add_stage(ctx, "knowledge_chunking", StageStatus.SKIPPED,
-                   {"reason": f"version not available (status={version.version_status.value})"},
-                   started_at=started_at)
+                   {"reason": reason}, started_at=started_at)
+        _audit_chunking_skipped(ctx, normalized_ref, reason,
+                                {"version_status": version.version_status.value})
         return []
 
     emissions = (normalized_ref.metadata_summary or {}).get("knowledge_emissions", [])
     if not emissions:
+        reason = "no knowledge_emissions on normalized_ref"
         _add_stage(ctx, "knowledge_chunking", StageStatus.SKIPPED,
-                   {"reason": "no knowledge_emissions on normalized_ref"},
-                   started_at=started_at)
+                   {"reason": reason}, started_at=started_at)
+        _audit_chunking_skipped(ctx, normalized_ref, reason)
         return []
 
     # Idempotency: if chunks already exist for this ref (job retry), reuse them.
@@ -973,6 +1003,7 @@ def run_knowledge_chunking(
         )
     ).all())
     if existing:
+        # Not audited: this is the retry idempotent path, not a real skip.
         _add_stage(
             ctx,
             "knowledge_chunking",
@@ -1074,14 +1105,39 @@ def run_index_submit(
     """
     started_at = _stage_started()
     if version.version_status != AssetVersionStatus.AVAILABLE:
+        reason = f"version not available (status={version.version_status.value})"
         _add_stage(ctx, "index_submit", StageStatus.SKIPPED,
-                   {"reason": f"version not available (status={version.version_status.value})"},
-                   started_at=started_at)
+                   {"reason": reason}, started_at=started_at)
+        write_audit(
+            ctx.session,
+            AuditEventType.INDEX_SUBMIT_SKIPPED,
+            target_type="normalized_asset_ref",
+            target_id=normalized_ref.id,
+            trace_id=ctx.trace_id,
+            summary={
+                "normalized_ref_id": normalized_ref.id,
+                "version_id": version.id,
+                "reason": reason,
+                "version_status": version.version_status.value,
+            },
+        )
         return []
     if not chunks:
+        reason = "no knowledge chunks to index"
         _add_stage(ctx, "index_submit", StageStatus.SKIPPED,
-                   {"reason": "no knowledge chunks to index"},
-                   started_at=started_at)
+                   {"reason": reason}, started_at=started_at)
+        write_audit(
+            ctx.session,
+            AuditEventType.INDEX_SUBMIT_SKIPPED,
+            target_type="normalized_asset_ref",
+            target_id=normalized_ref.id,
+            trace_id=ctx.trace_id,
+            summary={
+                "normalized_ref_id": normalized_ref.id,
+                "version_id": version.id,
+                "reason": reason,
+            },
+        )
         return []
 
     from nexus_app.enums import IndexManifestStatus, ChunkType

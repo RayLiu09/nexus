@@ -1,6 +1,17 @@
-"""Knowledge type inference for AI governance.
+"""Knowledge type inference for AI governance — DETERMINISTIC, rule-driven.
 
-Infers primary and co-emission knowledge types from normalized_asset_ref.
+Per docs/document_normalize_defects.md §12 (review-gated rules-v2):
+
+  - The primary knowledge type is NOT inferred by the AI model. It is a
+    deterministic lookup against the active governance rules:
+    ``classification → classification.primary_knowledge_type``.
+  - Co-emission rules also live on the **classification** (not the KT),
+    again read from the active rules at decision time.
+  - The D1-D4 fallback heuristics (which never matched the v3.0 business
+    codes the AI actually emits) are deleted.
+
+The AI run only contributes ``classification`` (and the cell-content signals
+used by co-emission ``condition`` evaluation). Everything else is rules.
 """
 
 from __future__ import annotations
@@ -22,140 +33,122 @@ def infer_knowledge_emissions(
     ref_dict: dict[str, Any],
     registry: GovernanceRulesRegistry,
 ) -> list[dict[str, Any]]:
-    """Infer knowledge_emissions from AI output.
+    """Return knowledge_emissions for the given AI run output.
 
-    Returns:
-        List of emissions with structure:
-        [
-            {
-                "code": str,
-                "name": str,
-                "primary": bool,
-                "confidence": float,
-                "source": "ai_inference",
-                "evidence": list[str],
-                "co_emission_origin": str | None
-            },
-            ...
-        ]
+    Determinism contract:
+      1. Read ``ai_output['classification']`` (e.g. ``sector_report``).
+      2. Look up the classification in the **active** governance rules; the
+         classification's ``primary_knowledge_type`` is the canonical primary
+         emission. No model inference, no string heuristics.
+      3. Walk the classification's ``co_emission_rules`` and emit any whose
+         ``condition`` evaluates ≥ ``min_confidence`` against ``ai_output`` /
+         ``ref_dict``.
 
-    The first emission with primary=True is the main knowledge type.
-    Subsequent emissions are co_emissions triggered by co_emission_rules.
+    Returns ``[]`` when:
+      - the AI output carries no classification, or
+      - the classification is not in the active rules, or
+      - the rule sets ``primary_knowledge_type`` to None/missing, or
+      - the targeted KT is not in the rule file.
+
+    Output element schema:
+      ``{code, name, primary, confidence, source, evidence,
+         co_emission_origin}``
+      where ``source ∈ {"rule_lookup", "co_emission_rule"}``.
     """
-    emissions: list[dict[str, Any]] = []
+    classification = ai_output.get("classification") if isinstance(ai_output, dict) else None
+    if not classification or not isinstance(classification, str):
+        logger.warning(
+            "infer_knowledge_emissions: AI output lacks classification — no emissions"
+        )
+        return []
 
-    # Step 1: Infer primary knowledge type
-    primary_code, primary_confidence, primary_evidence = _infer_primary_knowledge_type(
-        ai_output, ref_dict, registry
+    cls_def = next(
+        (c for c in registry.get_classifications() if c.code == classification),
+        None,
     )
+    if cls_def is None:
+        logger.warning(
+            "infer_knowledge_emissions: classification %r not present in active rules "
+            "(active rules schema may need updating)", classification,
+        )
+        return []
 
+    primary_code = cls_def.primary_knowledge_type
     if not primary_code:
-        logger.warning("No primary knowledge type inferred from AI output")
+        logger.warning(
+            "infer_knowledge_emissions: classification %r has no primary_knowledge_type "
+            "configured in active rules — no emissions", classification,
+        )
         return []
 
     primary_kt_config = registry.get_knowledge_type(primary_code)
     if not primary_kt_config:
-        logger.warning(f"Knowledge type '{primary_code}' not found in registry")
+        logger.warning(
+            "infer_knowledge_emissions: primary_knowledge_type %r referenced by "
+            "classification %r is not defined in active rules' knowledge_types section",
+            primary_code, classification,
+        )
         return []
 
-    emissions.append({
+    # Primary emission confidence inherits the AI classification confidence
+    # (a rule lookup is deterministic, but downstream telemetry still wants to
+    # know how sure the AI was about the classification it produced).
+    primary_confidence = float(ai_output.get("confidence", 1.0))
+
+    emissions: list[dict[str, Any]] = [{
         "code": primary_code,
         "name": primary_kt_config.get("name", primary_code),
         "primary": True,
         "confidence": primary_confidence,
-        "source": "ai_inference",
-        "evidence": primary_evidence,
+        "source": "rule_lookup",
+        "evidence": [
+            f"classification={classification} → primary_knowledge_type={primary_code} "
+            f"(active rules)"
+        ],
         "co_emission_origin": None,
-    })
+    }]
 
-    # Step 2: Evaluate co_emission_rules
-    co_emission_rules = primary_kt_config.get("co_emission_rules", [])
-    for rule in co_emission_rules:
-        target_code = rule.get("target_code")
-        condition = rule.get("condition")
-        min_confidence = rule.get("min_confidence", 0.6)
+    # Co-emission rules live on the CLASSIFICATION (rule-driven), not on the
+    # KT (which kept its own list in the old file but is no longer the source
+    # of truth under v2.1).
+    for rule in cls_def.co_emission_rules:
+        target_code = rule.target_code
+        condition = rule.condition
+        min_confidence = rule.min_confidence
 
         if not target_code or not condition:
             continue
 
-        # Evaluate condition
-        co_confidence = _evaluate_co_emission_condition(
-            condition, ai_output, ref_dict
+        target_kt_config = registry.get_knowledge_type(target_code)
+        if not target_kt_config:
+            logger.warning(
+                "co-emission target %r (from classification %r) not in registry",
+                target_code, classification,
+            )
+            continue
+
+        co_confidence = _evaluate_co_emission_condition(condition, ai_output, ref_dict)
+        if co_confidence < min_confidence:
+            continue
+
+        emissions.append({
+            "code": target_code,
+            "name": target_kt_config.get("name", target_code),
+            "primary": False,
+            "confidence": co_confidence,
+            "source": "co_emission_rule",
+            "evidence": [
+                f"triggered by classification.{classification} co_emission_rule: "
+                f"{condition} (confidence {co_confidence:.2f} >= {min_confidence:.2f})"
+            ],
+            "co_emission_origin": primary_code,
+        })
+        logger.info(
+            "co-emission: %s (from classification=%s, condition=%s, conf=%.2f)",
+            target_code, classification, condition, co_confidence,
         )
 
-        if co_confidence >= min_confidence:
-            target_kt_config = registry.get_knowledge_type(target_code)
-            if target_kt_config:
-                emissions.append({
-                    "code": target_code,
-                    "name": target_kt_config.get("name", target_code),
-                    "primary": False,
-                    "confidence": co_confidence,
-                    "source": "co_emission_rule",
-                    "evidence": [f"Triggered by {primary_code} co_emission_rule: {condition}"],
-                    "co_emission_origin": primary_code,
-                })
-                logger.info(
-                    f"Co-emission triggered: {target_code} from {primary_code} "
-                    f"(confidence={co_confidence:.2f}, condition={condition})"
-                )
-            else:
-                logger.warning(f"Co-emission target '{target_code}' not found in registry")
-
     return emissions
-
-
-def _infer_primary_knowledge_type(
-    ai_output: dict[str, Any],
-    ref_dict: dict[str, Any],
-    registry: GovernanceRulesRegistry,
-) -> tuple[str | None, float, list[str]]:
-    """Infer primary knowledge type from AI output.
-
-    Returns:
-        (knowledge_type_code, confidence, evidence_list)
-    """
-    # Check if AI output contains explicit knowledge_type field
-    if "knowledge_type" in ai_output:
-        kt_output = ai_output["knowledge_type"]
-        if isinstance(kt_output, dict):
-            code = kt_output.get("code")
-            confidence = kt_output.get("confidence", 0.8)
-            evidence = kt_output.get("evidence", [])
-            if code:
-                return code, confidence, evidence
-        elif isinstance(kt_output, str) and kt_output:
-            # AIGovernanceOutput.knowledge_type schema is a plain string for P0;
-            # use AI output confidence (or default 0.8) and no evidence list.
-            confidence = float(ai_output.get("confidence", 0.8))
-            return kt_output, confidence, [f"AI output knowledge_type='{kt_output}'"]
-
-    # Fallback: infer from classification and content_type
-    classification = ai_output.get("classification")
-    content_type = ref_dict.get("content_type", "")
-    source_type_hint = ref_dict.get("source_type_hint", "")
-
-    # Simple heuristic mapping (should be enhanced with actual AI inference)
-    if classification == "D4":
-        if "教材" in content_type or "课件" in content_type:
-            return "textbook_kb", 0.75, ["Classification D4 + content_type contains 教材/课件"]
-        if "问答" in content_type or "QA" in content_type.upper():
-            return "qa_corpus", 0.75, ["Classification D4 + content_type contains 问答/QA"]
-
-    if classification == "D3":
-        if "培养方案" in content_type or "课程体系" in content_type:
-            return "talent_training_dataset", 0.75, ["Classification D3 + content_type contains 培养方案/课程体系"]
-
-    if classification == "D2":
-        if "流程" in content_type or "操作" in content_type:
-            return "business_process_doc", 0.7, ["Classification D2 + content_type contains 流程/操作"]
-
-    # Default: no primary type inferred
-    logger.warning(
-        f"Could not infer primary knowledge type from classification={classification}, "
-        f"content_type={content_type}"
-    )
-    return None, 0.0, []
 
 
 def _evaluate_co_emission_condition(
@@ -206,6 +199,24 @@ def _evaluate_co_emission_condition(
         summary = ref_dict.get("summary", "").lower()
         if any(kw in content_snippet or kw in summary for kw in ["案例", "实例", "场景"]):
             return 0.7
+        return 0.3
+
+    if condition == "contains_skill_taxonomy":
+        # competency_analysis → skill_tag_library (v2 rules §12).
+        content_snippet = ref_dict.get("content_snippet", "").lower()
+        summary = ref_dict.get("summary", "").lower()
+        if any(kw in content_snippet or kw in summary
+               for kw in ["技能点", "技能要求", "能力点", "技能等级", "技能标签"]):
+            return 0.75
+        return 0.3
+
+    if condition == "contains_competency_breakdown":
+        # talent_training_plan → competency_graph (v2 rules §12).
+        content_snippet = ref_dict.get("content_snippet", "").lower()
+        summary = ref_dict.get("summary", "").lower()
+        if any(kw in content_snippet or kw in summary
+               for kw in ["能力分解", "能力图谱", "岗位能力", "职业能力", "胜任力"]):
+            return 0.75
         return 0.3
 
     # Unknown condition

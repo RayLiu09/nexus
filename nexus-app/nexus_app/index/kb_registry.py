@@ -38,7 +38,24 @@ class KbRegistry:
         self._lock = threading.Lock()
 
     def kb_name_for(self, knowledge_type_code: str) -> str:
-        """Build the deterministic KB name for a knowledge type."""
+        """Resolve the RAGFlow dataset NAME for a knowledge type.
+
+        Priority:
+          1. Pinned ``kb_name`` declared on the KT entry in
+             ``governance_rules_v2.json`` — single source of truth so the
+             same KT always lands in the same RAGFlow dataset across
+             environments (no env-prefix drift). Reviewed by humans at
+             rule activation time.
+          2. Auto-derived ``{settings.ragflow_kb_name_prefix}-{code}`` —
+             fallback for KTs that the rule file did not pin (e.g. unit
+             tests that bypass the v2 file).
+        """
+        try:
+            cfg = get_all_knowledge_type_configs().get(knowledge_type_code)
+        except Exception:
+            cfg = None
+        if cfg is not None and cfg.kb_name:
+            return cfg.kb_name
         prefix = self._settings.ragflow_kb_name_prefix
         return f"{prefix}-{knowledge_type_code}"
 
