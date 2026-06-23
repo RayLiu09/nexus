@@ -14,6 +14,7 @@ from nexus_app.knowledge.semantic_repack import (
     drop_meaningless,
     drop_navigational,
     enrich_context,
+    extract_metric_image_blocks,
     merge_continuation,
     repack,
 )
@@ -149,6 +150,51 @@ class TestDropMeaningless:
         """A 4-character meaningful paragraph survives — threshold is exclusive."""
         kept = drop_meaningless([_p(1, "三亚游记")])
         assert [b["block_id"] for b in kept] == ["p-1"]
+
+    def test_drops_front_matter_publisher_promo(self):
+        blocks = [
+            _p(1, "AMZ123报告团队出品", page=0),
+            _p(2, "ABOUT USAMZ123是跨境生态平台【品牌方舟】旗下专注于跨境卖家导航的网站。", page=1),
+            _p(3, "AMZ123拥有庞大的粉丝群体，旗下公众号粉丝数40w+。", page=1),
+            _p(40, "2025年上半年，中国外贸延续增长态势。", page=6),
+        ]
+        kept = drop_meaningless(blocks)
+        assert [b["block_id"] for b in kept] == ["p-40"]
+
+    def test_drops_publisher_promo_in_end_matter_too(self):
+        block = _p(410, "ABOUT USAMZ123是跨境生态平台【品牌方舟】旗下专注于跨境卖家导航的网站。", page=52)
+        kept = drop_meaningless([block])
+        assert kept == []
+
+    def test_keeps_similar_text_when_not_publisher_promo(self):
+        block = _p(40, "案例显示，报告团队出品的研究被多个卖家引用。", page=8)
+        kept = drop_meaningless([block])
+        assert [b["block_id"] for b in kept] == ["p-40"]
+
+    def test_drops_qr_code_image_description(self):
+        image = _img(1, page=1, caption="")
+        image["content"] = "The image displays a QR code with a green square overlay in its center."
+        kept = drop_meaningless([image, _p(2, "正文段落正常长度")])
+        assert [b["block_id"] for b in kept] == ["p-2"]
+
+    def test_drops_qr_code_even_when_description_mentions_diagram(self):
+        image = _img(1, page=1, caption="")
+        image["content"] = (
+            "The image displays a QR code with a green square overlay. "
+            "This is a standard QR code with a central graphic element, not a diagram or technical schematic."
+        )
+        kept = drop_meaningless([image, _p(2, "正文段落正常长度")])
+        assert [b["block_id"] for b in kept] == ["p-2"]
+
+    def test_drops_toc_or_section_menu_lines(self):
+        blocks = [
+            _p(1, "PART 行业发展概览", page=4),
+            _p(2, "PART 行业发展概览PART 上半年大事记PART 图解跨境电商PART 市场趋势分析", page=4),
+            _p(3, "（一） 中国跨境电商市场 02 （二） 区域电商市场 04 （三）消费市场变化 09", page=5),
+            _p(4, "中国跨境电商市场在上半年继续保持活跃。", page=6),
+        ]
+        kept = drop_meaningless(blocks)
+        assert [b["block_id"] for b in kept] == ["p-4"]
 
 
 # ---------------------------------------------------------------------------
@@ -444,6 +490,52 @@ class TestEnrichContext:
         ids = [s["block_id"] for s in units[0]["md_spans"]]
         assert ids == ["t-1", "p-2"]
 
+    def test_plain_enrich_does_not_prefix_headings_into_body_content(self):
+        originals = [
+            _h(1, "（一）中国跨境电商市场", level=2),
+            _h(2, "1、主要电商数据", level=3),
+            _h(3, "货物贸易进出口总值 同比增长 21.79万亿元 2.9%", level=3),
+            _p(4, "2025年上半年，中国外贸延续增长态势。"),
+        ]
+        units = enrich_context([originals[3]], original_blocks=originals)
+
+        assert units[0]["content"] == "2025年上半年，中国外贸延续增长态势。"
+        assert [b["block_id"] for b in units[0]["source_blocks"]] == ["p-4"]
+
+
+# ---------------------------------------------------------------------------
+# metric image extraction
+# ---------------------------------------------------------------------------
+
+
+class TestMetricImageExtraction:
+    def test_promotes_metric_heading_run_to_standalone_unit(self):
+        blocks = [
+            _h(1, "（一）中国跨境电商市场", level=2),
+            _h(2, "1、主要电商数据", level=2),
+            _h(3, "货物贸易进出口总值 同比增长 21.79万亿元 2.9%", level=2),
+            _p(4, "2025年上半年，中国外贸延续增长态势。"),
+        ]
+        metric_blocks, consumed = extract_metric_image_blocks(blocks)
+        units = enrich_context(metric_blocks, original_blocks=blocks, heading_exclude_ids=consumed)
+
+        assert consumed == {"h-2", "h-3"}
+        assert len(units) == 1
+        assert units[0]["anchor_role"] == "metric_image"
+        assert units[0]["content"] == "1、主要电商数据\n货物贸易进出口总值 同比增长 21.79万亿元 2.9%"
+        assert [b["block_id"] for b in units[0]["source_blocks"]] == ["h-2", "h-3"]
+        assert [s["block_id"] for s in units[0]["md_spans"]] == ["h-2", "h-3"]
+
+    def test_does_not_promote_section_heading_as_metric_group(self):
+        blocks = [
+            _h(1, "（一）中国跨境电商市场", level=2),
+            _h(2, "2025年上半年市场继续增长", level=2),
+            _p(3, "正文段落正常长度"),
+        ]
+        metric_blocks, consumed = extract_metric_image_blocks(blocks)
+        assert metric_blocks == []
+        assert consumed == set()
+
 
 # ---------------------------------------------------------------------------
 # Full pipeline integration
@@ -493,6 +585,21 @@ class TestRepackPipeline:
         assert units[1]["source_blocks"][0]["block_id"] == "tbl-1"
         assert units[1]["source_blocks"][0]["md_char_range"][0] == md.index("| 2021.04")
         assert units[1]["heading_path"][0]["title"] == "政策"
+
+    def test_repack_emits_metric_image_separate_from_body(self):
+        blocks = [
+            _h(1, "（一）中国跨境电商市场", level=2),
+            _h(2, "1、主要电商数据", level=2),
+            _h(3, "货物贸易进出口总值 同比增长 21.79万亿元 2.9%", level=2),
+            _p(4, "2025年上半年，中国外贸延续增长态势。"),
+        ]
+        units = repack(blocks)
+
+        assert [u["anchor_role"] for u in units] == ["metric_image", "body"]
+        assert units[0]["content"] == "1、主要电商数据\n货物贸易进出口总值 同比增长 21.79万亿元 2.9%"
+        assert [b["block_id"] for b in units[0]["source_blocks"]] == ["h-2", "h-3"]
+        assert units[1]["content"] == "2025年上半年，中国外贸延续增长态势。"
+        assert [b["block_id"] for b in units[1]["source_blocks"]] == ["p-4"]
 
     def test_drops_empty_media_without_caption_or_text(self):
         units = repack([_img(1, caption="")])

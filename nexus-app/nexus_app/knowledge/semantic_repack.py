@@ -108,6 +108,27 @@ _PAGE_FOOTER_RE = re.compile(
     re.IGNORECASE,
 )
 _MIN_MEANINGFUL_CHARS = 4  # ultra-short orphan threshold (excluding whitespace)
+_QR_CODE_RE = re.compile(r"\b(QR\s*code|Quick Response code|matrix barcode)\b", re.IGNORECASE)
+_QR_ONLY_IMAGE_RE = re.compile(
+    r"(image\s+(displays|shows|is).*QR\s*code|"
+    r"QR\s*code.*(central|overlay|alignment|scannable|modules|barcode|no text)|"
+    r"matrix barcode)",
+    re.IGNORECASE | re.DOTALL,
+)
+_FRONT_MATTER_PROMO_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"^\s*ABOUT\s+US\b", re.IGNORECASE),
+    re.compile(r"^\s*[\w\-]*报告团队出品\s*$", re.IGNORECASE),
+    re.compile(r"跨境生态平台.*专注于.*跨境卖家导航"),
+    re.compile(r"拥有庞大.*粉丝群体"),
+    re.compile(r"公众号.*粉丝数\s*\d", re.IGNORECASE),
+)
+_TOC_ITEM_RE = re.compile(r"[（(][一二三四五六七八九十]+[）)]\s*[^（()\n]{2,40}\s+\d{1,3}")
+_METRIC_VALUE_RE = re.compile(
+    r"(同比\s*(增长|下降|增速)?\s*\d|"
+    r"\d[\d,.]*\s*(万亿元|亿元|万家|家|%|％|倍|个|万人|亿美元|万亿|亿|万))"
+)
+_METRIC_GROUP_RE = re.compile(r"(^\s*\d+[、.．]\s*|主要.*数据|核心.*指标|关键.*指标|电商数据|指标)")
+_SECTION_HEADING_RE = re.compile(r"^\s*([（(][一二三四五六七八九十]+[）)]|第[一二三四五六七八九十\d]+[章节篇])")
 
 # merge_continuation — only paragraphs whose tail is unfinished should be
 # stitched. These are the punctuation marks that signal "this sentence is
@@ -186,13 +207,16 @@ def drop_meaningless(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     3. pure punctuation (no Chinese / English / digit characters at all).
     4. ultra-short orphans (< ``_MIN_MEANINGFUL_CHARS`` non-whitespace chars).
 
-    Charts / images / tables are NEVER dropped here — even if their text is
-    empty, the bbox + caption + image_uris remain a retrievable unit.
+    Tables / charts are kept regardless of text length. Images are kept unless
+    their parser text is only a QR-code description; QR codes are navigation /
+    promo affordances, not retrievable domain knowledge.
     """
     kept: list[dict[str, Any]] = []
     for b in blocks:
         btype = b.get("block_type")
         if b.get("decorative") is True or b.get("parse_quality") == "decorative":
+            continue
+        if btype == "image" and _is_qr_code_image_noise(b):
             continue
         if btype in _MEDIA_TYPES:
             kept.append(b)
@@ -210,8 +234,39 @@ def drop_meaningless(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         non_ws = re.sub(r"\s+", "", text)
         if len(non_ws) < _MIN_MEANINGFUL_CHARS:
             continue
+        if _is_front_matter_promo_noise(b, text):
+            continue
+        if _is_toc_or_menu_noise(text):
+            continue
         kept.append(b)
     return kept
+
+
+def _is_qr_code_image_noise(block: dict[str, Any]) -> bool:
+    """Return True for OCR/VLM descriptions whose only content is a QR code."""
+    text = _text_of(block).strip()
+    if not text or not _QR_CODE_RE.search(text):
+        return False
+    return bool(_QR_ONLY_IMAGE_RE.search(text))
+
+
+def _is_front_matter_promo_noise(block: dict[str, Any], text: str) -> bool:
+    """Drop publisher/team promo paragraphs from cover/end-matter pages."""
+    return any(p.search(text) for p in _FRONT_MATTER_PROMO_PATTERNS)
+
+
+def _is_toc_or_menu_noise(text: str) -> bool:
+    """Drop table-of-contents/menu-only lines that are not knowledge claims."""
+    compact = re.sub(r"\s+", " ", text).strip()
+    if not compact:
+        return False
+    if re.match(r"^PART\s+\S.{1,40}$", compact, re.IGNORECASE):
+        return True
+    if compact.count("PART ") >= 2 and len(compact) <= 160:
+        return True
+    if len(_TOC_ITEM_RE.findall(compact)) >= 2 and len(compact) <= 220:
+        return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -689,12 +744,115 @@ def _table_row_text(
 
 
 # ---------------------------------------------------------------------------
+# Operator 6: extract metric image text blocks
+# ---------------------------------------------------------------------------
+
+def extract_metric_image_blocks(blocks: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], set[str]]:
+    """Promote metric-card visual text into standalone retrieval units.
+
+    Some report pages render KPI cards as image-like text boxes that MinerU
+    normalises as consecutive heading blocks. These headings are not document
+    navigation; they are the figure's data payload. Each metric unit keeps its
+    locator on the original visual text blocks instead of attaching the data to
+    the following explanatory paragraph.
+    """
+    units: list[dict[str, Any]] = []
+    consumed: set[str] = set()
+    runs = _heading_runs(blocks)
+    for run in runs:
+        for idx, block in enumerate(run):
+            text = _strip_heading(_text_of(block))
+            if not _is_metric_value_heading(text):
+                continue
+            selected = [block]
+            if idx > 0 and _is_metric_group_heading(_strip_heading(_text_of(run[idx - 1]))):
+                selected.insert(0, run[idx - 1])
+            unit = _metric_image_unit(selected)
+            if unit is None:
+                continue
+            units.append(unit)
+            consumed.update(b.get("block_id") for b in selected if b.get("block_id"))
+    return units, consumed
+
+
+def _heading_runs(blocks: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+    runs: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = []
+    prev_seq: int | None = None
+    for block in blocks:
+        seq = block.get("seq_no")
+        is_heading = block.get("block_type") in _HEADING_TYPES
+        if is_heading and (prev_seq is None or seq == prev_seq + 1):
+            current.append(block)
+        else:
+            if current:
+                runs.append(current)
+            current = [block] if is_heading else []
+        prev_seq = seq if isinstance(seq, int) else None
+    if current:
+        runs.append(current)
+    return runs
+
+
+def _is_metric_value_heading(text: str) -> bool:
+    if not text or _SECTION_HEADING_RE.match(text):
+        return False
+    return bool(_METRIC_VALUE_RE.search(text))
+
+
+def _is_metric_group_heading(text: str) -> bool:
+    if not text or _SECTION_HEADING_RE.match(text) or _is_metric_value_heading(text):
+        return False
+    return bool(_METRIC_GROUP_RE.search(text))
+
+
+def _metric_image_unit(blocks: list[dict[str, Any]]) -> dict[str, Any] | None:
+    parts = [_strip_heading(_text_of(b)) for b in blocks]
+    parts = [p for p in parts if p]
+    if not parts:
+        return None
+    first = blocks[0]
+    return {
+        "block_id": "+".join(b.get("block_id") or "" for b in blocks),
+        "block_type": "metric_image",
+        "seq_no": first.get("seq_no"),
+        "page": first.get("page"),
+        "bbox": _bbox_union_for_blocks(blocks),
+        "content": "\n".join(parts),
+        "_source_blocks": [_descriptor(b) for b in blocks],
+        "_unit_metadata": {"metric_source": "heading_run"},
+    }
+
+
+def _bbox_union_for_blocks(blocks: list[dict[str, Any]]) -> list[float] | None:
+    boxes = [b.get("bbox") for b in blocks if _is_bbox_like(b.get("bbox"))]
+    if not boxes:
+        return None
+    return [
+        min(box[0] for box in boxes),
+        min(box[1] for box in boxes),
+        max(box[2] for box in boxes),
+        max(box[3] for box in boxes),
+    ]
+
+
+def _is_bbox_like(value: Any) -> bool:
+    return (
+        isinstance(value, (list, tuple))
+        and len(value) == 4
+        and all(isinstance(v, (int, float)) for v in value)
+    )
+
+
+# ---------------------------------------------------------------------------
 # Operator 6: enrich_context → final SemanticUnit list
 # ---------------------------------------------------------------------------
 
 def enrich_context(
     candidates: list[dict[str, Any]],
     original_blocks: list[dict[str, Any]],
+    *,
+    heading_exclude_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Convert surviving candidate blocks into SemanticUnit dicts.
 
@@ -711,7 +869,7 @@ def enrich_context(
     - ``md_spans``: present only when the unit was merged from multiple
       blocks (so the preview UI can highlight each span individually).
     """
-    heading_index = _build_heading_index(original_blocks)
+    heading_index = _build_heading_index(original_blocks, exclude_ids=heading_exclude_ids)
     units: list[dict[str, Any]] = []
     for cand in candidates:
         unit = _to_unit(cand, heading_index)
@@ -736,13 +894,16 @@ def _to_unit(
     anchor_role = _anchor_role_of(cand)
     caption = cand.get("caption") if btype in _MEDIA_TYPES else None
 
-    # md_spans only meaningful for merged units OR media+attribution composites
+    # md_spans are meaningful for merged units, media+attribution composites,
+    # and synthetic metric-image units assembled from multiple visual text blocks.
     md_spans: list[dict[str, Any]] | None = None
     if cand.get("_merged_blocks"):
         md_spans = [_span_of(b) for b in cand["_merged_blocks"] if _span_of(b)]
     elif cand.get("attribution_children"):
         spans = [_span_of(cand)] + [_span_of(b) for b in cand["attribution_children"]]
         md_spans = [s for s in spans if s]
+    elif btype == "metric_image" and cand.get("_source_blocks"):
+        md_spans = [_span_of(b) for b in cand["_source_blocks"] if _span_of(b)]
     if md_spans is not None and len(md_spans) < 2:
         md_spans = None
 
@@ -771,6 +932,18 @@ def _content_for_unit(cand: dict[str, Any]) -> str:
         if ctext:
             parts.append(ctext)
     return "\n\n".join(p for p in parts if p)
+
+
+def _dedup_descriptors(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for block in blocks:
+        block_id = block.get("block_id")
+        if not block_id or block_id in seen:
+            continue
+        seen.add(block_id)
+        out.append(block)
+    return out
 
 
 def _source_blocks_of(cand: dict[str, Any]) -> list[dict[str, Any]]:
@@ -815,6 +988,8 @@ def _anchor_role_of(cand: dict[str, Any]) -> str:
         return "chart"
     if btype == "image":
         return "image"
+    if btype == "metric_image":
+        return "metric_image"
     if btype == "equation":
         return "equation"
     return "body"
@@ -826,10 +1001,15 @@ def _anchor_role_of(cand: dict[str, Any]) -> str:
 
 def _build_heading_index(
     blocks: list[dict[str, Any]],
+    *,
+    exclude_ids: set[str] | None = None,
 ) -> list[tuple[int, dict[str, Any]]]:
     """Index ``(seq_no, heading_dict)`` for every heading block, ordered by seq."""
     out: list[tuple[int, dict[str, Any]]] = []
+    exclude_ids = exclude_ids or set()
     for b in blocks:
+        if b.get("block_id") in exclude_ids:
+            continue
         if b.get("block_type") not in _HEADING_TYPES:
             continue
         seq = b.get("seq_no")
@@ -897,12 +1077,14 @@ def repack(
     if not blocks:
         return []
     n0 = len(blocks)
+    metric_blocks, metric_heading_ids = extract_metric_image_blocks(blocks)
     step1 = drop_navigational(blocks)
     step2 = drop_meaningless(step1)
     step3 = attach_attribution(step2)
     step4 = merge_continuation(step3, original_blocks=blocks)
     step5 = decompose_atomic_tables(step4, body_markdown=body_markdown)
-    units = enrich_context(step5, original_blocks=blocks)
+    candidates = sorted([*metric_blocks, *step5], key=lambda b: (b.get("seq_no") is None, b.get("seq_no") or 0))
+    units = enrich_context(candidates, original_blocks=blocks, heading_exclude_ids=metric_heading_ids)
     logger.info(
         "semantic_repack: in=%d nav-drop→%d meaningless-drop→%d "
         "attribution-fold→%d merge→%d table-decompose→%d units=%d body_md_len=%d",
