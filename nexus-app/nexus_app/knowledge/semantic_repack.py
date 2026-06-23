@@ -314,7 +314,10 @@ def _attach(host: dict[str, Any], attribution: dict[str, Any]) -> None:
 # Operator 4: merge_continuation
 # ---------------------------------------------------------------------------
 
-def merge_continuation(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def merge_continuation(
+    blocks: list[dict[str, Any]],
+    original_blocks: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     """Stitch a paragraph whose last char is non-terminal with its successor.
 
     Triggered when ALL of:
@@ -334,6 +337,7 @@ def merge_continuation(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         the locator builder to emit ``md_spans``);
       * inherits page=min_page, page_end=max_page, bbox union.
     """
+    original_blocks = original_blocks or blocks
     out: list[dict[str, Any]] = []
     i = 0
     while i < len(blocks):
@@ -345,7 +349,7 @@ def merge_continuation(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         merged = dict(b)
         merged.setdefault("merged_from", [b.get("block_id")])
         j = i + 1
-        while j < len(blocks) and _should_merge(merged, blocks[j]):
+        while j < len(blocks) and _should_merge(merged, blocks[j], original_blocks):
             nxt = blocks[j]
             merged["text"] = (merged.get("text") or "") + (nxt.get("text") or "")
             merged["merged_from"].append(nxt.get("block_id"))
@@ -365,8 +369,14 @@ def merge_continuation(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
-def _should_merge(prev: dict[str, Any], nxt: dict[str, Any]) -> bool:
+def _should_merge(
+    prev: dict[str, Any],
+    nxt: dict[str, Any],
+    original_blocks: list[dict[str, Any]],
+) -> bool:
     if nxt.get("block_type") != "paragraph":
+        return False
+    if _has_heading_between(prev, nxt, original_blocks):
         return False
     p_text = (prev.get("text") or "").rstrip()
     if not p_text:
@@ -389,6 +399,26 @@ def _should_merge(prev: dict[str, Any], nxt: dict[str, Any]) -> bool:
         if abs(n_page - p_page) > _MERGE_LOOKAHEAD_PAGES:
             return False
     return True
+
+
+def _has_heading_between(
+    prev: dict[str, Any],
+    nxt: dict[str, Any],
+    original_blocks: list[dict[str, Any]],
+) -> bool:
+    """Return True when a heading boundary sits between two candidate blocks."""
+    prev_seq = prev.get("seq_no")
+    nxt_seq = nxt.get("seq_no")
+    if prev_seq is None or nxt_seq is None:
+        return False
+    lo, hi = sorted((prev_seq, nxt_seq))
+    for block in original_blocks:
+        if block.get("block_type") not in _HEADING_TYPES:
+            continue
+        seq = block.get("seq_no")
+        if seq is not None and lo < seq < hi:
+            return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -483,6 +513,7 @@ def _parse_markdown_table(markdown: str) -> dict[str, Any] | None:
             continue
         data_rows.append({"raw": raw, "cells": cells})
 
+    data_rows = _merge_continuation_table_rows(headers, data_rows)
     if not data_rows:
         return None
     return {"headers": headers, "data_rows": data_rows}
@@ -505,6 +536,60 @@ def _is_separator_row(cells: list[str]) -> bool:
 
 def _normalise_cell(cell: str) -> str:
     return re.sub(r"\s+", " ", cell.replace("<br>", " / ").strip())
+
+
+def _merge_continuation_table_rows(
+    headers: list[str],
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Merge markdown table continuation rows into the previous record row.
+
+    Some PDF table extractors split a long cell across physical rows, yielding
+    rows where all record-identifying columns are empty and only the final
+    description cell has text. For row-atomic tables, those fragments are not
+    standalone facts; they belong to the previous row.
+    """
+    merged: list[dict[str, Any]] = []
+    for row in rows:
+        cells = list(row["cells"])
+        if merged and _is_continuation_table_row(headers, cells):
+            prev = merged[-1]
+            prev_cells = list(prev["cells"])
+            for i, value in enumerate(cells):
+                if not value:
+                    continue
+                if prev_cells[i]:
+                    prev_cells[i] = f"{prev_cells[i]} {value}"
+                else:
+                    prev_cells[i] = value
+            prev["cells"] = prev_cells
+            prev["raw"] = f"{prev['raw']}\n{row['raw']}"
+            prev["continuation_rows"] = [
+                *(prev.get("continuation_rows") or []),
+                row["raw"],
+            ]
+            continue
+        merged.append(row)
+    return merged
+
+
+def _is_continuation_table_row(headers: list[str], cells: list[str]) -> bool:
+    non_empty = [i for i, cell in enumerate(cells) if cell]
+    if not non_empty:
+        return False
+    # A continuation row usually only has the last descriptive cell populated.
+    if len(non_empty) == 1 and non_empty[0] == len(cells) - 1:
+        return True
+
+    identifier_indices = [
+        i for i, header in enumerate(headers[:-1])
+        if _has_any_keyword(header, _STRONG_RECORD_HEADER_KEYWORDS)
+    ]
+    if identifier_indices and all(not cells[i] for i in identifier_indices):
+        # If all identifying columns are empty and only trailing descriptive
+        # columns have text, treat it as a continuation of the previous record.
+        return all(i >= max(identifier_indices) for i in non_empty)
+    return False
 
 
 def _is_atomic_row_table(block: dict[str, Any], parsed: dict[str, Any]) -> bool:
@@ -646,7 +731,7 @@ def _to_unit(
     if not sources:
         return None
     content = _content_for_unit(cand)
-    if not content and btype not in _MEDIA_TYPES:
+    if not content:
         return None
     anchor_role = _anchor_role_of(cand)
     caption = cand.get("caption") if btype in _MEDIA_TYPES else None
@@ -815,7 +900,7 @@ def repack(
     step1 = drop_navigational(blocks)
     step2 = drop_meaningless(step1)
     step3 = attach_attribution(step2)
-    step4 = merge_continuation(step3)
+    step4 = merge_continuation(step3, original_blocks=blocks)
     step5 = decompose_atomic_tables(step4, body_markdown=body_markdown)
     units = enrich_context(step5, original_blocks=blocks)
     logger.info(

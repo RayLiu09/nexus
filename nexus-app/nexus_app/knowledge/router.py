@@ -1,13 +1,11 @@
 """Knowledge Pipeline router — dispatches by chunking_mode.
 
-Slice 2 change: the legacy ``passthrough_to_ragflow`` path no longer emits a
-single opaque descriptor chunk. Instead it runs the semantic_repack pipeline
-over ``content_blocks`` and emits N ``SEMANTIC_BLOCK`` chunks, each carrying
-a full slice-2 locator (md_char_range + md_spans + heading_path +
-anchor_role). This satisfies the user requirement that **all** asset chunks
-go through Nexus segmentation. The resulting chunks are persisted in
-``knowledge_chunk`` for preview / later Nexus retrieval; ``index_submit``
-currently skips these Nexus-owned chunks instead of sending them to RAGFlow.
+Nexus-owned semantic chunking is a first-class path: ``nexus_semantic`` runs
+``semantic_repack`` over normalized blocks and emits N ``SEMANTIC_BLOCK`` rows,
+each carrying md_char_range / md_spans / heading_path / anchor_role for source
+preview. The legacy ``passthrough_to_ragflow`` mode is accepted only as a
+backward-compatible alias for old configs; RAGFlow is not the owner of chunk
+construction in this path.
 """
 
 from __future__ import annotations
@@ -31,14 +29,15 @@ def route_and_chunk(
 ) -> list[KnowledgeChunk]:
     """Route a single emission to the appropriate chunking path.
 
-    - ``passthrough_to_ragflow`` (a.k.a. semantic) → semantic_repack → N
-      ``SEMANTIC_BLOCK`` chunks (Nexus-owned segmentation).
+    - ``nexus_semantic`` → semantic_repack → N ``SEMANTIC_BLOCK`` chunks
+      (Nexus-owned segmentation).
+    - legacy ``passthrough_to_ragflow`` is treated as the same semantic path.
     - ``nexus_extract`` → registered structured strategy (qa_extract,
-      indicator_decompose, etc.) — unchanged from slice 1.
+      indicator_decompose, etc.).
     """
     mode = kt_config.chunking_mode
 
-    if mode == "passthrough_to_ragflow":
+    if mode in {"nexus_semantic", "passthrough_to_ragflow"}:
         return _run_semantic_repack(
             content, emission, kt_config, normalized_ref_id,
             content_blocks=content_blocks,
@@ -59,12 +58,11 @@ def _run_semantic_repack(
     normalized_ref_id: str,
     content_blocks: list[dict[str, Any]] | None = None,
 ) -> list[KnowledgeChunk]:
-    """Slice-2 path: blocks → semantic_repack → N SEMANTIC_BLOCK chunks.
+    """Nexus semantic path: blocks → semantic_repack → N SEMANTIC_BLOCK chunks.
 
-    Falls back to a single empty descriptor when ``content_blocks`` is not
-    provided (e.g. legacy fake adapter outputs without block-level data).
-    This keeps record-pipeline / adapter unit-tests passing while ensuring
-    real document pipelines produce per-unit chunks.
+    Falls back to a single empty descriptor only when block-level data is not
+    provided (e.g. legacy fake adapter outputs). Real document pipelines should
+    provide normalized blocks and produce per-unit chunks.
     """
     if not content_blocks:
         return [_legacy_descriptor(normalized_ref_id, emission, kt_config)]

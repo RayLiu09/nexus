@@ -222,6 +222,16 @@ class TestMergeContinuation:
         assert "本章讨论的核心问题在于平台治理能力" in out[0]["text"]
         assert "因此需要建立分级监管框架。" in out[0]["text"]
 
+    def test_does_not_merge_across_heading_boundary_removed_from_candidates(self):
+        original = [
+            _p(1, "图表说明没有句号", page=37),
+            _h(2, "第二章 新章节", page=38, level=2),
+            _p(3, "新章节导语。", page=38),
+        ]
+        candidates = [original[0], original[2]]
+        out = merge_continuation(candidates, original_blocks=original)
+        assert [b["block_id"] for b in out] == ["p-1", "p-3"]
+
     def test_does_not_merge_when_first_paragraph_ends_with_period(self):
         blocks = [
             _p(1, "第一句话已经完结。", page=10),
@@ -285,6 +295,22 @@ class TestDecomposeAtomicTables:
             md.index("| 2021.04"),
             md.index("| 2021.04") + len("| 2021.04 | 国家网信办等七部门 | 《网络直播营销管理办法》 | 平台应建立审核机制 |"),
         ]
+
+    def test_merges_table_continuation_rows_into_previous_record(self):
+        md = """| 发布时间 | 部门 | 名称 | 内容摘要 |
+| --- | --- | --- | --- |
+| 2020.11 | 广电总局 | 《关于加强网络直播管理的通知》 | 对开设直播带货的商家进行资质审查 |
+|  |  |  | 准预警和及时阻断。 |
+| 2021.02 | 国家网信办等七部门 | 《关于加强网络直播规范管理工作的指导意见》 | 建立健全制度规范。 |"""
+        block = _t(1, md, caption="表 3-1 政策一览", bid="tbl-1")
+        block["md_char_range"] = [0, len(md)]
+        out = decompose_atomic_tables([block], body_markdown=md)
+
+        assert [b["block_type"] for b in out] == ["table", "table_row", "table_row"]
+        assert out[0]["_unit_metadata"]["table_row_count"] == 2
+        assert "资质审查 准预警和及时阻断。" in out[1]["content"]
+        assert out[1]["_unit_metadata"]["table_row_cells"][3].endswith("准预警和及时阻断。")
+        assert out[2]["content"].startswith("表 3-1 政策一览 | 发布时间: 2021.02")
 
     def test_does_not_split_two_column_key_value_table(self):
         md = """| 字段 | 值 |
@@ -364,13 +390,13 @@ class TestEnrichContext:
 
     def test_anchor_role_per_block_type(self):
         originals = [
-            _p(1, "x"), _t(2, "x"), _img(3), _h(4, "# h"),
+            _p(1, "x"), _t(2, "x"), _img(3, caption="图 1"), _h(4, "# h"),
         ]
         units = enrich_context(
             [
                 _p(1, "正文段落正常长度"),
                 _t(2, "| x |"),
-                _img(3),
+                _img(3, caption="图 1"),
             ],
             original_blocks=originals,
         )
@@ -467,6 +493,10 @@ class TestRepackPipeline:
         assert units[1]["source_blocks"][0]["block_id"] == "tbl-1"
         assert units[1]["source_blocks"][0]["md_char_range"][0] == md.index("| 2021.04")
         assert units[1]["heading_path"][0]["title"] == "政策"
+
+    def test_drops_empty_media_without_caption_or_text(self):
+        units = repack([_img(1, caption="")])
+        assert units == []
 
     def test_empty_blocks_returns_empty_list(self):
         assert repack([]) == []

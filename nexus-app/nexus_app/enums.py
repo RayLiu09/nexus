@@ -260,7 +260,10 @@ class AssetAccessType(StrEnum):
 
 
 class ChunkingMode(StrEnum):
+    # Legacy alias retained for historical configs. New semantic RAG chunks are
+    # built locally by Nexus and do not imply RAGFlow submission.
     PASSTHROUGH_TO_RAGFLOW = "passthrough_to_ragflow"
+    NEXUS_SEMANTIC         = "nexus_semantic"
     NEXUS_EXTRACT          = "nexus_extract"
 
 

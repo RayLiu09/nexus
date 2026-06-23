@@ -1287,14 +1287,14 @@
       ],
       "default_level": "L1",
       "source_kind": "extracted_from_normalized",
-      "chunking_mode": "passthrough_to_ragflow",
+      "chunking_mode": "nexus_semantic",
       "rag_pipeline": "pipeline_1",
       "source_criteria": [
         "包含教材章节、知识点、案例",
         "内容具有系统性、教学性",
         "适合通过关键词或语义检索"
       ],
-      "chunking_strategy": "semantic",
+      "chunking_strategy": "semantic_repack",
       "chunking_config": {
         "chunk_size": 512,
         "overlap": 64,
@@ -1855,7 +1855,7 @@
     {
       "code": "industry_research_kb",
       "name": "行业研究知识库",
-      "description": "产业政策、产业报告、行业报告、人才需求报告等研究性文档；语义切块入 RAG 检索。",
+      "description": "产业政策、产业报告、行业报告、人才需求报告等研究性文档；由 NEXUS semantic_repack 进行本地语义切块。",
       "applicable_classifications": [
         "industry_policy",
         "industry_report",
@@ -1864,14 +1864,14 @@
       ],
       "default_level": "L1",
       "source_kind": "extracted_from_normalized",
-      "chunking_mode": "passthrough_to_ragflow",
+      "chunking_mode": "nexus_semantic",
       "rag_pipeline": "pipeline_1",
       "source_criteria": [
         "包含市场/行业/产业的研究分析",
         "结构以章节-小节为主，含数据图表",
         "适合语义检索 + QA 引用"
       ],
-      "chunking_strategy": "semantic",
+      "chunking_strategy": "semantic_repack",
       "chunking_config": {
         "chunk_size": 512,
         "overlap": 64,

@@ -9,8 +9,8 @@ from nexus_app.knowledge.router import route_and_chunk
 def _kt_config() -> SimpleNamespace:
     return SimpleNamespace(
         chunking_config={},
-        chunking_mode="passthrough_to_ragflow",
-        chunking_strategy="semantic",
+        chunking_mode="nexus_semantic",
+        chunking_strategy="semantic_repack",
         source_kind="extracted_from_normalized",
         ragflow={"chunk_method": "naive"},
         max_chunks_per_unit=20,

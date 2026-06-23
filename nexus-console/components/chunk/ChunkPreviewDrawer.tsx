@@ -280,8 +280,17 @@ function MarkdownAnchorPanel({ preview }: { preview: ChunkPreviewResponse }) {
 }
 
 function PageAnchorPanel({ preview }: { preview: ChunkPreviewResponse }) {
-  const anchor = firstPageAnchor(preview.highlight.page_anchors);
+  const anchors = useMemo(
+    () => normalizePageAnchors(preview.highlight.page_anchors ?? []),
+    [preview.highlight.page_anchors],
+  );
+  const [activeIndex, setActiveIndex] = useState(0);
   const [imageError, setImageError] = useState(false);
+  const anchor = anchors[activeIndex] ?? null;
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [preview.chunk.id, anchors.length]);
 
   useEffect(() => {
     setImageError(false);
@@ -309,9 +318,30 @@ function PageAnchorPanel({ preview }: { preview: ChunkPreviewResponse }) {
         </Typography.Title>
         <Space size={4} wrap>
           <Tag>p{anchor.page}</Tag>
+          {anchors.length > 1 ? <Tag color="processing">{activeIndex + 1}/{anchors.length}</Tag> : null}
           {anchor.block_id ? <Tag className="font-mono text-xs">{anchor.block_id}</Tag> : null}
         </Space>
       </div>
+
+      {anchors.length > 1 ? (
+        <div className="mb-2 flex flex-wrap gap-1">
+          {anchors.map((item, index) => (
+            <button
+              key={`${item.page}-${item.block_id ?? "block"}-${index}`}
+              type="button"
+              onClick={() => setActiveIndex(index)}
+              className="rounded border border-[var(--line)] px-2 py-1 text-xs hover:border-[var(--line-strong)]"
+              style={{
+                background: index === activeIndex ? "var(--brand-50)" : "#fff",
+                color: index === activeIndex ? "var(--brand-700)" : "var(--text-muted)",
+              }}
+            >
+              p{item.page}{item.block_id ? ` · ${item.block_id}` : ""}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       {imageError ? (
         <Alert
           type="warning"
@@ -378,8 +408,8 @@ function buildMarkdownExcerpts(
   return out;
 }
 
-function firstPageAnchor(anchors: PageAnchor[]): PageAnchor | null {
-  return anchors.find((anchor) => Number.isFinite(anchor.page)) ?? null;
+function normalizePageAnchors(anchors: PageAnchor[]): PageAnchor[] {
+  return anchors.filter((anchor) => Number.isFinite(anchor.page));
 }
 
 function pageImageSrc(refId: string, anchor: PageAnchor): string {
