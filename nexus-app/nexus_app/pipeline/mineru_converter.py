@@ -454,6 +454,14 @@ _DECORATIVE_VLM_PATTERNS: tuple[re.Pattern[str], ...] = (
         r"^\s*>.*?\bQR code \(Quick Response Code\)",
         re.MULTILINE | re.IGNORECASE,
     ),
+    re.compile(
+        r"^\s*>\s*(Summary:\s*)?This is a branded QR code\b",
+        re.MULTILINE | re.IGNORECASE,
+    ),
+    re.compile(
+        r"^\s*>.*?\bbranded QR code\b.*?\b(no additional labels|no text|no technical content|central logo)\b",
+        re.MULTILINE | re.IGNORECASE,
+    ),
 )
 
 

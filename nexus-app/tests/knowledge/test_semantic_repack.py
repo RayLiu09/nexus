@@ -186,6 +186,17 @@ class TestDropMeaningless:
         kept = drop_meaningless([image, _p(2, "正文段落正常长度")])
         assert [b["block_id"] for b in kept] == ["p-2"]
 
+    def test_drops_branded_qr_summary_image_description(self):
+        image = _img(1, page=1, caption="")
+        image["content"] = (
+            "Summary: This is a branded QR code with a central logo combining "
+            "a red arrow and gray question mark, likely intended to direct users "
+            "to content related to inquiry, learning, or progress. No additional "
+            "labels, annotations, or technical content are visible."
+        )
+        kept = drop_meaningless([image, _p(2, "正文段落正常长度")])
+        assert [b["block_id"] for b in kept] == ["p-2"]
+
     def test_drops_toc_or_section_menu_lines(self):
         blocks = [
             _p(1, "PART 行业发展概览", page=4),

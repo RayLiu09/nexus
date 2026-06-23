@@ -66,6 +66,18 @@ class _FakeQRAnalyzer:
         )
 
 
+class _FakeBrandedQRSummaryAnalyzer:
+    """Returns a VLM summary-style branded QR description seen in real assets."""
+
+    def analyze(self, _image_bytes: bytes, _btype: str, _caption: str) -> str:
+        return (
+            "Summary: This is a branded QR code with a central logo combining "
+            "a red arrow and gray question mark, likely intended to direct users "
+            "to content related to inquiry, learning, or progress. No additional "
+            "labels, annotations, or technical content are visible."
+        )
+
+
 class _FakeStorage:
     def get_bytes(self, _key: str) -> bytes:
         return b"\x00" * 16
@@ -103,6 +115,31 @@ def test_watermark_text_blocks_are_stripped():
         assert r is not None
         seg = md[r[0]:r[1]]
         assert seg in ("正文第一段：直播电商行业概述。", "正文第二段：政策梳理。")
+
+
+def test_decorative_image_vlm_summary_branded_qr_is_stripped():
+    pdf_info = [
+        {
+            "page_idx": 0,
+            "para_blocks": [
+                _text_block(0, "正文第一段：跨境电商概述。", bbox=(10, 10, 100, 30)),
+                _qr_image_block_with_vlm(),
+                _text_block(0, "正文第二段：市场趋势。", bbox=(10, 220, 100, 240)),
+            ],
+        },
+    ]
+    blocks, md, _toc = convert(
+        pdf_info,
+        image_uris={"fig_p4.jpg": "s3://test/fig_p4.jpg"},
+        image_analyzer=_FakeBrandedQRSummaryAnalyzer(),
+        storage=_FakeStorage(),
+    )
+
+    assert "branded QR code" not in md
+    assert "No additional labels" not in md
+    assert "正文第一段" in md
+    assert "正文第二段" in md
+    assert all(b.get("block_type") != "image" for b in blocks)
 
 
 def test_decorative_image_vlm_blockquote_is_stripped():

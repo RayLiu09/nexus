@@ -111,6 +111,8 @@ _MIN_MEANINGFUL_CHARS = 4  # ultra-short orphan threshold (excluding whitespace)
 _QR_CODE_RE = re.compile(r"\b(QR\s*code|Quick Response code|matrix barcode)\b", re.IGNORECASE)
 _QR_ONLY_IMAGE_RE = re.compile(
     r"(image\s+(displays|shows|is).*QR\s*code|"
+    r"(Summary:\s*)?This is a branded QR\s*code|"
+    r"branded QR\s*code.*(central logo|no additional labels|no technical content)|"
     r"QR\s*code.*(central|overlay|alignment|scannable|modules|barcode|no text)|"
     r"matrix barcode)",
     re.IGNORECASE | re.DOTALL,
