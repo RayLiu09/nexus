@@ -1,0 +1,172 @@
+{
+  "schema_version": "ai_analysis_rules.v1",
+  "_notice": "B0 freeze seed — pending human Review. Do NOT consume this file at runtime until B5 implements ai_analysis_rules table + seed loader. This file is the initialization source for the ai_analysis_rules PG table; it is NOT the runtime source of truth. See docs/pipeline_b_contract_freeze.md §8.",
+  "_field_notes": {
+    "output_format": "Optional. Defaults to 'json'. When 'markdown', rule_set drives LLM-assisted body_markdown rendering; output_item_schema is replaced by markdown_skeleton.",
+    "markdown_skeleton": "Required when output_format='markdown'. Declares the must-emit heading hierarchy and field-block templates. Validator checks rendered markdown contains the skeleton anchors.",
+    "fallback_strategy": "Optional. 'deterministic_template' falls back to a code-side template when LLM fails / schema invalid / confidence below threshold. Default 'reject' marks normalized_record as review_required."
+  },
+  "rule_sets": [
+    {
+      "rule_set_code": "occupation.job_demand.requirement_extraction.rules",
+      "version": "v1",
+      "scenario": "job_demand_requirement_extraction",
+      "domain": "occupation",
+      "target_type": ["normalized_record", "job_demand_record"],
+      "output_format": "json",
+      "output_contract": {
+        "professional_skill": "array",
+        "tool": "array",
+        "certificate": "array",
+        "professional_literacy": "array",
+        "work_task_candidate": "array"
+      },
+      "output_item_schema": {
+        "item_name": "string",
+        "raw_text": "string",
+        "evidence_field": "enum:job_skill_text|job_description|requirement_text",
+        "confidence": "number[0..1]"
+      },
+      "field_whitelist": [
+        "job_title",
+        "job_skill_text",
+        "job_description",
+        "requirement_text",
+        "industry_name",
+        "enterprise_size"
+      ],
+      "guardrails": [
+        "no_external_evidence",
+        "distinguish_skill_vs_literacy",
+        "preserve_raw_text",
+        "emit_confidence",
+        "reject_l3_l4_plaintext",
+        "no_speculation_beyond_record"
+      ],
+      "auto_admit_threshold": 0.85,
+      "schema_version": "job_requirement_extraction.v1",
+      "owner_module": "knowledge_unit_extraction",
+      "is_builtin": true
+    },
+    {
+      "rule_set_code": "occupation.task_description_structuring.rules",
+      "version": "v1",
+      "scenario": "occupational_task_description_structuring",
+      "domain": "occupation",
+      "target_type": ["occupational_work_task"],
+      "output_format": "json",
+      "output_contract": {
+        "target_roles": "array",
+        "tools": "array",
+        "environment": "array",
+        "work_modes": "array"
+      },
+      "output_item_schema": {
+        "value": "string",
+        "raw_text": "string",
+        "confidence": "number[0..1]"
+      },
+      "field_whitelist": ["task_code", "task_name", "task_description"],
+      "guardrails": [
+        "no_external_evidence",
+        "preserve_raw_text",
+        "emit_confidence",
+        "keep_circled_number_semantics",
+        "reject_speculative_environment",
+        "no_invented_tool_names"
+      ],
+      "auto_admit_threshold": 0.8,
+      "schema_version": "occupational_task_description.v1",
+      "owner_module": "knowledge_unit_extraction",
+      "is_builtin": true
+    },
+    {
+      "rule_set_code": "occupation.job_demand.body_markdown_render.rules",
+      "version": "v1",
+      "scenario": "job_demand_body_markdown_render",
+      "domain": "occupation",
+      "target_type": ["normalized_record"],
+      "output_format": "markdown",
+      "output_contract": {
+        "body_markdown": "string"
+      },
+      "markdown_skeleton": {
+        "required_h1": "岗位需求数据集",
+        "required_overview_keys": ["专业", "默认行业", "有效记录数"],
+        "per_record_h2_pattern": "^## 记录 \\d+：.+$",
+        "per_record_required_blocks": [
+          "公司",
+          "城市",
+          "薪资",
+          "经验",
+          "学历",
+          "技能"
+        ],
+        "long_text_blockquote_fields": ["job_description"],
+        "long_text_truncate_chars": 240,
+        "max_records_inline": 50,
+        "overflow_notice_template": "_其余 {n} 条记录已省略，详见 record_body JSON。_"
+      },
+      "field_whitelist": ["dataset", "records"],
+      "guardrails": [
+        "no_fabricated_fields",
+        "preserve_raw_values_no_translation",
+        "follow_skeleton_strictly",
+        "truncate_long_descriptions",
+        "no_field_value_speculation",
+        "emit_in_source_language",
+        "preserve_circled_number_semantics"
+      ],
+      "auto_admit_threshold": 0.85,
+      "schema_version": "body_markdown.job_demand.v1",
+      "owner_module": "knowledge_unit_extraction",
+      "is_builtin": true,
+      "fallback_strategy": "deterministic_template"
+    },
+    {
+      "rule_set_code": "occupation.ability_analysis.body_markdown_render.rules",
+      "version": "v1",
+      "scenario": "ability_analysis_body_markdown_render",
+      "domain": "occupation",
+      "target_type": ["normalized_record"],
+      "output_format": "markdown",
+      "output_contract": {
+        "body_markdown": "string"
+      },
+      "markdown_skeleton": {
+        "required_h1_pattern": "^# .+ · 职业能力分析（PGSD）$",
+        "required_overview_line_regex": "^总览：\\d+ 任务 · \\d+ 工作内容 · \\d+ 能力条目$",
+        "per_task_h2_pattern": "^## 任务 \\d+：.+$",
+        "per_task_required_blocks": [
+          "task_description_blockquote",
+          "work_contents_h3",
+          "general_abilities_h3"
+        ],
+        "work_content_h3_pattern": "^### 工作内容 \\d+\\.\\d+：.+$",
+        "ability_item_bullet_pattern": "^- \\*\\*[PGSD]-\\d+(?:\\.\\d+)+\\*\\* .+$",
+        "general_abilities_categories": [
+          "通用能力（G）",
+          "社会能力（S）",
+          "发展能力（D）"
+        ],
+        "max_abilities_per_work_content_inline": 30,
+        "overflow_notice_template": "_其余 {n} 条能力条目已省略，详见 record_body JSON。_"
+      },
+      "field_whitelist": ["analysis", "tasks"],
+      "guardrails": [
+        "no_fabricated_fields",
+        "preserve_ability_code_exactly",
+        "preserve_raw_text_no_translation",
+        "follow_skeleton_strictly",
+        "no_invented_work_content",
+        "no_invented_ability_item",
+        "emit_in_source_language"
+      ],
+      "auto_admit_threshold": 0.85,
+      "schema_version": "body_markdown.ability_analysis.pgsd.v1",
+      "owner_module": "knowledge_unit_extraction",
+      "is_builtin": true,
+      "fallback_strategy": "deterministic_template"
+    }
+  ]
+}
