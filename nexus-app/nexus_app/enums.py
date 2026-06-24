@@ -183,6 +183,10 @@ class AuditEventType(StrEnum):
     RAW_OBJECT_PERSISTED            = "RawObjectPersisted"
     INGEST_VALIDATE_COMPLETED       = "IngestValidateCompleted"
     INGEST_VALIDATE_FAILED          = "IngestValidateFailed"
+    # Pipeline B structured_parse stage (B1.3) — emitted on successful xlsx /
+    # (future) csv parse. Failures use PIPELINE_FAILED with error_code so
+    # operators don't have to disjoin on the audit event name.
+    STRUCTURED_PARSE_COMPLETED      = "StructuredParseCompleted"
     CROSS_SOURCE_DUPLICATE_DETECTED = "CrossSourceDuplicateDetected"
     VERSION_STATUS_CHANGED          = "VersionStatusChanged"
     PIPELINE_FAILED                 = "PipelineFailed"

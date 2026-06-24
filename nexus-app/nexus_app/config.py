@@ -73,6 +73,15 @@ class Settings(BaseSettings):
     worker_poll_interval_seconds: float = 5.0
     worker_lease_seconds: int = 120
     worker_max_concurrent: int = 4
+
+    # Pipeline B feature flags (B1.1 - allow gradual rollout).
+    # When disabled, xlsx/csv keep going to Pipeline A (DOCUMENT) — current behavior.
+    # When enabled, xlsx/csv route to Pipeline B (RECORD) and require structured_parse
+    # (B1.2+) to be available; otherwise the worker will fail the job. Operators
+    # should only flip these flags after the full B1 chain is deployed.
+    # Env vars (case-insensitive): PIPELINE_B_XLSX_ENABLED / PIPELINE_B_CSV_ENABLED.
+    pipeline_b_xlsx_enabled: bool = False
+    pipeline_b_csv_enabled: bool = False
     ragflow_endpoint: str | None = None
     ragflow_api_key: str | None = None
     ragflow_timeout: int = 60

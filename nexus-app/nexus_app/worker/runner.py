@@ -26,11 +26,18 @@ from nexus_app.ingest.config_loader import (
     IngestValidateRegistry,
     get_ingest_validate_registry,
 )
+from nexus_app.ingest.gateway import CSV_MIME_TYPES, XLSX_MIME_TYPES
 from nexus_app.mineru import MinerUAdapter, get_mineru_adapter
 from nexus_app.models import utcnow
 from nexus_app.normalize.service import NormalizeService
 from nexus_app.pipeline.context import PipelineContext
 from nexus_app.pipeline.payload_schema import SUPPORTED_JOB_PAYLOAD_VERSIONS
+from nexus_app.structured_parse import (
+    CorruptSourceError,
+    StructuredParseError,
+    parse_csv,
+    parse_xlsx,
+)
 from nexus_app.pipeline.stages import (
     run_assetize,
     run_governance_decision,
@@ -383,6 +390,211 @@ def _load_record_payload(
     return payload
 
 
+def _resolve_raw_key(raw_object: models.RawObject) -> str:
+    """Strip the s3:// scheme from a raw_object's object_uri for storage lookups.
+
+    Mirrors the inline logic in `_load_record_payload` so both record-pipeline
+    inputs (JSON via `_load_record_payload` and xlsx via
+    `_run_structured_parse_xlsx`) share one URI-resolution rule.
+    """
+    raw_uri = raw_object.object_uri
+    return raw_uri.split("/", 3)[-1] if raw_uri.startswith("s3://") else raw_uri
+
+
+def _fail_structured_parse(
+    job: models.Job,
+    raw_object: models.RawObject,
+    session: Session,
+    trace_id: str | None,
+    *,
+    error_code: str,
+    reason: str,
+    stage_started_at,
+) -> NonRetryableError:
+    """Mark the job failed for a structured_parse error.
+
+    Writes both a `JobStage(stage_name="structured_parse", FAILED)` row and a
+    PIPELINE_FAILED audit event with `error_code` so operators can disjoin
+    structured_parse failures from other pipeline failures via the structured
+    error code (B1.3 deliberately does NOT introduce a separate audit event
+    for the failure path — failures are already uniformly tracked via
+    PIPELINE_FAILED).
+    """
+    job.status = JobStatus.FAILED
+    job.failure_reason = reason[:2000]
+    job.last_error_code = error_code
+    job.last_error_message = reason[:2000]
+    job.current_stage = "structured_parse"
+    _release_lock(job)
+    stage = models.JobStage(
+        job_id=job.id,
+        stage_name="structured_parse",
+        status=StageStatus.FAILED,
+        started_at=stage_started_at,
+        finished_at=utcnow(),
+        failure_reason=reason[:2000],
+        detail={"error_code": error_code},
+    )
+    session.add(stage)
+    write_audit(
+        session,
+        AuditEventType.PIPELINE_FAILED,
+        "job",
+        job.id,
+        trace_id,
+        {
+            "error_code": error_code,
+            "reason": reason[:500],
+            "stage": "structured_parse",
+            "raw_object_id": raw_object.id,
+        },
+    )
+    _maybe_aggregate_batch(session, job)
+    session.commit()
+    return NonRetryableError(reason, error_code=error_code)
+
+
+def _run_structured_parse(
+    job: models.Job,
+    raw_object: models.RawObject,
+    storage: ObjectStorage,
+    session: Session,
+    trace_id: str | None,
+    *,
+    parser_label: str,
+    parser_fn,
+) -> dict[str, Any]:
+    """Read raw bytes, run a structured_parse parser, persist stage + audit.
+
+    Shared core of `_run_structured_parse_xlsx` / `_run_structured_parse_csv`.
+    All format-specific parsers expose the same signature
+    (``source`` positional + ``source_filename`` / ``source_mime_type`` kwargs)
+    and return a `ParsedWorkbook`, so the runner doesn't need format-specific
+    knowledge beyond a label for error messages.
+
+    On parser failure: emits PIPELINE_FAILED audit with a `structured_parse_*`
+    error_code and raises NonRetryableError. The job will not be retried —
+    corrupted structured sources are permanent faults per design §3.4.
+    """
+    stage_started_at = utcnow()
+    raw_key = _resolve_raw_key(raw_object)
+
+    try:
+        raw_bytes = storage.get_bytes(raw_key)
+    except Exception as exc:  # storage layer (S3 / MinIO) read failure
+        raise _fail_structured_parse(
+            job, raw_object, session, trace_id,
+            error_code="structured_parse_storage_read_failed",
+            reason=f"failed to read {parser_label} bytes from storage: {type(exc).__name__}: {exc}",
+            stage_started_at=stage_started_at,
+        ) from exc
+
+    try:
+        workbook = parser_fn(
+            raw_bytes,
+            source_filename=str(raw_object.metadata_summary.get("filename") or "") or None,
+            source_mime_type=raw_object.mime_type,
+        )
+    except CorruptSourceError as exc:
+        raise _fail_structured_parse(
+            job, raw_object, session, trace_id,
+            error_code="structured_parse_corrupt_source",
+            reason=f"{parser_label} parse failed (corrupt source): {exc}",
+            stage_started_at=stage_started_at,
+        ) from exc
+    except StructuredParseError as exc:
+        raise _fail_structured_parse(
+            job, raw_object, session, trace_id,
+            error_code="structured_parse_failed",
+            reason=f"{parser_label} parse failed: {exc}",
+            stage_started_at=stage_started_at,
+        ) from exc
+    except Exception as exc:  # defensive: never let an unexpected parser error escape
+        raise _fail_structured_parse(
+            job, raw_object, session, trace_id,
+            error_code="structured_parse_unexpected_error",
+            reason=f"unexpected {parser_label} parser error: {type(exc).__name__}: {exc}",
+            stage_started_at=stage_started_at,
+        ) from exc
+
+    sheet_summary = [
+        {
+            "name": s.name,
+            "sheet_index": s.sheet_index,
+            "row_count": s.row_count,
+            "column_count": s.column_count,
+            "merged_ranges_count": len(s.merged_ranges),
+            "dropped_index_columns": s.dropped_index_columns,
+        }
+        for s in workbook.sheets
+    ]
+
+    session.add(
+        models.JobStage(
+            job_id=job.id,
+            stage_name="structured_parse",
+            status=StageStatus.SUCCEEDED,
+            started_at=stage_started_at,
+            finished_at=utcnow(),
+            detail={
+                "parser_version": workbook.parser_version,
+                "format": parser_label,
+                "sheet_count": len(workbook.sheets),
+                "sheets": sheet_summary,
+            },
+        )
+    )
+    job.current_stage = "structured_parse"
+    write_audit(
+        session,
+        AuditEventType.STRUCTURED_PARSE_COMPLETED,
+        "raw_object",
+        raw_object.id,
+        trace_id,
+        {
+            "parser_version": workbook.parser_version,
+            "format": parser_label,
+            "sheet_count": len(workbook.sheets),
+            "sheets": sheet_summary,
+            "job_id": job.id,
+            "timezone": workbook.timezone,
+        },
+    )
+    session.flush()
+
+    # mode="json" so datetimes etc. become strings — required for the dict
+    # to flow through MinIO / governance / RAGFlow paths that JSON-serialise.
+    return workbook.model_dump(mode="json")
+
+
+def _run_structured_parse_xlsx(
+    job: models.Job,
+    raw_object: models.RawObject,
+    storage: ObjectStorage,
+    session: Session,
+    trace_id: str | None,
+) -> dict[str, Any]:
+    """xlsx → ParsedWorkbook → JSON dict (B1.3)."""
+    return _run_structured_parse(
+        job, raw_object, storage, session, trace_id,
+        parser_label="xlsx", parser_fn=parse_xlsx,
+    )
+
+
+def _run_structured_parse_csv(
+    job: models.Job,
+    raw_object: models.RawObject,
+    storage: ObjectStorage,
+    session: Session,
+    trace_id: str | None,
+) -> dict[str, Any]:
+    """csv → ParsedWorkbook → JSON dict (B1.4)."""
+    return _run_structured_parse(
+        job, raw_object, storage, session, trace_id,
+        parser_label="csv", parser_fn=parse_csv,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Main job executor
 # ---------------------------------------------------------------------------
@@ -454,11 +666,29 @@ def execute_job(
     pipeline_type = PipelineType(job.payload.get("pipeline_type", PipelineType.DOCUMENT))
 
     # ingest_validate stage — platform-level checks (MIME, size, extension) FIRST,
-    # then for Pipeline B also decode and validate the JSON payload structure.
+    # then for Pipeline B dispatch to a payload-loader / parser by MIME:
+    #   - xlsx → structured_parse via parse_xlsx (B1.3, feature-flagged at gateway)
+    #   - csv  → structured_parse via parse_csv  (B1.4, feature-flagged at gateway)
+    #   - JSON → existing _load_record_payload (crawler / database / webhook /
+    #     file_upload+json) — kept as-is so existing ingestion contracts stay
+    #     stable; B2 profile_detect may later route file_upload+json through
+    #     parse_json once table-shaped vs business-object JSON can be disambiguated.
     _run_ingest_validate(job, raw_object, session, trace_id, pipeline_type)
     raw_payload: dict[str, Any] | None = None
     if pipeline_type == PipelineType.RECORD:
-        raw_payload = _load_record_payload(job, raw_object, storage, session, trace_id)
+        mime = (raw_object.mime_type or "").lower()
+        if mime in XLSX_MIME_TYPES:
+            raw_payload = _run_structured_parse_xlsx(
+                job, raw_object, storage, session, trace_id
+            )
+        elif mime in CSV_MIME_TYPES:
+            raw_payload = _run_structured_parse_csv(
+                job, raw_object, storage, session, trace_id
+            )
+        else:
+            raw_payload = _load_record_payload(
+                job, raw_object, storage, session, trace_id
+            )
 
     ctx = PipelineContext(
         session=session,

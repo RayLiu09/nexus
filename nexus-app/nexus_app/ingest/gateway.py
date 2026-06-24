@@ -69,16 +69,51 @@ def _find_or_create_batch(
     return batch, True
 
 
-def _pipeline_type_for(source_type: DataSourceType, mime_type: str | None) -> PipelineType:
+# MIME type sets for Pipeline B structured_parse routing (B1.1).
+# Kept as module-level constants so tests and detectors can reuse the canonical
+# lists instead of re-spelling vendor strings.
+XLSX_MIME_TYPES: frozenset[str] = frozenset({
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel",
+})
+CSV_MIME_TYPES: frozenset[str] = frozenset({
+    "text/csv",
+})
+
+
+def _pipeline_type_for(
+    source_type: DataSourceType,
+    mime_type: str | None,
+    *,
+    settings: Settings | None = None,
+) -> PipelineType:
     """Determine pipeline routing from source type and MIME type.
 
-    Pipeline B (record): CRAWLER, DATABASE, WEBHOOK sources; or FILE_UPLOAD/NAS with JSON MIME.
-    Pipeline A (document): all other FILE_UPLOAD and NAS sources.
+    Routing rules (in order):
+    1. CRAWLER / DATABASE / WEBHOOK sources → RECORD (always; predates B1)
+    2. FILE_UPLOAD / NAS with JSON MIME → RECORD (predates B1)
+    3. FILE_UPLOAD / NAS with xlsx MIME → RECORD when ``pipeline_b_xlsx_enabled`` flag is on (B1.1)
+    4. FILE_UPLOAD / NAS with csv MIME → RECORD when ``pipeline_b_csv_enabled`` flag is on (B1.1)
+    5. Everything else → DOCUMENT (default; preserves Pipeline A behavior)
+
+    The xlsx / csv flags exist because B1.1 only ships the routing decision;
+    structured_parse (B1.2) and worker integration (B1.3) land later. Flipping
+    the flags before the full chain is deployed would queue jobs that the worker
+    cannot execute, so flags default to ``False`` and are toggled only at B1.5.
     """
     if source_type in {DataSourceType.CRAWLER, DataSourceType.DATABASE, DataSourceType.WEBHOOK}:
         return PipelineType.RECORD
-    if mime_type and "json" in mime_type.lower():
+
+    normalized_mime = (mime_type or "").lower()
+    if "json" in normalized_mime:
         return PipelineType.RECORD
+
+    cfg = settings if settings is not None else get_settings()
+    if normalized_mime in XLSX_MIME_TYPES and cfg.pipeline_b_xlsx_enabled:
+        return PipelineType.RECORD
+    if normalized_mime in CSV_MIME_TYPES and cfg.pipeline_b_csv_enabled:
+        return PipelineType.RECORD
+
     return PipelineType.DOCUMENT
 
 
@@ -234,7 +269,9 @@ def _submit_ingest(
     session.flush()
     batch.status = IngestBatchStatus.RAW_PERSISTED
 
-    pipeline_type = _pipeline_type_for(data_source.source_type, prepared.mime_type)
+    pipeline_type = _pipeline_type_for(
+        data_source.source_type, prepared.mime_type, settings=settings
+    )
     job = _create_queued_job(
         session,
         batch,

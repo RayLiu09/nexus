@@ -405,7 +405,9 @@ def append_file_to_batch(
             same_batch_dup,
             file_idempotency_key,
             trace_id,
-            pipeline_type=_pipeline_type_for(data_source.source_type, same_batch_dup.mime_type).value,
+            pipeline_type=_pipeline_type_for(
+                data_source.source_type, same_batch_dup.mime_type, settings=settings
+            ).value,
             source_object_key=source_object_key or source_uri or file_idempotency_key,
         )
         job.status = JobStatus.SUCCEEDED
@@ -436,7 +438,9 @@ def append_file_to_batch(
         source_uri=source_uri,
         checksum=content_checksum,
     )
-    pipeline_type = _pipeline_type_for(data_source.source_type, mime_type)
+    pipeline_type = _pipeline_type_for(
+        data_source.source_type, mime_type, settings=settings
+    )
     job = _create_queued_job(
         session,
         batch,
