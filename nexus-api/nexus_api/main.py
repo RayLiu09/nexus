@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from nexus_api import schemas
 from nexus_api.api.internal import auth_router as internal_auth_router, router as internal_router
 from nexus_api.api.open import router as open_router
+from nexus_api.api.open_record_assets import router as open_record_assets_router
 from nexus_api.errors import (
     http_exception_handler,
     integrity_exception_handler,
@@ -181,6 +182,9 @@ def create_app() -> FastAPI:
     app.include_router(internal_auth_router)
     app.include_router(internal_router)
     app.include_router(open_router)
+    # Pipeline B record-asset read endpoints (B4 / B6) — separate file
+    # so B4 / B6 worktrees evolve them independently without conflict.
+    app.include_router(open_record_assets_router)
     return app
 
 

@@ -202,6 +202,11 @@ class AuditEventType(StrEnum):
     # disjoin on either the high-level stage or the domain-specific entity.
     DOMAIN_NORMALIZE_COMPLETED      = "DomainNormalizeCompleted"
     DOMAIN_NORMALIZE_FAILED         = "DomainNormalizeFailed"
+    # Pipeline B B6 ability_analysis writer events — see
+    # docs/pipeline_b_b4_b6_contract_freeze.md §七.
+    ABILITY_ANALYSIS_PERSISTED      = "AbilityAnalysisPersisted"
+    ABILITY_ITEMS_PERSISTED         = "AbilityItemsPersisted"
+    ABILITY_ITEMS_REJECTED          = "AbilityItemsRejected"
     CROSS_SOURCE_DUPLICATE_DETECTED = "CrossSourceDuplicateDetected"
     VERSION_STATUS_CHANGED          = "VersionStatusChanged"
     PIPELINE_FAILED                 = "PipelineFailed"
