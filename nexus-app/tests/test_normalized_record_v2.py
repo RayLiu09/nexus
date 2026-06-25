@@ -150,12 +150,20 @@ class TestBuildNormalizedRecordWithProfile:
         assert payload["metadata"]["profile"] == profile
         assert payload["metadata"]["domain_profile"] == "job_demand.v1"
 
-    def test_record_body_is_passthrough_of_raw_payload(self):
-        raw = {"records": [{"a": 1}, {"a": 2}]}
+    def test_record_body_projected_to_contract_shape_when_profile_present(self):
+        # B3.5 (record_body_adapter) projects the ParsedWorkbook dump into
+        # `{dataset, records}` for job_demand.v1, so the writer doesn't have
+        # to re-derive the shape. A dict that doesn't look like a workbook
+        # still passes through the projector — it just yields an empty
+        # records list (no sheets means no records).
+        raw = {"sheets": []}
         payload = _build_normalized_record(
             _stub_raw_object(), raw, profile_dict=_profile_dict()
         )
-        assert payload["record_body"] is raw
+        # job_demand.v1 path always emits the contract envelope.
+        assert "dataset" in payload["record_body"]
+        assert "records" in payload["record_body"]
+        assert payload["record_body"]["records"] == []
 
     def test_governance_quality_lineage_present(self):
         # Acceptance criterion (implementation plan §三 B3): all of these

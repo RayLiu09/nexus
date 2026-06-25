@@ -93,20 +93,24 @@ class TestSampleXlsxThroughPipeline:
         assert ref is not None
         assert ref.normalized_type == NormalizedType.RECORD
 
-    def test_no_job_demand_dataset_when_record_body_shape_invalid(self, pipeline_run, session):
-        # B1 currently emits ParsedWorkbook dump → no {dataset, records}
-        # wrapper → writer skips. Until the structured_parse → record_body
-        # adapter lands (post-B4), there should be ZERO rows in B4 tables.
+    def test_job_demand_dataset_persisted_after_b3_5_adapter(self, pipeline_run, session):
+        # Post-B3.5: structured_parse → record_body adapter projects the
+        # ParsedWorkbook into the {dataset, records} contract shape, so the
+        # writer DOES persist a dataset + records for the sample workbook.
         _, _ = pipeline_run
-        assert session.scalar(select(models.JobDemandDataset)) is None
-        assert session.scalar(select(models.JobDemandRecord)) is None
+        dataset = session.scalar(select(models.JobDemandDataset))
+        assert dataset is not None
+        assert dataset.source_channel == "excel_upload"
+        records = list(session.scalars(select(models.JobDemandRecord)))
+        assert len(records) >= 1
+        assert all(r.dataset_id == dataset.id for r in records)
 
-    def test_domain_normalize_audit_event_emitted_with_skipped_reason(
+    def test_domain_normalize_audit_event_emitted_without_skip(
         self, pipeline_run, session
     ):
-        # `_run_domain_normalize` (worker) wraps dispatcher result into the
-        # DOMAIN_NORMALIZE_COMPLETED event with `skipped` + `reason`. We
-        # expect to see a record_body_shape_invalid skip, NOT a failure.
+        # `_run_domain_normalize` writes DOMAIN_NORMALIZE_COMPLETED. With the
+        # B3.5 adapter in place we expect `skipped=False` and a real
+        # dataset_id, not a record_body_shape_invalid skip.
         _, _ = pipeline_run
         events = list(
             session.scalars(
@@ -118,8 +122,8 @@ class TestSampleXlsxThroughPipeline:
         assert events
         summary = events[-1].summary
         assert summary["domain_profile"] == "job_demand.v1"
-        assert summary["skipped"] is True
-        assert summary["reason"] == "record_body_shape_invalid"
+        assert summary["skipped"] is False
+        assert summary["dataset_id"] is not None
 
 
 @pytest.mark.skipif(not SAMPLE_JOB_DEMAND.exists(), reason="sample xlsx missing")

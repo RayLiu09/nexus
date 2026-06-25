@@ -3,12 +3,13 @@
 Backend used to return the entire table for every list endpoint — a DoS
 vector for tenants that accumulate 10k+ assets, audit logs, or jobs. The
 fix adds `?page=N&pageSize=M` (camelCase to match the console URL
-convention) with a hard ceiling of 100 rows per page and SELECT COUNT(*)
-driving `meta.total` so client-side pagination UI shows the right number
-of pages.
+convention) with a hard ceiling of 200 rows per page (raised from 100 to
+align with `docs/pipeline_b_b4_b6_contract_freeze.md §八.4`) and
+SELECT COUNT(*) driving `meta.total` so client-side pagination UI shows
+the right number of pages.
 
 These tests pin:
-  - the bounds (1 ≤ page ≤ 10_000, 1 ≤ pageSize ≤ 100)
+  - the bounds (1 ≤ page ≤ 10_000, 1 ≤ pageSize ≤ 200)
   - the slice contract (offset + limit applied at SQL layer)
   - `meta.total` reflects the underlying row count, not the slice
 """
@@ -71,7 +72,7 @@ def _seed_data_sources(session: Session, count: int) -> None:
         "page=0",            # below min
         "page=-1",
         "pageSize=0",
-        "pageSize=101",      # above 100 cap
+        "pageSize=201",      # above 200 cap
         "pageSize=999999",
         "page=10001",        # above page ceiling
     ],

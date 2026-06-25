@@ -421,7 +421,12 @@ class TestExecuteJobCsvRecordPipeline:
         assert sp.detail["format"] == "csv"
         assert sp.detail["parser_version"] == "csv_parser.v1"
 
-    def test_csv_job_persists_record_with_parsedworkbook_shape(self, session):
+    def test_csv_job_persists_record_with_projected_record_body(self, session):
+        # Post-B3.5: `record_body` is no longer the raw ParsedWorkbook —
+        # the adapter projects it to a contract shape based on
+        # `domain_profile`. csv_parser-specific provenance (parser_version,
+        # sheet names) is captured on the structured_parse audit / stage
+        # detail instead (see `test_csv_record_pipeline_succeeds`).
         storage = InMemoryObjectStorage()
         job, raw, _ = _seed_raw_object(
             session,
@@ -438,10 +443,10 @@ class TestExecuteJobCsvRecordPipeline:
         ref_key = refs[0].object_uri.split("/", 3)[-1]
         import json
         payload = json.loads(storage.get_bytes(ref_key).decode("utf-8"))
-        record_body = payload["record_body"]
-        assert record_body["parser_version"] == "csv_parser.v1"
-        # csv parser produces exactly one sheet named "csv"
-        assert record_body["sheets"][0]["name"] == "csv"
+        # The payload v2 envelope is preserved end-to-end regardless of which
+        # projection path runs: schema_version + record_body are always set.
+        assert payload["schema_version"].startswith("normalized-record")
+        assert isinstance(payload["record_body"], dict)
 
     def test_csv_corrupt_bytes_fails_with_structured_parse_error_code(self, session):
         # A CSV body that's also a path-style str triggers no error, but

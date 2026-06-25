@@ -26,6 +26,7 @@ from nexus_app.pipeline.normalized_record_schema import (
     NORMALIZED_DOCUMENT_SCHEMA_VERSION,
     NORMALIZED_RECORD_SCHEMA_VERSION,
 )
+from nexus_app.structured_parse.record_body_adapter import project_to_record_body
 from nexus_app.storage import checksum_value
 
 logger = logging.getLogger(__name__)
@@ -734,6 +735,12 @@ def _build_normalized_record(
     # dict. JSON-path ingestion (no profile_detect) gets None here.
     domain_profile = profile_dict.get("domain_profile") if profile_dict else None
 
+    # B3.5: project ParsedWorkbook → contract-shape record_body so the B4/B6
+    # writers don't have to re-derive {dataset, records} / {analysis, tasks}
+    # at the writer layer. Legacy JSON ingestion (no profile_dict) passes
+    # through unchanged.
+    record_body = project_to_record_body(raw_payload, profile_dict)
+
     payload: dict[str, Any] = {
         "schema_version": NORMALIZED_RECORD_SCHEMA_VERSION,
         "asset_id": None,
@@ -744,7 +751,7 @@ def _build_normalized_record(
         "record_key": raw_object.source_uri or raw_object.id,
         "title": title_from(raw_object, raw_payload),
         "language": "zh-CN",
-        "record_body": raw_payload,
+        "record_body": record_body,
         # body_markdown + body_markdown_meta are contract-freeze §5.0
         # placeholders that B5 will populate with the LLM-rendered derivative
         # view. Carrying them as nulls now lets B5 / B7 / B9 read the v2

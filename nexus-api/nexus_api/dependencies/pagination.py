@@ -4,9 +4,14 @@ The console already sends camelCase `pageSize` on its three currently-paginated
 pages (`/assets`, `/api-callers`, `/raw-ledger`), so this dependency adopts
 the same casing on the wire and resolves it to snake-case internally.
 
-Bounded by `_MAX_PAGE_SIZE` (100) so a single request can never serialize an
+Bounded by `_MAX_PAGE_SIZE` (200) so a single request can never serialize an
 unbounded result set. The previous unbounded list endpoints were a DoS vector
 for any tenant that accumulated 10k+ rows.
+
+The cap was raised from 100 → 200 to align with
+`docs/pipeline_b_b4_b6_contract_freeze.md §八.4`, which freezes 200 as the
+ceiling for record-asset list endpoints. The change applies platform-wide so
+all `/v1/*` lists keep one consistent pagination contract.
 """
 from __future__ import annotations
 
@@ -16,7 +21,7 @@ from fastapi import Query
 
 _DEFAULT_PAGE = 1
 _DEFAULT_PAGE_SIZE = 20
-_MAX_PAGE_SIZE = 100
+_MAX_PAGE_SIZE = 200
 _MAX_PAGE = 10_000
 
 

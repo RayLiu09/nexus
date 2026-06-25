@@ -165,7 +165,12 @@ class TestSampleJobDemandXlsxE2E:
         assert len(assets) == 1
         assert assets[0].asset_kind == AssetKind.RECORD
 
-    def test_normalized_record_carries_parsed_workbook_shape(self, accepted, session):
+    def test_normalized_record_carries_contract_shape_record_body(self, accepted, session):
+        # Post-B3.5: record_body is projected to {dataset, records} for
+        # job_demand.v1 (see structured_parse/record_body_adapter.py).
+        # The raw ParsedWorkbook shape no longer reaches the writer / payload;
+        # parser_version / sheet structure lives on the structured_parse audit
+        # event payload instead (see test_structured_parse_audit_recorded).
         acc, storage = accepted
         refs = list(session.scalars(select(models.NormalizedAssetRef)))
         assert len(refs) == 1
@@ -173,13 +178,9 @@ class TestSampleJobDemandXlsxE2E:
         import json
         payload = json.loads(storage.get_bytes(ref_key).decode("utf-8"))
         record_body = payload["record_body"]
-        assert record_body["parser_version"] == "xlsx_parser.v1"
-        assert record_body["sheets"][0]["name"] == "Sheet1"
-        # The 序号 column was dropped (B1.2 contract) — verify it never leaks
-        # into the parsed sheet's cells.
-        first_data_row = record_body["sheets"][0]["rows"][1]
-        header_letters = [c["column_letter"] for c in first_data_row["cells"]]
-        assert "A" not in header_letters  # column A was the dropped 序号 column
+        assert "dataset" in record_body
+        assert "records" in record_body
+        assert record_body["dataset"]["source_channel"] == "excel_upload"
 
     def test_structured_parse_audit_recorded(self, accepted, session):
         acc, _ = accepted
@@ -215,7 +216,11 @@ class TestSampleAbilityAnalysisXlsxE2E:
             f"job failed: {acc.job.failure_reason}"
         )
 
-    def test_five_sheets_preserved_in_record_body(self, accepted, session):
+    def test_four_pgsd_tasks_projected_in_record_body(self, accepted, session):
+        # Post-B3.5: record_body is projected to {analysis, tasks} for
+        # ability_analysis.pgsd.v1. The 5th sheet (overview matrix) doesn't
+        # match PGSD_SHEET_NAME_PATTERN, so it's intentionally not turned
+        # into a task — its evidence is consumed by profile_detect upstream.
         acc, storage = accepted
         refs = list(session.scalars(select(models.NormalizedAssetRef)))
         assert len(refs) == 1
@@ -223,34 +228,34 @@ class TestSampleAbilityAnalysisXlsxE2E:
         payload = json.loads(
             storage.get_bytes(refs[0].object_uri.split("/", 3)[-1]).decode("utf-8")
         )
-        sheet_names = [s["name"] for s in payload["record_body"]["sheets"]]
-        assert sheet_names == [
-            "典型工作任务和工作内容分析表",
-            "1.数据采集",
-            "2.数据标注",
-            "3.数据ETL处理",
-            "4.可视化图表制作",
-        ]
+        record_body = payload["record_body"]
+        assert record_body["analysis"]["analysis_model"] == "PGSD"
+        task_codes = sorted(t["task_code"] for t in record_body["tasks"])
+        assert task_codes == ["1", "2", "3", "4"]
+        # Order-agnostic — Chinese sort order differs from intuition.
+        task_names = {t["task_name"] for t in record_body["tasks"]}
+        assert task_names == {"数据采集", "数据标注", "数据ETL处理", "可视化图表制作"}
 
-    def test_merged_cells_forward_filled_in_record_body(self, accepted, session):
+    def test_p_category_abilities_grouped_under_work_contents(self, accepted, session):
+        # The projector buckets P-x.y.z codes under work_content x.y, while
+        # G/S/D codes drop into the task's general_abilities map. Verify both
+        # paths fire on the sample data.
         acc, storage = accepted
         refs = list(session.scalars(select(models.NormalizedAssetRef)))
         import json
         payload = json.loads(
             storage.get_bytes(refs[0].object_uri.split("/", 3)[-1]).decode("utf-8")
         )
-        sheet = next(
-            s for s in payload["record_body"]["sheets"] if s["name"] == "1.数据采集"
-        )
-        # Row 5 (1-based) is the 职业能力 origin cell at column A; rows 6+ are
-        # forward-filled. Verify both via the persisted JSON shape.
-        rows_by_index = {r["row_index"]: r for r in sheet["rows"]}
-        a5 = next(c for c in rows_by_index[5]["cells"] if c["column_letter"] == "A")
-        a6 = next(c for c in rows_by_index[6]["cells"] if c["column_letter"] == "A")
-        assert a5["value"] == "职业能力"
-        assert a5["is_merged_origin"] is True
-        assert a6["value"] == "职业能力"
-        assert a6["is_filled_from_merge"] is True
+        task1 = next(t for t in payload["record_body"]["tasks"] if t["task_code"] == "1")
+        # At least one work_content with at least one P ability under it.
+        assert task1["work_contents"]
+        wc = task1["work_contents"][0]
+        assert wc["abilities"]
+        first_p = wc["abilities"][0]
+        assert first_p["ability_code"].startswith("P-")
+        assert first_p["ability_major_category_code"] == "P"
+        # G/S/D map is always declared even when empty.
+        assert set(task1["general_abilities"].keys()) == {"G", "S", "D"}
 
 
 # ---------------------------------------------------------------------------
