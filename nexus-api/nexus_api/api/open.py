@@ -976,3 +976,287 @@ def qa_knowledge(
     session.commit()
 
     return response({"question": q, "kb": kb_code, "caller_id": caller.id, **result}, request)
+
+
+# ===========================================================================
+# Pipeline B B4 — job_demand record assets (read-only)
+# ===========================================================================
+# Paths frozen by `docs/pipeline_b_b4_b6_contract_freeze.md §八.1`. Mount
+# point is /open/v1 (the project's `/v1` baseline materialises here per
+# `docs/pipeline_b_api_contract_draft.md §0`). All endpoints are read-only;
+# writes belong on `/internal/v1` for the console (decision: §八.4 of the
+# freeze — operator vs upstream isolation).
+#
+# Authentication uses the same `require_api_caller` gate as the rest of
+# /open/v1. P0 org_scope filtering is a noop (see project memory
+# `project_p0_search_permission_scope`); the kwarg is reserved so future
+# slices can intersect with `caller.org_scope` without changing signatures.
+#
+# `JobDemandRequirementItem` is included for path completeness — B5 writes
+# the rows; B4 returns an empty list per §八.1 spec.
+
+
+def _serialize_job_demand_dataset(dataset: models.JobDemandDataset) -> dict:
+    """Project a `JobDemandDataset` row to the public response shape.
+
+    Keep this in sync with the field set in
+    `pipeline_b_api_contract_draft.md §1.1 RecordAssetListItem` so the
+    `/v1/record-assets/...` family stays consistent across slices.
+    """
+    return {
+        "id": dataset.id,
+        "normalized_ref_id": dataset.normalized_ref_id,
+        "asset_version_id": dataset.asset_version_id,
+        "major_name": dataset.major_name,
+        "industry_name": dataset.industry_name,
+        "source_channel": dataset.source_channel,
+        "schema_version": dataset.schema_version,
+        "record_count": dataset.record_count,
+        "invalid_count": dataset.invalid_count,
+        "duplicate_count": dataset.duplicate_count,
+        "quality_summary": dataset.quality_summary or {},
+        "created_at": dataset.created_at.isoformat() if dataset.created_at else None,
+        "updated_at": dataset.updated_at.isoformat() if dataset.updated_at else None,
+    }
+
+
+def _serialize_job_demand_record(record: models.JobDemandRecord) -> dict:
+    """Project a `JobDemandRecord` row to the public response shape.
+
+    Matches `JobDemandRecordItem` in api_contract_draft §1.3 — keep them in
+    lockstep so console + upstream consumers don't drift.
+    """
+    return {
+        "id": record.id,
+        "dataset_id": record.dataset_id,
+        "normalized_ref_id": record.normalized_ref_id,
+        "source_record_key": record.source_record_key,
+        "source_url": record.source_url,
+        "source_platform": record.source_platform,
+        "source_published_at": (
+            record.source_published_at.isoformat()
+            if record.source_published_at
+            else None
+        ),
+        "job_title": record.job_title,
+        "employment_type": record.employment_type,
+        "job_function_category": record.job_function_category,
+        "job_count": record.job_count,
+        "city": record.city,
+        "region": record.region,
+        # Numeric → float at the wire so JSON-consuming clients never see
+        # the Python Decimal repr (Postgres NUMERIC may surface as Decimal).
+        "salary_min": float(record.salary_min) if record.salary_min is not None else None,
+        "salary_max": float(record.salary_max) if record.salary_max is not None else None,
+        "salary_text": record.salary_text,
+        "experience_requirement": record.experience_requirement,
+        "education_requirement": record.education_requirement,
+        "company_name": record.company_name,
+        "company_address": record.company_address,
+        "enterprise_size": record.enterprise_size,
+        "industry_name": record.industry_name,
+        "job_skill_text": record.job_skill_text,
+        "job_description": record.job_description,
+        "responsibility_text": record.responsibility_text,
+        "requirement_text": record.requirement_text,
+        "quality_flags": record.quality_flags or {},
+        # `trace` is internal provenance — surface it at the public layer
+        # so upstream consumers can build click-through links back to the
+        # source sheet/row without having to call the console API.
+        "trace": record.trace or {},
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+    }
+
+
+def _serialize_requirement_item(item: models.JobDemandRequirementItem) -> dict:
+    """Project a requirement item. B5 owns the writes; B4 returns empty."""
+    return {
+        "id": item.id,
+        "record_id": item.record_id,
+        "dataset_id": item.dataset_id,
+        "item_type": item.item_type,
+        "item_name": item.item_name,
+        "raw_text": item.raw_text,
+        "normalized_name": item.normalized_name,
+        "taxonomy_code": item.taxonomy_code,
+        "confidence": float(item.confidence) if item.confidence is not None else None,
+        "extractor_version": item.extractor_version,
+        "evidence_field": item.evidence_field,
+        "ai_model_alias": item.ai_model_alias,
+    }
+
+
+@router.get("/record-assets/job-demand-datasets")
+def list_job_demand_datasets(
+    request: Request,
+    normalized_ref_id: str | None = Query(None, description="Exact match"),
+    major: str | None = Query(None, description="`major_name` exact match"),
+    industry: str | None = Query(None, description="`industry_name` exact match"),
+    pagination: Pagination = Depends(pagination_params),
+    caller: models.ApiCaller = Depends(require_api_caller),
+    session: Session = Depends(get_db),
+):
+    """Paginated list of B4 datasets — filters per §八.1."""
+    from sqlalchemy import func
+    _ = caller  # P0: credential auth is the only gate
+
+    stmt = select(models.JobDemandDataset)
+    count_stmt = select(func.count(models.JobDemandDataset.id))
+    if normalized_ref_id is not None:
+        stmt = stmt.where(models.JobDemandDataset.normalized_ref_id == normalized_ref_id)
+        count_stmt = count_stmt.where(
+            models.JobDemandDataset.normalized_ref_id == normalized_ref_id
+        )
+    if major is not None:
+        stmt = stmt.where(models.JobDemandDataset.major_name == major)
+        count_stmt = count_stmt.where(models.JobDemandDataset.major_name == major)
+    if industry is not None:
+        stmt = stmt.where(models.JobDemandDataset.industry_name == industry)
+        count_stmt = count_stmt.where(
+            models.JobDemandDataset.industry_name == industry
+        )
+
+    total = session.scalar(count_stmt) or 0
+    rows = list(
+        session.scalars(
+            stmt.order_by(models.JobDemandDataset.created_at.desc())
+            .offset(pagination.offset)
+            .limit(pagination.limit)
+        ).all()
+    )
+    return list_response(
+        [_serialize_job_demand_dataset(d) for d in rows],
+        request,
+        page=pagination.page,
+        page_size=pagination.page_size,
+        total=total,
+    )
+
+
+@router.get("/record-assets/job-demand-datasets/{dataset_id}")
+def get_job_demand_dataset(
+    dataset_id: str,
+    request: Request,
+    caller: models.ApiCaller = Depends(require_api_caller),
+    session: Session = Depends(get_db),
+):
+    """Detail for a single B4 dataset (includes the full `quality_summary`)."""
+    _ = caller
+    dataset = session.get(models.JobDemandDataset, dataset_id)
+    if dataset is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"job_demand_dataset '{dataset_id}' not found",
+        )
+    return response(_serialize_job_demand_dataset(dataset), request)
+
+
+@router.get("/record-assets/job-demand-datasets/{dataset_id}/records")
+def list_job_demand_records_for_dataset(
+    dataset_id: str,
+    request: Request,
+    city: str | None = Query(None),
+    industry: str | None = Query(None, description="`industry_name` exact match"),
+    enterprise_size: str | None = Query(None),
+    employment_type: str | None = Query(None),
+    pagination: Pagination = Depends(pagination_params),
+    caller: models.ApiCaller = Depends(require_api_caller),
+    session: Session = Depends(get_db),
+):
+    """Paginated records for a dataset — filters per §八.1."""
+    _ = caller
+    if session.get(models.JobDemandDataset, dataset_id) is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"job_demand_dataset '{dataset_id}' not found",
+        )
+
+    from sqlalchemy import func
+    stmt = select(models.JobDemandRecord).where(
+        models.JobDemandRecord.dataset_id == dataset_id
+    )
+    count_stmt = select(func.count(models.JobDemandRecord.id)).where(
+        models.JobDemandRecord.dataset_id == dataset_id
+    )
+    if city is not None:
+        stmt = stmt.where(models.JobDemandRecord.city == city)
+        count_stmt = count_stmt.where(models.JobDemandRecord.city == city)
+    if industry is not None:
+        stmt = stmt.where(models.JobDemandRecord.industry_name == industry)
+        count_stmt = count_stmt.where(models.JobDemandRecord.industry_name == industry)
+    if enterprise_size is not None:
+        stmt = stmt.where(models.JobDemandRecord.enterprise_size == enterprise_size)
+        count_stmt = count_stmt.where(
+            models.JobDemandRecord.enterprise_size == enterprise_size
+        )
+    if employment_type is not None:
+        stmt = stmt.where(models.JobDemandRecord.employment_type == employment_type)
+        count_stmt = count_stmt.where(
+            models.JobDemandRecord.employment_type == employment_type
+        )
+
+    total = session.scalar(count_stmt) or 0
+    rows = list(
+        session.scalars(
+            stmt.order_by(models.JobDemandRecord.created_at.desc())
+            .offset(pagination.offset)
+            .limit(pagination.limit)
+        ).all()
+    )
+    return list_response(
+        [_serialize_job_demand_record(r) for r in rows],
+        request,
+        page=pagination.page,
+        page_size=pagination.page_size,
+        total=total,
+    )
+
+
+@router.get("/record-assets/job-demand-records/{record_id}")
+def get_job_demand_record(
+    record_id: str,
+    request: Request,
+    caller: models.ApiCaller = Depends(require_api_caller),
+    session: Session = Depends(get_db),
+):
+    """Detail for a single B4 record."""
+    _ = caller
+    record = session.get(models.JobDemandRecord, record_id)
+    if record is None:
+        raise HTTPException(
+            status_code=404, detail=f"job_demand_record '{record_id}' not found",
+        )
+    return response(_serialize_job_demand_record(record), request)
+
+
+@router.get("/record-assets/job-demand-records/{record_id}/requirement-items")
+def list_requirement_items_for_record(
+    record_id: str,
+    request: Request,
+    caller: models.ApiCaller = Depends(require_api_caller),
+    session: Session = Depends(get_db),
+):
+    """Requirement items for a record. B5 populates the table; B4 ships the
+    endpoint as a working contract — early integrators get [] today, and
+    no schema bump is needed when B5 lands."""
+    _ = caller
+    if session.get(models.JobDemandRecord, record_id) is None:
+        raise HTTPException(
+            status_code=404, detail=f"job_demand_record '{record_id}' not found",
+        )
+    rows = list(
+        session.scalars(
+            select(models.JobDemandRequirementItem)
+            .where(models.JobDemandRequirementItem.record_id == record_id)
+            .order_by(models.JobDemandRequirementItem.created_at.asc())
+        ).all()
+    )
+    return list_response(
+        [_serialize_requirement_item(r) for r in rows],
+        request,
+        page=1,
+        page_size=len(rows) or 1,
+        total=len(rows),
+    )
+
+

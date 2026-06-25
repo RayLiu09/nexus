@@ -202,6 +202,12 @@ class AuditEventType(StrEnum):
     # disjoin on either the high-level stage or the domain-specific entity.
     DOMAIN_NORMALIZE_COMPLETED      = "DomainNormalizeCompleted"
     DOMAIN_NORMALIZE_FAILED         = "DomainNormalizeFailed"
+    # Pipeline B B4 — job_demand writer-specific events (per
+    # docs/pipeline_b_b4_b6_contract_freeze.md §七). Emitted IN ADDITION TO
+    # DOMAIN_NORMALIZE_COMPLETED so operators can disjoin on the high-level
+    # stage OR the domain-specific entity that landed.
+    JOB_DEMAND_DATASET_PERSISTED    = "JobDemandDatasetPersisted"
+    JOB_DEMAND_RECORDS_PERSISTED    = "JobDemandRecordsPersisted"
     CROSS_SOURCE_DUPLICATE_DETECTED = "CrossSourceDuplicateDetected"
     VERSION_STATUS_CHANGED          = "VersionStatusChanged"
     PIPELINE_FAILED                 = "PipelineFailed"
