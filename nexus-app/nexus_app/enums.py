@@ -234,6 +234,10 @@ class AuditEventType(StrEnum):
     # governance_result.id so the audit can be joined back to the persisted
     # decision row.
     ABILITY_ANALYSIS_GOVERNED       = "AbilityAnalysisGoverned"
+    # Pipeline B B8 — CapabilityGraphStaging materialization. One event per
+    # `build_capability_staging` call. Carries the build_id + counts so the
+    # audit alone is enough to reproduce the build outcome.
+    CAPABILITY_GRAPH_STAGING_GENERATED = "CapabilityGraphStagingGenerated"
     CROSS_SOURCE_DUPLICATE_DETECTED = "CrossSourceDuplicateDetected"
     VERSION_STATUS_CHANGED          = "VersionStatusChanged"
     PIPELINE_FAILED                 = "PipelineFailed"

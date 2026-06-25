@@ -1403,3 +1403,130 @@ class AbilityAnalysisSourceDataset(Base):
         DateTime(timezone=True), default=utcnow, nullable=False,
     )
 
+
+
+# ---------------------------------------------------------------------------
+# Pipeline B B8 — CapabilityGraphStaging tables (build / node / edge)
+# ---------------------------------------------------------------------------
+# Schema source: docs/pipeline_b_contract_freeze.md §5.12 + design §七.
+# These tables are the staging layer between domain reads (job_demand_* +
+# occupational_*) and a future formal capability graph. CourseModule is
+# reserved as a node_type / edge_type token in the design but NOT written
+# in P0 (`pipeline_b_b4_b6_contract_freeze.md` doesn't gate B8, so the
+# schema lives here without an extra freeze pass).
+#
+# Cascade chain: deleting a build wipes its nodes + edges. Deleting a node
+# does NOT cascade to the build (edges already cascade-delete with the
+# build) — preserves the build envelope so audit / quality_summary lookups
+# still see a row even after node-level pruning.
+
+
+class CapabilityGraphStagingBuild(TimestampMixin, Base):
+    """One graph-construction batch over a normalized_asset_ref.
+
+    `build_type` partitions the source data:
+    - `job_demand`        — uses only job_demand_dataset + records + requirement_items
+    - `ability_analysis`  — uses only occupational_* tables
+    - `combined`          — uses both, plus ability_analysis_source_dataset links
+    """
+    __tablename__ = "capability_graph_staging_build"
+    __table_args__ = (
+        Index("ix_cgsb_normalized_ref_id", "normalized_ref_id"),
+        Index("ix_cgsb_status", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("normalized_asset_ref.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    domain: Mapped[str] = mapped_column(String(40), nullable=False)
+    build_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    quality_summary: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+    )
+
+
+class CapabilityGraphStagingNode(TimestampMixin, Base):
+    """A node candidate for the formal capability graph.
+
+    `node_key` is the stable business key: uniqueness on
+    (build_id, node_type, node_key) protects against duplicate inserts
+    within the same build (per §5.12 uq_cgsn).
+    """
+    __tablename__ = "capability_graph_staging_node"
+    __table_args__ = (
+        UniqueConstraint(
+            "build_id", "node_type", "node_key", name="uq_cgsn",
+        ),
+        Index("ix_cgsn_build_id", "build_id"),
+        Index("ix_cgsn_type", "node_type"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    build_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("capability_graph_staging_build.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    node_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    node_key: Mapped[str] = mapped_column(String(256), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(512), nullable=False)
+    canonical_name: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    source_table: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    properties: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+    )
+    confidence: Mapped[Decimal | None] = mapped_column(
+        Numeric(5, 4), nullable=True,
+    )
+
+
+class CapabilityGraphStagingEdge(TimestampMixin, Base):
+    """A directed edge connecting two staging nodes.
+
+    `(build_id, source_node_id, target_node_id, edge_type)` is unique per
+    §5.12 uq_cgse — same edge can't appear twice within one build.
+    `edge_type` whitelist is enforced at the application layer (design
+    §7.4); a future migration can add a CHECK constraint once the list
+    stabilises beyond P0.
+    """
+    __tablename__ = "capability_graph_staging_edge"
+    __table_args__ = (
+        UniqueConstraint(
+            "build_id", "source_node_id", "target_node_id", "edge_type",
+            name="uq_cgse",
+        ),
+        Index("ix_cgse_build_id", "build_id"),
+        Index("ix_cgse_edge_type", "edge_type"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    build_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("capability_graph_staging_build.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    source_node_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("capability_graph_staging_node.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    target_node_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("capability_graph_staging_node.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    edge_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_table: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    evidence: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+    )
+    confidence: Mapped[Decimal | None] = mapped_column(
+        Numeric(5, 4), nullable=True,
+    )

@@ -867,6 +867,24 @@ def _run_domain_normalize(
             analysis_id=result.analysis_id,
         )
 
+    # B8 — CapabilityGraphStaging materialization. Runs on BOTH job_demand
+    # and ability_analysis paths; build_type matches the domain. The
+    # `combined` build_type lives behind a future API trigger (operator
+    # explicitly requests cross-domain build) — automatic worker runs
+    # stay scoped to the active domain to keep the audit chain readable.
+    if not result.skipped and result.domain_profile in {
+        "job_demand.v1", "ability_analysis.pgsd.v1"
+    }:
+        build_type = (
+            "job_demand"
+            if result.domain_profile == "job_demand.v1"
+            else "ability_analysis"
+        )
+        _run_capability_graph_staging(
+            ctx, normalized_ref, raw_object, session, trace_id, job_id,
+            build_type=build_type,
+        )
+
 
 def _run_body_markdown_render(
     ctx: PipelineContext,
@@ -1330,6 +1348,69 @@ def _overview_work_content_codes(
     if isinstance(codes, list) and all(isinstance(c, str) for c in codes):
         return set(codes)
     return None
+
+
+def _run_capability_graph_staging(
+    ctx: PipelineContext,
+    normalized_ref: models.NormalizedAssetRef,
+    raw_object: models.RawObject,
+    session: Session,
+    trace_id: str | None,
+    job_id: str,
+    *,
+    build_type: str,
+) -> None:
+    """B8 — materialize CapabilityGraphStaging build for `normalized_ref`.
+
+    Runs after B7 governance. Failures are audited but never raised —
+    staging is a derived view, the source domain rows + governance result
+    remain the authoritative state if construction fails.
+    """
+    from nexus_app.capability_graph import build_capability_staging
+
+    try:
+        result = build_capability_staging(
+            session, normalized_ref, build_type=build_type,
+        )
+    except Exception as exc:  # noqa: BLE001 — staging failure never blocks pipeline
+        logger.exception(
+            "capability_graph_staging failed for normalized_ref=%s",
+            normalized_ref.id,
+        )
+        write_audit(
+            session,
+            AuditEventType.CAPABILITY_GRAPH_STAGING_GENERATED,
+            "normalized_asset_ref",
+            normalized_ref.id,
+            trace_id,
+            {
+                "raw_object_id": raw_object.id,
+                "job_id": job_id,
+                "build_type": build_type,
+                "skipped": True,
+                "skipped_reason": f"unexpected_error:{type(exc).__name__}",
+            },
+        )
+        return
+
+    write_audit(
+        session,
+        AuditEventType.CAPABILITY_GRAPH_STAGING_GENERATED,
+        "normalized_asset_ref",
+        normalized_ref.id,
+        trace_id,
+        {
+            "raw_object_id": raw_object.id,
+            "job_id": job_id,
+            "build_type": build_type,
+            "build_id": result.build_id,
+            "skipped": result.skipped,
+            "skipped_reason": result.skipped_reason,
+            "nodes_written": result.nodes_written,
+            "edges_written": result.edges_written,
+            "quality_summary": result.quality_summary,
+        },
+    )
 
 
 def _build_extraction_llm_client(settings):
