@@ -213,6 +213,22 @@ class AuditEventType(StrEnum):
     ABILITY_ANALYSIS_PERSISTED      = "AbilityAnalysisPersisted"
     ABILITY_ITEMS_PERSISTED         = "AbilityItemsPersisted"
     ABILITY_ITEMS_REJECTED          = "AbilityItemsRejected"
+    # Pipeline B B5.2 — knowledge_unit extraction outcome. One event per
+    # job_demand_dataset that ran through the LLM extraction service. Carries
+    # rule_set_id + prompt_profile_id + per-record counts so the audit alone
+    # is enough to reproduce the decision (re-running LLM not required).
+    REQUIREMENT_ITEMS_EXTRACTED     = "RequirementItemsExtracted"
+    # Pipeline B B5.3 — body_markdown render outcome. One event per
+    # normalized_record (job_demand OR ability_analysis) that ran through
+    # the renderer. Records render_strategy (LLM vs deterministic),
+    # skeleton validation, fallback_reason, and the record_body_hash that
+    # drove the cache lookup.
+    BODY_MARKDOWN_RENDERED          = "BodyMarkdownRendered"
+    # Pipeline B B5.4 — task_description_structured LLM outcome. One event
+    # per occupational_ability_analysis. Tasks structured / rejected counts
+    # let reviewers see whether the B6 placeholder `{}` has been filled in
+    # at all.
+    TASK_DESCRIPTIONS_STRUCTURED    = "TaskDescriptionsStructured"
     CROSS_SOURCE_DUPLICATE_DETECTED = "CrossSourceDuplicateDetected"
     VERSION_STATUS_CHANGED          = "VersionStatusChanged"
     PIPELINE_FAILED                 = "PipelineFailed"

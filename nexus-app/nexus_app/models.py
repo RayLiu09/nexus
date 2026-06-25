@@ -552,10 +552,23 @@ class NormalizedAssetRef(TimestampMixin, Base):
 
 
 class AIPromptProfile(TimestampMixin, Base):
-    """AI Prompt configuration with version management."""
+    """AI Prompt configuration with version management.
+
+    B5.1 (Pipeline B knowledge-unit extraction + body_markdown rendering)
+    extends this table with three nullable fields per
+    `docs/pipeline_b_contract_freeze.md §九`:
+      - `domain`            — business-domain label ("occupation", …)
+      - `rules_object_type` — initial whitelist: `ai_analysis_rules` only
+      - `rules_object_code` — business key like `<rule_set_code>:<version>`
+    All three default NULL so legacy governance-phase prompts keep working
+    without backfill. The CHECK constraint is declared in the migration
+    rather than at the ORM layer so dialect differences (PG vs SQLite test)
+    don't leak into the model.
+    """
     __tablename__ = "ai_prompt_profile"
     __table_args__ = (
         Index("ix_ai_prompt_profile_name_status", "profile_name", "status"),
+        Index("ix_ai_prompt_profile_scenario", "scenario"),
         UniqueConstraint("profile_name", "profile_version", name="uq_ai_prompt_profile_name_ver"),
     )
 
@@ -564,6 +577,9 @@ class AIPromptProfile(TimestampMixin, Base):
     profile_version: Mapped[int] = mapped_column(nullable=False, default=1)
     task_type: Mapped[str] = mapped_column(String(80), nullable=False)
     scenario: Mapped[str] = mapped_column(String(80), nullable=False, default="default")
+    domain: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    rules_object_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    rules_object_code: Mapped[str | None] = mapped_column(String(256), nullable=True)
     status: Mapped[PromptProfileStatus] = mapped_column(
         Enum(PromptProfileStatus, values_callable=lambda enum: [item.value for item in enum]),
         default=PromptProfileStatus.ACTIVE,
@@ -580,6 +596,70 @@ class AIPromptProfile(TimestampMixin, Base):
                                                    default="masked_content")
     created_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
     trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class AIAnalysisRules(TimestampMixin, Base):
+    """Pipeline B knowledge-unit extraction + body_markdown render rule sets.
+
+    Schema-frozen by `docs/pipeline_b_contract_freeze.md §5.4` (+ §八). Each
+    row carries one immutable `(rule_set_code, version)` pair; rule mutations
+    must add a new `version` row rather than mutating existing ones (per
+    freeze §八 "重跑 seed 不允许覆盖已激活规则的语义").
+
+    Source of truth is **this PG table**, not `config/ai_analysis_rules.json`.
+    The JSON file is a seed only — the loader inserts missing
+    `(rule_set_code, version)` rows and never updates existing ones
+    (see `nexus_app/knowledge_extraction/rules_loader.py`).
+
+    Why we did NOT reuse `governance_rules_version`:
+    - Different concept owner (knowledge-unit extraction vs data-asset
+      governance) — see CLAUDE.md "AI Governance Contract" + decision §12.5
+    - Different writer / consumer modules — keep them separated so a
+      governance-rules schema change doesn't drag the extraction rules
+      with it (and vice versa)
+    """
+    __tablename__ = "ai_analysis_rules"
+    __table_args__ = (
+        UniqueConstraint("rule_set_code", "version", name="uq_aar_code_version"),
+        Index("ix_aar_scenario", "scenario"),
+        Index("ix_aar_active", "is_active"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    rule_set_code: Mapped[str] = mapped_column(String(128), nullable=False)
+    version: Mapped[str] = mapped_column(String(40), nullable=False)
+    scenario: Mapped[str] = mapped_column(String(80), nullable=False)
+    domain: Mapped[str] = mapped_column(String(64), nullable=False)
+    target_type: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    # output_format: 'json' (default) or 'markdown'. CHECK enforced in migration.
+    output_format: Mapped[str] = mapped_column(String(16), default="json", nullable=False)
+    output_contract: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    # JSON-output schema. NULL when output_format='markdown' (CHECK enforced
+    # in the migration: exactly one of output_item_schema / markdown_skeleton
+    # is populated for any given row).
+    output_item_schema: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    # Markdown-output skeleton (required headings, field blocks, length cap,
+    # overflow template). NULL when output_format='json'.
+    markdown_skeleton: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    field_whitelist: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    guardrails: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    auto_admit_threshold: Mapped[Decimal] = mapped_column(Numeric(4, 3), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    owner_module: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="knowledge_unit_extraction"
+    )
+    is_builtin: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # 'reject' (default) drops the result on failure; 'deterministic_template'
+    # falls back to a code-side renderer (only meaningful with output_format=
+    # 'markdown'). CHECK enforced in migration.
+    fallback_strategy: Mapped[str] = mapped_column(
+        String(32), default="reject", nullable=False
+    )
+    initialized_by: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    initialized_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class AIGovernanceRun(TimestampMixin, Base):

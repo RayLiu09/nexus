@@ -811,6 +811,370 @@ def _run_domain_normalize(
         },
     )
 
+    # B5.3 — render body_markdown derivative view. Runs on every successful
+    # writer dispatch (job_demand + ability_analysis); skipped on dispatcher
+    # skip. Mutates `normalized_ref.object_uri` payload in place + updates
+    # ref.checksum. Failures fall back to deterministic template — never
+    # raises, so the rest of the pipeline keeps moving.
+    if not result.skipped and result.domain_profile in {
+        "job_demand.v1", "ability_analysis.pgsd.v1"
+    }:
+        _run_body_markdown_render(
+            ctx, normalized_ref, raw_object, session, trace_id, job_id,
+            domain_profile=result.domain_profile,
+        )
+
+    # B5.2 — knowledge_unit extraction on the job_demand path. Skipped when
+    # the dispatcher itself was skipped (no dataset to extract from) or when
+    # the domain isn't job_demand. Failures inside the extraction service
+    # are audited but never raised, so governance / chunking still get a
+    # chance to run.
+    if (
+        not result.skipped
+        and result.domain_profile == "job_demand.v1"
+        and result.dataset_id is not None
+    ):
+        _run_requirement_extraction(
+            ctx, normalized_ref, raw_object, session, trace_id, job_id,
+            dataset_id=result.dataset_id,
+        )
+
+    # B5.4 — task_description_structured LLM fill on the ability_analysis
+    # path. B6 always writes `{}` as a placeholder; we replace it here when
+    # LLM is available. Failures audited but never raised.
+    if (
+        not result.skipped
+        and result.domain_profile == "ability_analysis.pgsd.v1"
+        and result.analysis_id is not None
+    ):
+        _run_task_structuring(
+            ctx, normalized_ref, raw_object, session, trace_id, job_id,
+            analysis_id=result.analysis_id,
+        )
+
+
+def _run_body_markdown_render(
+    ctx: PipelineContext,
+    normalized_ref: models.NormalizedAssetRef,
+    raw_object: models.RawObject,
+    session: Session,
+    trace_id: str | None,
+    job_id: str,
+    *,
+    domain_profile: str,
+) -> None:
+    """B5.3 — render body_markdown into the existing normalized payload.
+
+    The render pipeline (LLM → skeleton validate → deterministic fallback)
+    is encapsulated in `body_markdown.render_body_markdown`. This wrapper
+    handles the IO:
+    - Fetch existing payload from MinIO
+    - Mutate payload.body_markdown + payload.body_markdown_meta
+    - Re-upload to the same object_uri (overwrite)
+    - Update normalized_ref.checksum to match the new content
+    - Audit the render outcome
+    """
+    from nexus_app.body_markdown import render_body_markdown
+    from nexus_app.storage import checksum_value
+
+    object_uri = normalized_ref.object_uri or ""
+    if not object_uri:
+        logger.warning(
+            "body_markdown: normalized_ref %s has no object_uri; skipping",
+            normalized_ref.id,
+        )
+        return
+    key = object_uri.split("/", 3)[-1] if object_uri.startswith("s3://") else object_uri
+
+    try:
+        raw = ctx.storage.get_bytes(key)
+    except Exception:  # noqa: BLE001 — IO failures audited, not raised
+        logger.exception(
+            "body_markdown: payload fetch failed at %s; skipping", object_uri,
+        )
+        write_audit(
+            session, AuditEventType.BODY_MARKDOWN_RENDERED,
+            "normalized_asset_ref", normalized_ref.id, trace_id,
+            {"job_id": job_id, "skipped": True,
+             "skipped_reason": "payload_fetch_failed",
+             "domain_profile": domain_profile},
+        )
+        return
+
+    try:
+        payload = json.loads(raw)
+    except (TypeError, ValueError):
+        logger.warning(
+            "body_markdown: payload at %s is not valid JSON; skipping",
+            object_uri,
+        )
+        write_audit(
+            session, AuditEventType.BODY_MARKDOWN_RENDERED,
+            "normalized_asset_ref", normalized_ref.id, trace_id,
+            {"job_id": job_id, "skipped": True,
+             "skipped_reason": "payload_not_json",
+             "domain_profile": domain_profile},
+        )
+        return
+
+    record_body = payload.get("record_body") if isinstance(payload, dict) else None
+    if not isinstance(record_body, dict) or not record_body:
+        write_audit(
+            session, AuditEventType.BODY_MARKDOWN_RENDERED,
+            "normalized_asset_ref", normalized_ref.id, trace_id,
+            {"job_id": job_id, "skipped": True,
+             "skipped_reason": "empty_record_body",
+             "domain_profile": domain_profile},
+        )
+        return
+
+    llm_client = _build_extraction_llm_client(ctx.settings)
+    try:
+        render_result = render_body_markdown(
+            session,
+            domain_profile=domain_profile,
+            record_body=record_body,
+            llm_client=llm_client,
+        )
+    except Exception as exc:  # noqa: BLE001 — render failure audited only
+        logger.exception(
+            "body_markdown: render failed for normalized_ref=%s",
+            normalized_ref.id,
+        )
+        write_audit(
+            session, AuditEventType.BODY_MARKDOWN_RENDERED,
+            "normalized_asset_ref", normalized_ref.id, trace_id,
+            {"job_id": job_id, "skipped": True,
+             "skipped_reason": f"unexpected_error:{type(exc).__name__}",
+             "domain_profile": domain_profile},
+        )
+        return
+
+    if render_result.skipped or render_result.body_markdown is None or render_result.meta is None:
+        write_audit(
+            session, AuditEventType.BODY_MARKDOWN_RENDERED,
+            "normalized_asset_ref", normalized_ref.id, trace_id,
+            {"job_id": job_id, "skipped": True,
+             "skipped_reason": render_result.skipped_reason,
+             "domain_profile": domain_profile},
+        )
+        return
+
+    payload["body_markdown"] = render_result.body_markdown
+    payload["body_markdown_meta"] = render_result.meta.to_dict()
+    new_content = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    try:
+        ctx.storage.put_bytes(key, new_content, "application/json", None)
+    except Exception:  # noqa: BLE001 — write failure audited; don't fail pipeline
+        logger.exception(
+            "body_markdown: payload re-upload failed for %s", object_uri,
+        )
+        write_audit(
+            session, AuditEventType.BODY_MARKDOWN_RENDERED,
+            "normalized_asset_ref", normalized_ref.id, trace_id,
+            {"job_id": job_id, "skipped": True,
+             "skipped_reason": "payload_reupload_failed",
+             "domain_profile": domain_profile},
+        )
+        return
+    normalized_ref.checksum = checksum_value(new_content)
+
+    meta_dict = render_result.meta.to_dict()
+    write_audit(
+        session, AuditEventType.BODY_MARKDOWN_RENDERED,
+        "normalized_asset_ref", normalized_ref.id, trace_id,
+        {
+            "job_id": job_id,
+            "raw_object_id": raw_object.id,
+            "domain_profile": domain_profile,
+            "render_strategy": meta_dict["render_strategy"],
+            "render_scenario": meta_dict["render_scenario"],
+            "render_prompt_template_id": meta_dict["render_prompt_template_id"],
+            "render_rules_version_id": meta_dict["render_rules_version_id"],
+            "render_confidence": meta_dict["render_confidence"],
+            "render_latency_ms": meta_dict["render_latency_ms"],
+            "skeleton_passed": meta_dict["skeleton_validation"]["passed"],
+            "skeleton_violations": meta_dict["skeleton_validation"]["violations"],
+            "fallback_reason": meta_dict["fallback_reason"],
+            "record_body_hash": meta_dict["record_body_hash"],
+        },
+    )
+
+
+def _run_requirement_extraction(
+    ctx: PipelineContext,
+    normalized_ref: models.NormalizedAssetRef,
+    raw_object: models.RawObject,
+    session: Session,
+    trace_id: str | None,
+    job_id: str,
+    *,
+    dataset_id: str,
+) -> None:
+    """B5.2 — run LLM extraction over the freshly-persisted job_demand_dataset.
+
+    Lives next to `_run_domain_normalize` so the timing relationship
+    (extraction immediately follows the writer) is obvious to readers
+    grep-ing for the audit chain. LLM client is built per-call from the
+    same factory the normalize service uses, so LiteLLM config / fakes /
+    timeouts stay consistent across stages.
+    """
+    from nexus_app.knowledge_extraction import extract_requirements_for_dataset
+
+    dataset = session.get(models.JobDemandDataset, dataset_id)
+    if dataset is None:
+        # Defensive: the writer just inserted this row inside the same
+        # session — losing it would mean a programming error upstream.
+        logger.warning(
+            "knowledge_extraction: dataset %s vanished between writer and "
+            "extraction; skipping (job=%s)",
+            dataset_id, job_id,
+        )
+        return
+
+    llm_client = _build_extraction_llm_client(ctx.settings)
+    try:
+        result = extract_requirements_for_dataset(
+            session, dataset, llm_client=llm_client,
+        )
+    except Exception as exc:  # noqa: BLE001 — extraction failure never blocks pipeline
+        logger.exception(
+            "knowledge_extraction failed for dataset=%s", dataset_id,
+        )
+        write_audit(
+            session,
+            AuditEventType.REQUIREMENT_ITEMS_EXTRACTED,
+            "job_demand_dataset",
+            dataset_id,
+            trace_id,
+            {
+                "raw_object_id": raw_object.id,
+                "job_id": job_id,
+                "normalized_ref_id": normalized_ref.id,
+                "skipped": True,
+                "skipped_reason": f"unexpected_error:{type(exc).__name__}",
+            },
+        )
+        return
+
+    write_audit(
+        session,
+        AuditEventType.REQUIREMENT_ITEMS_EXTRACTED,
+        "job_demand_dataset",
+        dataset_id,
+        trace_id,
+        {
+            "raw_object_id": raw_object.id,
+            "job_id": job_id,
+            "normalized_ref_id": normalized_ref.id,
+            "skipped": result.skipped,
+            "skipped_reason": result.skipped_reason,
+            "rule_set_id": result.rule_set_id,
+            "prompt_profile_id": result.prompt_profile_id,
+            "records_processed": result.records_processed,
+            "items_persisted": result.items_persisted,
+            "items_low_confidence": result.items_low_confidence,
+            "items_rejected": result.items_rejected,
+            "quality_summary": result.quality_summary,
+        },
+    )
+
+
+def _run_task_structuring(
+    ctx: PipelineContext,
+    normalized_ref: models.NormalizedAssetRef,
+    raw_object: models.RawObject,
+    session: Session,
+    trace_id: str | None,
+    job_id: str,
+    *,
+    analysis_id: str,
+) -> None:
+    """B5.4 — fill task_description_structured on every task in the analysis.
+
+    Sibling helper to `_run_requirement_extraction`. Same defensive shape:
+    fetch the parent row (defending against the race where it was just
+    deleted), invoke the service with a per-call LLM client, audit the
+    outcome, never raise.
+    """
+    from nexus_app.knowledge_extraction import (
+        structure_task_descriptions_for_analysis,
+    )
+
+    analysis = session.get(models.OccupationalAbilityAnalysis, analysis_id)
+    if analysis is None:
+        logger.warning(
+            "task_structuring: analysis %s vanished between writer and "
+            "structuring; skipping (job=%s)",
+            analysis_id, job_id,
+        )
+        return
+
+    llm_client = _build_extraction_llm_client(ctx.settings)
+    try:
+        result = structure_task_descriptions_for_analysis(
+            session, analysis, llm_client=llm_client,
+        )
+    except Exception as exc:  # noqa: BLE001 — structuring failure never blocks pipeline
+        logger.exception(
+            "task_structuring failed for analysis=%s", analysis_id,
+        )
+        write_audit(
+            session,
+            AuditEventType.TASK_DESCRIPTIONS_STRUCTURED,
+            "occupational_ability_analysis",
+            analysis_id,
+            trace_id,
+            {
+                "raw_object_id": raw_object.id,
+                "job_id": job_id,
+                "normalized_ref_id": normalized_ref.id,
+                "skipped": True,
+                "skipped_reason": f"unexpected_error:{type(exc).__name__}",
+            },
+        )
+        return
+
+    write_audit(
+        session,
+        AuditEventType.TASK_DESCRIPTIONS_STRUCTURED,
+        "occupational_ability_analysis",
+        analysis_id,
+        trace_id,
+        {
+            "raw_object_id": raw_object.id,
+            "job_id": job_id,
+            "normalized_ref_id": normalized_ref.id,
+            "skipped": result.skipped,
+            "skipped_reason": result.skipped_reason,
+            "rule_set_id": result.rule_set_id,
+            "prompt_profile_id": result.prompt_profile_id,
+            "tasks_processed": result.tasks_processed,
+            "tasks_structured": result.tasks_structured,
+            "tasks_rejected": result.tasks_rejected,
+            "quality_summary": result.quality_summary,
+        },
+    )
+
+
+def _build_extraction_llm_client(settings):
+    """Construct the LiteLLM client for knowledge_extraction.
+
+    Mirrors `_build_normalize_service` — returns None when LiteLLM isn't
+    configured rather than raising, so a pipeline running in an environment
+    without LLM credentials (e.g. CI without secrets) just skips extraction
+    instead of crashing.
+    """
+    try:
+        from nexus_app.ai_governance.services import _create_default_litellm_client
+        return _create_default_litellm_client(settings)
+    except Exception as exc:  # noqa: BLE001 — defensive boot-time fallback
+        logger.info(
+            "knowledge_extraction: LiteLLM unavailable, extraction will be skipped: %s",
+            exc,
+        )
+        return None
+
 
 # ---------------------------------------------------------------------------
 # Main job executor
