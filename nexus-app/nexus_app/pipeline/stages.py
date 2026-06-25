@@ -22,6 +22,10 @@ from nexus_app.enums import (
 from nexus_app.ingest.keys import artifact_key, artifact_image_key, normalized_key
 from nexus_app.pipeline import mineru_converter
 from nexus_app.pipeline.context import PipelineContext
+from nexus_app.pipeline.normalized_record_schema import (
+    NORMALIZED_DOCUMENT_SCHEMA_VERSION,
+    NORMALIZED_RECORD_SCHEMA_VERSION,
+)
 from nexus_app.storage import checksum_value
 
 logger = logging.getLogger(__name__)
@@ -725,16 +729,28 @@ def _build_normalized_record(
     else:
         record_type = raw_object.metadata_summary.get("record_type", "generic")
 
+    # Top-level domain_profile mirrors profile.domain_profile so downstream
+    # (B4 / B6 / B7 / B9) can route on it without parsing the full profile
+    # dict. JSON-path ingestion (no profile_detect) gets None here.
+    domain_profile = profile_dict.get("domain_profile") if profile_dict else None
+
     payload: dict[str, Any] = {
-        "schema_version": "normalized-record-v1",
+        "schema_version": NORMALIZED_RECORD_SCHEMA_VERSION,
         "asset_id": None,
         "version_id": None,
         "source_type": raw_object.source_type.value,
         "record_type": record_type,
+        "domain_profile": domain_profile,
         "record_key": raw_object.source_uri or raw_object.id,
         "title": title_from(raw_object, raw_payload),
         "language": "zh-CN",
         "record_body": raw_payload,
+        # body_markdown + body_markdown_meta are contract-freeze §5.0
+        # placeholders that B5 will populate with the LLM-rendered derivative
+        # view. Carrying them as nulls now lets B5 / B7 / B9 read the v2
+        # payload uniformly without having to special-case "missing field".
+        "body_markdown": None,
+        "body_markdown_meta": None,
         "metadata": {
             "mime_type": raw_object.mime_type,
             "source_uri": raw_object.source_uri,
@@ -760,9 +776,11 @@ def _build_normalized_record(
         # the canonical read for B7 governance / B9 console.
         payload["profile"] = profile_dict
         # Mirror into `metadata` so it surfaces on
-        # NormalizedAssetRef.metadata_summary["profile"] without a MinIO
-        # round-trip — search / list-views can filter directly on the PG row.
+        # NormalizedAssetRef.metadata_summary["profile"] / ["domain_profile"]
+        # without a MinIO round-trip — search / list-views can filter
+        # directly on the PG row.
         payload["metadata"]["profile"] = profile_dict
+        payload["metadata"]["domain_profile"] = domain_profile
 
     return payload
 
@@ -810,11 +828,22 @@ def _persist_normalized_ref(
     content = _json_bytes(normalized_payload)
     checksum = checksum_value(content)
 
+    # B3: persist the same schema_version on the PG row that the MinIO
+    # payload carries. Document (Pipeline A) stays on the legacy "schema-v1"
+    # string; record (Pipeline B) tracks the v2 payload bump. A future B6 /
+    # B7 migration can renormalise the document side; for now keeping it
+    # untouched avoids disturbing the document chain at all.
+    payload_schema_version = normalized_payload.get(
+        "schema_version",
+        NORMALIZED_RECORD_SCHEMA_VERSION
+        if normalized_type == NormalizedType.RECORD
+        else NORMALIZED_DOCUMENT_SCHEMA_VERSION,
+    )
     ref = models.NormalizedAssetRef(
         version_id=version.id,
         normalized_type=normalized_type,
         object_uri="pending",
-        schema_version="schema-v1",
+        schema_version=payload_schema_version,
         checksum=checksum,
         status=NormalizedAssetRefStatus.GENERATED,
         block_count=len(normalized_payload.get("blocks", [])),

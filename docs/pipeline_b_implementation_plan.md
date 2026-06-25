@@ -228,36 +228,42 @@
 
 ### B3 normalized_record v2
 
-**Source context**：设计 §八 normalized_record 与领域表的边界；`CLAUDE.md` Core Domain Objects。
+**Source context**：设计 §八 normalized_record 与领域表的边界；`CLAUDE.md` Core Domain Objects；§5.0 dual-view 契约。
 
-**Goal**：在统一治理底座之上扩展 `normalized_record`，承载 record 类资产的 profile / schema / 质量摘要 / lineage / 标准化快照，作为治理入口。
+**Goal**：将 `normalized_record` payload 显式升级到 v2，承载 B2 已写入的 profile / record_body / domain_profile，以及为 B5 预留的 `body_markdown` / `body_markdown_meta`，作为后续治理输入与领域表 normalize 的统一底座。
 
-**Scope**：
+**Scope（最小变更策略）**：
 
-- migration：扩展 `normalized_record` 字段（`profile`、`schema_version`、`record_count`、`record_body`、`quality`、`lineage`）
-- 写入路径：domain_normalize 阶段调用
-- `normalized_asset_ref.metadata_summary` 同步策略
-- 超大 `record_body` 外置 MinIO 的兜底（仅契约预留，本切片不一定实现）
+- 新增 `nexus_app/pipeline/normalized_record_schema.py`：集中维护 `NORMALIZED_RECORD_SCHEMA_VERSION = "normalized-record.v2"` 与 `NORMALIZED_DOCUMENT_SCHEMA_VERSION = "normalized-document-v1"`
+- 升级 `_build_normalized_record`：payload 顶层新增 `domain_profile`、`body_markdown` / `body_markdown_meta` 占位（B5 渲染前为 `None`）；profile_dict 缺省时维持向后兼容
+- `_persist_normalized_ref` 按 `normalized_type` 选择 schema 常量；不改 PG 列、不发 migration
+- 单元 / 集成测试：`tests/test_normalized_record_v2.py`（21 用例：常量、profile 路径、JSON 兼容路径、样本 1 端到端 schema_version）
 
-**Out of scope**：领域表（B4 / B6）、知识单元加工（B5）。
+**Out of scope**：
+
+- 领域表（B4 / B6）、知识单元加工（B5 `body_markdown` 渲染）、超大 `record_body` 外置 MinIO（仅契约预留，未实现）
+- 现有 PG 列结构变更
 
 **Forbidden changes**：
 
-- 禁止把岗位记录长期只存在 JSONB（设计 §4.4）
+- 禁止把岗位记录长期只存在 JSONB（设计 §4.4）—— 由 B4 / B6 领域表负责，不在本切片
 - 禁止反向写 `governance_result` 到 `normalized_record` 引用链
+- 禁止在 B3 内引入 LLM 渲染 markdown（B5 负责）
 
 **Deliverables**：
 
-- Alembic migration
-- normalized_record 写入服务
-- 单元测试：profile 写入、quality 摘要、lineage 完整性
+- `nexus_app/pipeline/normalized_record_schema.py`（新文件，集中 schema 常量）
+- `nexus_app/pipeline/stages.py` v2 升级（`_build_normalized_record` + `_persist_normalized_ref`）
+- `tests/test_normalized_record_v2.py`（21 个新测试）
 
 **Acceptance**：
 
-- 样本 1 / 样本 2 经 B1+B2+B3 落出有效 `normalized_record` 记录，profile / quality / lineage 字段非空
+- 样本 1 经 B1+B2+B3 落出有效 `normalized_record` 记录，profile / quality / lineage 字段非空，`payload.schema_version == "normalized-record.v2"`
+- profile_dict 缺省时仍写出兼容的 v2 payload（domain_profile 不存在，但顶层字段齐全）
 - `governance_result.target = normalized_asset_ref` 仍成立
+- 完整套件 670 passed + 1 skipped，无 regression
 
-**触发 Review Gate**：Data Model Gate
+**触发 Review Gate**：Data Model Gate（仅 payload schema，不涉及 PG 列）
 
 ---
 
@@ -714,12 +720,16 @@
 - **B2** — profile_detect：✅ 已交付（4 个子切片 B2.1-B2.4 全部完成，120 个新测试全绿，无 regression），**待人工总评**
   - 任务包：`docs/task-packages/wk_pb2_task_package.md`
   - 关键产出：`nexus_app/profile_detect/` 新模块（schemas / config / detector）；`STRUCTURED_PARSE_COMPLETED` 之后写 `RECORD_PROFILE_DETECTED`；candidate / generic / 低置信度自动转 `review_required` + `RECORD_PROFILE_REVIEW_REQUIRED` 审计；profile 双写入 `normalized_record.payload.profile` + `normalized_asset_ref.metadata_summary.profile`
-- **B3 / B4 / B5 / B6 / B7 / B8 / B9 / B10** — 待 B2 总评通过后启动；依赖图见 §二
+- **B3** — normalized_record v2 schema 升级：✅ 已交付（最小变更策略；21 个新测试全绿，无 regression），**待人工总评**
+  - 任务包：`docs/task-packages/wk_pb3_task_package.md`
+  - 关键产出：`nexus_app/pipeline/normalized_record_schema.py` 集中常量；`_build_normalized_record` 写入 `domain_profile` + `body_markdown` / `body_markdown_meta` 占位；`_persist_normalized_ref` 按 `normalized_type` 区分 schema_version；不改 PG 列、不发 migration
+- **B4 / B5 / B6 / B7 / B8 / B9 / B10** — 待 B3 总评通过后启动；依赖图见 §二
 - 累计测试统计：
   - B1: 189 new
   - B2: 120 new
-  - 共 **309 new tests**，完整套件 649 passed + 1 skipped
+  - B3: 21 new
+  - 共 **330 new tests**，完整套件 670 passed + 1 skipped
 - 建议下一步：
-  1. B2 人工总评（后端 owner + 业务专家，按 §四 Review Gate 矩阵 — B2 触发 Data Model / Rule Engine / Version State / Permission And Audit Gate）
-  2. 通过后启动 **B3 (normalized_record v2)** —— 让 `normalized_record` schema 显式承载 profile / record_body / domain_profile 等 B2 已写入的字段，为 B4 / B6 领域表 normalize 做准备
-  3. B4 / B6 可在 B3 schema 冻结后按 §二 依赖图并行启动
+  1. B3 人工总评（后端 owner + 数据契约方，按 §四 Review Gate 矩阵 — B3 触发 Data Model Gate，仅 payload schema）
+  2. 通过后并行启动 **B4 (岗位需求领域表)** 与 **B6 (能力分析领域表)** —— 共享 normalized_record v2 消费契约；需先按 §五 冻结领域表 schema、写入服务接口
+  3. B5（知识单元加工 + `body_markdown` 渲染）待 B4 / B6 字段稳定后启动
