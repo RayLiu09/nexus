@@ -450,10 +450,27 @@ def run_normalize_record(
     ctx: PipelineContext,
     version: models.AssetVersion,
     raw_payload: dict[str, Any],
+    *,
+    profile_dict: dict[str, Any] | None = None,
 ) -> models.NormalizedAssetRef:
-    """Stage 3 (Pipeline B): Build normalized_record from raw JSON payload (no MinerU)."""
+    """Stage 3 (Pipeline B): Build normalized_record from raw JSON payload (no MinerU).
+
+    Args:
+        profile_dict: Optional `ProfileDetectResult.model_dump(mode='json')`
+            produced by `profile_detect` (B2.3). When provided, it is written
+            into the normalized payload's `profile` field AND mirrored into
+            `metadata.profile` so it propagates to
+            `NormalizedAssetRef.metadata_summary["profile"]` for search /
+            review consumers without forcing them to fetch the MinIO payload.
+
+            The JSON path (`_load_record_payload`) passes `None` — profile
+            detection is a structured_parse follow-on and doesn't fire on
+            free-form JSON ingestion contracts.
+    """
     started_at = _stage_started()
-    normalized_payload = _build_normalized_record(ctx.raw_object, raw_payload)
+    normalized_payload = _build_normalized_record(
+        ctx.raw_object, raw_payload, profile_dict=profile_dict
+    )
     normalized_payload = _apply_normalize_service(
         ctx,
         normalized_payload,
@@ -693,13 +710,27 @@ def _extract_attachments(artifact: models.ParseArtifact) -> list[dict[str, Any]]
 def _build_normalized_record(
     raw_object: models.RawObject,
     raw_payload: dict[str, Any],
+    *,
+    profile_dict: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    # When profile_detect has run (Pipeline B B2.3), prefer its record_type +
+    # domain_profile over the raw_object metadata fallback so downstream
+    # consumers (B7 governance, B9 console) read the canonical detected value.
+    # The raw_object.metadata_summary["record_type"] path stays as the legacy
+    # fallback for JSON ingestion which doesn't run profile_detect.
+    if profile_dict:
+        record_type = profile_dict.get("record_type") or raw_object.metadata_summary.get(
+            "record_type", "generic"
+        )
+    else:
+        record_type = raw_object.metadata_summary.get("record_type", "generic")
+
+    payload: dict[str, Any] = {
         "schema_version": "normalized-record-v1",
         "asset_id": None,
         "version_id": None,
         "source_type": raw_object.source_type.value,
-        "record_type": raw_object.metadata_summary.get("record_type", "generic"),
+        "record_type": record_type,
         "record_key": raw_object.source_uri or raw_object.id,
         "title": title_from(raw_object, raw_payload),
         "language": "zh-CN",
@@ -723,6 +754,17 @@ def _build_normalized_record(
             "object_uri": raw_object.object_uri,
         },
     }
+
+    if profile_dict:
+        # Top-level `profile` field is the contract-freeze §5.0 location and
+        # the canonical read for B7 governance / B9 console.
+        payload["profile"] = profile_dict
+        # Mirror into `metadata` so it surfaces on
+        # NormalizedAssetRef.metadata_summary["profile"] without a MinIO
+        # round-trip — search / list-views can filter directly on the PG row.
+        payload["metadata"]["profile"] = profile_dict
+
+    return payload
 
 
 def _persist_normalized_ref(

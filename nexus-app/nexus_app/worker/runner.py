@@ -32,12 +32,18 @@ from nexus_app.models import utcnow
 from nexus_app.normalize.service import NormalizeService
 from nexus_app.pipeline.context import PipelineContext
 from nexus_app.pipeline.payload_schema import SUPPORTED_JOB_PAYLOAD_VERSIONS
+from nexus_app.profile_detect import (
+    DEFAULT_AUTO_ADMIT_THRESHOLD,
+    ProfileDetectResult,
+    detect,
+)
 from nexus_app.structured_parse import (
     CorruptSourceError,
     StructuredParseError,
     parse_csv,
     parse_xlsx,
 )
+from nexus_app.structured_parse.schemas import ParsedWorkbook
 from nexus_app.pipeline.stages import (
     run_assetize,
     run_governance_decision,
@@ -219,9 +225,20 @@ def _run_record_pipeline(
     ctx: PipelineContext,
     version: models.AssetVersion,
     raw_payload: dict[str, Any],
+    *,
+    profile_dict: dict[str, Any] | None = None,
 ) -> models.NormalizedAssetRef:
-    """Pipeline B: normalize_record (no parse stage)."""
-    return run_normalize_record(ctx, version, raw_payload)
+    """Pipeline B: normalize_record (no parse stage).
+
+    Args:
+        profile_dict: Optional ProfileDetectResult dict. When given, it is
+            persisted into normalized_record.payload.profile + metadata.
+            None for JSON ingestion path (profile_detect doesn't fire on
+            free-form JSON in B2 scope).
+    """
+    return run_normalize_record(
+        ctx, version, raw_payload, profile_dict=profile_dict
+    )
 
 
 def _run_ingest_validate(
@@ -596,6 +613,145 @@ def _run_structured_parse_csv(
 
 
 # ---------------------------------------------------------------------------
+# Pipeline B profile_detect (B2.3)
+# ---------------------------------------------------------------------------
+
+# record_types whose detection confidence is treated as "needs human review"
+# even after a successful detect() call. These map exactly to the dispatcher's
+# downgrade behavior in `profile_detect.detector` — keeping the list co-located
+# here so any future record_type added to the catalog has to be classified by
+# the worker integrator (not silently fall through).
+_REVIEW_REQUIRED_RECORD_TYPES: frozenset[str] = frozenset({
+    "job_demand_dataset_candidate",
+    "occupational_ability_analysis_candidate",
+    "generic_table_dataset",
+})
+
+
+def _run_profile_detect(
+    job: models.Job,
+    raw_payload: dict[str, Any],
+    raw_object: models.RawObject,
+    session: Session,
+    trace_id: str | None,
+) -> ProfileDetectResult:
+    """Reconstruct the ParsedWorkbook from raw_payload and run profile_detect.
+
+    Runs after `_run_structured_parse_*` (which produced raw_payload via
+    `workbook.model_dump(mode='json')`). Always returns a result — the
+    detector itself never raises (worst case is `generic_table_dataset` at
+    low confidence). On any other failure we still must not break the worker,
+    so we fall back to a `generic_table_dataset` placeholder so the version
+    can be parked in review_required cleanly.
+    """
+    try:
+        workbook = ParsedWorkbook.model_validate(raw_payload)
+        result = detect(workbook)
+    except Exception:  # noqa: BLE001  defensive — detector contract is no-raise
+        logger.exception(
+            "profile_detect failed unexpectedly for job=%s; falling back to generic_table",
+            job.id,
+        )
+        # Emit a minimal generic_table result so the rest of the pipeline
+        # can record a review_required version + audit, instead of crashing
+        # and leaving the asset in PROCESSING limbo.
+        from nexus_app.profile_detect import DETECTOR_VERSION, ProfileEvidence
+        result = ProfileDetectResult(
+            record_type="generic_table_dataset",
+            domain="occupation",
+            domain_profile="generic_table.v1",
+            detector_version=DETECTOR_VERSION,
+            confidence=0.0,
+            evidence=ProfileEvidence(
+                sheet_names=[s.get("name", "") for s in raw_payload.get("sheets", [])],
+            ),
+        )
+
+    write_audit(
+        session,
+        AuditEventType.RECORD_PROFILE_DETECTED,
+        "raw_object",
+        raw_object.id,
+        trace_id,
+        {
+            "record_type": result.record_type,
+            "domain_profile": result.domain_profile,
+            "analysis_model": result.analysis_model,
+            "detector_version": result.detector_version,
+            "confidence": result.confidence,
+            "job_id": job.id,
+        },
+    )
+    return result
+
+
+def _maybe_park_in_review_required(
+    profile: ProfileDetectResult,
+    version: models.AssetVersion,
+    raw_object: models.RawObject,
+    session: Session,
+    trace_id: str | None,
+    job_id: str,
+    *,
+    threshold: float = DEFAULT_AUTO_ADMIT_THRESHOLD,
+) -> bool:
+    """Transition version_status to REVIEW_REQUIRED when profile flags it.
+
+    Triggers:
+      - record_type is a `_candidate` / `generic_table_dataset` variant
+      - confidence < threshold (defence-in-depth — the detector already
+        downgrades to candidate at this point, but we double-check so a
+        custom-threshold caller can't accidentally promote a low-confidence
+        canonical result)
+
+    Returns True when a transition happened (so callers can sync the
+    in-memory state). Writes BOTH a VERSION_STATUS_CHANGED and a
+    RECORD_PROFILE_REVIEW_REQUIRED audit so reviewers can disjoin on either.
+    """
+    needs_review = (
+        profile.record_type in _REVIEW_REQUIRED_RECORD_TYPES
+        or profile.confidence < threshold
+    )
+    if not needs_review:
+        return False
+
+    previous_status = version.version_status
+    if previous_status != AssetVersionStatus.REVIEW_REQUIRED:
+        version.version_status = AssetVersionStatus.REVIEW_REQUIRED
+        write_audit(
+            session,
+            AuditEventType.VERSION_STATUS_CHANGED,
+            "asset_version",
+            version.id,
+            trace_id,
+            {
+                "previous_status": previous_status.value,
+                "current_status": AssetVersionStatus.REVIEW_REQUIRED.value,
+                "reason": "profile_detect_candidate_or_low_confidence",
+                "job_id": job_id,
+            },
+        )
+
+    write_audit(
+        session,
+        AuditEventType.RECORD_PROFILE_REVIEW_REQUIRED,
+        "asset_version",
+        version.id,
+        trace_id,
+        {
+            "record_type": profile.record_type,
+            "domain_profile": profile.domain_profile,
+            "analysis_model": profile.analysis_model,
+            "detector_version": profile.detector_version,
+            "confidence": profile.confidence,
+            "raw_object_id": raw_object.id,
+            "job_id": job_id,
+        },
+    )
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Main job executor
 # ---------------------------------------------------------------------------
 
@@ -675,6 +831,7 @@ def execute_job(
     #     parse_json once table-shaped vs business-object JSON can be disambiguated.
     _run_ingest_validate(job, raw_object, session, trace_id, pipeline_type)
     raw_payload: dict[str, Any] | None = None
+    profile_result: ProfileDetectResult | None = None
     if pipeline_type == PipelineType.RECORD:
         mime = (raw_object.mime_type or "").lower()
         if mime in XLSX_MIME_TYPES:
@@ -688,6 +845,15 @@ def execute_job(
         else:
             raw_payload = _load_record_payload(
                 job, raw_object, storage, session, trace_id
+            )
+
+        # B2.3 profile_detect — only the structured_parse branch produces a
+        # ParsedWorkbook-shaped dict that the detector can consume. JSON
+        # payloads from crawler / database / webhook stay on the
+        # _load_record_payload contract until B2 widens its scope.
+        if mime in XLSX_MIME_TYPES or mime in CSV_MIME_TYPES:
+            profile_result = _run_profile_detect(
+                job, raw_payload, raw_object, session, trace_id
             )
 
     ctx = PipelineContext(
@@ -722,7 +888,20 @@ def execute_job(
         if pipeline_type == PipelineType.DOCUMENT:
             normalized_ref = _run_document_pipeline(ctx, version)
         else:
-            normalized_ref = _run_record_pipeline(ctx, version, raw_payload)  # type: ignore[arg-type]
+            profile_dict = (
+                profile_result.model_dump(mode="json") if profile_result else None
+            )
+            normalized_ref = _run_record_pipeline(
+                ctx, version, raw_payload, profile_dict=profile_dict  # type: ignore[arg-type]
+            )
+            # Park candidate / generic / low-confidence detections in
+            # review_required so reviewers see them without waiting for
+            # governance_decision. High-confidence canonicals stay in
+            # PROCESSING and let governance_decision drive the next state.
+            if profile_result is not None:
+                _maybe_park_in_review_required(
+                    profile_result, version, raw_object, session, trace_id, job.id
+                )
 
         # Stage 4: governance decision (optional — skipped if no profile/rules)
         run_governance_decision(ctx, version, normalized_ref)

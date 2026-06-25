@@ -708,12 +708,18 @@
 
 ## 十一、计划状态与下一步
 
-- **B0** — 合同冻结：✅ 评审通过，4 份产出已交付
-- **B1** — 路由 + structured_parse + worker 集成 + e2e：✅ 已交付（5 个子切片 B1.1-B1.5 全部完成，189 个新测试全绿，无 regression），**待人工总评**
+- **B0** — 合同冻结：✅ 评审通过
+- **B1** — 路由 + structured_parse + worker 集成 + e2e：✅ 评审通过（5 个子切片 B1.1-B1.5；189 个新测试；`PIPELINE_B_XLSX_ENABLED` / `PIPELINE_B_CSV_ENABLED` 默认开启于 .env.\*）
   - 任务包：`docs/task-packages/wk_pb1_task_package.md`
-  - feature flag 默认仍关闭（`PIPELINE_B_XLSX_ENABLED=false` / `PIPELINE_B_CSV_ENABLED=false`），生产开关由运维通过环境变量决定
-- **B2 / B3 / B4 / B5 / B6 / B7 / B8 / B9 / B10** — 待 B1 总评通过后启动；依赖图见 §二
+- **B2** — profile_detect：✅ 已交付（4 个子切片 B2.1-B2.4 全部完成，120 个新测试全绿，无 regression），**待人工总评**
+  - 任务包：`docs/task-packages/wk_pb2_task_package.md`
+  - 关键产出：`nexus_app/profile_detect/` 新模块（schemas / config / detector）；`STRUCTURED_PARSE_COMPLETED` 之后写 `RECORD_PROFILE_DETECTED`；candidate / generic / 低置信度自动转 `review_required` + `RECORD_PROFILE_REVIEW_REQUIRED` 审计；profile 双写入 `normalized_record.payload.profile` + `normalized_asset_ref.metadata_summary.profile`
+- **B3 / B4 / B5 / B6 / B7 / B8 / B9 / B10** — 待 B2 总评通过后启动；依赖图见 §二
+- 累计测试统计：
+  - B1: 189 new
+  - B2: 120 new
+  - 共 **309 new tests**，完整套件 649 passed + 1 skipped
 - 建议下一步：
-  1. B1 人工总评（后端 owner + 业务专家 + AI 工程 owner，按 §四 Review Gate 矩阵）
-  2. 通过后开始 B2 (profile_detect) 切片——首个消费 `record_body` 中 ParsedWorkbook shape 的下游
-  3. B3 / B4 / B6 按 §二 依赖图与 §五 并行契约触发条件启动
+  1. B2 人工总评（后端 owner + 业务专家，按 §四 Review Gate 矩阵 — B2 触发 Data Model / Rule Engine / Version State / Permission And Audit Gate）
+  2. 通过后启动 **B3 (normalized_record v2)** —— 让 `normalized_record` schema 显式承载 profile / record_body / domain_profile 等 B2 已写入的字段，为 B4 / B6 领域表 normalize 做准备
+  3. B4 / B6 可在 B3 schema 冻结后按 §二 依赖图并行启动

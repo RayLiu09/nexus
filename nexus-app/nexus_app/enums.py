@@ -187,6 +187,13 @@ class AuditEventType(StrEnum):
     # (future) csv parse. Failures use PIPELINE_FAILED with error_code so
     # operators don't have to disjoin on the audit event name.
     STRUCTURED_PARSE_COMPLETED      = "StructuredParseCompleted"
+    # Pipeline B profile_detect stage (B2.3) — emitted on every successful
+    # detection (high and low confidence). REVIEW_REQUIRED is emitted in
+    # addition (not in place of) DETECTED when the detector confidence
+    # falls below the auto-admit threshold or the record_type is a
+    # `_candidate` / `generic_table_dataset` variant.
+    RECORD_PROFILE_DETECTED         = "RecordProfileDetected"
+    RECORD_PROFILE_REVIEW_REQUIRED  = "RecordProfileReviewRequired"
     CROSS_SOURCE_DUPLICATE_DETECTED = "CrossSourceDuplicateDetected"
     VERSION_STATUS_CHANGED          = "VersionStatusChanged"
     PIPELINE_FAILED                 = "PipelineFailed"
