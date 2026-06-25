@@ -801,3 +801,220 @@ class KnowledgeChunk(TimestampMixin, Base):
     locator: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
     normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+
+
+# ---------------------------------------------------------------------------
+# Pipeline B B4 — job_demand domain tables
+# ---------------------------------------------------------------------------
+# Schemas frozen by `docs/pipeline_b_contract_freeze.md §5.1 / §5.2 / §5.3` +
+# `docs/pipeline_b_b4_b6_contract_freeze.md §一 / §二.1 / §三 / §六`.
+# Written by `nexus_app/domain_normalize/job_demand_writer.py`. Invariants:
+#   - one `job_demand_dataset` per `normalized_ref_id` (B4 dataset-level
+#     idempotency; re-runs delete+reinsert via the cascade FKs below)
+#   - records cascade-delete from dataset; requirement-items cascade from both
+#   - dedup uses `record_fingerprint` (sha256 of NFKC-normalised company /
+#     title / city / source_record_key) — B5 reads the same field
+#   - JSON columns mirror `governance` / `quality` / `lineage` style on
+#     NormalizedAssetRef (works on Postgres JSONB AND the SQLite test harness)
+
+
+class JobDemandDataset(TimestampMixin, Base):
+    """One job-demand dataset per normalized_asset_ref (B4 writer entry).
+
+    `normalized_ref_id` is unique — re-running the writer for the same ref
+    deletes this row (with cascade) and re-inserts, per §三.3 of the b4/b6
+    freeze. `quality_summary` aggregates the per-record `quality_flags` counts
+    plus dataset-level flags like `unknown_source_channel`; see
+    `JobDemandRecord.quality_flags` for the closed flag vocabulary.
+    """
+    __tablename__ = "job_demand_dataset"
+    __table_args__ = (
+        # Frozen index names (§5.1 of pipeline_b_contract_freeze). Unique on
+        # normalized_ref_id enforces "one dataset per ref" without needing a
+        # separate UniqueConstraint object.
+        Index("ix_jdd_normalized_ref_id", "normalized_ref_id", unique=True),
+        Index("ix_jdd_asset_version_id", "asset_version_id"),
+        Index("ix_jdd_major", "major_name"),
+        Index("ix_jdd_industry", "industry_name"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("normalized_asset_ref.id"), nullable=False
+    )
+    asset_version_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("asset_version.id"), nullable=False,
+        comment="Redundant copy of normalized_ref.version_id for fast filtering"
+    )
+    major_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    industry_name: Mapped[str | None] = mapped_column(Text, nullable=True,
+        comment="Default industry; can be overridden at record level")
+    source_channel: Mapped[str] = mapped_column(Text, nullable=False,
+        comment="excel_upload / crawler / database / manual_import; "
+                "values outside the whitelist write unknown_source_channel "
+                "flag to quality_summary")
+    record_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    invalid_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    duplicate_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    schema_version: Mapped[str] = mapped_column(Text, nullable=False,
+        comment="Mirrors normalized_record.payload.schema_version "
+                "(e.g. 'job_demand.v1')")
+    quality_summary: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+        comment="Aggregated counts of per-record quality_flags + dataset-level "
+                "flags (unknown_source_channel etc.)"
+    )
+
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+    records: Mapped[list["JobDemandRecord"]] = relationship(
+        back_populates="dataset",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class JobDemandRecord(TimestampMixin, Base):
+    """A single job posting derived from a row in the source dataset.
+
+    `record_fingerprint` is `sha256(NFKC(company)|NFKC(title)|NFKC(city)|
+    NFKC(source_record_key))` — computed in `domain_normalize/fingerprint.py`
+    so B5 / B7 / Pipeline B testing all share one definition. The unique
+    constraint is scoped to `(dataset_id, fingerprint)` per §三.1 of the
+    b4/b6 freeze: different datasets are allowed to carry the same posting
+    (e.g. a crawler dataset vs an excel-upload dataset).
+    """
+    __tablename__ = "job_demand_record"
+    __table_args__ = (
+        Index("ix_jdr_dataset_id", "dataset_id"),
+        Index("ix_jdr_normalized_ref_id", "normalized_ref_id"),
+        Index("ix_jdr_city", "city"),
+        Index("ix_jdr_industry", "industry_name"),
+        Index("ix_jdr_enterprise_size", "enterprise_size"),
+        Index("ix_jdr_employment_type", "employment_type"),
+        # §三.1 / §5.2 — dataset-scoped dedup of (company, title, city,
+        # source_record_key) tuples after NFKC normalization.
+        UniqueConstraint(
+            "dataset_id", "record_fingerprint", name="uq_jdr_dataset_fingerprint"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    dataset_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("job_demand_dataset.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("normalized_asset_ref.id"), nullable=False,
+        comment="Governance traceability — same ref as the dataset row"
+    )
+    source_record_key: Mapped[str] = mapped_column(Text, nullable=False,
+        comment="Crawler record id OR sheet+row hash; never NULL")
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_platform: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="ISO8601 parsed; parse failures keep NULL + "
+                "quality_flags.published_at_unparsed"
+    )
+    job_title: Mapped[str] = mapped_column(Text, nullable=False,
+        comment="Required — rows missing this are dropped as invalid")
+    employment_type: Mapped[str | None] = mapped_column(Text, nullable=True,
+        comment="Raw text — full_time / part_time / intern / ...; no enum "
+                "validation at this layer (decision 8)")
+    job_function_category: Mapped[str | None] = mapped_column(Text, nullable=True)
+    job_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    city: Mapped[str | None] = mapped_column(Text, nullable=True,
+        comment="Original text; combined forms like '城市+区' preserved verbatim")
+    region: Mapped[str | None] = mapped_column(Text, nullable=True,
+        comment="Parsed upstream; NULL + quality_flags.location_unparsed on "
+                "parse failure")
+    salary_min: Mapped[float | None] = mapped_column(nullable=True)
+    salary_max: Mapped[float | None] = mapped_column(nullable=True)
+    salary_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    experience_requirement: Mapped[str | None] = mapped_column(Text, nullable=True)
+    education_requirement: Mapped[str | None] = mapped_column(Text, nullable=True)
+    company_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    company_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    enterprise_size: Mapped[str | None] = mapped_column(Text, nullable=True,
+        comment="Original text; P0 forbids any normalisation/bucketing "
+                "(decision 7)")
+    industry_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    job_skill_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    job_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    responsibility_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    requirement_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    record_fingerprint: Mapped[str] = mapped_column(
+        Text, nullable=False,
+        comment="sha256 hex of NFKC-normalised "
+                "(company_name|job_title|city|source_record_key); "
+                "see domain_normalize.fingerprint"
+    )
+    quality_flags: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+        comment="Closed vocabulary (§四 of b4/b6 freeze): location_unparsed, "
+                "published_at_unparsed, placeholder_row_dropped, "
+                "duplicate_fingerprint, missing_required_field, "
+                "unknown_source_channel — never extend without a fresh freeze"
+    )
+    trace: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+        comment="{sheet, row, column?, source_record_key}"
+    )
+
+    dataset: Mapped[JobDemandDataset] = relationship(back_populates="records")
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+
+
+class JobDemandRequirementItem(TimestampMixin, Base):
+    """B5-owned table — B4 only creates the schema (no writes from this slice).
+
+    `rules_version_id` references `ai_analysis_rules.id`, which is the B5
+    table. B4 deliberately models this as a plain `String(36)` *without* a
+    SQLAlchemy FK because `ai_analysis_rules` is built in a separate B5
+    migration; once both ship, a follow-up B5 migration can attach the FK
+    constraint. The same caveat applies to `prompt_template_id`
+    (`ai_prompt_profile` exists today but the link is B5-owned semantically).
+    """
+    __tablename__ = "job_demand_requirement_item"
+    __table_args__ = (
+        Index("ix_jdri_record_id", "record_id"),
+        Index("ix_jdri_dataset_id", "dataset_id"),
+        Index("ix_jdri_item_type", "item_type"),
+        Index("ix_jdri_rules_version_id", "rules_version_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    record_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("job_demand_record.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    dataset_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("job_demand_dataset.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    item_type: Mapped[str] = mapped_column(Text, nullable=False,
+        comment="App-layer whitelist: professional_skill / tool / certificate / "
+                "professional_literacy / work_task_candidate")
+    item_name: Mapped[str] = mapped_column(Text, nullable=False)
+    raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    normalized_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    taxonomy_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    confidence: Mapped[float] = mapped_column(nullable=False,
+        comment="Must be in [0, 1]; enforced by B5 writer, not DB")
+    extractor_version: Mapped[str | None] = mapped_column(Text, nullable=True)
+    evidence_field: Mapped[str | None] = mapped_column(Text, nullable=True,
+        comment="job_skill_text / job_description / requirement_text — which "
+                "JobDemandRecord column the AI extraction sourced from")
+    # NOTE: B5 ships `ai_analysis_rules`; until then `rules_version_id` is a
+    # plain String(36) column with no FK constraint so this table can be
+    # created independently of B5.
+    prompt_template_id: Mapped[str | None] = mapped_column(String(36), nullable=True,
+        comment="FK to ai_prompt_profile — semantic owner is B5, no DB FK "
+                "constraint here")
+    rules_version_id: Mapped[str | None] = mapped_column(String(36), nullable=True,
+        comment="FK to ai_analysis_rules (created by B5; DB constraint added "
+                "by a later B5 migration)")
+    ai_model_alias: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -57,19 +57,22 @@ class TestDispatcherSkipPaths:
         assert result.reason == "no_writer_for_profile"
         assert result.domain_profile == "not_a_real_profile.v9"
 
-    def test_registered_profile_without_writer_skips(self):
-        # `job_demand.v1` is in _WRITER_REGISTRY but
-        # nexus_app.domain_normalize.job_demand_writer doesn't exist yet (B4
-        # ships it). Dispatcher must NOT raise.
+    def test_registered_profile_with_missing_payload_skips(self):
+        # `job_demand.v1` is in _WRITER_REGISTRY and the B4 writer has
+        # shipped, so the registry resolves. With a MagicMock storage that
+        # can't return bytes-of-JSON, the loader falls back to None and the
+        # dispatcher reports empty_record_body — not writer_not_implemented.
         ref = _make_ref(domain_profile="job_demand.v1")
         result = dispatch_domain_normalize(MagicMock(), ref, storage=MagicMock())
         assert result.skipped is True
-        assert result.reason == "writer_not_implemented"
+        assert result.reason == "empty_record_body"
 
     def test_ability_analysis_profile_without_writer_skips(self):
         ref = _make_ref(domain_profile="ability_analysis.pgsd.v1")
         result = dispatch_domain_normalize(MagicMock(), ref, storage=MagicMock())
         assert result.skipped is True
+        # B6 owns this writer; until that worktree lands, the registry entry
+        # resolves to an ImportError → writer_not_implemented.
         assert result.reason == "writer_not_implemented"
 
 
