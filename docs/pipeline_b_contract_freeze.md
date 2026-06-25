@@ -177,10 +177,12 @@
 
 ---
 
-## 五、领域表 schema 冻结（草案 · 不写 migration）
+## 五、领域表 schema 冻结
 
 > 字段名、类型、约束、索引按下表冻结。命名遵循 `snake_case`，UUID 主键沿用 `String(36)`（与 `models.py` 现状一致），时间戳使用 `TimestampMixin` + `timestamptz`。
 > 所有 FK 单向引用、无反向指针、无 `current_version_id` / `normalized_ref_id` 反向（`CLAUDE.md` 红线）。
+>
+> **状态**：§5.1-5.3（B4 岗位需求）、§5.5-5.11（B6 能力分析）schema 已由 `docs/pipeline_b_b4_b6_contract_freeze.md` 评审升级为 **frozen**；并行执行所需的写入服务接口、字段映射、唯一约束、quality_flags 词表、审计事件见该扩展文档。§5.4 `ai_analysis_rules` 与 §5.12 staging 表 schema 仍为草案，由 B5 / B8 切片单独冻结。
 
 ### 5.0 `normalized_record.payload` 双视图契约（核心 · 必须先冻结）
 

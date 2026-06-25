@@ -618,7 +618,7 @@
 按 `WORKFLOWS.md` Parallel Contract First Rule，以下时机必须先冻结并行契约：
 
 - **B0 之后**：B1（Backend）与 B2（Backend）可并行——需冻结中间表示数据结构
-- **B3 之后**：B4 与 B6 可并行——需冻结领域表 schema、写入服务接口、normalized_record 消费契约
+- **B3 之后**：B4 与 B6 可并行——需冻结领域表 schema、写入服务接口、normalized_record 消费契约（✅ `docs/pipeline_b_b4_b6_contract_freeze.md` 已交付，待人工总评）
 - **B4 / B6 之后**：B5（Backend + AI）与 B7（Backend）可并行——需冻结 `ai_analysis_rules` schema 与治理结果写入路径
 - **B8 完成、B9 启动前**：前后端并行——需冻结 control-plane API（含 staging 预览接口）、UI 状态语义
 
@@ -723,13 +723,15 @@
 - **B3** — normalized_record v2 schema 升级：✅ 已交付（最小变更策略；21 个新测试全绿，无 regression），**待人工总评**
   - 任务包：`docs/task-packages/wk_pb3_task_package.md`
   - 关键产出：`nexus_app/pipeline/normalized_record_schema.py` 集中常量；`_build_normalized_record` 写入 `domain_profile` + `body_markdown` / `body_markdown_meta` 占位；`_persist_normalized_ref` 按 `normalized_type` 区分 schema_version；不改 PG 列、不发 migration
-- **B4 / B5 / B6 / B7 / B8 / B9 / B10** — 待 B3 总评通过后启动；依赖图见 §二
+- **Phase 0 (B4 / B6 并行契约冻结)** — ✅ 已交付（`docs/pipeline_b_b4_b6_contract_freeze.md`），**待人工总评**
+  - 关键产出：升级 `contract_freeze.md §5.1-5.3 / §5.5-5.11` schema 由草案为 frozen；新增并行执行所需的隔离边界、字段映射、唯一/幂等键算法、quality_flags 词表、writer 接口签名、占位行清理规则、审计事件、API 路径细分、Forbidden changes
+- **B4 / B5 / B6 / B7 / B8 / B9 / B10** — 待 Phase 0 总评通过后启动；B4 / B6 可并行；依赖图见 §二
 - 累计测试统计：
   - B1: 189 new
   - B2: 120 new
   - B3: 21 new
   - 共 **330 new tests**，完整套件 670 passed + 1 skipped
 - 建议下一步：
-  1. B3 人工总评（后端 owner + 数据契约方，按 §四 Review Gate 矩阵 — B3 触发 Data Model Gate，仅 payload schema）
-  2. 通过后并行启动 **B4 (岗位需求领域表)** 与 **B6 (能力分析领域表)** —— 共享 normalized_record v2 消费契约；需先按 §五 冻结领域表 schema、写入服务接口
+  1. B3 + Phase 0 一并人工总评（按 §四 Review Gate 矩阵 — B3 触发 Data Model Gate；Phase 0 触发 Data Model / API Contract / Rule Engine / Version State / Permission And Audit Gate）
+  2. 通过后并行启动 **B4 (岗位需求领域表)** 与 **B6 (能力分析领域表)** —— 严格按 `pipeline_b_b4_b6_contract_freeze.md` 的隔离边界、字段映射、writer 接口签名实施
   3. B5（知识单元加工 + `body_markdown` 渲染）待 B4 / B6 字段稳定后启动

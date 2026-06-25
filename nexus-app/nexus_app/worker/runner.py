@@ -751,6 +751,67 @@ def _maybe_park_in_review_required(
     return True
 
 
+def _run_domain_normalize(
+    ctx: PipelineContext,
+    normalized_ref: models.NormalizedAssetRef,
+    raw_object: models.RawObject,
+    session: Session,
+    trace_id: str | None,
+    job_id: str,
+) -> None:
+    """Run the B4 / B6 domain_normalize stage and write audit.
+
+    Lazy-imports the dispatcher so circular-import / first-touch cost is paid
+    only when the stage actually runs. Failures here are audited as
+    `DOMAIN_NORMALIZE_FAILED` but **swallowed** — governance can still act on
+    `normalized_ref`, and the writer-specific failure already carries enough
+    detail in the audit for operators to triage.
+    """
+    from nexus_app.domain_normalize import dispatch_domain_normalize
+
+    try:
+        result = dispatch_domain_normalize(
+            session, normalized_ref, storage=ctx.storage, settings=ctx.settings
+        )
+    except Exception as exc:  # noqa: BLE001 — surface as audit, not failure
+        logger.exception(
+            "domain_normalize dispatch failed for normalized_ref=%s",
+            normalized_ref.id,
+        )
+        write_audit(
+            session,
+            AuditEventType.DOMAIN_NORMALIZE_FAILED,
+            "normalized_asset_ref",
+            normalized_ref.id,
+            trace_id,
+            {
+                "raw_object_id": raw_object.id,
+                "job_id": job_id,
+                "error": f"{type(exc).__name__}: {exc}",
+            },
+        )
+        return
+
+    write_audit(
+        session,
+        AuditEventType.DOMAIN_NORMALIZE_COMPLETED,
+        "normalized_asset_ref",
+        normalized_ref.id,
+        trace_id,
+        {
+            "raw_object_id": raw_object.id,
+            "job_id": job_id,
+            "domain_profile": result.domain_profile,
+            "skipped": result.skipped,
+            "reason": result.reason,
+            "dataset_id": result.dataset_id,
+            "analysis_id": result.analysis_id,
+            "records_written": result.records_written,
+            "items_written": result.items_written,
+        },
+    )
+
+
 # ---------------------------------------------------------------------------
 # Main job executor
 # ---------------------------------------------------------------------------
@@ -902,6 +963,16 @@ def execute_job(
                 _maybe_park_in_review_required(
                     profile_result, version, raw_object, session, trace_id, job.id
                 )
+
+            # Stage 3.5: domain_normalize — dispatch to per-domain writer
+            # (B4 job_demand_writer / B6 ability_analysis_writer). Skipped
+            # quietly when no writer is registered for the domain_profile or
+            # the writer module hasn't shipped yet (B4 / B6 staggered
+            # rollout). Failures are audited but **do not** fail the job —
+            # governance still has a usable normalized_ref to act on.
+            _run_domain_normalize(
+                ctx, normalized_ref, raw_object, session, trace_id, job.id
+            )
 
         # Stage 4: governance decision (optional — skipped if no profile/rules)
         run_governance_decision(ctx, version, normalized_ref)

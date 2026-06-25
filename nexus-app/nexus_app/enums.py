@@ -194,6 +194,14 @@ class AuditEventType(StrEnum):
     # `_candidate` / `generic_table_dataset` variant.
     RECORD_PROFILE_DETECTED         = "RecordProfileDetected"
     RECORD_PROFILE_REVIEW_REQUIRED  = "RecordProfileReviewRequired"
+    # Pipeline B domain_normalize stage (B4 / B6 共用接缝) — emitted by
+    # `dispatch_domain_normalize` after the per-domain writer (job_demand_writer
+    # / ability_analysis_writer) returns. The writer-specific events
+    # (JOB_DEMAND_DATASET_PERSISTED / ABILITY_ANALYSIS_PERSISTED / ...) are
+    # written in addition to these dispatcher-level ones, so reviewers can
+    # disjoin on either the high-level stage or the domain-specific entity.
+    DOMAIN_NORMALIZE_COMPLETED      = "DomainNormalizeCompleted"
+    DOMAIN_NORMALIZE_FAILED         = "DomainNormalizeFailed"
     CROSS_SOURCE_DUPLICATE_DETECTED = "CrossSourceDuplicateDetected"
     VERSION_STATUS_CHANGED          = "VersionStatusChanged"
     PIPELINE_FAILED                 = "PipelineFailed"
