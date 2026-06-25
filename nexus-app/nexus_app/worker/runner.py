@@ -852,6 +852,21 @@ def _run_domain_normalize(
             analysis_id=result.analysis_id,
         )
 
+    # B7 — PGSD rule-engine governance on the ability_analysis path. Runs
+    # AFTER B5.3 markdown render + B5.4 structuring so the version's
+    # metadata_summary captures the structured task data when present.
+    # Blocking findings park the version in review_required; warnings (e.g.
+    # cross_sheet_inconsistency per §10.2 loose mode) are flagged-only.
+    if (
+        not result.skipped
+        and result.domain_profile == "ability_analysis.pgsd.v1"
+        and result.analysis_id is not None
+    ):
+        _run_ability_governance(
+            ctx, normalized_ref, raw_object, session, trace_id, job_id,
+            analysis_id=result.analysis_id,
+        )
+
 
 def _run_body_markdown_render(
     ctx: PipelineContext,
@@ -1155,6 +1170,166 @@ def _run_task_structuring(
             "quality_summary": result.quality_summary,
         },
     )
+
+
+def _run_ability_governance(
+    ctx: PipelineContext,
+    normalized_ref: models.NormalizedAssetRef,
+    raw_object: models.RawObject,
+    session: Session,
+    trace_id: str | None,
+    job_id: str,
+    *,
+    analysis_id: str,
+) -> None:
+    """B7 — rule-engine governance for ability_analysis.
+
+    Runs the 10 §10.2 rules over the persisted analysis tree, writes one
+    `governance_result` row, parks the version in review_required on any
+    blocking finding, and emits an `ABILITY_ANALYSIS_GOVERNED` audit event.
+    Failures are audited but never raised — governance failure must not
+    block the rest of the pipeline (chunking / index_submit follow).
+    """
+    from nexus_app.ability_governance import govern_ability_analysis
+    from nexus_app.ability_governance.persistence import (
+        apply_version_state,
+        persist_findings,
+    )
+
+    analysis = session.get(models.OccupationalAbilityAnalysis, analysis_id)
+    if analysis is None:
+        logger.warning(
+            "ability_governance: analysis %s vanished between writer and "
+            "governance; skipping (job=%s)",
+            analysis_id, job_id,
+        )
+        return
+    version = session.get(models.AssetVersion, normalized_ref.version_id)
+    if version is None:
+        logger.warning(
+            "ability_governance: asset_version %s missing; skipping (job=%s)",
+            normalized_ref.version_id, job_id,
+        )
+        return
+
+    overview_codes = _overview_work_content_codes(
+        normalized_ref, ctx.storage,
+    )
+
+    try:
+        findings = govern_ability_analysis(
+            session, analysis, overview_work_content_codes=overview_codes,
+        )
+    except Exception as exc:  # noqa: BLE001 — governance failure never blocks pipeline
+        logger.exception(
+            "ability_governance failed for analysis=%s", analysis_id,
+        )
+        write_audit(
+            session, AuditEventType.ABILITY_ANALYSIS_GOVERNED,
+            "occupational_ability_analysis", analysis_id, trace_id,
+            {
+                "raw_object_id": raw_object.id,
+                "job_id": job_id,
+                "normalized_ref_id": normalized_ref.id,
+                "skipped": True,
+                "skipped_reason": f"unexpected_error:{type(exc).__name__}",
+            },
+        )
+        return
+
+    if findings.skipped:
+        write_audit(
+            session, AuditEventType.ABILITY_ANALYSIS_GOVERNED,
+            "occupational_ability_analysis", analysis_id, trace_id,
+            {
+                "raw_object_id": raw_object.id,
+                "job_id": job_id,
+                "normalized_ref_id": normalized_ref.id,
+                "skipped": True,
+                "skipped_reason": findings.skipped_reason,
+            },
+        )
+        return
+
+    result = persist_findings(
+        session, findings=findings, normalized_ref=normalized_ref,
+    )
+    state_changed = apply_version_state(
+        session, findings=findings, version=version,
+    )
+    if state_changed:
+        write_audit(
+            session, AuditEventType.VERSION_STATUS_CHANGED,
+            "asset_version", version.id, trace_id,
+            {
+                "previous_status": AssetVersionStatus.PROCESSING.value,
+                "current_status": AssetVersionStatus.REVIEW_REQUIRED.value,
+                "reason": "ability_governance_blocking_findings",
+                "job_id": job_id,
+                "governance_result_id": result.id,
+            },
+        )
+
+    write_audit(
+        session, AuditEventType.ABILITY_ANALYSIS_GOVERNED,
+        "occupational_ability_analysis", analysis_id, trace_id,
+        {
+            "raw_object_id": raw_object.id,
+            "job_id": job_id,
+            "normalized_ref_id": normalized_ref.id,
+            "governance_result_id": result.id,
+            "blocking_count": len(findings.blocking_findings),
+            "warning_count": len(findings.warning_findings),
+            "review_required": findings.is_blocking_required,
+            "quality_summary": findings.quality_summary,
+            "rule_tokens_fired": sorted(findings.quality_flags.keys()),
+        },
+    )
+
+
+def _overview_work_content_codes(
+    normalized_ref: models.NormalizedAssetRef,
+    storage,
+) -> set[str] | None:
+    """Read the overview matrix work_content code set from MinIO payload.
+
+    Sample 2 ships an overview sheet ("典型工作任务和工作内容分析表") whose
+    work_content codes drive the B7 cross-sheet consistency rule. The
+    structured_parse → record_body adapter (B3.5) doesn't currently surface
+    this overview (it skips non-task sheets), so for now we look for an
+    explicit `record_body.analysis.overview_work_content_codes` hint —
+    None means the rule short-circuits without flagging. Future B3.5
+    enhancement can populate that hint to actually exercise the rule on
+    live data.
+    """
+    if not normalized_ref.object_uri:
+        return None
+    key = (
+        normalized_ref.object_uri.split("/", 3)[-1]
+        if normalized_ref.object_uri.startswith("s3://")
+        else normalized_ref.object_uri
+    )
+    try:
+        raw = storage.get_bytes(key)
+    except Exception:  # noqa: BLE001 — missing payload silences the rule
+        return None
+    if not raw:
+        return None
+    import json as _json
+    try:
+        payload = _json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    record_body = payload.get("record_body") if isinstance(payload, dict) else None
+    if not isinstance(record_body, dict):
+        return None
+    analysis_block = record_body.get("analysis") or {}
+    if not isinstance(analysis_block, dict):
+        return None
+    codes = analysis_block.get("overview_work_content_codes")
+    if isinstance(codes, list) and all(isinstance(c, str) for c in codes):
+        return set(codes)
+    return None
 
 
 def _build_extraction_llm_client(settings):

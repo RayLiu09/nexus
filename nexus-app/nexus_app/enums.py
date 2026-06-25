@@ -229,6 +229,11 @@ class AuditEventType(StrEnum):
     # let reviewers see whether the B6 placeholder `{}` has been filled in
     # at all.
     TASK_DESCRIPTIONS_STRUCTURED    = "TaskDescriptionsStructured"
+    # Pipeline B B7 — PGSD ability_analysis governance outcome. One event
+    # per analysis governance run. Carries blocking/warning counts + the
+    # governance_result.id so the audit can be joined back to the persisted
+    # decision row.
+    ABILITY_ANALYSIS_GOVERNED       = "AbilityAnalysisGoverned"
     CROSS_SOURCE_DUPLICATE_DETECTED = "CrossSourceDuplicateDetected"
     VERSION_STATUS_CHANGED          = "VersionStatusChanged"
     PIPELINE_FAILED                 = "PipelineFailed"
