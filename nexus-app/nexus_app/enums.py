@@ -208,6 +208,11 @@ class AuditEventType(StrEnum):
     # stage OR the domain-specific entity that landed.
     JOB_DEMAND_DATASET_PERSISTED    = "JobDemandDatasetPersisted"
     JOB_DEMAND_RECORDS_PERSISTED    = "JobDemandRecordsPersisted"
+    # Pipeline B B6 — ability_analysis writer events (same disjoin rationale
+    # as B4 above).
+    ABILITY_ANALYSIS_PERSISTED      = "AbilityAnalysisPersisted"
+    ABILITY_ITEMS_PERSISTED         = "AbilityItemsPersisted"
+    ABILITY_ITEMS_REJECTED          = "AbilityItemsRejected"
     CROSS_SOURCE_DUPLICATE_DETECTED = "CrossSourceDuplicateDetected"
     VERSION_STATUS_CHANGED          = "VersionStatusChanged"
     PIPELINE_FAILED                 = "PipelineFailed"

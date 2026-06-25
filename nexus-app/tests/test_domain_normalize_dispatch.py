@@ -67,13 +67,15 @@ class TestDispatcherSkipPaths:
         assert result.skipped is True
         assert result.reason == "empty_record_body"
 
-    def test_ability_analysis_profile_without_writer_skips(self):
+    def test_ability_analysis_profile_with_writer_present_skips_on_empty_body(self):
+        # Once the B6 ability_analysis_writer module lands, the dispatcher
+        # gets past the ImportError branch and reaches _load_record_body.
+        # With a MagicMock storage that doesn't return real JSON bytes,
+        # _load_record_body returns None → "empty_record_body" skip.
         ref = _make_ref(domain_profile="ability_analysis.pgsd.v1")
         result = dispatch_domain_normalize(MagicMock(), ref, storage=MagicMock())
         assert result.skipped is True
-        # B6 owns this writer; until that worktree lands, the registry entry
-        # resolves to an ImportError → writer_not_implemented.
-        assert result.reason == "writer_not_implemented"
+        assert result.reason == "empty_record_body"
 
 
 class TestRecordBodyLoader:

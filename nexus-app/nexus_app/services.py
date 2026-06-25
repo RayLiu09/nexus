@@ -140,9 +140,8 @@ def mint_api_caller(
         caller_key_hash = hash_api_caller_key(provided_key)
     else:
         plaintext = generate_api_caller_key()
-        # Store a display-safe masked version (nx-**** + last 4) for UI display.
         # The full plaintext is returned once in caller_key_plaintext and never persisted.
-        caller_key_to_store = f"nx-****{plaintext[-4:]}"
+        caller_key_to_store = None
         caller_key_hash = hash_api_caller_key(plaintext)
 
     row = models.ApiCaller(

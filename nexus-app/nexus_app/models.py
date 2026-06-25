@@ -2,7 +2,22 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
+from decimal import Decimal
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from nexus_app.database import Base
@@ -803,6 +818,8 @@ class KnowledgeChunk(TimestampMixin, Base):
     normalized_ref: Mapped[NormalizedAssetRef] = relationship()
 
 
+
+
 # ---------------------------------------------------------------------------
 # Pipeline B B4 — job_demand domain tables
 # ---------------------------------------------------------------------------
@@ -1018,3 +1035,291 @@ class JobDemandRequirementItem(TimestampMixin, Base):
         comment="FK to ai_analysis_rules (created by B5; DB constraint added "
                 "by a later B5 migration)")
     ai_model_alias: Mapped[str | None] = mapped_column(Text, nullable=True)
+# ---------------------------------------------------------------------------
+# Pipeline B / B6 — Ability analysis domain tables.
+# Schema frozen by docs/pipeline_b_contract_freeze.md §5.5-§5.11 and the
+# writer contract docs/pipeline_b_b4_b6_contract_freeze.md §二.2 / §三.2.
+# These tables are read-only via /v1 (open API) and written by
+# nexus_app.domain_normalize.ability_analysis_writer.
+# ---------------------------------------------------------------------------
+
+
+class AbilityAnalysisProfile(TimestampMixin, Base):
+    """Built-in ability-analysis model profile (PGSD etc.).
+
+    System-seeded; not user-managed. P0 only ships the PGSD seed. New
+    analysis models are added by inserting another (model_code,
+    schema_version) row — never by mutating the existing PGSD row, so
+    historical `occupational_ability_analysis.profile_id` stays valid.
+    """
+    __tablename__ = "ability_analysis_profile"
+    __table_args__ = (
+        UniqueConstraint(
+            "model_code", "schema_version", name="uq_aap_model_schema",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    model_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    category_schema: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON, default=list, nullable=False,
+    )
+    code_pattern: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+    )
+    relation_schema: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+    )
+    detector_rules: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_builtin: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    initialized_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    initialized_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+
+
+class OccupationalAbilityAnalysis(TimestampMixin, Base):
+    """Top-level analysis container — one row per normalized_asset_ref.
+
+    Cascade-deleted children: tasks, work_contents, ability_items, relations,
+    source_dataset links. dataset-level idempotency (§3.3) is enforced by
+    deleting the existing analysis (cascade) before re-inserting; the FK
+    `ondelete="CASCADE"` chain is what makes that safe.
+    """
+    __tablename__ = "occupational_ability_analysis"
+    __table_args__ = (
+        Index("ix_oaa_normalized_ref_id", "normalized_ref_id"),
+        Index("ix_oaa_profile_id", "profile_id"),
+        Index("ix_oaa_major", "major_name"),
+        # dataset-level idempotency: only one analysis per normalized_ref.
+        # Writer enforces this by upsert (delete-then-insert).
+        UniqueConstraint("normalized_ref_id", name="uq_oaa_normalized_ref"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("normalized_asset_ref.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    asset_version_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    profile_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("ability_analysis_profile.id"),
+        nullable=False,
+    )
+    analysis_model: Mapped[str] = mapped_column(String(64), nullable=False)
+    major_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    major_direction: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    # B6 depends on B4 job_demand_dataset after merge; keep ORM FK in sync
+    # with alembic so mapper relationship joins are deterministic.
+    source_job_demand_dataset_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("job_demand_dataset.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    task_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    work_content_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    ability_item_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    quality_summary: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+    )
+
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+    profile: Mapped[AbilityAnalysisProfile] = relationship()
+
+
+class OccupationalWorkTask(TimestampMixin, Base):
+    """One row per typical work task within an analysis."""
+    __tablename__ = "occupational_work_task"
+    __table_args__ = (
+        Index("ix_owt_analysis_id", "analysis_id"),
+        UniqueConstraint(
+            "analysis_id", "task_code", name="uq_owt_analysis_task_code",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    analysis_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("occupational_ability_analysis.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    task_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    task_name: Mapped[str] = mapped_column(String(256), nullable=False)
+    task_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # B6 writes `{}` here; B5 LLM extraction fills it later (decision 18/19).
+    task_description_structured: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+    )
+    display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    trace: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+    )
+
+
+class OccupationalWorkContent(TimestampMixin, Base):
+    """One row per work-content under a work task."""
+    __tablename__ = "occupational_work_content"
+    __table_args__ = (
+        Index("ix_owc_task_id", "task_id"),
+        UniqueConstraint(
+            "analysis_id", "content_code", name="uq_owc_analysis_content_code",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    analysis_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("occupational_ability_analysis.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    task_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("occupational_work_task.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    content_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    content_name: Mapped[str] = mapped_column(String(256), nullable=False)
+    content_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    trace: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+    )
+
+
+class OccupationalAbilityItem(TimestampMixin, Base):
+    """One row per ability entry (P / G / S / D in PGSD).
+
+    `work_content_id` is NULLable when the analysis profile declares
+    `code_pattern[<category>].requires_work_content=false` — i.e. G / S / D
+    in PGSD which hang directly off the task without a work_content level.
+    """
+    __tablename__ = "occupational_ability_item"
+    __table_args__ = (
+        Index("ix_oai_analysis_id", "analysis_id"),
+        Index("ix_oai_task_id", "task_id"),
+        Index("ix_oai_work_content_id", "work_content_id"),
+        Index("ix_oai_category", "ability_major_category_code"),
+        UniqueConstraint(
+            "analysis_id", "ability_code", name="uq_oai_analysis_code",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    analysis_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("occupational_ability_analysis.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    task_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("occupational_work_task.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    work_content_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("occupational_work_content.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    ability_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    ability_major_category_code: Mapped[str] = mapped_column(String(16), nullable=False)
+    ability_major_category_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    ability_sequence: Mapped[str] = mapped_column(String(64), nullable=False)
+    ability_content: Mapped[str] = mapped_column(Text, nullable=False)
+    normalized_terms: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+    )
+    # Confidence is set by future LLM passes; B6 leaves it NULL on initial write.
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+    quality_flags: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+    )
+    trace: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+    )
+
+
+class OccupationalAbilityRelation(Base):
+    """Graph-style edges between task / work_content / ability_item.
+
+    `relation_type` is constrained to the whitelist documented at
+    `pipeline_b_contract_freeze.md §5.10`:
+        TASK_HAS_WORK_CONTENT
+        WORK_CONTENT_REQUIRES_ABILITY
+        ABILITY_DERIVED_FROM_JOB_REQUIREMENT  (B5 / later slice)
+        ABILITY_RELATED_TO_SKILL              (B5 / later slice)
+    B6 only writes the first two.
+    """
+    __tablename__ = "occupational_ability_relation"
+    __table_args__ = (
+        Index("ix_oar_analysis_id", "analysis_id"),
+        Index("ix_oar_source", "source_type", "source_id"),
+        Index("ix_oar_target", "target_type", "target_id"),
+        Index("ix_oar_relation_type", "relation_type"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    analysis_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("occupational_ability_analysis.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    source_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    relation_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    target_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    target_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+    evidence: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+    )
+    # Only created_at — relations are immutable evidence; no updated_at.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False,
+    )
+
+
+class AbilityAnalysisSourceDataset(Base):
+    """Optional link: analysis → upstream job_demand_dataset(s) used as evidence.
+
+    P0 default behavior: B6 writer does NOT populate this table (decision 7
+    — ability analyses may exist without evidence). P1 / B7+ will write
+    entries here when the analysis explicitly cites a job-demand dataset.
+    The FK to `job_demand_dataset.id` is declared by the alembic migration
+    so this worktree doesn't have a Python-import dependency on the B4
+    SQLAlchemy model — at merge time B4 lands first, then B6 migration runs.
+    """
+    __tablename__ = "ability_analysis_source_dataset"
+    __table_args__ = (
+        Index("ix_aasd_analysis_id", "analysis_id"),
+        Index("ix_aasd_dataset_id", "job_demand_dataset_id"),
+        UniqueConstraint(
+            "analysis_id", "job_demand_dataset_id", name="uq_aasd",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    analysis_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("occupational_ability_analysis.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    job_demand_dataset_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("job_demand_dataset.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    relation_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+    created_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False,
+    )
+
