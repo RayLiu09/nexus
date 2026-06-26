@@ -725,13 +725,18 @@
   - 关键产出：`nexus_app/pipeline/normalized_record_schema.py` 集中常量；`_build_normalized_record` 写入 `domain_profile` + `body_markdown` / `body_markdown_meta` 占位；`_persist_normalized_ref` 按 `normalized_type` 区分 schema_version；不改 PG 列、不发 migration
 - **Phase 0 (B4 / B6 并行契约冻结)** — ✅ 已交付（`docs/pipeline_b_b4_b6_contract_freeze.md`），**待人工总评**
   - 关键产出：升级 `contract_freeze.md §5.1-5.3 / §5.5-5.11` schema 由草案为 frozen；新增并行执行所需的隔离边界、字段映射、唯一/幂等键算法、quality_flags 词表、writer 接口签名、占位行清理规则、审计事件、API 路径细分、Forbidden changes
-- **B4 / B5 / B6 / B7 / B8 / B9 / B10** — 待 Phase 0 总评通过后启动；B4 / B6 可并行；依赖图见 §二
+- **B4 / B6** — 领域表 + writer + nexus-api routes：✅ 已交付（并行 worktree 实施 → 合并 main），**待人工总评**
+- **B3.5 + pagination cap** — record_body 形态适配器（ParsedWorkbook → contract shape）+ 全局分页 cap 调整 100→200：✅ 已交付
+- **B5** — 知识单元加工 + body_markdown 渲染：✅ 已交付（5 个子切片 B5.1-B5.5；111 个新测试），**待人工总评**
+- **B7** — PGSD 规则治理（§10.2 十条规则）：✅ 已交付（3 个子切片 B7.1-B7.3；59 个新测试），**待人工总评**
+- **B8** — CapabilityGraphStaging 构图：✅ 已交付（3 个子切片 B8.1-B8.3；37 nexus-app + 11 nexus-api 新测试），**待人工总评**
+- **B9** — 前端 record 资产页：✅ 已交付（`nexus-console` 知识块页签按 record_type 自适应，3 个新视图组件 + 1 个适配器函数；typecheck/build 通过），**待人工总评**
+- **B10** — 样本 E2E 验收：✅ 已交付（3 个子切片 B10.1-B10.3；29 个新 E2E 测试 + 验收报告 `docs/pipeline_b_acceptance_report.md`），**待 Acceptance Gate 签字**
 - 累计测试统计：
-  - B1: 189 new
-  - B2: 120 new
-  - B3: 21 new
-  - 共 **330 new tests**，完整套件 670 passed + 1 skipped
+  - B1: 189 / B2: 120 / B3: 21 / Phase 0: 5
+  - B4: 74 + 18 / B6: 38 + 24 / B3.5: 23
+  - B5: 111 / B7: 59 / B8: 37 + 11 / B10: 29
+  - 共 **～759 new tests**；完整套件 nexus-app 1020 passed + 2 skipped；nexus-api 234+ passed
 - 建议下一步：
-  1. B3 + Phase 0 一并人工总评（按 §四 Review Gate 矩阵 — B3 触发 Data Model Gate；Phase 0 触发 Data Model / API Contract / Rule Engine / Version State / Permission And Audit Gate）
-  2. 通过后并行启动 **B4 (岗位需求领域表)** 与 **B6 (能力分析领域表)** —— 严格按 `pipeline_b_b4_b6_contract_freeze.md` 的隔离边界、字段映射、writer 接口签名实施
-  3. B5（知识单元加工 + `body_markdown` 渲染）待 B4 / B6 字段稳定后启动
+  1. 业务专家 + 后端 / AI / 前端 owner 按 `pipeline_b_acceptance_report.md §七` 签字
+  2. 通过后 Pipeline B P0 范围交付完成；P1+ 范围按验收报告 §五 排期
