@@ -8,6 +8,10 @@ import { CopyableShortId } from "@/components/shared/CopyableShortId";
 import { ConfidenceBadge } from "@/components/ConfidenceBadge";
 import { ChunkListSection } from "@/app/assets/[assetId]/_components/ChunkListSection";
 import { SourcePreviewSection } from "@/app/assets/[assetId]/_components/SourcePreviewSection";
+import { JobDemandKnowledgeView } from "@/app/assets/[assetId]/_components/JobDemandKnowledgeView";
+import { AbilityAnalysisKnowledgeView } from "@/app/assets/[assetId]/_components/AbilityAnalysisKnowledgeView";
+import { GenericRecordKnowledgeView } from "@/app/assets/[assetId]/_components/GenericRecordKnowledgeView";
+import { resolveRecordView } from "@/lib/api";
 import {
   formatDateTime,
   shortId,
@@ -189,6 +193,21 @@ function LineageTab({
 }
 
 function KnowledgeChunksTab({ latestRef }: { latestRef: NormalizedAssetRef | null }) {
+  // B9 — "知识块" tab adapts to the underlying record_type. Pipeline A
+  // documents see the RAG chunk list (unchanged). Pipeline B record
+  // assets route to a type-specific structured view per design §9.
+  // Routing logic lives in `resolveRecordView()` so the tab stays a
+  // thin dispatcher and individual views own their own loading state.
+  const view = resolveRecordView(latestRef);
+  if (view === "job_demand" && latestRef) {
+    return <JobDemandKnowledgeView normalizedRefId={latestRef.id} />;
+  }
+  if (view === "ability_analysis" && latestRef) {
+    return <AbilityAnalysisKnowledgeView normalizedRefId={latestRef.id} />;
+  }
+  if (view === "generic_table" && latestRef) {
+    return <GenericRecordKnowledgeView normalizedRef={latestRef} />;
+  }
   return (
     <ChunkListSection
       refId={latestRef?.id ?? null}

@@ -510,3 +510,224 @@ export function textValue(value: unknown) {
   }
   return String(value);
 }
+
+
+// ── Pipeline B record-asset types (B4 / B5 / B6 / B7 / B8) ────────────────
+//
+// Mirrors the public envelopes from nexus-api/v1/record-assets/* +
+// internal/v1/capability-graph-staging/*. Fields are intentionally loose
+// (`Record<string, unknown>` on dict-shaped columns) so a backend tweak
+// to a property bag doesn't break the console build — the views consume
+// only the keys they care about and treat extras as opaque.
+
+export type JobDemandDataset = {
+  id: string;
+  normalized_ref_id: string;
+  asset_version_id: string;
+  major_name: string | null;
+  industry_name: string | null;
+  source_channel: string;
+  record_count: number;
+  invalid_count: number;
+  duplicate_count: number;
+  schema_version: string;
+  quality_summary: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type JobDemandRecord = {
+  id: string;
+  dataset_id: string;
+  normalized_ref_id: string;
+  source_record_key: string;
+  source_url: string | null;
+  source_platform: string | null;
+  source_published_at: string | null;
+  job_title: string;
+  employment_type: string | null;
+  job_function_category: string | null;
+  job_count: number | null;
+  city: string | null;
+  region: string | null;
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_text: string | null;
+  experience_requirement: string | null;
+  education_requirement: string | null;
+  company_name: string | null;
+  company_address: string | null;
+  enterprise_size: string | null;
+  industry_name: string | null;
+  job_skill_text: string | null;
+  job_description: string | null;
+  responsibility_text: string | null;
+  requirement_text: string | null;
+  record_fingerprint: string;
+  quality_flags: Record<string, unknown>;
+  trace: Record<string, unknown>;
+};
+
+export type JobDemandRequirementItem = {
+  id: string;
+  record_id: string;
+  dataset_id: string;
+  item_type: string;
+  item_name: string;
+  raw_text: string | null;
+  normalized_name: string | null;
+  taxonomy_code: string | null;
+  confidence: number;
+  extractor_version: string | null;
+  evidence_field: string | null;
+  prompt_template_id: string | null;
+  rules_version_id: string | null;
+  ai_model_alias: string | null;
+};
+
+export type AbilityAnalysis = {
+  id: string;
+  normalized_ref_id: string;
+  asset_version_id: string;
+  profile_id: string;
+  analysis_model: string;
+  major_name: string | null;
+  major_direction: string | null;
+  source_job_demand_dataset_id: string | null;
+  task_count: number;
+  work_content_count: number;
+  ability_item_count: number;
+  schema_version: string;
+  quality_summary: Record<string, unknown>;
+  // The detail endpoint embeds the profile so the UI can read
+  // category_schema + code_pattern without a second request.
+  profile?: {
+    id: string;
+    model_code: string;
+    model_name: string;
+    schema_version: string;
+    category_schema: Array<Record<string, unknown>>;
+    code_pattern: Record<string, Record<string, unknown>>;
+  };
+};
+
+export type OccupationalWorkTask = {
+  id: string;
+  analysis_id: string;
+  task_code: string;
+  task_name: string;
+  task_description: string | null;
+  task_description_structured: Record<string, unknown>;
+  display_order: number;
+  trace: Record<string, unknown>;
+  // Tasks endpoint nests work_contents (and their abilities) per
+  // contract draft §1.5; ability_items live on a separate endpoint
+  // and are loaded on demand for the leaf view.
+  work_contents?: OccupationalWorkContent[];
+};
+
+export type OccupationalWorkContent = {
+  id: string;
+  analysis_id: string;
+  task_id: string;
+  content_code: string;
+  content_name: string;
+  content_description: string | null;
+  display_order: number;
+};
+
+export type OccupationalAbilityItem = {
+  id: string;
+  analysis_id: string;
+  task_id: string;
+  work_content_id: string | null;
+  ability_code: string;
+  ability_major_category_code: string;
+  ability_major_category_name: string;
+  ability_sequence: string;
+  ability_content: string;
+  normalized_terms: Record<string, unknown>;
+  confidence: number | null;
+  quality_flags: Record<string, unknown>;
+};
+
+export type OccupationalAbilityRelation = {
+  id: string;
+  analysis_id: string;
+  source_type: string;
+  source_id: string;
+  relation_type: string;
+  target_type: string;
+  target_id: string;
+  confidence: number | null;
+  evidence: Record<string, unknown>;
+};
+
+export type CapabilityGraphStagingBuild = {
+  id: string;
+  normalized_ref_id: string;
+  domain: string;
+  build_type: string;
+  status: string;
+  schema_version: string;
+  quality_summary: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CapabilityGraphStagingNode = {
+  id: string;
+  build_id: string;
+  node_type: string;
+  node_key: string;
+  display_name: string;
+  canonical_name: string | null;
+  source_table: string | null;
+  source_id: string | null;
+  properties: Record<string, unknown>;
+  confidence: number | null;
+};
+
+export type CapabilityGraphStagingEdge = {
+  id: string;
+  build_id: string;
+  source_node_id: string;
+  target_node_id: string;
+  edge_type: string;
+  source_table: string | null;
+  source_id: string | null;
+  evidence: Record<string, unknown>;
+  confidence: number | null;
+};
+
+// ── record_type adapter ───────────────────────────────────────────────────
+//
+// `normalized_asset_ref` carries `normalized_type` (document / record) but
+// the **record** branch fans out into multiple presentation flavours. The
+// canonical flavour key lives on the ref's `metadata_summary.domain_profile`
+// (B3.5 adapter writes it). Console views switch on the return of
+// `resolveRecordView()` so the routing logic stays in one place.
+
+export type RecordView =
+  | "document"        // legacy / Pipeline A — existing RAG chunk view
+  | "job_demand"      // B4 — job_demand_dataset + records
+  | "ability_analysis" // B6 — PGSD analysis tree
+  | "generic_table"   // B2 fallback — sheet / table preview
+  | "unknown";
+
+export function resolveRecordView(ref: NormalizedAssetRef | null): RecordView {
+  if (!ref) return "unknown";
+  if (ref.normalized_type === "document") return "document";
+  const meta = ref.metadata_summary ?? {};
+  const profile = typeof meta["domain_profile"] === "string"
+    ? (meta["domain_profile"] as string)
+    : null;
+  if (profile === "job_demand.v1") return "job_demand";
+  if (profile === "ability_analysis.pgsd.v1") return "ability_analysis";
+  if (profile === "generic_table.v1") return "generic_table";
+  // Record-type ref without an explicit domain_profile → render the
+  // generic table fallback rather than the document view (the user
+  // ingested record-shaped data; we just don't know the specialisation).
+  if (ref.normalized_type === "record") return "generic_table";
+  return "unknown";
+}
