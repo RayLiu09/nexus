@@ -25,6 +25,7 @@ from nexus_app.profile_detect.config import (
     DETECTOR_VERSION,
     JOB_DEMAND_HEADER_ALIASES,
     JOB_DEMAND_OPTIONAL_HEADERS,
+    MAJOR_DISTRIBUTION_HEADER_ALIASES,
     OVERVIEW_SHEET_KEYWORDS,
     PGSD_CATEGORY_ALIASES,
     PGSD_CODE_PREFIX_PATTERN,
@@ -36,6 +37,7 @@ from nexus_app.profile_detect.detector import (
     detect_ability_analysis_pgsd,
     detect_generic_table,
     detect_job_demand,
+    detect_major_distribution,
 )
 from nexus_app.profile_detect.exceptions import ProfileDetectError
 from nexus_app.profile_detect.schemas import (
@@ -51,10 +53,12 @@ __all__ = [
     "ProfileDetectError",
     "detect",
     "detect_job_demand",
+    "detect_major_distribution",
     "detect_ability_analysis_pgsd",
     "detect_generic_table",
     "JOB_DEMAND_HEADER_ALIASES",
     "JOB_DEMAND_OPTIONAL_HEADERS",
+    "MAJOR_DISTRIBUTION_HEADER_ALIASES",
     "PGSD_REQUIRED_CATEGORIES",
     "PGSD_CATEGORY_ALIASES",
     "PGSD_CODE_PREFIX_PATTERN",

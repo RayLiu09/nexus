@@ -833,7 +833,7 @@
       ]
     },
     {
-      "code": "program_distribution",
+      "code": "major_distribution",
       "name": "专业布点数",
       "parent_type": "专业数据",
       "description": "高等职业教育专科专业设置备案结果查询",
@@ -1898,7 +1898,7 @@
       "description": "岗位需求、专业布点数等结构清晰的表格记录；按记录行切片，每条作为独立检索单元。",
       "applicable_classifications": [
         "job_demand",
-        "program_distribution"
+        "major_distribution"
       ],
       "default_level": "L2",
       "source_kind": "extracted_from_normalized",

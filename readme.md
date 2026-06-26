@@ -93,6 +93,7 @@ Root documents are distilled implementation contracts:
 - Raw object and original JSON package retention.
 - Persistent job center with stage, failure reason, retry, reprocess, and re-governance.
 - MinerU parsing (auto model_version, OCR, image extraction) and standardization into `normalized_document` / `normalized_record` with full `normalized_asset_ref` fields.
+- Pipeline B structured record assets, including job demand, occupational ability analysis, and professional major-distribution tables with domain read models.
 - AI-led classification, level, tag, org-scope suggestions, and quality scoring.
 - Configurable governance rules and decision tracking.
 - RAGFlow chunking, indexing, and retrieval integration.

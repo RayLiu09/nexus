@@ -182,6 +182,7 @@ P0 end-to-end cases:
 - HTML file ingestion: `model_version = MinerU-HTML` auto-selected; parse succeeds and images stored alongside JSON.
 - Image/scanned PDF ingestion: `ocr_enable = true` auto-set; parse succeeds.
 - D1 crawler JSON batch: `ingest_validate` passes → `assetize` (Pipeline B, no MinerU) → `normalized_record` with full `normalized_asset_ref` fields → queryable and searchable.
+- Professional major-distribution XLSX: `ingest_validate` passes → Pipeline B structured parse/profile detect (`major_distribution.v1`) → `normalized_record` → domain tables; summary rows such as `全部` are ignored, `新疆生产建设兵团` is stored as `province`, and missing education level stays empty unless explicit source/file/context evidence exists.
 - High-confidence AI + quality pass → `available`.
 - Low-confidence AI or quality below threshold → `review_required`, with reason recorded in `governance_result.decision_trail`.
 - Tag generation: high-confidence tags auto-committed with audit log; low-confidence tags appear in review queue.

@@ -1115,6 +1115,105 @@ class JobDemandRequirementItem(TimestampMixin, Base):
         comment="FK to ai_analysis_rules (created by B5; DB constraint added "
                 "by a later B5 migration)")
     ai_model_alias: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+# ---------------------------------------------------------------------------
+# Pipeline B PD — major_distribution domain tables
+# ---------------------------------------------------------------------------
+
+
+class MajorDistributionDataset(TimestampMixin, Base):
+    """One major-distribution dataset per normalized_asset_ref."""
+
+    __tablename__ = "major_distribution_dataset"
+    __table_args__ = (
+        Index("ix_mdd_normalized_ref_id", "normalized_ref_id", unique=True),
+        Index("ix_mdd_asset_version_id", "asset_version_id"),
+        Index("ix_mdd_major_code", "major_code"),
+        Index("ix_mdd_year_range", "year_min", "year_max"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("normalized_asset_ref.id"), nullable=False
+    )
+    asset_version_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("asset_version.id"), nullable=False
+    )
+    dataset_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_channel: Mapped[str] = mapped_column(Text, nullable=False)
+    major_scope: Mapped[str] = mapped_column(Text, nullable=False)
+    major_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    major_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    education_level: Mapped[str | None] = mapped_column(Text, nullable=True)
+    year_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    year_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    province_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    record_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    invalid_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    placeholder_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ignored_summary_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    duplicate_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    schema_version: Mapped[str] = mapped_column(Text, nullable=False)
+    quality_summary: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+    records: Mapped[list["MajorDistributionRecord"]] = relationship(
+        back_populates="dataset",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class MajorDistributionRecord(TimestampMixin, Base):
+    """A single non-summary major distribution detail row."""
+
+    __tablename__ = "major_distribution_record"
+    __table_args__ = (
+        Index("ix_mdr_dataset_id", "dataset_id"),
+        Index("ix_mdr_normalized_ref_id", "normalized_ref_id"),
+        Index("ix_mdr_major_code", "major_code"),
+        Index("ix_mdr_major_name", "major_name"),
+        Index("ix_mdr_year", "year"),
+        Index("ix_mdr_province", "province_name"),
+        Index("ix_mdr_region_scope", "region_scope"),
+        Index("ix_mdr_education_level", "education_level"),
+        UniqueConstraint(
+            "dataset_id", "source_record_key",
+            name="uq_mdr_dataset_source_record_key",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    dataset_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("major_distribution_dataset.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("normalized_asset_ref.id"), nullable=False
+    )
+    source_record_key: Mapped[str] = mapped_column(Text, nullable=False)
+    source_row_no: Mapped[str | None] = mapped_column(Text, nullable=True)
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    year_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    province_name: Mapped[str] = mapped_column(Text, nullable=False)
+    region_scope: Mapped[str] = mapped_column(Text, nullable=False)
+    major_name: Mapped[str] = mapped_column(Text, nullable=False)
+    major_code: Mapped[str] = mapped_column(Text, nullable=False)
+    education_level: Mapped[str | None] = mapped_column(Text, nullable=True)
+    distribution_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    quality_flags: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    trace: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+
+    dataset: Mapped[MajorDistributionDataset] = relationship(back_populates="records")
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
 # ---------------------------------------------------------------------------
 # Pipeline B / B6 — Ability analysis domain tables.
 # Schema frozen by docs/pipeline_b_contract_freeze.md §5.5-§5.11 and the

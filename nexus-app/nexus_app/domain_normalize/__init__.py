@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 _WRITER_REGISTRY: dict[str, tuple[str, str]] = {
     "ability_analysis.pgsd.v1": ("nexus_app.domain_normalize.ability_analysis_writer", "write"),
     "job_demand.v1": ("nexus_app.domain_normalize.job_demand_writer", "write"),
+    "major_distribution.v1": ("nexus_app.domain_normalize.major_distribution_writer", "write"),
 }
 
 

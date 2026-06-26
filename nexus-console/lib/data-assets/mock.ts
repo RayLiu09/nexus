@@ -132,7 +132,7 @@ export const DOMAIN_CARDS: DomainCard[] = [
     sub: [
       { code: "teaching_standard", name: "专业教学标准",
         shadow: "Teaching Standard", count: 1_812, fresh: 23, review: 2 },
-      { code: "program_distribution", name: "专业布点数",
+      { code: "major_distribution", name: "专业布点数",
         shadow: "Program Distribution", count: 1_956, fresh: 18, review: 2 },
       { code: "program_profile", name: "专业简介",
         shadow: "Program Profile", count: 501, fresh: 7, review: 2 },

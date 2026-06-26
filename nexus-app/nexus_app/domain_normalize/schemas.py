@@ -32,6 +32,7 @@ class DomainNormalizeResult:
     reason: str | None = None
     dataset_id: str | None = None       # B4 result
     analysis_id: str | None = None      # B6 result
+    major_distribution_dataset_id: str | None = None
     records_written: int = 0
     items_written: int = 0
     quality_summary: dict[str, Any] = field(default_factory=dict)

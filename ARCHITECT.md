@@ -91,9 +91,11 @@ Produces: `parse_artifact`, `normalized_asset_ref(type=document)`.
 
 **Pipeline B — Record Processing:**
 
-Stages: ingest → `ingest_validate` → `assetize` → **normalize** (`normalized_record`) → govern → index. **No MinerU, no `parse_artifact`.**
+Stages: ingest → `ingest_validate` → `assetize` → structured parse/profile detect when the source is tabular → **normalize** (`normalized_record`) → govern → index. **No MinerU, no `parse_artifact`.**
 
 Produces: `normalized_asset_ref(type=record)`.
+
+P0 record profiles include job demand, occupational ability analysis, and major distribution (`major_distribution.v1`) tables. Major distribution rows are normalized into `major_distribution_dataset` / `major_distribution_record`; source summary rows such as `全部` / `全国` / `合计` are ignored because totals are derived from detail records.
 
 **Shared by both pipelines:**
 
@@ -337,7 +339,7 @@ Asset Pipeline → normalized_asset_ref (stable contract)
 `upload → raw_object (binary) → ingest_validate → Job(pipeline_type="document") → assetize (asset/asset_version) → MinerU parse (parse_artifact + images) → normalize (normalized_document) → normalized_asset_ref → AI governance → rules → governance_result → available/review_required → RAGFlow index`
 
 **Pipeline B (Record):**
-`crawler/webhook/batch → raw_object (JSON) → ingest_validate → Job(pipeline_type="record") → assetize (asset/asset_version) → normalize (normalized_record) → normalized_asset_ref → AI governance → rules → governance_result → index`
+`crawler/webhook/batch/file upload → raw_object (JSON/XLSX structured data) → ingest_validate → Job(pipeline_type="record") → assetize (asset/asset_version) → structured_parse/profile_detect when applicable → normalize (normalized_record) → normalized_asset_ref → AI governance → rules → governance_result → index`
 
 **Retrieval and QA:**
 `caller/user context → auth verify (RBAC + org scope) → search-service → RAGFlow retrieval → org scope and level check → rerank/context → answer with source citations → audit`

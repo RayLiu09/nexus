@@ -25,7 +25,7 @@ import re
 # Pinned on the ProfileDetectResult so downstream audits and review queues
 # can disjoin results emitted by different detector generations. Bump on
 # any behavioral change to the detectors.
-DETECTOR_VERSION: str = "record-profile-detector.v1"
+DETECTOR_VERSION: str = "record-profile-detector.v2"
 
 # Threshold below which a successful match is downgraded to its `_candidate`
 # variant and the asset version is parked in `review_required`. Detectors
@@ -107,3 +107,37 @@ PGSD_SHEET_NAME_PATTERN: re.Pattern[str] = re.compile(
 OVERVIEW_SHEET_KEYWORDS: frozenset[str] = frozenset({
     "典型工作任务", "工作内容分析", "能力分析",
 })
+
+
+# ---------------------------------------------------------------------------
+# Major distribution (专业布点数) detector inputs
+# ---------------------------------------------------------------------------
+
+MAJOR_DISTRIBUTION_HEADER_ALIASES: dict[str, frozenset[str]] = {
+    "year": frozenset({"年份", "年度", "统计年份", "year"}),
+    "province_name": frozenset({
+        "省份", "省市", "地区", "地域", "行政区", "province", "region",
+    }),
+    "major_name": frozenset({"专业名称", "专业", "专业名", "major_name"}),
+    "major_code": frozenset({
+        "专业代码", "专业编码", "专业目录代码", "major_code",
+    }),
+    "education_level": frozenset({
+        "层次", "学历层次", "办学层次", "education_level",
+    }),
+    "distribution_count": frozenset({
+        "布点数", "布点数量", "专业布点数量（个）", "专业布点数量",
+        "开设数量", "院校数",
+    }),
+    "source_row_no": frozenset({"序号", "No.", "#"}),
+}
+
+MAJOR_DISTRIBUTION_TOTAL_MARKERS: frozenset[str] = frozenset({
+    "全部", "全国", "合计",
+})
+
+MAJOR_DISTRIBUTION_FILENAME_KEYWORDS: frozenset[str] = frozenset({
+    "专业布点数", "专业布点数量", "专业布点",
+})
+
+MAJOR_CODE_PATTERN: re.Pattern[str] = re.compile(r"^\d{6}$")

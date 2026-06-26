@@ -93,6 +93,122 @@ def _serialize_requirement_item(item: models.JobDemandRequirementItem) -> dict:
     }
 
 
+def _serialize_major_distribution_dataset(
+    dataset: models.MajorDistributionDataset,
+) -> dict:
+    return {
+        "id": dataset.id,
+        "normalized_ref_id": dataset.normalized_ref_id,
+        "asset_version_id": dataset.asset_version_id,
+        "dataset_name": dataset.dataset_name,
+        "source_channel": dataset.source_channel,
+        "major_scope": dataset.major_scope,
+        "major_name": dataset.major_name,
+        "major_code": dataset.major_code,
+        "education_level": dataset.education_level,
+        "year_min": dataset.year_min,
+        "year_max": dataset.year_max,
+        "province_count": dataset.province_count,
+        "record_count": dataset.record_count,
+        "invalid_count": dataset.invalid_count,
+        "placeholder_count": dataset.placeholder_count,
+        "ignored_summary_count": dataset.ignored_summary_count,
+        "duplicate_count": dataset.duplicate_count,
+        "schema_version": dataset.schema_version,
+        "quality_summary": dataset.quality_summary or {},
+        "created_at": dataset.created_at.isoformat() if dataset.created_at else None,
+        "updated_at": dataset.updated_at.isoformat() if dataset.updated_at else None,
+    }
+
+
+def _serialize_major_distribution_record(record: models.MajorDistributionRecord) -> dict:
+    return {
+        "id": record.id,
+        "dataset_id": record.dataset_id,
+        "normalized_ref_id": record.normalized_ref_id,
+        "source_record_key": record.source_record_key,
+        "source_row_no": record.source_row_no,
+        "year": record.year,
+        "year_text": record.year_text,
+        "province_name": record.province_name,
+        "region_scope": record.region_scope,
+        "major_name": record.major_name,
+        "major_code": record.major_code,
+        "education_level": record.education_level,
+        "distribution_count": record.distribution_count,
+        "quality_flags": record.quality_flags or {},
+        "trace": record.trace or {},
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+    }
+
+
+def _apply_major_distribution_dataset_filters(
+    stmt,
+    *,
+    normalized_ref_id: str | None,
+    major_code: str | None,
+    major_name: str | None,
+    education_level: str | None,
+    year: int | None,
+):
+    if normalized_ref_id is not None:
+        stmt = stmt.where(
+            models.MajorDistributionDataset.normalized_ref_id == normalized_ref_id
+        )
+    if major_code is not None:
+        stmt = stmt.where(models.MajorDistributionDataset.major_code == major_code)
+    if major_name is not None:
+        stmt = stmt.where(models.MajorDistributionDataset.major_name.contains(major_name))
+    if education_level is not None:
+        stmt = stmt.where(
+            models.MajorDistributionDataset.education_level == education_level
+        )
+    if year is not None:
+        stmt = stmt.where(
+            models.MajorDistributionDataset.year_min <= year,
+            models.MajorDistributionDataset.year_max >= year,
+        )
+    return stmt
+
+
+def _apply_major_distribution_record_filters(
+    stmt,
+    *,
+    normalized_ref_id: str | None = None,
+    year: int | None = None,
+    major_code: str | None = None,
+    major_name: str | None = None,
+    province_name: str | None = None,
+    education_level: str | None = None,
+    region_scope: str | None = None,
+    min_count: int | None = None,
+    max_count: int | None = None,
+):
+    if normalized_ref_id is not None:
+        stmt = stmt.where(
+            models.MajorDistributionRecord.normalized_ref_id == normalized_ref_id
+        )
+    if year is not None:
+        stmt = stmt.where(models.MajorDistributionRecord.year == year)
+    if major_code is not None:
+        stmt = stmt.where(models.MajorDistributionRecord.major_code == major_code)
+    if major_name is not None:
+        stmt = stmt.where(models.MajorDistributionRecord.major_name.contains(major_name))
+    if province_name is not None:
+        stmt = stmt.where(models.MajorDistributionRecord.province_name == province_name)
+    if education_level is not None:
+        stmt = stmt.where(
+            models.MajorDistributionRecord.education_level == education_level
+        )
+    if region_scope is not None:
+        stmt = stmt.where(models.MajorDistributionRecord.region_scope == region_scope)
+    if min_count is not None:
+        stmt = stmt.where(models.MajorDistributionRecord.distribution_count >= min_count)
+    if max_count is not None:
+        stmt = stmt.where(models.MajorDistributionRecord.distribution_count <= max_count)
+    return stmt
+
+
 @router.get(
     "/record-assets/job-demand-datasets",
     response_model=schemas.ListResponse[dict],
@@ -261,6 +377,232 @@ def list_requirement_items_for_record(
         page_size=len(rows) or 1,
         total=len(rows),
     )
+
+
+@router.get(
+    "/record-assets/major-distribution-datasets",
+    response_model=schemas.ListResponse[dict],
+)
+def list_major_distribution_datasets(
+    request: Request,
+    normalized_ref_id: str | None = Query(None, description="Exact match"),
+    major_code: str | None = Query(None),
+    major_name: str | None = Query(None, description="Substring match"),
+    education_level: str | None = Query(None),
+    year: int | None = Query(None),
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+):
+    stmt = select(models.MajorDistributionDataset)
+    count_stmt = select(func.count(models.MajorDistributionDataset.id))
+    stmt = _apply_major_distribution_dataset_filters(
+        stmt,
+        normalized_ref_id=normalized_ref_id,
+        major_code=major_code,
+        major_name=major_name,
+        education_level=education_level,
+        year=year,
+    )
+    count_stmt = _apply_major_distribution_dataset_filters(
+        count_stmt,
+        normalized_ref_id=normalized_ref_id,
+        major_code=major_code,
+        major_name=major_name,
+        education_level=education_level,
+        year=year,
+    )
+
+    total = session.scalar(count_stmt) or 0
+    rows = list(
+        session.scalars(
+            stmt.order_by(models.MajorDistributionDataset.created_at.desc())
+            .offset(pagination.offset)
+            .limit(pagination.limit)
+        ).all()
+    )
+    return list_response(
+        [_serialize_major_distribution_dataset(row) for row in rows],
+        request,
+        page=pagination.page,
+        page_size=pagination.page_size,
+        total=total,
+    )
+
+
+@router.get(
+    "/record-assets/major-distribution-datasets/{dataset_id}",
+    response_model=schemas.ApiResponse[dict],
+)
+def get_major_distribution_dataset(
+    dataset_id: str,
+    request: Request,
+    session: Session = Depends(get_db),
+):
+    dataset = session.get(models.MajorDistributionDataset, dataset_id)
+    if dataset is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"major_distribution_dataset '{dataset_id}' not found",
+        )
+    return response(_serialize_major_distribution_dataset(dataset), request)
+
+
+@router.get(
+    "/record-assets/major-distribution-datasets/{dataset_id}/records",
+    response_model=schemas.ListResponse[dict],
+)
+def list_major_distribution_records_for_dataset(
+    dataset_id: str,
+    request: Request,
+    year: int | None = Query(None),
+    major_code: str | None = Query(None),
+    major_name: str | None = Query(None, description="Substring match"),
+    province_name: str | None = Query(None),
+    education_level: str | None = Query(None),
+    region_scope: str | None = Query(None),
+    min_count: int | None = Query(None),
+    max_count: int | None = Query(None),
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+):
+    if session.get(models.MajorDistributionDataset, dataset_id) is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"major_distribution_dataset '{dataset_id}' not found",
+        )
+
+    stmt = select(models.MajorDistributionRecord).where(
+        models.MajorDistributionRecord.dataset_id == dataset_id
+    )
+    count_stmt = select(func.count(models.MajorDistributionRecord.id)).where(
+        models.MajorDistributionRecord.dataset_id == dataset_id
+    )
+    stmt = _apply_major_distribution_record_filters(
+        stmt,
+        year=year,
+        major_code=major_code,
+        major_name=major_name,
+        province_name=province_name,
+        education_level=education_level,
+        region_scope=region_scope,
+        min_count=min_count,
+        max_count=max_count,
+    )
+    count_stmt = _apply_major_distribution_record_filters(
+        count_stmt,
+        year=year,
+        major_code=major_code,
+        major_name=major_name,
+        province_name=province_name,
+        education_level=education_level,
+        region_scope=region_scope,
+        min_count=min_count,
+        max_count=max_count,
+    )
+
+    total = session.scalar(count_stmt) or 0
+    rows = list(
+        session.scalars(
+            stmt.order_by(
+                models.MajorDistributionRecord.year.desc(),
+                models.MajorDistributionRecord.major_code.asc(),
+                models.MajorDistributionRecord.province_name.asc(),
+                models.MajorDistributionRecord.source_record_key.asc(),
+            )
+            .offset(pagination.offset)
+            .limit(pagination.limit)
+        ).all()
+    )
+    return list_response(
+        [_serialize_major_distribution_record(row) for row in rows],
+        request,
+        page=pagination.page,
+        page_size=pagination.page_size,
+        total=total,
+    )
+
+
+@router.get(
+    "/record-assets/major-distribution-records",
+    response_model=schemas.ListResponse[dict],
+)
+def list_major_distribution_records(
+    request: Request,
+    normalized_ref_id: str | None = Query(None, description="Exact match"),
+    year: int | None = Query(None),
+    major_code: str | None = Query(None),
+    major_name: str | None = Query(None, description="Substring match"),
+    province_name: str | None = Query(None),
+    education_level: str | None = Query(None),
+    region_scope: str | None = Query(None),
+    min_count: int | None = Query(None),
+    max_count: int | None = Query(None),
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+):
+    stmt = _apply_major_distribution_record_filters(
+        select(models.MajorDistributionRecord),
+        normalized_ref_id=normalized_ref_id,
+        year=year,
+        major_code=major_code,
+        major_name=major_name,
+        province_name=province_name,
+        education_level=education_level,
+        region_scope=region_scope,
+        min_count=min_count,
+        max_count=max_count,
+    )
+    count_stmt = _apply_major_distribution_record_filters(
+        select(func.count(models.MajorDistributionRecord.id)),
+        normalized_ref_id=normalized_ref_id,
+        year=year,
+        major_code=major_code,
+        major_name=major_name,
+        province_name=province_name,
+        education_level=education_level,
+        region_scope=region_scope,
+        min_count=min_count,
+        max_count=max_count,
+    )
+
+    total = session.scalar(count_stmt) or 0
+    rows = list(
+        session.scalars(
+            stmt.order_by(
+                models.MajorDistributionRecord.year.desc(),
+                models.MajorDistributionRecord.major_code.asc(),
+                models.MajorDistributionRecord.province_name.asc(),
+                models.MajorDistributionRecord.source_record_key.asc(),
+            )
+            .offset(pagination.offset)
+            .limit(pagination.limit)
+        ).all()
+    )
+    return list_response(
+        [_serialize_major_distribution_record(row) for row in rows],
+        request,
+        page=pagination.page,
+        page_size=pagination.page_size,
+        total=total,
+    )
+
+
+@router.get(
+    "/record-assets/major-distribution-records/{record_id}",
+    response_model=schemas.ApiResponse[dict],
+)
+def get_major_distribution_record(
+    record_id: str,
+    request: Request,
+    session: Session = Depends(get_db),
+):
+    record = session.get(models.MajorDistributionRecord, record_id)
+    if record is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"major_distribution_record '{record_id}' not found",
+        )
+    return response(_serialize_major_distribution_record(record), request)
 
 
 

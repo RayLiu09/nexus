@@ -26,6 +26,7 @@ from nexus_app.profile_detect import (
     detect_ability_analysis_pgsd,
     detect_generic_table,
     detect_job_demand,
+    detect_major_distribution,
 )
 from nexus_app.structured_parse import parse_xlsx
 from nexus_app.structured_parse.schemas import (
@@ -38,6 +39,8 @@ from nexus_app.structured_parse.schemas import (
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SAMPLE_JOB_DEMAND = REPO_ROOT / "docs/samples/1.（岗位需求）电子商务岗位招聘数据.xlsx"
 SAMPLE_ABILITY = REPO_ROOT / "docs/samples/2.（职业能力分析）大数据技术应用专业职业能力分析表.xlsx"
+SAMPLE_MAJOR_MULTI = REPO_ROOT / "docs/samples/2.（专业布点数）专业布点数.xlsx"
+SAMPLE_MAJOR_ECOMMERCE = REPO_ROOT / "docs/samples/电子商务专业布点数量.xlsx"
 
 
 # ---------------------------------------------------------------------------
@@ -257,6 +260,39 @@ class TestDetectAbilityAnalysisPgsdSynthetic:
 
 
 # ---------------------------------------------------------------------------
+# Detector: major_distribution
+# ---------------------------------------------------------------------------
+
+
+class TestDetectMajorDistributionSynthetic:
+    def test_full_major_distribution_header_yields_high_confidence(self):
+        wb = _workbook([
+            _sheet("Sheet1", rows=[
+                _row(1, ["年份", "省份", "专业名称", "专业代码", "专业布点数量（个）"]),
+                _row(2, ["2026年", "北京市", "电子商务", "530701", 19]),
+            ]),
+        ])
+        result = detect_major_distribution(wb)
+        assert result.record_type == "major_distribution_dataset"
+        assert result.domain == "major"
+        assert result.domain_profile == "major_distribution.v1"
+        assert result.confidence >= DEFAULT_AUTO_ADMIT_THRESHOLD
+        assert result.evidence.major_name == "电子商务"
+        assert result.evidence.major_code == "530701"
+        assert "major_code_6_digits" in result.evidence.matched_row_patterns
+
+    def test_missing_count_column_below_threshold(self):
+        wb = _workbook([
+            _sheet("Sheet1", rows=[
+                _row(1, ["年份", "省份", "专业名称", "专业代码"]),
+                _row(2, ["2026年", "北京市", "电子商务", "530701"]),
+            ]),
+        ])
+        result = detect_major_distribution(wb)
+        assert 0 < result.confidence < DEFAULT_AUTO_ADMIT_THRESHOLD
+
+
+# ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
 
@@ -287,6 +323,17 @@ class TestDispatcher:
         assert result.record_type == "occupational_ability_analysis"
         assert result.analysis_model == "PGSD"
 
+    def test_major_distribution_workbook_dispatched_to_major_distribution(self):
+        wb = _workbook([
+            _sheet("Sheet1", rows=[
+                _row(1, ["年份", "省份", "专业名称", "专业代码", "专业布点数量（个）"]),
+                _row(2, ["2026年", "北京市", "电子商务", "530701", 19]),
+            ]),
+        ])
+        result = detect(wb)
+        assert result.record_type == "major_distribution_dataset"
+        assert result.domain_profile == "major_distribution.v1"
+
     def test_low_confidence_job_demand_downgrades_to_candidate(self):
         # One required header only — high enough to register but well below
         # the auto-admit threshold.
@@ -310,6 +357,17 @@ class TestDispatcher:
         result = detect(wb)
         assert result.record_type == "occupational_ability_analysis_candidate"
         assert result.analysis_model == "PGSD"
+
+    def test_low_confidence_major_distribution_downgrades_to_candidate(self):
+        wb = _workbook([
+            _sheet("Sheet1", rows=[
+                _row(1, ["年份", "省份", "专业名称", "专业代码"]),
+                _row(2, ["2026年", "北京市", "电子商务", "530701"]),
+            ]),
+        ])
+        result = detect(wb)
+        assert result.record_type == "major_distribution_dataset_candidate"
+        assert result.domain_profile == "major_distribution.v1"
 
     def test_no_signal_falls_back_to_generic_table(self):
         wb = _workbook([
@@ -427,3 +485,41 @@ class TestSampleAbilityAnalysisIntegration:
 
     def test_all_four_code_prefixes_matched(self, result):
         assert set(result.evidence.matched_code_prefixes) == {"P", "G", "S", "D"}
+
+
+@pytest.mark.skipif(not SAMPLE_MAJOR_MULTI.exists(), reason="sample missing")
+class TestSampleMajorDistributionMultiIntegration:
+    @pytest.fixture(scope="class")
+    def result(self):
+        wb = parse_xlsx(
+            SAMPLE_MAJOR_MULTI.read_bytes(),
+            source_filename=SAMPLE_MAJOR_MULTI.name,
+        )
+        return detect(wb)
+
+    def test_classified_as_major_distribution(self, result):
+        assert result.record_type == "major_distribution_dataset"
+        assert result.domain_profile == "major_distribution.v1"
+
+    def test_high_confidence(self, result):
+        assert result.confidence >= 0.90
+
+
+@pytest.mark.skipif(not SAMPLE_MAJOR_ECOMMERCE.exists(), reason="sample missing")
+class TestSampleMajorDistributionEcommerceIntegration:
+    @pytest.fixture(scope="class")
+    def result(self):
+        wb = parse_xlsx(
+            SAMPLE_MAJOR_ECOMMERCE.read_bytes(),
+            source_filename=SAMPLE_MAJOR_ECOMMERCE.name,
+        )
+        return detect(wb)
+
+    def test_classified_as_major_distribution(self, result):
+        assert result.record_type == "major_distribution_dataset"
+        assert result.domain_profile == "major_distribution.v1"
+        assert result.evidence.has_total_row is True
+
+    def test_major_evidence(self, result):
+        assert result.evidence.major_name == "电子商务"
+        assert result.evidence.major_code == "530701"

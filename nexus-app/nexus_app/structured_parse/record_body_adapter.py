@@ -35,6 +35,9 @@ from typing import Any
 from nexus_app.profile_detect.config import (
     JOB_DEMAND_HEADER_ALIASES,
     JOB_DEMAND_OPTIONAL_HEADERS,
+    MAJOR_CODE_PATTERN,
+    MAJOR_DISTRIBUTION_HEADER_ALIASES,
+    MAJOR_DISTRIBUTION_TOTAL_MARKERS,
     PGSD_CATEGORY_ALIASES,
     PGSD_CODE_PREFIX_PATTERN,
     PGSD_SHEET_NAME_PATTERN,
@@ -120,6 +123,8 @@ def project_to_record_body(
     domain_profile = profile_dict.get("domain_profile")
     if domain_profile == "job_demand.v1":
         return _project_job_demand(raw_payload, profile_dict)
+    if domain_profile == "major_distribution.v1":
+        return _project_major_distribution(raw_payload, profile_dict)
     if domain_profile == "ability_analysis.pgsd.v1":
         return _project_ability_analysis_pgsd(raw_payload, profile_dict)
     return raw_payload
@@ -226,6 +231,206 @@ def _detect_header_row(rows: list[dict[str, Any]]) -> tuple[dict[str, Any] | Non
                 if hit >= 2:
                     return row, idx
     return None, None
+
+
+# ---------------------------------------------------------------------------
+# major_distribution.v1 projection
+# ---------------------------------------------------------------------------
+
+
+def _project_major_distribution(
+    raw_payload: dict[str, Any], profile_dict: dict[str, Any]
+) -> dict[str, Any]:
+    sheets = raw_payload.get("sheets") or []
+    records: list[dict[str, Any]] = []
+    ignored_summary_count = 0
+    placeholder_count = 0
+    invalid_count = 0
+    field_inference = {
+        "education_level": {"filled": False, "source": None, "evidence": None},
+    }
+
+    for sheet in sheets:
+        sheet_name = sheet.get("name") or ""
+        rows = sheet.get("rows") or []
+        header_row, _header_index = _detect_major_distribution_header_row(rows)
+        if header_row is None:
+            continue
+        col_to_field = _major_distribution_column_map(header_row)
+        if not col_to_field:
+            continue
+
+        for row in rows:
+            row_index = int(row.get("row_index", 0))
+            if row_index <= int(header_row.get("row_index", 0)):
+                continue
+            if row.get("is_placeholder_candidate"):
+                placeholder_count += 1
+                continue
+            if row.get("is_empty"):
+                continue
+
+            record: dict[str, Any] = {
+                "source_record_key": f"{sheet_name}#row{row_index}",
+                "trace": {"sheet": sheet_name, "row": row_index, "columns": {}},
+                "quality_flags": [],
+            }
+            for cell in row.get("cells") or []:
+                column = int(cell["column"])
+                field = col_to_field.get(column)
+                if not field:
+                    continue
+                value = cell.get("value")
+                if isinstance(value, str) and not value.strip():
+                    value = None
+                if value is None:
+                    continue
+                if field == "source_row_no":
+                    record["source_row_no"] = str(value).strip()
+                elif field == "year":
+                    year, year_text = _parse_year(value)
+                    record["year_text"] = year_text
+                    if year is not None:
+                        record["year"] = year
+                elif field == "distribution_count":
+                    count = _coerce_int(value)
+                    if count is not None:
+                        record["distribution_count"] = count
+                elif field == "major_code":
+                    code = _normalise_major_code(value)
+                    if code:
+                        record["major_code"] = code
+                elif field == "province_name":
+                    record["province_name"] = str(value).strip()
+                elif field == "education_level":
+                    record["education_level"] = str(value).strip()
+                elif field == "major_name":
+                    record["major_name"] = str(value).strip()
+                record["trace"]["columns"][field] = cell.get("column_letter")
+
+            province = record.get("province_name")
+            if province in MAJOR_DISTRIBUTION_TOTAL_MARKERS:
+                ignored_summary_count += 1
+                continue
+
+            if not _major_distribution_required_present(record):
+                invalid_count += 1
+                continue
+
+            if not MAJOR_CODE_PATTERN.match(str(record["major_code"])):
+                record["quality_flags"].append("major_code_invalid")
+            if int(record["distribution_count"]) < 0:
+                record["quality_flags"].append("distribution_count_invalid")
+            record["region_scope"] = "province" if province else "unknown"
+            record.setdefault("education_level", None)
+            records.append(record)
+
+    major_codes = {r.get("major_code") for r in records if r.get("major_code")}
+    major_names = {r.get("major_name") for r in records if r.get("major_name")}
+    education_levels = {
+        r.get("education_level") for r in records if r.get("education_level")
+    }
+    years = [int(r["year"]) for r in records if isinstance(r.get("year"), int)]
+
+    dataset: dict[str, Any] = {
+        "dataset_name": raw_payload.get("source_filename") or "major_distribution_dataset",
+        "source_channel": "excel_upload",
+        "major_scope": (
+            "single_major" if len(major_codes) == 1
+            else "multi_major" if len(major_codes) > 1 else "unknown"
+        ),
+        "record_count": len(records),
+        "invalid_count": invalid_count,
+        "placeholder_count": placeholder_count,
+        "ignored_summary_count": ignored_summary_count,
+        "duplicate_count": 0,
+    }
+    if len(major_codes) == 1:
+        dataset["major_code"] = next(iter(major_codes))
+    if len(major_names) == 1:
+        dataset["major_name"] = next(iter(major_names))
+    if len(education_levels) == 1:
+        dataset["education_level"] = next(iter(education_levels))
+    if years:
+        dataset["year_min"] = min(years)
+        dataset["year_max"] = max(years)
+    dataset["province_count"] = len({
+        r.get("province_name") for r in records if r.get("province_name")
+    })
+
+    evidence = profile_dict.get("evidence") or {}
+    if isinstance(evidence, dict):
+        dataset.setdefault("major_name", evidence.get("major_name"))
+        dataset.setdefault("major_code", evidence.get("major_code"))
+
+    return {
+        "dataset": dataset,
+        "records": records,
+        "field_inference": field_inference,
+    }
+
+
+def _detect_major_distribution_header_row(
+    rows: list[dict[str, Any]],
+) -> tuple[dict[str, Any] | None, int | None]:
+    aliases = {
+        _norm_text(alias)
+        for values in MAJOR_DISTRIBUTION_HEADER_ALIASES.values()
+        for alias in values
+    }
+    for idx, row in enumerate(rows):
+        if row.get("is_empty") or row.get("is_placeholder_candidate"):
+            continue
+        hit = 0
+        for cell in row.get("cells") or []:
+            label = _norm_text(cell.get("value"))
+            if label and label in aliases:
+                hit += 1
+        if hit >= 3:
+            return row, idx
+    return None, None
+
+
+def _major_distribution_column_map(header_row: dict[str, Any]) -> dict[int, str]:
+    alias_to_field = {
+        _norm_text(alias): field
+        for field, aliases in MAJOR_DISTRIBUTION_HEADER_ALIASES.items()
+        for alias in aliases
+    }
+    col_to_field: dict[int, str] = {}
+    for cell in header_row.get("cells") or []:
+        label = _norm_text(cell.get("value"))
+        field = alias_to_field.get(label)
+        if field:
+            col_to_field[int(cell["column"])] = field
+    return col_to_field
+
+
+def _parse_year(value: Any) -> tuple[int | None, str | None]:
+    text = str(value).strip() if value is not None else None
+    if not text:
+        return None, None
+    match = re.search(r"(19|20)\d{2}", text)
+    return (int(match.group(0)) if match else None, text)
+
+
+def _normalise_major_code(value: Any) -> str | None:
+    text = _norm_text(value)
+    if not text:
+        return None
+    if text.endswith(".0"):
+        text = text[:-2]
+    return text
+
+
+def _major_distribution_required_present(record: dict[str, Any]) -> bool:
+    return all(
+        record.get(field) is not None
+        for field in (
+            "year", "province_name", "major_name", "major_code",
+            "distribution_count",
+        )
+    )
 
 
 def _coerce_int(value: Any) -> int | None:

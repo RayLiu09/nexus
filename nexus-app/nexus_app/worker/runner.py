@@ -647,9 +647,30 @@ def _run_structured_parse_csv(
 # the worker integrator (not silently fall through).
 _REVIEW_REQUIRED_RECORD_TYPES: frozenset[str] = frozenset({
     "job_demand_dataset_candidate",
+    "major_distribution_dataset_candidate",
     "occupational_ability_analysis_candidate",
     "generic_table_dataset",
 })
+
+
+def _profile_detect_audit_summary(
+    profile: ProfileDetectResult,
+    *,
+    job_id: str,
+    raw_object_id: str | None = None,
+) -> dict[str, Any]:
+    summary: dict[str, Any] = {
+        "record_type": profile.record_type,
+        "domain_profile": profile.domain_profile,
+        "detector_version": profile.detector_version,
+        "confidence": profile.confidence,
+        "job_id": job_id,
+    }
+    if profile.analysis_model is not None:
+        summary["analysis_model"] = profile.analysis_model
+    if raw_object_id is not None:
+        summary["raw_object_id"] = raw_object_id
+    return summary
 
 
 def _run_profile_detect(
@@ -697,14 +718,7 @@ def _run_profile_detect(
         "raw_object",
         raw_object.id,
         trace_id,
-        {
-            "record_type": result.record_type,
-            "domain_profile": result.domain_profile,
-            "analysis_model": result.analysis_model,
-            "detector_version": result.detector_version,
-            "confidence": result.confidence,
-            "job_id": job.id,
-        },
+        _profile_detect_audit_summary(result, job_id=job.id),
     )
     return result
 
@@ -762,15 +776,9 @@ def _maybe_park_in_review_required(
         "asset_version",
         version.id,
         trace_id,
-        {
-            "record_type": profile.record_type,
-            "domain_profile": profile.domain_profile,
-            "analysis_model": profile.analysis_model,
-            "detector_version": profile.detector_version,
-            "confidence": profile.confidence,
-            "raw_object_id": raw_object.id,
-            "job_id": job_id,
-        },
+        _profile_detect_audit_summary(
+            profile, job_id=job_id, raw_object_id=raw_object.id
+        ),
     )
     return True
 
@@ -1614,7 +1622,8 @@ def execute_job(
             normalized_ref = _run_document_pipeline(ctx, version)
         else:
             profile_dict = (
-                profile_result.model_dump(mode="json") if profile_result else None
+                profile_result.model_dump(mode="json", exclude_none=True)
+                if profile_result else None
             )
             normalized_ref = _run_record_pipeline(
                 ctx, version, raw_payload, profile_dict=profile_dict  # type: ignore[arg-type]

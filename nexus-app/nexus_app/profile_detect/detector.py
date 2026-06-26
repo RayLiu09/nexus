@@ -33,6 +33,10 @@ from nexus_app.profile_detect.config import (
     DETECTOR_VERSION,
     JOB_DEMAND_HEADER_ALIASES,
     JOB_DEMAND_OPTIONAL_HEADERS,
+    MAJOR_CODE_PATTERN,
+    MAJOR_DISTRIBUTION_FILENAME_KEYWORDS,
+    MAJOR_DISTRIBUTION_HEADER_ALIASES,
+    MAJOR_DISTRIBUTION_TOTAL_MARKERS,
     OVERVIEW_SHEET_KEYWORDS,
     PGSD_CATEGORY_ALIASES,
     PGSD_CODE_PREFIX_PATTERN,
@@ -77,6 +81,7 @@ def detect(
     """
     candidates = [
         detect_ability_analysis_pgsd(workbook),
+        detect_major_distribution(workbook),
         detect_job_demand(workbook),
     ]
     # Filter results that did not register any signal at all.
@@ -94,6 +99,7 @@ def _downgrade_to_candidate(result: ProfileDetectResult) -> ProfileDetectResult:
     """Append `_candidate` to the record_type when confidence is below threshold."""
     candidate_map = {
         "job_demand_dataset": "job_demand_dataset_candidate",
+        "major_distribution_dataset": "major_distribution_dataset_candidate",
         "occupational_ability_analysis": "occupational_ability_analysis_candidate",
     }
     candidate_type = candidate_map.get(result.record_type)
@@ -174,6 +180,123 @@ def _zero_confidence_job_demand(*, sheet_names: list[str]) -> ProfileDetectResul
         record_type="job_demand_dataset",
         domain="occupation",
         domain_profile="job_demand.v1",
+        detector_version=DETECTOR_VERSION,
+        confidence=0.0,
+        evidence=ProfileEvidence(sheet_names=sheet_names),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Detector: major_distribution
+# ---------------------------------------------------------------------------
+
+
+def detect_major_distribution(workbook: ParsedWorkbook) -> ProfileDetectResult:
+    """Detect major distribution datasets (专业布点数 / 专业布点数量)."""
+    sheet_names = [s.name for s in workbook.sheets]
+    if not workbook.sheets:
+        return _zero_confidence_major_distribution(sheet_names=sheet_names)
+
+    best_headers: list[str] = []
+    best_field_hits: set[str] = set()
+    best_header_row_index: int | None = None
+    best_sheet: ParsedSheet | None = None
+
+    for sheet in workbook.sheets:
+        for row in sheet.rows[:5]:
+            headers = _row_string_values(sheet, row_index=row.row_index)
+            if not headers:
+                continue
+            field_hits: set[str] = set()
+            matched_headers: list[str] = []
+            normalised_headers = {h.strip().casefold(): h for h in headers}
+            for field, aliases in MAJOR_DISTRIBUTION_HEADER_ALIASES.items():
+                for alias in aliases:
+                    original = normalised_headers.get(alias.strip().casefold())
+                    if original is not None:
+                        field_hits.add(field)
+                        matched_headers.append(original)
+                        break
+            if len(field_hits) > len(best_field_hits):
+                best_field_hits = field_hits
+                best_headers = matched_headers
+                best_header_row_index = row.row_index
+                best_sheet = sheet
+
+    required = {"year", "province_name", "major_name", "major_code", "distribution_count"}
+    required_hits = best_field_hits & required
+    if not required_hits:
+        return _zero_confidence_major_distribution(sheet_names=sheet_names)
+
+    sample_rows = _rows_after(best_sheet, best_header_row_index)
+    sample_row_count = len(sample_rows)
+    patterns: set[str] = set()
+    has_total_row = False
+    major_names: set[str] = set()
+    major_codes: set[str] = set()
+
+    if best_sheet is not None and best_header_row_index is not None:
+        col_map = _major_distribution_col_map(best_sheet, best_header_row_index)
+        for row in sample_rows:
+            values = _row_by_column(row)
+            province = _text_or_none(values.get(col_map.get("province_name", -1)))
+            if province in MAJOR_DISTRIBUTION_TOTAL_MARKERS:
+                has_total_row = True
+
+            code = _normalise_major_code(values.get(col_map.get("major_code", -1)))
+            if code and MAJOR_CODE_PATTERN.match(code):
+                patterns.add("major_code_6_digits")
+                major_codes.add(code)
+
+            year = _text_or_none(values.get(col_map.get("year", -1)))
+            if year and re.search(r"(19|20)\d{2}", year):
+                patterns.add("year_with_suffix" if "年" in year else "year_4_digits")
+
+            count = _coerce_int(values.get(col_map.get("distribution_count", -1)))
+            if count is not None and count >= 0:
+                patterns.add("non_negative_count")
+
+            name = _text_or_none(values.get(col_map.get("major_name", -1)))
+            if name:
+                major_names.add(name)
+
+    header_score = 0.65 * (len(required_hits) / len(required))
+    optional_score = 0.05 if "education_level" in best_field_hits else 0.0
+    row_score = 0.0
+    row_score += 0.10 if "major_code_6_digits" in patterns else 0.0
+    row_score += 0.08 if any(p.startswith("year_") for p in patterns) else 0.0
+    row_score += 0.08 if "non_negative_count" in patterns else 0.0
+    filename_bonus = 0.04 if _filename_has_major_distribution_keyword(workbook) else 0.0
+    confidence = round(
+        min(1.0, header_score + optional_score + row_score + filename_bonus),
+        2,
+    )
+    if confidence <= 0:
+        return _zero_confidence_major_distribution(sheet_names=sheet_names)
+
+    return ProfileDetectResult(
+        record_type="major_distribution_dataset",
+        domain="major",
+        domain_profile="major_distribution.v1",
+        detector_version=DETECTOR_VERSION,
+        confidence=confidence,
+        evidence=ProfileEvidence(
+            matched_headers=best_headers,
+            sheet_names=sheet_names,
+            sample_row_count=sample_row_count,
+            matched_row_patterns=sorted(patterns),
+            has_total_row=has_total_row,
+            major_name=next(iter(major_names)) if len(major_names) == 1 else None,
+            major_code=next(iter(major_codes)) if len(major_codes) == 1 else None,
+        ),
+    )
+
+
+def _zero_confidence_major_distribution(*, sheet_names: list[str]) -> ProfileDetectResult:
+    return ProfileDetectResult(
+        record_type="major_distribution_dataset",
+        domain="major",
+        domain_profile="major_distribution.v1",
         detector_version=DETECTOR_VERSION,
         confidence=0.0,
         evidence=ProfileEvidence(sheet_names=sheet_names),
@@ -329,9 +452,83 @@ def _normalise_category(value: str) -> str:
     return PGSD_CATEGORY_ALIASES.get(value, value)
 
 
+def _rows_after(sheet: ParsedSheet | None, header_row_index: int | None) -> list:
+    if sheet is None or header_row_index is None:
+        return []
+    return [
+        row for row in sheet.rows
+        if row.row_index > header_row_index and not row.is_empty
+    ]
+
+
+def _row_by_column(row) -> dict[int, object]:
+    return {int(cell.column): cell.value for cell in row.cells}
+
+
+def _major_distribution_col_map(sheet: ParsedSheet, header_row_index: int) -> dict[str, int]:
+    row_values: dict[str, int] = {}
+    header_row = next((r for r in sheet.rows if r.row_index == header_row_index), None)
+    if header_row is None:
+        return row_values
+    alias_lookup = {
+        alias.strip().casefold(): field
+        for field, aliases in MAJOR_DISTRIBUTION_HEADER_ALIASES.items()
+        for alias in aliases
+    }
+    for cell in header_row.cells:
+        label = _text_or_none(cell.value)
+        if not label:
+            continue
+        field = alias_lookup.get(label.strip().casefold())
+        if field:
+            row_values[field] = int(cell.column)
+    return row_values
+
+
+def _text_or_none(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _normalise_major_code(value: object) -> str | None:
+    text = _text_or_none(value)
+    if text is None:
+        return None
+    if text.endswith(".0"):
+        text = text[:-2]
+    return text
+
+
+def _coerce_int(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    text = _text_or_none(value)
+    if text is None:
+        return None
+    match = re.search(r"-?\d+", text)
+    if not match:
+        return None
+    try:
+        return int(match.group(0))
+    except ValueError:
+        return None
+
+
+def _filename_has_major_distribution_keyword(workbook: ParsedWorkbook) -> bool:
+    filename = workbook.source_filename or ""
+    return any(keyword in filename for keyword in MAJOR_DISTRIBUTION_FILENAME_KEYWORDS)
+
+
 __all__ = [
     "detect",
     "detect_job_demand",
+    "detect_major_distribution",
     "detect_ability_analysis_pgsd",
     "detect_generic_table",
 ]

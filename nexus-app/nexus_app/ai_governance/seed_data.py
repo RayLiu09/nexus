@@ -221,7 +221,7 @@ def _build_code(name: str) -> str:
         "职业能力分析表": "competency_analysis",
         "职业类证书": "vocational_certificate",
         "专业教学标准": "teaching_standard",
-        "专业布点数": "program_distribution",
+        "专业布点数": "major_distribution",
         "专业人才需求报告": "talent_demand_report",
         "人才培养方案": "talent_training_plan",
         "专业简介": "program_profile",

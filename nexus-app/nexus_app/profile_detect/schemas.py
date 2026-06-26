@@ -22,6 +22,8 @@ from pydantic import BaseModel, Field
 RecordType = Literal[
     "job_demand_dataset",
     "job_demand_dataset_candidate",
+    "major_distribution_dataset",
+    "major_distribution_dataset_candidate",
     "occupational_ability_analysis",
     "occupational_ability_analysis_candidate",
     "generic_table_dataset",
@@ -58,6 +60,22 @@ class ProfileEvidence(BaseModel):
     matched_code_prefixes: list[str] = Field(
         default_factory=list,
         description="Distinct ability-code prefixes observed (PGSD: P/G/S/D)",
+    )
+    matched_row_patterns: list[str] = Field(
+        default_factory=list,
+        description="Row-level structural patterns matched by record-type detectors",
+    )
+    has_total_row: bool = Field(
+        default=False,
+        description="True when the source contains a summary row such as 省份=全部",
+    )
+    major_name: str | None = Field(
+        default=None,
+        description="Major name inferred directly from source rows when unambiguous",
+    )
+    major_code: str | None = Field(
+        default=None,
+        description="Major code inferred directly from source rows when unambiguous",
     )
 
 

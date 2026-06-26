@@ -83,7 +83,7 @@ const CLASSIFICATION_LABELS: Record<string, string> = {
   competency_analysis: "职业能力分析表",
   vocational_certificate: "职业类证书",
   teaching_standard: "专业教学标准",
-  program_distribution: "专业布点数",
+  major_distribution: "专业布点数",
   talent_demand_report: "专业人才需求报告",
   talent_training_plan: "人才培养方案",
   program_profile: "专业简介",
