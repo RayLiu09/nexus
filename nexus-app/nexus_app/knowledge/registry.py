@@ -8,7 +8,14 @@ from nexus_app.models import KnowledgeChunk
 
 
 class ChunkingStrategy(Protocol):
-    """Interface that all nexus_extract chunking strategies must implement."""
+    """Interface that all nexus_extract chunking strategies must implement.
+
+    ``record_body`` is the parsed ``payload.record_body`` for record-pipeline
+    refs (None for document pipelines). row-oriented strategies use it
+    directly so they don't have to re-parse ``content`` (which, for record
+    refs, may be the body_markdown rendering instead of the JSON).
+    Document-oriented strategies that don't need it accept it as ``**kwargs``.
+    """
 
     def chunk(
         self,
@@ -16,6 +23,9 @@ class ChunkingStrategy(Protocol):
         emission: dict[str, Any],
         kt_config: Any,
         normalized_ref_id: str,
+        content_blocks: list[dict[str, Any]] | None = None,
+        *,
+        record_body: dict[str, Any] | list[Any] | None = None,
     ) -> list[KnowledgeChunk]: ...
 
 

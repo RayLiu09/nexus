@@ -47,9 +47,9 @@ export function JobDemandKnowledgeView({ normalizedRefId }: Props) {
     let active = true;
     setDatasetState({ loading: true, dataset: null, error: null });
     getApiData<DatasetListEnvelope>(
-      "/open/v1/record-assets/job-demand-datasets",
+      "/api/record-assets/job-demand-datasets",
       [],
-      { normalized_ref_id: normalizedRefId, page_size: "1" },
+      { normalized_ref_id: normalizedRefId, pageSize: "1" },
     ).then((res) => {
       if (!active) return;
       if (!res.ok) {
@@ -150,7 +150,7 @@ function DatasetSummary({ dataset }: { dataset: JobDemandDataset }) {
 
 type RecordFilters = {
   city: string;
-  industry_name: string;
+  industry: string;
   enterprise_size: string;
   employment_type: string;
 };
@@ -158,7 +158,7 @@ type RecordFilters = {
 
 function RecordsSection({ dataset }: { dataset: JobDemandDataset }) {
   const [filters, setFilters] = useState<RecordFilters>({
-    city: "", industry_name: "", enterprise_size: "", employment_type: "",
+    city: "", industry: "", enterprise_size: "", employment_type: "",
   });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -174,7 +174,7 @@ function RecordsSection({ dataset }: { dataset: JobDemandDataset }) {
   // wrap each in undefined-checking.
   const queryParams = useMemo(() => {
     const params: Record<string, string> = {
-      page: String(page), page_size: String(pageSize),
+      page: String(page), pageSize: String(pageSize),
     };
     for (const [k, v] of Object.entries(filters)) {
       const trimmed = v.trim();
@@ -187,7 +187,7 @@ function RecordsSection({ dataset }: { dataset: JobDemandDataset }) {
     let active = true;
     setState((prev) => ({ ...prev, loading: true, error: null }));
     getApiData<RecordListEnvelope>(
-      `/open/v1/record-assets/job-demand-datasets/${dataset.id}/records`,
+      `/api/record-assets/job-demand-datasets/${dataset.id}/records`,
       [],
       queryParams,
     ).then((res) => {
@@ -266,8 +266,8 @@ function FilterBar({
         aria-label="按城市筛选岗位记录"
       />
       <Input.Search
-        placeholder="行业" allowClear value={filters.industry_name}
-        onChange={(e) => onChange({ ...filters, industry_name: e.target.value })}
+        placeholder="行业" allowClear value={filters.industry}
+        onChange={(e) => onChange({ ...filters, industry: e.target.value })}
         aria-label="按行业筛选岗位记录"
       />
       <Input.Search
@@ -350,7 +350,7 @@ function ExtractedItemsDrawer({
     let active = true;
     setState({ loading: true, items: [], error: null });
     getApiData<ItemListEnvelope>(
-      `/open/v1/record-assets/job-demand-records/${recordId}/requirement-items`,
+      `/api/record-assets/job-demand-records/${recordId}/requirement-items`,
       [],
     ).then((res) => {
       if (!active) return;

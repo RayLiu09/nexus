@@ -35,6 +35,7 @@ from nexus_app.ai_governance.litellm_client import (
     LiteLLMCallError,
     LiteLLMClientProtocol,
 )
+from nexus_app.ai_governance.model_alias import resolve_model_alias
 from nexus_app.enums import PromptProfileStatus
 
 logger = logging.getLogger(__name__)
@@ -160,7 +161,7 @@ def _structure_task(
     ]
     try:
         content, _summary = llm_client.call(
-            prompt.litellm_model_alias,
+            resolve_model_alias(prompt),
             messages,
             temperature=float(prompt.temperature),
             max_tokens=int(prompt.max_input_tokens),

@@ -146,6 +146,34 @@ def _add_failure_stage(session: Session, job: models.Job, stage_name: str, reaso
     session.flush()
 
 
+def _safe_pipeline_failed_audit(
+    session: Session,
+    job_id: str,
+    trace_id: str | None,
+    summary: dict[str, Any],
+) -> None:
+    # Audit-write isolation: a poisoned audit row (e.g. enum-drift between
+    # Python AuditEventType and the Postgres enum) must NOT prevent the
+    # job-state commit. Run the write inside a SAVEPOINT so its failure
+    # rolls back only the audit insert, leaving the job's FAILED/DEAD_LETTERED
+    # state on the session for the surrounding commit.
+    try:
+        with session.begin_nested():
+            write_audit(
+                session,
+                AuditEventType.PIPELINE_FAILED,
+                "job",
+                job_id,
+                trace_id,
+                summary,
+            )
+    except Exception:  # noqa: BLE001 — audit is best-effort; job state takes precedence
+        logger.exception(
+            "PIPELINE_FAILED audit write failed for job=%s; job state will still commit",
+            job_id,
+        )
+
+
 def _mark_job_outcome(
     session: Session,
     job: models.Job,
@@ -170,10 +198,8 @@ def _mark_job_outcome(
         job.failure_reason = reason[:2000]
         job.last_error_code = "max_attempts_exceeded"
         job.last_error_message = reason[:2000]
-        write_audit(
+        _safe_pipeline_failed_audit(
             session,
-            AuditEventType.PIPELINE_FAILED,
-            "job",
             job.id,
             trace_id,
             {"error_code": "dead_lettered", "reason": reason[:500], "attempt_count": job.attempt_count},
@@ -183,10 +209,8 @@ def _mark_job_outcome(
         job.failure_reason = reason[:2000]
         job.last_error_code = error_code
         job.last_error_message = reason[:2000]
-        write_audit(
+        _safe_pipeline_failed_audit(
             session,
-            AuditEventType.PIPELINE_FAILED,
-            "job",
             job.id,
             trace_id,
             {"error_code": error_code, "reason": reason[:500]},
@@ -1510,32 +1534,52 @@ def execute_job(
     #     file_upload+json) — kept as-is so existing ingestion contracts stay
     #     stable; B2 profile_detect may later route file_upload+json through
     #     parse_json once table-shaped vs business-object JSON can be disambiguated.
-    _run_ingest_validate(job, raw_object, session, trace_id, pipeline_type)
+    # Pre-assetize stages have their own failure paths (NonRetryableError +
+    # session.commit) for *expected* errors. Any other exception (DB enum
+    # drift, write_audit flush failure, transient DB error, etc.) used to
+    # escape uncaught and leave the job orphaned in RUNNING until lease
+    # expiry — that's the root cause of the lock_expired ghost-failure
+    # pattern. Catch every unexpected escape, classify via _mark_job_outcome,
+    # and commit so recovery_sweep doesn't have to clean up.
     raw_payload: dict[str, Any] | None = None
     profile_result: ProfileDetectResult | None = None
-    if pipeline_type == PipelineType.RECORD:
-        mime = (raw_object.mime_type or "").lower()
-        if mime in XLSX_MIME_TYPES:
-            raw_payload = _run_structured_parse_xlsx(
-                job, raw_object, storage, session, trace_id
-            )
-        elif mime in CSV_MIME_TYPES:
-            raw_payload = _run_structured_parse_csv(
-                job, raw_object, storage, session, trace_id
-            )
-        else:
-            raw_payload = _load_record_payload(
-                job, raw_object, storage, session, trace_id
-            )
+    try:
+        _run_ingest_validate(job, raw_object, session, trace_id, pipeline_type)
+        if pipeline_type == PipelineType.RECORD:
+            mime = (raw_object.mime_type or "").lower()
+            if mime in XLSX_MIME_TYPES:
+                raw_payload = _run_structured_parse_xlsx(
+                    job, raw_object, storage, session, trace_id
+                )
+            elif mime in CSV_MIME_TYPES:
+                raw_payload = _run_structured_parse_csv(
+                    job, raw_object, storage, session, trace_id
+                )
+            else:
+                raw_payload = _load_record_payload(
+                    job, raw_object, storage, session, trace_id
+                )
 
-        # B2.3 profile_detect — only the structured_parse branch produces a
-        # ParsedWorkbook-shaped dict that the detector can consume. JSON
-        # payloads from crawler / database / webhook stay on the
-        # _load_record_payload contract until B2 widens its scope.
-        if mime in XLSX_MIME_TYPES or mime in CSV_MIME_TYPES:
-            profile_result = _run_profile_detect(
-                job, raw_payload, raw_object, session, trace_id
-            )
+            # B2.3 profile_detect — only the structured_parse branch produces a
+            # ParsedWorkbook-shaped dict that the detector can consume. JSON
+            # payloads from crawler / database / webhook stay on the
+            # _load_record_payload contract until B2 widens its scope.
+            if mime in XLSX_MIME_TYPES or mime in CSV_MIME_TYPES:
+                profile_result = _run_profile_detect(
+                    job, raw_payload, raw_object, session, trace_id
+                )
+    except (NonRetryableError, RetryableError):
+        # Stage helpers already persisted FAILED + commit; just propagate.
+        raise
+    except Exception as exc:
+        session.rollback()
+        session.add(job)
+        reason = f"{type(exc).__name__}: {exc}"
+        failed_stage = job.current_stage or "pre_assetize"
+        _add_failure_stage(session, job, failed_stage, reason)
+        _mark_job_outcome(session, job, reason, trace_id, exc)
+        session.commit()
+        raise
 
     ctx = PipelineContext(
         session=session,

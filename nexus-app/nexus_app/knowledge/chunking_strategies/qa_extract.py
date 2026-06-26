@@ -26,6 +26,8 @@ class QaExtractStrategy:
         kt_config: Any,
         normalized_ref_id: str,
         content_blocks: list[dict[str, Any]] | None = None,
+        *,
+        record_body: dict[str, Any] | list[Any] | None = None,  # noqa: ARG002 — protocol arg, unused here
     ) -> list[KnowledgeChunk]:
         pairs = self._extract_qa_pairs(content)
         max_chunks = kt_config.max_chunks_per_unit

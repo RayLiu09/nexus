@@ -43,9 +43,9 @@ export function AbilityAnalysisKnowledgeView({ normalizedRefId }: Props) {
     let active = true;
     setState({ loading: true, analysis: null, error: null });
     getApiData<AbilityAnalysis[]>(
-      "/open/v1/record-assets/ability-analyses",
+      "/api/record-assets/ability-analyses",
       [],
-      { normalized_ref_id: normalizedRefId, page_size: "1" },
+      { normalized_ref_id: normalizedRefId, pageSize: "1" },
     ).then(async (listRes) => {
       if (!active) return;
       if (!listRes.ok) {
@@ -60,7 +60,7 @@ export function AbilityAnalysisKnowledgeView({ normalizedRefId }: Props) {
       // Detail endpoint includes the embedded profile (category_schema +
       // code_pattern). The list endpoint omits it to keep the row small.
       const detailRes = await getApiData<AbilityAnalysis>(
-        `/open/v1/record-assets/ability-analyses/${summary.id}`,
+        `/api/record-assets/ability-analyses/${summary.id}`,
         summary,
       );
       if (!active) return;
@@ -163,9 +163,9 @@ function TaskTreeSection({ analysisId }: { analysisId: string }) {
     let active = true;
     setTasks({ loading: true, list: [], error: null });
     getApiData<OccupationalWorkTask[]>(
-      `/open/v1/record-assets/ability-analyses/${analysisId}/tasks`,
+      `/api/record-assets/ability-analyses/${analysisId}/tasks`,
       [],
-      { page_size: "200" },
+      { pageSize: "200" },
     ).then((res) => {
       if (!active) return;
       if (!res.ok) {
@@ -181,9 +181,9 @@ function TaskTreeSection({ analysisId }: { analysisId: string }) {
     let active = true;
     setAbilities({ loading: true, list: [], error: null });
     getApiData<OccupationalAbilityItem[]>(
-      `/open/v1/record-assets/ability-analyses/${analysisId}/ability-items`,
+      `/api/record-assets/ability-analyses/${analysisId}/ability-items`,
       [],
-      { page_size: "200" },
+      { pageSize: "200" },
     ).then((res) => {
       if (!active) return;
       if (!res.ok) {
@@ -284,9 +284,9 @@ function GeneralAbilitiesSection({ analysisId }: { analysisId: string }) {
     setState({ loading: true, list: [], error: null });
     Promise.all(
       ["G", "S", "D"].map((cat) => getApiData<OccupationalAbilityItem[]>(
-        `/open/v1/record-assets/ability-analyses/${analysisId}/ability-items`,
+        `/api/record-assets/ability-analyses/${analysisId}/ability-items`,
         [],
-        { category: cat, page_size: "200" },
+        { category: cat, pageSize: "200" },
       )),
     ).then((results) => {
       if (!active) return;
@@ -357,9 +357,9 @@ function StagingPreview({ normalizedRefId }: { normalizedRefId: string }) {
     let active = true;
     setState((prev) => ({ ...prev, loading: true, error: null }));
     getApiData<CapabilityGraphStagingBuild[]>(
-      "/internal/v1/capability-graph-staging/builds",
+      "/api/capability-graph-staging/builds",
       [],
-      { normalized_ref_id: normalizedRefId, page_size: "1" },
+      { normalized_ref_id: normalizedRefId, pageSize: "1" },
     ).then(async (listRes) => {
       if (!active) return;
       if (!listRes.ok) {
@@ -374,12 +374,12 @@ function StagingPreview({ normalizedRefId }: { normalizedRefId: string }) {
       // Preview: cap at 10 of each so we don't paint a huge table inline.
       const [nodesRes, edgesRes] = await Promise.all([
         getApiData<CapabilityGraphStagingNode[]>(
-          `/internal/v1/capability-graph-staging/builds/${build.id}/nodes`,
-          [], { page_size: "10" },
+          `/api/capability-graph-staging/builds/${build.id}/nodes`,
+          [], { pageSize: "10" },
         ),
         getApiData<CapabilityGraphStagingEdge[]>(
-          `/internal/v1/capability-graph-staging/builds/${build.id}/edges`,
-          [], { page_size: "10" },
+          `/api/capability-graph-staging/builds/${build.id}/edges`,
+          [], { pageSize: "10" },
         ),
       ]);
       if (!active) return;

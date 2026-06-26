@@ -1113,9 +1113,11 @@ def run_knowledge_chunking(
 
     from nexus_app.knowledge.services import run_knowledge_pipeline
 
-    content, content_blocks = _load_normalized_payload(ctx, normalized_ref)
+    content, content_blocks, record_body = _load_normalized_payload(ctx, normalized_ref)
     chunks = run_knowledge_pipeline(
-        content, emissions, normalized_ref.id, content_blocks=content_blocks
+        content, emissions, normalized_ref.id,
+        content_blocks=content_blocks,
+        record_body=record_body,
     )
     for chunk in chunks:
         ctx.session.add(chunk)
@@ -1145,15 +1147,15 @@ def _load_normalized_content(
     input building). For knowledge chunking use _load_normalized_payload to
     receive blocks alongside content.
     """
-    content, _ = _load_normalized_payload(ctx, normalized_ref)
+    content, _, _ = _load_normalized_payload(ctx, normalized_ref)
     return content
 
 
 def _load_normalized_payload(
     ctx: PipelineContext,
     normalized_ref: models.NormalizedAssetRef,
-) -> tuple[str, list[dict[str, Any]] | None]:
-    """Read normalized payload and return ``(content, content_blocks)``.
+) -> tuple[str, list[dict[str, Any]] | None, dict[str, Any] | list[Any] | None]:
+    """Read normalized payload and return ``(content, content_blocks, record_body)``.
 
     ``content`` is the canonical text passed into chunking strategies and
     LLM Prompt builders — byte-for-byte the value persisted in MinIO. Adding
@@ -1163,6 +1165,12 @@ def _load_normalized_payload(
     ``content_blocks`` is the ``normalized_document.blocks[]`` list when the
     payload describes a document; None for ``normalized_record`` payloads so
     record-type chunks correctly carry ``locator=None``.
+
+    ``record_body`` is the parsed ``payload.record_body`` for record-pipeline
+    refs (None for documents). Threaded through so row-oriented chunking
+    strategies (``row_decompose``) can read the structured rows directly
+    instead of re-parsing ``content`` — which, for record refs, may be the
+    body_markdown rendering written by B5.3 rather than the JSON.
     """
     uri = normalized_ref.object_uri
     key = uri.split("/", 3)[-1] if uri.startswith("s3://") else uri
@@ -1170,16 +1178,19 @@ def _load_normalized_payload(
     try:
         payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
-        return raw.decode("utf-8", errors="ignore"), None
+        return raw.decode("utf-8", errors="ignore"), None, None
     content = (
         payload.get("body_markdown")
         or json.dumps(payload.get("record_body", {}), ensure_ascii=False)
         or ""
     )
+    record_body = payload.get("record_body")
+    if not isinstance(record_body, (dict, list)):
+        record_body = None
     blocks = payload.get("blocks")
     if isinstance(blocks, list) and blocks:
-        return content, blocks
-    return content, None
+        return content, blocks, record_body
+    return content, None, record_body
 
 
 # ---------------------------------------------------------------------------

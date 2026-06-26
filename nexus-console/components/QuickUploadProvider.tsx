@@ -271,7 +271,7 @@ function QuickUploadBody({ prefillDataSourceId, onClose }: DrawerBodyProps) {
   if (sourcesLoading) {
     return (
       <div className="flex h-full items-center justify-center py-12">
-        <Spin tip="加载数据源列表…" />
+        <Spin description="加载数据源列表…" />
       </div>
     );
   }

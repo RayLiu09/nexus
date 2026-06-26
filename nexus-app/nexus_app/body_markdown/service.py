@@ -33,6 +33,7 @@ from nexus_app.ai_governance.litellm_client import (
     LiteLLMCallError,
     LiteLLMClientProtocol,
 )
+from nexus_app.ai_governance.model_alias import resolve_model_alias
 from nexus_app.body_markdown import deterministic, skeleton_validator
 from nexus_app.body_markdown.cache import CacheKey, RenderCache, get_default_cache
 from nexus_app.body_markdown.schemas import (
@@ -209,7 +210,7 @@ def _try_llm_render(
     started = time.monotonic()
     try:
         content, _summary = llm_client.call(
-            prompt.litellm_model_alias,
+            resolve_model_alias(prompt),
             messages,
             temperature=float(prompt.temperature),
             max_tokens=int(prompt.max_input_tokens),

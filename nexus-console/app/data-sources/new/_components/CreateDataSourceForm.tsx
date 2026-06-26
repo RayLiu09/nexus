@@ -490,7 +490,7 @@ export function CreateDataSourceForm({ action, preselectedType }: CreateDataSour
               确认创建
             </Button>
           ) : (
-            <Button type="primary" onClick={goNext} icon={<RightOutlined />} iconPosition="end">
+            <Button type="primary" onClick={goNext} icon={<RightOutlined />} iconPlacement="end">
               下一步
             </Button>
           )}

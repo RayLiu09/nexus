@@ -336,6 +336,10 @@ class ChunkType(StrEnum):
     # RAGFlow as one opaque whole-document chunk; instead Nexus does semantic
     # segmentation on normalized blocks and emits N retrieval-grade chunks.
     SEMANTIC_BLOCK         = "semantic_block"
+    # Record pipeline — one structured row per chunk (e.g. job_demand record).
+    # Used by KTs whose governance_rules_v2.json declares
+    # ``chunking_mode=row_per_chunk`` (e.g. ``structured_record_table``).
+    STRUCTURED_RECORD_ROW  = "structured_record_row"
 
 
 class ChunkingStrategy(StrEnum):
@@ -349,6 +353,8 @@ class ChunkingStrategy(StrEnum):
     TAG_DECOMPOSE          = "tag_decompose"
     # Slice 2 — strategy code for semantic-repack output.
     SEMANTIC_REPACK        = "semantic_repack"
+    # Record pipeline — explodes a record_body into one chunk per row.
+    ROW_DECOMPOSE          = "row_decompose"
 
 
 class SourceKind(StrEnum):

@@ -15,6 +15,7 @@ import nexus_app.knowledge.chunking_strategies.indicator_decompose  # noqa: F401
 import nexus_app.knowledge.chunking_strategies.case_decompose  # noqa: F401
 import nexus_app.knowledge.chunking_strategies.graph_extract  # noqa: F401
 import nexus_app.knowledge.chunking_strategies.tag_decompose  # noqa: F401
+import nexus_app.knowledge.chunking_strategies.row_decompose  # noqa: F401
 
 
 def run_knowledge_pipeline(
@@ -22,6 +23,8 @@ def run_knowledge_pipeline(
     knowledge_emissions: list[dict[str, Any]],
     normalized_ref_id: str,
     content_blocks: list[dict[str, Any]] | None = None,
+    *,
+    record_body: dict[str, Any] | list[Any] | None = None,
 ) -> list[KnowledgeChunk]:
     """Process all emissions for a normalized_asset_ref, return all produced chunks.
 
@@ -33,6 +36,12 @@ def run_knowledge_pipeline(
             (page span + raw_object jump-back). Pass None for record-pipeline
             inputs — chunks then carry no locator, matching the contract for
             ``normalized_type=record``.
+        record_body: Optional ``payload.record_body`` for record-pipeline
+            refs. Row-oriented strategies (``row_decompose``) read this
+            directly because ``content`` may be the body_markdown rendering
+            (B5.3) rather than the structured JSON. None for document
+            pipelines — those strategies operate on ``content`` /
+            ``content_blocks`` alone.
     """
     all_chunks: list[KnowledgeChunk] = []
 
@@ -42,6 +51,7 @@ def run_knowledge_pipeline(
         chunks = route_and_chunk(
             content, emission, kt_config, normalized_ref_id,
             content_blocks=content_blocks,
+            record_body=record_body,
         )
         all_chunks.extend(chunks)
 

@@ -32,6 +32,7 @@ from nexus_app.ai_governance.litellm_client import (
     LiteLLMCallError,
     LiteLLMClientProtocol,
 )
+from nexus_app.ai_governance.model_alias import resolve_model_alias
 from nexus_app.enums import PromptProfileStatus
 from nexus_app.knowledge_extraction import guardrails
 from nexus_app.knowledge_extraction.schemas import (
@@ -141,10 +142,11 @@ def _extract_for_record(
         {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
     ]
     response_format = {"type": "json_object"} if rule_set.output_format == "json" else None
+    effective_alias = resolve_model_alias(prompt)
 
     try:
         content, _summary = llm_client.call(
-            prompt.litellm_model_alias,
+            effective_alias,
             messages,
             temperature=float(prompt.temperature),
             max_tokens=int(prompt.max_input_tokens),
@@ -201,6 +203,7 @@ def _extract_for_record(
             item=normalised,
             prompt=prompt,
             rule_set=rule_set,
+            model_alias=effective_alias,
         )
         persisted += 1
         if normalised.is_low_confidence:
@@ -303,7 +306,14 @@ def _persist_item(
     item: ExtractedItem,
     prompt: models.AIPromptProfile,
     rule_set: models.AIAnalysisRules,
+    model_alias: str | None = None,
 ) -> None:
+    # `ai_model_alias` records the alias actually sent to LiteLLM. When the
+    # env override is in effect the seeded `prompt.litellm_model_alias` no
+    # longer reflects the real call target, so callers pass the resolved
+    # alias here. Fallback to the seeded value preserves test fixtures and
+    # external callers that haven't been updated.
+    effective_alias = model_alias if model_alias is not None else prompt.litellm_model_alias
     session.add(
         models.JobDemandRequirementItem(
             id=str(uuid4()),
@@ -319,7 +329,7 @@ def _persist_item(
             evidence_field=item.evidence_field,
             prompt_template_id=prompt.id,
             rules_version_id=rule_set.id,
-            ai_model_alias=prompt.litellm_model_alias,
+            ai_model_alias=effective_alias,
         )
     )
 

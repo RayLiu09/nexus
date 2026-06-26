@@ -28,6 +28,8 @@ class CaseDecomposeStrategy:
         kt_config: Any,
         normalized_ref_id: str,
         content_blocks: list[dict[str, Any]] | None = None,
+        *,
+        record_body: dict[str, Any] | list[Any] | None = None,  # noqa: ARG002 — protocol arg, unused here
     ) -> list[KnowledgeChunk]:
         sectioned = self._split_by_sections(content)
         max_chunks = kt_config.max_chunks_per_unit

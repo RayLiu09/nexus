@@ -153,7 +153,7 @@ export function WorkbenchContent({ data }: { data: WorkbenchData }) {
                     type={item.tone === "danger" ? "primary" : "default"}
                     danger={item.tone === "danger"}
                     icon={<ArrowRightOutlined />}
-                    iconPosition="end"
+                    iconPlacement="end"
                   >
                     {item.actionLabel}
                   </Button>

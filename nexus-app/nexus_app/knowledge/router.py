@@ -6,6 +6,13 @@ each carrying md_char_range / md_spans / heading_path / anchor_role for source
 preview. The legacy ``passthrough_to_ragflow`` mode is accepted only as a
 backward-compatible alias for old configs; RAGFlow is not the owner of chunk
 construction in this path.
+
+Pipeline B record-pipeline KTs use ``row_per_chunk`` mode: each record_body
+row becomes one ``STRUCTURED_RECORD_ROW`` chunk via the
+``row_decompose`` strategy registered in ``STRATEGY_REGISTRY``. Mechanically
+it shares the same dispatch shape as ``nexus_extract`` (look up strategy by
+name, run ``.chunk()``); the mode label exists separately so the on-disk
+governance rules stay declarative for operators.
 """
 
 from __future__ import annotations
@@ -26,6 +33,8 @@ def route_and_chunk(
     kt_config: KnowledgeTypeConfig,
     normalized_ref_id: str,
     content_blocks: list[dict[str, Any]] | None = None,
+    *,
+    record_body: dict[str, Any] | list[Any] | None = None,
 ) -> list[KnowledgeChunk]:
     """Route a single emission to the appropriate chunking path.
 
@@ -34,6 +43,10 @@ def route_and_chunk(
     - legacy ``passthrough_to_ragflow`` is treated as the same semantic path.
     - ``nexus_extract`` → registered structured strategy (qa_extract,
       indicator_decompose, etc.).
+    - ``row_per_chunk`` → registered record-pipeline strategy
+      (``row_decompose`` for ``structured_record_table``). Same dispatch
+      shape as ``nexus_extract``: the strategy is looked up by name from
+      ``STRATEGY_REGISTRY`` and given the same arguments.
     """
     mode = kt_config.chunking_mode
 
@@ -42,10 +55,11 @@ def route_and_chunk(
             content, emission, kt_config, normalized_ref_id,
             content_blocks=content_blocks,
         )
-    elif mode == "nexus_extract":
+    elif mode in {"nexus_extract", "row_per_chunk"}:
         return _run_nexus_extract(
             content, emission, kt_config, normalized_ref_id,
             content_blocks=content_blocks,
+            record_body=record_body,
         )
     else:
         raise ValueError(f"Unknown chunking_mode: {mode}")
@@ -123,8 +137,10 @@ def _run_nexus_extract(
     kt_config: KnowledgeTypeConfig,
     normalized_ref_id: str,
     content_blocks: list[dict[str, Any]] | None = None,
+    *,
+    record_body: dict[str, Any] | list[Any] | None = None,
 ) -> list[KnowledgeChunk]:
-    """Run a registered chunking strategy for nexus_extract mode."""
+    """Run a registered chunking strategy for nexus_extract / row_per_chunk modes."""
     strategy_name = kt_config.chunking_strategy
     if strategy_name not in STRATEGY_REGISTRY:
         raise ValueError(
@@ -136,4 +152,5 @@ def _run_nexus_extract(
     return strategy.chunk(
         content, emission, kt_config, normalized_ref_id,
         content_blocks=content_blocks,
+        record_body=record_body,
     )

@@ -616,7 +616,22 @@ class TestCacheHitOnRerun:
 
 
 class TestProvenanceFields:
-    def test_requirement_items_carry_audit_fields(self, session, job_demand_setup):
+    def test_requirement_items_carry_audit_fields(
+        self, session, job_demand_setup, monkeypatch
+    ):
+        # The persisted `ai_model_alias` is the alias actually called on
+        # LiteLLM. When `LITELLM_EXTRACTION_MODEL_ALIAS` is set in the
+        # surrounding env (.env.dev for dev workstations), the env override
+        # wins over the seeded `internal/test-v1`. Clear both override env
+        # vars + the settings cache so the test pins the seeded-prompt path
+        # regardless of where it runs.
+        from nexus_app.config import get_settings
+        monkeypatch.delenv("LITELLM_EXTRACTION_MODEL_ALIAS", raising=False)
+        monkeypatch.delenv("LITELLM_BODY_MARKDOWN_MODEL_ALIAS", raising=False)
+        monkeypatch.setenv("LITELLM_EXTRACTION_MODEL_ALIAS", "")
+        monkeypatch.setenv("LITELLM_BODY_MARKDOWN_MODEL_ALIAS", "")
+        get_settings.cache_clear()
+
         records = list(session.scalars(select(models.JobDemandRecord).order_by(
             models.JobDemandRecord.source_record_key
         )))
@@ -637,3 +652,4 @@ class TestProvenanceFields:
             assert item.prompt_template_id == result.prompt_profile_id
             assert item.ai_model_alias == "internal/test-v1"
             assert item.extractor_version == "1.0"
+        get_settings.cache_clear()

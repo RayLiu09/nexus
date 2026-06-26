@@ -107,6 +107,21 @@ class Settings(BaseSettings):
         alias="DEFAULT_NORMALIZE_MODEL",
     )
 
+    # Pipeline B B5 LLM aliases — env-level overrides for prompt profiles
+    # whose seeded `litellm_model_alias` (e.g. `internal/job-extract-v1`)
+    # may not be accessible under the deployed LiteLLM key. When set, the
+    # override is preferred over `ai_prompt_profile.litellm_model_alias`;
+    # when unset (default), the seeded alias is used unchanged so prod
+    # behavior is unaffected.
+    litellm_extraction_model_alias: str | None = Field(
+        default=None,
+        alias="LITELLM_EXTRACTION_MODEL_ALIAS",
+    )
+    litellm_body_markdown_model_alias: str | None = Field(
+        default=None,
+        alias="LITELLM_BODY_MARKDOWN_MODEL_ALIAS",
+    )
+
     # ── Auth (P1 JWT) ──────────────────────────────────────────────────────
     # HS256 symmetric secret. MUST be set in production; an in-memory default is
     # generated only when running tests/dev to avoid breaking conftest setups.
