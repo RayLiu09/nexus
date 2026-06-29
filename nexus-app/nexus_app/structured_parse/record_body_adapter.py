@@ -499,9 +499,15 @@ def _project_ability_analysis_pgsd(
                 content_code = ".".join(parts[:2]) if len(parts) >= 2 else code_body
                 wc = work_contents.setdefault(content_code, {
                     "content_code": content_code,
-                    "content_name": content_code,  # name unknown from sheet; writer leaves NULL ok
+                    "content_name": content_code,
+                    "content_description": None,
                     "abilities": [],
                 })
+                if wc["content_name"] == content_code:
+                    inferred_name = _infer_work_content_name(ability_content)
+                    if inferred_name:
+                        wc["content_name"] = inferred_name
+                        wc["content_description"] = ability_content
                 wc["abilities"].append({
                     "ability_code": ability_code,
                     "ability_major_category_code": "P",
@@ -550,6 +556,27 @@ def _project_ability_analysis_pgsd(
             analysis["major_direction"] = evidence["major_direction"]
 
     return {"analysis": analysis, "tasks": tasks}
+
+
+def _infer_work_content_name(ability_content: str | None) -> str | None:
+    """Infer a readable work-content label from the first P ability sentence.
+
+    Some PGSD spreadsheets encode work content only in the P ability code
+    group (e.g. `P-1.1.*`) and put no explicit work-content name column in
+    the sheet. In that case using `1.1` as the graph node label is not useful.
+    This helper keeps the inference deterministic and conservative: remove
+    common ability-modal prefixes, then keep the remaining action phrase.
+    """
+    if not ability_content:
+        return None
+    text = str(ability_content).strip()
+    if not text:
+        return None
+    text = re.sub(r"^[，,；;。.\s]+", "", text)
+    text = re.sub(r"^(具备|掌握|熟悉|了解|理解|能够|能|会|可|可以)", "", text).strip()
+    text = re.sub(r"^(运用|使用|利用)", "", text).strip()
+    text = re.sub(r"^[，,；;。.\s]+", "", text)
+    return text[:128] or None
 
 
 def _extract_ability(row: dict[str, Any]) -> tuple[str | None, str | None]:

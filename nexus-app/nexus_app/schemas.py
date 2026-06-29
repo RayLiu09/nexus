@@ -443,6 +443,13 @@ class NormalizedAssetRefRead(ORMModel):
     status: NormalizedAssetRefStatus
     block_count: int
     record_count: int
+    source_type: str | None = None
+    content_type: str | None = None
+    title: str | None = None
+    language: str | None = None
+    governance: dict[str, Any]
+    quality: dict[str, Any]
+    lineage: dict[str, Any]
     metadata_summary: dict[str, Any]
     created_at: datetime
     updated_at: datetime

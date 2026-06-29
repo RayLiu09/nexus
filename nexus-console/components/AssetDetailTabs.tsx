@@ -40,7 +40,6 @@ type Props = {
   tagDictionary: TagDictionary;
 };
 
-
 const CLASSIFICATION_LABELS: Record<string, string> = {
   industry_policy: "产业政策",
   industry_report: "产业报告",
@@ -58,7 +57,9 @@ const CLASSIFICATION_LABELS: Record<string, string> = {
 function classificationLabel(output: Record<string, unknown>): string {
   const name = output.classification_name as string | undefined;
   if (name) return name;
-  const code = (output.classification_code as string | undefined) ?? (output.classification as string | undefined);
+  const code =
+    (output.classification_code as string | undefined) ??
+    (output.classification as string | undefined);
   if (!code) return "";
   return CLASSIFICATION_LABELS[code] ?? code;
 }
@@ -82,7 +83,16 @@ function LineageTab({
   relatedArtifact,
   rawObjectNames,
   dataSourceName,
-}: Omit<Props, "versions" | "governanceRuns" | "latestGovernanceResult" | "governanceRunsOk" | "governanceRunsError" | "governanceRunsTraceId" | "tagDictionary">) {
+}: Omit<
+  Props,
+  | "versions"
+  | "governanceRuns"
+  | "latestGovernanceResult"
+  | "governanceRunsOk"
+  | "governanceRunsError"
+  | "governanceRunsTraceId"
+  | "tagDictionary"
+>) {
   return (
     <>
       {/* Flow diagram */}
@@ -100,7 +110,9 @@ function LineageTab({
                 <div className="m1-stage-label">Raw Object</div>
                 {latestVersion && (
                   <div className="m1-stage-sub">
-                    {rawObjectNames?.get(latestVersion.raw_object_id) ?? <CopyableShortId value={latestVersion.raw_object_id} className="mono-cell" />}
+                    {rawObjectNames?.get(latestVersion.raw_object_id) ?? (
+                      <CopyableShortId value={latestVersion.raw_object_id} className="mono-cell" />
+                    )}
                   </div>
                 )}
               </div>
@@ -128,9 +140,7 @@ function LineageTab({
               <div className="m1-stage-dot" />
               <div className="m1-stage-body">
                 <div className="m1-stage-label">Normalized</div>
-                {latestRef && (
-                  <div className="m1-stage-sub">{latestRef.normalized_type}</div>
-                )}
+                {latestRef && <div className="m1-stage-sub">{latestRef.normalized_type}</div>}
               </div>
             </div>
 
@@ -138,13 +148,13 @@ function LineageTab({
             <div className={`m1-arrow ${asset?.status === "available" ? "done" : ""}`} />
 
             {/* Asset */}
-            <div className={`m1-stage ${asset?.status === "available" ? "status-done" : "status-active"}`}>
+            <div
+              className={`m1-stage ${asset?.status === "available" ? "status-done" : "status-active"}`}
+            >
               <div className="m1-stage-dot" />
               <div className="m1-stage-body">
                 <div className="m1-stage-label">Asset</div>
-                {asset && (
-                  <div className="m1-stage-sub">{asset.status}</div>
-                )}
+                {asset && <div className="m1-stage-sub">{asset.status}</div>}
               </div>
             </div>
           </div>
@@ -187,12 +197,17 @@ function LineageTab({
         )}
         {!latestVersion && !relatedArtifact && !latestRef && <Empty description="暂无血缘数据" />}
       </div>
-
     </>
   );
 }
 
-function KnowledgeChunksTab({ latestRef }: { latestRef: NormalizedAssetRef | null }) {
+function KnowledgeChunksTab({
+  latestRef,
+  assetTitle,
+}: {
+  latestRef: NormalizedAssetRef | null;
+  assetTitle?: string | null;
+}) {
   // B9 — "知识块" tab adapts to the underlying record_type. Pipeline A
   // documents see the RAG chunk list (unchanged). Pipeline B record
   // assets route to a type-specific structured view per design §9.
@@ -203,7 +218,7 @@ function KnowledgeChunksTab({ latestRef }: { latestRef: NormalizedAssetRef | nul
     return <JobDemandKnowledgeView normalizedRefId={latestRef.id} />;
   }
   if (view === "ability_analysis" && latestRef) {
-    return <AbilityAnalysisKnowledgeView normalizedRefId={latestRef.id} />;
+    return <AbilityAnalysisKnowledgeView normalizedRef={latestRef} assetTitle={assetTitle} />;
   }
   if (view === "generic_table" && latestRef) {
     return <GenericRecordKnowledgeView normalizedRef={latestRef} />;
@@ -310,7 +325,11 @@ function AIGovernanceTab({
           <div className="flex gap-2">
             {run ? <Tag>{run.model_alias}</Tag> : <Tag>official result</Tag>}
             {run ? <Tag>{run.prompt_version}</Tag> : null}
-            {run ? <StatusLabel value={run.adoption_status} /> : result ? <StatusLabel value={result.status} /> : null}
+            {run ? (
+              <StatusLabel value={run.adoption_status} />
+            ) : result ? (
+              <StatusLabel value={result.status} />
+            ) : null}
           </div>
         </div>
         <div className="card-body">
@@ -397,7 +416,9 @@ function AIGovernanceTab({
               <div>
                 <span>数据分类</span>
                 {result.classification ? (
-                  <Tag color="blue">{classificationLabel({ classification: result.classification })}</Tag>
+                  <Tag color="blue">
+                    {classificationLabel({ classification: result.classification })}
+                  </Tag>
                 ) : (
                   <span className="text-muted">-</span>
                 )}
@@ -416,9 +437,18 @@ function AIGovernanceTab({
                   )}
                 </div>
               </div>
-              <div><span>组织范围</span><strong>{result.org_scope ?? "-"}</strong></div>
-              <div><span>索引准入</span><strong>{result.index_admission ? "允许" : "不允许"}</strong></div>
-              <div><span>结果ID</span><CopyableShortId value={result.id} className="mono-cell" /></div>
+              <div>
+                <span>组织范围</span>
+                <strong>{result.org_scope ?? "-"}</strong>
+              </div>
+              <div>
+                <span>索引准入</span>
+                <strong>{result.index_admission ? "允许" : "不允许"}</strong>
+              </div>
+              <div>
+                <span>结果ID</span>
+                <CopyableShortId value={result.id} className="mono-cell" />
+              </div>
             </div>
           </div>
         </div>
@@ -583,7 +613,13 @@ function QualityTab({
 // ---------------------------------------------------------------------------
 // Version history tab
 // ---------------------------------------------------------------------------
-function VersionsTab({ versions, rawObjectNames }: { versions: AssetVersion[]; rawObjectNames?: Map<string, string> }) {
+function VersionsTab({
+  versions,
+  rawObjectNames,
+}: {
+  versions: AssetVersion[];
+  rawObjectNames?: Map<string, string>;
+}) {
   if (versions.length === 0) {
     return <Empty description="暂无版本记录" />;
   }
@@ -607,7 +643,9 @@ function VersionsTab({ versions, rawObjectNames }: { versions: AssetVersion[]; r
           <CopyableShortId value={v.id} className="mono-cell" />
           <span>v{v.version_no}</span>
           <span title={v.raw_object_id}>
-            {rawObjectNames?.get(v.raw_object_id) ?? <CopyableShortId value={v.raw_object_id} className="mono-cell" />}
+            {rawObjectNames?.get(v.raw_object_id) ?? (
+              <CopyableShortId value={v.raw_object_id} className="mono-cell" />
+            )}
           </span>
           <span className="text-muted text-sm">{formatDateTime(v.updated_at)}</span>
           <StatusLabel value={v.version_status} />
@@ -686,7 +724,9 @@ export function AssetDetailTabs({
           />
         )}
         {activeTab === "preview" && <SourcePreviewSection refId={latestRef?.id ?? null} />}
-        {activeTab === "knowledge-chunks" && <KnowledgeChunksTab latestRef={latestRef} />}
+        {activeTab === "knowledge-chunks" && (
+          <KnowledgeChunksTab latestRef={latestRef} assetTitle={asset?.title ?? null} />
+        )}
         {activeTab === "ai-governance" && (
           <AIGovernanceTab
             runs={governanceRuns}
@@ -700,7 +740,9 @@ export function AssetDetailTabs({
         {activeTab === "quality" && (
           <QualityTab runs={governanceRuns} result={latestGovernanceResult} />
         )}
-        {activeTab === "versions" && <VersionsTab versions={versions} rawObjectNames={rawObjectNames} />}
+        {activeTab === "versions" && (
+          <VersionsTab versions={versions} rawObjectNames={rawObjectNames} />
+        )}
       </div>
     </>
   );

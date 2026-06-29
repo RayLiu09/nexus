@@ -101,6 +101,16 @@ def sample_combined(session):
             item_type="professional_literacy", item_name="团队协作",
             confidence=Decimal("0.88"),
         ),
+        models.JobDemandRequirementItem(
+            id="it-cert", record_id="rec-3", dataset_id="ds",
+            item_type="certificate", item_name="数据分析师证书",
+            normalized_name="数据分析师证书", confidence=Decimal("0.86"),
+        ),
+        models.JobDemandRequirementItem(
+            id="it-work", record_id="rec-1", dataset_id="ds",
+            item_type="work_task_candidate", item_name="经营数据看板维护",
+            normalized_name="经营数据看板维护", confidence=Decimal("0.82"),
+        ),
     ]
     session.add_all(items)
     session.flush()
@@ -206,9 +216,32 @@ class TestCombinedBuildAcceptance:
         # B8 acceptance: three baseline edge types must appear.
         assert {
             EdgeType.JOB_RECORD_HAS_SKILL,
+            EdgeType.JOB_RECORD_HAS_WORK_CONTENT,
             EdgeType.TASK_HAS_WORK_CONTENT,
+            EdgeType.TASK_REQUIRES_ABILITY,
             EdgeType.WORK_CONTENT_REQUIRES_ABILITY,
         } <= types
+
+    def test_job_demand_work_task_candidate_becomes_work_content(
+        self, session, sample_combined,
+    ):
+        ref, _, _ = sample_combined
+        result = build_capability_staging(
+            session, ref, build_type=BuildType.JOB_DEMAND,
+        )
+        session.commit()
+
+        nodes = list(session.scalars(
+            select(models.CapabilityGraphStagingNode).where(
+                models.CapabilityGraphStagingNode.build_id == result.build_id
+            )
+        ))
+        work_contents = [
+            node for node in nodes
+            if node.node_type == NodeType.WORK_CONTENT
+            and node.properties.get("item_type") == "work_task_candidate"
+        ]
+        assert [node.display_name for node in work_contents] == ["经营数据看板维护"]
 
     def test_combined_build_emits_derived_edges_when_link_present(
         self, session, sample_combined,

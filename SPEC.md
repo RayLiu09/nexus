@@ -73,7 +73,7 @@ P0 pages:
 - **原始数据台账**: batch query, raw object query, checksum, replay entry.
 - **作业中心**: job list, stage progress (including ingest_validate / assetize / parse / normalize), failure reason, retry, reprocess, re-governance.
 - **资产目录**: asset list, current version read model, versions, normalized refs (with governance/quality/lineage fields), index status.
-- **资产详情**: overview, versions, normalized refs, AI governance, quality score, governance result, decision tracking, chunks (with normalized_ref_id), index manifest, lineage (including image_uris), audit.
+- **资产详情**: overview, versions, normalized refs, AI governance, quality score, governance result, decision tracking, chunks (with normalized_ref_id), record-asset structured views (list plus read-only staging graph for job demand / ability analysis), index manifest, lineage (including image_uris), audit.
 - **治理中心**: AI suggestions, AI quality score, AI Prompt config, review tasks, rule config, save-to-activate changes, decision tracking, quality review.
 - **规则配置**: structured editor for `config/governance_rules.json` (classifications, levels, tags, quality scoring, knowledge types); ETag-based concurrency control; save takes effect immediately for future governance runs.
 - **权限与审计**: local users, roles, API keys, org scopes, approvals, audit logs.

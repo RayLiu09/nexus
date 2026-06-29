@@ -243,6 +243,8 @@ class TestAbilityAnalysisProjection:
         wcs = {wc["content_code"]: wc for wc in task["work_contents"]}
         # P-1.1.1 + P-1.1.2 → content_code "1.1"; P-1.2.1 → "1.2".
         assert set(wcs.keys()) == {"1.1", "1.2"}
+        assert wcs["1.1"]["content_name"] == "用工具采集日志数据"
+        assert wcs["1.1"]["content_description"] == "能用工具采集日志数据"
         assert len(wcs["1.1"]["abilities"]) == 2
         assert len(wcs["1.2"]["abilities"]) == 1
         assert wcs["1.1"]["abilities"][0]["ability_code"] == "P-1.1.1"

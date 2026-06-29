@@ -10,9 +10,10 @@ Three build types per design §7.2:
 - `combined`: both, plus ABILITY_DERIVED_FROM_JOB_REQUIREMENT edges
   derived from `ability_analysis_source_dataset` links
 
-Skill / literacy node deduplication is by `(item_type, normalized_name OR
-item_name)` so multiple records mentioning "Python" collapse into one
-Skill node with edges from each record.
+Requirement item node deduplication is by `(item_type, normalized_name OR
+item_name)` so multiple records mentioning "Python" as the same kind of
+item collapse into one node with edges from each record, while a tool and a
+professional skill with the same normalized name remain distinguishable.
 """
 from __future__ import annotations
 
@@ -29,11 +30,12 @@ from nexus_app.capability_graph.whitelists import EdgeType, NodeType
 # ---------------------------------------------------------------------------
 
 
-def _skill_key(item: models.JobDemandRequirementItem) -> str:
+def _requirement_item_key(item: models.JobDemandRequirementItem) -> str:
     """Stable Skill / Literacy node_key: prefer normalized_name, fall back
     to item_name. Lowercased + stripped so dedup is case-insensitive."""
     raw = (item.normalized_name or item.item_name or "").strip().lower()
-    return raw or f"unknown:{item.id}"
+    item_type = (item.item_type or "unknown").strip().lower()
+    return f"{item_type}:{raw or f'unknown:{item.id}'}"
 
 
 def _job_role_key(record: models.JobDemandRecord) -> str:
@@ -59,11 +61,13 @@ def build_job_demand(
     Node strategy:
     - One `JobDemandRecord` per row.
     - One `JobRole` per distinct job_title (records aggregate up).
-    - One `Skill` per distinct `professional_skill` / `tool` item.
+    - One `Skill` per distinct `professional_skill` / `tool` / `certificate` item.
     - One `ProfessionalLiteracy` per distinct `professional_literacy` item.
-      (`certificate` is currently mapped to Skill too — design §7.3 only
-       names Skill / Literacy as item-derived node types; certificates
-       are treated as skills with a `category=certificate` property.)
+    - One `WorkContent` per distinct `work_task_candidate` item. In the
+      job-demand path this represents work-content/task candidates mined
+      from postings, not formal PGSD work content.
+      (`tool` and `certificate` stay as Skill nodes with item_type preserved
+       in properties so consumers can render separate legend categories.)
 
     Edge strategy:
     - `JOB_ROLE_AGGREGATES_RECORD`     role → record (one per record)
@@ -71,6 +75,8 @@ def build_job_demand(
     - `JOB_RECORD_HAS_LITERACY`        record → literacy (one per item)
     - `JOB_ROLE_REQUIRES_SKILL`        role → skill (collapsed)
     - `JOB_ROLE_REQUIRES_LITERACY`     role → literacy (collapsed)
+    - `JOB_RECORD_HAS_WORK_CONTENT`    record → work_content candidate
+    - `JOB_ROLE_REQUIRES_WORK_CONTENT` role → work_content candidate
     """
     nodes: list[NodeSpec] = []
     edges: list[EdgeSpec] = []
@@ -78,6 +84,7 @@ def build_job_demand(
     role_keys: set[str] = set()
     skill_keys: dict[str, NodeSpec] = {}
     literacy_keys: dict[str, NodeSpec] = {}
+    work_content_keys: dict[str, NodeSpec] = {}
 
     items_by_record: dict[str, list[models.JobDemandRequirementItem]] = defaultdict(list)
     for it in requirement_items:
@@ -121,7 +128,7 @@ def build_job_demand(
 
         # Item-derived nodes + edges.
         for item in items_by_record.get(record.id, []):
-            key = _skill_key(item)
+            key = _requirement_item_key(item)
             if item.item_type in ("professional_skill", "tool", "certificate"):
                 if key not in skill_keys:
                     skill_keys[key] = NodeSpec(
@@ -173,13 +180,37 @@ def build_job_demand(
                     source_id=item.id,
                     confidence=item.confidence,
                 ))
-            # `work_task_candidate` items are NOT graphed here — they're
-            # B5.4-style hints for surfacing tasks in the UI, not first-
-            # class WorkTask nodes (WorkTask is owned by the ability
-            # analysis path).
+            elif item.item_type == "work_task_candidate":
+                if key not in work_content_keys:
+                    work_content_keys[key] = NodeSpec(
+                        node_type=NodeType.WORK_CONTENT,
+                        node_key=f"job_demand:{key}",
+                        display_name=item.normalized_name or item.item_name,
+                        canonical_name=item.normalized_name,
+                        source_table="job_demand_requirement_item",
+                        properties={"item_type": item.item_type},
+                    )
+                wc_key = f"job_demand:{key}"
+                edges.append(EdgeSpec(
+                    edge_type=EdgeType.JOB_RECORD_HAS_WORK_CONTENT,
+                    source_node_key=(NodeType.JOB_DEMAND_RECORD, record.id),
+                    target_node_key=(NodeType.WORK_CONTENT, wc_key),
+                    source_table="job_demand_requirement_item",
+                    source_id=item.id,
+                    confidence=item.confidence,
+                ))
+                edges.append(EdgeSpec(
+                    edge_type=EdgeType.JOB_ROLE_REQUIRES_WORK_CONTENT,
+                    source_node_key=(NodeType.JOB_ROLE, role_key),
+                    target_node_key=(NodeType.WORK_CONTENT, wc_key),
+                    source_table="job_demand_requirement_item",
+                    source_id=item.id,
+                    confidence=item.confidence,
+                ))
 
     nodes.extend(skill_keys.values())
     nodes.extend(literacy_keys.values())
+    nodes.extend(work_content_keys.values())
     return nodes, edges
 
 
@@ -208,8 +239,8 @@ def build_ability_analysis(
     Edge strategy:
     - `TASK_HAS_WORK_CONTENT`            task → work_content
     - `WORK_CONTENT_REQUIRES_ABILITY`    work_content → ability (P only)
-    - G/S/D abilities hang off the task directly — no work_content edge
-      (per §10.2 requires_work_content=False).
+    - `TASK_REQUIRES_ABILITY`            task → ability when the profile
+      does not require work_content (for PGSD, G/S/D hang off task directly).
     """
     nodes: list[NodeSpec] = []
     edges: list[EdgeSpec] = []
@@ -235,10 +266,14 @@ def build_ability_analysis(
         nodes.append(NodeSpec(
             node_type=NodeType.WORK_CONTENT,
             node_key=wc_key,
-            display_name=wc.content_name,
+            display_name=wc.content_description or wc.content_name,
             source_table="occupational_work_content",
             source_id=wc.id,
-            properties={"content_code": wc.content_code},
+            properties={
+                "content_code": wc.content_code,
+                "content_name": wc.content_name,
+                "content_description": wc.content_description,
+            },
         ))
         edges.append(EdgeSpec(
             edge_type=EdgeType.TASK_HAS_WORK_CONTENT,
@@ -272,6 +307,16 @@ def build_ability_analysis(
             edges.append(EdgeSpec(
                 edge_type=EdgeType.WORK_CONTENT_REQUIRES_ABILITY,
                 source_node_key=(NodeType.WORK_CONTENT, wc_key),
+                target_node_key=(NodeType.ABILITY, ability_key),
+                source_table="occupational_ability_item",
+                source_id=ability.id,
+                confidence=ability.confidence,
+            ))
+        else:
+            task_key = f"{analysis.id}:{task.task_code}"
+            edges.append(EdgeSpec(
+                edge_type=EdgeType.TASK_REQUIRES_ABILITY,
+                source_node_key=(NodeType.WORK_TASK, task_key),
                 target_node_key=(NodeType.ABILITY, ability_key),
                 source_table="occupational_ability_item",
                 source_id=ability.id,

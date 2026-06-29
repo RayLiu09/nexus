@@ -73,9 +73,12 @@ class TestWhitelists:
     def test_edge_types_include_all_design_section_7_4(self):
         assert {
             "JOB_RECORD_HAS_SKILL", "JOB_RECORD_HAS_LITERACY",
+            "JOB_RECORD_HAS_WORK_CONTENT",
             "JOB_ROLE_AGGREGATES_RECORD", "JOB_ROLE_REQUIRES_SKILL",
-            "JOB_ROLE_REQUIRES_LITERACY", "TASK_HAS_WORK_CONTENT",
-            "WORK_CONTENT_REQUIRES_ABILITY", "ABILITY_MAPS_TO_SKILL",
+            "JOB_ROLE_REQUIRES_LITERACY", "JOB_ROLE_REQUIRES_WORK_CONTENT",
+            "TASK_HAS_WORK_CONTENT",
+            "TASK_REQUIRES_ABILITY", "WORK_CONTENT_REQUIRES_ABILITY",
+            "ABILITY_MAPS_TO_SKILL",
             "ABILITY_DERIVED_FROM_JOB_REQUIREMENT",
             "SKILL_COVERED_BY_COURSE_MODULE",
             "ABILITY_COVERED_BY_COURSE_MODULE",
@@ -192,6 +195,21 @@ def job_demand_seed(session, normalized_ref):
             item_type="professional_literacy", item_name="团队协作",
             confidence=Decimal("0.85"),
         ),
+        models.JobDemandRequirementItem(
+            id="item-4", record_id="rec-1", dataset_id="ds",
+            item_type="tool", item_name="SQL",
+            normalized_name="sql", confidence=Decimal("0.91"),
+        ),
+        models.JobDemandRequirementItem(
+            id="item-5", record_id="rec-2", dataset_id="ds",
+            item_type="certificate", item_name="数据分析师证书",
+            normalized_name="数据分析师证书", confidence=Decimal("0.86"),
+        ),
+        models.JobDemandRequirementItem(
+            id="item-6", record_id="rec-2", dataset_id="ds",
+            item_type="work_task_candidate", item_name="经营数据看板维护",
+            normalized_name="经营数据看板维护", confidence=Decimal("0.82"),
+        ),
     ]
     session.add_all(items)
     session.commit()
@@ -223,7 +241,9 @@ def ability_seed(session, normalized_ref):
     )
     wc = models.OccupationalWorkContent(
         id="wc", analysis_id="ana", task_id="t",
-        content_code="1.1", content_name="日志采集", display_order=1,
+        content_code="1.1", content_name="日志采集",
+        content_description="采集日志系统数据",
+        display_order=1,
     )
     session.add_all([task, wc])
     session.flush()
@@ -261,11 +281,18 @@ class TestBuildJobDemand:
             dataset=dataset, records=records, requirement_items=items,
         )
         node_types = [n.node_type for n in nodes]
-        # 2 JobDemandRecord + 1 JobRole (dedup on title) + 1 Skill (dedup) + 1 Literacy
+        # 2 JobDemandRecord + 1 JobRole (dedup on title) + 3 Skill
+        # (professional_skill dedup + tool + certificate) + 1 Literacy + 1 WorkContent.
         assert node_types.count(NodeType.JOB_DEMAND_RECORD) == 2
         assert node_types.count(NodeType.JOB_ROLE) == 1
-        assert node_types.count(NodeType.SKILL) == 1
+        assert node_types.count(NodeType.SKILL) == 3
         assert node_types.count(NodeType.PROFESSIONAL_LITERACY) == 1
+        assert node_types.count(NodeType.WORK_CONTENT) == 1
+
+        skill_nodes = [node for node in nodes if node.node_type == NodeType.SKILL]
+        assert {node.properties.get("item_type") for node in skill_nodes} == {
+            "professional_skill", "tool", "certificate",
+        }
 
     def test_edges_include_role_aggregation_and_skill_links(
         self, session, job_demand_seed,
@@ -277,12 +304,16 @@ class TestBuildJobDemand:
         types = [e.edge_type for e in edges]
         # 2 records → 2 JOB_ROLE_AGGREGATES_RECORD
         assert types.count(EdgeType.JOB_ROLE_AGGREGATES_RECORD) == 2
-        # 2 skill items → 2 JOB_RECORD_HAS_SKILL + 2 JOB_ROLE_REQUIRES_SKILL
-        assert types.count(EdgeType.JOB_RECORD_HAS_SKILL) == 2
-        assert types.count(EdgeType.JOB_ROLE_REQUIRES_SKILL) == 2
+        # 4 skill-like items (professional_skill/tool/certificate)
+        # → 4 HAS + 4 REQUIRES.
+        assert types.count(EdgeType.JOB_RECORD_HAS_SKILL) == 4
+        assert types.count(EdgeType.JOB_ROLE_REQUIRES_SKILL) == 4
         # 1 literacy item → 1 HAS + 1 REQUIRES
         assert types.count(EdgeType.JOB_RECORD_HAS_LITERACY) == 1
         assert types.count(EdgeType.JOB_ROLE_REQUIRES_LITERACY) == 1
+        # 1 work_task_candidate item → WorkContent edges, not literacy edges.
+        assert types.count(EdgeType.JOB_RECORD_HAS_WORK_CONTENT) == 1
+        assert types.count(EdgeType.JOB_ROLE_REQUIRES_WORK_CONTENT) == 1
 
 
 class TestBuildAbilityAnalysis:
@@ -296,6 +327,11 @@ class TestBuildAbilityAnalysis:
         assert NodeType.WORK_TASK in node_types
         assert NodeType.WORK_CONTENT in node_types
         assert node_types.count(NodeType.ABILITY) == 2
+        wc_node = next(n for n in nodes if n.node_type == NodeType.WORK_CONTENT)
+        assert wc_node.display_name == "采集日志系统数据"
+        assert wc_node.properties["content_code"] == "1.1"
+        assert wc_node.properties["content_name"] == "日志采集"
+        assert wc_node.properties["content_description"] == "采集日志系统数据"
 
     def test_p_ability_gets_work_content_edge(self, session, ability_seed):
         analysis, t, wc, abilities = ability_seed
@@ -305,8 +341,9 @@ class TestBuildAbilityAnalysis:
         )
         types = [e.edge_type for e in edges]
         assert EdgeType.TASK_HAS_WORK_CONTENT in types
-        # Only the P ability is linked through work_content; G hangs on task only.
+        # P is linked through work_content; G hangs directly on task.
         assert types.count(EdgeType.WORK_CONTENT_REQUIRES_ABILITY) == 1
+        assert types.count(EdgeType.TASK_REQUIRES_ABILITY) == 1
 
 
 class TestCombinedDerivedEdges:
@@ -387,6 +424,7 @@ class TestServiceOrchestrator:
         edge_types = {e.edge_type for e in edges}
         assert EdgeType.TASK_HAS_WORK_CONTENT in edge_types
         assert EdgeType.WORK_CONTENT_REQUIRES_ABILITY in edge_types
+        assert EdgeType.TASK_REQUIRES_ABILITY in edge_types
 
     def test_combined_build_covers_both_domains(
         self, session, normalized_ref, job_demand_seed, ability_seed,
@@ -449,16 +487,12 @@ class TestServiceOrchestrator:
         assert result.skipped is True
         assert result.skipped_reason == "no_domain_data"
 
-    def test_quality_summary_reports_orphan_nodes(
+    def test_quality_summary_does_not_count_gsd_task_abilities_as_orphans(
         self, session, normalized_ref, ability_seed,
     ):
         result = build_capability_staging(
             session, normalized_ref, build_type=BuildType.ABILITY_ANALYSIS,
         )
         session.commit()
-        # G-1.1 ability hangs off the task only — but design says G doesn't
-        # need a work_content edge. It IS still attached as the target of
-        # no edge in our current emitter (we don't emit task→ability
-        # directly). Quality summary should reflect that as orphan_nodes_count.
         assert "orphan_nodes_count" in result.quality_summary
-        assert isinstance(result.quality_summary["orphan_nodes_count"], int)
+        assert result.quality_summary["orphan_nodes_count"] == 0

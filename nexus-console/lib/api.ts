@@ -155,6 +155,13 @@ export type NormalizedAssetRef = {
   status: string;
   block_count: number;
   record_count: number;
+  source_type: string | null;
+  content_type: string | null;
+  title: string | null;
+  language: string | null;
+  governance: Record<string, unknown>;
+  quality: Record<string, unknown>;
+  lineage: Record<string, unknown>;
   metadata_summary: Record<string, unknown>;
   created_at: string;
   updated_at: string;
@@ -511,7 +518,6 @@ export function textValue(value: unknown) {
   return String(value);
 }
 
-
 // ── Pipeline B record-asset types (B4 / B5 / B6 / B7 / B8) ────────────────
 //
 // Mirrors the public envelopes from nexus-api/v1/record-assets/* +
@@ -709,19 +715,18 @@ export type CapabilityGraphStagingEdge = {
 // `resolveRecordView()` so the routing logic stays in one place.
 
 export type RecordView =
-  | "document"        // legacy / Pipeline A — existing RAG chunk view
-  | "job_demand"      // B4 — job_demand_dataset + records
+  | "document" // legacy / Pipeline A — existing RAG chunk view
+  | "job_demand" // B4 — job_demand_dataset + records
   | "ability_analysis" // B6 — PGSD analysis tree
-  | "generic_table"   // B2 fallback — sheet / table preview
+  | "generic_table" // B2 fallback — sheet / table preview
   | "unknown";
 
 export function resolveRecordView(ref: NormalizedAssetRef | null): RecordView {
   if (!ref) return "unknown";
   if (ref.normalized_type === "document") return "document";
   const meta = ref.metadata_summary ?? {};
-  const profile = typeof meta["domain_profile"] === "string"
-    ? (meta["domain_profile"] as string)
-    : null;
+  const profile =
+    typeof meta["domain_profile"] === "string" ? (meta["domain_profile"] as string) : null;
   if (profile === "job_demand.v1") return "job_demand";
   if (profile === "ability_analysis.pgsd.v1") return "ability_analysis";
   if (profile === "generic_table.v1") return "generic_table";

@@ -483,8 +483,8 @@
 
 - migration：`capability_graph_staging_build` / `capability_graph_staging_node` / `capability_graph_staging_edge`
 - 构图服务：按 build_type（`job_demand` / `ability_analysis` / `combined`）从领域表与抽取结果生成节点与边
-- 节点类型：`JobRole` / `JobDemandRecord` / `Skill` / `ProfessionalLiteracy` / `WorkTask` / `WorkContent` / `Ability`（`CourseModule` 仅预留类型，不落数据）
-- 边类型：含 `ABILITY_DERIVED_FROM_JOB_REQUIREMENT` 等设计 §7.4 列出的初始集合
+- 节点类型：`JobRole` / `JobDemandRecord` / `Skill` / `ProfessionalLiteracy` / `WorkTask` / `WorkContent` / `Ability`（`CourseModule` 仅预留类型，不落数据）；岗位需求的 `tool` / `certificate` 仍落 `Skill` 节点并通过 `properties.item_type` 区分，`work_task_candidate` 落 `WorkContent` 候选节点
+- 边类型：含 `JOB_RECORD_HAS_WORK_CONTENT` / `JOB_ROLE_REQUIRES_WORK_CONTENT` / `TASK_REQUIRES_ABILITY` / `ABILITY_DERIVED_FROM_JOB_REQUIREMENT` 等设计 §7.4 列出的初始集合；PGSD 中 P 类通过 `WORK_CONTENT_REQUIRES_ABILITY` 挂到工作内容，G/S/D 通过 `TASK_REQUIRES_ABILITY` 挂到工作任务
 - 质量摘要：孤儿节点、重复边、低置信边
 - staging build 状态机：`generated` / `validated` / `failed` / `promoted`（promoted 留待未来正式图谱）
 
@@ -524,8 +524,8 @@
 **Scope**：
 
 - 知识块页签内复用现有外层壳，内部按 `record_type` 路由到不同视图
-- 岗位需求视图：记录总数 / 有效 / 重复 / 无效；筛选（city / industry / enterprise_size / education / experience / salary）；记录表；技能 / 素养抽取结果；技能频次；行业 / 规模 / 城市分布；质量问题列表
-- 能力分析视图：analysis_model、四类能力完整性、任务树、工作内容、能力条目（按 PGSD 树）、能力编码校验结果、关系图、能力 → 岗位技能 evidence 预览、staging 节点 / 边预览
+- 岗位需求视图：`列表` / `岗位图谱`。列表展示记录总数 / 有效 / 重复 / 无效、筛选（city / industry / enterprise_size / education / experience / salary）、记录表、技能 / 素养 / 工具 / 证书 / 工作内容候选抽取结果、技能频次、行业 / 规模 / 城市分布、质量问题列表；岗位图谱只读消费 `CapabilityGraphStaging(build_type=job_demand)` 节点 / 边，并按 `properties.item_type` 将 `Skill` 拆为“职业技能 / 工具 / 证书”图例；呈现层合成“职业技能 / 职业素养 / 工作任务 / 工具与证书”二级汇聚节点，形成岗位角色 -> 汇聚分类 -> 明细条目的层次
+- 能力分析视图：`列表` / `能力图谱`。列表展示 analysis_model、四类能力完整性、任务树、工作内容、能力条目（按 PGSD 树）、能力编码校验结果、能力 → 岗位技能 evidence 预览；能力图谱只读消费 `CapabilityGraphStaging(build_type=ability_analysis)` 节点 / 边
 - generic table dataset 视图：sheet / table 预览、字段映射、质量问题
 - 不实现 workbook locator
 - 设计令牌：复用 Antd 5 + Tailwind v4 + `app/globals.css` 设计 token；不引入 CSS Modules / styled-components
