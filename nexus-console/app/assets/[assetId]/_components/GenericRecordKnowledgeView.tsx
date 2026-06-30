@@ -11,7 +11,7 @@
  * (per B9 forbidden changes).
  */
 
-import { Alert, Descriptions, Empty, Typography } from "antd";
+import { Descriptions, Typography } from "antd";
 import type { NormalizedAssetRef } from "@/lib/api";
 import { formatDateTime } from "@/lib/api";
 
@@ -31,13 +31,6 @@ export function GenericRecordKnowledgeView({ normalizedRef }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Alert
-        type="info"
-        showIcon
-        title="通用记录视图"
-        description="该 record 资产未匹配到岗位需求 / 职业能力分析视图。下方仅展示标准化资产的概要信息，详细字段请查看血缘追溯 / 原文预览。"
-      />
-
       <div className="card">
         <div className="card-header">
           <Typography.Title level={5} className="!mb-0">
@@ -71,39 +64,6 @@ export function GenericRecordKnowledgeView({ normalizedRef }: Props) {
           />
         </div>
       </div>
-
-      <div className="card">
-        <div className="card-header">
-          <Typography.Title level={5} className="!mb-0">
-            质量摘要
-          </Typography.Title>
-        </div>
-        <div className="card-body">
-          <QualitySummary value={normalizedRef.metadata_summary?.["quality_flags"]} />
-        </div>
-      </div>
     </div>
-  );
-}
-
-function QualitySummary({ value }: { value: unknown }) {
-  if (!value || typeof value !== "object") {
-    return <Empty description="暂无质量标记" image={Empty.PRESENTED_IMAGE_SIMPLE} />;
-  }
-  const flags = Object.entries(value as Record<string, unknown>).filter(
-    ([, v]) => v !== false && v != null,
-  );
-  if (flags.length === 0) {
-    return <Empty description="暂无质量标记" image={Empty.PRESENTED_IMAGE_SIMPLE} />;
-  }
-  return (
-    <ul className="m-0 list-none pl-0">
-      {flags.map(([key, val]) => (
-        <li key={key} className="text-sm">
-          <span className="text-muted mr-2">{key}:</span>
-          <span>{String(val)}</span>
-        </li>
-      ))}
-    </ul>
   );
 }

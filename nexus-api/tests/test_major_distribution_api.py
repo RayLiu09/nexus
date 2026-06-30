@@ -10,6 +10,7 @@ from nexus_app import models
 from nexus_app.enums import (
     AssetKind,
     AssetVersionStatus,
+    AuditEventType,
     DataSourceType,
     IngestBatchStatus,
     NormalizedAssetRefStatus,
@@ -361,3 +362,138 @@ class TestInternalMajorDistributionEndpoints:
         assert body["meta"]["total"] == 1
         assert body["data"][0]["major_code"] == "530701"
         assert body["data"][0]["ignored_summary_count"] == 1
+
+    def test_update_record_recomputes_dataset_summary_and_audits(
+        self, fake_request, session, stub_user
+    ):
+        ref = _seed_anchor(session)
+        dataset = _seed_dataset(session, ref=ref, record_count=0)
+        record = _seed_record(
+            session,
+            dataset=dataset,
+            ref=ref,
+            record_id="mdr-update",
+            source_key="row-1",
+            province="北京市",
+            count=19,
+            year=2026,
+        )
+        _seed_record(
+            session,
+            dataset=dataset,
+            ref=ref,
+            record_id="mdr-other",
+            source_key="row-2",
+            province="广东省",
+            count=24,
+            year=2025,
+        )
+
+        payload = internal_record_assets.MajorDistributionRecordPatch(
+            year=2024,
+            province_name="上海市",
+            major_name="跨境电子商务",
+            major_code="530702",
+            distribution_count=31,
+        )
+        resp = internal_record_assets.update_major_distribution_record(
+            record_id=record.id,
+            payload=payload,
+            request=fake_request,
+            operator=stub_user,
+            session=session,
+        )
+
+        body = _body(resp)
+        assert body["data"]["province_name"] == "上海市"
+        assert body["data"]["year_text"] == "2024年"
+        assert body["data"]["distribution_count"] == 31
+        session.refresh(dataset)
+        assert dataset.record_count == 2
+        assert dataset.province_count == 2
+        assert dataset.year_min == 2024
+        assert dataset.year_max == 2025
+        assert dataset.major_name is None
+        assert dataset.major_code is None
+
+        audits = list(session.query(models.AuditLog).all())
+        assert audits[-1].event_type == AuditEventType.MAJOR_DISTRIBUTION_RECORD_UPDATED
+        assert audits[-1].actor_id == stub_user.id
+        assert audits[-1].summary["before"]["province_name"] == "北京市"
+        assert audits[-1].summary["after"]["province_name"] == "上海市"
+
+    def test_delete_record_recomputes_dataset_summary_and_audits(
+        self, fake_request, session, stub_user
+    ):
+        ref = _seed_anchor(session)
+        dataset = _seed_dataset(session, ref=ref, record_count=0)
+        _seed_record(
+            session,
+            dataset=dataset,
+            ref=ref,
+            record_id="mdr-delete",
+            source_key="row-1",
+            province="北京市",
+            count=19,
+            year=2026,
+        )
+        _seed_record(
+            session,
+            dataset=dataset,
+            ref=ref,
+            record_id="mdr-keep",
+            source_key="row-2",
+            province="广东省",
+            count=24,
+            year=2025,
+        )
+
+        resp = internal_record_assets.delete_major_distribution_record(
+            record_id="mdr-delete",
+            request=fake_request,
+            operator=stub_user,
+            session=session,
+        )
+
+        body = _body(resp)
+        assert body["data"] == {"id": "mdr-delete", "deleted": True}
+        assert session.get(models.MajorDistributionRecord, "mdr-delete") is None
+        session.refresh(dataset)
+        assert dataset.record_count == 1
+        assert dataset.province_count == 1
+        assert dataset.year_min == 2025
+        assert dataset.year_max == 2025
+        assert dataset.major_name == "电子商务"
+
+        audits = list(session.query(models.AuditLog).all())
+        assert audits[-1].event_type == AuditEventType.MAJOR_DISTRIBUTION_RECORD_DELETED
+        assert audits[-1].actor_id == stub_user.id
+        assert audits[-1].summary["deleted_record"]["id"] == "mdr-delete"
+
+    def test_internal_patch_delete_routes(self, app, session):
+        ref = _seed_anchor(session)
+        dataset = _seed_dataset(session, ref=ref, record_count=0)
+        _seed_record(
+            session,
+            dataset=dataset,
+            ref=ref,
+            record_id="mdr-route",
+            source_key="row-route",
+        )
+
+        from fastapi.testclient import TestClient
+
+        client = TestClient(app)
+        patch_resp = client.patch(
+            "/internal/v1/record-assets/major-distribution-records/mdr-route",
+            json={"province_name": "浙江省", "distribution_count": 42},
+        )
+        assert patch_resp.status_code == 200
+        assert patch_resp.json()["data"]["province_name"] == "浙江省"
+        assert patch_resp.json()["data"]["distribution_count"] == 42
+
+        delete_resp = client.delete(
+            "/internal/v1/record-assets/major-distribution-records/mdr-route"
+        )
+        assert delete_resp.status_code == 200
+        assert delete_resp.json()["data"] == {"id": "mdr-route", "deleted": True}

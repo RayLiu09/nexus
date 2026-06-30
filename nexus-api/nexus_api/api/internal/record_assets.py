@@ -8,16 +8,36 @@ API-caller-gated `/open` surface for asset detail tabs.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
 from nexus_api.dependencies import Pagination, pagination_params
+from nexus_api.dependencies.user import require_user
 from nexus_api.responses import list_response, response
 from nexus_app import models
+from nexus_app.audit import write_audit
 from nexus_app.database import get_db
+from nexus_app.enums import AuditEventType
 
 router = APIRouter()
+
+
+class MajorDistributionRecordPatch(BaseModel):
+    year: int | None = Field(None, ge=1900, le=2200)
+    province_name: str | None = Field(None, min_length=1, max_length=128)
+    region_scope: str | None = Field(None, min_length=1, max_length=64)
+    major_name: str | None = Field(None, min_length=1, max_length=256)
+    major_code: str | None = Field(None, min_length=1, max_length=64)
+    education_level: str | None = Field(None, max_length=64)
+    distribution_count: int | None = Field(None, ge=0)
+
+    @model_validator(mode="after")
+    def at_least_one_field(self):
+        if not self.model_fields_set:
+            raise ValueError("at least one field is required")
+        return self
 
 
 def _serialize_job_demand_dataset(dataset: models.JobDemandDataset) -> dict:
@@ -140,6 +160,49 @@ def _serialize_major_distribution_record(record: models.MajorDistributionRecord)
         "trace": record.trace or {},
         "created_at": record.created_at.isoformat() if record.created_at else None,
     }
+
+
+def _major_distribution_record_snapshot(
+    record: models.MajorDistributionRecord,
+) -> dict:
+    return {
+        "year": record.year,
+        "province_name": record.province_name,
+        "region_scope": record.region_scope,
+        "major_name": record.major_name,
+        "major_code": record.major_code,
+        "education_level": record.education_level,
+        "distribution_count": record.distribution_count,
+    }
+
+
+def _recompute_major_distribution_dataset_summary(
+    session: Session,
+    dataset: models.MajorDistributionDataset,
+) -> None:
+    records = list(
+        session.scalars(
+            select(models.MajorDistributionRecord).where(
+                models.MajorDistributionRecord.dataset_id == dataset.id
+            )
+        ).all()
+    )
+    dataset.record_count = len(records)
+    dataset.province_count = len({r.province_name for r in records if r.province_name})
+    years = [r.year for r in records if r.year is not None]
+    dataset.year_min = min(years) if years else None
+    dataset.year_max = max(years) if years else None
+    dataset.invalid_count = sum(1 for r in records if r.quality_flags)
+    dataset.major_name = _single_value_or_none(r.major_name for r in records)
+    dataset.major_code = _single_value_or_none(r.major_code for r in records)
+    dataset.education_level = _single_value_or_none(
+        r.education_level for r in records if r.education_level
+    )
+
+
+def _single_value_or_none(values) -> str | None:
+    unique = {value for value in values if value}
+    return next(iter(unique)) if len(unique) == 1 else None
 
 
 def _apply_major_distribution_dataset_filters(
@@ -603,6 +666,118 @@ def get_major_distribution_record(
             detail=f"major_distribution_record '{record_id}' not found",
         )
     return response(_serialize_major_distribution_record(record), request)
+
+
+@router.patch(
+    "/record-assets/major-distribution-records/{record_id}",
+    response_model=schemas.ApiResponse[dict],
+)
+def update_major_distribution_record(
+    record_id: str,
+    payload: MajorDistributionRecordPatch,
+    request: Request,
+    operator: models.UserAccount = Depends(require_user),
+    session: Session = Depends(get_db),
+):
+    record = session.get(models.MajorDistributionRecord, record_id)
+    if record is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"major_distribution_record '{record_id}' not found",
+        )
+    dataset = session.get(models.MajorDistributionDataset, record.dataset_id)
+    if dataset is None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"major_distribution_dataset '{record.dataset_id}' not found",
+        )
+
+    before = _major_distribution_record_snapshot(record)
+    updates = payload.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        if isinstance(value, str):
+            value = value.strip()
+        setattr(record, field, value)
+    if "year" in updates:
+        record.year_text = f"{record.year}年"
+
+    _recompute_major_distribution_dataset_summary(session, dataset)
+    after = _major_distribution_record_snapshot(record)
+    write_audit(
+        session,
+        AuditEventType.MAJOR_DISTRIBUTION_RECORD_UPDATED,
+        target_type="major_distribution_record",
+        target_id=record.id,
+        trace_id=str(getattr(request.state, "trace_id", "")),
+        actor_type="user",
+        actor_id=operator.id,
+        summary={
+            "dataset_id": dataset.id,
+            "normalized_ref_id": record.normalized_ref_id,
+            "before": before,
+            "after": after,
+            "dataset_summary": {
+                "record_count": dataset.record_count,
+                "province_count": dataset.province_count,
+                "year_min": dataset.year_min,
+                "year_max": dataset.year_max,
+            },
+        },
+    )
+    session.commit()
+    session.refresh(record)
+    return response(_serialize_major_distribution_record(record), request)
+
+
+@router.delete(
+    "/record-assets/major-distribution-records/{record_id}",
+    response_model=schemas.ApiResponse[dict],
+)
+def delete_major_distribution_record(
+    record_id: str,
+    request: Request,
+    operator: models.UserAccount = Depends(require_user),
+    session: Session = Depends(get_db),
+):
+    record = session.get(models.MajorDistributionRecord, record_id)
+    if record is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"major_distribution_record '{record_id}' not found",
+        )
+    dataset = session.get(models.MajorDistributionDataset, record.dataset_id)
+    if dataset is None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"major_distribution_dataset '{record.dataset_id}' not found",
+        )
+
+    snapshot = _serialize_major_distribution_record(record)
+    session.delete(record)
+    session.flush()
+    _recompute_major_distribution_dataset_summary(session, dataset)
+    write_audit(
+        session,
+        AuditEventType.MAJOR_DISTRIBUTION_RECORD_DELETED,
+        target_type="major_distribution_record",
+        target_id=record_id,
+        trace_id=str(getattr(request.state, "trace_id", "")),
+        actor_type="user",
+        actor_id=operator.id,
+        summary={
+            "dataset_id": dataset.id,
+            "normalized_ref_id": snapshot["normalized_ref_id"],
+            "deleted_record": snapshot,
+            "dataset_summary": {
+                "record_count": dataset.record_count,
+                "province_count": dataset.province_count,
+                "year_min": dataset.year_min,
+                "year_max": dataset.year_max,
+            },
+        },
+    )
+    session.commit()
+    return response({"id": record_id, "deleted": True}, request)
 
 
 

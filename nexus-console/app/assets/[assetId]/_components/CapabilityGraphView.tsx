@@ -179,11 +179,16 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
         fetchGraphEdges(build.id, buildType),
       ]);
       if (!active) return;
+      const normalizedNodes = normalizeGraphNodes(nodesRes.data);
+      const normalizedEdges = normalizeGraphEdges(
+        edgesRes.data,
+        new Set(normalizedNodes.map((node) => node.id)),
+      );
       setState({
         loading: false,
         build,
-        nodes: nodesRes.data,
-        edges: edgesRes.data,
+        nodes: normalizedNodes,
+        edges: normalizedEdges,
         nodesTotal: nodesRes.total,
         edgesTotal: edgesRes.total,
         error:
@@ -409,7 +414,12 @@ function mergePagedGraphResults<T extends { id: string }>(
   for (const result of results) {
     total += result.total;
     if (!result.ok) error = error ?? result.error ?? "加载图谱数据失败";
-    for (const item of result.data) byId.set(item.id, item);
+    for (const item of result.data) {
+      if (!isRecord(item)) continue;
+      const id = stringProperty(item.id);
+      if (!id) continue;
+      byId.set(id, item);
+    }
   }
   return {
     ok: error == null,
@@ -417,6 +427,82 @@ function mergePagedGraphResults<T extends { id: string }>(
     total,
     error,
   };
+}
+
+function normalizeGraphNodes(items: unknown[]): CapabilityGraphStagingNode[] {
+  const nodes: CapabilityGraphStagingNode[] = [];
+  const seen = new Set<string>();
+  for (const item of items) {
+    if (!isRecord(item)) continue;
+    const id = stringProperty(item.id);
+    const buildId = stringProperty(item.build_id);
+    const nodeType = stringProperty(item.node_type);
+    const nodeKey = stringProperty(item.node_key);
+    if (!id || !buildId || !nodeType || !nodeKey || seen.has(id)) continue;
+    seen.add(id);
+    nodes.push({
+      id,
+      build_id: buildId,
+      node_type: nodeType,
+      node_key: nodeKey,
+      display_name: stringProperty(item.display_name) ?? nodeKey,
+      canonical_name: stringProperty(item.canonical_name),
+      source_table: stringProperty(item.source_table),
+      source_id: stringProperty(item.source_id),
+      properties: isRecord(item.properties) ? item.properties : {},
+      confidence: numberOrNull(item.confidence),
+    });
+  }
+  return nodes;
+}
+
+function normalizeGraphEdges(
+  items: unknown[],
+  validNodeIds: Set<string>,
+): CapabilityGraphStagingEdge[] {
+  const edges: CapabilityGraphStagingEdge[] = [];
+  const seen = new Set<string>();
+  for (const item of items) {
+    if (!isRecord(item)) continue;
+    const id = stringProperty(item.id);
+    const buildId = stringProperty(item.build_id);
+    const sourceNodeId = stringProperty(item.source_node_id);
+    const targetNodeId = stringProperty(item.target_node_id);
+    const edgeType = stringProperty(item.edge_type);
+    if (
+      !id ||
+      !buildId ||
+      !sourceNodeId ||
+      !targetNodeId ||
+      !edgeType ||
+      seen.has(id) ||
+      !validNodeIds.has(sourceNodeId) ||
+      !validNodeIds.has(targetNodeId)
+    ) {
+      continue;
+    }
+    seen.add(id);
+    edges.push({
+      id,
+      build_id: buildId,
+      source_node_id: sourceNodeId,
+      target_node_id: targetNodeId,
+      edge_type: edgeType,
+      source_table: stringProperty(item.source_table),
+      source_id: stringProperty(item.source_id),
+      evidence: isRecord(item.evidence) ? item.evidence : {},
+      confidence: numberOrNull(item.confidence),
+    });
+  }
+  return edges;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function EchartsGraph({
@@ -538,7 +624,8 @@ function buildGraphOption(
           categoryKey?: string;
           edgeType?: string;
           confidence?: number | null;
-        };
+        } | null;
+        if (!data) return "";
         if (params.dataType === "edge") {
           return `${EDGE_LABELS[data.edgeType ?? ""] ?? data.edgeType ?? "关系"}${formatConfidence(data.confidence)}`;
         }

@@ -669,6 +669,49 @@ export type OccupationalAbilityRelation = {
   evidence: Record<string, unknown>;
 };
 
+export type MajorDistributionDataset = {
+  id: string;
+  normalized_ref_id: string;
+  asset_version_id: string;
+  dataset_name: string;
+  source_channel: string;
+  major_scope: string | null;
+  major_name: string | null;
+  major_code: string | null;
+  education_level: string | null;
+  year_min: number | null;
+  year_max: number | null;
+  province_count: number;
+  record_count: number;
+  invalid_count: number;
+  placeholder_count: number;
+  ignored_summary_count: number;
+  duplicate_count: number;
+  schema_version: string;
+  quality_summary: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MajorDistributionRecord = {
+  id: string;
+  dataset_id: string;
+  normalized_ref_id: string;
+  source_record_key: string;
+  source_row_no: number | null;
+  year: number;
+  year_text: string | null;
+  province_name: string;
+  region_scope: string;
+  major_name: string;
+  major_code: string;
+  education_level: string | null;
+  distribution_count: number;
+  quality_flags: Record<string, unknown>;
+  trace: Record<string, unknown>;
+  created_at: string;
+};
+
 export type CapabilityGraphStagingBuild = {
   id: string;
   normalized_ref_id: string;
@@ -718,6 +761,7 @@ export type RecordView =
   | "document" // legacy / Pipeline A — existing RAG chunk view
   | "job_demand" // B4 — job_demand_dataset + records
   | "ability_analysis" // B6 — PGSD analysis tree
+  | "major_distribution" // PD — major_distribution_dataset + records
   | "generic_table" // B2 fallback — sheet / table preview
   | "unknown";
 
@@ -729,6 +773,7 @@ export function resolveRecordView(ref: NormalizedAssetRef | null): RecordView {
     typeof meta["domain_profile"] === "string" ? (meta["domain_profile"] as string) : null;
   if (profile === "job_demand.v1") return "job_demand";
   if (profile === "ability_analysis.pgsd.v1") return "ability_analysis";
+  if (profile === "major_distribution.v1") return "major_distribution";
   if (profile === "generic_table.v1") return "generic_table";
   // Record-type ref without an explicit domain_profile → render the
   // generic table fallback rather than the document view (the user

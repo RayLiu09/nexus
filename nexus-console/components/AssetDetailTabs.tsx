@@ -10,6 +10,7 @@ import { ChunkListSection } from "@/app/assets/[assetId]/_components/ChunkListSe
 import { SourcePreviewSection } from "@/app/assets/[assetId]/_components/SourcePreviewSection";
 import { JobDemandKnowledgeView } from "@/app/assets/[assetId]/_components/JobDemandKnowledgeView";
 import { AbilityAnalysisKnowledgeView } from "@/app/assets/[assetId]/_components/AbilityAnalysisKnowledgeView";
+import { MajorDistributionKnowledgeView } from "@/app/assets/[assetId]/_components/MajorDistributionKnowledgeView";
 import { GenericRecordKnowledgeView } from "@/app/assets/[assetId]/_components/GenericRecordKnowledgeView";
 import { resolveRecordView } from "@/lib/api";
 import {
@@ -219,6 +220,9 @@ function KnowledgeChunksTab({
   }
   if (view === "ability_analysis" && latestRef) {
     return <AbilityAnalysisKnowledgeView normalizedRef={latestRef} assetTitle={assetTitle} />;
+  }
+  if (view === "major_distribution" && latestRef) {
+    return <MajorDistributionKnowledgeView normalizedRefId={latestRef.id} />;
   }
   if (view === "generic_table" && latestRef) {
     return <GenericRecordKnowledgeView normalizedRef={latestRef} />;
@@ -674,17 +678,19 @@ export function AssetDetailTabs({
   tagDictionary,
 }: Props) {
   const [activeTab, setActiveTab] = useState("lineage");
+  const knowledgeTabLabel = latestRef?.normalized_type === "record" ? "结构化图谱" : "知识块";
 
   const tabItems = TABS.map((t) => {
     const badgeCount =
       t.key === "ai-governance" && (governanceRuns.length > 0 || latestGovernanceResult)
         ? Math.max(governanceRuns.length, 1)
         : undefined;
+    const label = t.key === "knowledge-chunks" ? knowledgeTabLabel : t.label;
     return {
       key: t.key,
       label: (
         <span>
-          {t.label}
+          {label}
           {badgeCount != null && (
             <span
               style={{
