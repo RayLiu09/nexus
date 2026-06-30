@@ -712,6 +712,58 @@ export type MajorDistributionRecord = {
   created_at: string;
 };
 
+export type MajorProfileItem = {
+  id: string;
+  profile_id: string;
+  normalized_ref_id: string;
+  item_index: number;
+  text: string;
+  source_text: string | null;
+  evidence_block_ids: string[];
+  locator: Record<string, unknown>;
+  confidence: number | null;
+};
+
+export type MajorProfileOccupation = MajorProfileItem & {
+  normalized_name: string | null;
+  occupation_type: string;
+};
+
+export type MajorProfileCourse = MajorProfileItem & {
+  course_group: "foundation" | "core" | "practice_training" | string;
+  course_type: string;
+};
+
+export type MajorProfileCertificate = MajorProfileItem & {
+  certificate_type: string;
+};
+
+export type MajorProfile = {
+  id: string;
+  normalized_ref_id: string;
+  asset_version_id: string;
+  domain_profile: string;
+  major_code: string;
+  major_name: string;
+  education_level: string | null;
+  basic_study_duration: string | null;
+  training_goal: string | null;
+  source_title: string | null;
+  extractor_version: string;
+  confidence: number | null;
+  evidence?: Record<string, unknown>;
+  quality_flags: Record<string, unknown>;
+  status: string;
+  occupations?: MajorProfileOccupation[];
+  abilities?: MajorProfileItem[];
+  courses?: MajorProfileCourse[];
+  certificates?: MajorProfileCertificate[];
+  continuations?: MajorProfileItem[];
+  counts?: Record<string, number>;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CapabilityGraphStagingBuild = {
   id: string;
   normalized_ref_id: string;
@@ -759,6 +811,7 @@ export type CapabilityGraphStagingEdge = {
 
 export type RecordView =
   | "document" // legacy / Pipeline A — existing RAG chunk view
+  | "major_profile" // Pipeline A — major_profile.v1 structured profile
   | "job_demand" // B4 — job_demand_dataset + records
   | "ability_analysis" // B6 — PGSD analysis tree
   | "major_distribution" // PD — major_distribution_dataset + records
@@ -767,10 +820,11 @@ export type RecordView =
 
 export function resolveRecordView(ref: NormalizedAssetRef | null): RecordView {
   if (!ref) return "unknown";
-  if (ref.normalized_type === "document") return "document";
   const meta = ref.metadata_summary ?? {};
   const profile =
     typeof meta["domain_profile"] === "string" ? (meta["domain_profile"] as string) : null;
+  if (profile === "major_profile.v1") return "major_profile";
+  if (ref.normalized_type === "document") return "document";
   if (profile === "job_demand.v1") return "job_demand";
   if (profile === "ability_analysis.pgsd.v1") return "ability_analysis";
   if (profile === "major_distribution.v1") return "major_distribution";

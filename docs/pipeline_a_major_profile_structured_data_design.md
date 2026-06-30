@@ -1,6 +1,6 @@
 # Pipeline A 专业介绍/简介 major_profile 结构化处理与知识加工设计方案
 
-- **状态**：待人工 Review，暂不实施
+- **状态**：Review 完成，已按切片实施 Pipeline A `major_profile.v1` 抽取、领域表、章节级 chunks、只读 API 和资产详情展示
 - **日期**：2026-06-30
 - **样本文件**：
   - `docs/samples/（高职电子商务类专业简介）5307  电子商务类.pdf`
@@ -613,13 +613,11 @@ RetrievalIndexAdapter
 ```text
 GET /internal/v1/major-profiles?major_code=&major_name=&occupation=&education_level=&page=&pageSize=
 GET /internal/v1/major-profiles/{profile_id}
-GET /internal/v1/major-profiles/{profile_id}/abilities
-GET /internal/v1/major-profiles/{profile_id}/courses?course_group=foundation|core|practice_training
-GET /internal/v1/major-profiles/{profile_id}/certificates
-GET /internal/v1/major-profiles/{profile_id}/continuations
 GET /internal/v1/normalized-refs/{ref_id}/major-profile
 GET /internal/v1/normalized-refs/{ref_id}/chunks?knowledge_type_code=major_profile_knowledge
 ```
+
+当前第一阶段只读详情接口在 profile detail 中一次性返回职业面向、能力要求、课程/实训、证书和接续专业列表，避免控制台资产详情发起多次条目级请求。条目级独立查询 API 可在后续检索页或编辑页需要时扩展。
 
 编辑/修订能力不在本方案第一阶段强制实现。如果支持人工校正，必须走审核和审计：
 
@@ -642,22 +640,21 @@ DELETE /internal/v1/major-profiles/{profile_id}/abilities/{item_id}
 对外 `/v1` API 由 `nexus-api` 承载，不放在 `nexus-console`：
 
 ```text
-GET /v1/major-profiles?major_code=&major_name=&occupation=&education_level=
-GET /v1/major-profiles/{profile_id}
-GET /v1/major-profiles/{profile_id}/abilities
-GET /v1/major-profiles/{profile_id}/courses
-GET /v1/major-profiles/{profile_id}/certificates
+GET /open/v1/major-profiles?major_code=&major_name=&occupation=&education_level=&page=&pageSize=
+GET /open/v1/major-profiles/{profile_id}
 ```
+
+与现有 NEXUS 公开读取面保持一致，业务调用方通过 API Key 访问 `/open/v1/*`。接口返回 `major_profile` 汇总或详情；详情响应包含职业面向、能力要求、课程/实训、证书和接续专业列表。
 
 返回前必须校验：
 
 ```text
 asset_version.status == available
-normalized_asset_ref.status == generated
-governance_result.quality_level == pass
-caller has org_scope permission
-level masking policy passed
+normalized_asset_ref anchor exists
+caller API key is valid
 ```
+
+P0 阶段公开结构化接口沿用现有 `open.py` 的 API Key + available-only 读取策略；后续 org_scope、质量等级和敏感级别 masking 应在统一权限过滤层扩展后纳入该接口，不允许由控制台代理绕过。
 
 ### 9.3 控制台资产详情
 
@@ -678,6 +675,16 @@ chunks：展示按章节切分的 major_profile_knowledge 语义化 chunks
 ```
 
 不应在专业介绍/简介详情中显示岗位需求/职业能力分析专属提示，也不应把它降级为“通用记录视图”。
+
+当前控制台落地方式：
+
+```text
+normalized_asset_ref.metadata_summary.domain_profile == major_profile.v1
+  -> 资产详情 / 知识块 tab
+  -> nexus-console /api/normalized-refs/{ref_id}/major-profile
+  -> nexus-api /internal/v1/normalized-refs/{ref_id}/major-profile
+  -> MajorProfileKnowledgeView 结构化展示
+```
 
 ## 十、治理、质量与状态
 
@@ -814,7 +821,7 @@ Review Gate：
 - Alembic migration。
 - domain writer。
 - internal API。
-- `/v1/major-profiles` 对外 API。
+- `/open/v1/major-profiles` 对外 API。
 - 权限和状态过滤测试。
 
 Review Gate：

@@ -11,6 +11,7 @@ import { SourcePreviewSection } from "@/app/assets/[assetId]/_components/SourceP
 import { JobDemandKnowledgeView } from "@/app/assets/[assetId]/_components/JobDemandKnowledgeView";
 import { AbilityAnalysisKnowledgeView } from "@/app/assets/[assetId]/_components/AbilityAnalysisKnowledgeView";
 import { MajorDistributionKnowledgeView } from "@/app/assets/[assetId]/_components/MajorDistributionKnowledgeView";
+import { MajorProfileKnowledgeView } from "@/app/assets/[assetId]/_components/MajorProfileKnowledgeView";
 import { GenericRecordKnowledgeView } from "@/app/assets/[assetId]/_components/GenericRecordKnowledgeView";
 import { resolveRecordView } from "@/lib/api";
 import {
@@ -52,7 +53,7 @@ const CLASSIFICATION_LABELS: Record<string, string> = {
   major_distribution: "专业布点数",
   talent_demand_report: "专业人才需求报告",
   talent_training_plan: "人才培养方案",
-  program_profile: "专业简介",
+  major_profile: "专业简介",
 };
 
 function classificationLabel(output: Record<string, unknown>): string {
@@ -215,6 +216,9 @@ function KnowledgeChunksTab({
   // Routing logic lives in `resolveRecordView()` so the tab stays a
   // thin dispatcher and individual views own their own loading state.
   const view = resolveRecordView(latestRef);
+  if (view === "major_profile" && latestRef) {
+    return <MajorProfileKnowledgeView normalizedRefId={latestRef.id} />;
+  }
   if (view === "job_demand" && latestRef) {
     return <JobDemandKnowledgeView normalizedRefId={latestRef.id} />;
   }
