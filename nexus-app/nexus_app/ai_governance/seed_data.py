@@ -224,7 +224,7 @@ def _build_code(name: str) -> str:
         "专业布点数": "major_distribution",
         "专业人才需求报告": "talent_demand_report",
         "人才培养方案": "talent_training_plan",
-        "专业简介": "program_profile",
+        "专业简介": "major_profile",
     }
     return _MAP.get(name, re.sub(r"[^\w]", "_", name).strip("_").lower())
 

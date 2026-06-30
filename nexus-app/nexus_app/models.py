@@ -18,7 +18,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, declared_attr, mapped_column, relationship
 
 from nexus_app.database import Base
 from nexus_app.enums import (
@@ -1213,6 +1213,171 @@ class MajorDistributionRecord(TimestampMixin, Base):
     )
 
     dataset: Mapped[MajorDistributionDataset] = relationship(back_populates="records")
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+
+
+# ---------------------------------------------------------------------------
+# Pipeline A MP — major_profile domain tables
+# ---------------------------------------------------------------------------
+
+
+class MajorProfile(TimestampMixin, Base):
+    """Professional introduction/profile extracted from a normalized document."""
+
+    __tablename__ = "major_profile"
+    __table_args__ = (
+        Index("ix_mp_normalized_ref_id", "normalized_ref_id"),
+        Index("ix_mp_asset_version_id", "asset_version_id"),
+        Index("ix_mp_major_code", "major_code"),
+        Index("ix_mp_major_name", "major_name"),
+        UniqueConstraint(
+            "normalized_ref_id", "major_code", "major_name",
+            name="uq_mp_ref_code_name",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("normalized_asset_ref.id"), nullable=False
+    )
+    asset_version_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("asset_version.id"), nullable=False
+    )
+    domain_profile: Mapped[str] = mapped_column(Text, nullable=False)
+    major_code: Mapped[str] = mapped_column(Text, nullable=False)
+    major_name: Mapped[str] = mapped_column(Text, nullable=False)
+    education_level: Mapped[str | None] = mapped_column(Text, nullable=True)
+    basic_study_duration: Mapped[str | None] = mapped_column(Text, nullable=True)
+    training_goal: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    extractor_version: Mapped[str] = mapped_column(Text, nullable=False)
+    confidence: Mapped[float | None] = mapped_column(nullable=True)
+    evidence: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    quality_flags: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="generated")
+
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+    occupations: Mapped[list["MajorProfileOccupation"]] = relationship(
+        back_populates="profile", cascade="all, delete-orphan", passive_deletes=True
+    )
+    abilities: Mapped[list["MajorProfileAbility"]] = relationship(
+        back_populates="profile", cascade="all, delete-orphan", passive_deletes=True
+    )
+    courses: Mapped[list["MajorProfileCourse"]] = relationship(
+        back_populates="profile", cascade="all, delete-orphan", passive_deletes=True
+    )
+    certificates: Mapped[list["MajorProfileCertificate"]] = relationship(
+        back_populates="profile", cascade="all, delete-orphan", passive_deletes=True
+    )
+    continuations: Mapped[list["MajorProfileContinuation"]] = relationship(
+        back_populates="profile", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class MajorProfileItemMixin:
+    @declared_attr
+    def id(cls) -> Mapped[str]:
+        return mapped_column(String(36), primary_key=True, default=new_uuid)
+
+    @declared_attr
+    def profile_id(cls) -> Mapped[str]:
+        return mapped_column(
+            String(36), ForeignKey("major_profile.id", ondelete="CASCADE"), nullable=False
+        )
+
+    @declared_attr
+    def normalized_ref_id(cls) -> Mapped[str]:
+        return mapped_column(
+            String(36), ForeignKey("normalized_asset_ref.id"), nullable=False
+        )
+
+    @declared_attr
+    def item_index(cls) -> Mapped[int]:
+        return mapped_column(Integer, nullable=False)
+
+    @declared_attr
+    def text(cls) -> Mapped[str]:
+        return mapped_column(Text, nullable=False)
+
+    @declared_attr
+    def source_text(cls) -> Mapped[str | None]:
+        return mapped_column(Text, nullable=True)
+
+    @declared_attr
+    def evidence_block_ids(cls) -> Mapped[list[str]]:
+        return mapped_column(JSON, default=list, nullable=False)
+
+    @declared_attr
+    def locator(cls) -> Mapped[dict[str, Any]]:
+        return mapped_column(JSON, default=dict, nullable=False)
+
+    @declared_attr
+    def confidence(cls) -> Mapped[float | None]:
+        return mapped_column(nullable=True)
+
+
+class MajorProfileOccupation(TimestampMixin, MajorProfileItemMixin, Base):
+    __tablename__ = "major_profile_occupation"
+    __table_args__ = (
+        Index("ix_mpo_profile_id", "profile_id"),
+        Index("ix_mpo_normalized_ref_id", "normalized_ref_id"),
+        Index("ix_mpo_normalized_name", "normalized_name"),
+    )
+
+    normalized_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    occupation_type: Mapped[str] = mapped_column(Text, nullable=False, default="unknown")
+
+    profile: Mapped[MajorProfile] = relationship(back_populates="occupations")
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+
+
+class MajorProfileAbility(TimestampMixin, MajorProfileItemMixin, Base):
+    __tablename__ = "major_profile_ability"
+    __table_args__ = (
+        Index("ix_mpa_profile_id", "profile_id"),
+        Index("ix_mpa_normalized_ref_id", "normalized_ref_id"),
+    )
+
+    profile: Mapped[MajorProfile] = relationship(back_populates="abilities")
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+
+
+class MajorProfileCourse(TimestampMixin, MajorProfileItemMixin, Base):
+    __tablename__ = "major_profile_course"
+    __table_args__ = (
+        Index("ix_mpc_profile_id", "profile_id"),
+        Index("ix_mpc_normalized_ref_id", "normalized_ref_id"),
+        Index("ix_mpc_course_group", "course_group"),
+    )
+
+    course_group: Mapped[str] = mapped_column(Text, nullable=False)
+    course_type: Mapped[str] = mapped_column(Text, nullable=False, default="course")
+
+    profile: Mapped[MajorProfile] = relationship(back_populates="courses")
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+
+
+class MajorProfileCertificate(TimestampMixin, MajorProfileItemMixin, Base):
+    __tablename__ = "major_profile_certificate"
+    __table_args__ = (
+        Index("ix_mpcert_profile_id", "profile_id"),
+        Index("ix_mpcert_normalized_ref_id", "normalized_ref_id"),
+    )
+
+    certificate_type: Mapped[str] = mapped_column(Text, nullable=False, default="unknown")
+
+    profile: Mapped[MajorProfile] = relationship(back_populates="certificates")
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+
+
+class MajorProfileContinuation(TimestampMixin, MajorProfileItemMixin, Base):
+    __tablename__ = "major_profile_continuation"
+    __table_args__ = (
+        Index("ix_mpcont_profile_id", "profile_id"),
+        Index("ix_mpcont_normalized_ref_id", "normalized_ref_id"),
+    )
+
+    profile: Mapped[MajorProfile] = relationship(back_populates="continuations")
     normalized_ref: Mapped[NormalizedAssetRef] = relationship()
 # ---------------------------------------------------------------------------
 # Pipeline B / B6 — Ability analysis domain tables.

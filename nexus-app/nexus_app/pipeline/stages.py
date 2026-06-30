@@ -658,6 +658,52 @@ def _build_normalized_document(
                 meta["role"] = "document_metadata"
                 b["metadata"] = meta
 
+    metadata = {
+        "filename": raw_object.metadata_summary.get("filename"),
+        "mime_type": raw_object.mime_type,
+        "backend": artifact.metadata_summary.get("backend") or artifact.metadata_summary.get("model_version"),
+        "ocr_enabled": artifact.metadata_summary.get("ocr_enabled", False),
+    }
+
+    major_profile_payload: dict[str, Any] | None = None
+    try:
+        from nexus_app.major_profile.extractor import extract as _extract_major_profile
+        major_profile_payload = _extract_major_profile({
+            "content_type": "document",
+            "title": title_from(raw_object, parse_payload),
+            "blocks": blocks,
+            "body_markdown": body_markdown,
+        })
+    except Exception:
+        logger.warning("major_profile extraction failed during normalize", exc_info=True)
+        major_profile_payload = None
+    if major_profile_payload is not None:
+        metadata["domain_profile"] = "major_profile.v1"
+        metadata["domain_profiles"] = [{
+            "domain": "major",
+            "domain_profile": "major_profile.v1",
+            "extractor": major_profile_payload.get("extractor_version"),
+            "confidence": major_profile_payload.get("confidence"),
+            "major_code": major_profile_payload.get("major_code"),
+            "major_name": major_profile_payload.get("major_name"),
+            "education_level": major_profile_payload.get("education_level"),
+            "evidence_block_ids": (
+                major_profile_payload.get("evidence", {}).get("source_block_ids")
+                if isinstance(major_profile_payload.get("evidence"), dict)
+                else []
+            ),
+            "domain_table_status": "pending",
+        }]
+        metadata["knowledge_emissions"] = [{
+            "code": "major_profile_knowledge",
+            "name": "专业介绍知识",
+            "primary": True,
+            "confidence": major_profile_payload.get("confidence", 0.85),
+            "source": "profile_detect",
+            "evidence": ["major_profile.v1 section signatures detected"],
+            "co_emission_origin": None,
+        }]
+
     return {
         "schema_version": "normalized-document-v1",
         "asset_id": None,
@@ -677,12 +723,8 @@ def _build_normalized_document(
         "blocks": blocks,
         "body_markdown": body_markdown,
         "attachments": _extract_attachments(artifact),
-        "metadata": {
-            "filename": raw_object.metadata_summary.get("filename"),
-            "mime_type": raw_object.mime_type,
-            "backend": artifact.metadata_summary.get("backend") or artifact.metadata_summary.get("model_version"),
-            "ocr_enabled": artifact.metadata_summary.get("ocr_enabled", False),
-        },
+        "metadata": metadata,
+        **({"major_profile": major_profile_payload} if major_profile_payload else {}),
         "governance": {
             "sensitivity_level": None,
             "org_scope": [],
@@ -1113,7 +1155,21 @@ def run_knowledge_chunking(
 
     from nexus_app.knowledge.services import run_knowledge_pipeline
 
-    content, content_blocks, record_body = _load_normalized_payload(ctx, normalized_ref)
+    content, content_blocks, record_body, domain_payloads = _load_normalized_payload(
+        ctx, normalized_ref
+    )
+    if domain_payloads.get("major_profile"):
+        emissions = [
+            {
+                **emission,
+                **(
+                    {"major_profile": domain_payloads["major_profile"]}
+                    if emission.get("code") == "major_profile_knowledge"
+                    else {}
+                ),
+            }
+            for emission in emissions
+        ]
     chunks = run_knowledge_pipeline(
         content, emissions, normalized_ref.id,
         content_blocks=content_blocks,
@@ -1147,14 +1203,19 @@ def _load_normalized_content(
     input building). For knowledge chunking use _load_normalized_payload to
     receive blocks alongside content.
     """
-    content, _, _ = _load_normalized_payload(ctx, normalized_ref)
+    content, _, _, _ = _load_normalized_payload(ctx, normalized_ref)
     return content
 
 
 def _load_normalized_payload(
     ctx: PipelineContext,
     normalized_ref: models.NormalizedAssetRef,
-) -> tuple[str, list[dict[str, Any]] | None, dict[str, Any] | list[Any] | None]:
+) -> tuple[
+    str,
+    list[dict[str, Any]] | None,
+    dict[str, Any] | list[Any] | None,
+    dict[str, Any],
+]:
     """Read normalized payload and return ``(content, content_blocks, record_body)``.
 
     ``content`` is the canonical text passed into chunking strategies and
@@ -1178,7 +1239,7 @@ def _load_normalized_payload(
     try:
         payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
-        return raw.decode("utf-8", errors="ignore"), None, None
+        return raw.decode("utf-8", errors="ignore"), None, None, {}
     content = (
         payload.get("body_markdown")
         or json.dumps(payload.get("record_body", {}), ensure_ascii=False)
@@ -1188,9 +1249,12 @@ def _load_normalized_payload(
     if not isinstance(record_body, (dict, list)):
         record_body = None
     blocks = payload.get("blocks")
+    domain_payloads: dict[str, Any] = {}
+    if isinstance(payload.get("major_profile"), dict):
+        domain_payloads["major_profile"] = payload["major_profile"]
     if isinstance(blocks, list) and blocks:
-        return content, blocks, record_body
-    return content, None, record_body
+        return content, blocks, record_body, domain_payloads
+    return content, None, record_body, domain_payloads
 
 
 # ---------------------------------------------------------------------------
@@ -1482,4 +1546,3 @@ def run_index_submit(
         started_at=started_at,
     )
     return manifests
-

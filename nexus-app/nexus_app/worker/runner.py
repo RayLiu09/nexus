@@ -16,6 +16,7 @@ from nexus_app.enums import (
     AuditEventType,
     IngestBatchStatus,
     JobStatus,
+    NormalizedType,
     PipelineType,
     RawObjectStatus,
     StageStatus,
@@ -918,6 +919,66 @@ def _run_domain_normalize(
         )
 
 
+def _run_major_profile_normalize(
+    ctx: PipelineContext,
+    normalized_ref: models.NormalizedAssetRef,
+    raw_object: models.RawObject,
+    session: Session,
+    trace_id: str | None,
+    job_id: str,
+) -> None:
+    """Run Pipeline A major_profile domain-table writer when detected."""
+    if normalized_ref.normalized_type != NormalizedType.DOCUMENT:
+        return
+    if (normalized_ref.metadata_summary or {}).get("domain_profile") != "major_profile.v1":
+        return
+
+    from nexus_app.major_profile import writer
+
+    try:
+        uri = normalized_ref.object_uri
+        key = uri.split("/", 3)[-1] if uri.startswith("s3://") else uri
+        payload = json.loads(ctx.storage.get_bytes(key).decode("utf-8"))
+        profile_payload = payload.get("major_profile") if isinstance(payload, dict) else None
+        profile = writer.write(session, normalized_ref, profile_payload)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception(
+            "major_profile domain write failed for normalized_ref=%s",
+            normalized_ref.id,
+        )
+        write_audit(
+            session,
+            AuditEventType.DOMAIN_NORMALIZE_FAILED,
+            "normalized_asset_ref",
+            normalized_ref.id,
+            trace_id,
+            {
+                "raw_object_id": raw_object.id,
+                "job_id": job_id,
+                "domain_profile": "major_profile.v1",
+                "error": f"{type(exc).__name__}: {exc}",
+            },
+        )
+        return
+
+    write_audit(
+        session,
+        AuditEventType.DOMAIN_NORMALIZE_COMPLETED,
+        "normalized_asset_ref",
+        normalized_ref.id,
+        trace_id,
+        {
+            "raw_object_id": raw_object.id,
+            "job_id": job_id,
+            "domain_profile": "major_profile.v1",
+            "skipped": profile is None,
+            "reason": None if profile is not None else "major_profile_payload_missing_or_invalid",
+            "profile_id": profile.id if profile is not None else None,
+            "records_written": 1 if profile is not None else 0,
+        },
+    )
+
+
 def _run_body_markdown_render(
     ctx: PipelineContext,
     normalized_ref: models.NormalizedAssetRef,
@@ -1620,6 +1681,9 @@ def execute_job(
     try:
         if pipeline_type == PipelineType.DOCUMENT:
             normalized_ref = _run_document_pipeline(ctx, version)
+            _run_major_profile_normalize(
+                ctx, normalized_ref, raw_object, session, trace_id, job.id
+            )
         else:
             profile_dict = (
                 profile_result.model_dump(mode="json", exclude_none=True)

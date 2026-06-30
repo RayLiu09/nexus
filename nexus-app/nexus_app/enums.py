@@ -358,6 +358,8 @@ class ChunkingStrategy(StrEnum):
     SEMANTIC_REPACK        = "semantic_repack"
     # Record pipeline — explodes a record_body into one chunk per row.
     ROW_DECOMPOSE          = "row_decompose"
+    # Pipeline A major_profile — one semantic chunk per business section.
+    MAJOR_PROFILE_DECOMPOSE = "major_profile_decompose"
 
 
 class SourceKind(StrEnum):

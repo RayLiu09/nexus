@@ -16,6 +16,7 @@ import nexus_app.knowledge.chunking_strategies.case_decompose  # noqa: F401
 import nexus_app.knowledge.chunking_strategies.graph_extract  # noqa: F401
 import nexus_app.knowledge.chunking_strategies.tag_decompose  # noqa: F401
 import nexus_app.knowledge.chunking_strategies.row_decompose  # noqa: F401
+import nexus_app.knowledge.chunking_strategies.major_profile_decompose  # noqa: F401
 
 
 def run_knowledge_pipeline(

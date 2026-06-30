@@ -1074,7 +1074,7 @@
       ]
     },
     {
-      "code": "program_profile",
+      "code": "major_profile",
       "name": "专业简介",
       "parent_type": "专业数据",
       "description": "教育部发布的专业简介、各院校专业简介，教育部发的以教学标准为主。简介主要是获取其他院校对应专业的专业简介，给其他院校做专业建设提供支持",
@@ -1283,7 +1283,7 @@
       "applicable_classifications": [
         "teaching_standard",
         "talent_training_plan",
-        "program_profile"
+        "major_profile"
       ],
       "default_level": "L1",
       "source_kind": "extracted_from_normalized",
@@ -1332,7 +1332,7 @@
       "description": "人才培养方案、课程体系、毕业要求等结构化教育数据",
       "applicable_classifications": [
         "talent_training_plan",
-        "program_profile"
+        "major_profile"
       ],
       "default_level": "L2",
       "source_kind": "extracted_from_normalized",
@@ -1377,6 +1377,39 @@
       ],
       "implementation_tier": "A",
       "kb_name": "nexus-kb-talent-training"
+    },
+    {
+      "code": "major_profile_knowledge",
+      "name": "专业介绍知识",
+      "description": "专业介绍/简介文档按职业面向、培养目标定位、主要专业能力要求、课程与实训、证书、接续专业等章节形成的语义块",
+      "applicable_classifications": [
+        "major_profile"
+      ],
+      "default_level": "L1",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_extract",
+      "rag_pipeline": "pipeline_1",
+      "source_criteria": [
+        "包含专业代码、专业名称、基本修业年限",
+        "包含职业面向、培养目标定位、主要专业能力要求",
+        "包含主要专业课程与实习实训、证书、接续专业等章节"
+      ],
+      "chunking_strategy": "major_profile_decompose",
+      "chunking_config": {
+        "include_sections": [
+          "occupation_oriented",
+          "training_goal",
+          "ability_requirements",
+          "courses_and_training",
+          "certificates",
+          "continuation_majors"
+        ]
+      },
+      "ragflow": {},
+      "chunk_type": "semantic_block",
+      "co_emission_rules": [],
+      "implementation_tier": "A",
+      "kb_name": "nexus-kb-major-profile"
     },
     {
       "code": "qa_corpus",
