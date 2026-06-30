@@ -17,6 +17,20 @@ import { AssetsSummary } from "./AssetsSummary";
 import { DomainDistribution } from "./DomainDistribution";
 import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 
+type AssetCatalogFilters = {
+  domain?: string;
+  level?: string;
+  status?: string;
+};
+
+const FILTER_UNCHANGED = Symbol("filter-unchanged");
+
+type AssetCatalogFilterPatch = {
+  domain?: string | typeof FILTER_UNCHANGED;
+  level?: string | typeof FILTER_UNCHANGED;
+  status?: string | typeof FILTER_UNCHANGED;
+};
+
 const DOMAIN_COLORS = [
   "geekblue",
   "cyan",
@@ -61,6 +75,7 @@ interface AssetsContentProps {
   totalCount: number;
   currentPage: number;
   pageSize: number;
+  filters: AssetCatalogFilters;
   ok: boolean;
   error: string | null;
   traceId: string | null;
@@ -72,6 +87,7 @@ export function AssetsContent({
   totalCount,
   currentPage,
   pageSize,
+  filters,
   ok,
   error,
   traceId,
@@ -95,10 +111,31 @@ export function AssetsContent({
       if (pagination.pageSize && pagination.pageSize !== DEFAULT_PAGE_SIZE) {
         params.set("pageSize", String(pagination.pageSize));
       }
+      if (filters.domain) params.set("domain", filters.domain);
+      if (filters.level) params.set("level", filters.level);
+      if (filters.status) params.set("status", filters.status);
       const qs = params.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname);
     },
-    [router, pathname],
+    [filters.domain, filters.level, filters.status, router, pathname],
+  );
+
+  const updateFilters = useCallback(
+    (next: AssetCatalogFilterPatch) => {
+      const params = new URLSearchParams();
+      const nextDomain = next.domain === FILTER_UNCHANGED ? filters.domain : next.domain;
+      const nextLevel = next.level === FILTER_UNCHANGED ? filters.level : next.level;
+      const nextStatus = next.status === FILTER_UNCHANGED ? filters.status : next.status;
+      if (nextDomain) params.set("domain", nextDomain);
+      if (nextLevel) params.set("level", nextLevel);
+      if (nextStatus) params.set("status", nextStatus);
+      if (pageSize !== DEFAULT_PAGE_SIZE) {
+        params.set("pageSize", String(pageSize));
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    },
+    [filters.domain, filters.level, filters.status, pageSize, pathname, router],
   );
 
   const columns: ColumnsType<AssetWithMeta> = [
@@ -234,12 +271,17 @@ export function AssetsContent({
 
       <div className="assets-toolbar">
         <Select
-          defaultValue="all-domain"
+          value={filters.domain ?? "all-domain"}
           options={[{ value: "all-domain", label: "全部数据域" }, ...DOMAIN_OPTIONS]}
+          onChange={(value) => updateFilters({
+            domain: value === "all-domain" ? undefined : value,
+            level: FILTER_UNCHANGED,
+            status: FILTER_UNCHANGED,
+          })}
           style={{ width: 180 }}
         />
         <Select
-          defaultValue="all-level"
+          value={filters.level ?? "all-level"}
           options={[
             { value: "all-level", label: "全部分级" },
             { value: "L1", label: "L1 公开" },
@@ -247,15 +289,25 @@ export function AssetsContent({
             { value: "L3", label: "L3 机密" },
             { value: "L4", label: "L4 受控" },
           ]}
+          onChange={(value) => updateFilters({
+            domain: FILTER_UNCHANGED,
+            level: value === "all-level" ? undefined : value,
+            status: FILTER_UNCHANGED,
+          })}
           style={{ width: 130 }}
         />
         <Select
-          defaultValue="visible"
+          value={filters.status ?? "visible"}
           options={[
             { value: "visible", label: "available + review_required" },
             { value: "all", label: "全部状态" },
             { value: "archived", label: "归档" },
           ]}
+          onChange={(value) => updateFilters({
+            domain: FILTER_UNCHANGED,
+            level: FILTER_UNCHANGED,
+            status: value === "all" ? undefined : value,
+          })}
           style={{ width: 240 }}
         />
         <Button icon={<SaveOutlined />}>保存视图</Button>

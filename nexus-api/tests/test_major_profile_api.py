@@ -223,6 +223,46 @@ def test_internal_get_by_normalized_ref(fake_request, session) -> None:
     assert body["courses"][0]["course_group"] == "foundation"
 
 
+def test_internal_list_by_normalized_ref_returns_multiple_profiles(fake_request, session) -> None:
+    ref = _seed_anchor(session, ref_id="ref-mp-api", version_id="ver-mp-api")
+    _seed_profile(
+        session,
+        ref=ref,
+        profile_id="mp-530701",
+        major_code="530701",
+        major_name="电子商务",
+    )
+    _seed_profile(
+        session,
+        ref=ref,
+        profile_id="mp-530702",
+        major_code="530702",
+        major_name="跨境电子商务",
+    )
+
+    resp = major_profiles.list_internal_major_profiles_by_ref(
+        ref_id=ref.id,
+        request=fake_request,
+        session=session,
+    )
+
+    body = _body(resp)["data"]
+    assert [item["major_code"] for item in body] == ["530701", "530702"]
+    assert body[1]["major_name"] == "跨境电子商务"
+
+
+def test_internal_list_by_normalized_ref_returns_empty_list(fake_request, session) -> None:
+    ref = _seed_anchor(session, ref_id="ref-mp-api", version_id="ver-mp-api")
+
+    resp = major_profiles.list_internal_major_profiles_by_ref(
+        ref_id=ref.id,
+        request=fake_request,
+        session=session,
+    )
+
+    assert _body(resp)["data"] == []
+
+
 def test_open_list_returns_only_available(fake_request, session) -> None:
     available_ref = _seed_anchor(
         session, ref_id="ref-mp-api-ok", version_id="ver-mp-api-ok",

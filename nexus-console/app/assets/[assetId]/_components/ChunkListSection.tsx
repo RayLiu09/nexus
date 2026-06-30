@@ -42,6 +42,7 @@ export interface ChunkListSectionProps {
   emptyDescription?: string;
   mode?: "detail" | "preview";
   actionLabel?: string;
+  knowledgeTypeCode?: string;
 }
 
 export function ChunkListSection({
@@ -50,6 +51,7 @@ export function ChunkListSection({
   emptyDescription = "该 ref 暂未生成 chunk（可能仍在索引中或属记录类型）",
   mode = "detail",
   actionLabel = mode === "preview" ? "预览定位" : "展开详情",
+  knowledgeTypeCode,
 }: ChunkListSectionProps) {
   const [page, setPage] = useState(1);
   const [data, setData] = useState<KnowledgeChunkHit[] | null>(null);
@@ -68,7 +70,9 @@ export function ChunkListSection({
       try {
         const url = `/api/normalized-refs/${encodeURIComponent(
           refId,
-        )}/chunks?page=${targetPage}&pageSize=${PAGE_SIZE}`;
+        )}/chunks?page=${targetPage}&pageSize=${PAGE_SIZE}${
+          knowledgeTypeCode ? `&knowledgeTypeCode=${encodeURIComponent(knowledgeTypeCode)}` : ""
+        }`;
         const res = await fetch(url, { cache: "no-store" });
         const body = (await res.json()) as ProxyEnvelope | ProxyErrorEnvelope;
         if (!body.ok) {
@@ -84,7 +88,7 @@ export function ChunkListSection({
         setLoading(false);
       }
     },
-    [refId],
+    [knowledgeTypeCode, refId],
   );
 
   useEffect(() => {

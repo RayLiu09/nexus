@@ -144,6 +144,60 @@ def _seed_review_required_asset(session: Session):
     return {"asset": asset, "version": version, "ref": ref, "run": run, "result": result}
 
 
+def _seed_processing_asset(session: Session):
+    ds = models.DataSource(
+        code="catalog-test-processing-ds",
+        name="Catalog Processing DS",
+        source_type=DataSourceType.FILE_UPLOAD,
+    )
+    session.add(ds)
+    session.flush()
+
+    batch = models.IngestBatch(
+        data_source_id=ds.id,
+        idempotency_key="catalog-batch-processing",
+        source_type=DataSourceType.FILE_UPLOAD,
+        status=IngestBatchStatus.COMPLETED,
+    )
+    session.add(batch)
+    session.flush()
+
+    raw = models.RawObject(
+        batch_id=batch.id,
+        data_source_id=ds.id,
+        source_type=DataSourceType.FILE_UPLOAD,
+        source_uri="file://catalog-processing.pdf",
+        object_uri="raw/catalog-processing.pdf",
+        checksum="catalog-processing-raw-sha256",
+        mime_type="application/pdf",
+        size_bytes=1024,
+        status=RawObjectStatus.RAW_PERSISTED,
+    )
+    session.add(raw)
+    session.flush()
+
+    asset = models.Asset(
+        data_source_id=ds.id,
+        source_object_key="catalog-processing.pdf",
+        title="Catalog Processing Asset",
+        asset_kind=AssetKind.DOCUMENT,
+        status=AssetVersionStatus.PROCESSING,
+    )
+    session.add(asset)
+    session.flush()
+
+    version = models.AssetVersion(
+        asset_id=asset.id,
+        raw_object_id=raw.id,
+        version_no=1,
+        source_checksum="catalog-processing-raw-sha256",
+        version_status=AssetVersionStatus.PROCESSING,
+    )
+    session.add(version)
+    session.commit()
+    return {"asset": asset, "version": version}
+
+
 def test_review_required_asset_detail_exposes_latest_read_models(app, session):
     seeded = _seed_review_required_asset(session)
     client = TestClient(app)
@@ -181,6 +235,26 @@ def test_asset_catalog_uses_latest_review_required_ref_for_ui_metadata(app, sess
     assert row["level"] == "L1"
     assert row["quality_score"] == 69.83
     assert row["governance_status"] == "review_required"
+
+
+def test_asset_catalog_filters_by_domain_level_and_status(app, session):
+    seeded = _seed_review_required_asset(session)
+    _seed_processing_asset(session)
+    client = TestClient(app)
+
+    resp = client.get("/internal/v1/assets?domain=industry_report&level=L1&status=visible")
+
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["meta"]["total"] == 1
+    assert [row["id"] for row in payload["data"]] == [seeded["asset"].id]
+
+    resp = client.get("/internal/v1/assets?domain=industry_report&level=L3&status=visible")
+
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["meta"]["total"] == 0
+    assert payload["data"] == []
 
 
 def test_asset_summary_counts_review_required_assets_with_latest_refs(app, session):

@@ -270,19 +270,43 @@ def get_internal_major_profile_by_ref(
     request: Request,
     session: Session = Depends(get_db),
 ):
-    profile = session.scalars(
-        select(models.MajorProfile)
-        .options(*_profile_detail_options())
-        .where(models.MajorProfile.normalized_ref_id == ref_id)
-        .order_by(models.MajorProfile.created_at.desc())
-        .limit(1)
-    ).first()
-    if profile is None:
+    profiles = _get_profiles_by_ref(session=session, ref_id=ref_id)
+    if not profiles:
         raise HTTPException(
             status_code=404,
             detail=f"major_profile for normalized_ref '{ref_id}' not found",
         )
-    return response(_serialize_profile_detail(profile), request)
+    return response(_serialize_profile_detail(profiles[0]), request)
+
+
+@internal_router.get(
+    "/normalized-refs/{ref_id}/major-profiles",
+    response_model=schemas.ApiResponse[list[dict]],
+)
+def list_internal_major_profiles_by_ref(
+    ref_id: str,
+    request: Request,
+    session: Session = Depends(get_db),
+):
+    profiles = _get_profiles_by_ref(session=session, ref_id=ref_id)
+    return response([_serialize_profile_detail(profile) for profile in profiles], request)
+
+
+def _get_profiles_by_ref(
+    *,
+    session: Session,
+    ref_id: str,
+) -> list[models.MajorProfile]:
+    return list(session.scalars(
+        select(models.MajorProfile)
+        .options(*_profile_detail_options())
+        .where(models.MajorProfile.normalized_ref_id == ref_id)
+        .order_by(
+            models.MajorProfile.major_code.asc(),
+            models.MajorProfile.major_name.asc(),
+            models.MajorProfile.created_at.desc(),
+        )
+    ).unique().all())
 
 
 @open_router.get("", response_model=schemas.ListResponse[dict])

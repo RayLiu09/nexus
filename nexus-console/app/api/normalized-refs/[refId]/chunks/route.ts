@@ -29,6 +29,8 @@ export async function GET(
   if (page) backendParams.set("page", page);
   const pageSize = url.searchParams.get("pageSize");
   if (pageSize) backendParams.set("pageSize", pageSize);
+  const knowledgeTypeCode = url.searchParams.get("knowledgeTypeCode");
+  if (knowledgeTypeCode) backendParams.set("knowledge_type_code", knowledgeTypeCode);
 
   const query = backendParams.toString();
   const result = await internalBackendGet<ChunkListResponse["data"]>(

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Card,
@@ -15,6 +15,11 @@ import {
 } from "antd";
 import { Search } from "lucide-react";
 import type { ECharts, EChartsOption } from "echarts";
+import {
+  downloadEchartsGraphImage,
+  GraphViewportActions,
+  type GraphImageHandle,
+} from "./GraphViewportActions";
 import {
   getApiData,
   type CapabilityGraphStagingBuild,
@@ -138,6 +143,7 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
   const [query, setQuery] = useState("");
   const [showEdgeLabels, setShowEdgeLabels] = useState(false);
   const [selectedNode, setSelectedNode] = useState<CapabilityGraphStagingNode | null>(null);
+  const graphRef = useRef<GraphImageHandle | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -248,7 +254,28 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
     <Card
       title={title}
       size="small"
-      extra={state.build ? <Tag color="processing">{state.build.status}</Tag> : null}
+      extra={
+        state.build ? (
+          <div className="flex items-center gap-2">
+            <Tag color="processing" className="!mr-0">{state.build.status}</Tag>
+            <GraphViewportActions
+              title={title}
+              disabled={filteredNodes.length === 0}
+              onDownload={() => graphRef.current?.downloadImage(`${title}.png`)}
+            >
+              <EchartsGraph
+                nodes={filteredNodes}
+                edges={filteredEdges}
+                buildType={buildType}
+                showEdgeLabels={showEdgeLabels}
+                searchQuery={query}
+                onNodeSelect={setSelectedNode}
+                fullscreen
+              />
+            </GraphViewportActions>
+          </div>
+        ) : null
+      }
     >
       {state.loading ? <Skeleton active paragraph={{ rows: 8 }} /> : null}
       {state.error ? (
@@ -278,6 +305,7 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
             <Empty description="当前筛选条件下无图谱节点" image={Empty.PRESENTED_IMAGE_SIMPLE} />
           ) : (
             <EchartsGraph
+              ref={graphRef}
               nodes={filteredNodes}
               edges={filteredEdges}
               buildType={buildType}
@@ -505,21 +533,23 @@ function numberOrNull(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function EchartsGraph({
-  nodes,
-  edges,
-  buildType,
-  showEdgeLabels,
-  searchQuery,
-  onNodeSelect,
-}: {
+const EchartsGraph = forwardRef<GraphImageHandle, {
   nodes: CapabilityGraphStagingNode[];
   edges: CapabilityGraphStagingEdge[];
   buildType: BuildType;
   showEdgeLabels: boolean;
   searchQuery: string;
   onNodeSelect: (node: GraphDisplayNode) => void;
-}) {
+  fullscreen?: boolean;
+}>(function EchartsGraph({
+  nodes,
+  edges,
+  buildType,
+  showEdgeLabels,
+  searchQuery,
+  onNodeSelect,
+  fullscreen = false,
+}, ref) {
   const chartRef = useRef<HTMLDivElement | null>(null);
   const chartInstance = useRef<ECharts | null>(null);
   const displayGraph = useMemo(
@@ -537,6 +567,14 @@ function EchartsGraph({
     [displayGraph.edges, displayGraph.nodes, searchQuery, showEdgeLabels],
   );
 
+  useImperativeHandle(ref, () => ({
+    downloadImage: (filename: string) => downloadEchartsGraphImage({
+      option,
+      filename,
+      nodeCount: displayGraph.nodes.length,
+    }),
+  }), [displayGraph.nodes.length, option]);
+
   useEffect(() => {
     let disposed = false;
     let resizeObserver: ResizeObserver | null = null;
@@ -546,6 +584,9 @@ function EchartsGraph({
       const chart = echarts.init(chartRef.current);
       chartInstance.current = chart;
       chart.setOption(option);
+      requestAnimationFrame(() => {
+        if (!disposed && !chart.isDisposed()) chart.resize();
+      });
       chart.on("click", (params) => {
         if (params.dataType !== "node") return;
         if (!params.data || Array.isArray(params.data) || typeof params.data !== "object") return;
@@ -555,7 +596,10 @@ function EchartsGraph({
         if (node) onNodeSelect(node);
       });
       resizeObserver = new ResizeObserver(() => {
-        if (!disposed && chartInstance.current === chart) chart.resize();
+        if (disposed || chart.isDisposed() || chartInstance.current !== chart) return;
+        requestAnimationFrame(() => {
+          if (!disposed && !chart.isDisposed() && chartInstance.current === chart) chart.resize();
+        });
       });
       resizeObserver.observe(chartRef.current);
     });
@@ -575,12 +619,14 @@ function EchartsGraph({
   return (
     <div
       ref={chartRef}
-      className="border-line bg-surface-alt h-[560px] min-h-[420px] w-full rounded-md border"
+      className={`border-line bg-surface-alt w-full rounded-md border ${
+        fullscreen ? "h-full min-h-[520px]" : "h-[560px] min-h-[420px]"
+      }`}
       role="img"
       aria-label="能力图谱可视化画布"
     />
   );
-}
+});
 
 function buildGraphOption(
   nodes: GraphDisplayNode[],

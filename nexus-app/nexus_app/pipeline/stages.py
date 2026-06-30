@@ -678,22 +678,36 @@ def _build_normalized_document(
         logger.warning("major_profile extraction failed during normalize", exc_info=True)
         major_profile_payload = None
     if major_profile_payload is not None:
+        raw_major_profiles = major_profile_payload.get("profiles")
+        major_profile_summaries = [
+            profile
+            for profile in (
+                raw_major_profiles
+                if isinstance(raw_major_profiles, list)
+                else [major_profile_payload]
+            )
+            if isinstance(profile, dict)
+        ]
         metadata["domain_profile"] = "major_profile.v1"
-        metadata["domain_profiles"] = [{
-            "domain": "major",
-            "domain_profile": "major_profile.v1",
-            "extractor": major_profile_payload.get("extractor_version"),
-            "confidence": major_profile_payload.get("confidence"),
-            "major_code": major_profile_payload.get("major_code"),
-            "major_name": major_profile_payload.get("major_name"),
-            "education_level": major_profile_payload.get("education_level"),
-            "evidence_block_ids": (
-                major_profile_payload.get("evidence", {}).get("source_block_ids")
-                if isinstance(major_profile_payload.get("evidence"), dict)
-                else []
-            ),
-            "domain_table_status": "pending",
-        }]
+        metadata["domain_profiles"] = [
+            {
+                "domain": "major",
+                "domain_profile": "major_profile.v1",
+                "extractor": profile.get("extractor_version"),
+                "confidence": profile.get("confidence"),
+                "major_code": profile.get("major_code"),
+                "major_name": profile.get("major_name"),
+                "education_level": profile.get("education_level"),
+                "evidence_block_ids": (
+                    profile.get("evidence", {}).get("source_block_ids")
+                    if isinstance(profile.get("evidence"), dict)
+                    else []
+                ),
+                "domain_table_status": "pending",
+            }
+            for profile in major_profile_summaries
+        ]
+        metadata["major_profile_count"] = len(major_profile_summaries)
         metadata["knowledge_emissions"] = [{
             "code": "major_profile_knowledge",
             "name": "专业介绍知识",

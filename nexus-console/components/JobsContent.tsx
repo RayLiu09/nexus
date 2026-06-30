@@ -4,14 +4,14 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { StatusLabel } from "@/components/StatusLabel";
 import { PollingIndicator } from "@/components/PollingIndicator";
-import { Button, Drawer, Table, Card, Tooltip } from "antd";
+import { App, Button, Drawer, Table, Card, Tooltip } from "antd";
 import { EyeOutlined, ReloadOutlined, StopOutlined } from "@ant-design/icons";
 import { ConfirmButton } from "@/components/shared/ConfirmButton";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { useOptimisticMutation } from "@/lib/useOptimisticMutation";
 import { useElapsed } from "@/lib/useElapsed";
 import { formatTime } from "@/lib/format-time";
-import { shortId, postApiData, type Job, type JobStage } from "@/lib/api";
+import { getApiData, shortId, postApiData, type Job, type JobStage } from "@/lib/api";
 import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 
 const PIPELINE_STAGES = [
@@ -67,24 +67,34 @@ interface JobsContentProps {
 }
 
 export function JobsContent({ jobs: initialJobs, stages, rawObjectNames, totalCount, currentPage, pageSize: currentPageSize }: JobsContentProps) {
+  const { message } = App.useApp();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [jobs, setJobs] = useState<Job[]>(initialJobs);
+  const [jobStages, setJobStages] = useState<JobStage[]>(stages);
+  const [visibleTotalCount, setVisibleTotalCount] = useState(totalCount);
   const [drawerJob, setDrawerJob] = useState<Job | null>(null);
   const [pollingState, setPollingState] = useState<"active" | "paused" | "error">("active");
   const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const isInitialRender = useRef(true);
 
   // Sync jobs from server-side prop updates (router.refresh re-fetches server component)
   useEffect(() => {
     setJobs(initialJobs);
+    setJobStages(stages);
+    setVisibleTotalCount(totalCount);
+    setDrawerJob((current) => {
+      if (!current) return current;
+      return initialJobs.find((job) => job.id === current.id) ?? current;
+    });
     if (isInitialRender.current) {
       isInitialRender.current = false;
     } else {
       setLastRefreshAt(new Date());
     }
-  }, [initialJobs]);
+  }, [initialJobs, stages, totalCount]);
 
   const hasActiveJobs = jobs.some((j) => j.status === "running" || j.status === "queued");
 
@@ -100,13 +110,13 @@ export function JobsContent({ jobs: initialJobs, stages, rawObjectNames, totalCo
 
   const stagesByJob = useMemo(() => {
     const map = new Map<string, JobStage[]>();
-    for (const s of stages) {
+    for (const s of jobStages) {
       const list = map.get(s.job_id) ?? [];
       list.push(s);
       map.set(s.job_id, list);
     }
     return map;
-  }, [stages]);
+  }, [jobStages]);
 
   const retryMutation = useOptimisticMutation({
     mutationFn: (jobId: string) => postApiData(`/api/jobs/${jobId}/retry`, {}),
@@ -170,9 +180,45 @@ export function JobsContent({ jobs: initialJobs, stages, rawObjectNames, totalCo
     [router, buildUrl],
   );
 
-  const handleManualRefresh = useCallback(() => {
-    router.refresh();
-  }, [router]);
+  const handleManualRefresh = useCallback(async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    setPollingState("active");
+    try {
+      const jobsRes = await getApiData<Job[]>("/api/jobs", [], {
+        page: String(currentPage),
+        pageSize: String(currentPageSize),
+      });
+      if (!jobsRes.ok) {
+        setPollingState("error");
+        message.error(jobsRes.error ?? "刷新作业列表失败");
+        return;
+      }
+      const refreshedJobs = jobsRes.data;
+      const stageResults = await Promise.all(
+        refreshedJobs.map((job) => getApiData<JobStage[]>(`/api/jobs/${job.id}/stages`, [])),
+      );
+      const refreshedStages = stageResults.flatMap((result) => result.ok ? result.data : []);
+      setJobs(refreshedJobs);
+      setJobStages(refreshedStages);
+      setVisibleTotalCount(jobsRes.total ?? refreshedJobs.length);
+      setDrawerJob((current) => {
+        if (!current) return current;
+        return refreshedJobs.find((job) => job.id === current.id) ?? current;
+      });
+      setLastRefreshAt(new Date());
+      setPollingState(stageResults.some((result) => !result.ok) ? "error" : "active");
+      if (stageResults.some((result) => !result.ok)) {
+        message.warning("作业列表已刷新，部分阶段详情加载失败");
+      }
+      router.refresh();
+    } catch (error) {
+      setPollingState("error");
+      message.error(error instanceof Error ? error.message : "刷新作业列表失败");
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [currentPage, currentPageSize, isRefreshing, message, router]);
 
   // Compute relative "last update" display
   const lastUpdateDisplay = lastRefreshAt ? formatTime(lastRefreshAt.toISOString()).display : null;
@@ -185,6 +231,7 @@ export function JobsContent({ jobs: initialJobs, stages, rawObjectNames, totalCo
           intervalSeconds={15}
           lastUpdate={lastUpdateDisplay ?? undefined}
           onRefresh={handleManualRefresh}
+          refreshing={isRefreshing}
           onToggle={() => setPollingState((s) => (s === "active" ? "paused" : "active"))}
         />
       )}
@@ -195,9 +242,23 @@ export function JobsContent({ jobs: initialJobs, stages, rawObjectNames, totalCo
         <Card
           title="作业列表"
           extra={
-            <span className="text-xs text-muted">
-              共 {totalCount} 个作业 · {jobs.filter(j => j.status === "running" || j.status === "queued").length} 活跃
-            </span>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <span className="text-xs text-muted">
+                共 {visibleTotalCount} 个作业 · {jobs.filter(j => j.status === "running" || j.status === "queued").length} 活跃
+              </span>
+              {!hasActiveJobs ? (
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<ReloadOutlined />}
+                  onClick={handleManualRefresh}
+                  loading={isRefreshing}
+                  disabled={isRefreshing}
+                >
+                  手动刷新
+                </Button>
+              ) : null}
+            </div>
           }
         >
           <Table
@@ -207,7 +268,7 @@ export function JobsContent({ jobs: initialJobs, stages, rawObjectNames, totalCo
             pagination={{
               current: currentPage,
               pageSize: currentPageSize,
-              total: totalCount,
+              total: visibleTotalCount,
               showSizeChanger: true,
               showTotal: (total) => `共 ${total} 个作业`,
               pageSizeOptions: ["10", "20", "50"],

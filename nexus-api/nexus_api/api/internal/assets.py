@@ -5,7 +5,7 @@ version state from `failed` back to `processing`. Audit emission happens
 inside the handler so the asset detail page reflects the change immediately."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -31,6 +31,11 @@ _CLASSIFICATION_LABELS: dict[str, str] = {
     "talent_demand_report": "专业人才需求报告",
     "talent_training_plan": "人才培养方案",
     "program_profile": "专业简介",
+}
+
+_VISIBLE_ASSET_STATUSES = {
+    AssetVersionStatus.AVAILABLE.value,
+    AssetVersionStatus.REVIEW_REQUIRED.value,
 }
 
 
@@ -200,18 +205,70 @@ def _asset_summary(rows: list[domain_schemas.AssetCatalogRead]) -> domain_schema
     )
 
 
+def _filtered_catalog_rows(
+    session: Session,
+    *,
+    domain: str | None,
+    level: str | None,
+    status: str | None,
+) -> list[domain_schemas.AssetCatalogRead]:
+    rows = [_catalog_row(session, row) for row in pipeline.list_assets(session)]
+    if domain:
+        rows = [row for row in rows if row.domain == domain]
+    if level:
+        rows = [row for row in rows if row.level == level]
+    if status == "visible":
+        rows = [
+            row
+            for row in rows
+            if (
+                row.status.value
+                if hasattr(row.status, "value")
+                else str(row.status)
+            )
+            in _VISIBLE_ASSET_STATUSES
+        ]
+    elif status:
+        rows = [
+            row
+            for row in rows
+            if (
+                row.status.value
+                if hasattr(row.status, "value")
+                else str(row.status)
+            )
+            == status
+        ]
+    return rows
+
+
 @router.get("/assets", response_model=schemas.ListResponse[domain_schemas.AssetCatalogRead])
 def list_assets(
     request: Request,
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
+    domain: str | None = Query(default=None),
+    level: str | None = Query(default=None),
+    status: str | None = Query(default=None),
 ):
-    rows = pipeline.list_assets(
-        session, limit=pagination.limit, offset=pagination.offset
-    )
-    total = pipeline.count_assets(session)
+    if domain or level or status:
+        rows = _filtered_catalog_rows(
+            session,
+            domain=domain,
+            level=level,
+            status=status,
+        )
+        total = len(rows)
+        rows = rows[pagination.offset: pagination.offset + pagination.limit]
+        data = rows
+    else:
+        asset_rows = pipeline.list_assets(
+            session, limit=pagination.limit, offset=pagination.offset
+        )
+        total = pipeline.count_assets(session)
+        data = [_catalog_row(session, row) for row in asset_rows]
     return list_response(
-        [_catalog_row(session, row) for row in rows], request,
+        data, request,
         page=pagination.page, page_size=pagination.page_size, total=total,
     )
 

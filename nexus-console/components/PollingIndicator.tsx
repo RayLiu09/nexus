@@ -12,6 +12,7 @@ type PollingIndicatorProps = {
   responseMs?: number;
   onRefresh?: () => void;
   onToggle?: () => void;
+  refreshing?: boolean;
 };
 
 const stateConfig: Record<PollingState, { label: string; dotClass: string }> = {
@@ -26,7 +27,8 @@ export function PollingIndicator({
   lastUpdate,
   responseMs,
   onRefresh,
-  onToggle
+  onToggle,
+  refreshing = false,
 }: PollingIndicatorProps) {
   const config = stateConfig[state];
 
@@ -40,7 +42,14 @@ export function PollingIndicator({
       {lastUpdate && <span className="text-muted">上次更新: {lastUpdate}</span>}
       {responseMs != null && <span className="text-muted">响应: {responseMs}ms</span>}
       {onRefresh && (
-        <Button type="text" size="small" icon={<ReloadOutlined />} onClick={onRefresh}>
+        <Button
+          type="text"
+          size="small"
+          icon={<ReloadOutlined />}
+          onClick={onRefresh}
+          loading={refreshing}
+          disabled={refreshing}
+        >
           手动刷新
         </Button>
       )}

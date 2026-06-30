@@ -18,15 +18,24 @@ def write(
     normalized_ref: models.NormalizedAssetRef,
     profile_payload: dict[str, Any],
 ) -> models.MajorProfile | None:
-    """Write one extracted major profile and child rows idempotently."""
+    """Write extracted major profile rows idempotently and return the primary row."""
+    profiles = write_many(session, normalized_ref, profile_payload)
+    return profiles[0] if profiles else None
+
+
+def write_many(
+    session: "Session",
+    normalized_ref: models.NormalizedAssetRef,
+    profile_payload: dict[str, Any],
+) -> list[models.MajorProfile]:
+    """Write one or more extracted major profiles for a normalized ref."""
     if not isinstance(profile_payload, dict):
-        return None
+        return []
     if profile_payload.get("schema_version") != DOMAIN_PROFILE:
-        return None
-    major_code = _string_or_none(profile_payload.get("major_code"))
-    major_name = _string_or_none(profile_payload.get("major_name"))
-    if major_code is None or major_name is None:
-        return None
+        return []
+    profile_payloads = _profile_payloads(profile_payload)
+    if not profile_payloads:
+        return []
 
     existing = list(session.scalars(
         select(models.MajorProfile).where(
@@ -37,6 +46,38 @@ def write(
         session.delete(row)
     if existing:
         session.flush()
+
+    written: list[models.MajorProfile] = []
+    for payload in profile_payloads:
+        profile = _write_one(session, normalized_ref, payload)
+        if profile is not None:
+            written.append(profile)
+    session.flush()
+    return written
+
+
+def _profile_payloads(profile_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    raw_profiles = profile_payload.get("profiles")
+    if isinstance(raw_profiles, list):
+        out = [
+            item
+            for item in raw_profiles
+            if isinstance(item, dict) and item.get("schema_version") == DOMAIN_PROFILE
+        ]
+        if out:
+            return out
+    return [profile_payload]
+
+
+def _write_one(
+    session: "Session",
+    normalized_ref: models.NormalizedAssetRef,
+    profile_payload: dict[str, Any],
+) -> models.MajorProfile | None:
+    major_code = _string_or_none(profile_payload.get("major_code"))
+    major_name = _string_or_none(profile_payload.get("major_name"))
+    if major_code is None or major_name is None:
+        return None
 
     training_goal_payload = profile_payload.get("training_goal")
     training_goal = None
@@ -72,7 +113,6 @@ def write(
     _write_courses(session, profile, normalized_ref, profile_payload.get("courses_and_training"))
     _write_certificates(session, profile, normalized_ref, profile_payload.get("certificates"))
     _write_continuations(session, profile, normalized_ref, profile_payload.get("continuation_majors"))
-    session.flush()
     return profile
 
 
@@ -273,5 +313,4 @@ def _normalize_name(value: str) -> str:
     return "".join(value.split()).lower()
 
 
-__all__ = ["write", "delete_for_ref"]
-
+__all__ = ["write", "write_many", "delete_for_ref"]

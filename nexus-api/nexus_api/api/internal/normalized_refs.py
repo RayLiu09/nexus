@@ -199,6 +199,7 @@ def _serialize_chunk(
 def list_chunks_for_normalized_ref(
     ref_id: str,
     request: Request,
+    knowledge_type_code: str | None = None,
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
 ):
@@ -215,14 +216,16 @@ def list_chunks_for_normalized_ref(
         )
     version = session.get(models.AssetVersion, ref.version_id)
 
+    filters = [models.KnowledgeChunk.normalized_ref_id == ref_id]
+    if knowledge_type_code:
+        filters.append(models.KnowledgeChunk.knowledge_type_code == knowledge_type_code)
+
     total = session.scalar(
-        select(func.count(models.KnowledgeChunk.id)).where(
-            models.KnowledgeChunk.normalized_ref_id == ref_id
-        )
+        select(func.count(models.KnowledgeChunk.id)).where(*filters)
     ) or 0
     items = list(session.scalars(
         select(models.KnowledgeChunk)
-        .where(models.KnowledgeChunk.normalized_ref_id == ref_id)
+        .where(*filters)
         .order_by(models.KnowledgeChunk.chunk_index)
         .offset(pagination.offset)
         .limit(pagination.limit)

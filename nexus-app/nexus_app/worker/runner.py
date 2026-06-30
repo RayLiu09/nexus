@@ -940,7 +940,7 @@ def _run_major_profile_normalize(
         key = uri.split("/", 3)[-1] if uri.startswith("s3://") else uri
         payload = json.loads(ctx.storage.get_bytes(key).decode("utf-8"))
         profile_payload = payload.get("major_profile") if isinstance(payload, dict) else None
-        profile = writer.write(session, normalized_ref, profile_payload)
+        profiles = writer.write_many(session, normalized_ref, profile_payload)
     except Exception as exc:  # noqa: BLE001
         logger.exception(
             "major_profile domain write failed for normalized_ref=%s",
@@ -971,10 +971,11 @@ def _run_major_profile_normalize(
             "raw_object_id": raw_object.id,
             "job_id": job_id,
             "domain_profile": "major_profile.v1",
-            "skipped": profile is None,
-            "reason": None if profile is not None else "major_profile_payload_missing_or_invalid",
-            "profile_id": profile.id if profile is not None else None,
-            "records_written": 1 if profile is not None else 0,
+            "skipped": not profiles,
+            "reason": None if profiles else "major_profile_payload_missing_or_invalid",
+            "profile_id": profiles[0].id if profiles else None,
+            "profile_ids": [profile.id for profile in profiles],
+            "records_written": len(profiles),
         },
     )
 

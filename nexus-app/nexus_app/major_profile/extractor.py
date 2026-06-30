@@ -33,7 +33,13 @@ SECTION_DEFS: dict[str, dict[str, Any]] = {
     },
     "continuation_majors": {
         "title": "接续专业举例",
-        "aliases": ["接续专业举例", "接续本科专业举例", "接续高职本科专业举例"],
+        "aliases": [
+            "接续专业举例",
+            "接续高职专科专业举例",
+            "接续高职本科专业举例",
+            "接续普通本科专业举例",
+            "接续本科专业举例",
+        ],
     },
 }
 
@@ -73,8 +79,33 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
     if not _looks_like_major_profile(title, text):
         return None
 
+    segment_profiles = [
+        _profile_from_segment(title, code, name, segment_blocks)
+        for code, name, segment_blocks in _major_segments(blocks)
+    ]
+    profiles = [profile for profile in segment_profiles if profile is not None]
+    if profiles:
+        primary = dict(profiles[0])
+        primary["profiles"] = profiles
+        primary["profile_count"] = len(profiles)
+        return primary
+
+    return _profile_from_segment(title, None, None, blocks)
+
+
+def _profile_from_segment(
+    title: str,
+    explicit_code: str | None,
+    explicit_name: str | None,
+    blocks: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    text = "\n".join(_block_text(b) for b in blocks)
     sections = _extract_sections(blocks)
-    major_code, major_name = _extract_identity(title, text)
+    major_code, major_name = (
+        (explicit_code, explicit_name)
+        if explicit_code and explicit_name
+        else _extract_identity(title, text)
+    )
     if not major_code or not major_name:
         return None
 
@@ -100,7 +131,9 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
         "ability_requirements": _items_from_section(sections.get("ability_requirements")),
         "courses_and_training": _courses_from_section(sections.get("courses_and_training")),
         "certificates": _items_from_section(sections.get("certificates")),
-        "continuation_majors": _items_from_section(sections.get("continuation_majors")),
+        "continuation_majors": _continuations_from_section(
+            sections.get("continuation_majors")
+        ),
         "sections": [
             _section_payload(section)
             for section in sections.values()
@@ -122,6 +155,30 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
     return profile
 
 
+def _major_segments(blocks: list[dict[str, Any]]) -> list[tuple[str, str, list[dict[str, Any]]]]:
+    text, block_spans = _joined_blocks_with_spans(blocks)
+    starts = [
+        (start, code, name)
+        for start, _end, code, name in _iter_labeled_identities(text)
+    ]
+    if not starts:
+        return []
+    if len(starts) > 1 and any(len(code) >= 5 for _, code, _ in starts):
+        starts = [item for item in starts if len(item[1]) >= 5]
+
+    segments: list[tuple[str, str, list[dict[str, Any]]]] = []
+    for idx, (start, code, name) in enumerate(starts):
+        end = starts[idx + 1][0] if idx + 1 < len(starts) else len(text)
+        segment_blocks = [
+            block
+            for block, block_start, block_end in block_spans
+            if block_end > start and block_start < end
+        ]
+        if segment_blocks:
+            segments.append((code, name, segment_blocks))
+    return segments
+
+
 def _looks_like_major_profile(title: str, text: str) -> bool:
     haystack = f"{title}\n{text}"
     hits = sum(
@@ -133,6 +190,9 @@ def _looks_like_major_profile(title: str, text: str) -> bool:
 
 
 def _extract_identity(title: str, text: str) -> tuple[str | None, str | None]:
+    labeled = _extract_labeled_identity(text)
+    if labeled is not None:
+        return labeled
     candidates = [title] + [line.strip() for line in text.splitlines()[:30]]
     for line in candidates:
         match = re.search(r"(?P<code>\d{4,6})\s+[,，、]?\s*(?P<name>[\u4e00-\u9fa5A-Za-z0-9（）()·\-]+)", line)
@@ -143,6 +203,47 @@ def _extract_identity(title: str, text: str) -> tuple[str | None, str | None]:
     code = code_match.group(1) if code_match else None
     name = _clean_name(name_match.group(1)) if name_match else None
     return code, name
+
+
+def _extract_labeled_identity(text: str) -> tuple[str, str] | None:
+    identities = _iter_labeled_identities(text)
+    if not identities:
+        return None
+    _start, _end, code, name = identities[0]
+    return code, name
+
+
+def _iter_labeled_identities(text: str) -> list[tuple[int, int, str, str]]:
+    pattern = re.compile(
+        r"专业代码\s*[:：]?\s*(?P<code>\d{4,6})"
+        r"\s+专业名称\s*[:：]?\s*"
+        r"(?P<name>[\u4e00-\u9fa5A-Za-z0-9（）()·\-\s]+?)"
+        r"(?:\s+基本修业年限|$)"
+    )
+    identities: list[tuple[int, int, str, str]] = []
+    for match in pattern.finditer(text):
+        name = _clean_name(re.sub(r"\s+", "", match.group("name")))
+        if name:
+            identities.append((match.start(), match.end(), match.group("code"), name))
+    return identities
+
+
+def _joined_blocks_with_spans(
+    blocks: list[dict[str, Any]],
+) -> tuple[str, list[tuple[dict[str, Any], int, int]]]:
+    parts: list[str] = []
+    spans: list[tuple[dict[str, Any], int, int]] = []
+    cursor = 0
+    for block in blocks:
+        if parts:
+            parts.append("\n")
+            cursor += 1
+        text = _block_text(block)
+        start = cursor
+        parts.append(text)
+        cursor += len(text)
+        spans.append((block, start, cursor))
+    return "".join(parts), spans
 
 
 def _extract_education_level(title: str, text: str) -> str | None:
@@ -189,10 +290,17 @@ def _extract_sections(blocks: list[dict[str, Any]]) -> dict[str, Section]:
         text = _block_text(block)
         matched = _match_section_heading(text)
         if matched is not None:
+            if current_key == matched[0]:
+                current_blocks.append({**block, "text": _strip_markdown_heading(text)})
+                continue
             flush()
             current_key = matched[0]
             current_title = matched[1]
-            remainder = _strip_heading(text, matched[1])
+            remainder = (
+                _strip_markdown_heading(text)
+                if _is_continuation_category_heading(matched)
+                else _strip_heading(text, matched[1])
+            )
             current_blocks = []
             if remainder:
                 block = {**block, "text": remainder}
@@ -227,6 +335,18 @@ def _strip_heading(text: str, heading: str) -> str:
     if stripped.startswith(heading):
         return stripped[len(heading):].lstrip(" ：:\n\t")
     return ""
+
+
+def _strip_markdown_heading(text: str) -> str:
+    stripped = text.strip().lstrip("#").strip()
+    stripped = re.sub(r"^[一二三四五六七八九十]+[、.．]\s*", "", stripped)
+    stripped = re.sub(r"^\d+[、.．]\s*", "", stripped)
+    return stripped
+
+
+def _is_continuation_category_heading(matched: tuple[str, str]) -> bool:
+    key, title = matched
+    return key == "continuation_majors" and title != "接续专业举例"
 
 
 def _is_unrelated_heading(block: dict[str, Any]) -> bool:
@@ -271,7 +391,12 @@ def _courses_from_section(section: Section | None) -> dict[str, list[dict[str, A
             "core": "core_courses",
             "practice_training": "practice_trainings",
         }[group]
-        for idx, item in enumerate(_split_items(text), start=1):
+        items = (
+            [_clean_item(text)]
+            if group == "practice_training" and _clean_item(text)
+            else _split_items(text)
+        )
+        for idx, item in enumerate(items, start=1):
             groups[output_key].append({
                 "item_index": idx,
                 "name": item,
@@ -284,6 +409,52 @@ def _courses_from_section(section: Section | None) -> dict[str, list[dict[str, A
                 "confidence": 0.86,
             })
     return groups
+
+
+def _continuations_from_section(section: Section | None) -> list[dict[str, Any]]:
+    if section is None or not section.text.strip():
+        return []
+    items = _split_continuation_items(section.text)
+    if not items:
+        items = [section.text.strip()]
+    evidence_ids = _unique_block_ids(section.blocks)
+    locator = _locator_from_blocks(section.blocks)
+    return [
+        {
+            "item_index": idx + 1,
+            "text": item,
+            "source_text": item,
+            "evidence_block_ids": evidence_ids,
+            "locator": locator,
+            "confidence": 0.86,
+        }
+        for idx, item in enumerate(items)
+        if item.strip()
+    ]
+
+
+def _split_continuation_items(text: str) -> list[str]:
+    cleaned = text.strip()
+    if not cleaned:
+        return []
+    marker = re.compile(
+        r"(?=接续(?:高职专科|高职本科|普通本科|本科|中职|高职)?专业举例(?:[:：]|\s+))"
+    )
+    starts = [match.start() for match in marker.finditer(cleaned)]
+    if not starts:
+        return [_clean_item(cleaned)]
+    items: list[str] = []
+    for idx, start in enumerate(starts):
+        end = starts[idx + 1] if idx + 1 < len(starts) else len(cleaned)
+        item = _clean_item(cleaned[start:end])
+        item = re.sub(
+            r"^(接续(?:高职专科|高职本科|普通本科|本科|中职|高职)?专业举例)\s+",
+            r"\1：",
+            item,
+        )
+        if item:
+            items.append(item)
+    return _dedupe(items)
 
 
 def _split_course_subsections(text: str) -> dict[str, str]:

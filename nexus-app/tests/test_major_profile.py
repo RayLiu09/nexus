@@ -16,7 +16,7 @@ from nexus_app.enums import (
 )
 from nexus_app.knowledge.services import run_knowledge_pipeline
 from nexus_app.major_profile.extractor import extract
-from nexus_app.major_profile.writer import write
+from nexus_app.major_profile.writer import write, write_many
 
 
 def _blocks() -> list[dict]:
@@ -37,7 +37,14 @@ def _blocks() -> list[dict]:
         _block("b14", "heading", "五、职业类证书举例", 5),
         _block("b15", "paragraph", "网店运营推广职业技能等级证书、电子商务数据分析职业技能等级证书。", 5),
         _block("b16", "heading", "六、接续专业举例", 5),
-        _block("b17", "paragraph", "电子商务、跨境电子商务。", 5),
+        _block(
+            "b17",
+            "paragraph",
+            "接续高职专科专业举例：电子商务、跨境电子商务。\n"
+            "接续高职本科专业举例：电子商务、跨境电子商务。\n"
+            "接续普通本科专业举例：电子商务、电子商务及法律。",
+            5,
+        ),
     ]
 
 
@@ -120,7 +127,14 @@ def test_extract_major_profile_sections_and_items() -> None:
     assert len(profile["ability_requirements"]) == 2
     assert profile["courses_and_training"]["foundation_courses"][0]["name"] == "电子商务基础"
     assert profile["courses_and_training"]["core_courses"][0]["name"] == "网店运营"
-    assert profile["courses_and_training"]["practice_trainings"][0]["name"] == "电子商务综合实训"
+    practice_training = profile["courses_and_training"]["practice_trainings"]
+    assert len(practice_training) == 1
+    assert practice_training[0]["name"] == "电子商务综合实训、岗位实习"
+    continuations = profile["continuation_majors"]
+    assert len(continuations) == 3
+    assert continuations[0]["text"] == "接续高职专科专业举例：电子商务、跨境电子商务"
+    assert continuations[1]["text"] == "接续高职本科专业举例：电子商务、跨境电子商务"
+    assert continuations[2]["text"] == "接续普通本科专业举例：电子商务、电子商务及法律"
     assert {s["section_key"] for s in profile["sections"]} >= {
         "occupation_oriented",
         "training_goal",
@@ -129,6 +143,120 @@ def test_extract_major_profile_sections_and_items() -> None:
         "certificates",
         "continuation_majors",
     }
+
+
+def test_extract_multiple_major_profiles_from_one_document() -> None:
+    blocks = _blocks() + [
+        _block("b18", "paragraph", "专业代码 530701\n专业名称 电子商务\n基本修业年限 三年", 6),
+        _block("b19", "heading", "一、职业面向", 6),
+        _block("b20", "paragraph", "面向电子商务师、客户服务管理员等职业。", 6),
+        _block("b21", "heading", "二、培养目标定位", 6),
+        _block("b22", "paragraph", "培养能够从事店铺运营辅助、客户服务等工作的技术技能人才。", 6),
+        _block("b23", "heading", "三、主要专业能力要求", 7),
+        _block("b24", "paragraph", "1. 具有店铺运营维护能力。", 7),
+        _block("b25", "heading", "四、主要专业课程与实习实训", 7),
+        _block("b26", "paragraph", "专业基础课程：电子商务基础。专业核心课程：网店运营。实习实训：岗位实习。", 7),
+        _block("b27", "paragraph", "专业代码 530702\n专业名称 跨境电子商务\n基本修业年限 三年", 8),
+        _block("b28", "heading", "一、职业面向", 8),
+        _block("b29", "paragraph", "面向跨境运营助理、跨境客服专员等岗位。", 8),
+        _block("b30", "heading", "二、培养目标定位", 8),
+        _block("b31", "paragraph", "培养能够从事跨境店铺运营辅助等工作的技术技能人才。", 8),
+        _block("b32", "heading", "三、主要专业能力要求", 9),
+        _block("b33", "paragraph", "1. 具有跨境商品发布能力。", 9),
+        _block("b34", "heading", "四、主要专业课程与实习实训", 9),
+        _block("b35", "paragraph", "专业基础课程：跨境电子商务基础。专业核心课程：跨境店铺运维。实习实训：岗位实习。", 9),
+    ]
+    payload = {
+        "content_type": "document",
+        "title": "5307 电子商务类",
+        "blocks": blocks,
+        "body_markdown": "\n\n".join(b["text"] for b in blocks),
+    }
+
+    profile = extract(payload)
+
+    assert profile is not None
+    assert profile["profile_count"] == 2
+    assert [p["major_code"] for p in profile["profiles"]] == ["530701", "530702"]
+    assert profile["profiles"][1]["major_name"] == "跨境电子商务"
+
+
+def test_extract_multiple_major_profiles_when_identity_spans_adjacent_blocks() -> None:
+    blocks = [
+        _block("b1", "heading", "7307 电子商务类", 1),
+        _block("b2", "paragraph", "专业代码 730701", 1),
+        _block("b3", "paragraph", "专业名称 电子商务", 1),
+        _block("b4", "paragraph", "基本修业年限 三年", 1),
+        _block("b5", "heading", "职业面向", 1),
+        _block("b6", "paragraph", "面向电子商务师、互联网营销师等职业。", 1),
+        _block("b7", "heading", "培养目标定位", 1),
+        _block("b8", "paragraph", "培养能够从事店铺运营辅助等工作的技术技能人才。", 1),
+        _block("b9", "heading", "主要专业能力要求", 1),
+        _block("b10", "paragraph", "1. 具有店铺运营维护能力。", 1),
+        _block("b11", "heading", "主要专业课程与实习实训", 1),
+        _block("b12", "paragraph", "专业基础课程：电子商务基础。专业核心课程：网店运营。实习实训：岗位实习。", 1),
+        _block("b13", "paragraph", "专业代码 730702", 2),
+        _block("b14", "paragraph", "专业名称 跨境电子商务", 2),
+        _block("b15", "paragraph", "基本修业年限 三年", 2),
+        _block("b16", "heading", "职业面向", 2),
+        _block("b17", "paragraph", "面向跨境运营助理、跨境客服专员等岗位。", 2),
+        _block("b18", "heading", "培养目标定位", 2),
+        _block("b19", "paragraph", "培养能够从事跨境店铺运营辅助等工作的技术技能人才。", 2),
+        _block("b20", "heading", "主要专业能力要求", 2),
+        _block("b21", "paragraph", "1. 具有跨境商品发布能力。", 2),
+        _block("b22", "heading", "主要专业课程与实习实训", 2),
+        _block("b23", "paragraph", "专业基础课程：跨境电子商务基础。专业核心课程：跨境店铺运维。实习实训：岗位实习。", 2),
+    ]
+    payload = {
+        "content_type": "document",
+        "title": "7307 电子商务类",
+        "blocks": blocks,
+        "body_markdown": "\n\n".join(b["text"] for b in blocks),
+    }
+
+    profile = extract(payload)
+
+    assert profile is not None
+    assert profile["profile_count"] == 2
+    assert [p["major_code"] for p in profile["profiles"]] == ["730701", "730702"]
+    assert [p["major_name"] for p in profile["profiles"]] == ["电子商务", "跨境电子商务"]
+    assert profile["profiles"][0]["sections"][0]["source_block_ids"] == ["b6"]
+
+
+def test_extract_continuation_categories_when_heading_and_content_are_split() -> None:
+    blocks = [
+        _block("b1", "heading", "专业代码 730701\n专业名称 电子商务\n基本修业年限 三年", 1),
+        _block("b2", "heading", "职业面向", 1),
+        _block("b3", "paragraph", "面向电子商务师等职业。", 1),
+        _block("b4", "heading", "培养目标定位", 1),
+        _block("b5", "paragraph", "培养能够从事店铺运营等工作的技术技能人才。", 1),
+        _block("b6", "heading", "主要专业能力要求", 1),
+        _block("b7", "paragraph", "1. 具有店铺运营维护能力。", 1),
+        _block("b8", "heading", "主要专业课程与实习实训", 1),
+        _block("b9", "paragraph", "专业基础课程：电子商务基础。专业核心课程：网店运营。实习实训：校内综合实训、岗位实习。", 1),
+        _block("b10", "heading", "接续高职专科专业举例", 2),
+        _block("b11", "paragraph", "电子商务、网络营销与直播电商、跨境电子商务。", 2),
+        _block("b12", "heading", "接续高职本科专业举例", 2),
+        _block("b13", "paragraph", "电子商务、跨境电子商务、全媒体电商运营。", 2),
+        _block("b14", "heading", "接续普通本科专业举例", 2),
+        _block("b15", "paragraph", "电子商务、电子商务及法律、市场营销。", 2),
+    ]
+    payload = {
+        "content_type": "document",
+        "title": "730701 电子商务",
+        "blocks": blocks,
+        "body_markdown": "\n\n".join(b["text"] for b in blocks),
+    }
+
+    profile = extract(payload)
+
+    assert profile is not None
+    continuations = profile["continuation_majors"]
+    assert [item["text"] for item in continuations] == [
+        "接续高职专科专业举例：电子商务、网络营销与直播电商、跨境电子商务",
+        "接续高职本科专业举例：电子商务、跨境电子商务、全媒体电商运营",
+        "接续普通本科专业举例：电子商务、电子商务及法律、市场营销",
+    ]
 
 
 def test_write_major_profile_domain_tables(session) -> None:
@@ -147,6 +275,27 @@ def test_write_major_profile_domain_tables(session) -> None:
     assert {c.course_group for c in courses} == {"foundation", "core", "practice_training"}
     assert session.scalar(select(models.MajorProfileCertificate)) is not None
     assert session.scalar(select(models.MajorProfileContinuation)) is not None
+
+
+def test_write_multiple_major_profiles_for_one_ref(session) -> None:
+    ref = _seed_ref(session)
+    profile_payload = {
+        "schema_version": "major_profile.v1",
+        "profiles": [
+            {**extract(_payload()), "major_code": "530701", "major_name": "电子商务"},
+            {**extract(_payload()), "major_code": "530702", "major_name": "跨境电子商务"},
+        ],
+    }
+
+    profiles = write_many(session, ref, profile_payload)
+    session.commit()
+
+    assert len(profiles) == 2
+    rows = list(session.scalars(select(models.MajorProfile).order_by(models.MajorProfile.major_code)).all())
+    assert [(row.major_code, row.major_name) for row in rows] == [
+        ("530701", "电子商务"),
+        ("530702", "跨境电子商务"),
+    ]
 
 
 def test_major_profile_chunks_are_section_level_not_item_level() -> None:
@@ -186,4 +335,3 @@ def test_major_profile_chunks_are_section_level_not_item_level() -> None:
     assert ability_chunks[0].chunking_strategy == ChunkingStrategy.MAJOR_PROFILE_DECOMPOSE
     assert ability_chunks[0].source_block_ids == ["b8", "b9"]
     assert ability_chunks[0].locator is not None
-

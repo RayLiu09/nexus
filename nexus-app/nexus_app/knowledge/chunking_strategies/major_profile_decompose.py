@@ -33,63 +33,72 @@ class MajorProfileDecomposeStrategy:
             # payload is represented by content/content_blocks, so reconstruct
             # sections from block headings as a fallback.
             profile = _profile_from_blocks(content_blocks)
-        sections = profile.get("sections") if isinstance(profile, dict) else None
-        if not isinstance(sections, list):
-            return []
-
         blocks_by_id = {
             block.get("block_id"): block
             for block in (content_blocks or [])
             if isinstance(block.get("block_id"), str)
         }
         chunks: list[KnowledgeChunk] = []
-        major_code = profile.get("major_code")
-        major_name = profile.get("major_name")
-        education_level = profile.get("education_level")
-        for section in sections:
-            if not isinstance(section, dict):
+        for one_profile in _profiles(profile):
+            sections = one_profile.get("sections") if isinstance(one_profile, dict) else None
+            if not isinstance(sections, list):
                 continue
-            key = str(section.get("section_key") or "").strip()
-            if not key:
-                continue
-            if self.include_sections and key not in self.include_sections:
-                continue
-            section_text = str(section.get("text") or "").strip()
-            if not section_text:
-                continue
-            title = str(section.get("section_title") or key).strip()
-            source_blocks = _source_blocks(section, blocks_by_id)
-            chunks.append(build_chunk(
-                normalized_ref_id=normalized_ref_id,
-                emission=emission,
-                kt_config=kt_config,
-                chunk_type=ChunkType.SEMANTIC_BLOCK,
-                chunking_strategy=ChunkingStrategy.MAJOR_PROFILE_DECOMPOSE,
-                index=len(chunks),
-                content=_content(major_code, major_name, title, section_text),
-                source_blocks=source_blocks,
-                extra_metadata={
-                    "domain": "major",
-                    "domain_profile": "major_profile.v1",
-                    "section_key": key,
-                    "section_title": title,
-                    "major_code": major_code,
-                    "major_name": major_name,
-                    "education_level": education_level,
-                    "contains_structured_items": key in {
-                        "occupation_oriented",
-                        "ability_requirements",
-                        "courses_and_training",
-                        "certificates",
-                        "continuation_majors",
+            major_code = one_profile.get("major_code")
+            major_name = one_profile.get("major_name")
+            education_level = one_profile.get("education_level")
+            for section in sections:
+                if not isinstance(section, dict):
+                    continue
+                key = str(section.get("section_key") or "").strip()
+                if not key:
+                    continue
+                if self.include_sections and key not in self.include_sections:
+                    continue
+                section_text = str(section.get("text") or "").strip()
+                if not section_text:
+                    continue
+                title = str(section.get("section_title") or key).strip()
+                source_blocks = _source_blocks(section, blocks_by_id)
+                chunks.append(build_chunk(
+                    normalized_ref_id=normalized_ref_id,
+                    emission=emission,
+                    kt_config=kt_config,
+                    chunk_type=ChunkType.SEMANTIC_BLOCK,
+                    chunking_strategy=ChunkingStrategy.MAJOR_PROFILE_DECOMPOSE,
+                    index=len(chunks),
+                    content=_content(major_code, major_name, title, section_text),
+                    source_blocks=source_blocks,
+                    extra_metadata={
+                        "domain": "major",
+                        "domain_profile": "major_profile.v1",
+                        "section_key": key,
+                        "section_title": title,
+                        "major_code": major_code,
+                        "major_name": major_name,
+                        "education_level": education_level,
+                        "contains_structured_items": key in {
+                            "occupation_oriented",
+                            "ability_requirements",
+                            "courses_and_training",
+                            "certificates",
+                            "continuation_majors",
+                        },
+                        "content_for_embedding": _embedding_text(
+                            major_code, major_name, education_level, title, section_text
+                        ),
                     },
-                    "content_for_embedding": _embedding_text(
-                        major_code, major_name, education_level, title, section_text
-                    ),
-                },
-                anchor_role="major_profile_section",
-            ))
+                    anchor_role="major_profile_section",
+                ))
         return chunks
+
+
+def _profiles(profile: dict[str, Any]) -> list[dict[str, Any]]:
+    raw_profiles = profile.get("profiles")
+    if isinstance(raw_profiles, list):
+        profiles = [item for item in raw_profiles if isinstance(item, dict)]
+        if profiles:
+            return profiles
+    return [profile]
 
 
 def _content(
@@ -157,4 +166,3 @@ def _profile_from_blocks(content_blocks: list[dict[str, Any]] | None) -> dict[st
 
 
 __all__ = ["MajorProfileDecomposeStrategy"]
-
