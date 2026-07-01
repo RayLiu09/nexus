@@ -69,7 +69,6 @@ def _make_chunk(ref_id: str) -> models.KnowledgeChunk:
         chunk_index=0,
         content="chunk body",
         chunk_metadata={"anchor_role": "table_row", "table_row_index": 1},
-        ragflow_chunk_method="naive",
         embedding_status=EmbeddingStatus.PENDING,
         source_block_ids=["tbl-1"],
         locator={

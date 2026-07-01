@@ -13,7 +13,8 @@ data source
   -> AI governance and quality scoring
   -> configurable rule guardrails
   -> available or review_required asset version
-  -> RAGFlow indexing
+  -> NEXUS knowledge_chunk construction
+  -> external index backend adapter
   -> permission-filtered search / QA / API consumption
   -> source citation and audit
 ```

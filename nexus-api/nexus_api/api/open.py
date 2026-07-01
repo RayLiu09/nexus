@@ -669,36 +669,36 @@ def get_raw_object_download_url(
 def _enrich_with_nexus_refs(
     session: Session, hits: list[dict]
 ) -> list[dict]:
-    """Enrich RAGFlow hits with NEXUS-side citation fields by looking up
-    KnowledgeChunk via `ragflow_chunk_id`. Adds:
+    """Enrich hits with NEXUS-side citation fields when NEXUS ids are present.
+
+    `knowledge_chunk` no longer stores RAGFlow-internal chunk ids. Search
+    backends that want source-level enrichment must return `nexus_chunk_id` or
+    `normalized_ref_id` directly. Adds:
         - nexus_chunk_id, normalized_ref_id, version_id, asset_id
         - locator, source_block_ids (chunk-to-source coordinate provenance)
         - raw_object_uri (MinIO key of the original uploaded file)
-    Items that already carry `nexus_chunk_id` or `normalized_ref_id`
-    (e.g. fake adapter output) are left untouched. Best-effort; missing
-    rows along the chain leave fields null.
+    Best-effort; missing rows along the chain leave fields null.
     """
     if not hits:
         return hits
 
-    pending: dict[str, list[dict]] = {}
-    for hit in hits:
-        if hit.get("nexus_chunk_id") or hit.get("normalized_ref_id"):
-            continue
-        ragflow_chunk_id = hit.get("chunk_id")
-        if ragflow_chunk_id:
-            pending.setdefault(ragflow_chunk_id, []).append(hit)
-
-    if not pending:
+    chunk_ids = {str(hit["nexus_chunk_id"]) for hit in hits if hit.get("nexus_chunk_id")}
+    normalized_ref_ids = {
+        str(hit["normalized_ref_id"])
+        for hit in hits
+        if hit.get("normalized_ref_id")
+    }
+    if not chunk_ids and not normalized_ref_ids:
         return hits
 
-    chunks = session.scalars(
-        select(models.KnowledgeChunk)
-        .where(models.KnowledgeChunk.ragflow_chunk_id.in_(pending.keys()))
-    ).all()
-    chunk_map = {c.ragflow_chunk_id: c for c in chunks if c.ragflow_chunk_id}
+    chunks_by_id: dict[str, models.KnowledgeChunk] = {}
+    if chunk_ids:
+        for chunk in session.scalars(
+            select(models.KnowledgeChunk).where(models.KnowledgeChunk.id.in_(chunk_ids))
+        ).all():
+            chunks_by_id[chunk.id] = chunk
 
-    ref_ids = {c.normalized_ref_id for c in chunk_map.values()}
+    ref_ids = normalized_ref_ids | {c.normalized_ref_id for c in chunks_by_id.values()}
     refs: dict[str, models.NormalizedAssetRef] = {}
     if ref_ids:
         for ref in session.scalars(
@@ -726,17 +726,16 @@ def _enrich_with_nexus_refs(
         ).all():
             raw_objects[ro.id] = ro
 
-    for ragflow_chunk_id, items in pending.items():
-        chunk = chunk_map.get(ragflow_chunk_id)
-        if chunk is None:
-            continue
-        ref = refs.get(chunk.normalized_ref_id)
+    for item in hits:
+        chunk = chunks_by_id.get(str(item.get("nexus_chunk_id") or ""))
+        ref_id = chunk.normalized_ref_id if chunk is not None else item.get("normalized_ref_id")
+        ref = refs.get(str(ref_id)) if ref_id else None
         ver = versions.get(ref.version_id) if ref is not None else None
         raw = raw_objects.get(ver.raw_object_id) if ver is not None else None
-        meta = chunk.chunk_metadata or {}
-        primary_ids = meta.get("primary_block_ids")
-        evidence_ids = meta.get("evidence_block_ids")
-        for item in items:
+        if chunk is not None:
+            meta = chunk.chunk_metadata or {}
+            primary_ids = meta.get("primary_block_ids")
+            evidence_ids = meta.get("evidence_block_ids")
             item["nexus_chunk_id"] = chunk.id
             item["normalized_ref_id"] = chunk.normalized_ref_id
             item["locator"] = chunk.locator
@@ -748,13 +747,15 @@ def _enrich_with_nexus_refs(
                 item["primary_block_ids"] = primary_ids
             if evidence_ids is not None:
                 item["evidence_block_ids"] = evidence_ids
-            if ver is not None:
-                item["version_id"] = ver.id
-                item["asset_id"] = ver.asset_id
-            if raw is not None:
-                item["raw_object_id"] = raw.id
-                item["raw_object_uri"] = raw.object_uri
-                item["data_source_id"] = raw.data_source_id
+        if ref is not None:
+            item["normalized_ref_id"] = ref.id
+        if ver is not None:
+            item["version_id"] = ver.id
+            item["asset_id"] = ver.asset_id
+        if raw is not None:
+            item["raw_object_id"] = raw.id
+            item["raw_object_uri"] = raw.object_uri
+            item["data_source_id"] = raw.data_source_id
 
     return hits
 

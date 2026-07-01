@@ -79,7 +79,6 @@ def build_chunk(
         content=content,
         chunk_metadata=meta,
         co_emission_origin=emission.get("co_emission_origin"),
-        ragflow_chunk_method=kt_config.ragflow.get("chunk_method"),
         embedding_status=EmbeddingStatus.PENDING,
         source_block_ids=source_block_ids,
         locator=locator,

@@ -21,7 +21,7 @@ This document is the concise architecture baseline for implementation. It is dis
 
 ## Architecture Goal
 
-NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains. It provides controlled ingestion, raw retention, parsing, standardization, AI-led metadata governance, rule guardrails, quality scoring, RAGFlow indexing, permission-filtered search/QA, audit, and API exposure.
+NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains. It provides controlled ingestion, raw retention, parsing, standardization, AI-led metadata governance, rule guardrails, quality scoring, NEXUS-owned knowledge chunk construction, external index adapter extension points, permission-filtered search/QA, audit, and API exposure.
 
 ## System Boundaries
 
@@ -201,7 +201,7 @@ P0 record profiles include job demand, occupational ability analysis, and major 
 Rules:
 
 - `locator` is required when `source_kind = extracted_from_normalized` AND the underlying `normalized_asset_ref.normalized_type = document`.
-- `locator` is null for `normalized_type = record` chunks and for `chunk_type = passthrough_descriptor` (RAGFlow owns chunking).
+- `locator` is null for `normalized_type = record` chunks and for legacy `chunk_type = passthrough_descriptor` rows without block-level evidence. NEXUS owns `knowledge_chunk`; external index backend ids are not stored on `knowledge_chunk`.
 - `bbox_union` is set only when all source blocks share a single page; cross-page chunks set `bbox_union = null` and consumers fall back to `blocks[]`.
 - `source_block_ids` is the flat list of origin `block_id`s in `normalized_document.blocks[]`, kept as a column for index-friendly reverse lookup.
 - `/v1/search` and `/v1/qa` responses MUST surface `locator` and `raw_object_uri` per hit so callers can jump to the source coordinates without re-querying.

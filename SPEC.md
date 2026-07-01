@@ -6,7 +6,7 @@ This document is the concise product and requirement contract for implementation
 
 NEXUS一期 builds the minimum usable loop for enterprise data assets and knowledge assets:
 
-`data ingestion → ingest_validate → assetize → parse/normalize → normalized_asset_ref → AI governance and quality scoring → rule guardrails → available/review_required → RAGFlow indexing → permission-filtered search/QA → traceable citation and audit`
+`data ingestion → ingest_validate → assetize → parse/normalize → normalized_asset_ref → AI governance and quality scoring → rule guardrails → available/review_required → NEXUS knowledge_chunk construction → external index backend adapter → permission-filtered search/QA → traceable citation and audit`
 
 The platform focuses on D1-D4 pilot domains. Knowledge Pipeline P0 scope = Pipeline 1 (RAG retrieval KB) only. D5/D6 ingestion, knowledge graph, SFT corpus, evaluation standard library, and an operations center are not productized in P0.
 
@@ -36,7 +36,7 @@ Role constraints:
 - AI governance and quality scoring from normalized objects via `metadata-service.ai-governance`. Governance target is `normalized_asset_ref`.
 - Configurable governance rules for classification, level, tags, org scope, quality admission, review triggers, and index admission.
 - Governance decision tracking in `governance_result.decision_trail`.
-- RAGFlow integration for chunking, indexing, search execution. `knowledge_chunk.normalized_ref_id` links chunks to `normalized_asset_ref`.
+- NEXUS-owned `knowledge_chunk` construction for source citation and downstream knowledge processing. External index backends are adapter-selected later; backend execution state belongs in `index_manifest`, not `knowledge_chunk`. `knowledge_chunk.normalized_ref_id` links chunks to `normalized_asset_ref`.
 - Knowledge Pipeline 1: RAG retrieval KB for D4 teaching materials and D3 talent cultivation plans. Knowledge Pipeline is independent of Asset Pipeline.
 - `metadata_enrich` auto-tagging: targets normalized assets (not chunks); high-confidence tags auto-commit (audit logged); low-confidence tags enter human review queue.
 - RBAC, org scope filtering, data-level visibility, masking for L3/L4 exceptions, audit. ABAC is an extension point.

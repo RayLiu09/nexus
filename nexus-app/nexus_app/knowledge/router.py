@@ -125,8 +125,7 @@ def _legacy_descriptor(
         index=0,
         content="",
         extra_metadata={
-            "ragflow_doc_id": None,
-            "ragflow_chunk_ids": [],
+            "descriptor_reason": "missing_block_level_content",
         },
     )
 

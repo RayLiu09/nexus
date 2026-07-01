@@ -105,9 +105,6 @@ class KnowledgeChunk(Base):
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     metadata: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
-    ragflow_chunk_method: Mapped[str | None] = mapped_column(String(50), nullable=True)  # naive / book / qa / manual / table / paper / knowledge_graph / tag ...
-    ragflow_doc_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
-    ragflow_chunk_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     embedding_status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")  # pending / embedded / failed
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
@@ -129,8 +126,7 @@ class KnowledgeChunk(Base):
   - `parent_chunk_id`：父切片 ID（层级切片用）
   - `chunking_config_snapshot`：本次使用的切块配置快照（用于审计）
   - `co_emission_origin`：若该切片所属 emission 由协同规则派生，记录触发主类型
-- `ragflow_chunk_method`：本切片送入 RAGFlow 时使用的 `chunk_method`
-- `ragflow_doc_id` / `ragflow_chunk_id`：RAGFlow 索引产物 ID（写回审计）
+- `knowledge_chunk` 不保存 RAGFlow 专用字段。外部索引后端的文档 ID、任务状态和错误信息写入 `index_manifest` 或后续索引适配器自有表；chunk 层只保存 NEXUS 自有的内容、来源、定位和治理字段。
 - `embedding_status`：向量化状态
 
 ---
@@ -287,29 +283,24 @@ def run_knowledge_pipeline(normalized_ref: NormalizedAssetRef, normalized_doc: N
         kt_config = load_knowledge_type_config(emission["code"])
         mode = kt_config["chunking_mode"]
 
-        if mode == "passthrough_to_ragflow":
-            # NEXUS 创建集合描述符，RAGFlow 真正切块
-            descriptor = create_passthrough_descriptor(normalized_ref, normalized_doc, emission, kt_config)
-            ragflow_result = submit_to_ragflow_for_chunking(normalized_doc, kt_config["ragflow"])
-            descriptor.metadata["ragflow_doc_id"] = ragflow_result.doc_id
-            descriptor.metadata["ragflow_chunk_ids"] = ragflow_result.chunk_ids
-            persist_chunks([descriptor])
+        if mode in {"nexus_semantic", "passthrough_to_ragflow"}:
+            # NEXUS 负责语义 chunk 构建；passthrough_to_ragflow 仅作为历史配置兼容标签。
+            chunks = semantic_repack(normalized_doc.blocks, emission=emission, kt_config=kt_config)
+            persist_chunks(chunks)
 
         elif mode == "nexus_extract":
             # NEXUS 执行语义抽取，产出真正的知识单元
             strategy = build_chunking_strategy(kt_config)
             chunks = strategy.chunk(normalized_doc, emission=emission, kt_config=kt_config)
             persist_chunks(chunks)
-            # 按需提交给 RAGFlow 做向量化与索引（Pipeline 1/2 需要；3/4/5 视消费者而定）
-            if kt_config.get("submit_to_ragflow", True):
-                index_chunks_to_ragflow(chunks, kt_config["ragflow"])
+            # 后续索引适配器如需消费，读取 NEXUS chunk 并把后端状态写入 index_manifest。
 
 def build_chunking_strategy(kt_config: dict) -> ChunkingStrategy:
     strategy_name = kt_config["chunking_strategy"]
     return STRATEGY_REGISTRY[strategy_name](kt_config["chunking_config"])
 ```
 
-`STRATEGY_REGISTRY` 是 `chunking_strategy → strategy class` 的注册表（依赖注入），P0 包含 8 个键。`passthrough_to_ragflow` 模式不经过 `STRATEGY_REGISTRY`，直接走 Adapter 提交路径。
+`STRATEGY_REGISTRY` 是 `chunking_strategy → strategy class` 的注册表（依赖注入），P0 包含 8 个键。`passthrough_to_ragflow` 模式只作为历史配置兼容标签，当前不再让 RAGFlow 拥有 `knowledge_chunk` 切块结果。
 
 ### 5.2 切块策略实现
 
@@ -327,36 +318,35 @@ class ChunkingStrategy(Protocol):
 
 为每个策略分别在 `nexus-app/nexus_app/knowledge/chunking_strategies/` 下建立独立模块。
 
-#### 5.2.1 textbook_kb — Passthrough to RAGFlow（Tier-A）
+#### 5.2.1 textbook_kb — NEXUS semantic chunks（Tier-A）
 
-`textbook_kb` 使用 `chunking_mode: "passthrough_to_ragflow"`，**不经过 `STRATEGY_REGISTRY`**。NEXUS 创建一条"集合描述符"类型的 `knowledge_chunk`，把实际切块交给 RAGFlow `book` parser：
+`textbook_kb` 历史上使用 `chunking_mode: "passthrough_to_ragflow"`。当前契约下该值仅作为兼容标签，实际由 NEXUS 基于 normalized blocks 构建 `semantic_block` 知识块，并保留 locator / source_block_ids：
 
 ```python
-def create_passthrough_descriptor(normalized_ref, normalized_doc, emission, kt_config):
+def create_semantic_chunks(normalized_ref, normalized_doc, emission, kt_config):
     return KnowledgeChunk(
         id=generate_id(),
         normalized_ref_id=normalized_ref.id,
         knowledge_type_code=emission["code"],
-        chunk_type="passthrough_descriptor",
-        chunking_strategy="passthrough_to_ragflow",
+        chunk_type="semantic_block",
+        chunking_strategy="semantic_repack",
         source_kind=kt_config["source_kind"],
         chunk_index=0,
-        content="",  # passthrough 模式下 content 为空，实际内容在 RAGFlow 侧
+        content="...",
         metadata={
-            "chunking_config_snapshot": kt_config["ragflow"]["parser_config"],
+            "chunking_config_snapshot": kt_config["chunking_config"],
             "co_emission_origin": emission.get("co_emission_origin"),
-            "ragflow_doc_id": None,       # 提交后写回
-            "ragflow_chunk_ids": [],       # 提交后写回
         },
-        ragflow_chunk_method=kt_config["ragflow"]["chunk_method"],
         embedding_status="pending",
+        source_block_ids=["block-p01-001"],
+        locator={...},
     )
 ```
 
 **Tier-A 验收要求**：
-- 真实样本提交 RAGFlow，`book` parser 完成切块
-- `ragflow_doc_id` / `ragflow_chunk_ids` 写回 `knowledge_chunk.metadata`
-- 检索时通过 RAGFlow API 召回，NEXUS 负责权限过滤与来源追溯
+- 真实样本由 NEXUS 生成语义 chunks
+- 每个 chunk 可回溯 normalized block / 原文 locator
+- 后续索引适配器只消费 NEXUS chunks，不向 `knowledge_chunk` 写回后端专用 ID
 
 #### 5.2.2 StructuredDecomposeStrategy（Tier-A）
 
@@ -535,30 +525,30 @@ class TagDecomposeStrategy:
         ]
 ```
 
-`build_chunk` 是一个公共构造器，统一写入 `knowledge_type_code` / `chunking_strategy` / `source_kind` / `ragflow_chunk_method` / `co_emission_origin` / `chunking_config_snapshot`，避免每个策略重复样板。
+`build_chunk` 是一个公共构造器，统一写入 `knowledge_type_code` / `chunking_strategy` / `source_kind` / `co_emission_origin` / `chunking_config_snapshot`，避免每个策略重复样板。
 
 ---
 
-## 6. 切块策略 ↔ RAGFlow `chunk_method` 映射（含 chunking_mode）
+## 6. 切块策略与外部索引适配器映射（含 chunking_mode）
 
-NEXUS 切块策略与 RAGFlow `ParserType` 的对应关系，以及 `chunking_mode` 分配：
+NEXUS 切块策略与外部索引适配器的对应关系，以及 `chunking_mode` 分配：
 
-| NEXUS 切块策略 | chunking_mode | NEXUS chunk_type | RAGFlow `chunk_method` | 适用知识类型 |
+| NEXUS 切块策略 | chunking_mode | NEXUS chunk_type | 外部索引处理建议 | 适用知识类型 |
 |---|---|---|---|---|
-| _(passthrough)_ | `passthrough_to_ragflow` | `passthrough_descriptor` | `book` | textbook_kb |
-| `structured_decompose` | `nexus_extract` | `structured_field` | `naive` | talent_training_dataset |
-| `qa_extract` | `nexus_extract` | `qa_pair` | `qa` | qa_corpus |
-| `process_step_extract` | `nexus_extract` | `process_step` | `manual` | textbook_authoring_process / lab_guide / course_standard / instructional_design |
-| `indicator_decompose` | `nexus_extract` | `indicator` | `table` | lab_evaluation_indicator / teaching_evaluation_indicator |
-| `case_decompose` | `nexus_extract` | `case_section` | `paper` | ecommerce_case_library / enterprise_task_library |
-| `graph_extract` | `nexus_extract` | `graph_node` | `knowledge_graph` | course_knowledge_graph / competency_graph |
-| `tag_decompose` | `nexus_extract` | `tag` | `tag` | skill_tag_library |
+| `semantic_repack` | `nexus_semantic` / legacy `passthrough_to_ragflow` | `semantic_block` | text/vector index | textbook_kb |
+| `structured_decompose` | `nexus_extract` | `structured_field` | text/vector index | talent_training_dataset |
+| `qa_extract` | `nexus_extract` | `qa_pair` | QA-aware index | qa_corpus |
+| `process_step_extract` | `nexus_extract` | `process_step` | process/manual index | textbook_authoring_process / lab_guide / course_standard / instructional_design |
+| `indicator_decompose` | `nexus_extract` | `indicator` | table/metric index | lab_evaluation_indicator / teaching_evaluation_indicator |
+| `case_decompose` | `nexus_extract` | `case_section` | case/paper index | ecommerce_case_library / enterprise_task_library |
+| `graph_extract` | `nexus_extract` | `graph_node` | graph staging / graph DB | course_knowledge_graph / competency_graph |
+| `tag_decompose` | `nexus_extract` | `tag` | tag index | skill_tag_library |
 
 **对接原则（ADR-001）**：
-- `passthrough_to_ragflow`：NEXUS 不切块，把 normalized_document 原文提交给 RAGFlow，由 RAGFlow 的 parser 完成切块、向量化与索引。NEXUS 侧的 `knowledge_chunk` 是"集合描述符"，记录 `ragflow_doc_id` / `ragflow_chunk_ids`。
-- `nexus_extract`：NEXUS 完成"语义级抽取"，输出标准化 `knowledge_chunk`（content 有实际内容）。按需提交给 RAGFlow 做向量化与索引，或提交给其他消费者（图数据库、评估服务、Agent 编排引擎）。
-- RAGFlow 在 `nexus_extract` 模式下的 `chunk_method` 不是"再切一次"，而是"用对应模式做向量化、关系抽取与索引"。
-- `parser_config` 字段名与 RAGFlow 文档保持一致（`chunk_token_num`、`delimiter`、`layout_recognize`、`entity_types` 等）。
+- NEXUS 是 `knowledge_chunk` 的唯一构建者和事实来源。
+- `passthrough_to_ragflow` 是历史配置兼容标签，不再表示 RAGFlow 拥有 chunk 切分结果。
+- 外部索引适配器读取 NEXUS chunks；后端文档 ID、任务状态、错误信息写入 `index_manifest` 或适配器自有表。
+- `knowledge_chunk` 不能保存 RAGFlow 或任何特定索引后端的专用 chunk id。
 
 ---
 
@@ -567,7 +557,7 @@ NEXUS 切块策略与 RAGFlow `ParserType` 的对应关系，以及 `chunking_mo
 为控制 P0 工作量，对 8 个策略分级：
 
 ### Tier-A（深度实现）
-- `textbook_kb`（passthrough_to_ragflow）：集合描述符创建 + RAGFlow `book` parser 联调 + `ragflow_doc_id`/`ragflow_chunk_ids` 写回 + 检索权限过滤验证
+- `textbook_kb`：NEXUS 语义 chunk 构建 + locator 回溯 + 后续索引适配器接入验证
 - `structured_decompose`（nexus_extract）：完整字段拆解算法 + 单测 + 契约测试 + 真实样本端到端 + RAGFlow 索引验证
 
 ### Tier-B（LLM + 规则抽取）
@@ -575,9 +565,9 @@ NEXUS 切块策略与 RAGFlow `ParserType` 的对应关系，以及 `chunking_mo
 - LLM 抽取 + 启发式 fallback；策略本身 + 至少 1 条样本通过链路；E2E 用 Fake RAGFlow Adapter 也可
 - 单测覆盖正常路径与 fallback 路径
 
-### Tier-C（骨架 + RAGFlow 转交）
+### Tier-C（骨架 + 后续适配器/图数据库消费）
 - `case_decompose`、`graph_extract`、`tag_decompose`
-- 实现到能产出符合 schema 的切片（结构化字段齐全），最终质量由 RAGFlow 对应 `chunk_method` 兜底
+- 实现到能产出符合 schema 的切片（结构化字段齐全），最终质量由对应消费侧流程兜底
 - 至少 1 条样本通过链路（可用 Fake RAGFlow Adapter）
 - 留 P1 增强 TODO（在策略文件头注释中显式列出，不写散落 TODO）
 
@@ -585,35 +575,35 @@ NEXUS 切块策略与 RAGFlow `ParserType` 的对应关系，以及 `chunking_mo
 
 ---
 
-## 8. RAGFlow Adapter 扩展（双模式）
+## 8. 外部索引适配器扩展
 
-`nexus-app/nexus_app/index/ragflow_adapter.py` 需要支持两种提交模式：
+外部索引适配器读取 NEXUS 自有 `knowledge_chunk`，并把索引执行状态写入 `index_manifest`。RAGFlow 相关描述仅作为历史方案参考，不再作为当前契约。
 
-### 8.1 Passthrough 模式（`passthrough_to_ragflow`）
+### 8.1 文档级提交
 
 ```python
-def submit_document_for_chunking(normalized_doc, ragflow_config) -> PassthroughResult:
-    """把 normalized_document 原文提交给 RAGFlow，由 RAGFlow 切块。
-    返回 doc_id 和 chunk_ids 列表。"""
+def submit_document(normalized_doc, index_config) -> IndexResult:
+    """把 normalized_document 或其渲染文本提交给外部索引后端。
+    返回后端文档级结果，写入 index_manifest。"""
     ...
 ```
 
-- 输入：normalized_document 原文 + `ragflow_config`（含 `chunk_method` + `parser_config`）
-- RAGFlow 执行切块、向量化、索引
-- 返回 `PassthroughResult(doc_id, chunk_ids)`，写回 `knowledge_chunk.metadata`
+- 输入：normalized_document 原文 + index backend config
+- 外部后端执行索引
+- 返回结果写入 `index_manifest`
 
-### 8.2 Index 模式（`nexus_extract`）
+### 8.2 Chunk 级提交
 
 ```python
-def submit_chunks_for_indexing(chunks, ragflow_config) -> IndexResult:
-    """把 NEXUS 已抽取的知识单元提交给 RAGFlow 做向量化与索引。
-    返回每个 chunk 对应的 ragflow_chunk_id。"""
+def submit_chunks_for_indexing(chunks, index_config) -> IndexResult:
+    """把 NEXUS 已抽取的知识单元提交给外部索引后端。
+    返回文档级或任务级索引结果，不写回 knowledge_chunk 后端专用字段。"""
     ...
 ```
 
-- 输入：已抽取的 `knowledge_chunk` 列表 + `ragflow_config`
-- RAGFlow 不再切块，只做向量化与索引
-- 返回 `IndexResult(chunk_id_map)`，写回 `knowledge_chunk.ragflow_chunk_id`
+- 输入：已抽取的 `knowledge_chunk` 列表 + index backend config
+- 外部后端不再拥有 NEXUS chunk 的切分契约
+- 返回 `IndexResult`，写入 `index_manifest` 或索引适配器自有表
 
 ### 8.3 FakeRagflowAdapter
 

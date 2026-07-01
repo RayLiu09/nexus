@@ -1491,11 +1491,6 @@ def run_index_submit(
                     )
                     doc_id = doc_result["doc_id"]
                 indexed_chunk_count = len(kt_chunks)
-                for chunk in kt_chunks:
-                    chunk.ragflow_doc_id = doc_id
-                    metadata = dict(chunk.chunk_metadata or {})
-                    metadata["ragflow_doc_id"] = doc_id
-                    chunk.chunk_metadata = metadata
             else:
                 if existing_doc is not None:
                     doc_id = existing_doc["doc_id"]
@@ -1527,10 +1522,6 @@ def run_index_submit(
                 )
                 chunk_ids = submit_result.get("chunk_ids", [])
                 indexed_chunk_count = len(chunk_ids)
-                for idx, chunk in enumerate(kt_chunks):
-                    chunk.ragflow_doc_id = doc_id
-                    if idx < len(chunk_ids):
-                        chunk.ragflow_chunk_id = chunk_ids[idx]
 
             manifest = models.IndexManifest(
                 normalized_ref_id=normalized_ref.id,

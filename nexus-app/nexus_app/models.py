@@ -853,7 +853,6 @@ class KnowledgeChunk(TimestampMixin, Base):
     __table_args__ = (
         Index("ix_knowledge_chunk_ref_type", "normalized_ref_id", "knowledge_type_code"),
         Index("ix_knowledge_chunk_type_created", "knowledge_type_code", "created_at"),
-        Index("ix_knowledge_chunk_ragflow_doc", "ragflow_doc_id"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
@@ -879,9 +878,6 @@ class KnowledgeChunk(TimestampMixin, Base):
         "metadata", JSON, default=dict, nullable=False
     )
     co_emission_origin: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    ragflow_chunk_method: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    ragflow_doc_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    ragflow_chunk_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     embedding_status: Mapped[EmbeddingStatus] = mapped_column(
         Enum(EmbeddingStatus, values_callable=lambda e: [i.value for i in e]),
         nullable=False, default=EmbeddingStatus.PENDING,

@@ -321,7 +321,6 @@ class TestIndexSubmitIntegration:
             assert len(manifests) == 1
             assert manifests[0].index_status == IndexManifestStatus.INDEXED
             assert manifests[0].ragflow_doc_id is not None
-            assert chunks[0].ragflow_doc_id is not None
         finally:
             reset_kb_registry()
 
@@ -357,7 +356,6 @@ class TestIndexSubmitIntegration:
             manifests = stages.run_index_submit(ctx, version, ref, chunks)
             assert manifests == []
             assert len(fake_adapter._docs) == 0
-            assert all(c.ragflow_doc_id is None for c in chunks)
 
             stage_row = session.scalars(
                 select(models.JobStage).where(

@@ -2,13 +2,13 @@
 
 - **状态**：方案沉淀，实施时间待定
 - **日期**：2026-06-23
-- **输入基础**：已构建完成的 NEXUS RAG 语义知识块 `knowledge_chunk`
-- **适用阶段**：RAG semantic chunks 稳定后，可作为独立图谱构建流水线扩展
+- **输入基础**：已构建完成的 NEXUS 语义知识块 `knowledge_chunk`
+- **适用阶段**：NEXUS semantic chunks 稳定后，可作为独立图谱构建流水线扩展
 - **不属于**：后期“专业 <-> 岗位 <-> 课程知识”“岗位 <-> 能力/技能点 <-> 课程模块”能力图谱
 
 ## 一、定位
 
-Evidence-grounded Knowledge Graph 是基于 RAG 语义知识块生成的证据溯源型知识图谱。
+Evidence-grounded Knowledge Graph 是基于 NEXUS 语义知识块生成的证据溯源型知识图谱。
 
 它的目标不是构建岗位能力模型，也不是课程能力图谱，而是从已经完成语义切块的知识资产中抽取可回溯的实体、事实、关系和证据。
 
@@ -22,9 +22,11 @@ Evidence-grounded Knowledge Graph
 
 每一个节点、事实、关系都必须绑定 evidence chunk，并能通过 chunk 的 locator 回到 normalized 原文位置。
 
+构建范围必须是**全文语义覆盖**，不是从某几个局部 chunk 直接拼一个局部图。`knowledge_chunk` 是抽取窗口、证据边界和 locator 锚点；GraphBuild 的语义范围是完整 `normalized_asset_ref`。实现上可以逐 chunk 抽取候选事实，但必须在 build 级别做全文候选收集、跨 chunk 实体归一、关系归并、冲突处理和质量门禁，最终图谱应覆盖该资产内全部可抽取的核心实体、事实、关系和证据。
+
 ```text
 normalized blocks
-  -> RAG semantic chunks
+  -> NEXUS semantic chunks
   -> chunks 携带 source_block_ids / locator / md_char_range / bbox
   -> graph facts 绑定 chunk evidence
   -> graph 节点/边可回溯原文
@@ -106,19 +108,15 @@ Evidence chunks
 
 ## 三、适用性结论
 
-该图谱路线能够覆盖以下基于语义分割 chunks 的文本内容：
+本阶段 `graph_profile` 只覆盖以下文本型知识资产，不覆盖岗位能力图谱、专业图谱或记录型业务图谱：
 
 | 内容类型 | 适配度 | 主要图谱价值 |
 |---|---:|---|
 | 产业/行业政策 | 高 | 政策主体、发布机构、约束对象、措施、条款、时间、适用范围 |
-| 行业报告 | 高 | 指标、市场、地区、企业、平台、趋势、政策、事件、因果关系 |
-| 白皮书/研究报告 | 高 | 观点、论据、指标、案例、政策、趋势 |
-| 书籍教材 | 高 | 概念、定义、定理、方法、步骤、例题、章节层级、先后依赖 |
-| 课件 PPT | 高 | 主题、知识点、要点、流程、图表、案例、课堂活动 |
+| 各种报告 | 高 | 指标、市场、地区、企业、平台、趋势、政策、事件、因果关系、观点与论据 |
+| 课程教材/书籍 | 高 | 概念、定义、定理、方法、步骤、例题、章节层级、先后依赖 |
 | 标准/规范 | 高 | 条款、要求、适用对象、约束条件、例外、流程 |
 | SOP/操作文档 | 高 | 步骤、角色、输入输出、风险点、前置条件 |
-| 招投标/合同 | 中高 | 条款、主体、义务、期限、金额、违约条件，但需要更强权限和合规控制 |
-| 访谈/会议纪要 | 中 | 主题、决议、行动项、实体关系，但说话人归属和证据粒度要求更高 |
 
 结论：
 
@@ -315,11 +313,11 @@ Entity + Fact + Relation + Qualifiers + Evidence
 
 ```text
 graph_profile = document_fact_default
-graph_profile = industry_report
 graph_profile = policy_document
+graph_profile = report_document
 graph_profile = textbook
-graph_profile = courseware_ppt
 graph_profile = standard_spec
+graph_profile = sop_document
 ```
 
 profile 基本结构：
@@ -337,56 +335,9 @@ profile 基本结构：
 }
 ```
 
-### 6.1 industry_report
+### 6.1 policy_document
 
-适用于行业报告、白皮书、研究报告。
-
-```json
-{
-  "entity_types": [
-    "Industry",
-    "Market",
-    "Region",
-    "Country",
-    "Company",
-    "Platform",
-    "Metric",
-    "MetricValue",
-    "Policy",
-    "Organization",
-    "Trend",
-    "Event"
-  ],
-  "fact_types": [
-    "metric_fact",
-    "trend_fact",
-    "policy_fact",
-    "event_fact",
-    "entity_mention"
-  ],
-  "relation_types": [
-    "HAS_VALUE",
-    "HAS_GROWTH_RATE",
-    "MEASURED_IN",
-    "MEASURED_AT",
-    "AFFECTS",
-    "ISSUED_BY",
-    "REGULATES",
-    "MENTIONS",
-    "SUPPORTED_BY"
-  ],
-  "chunk_role_priority": [
-    "metric_image",
-    "table_row",
-    "chart",
-    "body"
-  ]
-}
-```
-
-### 6.2 policy_document
-
-适用于产业政策、监管文件、标准规范中的政策性内容。
+适用于产业/行业政策、监管文件，以及标准规范中的政策性内容。
 
 ```json
 {
@@ -403,6 +354,7 @@ profile 基本结构：
   ],
   "fact_types": [
     "policy_issue_fact",
+    "policy_fact",
     "requirement_fact",
     "obligation_fact",
     "scope_fact",
@@ -421,15 +373,67 @@ profile 基本结构：
   "chunk_role_priority": [
     "table_row",
     "body",
+    "chart",
+    "image"
+  ]
+}
+```
+
+### 6.2 report_document
+
+适用于行业报告、产业报告、白皮书、研究报告、调研报告、人才需求报告等。
+
+```json
+{
+  "entity_types": [
+    "Industry",
+    "Market",
+    "Region",
+    "Country",
+    "Company",
+    "Platform",
+    "Metric",
+    "MetricValue",
+    "Policy",
+    "Organization",
+    "Trend",
+    "Event",
+    "Finding",
+    "EvidenceArgument"
+  ],
+  "fact_types": [
+    "metric_fact",
+    "trend_fact",
+    "policy_fact",
+    "event_fact",
+    "finding_fact",
+    "entity_mention"
+  ],
+  "relation_types": [
+    "HAS_VALUE",
+    "HAS_GROWTH_RATE",
+    "MEASURED_IN",
+    "MEASURED_AT",
+    "AFFECTS",
+    "ISSUED_BY",
+    "REGULATES",
+    "MENTIONS",
+    "SUPPORTS",
+    "SUPPORTED_BY"
+  ],
+  "chunk_role_priority": [
     "metric_image",
-    "chart"
+    "table_row",
+    "chart",
+    "body",
+    "image"
   ]
 }
 ```
 
 ### 6.3 textbook
 
-适用于书籍教材、教材章节、知识讲义。
+适用于课程教材、书籍、教材章节、知识讲义。
 
 ```json
 {
@@ -471,43 +475,88 @@ profile 基本结构：
 }
 ```
 
-### 6.4 courseware_ppt
+### 6.4 standard_spec
 
-适用于课件 PPT、培训材料、课堂讲义。
+适用于标准、规范、规程、技术要求、管理制度中的规范性内容。
 
 ```json
 {
   "entity_types": [
-    "SlideTopic",
-    "KnowledgePoint",
-    "BulletPoint",
-    "Case",
-    "Process",
-    "Chart",
-    "Example",
-    "Activity"
+    "Standard",
+    "Clause",
+    "Requirement",
+    "Object",
+    "Condition",
+    "Exception",
+    "Procedure",
+    "Role",
+    "Metric"
   ],
   "fact_types": [
-    "topic_fact",
-    "key_point_fact",
-    "process_fact",
-    "case_fact",
-    "chart_fact"
+    "standard_issue_fact",
+    "clause_requirement_fact",
+    "scope_fact",
+    "exception_fact",
+    "procedure_fact"
   ],
   "relation_types": [
-    "CONTAINS",
-    "EXPLAINS",
-    "ILLUSTRATES",
+    "APPLIES_TO",
+    "REQUIRES",
+    "PROHIBITS",
+    "ALLOWS",
+    "HAS_CONDITION",
+    "HAS_EXCEPTION",
+    "REFERENCES",
+    "SUPPORTED_BY"
+  ],
+  "chunk_role_priority": [
+    "table_row",
+    "body",
+    "chart",
+    "image"
+  ]
+}
+```
+
+### 6.5 sop_document
+
+适用于 SOP、操作文档、作业指导书、流程说明。
+
+```json
+{
+  "entity_types": [
+    "Procedure",
+    "Step",
+    "Role",
+    "Input",
+    "Output",
+    "Tool",
+    "Risk",
+    "ControlPoint",
+    "Prerequisite"
+  ],
+  "fact_types": [
+    "procedure_fact",
+    "step_fact",
+    "role_responsibility_fact",
+    "input_output_fact",
+    "risk_control_fact"
+  ],
+  "relation_types": [
     "HAS_STEP",
-    "SUPPORTS",
-    "MENTIONS",
+    "PRECEDES",
+    "REQUIRES_INPUT",
+    "PRODUCES_OUTPUT",
+    "PERFORMED_BY",
+    "HAS_RISK",
+    "CONTROLLED_BY",
     "SUPPORTED_BY"
   ],
   "chunk_role_priority": [
     "body",
-    "chart",
+    "table_row",
     "image",
-    "table_row"
+    "chart"
   ]
 }
 ```
@@ -515,6 +564,10 @@ profile 基本结构：
 ## 七、基于 chunks 的抽取策略
 
 Evidence-grounded KG 应直接从 `knowledge_chunk` 读取输入，而不是重新从 normalized blocks 抽取。
+但这不意味着“只基于局部 chunk 构建局部图”。GraphBuild 的输入集合必须覆盖该 `normalized_ref_id` 下所有可用语义 chunks；chunk 只是抽取和证据绑定的窗口。图谱生成流程必须在完整候选集合上做二阶段处理：
+
+1. chunk 级候选抽取：按 `anchor_role` 选择规则或 LLM extractor，产出候选实体/事实/关系。
+2. build 级全文归并：跨 chunk 合并同义实体、补齐跨章节关系、处理冲突事实、去重、计算全局置信度，再写入正式 graph。
 
 推荐查询条件：
 
@@ -541,9 +594,11 @@ ORDER BY chunk_index;
 | `metric_image` | 强规则抽取指标事实，优先级最高 |
 | `table_row` | 行记录直接转事实，适合政策、事件、指标记录 |
 | `chart` | 抽取指标序列、维度、趋势 |
-| `body` | LLM/规则混合抽取实体、趋势、因果、定义、方法 |
+| `body` | 采用 LLM schema 抽取实体、事实、趋势、因果、定义、方法、步骤；规则只做预筛、分段和后校验 |
 | `image` | 仅在内容非装饰、非二维码且有实体/图示含义时抽取 |
 | `table_overview` | 默认跳过，或只生成表级概览节点 |
+
+除 `body` 外的类型按上表建议执行：表格、指标图和 chart 优先规则/结构化解析；image 只在有明确语义时进入候选；table_overview 默认不入正式图。
 
 ## 八、典型示例
 
@@ -699,6 +754,7 @@ chunk：
 knowledge_chunk
   -> graph_candidate_selection
   -> graph_fact_extraction
+  -> graph_build_scope_merge
   -> entity_normalization
   -> relation_normalization
   -> evidence_binding
@@ -708,7 +764,7 @@ knowledge_chunk
 
 ### 9.1 candidate selection
 
-根据 graph profile 和 chunk anchor_role 选择候选 chunks。
+根据 graph profile 和 chunk anchor_role 选择候选 chunks。候选选择必须以完整 normalized_ref 的 chunk 集合作为输入，不能只取 Top-K 检索结果或用户当前可见片段。
 
 默认跳过：
 
@@ -732,7 +788,7 @@ DefinitionExtractor
 PPTBulletExtractor
 ```
 
-再对复杂正文使用 LLM schema 抽取：
+`anchor_role=body` 必须使用 LLM schema 抽取：
 
 ```text
 TrendFactExtractor
@@ -740,6 +796,23 @@ CausalFactExtractor
 EntityRelationFactExtractor
 MethodStepExtractor
 ```
+
+规则抽取器可用于 body 的预处理和后校验，但不能替代 body 的 LLM schema 抽取。
+
+### 9.2.1 graph_build_scope_merge
+
+chunk 级抽取完成后，必须在 GraphBuild 范围内做全文合并：
+
+```text
+all chunk candidates for normalized_ref
+  -> canonical entity merge
+  -> duplicate fact merge
+  -> cross-section relation linking
+  -> conflict detection
+  -> evidence aggregation
+```
+
+这一阶段确保图谱覆盖全文语义范围，而不是保留多个互不关联的局部小图。
 
 ### 9.3 candidate schema
 
@@ -1062,4 +1135,3 @@ SOP/操作文档
 它不负责生成“岗位 <-> 能力/技能点 <-> 课程模块”；
 它只负责从 chunks 中抽取可证据回溯的文档事实图谱。
 ```
-

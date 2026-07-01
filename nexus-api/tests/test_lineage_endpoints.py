@@ -97,7 +97,6 @@ def _make_chunk(
         chunk_index=idx,
         content=f"chunk-{idx}",
         chunk_metadata=metadata or {},
-        ragflow_chunk_method="naive",
         embedding_status=EmbeddingStatus.PENDING,
         source_block_ids=source_block_ids,
         locator=locator,
