@@ -33,16 +33,27 @@ _CLASSIFICATION_LABELS: dict[str, str] = {
     "major_profile": "专业简介",
 }
 
+_CLASSIFICATION_ALIASES: dict[str, str] = {
+    "program_profile": "major_profile",
+}
+
 _VISIBLE_ASSET_STATUSES = {
     AssetVersionStatus.AVAILABLE.value,
     AssetVersionStatus.REVIEW_REQUIRED.value,
 }
 
 
-def _classification_label(code: str | None) -> str | None:
+def _canonical_classification(code: str | None) -> str | None:
     if not code:
         return None
-    return _CLASSIFICATION_LABELS.get(code)
+    return _CLASSIFICATION_ALIASES.get(code, code)
+
+
+def _classification_label(code: str | None) -> str | None:
+    canonical = _canonical_classification(code)
+    if not canonical:
+        return None
+    return _CLASSIFICATION_LABELS.get(canonical)
 
 
 def _latest_version(session: Session, asset_id: str) -> models.AssetVersion | None:
@@ -135,7 +146,7 @@ def _catalog_row(session: Session, asset: models.Asset) -> domain_schemas.AssetC
         session, ref_for_catalog.id if ref_for_catalog is not None else None
     )
     quality_summary = result.quality_summary if result is not None else None
-    domain = result.classification if result is not None else None
+    domain = _canonical_classification(result.classification) if result is not None else None
     domain_name = _classification_label(domain)
     base = domain_schemas.AssetRead.model_validate(asset).model_dump()
     return domain_schemas.AssetCatalogRead(

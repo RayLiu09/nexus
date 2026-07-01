@@ -237,6 +237,21 @@ def test_asset_catalog_uses_latest_review_required_ref_for_ui_metadata(app, sess
     assert row["governance_status"] == "review_required"
 
 
+def test_asset_catalog_canonicalizes_deprecated_program_profile_domain(app, session):
+    seeded = _seed_review_required_asset(session)
+    seeded["result"].classification = "program_profile"
+    session.commit()
+    client = TestClient(app)
+
+    resp = client.get("/internal/v1/assets")
+
+    assert resp.status_code == 200
+    rows = resp.json()["data"]
+    row = next(item for item in rows if item["id"] == seeded["asset"].id)
+    assert row["domain"] == "major_profile"
+    assert row["domain_name"] == "专业简介"
+
+
 def test_asset_catalog_filters_by_domain_level_and_status(app, session):
     seeded = _seed_review_required_asset(session)
     _seed_processing_asset(session)

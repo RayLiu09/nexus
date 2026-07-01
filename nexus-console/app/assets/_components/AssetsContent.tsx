@@ -12,7 +12,13 @@ import { StatusLabel } from "@/components/StatusLabel";
 import { CopyableShortId } from "@/components/shared/CopyableShortId";
 import { formatTime } from "@/lib/format-time";
 import type { AssetWithMeta, AssetSummary, AssetStats, DomainDistItem } from "../_lib/types";
-import { DOMAIN_OPTIONS, domainLabel, toAssetStats, toDomainDistItems } from "../_lib/types";
+import {
+  DOMAIN_OPTIONS,
+  canonicalDomain,
+  domainLabel,
+  toAssetStats,
+  toDomainDistItems,
+} from "../_lib/types";
 import { AssetsSummary } from "./AssetsSummary";
 import { DomainDistribution } from "./DomainDistribution";
 import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
@@ -188,14 +194,17 @@ export function AssetsContent({
     {
       title: "域 / 分级",
       width: 140,
-      render: (_, r) => (
-        <span>
-          {r.domain && (
-            <Tag color={domainColor(r.domain)}>{domainLabel(r.domain, r.domain_name)}</Tag>
-          )}
-          {r.level && <Tag color={LEVEL_COLOR_KEY[r.level] ?? "default"}>{r.level}</Tag>}
-        </span>
-      ),
+      render: (_, r) => {
+        const domain = canonicalDomain(r.domain);
+        return (
+          <span>
+            {domain && (
+              <Tag color={domainColor(domain)}>{domainLabel(domain, r.domain_name)}</Tag>
+            )}
+            {r.level && <Tag color={LEVEL_COLOR_KEY[r.level] ?? "default"}>{r.level}</Tag>}
+          </span>
+        );
+      },
     },
     {
       title: "质量",

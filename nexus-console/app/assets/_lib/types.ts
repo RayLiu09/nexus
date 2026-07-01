@@ -41,15 +41,26 @@ export const DOMAIN_LABELS: Record<string, string> = {
   major_profile: "专业简介",
 };
 
+const DOMAIN_ALIASES: Record<string, string> = {
+  program_profile: "major_profile",
+};
+
 export const DOMAIN_OPTIONS = Object.entries(DOMAIN_LABELS).map(([value, label]) => ({
   value,
   label,
 }));
 
+export function canonicalDomain(code: string | null | undefined): string | null {
+  if (!code) return null;
+  return DOMAIN_ALIASES[code] ?? code;
+}
+
 export function domainLabel(code: string | null | undefined, name?: string | null): string {
-  if (name) return name;
-  if (!code) return "-";
-  return DOMAIN_LABELS[code] ?? code;
+  const canonical = canonicalDomain(code);
+  if (canonical && DOMAIN_LABELS[canonical]) return DOMAIN_LABELS[canonical];
+  if (name && name !== "program_profile") return name;
+  if (!canonical) return "-";
+  return canonical;
 }
 
 // ── Aggregate endpoint contract: GET /v1/assets/summary ──────────────────
@@ -118,7 +129,8 @@ export function deriveStats(assets: AssetWithMeta[]): AssetStats {
 export function deriveDomainDist(assets: AssetWithMeta[]): DomainDistItem[] {
   const counts: Record<string, number> = {};
   for (const a of assets) {
-    if (a.domain) counts[a.domain] = (counts[a.domain] ?? 0) + 1;
+    const domain = canonicalDomain(a.domain);
+    if (domain) counts[domain] = (counts[domain] ?? 0) + 1;
   }
   return Object.entries(counts).map(([domain, count]) => ({
     domain,
