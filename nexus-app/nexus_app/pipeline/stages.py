@@ -668,16 +668,25 @@ def _build_normalized_document(
     major_profile_payload: dict[str, Any] | None = None
     try:
         from nexus_app.major_profile.extractor import extract as _extract_major_profile
+        from nexus_app.major_profile.schema import validate_payload as _validate_major_profile_payload
         major_profile_payload = _extract_major_profile({
             "content_type": "document",
             "title": title_from(raw_object, parse_payload),
             "blocks": blocks,
             "body_markdown": body_markdown,
         })
+        if major_profile_payload is not None:
+            major_profile_payload = _validate_major_profile_payload(major_profile_payload)
     except Exception:
         logger.warning("major_profile extraction failed during normalize", exc_info=True)
         major_profile_payload = None
+    major_profile_quality_summary: dict[str, Any] | None = None
     if major_profile_payload is not None:
+        from nexus_app.major_profile.schema import (
+            aggregate_quality_flags as _aggregate_major_profile_quality_flags,
+            blocking_reasons_from_flags as _major_profile_blocking_reasons,
+        )
+
         raw_major_profiles = major_profile_payload.get("profiles")
         major_profile_summaries = [
             profile
@@ -688,6 +697,21 @@ def _build_normalized_document(
             )
             if isinstance(profile, dict)
         ]
+        major_profile_quality_flags = _aggregate_major_profile_quality_flags(
+            major_profile_summaries
+        )
+        major_profile_blocking_reasons = _major_profile_blocking_reasons(
+            major_profile_quality_flags
+        )
+        major_profile_quality_summary = {
+            "schema_version": "major_profile_quality.v1",
+            "profile_count": len(major_profile_summaries),
+            "quality_flags": major_profile_quality_flags,
+            "blocking_reasons": major_profile_blocking_reasons,
+            "validation_status": (
+                "review_required" if major_profile_blocking_reasons else "pass"
+            ),
+        }
         metadata["domain_profile"] = "major_profile.v1"
         metadata["domain_profiles"] = [
             {
@@ -703,11 +727,17 @@ def _build_normalized_document(
                     if isinstance(profile.get("evidence"), dict)
                     else []
                 ),
+                "quality_flags": (
+                    profile.get("quality_flags")
+                    if isinstance(profile.get("quality_flags"), dict)
+                    else {}
+                ),
                 "domain_table_status": "pending",
             }
             for profile in major_profile_summaries
         ]
         metadata["major_profile_count"] = len(major_profile_summaries)
+        metadata["major_profile_quality"] = major_profile_quality_summary
         metadata["knowledge_emissions"] = [{
             "code": "major_profile_knowledge",
             "name": "专业介绍知识",
@@ -747,8 +777,20 @@ def _build_normalized_document(
         "quality": {
             "parse_score": None,
             "normalize_score": None,
-            "anomaly_items": [],
-            "manual_review_status": "not_required",
+            "anomaly_items": (
+                major_profile_quality_summary.get("blocking_reasons", [])
+                if major_profile_quality_summary else []
+            ),
+            "manual_review_status": (
+                "required"
+                if major_profile_quality_summary
+                and major_profile_quality_summary.get("blocking_reasons")
+                else "not_required"
+            ),
+            **(
+                {"major_profile": major_profile_quality_summary}
+                if major_profile_quality_summary else {}
+            ),
         },
         "lineage": {
             "raw_object_id": raw_object.id,

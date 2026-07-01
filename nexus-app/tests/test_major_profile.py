@@ -15,6 +15,7 @@ from nexus_app.enums import (
     RawObjectStatus,
 )
 from nexus_app.knowledge.services import run_knowledge_pipeline
+from nexus_app.major_profile.schema import blocking_reasons_from_flags, validate_profile_payload
 from nexus_app.major_profile.extractor import extract
 from nexus_app.major_profile.writer import write, write_many
 
@@ -143,6 +144,30 @@ def test_extract_major_profile_sections_and_items() -> None:
         "certificates",
         "continuation_majors",
     }
+    assert profile["quality_flags"] == {}
+
+
+def test_major_profile_schema_adds_blocking_quality_flags() -> None:
+    profile = {
+        "schema_version": "major_profile.v1",
+        "domain": "major",
+        "domain_profile": "major_profile.v1",
+        "major_code": "530701",
+        "major_name": "电子商务",
+        "courses_and_training": {
+            "foundation_courses": [{"text": "电子商务基础"}],
+            "core_courses": [],
+            "practice_trainings": [{"text": "岗位实习"}],
+        },
+    }
+
+    validated, flags = validate_profile_payload(profile)
+
+    assert validated["quality_flags"]["missing_occupation_oriented"] is True
+    assert validated["quality_flags"]["missing_training_goal"] is True
+    assert validated["quality_flags"]["missing_ability_requirements"] is True
+    assert validated["quality_flags"]["missing_core_courses"] is True
+    assert "major_profile.missing_training_goal" in blocking_reasons_from_flags(flags)
 
 
 def test_extract_multiple_major_profiles_from_one_document() -> None:

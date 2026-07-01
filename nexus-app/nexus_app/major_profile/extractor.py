@@ -6,6 +6,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from nexus_app.major_profile.schema import validate_payload, validate_profile_payload
+
 DOMAIN_PROFILE = "major_profile.v1"
 EXTRACTOR_VERSION = "major_profile_extractor.v1"
 
@@ -85,10 +87,11 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
     ]
     profiles = [profile for profile in segment_profiles if profile is not None]
     if profiles:
+        profiles = [validate_profile_payload(profile)[0] for profile in profiles]
         primary = dict(profiles[0])
         primary["profiles"] = profiles
         primary["profile_count"] = len(profiles)
-        return primary
+        return validate_payload(primary)
 
     return _profile_from_segment(title, None, None, blocks)
 
@@ -152,7 +155,7 @@ def _profile_from_segment(
         profile["quality_flags"]["missing_ability_requirements"] = True
     if not any(profile["courses_and_training"].values()):
         profile["quality_flags"]["missing_courses_and_training"] = True
-    return profile
+    return validate_profile_payload(profile)[0]
 
 
 def _major_segments(blocks: list[dict[str, Any]]) -> list[tuple[str, str, list[dict[str, Any]]]]:

@@ -197,7 +197,7 @@ function DrawerBody({
         <Alert
           type="info"
           showIcon
-          message="对外视图：仅暴露最终裁定结果，不包含 AI 建议与置信度等内部证据。"
+          title="对外视图：仅暴露最终裁定结果，不包含 AI 建议与置信度等内部证据。"
         />
       ) : trail.length === 0 ? (
         <Empty description="无字段级裁定记录" />

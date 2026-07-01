@@ -357,6 +357,25 @@ class TestQualityScoringService:
         summary = svc.generate_quality_summary(low_ai, ref)
         assert summary.quality_level in ("warning", "fail")
 
+    def test_domain_quality_blocking_reasons_are_merged(self, registry, valid_ai_output):
+        svc = QualityScoringService(registry)
+        ref = {
+            "title": "专业简介",
+            "content_snippet": "专业介绍结构化内容",
+            "domain_profile": "major_profile.v1",
+            "domain_quality": {
+                "blocking_reasons": [
+                    "major_profile.missing_training_goal",
+                    "major_profile.missing_core_courses",
+                ],
+            },
+        }
+
+        summary = svc.generate_quality_summary(valid_ai_output, ref)
+
+        assert "major_profile.missing_training_goal" in summary.blocking_reasons
+        assert "major_profile.missing_core_courses" in summary.blocking_reasons
+
     def test_weights_from_registry_not_hardcoded(self, registry):
         svc = QualityScoringService(registry)
         qs = registry.get_quality_scoring()

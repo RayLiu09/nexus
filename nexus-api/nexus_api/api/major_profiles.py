@@ -52,6 +52,12 @@ def _apply_profile_filters(
     major_code: str | None,
     major_name: str | None,
     occupation: str | None,
+    training_goal: str | None,
+    ability: str | None,
+    course: str | None,
+    course_group: str | None,
+    certificate: str | None,
+    continuation: str | None,
     education_level: str | None,
     normalized_ref_id: str | None = None,
 ):
@@ -64,11 +70,45 @@ def _apply_profile_filters(
     if normalized_ref_id:
         stmt = stmt.where(models.MajorProfile.normalized_ref_id == normalized_ref_id)
     if occupation:
-        stmt = stmt.join(models.MajorProfileOccupation).where(
-            models.MajorProfileOccupation.normalized_name.contains(
-                "".join(occupation.split()).lower()
+        stmt = stmt.where(models.MajorProfile.id.in_(
+            select(models.MajorProfileOccupation.profile_id).where(
+                models.MajorProfileOccupation.normalized_name.contains(
+                    "".join(occupation.split()).lower()
+                )
             )
-        )
+        ))
+    if training_goal:
+        stmt = stmt.where(models.MajorProfile.training_goal.contains(training_goal))
+    if ability:
+        stmt = stmt.where(models.MajorProfile.id.in_(
+            select(models.MajorProfileAbility.profile_id).where(
+                models.MajorProfileAbility.text.contains(ability)
+            )
+        ))
+    if course:
+        stmt = stmt.where(models.MajorProfile.id.in_(
+            select(models.MajorProfileCourse.profile_id).where(
+                models.MajorProfileCourse.text.contains(course)
+            )
+        ))
+    if course_group:
+        stmt = stmt.where(models.MajorProfile.id.in_(
+            select(models.MajorProfileCourse.profile_id).where(
+                models.MajorProfileCourse.course_group == course_group
+            )
+        ))
+    if certificate:
+        stmt = stmt.where(models.MajorProfile.id.in_(
+            select(models.MajorProfileCertificate.profile_id).where(
+                models.MajorProfileCertificate.text.contains(certificate)
+            )
+        ))
+    if continuation:
+        stmt = stmt.where(models.MajorProfile.id.in_(
+            select(models.MajorProfileContinuation.profile_id).where(
+                models.MajorProfileContinuation.text.contains(continuation)
+            )
+        ))
     return stmt
 
 
@@ -164,6 +204,12 @@ def _list_profiles(
     major_code: str | None,
     major_name: str | None,
     occupation: str | None,
+    training_goal: str | None,
+    ability: str | None,
+    course: str | None,
+    course_group: str | None,
+    certificate: str | None,
+    continuation: str | None,
     education_level: str | None,
     normalized_ref_id: str | None,
     available_only: bool,
@@ -181,6 +227,12 @@ def _list_profiles(
         major_code=major_code,
         major_name=major_name,
         occupation=occupation,
+        training_goal=training_goal,
+        ability=ability,
+        course=course,
+        course_group=course_group,
+        certificate=certificate,
+        continuation=continuation,
         education_level=education_level,
         normalized_ref_id=normalized_ref_id,
     )
@@ -189,6 +241,12 @@ def _list_profiles(
         major_code=major_code,
         major_name=major_name,
         occupation=occupation,
+        training_goal=training_goal,
+        ability=ability,
+        course=course,
+        course_group=course_group,
+        certificate=certificate,
+        continuation=continuation,
         education_level=education_level,
         normalized_ref_id=normalized_ref_id,
     )
@@ -233,6 +291,12 @@ def list_internal_major_profiles(
     major_code: str | None = None,
     major_name: str | None = None,
     occupation: str | None = None,
+    training_goal: str | None = None,
+    ability: str | None = None,
+    course: str | None = None,
+    course_group: str | None = None,
+    certificate: str | None = None,
+    continuation: str | None = None,
     education_level: str | None = None,
     normalized_ref_id: str | None = None,
     pagination: Pagination = Depends(pagination_params),
@@ -245,6 +309,12 @@ def list_internal_major_profiles(
         major_code=major_code,
         major_name=major_name,
         occupation=occupation,
+        training_goal=training_goal,
+        ability=ability,
+        course=course,
+        course_group=course_group,
+        certificate=certificate,
+        continuation=continuation,
         education_level=education_level,
         normalized_ref_id=normalized_ref_id,
         available_only=False,
@@ -315,6 +385,12 @@ def list_open_major_profiles(
     major_code: str | None = None,
     major_name: str | None = None,
     occupation: str | None = None,
+    training_goal: str | None = None,
+    ability: str | None = None,
+    course: str | None = None,
+    course_group: str | None = None,
+    certificate: str | None = None,
+    continuation: str | None = None,
     education_level: str | None = None,
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
@@ -326,6 +402,12 @@ def list_open_major_profiles(
         major_code=major_code,
         major_name=major_name,
         occupation=occupation,
+        training_goal=training_goal,
+        ability=ability,
+        course=course,
+        course_group=course_group,
+        certificate=certificate,
+        continuation=continuation,
         education_level=education_level,
         normalized_ref_id=None,
         available_only=True,

@@ -107,6 +107,16 @@ def _check_images_accessible(ai_output: AIGovernanceOutput, ref: dict) -> dict:
     return {"status": "pass", "message": "Image accessibility not checked at this stage"}
 
 
+def _domain_blocking_reasons(ref: dict[str, Any]) -> list[str]:
+    quality = ref.get("domain_quality")
+    if not isinstance(quality, dict):
+        return []
+    reasons = quality.get("blocking_reasons")
+    if not isinstance(reasons, list):
+        return []
+    return [str(reason) for reason in reasons if reason]
+
+
 class QualityCheckItem(BaseModel):
     check_name: str
     status: Literal["pass", "warning", "fail"]
@@ -150,6 +160,7 @@ class QualityScoringService:
             item.message for item in check_items
             if item.severity == "blocking" and item.status == "fail"
         ]
+        blocking_reasons.extend(_domain_blocking_reasons(normalized_ref))
         return QualitySummary(
             quality_score=round(quality_score, 2),
             quality_level=quality_level,

@@ -175,6 +175,12 @@ def test_internal_list_filters_by_occupation(fake_request, session) -> None:
         major_code=None,
         major_name=None,
         occupation="电子商务师",
+        training_goal=None,
+        ability=None,
+        course=None,
+        course_group=None,
+        certificate=None,
+        continuation=None,
         education_level=None,
         normalized_ref_id=None,
         pagination=PAGE,
@@ -195,6 +201,12 @@ def test_internal_list_filters_by_major_name_and_education_level(fake_request, s
         major_code=None,
         major_name="商务",
         occupation=None,
+        training_goal=None,
+        ability=None,
+        course=None,
+        course_group=None,
+        certificate=None,
+        continuation=None,
         education_level="高职",
         normalized_ref_id=None,
         pagination=PAGE,
@@ -221,6 +233,32 @@ def test_internal_get_by_normalized_ref(fake_request, session) -> None:
     assert body["counts"]["ability_count"] == 1
     assert body["occupations"][0]["text"] == "电子商务师"
     assert body["courses"][0]["course_group"] == "foundation"
+
+
+def test_internal_list_filters_by_domain_child_fields(fake_request, session) -> None:
+    ref = _seed_anchor(session, ref_id="ref-mp-api", version_id="ver-mp-api")
+    _seed_profile(session, ref=ref)
+
+    resp = major_profiles.list_internal_major_profiles(
+        request=fake_request,
+        major_code=None,
+        major_name=None,
+        occupation=None,
+        training_goal="网店运营",
+        ability="网店运营能力",
+        course="电子商务基础",
+        course_group="foundation",
+        certificate="职业技能等级证书",
+        continuation="电子商务",
+        education_level=None,
+        normalized_ref_id=None,
+        pagination=PAGE,
+        session=session,
+    )
+
+    body = _body(resp)
+    assert body["meta"]["total"] == 1
+    assert body["data"][0]["major_code"] == "5307"
 
 
 def test_internal_list_by_normalized_ref_returns_multiple_profiles(fake_request, session) -> None:
@@ -283,6 +321,12 @@ def test_open_list_returns_only_available(fake_request, session) -> None:
         major_code=None,
         major_name=None,
         occupation=None,
+        training_goal=None,
+        ability="网店运营能力",
+        course=None,
+        course_group=None,
+        certificate=None,
+        continuation=None,
         education_level=None,
         pagination=PAGE,
         session=session,

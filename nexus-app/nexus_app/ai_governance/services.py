@@ -1247,8 +1247,9 @@ class AIGovernanceService:
 
     @staticmethod
     def _build_ref_dict(ref: models.NormalizedAssetRef) -> dict[str, Any]:
-        summary = (ref.metadata_summary or {}).get("summary", "")
-        content_snippet = (ref.metadata_summary or {}).get("content_snippet", "")
+        metadata_summary = ref.metadata_summary or {}
+        summary = metadata_summary.get("summary", "")
+        content_snippet = metadata_summary.get("content_snippet", "")
         # Compatibility for historical refs created before normalize started
         # writing summary/content_snippet into metadata_summary: fetch the
         # normalized payload from object storage and derive a snippet from
@@ -1266,6 +1267,12 @@ class AIGovernanceService:
             "schema_version": ref.schema_version,
             "content_snippet": content_snippet,
             "source_type_hint": ref.source_type,
+            "domain_profile": metadata_summary.get("domain_profile"),
+            "domain_quality": (
+                metadata_summary.get("major_profile_quality")
+                if metadata_summary.get("domain_profile") == "major_profile.v1"
+                else None
+            ),
             "sensitivity_summary": (ref.governance or {}).get("sensitivity_summary", ""),
             "org_context": (ref.governance or {}).get("org_scope", ""),
             "content_type": ref.content_type,
@@ -1521,4 +1528,3 @@ def _render_knowledge_type_rules(registry: GovernanceRulesRegistry) -> str:
         "primary_type 是置信度最高的知识类型。可以为空数组。"
     )
     return "\n".join(lines)
-

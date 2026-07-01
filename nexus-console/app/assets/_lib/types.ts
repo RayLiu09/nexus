@@ -38,7 +38,7 @@ export const DOMAIN_LABELS: Record<string, string> = {
   major_distribution: "专业布点数",
   talent_demand_report: "专业人才需求报告",
   talent_training_plan: "人才培养方案",
-  program_profile: "专业简介",
+  major_profile: "专业简介",
 };
 
 export const DOMAIN_OPTIONS = Object.entries(DOMAIN_LABELS).map(([value, label]) => ({

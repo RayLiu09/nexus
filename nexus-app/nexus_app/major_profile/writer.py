@@ -8,6 +8,7 @@ from sqlalchemy import delete, select
 
 from nexus_app import models
 from nexus_app.major_profile.extractor import DOMAIN_PROFILE, EXTRACTOR_VERSION
+from nexus_app.major_profile.schema import profile_payloads, validate_profile_payload
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -33,8 +34,8 @@ def write_many(
         return []
     if profile_payload.get("schema_version") != DOMAIN_PROFILE:
         return []
-    profile_payloads = _profile_payloads(profile_payload)
-    if not profile_payloads:
+    payloads = profile_payloads(profile_payload)
+    if not payloads:
         return []
 
     existing = list(session.scalars(
@@ -48,25 +49,15 @@ def write_many(
         session.flush()
 
     written: list[models.MajorProfile] = []
-    for payload in profile_payloads:
-        profile = _write_one(session, normalized_ref, payload)
+    for payload in payloads:
+        validated, flags = validate_profile_payload(payload)
+        if flags.get("invalid_schema"):
+            continue
+        profile = _write_one(session, normalized_ref, validated)
         if profile is not None:
             written.append(profile)
     session.flush()
     return written
-
-
-def _profile_payloads(profile_payload: dict[str, Any]) -> list[dict[str, Any]]:
-    raw_profiles = profile_payload.get("profiles")
-    if isinstance(raw_profiles, list):
-        out = [
-            item
-            for item in raw_profiles
-            if isinstance(item, dict) and item.get("schema_version") == DOMAIN_PROFILE
-        ]
-        if out:
-            return out
-    return [profile_payload]
 
 
 def _write_one(

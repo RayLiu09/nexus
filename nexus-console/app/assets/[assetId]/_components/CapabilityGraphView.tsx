@@ -290,7 +290,7 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
             <Alert
               type="warning"
               showIcon
-              message={`当前展示前 ${state.nodes.length}/${state.nodesTotal} 个节点、${state.edges.length}/${state.edgesTotal} 条边。`}
+              title={`当前展示前 ${state.nodes.length}/${state.nodesTotal} 个节点、${state.edges.length}/${state.edgesTotal} 条边。`}
             />
           ) : null}
 
