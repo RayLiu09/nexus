@@ -560,6 +560,8 @@ POST /internal/v1/knowledge-graphs/rebuild
 
 ### Task Package B：Profile Config + Candidate Selection
 
+状态：已开始落地。当前切片定义 5 个内置 `GraphProfileConfig`，新增 full-ref 候选选择服务；候选选择只读取指定 `normalized_ref_id` 下的全量 `semantic_block` chunks，再按 profile 和 `anchor_role` 过滤、分组和路由 extractor。
+
 范围：
 
 - 定义 `GraphProfileConfig`。
