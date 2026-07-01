@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -14,6 +15,7 @@ from nexus_app.database import get_db
 from nexus_app.evidence_graph import (
     KnowledgeGraphBuildStatus,
     create_graph_build,
+    get_existing_graph_build,
     get_latest_succeeded_build,
     select_graph_candidate_chunks,
 )
@@ -47,7 +49,7 @@ def submit_knowledge_graph_build(
     if payload.dry_run:
         return response(_selection_to_dict(selection), request)
 
-    existing = get_latest_succeeded_build(
+    existing = get_existing_graph_build(
         session,
         normalized_ref_id=payload.normalized_ref_id,
         graph_profile=payload.graph_profile,
@@ -56,27 +58,52 @@ def submit_knowledge_graph_build(
     if existing is not None and not payload.force:
         return response({
             "skipped": True,
-            "reason": "succeeded_build_exists",
+            "reason": "build_exists",
             "build": _build_to_dict(existing),
             "candidate_selection": _selection_to_dict(selection),
         }, request)
     if existing is not None and payload.force:
         existing.status = KnowledgeGraphBuildStatus.DEPRECATED
+        session.flush()
+    elif existing is None:
+        _deprecate_nonreusable_builds(
+            session,
+            normalized_ref_id=payload.normalized_ref_id,
+            graph_profile=payload.graph_profile,
+            strategy_version=payload.strategy_version,
+        )
 
-    build = create_graph_build(
-        session,
-        normalized_ref_id=payload.normalized_ref_id,
-        graph_profile=payload.graph_profile,
-        strategy_version=payload.strategy_version,
-        source_chunk_count=selection.total_semantic_chunk_count,
-        candidate_count=selection.selected_chunk_count,
-        status=KnowledgeGraphBuildStatus.PENDING,
-        quality_summary={
-            "candidate_selection": _selection_to_dict(selection),
-            "api_submit": "build_envelope_created",
-        },
-    )
-    session.commit()
+    try:
+        build = create_graph_build(
+            session,
+            normalized_ref_id=payload.normalized_ref_id,
+            graph_profile=payload.graph_profile,
+            strategy_version=payload.strategy_version,
+            source_chunk_count=selection.total_semantic_chunk_count,
+            candidate_count=selection.selected_chunk_count,
+            status=KnowledgeGraphBuildStatus.PENDING,
+            quality_summary={
+                "candidate_selection": _selection_to_dict(selection),
+                "api_submit": "build_envelope_created",
+            },
+        )
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        existing = get_existing_graph_build(
+            session,
+            normalized_ref_id=payload.normalized_ref_id,
+            graph_profile=payload.graph_profile,
+            strategy_version=payload.strategy_version,
+        )
+        if existing is not None and not payload.force:
+            return response({
+                "skipped": True,
+                "reason": "build_exists",
+                "build": _build_to_dict(existing),
+                "candidate_selection": _selection_to_dict(selection),
+            }, request)
+        raise
     session.refresh(build)
     return response({
         "skipped": False,
@@ -347,6 +374,47 @@ def _require_build(session: Session, build_id: str) -> models.KnowledgeGraphBuil
     if build is None:
         raise HTTPException(status_code=404, detail="knowledge graph build not found")
     return build
+
+
+def _deprecate_nonreusable_builds(
+    session: Session,
+    *,
+    normalized_ref_id: str,
+    graph_profile: str,
+    strategy_version: str,
+) -> None:
+    rows = list(session.scalars(
+        select(models.KnowledgeGraphBuild)
+        .where(
+            models.KnowledgeGraphBuild.normalized_ref_id == normalized_ref_id,
+            models.KnowledgeGraphBuild.graph_type == "evidence_grounded_kg",
+            models.KnowledgeGraphBuild.graph_profile == graph_profile,
+            models.KnowledgeGraphBuild.strategy_version == strategy_version,
+            models.KnowledgeGraphBuild.status != KnowledgeGraphBuildStatus.DEPRECATED,
+            (
+                models.KnowledgeGraphBuild.status == KnowledgeGraphBuildStatus.FAILED
+            )
+            | (
+                models.KnowledgeGraphBuild.status.in_(
+                    (
+                        KnowledgeGraphBuildStatus.SUCCEEDED,
+                        KnowledgeGraphBuildStatus.REVIEW_REQUIRED,
+                    )
+                )
+                & (models.KnowledgeGraphBuild.node_count == 0)
+                & (models.KnowledgeGraphBuild.fact_count == 0)
+            ),
+        )
+        .with_for_update(skip_locked=True)
+    ))
+    for build in rows:
+        summary = dict(build.quality_summary or {})
+        summary["cleanup_reason"] = "nonreusable_build_deprecated_for_rebuild"
+        summary["cleanup_previous_status"] = str(build.status)
+        build.status = KnowledgeGraphBuildStatus.DEPRECATED
+        build.quality_summary = summary
+    if rows:
+        session.flush()
 
 
 def _count_for_build(session: Session, model, build_id: str) -> int:

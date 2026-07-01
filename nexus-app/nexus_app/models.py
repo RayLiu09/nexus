@@ -1811,6 +1811,16 @@ class KnowledgeGraphBuild(TimestampMixin, Base):
             "normalized_ref_id", "graph_profile", "strategy_version",
         ),
         Index("ix_kgb_status_created", "status", "created_at"),
+        Index(
+            "uq_kgb_active_build_key",
+            "normalized_ref_id",
+            "graph_type",
+            "graph_profile",
+            "strategy_version",
+            unique=True,
+            postgresql_where=text("status <> 'deprecated'"),
+            sqlite_where=text("status != 'deprecated'"),
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)

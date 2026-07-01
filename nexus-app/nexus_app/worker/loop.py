@@ -24,6 +24,7 @@ from nexus_app.worker.runner import (
     _mark_job_outcome,
     execute_job,
 )
+from nexus_app.evidence_graph.processor import process_one_pending_graph_build
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +148,13 @@ class WorkerLoop:
             )
 
         if not jobs:
-            return 0
+            with self._get_session() as session:
+                graph_result = process_one_pending_graph_build(
+                    session,
+                    worker_id=self.worker_id,
+                    settings=self._settings,
+                )
+                return 1 if graph_result is not None else 0
 
         storage = self._get_storage()
         mineru = self._get_mineru()

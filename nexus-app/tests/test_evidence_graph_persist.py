@@ -243,7 +243,7 @@ def test_persist_object_node_creates_edge(session):
     assert evidence.edge_id == edge.id
 
 
-def test_low_confidence_candidate_not_persisted_and_requires_review(session):
+def test_low_confidence_candidate_not_persisted_and_fails_when_no_graph_rows(session):
     ref = _seed_ref(session)
     chunk = _add_chunk(session, chunk_id="chunk-low", index=1, content="低置信度事实。")
     session.commit()
@@ -262,10 +262,11 @@ def test_low_confidence_candidate_not_persisted_and_requires_review(session):
     )
     session.commit()
 
-    assert result.status == KnowledgeGraphBuildStatus.REVIEW_REQUIRED
+    assert result.status == KnowledgeGraphBuildStatus.FAILED
     assert result.low_confidence_candidates == 1
     assert result.facts_written == 0
-    assert build.status == KnowledgeGraphBuildStatus.REVIEW_REQUIRED
+    assert build.status == KnowledgeGraphBuildStatus.FAILED
+    assert build.error_message is not None
     assert build.quality_summary["low_confidence_candidates"] == 1
     assert session.scalar(select(func.count()).select_from(models.KnowledgeGraphFact)) == 0
 
@@ -287,8 +288,9 @@ def test_missing_evidence_candidate_not_persisted(session):
     )
     session.commit()
 
-    assert result.status == KnowledgeGraphBuildStatus.REVIEW_REQUIRED
+    assert result.status == KnowledgeGraphBuildStatus.FAILED
     assert result.rejected_candidates == 1
     assert result.facts_written == 0
+    assert build.status == KnowledgeGraphBuildStatus.FAILED
     assert build.quality_summary["missing_evidence_candidates"] == 1
     assert session.scalar(select(func.count()).select_from(models.KnowledgeGraphEvidence)) == 0

@@ -11,19 +11,20 @@ import {
 } from "react";
 import {
   Alert,
+  App,
   Button,
   Card,
   Checkbox,
   Drawer,
   Empty,
   Input,
-  List,
+  Progress,
   Skeleton,
   Space,
+  Steps,
   Tag,
   Tooltip,
   Typography,
-  message,
 } from "antd";
 import { Network, RefreshCw, Search } from "lucide-react";
 import type { ECharts, EChartsOption } from "echarts";
@@ -97,9 +98,38 @@ type GraphEdgeDatum = {
   confidence: number | null;
 };
 
+type BuildProcessPhase = "idle" | "preflight" | "submitted" | "waiting" | "succeeded" | "failed";
+
+type CandidateSelectionSummary = {
+  selected_chunk_count?: number;
+  skipped_chunk_count?: number;
+  total_semantic_chunk_count?: number;
+  by_anchor_role?: Record<string, number>;
+  skipped_by_reason?: Record<string, number>;
+};
+
+type BuildSubmitResponse = {
+  skipped?: boolean;
+  reason?: string;
+  build?: KnowledgeGraphBuild;
+  candidate_selection?: CandidateSelectionSummary;
+};
+
+type BuildProcessState = {
+  phase: BuildProcessPhase;
+  buildId: string | null;
+  candidateSelection: CandidateSelectionSummary | null;
+  message: string | null;
+  error: string | null;
+  pollCount: number;
+  updatedAt: string | null;
+};
+
 const STRATEGY_VERSION = "evidence_kg.v1";
 const PAGE_SIZE = 200;
 const MAX_GRAPH_ROWS = 1600;
+const BUILD_POLL_INTERVAL_MS = 3000;
+const BUILD_POLL_LIMIT = 40;
 
 const NODE_LABELS: Record<string, string> = {
   Organization: "组织",
@@ -131,6 +161,7 @@ const NODE_COLORS = [
 ];
 
 export function EvidenceGraphView({ normalizedRef }: Props) {
+  const { message } = App.useApp();
   const normalizedRefId = normalizedRef?.id ?? null;
   const graphProfile = resolveGraphProfile(normalizedRef);
   const [state, setState] = useState<GraphState>({
@@ -149,7 +180,17 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
   const [chunkPreview, setChunkPreview] = useState<KnowledgeChunkHit | null>(null);
   const [chunkDrawerOpen, setChunkDrawerOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [buildProcess, setBuildProcess] = useState<BuildProcessState>({
+    phase: "idle",
+    buildId: null,
+    candidateSelection: null,
+    message: null,
+    error: null,
+    pollCount: 0,
+    updatedAt: null,
+  });
   const graphRef = useRef<GraphImageHandle | null>(null);
+  const pollTimerRef = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     if (!normalizedRefId) {
@@ -167,6 +208,50 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
     }
 
     setState((prev) => ({ ...prev, loading: true, error: null }));
+    const active = await fetchLatestActiveBuild(normalizedRefId, graphProfile);
+    if (!active.ok) {
+      setState({
+        loading: false,
+        build: null,
+        nodes: [],
+        edges: [],
+        facts: [],
+        evidence: [],
+        totals: { nodes: 0, edges: 0, facts: 0, evidence: 0 },
+        error: active.error,
+      });
+      return;
+    }
+
+    if (active.build && isBuildInProgress(active.build)) {
+      const build = active.build;
+      setState({
+        loading: false,
+        build,
+        nodes: [],
+        edges: [],
+        facts: [],
+        evidence: [],
+        totals: {
+          nodes: build.node_count,
+          edges: build.edge_count,
+          facts: build.fact_count,
+          evidence: 0,
+        },
+        error: null,
+      });
+      setBuildProcess((prev) =>
+        buildProcessFromBuild(build, {
+          pollCount: prev.buildId === build.id ? prev.pollCount : 0,
+          candidateSelection:
+            prev.buildId === build.id
+              ? prev.candidateSelection ?? candidateSelectionFromBuild(build)
+              : candidateSelectionFromBuild(build),
+        }),
+      );
+      return;
+    }
+
     const summary = await getApiData<KnowledgeGraphLatestSummary>(
       `/api/evidence-graphs/normalized-refs/${normalizedRefId}`,
       { build: null },
@@ -186,7 +271,7 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
       return;
     }
 
-    const build = summary.data.build;
+    const build = summary.data.build ?? active.build;
     if (!build) {
       setState({
         loading: false,
@@ -198,6 +283,51 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
         totals: { nodes: 0, edges: 0, facts: 0, evidence: 0 },
         error: null,
       });
+      return;
+    }
+
+    if (isZeroRowSucceededBuild(build)) {
+      setState({
+        loading: false,
+        build: null,
+        nodes: [],
+        edges: [],
+        facts: [],
+        evidence: [],
+        totals: { nodes: 0, edges: 0, facts: 0, evidence: 0 },
+        error: null,
+      });
+      setBuildProcess({
+        phase: "failed",
+        buildId: build.id,
+        candidateSelection: candidateSelectionFromBuild(build),
+        message: null,
+        error: "上一次构建状态为成功，但未产生任何图谱节点或事实，请重新构建。",
+        pollCount: 0,
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    if (!canDisplayGraphData(build)) {
+      setState({
+        loading: false,
+        build,
+        nodes: [],
+        edges: [],
+        facts: [],
+        evidence: [],
+        totals: {
+          nodes: build.node_count,
+          edges: build.edge_count,
+          facts: build.fact_count,
+          evidence: 0,
+        },
+        error: null,
+      });
+      if (build.status === "failed") {
+        setBuildProcess(buildProcessFromBuild(build));
+      }
       return;
     }
 
@@ -224,15 +354,42 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
       },
       error,
     });
+    if (!error) {
+      setBuildProcess({
+        phase: "idle",
+        buildId: null,
+        candidateSelection: null,
+        message: null,
+        error: null,
+        pollCount: 0,
+        updatedAt: null,
+      });
+    }
   }, [graphProfile, normalizedRefId]);
 
   useEffect(() => {
     load();
   }, [load]);
 
+  useEffect(
+    () => () => {
+      if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
+    },
+    [],
+  );
+
   useEffect(() => {
     setQuery("");
     setSelectedItem(null);
+    setBuildProcess({
+      phase: "idle",
+      buildId: null,
+      candidateSelection: null,
+      message: null,
+      error: null,
+      pollCount: 0,
+      updatedAt: null,
+    });
   }, [normalizedRefId]);
 
   const nodeById = useMemo(
@@ -256,30 +413,160 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
     state.edges.length < state.totals.edges ||
     state.facts.length < state.totals.facts ||
     state.evidence.length < state.totals.evidence;
+  const buildInProgress = state.build ? isBuildInProgress(state.build) : false;
+  const showGraphData = state.build ? canDisplayGraphData(state.build) : false;
+  const showBuildProcessPanel =
+    buildProcess.phase !== "idle" &&
+    (buildProcess.phase !== "succeeded" || !showGraphData);
 
-  const submitBuild = useCallback(async () => {
+  useEffect(() => {
+    if (!normalizedRefId || buildProcess.phase !== "waiting" || !buildProcess.buildId) return;
+    if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
+    if (buildProcess.pollCount >= BUILD_POLL_LIMIT) {
+      setBuildProcess((prev) => ({
+        ...prev,
+        message: "构建仍在等待后台处理，可稍后手动刷新状态。",
+        pollCount: BUILD_POLL_LIMIT,
+        updatedAt: new Date().toISOString(),
+      }));
+      return;
+    }
+
+    const buildId = buildProcess.buildId;
+    const nextPollCount = buildProcess.pollCount + 1;
+    pollTimerRef.current = window.setTimeout(async () => {
+      const latest = await fetchLatestActiveBuild(normalizedRefId, graphProfile);
+      if (!latest.ok) {
+        setBuildProcess((prev) => ({
+          ...prev,
+          phase: "failed",
+          error: latest.error ?? "轮询构建状态失败",
+          pollCount: nextPollCount,
+          updatedAt: new Date().toISOString(),
+        }));
+        return;
+      }
+
+      const build = latest.build;
+      if (!build) {
+        setBuildProcess((prev) => ({
+          ...prev,
+          phase: "failed",
+          error: "未找到当前 Evidence Graph build 状态。",
+          pollCount: nextPollCount,
+          updatedAt: new Date().toISOString(),
+        }));
+        return;
+      }
+
+      const nextProcess = buildProcessFromBuild(build, {
+        pollCount: nextPollCount,
+        candidateSelection: buildProcess.candidateSelection,
+      });
+      setBuildProcess(nextProcess);
+      if (build.status === "succeeded" || build.status === "review_required" || build.status === "failed") {
+        await load();
+        return;
+      }
+      if (build.id !== buildId) {
+        await load();
+      }
+    }, BUILD_POLL_INTERVAL_MS);
+
+    return () => {
+      if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
+    };
+  }, [
+    buildProcess.buildId,
+    buildProcess.candidateSelection,
+    buildProcess.phase,
+    buildProcess.pollCount,
+    graphProfile,
+    load,
+    normalizedRefId,
+  ]);
+
+  const submitBuild = useCallback(async (force = false) => {
     if (!normalizedRefId) return;
+    const refId = normalizedRefId;
+    if (buildInProgress) {
+      message.info("当前已有图谱构建正在执行，请等待后台处理完成。");
+      return;
+    }
+    if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
     setSubmitting(true);
+    setBuildProcess({
+      phase: "preflight",
+      buildId: null,
+      candidateSelection: null,
+      message: "正在扫描当前标准化资产的语义知识块。",
+      error: null,
+      pollCount: 0,
+      updatedAt: new Date().toISOString(),
+    });
     try {
-      const result = await postApiData<{ skipped?: boolean; build?: KnowledgeGraphBuild }>(
-        "/api/evidence-graphs/builds",
-        {
-          normalized_ref_id: normalizedRefId,
-          graph_profile: graphProfile,
-          strategy_version: STRATEGY_VERSION,
-          force: false,
-          dry_run: false,
-        },
+      const basePayload = {
+        normalized_ref_id: refId,
+        graph_profile: graphProfile,
+        strategy_version: STRATEGY_VERSION,
+      };
+      const dryRun = await postApiData<CandidateSelectionSummary>("/api/evidence-graphs/builds", {
+        ...basePayload,
+        force,
+        dry_run: true,
+      });
+      setBuildProcess((prev) => ({
+        ...prev,
+        phase: "submitted",
+        candidateSelection: dryRun.data,
+        message: `预检完成，选中 ${dryRun.data.selected_chunk_count ?? 0} 个候选知识块。`,
+        updatedAt: new Date().toISOString(),
+      }));
+
+      const result = await postApiData<BuildSubmitResponse>("/api/evidence-graphs/builds", {
+        ...basePayload,
+        force,
+        dry_run: false,
+      });
+      const skipped = Boolean(result.data?.skipped);
+      const build = result.data?.build ?? null;
+      const candidateSelection = result.data?.candidate_selection ?? dryRun.data;
+      setBuildProcess(
+        build
+          ? {
+              ...buildProcessFromBuild(build, { candidateSelection }),
+              message: skipped
+                ? skippedBuildMessage(build)
+                : "构建信封已创建，等待后台知识加工写入图谱结果。",
+            }
+          : {
+              phase: skipped ? "succeeded" : "waiting",
+              buildId: null,
+              candidateSelection,
+              message: skipped
+                ? skippedBuildMessage(build)
+                : "构建信封已创建，等待后台知识加工写入图谱结果。",
+              error: null,
+              pollCount: 0,
+              updatedAt: new Date().toISOString(),
+            },
       );
-      const skipped = result.data?.skipped;
-      message.success(skipped ? "已有成功图谱构建" : "已提交图谱构建信封");
+      message.success(skipped ? "已有图谱构建记录" : "已提交图谱构建信封");
       await load();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "提交图谱构建失败");
+      const errorMessage = error instanceof Error ? error.message : "提交图谱构建失败";
+      setBuildProcess((prev) => ({
+        ...prev,
+        phase: "failed",
+        message: null,
+        error: errorMessage,
+        updatedAt: new Date().toISOString(),
+      }));
+      message.error(errorMessage);
     } finally {
       setSubmitting(false);
     }
-  }, [graphProfile, load, normalizedRefId]);
+  }, [buildInProgress, graphProfile, load, normalizedRefId]);
 
   const openEvidenceChunk = useCallback((evidence: KnowledgeGraphEvidence) => {
     setChunkPreview(evidenceToChunkHit(evidence));
@@ -334,28 +621,49 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
         ) : null}
 
         {!state.loading && !state.error && !state.build ? (
-          <Empty description="尚未生成 Evidence Graph build" image={Empty.PRESENTED_IMAGE_SIMPLE}>
-            <Button
-              type="primary"
-              icon={<RefreshCw size={16} aria-hidden="true" />}
-              loading={submitting}
-              onClick={submitBuild}
-            >
-              构建图谱
-            </Button>
-          </Empty>
+          <div className="flex flex-col gap-4">
+            <Empty description="尚未生成 Evidence Graph build" image={Empty.PRESENTED_IMAGE_SIMPLE}>
+              <Button
+                type="primary"
+                icon={<RefreshCw size={16} aria-hidden="true" />}
+                loading={submitting}
+                disabled={buildProcess.phase === "waiting"}
+                onClick={() => submitBuild(false)}
+              >
+                {buildProcess.phase === "waiting" ? "构建中" : "构建图谱"}
+              </Button>
+            </Empty>
+            {showBuildProcessPanel ? <BuildProcessPanel process={buildProcess} /> : null}
+          </div>
         ) : null}
 
         {!state.loading && !state.error && state.build ? (
           <div className="flex flex-col gap-4">
-            <BuildSummary
-              build={state.build}
-              totals={state.totals}
-              onRefresh={load}
-              refreshing={state.loading}
-            />
+            {showBuildProcessPanel ? <BuildProcessPanel process={buildProcess} /> : null}
 
-            {isTruncated ? (
+            {buildInProgress ? (
+              <Alert
+                type="info"
+                showIcon
+                title="Evidence Graph 正在构建中"
+                description="后台正在抽取并写入图谱节点、关系、事实与 evidence。构建完成后本页会自动刷新。"
+              />
+            ) : null}
+
+            {state.build.status === "failed" ? (
+              <div>
+                <Button
+                  type="primary"
+                  icon={<RefreshCw size={16} aria-hidden="true" />}
+                  loading={submitting}
+                  onClick={() => submitBuild(true)}
+                >
+                  重新构建
+                </Button>
+              </div>
+            ) : null}
+
+            {showGraphData && isTruncated ? (
               <Alert
                 type="warning"
                 showIcon
@@ -363,16 +671,19 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
               />
             ) : null}
 
-            <GraphToolbar
-              query={query}
-              onQueryChange={setQuery}
-              showEdgeLabels={showEdgeLabels}
-              onShowEdgeLabelsChange={setShowEdgeLabels}
-            />
+            {showGraphData ? (
+              <GraphToolbar
+                query={query}
+                onQueryChange={setQuery}
+                showEdgeLabels={showEdgeLabels}
+                onShowEdgeLabelsChange={setShowEdgeLabels}
+              />
+            ) : null}
 
-            {filteredGraph.nodes.length === 0 ? (
+            {showGraphData && filteredGraph.nodes.length === 0 ? (
               <Empty description="当前筛选条件下无图谱节点" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            ) : (
+            ) : null}
+            {showGraphData && filteredGraph.nodes.length > 0 ? (
               <EvidenceEchartsGraph
                 ref={graphRef}
                 nodes={filteredGraph.nodes}
@@ -381,13 +692,8 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
                 searchQuery={query}
                 onSelect={setSelectedItem}
               />
-            )}
+            ) : null}
 
-            <FactList
-              facts={state.facts}
-              nodeById={nodeById}
-              onSelect={(fact) => setSelectedItem({ kind: "fact", item: fact })}
-            />
           </div>
         ) : null}
       </Card>
@@ -408,36 +714,86 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
   );
 }
 
-function BuildSummary({
-  build,
-  totals,
-  onRefresh,
-  refreshing,
-}: {
-  build: KnowledgeGraphBuild;
-  totals: GraphState["totals"];
-  onRefresh: () => void;
-  refreshing: boolean;
-}) {
+function BuildProcessPanel({ process }: { process: BuildProcessState }) {
+  if (process.phase === "idle") return null;
+
+  const current = buildProcessStepIndex(process.phase);
+  const percent = buildProcessPercent(process.phase, process.pollCount);
+  const candidate = process.candidateSelection;
+  const failed = process.phase === "failed";
+
   return (
-    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
-      <div className="flex flex-wrap gap-2">
-        <Tag color="blue">profile {build.graph_profile}</Tag>
-        <Tag>strategy {build.strategy_version}</Tag>
-        <Tag>chunks {build.source_chunk_count}</Tag>
-        <Tag>candidate {build.candidate_count}</Tag>
-        <Tag>节点 {totals.nodes}</Tag>
-        <Tag>边 {totals.edges}</Tag>
-        <Tag>事实 {totals.facts}</Tag>
-        <Tag>证据 {totals.evidence}</Tag>
+    <div className="rounded-md border border-[var(--line)] bg-[var(--surface-alt)] p-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold">构建过程</span>
+          <Tag color={failed ? "error" : process.phase === "succeeded" ? "success" : "processing"}>
+            {buildProcessPhaseLabel(process.phase)}
+          </Tag>
+          {process.buildId ? <Tag>build {shortBuildId(process.buildId)}</Tag> : null}
+        </div>
+        {process.updatedAt ? (
+          <span className="text-muted text-xs">
+            更新于 {new Date(process.updatedAt).toLocaleTimeString("zh-CN", { hour12: false })}
+          </span>
+        ) : null}
       </div>
-      <Button
-        icon={<RefreshCw size={16} aria-hidden="true" />}
-        loading={refreshing}
-        onClick={onRefresh}
-      >
-        刷新构建状态
-      </Button>
+
+      <Steps
+        size="small"
+        current={current}
+        status={failed ? "error" : process.phase === "succeeded" ? "finish" : "process"}
+        items={[
+          { title: "候选预检", content: "统计可抽取 chunks" },
+          { title: "创建构建", content: "提交 build envelope" },
+          { title: "后台加工", content: "等待抽取与持久化" },
+          { title: "图谱可用", content: "刷新节点/事实/evidence" },
+        ]}
+      />
+
+      <div className="mt-3">
+        <Progress
+          percent={percent}
+          status={failed ? "exception" : process.phase === "succeeded" ? "success" : "active"}
+          showInfo={false}
+        />
+      </div>
+
+      {process.message ? (
+        <Alert
+          type={failed ? "error" : "info"}
+          showIcon
+          title={process.message}
+          className="!mt-3"
+        />
+      ) : null}
+      {process.error ? (
+        <Alert
+          type="error"
+          showIcon
+          title="构建状态异常"
+          description={process.error}
+          className="!mt-3"
+        />
+      ) : null}
+
+      {candidate ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Tag>语义块 {candidate.total_semantic_chunk_count ?? 0}</Tag>
+          <Tag color="blue">候选 {candidate.selected_chunk_count ?? 0}</Tag>
+          <Tag>跳过 {candidate.skipped_chunk_count ?? 0}</Tag>
+          {Object.entries(candidate.by_anchor_role ?? {}).map(([role, count]) => (
+            <Tag key={role}>
+              {role} {count}
+            </Tag>
+          ))}
+          {Object.entries(candidate.skipped_by_reason ?? {}).map(([reason, count]) => (
+            <Tag key={reason} color="default">
+              {reason} {count}
+            </Tag>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -470,45 +826,6 @@ function GraphToolbar({
       >
         显示边标签
       </Checkbox>
-    </div>
-  );
-}
-
-function FactList({
-  facts,
-  nodeById,
-  onSelect,
-}: {
-  facts: KnowledgeGraphFact[];
-  nodeById: Map<string, KnowledgeGraphNode>;
-  onSelect: (fact: KnowledgeGraphFact) => void;
-}) {
-  if (facts.length === 0) return null;
-  return (
-    <div className="rounded-md border border-[var(--line)]">
-      <div className="border-0 border-b border-solid border-[var(--line)] px-3 py-2 text-sm font-semibold">
-        事实列表
-      </div>
-      <List
-        size="small"
-        dataSource={facts.slice(0, 80)}
-        renderItem={(fact) => (
-          <List.Item
-            className="cursor-pointer"
-            onClick={() => onSelect(fact)}
-            actions={[
-              fact.confidence != null ? (
-                <Tag key="confidence">{(fact.confidence * 100).toFixed(0)}%</Tag>
-              ) : null,
-            ]}
-          >
-            <List.Item.Meta
-              title={formatFact(fact, nodeById)}
-              description={`${fact.fact_type} · ${fact.predicate}`}
-            />
-          </List.Item>
-        )}
-      />
     </div>
   );
 }
@@ -750,40 +1067,36 @@ function GraphDetailDrawer({
             {evidence.length === 0 ? (
               <Empty description="该对象暂无 evidence 记录" image={Empty.PRESENTED_IMAGE_SIMPLE} />
             ) : (
-              <List
-                className="mt-2"
-                size="small"
-                dataSource={evidence}
-                renderItem={(item) => (
-                  <List.Item
-                    actions={[
-                      <Button
-                        key="open"
-                        type="link"
-                        size="small"
-                        onClick={() => onEvidenceOpen(item)}
-                      >
-                        原文定位
-                      </Button>,
-                    ]}
+              <div role="list" className="mt-2 divide-y divide-[var(--line)] rounded-md border border-[var(--line)]">
+                {evidence.map((item) => (
+                  <div
+                    key={item.id}
+                    role="listitem"
+                    className="flex items-start justify-between gap-3 px-3 py-2"
                   >
-                    <List.Item.Meta
-                      title={
-                        <Space size={6} wrap>
-                          <LocatorChip locator={item.locator as LocatorInfo | null | undefined} />
-                          {item.confidence != null ? (
-                            <Tag>{(item.confidence * 100).toFixed(0)}%</Tag>
-                          ) : null}
-                          {item.extraction_method ? <Tag>{item.extraction_method}</Tag> : null}
-                        </Space>
-                      }
-                      description={
-                        <span className="text-sm whitespace-pre-wrap">{item.evidence_text}</span>
-                      }
-                    />
-                  </List.Item>
-                )}
-              />
+                    <div className="min-w-0 flex-1">
+                      <Space size={6} wrap>
+                        <LocatorChip locator={item.locator as LocatorInfo | null | undefined} />
+                        {item.confidence != null ? (
+                          <Tag>{(item.confidence * 100).toFixed(0)}%</Tag>
+                        ) : null}
+                        {item.extraction_method ? <Tag>{item.extraction_method}</Tag> : null}
+                      </Space>
+                      <div className="mt-2 whitespace-pre-wrap text-sm text-[var(--text)]">
+                        {item.evidence_text}
+                      </div>
+                    </div>
+                    <Button
+                      type="link"
+                      size="small"
+                      className="shrink-0"
+                      onClick={() => onEvidenceOpen(item)}
+                    >
+                      原文定位
+                    </Button>
+                  </div>
+                ))}
+              </div>
             )}
           </section>
         </div>
@@ -899,6 +1212,100 @@ async function fetchPagedItems<T extends { id: string }>(path: string): Promise<
     page += 1;
   }
   return { ok: true, data, total: Math.max(total, data.length), error: null };
+}
+
+async function fetchLatestActiveBuild(
+  normalizedRefId: string,
+  graphProfile: string,
+): Promise<{ ok: boolean; build: KnowledgeGraphBuild | null; error: string | null }> {
+  const builds = await getApiData<KnowledgeGraphBuild[]>("/api/evidence-graphs/builds", [], {
+    normalized_ref_id: normalizedRefId,
+    graph_profile: graphProfile,
+    strategy_version: STRATEGY_VERSION,
+    pageSize: "50",
+  });
+  if (!builds.ok) {
+    return {
+      ok: false,
+      build: null,
+      error: builds.error ?? "加载 Evidence Graph build 状态失败",
+    };
+  }
+  return {
+    ok: true,
+    build:
+      builds.data.find(
+        (build) => build.status !== "deprecated" && !isZeroRowSucceededBuild(build),
+      ) ?? null,
+    error: null,
+  };
+}
+
+function isBuildInProgress(build: KnowledgeGraphBuild): boolean {
+  return build.status === "pending" || build.status === "running";
+}
+
+function canDisplayGraphData(build: KnowledgeGraphBuild): boolean {
+  return (build.status === "succeeded" || build.status === "review_required") && !isZeroRowSucceededBuild(build);
+}
+
+function isZeroRowSucceededBuild(build: KnowledgeGraphBuild): boolean {
+  return build.status === "succeeded" && build.node_count === 0 && build.fact_count === 0;
+}
+
+function candidateSelectionFromBuild(build: KnowledgeGraphBuild): CandidateSelectionSummary | null {
+  const summary = build.quality_summary ?? {};
+  const value = summary.candidate_selection;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as CandidateSelectionSummary;
+}
+
+function buildProcessFromBuild(
+  build: KnowledgeGraphBuild,
+  options?: {
+    pollCount?: number;
+    candidateSelection?: CandidateSelectionSummary | null;
+  },
+): BuildProcessState {
+  const candidateSelection = options?.candidateSelection ?? candidateSelectionFromBuild(build);
+  const pollCount = options?.pollCount ?? 0;
+  const phase: BuildProcessPhase =
+    build.status === "failed"
+      ? "failed"
+      : build.status === "succeeded" || build.status === "review_required"
+        ? "succeeded"
+        : "waiting";
+  return {
+    phase,
+    buildId: build.id,
+    candidateSelection,
+    message: buildProcessMessage(build, pollCount),
+    error: build.error_message,
+    pollCount,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function buildProcessMessage(build: KnowledgeGraphBuild, pollCount: number): string {
+  if (build.status === "pending") return "构建信封已创建，等待后台 worker 认领处理。";
+  if (build.status === "running") {
+    return pollCount > 0
+      ? `后台正在抽取并写入图谱，已轮询 ${pollCount} 次。`
+      : "后台正在抽取并写入图谱。";
+  }
+  if (build.status === "succeeded") return "图谱构建完成，正在加载图谱数据。";
+  if (build.status === "review_required") return "图谱已生成，但存在低置信度或需复核内容。";
+  if (build.status === "failed") return "图谱构建失败，请查看构建错误。";
+  return "已存在 Evidence Graph build。";
+}
+
+function skippedBuildMessage(build?: KnowledgeGraphBuild | null): string {
+  if (!build) return "已存在 Evidence Graph build，已加载当前状态。";
+  if (isBuildInProgress(build)) return "已存在正在执行的构建，已切换到构建过程视图。";
+  if (build.status === "succeeded") return "已存在成功构建，直接加载当前图谱。";
+  if (build.status === "review_required") return "已存在需复核的图谱构建，直接加载当前图谱。";
+  if (build.status === "failed") return "已存在失败的构建记录，请查看错误或执行重建。";
+  return "已存在 Evidence Graph build，已加载当前状态。";
 }
 
 function filterGraph(
@@ -1047,6 +1454,36 @@ function statusColor(status: string): string {
   if (status === "failed") return "error";
   if (status === "deprecated") return "default";
   return "processing";
+}
+
+function buildProcessStepIndex(phase: BuildProcessPhase): number {
+  if (phase === "preflight") return 0;
+  if (phase === "submitted") return 1;
+  if (phase === "waiting" || phase === "failed") return 2;
+  if (phase === "succeeded") return 3;
+  return 0;
+}
+
+function buildProcessPercent(phase: BuildProcessPhase, pollCount: number): number {
+  if (phase === "preflight") return 18;
+  if (phase === "submitted") return 42;
+  if (phase === "waiting") return Math.min(88, 48 + pollCount * 4);
+  if (phase === "succeeded") return 100;
+  if (phase === "failed") return Math.max(36, Math.min(88, 48 + pollCount * 4));
+  return 0;
+}
+
+function buildProcessPhaseLabel(phase: BuildProcessPhase): string {
+  if (phase === "preflight") return "预检中";
+  if (phase === "submitted") return "已提交";
+  if (phase === "waiting") return "处理中";
+  if (phase === "succeeded") return "已完成";
+  if (phase === "failed") return "失败";
+  return "未开始";
+}
+
+function shortBuildId(value: string): string {
+  return value.length > 12 ? `${value.slice(0, 8)}...${value.slice(-4)}` : value;
 }
 
 function resolveGraphProfile(ref: NormalizedAssetRef | null): string {

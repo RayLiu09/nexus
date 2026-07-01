@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 class GraphExtractionRejectReason(StrEnum):
     SCHEMA_INVALID = "schema_invalid"
+    LANGUAGE_MISMATCH = "language_mismatch"
     LLM_CLIENT_UNAVAILABLE = "llm_client_unavailable"
     LLM_CALL_FAILED = "llm_call_failed"
     UNSUPPORTED_EXTRACTOR = "unsupported_extractor"
@@ -98,6 +99,7 @@ class GraphExtractionResult(BaseModel):
     accepted: list[GraphFactCandidate] = Field(default_factory=list)
     rejected_count: int = 0
     reject_reasons: dict[str, int] = Field(default_factory=dict)
+    reject_samples: list[dict[str, Any]] = Field(default_factory=list)
 
     @property
     def accepted_count(self) -> int:

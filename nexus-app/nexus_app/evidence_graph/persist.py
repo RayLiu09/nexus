@@ -16,6 +16,7 @@ from nexus_app.evidence_graph.candidates import GraphChunkCandidate
 from nexus_app.evidence_graph.schemas import GraphFactCandidate
 from nexus_app.evidence_graph.service import (
     KnowledgeGraphBuildStatus,
+    mark_graph_build_failed,
     mark_graph_build_succeeded,
 )
 
@@ -57,6 +58,8 @@ def persist_graph_candidates(
     candidates: list[GraphFactCandidate] | tuple[GraphFactCandidate, ...],
     chunk_candidates: list[GraphChunkCandidate] | tuple[GraphChunkCandidate, ...],
     confidence_threshold: Decimal = DEFAULT_CONFIDENCE_THRESHOLD,
+    source_candidate_count: int = 0,
+    extraction_rejected_count: int = 0,
 ) -> GraphPersistResult:
     """Merge validated candidates and persist official graph rows.
 
@@ -186,6 +189,8 @@ def persist_graph_candidates(
 
     quality_summary = {
         "input_candidates": len(candidates),
+        "source_candidate_count": source_candidate_count,
+        "extraction_rejected_candidates": extraction_rejected_count,
         "persisted_candidates": len(fact_by_key),
         "low_confidence_candidates": low_confidence,
         "missing_evidence_candidates": missing_evidence,
@@ -197,9 +202,9 @@ def persist_graph_candidates(
         "evidence_written": evidence_written,
     }
     status = (
-        KnowledgeGraphBuildStatus.REVIEW_REQUIRED
-        if low_confidence or missing_evidence
-        else KnowledgeGraphBuildStatus.SUCCEEDED
+        KnowledgeGraphBuildStatus.SUCCEEDED
+        if fact_by_key
+        else KnowledgeGraphBuildStatus.FAILED
     )
     if status == KnowledgeGraphBuildStatus.SUCCEEDED:
         mark_graph_build_succeeded(
@@ -212,13 +217,17 @@ def persist_graph_candidates(
             quality_summary=quality_summary,
         )
     else:
-        build.status = status
-        build.node_count = len(node_by_key)
-        build.edge_count = len(edge_by_key)
-        build.fact_count = len(fact_by_key)
+        error_message = (
+            "Evidence Graph extraction produced zero persisted graph rows; "
+            "relax extractor schema, improve chunk quality, or rebuild later."
+        )
         build.candidate_count = len(candidates)
-        build.quality_summary = quality_summary
-        session.flush()
+        mark_graph_build_failed(
+            session,
+            build,
+            error_message=error_message,
+            quality_summary=quality_summary,
+        )
 
     return GraphPersistResult(
         build_id=build.id,

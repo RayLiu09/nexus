@@ -101,6 +101,8 @@ GRAPH_PROFILE_CONFIGS: dict[str, GraphProfileConfig] = {
         entity_types=(
             "Policy", "Article", "Organization", "RegulatedSubject",
             "Requirement", "Measure", "Penalty", "TimePeriod", "Region",
+            "PolicyDocument", "PolicyGoal", "PolicyAction", "PolicyMeasure",
+            "Process", "Topic", "Entity",
         ),
         fact_types=(
             "policy_issue_fact", "policy_fact", "requirement_fact",
@@ -122,7 +124,9 @@ GRAPH_PROFILE_CONFIGS: dict[str, GraphProfileConfig] = {
         entity_types=(
             "Industry", "Market", "Region", "Country", "Company", "Platform",
             "Metric", "MetricValue", "Policy", "Organization", "Trend",
-            "Event", "Finding", "EvidenceArgument",
+            "Event", "Finding", "EvidenceArgument", "PolicyDocument",
+            "PolicyGoal", "PolicyAction", "PolicyMeasure", "Requirement",
+            "Process", "Standard", "Report", "Topic", "Entity",
         ),
         fact_types=(
             "metric_fact", "trend_fact", "policy_fact", "event_fact",
@@ -147,6 +151,7 @@ GRAPH_PROFILE_CONFIGS: dict[str, GraphProfileConfig] = {
         entity_types=(
             "Concept", "Definition", "Principle", "Theorem", "Method",
             "Formula", "Example", "Exercise", "Chapter", "KnowledgePoint",
+            "Entity",
         ),
         fact_types=(
             "definition_fact", "method_step_fact", "formula_fact",
@@ -167,7 +172,7 @@ GRAPH_PROFILE_CONFIGS: dict[str, GraphProfileConfig] = {
         description="标准、规范、规程、技术要求、管理制度",
         entity_types=(
             "Standard", "Clause", "Requirement", "Object", "Condition",
-            "Exception", "Procedure", "Role", "Metric",
+            "Exception", "Procedure", "Role", "Metric", "Entity",
         ),
         fact_types=(
             "standard_issue_fact", "clause_requirement_fact", "scope_fact",
@@ -188,7 +193,7 @@ GRAPH_PROFILE_CONFIGS: dict[str, GraphProfileConfig] = {
         description="SOP、操作文档、作业指导书、流程说明",
         entity_types=(
             "Procedure", "Step", "Role", "Input", "Output", "Tool", "Risk",
-            "ControlPoint", "Prerequisite",
+            "ControlPoint", "Prerequisite", "Entity",
         ),
         fact_types=(
             "procedure_fact", "step_fact", "role_responsibility_fact",

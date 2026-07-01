@@ -300,6 +300,11 @@ def test_submit_build_creates_envelope_and_rebuild_deprecates_existing(app, sess
             "graph_profile": "report_document",
             "strategy_version": "evidence_kg.v3",
         })
+        duplicate = client.post("/internal/v1/knowledge-graphs/builds", json={
+            "normalized_ref_id": ref.id,
+            "graph_profile": "report_document",
+            "strategy_version": "evidence_kg.v3",
+        })
         rebuilt = client.post("/internal/v1/knowledge-graphs/rebuild", json={
             "normalized_ref_id": ref.id,
             "graph_profile": "report_document",
@@ -309,11 +314,56 @@ def test_submit_build_creates_envelope_and_rebuild_deprecates_existing(app, sess
     assert created.status_code == 200
     assert created.json()["data"]["skipped"] is False
     assert created.json()["data"]["build"]["candidate_count"] == 1
+    assert duplicate.status_code == 200
+    assert duplicate.json()["data"]["skipped"] is True
+    assert duplicate.json()["data"]["reason"] == "build_exists"
+    assert duplicate.json()["data"]["build"]["id"] == created.json()["data"]["build"]["id"]
     assert rebuilt.status_code == 200
     assert rebuilt.json()["data"]["skipped"] is False
     old = session.get(models.KnowledgeGraphBuild, "kg-build-1")
     assert old is not None
     assert old.status == "deprecated"
+
+
+def test_zero_row_succeeded_build_is_not_reused_or_returned_as_latest(
+    app,
+    session,
+    graph_fixture,
+):
+    ref, build, _pending, _chunk = graph_fixture
+    build.node_count = 0
+    build.edge_count = 0
+    build.fact_count = 0
+    session.query(models.KnowledgeGraphNode).filter(
+        models.KnowledgeGraphNode.graph_build_id == build.id
+    ).delete()
+    session.query(models.KnowledgeGraphEdge).filter(
+        models.KnowledgeGraphEdge.graph_build_id == build.id
+    ).delete()
+    session.query(models.KnowledgeGraphFact).filter(
+        models.KnowledgeGraphFact.graph_build_id == build.id
+    ).delete()
+    session.query(models.KnowledgeGraphMention).filter(
+        models.KnowledgeGraphMention.graph_build_id == build.id
+    ).delete()
+    session.query(models.KnowledgeGraphEvidence).filter(
+        models.KnowledgeGraphEvidence.graph_build_id == build.id
+    ).delete()
+    session.commit()
+
+    with TestClient(app) as client:
+        latest = client.get(f"/internal/v1/normalized-refs/{ref.id}/knowledge-graph")
+        submitted = client.post("/internal/v1/knowledge-graphs/builds", json={
+            "normalized_ref_id": ref.id,
+            "graph_profile": "report_document",
+            "strategy_version": build.strategy_version,
+        })
+
+    assert latest.status_code == 200
+    assert latest.json()["data"]["build"] is None
+    assert submitted.status_code == 200
+    assert submitted.json()["data"]["skipped"] is False
+    assert submitted.json()["data"]["build"]["id"] != build.id
 
 
 def test_submit_build_missing_ref_returns_404(app):

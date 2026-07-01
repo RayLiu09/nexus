@@ -63,6 +63,56 @@ def create_graph_build(
     return build
 
 
+def get_existing_graph_build(
+    session: Session,
+    *,
+    normalized_ref_id: str,
+    graph_profile: str,
+    strategy_version: str,
+) -> models.KnowledgeGraphBuild | None:
+    """Return the newest reusable build for an idempotent build key.
+
+    Failed builds and historical zero-row terminal builds must not block a
+    user-triggered rebuild. Only in-flight builds or terminal builds with
+    formal graph rows are reusable.
+    """
+    return session.scalar(
+        select(models.KnowledgeGraphBuild)
+        .where(
+            models.KnowledgeGraphBuild.normalized_ref_id == normalized_ref_id,
+            models.KnowledgeGraphBuild.graph_type == GRAPH_TYPE,
+            models.KnowledgeGraphBuild.graph_profile == graph_profile,
+            models.KnowledgeGraphBuild.strategy_version == strategy_version,
+            models.KnowledgeGraphBuild.status != KnowledgeGraphBuildStatus.DEPRECATED,
+            (
+                models.KnowledgeGraphBuild.status.in_(
+                    (
+                        KnowledgeGraphBuildStatus.PENDING,
+                        KnowledgeGraphBuildStatus.RUNNING,
+                    )
+                )
+            )
+            | (
+                models.KnowledgeGraphBuild.status.in_(
+                    (
+                        KnowledgeGraphBuildStatus.SUCCEEDED,
+                        KnowledgeGraphBuildStatus.REVIEW_REQUIRED,
+                    )
+                )
+                & (
+                    (models.KnowledgeGraphBuild.fact_count > 0)
+                    | (models.KnowledgeGraphBuild.node_count > 0)
+                )
+            ),
+        )
+        .order_by(
+            models.KnowledgeGraphBuild.completed_at.desc().nullslast(),
+            models.KnowledgeGraphBuild.created_at.desc(),
+        )
+        .limit(1)
+    )
+
+
 def get_latest_succeeded_build(
     session: Session,
     *,
@@ -70,13 +120,17 @@ def get_latest_succeeded_build(
     graph_profile: str | None = None,
     strategy_version: str | None = None,
 ) -> models.KnowledgeGraphBuild | None:
-    """Return the newest succeeded build for a normalized ref."""
+    """Return the newest succeeded build with formal graph rows for a ref."""
     stmt = (
         select(models.KnowledgeGraphBuild)
         .where(
             models.KnowledgeGraphBuild.normalized_ref_id == normalized_ref_id,
             models.KnowledgeGraphBuild.graph_type == GRAPH_TYPE,
             models.KnowledgeGraphBuild.status == KnowledgeGraphBuildStatus.SUCCEEDED,
+            (
+                (models.KnowledgeGraphBuild.fact_count > 0)
+                | (models.KnowledgeGraphBuild.node_count > 0)
+            ),
         )
         .order_by(
             models.KnowledgeGraphBuild.completed_at.desc().nullslast(),

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Protocol
 
 from pydantic import ValidationError
@@ -14,7 +15,11 @@ from nexus_app.ai_governance.litellm_client import (
 )
 from nexus_app.config import get_settings
 from nexus_app.evidence_graph.candidates import GraphChunkCandidate
-from nexus_app.evidence_graph.profiles import AnchorRole, ExtractionMethod
+from nexus_app.evidence_graph.profiles import (
+    AnchorRole,
+    ExtractionMethod,
+    get_graph_profile_config,
+)
 from nexus_app.evidence_graph.schemas import (
     GraphExtractionRejectReason,
     GraphExtractionResult,
@@ -23,6 +28,93 @@ from nexus_app.evidence_graph.schemas import (
 )
 
 DEFAULT_MODEL_ALIAS_FALLBACK = "internal/evidence-kg-extractor-v1"
+BODY_LLM_MAX_PARALLEL_CALLS = 20
+GRAPH_FACT_CANDIDATE_FIELDS = set(GraphFactCandidate.model_fields)
+DEFAULT_ENTITY_TYPE = "Entity"
+
+FACT_TYPE_ALIASES = {
+    "attribute": "finding_fact",
+    "attribute fact": "finding_fact",
+    "businesssupport": "policy_fact",
+    "capability building": "policy_fact",
+    "composition": "finding_fact",
+    "documentabbreviation": "entity_mention",
+    "domain composition": "finding_fact",
+    "entityfeature": "finding_fact",
+    "eventfeature": "event_fact",
+    "expected outcome": "finding_fact",
+    "functional positioning": "finding_fact",
+    "guiding ideology": "policy_fact",
+    "implementation requirement": "requirement_fact",
+    "overall goal": "policy_fact",
+    "policy action": "policy_fact",
+    "policy encouragement": "policy_fact",
+    "policy goal": "policy_fact",
+    "policy initiative": "policy_fact",
+    "policy objective": "policy_fact",
+    "policy requirement": "requirement_fact",
+    "policy support": "policy_fact",
+    "policyaction": "policy_fact",
+    "policycontent": "policy_fact",
+    "policyencouragement": "policy_fact",
+    "policygoal": "policy_fact",
+    "policygoalsetting": "policy_fact",
+    "policyguidance": "policy_fact",
+    "policyimplementation": "policy_fact",
+    "policyincentive": "policy_fact",
+    "policyinitiative": "policy_fact",
+    "policymeasure": "policy_fact",
+    "policyoutcome": "finding_fact",
+    "policyrequirement": "requirement_fact",
+    "policysupport": "policy_fact",
+    "purpose fact": "finding_fact",
+    "required policy action": "policy_fact",
+    "resourceopening": "policy_fact",
+    "work arrangement": "policy_fact",
+    "work goal": "policy_fact",
+    "work principle": "policy_fact",
+    "work requirement": "requirement_fact",
+    "专项行动安排": "policy_fact",
+    "业态创新发展": "trend_fact",
+    "出口支持": "policy_fact",
+    "平台建设": "policy_fact",
+    "政策举措": "policy_fact",
+    "政策支持": "policy_fact",
+    "政策目标": "policy_fact",
+    "文档发布日期": "policy_issue_fact",
+    "文档发布单位": "policy_issue_fact",
+    "模式创新": "policy_fact",
+    "监管政策内容": "policy_fact",
+    "能力建设": "policy_fact",
+    "进口鼓励措施": "policy_fact",
+}
+
+ENTITY_TYPE_ALIASES = {
+    "article": "Requirement",
+    "brand": "Company",
+    "channel": "Platform",
+    "collaboration": "Event",
+    "country": "Region",
+    "measure": "PolicyMeasure",
+    "object": "Entity",
+    "policy action": "PolicyAction",
+    "policy document": "PolicyDocument",
+    "policy goal": "PolicyGoal",
+    "policy measure": "PolicyMeasure",
+    "policyaction": "PolicyAction",
+    "policydocument": "PolicyDocument",
+    "policygoal": "PolicyGoal",
+    "policymeasure": "PolicyMeasure",
+    "procedure": "Process",
+    "regulatedsubject": "Entity",
+    "timeperiod": "Entity",
+    "工程": "PolicyAction",
+    "政策举措": "PolicyAction",
+    "政策文件": "PolicyDocument",
+    "政策目标": "PolicyGoal",
+    "政策措施": "PolicyMeasure",
+    "组织": "Organization",
+}
 
 
 def default_model_alias() -> str:
@@ -335,46 +427,132 @@ def extract_graph_candidates(
     *,
     graph_profile: str,
     llm_client: LiteLLMClientProtocol | None = None,
+    max_parallel_batches: int = BODY_LLM_MAX_PARALLEL_CALLS,
 ) -> list[GraphExtractionResult]:
-    results: list[GraphExtractionResult] = []
-    for candidate in candidates:
-        if candidate.anchor_role == AnchorRole.BODY and candidate.extraction_method != ExtractionMethod.LLM:
-            results.append(rejected_result(
-                source_chunk_id=candidate.chunk_id,
-                extractor_name=candidate.extractor_name,
-                extraction_method=candidate.extraction_method,
-                reason=GraphExtractionRejectReason.BODY_REQUIRES_LLM,
-            ))
+    results_by_index: dict[int, GraphExtractionResult] = {}
+    parallel_jobs: list[tuple[int, GraphChunkCandidate]] = []
+    for index, candidate in enumerate(candidates):
+        if (
+            candidate.anchor_role == AnchorRole.BODY
+            and candidate.extraction_method == ExtractionMethod.LLM
+        ):
+            parallel_jobs.append((index, candidate))
             continue
-        extractor = extractor_for_name(candidate.extractor_name, llm_client=llm_client)
-        if extractor is None:
-            results.append(rejected_result(
-                source_chunk_id=candidate.chunk_id,
-                extractor_name=candidate.extractor_name,
-                extraction_method=candidate.extraction_method,
-                reason=GraphExtractionRejectReason.UNSUPPORTED_EXTRACTOR,
-            ))
-            continue
-        results.append(extractor.extract(candidate, graph_profile=graph_profile))
-    return results
+
+        results_by_index[index] = _extract_one_candidate(
+            candidate,
+            graph_profile=graph_profile,
+            llm_client=llm_client,
+        )
+
+    if parallel_jobs:
+        worker_count = max(1, min(max_parallel_batches, len(parallel_jobs)))
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            future_map = {
+                executor.submit(
+                    _extract_one_candidate,
+                    candidate,
+                    graph_profile=graph_profile,
+                    llm_client=llm_client,
+                ): index
+                for index, candidate in parallel_jobs
+            }
+            for future in as_completed(future_map):
+                results_by_index[future_map[future]] = future.result()
+
+    return [results_by_index[index] for index in range(len(candidates))]
+
+
+def _extract_one_candidate(
+    candidate: GraphChunkCandidate,
+    *,
+    graph_profile: str,
+    llm_client: LiteLLMClientProtocol | None,
+) -> GraphExtractionResult:
+    if candidate.anchor_role == AnchorRole.BODY and candidate.extraction_method != ExtractionMethod.LLM:
+        return rejected_result(
+            source_chunk_id=candidate.chunk_id,
+            extractor_name=candidate.extractor_name,
+            extraction_method=candidate.extraction_method,
+            reason=GraphExtractionRejectReason.BODY_REQUIRES_LLM,
+        )
+    extractor = extractor_for_name(candidate.extractor_name, llm_client=llm_client)
+    if extractor is None:
+        return rejected_result(
+            source_chunk_id=candidate.chunk_id,
+            extractor_name=candidate.extractor_name,
+            extraction_method=candidate.extraction_method,
+            reason=GraphExtractionRejectReason.UNSUPPORTED_EXTRACTOR,
+        )
+    return extractor.extract(candidate, graph_profile=graph_profile)
 
 
 def _build_body_messages(
     candidate: GraphChunkCandidate,
     graph_profile: str,
 ) -> list[dict[str, str]]:
+    profile_config = get_graph_profile_config(graph_profile)
     system = (
         "You extract evidence-grounded knowledge graph fact candidates. "
-        "Return JSON only: {\"candidates\": [...]}."
+        "Return JSON only: {\"candidates\": [...]}. "
+        "Keep subject.name, object.name, object_literal, qualifiers, and evidence_text "
+        "in the same natural language as the source content. Do not translate Chinese source text "
+        "into English. Use exact source wording when possible. Predicate may use an internal "
+        "uppercase relation label such as HAS_VALUE or ISSUED_BY; otherwise keep it in the "
+        "source language too. subject.type and object.type must be non-empty strings when "
+        "the entity exists; use Entity when a more specific type is unclear. Never return "
+        "null for entity type. Every candidate must follow the output contract exactly."
     )
     user_payload = {
         "graph_profile": graph_profile,
         "source_chunk_id": candidate.chunk_id,
         "anchor_role": candidate.anchor_role,
         "content": candidate.content,
-        "required_fields": [
-            "fact_type", "subject", "predicate", "object", "object_literal",
-            "qualifiers", "evidence_text", "confidence",
+        "output_contract": {
+            "candidates": [
+                {
+                    "fact_type": (
+                        "one of: "
+                        f"{', '.join(profile_config.fact_types)}. "
+                        "Do not invent free-text fact types."
+                    ),
+                    "subject": {
+                        "type": (
+                            "non-empty string; choose the best label from "
+                            f"{', '.join(profile_config.entity_types)}"
+                        ),
+                        "name": "non-empty source-language entity name",
+                    },
+                    "predicate": (
+                        "non-empty relation; internal uppercase labels are allowed, "
+                        "otherwise use source language"
+                    ),
+                    "object": {
+                        "type": (
+                            "non-empty string from the same entity type list; use Entity "
+                            "when unclear; never null"
+                        ),
+                        "name": "non-empty source-language entity name",
+                    },
+                    "object_literal": (
+                        "string value when the object is a literal; otherwise null. "
+                        "If object is null, object_literal is required."
+                    ),
+                    "qualifiers": "object; use {} when none",
+                    "evidence_text": "exact source-language evidence quote",
+                    "confidence": "number between 0 and 1",
+                }
+            ],
+        },
+        "rules": [
+            "subject.type is required and must never be null.",
+            "subject.name is required and must never be null.",
+            "object may be null only when object_literal is provided.",
+            "object.type and object.name are required and must never be null when object exists.",
+            "Use Entity for subject.type or object.type when a more specific type is unclear.",
+            f"fact_type must be exactly one of: {', '.join(profile_config.fact_types)}.",
+            f"subject.type and object.type must be exactly one of: {', '.join(profile_config.entity_types)}.",
+            "Do not translate Chinese source content into English in natural-language fields.",
         ],
     }
     return [
@@ -391,9 +569,10 @@ def _parse_candidate_items(content: str) -> list[Any] | None:
     if isinstance(parsed, list):
         return parsed
     if isinstance(parsed, dict):
-        items = parsed.get("candidates")
-        if isinstance(items, list):
-            return items
+        for key in ("candidates", "facts", "graph_facts", "items", "triples"):
+            items = parsed.get(key)
+            if isinstance(items, list):
+                return items
     return None
 
 
@@ -408,33 +587,406 @@ def _validate_items(
     evidence_fallback: str,
 ) -> GraphExtractionResult:
     accepted: list[GraphFactCandidate] = []
-    rejected = 0
+    rejected_by_reason: dict[str, int] = {}
+    reject_samples: list[dict[str, Any]] = []
     for raw in raw_items:
         if not isinstance(raw, dict):
-            rejected += 1
+            _increment_reject(rejected_by_reason, GraphExtractionRejectReason.SCHEMA_INVALID)
+            _append_reject_sample(
+                reject_samples,
+                reason=GraphExtractionRejectReason.SCHEMA_INVALID,
+                detail="raw item is not an object",
+            )
             continue
-        enriched = dict(raw)
+        enriched = _normalize_raw_item(raw, graph_profile=graph_profile)
         enriched.setdefault("source_chunk_id", source_chunk_id)
         enriched.setdefault("profile", graph_profile)
         enriched.setdefault("anchor_role", anchor_role)
         enriched.setdefault("extractor_name", extractor_name)
         enriched.setdefault("extraction_method", extraction_method)
         enriched.setdefault("evidence_text", evidence_fallback)
+        if _language_mismatch(enriched, evidence_fallback):
+            _increment_reject(rejected_by_reason, GraphExtractionRejectReason.LANGUAGE_MISMATCH)
+            _append_reject_sample(
+                reject_samples,
+                reason=GraphExtractionRejectReason.LANGUAGE_MISMATCH,
+                item=enriched,
+                detail="natural language fields do not match source language",
+            )
+            continue
         try:
-            accepted.append(GraphFactCandidate.model_validate(enriched))
-        except ValidationError:
-            rejected += 1
-    reject_reasons = {}
-    if rejected:
-        reject_reasons[GraphExtractionRejectReason.SCHEMA_INVALID] = rejected
+            accepted.append(GraphFactCandidate.model_validate(_candidate_fields(enriched)))
+        except ValidationError as exc:
+            _increment_reject(rejected_by_reason, GraphExtractionRejectReason.SCHEMA_INVALID)
+            _append_reject_sample(
+                reject_samples,
+                reason=GraphExtractionRejectReason.SCHEMA_INVALID,
+                item=enriched,
+                errors=exc.errors(include_url=False, include_input=False),
+            )
     return GraphExtractionResult(
         source_chunk_id=source_chunk_id,
         extractor_name=extractor_name,
         extraction_method=extraction_method,
         accepted=accepted,
-        rejected_count=rejected,
-        reject_reasons=reject_reasons,
+        rejected_count=sum(rejected_by_reason.values()),
+        reject_reasons=rejected_by_reason,
+        reject_samples=reject_samples,
     )
+
+
+def _normalize_raw_item(raw: dict[str, Any], *, graph_profile: str) -> dict[str, Any]:
+    enriched = dict(raw)
+    profile_config = get_graph_profile_config(graph_profile)
+    _copy_alias(enriched, "fact_type", ("type", "category", "factType"))
+    _copy_alias(enriched, "predicate", ("relation", "relation_type", "edge_type", "predicate_name"))
+    _copy_alias(enriched, "object_literal", ("value", "literal", "object_value", "objectLiteral"))
+    _copy_alias(enriched, "evidence_text", ("evidence", "quote", "source_text", "text"))
+    _copy_alias(enriched, "confidence", ("score", "probability"))
+    _copy_alias(enriched, "source_chunk_id", ("chunk_id", "source_id", "chunkId", "sourceChunkId"))
+    if "qualifiers" not in enriched or not isinstance(enriched.get("qualifiers"), dict):
+        enriched["qualifiers"] = {}
+    qualifiers = enriched["qualifiers"]
+    raw_fact_type = enriched.get("fact_type")
+    enriched["fact_type"] = _canonical_fact_type(
+        raw_fact_type,
+        graph_profile=graph_profile,
+        allowed_fact_types=profile_config.fact_types,
+    )
+    _preserve_raw_value(
+        qualifiers,
+        key="raw_fact_type",
+        raw_value=raw_fact_type,
+        canonical_value=enriched["fact_type"],
+    )
+
+    subject = _normalize_entity_ref(
+        enriched.get("subject"),
+        default_type=enriched.get("subject_type"),
+        allowed_entity_types=profile_config.entity_types,
+        qualifiers=qualifiers,
+        raw_key="raw_subject_type",
+    )
+    if subject is None:
+        subject_name = enriched.get("subject_name") or enriched.get("head") or enriched.get("entity")
+        subject = _normalize_entity_ref(
+            subject_name,
+            default_type=enriched.get("subject_type"),
+            allowed_entity_types=profile_config.entity_types,
+            qualifiers=qualifiers,
+            raw_key="raw_subject_type",
+        )
+    if subject is not None:
+        enriched["subject"] = subject
+
+    obj = enriched.get("object")
+    object_type = enriched.get("object_type")
+    object_ref = _normalize_entity_ref(
+        obj,
+        default_type=object_type,
+        allowed_entity_types=profile_config.entity_types,
+        qualifiers=qualifiers,
+        raw_key="raw_object_type",
+    )
+    if object_ref is not None:
+        enriched["object"] = object_ref
+    elif isinstance(obj, str):
+        enriched.setdefault("object_literal", obj)
+        enriched["object"] = None
+    else:
+        object_name = enriched.get("object_name") or enriched.get("tail")
+        object_ref = _normalize_entity_ref(
+            object_name,
+            default_type=object_type,
+            allowed_entity_types=profile_config.entity_types,
+            qualifiers=qualifiers,
+            raw_key="raw_object_type",
+        )
+        if object_ref is not None and object_type:
+            enriched["object"] = object_ref
+        elif object_name:
+            enriched.setdefault("object_literal", str(object_name))
+
+    return enriched
+
+
+def _normalize_entity_ref(
+    value: Any,
+    *,
+    default_type: Any = None,
+    allowed_entity_types: tuple[str, ...],
+    qualifiers: dict[str, Any],
+    raw_key: str,
+) -> dict[str, str] | None:
+    entity_type = _clean_entity_type(default_type)
+    if isinstance(value, str):
+        name = value.strip()
+        if not name:
+            return None
+        canonical_type = _canonical_entity_type(
+            entity_type,
+            allowed_entity_types=allowed_entity_types,
+        )
+        _preserve_raw_value(qualifiers, key=raw_key, raw_value=entity_type, canonical_value=canonical_type)
+        return {"type": canonical_type, "name": name}
+    if not isinstance(value, dict):
+        return None
+
+    name_value = (
+        value.get("name")
+        or value.get("entity_name")
+        or value.get("entityName")
+        or value.get("label")
+        or value.get("text")
+    )
+    if name_value is None:
+        return None
+    name = str(name_value).strip()
+    if not name:
+        return None
+    raw_entity_type = (
+        _clean_entity_type(value.get("type"))
+        or _clean_entity_type(value.get("entity_type"))
+        or _clean_entity_type(value.get("entityType"))
+        or _clean_entity_type(value.get("category"))
+        or _clean_entity_type(value.get("kind"))
+        or entity_type
+    )
+    canonical_type = _canonical_entity_type(
+        raw_entity_type,
+        allowed_entity_types=allowed_entity_types,
+    )
+    _preserve_raw_value(qualifiers, key=raw_key, raw_value=raw_entity_type, canonical_value=canonical_type)
+    return {"type": canonical_type, "name": name}
+
+
+def _clean_entity_type(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or text.lower() == "null":
+        return None
+    return text
+
+
+def _canonical_fact_type(
+    value: Any,
+    *,
+    graph_profile: str,
+    allowed_fact_types: tuple[str, ...],
+) -> str:
+    text = str(value or "").strip()
+    allowed = set(allowed_fact_types)
+    if text in allowed:
+        return text
+    alias = FACT_TYPE_ALIASES.get(_type_alias_key(text))
+    if alias in allowed:
+        return alias
+    fallback = _default_fact_type(graph_profile, allowed_fact_types)
+    return fallback
+
+
+def _canonical_entity_type(
+    value: Any,
+    *,
+    allowed_entity_types: tuple[str, ...],
+) -> str:
+    text = _clean_entity_type(value)
+    allowed = set(allowed_entity_types)
+    if text in allowed:
+        return text
+    if text:
+        alias = ENTITY_TYPE_ALIASES.get(_type_alias_key(text))
+        if alias in allowed:
+            return alias
+        pascal = _to_pascal_type(text)
+        if pascal in allowed:
+            return pascal
+    return DEFAULT_ENTITY_TYPE if DEFAULT_ENTITY_TYPE in allowed else allowed_entity_types[0]
+
+
+def _default_fact_type(graph_profile: str, allowed_fact_types: tuple[str, ...]) -> str:
+    preferred_by_profile = {
+        "policy_document": "policy_fact",
+        "report_document": "entity_mention",
+        "textbook": "definition_fact",
+        "standard_spec": "clause_requirement_fact",
+        "sop_document": "procedure_fact",
+    }
+    preferred = preferred_by_profile.get(graph_profile)
+    if preferred in allowed_fact_types:
+        return preferred
+    return allowed_fact_types[0]
+
+
+def _preserve_raw_value(
+    qualifiers: dict[str, Any],
+    *,
+    key: str,
+    raw_value: Any,
+    canonical_value: str,
+) -> None:
+    raw_text = str(raw_value or "").strip()
+    if not raw_text or raw_text == canonical_value:
+        return
+    qualifiers.setdefault(key, raw_text)
+
+
+def _type_alias_key(value: str) -> str:
+    return re.sub(r"[\s_\-]+", " ", value.strip()).lower()
+
+
+def _to_pascal_type(value: str) -> str:
+    parts = re.split(r"[\s_\-]+", value.strip())
+    return "".join(part[:1].upper() + part[1:] for part in parts if part)
+
+
+def _candidate_fields(item: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in item.items() if key in GRAPH_FACT_CANDIDATE_FIELDS}
+
+
+def _copy_alias(target: dict[str, Any], key: str, aliases: tuple[str, ...]) -> None:
+    if target.get(key) is not None:
+        return
+    for alias in aliases:
+        if target.get(alias) is not None:
+            target[key] = target[alias]
+            return
+
+
+def _increment_reject(rejected_by_reason: dict[str, int], reason: str) -> None:
+    rejected_by_reason[reason] = rejected_by_reason.get(reason, 0) + 1
+
+
+def _append_reject_sample(
+    samples: list[dict[str, Any]],
+    *,
+    reason: str,
+    item: dict[str, Any] | None = None,
+    detail: str | None = None,
+    errors: list[dict[str, Any]] | None = None,
+) -> None:
+    if len(samples) >= 3:
+        return
+    sample: dict[str, Any] = {"reason": str(reason)}
+    if detail:
+        sample["detail"] = detail
+    if item is not None:
+        sample["fields"] = sorted(str(key) for key in item.keys())
+        sample["fact_type"] = item.get("fact_type")
+        sample["predicate"] = item.get("predicate")
+        sample["source_chunk_id"] = item.get("source_chunk_id")
+        subject = item.get("subject")
+        if isinstance(subject, dict):
+            sample["subject"] = {
+                "type": subject.get("type"),
+                "name": _truncate_sample_text(subject.get("name")),
+            }
+        obj = item.get("object")
+        if isinstance(obj, dict):
+            sample["object"] = {
+                "type": obj.get("type"),
+                "name": _truncate_sample_text(obj.get("name")),
+            }
+        if item.get("object_literal") is not None:
+            sample["object_literal"] = _truncate_sample_text(item.get("object_literal"))
+        if item.get("evidence_text") is not None:
+            sample["evidence_text"] = _truncate_sample_text(item.get("evidence_text"))
+        if item.get("confidence") is not None:
+            sample["confidence"] = item.get("confidence")
+    if errors:
+        sample["errors"] = [_json_safe_error(error) for error in errors[:5]]
+    samples.append(sample)
+
+
+def _json_safe_error(error: dict[str, Any]) -> dict[str, Any]:
+    safe: dict[str, Any] = {}
+    for key, value in error.items():
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            safe[key] = value
+        elif isinstance(value, tuple):
+            safe[key] = [str(item) for item in value]
+        elif isinstance(value, list):
+            safe[key] = [str(item) for item in value]
+        elif isinstance(value, dict):
+            safe[key] = {str(k): str(v) for k, v in value.items()}
+        else:
+            safe[key] = str(value)
+    return safe
+
+
+def _truncate_sample_text(value: Any, limit: int = 120) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit]}..."
+
+
+def _language_mismatch(item: dict[str, Any], source_content: str) -> bool:
+    if not _contains_cjk(source_content):
+        return False
+    evidence_text = str(item.get("evidence_text") or "")
+    if evidence_text and not _contains_cjk(evidence_text):
+        return True
+
+    text_fields = [
+        item.get("object_literal"),
+    ]
+    predicate = item.get("predicate")
+    if isinstance(predicate, str) and not _is_internal_relation_label(predicate):
+        text_fields.append(predicate)
+    subject = item.get("subject")
+    if isinstance(subject, dict):
+        text_fields.append(subject.get("name"))
+    obj = item.get("object")
+    if isinstance(obj, dict):
+        text_fields.append(obj.get("name"))
+    qualifiers = item.get("qualifiers")
+    if isinstance(qualifiers, dict):
+        text_fields.extend(_flatten_text_values(qualifiers))
+
+    checked = [str(value) for value in text_fields if isinstance(value, str) and value.strip()]
+    if not checked:
+        return False
+    english_only = [
+        value for value in checked
+        if _contains_latin_word(value)
+        and not _contains_cjk(value)
+        and value.strip() not in source_content
+    ]
+    return bool(english_only)
+
+
+def _flatten_text_values(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        result: list[str] = []
+        for key, item in value.items():
+            if str(key).startswith("raw_"):
+                continue
+            result.extend(_flatten_text_values(item))
+        return result
+    if isinstance(value, list):
+        result: list[str] = []
+        for item in value:
+            result.extend(_flatten_text_values(item))
+        return result
+    return []
+
+
+def _contains_cjk(value: str) -> bool:
+    return bool(re.search(r"[\u4e00-\u9fff]", value))
+
+
+def _contains_latin_word(value: str) -> bool:
+    return bool(re.search(r"[A-Za-z]{2,}", value))
+
+
+def _is_internal_relation_label(value: str) -> bool:
+    return bool(re.fullmatch(r"[A-Z][A-Z0-9_]{1,127}", value.strip()))
 
 
 def _parse_key_value_lines(content: str) -> dict[str, str]:

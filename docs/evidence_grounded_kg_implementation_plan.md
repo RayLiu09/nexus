@@ -651,6 +651,23 @@ POST /internal/v1/knowledge-graphs/rebuild
 - 点 evidence 可打开 chunk preview 并定位原文。
 - 图谱支持全屏和下载图片。
 
+### Task Package G：Worker + Idempotency + Cleanup
+
+状态：已开始落地。当前切片补齐 Evidence Graph build 提交幂等性、后台 worker 消费 pending build、正式图谱抽取/持久化闭环，以及重复 active 历史 build 清理。
+
+范围：
+
+- `normalized_ref_id + graph_profile + strategy_version` build submit 幂等。
+- pending build claim / running / terminal 状态推进。
+- candidate selection -> extractor -> persist graph rows。
+- duplicate active build cleanup migration。
+
+验收：
+
+- 同一标准化资产版本不重复创建 active/succeeded Evidence Graph build。
+- Worker 可将 pending build 推进到 succeeded/review_required/failed。
+- 历史重复 active build 被 deprecated，每个 build key 仅保留一条 active 记录。
+
 ## 9. 第一阶段最小闭环建议
 
 第一阶段建议只做：
