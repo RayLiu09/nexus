@@ -595,6 +595,8 @@ POST /internal/v1/knowledge-graphs/rebuild
 
 ### Task Package D：Merge + Quality + Persist
 
+状态：已开始落地。当前切片新增 build-scope persist 服务，完成保守实体/谓词归一、事实去重、evidence 绑定、低置信度质量门禁和正式 `knowledge_graph_*` 表写入；缺少 evidence 或低置信度候选不进入正式 graph facts。
+
 范围：
 
 - entity normalization。

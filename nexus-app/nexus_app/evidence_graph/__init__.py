@@ -36,6 +36,11 @@ from nexus_app.evidence_graph.profiles import (
     get_graph_profile_config,
     list_graph_profile_configs,
 )
+from nexus_app.evidence_graph.persist import (
+    DEFAULT_CONFIDENCE_THRESHOLD,
+    GraphPersistResult,
+    persist_graph_candidates,
+)
 from nexus_app.evidence_graph.schemas import (
     GraphEntityRef,
     GraphExtractionRejectReason,
@@ -47,6 +52,7 @@ from nexus_app.evidence_graph.schemas import (
 __all__ = [
     "GRAPH_PROFILE_CONFIGS",
     "GRAPH_TYPE",
+    "DEFAULT_CONFIDENCE_THRESHOLD",
     "AnchorRole",
     "BodyLLMExtractor",
     "CandidateSelectionResult",
@@ -59,6 +65,7 @@ __all__ = [
     "GraphExtractionResult",
     "GraphChunkCandidate",
     "GraphFactCandidate",
+    "GraphPersistResult",
     "GraphProfileConfig",
     "KnowledgeGraphBuildStatus",
     "MetricImageExtractor",
@@ -75,5 +82,6 @@ __all__ = [
     "mark_graph_build_failed",
     "mark_graph_build_running",
     "mark_graph_build_succeeded",
+    "persist_graph_candidates",
     "select_graph_candidate_chunks",
 ]
