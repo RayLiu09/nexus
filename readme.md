@@ -98,6 +98,10 @@ Root documents are distilled implementation contracts:
 - AI-led classification, level, tag, org-scope suggestions, and quality scoring.
 - Configurable governance rules and decision tracking.
 - RAGFlow chunking, indexing, and retrieval integration.
+- Evidence-grounded Knowledge Graph data foundation, with build/node/fact/edge/
+  mention/evidence tables linked to `normalized_asset_ref` and `knowledge_chunk`
+  evidence locators. Extractors, APIs, and Console graph rendering are later
+  implementation slices.
 - Permission-filtered search and QA with source citations.
 - Audit logs for access, governance, rules, Prompt changes, permissions, API keys, and AI adoption.
 

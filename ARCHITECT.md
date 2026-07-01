@@ -150,6 +150,11 @@ P0 record profiles include job demand, occupational ability analysis, and major 
 - Governance rules (file-based): `config/governance_rules.json` — single source of truth for business rules, maintained by business experts via console, protected by schema validation + ETag + fcntl write lock.
 - Governance result: `governance_result` (embedded `quality_summary` + `decision_trail`; records `rules_schema_version` + `rules_content_hash` as snapshot evidence).
 - Knowledge and index: `knowledge_chunk`, `index_manifest`.
+- Evidence-grounded KG extension: `knowledge_graph_build`,
+  `knowledge_graph_node`, `knowledge_graph_fact`, `knowledge_graph_edge`,
+  `knowledge_graph_mention`, `knowledge_graph_evidence`. These tables store
+  evidence-bound graph builds over a complete `normalized_asset_ref` and are
+  separate from Pipeline B `CapabilityGraphStaging` domain graphs.
 - Jobs and audit: `job`, `job_stage`, `audit_log`.
 
 ## normalized_asset_ref Fields (v3.0)
@@ -266,6 +271,11 @@ Upgrade trigger: mime_type-based routing produces visibly degraded structure qua
 - `governance_result` embedded JSONB: `quality_summary` + `decision_trail`. Do not extract to independent entities until the upgrade trigger is met.
 - **`governance_result` target is `normalized_asset_ref`, not `asset_version`.**
 - **`knowledge_chunk.normalized_ref_id` links chunks to `normalized_asset_ref`**, enabling traceability from chunk to standardized asset.
+- Evidence-grounded KG rows are downstream knowledge-processing artifacts:
+  `knowledge_graph_build.normalized_ref_id → normalized_asset_ref.id`, graph
+  evidence links back to `knowledge_chunk.id`, and graph construction must
+  cover the complete normalized ref semantic scope rather than page-local,
+  Top-K, or manually selected chunks.
 - Use read models (`asset_current_version_view`, `version_current_normalized_ref_view`) to express current state.
 
 ## Version State Contract
@@ -332,6 +342,10 @@ Asset Pipeline → normalized_asset_ref (stable contract)
 - Knowledge Pipeline inputs are exclusively `normalized_asset_ref` objects. Raw files, raw JSON, and MinerU output are not valid inputs.
 - Each knowledge scenario has independent scheduling, rules, and human review flows; no cross-scenario dependency.
 - P0 scope: Pipeline 1 only. Pipelines 2–5 are reserved architecture extension points.
+- Evidence-grounded KG is an active extension slice built on the same boundary:
+  input is a full `normalized_asset_ref`; `knowledge_chunk` provides semantic
+  windows, source block ids, and locators; official graph nodes/facts/edges
+  must be evidence-bound through `knowledge_graph_evidence`.
 
 ## Core Flows
 

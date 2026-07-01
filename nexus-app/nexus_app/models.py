@@ -1790,3 +1790,254 @@ class CapabilityGraphStagingEdge(TimestampMixin, Base):
     confidence: Mapped[Decimal | None] = mapped_column(
         Numeric(5, 4), nullable=True,
     )
+
+
+# ---------------------------------------------------------------------------
+# Evidence-grounded Knowledge Graph tables
+# ---------------------------------------------------------------------------
+# Schema source: docs/evidence_grounded_kg_implementation_plan.md.
+# These tables store formal, evidence-bound graph builds over a complete
+# normalized_asset_ref. CapabilityGraphStaging remains a separate Pipeline B
+# staging model for job/ability graphs; do not mix the two schemas.
+
+
+class KnowledgeGraphBuild(TimestampMixin, Base):
+    """One Evidence-grounded KG build over a normalized_asset_ref."""
+
+    __tablename__ = "knowledge_graph_build"
+    __table_args__ = (
+        Index(
+            "ix_kgb_ref_profile_strategy",
+            "normalized_ref_id", "graph_profile", "strategy_version",
+        ),
+        Index("ix_kgb_status_created", "status", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("normalized_asset_ref.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    graph_type: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="evidence_grounded_kg",
+    )
+    graph_profile: Mapped[str] = mapped_column(String(64), nullable=False)
+    strategy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False)
+    source_chunk_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    candidate_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    node_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    edge_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    fact_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    quality_summary: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class KnowledgeGraphNode(TimestampMixin, Base):
+    """Canonical entity node within a KnowledgeGraphBuild."""
+
+    __tablename__ = "knowledge_graph_node"
+    __table_args__ = (
+        UniqueConstraint("graph_build_id", "node_key", name="uq_kgn_build_key"),
+        Index("ix_kgn_build_type", "graph_build_id", "node_type"),
+        Index("ix_kgn_normalized_ref_id", "normalized_ref_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    graph_build_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("knowledge_graph_build.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("normalized_asset_ref.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    node_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    node_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    name: Mapped[str] = mapped_column(String(512), nullable=False)
+    aliases: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    properties: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+    )
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+
+
+class KnowledgeGraphFact(TimestampMixin, Base):
+    """Qualified factual statement extracted from source chunks."""
+
+    __tablename__ = "knowledge_graph_fact"
+    __table_args__ = (
+        Index("ix_kgf_build_type", "graph_build_id", "fact_type"),
+        Index("ix_kgf_subject", "subject_node_id"),
+        Index("ix_kgf_object_node", "object_node_id"),
+        Index("ix_kgf_normalized_ref_id", "normalized_ref_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    graph_build_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("knowledge_graph_build.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("normalized_asset_ref.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    fact_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    subject_node_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("knowledge_graph_node.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    predicate: Mapped[str] = mapped_column(String(128), nullable=False)
+    object_node_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("knowledge_graph_node.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    object_literal: Mapped[str | None] = mapped_column(Text, nullable=True)
+    qualifiers: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+    )
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+
+
+class KnowledgeGraphEdge(TimestampMixin, Base):
+    """Normalized relation edge between two graph nodes."""
+
+    __tablename__ = "knowledge_graph_edge"
+    __table_args__ = (
+        Index("ix_kge_build_type", "graph_build_id", "relation_type"),
+        Index("ix_kge_nodes", "source_node_id", "target_node_id"),
+        Index("ix_kge_normalized_ref_id", "normalized_ref_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    graph_build_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("knowledge_graph_build.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("normalized_asset_ref.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    source_node_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("knowledge_graph_node.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    relation_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    target_node_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("knowledge_graph_node.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    properties: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False,
+    )
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+
+
+class KnowledgeGraphMention(TimestampMixin, Base):
+    """Entity mention anchored to a source chunk."""
+
+    __tablename__ = "knowledge_graph_mention"
+    __table_args__ = (
+        Index("ix_kgm_build_entity", "graph_build_id", "entity_id"),
+        Index("ix_kgm_chunk_id", "chunk_id"),
+        Index("ix_kgm_normalized_ref_id", "normalized_ref_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    graph_build_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("knowledge_graph_build.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("normalized_asset_ref.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    entity_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("knowledge_graph_node.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    chunk_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("knowledge_chunk.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    mention_text: Mapped[str] = mapped_column(Text, nullable=False)
+    normalized_name: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    source_block_ids: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    locator: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+
+
+class KnowledgeGraphEvidence(TimestampMixin, Base):
+    """Evidence anchor for graph facts, edges, entities, or mentions."""
+
+    __tablename__ = "knowledge_graph_evidence"
+    __table_args__ = (
+        Index("ix_kgev_chunk_id", "chunk_id"),
+        Index("ix_kgev_fact", "graph_build_id", "fact_id"),
+        Index("ix_kgev_edge", "graph_build_id", "edge_id"),
+        Index("ix_kgev_entity", "graph_build_id", "entity_id"),
+        Index("ix_kgev_mention", "graph_build_id", "mention_id"),
+        Index("ix_kgev_normalized_ref_id", "normalized_ref_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    graph_build_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("knowledge_graph_build.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("normalized_asset_ref.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    fact_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("knowledge_graph_fact.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    edge_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("knowledge_graph_edge.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    entity_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("knowledge_graph_node.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    mention_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("knowledge_graph_mention.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    chunk_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("knowledge_chunk.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    source_block_ids: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    locator: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    evidence_text: Mapped[str] = mapped_column(Text, nullable=False)
+    extraction_method: Mapped[str] = mapped_column(String(32), nullable=False)
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
