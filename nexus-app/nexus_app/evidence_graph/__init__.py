@@ -16,6 +16,17 @@ from nexus_app.evidence_graph.candidates import (
     GraphChunkCandidate,
     select_graph_candidate_chunks,
 )
+from nexus_app.evidence_graph.extractors import (
+    BodyLLMExtractor,
+    ChartFactExtractor,
+    DefinitionBodyExtractor,
+    MetricImageExtractor,
+    SemanticImageExtractor,
+    SopStepExtractor,
+    TableRowPolicyExtractor,
+    extract_graph_candidates,
+    extractor_for_name,
+)
 from nexus_app.evidence_graph.profiles import (
     GRAPH_PROFILE_CONFIGS,
     AnchorRole,
@@ -25,18 +36,39 @@ from nexus_app.evidence_graph.profiles import (
     get_graph_profile_config,
     list_graph_profile_configs,
 )
+from nexus_app.evidence_graph.schemas import (
+    GraphEntityRef,
+    GraphExtractionRejectReason,
+    GraphExtractionResult,
+    GraphFactCandidate,
+    aggregate_extraction_results,
+)
 
 __all__ = [
     "GRAPH_PROFILE_CONFIGS",
     "GRAPH_TYPE",
     "AnchorRole",
+    "BodyLLMExtractor",
     "CandidateSelectionResult",
+    "ChartFactExtractor",
+    "DefinitionBodyExtractor",
     "ExtractionMethod",
     "ExtractorRoute",
+    "GraphEntityRef",
+    "GraphExtractionRejectReason",
+    "GraphExtractionResult",
     "GraphChunkCandidate",
+    "GraphFactCandidate",
     "GraphProfileConfig",
     "KnowledgeGraphBuildStatus",
+    "MetricImageExtractor",
+    "SemanticImageExtractor",
+    "SopStepExtractor",
+    "TableRowPolicyExtractor",
+    "aggregate_extraction_results",
     "create_graph_build",
+    "extract_graph_candidates",
+    "extractor_for_name",
     "get_graph_profile_config",
     "get_latest_succeeded_build",
     "list_graph_profile_configs",

@@ -576,6 +576,8 @@ POST /internal/v1/knowledge-graphs/rebuild
 
 ### Task Package C：Extractor v1
 
+状态：已开始落地。当前切片新增抽取中间 schema、LLM body extractor、表格行/指标图规则 extractor 和统一 extractor router；抽取结果只进入 `GraphFactCandidate` 中间结构，不写正式 graph 表。
+
 范围：
 
 - `BodyLLMExtractor`
