@@ -39,9 +39,12 @@ Role constraints:
 - NEXUS-owned `knowledge_chunk` construction for source citation and downstream knowledge processing. External index backends are adapter-selected later; backend execution state belongs in `index_manifest`, not `knowledge_chunk`. `knowledge_chunk.normalized_ref_id` links chunks to `normalized_asset_ref`.
 - Knowledge Pipeline 1: RAG retrieval KB for D4 teaching materials and D3 talent cultivation plans. Knowledge Pipeline is independent of Asset Pipeline.
 - Evidence-grounded KG is tracked as a bounded extension under implementation:
-  the current data-model slice adds evidence-bound graph build storage over a
-  complete `normalized_asset_ref`; profile selection, extractors, APIs, and
-  Console rendering are separate later slices.
+  the current slices add evidence-bound graph build storage over a complete
+  `normalized_asset_ref`, profile-based chunk selection, extractor schemas,
+  graph persistence, and internal `/internal/v1/knowledge-graphs/*` APIs. These
+  APIs create build envelopes and expose graph reads; they do not execute LLM
+  extraction inline. Console rendering and public/open graph APIs remain later
+  slices.
 - `metadata_enrich` auto-tagging: targets normalized assets (not chunks); high-confidence tags auto-commit (audit logged); low-confidence tags enter human review queue.
 - RBAC, org scope filtering, data-level visibility, masking for L3/L4 exceptions, audit. ABAC is an extension point.
 - `nexus-console` P0 pages and `/v1` P0 APIs.

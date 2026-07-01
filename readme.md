@@ -100,8 +100,10 @@ Root documents are distilled implementation contracts:
 - RAGFlow chunking, indexing, and retrieval integration.
 - Evidence-grounded Knowledge Graph data foundation, with build/node/fact/edge/
   mention/evidence tables linked to `normalized_asset_ref` and `knowledge_chunk`
-  evidence locators. Extractors, APIs, and Console graph rendering are later
-  implementation slices.
+  evidence locators. Candidate selection, extractor schemas, evidence-bound
+  persistence, and `/internal/v1/knowledge-graphs/*` console-control APIs are
+  under active implementation; Console graph rendering and public/open graph
+  APIs are later slices.
 - Permission-filtered search and QA with source citations.
 - Audit logs for access, governance, rules, Prompt changes, permissions, API keys, and AI adoption.
 

@@ -155,6 +155,12 @@ P0 record profiles include job demand, occupational ability analysis, and major 
   `knowledge_graph_mention`, `knowledge_graph_evidence`. These tables store
   evidence-bound graph builds over a complete `normalized_asset_ref` and are
   separate from Pipeline B `CapabilityGraphStaging` domain graphs.
+- Evidence-grounded KG internal API: `/internal/v1/knowledge-graphs/*` and
+  `/internal/v1/normalized-refs/{ref_id}/knowledge-graph` expose build
+  envelopes, graph row queries, evidence reverse lookup, dry-run candidate
+  summaries, and rebuild submission for Console/control-plane use. API handlers
+  must not run heavyweight LLM extraction inline. Public/open graph APIs are a
+  later extension.
 - Jobs and audit: `job`, `job_stage`, `audit_log`.
 
 ## normalized_asset_ref Fields (v3.0)
@@ -346,6 +352,10 @@ Asset Pipeline → normalized_asset_ref (stable contract)
   input is a full `normalized_asset_ref`; `knowledge_chunk` provides semantic
   windows, source block ids, and locators; official graph nodes/facts/edges
   must be evidence-bound through `knowledge_graph_evidence`.
+- Build submission through internal APIs creates or refreshes graph build
+  envelopes and candidate summaries only; asynchronous graph extraction,
+  validation, and persistence remain knowledge-processing work outside the
+  request handler.
 
 ## Core Flows
 
