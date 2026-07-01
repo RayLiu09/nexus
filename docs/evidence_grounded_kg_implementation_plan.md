@@ -631,6 +631,8 @@ POST /internal/v1/knowledge-graphs/rebuild
 
 ### Task Package F：Console Evidence Graph 视图
 
+状态：已开始落地。当前切片新增 Console 侧 `/api/evidence-graphs/*` 代理和资产详情文档知识块二级视图，目标是在 `RAG知识块` 之外提供 Evidence Graph 画布、详情抽屉、evidence 原文定位、构建空态、全屏和完整图谱图片下载。
+
 范围：
 
 - 资产详情知识块 tab 两视图：

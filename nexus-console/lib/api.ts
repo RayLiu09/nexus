@@ -801,6 +801,87 @@ export type CapabilityGraphStagingEdge = {
   confidence: number | null;
 };
 
+export type KnowledgeGraphBuild = {
+  id: string;
+  normalized_ref_id: string;
+  graph_type: string;
+  graph_profile: string;
+  strategy_version: string;
+  status: string;
+  source_chunk_count: number;
+  candidate_count: number;
+  node_count: number;
+  edge_count: number;
+  fact_count: number;
+  quality_summary: Record<string, unknown> | null;
+  completed_at: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type KnowledgeGraphNode = {
+  id: string;
+  graph_build_id: string;
+  normalized_ref_id: string;
+  node_key: string;
+  node_type: string;
+  name: string;
+  aliases: string[];
+  properties: Record<string, unknown>;
+  confidence: number | null;
+};
+
+export type KnowledgeGraphEdge = {
+  id: string;
+  graph_build_id: string;
+  normalized_ref_id: string;
+  source_node_id: string;
+  relation_type: string;
+  target_node_id: string;
+  properties: Record<string, unknown>;
+  confidence: number | null;
+};
+
+export type KnowledgeGraphFact = {
+  id: string;
+  graph_build_id: string;
+  normalized_ref_id: string;
+  fact_type: string;
+  subject_node_id: string | null;
+  predicate: string;
+  object_node_id: string | null;
+  object_literal: string | null;
+  qualifiers: Record<string, unknown>;
+  confidence: number | null;
+};
+
+export type KnowledgeGraphEvidence = {
+  id: string;
+  graph_build_id: string;
+  normalized_ref_id: string;
+  fact_id: string | null;
+  edge_id: string | null;
+  entity_id: string | null;
+  mention_id: string | null;
+  chunk_id: string;
+  source_block_ids: string[];
+  locator: Record<string, unknown> | null;
+  evidence_text: string;
+  extraction_method: string | null;
+  confidence: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type KnowledgeGraphLatestSummary = {
+  build: KnowledgeGraphBuild | null;
+  nodes?: number;
+  edges?: number;
+  facts?: number;
+  evidence?: number;
+};
+
 // ── record_type adapter ───────────────────────────────────────────────────
 //
 // `normalized_asset_ref` carries `normalized_type` (document / record) but

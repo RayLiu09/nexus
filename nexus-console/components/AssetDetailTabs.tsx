@@ -6,7 +6,7 @@ import { Tabs, Tag, Progress, Empty } from "antd";
 import { StatusLabel } from "@/components/StatusLabel";
 import { CopyableShortId } from "@/components/shared/CopyableShortId";
 import { ConfidenceBadge } from "@/components/ConfidenceBadge";
-import { ChunkListSection } from "@/app/assets/[assetId]/_components/ChunkListSection";
+import { DocumentKnowledgeView } from "@/app/assets/[assetId]/_components/DocumentKnowledgeView";
 import { SourcePreviewSection } from "@/app/assets/[assetId]/_components/SourcePreviewSection";
 import { JobDemandKnowledgeView } from "@/app/assets/[assetId]/_components/JobDemandKnowledgeView";
 import { AbilityAnalysisKnowledgeView } from "@/app/assets/[assetId]/_components/AbilityAnalysisKnowledgeView";
@@ -231,14 +231,7 @@ function KnowledgeChunksTab({
   if (view === "generic_table" && latestRef) {
     return <GenericRecordKnowledgeView normalizedRef={latestRef} />;
   }
-  return (
-    <ChunkListSection
-      refId={latestRef?.id ?? null}
-      title="RAG 语义知识块"
-      emptyDescription="该 ref 暂未生成 RAG 语义知识块。"
-      mode="preview"
-    />
-  );
+  return <DocumentKnowledgeView normalizedRef={latestRef} />;
 }
 
 // ---------------------------------------------------------------------------
