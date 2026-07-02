@@ -258,13 +258,70 @@ def test_candidate_selection_loads_full_ref_semantic_scope(session):
         "chart": 1,
         "image": 1,
     }
-    assert result.skipped_by_reason == {
-        "skipped_anchor_role": 1,
-        "empty_content": 1,
-        "non_semantic_image": 1,
-    }
+
+
+def test_textbook_profile_selects_full_ref_semantic_textbook_chunks(session):
+    ref = _seed_ref(session, ref_id="ref-textbook")
+    other_ref = _seed_ref(session, ref_id="ref-textbook-other")
+    _add_chunk(
+        session,
+        ref_id=ref.id,
+        chunk_id="chunk-textbook-1",
+        index=1,
+        anchor_role="body",
+        content="项目一 短视频认知。本项目讲授短视频平台、账号定位和内容形态。",
+    )
+    _add_chunk(
+        session,
+        ref_id=ref.id,
+        chunk_id="chunk-textbook-2",
+        index=2,
+        anchor_role="body",
+        content="任务二 短视频拍摄。训练构图、运镜和现场执行能力。",
+    )
+    _add_chunk(
+        session,
+        ref_id=ref.id,
+        chunk_id="chunk-textbook-logo",
+        index=3,
+        anchor_role="image",
+        content="logo",
+        metadata_extra={"image_role": "logo"},
+    )
+    _add_chunk(
+        session,
+        ref_id=ref.id,
+        chunk_id="chunk-textbook-structured",
+        index=4,
+        anchor_role="body",
+        content="非语义结构化行不应进入图谱候选。",
+        chunk_type=ChunkType.STRUCTURED_RECORD_ROW,
+    )
+    _add_chunk(
+        session,
+        ref_id=other_ref.id,
+        chunk_id="chunk-textbook-other",
+        index=1,
+        anchor_role="body",
+        content="其他教材资产内容不应进入本 ref 的候选。",
+    )
+    session.commit()
+
+    result = select_graph_candidate_chunks(
+        session,
+        normalized_ref_id=ref.id,
+        graph_profile="textbook",
+    )
+
+    assert result.total_semantic_chunk_count == 3
+    assert [candidate.chunk_id for candidate in result.candidate_chunks] == [
+        "chunk-textbook-1",
+        "chunk-textbook-2",
+    ]
+    assert result.by_anchor_role == {"body": 2}
+    assert result.skipped_by_reason == {"non_semantic_image": 1}
     body = next(c for c in result.candidate_chunks if c.anchor_role == "body")
-    assert body.extractor_name == "BodyLLMExtractor"
+    assert body.extractor_name == "DefinitionBodyExtractor"
     assert body.extraction_method == "llm"
 
 

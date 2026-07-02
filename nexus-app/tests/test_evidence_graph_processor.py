@@ -88,6 +88,47 @@ class _InvalidGraphLLM:
         )
 
 
+class _TextbookGraphLLM:
+    def call(
+        self,
+        model_alias,
+        messages,
+        *,
+        temperature=0.2,
+        max_tokens=2048,
+        response_format=None,
+    ):
+        content = json.dumps({
+            "candidates": [
+                {
+                    "fact_type": "course_structure",
+                    "subject": {"type": "Textbook", "name": "短视频拍摄与剪辑"},
+                    "predicate": "HAS_CHAPTER",
+                    "object": {"type": "Chapter", "name": "项目一 短视频认知"},
+                    "qualifiers": {"chapter_order": 1},
+                    "evidence_text": "项目一 短视频认知",
+                    "confidence": 0.92,
+                },
+                {
+                    "fact_type": "skill_development",
+                    "subject": {"type": "Chapter", "name": "项目一 短视频认知"},
+                    "predicate": "DEVELOPS_SKILL",
+                    "object": {"type": "Skill", "name": "账号定位分析"},
+                    "qualifiers": {},
+                    "evidence_text": "本项目讲授短视频平台、账号定位和内容形态。",
+                    "confidence": 0.9,
+                },
+            ]
+        }, ensure_ascii=False)
+        return content, LiteLLMCallSummary(
+            model_alias=model_alias,
+            request_id="req-textbook",
+            latency_ms=1.0,
+            status="success",
+            input_hash="hash-textbook",
+        )
+
+
 def _seed_ref(session) -> models.NormalizedAssetRef:
     data_source = models.DataSource(
         id="ds-kg-worker",
@@ -168,6 +209,31 @@ def _seed_ref(session) -> models.NormalizedAssetRef:
     return ref
 
 
+def _seed_textbook_ref(session) -> models.NormalizedAssetRef:
+    ref = _seed_ref(session)
+    ref.id = "ref-textbook-worker"
+    ref.title = "短视频拍摄与剪辑"
+    ref.metadata_summary = {
+        "graph_profile": "textbook",
+        "knowledge_emissions": [{"code": "textbook_kb", "primary": True}],
+    }
+    chunk = session.get(models.KnowledgeChunk, "chunk-kg-worker")
+    assert chunk is not None
+    chunk.id = "chunk-textbook-worker"
+    chunk.normalized_ref_id = ref.id
+    chunk.knowledge_type_code = "textbook_kb"
+    chunk.content = "项目一 短视频认知。本项目讲授短视频平台、账号定位和内容形态。"
+    chunk.source_block_ids = ["tb1"]
+    chunk.locator = {
+        "page_start": 1,
+        "page_end": 1,
+        "heading_path": [{"level": 1, "title": "项目一 短视频认知"}],
+        "blocks": [{"block_id": "tb1", "page": 1}],
+    }
+    session.commit()
+    return ref
+
+
 def test_process_one_pending_graph_build_persists_evidence_bound_graph(session):
     ref = _seed_ref(session)
     build = create_graph_build(
@@ -238,6 +304,46 @@ def test_process_graph_build_with_all_rejected_candidates_fails_without_graph_ro
     assert refreshed.quality_summary["extraction"]["accepted"] == 0
     assert refreshed.quality_summary["extraction"]["rejected"] == 1
     assert refreshed.quality_summary["persist"]["source_candidate_count"] == 1
+
+
+def test_process_textbook_graph_build_persists_evidence_bound_rows(session):
+    ref = _seed_textbook_ref(session)
+    build = create_graph_build(
+        session,
+        normalized_ref_id=ref.id,
+        graph_profile="textbook",
+        strategy_version="evidence_kg.v1",
+        status=KnowledgeGraphBuildStatus.PENDING,
+    )
+    session.commit()
+
+    result = process_one_pending_graph_build(
+        session,
+        worker_id="worker-test",
+        llm_client=_TextbookGraphLLM(),
+    )
+
+    assert result is not None
+    assert result.status == KnowledgeGraphBuildStatus.SUCCEEDED
+    refreshed = session.get(models.KnowledgeGraphBuild, build.id)
+    assert refreshed is not None
+    assert refreshed.status == KnowledgeGraphBuildStatus.SUCCEEDED
+    assert refreshed.source_chunk_count == 1
+    assert refreshed.candidate_count == 2
+    assert refreshed.quality_summary["candidate_selection"]["selected_chunk_count"] == 1
+    assert refreshed.node_count == 3
+    assert refreshed.fact_count == 2
+    assert refreshed.edge_count == 2
+
+    evidence_rows = session.scalars(
+        select(models.KnowledgeGraphEvidence).where(
+            models.KnowledgeGraphEvidence.graph_build_id == build.id
+        )
+    ).all()
+    assert len(evidence_rows) >= 2
+    assert {row.chunk_id for row in evidence_rows} == {"chunk-textbook-worker"}
+    assert all(row.locator["heading_path"][0]["title"] == "项目一 短视频认知"
+               for row in evidence_rows)
 
 
 def test_recover_stale_running_graph_build_requeues_for_worker(session):

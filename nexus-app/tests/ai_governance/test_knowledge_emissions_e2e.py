@@ -154,6 +154,78 @@ class TestKnowledgeEmissions:
         )
         assert out2.knowledge_type is None
 
+    def test_course_textbook_maps_to_textbook_kb(self, tmp_path):
+        rules = {
+            "schema_version": "2.1",
+            "classifications": [
+                {
+                    "code": "course_textbook",
+                    "name": "教材",
+                    "description": "课程资源教材",
+                    "criteria": ["标题/封面关键词：教材"],
+                    "primary_knowledge_type": "textbook_kb",
+                    "default_level": "L2",
+                    "co_emission_rules": [],
+                },
+            ],
+            "levels": [
+                {"code": code, "name": code, "description": "d", "criteria": ["c"]}
+                for code in ("L1", "L2", "L3", "L4")
+            ],
+            "tags": [],
+            "quality_scoring": {
+                "dimensions": [
+                    {
+                        "name": "x",
+                        "weight": 1.0,
+                        "description": "d",
+                        "check_items": [
+                            {"name": "h", "description": "d", "severity": "info"}
+                        ],
+                    }
+                ],
+                "thresholds": {"pass": 80, "warning": 60, "review_required_below": 50},
+                "confidence_threshold_auto_adopt": 0.85,
+            },
+            "manual_review_triggers": [],
+            "knowledge_types": [
+                {
+                    "code": "textbook_kb",
+                    "name": "教材知识库",
+                    "applicable_classifications": ["course_textbook"],
+                    "chunking_mode": "nexus_semantic",
+                    "chunking_strategy": "semantic_repack",
+                    "chunk_type": "semantic",
+                    "co_emission_rules": [],
+                }
+            ],
+        }
+        path = tmp_path / "rules.json"
+        path.write_text(json.dumps(rules), encoding="utf-8")
+        reg = GovernanceRulesRegistry()
+        reg.load(str(path))
+
+        emissions = infer_knowledge_emissions(
+            {"classification": "course_textbook", "confidence": 0.93},
+            {"content_type": "document"},
+            reg,
+        )
+
+        assert emissions == [
+            {
+                "code": "textbook_kb",
+                "name": "教材知识库",
+                "primary": True,
+                "confidence": 0.93,
+                "source": "rule_lookup",
+                "evidence": [
+                    "classification=course_textbook → primary_knowledge_type=textbook_kb "
+                    "(active rules)"
+                ],
+                "co_emission_origin": None,
+            }
+        ]
+
 
 class TestCoEmission:
     def test_classification_side_co_emission_triggers(self, tmp_path):

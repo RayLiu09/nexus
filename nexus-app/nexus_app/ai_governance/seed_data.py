@@ -225,6 +225,7 @@ def _build_code(name: str) -> str:
         "专业人才需求报告": "talent_demand_report",
         "人才培养方案": "talent_training_plan",
         "专业简介": "major_profile",
+        "教材": "course_textbook",
     }
     return _MAP.get(name, re.sub(r"[^\w]", "_", name).strip("_").lower())
 
@@ -381,6 +382,7 @@ def parse_classifications(excel_path: str | Path | None = None) -> list[dict[str
             "decomposition_note": decomp_note or "",
             "structure_description": structure or "",
         }
+        _apply_classification_defaults(cls_dict)
         classifications.append(cls_dict)
 
     wb.close()
@@ -396,8 +398,106 @@ def _parse_quality_dim(text: str, default_name: str) -> dict[str, Any]:
         weight = int(m.group(2)) / 100.0
         desc = m.group(3).strip()
         return {"name": name_part or default_name, "weight": weight, "description": desc}
+    # Try "description。权重XX%" / "description，权重XX%" pattern.
+    m = re.match(r"^(.+?)[。；;，,]?\s*权重\s*(\d+)%\s*$", text.strip())
+    if m:
+        desc = m.group(1).strip()
+        weight = int(m.group(2)) / 100.0
+        return {"name": default_name, "weight": weight, "description": desc}
     # Fallback: treat whole text as description
     return {"name": default_name, "weight": 0.0, "description": text.strip()}
+
+
+_COURSE_TEXTBOOK_TITLE_KEYWORDS = [
+    "教材",
+    "职业教育教材",
+    "改革创新教材",
+    "新形态教材",
+    "实训教材",
+    "课程教材",
+    "参考教材",
+    "讲义",
+    "实训指导书",
+    "任务式教材",
+    "项目化教材",
+]
+
+_COURSE_TEXTBOOK_CONTENT_KEYWORDS = [
+    "本书",
+    "内容提要",
+    "目录",
+    "项目",
+    "任务",
+    "学习目标",
+    "知识目标",
+    "能力目标",
+    "素质目标",
+    "课后训练",
+    "实训",
+    "案例",
+    "拓展资源",
+    "扫码资源",
+    "出版社",
+    "主编",
+    "ISBN",
+    "版次",
+    "印次",
+    "CIP",
+    "版权页",
+]
+
+
+def _apply_classification_defaults(cls_dict: dict[str, Any]) -> None:
+    """Attach v2 governance defaults that are not explicit columns in Excel."""
+    title_keywords = cls_dict.get("title_keywords") or []
+    content_keywords = cls_dict.get("content_keywords") or []
+    cls_dict["criteria"] = _build_classification_criteria(
+        title_keywords=title_keywords,
+        content_keywords=content_keywords,
+    )
+
+    if cls_dict.get("code") != "course_textbook":
+        return
+
+    # The reviewed textbook row in the Excel sheet is prose-heavy. Use stable
+    # operator-facing keywords so prompt rendering and config validation do not
+    # depend on punctuation or line-break artefacts in the spreadsheet cell.
+    cls_dict["title_keywords"] = list(_COURSE_TEXTBOOK_TITLE_KEYWORDS)
+    cls_dict["content_keywords"] = list(_COURSE_TEXTBOOK_CONTENT_KEYWORDS)
+    cls_dict["criteria"] = _build_classification_criteria(
+        title_keywords=cls_dict["title_keywords"],
+        content_keywords=cls_dict["content_keywords"],
+    )
+    cls_dict["primary_knowledge_type"] = "textbook_kb"
+    cls_dict["default_level"] = "L2"
+    cls_dict["co_emission_rules"] = []
+    _normalise_course_textbook_quality_dimensions(cls_dict)
+
+
+def _build_classification_criteria(
+    *,
+    title_keywords: list[str],
+    content_keywords: list[str],
+) -> list[str]:
+    criteria: list[str] = []
+    if title_keywords:
+        criteria.append("标题/封面关键词：" + "、".join(title_keywords))
+    if content_keywords:
+        criteria.append("正文/结构关键词：" + "、".join(content_keywords))
+    return criteria
+
+
+def _normalise_course_textbook_quality_dimensions(cls_dict: dict[str, Any]) -> None:
+    dims = [dict(item) for item in (cls_dict.get("quality_dimensions") or [])]
+    dims = [item for item in dims if float(item.get("weight") or 0) > 0]
+    total = sum(float(item.get("weight") or 0) for item in dims)
+    if total < 0.999:
+        dims.append({
+            "name": "合规与可用性",
+            "weight": round(1.0 - total, 4),
+            "description": "检查版权/授权、全文索引使用范围、敏感信息、扫描质量和 locator 可用性",
+        })
+    cls_dict["quality_dimensions"] = dims
 
 
 # ---------------------------------------------------------------------------

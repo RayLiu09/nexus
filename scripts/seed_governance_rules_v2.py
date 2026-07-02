@@ -58,11 +58,53 @@ def canonical_hash(content: dict) -> str:
     ).hexdigest()
 
 
+def validate_course_textbook_rules(content: dict) -> None:
+    """Fail fast when the reviewed course_textbook governance contract is missing."""
+    classifications = content.get("classifications") or []
+    by_code = {item.get("code"): item for item in classifications if isinstance(item, dict)}
+    textbook = by_code.get("course_textbook")
+    if not textbook:
+        raise ValueError("course_textbook classification is missing")
+    if textbook.get("primary_knowledge_type") != "textbook_kb":
+        raise ValueError("course_textbook.primary_knowledge_type must be textbook_kb")
+    if textbook.get("default_level") != "L2":
+        raise ValueError("course_textbook.default_level must be L2")
+    criteria = textbook.get("criteria") or []
+    if not criteria or "教材" not in "\n".join(str(item) for item in criteria):
+        raise ValueError("course_textbook.criteria must include textbook classification signals")
+    dims = textbook.get("quality_dimensions") or []
+    if not dims:
+        raise ValueError("course_textbook.quality_dimensions is missing")
+    weight_sum = sum(float(item.get("weight") or 0) for item in dims)
+    if abs(weight_sum - 1.0) > 0.001:
+        raise ValueError(
+            f"course_textbook quality dimension weights must sum to 1.0, got {weight_sum:.4f}"
+        )
+    if any(float(item.get("weight") or 0) <= 0 for item in dims):
+        raise ValueError("course_textbook quality dimensions must have positive weights")
+
+    knowledge_types = content.get("knowledge_types") or []
+    kt_by_code = {item.get("code"): item for item in knowledge_types if isinstance(item, dict)}
+    textbook_kb = kt_by_code.get("textbook_kb")
+    if not textbook_kb:
+        raise ValueError("textbook_kb knowledge_type is missing")
+    applicable = textbook_kb.get("applicable_classifications") or []
+    if "course_textbook" not in applicable:
+        raise ValueError("textbook_kb.applicable_classifications must include course_textbook")
+    if textbook_kb.get("chunking_mode") not in {"nexus_semantic", "passthrough_to_ragflow"}:
+        raise ValueError("textbook_kb.chunking_mode must support NEXUS semantic chunks")
+
+
 def main(dry_run: bool = False) -> int:
     if not V2_PATH.exists():
         logger.error("proposal file missing: %s", V2_PATH)
         return 2
     content = json.loads(V2_PATH.read_text(encoding="utf-8"))
+    try:
+        validate_course_textbook_rules(content)
+    except ValueError as exc:
+        logger.error("course_textbook rules validation failed: %s", exc)
+        return 2
     schema_version = content.get("schema_version", "2.1")
     content_hash = canonical_hash(content)
     logger.info(
@@ -127,11 +169,10 @@ def main(dry_run: bool = False) -> int:
             rules_content=content,
             schema_version=schema_version,
             change_summary=(
-                "v2.1 proposal: bumped schema; added knowledge_types section "
-                "(14 migrated + 2 new: industry_research_kb, "
-                "structured_record_table); each classification now carries "
-                "primary_knowledge_type + co_emission_rules; tags removed as "
-                "they are derived per-classification via tag_dimensions."
+                "v2.1 proposal: business classifications + knowledge_types; "
+                "added course_textbook under 课程资源 with primary KT textbook_kb, "
+                "L2 default level, per-classification tagging/quality rules, "
+                "and textbook_kb applicable_classifications mapping."
             ),
             created_by="seed_script",
             trace_id="seed_v2_rules",
