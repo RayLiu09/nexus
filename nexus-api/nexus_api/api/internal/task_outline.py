@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,8 @@ from nexus_api import schemas
 from nexus_api.responses import response
 from nexus_app import models
 from nexus_app.database import get_db
+from nexus_app.enums import NormalizedType
+from nexus_app.task_outline.orchestrator import rebuild_task_outline_for_ref
 from nexus_app.task_outline.projector import DOMAIN_MODEL, DEFAULT_KNOWLEDGE_TYPE_CODE
 
 router = APIRouter()
@@ -80,6 +82,46 @@ def get_task_outline_by_ref(
     )
 
 
+@router.post(
+    "/normalized-refs/{ref_id}/task-outline/rebuild",
+    response_model=schemas.ApiResponse[dict],
+)
+def rebuild_task_outline_by_ref(
+    ref_id: str,
+    request: Request,
+    session: Session = Depends(get_db),
+):
+    ref = session.get(models.NormalizedAssetRef, ref_id)
+    if ref is None:
+        raise HTTPException(status_code=404, detail=f"normalized_ref '{ref_id}' not found")
+    if ref.normalized_type != NormalizedType.DOCUMENT:
+        raise HTTPException(
+            status_code=409,
+            detail="task outline rebuild requires a normalized document",
+        )
+
+    payload = _load_task_outline_payload(ref)
+    result = rebuild_task_outline_for_ref(session, ref=ref, payload=payload)
+    session.commit()
+
+    return response(
+        {
+            "profile": _serialize_profile(result.profile),
+            "node_count": len(result.nodes),
+            "projected_chunk_count": len(result.chunks),
+            "quality": result.quality,
+            "index_marked_stale": result.index_marked_stale,
+        },
+        request,
+    )
+
+
+def _load_task_outline_payload(ref: models.NormalizedAssetRef) -> dict[str, Any]:
+    from nexus_api.api.internal.normalized_refs import _load_normalized_payload
+
+    return _load_normalized_payload(ref)
+
+
 def _serialize_profile(profile: models.TaskOutlineProfile) -> dict[str, Any]:
     return {
         "id": profile.id,
@@ -123,4 +165,3 @@ def _serialize_node(node: models.TaskOutlineNode) -> dict[str, Any]:
         "created_at": node.created_at,
         "updated_at": node.updated_at,
     }
-

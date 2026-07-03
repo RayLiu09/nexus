@@ -90,7 +90,8 @@ def delete_projected_chunks(
     normalized_ref_id: str,
     profile_id: str,
     knowledge_type_code: str = DEFAULT_KNOWLEDGE_TYPE_CODE,
-) -> None:
+) -> int:
+    """Delete prior Task Outline projected chunks and return the delete count."""
     existing = list(session.scalars(
         select(models.KnowledgeChunk).where(
             models.KnowledgeChunk.normalized_ref_id == normalized_ref_id,
@@ -102,11 +103,12 @@ def delete_projected_chunks(
         if _is_profile_projection(chunk, profile_id=profile_id)
     ]
     if not ids_to_delete:
-        return
+        return 0
     session.execute(
         delete(models.KnowledgeChunk).where(models.KnowledgeChunk.id.in_(ids_to_delete))
     )
     session.flush()
+    return len(ids_to_delete)
 
 
 def should_project_node(node: models.TaskOutlineNode) -> bool:
@@ -228,4 +230,3 @@ def _is_profile_projection(
         metadata.get("domain_model") == DOMAIN_MODEL
         and metadata.get("task_outline_profile_id") == profile_id
     )
-

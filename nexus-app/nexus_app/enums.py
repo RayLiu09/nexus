@@ -154,6 +154,7 @@ class GovernanceTaskType(StrEnum):
 class IndexManifestStatus(StrEnum):
     PENDING = "pending"
     INDEXED = "indexed"
+    STALE   = "stale"
     FAILED  = "failed"
 
 

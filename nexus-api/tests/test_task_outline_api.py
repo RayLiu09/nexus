@@ -7,6 +7,7 @@ from nexus_app.enums import (
     AssetKind,
     AssetVersionStatus,
     DataSourceType,
+    IndexManifestStatus,
     IngestBatchStatus,
     NormalizedAssetRefStatus,
     NormalizedType,
@@ -158,3 +159,71 @@ def test_task_outline_api_returns_profile_nodes_and_projection_summary(app, sess
     assert data["nodes"][0]["locator"]["page_start"] == 11
     assert data["chunk_projection"]["projected_chunk_count"] == 1
 
+
+def test_task_outline_rebuild_api_builds_profile_and_projection(
+    app,
+    session,
+    monkeypatch,
+) -> None:
+    ref = _seed_ref(session, ref_id="ref-task-outline-rebuild")
+    session.add(
+        models.IndexManifest(
+            id="manifest-task-outline-rebuild",
+            normalized_ref_id=ref.id,
+            knowledge_type_code="textbook_kb",
+            index_status=IndexManifestStatus.INDEXED,
+            chunk_count=1,
+        )
+    )
+    session.commit()
+    blocks = [
+        _block("b1", "heading", "项目一 基础数据采集", 10),
+        _block("b2", "heading", "任务一 市场数据采集", 11),
+        _block("b3", "paragraph", "任务目标：能够根据需求确定数据采集渠道并设计采集指标。", 11),
+        _block("b4", "paragraph", "任务背景：企业需要对智能门锁市场数据进行采集和分析。", 12),
+        _block("b5", "paragraph", "任务分析：需要明确采集渠道、采集指标和采集表结构。", 12),
+        _block("b6", "paragraph", "任务实施", 13),
+        _block("b7", "paragraph", "1. 确定采集渠道，选择电商平台和关键词。", 13),
+        _block("b8", "table", "图1-2 智能门锁竞争数据采集表\n商品名称 | 链接 | 价格 | 月销量", 15),
+    ]
+
+    def fake_loader(loaded_ref):
+        assert loaded_ref.id == ref.id
+        return {
+            "title": ref.title,
+            "body_markdown": "\n".join(block["text"] for block in blocks),
+            "blocks": blocks,
+        }
+
+    monkeypatch.setattr(
+        "nexus_api.api.internal.task_outline._load_task_outline_payload",
+        fake_loader,
+    )
+
+    with TestClient(app) as client:
+        resp = client.post(f"/internal/v1/normalized-refs/{ref.id}/task-outline/rebuild")
+
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["profile"]["normalized_ref_id"] == ref.id
+    assert data["profile"]["textbook_subtype"] == "training_operation"
+    assert data["node_count"] > 0
+    assert data["projected_chunk_count"] > 0
+    assert data["quality"]["task_count"] > 0
+    assert data["quality"]["operation_step_count"] > 0
+    assert data["index_marked_stale"] is True
+
+    manifest = session.get(models.IndexManifest, "manifest-task-outline-rebuild")
+    assert manifest.index_status == IndexManifestStatus.STALE
+
+
+def _block(block_id: str, block_type: str, text: str, page: int) -> dict:
+    idx = int("".join(ch for ch in block_id if ch.isdigit()) or "1")
+    return {
+        "block_id": block_id,
+        "block_type": block_type,
+        "text": text,
+        "page": page,
+        "bbox": [72.0, 100.0 + idx, 520.0, 130.0 + idx],
+        "md_char_range": [idx * 100, idx * 100 + len(text)],
+    }
