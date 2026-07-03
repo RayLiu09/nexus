@@ -142,7 +142,10 @@ def rebuild(
 
         ref.metadata_summary = {
             **(ref.metadata_summary or {}),
-            "knowledge_emissions": [emission],
+            "knowledge_emissions": (ref.metadata_summary or {}).get(
+                "knowledge_emissions",
+                [emission],
+            ),
             "nexus_chunk_rebuild": {
                 "category": category,
                 "knowledge_type_code": kt_code,

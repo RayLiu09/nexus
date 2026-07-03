@@ -15,8 +15,8 @@
  * 走 ADR-002 中规划的申诉 + 人工覆盖通道，不在本页直接 mutate。
  */
 
-import { useState } from "react";
-import { Table, Tag, Button, Progress, Tooltip, App } from "antd";
+import { useMemo, useState } from "react";
+import { Table, Tag, Button, Progress, Tooltip, App, Drawer, Input, Space, Alert } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { CheckOutlined, CloseOutlined, EditOutlined } from "@ant-design/icons";
 import { ApiState } from "@/components/ApiState";
@@ -81,7 +81,62 @@ export default function TagReviewContent({
   const [drafts, setDrafts] = useState<TagDraft[]>(initialDrafts);
   const [committed, setCommitted] = useState<CommittedTag[]>(initialCommitted);
   const [selectedIds, setSelectedIds] = useState<React.Key[]>([]);
+  const [reviewDraft, setReviewDraft] = useState<TagDraft | null>(null);
+  const [reviewTagsText, setReviewTagsText] = useState("");
   const { message, modal, notification } = App.useApp();
+
+  const reviewedTags = useMemo(
+    () => reviewTagsText
+      .split(/[,，、\n]/)
+      .map((item) => item.trim().replace(/^#/, ""))
+      .filter(Boolean),
+    [reviewTagsText],
+  );
+
+  const openReview = (draft: TagDraft) => {
+    setReviewDraft(draft);
+    setReviewTagsText(draft.tags.join("、"));
+  };
+
+  const confirmDraft = (draft: TagDraft, tags: string[]) => {
+    const finalTags = tags.length > 0 ? tags : draft.tags;
+    const now = new Date().toISOString();
+    setDrafts((prev) => prev.filter((item) => item.id !== draft.id));
+    setSelectedIds((prev) => prev.filter((id) => id !== draft.id));
+    setCommitted((prev) => [
+      {
+        id: `manual-${Date.now()}-${draft.id}`,
+        normalizedRefId: draft.normalizedRefId,
+        assetId: draft.assetId,
+        assetTitle: draft.assetTitle,
+        tags: finalTags,
+        confidence: draft.confidence,
+        committedAt: now,
+      },
+      ...prev,
+    ]);
+    setReviewDraft(null);
+    message.success("已确认标签草稿");
+  };
+
+  const rejectDraft = (draft: TagDraft) => {
+    setDrafts((prev) => prev.filter((item) => item.id !== draft.id));
+    setSelectedIds((prev) => prev.filter((id) => id !== draft.id));
+    setReviewDraft(null);
+    message.success("已驳回标签草稿");
+  };
+
+  const reviseDraft = (draft: TagDraft, tags: string[]) => {
+    if (tags.length === 0) {
+      message.warning("请至少保留一个标签");
+      return;
+    }
+    setDrafts((prev) => prev.map((item) => (
+      item.id === draft.id ? { ...item, tags } : item
+    )));
+    setReviewDraft((prev) => (prev ? { ...prev, tags } : prev));
+    message.success("已更新当前草稿标签");
+  };
 
   // ── 批量确认（undo-toast 10s） ──
   const handleBulkConfirm = () => {
@@ -188,7 +243,7 @@ export default function TagReviewContent({
         <Button
           size="small"
           icon={<EditOutlined />}
-          onClick={() => message.info(`审核 ${record.normalizedRefId} — 功能即将上线`)}
+          onClick={() => openReview(record)}
           aria-label={`审核 ${record.normalizedRefId}`}
         >
           审核
@@ -384,6 +439,75 @@ export default function TagReviewContent({
           />
         </div>
       </div>
+
+      <Drawer
+        title="标签草稿审核"
+        open={Boolean(reviewDraft)}
+        onClose={() => setReviewDraft(null)}
+        size={520}
+        destroyOnClose
+        extra={reviewDraft ? (
+          <Space>
+            <Button danger icon={<CloseOutlined />} onClick={() => rejectDraft(reviewDraft)}>
+              驳回
+            </Button>
+            <Button icon={<EditOutlined />} onClick={() => reviseDraft(reviewDraft, reviewedTags)}>
+              保存改写
+            </Button>
+            <Button
+              type="primary"
+              icon={<CheckOutlined />}
+              onClick={() => confirmDraft(reviewDraft, reviewedTags)}
+            >
+              确认提交
+            </Button>
+          </Space>
+        ) : null}
+      >
+        {reviewDraft && (
+          <div style={{ display: "grid", gap: 16 }}>
+            <Alert
+              type="info"
+              showIcon
+              title="当前为页面内审核"
+              description="后端标签审核写入端点尚未提供，确认、改写、驳回会立即更新当前页面状态，但刷新后仍以最新 AI 治理运行记录重新派生。"
+            />
+            <div>
+              <div className="text-caption text-muted" style={{ marginBottom: 6 }}>数据资产</div>
+              <AssetRefCell
+                title={reviewDraft.assetTitle}
+                assetId={reviewDraft.assetId}
+                normalizedRefId={reviewDraft.normalizedRefId}
+              />
+            </div>
+            <div>
+              <div className="text-caption text-muted" style={{ marginBottom: 6 }}>置信度</div>
+              <ConfidenceBar value={reviewDraft.confidence} />
+            </div>
+            <div>
+              <div className="text-caption text-muted" style={{ marginBottom: 6 }}>证据片段</div>
+              <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.7 }}>
+                {reviewDraft.evidence}
+              </div>
+            </div>
+            <div>
+              <div className="text-caption text-muted" style={{ marginBottom: 6 }}>
+                标签，使用顿号、逗号或换行分隔
+              </div>
+              <Input.TextArea
+                autoSize={{ minRows: 4, maxRows: 8 }}
+                value={reviewTagsText}
+                onChange={(event) => setReviewTagsText(event.target.value)}
+              />
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 10 }}>
+                {reviewedTags.map((tag) => (
+                  <Tag key={tag}>#{tagLabel(tag, tagDictionary)}</Tag>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </Drawer>
 
       {/* ── 右侧说明 ── */}
       <div

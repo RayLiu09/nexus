@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 
 /** Format elapsed milliseconds as a compact string (e.g. "1h 23m 05s"). */
 function formatElapsed(ms: number): string {
@@ -39,17 +39,14 @@ export function useElapsed({ startedAt, finishedAt }: UseElapsedOptions): UseEla
   const startMs = startedAt ? new Date(startedAt).getTime() : null;
   const endMs = finishedAt ? new Date(finishedAt).getTime() : null;
   const isRunning = startMs != null && endMs == null;
+  const [now, setNow] = useState(() => Date.now());
 
-  const subscribe = useCallback(
-    (callback: () => void) => {
-      if (!isRunning) return () => {};
-      const id = setInterval(callback, 1000);
-      return () => clearInterval(id);
-    },
-    [isRunning],
-  );
-
-  const now = useSyncExternalStore(subscribe, () => Date.now());
+  useEffect(() => {
+    if (!isRunning) return undefined;
+    setNow(Date.now());
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [isRunning, startedAt]);
 
   if (!startMs) return { elapsed: "-", elapsedMs: 0, isRunning: false };
 

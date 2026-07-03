@@ -12,6 +12,7 @@ from nexus_app.enums import (
     AssetKind,
     AssetVersionStatus,
     DataSourceType,
+    GovernanceResultStatus,
     IngestBatchStatus,
     NormalizedType,
     RawObjectStatus,
@@ -250,6 +251,49 @@ class TestAIGovernanceRunAPI:
         resp = client.get(f"/internal/v1/ai/governance-runs?normalized_ref_id={data['ref'].id}")
         assert resp.status_code == 200
         assert len(resp.json()["data"]) >= 1
+
+    def test_list_governance_runs_includes_asset_and_decision_state(self, app, session):
+        client = TestClient(app)
+        data = _seed_data(session)
+        run = models.AIGovernanceRun(
+            normalized_ref_id=data["ref"].id,
+            profile_id=None,
+            model_alias="fake",
+            prompt_version="v1",
+            input_hash="state-hash",
+            input_summary={},
+            ai_output={"tags": ["教材知识库"], "confidence": 0.91},
+            quality_summary={"quality_score": 79, "quality_level": "warning", "confidence": 0.91},
+            validation_status="schema_valid",
+            adoption_status="auto_adopted",
+        )
+        session.add(run)
+        session.flush()
+        result = models.GovernanceResult(
+            normalized_ref_id=data["ref"].id,
+            ai_run_id=run.id,
+            classification="course_textbook",
+            level="L1",
+            tags=["教材知识库"],
+            org_scope="all",
+            index_admission=True,
+            quality_summary=run.quality_summary,
+            decision_trail=[{"field_name": "quality", "adoption_status": "auto_adopted"}],
+            status=GovernanceResultStatus.AVAILABLE,
+        )
+        session.add(result)
+        session.commit()
+
+        resp = client.get(f"/internal/v1/ai/governance-runs?normalized_ref_id={data['ref'].id}")
+        assert resp.status_code == 200
+        row = next(item for item in resp.json()["data"] if item["id"] == run.id)
+        assert row["asset_id"] is not None
+        assert row["asset_title"] == "API Test Asset"
+        assert row["asset_status"] == "processing"
+        assert row["version_id"] is not None
+        assert row["version_status"] == "processing"
+        assert row["governance_result_status"] == "available"
+        assert row["index_admission"] is True
 
     def test_get_governance_run_by_id(self, app, session):
         client = TestClient(app)

@@ -159,8 +159,8 @@ function ChunkOverview({
         {chunk.source_block_ids && chunk.source_block_ids.length > 0 && (
           <Descriptions.Item label="来源 Blocks">
             <Space size={4} wrap>
-              {chunk.source_block_ids.map((blockId) => (
-                <a key={blockId} href={`#block-${blockId}`}>
+              {chunk.source_block_ids.map((blockId, index) => (
+                <a key={`${blockId}-${index}`} href={`#block-${blockId}`}>
                   <Tag className="cursor-pointer font-mono text-xs">{blockId}</Tag>
                 </a>
               ))}

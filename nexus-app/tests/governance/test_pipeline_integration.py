@@ -11,6 +11,7 @@ Covers:
 from __future__ import annotations
 
 import base64
+import json
 import threading
 from typing import Any
 from unittest.mock import patch
@@ -952,6 +953,56 @@ class TestKnowledgeEmissionsEdgeCases:
         chunks = stages.run_knowledge_chunking(self._ctx(session, ref), version, ref)
         assert chunks == []
 
+    def _put_minimal_textbook_payload(self, ctx, ref) -> None:
+        normalized_key = ref.object_uri.split("/", 3)[-1]
+        body_markdown = "\n".join([
+            "# 项目一 短视频认知",
+            "## 任务一 认识短视频",
+            "本任务介绍短视频平台、账号定位和内容形态。",
+        ])
+        ctx.storage.put_bytes(
+            normalized_key,
+            json.dumps(
+                {
+                    "body_markdown": body_markdown,
+                    "blocks": [
+                        {
+                            "block_id": "b1",
+                            "block_type": "heading",
+                            "seq_no": 1,
+                            "page": 1,
+                            "bbox": [0, 0, 100, 20],
+                            "text": "项目一 短视频认知",
+                            "heading_level": 1,
+                            "md_char_range": [0, 12],
+                        },
+                        {
+                            "block_id": "b2",
+                            "block_type": "heading",
+                            "seq_no": 2,
+                            "page": 1,
+                            "bbox": [0, 25, 100, 45],
+                            "text": "任务一 认识短视频",
+                            "heading_level": 2,
+                            "md_char_range": [13, 26],
+                        },
+                        {
+                            "block_id": "b3",
+                            "block_type": "paragraph",
+                            "seq_no": 3,
+                            "page": 1,
+                            "bbox": [0, 50, 500, 90],
+                            "text": "本任务介绍短视频平台、账号定位和内容形态。",
+                            "content": "本任务介绍短视频平台、账号定位和内容形态。",
+                            "md_char_range": [27, len(body_markdown)],
+                        },
+                    ],
+                },
+                ensure_ascii=False,
+            ).encode("utf-8"),
+            "application/json",
+        )
+
     def test_empty_emissions_list(self, session, make_ai_run):
         from nexus_app.pipeline import stages
 
@@ -979,3 +1030,72 @@ class TestKnowledgeEmissionsEdgeCases:
 
         chunks = stages.run_knowledge_chunking(self._ctx(session, ref), version, ref)
         assert chunks == []
+
+    def test_review_required_with_index_admitted_governance_builds_internal_chunks(
+        self, session, make_ai_run
+    ):
+        from nexus_app.pipeline import stages
+
+        run, version, ref = make_ai_run(
+            ai_output={"classification": "D4", "level": "L1", "tags": [],
+                       "org_scope": "all", "confidence": 0.9},
+            quality_summary={
+                "quality_score": 79.0,
+                "quality_level": "warning",
+                "confidence": 0.9,
+                "blocking_reasons": [],
+            },
+        )
+        version.version_status = AssetVersionStatus.REVIEW_REQUIRED
+        ref.metadata_summary = {"knowledge_emissions": [{"code": "textbook_kb"}]}
+        result = models.GovernanceResult(
+            normalized_ref_id=ref.id,
+            ai_run_id=run.id,
+            classification="D4",
+            level="L1",
+            tags=[],
+            org_scope="all",
+            index_admission=True,
+            quality_summary=run.quality_summary,
+            decision_trail=[
+                {"field_name": "classification", "adoption_status": "auto_adopted"},
+                {"field_name": "level", "adoption_status": "auto_adopted"},
+                {"field_name": "tags", "adoption_status": "auto_adopted"},
+                {"field_name": "quality", "adoption_status": "auto_adopted"},
+            ],
+            rules_schema_version="1.0",
+            rules_content_hash="a" * 64,
+            status=GovernanceResultStatus.AVAILABLE,
+        )
+        session.add(result)
+        session.flush()
+
+        ctx = self._ctx(session, ref)
+        self._put_minimal_textbook_payload(ctx, ref)
+
+        chunks = stages.run_knowledge_chunking(ctx, version, ref)
+        assert chunks
+        assert all(chunk.knowledge_type_code == "textbook_kb" for chunk in chunks)
+
+        stage = session.scalars(
+            select(models.JobStage).where(
+                models.JobStage.job_id == _existing_job_for_ref(session, ref.id).id,
+                models.JobStage.stage_name == "knowledge_chunking",
+                models.JobStage.status == StageStatus.SUCCEEDED,
+            ).order_by(models.JobStage.created_at.desc())
+        ).first()
+        assert stage is not None
+        assert stage.detail["chunking_admission"] == "governance_index_admitted"
+        assert stage.detail["governance_result_id"] == result.id
+
+        manifests = stages.run_index_submit(ctx, version, ref, chunks)
+        assert manifests == []
+        index_stage = session.scalars(
+            select(models.JobStage).where(
+                models.JobStage.job_id == _existing_job_for_ref(session, ref.id).id,
+                models.JobStage.stage_name == "index_submit",
+            ).order_by(models.JobStage.created_at.desc())
+        ).first()
+        assert index_stage is not None
+        assert index_stage.status == StageStatus.SKIPPED
+        assert index_stage.detail["reason"] == "version not available (status=review_required)"

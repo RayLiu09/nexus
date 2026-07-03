@@ -39,6 +39,7 @@ export const DOMAIN_LABELS: Record<string, string> = {
   talent_demand_report: "专业人才需求报告",
   talent_training_plan: "人才培养方案",
   major_profile: "专业简介",
+  course_textbook: "教材",
 };
 
 const DOMAIN_ALIASES: Record<string, string> = {

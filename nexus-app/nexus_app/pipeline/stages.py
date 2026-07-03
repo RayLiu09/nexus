@@ -13,6 +13,7 @@ from nexus_app.enums import (
     AssetKind,
     AssetVersionStatus,
     AuditEventType,
+    GovernanceResultStatus,
     NormalizedAssetRefStatus,
     NormalizedType,
     ParseArtifactStatus,
@@ -1131,7 +1132,7 @@ def run_governance_decision(
 
 
 # ---------------------------------------------------------------------------
-# Knowledge Chunking — Pipeline 5a: only for available assets with emissions
+# Knowledge Chunking — Pipeline 5a: internal chunks for governed assets
 # ---------------------------------------------------------------------------
 
 def _audit_chunking_skipped(
@@ -1161,6 +1162,99 @@ def _audit_chunking_skipped(
     )
 
 
+def _knowledge_chunking_gate(
+    ctx: PipelineContext,
+    version: models.AssetVersion,
+    normalized_ref: models.NormalizedAssetRef,
+) -> tuple[bool, dict[str, Any]]:
+    """Return whether Nexus-owned chunk construction may run for this ref.
+
+    External indexing still requires ``version_status=available`` in
+    ``run_index_submit``. This gate is intentionally narrower: it lets Console
+    previews and downstream internal KG work build source-traceable chunks when
+    governance has admitted the normalized ref but the version remains
+    ``review_required`` because the quality level is warning instead of pass.
+    """
+    if version.version_status == AssetVersionStatus.AVAILABLE:
+        return True, {
+            "chunking_admission": "version_available",
+            "version_status": version.version_status.value,
+        }
+
+    if version.version_status != AssetVersionStatus.REVIEW_REQUIRED:
+        return False, {
+            "reason": f"version not available (status={version.version_status.value})",
+            "version_status": version.version_status.value,
+        }
+
+    latest_result = ctx.session.scalars(
+        select(models.GovernanceResult)
+        .where(models.GovernanceResult.normalized_ref_id == normalized_ref.id)
+        .order_by(models.GovernanceResult.created_at.desc())
+        .limit(1)
+    ).first()
+    if latest_result is None:
+        return False, {
+            "reason": "version review_required without governance_result",
+            "version_status": version.version_status.value,
+        }
+    if latest_result.status != GovernanceResultStatus.AVAILABLE:
+        return False, {
+            "reason": (
+                "version review_required and latest governance_result "
+                f"status={latest_result.status.value}"
+            ),
+            "version_status": version.version_status.value,
+            "governance_result_id": latest_result.id,
+            "governance_result_status": latest_result.status.value,
+        }
+    if not latest_result.index_admission:
+        return False, {
+            "reason": "version review_required and latest governance_result not index-admitted",
+            "version_status": version.version_status.value,
+            "governance_result_id": latest_result.id,
+            "governance_result_status": latest_result.status.value,
+            "index_admission": latest_result.index_admission,
+        }
+
+    quality_summary = latest_result.quality_summary or {}
+    blocking_reasons = quality_summary.get("blocking_reasons") or []
+    if blocking_reasons:
+        return False, {
+            "reason": "version review_required with blocking quality reasons",
+            "version_status": version.version_status.value,
+            "governance_result_id": latest_result.id,
+            "governance_result_status": latest_result.status.value,
+            "index_admission": latest_result.index_admission,
+            "blocking_reasons": list(blocking_reasons),
+        }
+
+    non_auto_fields = [
+        entry.get("field_name")
+        for entry in (latest_result.decision_trail or [])
+        if entry.get("adoption_status") != "auto_adopted"
+    ]
+    if non_auto_fields:
+        return False, {
+            "reason": "version review_required with non-auto-adopted governance fields",
+            "version_status": version.version_status.value,
+            "governance_result_id": latest_result.id,
+            "governance_result_status": latest_result.status.value,
+            "index_admission": latest_result.index_admission,
+            "non_auto_fields": non_auto_fields,
+        }
+
+    return True, {
+        "chunking_admission": "governance_index_admitted",
+        "version_status": version.version_status.value,
+        "governance_result_id": latest_result.id,
+        "governance_result_status": latest_result.status.value,
+        "index_admission": latest_result.index_admission,
+        "quality_level": quality_summary.get("quality_level"),
+        "quality_score": quality_summary.get("quality_score"),
+    }
+
+
 def run_knowledge_chunking(
     ctx: PipelineContext,
     version: models.AssetVersion,
@@ -1169,16 +1263,20 @@ def run_knowledge_chunking(
     """Stage 5a: Generate KnowledgeChunk records via Knowledge Pipeline.
 
     Skipped when:
-    - version.version_status != available (only RAG-eligible assets)
+    - version is neither available nor governed/index-admitted review_required
     - normalized_ref.metadata_summary.knowledge_emissions is missing/empty
     """
     started_at = _stage_started()
-    if version.version_status != AssetVersionStatus.AVAILABLE:
-        reason = f"version not available (status={version.version_status.value})"
+    admitted, admission_detail = _knowledge_chunking_gate(ctx, version, normalized_ref)
+    if not admitted:
+        reason = admission_detail.get(
+            "reason",
+            f"version not available (status={version.version_status.value})",
+        )
         _add_stage(ctx, "knowledge_chunking", StageStatus.SKIPPED,
-                   {"reason": reason}, started_at=started_at)
+                   admission_detail, started_at=started_at)
         _audit_chunking_skipped(ctx, normalized_ref, reason,
-                                {"version_status": version.version_status.value})
+                                admission_detail)
         return []
 
     emissions = (normalized_ref.metadata_summary or {}).get("knowledge_emissions", [])
@@ -1243,6 +1341,7 @@ def run_knowledge_chunking(
             "normalized_ref_id": normalized_ref.id,
             "emission_count": len(emissions),
             "chunk_count": len(chunks),
+            **admission_detail,
         },
         started_at=started_at,
     )

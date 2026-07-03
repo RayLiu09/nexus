@@ -16,6 +16,9 @@ function run(overrides: Partial<AIGovernanceRun>): AIGovernanceRun {
     validation_error: null,
     created_at: "2026-06-16T09:15:35.933365Z",
     updated_at: "2026-06-16T09:16:44.765430Z",
+    version_status: "available",
+    governance_result_status: "available",
+    index_admission: true,
     ...overrides,
   };
 }
@@ -79,5 +82,64 @@ describe("toTagReviewData", () => {
 
     expect(data.committed).toHaveLength(1);
     expect(data.committed[0].tags).toEqual(["电子商务", "第三方行业研究机构"]);
+  });
+
+  it("uses only the latest governance run per normalized ref", () => {
+    const data = toTagReviewData([
+      run({
+        id: "run-old",
+        normalized_ref_id: "ref-1",
+        created_at: "2026-06-16T09:00:00.000Z",
+        updated_at: "2026-06-16T09:00:10.000Z",
+        ai_output: {
+          tags: ["旧低置信标签"],
+          confidence: 0.62,
+        },
+        quality_summary: { confidence: 0.62 },
+      }),
+      run({
+        id: "run-new",
+        normalized_ref_id: "ref-1",
+        created_at: "2026-06-16T10:00:00.000Z",
+        updated_at: "2026-06-16T10:00:10.000Z",
+        ai_output: {
+          tags: ["教材知识库"],
+          confidence: 0.91,
+        },
+        quality_summary: { confidence: 0.91 },
+      }),
+    ]);
+
+    expect(data.drafts).toEqual([]);
+    expect(data.committed).toHaveLength(1);
+    expect(data.committed[0].id).toBe("committed-run-new");
+    expect(data.committed[0].tags).toEqual(["教材知识库"]);
+  });
+
+  it("keeps high-confidence tags reviewable when the asset version still requires review", () => {
+    const data = toTagReviewData([
+      run({
+        id: "run-review",
+        normalized_ref_id: "ref-review",
+        version_status: "review_required",
+        governance_result_status: "available",
+        index_admission: true,
+        ai_output: {
+          tags: ["教材知识库"],
+          confidence: 0.91,
+        },
+        quality_summary: {
+          confidence: 0.91,
+          quality_score: 79,
+          quality_level: "warning",
+        },
+      }),
+    ]);
+
+    expect(data.committed).toEqual([]);
+    expect(data.drafts).toHaveLength(1);
+    expect(data.drafts[0].id).toBe("draft-run-review");
+    expect(data.drafts[0].tags).toEqual(["教材知识库"]);
+    expect(data.drafts[0].evidence).toContain("版本状态为 review_required");
   });
 });

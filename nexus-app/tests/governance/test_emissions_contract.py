@@ -26,7 +26,14 @@ def registry() -> GovernanceRulesRegistry:
     rules = {
         "schema_version": "1.0",
         "classifications": [
-            {"code": "D4", "name": "Teaching", "description": "d", "criteria": ["c"]},
+            {
+                "code": "D4",
+                "name": "Teaching",
+                "description": "d",
+                "criteria": ["c"],
+                "primary_knowledge_type": "textbook_kb",
+                "co_emission_rules": [],
+            },
         ],
         "levels": [
             {"code": "L1", "name": "Public", "description": "d", "criteria": ["c"]},
@@ -41,6 +48,17 @@ def registry() -> GovernanceRulesRegistry:
             "thresholds": {"pass": 70, "warning": 50, "review_required_below": 50},
             "confidence_threshold_auto_adopt": 0.8,
         },
+        "knowledge_types": [
+            {
+                "code": "textbook_kb",
+                "name": "Textbook KB",
+                "applicable_classifications": ["D4"],
+                "chunking_mode": "nexus_semantic",
+                "chunking_strategy": "semantic_repack",
+                "chunk_type": "semantic",
+                "co_emission_rules": [],
+            }
+        ],
     }
     r = GovernanceRulesRegistry()
     r.load_dict(rules)
@@ -132,23 +150,45 @@ class TestExplicitWrite:
         session.refresh(ref)
         assert ref.metadata_summary["knowledge_emissions"][0]["code"] == "textbook_kb"
 
-    def test_idempotent_skip_when_already_present(self, session, registry):
+    def test_idempotent_skip_when_existing_emissions_match(self, session, registry):
         ref, run = _make_ref_and_run(
             session,
             ai_output={"classification": "D4", "level": "L1", "tags": [],
                        "org_scope": "all", "confidence": 0.9},
         )
-        ref.metadata_summary = {"knowledge_emissions": [{"code": "existing"}]}
+        ref.metadata_summary = {
+            "knowledge_emissions": [
+                {"code": "textbook_kb", "primary": True, "confidence": 0.5}
+            ]
+        }
         session.flush()
 
-        with patch(
-            "nexus_app.ai_governance.services.infer_knowledge_emissions"
-        ) as inferred:
-            svc = AIGovernanceService()
-            emissions = svc.write_knowledge_emissions(session, run, registry)
+        svc = AIGovernanceService()
+        emissions = svc.write_knowledge_emissions(session, run, registry)
 
-        assert emissions == [{"code": "existing"}]
-        inferred.assert_not_called()
+        assert emissions == [
+            {"code": "textbook_kb", "primary": True, "confidence": 0.5}
+        ]
+
+    def test_replaces_stale_emissions_after_regovernance(self, session, registry):
+        ref, run = _make_ref_and_run(
+            session,
+            ai_output={"classification": "D4", "level": "L1", "tags": [],
+                       "org_scope": "all", "confidence": 0.9},
+        )
+        ref.metadata_summary = {
+            "knowledge_emissions": [
+                {"code": "talent_training_dataset", "primary": True}
+            ]
+        }
+        session.flush()
+
+        svc = AIGovernanceService()
+        emissions = svc.write_knowledge_emissions(session, run, registry)
+
+        assert emissions and emissions[0]["code"] == "textbook_kb"
+        session.refresh(ref)
+        assert ref.metadata_summary["knowledge_emissions"][0]["code"] == "textbook_kb"
 
     def test_no_ai_output_returns_empty(self, session, registry):
         _, run = _make_ref_and_run(session, ai_output=None)

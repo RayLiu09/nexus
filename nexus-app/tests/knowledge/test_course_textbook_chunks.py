@@ -90,3 +90,85 @@ def test_course_textbook_textbook_kb_builds_semantic_chunks_with_locator():
         for chunk in chunks
         for heading in chunk.locator["heading_path"]
     )
+
+
+def test_course_textbook_textbook_kb_filters_metadata_toc_appendix_and_dirty_blocks():
+    reload_config()
+    content = "\n".join([
+        "主编：张三 李四",
+        "项目一 短视频认知.................... 1",
+        "-",
+        "# 项目一 短视频认知",
+        "本任务介绍短视频平台、账号定位和内容形态。",
+        "附录",
+    ])
+    blocks = [
+        {
+            "block_id": "author",
+            "block_type": "paragraph",
+            "seq_no": 1,
+            "page": 1,
+            "bbox": [0, 0, 500, 20],
+            "text": "主编：张三 李四",
+            "md_char_range": [0, 8],
+        },
+        {
+            "block_id": "toc",
+            "block_type": "paragraph",
+            "seq_no": 2,
+            "page": 3,
+            "bbox": [0, 20, 500, 40],
+            "text": "项目一 短视频认知.................... 1",
+            "md_char_range": [9, 32],
+        },
+        {
+            "block_id": "block-p07-052",
+            "block_type": "chart",
+            "seq_no": 3,
+            "page": 7,
+            "bbox": [0, 0, 595, 808],
+            "caption": "",
+            "content": "-",
+            "md_char_range": [33, 36],
+        },
+        {
+            "block_id": "h1",
+            "block_type": "heading",
+            "seq_no": 4,
+            "page": 8,
+            "bbox": [0, 0, 100, 20],
+            "text": "项目一 短视频认知",
+            "heading_level": 1,
+            "md_char_range": [37, 49],
+        },
+        {
+            "block_id": "body",
+            "block_type": "paragraph",
+            "seq_no": 5,
+            "page": 8,
+            "bbox": [0, 25, 500, 70],
+            "text": "本任务介绍短视频平台、账号定位和内容形态。",
+            "content": "本任务介绍短视频平台、账号定位和内容形态。",
+            "md_char_range": [50, 72],
+        },
+        {
+            "block_id": "appendix",
+            "block_type": "paragraph",
+            "seq_no": 6,
+            "page": 200,
+            "bbox": [0, 0, 100, 20],
+            "text": "附录",
+            "md_char_range": [73, 75],
+        },
+    ]
+
+    chunks = run_knowledge_pipeline(
+        content,
+        [{"code": "textbook_kb", "primary": True, "co_emission_origin": None}],
+        "ref-course-textbook-filter",
+        content_blocks=blocks,
+    )
+
+    assert [chunk.content for chunk in chunks] == ["本任务介绍短视频平台、账号定位和内容形态。"]
+    source_ids = {block_id for chunk in chunks for block_id in (chunk.source_block_ids or [])}
+    assert source_ids == {"body"}

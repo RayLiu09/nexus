@@ -642,6 +642,11 @@ class AIGovernanceRunRead(ORMModel):
     # (`asset.title`); left None when the chain is broken or not eager-loaded.
     asset_title: str | None = None
     asset_id: str | None = None
+    asset_status: str | None = None
+    version_id: str | None = None
+    version_status: str | None = None
+    governance_result_status: str | None = None
+    index_admission: bool | None = None
 
 
 class GovernanceResultRead(ORMModel):

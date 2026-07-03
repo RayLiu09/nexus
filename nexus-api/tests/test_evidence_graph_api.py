@@ -292,6 +292,28 @@ def test_submit_build_dry_run_does_not_create_build(app, session, graph_fixture)
     assert session.query(models.KnowledgeGraphBuild).count() == before
 
 
+def test_submit_build_without_candidate_chunks_is_rejected(app, session, graph_fixture):
+    ref, _build, _pending, chunk = graph_fixture
+    session.delete(chunk)
+    session.commit()
+    before = session.query(models.KnowledgeGraphBuild).count()
+
+    with TestClient(app) as client:
+        resp = client.post("/internal/v1/knowledge-graphs/builds", json={
+            "normalized_ref_id": ref.id,
+            "graph_profile": "report_document",
+            "strategy_version": "evidence_kg.v3-no-chunks",
+        })
+
+    assert resp.status_code == 409
+    error = resp.json()["error"]
+    assert error["code"] == "NO_GRAPH_CANDIDATE_CHUNKS"
+    selection = error["details"][0]["candidate_selection"]
+    assert selection["selected_chunk_count"] == 0
+    assert selection["total_semantic_chunk_count"] == 0
+    assert session.query(models.KnowledgeGraphBuild).count() == before
+
+
 def test_submit_build_creates_envelope_and_rebuild_deprecates_existing(app, session, graph_fixture):
     ref, _build, _pending, _chunk = graph_fixture
     with TestClient(app) as client:

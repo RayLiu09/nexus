@@ -180,9 +180,9 @@ function MarkdownViewer({ body, blocks }: MarkdownViewerProps) {
 
   return (
     <div ref={rootRef} className="md-preview max-h-[70vh] overflow-y-auto">
-      {segments.map(({ blockId, text }) => (
+      {segments.map(({ blockId, text }, index) => (
         <div
-          key={blockId}
+          key={`${blockId}-${index}`}
           id={`block-${blockId}`}
           data-block-id={blockId}
           className={

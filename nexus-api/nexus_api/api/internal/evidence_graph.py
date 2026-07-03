@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from nexus_api.dependencies import Pagination, pagination_params
+from nexus_api.errors import error_response
 from nexus_api.responses import list_response, response
 from nexus_app import models
 from nexus_app.database import get_db
@@ -48,6 +49,18 @@ def submit_knowledge_graph_build(
     )
     if payload.dry_run:
         return response(_selection_to_dict(selection), request)
+    if selection.selected_chunk_count <= 0:
+        message = (
+            "Evidence Graph build requires semantic knowledge chunks. "
+            "Run or rebuild knowledge chunking for this normalized_ref first."
+        )
+        return error_response(
+            request,
+            status_code=409,
+            code="NO_GRAPH_CANDIDATE_CHUNKS",
+            message=message,
+            details=[{"candidate_selection": _selection_to_dict(selection)}],
+        )
 
     existing = get_existing_graph_build(
         session,

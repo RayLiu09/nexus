@@ -110,8 +110,8 @@ export function ChunkDetailDrawer({ chunk, open, onClose }: ChunkDetailDrawerPro
             {chunk.source_block_ids && chunk.source_block_ids.length > 0 && (
               <Descriptions.Item label="Block IDs">
                 <Space size={4} wrap>
-                  {chunk.source_block_ids.map((bid) => (
-                    <BlockAnchorTag key={bid} blockId={bid} onClose={onClose} />
+                  {chunk.source_block_ids.map((bid, index) => (
+                    <BlockAnchorTag key={`${bid}-${index}`} blockId={bid} onClose={onClose} />
                   ))}
                 </Space>
               </Descriptions.Item>
@@ -124,8 +124,8 @@ export function ChunkDetailDrawer({ chunk, open, onClose }: ChunkDetailDrawerPro
                       无（未定位）
                     </Typography.Text>
                   ) : (
-                    chunk.primary_block_ids.map((bid) => (
-                      <BlockAnchorTag key={bid} blockId={bid} color="blue" onClose={onClose} />
+                    chunk.primary_block_ids.map((bid, index) => (
+                      <BlockAnchorTag key={`${bid}-${index}`} blockId={bid} color="blue" onClose={onClose} />
                     ))
                   )}
                 </Space>
@@ -139,8 +139,8 @@ export function ChunkDetailDrawer({ chunk, open, onClose }: ChunkDetailDrawerPro
                       无
                     </Typography.Text>
                   ) : (
-                    chunk.evidence_block_ids.map((bid) => (
-                      <BlockAnchorTag key={bid} blockId={bid} onClose={onClose} />
+                    chunk.evidence_block_ids.map((bid, index) => (
+                      <BlockAnchorTag key={`${bid}-${index}`} blockId={bid} onClose={onClose} />
                     ))
                   )}
                 </Space>
@@ -233,8 +233,8 @@ function BlockAnchorTag({
 function BlockListTable({ blocks }: { blocks: LocatorBlock[] }) {
   return (
     <ul className="m-0 list-none space-y-1 p-0">
-      {blocks.map((b) => (
-        <li key={b.block_id} className="font-mono text-xs">
+      {blocks.map((b, index) => (
+        <li key={`${b.block_id ?? "block"}-${b.page ?? "p"}-${index}`} className="font-mono text-xs">
           <Tag>p{b.page}</Tag>
           <span className="text-gray-600">
             {b.block_id} · [{b.bbox.map((n) => Math.round(n)).join(", ")}]

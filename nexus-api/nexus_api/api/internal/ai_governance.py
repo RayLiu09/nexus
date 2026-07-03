@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
@@ -19,7 +20,10 @@ from nexus_app.database import get_db
 router = APIRouter()
 
 
-def _serialize_run(run: "models.AIGovernanceRun") -> domain_schemas.AIGovernanceRunRead:
+def _serialize_run(
+    run: "models.AIGovernanceRun",
+    session: Session,
+) -> domain_schemas.AIGovernanceRunRead:
     """Read schema with asset_title/asset_id resolved via the relationship chain.
 
     The console list view shows the underlying data asset, not the opaque
@@ -31,11 +35,31 @@ def _serialize_run(run: "models.AIGovernanceRun") -> domain_schemas.AIGovernance
     ref = run.normalized_ref
     version = ref.version if ref is not None else None
     asset = version.asset if version is not None else None
+    governance_result = session.scalars(
+        select(models.GovernanceResult)
+        .where(models.GovernanceResult.normalized_ref_id == run.normalized_ref_id)
+        .order_by(models.GovernanceResult.created_at.desc())
+        .limit(1)
+    ).first()
+    update: dict[str, object | None] = {}
+    if version is not None:
+        update.update({
+            "version_id": version.id,
+            "version_status": version.version_status.value,
+        })
     if asset is not None:
-        return read.model_copy(update={
+        update.update({
             "asset_title": asset.title,
             "asset_id": asset.id,
+            "asset_status": asset.status.value,
         })
+    if governance_result is not None:
+        update.update({
+            "governance_result_status": governance_result.status.value,
+            "index_admission": governance_result.index_admission,
+        })
+    if update:
+        return read.model_copy(update=update)
     return read
 
 
@@ -61,7 +85,7 @@ def create_governance_run(
     except AIGovernanceError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     session.commit()
-    return response(_serialize_run(run), request)
+    return response(_serialize_run(run, session), request)
 
 
 @router.get(
@@ -84,7 +108,7 @@ def list_governance_runs(
     total = len(runs)
     page_slice = runs[pagination.offset : pagination.offset + pagination.limit]
     return list_response(
-        [_serialize_run(r) for r in page_slice],
+        [_serialize_run(r, session) for r in page_slice],
         request,
         page=pagination.page,
         page_size=pagination.page_size,
@@ -103,7 +127,7 @@ def get_governance_run(
         run = ai_gov_svc.get_governance_run(session, run_id)
     except AIGovernanceError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return response(_serialize_run(run), request)
+    return response(_serialize_run(run, session), request)
 
 
 @router.get(

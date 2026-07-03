@@ -252,6 +252,20 @@ def test_asset_catalog_canonicalizes_deprecated_program_profile_domain(app, sess
     assert row["domain_name"] == "专业简介"
 
 
+def test_asset_catalog_labels_course_textbook_domain(app, session):
+    seeded = _seed_review_required_asset(session)
+    seeded["result"].classification = "course_textbook"
+    session.commit()
+
+    with TestClient(app) as client:
+        resp = client.get("/internal/v1/assets")
+
+    assert resp.status_code == 200
+    row = resp.json()["data"][0]
+    assert row["domain"] == "course_textbook"
+    assert row["domain_name"] == "教材"
+
+
 def test_asset_catalog_filters_by_domain_level_and_status(app, session):
     seeded = _seed_review_required_asset(session)
     _seed_processing_asset(session)

@@ -241,6 +241,11 @@ export type AIGovernanceRun = {
   // the chain is broken. See nexus_api/api/internal/ai_governance.py::_serialize_run.
   asset_title?: string | null;
   asset_id?: string | null;
+  asset_status?: string | null;
+  version_id?: string | null;
+  version_status?: string | null;
+  governance_result_status?: string | null;
+  index_admission?: boolean | null;
 };
 
 export type AuditLog = {

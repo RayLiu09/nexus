@@ -415,6 +415,12 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
     state.evidence.length < state.totals.evidence;
   const buildInProgress = state.build ? isBuildInProgress(state.build) : false;
   const showGraphData = state.build ? canDisplayGraphData(state.build) : false;
+  const buildDisabledReason = buildProcess.candidateSelection &&
+    (buildProcess.candidateSelection.selected_chunk_count ?? 0) <= 0
+    ? ((buildProcess.candidateSelection.total_semantic_chunk_count ?? 0) <= 0
+        ? "当前资产尚未生成语义知识块"
+        : "当前知识块不满足图谱候选条件")
+    : null;
   const showBuildProcessPanel =
     buildProcess.phase !== "idle" &&
     (buildProcess.phase !== "succeeded" || !showGraphData);
@@ -522,6 +528,20 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
         message: `预检完成，选中 ${dryRun.data.selected_chunk_count ?? 0} 个候选知识块。`,
         updatedAt: new Date().toISOString(),
       }));
+      if ((dryRun.data.selected_chunk_count ?? 0) <= 0) {
+        const reason = (dryRun.data.total_semantic_chunk_count ?? 0) <= 0
+          ? "当前标准化资产尚未生成语义知识块，请先完成知识块构建后再构建 Evidence Graph。"
+          : "当前语义知识块不满足该图谱 profile 的候选条件，请先检查知识块角色或重建知识块。";
+        setBuildProcess((prev) => ({
+          ...prev,
+          phase: "failed",
+          message: null,
+          error: reason,
+          updatedAt: new Date().toISOString(),
+        }));
+        message.warning(reason);
+        return;
+      }
 
       const result = await postApiData<BuildSubmitResponse>("/api/evidence-graphs/builds", {
         ...basePayload,
@@ -623,15 +643,17 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
         {!state.loading && !state.error && !state.build ? (
           <div className="flex flex-col gap-4">
             <Empty description="尚未生成 Evidence Graph build" image={Empty.PRESENTED_IMAGE_SIMPLE}>
-              <Button
-                type="primary"
-                icon={<RefreshCw size={16} aria-hidden="true" />}
-                loading={submitting}
-                disabled={buildProcess.phase === "waiting"}
-                onClick={() => submitBuild(false)}
-              >
-                {buildProcess.phase === "waiting" ? "构建中" : "构建图谱"}
-              </Button>
+              <Tooltip title={buildDisabledReason ?? ""}>
+                <Button
+                  type="primary"
+                  icon={<RefreshCw size={16} aria-hidden="true" />}
+                  loading={submitting}
+                  disabled={buildProcess.phase === "waiting" || Boolean(buildDisabledReason)}
+                  onClick={() => submitBuild(false)}
+                >
+                  {buildProcess.phase === "waiting" ? "构建中" : "构建图谱"}
+                </Button>
+              </Tooltip>
             </Empty>
             {showBuildProcessPanel ? <BuildProcessPanel process={buildProcess} /> : null}
           </div>
@@ -656,6 +678,7 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
                   type="primary"
                   icon={<RefreshCw size={16} aria-hidden="true" />}
                   loading={submitting}
+                  disabled={Boolean(buildDisabledReason)}
                   onClick={() => submitBuild(true)}
                 >
                   重新构建

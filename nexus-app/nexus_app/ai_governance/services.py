@@ -1155,9 +1155,11 @@ class AIGovernanceService:
         """Infer knowledge_emissions from an AI run and persist them on the
         bound NormalizedAssetRef.
 
-        Idempotent: skips when ai_run has no validated output or when emissions
-        already exist on the ref. Returns the emissions list that was either
-        written or already present (empty list if nothing applies).
+        Idempotent for retries: keeps existing emissions when they already
+        match the current AI output + active rules, but replaces stale
+        emissions when re-governance changes the classification/rule mapping.
+        Returns the emissions list that was either written or already present
+        (empty list if nothing applies).
         Errors are caught and logged — emissions are best-effort; callers should
         not abort the pipeline if this returns an empty list.
         """
@@ -1166,9 +1168,6 @@ class AIGovernanceService:
         ref = session.get(models.NormalizedAssetRef, ai_run.normalized_ref_id)
         if ref is None:
             return []
-        existing = (ref.metadata_summary or {}).get("knowledge_emissions")
-        if existing:
-            return list(existing)
         try:
             ref_dict = self._build_ref_dict(ref)
             emissions = infer_knowledge_emissions(
@@ -1176,6 +1175,9 @@ class AIGovernanceService:
             )
             if not emissions:
                 return []
+            existing = (ref.metadata_summary or {}).get("knowledge_emissions")
+            if existing and _knowledge_emissions_match(existing, emissions):
+                return list(existing)
             summary = dict(ref.metadata_summary or {})
             summary["knowledge_emissions"] = emissions
             ref.metadata_summary = summary
@@ -1339,6 +1341,30 @@ class AIGovernanceService:
             {"role": "user", "content": json.dumps(content_payload, ensure_ascii=False,
                                                      default=str)},
         ]
+
+
+def _knowledge_emissions_match(
+    existing: Any,
+    expected: list[dict[str, Any]],
+) -> bool:
+    """Compare the identity-bearing emission fields used by chunk routing.
+
+    Confidence/evidence can legitimately drift between governance runs without
+    requiring chunk routing changes. The routing contract is the ordered
+    primary/code pair sequence.
+    """
+    if not isinstance(existing, list):
+        return False
+    existing_key = [
+        (item.get("code"), bool(item.get("primary")))
+        for item in existing
+        if isinstance(item, dict)
+    ]
+    expected_key = [
+        (item.get("code"), bool(item.get("primary")))
+        for item in expected
+    ]
+    return existing_key == expected_key
 
 
 def _build_rules_section(governance_context: dict[str, Any]) -> str:
