@@ -6,6 +6,14 @@ from nexus_app.task_outline.schemas import (
     TaskOutlineProfileCreate,
     TaskOutlineProfileRead,
 )
+from nexus_app.task_outline.detector import (
+    TextbookSubtypeDetection,
+    detect_course_textbook_subtype,
+)
+from nexus_app.task_outline.extractor import (
+    TaskOutlineExtraction,
+    extract_course_textbook_outline,
+)
 from nexus_app.task_outline.service import (
     get_profile_by_ref,
     list_nodes,
@@ -16,11 +24,14 @@ from nexus_app.task_outline.service import (
 __all__ = [
     "TaskOutlineNodeCreate",
     "TaskOutlineNodeRead",
+    "TaskOutlineExtraction",
     "TaskOutlineProfileCreate",
     "TaskOutlineProfileRead",
+    "TextbookSubtypeDetection",
+    "detect_course_textbook_subtype",
+    "extract_course_textbook_outline",
     "get_profile_by_ref",
     "list_nodes",
     "replace_nodes",
     "upsert_profile",
 ]
-
