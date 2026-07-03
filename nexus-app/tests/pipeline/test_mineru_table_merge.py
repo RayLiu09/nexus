@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from nexus_app.pipeline.mineru_converter import (
     _merge_cross_page_tables,
+    _should_preserve_empty_table_rows,
     _strip_empty_table_rows,
 )
 
@@ -64,6 +65,18 @@ def test_strip_empty_table_rows_keeps_real_rows():
 def test_strip_empty_table_rows_noop_when_no_table_markup():
     assert _strip_empty_table_rows("plain text") == "plain text"
     assert _strip_empty_table_rows("") == ""
+
+
+def test_data_collection_table_preserves_blank_template_rows():
+    md = (
+        "| 商品名称 | 链接 | 价格 | 月销量 |\n"
+        "| --- | --- | --- | --- |\n"
+        "|  |  |  |  |\n"
+        "|  |  |  |  |"
+    )
+
+    assert _should_preserve_empty_table_rows("智能门锁竞争数据采集表 图1-2智能门锁竞争数据采集表")
+    assert _strip_empty_table_rows(md, preserve_empty_rows=True) == md
 
 
 def test_cross_page_table_merge_collapses_continuations():
@@ -155,3 +168,26 @@ def test_solitary_table_still_gets_empty_rows_stripped():
     out_blocks, out_parts = _merge_cross_page_tables(blocks, md_parts)
     assert out_blocks[0]["content"] == "| 列 |\n| 值 |"
     assert "|  |" not in out_parts[0]
+
+
+def test_solitary_data_collection_table_keeps_empty_template_rows():
+    blocks = [
+        _table(
+            block_id="block-p15-159",
+            page=15,
+            bbox=[163, 574, 360, 661],
+            caption="智能门锁竞争数据采集表 图1-2智能门锁竞争数据采集表",
+            content=(
+                "| 商品名称 | 链接 | 价格 | 月销量 |\n"
+                "| --- | --- | --- | --- |\n"
+                "|  |  |  |  |\n"
+                "|  |  |  |  |"
+            ),
+        ),
+    ]
+    md_parts = [f"**{blocks[0]['caption']}**\n\n{blocks[0]['content']}"]
+
+    out_blocks, out_parts = _merge_cross_page_tables(blocks, md_parts)
+
+    assert out_blocks[0]["content"].count("|  |  |  |  |") == 2
+    assert out_parts[0].count("|  |  |  |  |") == 2

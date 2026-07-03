@@ -95,6 +95,7 @@ _ATTRIBUTION_MAX_LEN = 120
 # we keep the block (better noisy chunk than vanished content).
 _PURE_DIGITS_RE = re.compile(r"^\s*\d{1,4}\s*$")
 _PURE_PUNCT_RE = re.compile(r"^[\s\W_]+$", re.UNICODE)
+_PUNCT_OR_SYMBOL_ONLY_RE = re.compile(r"^[\s\W_]+$", re.UNICODE)
 _PAGE_FOOTER_RE = re.compile(
     r"^\s*("
     r"第\s*\d+\s*页(\s*/\s*共\s*\d+\s*页)?"   # 第 12 页 / 共 80 页
@@ -124,6 +125,40 @@ _FRONT_MATTER_PROMO_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"拥有庞大.*粉丝群体"),
     re.compile(r"公众号.*粉丝数\s*\d", re.IGNORECASE),
 )
+_TEXTBOOK_METADATA_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"^\s*(主\s*编|副\s*主\s*编|编\s*者|作者|责任编辑|责任校对|封面设计|装帧设计)\s*[:：]?\s*[\w\u4e00-\u9fff、，,.\s·-]{1,80}$"),
+    re.compile(r"^[\w\u4e00-\u9fff\s·\u2003]{0,40}(主\s*编|副\s*主\s*编)[\w\u4e00-\u9fff\s·\u2003]{0,80}(出版传媒集团|出版社)\s*$"),
+    re.compile(r"^[\u4e00-\u9fff\s·\u2003]{1,30}(主\s*编|副\s*主\s*编)(中国教育出版传媒集团|[\u4e00-\u9fff]{2,30}出版社)\s*$"),
+    re.compile(r"^本书由.{1,40}(担任)?主编.*(副主编|编写分工|项目一|项目二).{0,260}$"),
+    re.compile(r"^\s*ISBN\s+[\d\-]+.*$", re.IGNORECASE),
+    re.compile(r"^\s*[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩI]+[．.].*?(CIP|F\d|TP\d|教材).*$", re.IGNORECASE),
+    re.compile(r"^\s*中国版本图书馆\s*CIP\s*数据核字.*$", re.IGNORECASE),
+    re.compile(r"^\s*[A-Z][A-Z\s()\-]{20,}\s*$"),
+    re.compile(r"^\s*(出版社|出版发行|印刷|经销|开本|印张|字数|版次|印次|定价|书号|ISBN)\s*[:：]?\s*.+$",
+               re.IGNORECASE),
+    re.compile(r"^\s*版权所有.*(翻印必究|侵权必究)?\s*$"),
+    re.compile(r"^\s*(图书在版编目|CIP数据|版权页|版权信息)\s*$", re.IGNORECASE),
+)
+_PUBLICATION_AGGREGATE_KEYWORDS: frozenset[str] = frozenset({
+    "策划编辑", "责任绘图", "责任编辑", "责任校对", "封面设计", "版式设计",
+    "出版发行", "出版社", "社址", "邮政编码", "印刷", "开本", "印张", "字数",
+    "咨询电话", "网址", "网上订购", "版权所有", "物料号", "WBS要素", "正式出版前",
+    "缺页", "倒页", "脱页", "质量问题", "第1版", "第 1 版", "印次",
+    "反盗版", "举报电话", "举报邮箱", "通信地址", "知识产权与法律事务部",
+})
+_PUBLICATION_AGGREGATE_NEGATIVE_RE = re.compile(
+    r"(学习目标|任务描述|任务实施|知识准备|知识链接|实践训练|案例|技能点|操作步骤|项目[一二三四五六七八九十\d]|任务[一二三四五六七八九十\d])"
+)
+_BACK_MATTER_HEADING_RE = re.compile(
+    r"^\s*(附录|附\s*录|参考文献|后记|跋|索引|术语表|版权页|出版说明)\s*([A-ZＡ-Ｚ一二三四五六七八九十\d]*)?\s*$"
+)
+_TOC_HEADING_RE = re.compile(r"^\s*(目\s*录|Contents?)\s*$", re.IGNORECASE)
+_TOC_DOT_LEADER_RE = re.compile(r".{2,80}(\.{3,}|…{2,}|·{3,}|—{2,})\s*\d{1,4}\s*$")
+_TOC_CHAPTER_LINE_RE = re.compile(
+    r"^\s*(项目|任务|单元|模块|章|第[一二三四五六七八九十\d]+[章节篇]|附录)"
+    r"[\s一二三四五六七八九十\dA-ZＡ-Ｚ、.．-]*.{0,80}\s+\d{1,4}\s*$"
+)
+_TEXTBOOK_TOC_AGGREGATE_RE = re.compile(r"(项目[一二三四五六七八九十\d].{0,30}){4,}")
 _TOC_ITEM_RE = re.compile(r"[（(][一二三四五六七八九十]+[）)]\s*[^（()\n]{2,40}\s+\d{1,3}")
 _METRIC_VALUE_RE = re.compile(
     r"(同比\s*(增长|下降|增速)?\s*\d|"
@@ -131,6 +166,10 @@ _METRIC_VALUE_RE = re.compile(
 )
 _METRIC_GROUP_RE = re.compile(r"(^\s*\d+[、.．]\s*|主要.*数据|核心.*指标|关键.*指标|电商数据|指标)")
 _SECTION_HEADING_RE = re.compile(r"^\s*([（(][一二三四五六七八九十]+[）)]|第[一二三四五六七八九十\d]+[章节篇])")
+_SHORT_SECTION_TITLE_RE = re.compile(
+    r"^\s*(编写说明|前\s*言|序\s*言|绪\s*论|导\s*言|内容提要|出版说明|"
+    r"项目[一二三四五六七八九十\d]+|任务[一二三四五六七八九十\d]+)\s*$"
+)
 
 # merge_continuation — only paragraphs whose tail is unfinished should be
 # stitched. These are the punctuation marks that signal "this sentence is
@@ -221,6 +260,8 @@ def drop_meaningless(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if btype == "image" and _is_qr_code_image_noise(b):
             continue
         if btype in _MEDIA_TYPES:
+            if _is_empty_media_noise(b):
+                continue
             kept.append(b)
             continue
         text = _text_of(b).strip()
@@ -238,6 +279,10 @@ def drop_meaningless(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
             continue
         if _is_front_matter_promo_noise(b, text):
             continue
+        if _is_textbook_metadata_noise(text):
+            continue
+        if _is_front_matter_title_echo_noise(b, text):
+            continue
         if _is_toc_or_menu_noise(text):
             continue
         kept.append(b)
@@ -252,9 +297,47 @@ def _is_qr_code_image_noise(block: dict[str, Any]) -> bool:
     return bool(_QR_ONLY_IMAGE_RE.search(text))
 
 
+def _is_empty_media_noise(block: dict[str, Any]) -> bool:
+    """Drop parser-created media shells with no retrievable visual/text value."""
+    if block.get("block_type") == "table":
+        return False
+    text = _text_of(block).strip()
+    caption = str(block.get("caption") or "").strip()
+    if caption:
+        return False
+    if not text:
+        return True
+    return bool(_PUNCT_OR_SYMBOL_ONLY_RE.match(text))
+
+
 def _is_front_matter_promo_noise(block: dict[str, Any], text: str) -> bool:
     """Drop publisher/team promo paragraphs from cover/end-matter pages."""
     return any(p.search(text) for p in _FRONT_MATTER_PROMO_PATTERNS)
+
+
+def _is_textbook_metadata_noise(text: str) -> bool:
+    """Drop textbook front/back matter that is not useful for retrieval."""
+    compact = re.sub(r"\s+", " ", text).strip()
+    if not compact:
+        return False
+    if _TOC_HEADING_RE.match(compact):
+        return True
+    if _BACK_MATTER_HEADING_RE.match(compact):
+        return True
+    return any(p.match(compact) for p in _TEXTBOOK_METADATA_PATTERNS)
+
+
+def _is_front_matter_title_echo_noise(block: dict[str, Any], text: str) -> bool:
+    """Drop short repeated title lines from textbook copyright/front matter."""
+    page = block.get("page")
+    if isinstance(page, int) and page > 5:
+        return False
+    compact = re.sub(r"\s+", "", text).strip()
+    if len(compact) < 8 or len(compact) > 40:
+        return False
+    if any(ch.isdigit() for ch in compact):
+        return False
+    return bool(re.search(r"(实践|基础|教程|教材|指南|手册|标准|概论)(（[^）]{1,12}）)?$", compact))
 
 
 def _is_toc_or_menu_noise(text: str) -> bool:
@@ -266,9 +349,21 @@ def _is_toc_or_menu_noise(text: str) -> bool:
         return True
     if compact.count("PART ") >= 2 and len(compact) <= 160:
         return True
+    if _TOC_DOT_LEADER_RE.match(compact):
+        return True
+    if _TOC_CHAPTER_LINE_RE.match(compact):
+        return True
+    if _TEXTBOOK_TOC_AGGREGATE_RE.search(compact) and _has_toc_page_markers(compact):
+        return True
     if len(_TOC_ITEM_RE.findall(compact)) >= 2 and len(compact) <= 220:
         return True
     return False
+
+
+def _has_toc_page_markers(text: str) -> bool:
+    if len(re.findall(r"\b\d{1,3}\b", text)) >= 3:
+        return True
+    return bool(re.search(r"项目[一二三四五六七八九十\d].{1,30}\s+\d{1,3}", text))
 
 
 # ---------------------------------------------------------------------------
@@ -470,11 +565,56 @@ def _has_heading_between(
         return False
     lo, hi = sorted((prev_seq, nxt_seq))
     for block in original_blocks:
-        if block.get("block_type") not in _HEADING_TYPES:
+        if block.get("block_type") not in _HEADING_TYPES and not _is_short_section_title(block):
             continue
         seq = block.get("seq_no")
         if seq is not None and lo < seq < hi:
             return True
+    return False
+
+
+def _is_short_section_title(block: dict[str, Any]) -> bool:
+    if block.get("block_type") not in {"paragraph", "heading", "title"}:
+        return False
+    text = _text_of(block).strip()
+    if not text or len(re.sub(r"\s+", "", text)) > 20:
+        return False
+    return bool(_SHORT_SECTION_TITLE_RE.match(text))
+
+
+# ---------------------------------------------------------------------------
+# Operator 4b: post-merge noise cleanup
+# ---------------------------------------------------------------------------
+
+def drop_post_merge_noise(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop noise that only becomes obvious after continuation merging.
+
+    Copyright / publication pages are often OCR'd as many short paragraph
+    fragments. The individual fragments can look harmless, then
+    ``merge_continuation`` stitches them into one long paragraph. This pass
+    removes those aggregate publication chunks without touching normalized
+    source blocks.
+    """
+    kept: list[dict[str, Any]] = []
+    for block in blocks:
+        text = _text_of(block).strip()
+        if block.get("block_type") == "paragraph" and _is_publication_aggregate_noise(text):
+            continue
+        kept.append(block)
+    return kept
+
+
+def _is_publication_aggregate_noise(text: str) -> bool:
+    compact = re.sub(r"\s+", "", text)
+    if len(compact) < 20:
+        return False
+    if _PUBLICATION_AGGREGATE_NEGATIVE_RE.search(compact):
+        return False
+    hits = sum(1 for keyword in _PUBLICATION_AGGREGATE_KEYWORDS if keyword in compact)
+    if hits >= 3:
+        return True
+    if hits >= 2 and re.search(r"(http|www\.|400-\d|ISBN|WBS要素|版权所有)", compact, re.IGNORECASE):
+        return True
     return False
 
 
@@ -1084,13 +1224,14 @@ def repack(
     step2 = drop_meaningless(step1)
     step3 = attach_attribution(step2)
     step4 = merge_continuation(step3, original_blocks=blocks)
-    step5 = decompose_atomic_tables(step4, body_markdown=body_markdown)
+    step4b = drop_post_merge_noise(step4)
+    step5 = decompose_atomic_tables(step4b, body_markdown=body_markdown)
     candidates = sorted([*metric_blocks, *step5], key=lambda b: (b.get("seq_no") is None, b.get("seq_no") or 0))
     units = enrich_context(candidates, original_blocks=blocks, heading_exclude_ids=metric_heading_ids)
     logger.info(
         "semantic_repack: in=%d nav-drop→%d meaningless-drop→%d "
-        "attribution-fold→%d merge→%d table-decompose→%d units=%d body_md_len=%d",
-        n0, len(step1), len(step2), len(step3), len(step4), len(step5),
+        "attribution-fold→%d merge→%d post-merge-drop→%d table-decompose→%d units=%d body_md_len=%d",
+        n0, len(step1), len(step2), len(step3), len(step4), len(step4b), len(step5),
         len(units), len(body_markdown),
     )
     return units

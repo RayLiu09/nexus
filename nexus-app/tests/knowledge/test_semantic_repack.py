@@ -15,6 +15,7 @@ from nexus_app.knowledge.semantic_repack import (
     drop_navigational,
     enrich_context,
     extract_metric_image_blocks,
+    drop_post_merge_noise,
     merge_continuation,
     repack,
 )
@@ -207,6 +208,69 @@ class TestDropMeaningless:
         kept = drop_meaningless(blocks)
         assert [b["block_id"] for b in kept] == ["p-4"]
 
+    def test_drops_textbook_metadata_and_back_matter_noise(self):
+        blocks = [
+            _p(1, "主编：张三 李四", page=1),
+            _p(11, "何\u2003牧\u2003主编中国教育出版传媒集团", page=1),
+            _p(
+                12,
+                "本书由南宁第六职业技术学校何牧担任主编，由李倩担任副主编。"
+                "具体编写分工如下：伍佳慧编写项目一，翁小云编写项目二。",
+                page=2,
+            ),
+            _p(2, "ISBN 978-7-0000-0000-0", page=2),
+            _p(3, "版权所有 翻印必究", page=2),
+            _p(4, "附录", page=201),
+            _p(5, "参考文献", page=202),
+            _p(6, "本任务介绍短视频平台、账号定位和内容形态。", page=12),
+        ]
+        kept = drop_meaningless(blocks)
+        assert [b["block_id"] for b in kept] == ["p-6"]
+
+    def test_drops_textbook_cip_and_pinyin_title_noise(self):
+        blocks = [
+            _p(15, "I．①电·Ⅱ.①北·Ⅲ．①电子商务-数据处理高等职业教育－教材 Ⅳ．①F713.36②TP274"),
+            _p(16, "中国版本图书馆CIP数据核字(2019) 第274938号"),
+            _p(17, "电子商务数据分析实践（初级）", page=2),
+            _p(18, "DIANZI SHANGWU SHUJU FENXI SHIJIAN (CHUJI)"),
+            _p(48, "2019 年1月1日起实施的《中华人民共和国电子商务法》是我国电子商务发展的重要里程碑。"),
+        ]
+
+        kept = drop_meaningless(blocks)
+
+        assert [b["block_id"] for b in kept] == ["p-48"]
+
+    def test_drops_textbook_toc_dot_leader_and_chapter_lines(self):
+        blocks = [
+            _p(1, "目录", page=3),
+            _p(2, "项目一 短视频认知.................... 1", page=3),
+            _p(3, "任务二 短视频拍摄基础 25", page=4),
+            _p(
+                31,
+                "项目一 短视频认知 项目二 短视频账号创建与矩阵搭建 "
+                "项目三 短视频内容策划与脚本撰写 项目四 短视频拍摄准备 "
+                "项目五 短视频拍摄 5 项目六 短视频剪辑 89",
+                page=5,
+            ),
+            _p(4, "本章围绕短视频拍摄基础展开说明。", page=25),
+        ]
+        kept = drop_meaningless(blocks)
+        assert [b["block_id"] for b in kept] == ["p-4"]
+
+    def test_drops_empty_media_shell_with_only_punctuation(self):
+        chart = {
+            "block_id": "block-p07-052",
+            "block_type": "chart",
+            "seq_no": 52,
+            "page": 7,
+            "bbox": [0, 0, 595, 808],
+            "caption": "",
+            "content": "-",
+            "md_char_range": [2820, 2823],
+        }
+        kept = drop_meaningless([chart, _p(53, "本页正文具有检索价值。", page=7)])
+        assert [b["block_id"] for b in kept] == ["p-53"]
+
 
 # ---------------------------------------------------------------------------
 # attach_attribution
@@ -289,6 +353,22 @@ class TestMergeContinuation:
         out = merge_continuation(candidates, original_blocks=original)
         assert [b["block_id"] for b in out] == ["p-1", "p-3"]
 
+    def test_does_not_merge_across_short_section_title_paragraph(self):
+        original = [
+            _p(43, "本书如有缺页、倒页、脱页等质量问题，请到所购图书销售部门联系调换", page=2),
+            _p(47, "编写说明", page=3),
+            _p(
+                48,
+                "2019 年1月1日起实施的《中华人民共和国电子商务法》是我国电子商务发展的重要里程碑。",
+                page=3,
+            ),
+        ]
+        candidates = [original[0], original[2]]
+
+        out = merge_continuation(candidates, original_blocks=original)
+
+        assert [b["block_id"] for b in out] == ["p-43", "p-48"]
+
     def test_does_not_merge_when_first_paragraph_ends_with_period(self):
         blocks = [
             _p(1, "第一句话已经完结。", page=10),
@@ -322,6 +402,62 @@ class TestMergeContinuation:
         out = merge_continuation(blocks)
         assert len(out) == 1
         assert out[0]["merged_from"] == ["p-1", "p-2", "p-3"]
+
+
+# ---------------------------------------------------------------------------
+# drop_post_merge_noise
+# ---------------------------------------------------------------------------
+
+
+class TestDropPostMergeNoise:
+    def test_drops_merged_publication_page_fragments(self):
+        merged = _p(
+            12,
+            "策划编辑 聂志磊责任绘图 李沛蓉责任校对版式设计 杜微言"
+            "社 址 北京市西城区德外大街 4 号邮政编码 100120"
+            "开 本 889 mm×1194 mm 1/16字 数 千字咨询电话 400-810-0598"
+            "网 址 http://www.hep.edu.cn 本书如有缺页、倒页、脱页等质量问题"
+            "WBS要素：15-11178-011（正式出版前务必删除此项）",
+            page=1,
+        )
+        body = _p(40, "本任务介绍短视频平台、账号定位和内容形态。", page=8)
+
+        kept = drop_post_merge_noise([merged, body])
+
+        assert [b["block_id"] for b in kept] == ["p-40"]
+
+    def test_keeps_body_text_that_mentions_editorial_process(self):
+        body = _p(40, "短视频脚本策划编辑需要围绕用户画像、场景和转化目标展开。", page=8)
+        kept = drop_post_merge_noise([body])
+        assert [b["block_id"] for b in kept] == ["p-40"]
+
+    def test_repack_keeps_preface_body_after_publication_page(self):
+        blocks = [
+            _p(15, "I．①电·Ⅱ.①北·Ⅲ．①电子商务-数据处理高等职业教育－教材 Ⅳ．①F713.36②TP274", page=2),
+            _p(16, "中国版本图书馆CIP数据核字(2019) 第274938号", page=2),
+            _p(18, "DIANZI SHANGWU SHUJU FENXI SHIJIAN (CHUJI)", page=2),
+            _p(19, "策划编辑康蓉", page=2),
+            _p(26, "出版发行高等教育出版社", page=2),
+            _p(27, "网 址http://www.hep.edu.cn", page=2),
+            _p(43, "本书如有缺页、倒页、脱页等质量问题，请到所购图书销售部门联系调换", page=2),
+            _p(44, "版权所有侵权必究", page=2),
+            _p(45, "物料号47411-A0", page=2),
+            _p(47, "编写说明", page=3),
+            _p(
+                48,
+                "2019 年1月1日起实施的《中华人民共和国电子商务法》是我国电子商务发展的重要里程碑。"
+                "随着数字经济的快速发展和行业数字化转型程度的不断加深，数据将成为核心生产要素，"
+                "企业已经意识到数据对于行业发展的重要性。",
+                page=3,
+            ),
+        ]
+
+        units = repack(blocks)
+
+        joined = "\n".join(unit["content"] for unit in units)
+        assert "中国版本图书馆CIP" not in joined
+        assert "DIANZI SHANGWU" not in joined
+        assert "2019 年1月1日起实施的《中华人民共和国电子商务法》" in joined
 
 
 # ---------------------------------------------------------------------------

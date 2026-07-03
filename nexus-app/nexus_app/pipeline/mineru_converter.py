@@ -721,6 +721,10 @@ _TABLE_BBOX_TOLERANCE_PX = 20
 # emitted by MinerU when a table cell is empty. Removing them is safe because
 # the original byte stream offered no information either.
 _EMPTY_TABLE_ROW_RE = re.compile(r"^\s*\|(?:\s*\|)+\s*$")
+_FORM_TEMPLATE_TABLE_RE = re.compile(
+    r"(数据采集表|采集表|填报表|记录表|登记表|调查表|统计表|检查表|清单表|台账)",
+    re.IGNORECASE,
+)
 
 
 # Structural meta-labels VLMs add when describing charts / figures.
@@ -952,9 +956,16 @@ def _sanitise_vlm_table_response(text: str | None) -> str:
     return "\n".join(kept)
 
 
-def _strip_empty_table_rows(table_md: str) -> str:
+def _should_preserve_empty_table_rows(caption: str | None) -> bool:
+    """Return True for form/template tables where blank rows are source data."""
+    if not caption:
+        return False
+    return bool(_FORM_TEMPLATE_TABLE_RE.search(caption))
+
+
+def _strip_empty_table_rows(table_md: str, *, preserve_empty_rows: bool = False) -> str:
     """Drop pipe-only rows from a markdown table snippet."""
-    if not table_md or "|" not in table_md:
+    if preserve_empty_rows or not table_md or "|" not in table_md:
         return table_md
     kept: list[str] = []
     for line in table_md.splitlines():
@@ -1074,13 +1085,17 @@ def _rescue_multipage_tables_via_pdf(
         if first is None or last is None or last <= first:
             continue
         caption = block.get("caption") or ""
+        preserve_empty_table_rows = _should_preserve_empty_table_rows(caption)
 
         # Anchor's existing MinerU markdown is ground truth — keep it as
         # the first slice (no LLM call for the page MinerU already
         # parsed). When the anchor has no content we fall back to
         # rendering page `first` too.
         anchor_md = block.get("content") or ""
-        anchor_md = _strip_empty_table_rows(anchor_md).strip()
+        anchor_md = _strip_empty_table_rows(
+            anchor_md,
+            preserve_empty_rows=preserve_empty_table_rows,
+        ).strip()
         per_page_md: list[str] = []
         if anchor_md and _table_md_is_useful(anchor_md):
             per_page_md.append(anchor_md)
@@ -1122,7 +1137,10 @@ def _rescue_multipage_tables_via_pdf(
             if not vlm_md:
                 continue
             sanitised = _sanitise_vlm_table_response(vlm_md)
-            cleaned = _strip_empty_table_rows(sanitised).strip()
+            cleaned = _strip_empty_table_rows(
+                sanitised,
+                preserve_empty_rows=preserve_empty_table_rows,
+            ).strip()
             if cleaned and cleaned != "-" and _table_md_is_useful(cleaned):
                 per_page_md.append(cleaned)
         # Only update when we either kept the anchor or rescued at least
@@ -1263,7 +1281,12 @@ def _merge_cross_page_tables(
 
             # (c) Clean up empty rows in merged content.
             joined = "\n".join(content_parts)
-            joined = _strip_empty_table_rows(joined).strip()
+            joined = _strip_empty_table_rows(
+                joined,
+                preserve_empty_rows=_should_preserve_empty_table_rows(
+                    merged.get("caption")
+                ),
+            ).strip()
             if joined:
                 merged["content"] = joined
             else:
@@ -1280,7 +1303,12 @@ def _merge_cross_page_tables(
         # (c) Solitary table block with content but no anchor merge — still
         # benefit from empty-row cleanup.
         if block.get("block_type") == "table" and block.get("content"):
-            cleaned = _strip_empty_table_rows(block["content"]).strip()
+            cleaned = _strip_empty_table_rows(
+                block["content"],
+                preserve_empty_rows=_should_preserve_empty_table_rows(
+                    block.get("caption")
+                ),
+            ).strip()
             if cleaned != block["content"]:
                 new_block = dict(block)
                 if cleaned:
@@ -1508,6 +1536,7 @@ def _handle_visual(
     img_paths = _composite_image_paths(raw_block)
     caption = _composite_caption(raw_block)
     resolved_uris = {p: image_uris.get(p, "") for p in img_paths}
+    preserve_empty_table_rows = _should_preserve_empty_table_rows(caption)
 
     # Tables: prefer MinerU HTML, then fall back to VLM when HTML is missing
     # or degraded (defect #3 extension — pipeline mode sometimes emits a
@@ -1522,7 +1551,10 @@ def _handle_visual(
                         if span.get("type") == "table" and span.get("html"):
                             table_md = _table_html_to_markdown(span["html"])
         if table_md:
-            table_md = _strip_empty_table_rows(table_md).strip() or None
+            table_md = _strip_empty_table_rows(
+                table_md,
+                preserve_empty_rows=preserve_empty_table_rows,
+            ).strip() or None
 
     # Decide whether VLM needs to run for this block:
     #   - image / chart  → always (subject to decorative gate)
@@ -1530,7 +1562,13 @@ def _handle_visual(
     needs_vlm = (
         image_analyzer is not None
         and img_paths
-        and (btype != "table" or not _table_md_is_useful(table_md))
+        and (
+            btype != "table"
+            or (
+                not _table_md_is_useful(table_md)
+                and not (preserve_empty_table_rows and table_md)
+            )
+        )
     )
 
     vlm_content: str | None = None
@@ -1562,7 +1600,10 @@ def _handle_visual(
         # prose without a real markdown table block.
         if btype == "table" and vlm_content:
             sanitised = _sanitise_vlm_table_response(vlm_content)
-            cleaned_vlm = _strip_empty_table_rows(sanitised).strip()
+            cleaned_vlm = _strip_empty_table_rows(
+                sanitised,
+                preserve_empty_rows=preserve_empty_table_rows,
+            ).strip()
             if cleaned_vlm and cleaned_vlm != "-" and _table_md_is_useful(cleaned_vlm):
                 # Replace degraded HTML; track the rescue for quality telemetry.
                 table_md = cleaned_vlm
@@ -1607,7 +1648,8 @@ def _handle_visual(
                     table_retry = None
                 if table_retry:
                     cleaned_retry = _strip_empty_table_rows(
-                        _sanitise_vlm_table_response(table_retry)
+                        _sanitise_vlm_table_response(table_retry),
+                        preserve_empty_rows=preserve_empty_table_rows,
                     ).strip()
                     if (
                         cleaned_retry
