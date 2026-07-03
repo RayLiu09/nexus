@@ -160,6 +160,75 @@ def test_task_outline_api_returns_profile_nodes_and_projection_summary(app, sess
     assert data["chunk_projection"]["projected_chunk_count"] == 1
 
 
+def test_task_outline_profile_and_node_detail_apis(app, session) -> None:
+    ref = _seed_ref(session, ref_id="ref-task-outline-detail")
+    profile = models.TaskOutlineProfile(
+        id="top-detail-api",
+        normalized_ref_id=ref.id,
+        asset_version_id=ref.version_id,
+        asset_profile="course_textbook",
+        title=ref.title,
+        textbook_subtype="training_operation",
+        task_profile="textbook_training_operation",
+        subtype_confidence=0.92,
+        processing_profile="task_outline",
+        evidence_graph_admission="not_recommended",
+        source_block_ids=["b1"],
+        quality={"locator_coverage": 1.0},
+        profile_metadata={"scores": {"task_score": 8.0}},
+    )
+    node = models.TaskOutlineNode(
+        id="node-detail-api",
+        normalized_ref_id=ref.id,
+        profile_id=profile.id,
+        parent_id=None,
+        node_type="operation_step",
+        section_type="operation_steps",
+        title="确定采集渠道",
+        content="1. 确定采集渠道，选择电商平台和关键词。",
+        order_no=2,
+        depth=3,
+        source_block_ids=["b7"],
+        locator={"page_start": 13, "page_end": 13, "blocks": []},
+        node_metadata={"step_no": 1, "anchor_role": "operation_step"},
+    )
+    session.add_all([profile, node])
+    session.commit()
+
+    with TestClient(app) as client:
+        profile_resp = client.get(f"/internal/v1/task-outline/profiles/{profile.id}")
+        node_resp = client.get(f"/internal/v1/task-outline/nodes/{node.id}")
+
+    assert profile_resp.status_code == 200
+    profile_data = profile_resp.json()["data"]
+    assert profile_data["id"] == profile.id
+    assert profile_data["normalized_ref_id"] == ref.id
+    assert profile_data["metadata"]["scores"]["task_score"] == 8.0
+
+    assert node_resp.status_code == 200
+    node_data = node_resp.json()["data"]
+    assert node_data["id"] == node.id
+    assert node_data["profile_id"] == profile.id
+    assert node_data["node_type"] == "operation_step"
+    assert node_data["metadata"]["step_no"] == 1
+    assert node_data["locator"]["page_start"] == 13
+
+
+def test_task_outline_detail_apis_return_404_for_missing_rows(app) -> None:
+    with TestClient(app) as client:
+        profile_resp = client.get("/internal/v1/task-outline/profiles/missing-profile")
+        node_resp = client.get("/internal/v1/task-outline/nodes/missing-node")
+
+    assert profile_resp.status_code == 404
+    assert profile_resp.json()["error"]["message"] == (
+        "task_outline_profile 'missing-profile' not found"
+    )
+    assert node_resp.status_code == 404
+    assert node_resp.json()["error"]["message"] == (
+        "task_outline_node 'missing-node' not found"
+    )
+
+
 def test_task_outline_rebuild_api_builds_profile_and_projection(
     app,
     session,

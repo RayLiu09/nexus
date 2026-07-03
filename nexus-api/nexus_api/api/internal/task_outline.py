@@ -116,6 +116,42 @@ def rebuild_task_outline_by_ref(
     )
 
 
+@router.get(
+    "/task-outline/profiles/{profile_id}",
+    response_model=schemas.ApiResponse[dict],
+)
+def get_task_outline_profile(
+    profile_id: str,
+    request: Request,
+    session: Session = Depends(get_db),
+):
+    profile = session.get(models.TaskOutlineProfile, profile_id)
+    if profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"task_outline_profile '{profile_id}' not found",
+        )
+    return response(_serialize_profile(profile), request)
+
+
+@router.get(
+    "/task-outline/nodes/{node_id}",
+    response_model=schemas.ApiResponse[dict],
+)
+def get_task_outline_node(
+    node_id: str,
+    request: Request,
+    session: Session = Depends(get_db),
+):
+    node = session.get(models.TaskOutlineNode, node_id)
+    if node is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"task_outline_node '{node_id}' not found",
+        )
+    return response(_serialize_node(node), request)
+
+
 def _load_task_outline_payload(ref: models.NormalizedAssetRef) -> dict[str, Any]:
     from nexus_api.api.internal.normalized_refs import _load_normalized_payload
 
