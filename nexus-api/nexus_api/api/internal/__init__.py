@@ -34,6 +34,7 @@ from nexus_api.api.internal.capability_graph_staging import (
     router as _capability_graph_staging_router,
 )
 from nexus_api.api.internal.evidence_graph import router as _evidence_graph_router
+from nexus_api.api.internal.task_outline import router as _task_outline_router
 
 # Auth router — separate top-level mount, no shared deps.
 from nexus_api.api.internal.auth import router as auth_router
@@ -149,6 +150,7 @@ router.include_router(_record_assets_router)
 router.include_router(_major_profiles_router)
 router.include_router(_capability_graph_staging_router)
 router.include_router(_evidence_graph_router)
+router.include_router(_task_outline_router)
 
 
 __all__ = ["router", "auth_router"]

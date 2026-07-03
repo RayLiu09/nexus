@@ -5,16 +5,18 @@ import { Segmented } from "antd";
 
 import { ChunkListSection } from "./ChunkListSection";
 import { EvidenceGraphView } from "./EvidenceGraphView";
+import { TaskOutlineView } from "./TaskOutlineView";
 import type { NormalizedAssetRef } from "@/lib/api";
 
 type Props = {
   normalizedRef: NormalizedAssetRef | null;
 };
 
-type ViewKey = "chunks" | "evidence_graph";
+type ViewKey = "chunks" | "task_outline" | "evidence_graph";
 
 const VIEW_OPTIONS: Array<{ label: string; value: ViewKey }> = [
   { label: "RAG知识块", value: "chunks" },
+  { label: "任务大纲", value: "task_outline" },
   { label: "Evidence Graph", value: "evidence_graph" },
 ];
 
@@ -42,6 +44,7 @@ export function DocumentKnowledgeView({ normalizedRef }: Props) {
           actionLabel="定位原文"
         />
       ) : null}
+      {view === "task_outline" ? <TaskOutlineView refId={normalizedRefId} /> : null}
       {view === "evidence_graph" ? <EvidenceGraphView normalizedRef={normalizedRef} /> : null}
     </div>
   );

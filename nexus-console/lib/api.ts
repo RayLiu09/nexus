@@ -167,6 +167,52 @@ export type NormalizedAssetRef = {
   updated_at: string;
 };
 
+export type TaskOutlineProfile = {
+  id: string;
+  normalized_ref_id: string;
+  asset_version_id: string;
+  asset_profile: string;
+  title: string | null;
+  textbook_subtype: string | null;
+  task_profile: string | null;
+  subtype_confidence: number | null;
+  processing_profile: string;
+  evidence_graph_admission: string;
+  source_block_ids: string[];
+  quality: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TaskOutlineNode = {
+  id: string;
+  normalized_ref_id: string;
+  profile_id: string;
+  parent_id: string | null;
+  node_type: string;
+  section_type: string | null;
+  title: string | null;
+  content: string | null;
+  summary: string | null;
+  order_no: number;
+  depth: number;
+  source_block_ids: string[];
+  locator: Record<string, unknown> | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TaskOutlineEnvelope = {
+  profile: TaskOutlineProfile | null;
+  nodes: TaskOutlineNode[];
+  chunk_projection: {
+    projected_chunk_count: number;
+    stale_chunk_count: number;
+  };
+};
+
 export type Asset = {
   id: string;
   data_source_id: string;
