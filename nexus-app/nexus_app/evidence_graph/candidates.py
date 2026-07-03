@@ -110,6 +110,9 @@ def _skip_reason(
         return "empty_content"
 
     metadata = chunk.chunk_metadata or {}
+    if _is_task_outline_not_graph_candidate(metadata):
+        return "task_outline_not_graph_candidate"
+
     anchor_role = metadata.get("anchor_role")
     if not anchor_role:
         return "missing_anchor_role"
@@ -126,6 +129,14 @@ def _skip_reason(
         return "non_semantic_image"
 
     return None
+
+
+def _is_task_outline_not_graph_candidate(metadata: dict) -> bool:
+    if metadata.get("graph_candidate") is False:
+        return True
+    if metadata.get("section_processing_profile") == "task_outline":
+        return True
+    return metadata.get("domain_model") == "task_outline.v1"
 
 
 def _is_low_quality(metadata: dict) -> bool:

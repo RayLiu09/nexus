@@ -325,6 +325,69 @@ def test_textbook_profile_selects_full_ref_semantic_textbook_chunks(session):
     assert body.extraction_method == "llm"
 
 
+def test_textbook_profile_skips_task_outline_chunks(session):
+    ref = _seed_ref(session, ref_id="ref-textbook-task-outline")
+    _add_chunk(
+        session,
+        ref_id=ref.id,
+        chunk_id="chunk-theory-body",
+        index=1,
+        anchor_role="body",
+        content="数据分析的概念是对数据进行整理、解释和建模。",
+    )
+    _add_chunk(
+        session,
+        ref_id=ref.id,
+        chunk_id="chunk-task-step",
+        index=2,
+        anchor_role="operation_step",
+        content="操作步骤 1：导入销售数据。",
+        metadata_extra={
+            "domain_model": "task_outline.v1",
+            "section_processing_profile": "task_outline",
+            "graph_candidate": False,
+            "outline_node_id": "node-step-1",
+        },
+    )
+    _add_chunk(
+        session,
+        ref_id=ref.id,
+        chunk_id="chunk-task-body-role",
+        index=3,
+        anchor_role="body",
+        content="任务背景：企业需要整理去年各月销售数据。",
+        metadata_extra={
+            "section_processing_profile": "task_outline",
+            "outline_node_id": "node-bg-1",
+        },
+    )
+    _add_chunk(
+        session,
+        ref_id=ref.id,
+        chunk_id="chunk-task-artifact",
+        index=4,
+        anchor_role="body",
+        content="任务产物：智能门锁竞争数据采集表。",
+        metadata_extra={
+            "domain_model": "task_outline.v1",
+            "outline_node_id": "node-artifact-1",
+        },
+    )
+    session.commit()
+
+    result = select_graph_candidate_chunks(
+        session,
+        normalized_ref_id=ref.id,
+        graph_profile="textbook",
+    )
+
+    assert result.total_semantic_chunk_count == 4
+    assert result.selected_chunk_count == 1
+    assert result.candidate_chunks[0].chunk_id == "chunk-theory-body"
+    assert result.skipped_chunk_count == 3
+    assert result.skipped_by_reason == {"task_outline_not_graph_candidate": 3}
+
+
 def test_candidate_selection_applies_profile_role_filter(session):
     ref = _seed_ref(session)
     _add_chunk(
