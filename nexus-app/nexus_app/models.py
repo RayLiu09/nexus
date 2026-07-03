@@ -551,6 +551,89 @@ class NormalizedAssetRef(TimestampMixin, Base):
     version: Mapped[AssetVersion] = relationship()
 
 
+class TaskOutlineProfile(TimestampMixin, Base):
+    """Task-operation content profile for textbooks and future task sheets.
+
+    The profile is keyed from ``normalized_asset_ref``. It intentionally does
+    not create reverse pointers on normalized refs, asset versions, or chunks.
+    Task-aware chunk projection links back through
+    ``KnowledgeChunk.chunk_metadata.outline_node_id``.
+    """
+    __tablename__ = "task_outline_profile"
+    __table_args__ = (
+        UniqueConstraint(
+            "normalized_ref_id", "asset_profile",
+            name="uq_task_outline_profile_ref_asset_profile",
+        ),
+        Index("ix_task_outline_profile_normalized_ref_id", "normalized_ref_id"),
+        Index("ix_task_outline_profile_asset_version_id", "asset_version_id"),
+        Index("ix_task_outline_profile_processing", "processing_profile"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("normalized_asset_ref.id"), nullable=False
+    )
+    asset_version_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("asset_version.id"), nullable=False
+    )
+    asset_profile: Mapped[str] = mapped_column(String(64), nullable=False)
+    title: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    textbook_subtype: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    task_profile: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    subtype_confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+    processing_profile: Mapped[str] = mapped_column(String(64), nullable=False)
+    evidence_graph_admission: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_block_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    quality: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    profile_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSON, default=dict, nullable=False
+    )
+
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+    asset_version: Mapped[AssetVersion] = relationship()
+
+
+class TaskOutlineNode(TimestampMixin, Base):
+    """Tree node in a Task Outline domain model."""
+    __tablename__ = "task_outline_node"
+    __table_args__ = (
+        Index("ix_task_outline_node_normalized_ref_id", "normalized_ref_id"),
+        Index("ix_task_outline_node_profile_id", "profile_id"),
+        Index("ix_task_outline_node_parent_id", "parent_id"),
+        Index("ix_task_outline_node_profile_order", "profile_id", "order_no"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("normalized_asset_ref.id"), nullable=False
+    )
+    profile_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("task_outline_profile.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    parent_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("task_outline_node.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    node_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    section_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    order_no: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    depth: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    source_block_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    locator: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    node_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSON, default=dict, nullable=False
+    )
+
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+    profile: Mapped[TaskOutlineProfile] = relationship()
+    parent: Mapped["TaskOutlineNode | None"] = relationship(remote_side=[id])
+
+
 class AIPromptProfile(TimestampMixin, Base):
     """AI Prompt configuration with version management.
 
