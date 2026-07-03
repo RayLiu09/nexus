@@ -98,6 +98,12 @@ Root documents are distilled implementation contracts:
 - AI-led classification, level, tag, org-scope suggestions, and quality scoring.
 - Configurable governance rules and decision tracking.
 - RAGFlow chunking, indexing, and retrieval integration.
+- Course textbook Task Outline processing for D4 teaching materials:
+  training-operation textbooks are detected from normalized documents,
+  persisted as profile/tree rows, projected into unified `knowledge_chunk`
+  rows, exposed in the Console asset detail read view, and rebuilt
+  idempotently with `index_manifest(textbook_kb)` marked stale after projection
+  replacement.
 - Evidence-grounded Knowledge Graph data foundation, with build/node/fact/edge/
   mention/evidence tables linked to `normalized_asset_ref` and `knowledge_chunk`
   evidence locators. Candidate selection, extractor schemas, evidence-bound

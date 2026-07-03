@@ -150,6 +150,12 @@ P0 record profiles include job demand, occupational ability analysis, and major 
 - Governance rules (file-based): `config/governance_rules.json` — single source of truth for business rules, maintained by business experts via console, protected by schema validation + ETag + fcntl write lock.
 - Governance result: `governance_result` (embedded `quality_summary` + `decision_trail`; records `rules_schema_version` + `rules_content_hash` as snapshot evidence).
 - Knowledge and index: `knowledge_chunk`, `index_manifest`.
+- Course textbook Task Outline: `task_outline_profile`,
+  `task_outline_node`. These tables store the detected processing profile and
+  project/task/step/artifact tree for `course_textbook` training-operation
+  textbooks. They are anchored by `normalized_ref_id` and `asset_version_id`;
+  no reverse pointer is stored on `normalized_asset_ref`, `asset_version`, or
+  `knowledge_chunk`.
 - Evidence-grounded KG extension: `knowledge_graph_build`,
   `knowledge_graph_node`, `knowledge_graph_fact`, `knowledge_graph_edge`,
   `knowledge_graph_mention`, `knowledge_graph_evidence`. These tables store
@@ -161,6 +167,12 @@ P0 record profiles include job demand, occupational ability analysis, and major 
   summaries, and rebuild submission for Console/control-plane use. API handlers
   must not run heavyweight LLM extraction inline. Public/open graph APIs are a
   later extension.
+- Task Outline internal API: `/internal/v1/normalized-refs/{ref_id}/task-outline`
+  exposes the profile/tree read envelope for Console, and
+  `/internal/v1/normalized-refs/{ref_id}/task-outline/rebuild` rebuilds the
+  profile, nodes, and task-aware chunk projection from the normalized document
+  payload. API handlers use `normalized_asset_ref.object_uri` as input and do
+  not read raw files, raw JSON, or MinerU raw output.
 - Jobs and audit: `job`, `job_stage`, `audit_log`.
 
 ## normalized_asset_ref Fields (v3.0)
@@ -241,6 +253,44 @@ Concept-level chunks (`graph_extract`) carry a richer source-block partition:
 - `source_blocks` / `locator.blocks[]` = primary ∪ evidence.
 
 Both partitions are persisted in `knowledge_chunk.chunk_metadata` and surfaced at the **top level** of the public API responses (`/open/v1/knowledge-chunks/{id}`, `/open/v1/normalized-refs/{id}/chunks`, and search/QA hits) only when present — non-graph chunks omit them to keep response shape stable.
+
+### course_textbook Task Outline Projection
+
+For D4 `course_textbook` assets detected as `training_operation`, NEXUS
+persists a Task Outline profile/tree and projects high-value nodes back into
+the unified `knowledge_chunk` table. No task-specific chunk table is allowed.
+
+Projected chunks keep `knowledge_type_code = textbook_kb`,
+`chunk_type = semantic_block`, `chunking_strategy = semantic_repack`, and
+`source_kind = extracted_from_normalized`. Task Outline identity lives in
+`chunk_metadata`:
+
+```json
+{
+  "semantic_variant": "task_outline_repack",
+  "domain_model": "task_outline.v1",
+  "task_profile": "textbook_training_operation",
+  "textbook_subtype": "training_operation",
+  "outline_node_id": "node-step-003",
+  "node_type": "operation_step",
+  "section_type": "operation_steps",
+  "anchor_role": "operation_step",
+  "section_processing_profile": "task_outline",
+  "graph_candidate": false
+}
+```
+
+`source_block_ids` and `locator` remain the citation contract for search, QA,
+audit, and source preview. Rebuilding a Task Outline is idempotent: the active
+profile is updated, nodes are replaced, prior Task Outline projected chunks for
+the profile are replaced or removed, and an existing
+`index_manifest(textbook_kb)` for that normalized ref is marked `stale`.
+
+Theory textbooks continue to use ordinary semantic chunks and are eligible for
+Evidence Graph selection. Task Outline chunks set `graph_candidate=false` and
+are skipped by default Evidence Graph candidate selection. Hybrid chapter-level
+routing and `enterprise_training_task` extraction are reserved later slices,
+not active P0 behavior.
 
 ## Lineage-Facing API Endpoints
 
@@ -348,6 +398,11 @@ Asset Pipeline → normalized_asset_ref (stable contract)
 - Knowledge Pipeline inputs are exclusively `normalized_asset_ref` objects. Raw files, raw JSON, and MinerU output are not valid inputs.
 - Each knowledge scenario has independent scheduling, rules, and human review flows; no cross-scenario dependency.
 - P0 scope: Pipeline 1 only. Pipelines 2–5 are reserved architecture extension points.
+- Course textbook Task Outline is a Pipeline 1 specialization for
+  `course_textbook` normalized documents. It detects
+  `training_operation` textbooks, stores a profile/tree, projects task-aware
+  retrieval chunks into `knowledge_chunk`, and marks the relevant index manifest
+  stale after projection replacement.
 - Evidence-grounded KG is an active extension slice built on the same boundary:
   input is a full `normalized_asset_ref`; `knowledge_chunk` provides semantic
   windows, source block ids, and locators; official graph nodes/facts/edges

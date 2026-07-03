@@ -38,6 +38,14 @@ Role constraints:
 - Governance decision tracking in `governance_result.decision_trail`.
 - NEXUS-owned `knowledge_chunk` construction for source citation and downstream knowledge processing. External index backends are adapter-selected later; backend execution state belongs in `index_manifest`, not `knowledge_chunk`. `knowledge_chunk.normalized_ref_id` links chunks to `normalized_asset_ref`.
 - Knowledge Pipeline 1: RAG retrieval KB for D4 teaching materials and D3 talent cultivation plans. Knowledge Pipeline is independent of Asset Pipeline.
+- Course textbook Task Outline processing for D4 `course_textbook`
+  normalized documents: training-operation textbooks are detected, persisted
+  as `task_outline_profile` plus `task_outline_node` trees, and projected into
+  unified `knowledge_chunk` rows with `domain_model=task_outline.v1`.
+  Rebuild uses the normalized payload only, replaces nodes/chunks idempotently,
+  and marks the existing `index_manifest(textbook_kb)` stale after projection
+  replacement. Hybrid chapter-level routing and enterprise training task
+  extraction remain later slices.
 - Evidence-grounded KG is tracked as a bounded extension under implementation:
   the current slices add evidence-bound graph build storage over a complete
   `normalized_asset_ref`, profile-based chunk selection, extractor schemas,
@@ -82,7 +90,7 @@ P0 pages:
 - **原始数据台账**: batch query, raw object query, checksum, replay entry.
 - **作业中心**: job list, stage progress (including ingest_validate / assetize / parse / normalize), failure reason, retry, reprocess, re-governance.
 - **资产目录**: asset list, current version read model, versions, normalized refs (with governance/quality/lineage fields), index status.
-- **资产详情**: overview, versions, normalized refs, AI governance, quality score, governance result, decision tracking, chunks (with normalized_ref_id), record-asset structured views (list plus read-only staging graph for job demand / ability analysis), index manifest, lineage (including image_uris), audit.
+- **资产详情**: overview, versions, normalized refs, AI governance, quality score, governance result, decision tracking, chunks (with normalized_ref_id), course textbook Task Outline read view for training-operation textbooks, record-asset structured views (list plus read-only staging graph for job demand / ability analysis), index manifest, lineage (including image_uris), audit.
 - **治理中心**: AI suggestions, AI quality score, AI Prompt config, review tasks, rule config, save-to-activate changes, decision tracking, quality review.
 - **规则配置**: structured editor for `config/governance_rules.json` (classifications, levels, tags, quality scoring, knowledge types); ETag-based concurrency control; save takes effect immediately for future governance runs.
 - **权限与审计**: local users, roles, API keys, org scopes, approvals, audit logs.
@@ -192,6 +200,21 @@ P0 end-to-end cases:
 - Image/scanned PDF ingestion: `ocr_enable = true` auto-set; parse succeeds.
 - D1 crawler JSON batch: `ingest_validate` passes → `assetize` (Pipeline B, no MinerU) → `normalized_record` with full `normalized_asset_ref` fields → queryable and searchable.
 - Professional major-distribution XLSX: `ingest_validate` passes → Pipeline B structured parse/profile detect (`major_distribution.v1`) → `normalized_record` → domain tables; summary rows such as `全部` are ignored, `新疆生产建设兵团` is stored as `province`, and missing education level stays empty unless explicit source/file/context evidence exists.
+- Course textbook training-operation PDF: normalized document payload is
+  detected as `training_operation` → `task_outline_profile` stores
+  `processing_profile=task_outline` and
+  `evidence_graph_admission=not_recommended` → project/task/task-section/
+  operation-step/task-artifact nodes preserve `source_block_ids` and
+  `locator` → high-value nodes project to `knowledge_chunk(textbook_kb)` with
+  `domain_model=task_outline.v1`, `outline_node_id`,
+  `section_processing_profile=task_outline`, and `graph_candidate=false` →
+  Task Outline chunks are skipped by default Evidence Graph candidate selection
+  → Console asset detail can read the outline tree and jump to source
+  locations.
+- Task Outline rebuild: rebuilding from the same normalized document is
+  idempotent, does not duplicate effective nodes or chunks, and marks the
+  existing `index_manifest(textbook_kb)` stale when projected chunks are
+  replaced or removed.
 - High-confidence AI + quality pass → `available`.
 - Low-confidence AI or quality below threshold → `review_required`, with reason recorded in `governance_result.decision_trail`.
 - Tag generation: high-confidence tags auto-committed with audit log; low-confidence tags appear in review queue.
