@@ -14,6 +14,10 @@ from nexus_app.task_outline.extractor import (
     TaskOutlineExtraction,
     extract_course_textbook_outline,
 )
+from nexus_app.task_outline.projector import (
+    DOMAIN_MODEL,
+    project_profile_to_chunks,
+)
 from nexus_app.task_outline.service import (
     get_profile_by_ref,
     list_nodes,
@@ -22,6 +26,7 @@ from nexus_app.task_outline.service import (
 )
 
 __all__ = [
+    "DOMAIN_MODEL",
     "TaskOutlineNodeCreate",
     "TaskOutlineNodeRead",
     "TaskOutlineExtraction",
@@ -32,6 +37,7 @@ __all__ = [
     "extract_course_textbook_outline",
     "get_profile_by_ref",
     "list_nodes",
+    "project_profile_to_chunks",
     "replace_nodes",
     "upsert_profile",
 ]
