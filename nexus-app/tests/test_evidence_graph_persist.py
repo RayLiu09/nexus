@@ -263,7 +263,7 @@ def test_persist_graph_candidates_writes_multiple_evidence_rows_for_one_fact(ses
         "extraction_method": "llm",
         "fact_type": "policy_fact",
         "subject": {"type": "Policy", "name": "政策A"},
-        "predicate": "MENTIONS",
+        "predicate": "包含",
         "object_literal": "重点任务",
         "qualifiers": {"topic": "任务"},
         "evidence_text": "政策A由部门A发布。政策A提出重点任务。",
@@ -296,6 +296,142 @@ def test_persist_graph_candidates_writes_multiple_evidence_rows_for_one_fact(ses
     ).all()
     assert [row.chunk_id for row in evidence_rows] == [chunk1.id, chunk2.id]
     assert [row.mention_id is not None for row in evidence_rows] == [True, False]
+
+
+def test_persist_canonicalizes_literal_and_predicate_variants(session):
+    ref = _seed_ref(session)
+    chunk1 = _add_chunk(session, chunk_id="chunk-canon-1", index=1, content="我国增长率为 2.9％。")
+    chunk2 = _add_chunk(session, chunk_id="chunk-canon-2", index=2, content="国内同比增长 2.9 %。")
+    session.commit()
+    build = create_graph_build(
+        session,
+        normalized_ref_id=ref.id,
+        graph_profile="report_document",
+        strategy_version="evidence-kg.v1",
+    )
+
+    result = persist_graph_candidates(
+        session,
+        build=build,
+        candidates=[
+            _fact(
+                chunk_id=chunk1.id,
+                subject_name="我国",
+                predicate="增长率为",
+                object_literal="2.9％",
+                evidence_text="我国增长率为 2.9％。",
+            ),
+            _fact(
+                chunk_id=chunk2.id,
+                subject_name="国内",
+                predicate="同比增长",
+                object_literal="2.9 %",
+                evidence_text="国内同比增长 2.9 %。",
+            ),
+        ],
+        chunk_candidates=[_chunk_candidate(chunk1), _chunk_candidate(chunk2)],
+    )
+    session.commit()
+
+    assert result.status == KnowledgeGraphBuildStatus.SUCCEEDED
+    assert result.nodes_written == 1
+    assert result.facts_written == 1
+    assert result.evidence_written == 2
+    assert result.quality_summary["duplicate_fact_candidates"] == 1
+    assert result.quality_summary["canonicalized_literals"] >= 2
+    assert result.quality_summary["canonicalized_predicates"] >= 1
+    assert result.quality_summary["canonicalized_entity_aliases"] >= 2
+    assert "literal_format_normalized" in result.quality_summary["canonicalization_rules_applied"]
+
+    fact = session.scalar(select(models.KnowledgeGraphFact))
+    assert fact is not None
+    assert fact.predicate == "HAS_GROWTH_RATE"
+    assert fact.object_literal == "2.9%"
+
+
+def test_persist_filters_weak_mentions_and_reports_summary(session):
+    ref = _seed_ref(session)
+    chunk = _add_chunk(session, chunk_id="chunk-weak", index=1, content="内容。")
+    session.commit()
+    build = create_graph_build(
+        session,
+        normalized_ref_id=ref.id,
+        graph_profile="report_document",
+        strategy_version="evidence-kg.v1",
+    )
+    candidate = GraphFactCandidate.model_validate({
+        "source_chunk_id": chunk.id,
+        "profile": "report_document",
+        "anchor_role": "body",
+        "extractor_name": "BodyLLMExtractor",
+        "extraction_method": "llm",
+        "fact_type": "entity_mention",
+        "subject": {"type": "Entity", "name": "内容"},
+        "predicate": "MENTIONS",
+        "object_literal": "内容",
+        "qualifiers": {},
+        "evidence_text": "内容。",
+        "confidence": 0.91,
+    })
+
+    result = persist_graph_candidates(
+        session,
+        build=build,
+        candidates=[candidate],
+        chunk_candidates=[_chunk_candidate(chunk)],
+    )
+    session.commit()
+
+    assert result.status == KnowledgeGraphBuildStatus.FAILED
+    assert result.quality_summary["weak_fact_candidates"] == 1
+    assert result.facts_written == 0
+    assert session.scalar(select(func.count()).select_from(models.KnowledgeGraphFact)) == 0
+
+
+def test_persist_skips_duplicate_evidence_rows_from_overlap_windows(session):
+    ref = _seed_ref(session)
+    chunk = _add_chunk(session, chunk_id="chunk-overlap", index=1, content="政策A由部门A发布。")
+    session.commit()
+    build = create_graph_build(
+        session,
+        normalized_ref_id=ref.id,
+        graph_profile="report_document",
+        strategy_version="evidence-kg.v1",
+    )
+    payload = {
+        "source_chunk_id": chunk.id,
+        "profile": "report_document",
+        "anchor_role": "body",
+        "extractor_name": "BodyLLMExtractor",
+        "extraction_method": "llm",
+        "fact_type": "policy_fact",
+        "subject": {"type": "Policy", "name": "政策A"},
+        "predicate": "发布",
+        "object": {"type": "Organization", "name": "部门A"},
+        "qualifiers": {},
+        "evidence_text": "政策A由部门A发布。",
+        "evidence_chunk_ids": [chunk.id],
+        "confidence": 0.91,
+    }
+
+    result = persist_graph_candidates(
+        session,
+        build=build,
+        candidates=[
+            GraphFactCandidate.model_validate(payload),
+            GraphFactCandidate.model_validate(payload),
+        ],
+        chunk_candidates=[_chunk_candidate(chunk)],
+    )
+    session.commit()
+
+    assert result.status == KnowledgeGraphBuildStatus.SUCCEEDED
+    assert result.facts_written == 1
+    assert result.edges_written == 1
+    assert result.evidence_written == 1
+    assert result.quality_summary["duplicate_fact_candidates"] == 1
+    assert result.quality_summary["duplicate_evidence_rows"] == 1
+    assert session.scalar(select(func.count()).select_from(models.KnowledgeGraphEvidence)) == 1
 
 
 def test_low_confidence_candidate_not_persisted_and_fails_when_no_graph_rows(session):

@@ -238,6 +238,18 @@ GraphBuild `quality_summary` 增加：
 - duplicate facts merge 增强。
 - 默认 Graph UI 展示 overview graph，点击后再展开 focused graph。
 
+实施状态：已部分落地。当前阶段在持久化层提供确定性治理：
+
+- 实体名称、谓词、数值 literal 的基础归一化。
+- 弱 `MENTIONS` / 噪声标题类 fact 过滤。
+- overlap window 造成的重复 evidence row 去重。
+- `quality_summary` 输出 `canonicalized_entity_aliases`、
+  `canonicalized_predicates`、`canonicalized_literals`、
+  `weak_fact_candidates`、`duplicate_evidence_rows` 和
+  `canonicalization_rules_applied`。
+
+后续保留 Console overview/focused graph 交互增强。
+
 ## 10. 验收标准
 
 - 对同一 normalized ref，Evidence Graph build 不再对每个 chunk 独立 LLM 抽取。

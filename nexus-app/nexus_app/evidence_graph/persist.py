@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
@@ -25,15 +26,36 @@ DEFAULT_CONFIDENCE_THRESHOLD = Decimal("0.70")
 _ENTITY_ALIASES = {
     "我国": "中国",
     "国内": "中国",
+    "中国国内": "中国",
+    "中华人民共和国": "中国",
 }
 
 _PREDICATE_ALIASES = {
     "同比增长": "HAS_GROWTH_RATE",
     "增长": "HAS_GROWTH_RATE",
     "增速为": "HAS_GROWTH_RATE",
+    "增长率": "HAS_GROWTH_RATE",
+    "增长率为": "HAS_GROWTH_RATE",
     "发布": "ISSUED_BY",
     "印发": "ISSUED_BY",
     "出台": "ISSUED_BY",
+    "颁布": "ISSUED_BY",
+    "由...发布": "ISSUED_BY",
+    "提到": "MENTIONS",
+    "涉及": "MENTIONS",
+    "包含": "CONTAINS",
+    "包括": "CONTAINS",
+}
+
+_WEAK_PREDICATES = {"MENTIONS", "提到", "涉及"}
+_GENERIC_ENTITY_NAMES = {"实体", "内容", "对象", "事项", "主题", "信息", "文本"}
+_TECHNICAL_QUALIFIER_KEYS = {
+    "evidence_chunk_ids",
+    "invalid_evidence_chunk_ids",
+    "extraction_unit_chunk_ids",
+    "extraction_unit_id",
+    "extraction_unit_type",
+    "heading_path",
 }
 
 
@@ -49,6 +71,21 @@ class GraphPersistResult:
     low_confidence_candidates: int = 0
     rejected_candidates: int = 0
     quality_summary: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class GraphGranularityStats:
+    canonicalized_entity_aliases: int = 0
+    canonicalized_predicates: int = 0
+    canonicalized_literals: int = 0
+    weak_fact_candidates: int = 0
+    duplicate_evidence_rows: int = 0
+    canonicalization_rules_applied: dict[str, int] = field(default_factory=dict)
+
+    def increment_rule(self, rule: str) -> None:
+        self.canonicalization_rules_applied[rule] = (
+            self.canonicalization_rules_applied.get(rule, 0) + 1
+        )
 
 
 def persist_graph_candidates(
@@ -80,8 +117,12 @@ def persist_graph_candidates(
     duplicate_facts = 0
     evidence_rows_by_fact: dict[str, int] = {}
     evidence_row_keys: set[tuple[str, str | None, str, str]] = set()
+    governance_stats = GraphGranularityStats()
 
     for candidate in candidates:
+        if _is_weak_fact_candidate(candidate):
+            governance_stats.weak_fact_candidates += 1
+            continue
         chunk = chunk_by_id.get(candidate.source_chunk_id)
         if chunk is None:
             db_chunk = session.get(models.KnowledgeChunk, candidate.source_chunk_id)
@@ -112,6 +153,7 @@ def persist_graph_candidates(
             entity_type=candidate.subject.type,
             entity_name=candidate.subject.name,
             confidence=confidence,
+            stats=governance_stats,
         )
         object_node = None
         if candidate.object is not None:
@@ -122,9 +164,18 @@ def persist_graph_candidates(
                 entity_type=candidate.object.type,
                 entity_name=candidate.object.name,
                 confidence=confidence,
+                stats=governance_stats,
             )
 
         fact_key = _fact_key(candidate, subject, object_node)
+        canonical_predicate = _canonical_predicate(
+            candidate.predicate,
+            stats=governance_stats,
+        )
+        canonical_literal = _canonical_object_literal(
+            candidate.object_literal,
+            stats=governance_stats,
+        )
         fact = fact_by_key.get(fact_key)
         if fact is None:
             fact = models.KnowledgeGraphFact(
@@ -133,9 +184,9 @@ def persist_graph_candidates(
                 normalized_ref_id=build.normalized_ref_id,
                 fact_type=candidate.fact_type,
                 subject_node_id=subject.id,
-                predicate=_canonical_predicate(candidate.predicate),
+                predicate=canonical_predicate,
                 object_node_id=object_node.id if object_node else None,
-                object_literal=candidate.object_literal,
+                object_literal=canonical_literal,
                 qualifiers=dict(candidate.qualifiers),
                 confidence=confidence,
             )
@@ -152,7 +203,7 @@ def persist_graph_candidates(
 
         edge = None
         if object_node is not None:
-            edge_key = (subject.id, _canonical_predicate(candidate.predicate), object_node.id)
+            edge_key = (subject.id, canonical_predicate, object_node.id)
             edge = edge_by_key.get(edge_key)
             if edge is None:
                 edge = models.KnowledgeGraphEdge(
@@ -160,7 +211,7 @@ def persist_graph_candidates(
                     graph_build_id=build.id,
                     normalized_ref_id=build.normalized_ref_id,
                     source_node_id=subject.id,
-                    relation_type=_canonical_predicate(candidate.predicate),
+                    relation_type=canonical_predicate,
                     target_node_id=object_node.id,
                     properties={"fact_type": candidate.fact_type},
                     confidence=confidence,
@@ -194,6 +245,7 @@ def persist_graph_candidates(
                 candidate.evidence_text,
             )
             if row_key in evidence_row_keys:
+                governance_stats.duplicate_evidence_rows += 1
                 continue
             evidence_row_keys.add(row_key)
             session.add(models.KnowledgeGraphEvidence(
@@ -228,10 +280,16 @@ def persist_graph_candidates(
         "persisted_candidates": len(fact_by_key),
         "low_confidence_candidates": low_confidence,
         "missing_evidence_candidates": missing_evidence,
+        "weak_fact_candidates": governance_stats.weak_fact_candidates,
         "invalid_evidence_chunk_ids": invalid_evidence_chunk_ids,
         "multi_evidence_fact_count": multi_evidence_fact_count,
         "evidence_rows_per_fact_avg": evidence_rows_per_fact_avg,
         "duplicate_fact_candidates": duplicate_facts,
+        "duplicate_evidence_rows": governance_stats.duplicate_evidence_rows,
+        "canonicalized_entity_aliases": governance_stats.canonicalized_entity_aliases,
+        "canonicalized_predicates": governance_stats.canonicalized_predicates,
+        "canonicalized_literals": governance_stats.canonicalized_literals,
+        "canonicalization_rules_applied": governance_stats.canonicalization_rules_applied,
         "nodes_written": len(node_by_key),
         "facts_written": len(fact_by_key),
         "edges_written": len(edge_by_key),
@@ -288,8 +346,9 @@ def _get_or_create_node(
     entity_type: str,
     entity_name: str,
     confidence: Decimal,
+    stats: GraphGranularityStats,
 ) -> models.KnowledgeGraphNode:
-    canonical_name = _canonical_entity_name(entity_name)
+    canonical_name = _canonical_entity_name(entity_name, stats=stats)
     node_key = f"{entity_type}:{canonical_name}".lower()
     node = node_by_key.get(node_key)
     if node is not None:
@@ -327,24 +386,17 @@ def _fact_key(
         "subject": subject.node_key,
         "predicate": _canonical_predicate(candidate.predicate),
         "object_node": object_node.node_key if object_node else None,
-        "object_literal": candidate.object_literal,
+        "object_literal": _canonical_object_literal(candidate.object_literal),
         "qualifiers": _semantic_qualifiers(candidate.qualifiers),
     }
     return json.dumps(payload, sort_keys=True, ensure_ascii=False)
 
 
 def _semantic_qualifiers(qualifiers: dict[str, Any]) -> dict[str, Any]:
-    evidence_keys = {
-        "evidence_chunk_ids",
-        "invalid_evidence_chunk_ids",
-        "extraction_unit_chunk_ids",
-        "extraction_unit_id",
-        "extraction_unit_type",
-    }
     return {
-        key: value
+        key: _canonical_qualifier_value(value)
         for key, value in (qualifiers or {}).items()
-        if key not in evidence_keys
+        if key not in _TECHNICAL_QUALIFIER_KEYS
     }
 
 
@@ -375,6 +427,41 @@ def _has_required_evidence(
     if not candidate.source_chunk_id:
         return False
     return True
+
+
+def _is_weak_fact_candidate(candidate: GraphFactCandidate) -> bool:
+    predicate = _canonical_predicate(candidate.predicate)
+    object_literal = _canonical_object_literal(candidate.object_literal)
+    subject_name = _canonical_entity_name(candidate.subject.name)
+    object_name = _canonical_entity_name(candidate.object.name) if candidate.object else None
+    evidence_text = " ".join((candidate.evidence_text or "").split())
+
+    if len(evidence_text) < 6:
+        return True
+    if (
+        _looks_like_noise_heading(evidence_text)
+        and (predicate in _WEAK_PREDICATES or candidate.fact_type == "entity_mention")
+    ):
+        return True
+    if predicate in _WEAK_PREDICATES:
+        if object_literal and len(object_literal) <= 4:
+            return True
+        if not object_literal and object_name in _GENERIC_ENTITY_NAMES:
+            return True
+    if subject_name in _GENERIC_ENTITY_NAMES:
+        return True
+    return False
+
+
+def _looks_like_noise_heading(value: str) -> bool:
+    text = value.strip()
+    if not text:
+        return True
+    if len(text) <= 12 and re.fullmatch(r"[\u4e00-\u9fffA-Za-z0-9（）()一二三四五六七八九十、.\-\s]+", text):
+        return True
+    if text in {"目录", "前言", "绪论", "引言", "本章小结", "思考题", "练习题"}:
+        return True
+    return False
 
 
 def _evidence_chunks_for_candidate(
@@ -463,14 +550,83 @@ def _chunk_candidate_from_model(
     )
 
 
-def _canonical_entity_name(name: str) -> str:
-    cleaned = " ".join(name.strip().split())
-    return _ENTITY_ALIASES.get(cleaned, cleaned)
+def _canonical_entity_name(
+    name: str,
+    *,
+    stats: GraphGranularityStats | None = None,
+) -> str:
+    cleaned = _normalize_text(name)
+    cleaned = _normalize_numbered_title(cleaned)
+    canonical = _ENTITY_ALIASES.get(cleaned, cleaned)
+    if canonical != name.strip() and stats is not None:
+        stats.canonicalized_entity_aliases += 1
+        stats.increment_rule("entity_name_normalized")
+    return canonical
 
 
-def _canonical_predicate(predicate: str) -> str:
-    cleaned = predicate.strip()
-    return _PREDICATE_ALIASES.get(cleaned, cleaned)
+def _canonical_predicate(
+    predicate: str,
+    *,
+    stats: GraphGranularityStats | None = None,
+) -> str:
+    cleaned = _normalize_text(predicate).upper() if _is_internal_relation(predicate) else _normalize_text(predicate)
+    canonical = _PREDICATE_ALIASES.get(cleaned, cleaned)
+    if canonical != predicate.strip() and stats is not None:
+        stats.canonicalized_predicates += 1
+        stats.increment_rule("predicate_alias")
+    return canonical
+
+
+def _canonical_object_literal(
+    value: str | None,
+    *,
+    stats: GraphGranularityStats | None = None,
+) -> str | None:
+    if value is None:
+        return None
+    cleaned = _normalize_text(value)
+    cleaned = cleaned.replace("％", "%")
+    cleaned = re.sub(r"\s*%\s*", "%", cleaned)
+    cleaned = re.sub(r"(?<=\d)\s+(?=\d)", "", cleaned)
+    cleaned = re.sub(r"(?<=\d)\s+(?=[%万亿千百元个项人倍])", "", cleaned)
+    if cleaned != value.strip() and stats is not None:
+        stats.canonicalized_literals += 1
+        stats.increment_rule("literal_format_normalized")
+    return cleaned or None
+
+
+def _canonical_qualifier_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return _canonical_object_literal(value) or ""
+    if isinstance(value, list):
+        return [_canonical_qualifier_value(item) for item in value]
+    if isinstance(value, dict):
+        return {str(key): _canonical_qualifier_value(item) for key, item in value.items()}
+    return value
+
+
+def _normalize_text(value: str) -> str:
+    normalized = (
+        str(value)
+        .replace("\u3000", " ")
+        .replace("：", ":")
+        .replace("，", ",")
+        .replace("（", "(")
+        .replace("）", ")")
+        .replace("％", "%")
+    )
+    return " ".join(normalized.strip().split())
+
+
+def _normalize_numbered_title(value: str) -> str:
+    text = value.strip()
+    text = re.sub(r"^(第[一二三四五六七八九十百\d]+[章节篇])\s+", r"\1", text)
+    text = re.sub(r"^(项目|任务|模块)\s*([一二三四五六七八九十\d]+)\s+", r"\1\2", text)
+    return text
+
+
+def _is_internal_relation(value: str) -> bool:
+    return bool(re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{1,127}", value.strip()))
 
 
 def _decimal_confidence(value: float) -> Decimal:
