@@ -47,7 +47,10 @@ def detect_course_textbook_subtype(
     else:
         task_ratio = task_score / total_signal
         theory_ratio = theory_score / total_signal
-        if task_score >= 6 and theory_score >= 4 and abs(task_ratio - theory_ratio) <= 0.35:
+        if _has_strong_task_outline(normalized):
+            subtype = "training_operation"
+            confidence = min(0.96, 0.72 + min(task_score, 20) / 100)
+        elif task_score >= 6 and theory_score >= 4 and abs(task_ratio - theory_ratio) <= 0.35:
             subtype = "hybrid"
             confidence = min(0.9, 0.55 + min(task_score, theory_score) / 20)
         elif task_score >= 5 and task_ratio >= 0.58:
@@ -75,6 +78,32 @@ def detect_course_textbook_subtype(
             "task_score": round(task_score, 4),
             "theory_score": round(theory_score, 4),
         },
+    )
+
+
+def _has_strong_task_outline(blocks: list[NormalizedBlock]) -> bool:
+    """Detect work-task textbooks whose theory keywords live inside tasks."""
+    task_count = sum(1 for block in blocks if block.role == "task_heading")
+    step_count = sum(1 for block in blocks if block.role == "operation_step")
+    task_section_count = sum(
+        1 for block in blocks
+        if block.section_type in {
+            "task_objective",
+            "task_background",
+            "task_analysis",
+            "operation_steps",
+            "task_artifact",
+            "task_reflection",
+        }
+    )
+    operation_heading_count = sum(
+        1 for block in blocks
+        if block.role == "heading" and block.text.strip() in {"任务操作", "任务实施"}
+    )
+    return (
+        task_count >= 2
+        and task_section_count >= 6
+        and (step_count >= 3 or operation_heading_count >= 3)
     )
 
 
@@ -207,4 +236,3 @@ def _dedupe(values: list[str]) -> list[str]:
         seen.add(value)
         result.append(value)
     return result
-

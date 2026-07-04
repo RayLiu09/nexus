@@ -23,6 +23,7 @@ import {
   type ParseArtifact,
   type AIGovernanceRun,
   type GovernanceResult,
+  type TaskOutlineEnvelope,
 } from "@/lib/api";
 import { extractGovernanceTags } from "@/lib/governance-tags";
 
@@ -37,6 +38,10 @@ type Props = {
   governanceRunsOk?: boolean;
   governanceRunsError?: string | null;
   governanceRunsTraceId?: string | null;
+  taskOutline?: TaskOutlineEnvelope | null;
+  taskOutlineOk?: boolean;
+  taskOutlineError?: string | null;
+  taskOutlineTraceId?: string | null;
   rawObjectNames?: Map<string, string>;
   dataSourceName?: string | null;
   tagDictionary: TagDictionary;
@@ -206,9 +211,17 @@ function LineageTab({
 function KnowledgeChunksTab({
   latestRef,
   assetTitle,
+  taskOutline,
+  taskOutlineOk,
+  taskOutlineError,
+  taskOutlineTraceId,
 }: {
   latestRef: NormalizedAssetRef | null;
   assetTitle?: string | null;
+  taskOutline?: TaskOutlineEnvelope | null;
+  taskOutlineOk?: boolean;
+  taskOutlineError?: string | null;
+  taskOutlineTraceId?: string | null;
 }) {
   // B9 — "知识块" tab adapts to the underlying record_type. Pipeline A
   // documents see the RAG chunk list (unchanged). Pipeline B record
@@ -231,7 +244,15 @@ function KnowledgeChunksTab({
   if (view === "generic_table" && latestRef) {
     return <GenericRecordKnowledgeView normalizedRef={latestRef} />;
   }
-  return <DocumentKnowledgeView normalizedRef={latestRef} />;
+  return (
+    <DocumentKnowledgeView
+      normalizedRef={latestRef}
+      initialTaskOutline={taskOutline}
+      taskOutlineOk={taskOutlineOk}
+      taskOutlineError={taskOutlineError}
+      taskOutlineTraceId={taskOutlineTraceId}
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -670,6 +691,10 @@ export function AssetDetailTabs({
   governanceRunsOk,
   governanceRunsError,
   governanceRunsTraceId,
+  taskOutline,
+  taskOutlineOk,
+  taskOutlineError,
+  taskOutlineTraceId,
   rawObjectNames,
   dataSourceName,
   tagDictionary,
@@ -728,7 +753,14 @@ export function AssetDetailTabs({
         )}
         {activeTab === "preview" && <SourcePreviewSection refId={latestRef?.id ?? null} />}
         {activeTab === "knowledge-chunks" && (
-          <KnowledgeChunksTab latestRef={latestRef} assetTitle={asset?.title ?? null} />
+          <KnowledgeChunksTab
+            latestRef={latestRef}
+            assetTitle={asset?.title ?? null}
+            taskOutline={taskOutline}
+            taskOutlineOk={taskOutlineOk}
+            taskOutlineError={taskOutlineError}
+            taskOutlineTraceId={taskOutlineTraceId}
+          />
         )}
         {activeTab === "ai-governance" && (
           <AIGovernanceTab

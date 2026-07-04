@@ -13,6 +13,7 @@ import {
   type AIGovernanceRun,
   type DataSource,
   type RawObject,
+  type TaskOutlineEnvelope,
 } from "@/lib/api";
 import { buildTagDictionary, type TagDictionaryEntry } from "@/lib/tagLabels";
 
@@ -78,6 +79,13 @@ export default async function AssetDetailPage({
         [],
       )
     : { data: [], ok: true, error: null, traceId: null, total: null };
+  const taskOutline =
+    displayRef?.normalized_type === "document"
+      ? await getApiData<TaskOutlineEnvelope | null>(
+          `/internal/v1/normalized-refs/${displayRef.id}/task-outline`,
+          null,
+        )
+      : { data: null, ok: true, error: null, traceId: null, total: null };
 
   return (
     <>
@@ -151,6 +159,10 @@ export default async function AssetDetailPage({
         governanceRunsOk={governanceRuns.ok}
         governanceRunsError={governanceRuns.error}
         governanceRunsTraceId={governanceRuns.traceId}
+        taskOutline={taskOutline.data}
+        taskOutlineOk={taskOutline.ok}
+        taskOutlineError={taskOutline.error}
+        taskOutlineTraceId={taskOutline.traceId}
         rawObjectNames={rawObjectNames}
         dataSourceName={dataSourceName}
         tagDictionary={tagDictionary}

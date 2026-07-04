@@ -7,17 +7,28 @@ from dataclasses import dataclass
 from typing import Any
 
 
-PROJECT_RE = re.compile(r"^\s*(项目|模块|单元|工作领域)\s*([一二三四五六七八九十\d]+)\s*(.*)$")
+PROJECT_RE = re.compile(
+    r"^\s*(项目|模块|单元|工作领域)\s*([一二三四五六七八九十\d]+|(?:[-—－]\s*){1,3})?\s*(.*)$"
+)
 TASK_RE = re.compile(r"^\s*任务\s*([一二三四五六七八九十\d]+)\s*(.*)$")
-NUMBERED_STEP_RE = re.compile(r"^\s*(?:步骤\s*)?([0-9]+|[一二三四五六七八九十]+)[\.．、]\s*(.+)$")
+WORK_TASK_RE = re.compile(r"^\s*工作任务\s*([一二三四五六七八九十\d]+|[—-])?\s*(.*)$")
+WORK_SUBTASK_RE = re.compile(r"^\s*工作子任务\s*([一二三四五六七八九十\d]+|[—-])?\s*(.*)$")
+NUMBERED_STEP_RE = re.compile(
+    r"^\s*(?:步骤\s*)?([0-9]+|[一二三四五六七八九十]+)[\.．、:：,，]\s*(.+)$"
+)
 CAPTION_RE = re.compile(r"^\s*(图|表)\s*[\d一二三四五六七八九十]+(?:[-－.．]\d+)*\s*(.+)$")
+OUTLINE_BOUNDARY_LABELS = {
+    "任务导图",
+    "任务指导",
+    "知识储备",
+}
 
 SECTION_LABELS: dict[str, tuple[str, ...]] = {
     "task_objective": ("任务目标", "学习目标", "能力目标", "目标"),
     "task_background": ("任务背景", "背景名称", "背景内容", "场景描述"),
     "task_analysis": ("任务分析", "需求分析"),
     "knowledge_prepare": ("知识准备", "知识回顾", "知识链接"),
-    "operation_steps": ("任务实施", "操作步骤", "实施步骤", "任务步骤"),
+    "operation_steps": ("任务实施", "任务操作", "操作步骤", "实施步骤", "任务步骤"),
     "task_artifact": ("任务产物", "实训产物", "成果提交", "数据采集表", "填报表"),
     "source_resource": ("资源", "素材", "原始数据", "附件"),
     "task_reflection": ("任务思考", "拓展训练", "实践训练", "思考题"),
@@ -34,6 +45,7 @@ class NormalizedBlock:
     title: str | None = None
     section_type: str | None = None
     step_no: int | None = None
+    heading_level: int | None = None
 
 
 def normalize_blocks(blocks: list[dict[str, Any]]) -> list[NormalizedBlock]:
@@ -44,15 +56,29 @@ def normalize_block(block: dict[str, Any], *, index: int) -> NormalizedBlock:
     text = text_of(block)
     compact = _compact(text)
     block_type = str(block.get("block_type") or "").lower()
+    heading_level = _heading_level(block)
 
     project_match = PROJECT_RE.match(compact)
     if project_match:
         title = compact
-        return NormalizedBlock(block, index, text, "project_heading", title=title)
+        return NormalizedBlock(
+            block, index, text, "project_heading",
+            title=title, heading_level=heading_level,
+        )
 
-    task_match = TASK_RE.match(compact)
+    task_match = TASK_RE.match(compact) or WORK_TASK_RE.match(compact)
     if task_match:
-        return NormalizedBlock(block, index, text, "task_heading", title=compact)
+        return NormalizedBlock(
+            block, index, text, "task_heading",
+            title=compact, heading_level=heading_level,
+        )
+
+    subtask_match = WORK_SUBTASK_RE.match(compact)
+    if subtask_match:
+        return NormalizedBlock(
+            block, index, text, "work_subtask_heading",
+            title=compact, heading_level=heading_level,
+        )
 
     section_type = section_type_for(compact)
     if section_type is not None:
@@ -60,7 +86,13 @@ def normalize_block(block: dict[str, Any], *, index: int) -> NormalizedBlock:
         role = "section_label" if not content else "section_content"
         return NormalizedBlock(
             block, index, text, role, title=title or compact,
-            section_type=section_type,
+            section_type=section_type, heading_level=heading_level,
+        )
+
+    if is_outline_boundary_heading(compact, block_type=block_type):
+        return NormalizedBlock(
+            block, index, text, "outline_boundary",
+            title=compact, heading_level=heading_level,
         )
 
     step = parse_step_no(compact)
@@ -71,7 +103,10 @@ def normalize_block(block: dict[str, Any], *, index: int) -> NormalizedBlock:
         return NormalizedBlock(block, index, text, "artifact", title=compact)
 
     if block_type in {"heading", "title"}:
-        return NormalizedBlock(block, index, text, "heading", title=compact)
+        return NormalizedBlock(
+            block, index, text, "heading",
+            title=compact, heading_level=heading_level,
+        )
 
     return NormalizedBlock(block, index, text, "body")
 
@@ -85,6 +120,23 @@ def section_type_for(text: str) -> str | None:
         if any(normalized.startswith(f"{label}：") for label in labels):
             return section_type
     return None
+
+
+def _heading_level(block: dict[str, Any]) -> int | None:
+    value = block.get("heading_level")
+    if isinstance(value, int) and value > 0:
+        return value
+    if isinstance(value, str) and value.isdigit():
+        parsed = int(value)
+        return parsed if parsed > 0 else None
+    return None
+
+
+def is_outline_boundary_heading(text: str, *, block_type: str | None = None) -> bool:
+    normalized = text.strip().rstrip("：:")
+    if normalized in OUTLINE_BOUNDARY_LABELS:
+        return True
+    return (block_type or "").lower() in {"heading", "title"} and normalized in OUTLINE_BOUNDARY_LABELS
 
 
 def split_label_content(text: str) -> tuple[str | None, str | None]:
@@ -146,4 +198,3 @@ def _chinese_numeral_to_int(value: str) -> int | None:
         head, _, tail = value.partition("十")
         return digits.get(head, 0) * 10 + digits.get(tail, 0)
     return None
-

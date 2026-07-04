@@ -13,10 +13,21 @@ type Props = {
   title: string;
   disabled?: boolean;
   onDownload: () => void;
+  downloadLabel?: string;
+  downloadAriaLabel?: string;
+  immersive?: boolean;
   children: ReactNode;
 };
 
-export function GraphViewportActions({ title, disabled = false, onDownload, children }: Props) {
+export function GraphViewportActions({
+  title,
+  disabled = false,
+  onDownload,
+  downloadLabel = "下载完整图谱 PNG",
+  downloadAriaLabel,
+  immersive = false,
+  children,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
@@ -32,7 +43,7 @@ export function GraphViewportActions({ title, disabled = false, onDownload, chil
   return (
     <>
       <Space size={4}>
-        <Tooltip title="下载完整图谱 PNG">
+        <Tooltip title={downloadLabel}>
           <Button
             type="text"
             size="small"
@@ -40,7 +51,7 @@ export function GraphViewportActions({ title, disabled = false, onDownload, chil
             onClick={handleDownload}
             disabled={disabled || downloading}
             loading={downloading}
-            aria-label={`下载${title}图片`}
+            aria-label={downloadAriaLabel ?? `下载${title}图片`}
           />
         </Tooltip>
         <Tooltip title="全屏展示">
@@ -68,7 +79,7 @@ export function GraphViewportActions({ title, disabled = false, onDownload, chil
             height: "calc(100vh - 118px)",
             minHeight: 0,
             overflow: "hidden",
-            padding: 16,
+            padding: immersive ? 0 : 16,
           },
         }}
       >
