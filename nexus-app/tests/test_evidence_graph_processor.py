@@ -204,7 +204,21 @@ def _seed_ref(session) -> models.NormalizedAssetRef:
         source_block_ids=["b1"],
         locator={"page_start": 1, "page_end": 1, "blocks": [{"block_id": "b1", "page": 1}]},
     )
-    session.add_all([data_source, batch, raw, asset, version, ref, chunk])
+    chunk_2 = models.KnowledgeChunk(
+        id="chunk-kg-worker-2",
+        normalized_ref_id=ref.id,
+        knowledge_type_code="industry_research_kb",
+        chunk_type=ChunkType.SEMANTIC_BLOCK,
+        chunking_strategy=ChunkingStrategy.SEMANTIC_REPACK,
+        source_kind=SourceKind.EXTRACTED_FROM_NORMALIZED,
+        chunk_index=2,
+        content="指导意见提出深化农村电商、推动产业数字化转型等重点任务。",
+        chunk_metadata={"anchor_role": "body"},
+        embedding_status=EmbeddingStatus.PENDING,
+        source_block_ids=["b2"],
+        locator={"page_start": 1, "page_end": 1, "blocks": [{"block_id": "b2", "page": 1}]},
+    )
+    session.add_all([data_source, batch, raw, asset, version, ref, chunk, chunk_2])
     session.commit()
     return ref
 
@@ -219,6 +233,8 @@ def _seed_textbook_ref(session) -> models.NormalizedAssetRef:
     }
     chunk = session.get(models.KnowledgeChunk, "chunk-kg-worker")
     assert chunk is not None
+    chunk_2 = session.get(models.KnowledgeChunk, "chunk-kg-worker-2")
+    assert chunk_2 is not None
     chunk.id = "chunk-textbook-worker"
     chunk.normalized_ref_id = ref.id
     chunk.knowledge_type_code = "textbook_kb"
@@ -229,6 +245,17 @@ def _seed_textbook_ref(session) -> models.NormalizedAssetRef:
         "page_end": 1,
         "heading_path": [{"level": 1, "title": "项目一 短视频认知"}],
         "blocks": [{"block_id": "tb1", "page": 1}],
+    }
+    chunk_2.id = "chunk-textbook-worker-2"
+    chunk_2.normalized_ref_id = ref.id
+    chunk_2.knowledge_type_code = "textbook_kb"
+    chunk_2.content = "本项目讲授短视频平台、账号定位和内容形态。"
+    chunk_2.source_block_ids = ["tb2"]
+    chunk_2.locator = {
+        "page_start": 1,
+        "page_end": 1,
+        "heading_path": [{"level": 1, "title": "项目一 短视频认知"}],
+        "blocks": [{"block_id": "tb2", "page": 1}],
     }
     session.commit()
     return ref
@@ -261,6 +288,10 @@ def test_process_one_pending_graph_build_persists_evidence_bound_graph(session):
     assert refreshed.edge_count == 1
     assert refreshed.fact_count == 1
     assert refreshed.quality_summary["extraction"]["accepted"] == 1
+    assert refreshed.quality_summary["candidate_selection"]["selected_chunk_count"] == 2
+    assert refreshed.quality_summary["unit_grouping"]["source_candidate_chunks"] == 2
+    assert refreshed.quality_summary["unit_grouping"]["extraction_unit_count"] == 1
+    assert refreshed.quality_summary["unit_grouping"]["avg_chunks_per_unit"] == 2.0
 
     evidence = session.scalar(select(models.KnowledgeGraphEvidence))
     assert evidence is not None
@@ -303,7 +334,8 @@ def test_process_graph_build_with_all_rejected_candidates_fails_without_graph_ro
     assert refreshed.error_message is not None
     assert refreshed.quality_summary["extraction"]["accepted"] == 0
     assert refreshed.quality_summary["extraction"]["rejected"] == 1
-    assert refreshed.quality_summary["persist"]["source_candidate_count"] == 1
+    assert refreshed.quality_summary["persist"]["source_candidate_count"] == 2
+    assert refreshed.quality_summary["unit_grouping"]["extraction_unit_count"] == 1
 
 
 def test_process_textbook_graph_build_persists_evidence_bound_rows(session):
@@ -328,9 +360,10 @@ def test_process_textbook_graph_build_persists_evidence_bound_rows(session):
     refreshed = session.get(models.KnowledgeGraphBuild, build.id)
     assert refreshed is not None
     assert refreshed.status == KnowledgeGraphBuildStatus.SUCCEEDED
-    assert refreshed.source_chunk_count == 1
+    assert refreshed.source_chunk_count == 2
     assert refreshed.candidate_count == 2
-    assert refreshed.quality_summary["candidate_selection"]["selected_chunk_count"] == 1
+    assert refreshed.quality_summary["candidate_selection"]["selected_chunk_count"] == 2
+    assert refreshed.quality_summary["unit_grouping"]["extraction_unit_count"] == 1
     assert refreshed.node_count == 3
     assert refreshed.fact_count == 2
     assert refreshed.edge_count == 2

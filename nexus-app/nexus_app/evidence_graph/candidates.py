@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -29,6 +30,7 @@ class GraphChunkCandidate:
     content: str
     source_block_ids: list[str] | None
     locator: dict | None
+    chunk_metadata: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -172,4 +174,5 @@ def _to_candidate(
         content=chunk.content,
         source_block_ids=chunk.source_block_ids,
         locator=chunk.locator,
+        chunk_metadata=chunk.chunk_metadata,
     )

@@ -26,6 +26,7 @@ from nexus_app.evidence_graph.schemas import (
     GraphFactCandidate,
     rejected_result,
 )
+from nexus_app.evidence_graph.units import GraphExtractionUnit
 
 DEFAULT_MODEL_ALIAS_FALLBACK = "internal/evidence-kg-extractor-v1"
 BODY_LLM_MAX_PARALLEL_CALLS = 20
@@ -204,6 +205,69 @@ class BodyLLMExtractor:
             extractor_name=self.extractor_name,
             extraction_method=self.extraction_method,
             evidence_fallback=candidate.content,
+        )
+
+    def extract_unit(
+        self,
+        unit: GraphExtractionUnit,
+        *,
+        graph_profile: str,
+    ) -> GraphExtractionResult:
+        if unit.anchor_role != AnchorRole.BODY:
+            return rejected_result(
+                source_chunk_id=unit.primary_chunk_id,
+                extractor_name=self.extractor_name,
+                extraction_method=self.extraction_method,
+                reason=GraphExtractionRejectReason.UNSUPPORTED_EXTRACTOR,
+            )
+        if self._llm_client is None:
+            return rejected_result(
+                source_chunk_id=unit.primary_chunk_id,
+                extractor_name=self.extractor_name,
+                extraction_method=self.extraction_method,
+                reason=GraphExtractionRejectReason.LLM_CLIENT_UNAVAILABLE,
+            )
+
+        messages = _build_body_unit_messages(unit, graph_profile)
+        try:
+            content, _summary = self._llm_client.call(
+                self._model_alias,
+                messages,
+                temperature=self._temperature,
+                max_tokens=self._max_tokens,
+                response_format={"type": "json_object"},
+            )
+        except LiteLLMCallError:
+            return rejected_result(
+                source_chunk_id=unit.primary_chunk_id,
+                extractor_name=self.extractor_name,
+                extraction_method=self.extraction_method,
+                reason=GraphExtractionRejectReason.LLM_CALL_FAILED,
+            )
+
+        raw_items = _parse_candidate_items(content)
+        if raw_items is None:
+            return rejected_result(
+                source_chunk_id=unit.primary_chunk_id,
+                extractor_name=self.extractor_name,
+                extraction_method=self.extraction_method,
+                reason=GraphExtractionRejectReason.SCHEMA_INVALID,
+            )
+        return _validate_items(
+            raw_items,
+            source_chunk_id=unit.primary_chunk_id,
+            graph_profile=graph_profile,
+            anchor_role=unit.anchor_role,
+            extractor_name=self.extractor_name,
+            extraction_method=self.extraction_method,
+            evidence_fallback=unit.content,
+            default_qualifiers={
+                "evidence_chunk_ids": list(unit.chunk_ids),
+                "extraction_unit_id": unit.unit_id,
+                "extraction_unit_type": unit.unit_type,
+                "heading_path": list(unit.heading_path),
+            },
+            allowed_source_chunk_ids=set(unit.chunk_ids),
         )
 
 
@@ -463,6 +527,47 @@ def extract_graph_candidates(
     return [results_by_index[index] for index in range(len(candidates))]
 
 
+def extract_graph_units(
+    units: list[GraphExtractionUnit] | tuple[GraphExtractionUnit, ...],
+    *,
+    graph_profile: str,
+    llm_client: LiteLLMClientProtocol | None = None,
+    max_parallel_batches: int = BODY_LLM_MAX_PARALLEL_CALLS,
+) -> list[GraphExtractionResult]:
+    results_by_index: dict[int, GraphExtractionResult] = {}
+    parallel_jobs: list[tuple[int, GraphExtractionUnit]] = []
+    for index, unit in enumerate(units):
+        if (
+            unit.anchor_role == AnchorRole.BODY
+            and unit.extraction_method == ExtractionMethod.LLM
+        ):
+            parallel_jobs.append((index, unit))
+            continue
+
+        results_by_index[index] = _extract_one_unit(
+            unit,
+            graph_profile=graph_profile,
+            llm_client=llm_client,
+        )
+
+    if parallel_jobs:
+        worker_count = max(1, min(max_parallel_batches, len(parallel_jobs)))
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            future_map = {
+                executor.submit(
+                    _extract_one_unit,
+                    unit,
+                    graph_profile=graph_profile,
+                    llm_client=llm_client,
+                ): index
+                for index, unit in parallel_jobs
+            }
+            for future in as_completed(future_map):
+                results_by_index[future_map[future]] = future.result()
+
+    return [results_by_index[index] for index in range(len(units))]
+
+
 def _extract_one_candidate(
     candidate: GraphChunkCandidate,
     *,
@@ -485,6 +590,51 @@ def _extract_one_candidate(
             reason=GraphExtractionRejectReason.UNSUPPORTED_EXTRACTOR,
         )
     return extractor.extract(candidate, graph_profile=graph_profile)
+
+
+def _extract_one_unit(
+    unit: GraphExtractionUnit,
+    *,
+    graph_profile: str,
+    llm_client: LiteLLMClientProtocol | None,
+) -> GraphExtractionResult:
+    if unit.anchor_role == AnchorRole.BODY and unit.extraction_method != ExtractionMethod.LLM:
+        return rejected_result(
+            source_chunk_id=unit.primary_chunk_id,
+            extractor_name=unit.extractor_name,
+            extraction_method=unit.extraction_method,
+            reason=GraphExtractionRejectReason.BODY_REQUIRES_LLM,
+        )
+    if unit.anchor_role == AnchorRole.BODY and unit.extraction_method == ExtractionMethod.LLM:
+        extractor = extractor_for_name(unit.extractor_name, llm_client=llm_client)
+        if extractor is None:
+            return rejected_result(
+                source_chunk_id=unit.primary_chunk_id,
+                extractor_name=unit.extractor_name,
+                extraction_method=unit.extraction_method,
+                reason=GraphExtractionRejectReason.UNSUPPORTED_EXTRACTOR,
+            )
+        if not isinstance(extractor, BodyLLMExtractor):
+            return rejected_result(
+                source_chunk_id=unit.primary_chunk_id,
+                extractor_name=unit.extractor_name,
+                extraction_method=unit.extraction_method,
+                reason=GraphExtractionRejectReason.UNSUPPORTED_EXTRACTOR,
+            )
+        return extractor.extract_unit(unit, graph_profile=graph_profile)
+
+    if not unit.chunks:
+        return rejected_result(
+            source_chunk_id=unit.primary_chunk_id,
+            extractor_name=unit.extractor_name,
+            extraction_method=unit.extraction_method,
+            reason=GraphExtractionRejectReason.NO_FACT_CANDIDATE,
+        )
+    return _extract_one_candidate(
+        unit.chunks[0],
+        graph_profile=graph_profile,
+        llm_client=llm_client,
+    )
 
 
 def _build_body_messages(
@@ -561,6 +711,105 @@ def _build_body_messages(
     ]
 
 
+def _build_body_unit_messages(
+    unit: GraphExtractionUnit,
+    graph_profile: str,
+) -> list[dict[str, str]]:
+    profile_config = get_graph_profile_config(graph_profile)
+    system = (
+        "You extract evidence-grounded knowledge graph fact candidates from a "
+        "contextual document unit. Return JSON only: {\"candidates\": [...]}. "
+        "Keep subject.name, object.name, object_literal, qualifiers, and evidence_text "
+        "in the same natural language as the source content. Do not translate Chinese source text "
+        "into English. Use exact source wording when possible. Predicate may use an internal "
+        "uppercase relation label such as HAS_VALUE or ISSUED_BY; otherwise keep it in the "
+        "source language too. subject.type and object.type must be non-empty strings when "
+        "the entity exists; use Entity when a more specific type is unclear. Never return "
+        "null for entity type. Every candidate must follow the output contract exactly."
+    )
+    user_payload = {
+        "graph_profile": graph_profile,
+        "unit_id": unit.unit_id,
+        "unit_type": unit.unit_type,
+        "heading_path": list(unit.heading_path),
+        "primary_chunk_id": unit.primary_chunk_id,
+        "chunk_index_start": unit.chunk_index_start,
+        "chunk_index_end": unit.chunk_index_end,
+        "chunks": [
+            {
+                "chunk_id": chunk.chunk_id,
+                "chunk_index": chunk.chunk_index,
+                "anchor_role": chunk.anchor_role,
+                "content": chunk.content,
+            }
+            for chunk in unit.chunks
+        ],
+        "content": unit.content,
+        "output_contract": {
+            "candidates": [
+                {
+                    "source_chunk_id": (
+                        f"use the best supporting chunk_id from this unit; defaults to "
+                        f"{unit.primary_chunk_id}"
+                    ),
+                    "fact_type": (
+                        "one of: "
+                        f"{', '.join(profile_config.fact_types)}. "
+                        "Do not invent free-text fact types."
+                    ),
+                    "subject": {
+                        "type": (
+                            "non-empty string; choose the best label from "
+                            f"{', '.join(profile_config.entity_types)}"
+                        ),
+                        "name": "non-empty source-language entity name",
+                    },
+                    "predicate": (
+                        "non-empty relation; internal uppercase labels are allowed, "
+                        "otherwise use source language"
+                    ),
+                    "object": {
+                        "type": (
+                            "non-empty string from the same entity type list; use Entity "
+                            "when unclear; never null"
+                        ),
+                        "name": "non-empty source-language entity name",
+                    },
+                    "object_literal": (
+                        "string value when the object is a literal; otherwise null. "
+                        "If object is null, object_literal is required."
+                    ),
+                    "qualifiers": {
+                        "evidence_chunk_ids": "array of chunk ids that support this fact",
+                    },
+                    "evidence_text": "exact source-language evidence quote from the unit",
+                    "confidence": "number between 0 and 1",
+                }
+            ],
+        },
+        "rules": [
+            "Only extract facts supported by text in this unit.",
+            "Every fact must cite an exact evidence_text quote from this unit.",
+            "Use only chunk IDs listed in chunks; do not invent source IDs.",
+            "Prefer the most specific supporting chunk as source_chunk_id.",
+            "When a fact uses multiple chunks, put all supporting IDs in qualifiers.evidence_chunk_ids.",
+            "Do not create facts for ordinary examples, repeated wording, or unstable subjects.",
+            "subject.type is required and must never be null.",
+            "subject.name is required and must never be null.",
+            "object may be null only when object_literal is provided.",
+            "object.type and object.name are required and must never be null when object exists.",
+            "Use Entity for subject.type or object.type when a more specific type is unclear.",
+            f"fact_type must be exactly one of: {', '.join(profile_config.fact_types)}.",
+            f"subject.type and object.type must be exactly one of: {', '.join(profile_config.entity_types)}.",
+            "Do not translate Chinese source content into English in natural-language fields.",
+        ],
+    }
+    return [
+        {"role": "system", "content": system},
+        {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
+    ]
+
+
 def _parse_candidate_items(content: str) -> list[Any] | None:
     try:
         parsed = json.loads(content)
@@ -585,6 +834,8 @@ def _validate_items(
     extractor_name: str,
     extraction_method: str,
     evidence_fallback: str,
+    default_qualifiers: dict[str, Any] | None = None,
+    allowed_source_chunk_ids: set[str] | None = None,
 ) -> GraphExtractionResult:
     accepted: list[GraphFactCandidate] = []
     rejected_by_reason: dict[str, int] = {}
@@ -599,12 +850,25 @@ def _validate_items(
             )
             continue
         enriched = _normalize_raw_item(raw, graph_profile=graph_profile)
-        enriched.setdefault("source_chunk_id", source_chunk_id)
+        if (
+            allowed_source_chunk_ids is not None
+            and enriched.get("source_chunk_id") not in allowed_source_chunk_ids
+        ):
+            enriched["source_chunk_id"] = source_chunk_id
+        else:
+            enriched.setdefault("source_chunk_id", source_chunk_id)
         enriched.setdefault("profile", graph_profile)
         enriched.setdefault("anchor_role", anchor_role)
         enriched.setdefault("extractor_name", extractor_name)
         enriched.setdefault("extraction_method", extraction_method)
         enriched.setdefault("evidence_text", evidence_fallback)
+        if "qualifiers" not in enriched or not isinstance(enriched.get("qualifiers"), dict):
+            enriched["qualifiers"] = {}
+        if default_qualifiers:
+            enriched["qualifiers"] = {
+                **default_qualifiers,
+                **enriched["qualifiers"],
+            }
         if _language_mismatch(enriched, evidence_fallback):
             _increment_reject(rejected_by_reason, GraphExtractionRejectReason.LANGUAGE_MISMATCH)
             _append_reject_sample(
@@ -965,7 +1229,12 @@ def _flatten_text_values(value: Any) -> list[str]:
     if isinstance(value, dict):
         result: list[str] = []
         for key, item in value.items():
-            if str(key).startswith("raw_"):
+            if str(key).startswith("raw_") or str(key) in {
+                "evidence_chunk_ids",
+                "extraction_unit_id",
+                "extraction_unit_type",
+                "heading_path",
+            }:
                 continue
             result.extend(_flatten_text_values(item))
         return result

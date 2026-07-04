@@ -18,6 +18,8 @@ from nexus_app.evidence_graph import (
     TableRowPolicyExtractor,
     aggregate_extraction_results,
     extract_graph_candidates,
+    extract_graph_units,
+    group_graph_extraction_units,
 )
 from nexus_app.config import get_settings
 
@@ -306,6 +308,84 @@ def test_body_llm_extractor_runs_same_type_chunks_as_individual_calls():
     assert [result.accepted_count for result in results] == [1, 1]
     assert results[0].accepted[0].source_chunk_id == "chunk-1"
     assert results[1].accepted[0].source_chunk_id == "chunk-2"
+
+
+def test_extract_graph_units_runs_section_as_single_llm_call():
+    item = {
+        "fact_type": "policy_fact",
+        "subject": {"type": "Policy", "name": "政策A"},
+        "predicate": "MENTIONS",
+        "object_literal": "部门A发布政策A并提出重点任务。",
+        "qualifiers": {"evidence_chunk_ids": ["chunk-1", "chunk-2"]},
+        "evidence_text": "部门A发布政策A。政策A提出重点任务。",
+        "confidence": 0.86,
+    }
+    llm = _ScriptedLLM([_llm_payload(item)])
+    units = group_graph_extraction_units(
+        [
+            _candidate(
+                chunk_id="chunk-1",
+                content="部门A发布政策A。",
+            ),
+            _candidate(
+                chunk_id="chunk-2",
+                content="政策A提出重点任务。",
+            ),
+        ],
+        graph_profile="report_document",
+    )
+
+    results = extract_graph_units(
+        units,
+        graph_profile="report_document",
+        llm_client=llm,
+    )
+
+    assert len(units) == 1
+    assert len(llm.calls) == 1
+    assert len(results) == 1
+    assert results[0].accepted_count == 1
+    accepted = results[0].accepted[0]
+    assert accepted.source_chunk_id == "chunk-1"
+    assert accepted.qualifiers["evidence_chunk_ids"] == ["chunk-1", "chunk-2"]
+    assert accepted.qualifiers["extraction_unit_type"] == "section"
+    user_payload = json.loads(llm.calls[0]["messages"][1]["content"])
+    assert user_payload["unit_id"] == units[0].unit_id
+    assert [chunk["chunk_id"] for chunk in user_payload["chunks"]] == ["chunk-1", "chunk-2"]
+    assert user_payload["primary_chunk_id"] == "chunk-1"
+
+
+def test_extract_graph_units_keeps_valid_unit_source_chunk_id():
+    item = {
+        "source_chunk_id": "chunk-2",
+        "fact_type": "policy_fact",
+        "subject": {"type": "Policy", "name": "政策A"},
+        "predicate": "MENTIONS",
+        "object_literal": "重点任务",
+        "evidence_text": "政策A提出重点任务。",
+        "confidence": 0.86,
+    }
+    llm = _ScriptedLLM([_llm_payload(item)])
+    units = group_graph_extraction_units(
+        [
+            _candidate(chunk_id="chunk-1", content="部门A发布政策A。"),
+            _candidate(chunk_id="chunk-2", content="政策A提出重点任务。"),
+        ],
+        graph_profile="report_document",
+    )
+
+    results = extract_graph_units(
+        units,
+        graph_profile="report_document",
+        llm_client=llm,
+    )
+
+    assert results[0].accepted_count == 1
+    assert results[0].accepted[0].source_chunk_id == "chunk-2"
+    assert results[0].accepted[0].qualifiers["evidence_chunk_ids"] == [
+        "chunk-1",
+        "chunk-2",
+    ]
 
 
 def test_body_llm_extractor_defaults_missing_source_chunk_id_to_current_chunk():

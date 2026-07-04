@@ -324,6 +324,7 @@ def _chunk_candidate_from_model(
         content=chunk.content,
         source_block_ids=chunk.source_block_ids,
         locator=chunk.locator,
+        chunk_metadata=chunk.chunk_metadata,
     )
 
 

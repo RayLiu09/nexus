@@ -26,6 +26,7 @@ from nexus_app.evidence_graph.extractors import (
     SopStepExtractor,
     TableRowPolicyExtractor,
     extract_graph_candidates,
+    extract_graph_units,
     extractor_for_name,
 )
 from nexus_app.evidence_graph.profiles import (
@@ -49,6 +50,12 @@ from nexus_app.evidence_graph.schemas import (
     GraphFactCandidate,
     aggregate_extraction_results,
 )
+from nexus_app.evidence_graph.units import (
+    GraphExtractionUnit,
+    UnitGroupingSummary,
+    group_graph_extraction_units,
+    summarize_units,
+)
 
 __all__ = [
     "GRAPH_PROFILE_CONFIGS",
@@ -62,6 +69,7 @@ __all__ = [
     "ExtractionMethod",
     "ExtractorRoute",
     "GraphEntityRef",
+    "GraphExtractionUnit",
     "GraphExtractionRejectReason",
     "GraphExtractionResult",
     "GraphChunkCandidate",
@@ -73,17 +81,21 @@ __all__ = [
     "SemanticImageExtractor",
     "SopStepExtractor",
     "TableRowPolicyExtractor",
+    "UnitGroupingSummary",
     "aggregate_extraction_results",
     "create_graph_build",
     "extract_graph_candidates",
+    "extract_graph_units",
     "extractor_for_name",
     "get_graph_profile_config",
     "get_existing_graph_build",
     "get_latest_succeeded_build",
+    "group_graph_extraction_units",
     "list_graph_profile_configs",
     "mark_graph_build_failed",
     "mark_graph_build_running",
     "mark_graph_build_succeeded",
     "persist_graph_candidates",
     "select_graph_candidate_chunks",
+    "summarize_units",
 ]

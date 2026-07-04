@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from nexus_app import models
 from nexus_app.ai_governance.litellm_client import LiteLLMClientProtocol
 from nexus_app.config import Settings, get_settings
-from nexus_app.evidence_graph.extractors import extract_graph_candidates
+from nexus_app.evidence_graph.extractors import extract_graph_units
 from nexus_app.evidence_graph.persist import GraphPersistResult, persist_graph_candidates
 from nexus_app.evidence_graph.service import (
     GRAPH_TYPE,
@@ -21,6 +21,7 @@ from nexus_app.evidence_graph.service import (
     mark_graph_build_failed,
     mark_graph_build_running,
 )
+from nexus_app.evidence_graph.units import group_graph_extraction_units, summarize_units
 
 logger = logging.getLogger(__name__)
 
@@ -135,8 +136,16 @@ def process_graph_build(
         )
         session.flush()
 
-        results = extract_graph_candidates(
+        units = group_graph_extraction_units(
             selection.candidate_chunks,
+            graph_profile=build.graph_profile,
+        )
+        unit_grouping = summarize_units(
+            units,
+            source_candidate_chunks=selection.selected_chunk_count,
+        )
+        results = extract_graph_units(
+            units,
             graph_profile=build.graph_profile,
             llm_client=llm_client,
         )
@@ -165,6 +174,7 @@ def process_graph_build(
         summary = {
             **(build.quality_summary or {}),
             "candidate_selection": _selection_to_dict(selection),
+            "unit_grouping": unit_grouping.to_dict(),
             "extraction": {
                 "accepted": len(accepted),
                 "rejected": rejected_count,
