@@ -122,14 +122,15 @@ type BuildProcessState = {
   message: string | null;
   error: string | null;
   pollCount: number;
+  pollExhausted: boolean;
   updatedAt: string | null;
 };
 
 const STRATEGY_VERSION = "evidence_kg.v1";
 const PAGE_SIZE = 200;
 const MAX_GRAPH_ROWS = 1600;
-const BUILD_POLL_INTERVAL_MS = 3000;
-const BUILD_POLL_LIMIT = 40;
+const BUILD_POLL_INTERVAL_MS = 10000;
+const BUILD_POLL_LIMIT = 30;
 
 const NODE_LABELS: Record<string, string> = {
   Organization: "组织",
@@ -187,6 +188,7 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
     message: null,
     error: null,
     pollCount: 0,
+    pollExhausted: false,
     updatedAt: null,
   });
   const graphRef = useRef<GraphImageHandle | null>(null);
@@ -243,6 +245,7 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
       setBuildProcess((prev) =>
         buildProcessFromBuild(build, {
           pollCount: prev.buildId === build.id ? prev.pollCount : 0,
+          pollExhausted: prev.buildId === build.id ? prev.pollExhausted : false,
           candidateSelection:
             prev.buildId === build.id
               ? prev.candidateSelection ?? candidateSelectionFromBuild(build)
@@ -304,6 +307,7 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
         message: null,
         error: "上一次构建状态为成功，但未产生任何图谱节点或事实，请重新构建。",
         pollCount: 0,
+        pollExhausted: false,
         updatedAt: new Date().toISOString(),
       });
       return;
@@ -362,6 +366,7 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
         message: null,
         error: null,
         pollCount: 0,
+        pollExhausted: false,
         updatedAt: null,
       });
     }
@@ -388,6 +393,7 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
       message: null,
       error: null,
       pollCount: 0,
+      pollExhausted: false,
       updatedAt: null,
     });
   }, [normalizedRefId]);
@@ -415,12 +421,6 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
     state.evidence.length < state.totals.evidence;
   const buildInProgress = state.build ? isBuildInProgress(state.build) : false;
   const showGraphData = state.build ? canDisplayGraphData(state.build) : false;
-  const buildDisabledReason = buildProcess.candidateSelection &&
-    (buildProcess.candidateSelection.selected_chunk_count ?? 0) <= 0
-    ? ((buildProcess.candidateSelection.total_semantic_chunk_count ?? 0) <= 0
-        ? "当前资产尚未生成语义知识块"
-        : "当前知识块不满足图谱候选条件")
-    : null;
   const showBuildProcessPanel =
     buildProcess.phase !== "idle" &&
     (buildProcess.phase !== "succeeded" || !showGraphData);
@@ -431,8 +431,9 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
     if (buildProcess.pollCount >= BUILD_POLL_LIMIT) {
       setBuildProcess((prev) => ({
         ...prev,
-        message: "构建仍在等待后台处理，可稍后手动刷新状态。",
+        message: `已自动轮询 ${BUILD_POLL_LIMIT} 次，构建仍在执行中。可稍后手动刷新状态。`,
         pollCount: BUILD_POLL_LIMIT,
+        pollExhausted: true,
         updatedAt: new Date().toISOString(),
       }));
       return;
@@ -448,6 +449,7 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
           phase: "failed",
           error: latest.error ?? "轮询构建状态失败",
           pollCount: nextPollCount,
+          pollExhausted: false,
           updatedAt: new Date().toISOString(),
         }));
         return;
@@ -460,6 +462,7 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
           phase: "failed",
           error: "未找到当前 Evidence Graph build 状态。",
           pollCount: nextPollCount,
+          pollExhausted: false,
           updatedAt: new Date().toISOString(),
         }));
         return;
@@ -508,6 +511,7 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
       message: "正在扫描当前标准化资产的语义知识块。",
       error: null,
       pollCount: 0,
+      pollExhausted: false,
       updatedAt: new Date().toISOString(),
     });
     try {
@@ -516,7 +520,8 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
         graph_profile: graphProfile,
         strategy_version: STRATEGY_VERSION,
       };
-      const dryRun = await postApiData<CandidateSelectionSummary>("/api/evidence-graphs/builds", {
+      const buildEndpoint = force ? "/api/evidence-graphs/rebuild" : "/api/evidence-graphs/builds";
+      const dryRun = await postApiData<CandidateSelectionSummary>(buildEndpoint, {
         ...basePayload,
         force,
         dry_run: true,
@@ -537,13 +542,14 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
           phase: "failed",
           message: null,
           error: reason,
+          pollExhausted: false,
           updatedAt: new Date().toISOString(),
         }));
         message.warning(reason);
         return;
       }
 
-      const result = await postApiData<BuildSubmitResponse>("/api/evidence-graphs/builds", {
+      const result = await postApiData<BuildSubmitResponse>(buildEndpoint, {
         ...basePayload,
         force,
         dry_run: false,
@@ -568,6 +574,7 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
                 : "构建信封已创建，等待后台知识加工写入图谱结果。",
               error: null,
               pollCount: 0,
+              pollExhausted: false,
               updatedAt: new Date().toISOString(),
             },
       );
@@ -580,6 +587,7 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
         phase: "failed",
         message: null,
         error: errorMessage,
+        pollExhausted: false,
         updatedAt: new Date().toISOString(),
       }));
       message.error(errorMessage);
@@ -643,25 +651,27 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
         {!state.loading && !state.error && !state.build ? (
           <div className="flex flex-col gap-4">
             <Empty description="尚未生成 Evidence Graph build" image={Empty.PRESENTED_IMAGE_SIMPLE}>
-              <Tooltip title={buildDisabledReason ?? ""}>
-                <Button
-                  type="primary"
-                  icon={<RefreshCw size={16} aria-hidden="true" />}
-                  loading={submitting}
-                  disabled={buildProcess.phase === "waiting" || Boolean(buildDisabledReason)}
-                  onClick={() => submitBuild(false)}
-                >
-                  {buildProcess.phase === "waiting" ? "构建中" : "构建图谱"}
-                </Button>
-              </Tooltip>
+              <Button
+                type="primary"
+                icon={<RefreshCw size={16} aria-hidden="true" />}
+                loading={submitting}
+                disabled={buildProcess.phase === "waiting"}
+                onClick={() => submitBuild(false)}
+              >
+                {buildProcess.phase === "waiting" ? "构建中" : "构建图谱"}
+              </Button>
             </Empty>
-            {showBuildProcessPanel ? <BuildProcessPanel process={buildProcess} /> : null}
+            {showBuildProcessPanel ? (
+              <BuildProcessPanel process={buildProcess} onRefresh={load} />
+            ) : null}
           </div>
         ) : null}
 
         {!state.loading && !state.error && state.build ? (
           <div className="flex flex-col gap-4">
-            {showBuildProcessPanel ? <BuildProcessPanel process={buildProcess} /> : null}
+            {showBuildProcessPanel ? (
+              <BuildProcessPanel process={buildProcess} onRefresh={load} />
+            ) : null}
 
             {buildInProgress ? (
               <Alert
@@ -678,7 +688,6 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
                   type="primary"
                   icon={<RefreshCw size={16} aria-hidden="true" />}
                   loading={submitting}
-                  disabled={Boolean(buildDisabledReason)}
                   onClick={() => submitBuild(true)}
                 >
                   重新构建
@@ -737,13 +746,20 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
   );
 }
 
-function BuildProcessPanel({ process }: { process: BuildProcessState }) {
+function BuildProcessPanel({
+  process,
+  onRefresh,
+}: {
+  process: BuildProcessState;
+  onRefresh: () => void | Promise<void>;
+}) {
   if (process.phase === "idle") return null;
 
   const current = buildProcessStepIndex(process.phase);
   const percent = buildProcessPercent(process.phase, process.pollCount);
   const candidate = process.candidateSelection;
   const failed = process.phase === "failed";
+  const showManualRefresh = process.phase === "waiting" && process.pollExhausted;
 
   return (
     <div className="rounded-md border border-[var(--line)] bg-[var(--surface-alt)] p-3">
@@ -759,6 +775,15 @@ function BuildProcessPanel({ process }: { process: BuildProcessState }) {
           <span className="text-muted text-xs">
             更新于 {new Date(process.updatedAt).toLocaleTimeString("zh-CN", { hour12: false })}
           </span>
+        ) : null}
+        {showManualRefresh ? (
+          <Button
+            size="small"
+            icon={<RefreshCw size={14} aria-hidden="true" />}
+            onClick={() => void onRefresh()}
+          >
+            手动刷新
+          </Button>
         ) : null}
       </div>
 
@@ -1287,6 +1312,7 @@ function buildProcessFromBuild(
   build: KnowledgeGraphBuild,
   options?: {
     pollCount?: number;
+    pollExhausted?: boolean;
     candidateSelection?: CandidateSelectionSummary | null;
   },
 ): BuildProcessState {
@@ -1305,6 +1331,7 @@ function buildProcessFromBuild(
     message: buildProcessMessage(build, pollCount),
     error: build.error_message,
     pollCount,
+    pollExhausted: phase === "waiting" && (options?.pollExhausted ?? pollCount >= BUILD_POLL_LIMIT),
     updatedAt: new Date().toISOString(),
   };
 }

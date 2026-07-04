@@ -47,7 +47,10 @@ def detect_course_textbook_subtype(
     else:
         task_ratio = task_score / total_signal
         theory_ratio = theory_score / total_signal
-        if _has_strong_task_outline(normalized):
+        if _looks_like_theory_with_practice_drills(normalized, task_score, theory_score):
+            subtype = "theory_knowledge"
+            confidence = min(0.92, 0.66 + min(theory_score, 12) / 80)
+        elif _has_strong_task_outline(normalized):
             subtype = "training_operation"
             confidence = min(0.96, 0.72 + min(task_score, 20) / 100)
         elif task_score >= 6 and theory_score >= 4 and abs(task_ratio - theory_ratio) <= 0.35:
@@ -84,10 +87,12 @@ def detect_course_textbook_subtype(
 def _has_strong_task_outline(blocks: list[NormalizedBlock]) -> bool:
     """Detect work-task textbooks whose theory keywords live inside tasks."""
     task_count = sum(1 for block in blocks if block.role == "task_heading")
+    work_subtask_count = sum(1 for block in blocks if block.role == "work_subtask_heading")
     step_count = sum(1 for block in blocks if block.role == "operation_step")
+    section_counts = _section_counts(blocks)
     task_section_count = sum(
-        1 for block in blocks
-        if block.section_type in {
+        section_counts.get(section_type, 0)
+        for section_type in {
             "task_objective",
             "task_background",
             "task_analysis",
@@ -96,15 +101,93 @@ def _has_strong_task_outline(blocks: list[NormalizedBlock]) -> bool:
             "task_reflection",
         }
     )
+    task_cycle_count = min(
+        section_counts.get("task_background", 0),
+        section_counts.get("task_analysis", 0),
+        section_counts.get("operation_steps", 0),
+    )
+    work_task_count = sum(
+        1 for block in blocks
+        if block.role == "task_heading" and "工作任务" in block.text
+    )
     operation_heading_count = sum(
         1 for block in blocks
         if block.role == "heading" and block.text.strip() in {"任务操作", "任务实施"}
     )
     return (
-        task_count >= 2
-        and task_section_count >= 6
-        and (step_count >= 3 or operation_heading_count >= 3)
+        (
+            work_task_count >= 2
+            and work_subtask_count >= 2
+            and task_cycle_count >= 2
+            and step_count >= 3
+        )
+        or (
+            task_count >= 2
+            and task_section_count >= 8
+            and task_cycle_count >= 2
+            and (step_count >= 3 or operation_heading_count >= 3)
+        )
     )
+
+
+def _looks_like_theory_with_practice_drills(
+    blocks: list[NormalizedBlock],
+    task_score: float,
+    theory_score: float,
+) -> bool:
+    """Route projectized knowledge textbooks with practice drills to Evidence Graph.
+
+    Some theory textbooks use project/task labels around each knowledge chapter and
+    append a short practice operation after the explanation. They should remain
+    knowledge assets: the task material is exercise evidence, not the primary
+    domain model.
+    """
+    if theory_score < 6 or task_score < 6:
+        return False
+
+    section_counts = _section_counts(blocks)
+    task_cycle_count = min(
+        section_counts.get("task_background", 0),
+        section_counts.get("task_analysis", 0),
+        section_counts.get("operation_steps", 0),
+    )
+    if task_cycle_count >= 2:
+        return False
+
+    work_structural_count = sum(
+        1 for block in blocks
+        if block.role in {"work_subtask_heading"}
+        or (block.role == "task_heading" and "工作任务" in block.text)
+    )
+    if work_structural_count:
+        return False
+
+    knowledge_prepare_count = section_counts.get("knowledge_prepare", 0)
+    operation_count = section_counts.get("operation_steps", 0)
+    objective_count = section_counts.get("task_objective", 0)
+    reflective_task_count = section_counts.get("task_reflection", 0)
+    analysis_count = section_counts.get("task_analysis", 0)
+    background_count = section_counts.get("task_background", 0)
+    project_count = sum(1 for block in blocks if block.role == "project_heading")
+
+    return (
+        project_count >= 2
+        and knowledge_prepare_count >= 2
+        and operation_count >= 2
+        and objective_count >= 1
+        and background_count <= 1
+        and analysis_count <= 1
+        and reflective_task_count <= max(1, operation_count // 2)
+    )
+
+
+def _section_counts(blocks: list[NormalizedBlock]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for block in blocks:
+        if block.section_type is None:
+            continue
+        counts[block.section_type] = counts.get(block.section_type, 0) + 1
+    return counts
 
 
 def _score_task(

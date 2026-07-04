@@ -18,10 +18,9 @@ type Props = {
 
 type ViewKey = "chunks" | "task_outline" | "evidence_graph";
 
-const BASE_VIEW_OPTIONS: Array<{ label: string; value: ViewKey }> = [
-  { label: "RAG知识块", value: "chunks" },
-  { label: "任务大纲", value: "task_outline" },
-];
+const CHUNK_VIEW_OPTION = { label: "RAG知识块", value: "chunks" as const };
+const TASK_OUTLINE_VIEW_OPTION = { label: "任务大纲", value: "task_outline" as const };
+const EVIDENCE_GRAPH_VIEW_OPTION = { label: "Evidence Graph", value: "evidence_graph" as const };
 
 export function DocumentKnowledgeView({
   normalizedRef,
@@ -32,18 +31,30 @@ export function DocumentKnowledgeView({
 }: Props) {
   const [view, setView] = useState<ViewKey>("chunks");
   const normalizedRefId = normalizedRef?.id ?? null;
-  const graphAdmission = initialTaskOutline?.profile?.evidence_graph_admission ?? null;
+  const taskProfile = initialTaskOutline?.profile ?? null;
+  const graphAdmission = taskProfile?.evidence_graph_admission ?? null;
+  const showTaskOutline =
+    taskOutlineOk &&
+    taskProfile?.processing_profile === "task_outline" &&
+    taskProfile?.textbook_subtype === "training_operation";
   const showEvidenceGraph =
-    taskOutlineOk && (graphAdmission === null || graphAdmission === "recommended");
-  const viewOptions = showEvidenceGraph
-    ? [...BASE_VIEW_OPTIONS, { label: "Evidence Graph", value: "evidence_graph" as const }]
-    : BASE_VIEW_OPTIONS;
+    !taskProfile ||
+      taskProfile.processing_profile === "evidence_graph" ||
+      graphAdmission === "recommended";
+  const viewOptions: Array<{ label: string; value: ViewKey }> = [
+    CHUNK_VIEW_OPTION,
+    ...(showTaskOutline ? [TASK_OUTLINE_VIEW_OPTION] : []),
+    ...(showEvidenceGraph ? [EVIDENCE_GRAPH_VIEW_OPTION] : []),
+  ];
 
   useEffect(() => {
+    if (view === "task_outline" && !showTaskOutline) {
+      setView("chunks");
+    }
     if (view === "evidence_graph" && !showEvidenceGraph) {
       setView("chunks");
     }
-  }, [showEvidenceGraph, view]);
+  }, [showEvidenceGraph, showTaskOutline, view]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -65,7 +76,7 @@ export function DocumentKnowledgeView({
           actionLabel="定位原文"
         />
       ) : null}
-      {view === "task_outline" ? (
+      {view === "task_outline" && showTaskOutline ? (
         <TaskOutlineView
           refId={normalizedRefId}
           initialData={initialTaskOutline}

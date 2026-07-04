@@ -68,6 +68,31 @@ def _hybrid_blocks() -> list[dict]:
     ]
 
 
+def _projectized_theory_with_practice_blocks() -> list[dict]:
+    return [
+        _block("v1", "heading", "项目一 短视频认知", 1),
+        _block("v2", "heading", "学习目标", 1),
+        _block("v3", "paragraph", "掌握短视频的概念、特征、类型及平台传播机制。", 1),
+        _block("v4", "heading", "知识准备", 2),
+        _block("v5", "paragraph", "短视频是依托移动互联网平台传播的视频内容形态，其定义、分类和运营原理需要结合平台规则理解。", 2),
+        _block("v6", "paragraph", "讲解类短视频、知识类短视频和剧情类短视频在内容结构、受众心理和传播机制方面存在差异。", 3),
+        _block("v7", "heading", "任务实施", 4),
+        _block("v8", "paragraph", "1. 分析不同主题类型短视频的特点。", 4),
+        _block("v9", "paragraph", "2. 填写短视频主题类型分析表。", 4),
+        _block("v10", "table", "| 短视频主题类型 | 分析内容 |\n| --- | --- |\n| 知识类短视频 |  |", 5),
+        _block("v11", "heading", "项目二 短视频账号创建与矩阵搭建", 6),
+        _block("v12", "heading", "学习目标", 6),
+        _block("v13", "paragraph", "理解短视频账号定位的作用、原则、方法和账号矩阵的基础概念。", 6),
+        _block("v14", "heading", "知识准备", 7),
+        _block("v15", "paragraph", "账号定位体现内容领域、受众定位和账号差异化原则，是短视频运营的基础知识。", 7),
+        _block("v16", "heading", "任务实施", 8),
+        _block("v17", "paragraph", "1. 根据案例完成账号领域定位。", 8),
+        _block("v18", "paragraph", "2. 设计账号名称、头像和简介。", 8),
+        _block("v19", "heading", "任务思考", 9),
+        _block("v20", "paragraph", "请结合所学知识说明短视频账号定位为什么要避免同质化。", 9),
+    ]
+
+
 def _work_task_textbook_blocks() -> list[dict]:
     return [
         _block("w1", "heading", "工作领域一 基础数据采集", 1),
@@ -208,6 +233,16 @@ def test_detects_theory_knowledge_textbook() -> None:
     assert result.processing_profile == "evidence_graph"
     assert result.evidence_graph_admission == "recommended"
     assert result.subtype_confidence >= 0.65
+
+
+def test_projectized_theory_textbook_with_practice_drills_uses_evidence_graph() -> None:
+    result = detect_course_textbook_subtype(_projectized_theory_with_practice_blocks())
+
+    assert result.textbook_subtype == "theory_knowledge"
+    assert result.processing_profile == "evidence_graph"
+    assert result.evidence_graph_admission == "recommended"
+    assert result.scores["task_score"] > 0
+    assert result.scores["theory_score"] > 0
 
 
 def test_detects_hybrid_when_theory_and_task_signals_coexist() -> None:
