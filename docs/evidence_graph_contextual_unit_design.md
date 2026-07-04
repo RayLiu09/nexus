@@ -228,6 +228,10 @@ GraphBuild `quality_summary` 增加：
 - `knowledge_graph_evidence` 为同一 fact 写入多个 chunk evidence。
 - Console fact drawer 展示多 evidence 来源。
 
+实施状态：已落地。`evidence_chunk_ids` 既支持顶层字段，也兼容
+`qualifiers.evidence_chunk_ids`；持久化会为同一 fact 写入多条
+`knowledge_graph_evidence`，Console 详情面板按 chunk 展示多来源 evidence。
+
 ### 阶段 3：图谱粒度治理
 
 - build-level entity canonicalization 增强。

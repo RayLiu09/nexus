@@ -75,7 +75,11 @@ def persist_graph_candidates(
     mentions_written = 0
     low_confidence = 0
     missing_evidence = 0
+    invalid_evidence_chunk_ids = 0
+    multi_evidence_fact_count = 0
     duplicate_facts = 0
+    evidence_rows_by_fact: dict[str, int] = {}
+    evidence_row_keys: set[tuple[str, str | None, str, str]] = set()
 
     for candidate in candidates:
         chunk = chunk_by_id.get(candidate.source_chunk_id)
@@ -86,6 +90,15 @@ def persist_graph_candidates(
         if not _has_required_evidence(candidate, chunk):
             missing_evidence += 1
             continue
+        evidence_chunks, invalid_count = _evidence_chunks_for_candidate(
+            session,
+            candidate,
+            chunk_by_id=chunk_by_id,
+            source_chunk=chunk,
+        )
+        invalid_evidence_chunk_ids += invalid_count
+        if len(evidence_chunks) > 1:
+            multi_evidence_fact_count += 1
 
         confidence = _decimal_confidence(candidate.confidence)
         if confidence < confidence_threshold:
@@ -132,6 +145,10 @@ def persist_graph_candidates(
         else:
             duplicate_facts += 1
             fact.confidence = max(fact.confidence or Decimal("0"), confidence)
+            fact.qualifiers = _merge_fact_qualifiers(
+                fact.qualifiers or {},
+                candidate.qualifiers or {},
+            )
 
         edge = None
         if object_node is not None:
@@ -168,24 +185,41 @@ def persist_graph_candidates(
         session.flush()
         mentions_written += 1
 
-        session.add(models.KnowledgeGraphEvidence(
-            id=str(uuid4()),
-            graph_build_id=build.id,
-            normalized_ref_id=build.normalized_ref_id,
-            fact_id=fact.id,
-            edge_id=edge.id if edge else None,
-            entity_id=subject.id,
-            mention_id=mention.id,
-            chunk_id=candidate.source_chunk_id,
-            source_block_ids=chunk.source_block_ids if chunk else None,
-            locator=chunk.locator if chunk else None,
-            evidence_text=candidate.evidence_text,
-            extraction_method=candidate.extraction_method,
-            confidence=confidence,
-        ))
-        evidence_written += 1
+        rows_for_fact = 0
+        for evidence_chunk in evidence_chunks:
+            row_key = (
+                fact.id,
+                edge.id if edge else None,
+                evidence_chunk.chunk_id,
+                candidate.evidence_text,
+            )
+            if row_key in evidence_row_keys:
+                continue
+            evidence_row_keys.add(row_key)
+            session.add(models.KnowledgeGraphEvidence(
+                id=str(uuid4()),
+                graph_build_id=build.id,
+                normalized_ref_id=build.normalized_ref_id,
+                fact_id=fact.id,
+                edge_id=edge.id if edge else None,
+                entity_id=subject.id,
+                mention_id=mention.id if evidence_chunk.chunk_id == candidate.source_chunk_id else None,
+                chunk_id=evidence_chunk.chunk_id,
+                source_block_ids=evidence_chunk.source_block_ids,
+                locator=evidence_chunk.locator,
+                evidence_text=candidate.evidence_text,
+                extraction_method=candidate.extraction_method,
+                confidence=confidence,
+            ))
+            evidence_written += 1
+            rows_for_fact += 1
+        evidence_rows_by_fact[fact.id] = evidence_rows_by_fact.get(fact.id, 0) + rows_for_fact
 
     session.flush()
+    evidence_rows_per_fact_avg = (
+        round(sum(evidence_rows_by_fact.values()) / len(evidence_rows_by_fact), 4)
+        if evidence_rows_by_fact else 0.0
+    )
 
     quality_summary = {
         "input_candidates": len(candidates),
@@ -194,6 +228,9 @@ def persist_graph_candidates(
         "persisted_candidates": len(fact_by_key),
         "low_confidence_candidates": low_confidence,
         "missing_evidence_candidates": missing_evidence,
+        "invalid_evidence_chunk_ids": invalid_evidence_chunk_ids,
+        "multi_evidence_fact_count": multi_evidence_fact_count,
+        "evidence_rows_per_fact_avg": evidence_rows_per_fact_avg,
         "duplicate_fact_candidates": duplicate_facts,
         "nodes_written": len(node_by_key),
         "facts_written": len(fact_by_key),
@@ -291,9 +328,40 @@ def _fact_key(
         "predicate": _canonical_predicate(candidate.predicate),
         "object_node": object_node.node_key if object_node else None,
         "object_literal": candidate.object_literal,
-        "qualifiers": candidate.qualifiers,
+        "qualifiers": _semantic_qualifiers(candidate.qualifiers),
     }
     return json.dumps(payload, sort_keys=True, ensure_ascii=False)
+
+
+def _semantic_qualifiers(qualifiers: dict[str, Any]) -> dict[str, Any]:
+    evidence_keys = {
+        "evidence_chunk_ids",
+        "invalid_evidence_chunk_ids",
+        "extraction_unit_chunk_ids",
+        "extraction_unit_id",
+        "extraction_unit_type",
+    }
+    return {
+        key: value
+        for key, value in (qualifiers or {}).items()
+        if key not in evidence_keys
+    }
+
+
+def _merge_fact_qualifiers(
+    existing: dict[str, Any],
+    incoming: dict[str, Any],
+) -> dict[str, Any]:
+    merged = dict(existing or {})
+    for key, value in (incoming or {}).items():
+        if key == "evidence_chunk_ids":
+            merged[key] = _dedupe_strings(
+                _coerce_string_list(merged.get(key)) + _coerce_string_list(value)
+            )
+            continue
+        if key not in merged:
+            merged[key] = value
+    return merged
 
 
 def _has_required_evidence(
@@ -307,6 +375,73 @@ def _has_required_evidence(
     if not candidate.source_chunk_id:
         return False
     return True
+
+
+def _evidence_chunks_for_candidate(
+    session: Session,
+    candidate: GraphFactCandidate,
+    *,
+    chunk_by_id: dict[str, GraphChunkCandidate],
+    source_chunk: GraphChunkCandidate,
+) -> tuple[list[GraphChunkCandidate], int]:
+    requested = _candidate_evidence_chunk_ids(candidate)
+    if candidate.source_chunk_id not in requested:
+        requested.insert(0, candidate.source_chunk_id)
+    requested = _dedupe_strings(requested)
+
+    chunks: list[GraphChunkCandidate] = []
+    invalid_count = 0
+    for chunk_id in requested:
+        chunk = chunk_by_id.get(chunk_id)
+        if chunk is None and chunk_id == source_chunk.chunk_id:
+            chunk = source_chunk
+        if chunk is None:
+            db_chunk = session.get(models.KnowledgeChunk, chunk_id)
+            if db_chunk is not None:
+                chunk = _chunk_candidate_from_model(db_chunk, candidate)
+        if chunk is None:
+            invalid_count += 1
+            continue
+        if chunk.normalized_ref_id != source_chunk.normalized_ref_id:
+            invalid_count += 1
+            continue
+        chunks.append(chunk)
+    if not chunks:
+        chunks = [source_chunk]
+    return chunks, invalid_count
+
+
+def _candidate_evidence_chunk_ids(candidate: GraphFactCandidate) -> list[str]:
+    if candidate.evidence_chunk_ids:
+        return list(candidate.evidence_chunk_ids)
+    value = (candidate.qualifiers or {}).get("evidence_chunk_ids")
+    return _coerce_string_list(value)
+
+
+def _coerce_string_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return []
+        if "," in text:
+            return [part.strip() for part in text.split(",") if part.strip()]
+        return [text]
+    if isinstance(value, (list, tuple, set)):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return []
+
+
+def _dedupe_strings(values: list[str]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
 
 
 def _chunk_candidate_from_model(

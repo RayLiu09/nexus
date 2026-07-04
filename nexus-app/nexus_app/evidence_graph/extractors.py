@@ -262,7 +262,7 @@ class BodyLLMExtractor:
             extraction_method=self.extraction_method,
             evidence_fallback=unit.content,
             default_qualifiers={
-                "evidence_chunk_ids": list(unit.chunk_ids),
+                "extraction_unit_chunk_ids": list(unit.chunk_ids),
                 "extraction_unit_id": unit.unit_id,
                 "extraction_unit_type": unit.unit_type,
                 "heading_path": list(unit.heading_path),
@@ -869,6 +869,11 @@ def _validate_items(
                 **default_qualifiers,
                 **enriched["qualifiers"],
             }
+        _normalize_evidence_chunk_ids(
+            enriched,
+            fallback_source_chunk_id=str(enriched["source_chunk_id"]),
+            allowed_source_chunk_ids=allowed_source_chunk_ids,
+        )
         if _language_mismatch(enriched, evidence_fallback):
             _increment_reject(rejected_by_reason, GraphExtractionRejectReason.LANGUAGE_MISMATCH)
             _append_reject_sample(
@@ -906,6 +911,12 @@ def _normalize_raw_item(raw: dict[str, Any], *, graph_profile: str) -> dict[str,
     _copy_alias(enriched, "predicate", ("relation", "relation_type", "edge_type", "predicate_name"))
     _copy_alias(enriched, "object_literal", ("value", "literal", "object_value", "objectLiteral"))
     _copy_alias(enriched, "evidence_text", ("evidence", "quote", "source_text", "text"))
+    _copy_alias(enriched, "evidence_chunk_ids", (
+        "evidence_chunks",
+        "evidenceChunkIds",
+        "evidence_ids",
+        "evidenceIds",
+    ))
     _copy_alias(enriched, "confidence", ("score", "probability"))
     _copy_alias(enriched, "source_chunk_id", ("chunk_id", "source_id", "chunkId", "sourceChunkId"))
     if "qualifiers" not in enriched or not isinstance(enriched.get("qualifiers"), dict):
@@ -1118,6 +1129,59 @@ def _copy_alias(target: dict[str, Any], key: str, aliases: tuple[str, ...]) -> N
             return
 
 
+def _normalize_evidence_chunk_ids(
+    item: dict[str, Any],
+    *,
+    fallback_source_chunk_id: str,
+    allowed_source_chunk_ids: set[str] | None,
+) -> None:
+    qualifiers = item.get("qualifiers")
+    if not isinstance(qualifiers, dict):
+        qualifiers = {}
+        item["qualifiers"] = qualifiers
+
+    raw_ids = item.get("evidence_chunk_ids")
+    if raw_ids is None:
+        raw_ids = qualifiers.get("evidence_chunk_ids")
+    values = _coerce_string_list(raw_ids)
+    if allowed_source_chunk_ids is not None:
+        invalid = [value for value in values if value not in allowed_source_chunk_ids]
+        values = [value for value in values if value in allowed_source_chunk_ids]
+        if invalid:
+            qualifiers["invalid_evidence_chunk_ids"] = invalid[:10]
+    if fallback_source_chunk_id and fallback_source_chunk_id not in values:
+        values.insert(0, fallback_source_chunk_id)
+    values = _dedupe_text(values)
+    item["evidence_chunk_ids"] = values or [fallback_source_chunk_id]
+    qualifiers["evidence_chunk_ids"] = item["evidence_chunk_ids"]
+
+
+def _coerce_string_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return []
+        if "," in stripped:
+            return [part.strip() for part in stripped.split(",") if part.strip()]
+        return [stripped]
+    if isinstance(value, (list, tuple, set)):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return []
+
+
+def _dedupe_text(values: list[str]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
+
+
 def _increment_reject(rejected_by_reason: dict[str, int], reason: str) -> None:
     rejected_by_reason[reason] = rejected_by_reason.get(reason, 0) + 1
 
@@ -1231,6 +1295,8 @@ def _flatten_text_values(value: Any) -> list[str]:
         for key, item in value.items():
             if str(key).startswith("raw_") or str(key) in {
                 "evidence_chunk_ids",
+                "invalid_evidence_chunk_ids",
+                "extraction_unit_chunk_ids",
                 "extraction_unit_id",
                 "extraction_unit_type",
                 "heading_path",

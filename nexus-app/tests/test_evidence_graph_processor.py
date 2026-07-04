@@ -105,7 +105,10 @@ class _TextbookGraphLLM:
                     "subject": {"type": "Textbook", "name": "短视频拍摄与剪辑"},
                     "predicate": "HAS_CHAPTER",
                     "object": {"type": "Chapter", "name": "项目一 短视频认知"},
-                    "qualifiers": {"chapter_order": 1},
+                    "qualifiers": {
+                        "chapter_order": 1,
+                        "evidence_chunk_ids": ["chunk-textbook-worker"],
+                    },
                     "evidence_text": "项目一 短视频认知",
                     "confidence": 0.92,
                 },
@@ -114,7 +117,12 @@ class _TextbookGraphLLM:
                     "subject": {"type": "Chapter", "name": "项目一 短视频认知"},
                     "predicate": "DEVELOPS_SKILL",
                     "object": {"type": "Skill", "name": "账号定位分析"},
-                    "qualifiers": {},
+                    "qualifiers": {
+                        "evidence_chunk_ids": [
+                            "chunk-textbook-worker",
+                            "chunk-textbook-worker-2",
+                        ],
+                    },
                     "evidence_text": "本项目讲授短视频平台、账号定位和内容形态。",
                     "confidence": 0.9,
                 },
@@ -367,14 +375,19 @@ def test_process_textbook_graph_build_persists_evidence_bound_rows(session):
     assert refreshed.node_count == 3
     assert refreshed.fact_count == 2
     assert refreshed.edge_count == 2
+    assert refreshed.quality_summary["persist"]["multi_evidence_fact_count"] == 1
+    assert refreshed.quality_summary["persist"]["evidence_written"] == 3
 
     evidence_rows = session.scalars(
         select(models.KnowledgeGraphEvidence).where(
             models.KnowledgeGraphEvidence.graph_build_id == build.id
         )
     ).all()
-    assert len(evidence_rows) >= 2
-    assert {row.chunk_id for row in evidence_rows} == {"chunk-textbook-worker"}
+    assert len(evidence_rows) == 3
+    assert {row.chunk_id for row in evidence_rows} == {
+        "chunk-textbook-worker",
+        "chunk-textbook-worker-2",
+    }
     assert all(row.locator["heading_path"][0]["title"] == "项目一 短视频认知"
                for row in evidence_rows)
 

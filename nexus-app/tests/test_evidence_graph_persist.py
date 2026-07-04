@@ -126,6 +126,7 @@ def _chunk_candidate(chunk: models.KnowledgeChunk) -> GraphChunkCandidate:
         content=chunk.content,
         source_block_ids=chunk.source_block_ids,
         locator=chunk.locator,
+        chunk_metadata=chunk.chunk_metadata,
     )
 
 
@@ -241,6 +242,60 @@ def test_persist_object_node_creates_edge(session):
     evidence = session.scalar(select(models.KnowledgeGraphEvidence))
     assert evidence is not None
     assert evidence.edge_id == edge.id
+
+
+def test_persist_graph_candidates_writes_multiple_evidence_rows_for_one_fact(session):
+    ref = _seed_ref(session)
+    chunk1 = _add_chunk(session, chunk_id="chunk-multi-1", index=1, content="政策A由部门A发布。")
+    chunk2 = _add_chunk(session, chunk_id="chunk-multi-2", index=2, content="政策A提出重点任务。")
+    session.commit()
+    build = create_graph_build(
+        session,
+        normalized_ref_id=ref.id,
+        graph_profile="report_document",
+        strategy_version="evidence-kg.v1",
+    )
+    candidate = GraphFactCandidate.model_validate({
+        "source_chunk_id": chunk1.id,
+        "profile": "report_document",
+        "anchor_role": "body",
+        "extractor_name": "BodyLLMExtractor",
+        "extraction_method": "llm",
+        "fact_type": "policy_fact",
+        "subject": {"type": "Policy", "name": "政策A"},
+        "predicate": "MENTIONS",
+        "object_literal": "重点任务",
+        "qualifiers": {"topic": "任务"},
+        "evidence_text": "政策A由部门A发布。政策A提出重点任务。",
+        "evidence_chunk_ids": [chunk1.id, chunk2.id],
+        "confidence": 0.91,
+    })
+
+    result = persist_graph_candidates(
+        session,
+        build=build,
+        candidates=[candidate],
+        chunk_candidates=[_chunk_candidate(chunk1), _chunk_candidate(chunk2)],
+    )
+    session.commit()
+
+    assert result.status == KnowledgeGraphBuildStatus.SUCCEEDED
+    assert result.facts_written == 1
+    assert result.evidence_written == 2
+    assert result.quality_summary["multi_evidence_fact_count"] == 1
+    assert result.quality_summary["evidence_rows_per_fact_avg"] == 2.0
+    assert result.quality_summary["invalid_evidence_chunk_ids"] == 0
+
+    fact = session.scalar(select(models.KnowledgeGraphFact))
+    assert fact is not None
+    assert fact.qualifiers["topic"] == "任务"
+    evidence_rows = session.scalars(
+        select(models.KnowledgeGraphEvidence)
+        .where(models.KnowledgeGraphEvidence.fact_id == fact.id)
+        .order_by(models.KnowledgeGraphEvidence.chunk_id)
+    ).all()
+    assert [row.chunk_id for row in evidence_rows] == [chunk1.id, chunk2.id]
+    assert [row.mention_id is not None for row in evidence_rows] == [True, False]
 
 
 def test_low_confidence_candidate_not_persisted_and_fails_when_no_graph_rows(session):

@@ -98,6 +98,20 @@ def graph_fixture(session: Session):
         source_block_ids=["b1"],
         locator={"page_start": 1, "blocks": [{"block_id": "b1", "page": 1}]},
     )
+    chunk_2 = models.KnowledgeChunk(
+        id="chunk-eg-api-2",
+        normalized_ref_id=ref.id,
+        knowledge_type_code="document_semantic_chunk",
+        chunk_type=ChunkType.SEMANTIC_BLOCK,
+        chunking_strategy=ChunkingStrategy.SEMANTIC_REPACK,
+        source_kind=SourceKind.EXTRACTED_FROM_NORMALIZED,
+        chunk_index=2,
+        content="2025年交易额继续增长。",
+        chunk_metadata={"anchor_role": "body"},
+        embedding_status=EmbeddingStatus.PENDING,
+        source_block_ids=["b2"],
+        locator={"page_start": 2, "blocks": [{"block_id": "b2", "page": 2}]},
+    )
     build = models.KnowledgeGraphBuild(
         id="kg-build-1",
         normalized_ref_id=ref.id,
@@ -121,7 +135,7 @@ def graph_fixture(session: Session):
         candidate_count=1,
         quality_summary={},
     )
-    session.add_all([data_source, batch, raw, asset, version, ref, chunk, build, pending])
+    session.add_all([data_source, batch, raw, asset, version, ref, chunk, chunk_2, build, pending])
     session.flush()
     node_metric = models.KnowledgeGraphNode(
         id="kg-node-metric",
@@ -198,9 +212,24 @@ def graph_fixture(session: Session):
         extraction_method="rule",
         confidence=Decimal("0.8900"),
     )
-    session.add(evidence)
+    evidence_2 = models.KnowledgeGraphEvidence(
+        id="kg-evidence-2",
+        graph_build_id=build.id,
+        normalized_ref_id=ref.id,
+        fact_id=fact.id,
+        edge_id=edge.id,
+        entity_id=node_metric.id,
+        mention_id=None,
+        chunk_id=chunk_2.id,
+        source_block_ids=chunk_2.source_block_ids,
+        locator=chunk_2.locator,
+        evidence_text="2025年交易额继续增长。",
+        extraction_method="llm",
+        confidence=Decimal("0.8700"),
+    )
+    session.add_all([evidence, evidence_2])
     session.commit()
-    return ref, build, pending, chunk
+    return ref, build, pending, chunk, chunk_2
 
 
 def test_list_and_filter_builds(app, graph_fixture):
@@ -225,7 +254,7 @@ def test_get_build_and_404(app, graph_fixture):
 
 
 def test_list_nodes_facts_edges_and_evidence_filters(app, graph_fixture):
-    _ref, build, _pending, chunk = graph_fixture
+    _ref, build, _pending, chunk, _chunk_2 = graph_fixture
     with TestClient(app) as client:
         nodes = client.get(
             f"/internal/v1/knowledge-graphs/builds/{build.id}/nodes?node_type=Metric"
@@ -238,6 +267,9 @@ def test_list_nodes_facts_edges_and_evidence_filters(app, graph_fixture):
         )
         evidence = client.get(
             f"/internal/v1/knowledge-graphs/builds/{build.id}/evidence?chunk_id={chunk.id}"
+        )
+        fact_evidence = client.get(
+            f"/internal/v1/knowledge-graphs/builds/{build.id}/evidence?fact_id=kg-fact-1"
         )
 
     assert nodes.status_code == 200
@@ -252,6 +284,12 @@ def test_list_nodes_facts_edges_and_evidence_filters(app, graph_fixture):
     assert evidence.json()["meta"]["total"] == 1
     assert evidence.json()["data"][0]["chunk_id"] == chunk.id
     assert evidence.json()["data"][0]["locator"]["page_start"] == 1
+    assert fact_evidence.status_code == 200
+    assert fact_evidence.json()["meta"]["total"] == 2
+    assert {item["chunk_id"] for item in fact_evidence.json()["data"]} == {
+        "chunk-eg-api",
+        "chunk-eg-api-2",
+    }
 
 
 def test_unknown_build_child_resource_returns_404(app, graph_fixture):
@@ -262,7 +300,7 @@ def test_unknown_build_child_resource_returns_404(app, graph_fixture):
 
 
 def test_latest_graph_for_normalized_ref(app, graph_fixture):
-    ref, _build, _pending, _chunk = graph_fixture
+    ref, _build, _pending, _chunk, _chunk_2 = graph_fixture
     with TestClient(app) as client:
         resp = client.get(f"/internal/v1/normalized-refs/{ref.id}/knowledge-graph")
 
@@ -272,11 +310,11 @@ def test_latest_graph_for_normalized_ref(app, graph_fixture):
     assert data["nodes"] == 2
     assert data["edges"] == 1
     assert data["facts"] == 1
-    assert data["evidence"] == 1
+    assert data["evidence"] == 2
 
 
 def test_submit_build_dry_run_does_not_create_build(app, session, graph_fixture):
-    ref, _build, _pending, _chunk = graph_fixture
+    ref, _build, _pending, _chunk, _chunk_2 = graph_fixture
     before = session.query(models.KnowledgeGraphBuild).count()
     with TestClient(app) as client:
         resp = client.post("/internal/v1/knowledge-graphs/builds", json={
@@ -288,13 +326,14 @@ def test_submit_build_dry_run_does_not_create_build(app, session, graph_fixture)
 
     assert resp.status_code == 200
     data = resp.json()["data"]
-    assert data["selected_chunk_count"] == 1
+    assert data["selected_chunk_count"] == 2
     assert session.query(models.KnowledgeGraphBuild).count() == before
 
 
 def test_submit_build_without_candidate_chunks_is_rejected(app, session, graph_fixture):
-    ref, _build, _pending, chunk = graph_fixture
+    ref, _build, _pending, chunk, chunk_2 = graph_fixture
     session.delete(chunk)
+    session.delete(chunk_2)
     session.commit()
     before = session.query(models.KnowledgeGraphBuild).count()
 
@@ -315,7 +354,7 @@ def test_submit_build_without_candidate_chunks_is_rejected(app, session, graph_f
 
 
 def test_submit_build_creates_envelope_and_rebuild_deprecates_existing(app, session, graph_fixture):
-    ref, _build, _pending, _chunk = graph_fixture
+    ref, _build, _pending, _chunk, _chunk_2 = graph_fixture
     with TestClient(app) as client:
         created = client.post("/internal/v1/knowledge-graphs/builds", json={
             "normalized_ref_id": ref.id,
@@ -335,7 +374,7 @@ def test_submit_build_creates_envelope_and_rebuild_deprecates_existing(app, sess
 
     assert created.status_code == 200
     assert created.json()["data"]["skipped"] is False
-    assert created.json()["data"]["build"]["candidate_count"] == 1
+    assert created.json()["data"]["build"]["candidate_count"] == 2
     assert duplicate.status_code == 200
     assert duplicate.json()["data"]["skipped"] is True
     assert duplicate.json()["data"]["reason"] == "build_exists"
@@ -352,7 +391,7 @@ def test_zero_row_succeeded_build_is_not_reused_or_returned_as_latest(
     session,
     graph_fixture,
 ):
-    ref, build, _pending, _chunk = graph_fixture
+    ref, build, _pending, _chunk, _chunk_2 = graph_fixture
     build.node_count = 0
     build.edge_count = 0
     build.fact_count = 0

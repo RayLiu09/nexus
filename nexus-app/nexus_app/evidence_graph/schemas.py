@@ -56,6 +56,7 @@ class GraphFactCandidate(BaseModel):
     object_literal: str | None = Field(default=None, max_length=2048)
     qualifiers: dict[str, Any] = Field(default_factory=dict)
     evidence_text: str = Field(min_length=1, max_length=4096)
+    evidence_chunk_ids: list[str] | None = None
     confidence: float = Field(ge=0, le=1)
 
     @field_validator(
@@ -88,6 +89,21 @@ class GraphFactCandidate(BaseModel):
         if self.object is None and not self.object_literal:
             raise ValueError("object or object_literal is required")
         return self
+
+    @field_validator("evidence_chunk_ids")
+    @classmethod
+    def normalize_evidence_chunk_ids(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        result: list[str] = []
+        seen: set[str] = set()
+        for item in value:
+            text = str(item).strip()
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            result.append(text)
+        return result or None
 
 
 class GraphExtractionResult(BaseModel):

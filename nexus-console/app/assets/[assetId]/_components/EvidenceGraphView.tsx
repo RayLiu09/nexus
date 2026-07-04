@@ -1125,6 +1125,11 @@ function GraphDetailDrawer({
                     <div className="min-w-0 flex-1">
                       <Space size={6} wrap>
                         <LocatorChip locator={item.locator as LocatorInfo | null | undefined} />
+                        <Tooltip title={item.chunk_id}>
+                          <Tag className="!mr-0 max-w-[180px] truncate font-mono">
+                            {shortId(item.chunk_id)}
+                          </Tag>
+                        </Tooltip>
                         {item.confidence != null ? (
                           <Tag>{(item.confidence * 100).toFixed(0)}%</Tag>
                         ) : null}
@@ -1497,6 +1502,11 @@ function truncateName(value: string): string {
 
 function formatConfidence(value?: number | null): string {
   return value == null ? "" : `<br/>置信度 ${(value * 100).toFixed(0)}%`;
+}
+
+function shortId(value: string): string {
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 8)}...${value.slice(-4)}`;
 }
 
 function statusColor(status: string): string {
