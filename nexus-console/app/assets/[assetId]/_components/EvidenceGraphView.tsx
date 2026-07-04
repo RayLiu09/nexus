@@ -180,6 +180,7 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
   const [selectedItem, setSelectedItem] = useState<SelectedGraphItem>(null);
   const [chunkPreview, setChunkPreview] = useState<KnowledgeChunkHit | null>(null);
   const [chunkDrawerOpen, setChunkDrawerOpen] = useState(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [buildProcess, setBuildProcess] = useState<BuildProcessState>({
     phase: "idle",
@@ -625,6 +626,9 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
               <Tag color={statusColor(state.build.status)} className="!mr-0">
                 {state.build.status}
               </Tag>
+              <Button size="small" onClick={() => setDiagnosticsOpen(true)}>
+                构建诊断
+              </Button>
               <GraphViewportActions
                 title="Evidence Graph"
                 disabled={filteredGraph.nodes.length === 0}
@@ -741,6 +745,11 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
         chunk={chunkPreview}
         open={chunkDrawerOpen}
         onClose={() => setChunkDrawerOpen(false)}
+      />
+      <BuildDiagnosticsDrawer
+        build={state.build}
+        open={diagnosticsOpen}
+        onClose={() => setDiagnosticsOpen(false)}
       />
     </>
   );
@@ -1235,6 +1244,188 @@ function JsonBlock({ title, value }: { title: string; value: unknown }) {
   );
 }
 
+function BuildDiagnosticsDrawer({
+  build,
+  open,
+  onClose,
+}: {
+  build: KnowledgeGraphBuild | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const summary = build?.quality_summary ?? {};
+  const candidate = objectValue(summary.candidate_selection);
+  const grouping = objectValue(summary.unit_grouping);
+  const extraction = objectValue(summary.extraction);
+  const persist = objectValue(summary.persist);
+  const recoveries = arrayValue(summary.running_recoveries);
+
+  return (
+    <Drawer
+      title="构建诊断"
+      open={open}
+      onClose={onClose}
+      size={620}
+      destroyOnHidden
+    >
+      {!build ? (
+        <Empty description="暂无 Evidence Graph build" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+      ) : (
+        <div className="flex flex-col gap-5">
+          <section className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Tag color={statusColor(build.status)}>{build.status}</Tag>
+              <Tag>build {shortBuildId(build.id)}</Tag>
+              <Tag>{build.graph_profile}</Tag>
+            </div>
+            {build.error_message ? (
+              <Alert type="error" showIcon title="构建错误" description={build.error_message} />
+            ) : null}
+          </section>
+
+          <DiagnosticSection
+            title="Candidate Selection"
+            rows={[
+              ["Semantic chunks", numberValue(candidate.total_semantic_chunk_count)],
+              ["Selected chunks", numberValue(candidate.selected_chunk_count)],
+              ["Skipped chunks", numberValue(candidate.skipped_chunk_count)],
+            ]}
+            maps={[
+              ["By anchor role", recordValue(candidate.by_anchor_role)],
+              ["Skipped reasons", recordValue(candidate.skipped_by_reason)],
+            ]}
+          />
+
+          <DiagnosticSection
+            title="Unit Grouping"
+            rows={[
+              ["Source candidates", numberValue(grouping.source_candidate_chunks)],
+              ["Extraction units", numberValue(grouping.extraction_unit_count)],
+              ["Avg chunks / unit", numberValue(grouping.avg_chunks_per_unit)],
+              ["Max chunks / unit", numberValue(grouping.max_chunks_per_unit)],
+            ]}
+            maps={[["By unit type", recordValue(grouping.by_unit_type)]]}
+          />
+
+          <DiagnosticSection
+            title="Extraction"
+            rows={[
+              ["Accepted", numberValue(extraction.accepted)],
+              ["Rejected", numberValue(extraction.rejected)],
+            ]}
+            maps={[["Rejected by reason", recordValue(extraction.rejected_by_reason)]]}
+          />
+          <RejectSamples samples={arrayValue(extraction.reject_samples)} />
+
+          <DiagnosticSection
+            title="Persist And Governance"
+            rows={[
+              ["Input candidates", numberValue(persist.input_candidates)],
+              ["Persisted candidates", numberValue(persist.persisted_candidates)],
+              ["Duplicate facts", numberValue(persist.duplicate_fact_candidates)],
+              ["Weak facts", numberValue(persist.weak_fact_candidates)],
+              ["Multi-evidence facts", numberValue(persist.multi_evidence_fact_count)],
+              ["Evidence rows / fact", numberValue(persist.evidence_rows_per_fact_avg)],
+              ["Duplicate evidence rows", numberValue(persist.duplicate_evidence_rows)],
+              ["Invalid evidence ids", numberValue(persist.invalid_evidence_chunk_ids)],
+              ["Canonical entity aliases", numberValue(persist.canonicalized_entity_aliases)],
+              ["Canonical predicates", numberValue(persist.canonicalized_predicates)],
+              ["Canonical literals", numberValue(persist.canonicalized_literals)],
+              ["Nodes written", numberValue(persist.nodes_written)],
+              ["Facts written", numberValue(persist.facts_written)],
+              ["Edges written", numberValue(persist.edges_written)],
+              ["Evidence written", numberValue(persist.evidence_written)],
+            ]}
+            maps={[["Canonicalization rules", recordValue(persist.canonicalization_rules_applied)]]}
+          />
+
+          {recoveries.length > 0 ? (
+            <section>
+              <Typography.Text strong>Running Recoveries</Typography.Text>
+              <div className="mt-2 flex flex-col gap-2">
+                {recoveries.slice(-5).map((item, index) => (
+                  <pre
+                    key={index}
+                    className="border-line bg-surface-alt max-h-[140px] overflow-auto rounded-md border p-2 text-xs"
+                  >
+                    {JSON.stringify(item, null, 2)}
+                  </pre>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          <JsonBlock title="Raw quality_summary" value={summary} />
+        </div>
+      )}
+    </Drawer>
+  );
+}
+
+function DiagnosticSection({
+  title,
+  rows,
+  maps,
+}: {
+  title: string;
+  rows: Array<[string, number | null]>;
+  maps?: Array<[string, Record<string, unknown>]>;
+}) {
+  const hasRows = rows.some(([, value]) => value != null);
+  const visibleMaps = (maps ?? []).filter(([, value]) => Object.keys(value).length > 0);
+  return (
+    <section>
+      <Typography.Text strong>{title}</Typography.Text>
+      {!hasRows && visibleMaps.length === 0 ? (
+        <Empty className="!mt-2" description="暂无诊断数据" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+      ) : null}
+      {hasRows ? (
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {rows.map(([label, value]) => (
+            <div key={label} className="rounded-md border border-[var(--line)] px-3 py-2">
+              <div className="text-muted text-xs">{label}</div>
+              <div className="mt-1 text-base font-semibold">{value == null ? "-" : formatMetric(value)}</div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {visibleMaps.map(([label, value]) => (
+        <div key={label} className="mt-3">
+          <Typography.Text type="secondary" className="text-xs">
+            {label}
+          </Typography.Text>
+          <div className="mt-1 flex flex-wrap gap-2">
+            {sortedEntries(value).map(([key, count]) => (
+              <Tag key={key} className="!mr-0">
+                {key} {String(count)}
+              </Tag>
+            ))}
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function RejectSamples({ samples }: { samples: unknown[] }) {
+  if (samples.length === 0) return null;
+  return (
+    <section>
+      <Typography.Text strong>Reject Samples</Typography.Text>
+      <div className="mt-2 flex flex-col gap-2">
+        {samples.slice(0, 5).map((sample, index) => (
+          <pre
+            key={index}
+            className="border-line bg-surface-alt max-h-[140px] overflow-auto rounded-md border p-2 text-xs"
+          >
+            {JSON.stringify(sample, null, 2)}
+          </pre>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 type PagedResult<T> = {
   ok: boolean;
   data: T[];
@@ -1504,6 +1695,12 @@ function formatConfidence(value?: number | null): string {
   return value == null ? "" : `<br/>置信度 ${(value * 100).toFixed(0)}%`;
 }
 
+function formatMetric(value: number): string {
+  if (!Number.isFinite(value)) return "-";
+  if (Number.isInteger(value)) return value.toLocaleString("zh-CN");
+  return value.toLocaleString("zh-CN", { maximumFractionDigits: 4 });
+}
+
 function shortId(value: string): string {
   if (value.length <= 12) return value;
   return `${value.slice(0, 8)}...${value.slice(-4)}`;
@@ -1569,4 +1766,37 @@ function resolveGraphProfile(ref: NormalizedAssetRef | null): string {
 
 function stringValue(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return objectValue(value);
+}
+
+function arrayValue(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function numberValue(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function sortedEntries(value: Record<string, unknown>): Array<[string, unknown]> {
+  return Object.entries(value).sort((left, right) => {
+    const leftNumber = numberValue(left[1]);
+    const rightNumber = numberValue(right[1]);
+    if (leftNumber != null && rightNumber != null && leftNumber !== rightNumber) {
+      return rightNumber - leftNumber;
+    }
+    return left[0].localeCompare(right[0]);
+  });
 }

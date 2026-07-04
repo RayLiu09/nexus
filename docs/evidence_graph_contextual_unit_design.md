@@ -250,6 +250,16 @@ GraphBuild `quality_summary` 增加：
 
 后续保留 Console overview/focused graph 交互增强。
 
+### 阶段 4：构建诊断可观测性
+
+- Console Evidence Graph 页面提供“构建诊断”入口。
+- 按 candidate selection、unit grouping、extraction、persist/governance
+  展示 `quality_summary`。
+- failed/running/succeeded build 均可查看错误、恢复记录和原始 summary。
+
+实施状态：已落地。诊断 Drawer 兼容旧 build 缺失字段，并保留 raw
+`quality_summary` 作为兜底。
+
 ## 10. 验收标准
 
 - 对同一 normalized ref，Evidence Graph build 不再对每个 chunk 独立 LLM 抽取。
