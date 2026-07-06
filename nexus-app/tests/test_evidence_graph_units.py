@@ -67,17 +67,30 @@ def test_splits_long_body_sections_with_overlap():
     units = group_graph_extraction_units(
         [
             _candidate(chunk_id=f"chunk-{index}", chunk_index=index, heading_path=["章节"])
-            for index in range(1, 6)
+            for index in range(1, 27)
         ],
         graph_profile="report_document",
-        max_chunks_per_unit=3,
-        overlap_chunks=1,
     )
 
     assert len(units) == 2
-    assert units[0].chunk_ids == ("chunk-1", "chunk-2", "chunk-3")
-    assert units[1].chunk_ids == ("chunk-3", "chunk-4", "chunk-5")
+    assert units[0].chunk_ids == tuple(f"chunk-{index}" for index in range(1, 25))
+    assert units[1].chunk_ids == tuple(f"chunk-{index}" for index in range(24, 27))
     assert units[1].unit_type == "sliding_window"
+
+
+def test_body_grouping_requires_adjacent_chunks_even_with_same_heading():
+    units = group_graph_extraction_units(
+        [
+            _candidate(chunk_id="chunk-1", chunk_index=1, heading_path=["章节"]),
+            _candidate(chunk_id="chunk-3", chunk_index=3, heading_path=["章节"]),
+        ],
+        graph_profile="report_document",
+    )
+
+    assert len(units) == 2
+    assert units[0].chunk_ids == ("chunk-1",)
+    assert units[1].chunk_ids == ("chunk-3",)
+    assert all(unit.unit_type == "section" for unit in units)
 
 
 def test_non_body_rule_candidate_stays_single_chunk_with_raw_content():

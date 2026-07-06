@@ -15,8 +15,8 @@ from typing import Any
 from nexus_app.evidence_graph.candidates import GraphChunkCandidate
 from nexus_app.evidence_graph.profiles import AnchorRole, ExtractionMethod
 
-DEFAULT_MAX_UNIT_CHARS = 12000
-DEFAULT_MAX_CHUNKS_PER_UNIT = 12
+DEFAULT_MAX_UNIT_CHARS = 24000
+DEFAULT_MAX_CHUNKS_PER_UNIT = 24
 DEFAULT_OVERLAP_CHUNKS = 1
 
 
@@ -114,7 +114,10 @@ def group_graph_extraction_units(
     for candidate in ordered:
         if _is_body_llm_candidate(candidate):
             heading = _heading_path(candidate)
-            if body_buffer and heading != body_heading:
+            if body_buffer and (
+                heading != body_heading
+                or candidate.chunk_index != body_buffer[-1].chunk_index + 1
+            ):
                 flush_body()
             body_buffer.append(candidate)
             body_heading = heading

@@ -256,11 +256,18 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
       return;
     }
 
-    const summary = await getApiData<KnowledgeGraphLatestSummary>(
+    let summary = await getApiData<KnowledgeGraphLatestSummary>(
       `/api/evidence-graphs/normalized-refs/${normalizedRefId}`,
       { build: null },
       { graph_profile: graphProfile, strategy_version: STRATEGY_VERSION },
     );
+    if (summary.ok && !summary.data.build) {
+      summary = await getApiData<KnowledgeGraphLatestSummary>(
+        `/api/evidence-graphs/normalized-refs/${normalizedRefId}`,
+        { build: null },
+        { strategy_version: STRATEGY_VERSION },
+      );
+    }
     if (!summary.ok) {
       setState({
         loading: false,
@@ -1462,12 +1469,19 @@ async function fetchLatestActiveBuild(
   normalizedRefId: string,
   graphProfile: string,
 ): Promise<{ ok: boolean; build: KnowledgeGraphBuild | null; error: string | null }> {
-  const builds = await getApiData<KnowledgeGraphBuild[]>("/api/evidence-graphs/builds", [], {
+  let builds = await getApiData<KnowledgeGraphBuild[]>("/api/evidence-graphs/builds", [], {
     normalized_ref_id: normalizedRefId,
     graph_profile: graphProfile,
     strategy_version: STRATEGY_VERSION,
     pageSize: "50",
   });
+  if (builds.ok && builds.data.length === 0) {
+    builds = await getApiData<KnowledgeGraphBuild[]>("/api/evidence-graphs/builds", [], {
+      normalized_ref_id: normalizedRefId,
+      strategy_version: STRATEGY_VERSION,
+      pageSize: "50",
+    });
+  }
   if (!builds.ok) {
     return {
       ok: false,

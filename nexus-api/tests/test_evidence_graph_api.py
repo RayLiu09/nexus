@@ -427,6 +427,30 @@ def test_zero_row_succeeded_build_is_not_reused_or_returned_as_latest(
     assert submitted.json()["data"]["build"]["id"] != build.id
 
 
+def test_review_required_build_with_graph_rows_is_returned_as_latest(
+    app,
+    session,
+    graph_fixture,
+):
+    ref, build, _pending, _chunk, _chunk_2 = graph_fixture
+    build.status = "review_required"
+    build.quality_summary = {
+        **(build.quality_summary or {}),
+        "graph_quality_gate": {"decision": "review_required"},
+    }
+    session.commit()
+
+    with TestClient(app) as client:
+        latest = client.get(f"/internal/v1/normalized-refs/{ref.id}/knowledge-graph")
+
+    assert latest.status_code == 200
+    data = latest.json()["data"]
+    assert data["build"]["id"] == build.id
+    assert data["build"]["status"] == "review_required"
+    assert data["nodes"] == 2
+    assert data["facts"] == 1
+
+
 def test_submit_build_missing_ref_returns_404(app):
     with TestClient(app) as client:
         resp = client.post("/internal/v1/knowledge-graphs/builds", json={

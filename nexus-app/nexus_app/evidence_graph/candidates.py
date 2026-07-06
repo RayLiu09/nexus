@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Any
 
 from sqlalchemy import select
@@ -152,10 +153,69 @@ def _is_low_quality(metadata: dict) -> bool:
 
 def _is_non_semantic_image(metadata: dict, content: str) -> bool:
     image_role = str(metadata.get("image_role") or metadata.get("visual_role") or "").lower()
-    if image_role in {"decorative", "logo", "qr", "qrcode"}:
+    if image_role in {
+        "decorative",
+        "logo",
+        "qr",
+        "qrcode",
+        "screenshot",
+        "screen",
+        "ui",
+        "interface",
+        "software_screenshot",
+        "platform_screenshot",
+    }:
         return True
     lowered = content.strip().lower()
-    return lowered in {"qr", "qrcode", "logo", "about us", "目录"}
+    if lowered in {"qr", "qrcode", "logo", "about us", "目录"}:
+        return True
+    return _is_low_knowledge_screenshot(metadata, content)
+
+
+_SCREENSHOT_CAPTION_RE = re.compile(
+    r"(界面|页面|登录|注册|编辑资料|修改|保存|按钮|菜单|弹窗|对话框|设置|上传|"
+    r"选择照片|更换头像|截图|screen\s*shot|screenshot|interface|login|sign\s*in)",
+    re.IGNORECASE,
+)
+_KNOWLEDGE_VISUAL_RE = re.compile(
+    r"(结构|流程|模型|模式|矩阵|导图|关系|架构|原理|示意|趋势|分布|对比|"
+    r"分类|步骤图|知识图|概念图|图谱|framework|model|matrix|process|diagram)",
+    re.IGNORECASE,
+)
+_UI_TOKEN_RE = re.compile(
+    r"(<label>|<text>|<back arrow>|请输入|验证码|密码|登录|注册|保存|取消|确定|"
+    r"点击|按钮|菜单|设置|更换|上传|选择|完善信息|用户协议|隐私政策|手机号|"
+    r"生日|性别|所在地|相册|查看大图|资料完成度)",
+    re.IGNORECASE,
+)
+
+
+def _is_low_knowledge_screenshot(metadata: dict, content: str) -> bool:
+    caption = str(metadata.get("caption") or metadata.get("title") or "").strip()
+    text = content.strip()
+    combined = f"{caption}\n{text}".strip()
+    if not combined:
+        return False
+
+    if _KNOWLEDGE_VISUAL_RE.search(caption):
+        return False
+
+    ui_token_count = len(_UI_TOKEN_RE.findall(combined))
+    label_count = combined.lower().count("<label>")
+    bullet_lines = [
+        line.strip()
+        for line in combined.splitlines()
+        if line.strip().startswith(("-", "*", "•"))
+    ]
+    short_control_lines = sum(1 for line in bullet_lines if len(line) <= 24)
+
+    if _SCREENSHOT_CAPTION_RE.search(caption) and (ui_token_count >= 2 or label_count >= 1):
+        return True
+    if label_count >= 2 or ui_token_count >= 5:
+        return True
+    if _SCREENSHOT_CAPTION_RE.search(caption) and short_control_lines >= 3:
+        return True
+    return False
 
 
 def _to_candidate(

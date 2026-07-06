@@ -119,17 +119,23 @@ class GraphExtractionUnit:
 默认参数：
 
 ```text
-max_unit_chars = 12000
-max_chunks_per_unit = 12
+max_unit_chars = 24000
+max_chunks_per_unit = 24
 overlap_chunks = 1
 ```
+
+实现约束：
+
+- 只聚合 `chunk_index` 前后相邻的 body chunks。
+- 即使 `heading_path` 相同，只要中间存在 image、table、跳过 chunk 或 index
+  断点，也会切成新的 `section` unit，避免跨非连续上下文拼接。
 
 当同一 `heading_path` 下内容超出限制：
 
 ```text
-section chunks 10-25
-  -> window 1: chunks 10-21
-  -> window 2: chunks 21-25
+section chunks 10-40
+  -> window 1: chunks 10-33
+  -> window 2: chunks 33-40
 ```
 
 ### 6.2 table_row chunks
@@ -152,8 +158,14 @@ table rows 30-45
 视觉类 chunk 初版保持较小分组：
 
 - `metric_image`、`chart` 可独立成 unit。
-- 普通 `image` 如有 caption 或相邻 body 上下文，后续可升级为
-  `visual_context`。
+- 普通 `image` 只有在具有图示、结构、流程、模式、矩阵、趋势、分布等
+  知识语义时才进入 `visual_context`。
+- 教材中的平台/软件截图、登录/注册/编辑资料/设置/按钮/菜单/弹窗等 UI
+  操作截图，即使带图题，也默认视为低知识价值 image，在 candidate
+  selection 阶段以 `non_semantic_image` 跳过。
+- 过滤使用确定性 metadata/content 信号：`image_role`/`visual_role`、caption、
+  OCR 文本中的 `<label>`、按钮/菜单/登录/保存/取消等界面控件词；结构图、
+  流程图、矩阵图、导图等 caption 作为保留信号。
 
 ### 6.4 Task Outline chunks
 
@@ -204,7 +216,7 @@ GraphBuild `quality_summary` 增加：
     "source_candidate_chunks": 1034,
     "extraction_unit_count": 126,
     "avg_chunks_per_unit": 8.2,
-    "max_chunks_per_unit": 12,
+    "max_chunks_per_unit": 24,
     "by_unit_type": {"section": 100, "table_group": 20, "visual_context": 6}
   }
 }

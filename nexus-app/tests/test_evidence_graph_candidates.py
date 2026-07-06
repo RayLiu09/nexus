@@ -388,6 +388,72 @@ def test_textbook_profile_skips_task_outline_chunks(session):
     assert result.skipped_by_reason == {"task_outline_not_graph_candidate": 3}
 
 
+def test_textbook_profile_skips_low_knowledge_platform_screenshots(session):
+    ref = _seed_ref(session, ref_id="ref-textbook-screenshots")
+    _add_chunk(
+        session,
+        ref_id=ref.id,
+        chunk_id="chunk-body",
+        index=1,
+        anchor_role="body",
+        content="账号简介用于向用户说明账号定位、内容方向和服务对象。",
+    )
+    _add_chunk(
+        session,
+        ref_id=ref.id,
+        chunk_id="chunk-screenshot-login",
+        index=2,
+        anchor_role="image",
+        content=(
+            "▲图 2-2-1 抖音账号注册、登录\n"
+            "- <label>: 帮助与设置\n"
+            "- <label>: 请输入手机号\n"
+            "- <label>: 验证并登录\n"
+            "- <label>: 密码登录"
+        ),
+        metadata_extra={"caption": "▲图 2-2-1 抖音账号注册、登录"},
+    )
+    _add_chunk(
+        session,
+        ref_id=ref.id,
+        chunk_id="chunk-screenshot-profile",
+        index=3,
+        anchor_role="image",
+        content=(
+            "▲图 2-2-2 “编辑资料”界面\n"
+            "- <label>: 更换背景\n"
+            "- <label>: 点击更换头像\n"
+            "- <label>: 名字\n"
+            "- <label>: 简介\n"
+            "- <label>: 保存"
+        ),
+        metadata_extra={"caption": "▲图 2-2-2 “编辑资料”界面"},
+    )
+    _add_chunk(
+        session,
+        ref_id=ref.id,
+        chunk_id="chunk-knowledge-matrix",
+        index=4,
+        anchor_role="image",
+        content="▲图2-3-2 辐射性矩阵模式\n- 分账号A\n- 主账号\n- 分账号B\n- 分账号C",
+        metadata_extra={"caption": "▲图2-3-2 辐射性矩阵模式"},
+    )
+    session.commit()
+
+    result = select_graph_candidate_chunks(
+        session,
+        normalized_ref_id=ref.id,
+        graph_profile="textbook",
+    )
+
+    assert [candidate.chunk_id for candidate in result.candidate_chunks] == [
+        "chunk-body",
+        "chunk-knowledge-matrix",
+    ]
+    assert result.skipped_by_reason == {"non_semantic_image": 2}
+    assert result.by_anchor_role == {"body": 1, "image": 1}
+
+
 def test_candidate_selection_applies_profile_role_filter(session):
     ref = _seed_ref(session)
     _add_chunk(

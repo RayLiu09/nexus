@@ -120,13 +120,23 @@ def get_latest_succeeded_build(
     graph_profile: str | None = None,
     strategy_version: str | None = None,
 ) -> models.KnowledgeGraphBuild | None:
-    """Return the newest succeeded build with formal graph rows for a ref."""
+    """Return the newest displayable terminal build with formal graph rows.
+
+    ``review_required`` builds can still contain persisted graph rows and
+    diagnostics. Console must show them for review instead of treating the ref
+    as having no Evidence Graph build.
+    """
     stmt = (
         select(models.KnowledgeGraphBuild)
         .where(
             models.KnowledgeGraphBuild.normalized_ref_id == normalized_ref_id,
             models.KnowledgeGraphBuild.graph_type == GRAPH_TYPE,
-            models.KnowledgeGraphBuild.status == KnowledgeGraphBuildStatus.SUCCEEDED,
+            models.KnowledgeGraphBuild.status.in_(
+                (
+                    KnowledgeGraphBuildStatus.SUCCEEDED,
+                    KnowledgeGraphBuildStatus.REVIEW_REQUIRED,
+                )
+            ),
             (
                 (models.KnowledgeGraphBuild.fact_count > 0)
                 | (models.KnowledgeGraphBuild.node_count > 0)

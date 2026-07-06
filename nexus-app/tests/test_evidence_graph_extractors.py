@@ -84,6 +84,7 @@ class _SlowScriptedLLM(_ScriptedLLM):
 def _candidate(
     *,
     chunk_id: str = "chunk-1",
+    chunk_index: int = 1,
     anchor_role: str = "body",
     extractor_name: str = "BodyLLMExtractor",
     extraction_method: str = "llm",
@@ -92,7 +93,7 @@ def _candidate(
     return GraphChunkCandidate(
         chunk_id=chunk_id,
         normalized_ref_id="ref-1",
-        chunk_index=1,
+        chunk_index=chunk_index,
         knowledge_type_code="document_semantic_chunk",
         anchor_role=anchor_role,
         extractor_name=extractor_name,
@@ -252,6 +253,58 @@ def test_body_llm_extractor_accepts_internal_predicate_for_chinese_source():
     assert result.accepted[0].predicate == "ISSUED_BY"
 
 
+def test_body_llm_extractor_accepts_english_relation_code_for_chinese_source():
+    item = {
+        "fact_type": "example_fact",
+        "subject": {"type": "Entity", "name": "小李"},
+        "predicate": "NEEDS TO SET AFTER",
+        "object": {"type": "KnowledgePoint", "name": "拍摄设备拍摄参数"},
+        "evidence_text": "在完成场景布光后，小李需要根据场景设置拍摄设备的拍摄参数。",
+        "confidence": 0.91,
+    }
+    llm = _ScriptedLLM([_llm_payload(item)])
+    extractor = BodyLLMExtractor(llm_client=llm)
+
+    result = extractor.extract(
+        _candidate(content="在完成场景布光后，小李需要根据场景设置拍摄设备的拍摄参数。"),
+        graph_profile="textbook",
+    )
+
+    assert result.accepted_count == 1
+    assert result.rejected_count == 0
+    assert result.accepted[0].predicate == "NEEDS TO SET AFTER"
+
+
+def test_body_llm_extractor_ignores_control_qualifiers_for_language_check():
+    item = {
+        "fact_type": "dependency_fact",
+        "subject": {"type": "Concept", "name": "短视频行业"},
+        "predicate": "HAS_DEMAND_FOR",
+        "object": {"type": "Entity", "name": "短视频专业人才"},
+        "qualifiers": {
+            "context_role": "definition",
+            "context_relation": "definition_of",
+            "context_for_chunk_ids": ["chunk-1", "chunk-2"],
+        },
+        "evidence_text": "企业和社会对短视频专业人才的需求也在不断增长。",
+        "confidence": 0.92,
+    }
+    llm = _ScriptedLLM([_llm_payload(item)])
+    extractor = BodyLLMExtractor(llm_client=llm)
+
+    result = extractor.extract(
+        _candidate(
+            content="企业和社会对短视频专业人才的需求也在不断增长。",
+        ),
+        graph_profile="textbook",
+    )
+
+    assert result.accepted_count == 1
+    assert result.rejected_count == 0
+    assert result.accepted[0].predicate == "HAS_DEMAND_FOR"
+    assert result.accepted[0].qualifiers["context_role"] == "definition"
+
+
 def test_body_llm_extractor_accepts_source_acronym_for_chinese_source():
     item = {
         "fact_type": "standard_fact",
@@ -273,6 +326,28 @@ def test_body_llm_extractor_accepts_source_acronym_for_chinese_source():
     assert result.accepted_count == 1
     assert result.rejected_count == 0
     assert result.accepted[0].object_literal == "API"
+
+
+def test_body_llm_extractor_accepts_source_software_terms_for_chinese_source():
+    item = {
+        "fact_type": "dependency_fact",
+        "subject": {"type": "Entity", "name": "Premiere"},
+        "predicate": "CAN_COLLABORATE_WITH",
+        "object": {"type": "Entity", "name": "After Effects、Photoshop"},
+        "evidence_text": "并且兼容性强，能和After Effects、Photoshop等软件相互协作。",
+        "confidence": 0.9,
+    }
+    llm = _ScriptedLLM([_llm_payload(item)])
+    extractor = BodyLLMExtractor(llm_client=llm)
+
+    result = extractor.extract(
+        _candidate(content="Premiere兼容性强，能和After Effects、Photoshop等软件相互协作。"),
+        graph_profile="textbook",
+    )
+
+    assert result.accepted_count == 1
+    assert result.rejected_count == 0
+    assert result.accepted[0].subject.name == "Premiere"
 
 
 def test_body_llm_extractor_runs_same_type_chunks_as_individual_calls():
@@ -325,10 +400,12 @@ def test_extract_graph_units_runs_section_as_single_llm_call():
         [
             _candidate(
                 chunk_id="chunk-1",
+                chunk_index=1,
                 content="部门A发布政策A。",
             ),
             _candidate(
                 chunk_id="chunk-2",
+                chunk_index=2,
                 content="政策A提出重点任务。",
             ),
         ],
@@ -370,8 +447,8 @@ def test_extract_graph_units_keeps_valid_unit_source_chunk_id():
     llm = _ScriptedLLM([_llm_payload(item)])
     units = group_graph_extraction_units(
         [
-            _candidate(chunk_id="chunk-1", content="部门A发布政策A。"),
-            _candidate(chunk_id="chunk-2", content="政策A提出重点任务。"),
+            _candidate(chunk_id="chunk-1", chunk_index=1, content="部门A发布政策A。"),
+            _candidate(chunk_id="chunk-2", chunk_index=2, content="政策A提出重点任务。"),
         ],
         graph_profile="report_document",
     )
@@ -407,8 +484,8 @@ def test_extract_graph_units_drops_invalid_evidence_chunk_ids():
     llm = _ScriptedLLM([_llm_payload(item)])
     units = group_graph_extraction_units(
         [
-            _candidate(chunk_id="chunk-1", content="部门A发布政策A。"),
-            _candidate(chunk_id="chunk-2", content="政策A提出重点任务。"),
+            _candidate(chunk_id="chunk-1", chunk_index=1, content="部门A发布政策A。"),
+            _candidate(chunk_id="chunk-2", chunk_index=2, content="政策A提出重点任务。"),
         ],
         graph_profile="report_document",
     )

@@ -1287,54 +1287,21 @@ def _language_mismatch(item: dict[str, Any], source_content: str) -> bool:
     text_fields = [
         item.get("object_literal"),
     ]
-    predicate = item.get("predicate")
-    if isinstance(predicate, str) and not _is_internal_relation_label(predicate):
-        text_fields.append(predicate)
     subject = item.get("subject")
     if isinstance(subject, dict):
         text_fields.append(subject.get("name"))
     obj = item.get("object")
     if isinstance(obj, dict):
         text_fields.append(obj.get("name"))
-    qualifiers = item.get("qualifiers")
-    if isinstance(qualifiers, dict):
-        text_fields.extend(_flatten_text_values(qualifiers))
 
     checked = [str(value) for value in text_fields if isinstance(value, str) and value.strip()]
     if not checked:
         return False
     english_only = [
         value for value in checked
-        if _contains_latin_word(value)
-        and not _contains_cjk(value)
-        and value.strip() not in source_content
+        if _looks_like_unsourced_english_phrase(value, source_content)
     ]
     return bool(english_only)
-
-
-def _flatten_text_values(value: Any) -> list[str]:
-    if isinstance(value, str):
-        return [value]
-    if isinstance(value, dict):
-        result: list[str] = []
-        for key, item in value.items():
-            if str(key).startswith("raw_") or str(key) in {
-                "evidence_chunk_ids",
-                "invalid_evidence_chunk_ids",
-                "extraction_unit_chunk_ids",
-                "extraction_unit_id",
-                "extraction_unit_type",
-                "heading_path",
-            }:
-                continue
-            result.extend(_flatten_text_values(item))
-        return result
-    if isinstance(value, list):
-        result: list[str] = []
-        for item in value:
-            result.extend(_flatten_text_values(item))
-        return result
-    return []
 
 
 def _contains_cjk(value: str) -> bool:
@@ -1345,8 +1312,24 @@ def _contains_latin_word(value: str) -> bool:
     return bool(re.search(r"[A-Za-z]{2,}", value))
 
 
-def _is_internal_relation_label(value: str) -> bool:
-    return bool(re.fullmatch(r"[A-Z][A-Z0-9_]{1,127}", value.strip()))
+def _looks_like_unsourced_english_phrase(value: str, source_content: str) -> bool:
+    text = value.strip()
+    if not text or _contains_cjk(text) or not _contains_latin_word(text):
+        return False
+    if _source_contains_latin_term(source_content, text):
+        return False
+    words = re.findall(r"[A-Za-z]{2,}", text)
+    if len(words) >= 2:
+        return True
+    return len(text) >= 16 and " " in text
+
+
+def _source_contains_latin_term(source_content: str, value: str) -> bool:
+    return _normalize_latin_term(value) in _normalize_latin_term(source_content)
+
+
+def _normalize_latin_term(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", value.lower())
 
 
 def _parse_key_value_lines(content: str) -> dict[str, str]:
