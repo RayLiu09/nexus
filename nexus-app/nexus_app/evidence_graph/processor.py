@@ -14,10 +14,12 @@ from nexus_app import models
 from nexus_app.ai_governance.litellm_client import LiteLLMClientProtocol
 from nexus_app.config import Settings, get_settings
 from nexus_app.evidence_graph.extractors import extract_graph_units
+from nexus_app.evidence_graph.governance import govern_graph_candidates
 from nexus_app.evidence_graph.persist import GraphPersistResult, persist_graph_candidates
 from nexus_app.evidence_graph.service import (
     GRAPH_TYPE,
     KnowledgeGraphBuildStatus,
+    utcnow,
     mark_graph_build_failed,
     mark_graph_build_running,
 )
@@ -163,13 +165,17 @@ def process_graph_build(
                     **sample,
                     "source_chunk_id": sample.get("source_chunk_id") or result.source_chunk_id,
                 })
+        governed = govern_graph_candidates(
+            accepted,
+            chunk_candidates=selection.candidate_chunks,
+        )
         persisted = persist_graph_candidates(
             session,
             build=build,
-            candidates=accepted,
+            candidates=governed.accepted,
             chunk_candidates=selection.candidate_chunks,
             source_candidate_count=selection.selected_chunk_count,
-            extraction_rejected_count=rejected_count,
+            extraction_rejected_count=rejected_count + len(governed.rejected),
         )
         summary = {
             **(build.quality_summary or {}),
@@ -181,13 +187,26 @@ def process_graph_build(
                 "rejected_by_reason": rejected_by_reason,
                 "reject_samples": reject_samples,
             },
+            "build_scope_governance": governed.quality_summary,
             "persist": persisted.quality_summary,
         }
+        quality_gate = _graph_quality_gate(
+            build_scope_governance=governed.quality_summary,
+            persist_summary=persisted.quality_summary,
+        )
+        summary["graph_quality_gate"] = quality_gate
+        if (
+            persisted.status == KnowledgeGraphBuildStatus.SUCCEEDED
+            and quality_gate["decision"] == KnowledgeGraphBuildStatus.REVIEW_REQUIRED
+        ):
+            build.status = KnowledgeGraphBuildStatus.REVIEW_REQUIRED
+            build.completed_at = utcnow()
+            build.error_message = None
         build.quality_summary = summary
         session.flush()
         return GraphBuildProcessResult(
             build_id=build.id,
-            status=str(persisted.status),
+            status=str(build.status),
             selected_chunk_count=selection.selected_chunk_count,
             extracted_candidate_count=len(accepted),
             persisted=persisted,
@@ -269,4 +288,59 @@ def _selection_to_dict(selection) -> dict[str, Any]:
         "total_semantic_chunk_count": selection.total_semantic_chunk_count,
         "by_anchor_role": selection.by_anchor_role,
         "skipped_by_reason": selection.skipped_by_reason,
+    }
+
+
+def _graph_quality_gate(
+    *,
+    build_scope_governance: dict[str, Any],
+    persist_summary: dict[str, Any],
+) -> dict[str, Any]:
+    """Evaluate whether the persisted graph is suitable as RAG context graph.
+
+    This is a build diagnostic gate only; it does not remove persisted rows.
+    Rows remain evidence-bound and inspectable, while low-context builds enter
+    review_required instead of being treated as ready graph context.
+    """
+    retained = int(build_scope_governance.get("retained_candidates") or 0)
+    facts_written = int(persist_summary.get("facts_written") or 0)
+    context_link_count = int(build_scope_governance.get("context_link_count") or 0)
+    single_ratio = float(build_scope_governance.get("single_chunk_fact_ratio") or 0)
+    multi_ratio = float(build_scope_governance.get("multi_chunk_fact_ratio") or 0)
+    generic_ratio = float(build_scope_governance.get("generic_entity_ratio") or 0)
+    facts_per_chunk = float(build_scope_governance.get("facts_per_source_chunk_avg") or 0)
+
+    warnings: list[str] = []
+    blockers: list[str] = []
+    if facts_written == 0:
+        blockers.append("no_persisted_graph_rows")
+    if retained >= 3 and context_link_count == 0:
+        warnings.append("no_chunk_context_links")
+    if retained >= 5 and single_ratio > 0.9 and facts_per_chunk > 1.5:
+        warnings.append("over_localized_single_chunk_graph")
+    if retained >= 3 and generic_ratio > 0.3:
+        warnings.append("generic_entity_ratio_high")
+    if retained >= 5 and multi_ratio < 0.1:
+        warnings.append("multi_chunk_context_low")
+
+    decision = (
+        KnowledgeGraphBuildStatus.FAILED
+        if blockers
+        else KnowledgeGraphBuildStatus.REVIEW_REQUIRED
+        if warnings
+        else KnowledgeGraphBuildStatus.SUCCEEDED
+    )
+    return {
+        "decision": str(decision),
+        "warnings": warnings,
+        "blockers": blockers,
+        "metrics": {
+            "retained_candidates": retained,
+            "facts_written": facts_written,
+            "context_link_count": context_link_count,
+            "single_chunk_fact_ratio": single_ratio,
+            "multi_chunk_fact_ratio": multi_ratio,
+            "generic_entity_ratio": generic_ratio,
+            "facts_per_source_chunk_avg": facts_per_chunk,
+        },
     }

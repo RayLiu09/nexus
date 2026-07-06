@@ -645,6 +645,8 @@ def _build_body_messages(
     system = (
         "You extract evidence-grounded knowledge graph fact candidates. "
         "Return JSON only: {\"candidates\": [...]}. "
+        "Extract only high-value context facts that help complete the semantic "
+        "context of RAG chunks; do not enumerate every local sentence as a triple. "
         "Keep subject.name, object.name, object_literal, qualifiers, and evidence_text "
         "in the same natural language as the source content. Do not translate Chinese source text "
         "into English. Use exact source wording when possible. Predicate may use an internal "
@@ -688,13 +690,22 @@ def _build_body_messages(
                         "string value when the object is a literal; otherwise null. "
                         "If object is null, object_literal is required."
                     ),
-                    "qualifiers": "object; use {} when none",
+                    "qualifiers": {
+                        "context_role": (
+                            "one of definition, requirement, metric_context, finding, "
+                            "trend, policy_context, dependency, method, procedure, "
+                            "section_topic, supporting_evidence"
+                        ),
+                    },
                     "evidence_text": "exact source-language evidence quote",
                     "confidence": "number between 0 and 1",
                 }
             ],
         },
         "rules": [
+            "Prefer core definitions, requirements, metrics, findings, trends, policy context, dependencies, methods, and section topics.",
+            "Do not exhaustively convert every sentence, example, repeated phrase, or generic mention into a fact.",
+            "Skip ordinary local mentions unless they provide useful context for other chunks.",
             "subject.type is required and must never be null.",
             "subject.name is required and must never be null.",
             "object may be null only when object_literal is provided.",
@@ -719,6 +730,8 @@ def _build_body_unit_messages(
     system = (
         "You extract evidence-grounded knowledge graph fact candidates from a "
         "contextual document unit. Return JSON only: {\"candidates\": [...]}. "
+        "Extract only core context facts that help complete the semantic context "
+        "of RAG chunks in this unit; do not enumerate every local sentence as a triple. "
         "Keep subject.name, object.name, object_literal, qualifiers, and evidence_text "
         "in the same natural language as the source content. Do not translate Chinese source text "
         "into English. Use exact source wording when possible. Predicate may use an internal "
@@ -781,6 +794,14 @@ def _build_body_unit_messages(
                     ),
                     "qualifiers": {
                         "evidence_chunk_ids": "array of chunk ids that support this fact",
+                        "context_for_chunk_ids": (
+                            "array of chunk ids whose semantic context is completed by this fact"
+                        ),
+                        "context_role": (
+                            "one of definition, requirement, metric_context, finding, "
+                            "trend, policy_context, dependency, method, procedure, "
+                            "section_topic, supporting_evidence"
+                        ),
                     },
                     "evidence_text": "exact source-language evidence quote from the unit",
                     "confidence": "number between 0 and 1",
@@ -789,10 +810,14 @@ def _build_body_unit_messages(
         },
         "rules": [
             "Only extract facts supported by text in this unit.",
+            "Prefer facts that explain, qualify, summarize, or connect multiple chunks in the unit.",
+            "Do not exhaustively convert every sentence, example, repeated phrase, or generic mention into a fact.",
+            "Keep at most the core context facts; skip facts that are only useful inside one self-contained sentence.",
             "Every fact must cite an exact evidence_text quote from this unit.",
             "Use only chunk IDs listed in chunks; do not invent source IDs.",
             "Prefer the most specific supporting chunk as source_chunk_id.",
             "When a fact uses multiple chunks, put all supporting IDs in qualifiers.evidence_chunk_ids.",
+            "When a fact helps explain chunks beyond its source sentence, put those IDs in qualifiers.context_for_chunk_ids.",
             "Do not create facts for ordinary examples, repeated wording, or unstable subjects.",
             "subject.type is required and must never be null.",
             "subject.name is required and must never be null.",

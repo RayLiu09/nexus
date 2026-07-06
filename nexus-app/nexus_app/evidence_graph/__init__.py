@@ -29,6 +29,10 @@ from nexus_app.evidence_graph.extractors import (
     extract_graph_units,
     extractor_for_name,
 )
+from nexus_app.evidence_graph.governance import (
+    GovernedGraphCandidates,
+    govern_graph_candidates,
+)
 from nexus_app.evidence_graph.profiles import (
     GRAPH_PROFILE_CONFIGS,
     AnchorRole,
@@ -76,6 +80,7 @@ __all__ = [
     "GraphFactCandidate",
     "GraphPersistResult",
     "GraphProfileConfig",
+    "GovernedGraphCandidates",
     "KnowledgeGraphBuildStatus",
     "MetricImageExtractor",
     "SemanticImageExtractor",
@@ -90,6 +95,7 @@ __all__ = [
     "get_graph_profile_config",
     "get_existing_graph_build",
     "get_latest_succeeded_build",
+    "govern_graph_candidates",
     "group_graph_extraction_units",
     "list_graph_profile_configs",
     "mark_graph_build_failed",

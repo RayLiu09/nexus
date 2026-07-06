@@ -236,19 +236,51 @@ GraphBuild `quality_summary` 增加：
 
 - build-level entity canonicalization 增强。
 - duplicate facts merge 增强。
+- build-scope semantic salience / context-role governance。
 - 默认 Graph UI 展示 overview graph，点击后再展开 focused graph。
 
-实施状态：已部分落地。当前阶段在持久化层提供确定性治理：
+实施状态：已部分落地并扩展为构建范围治理。当前阶段在持久化前增加
+`build_scope_governance`，并在持久化层提供确定性治理：
 
 - 实体名称、谓词、数值 literal 的基础归一化。
 - 弱 `MENTIONS` / 噪声标题类 fact 过滤。
 - overlap window 造成的重复 evidence row 去重。
+- 对候选 fact 做语义价值评分，优先保留定义、指标、政策要求、结论、
+  章节主题、跨 chunk 支撑关系等有助于 RAG chunk 上下文补全的事实。
+- 对低价值局部 mention、泛化实体、单 chunk 过量抽取、缺少上下文价值的
+  候选在正式 graph 入库前过滤。
+- 保留候选的 `context_role`、`salience`、`context_for_chunk_ids` 等上下文
+  元数据到 `fact.qualifiers`，但不新增表结构。
+- 为 retained fact 派生 `graph_context_relation`、`graph_context_priority`、
+  `graph_context_reason`，并在 `quality_summary.build_scope_governance` 中
+  输出稳定的 `chunk_context_links` 诊断数组。该数组表达：
+
+```text
+chunk_id -> candidate/fact context
+relation = section_topic | definition_of | constraint_for | metric_context
+         | summary_of | policy_scope | prerequisite | procedure_context
+         | supporting_evidence | local_context
+priority = graph_salience + multi-chunk / context-for 加权
+```
+
+当前阶段 `chunk_context_links` 是构建诊断与后续检索设计输入，不是新增
+持久化表，也不被 search/QA runtime 消费。
 - `quality_summary` 输出 `canonicalized_entity_aliases`、
   `canonicalized_predicates`、`canonicalized_literals`、
   `weak_fact_candidates`、`duplicate_evidence_rows` 和
   `canonicalization_rules_applied`。
+- `quality_summary.build_scope_governance` 输出 `facts_per_source_chunk_avg`、
+  `single_chunk_fact_ratio`、`multi_chunk_fact_ratio`、
+  `generic_entity_ratio`、`context_link_count`、`low_salience_candidates`、
+  `per_chunk_overrun_candidates` 等粒度指标。
+- `quality_summary.graph_quality_gate` 对构建结果做 RAG context suitability
+  判断。若已有 graph rows 但 `context_link_count` 过低、单 chunk 局部事实
+  比例过高、泛化实体比例过高或多 chunk 上下文不足，build 可进入
+  `review_required`，保留 graph rows 供审查，不直接视为可用 context graph。
 
-后续保留 Console overview/focused graph 交互增强。
+后续保留 Console overview/focused graph 交互增强。Evidence Graph 与
+检索/QA 的 runtime context expansion 暂不在本阶段实现，等待检索方案设计
+完成后统一接入。
 
 ### 阶段 4：构建诊断可观测性
 

@@ -137,6 +137,39 @@ class _TextbookGraphLLM:
         )
 
 
+class _OverLocalGraphLLM:
+    def call(
+        self,
+        model_alias,
+        messages,
+        *,
+        temperature=0.2,
+        max_tokens=2048,
+        response_format=None,
+    ):
+        content = json.dumps({
+            "candidates": [
+                {
+                    "source_chunk_id": "chunk-kg-worker",
+                    "fact_type": "policy_fact",
+                    "subject": {"type": "Policy", "name": f"局部政策{i}"},
+                    "predicate": "REQUIRES",
+                    "object_literal": f"局部任务{i}",
+                    "evidence_text": f"局部政策{i}要求局部任务{i}。",
+                    "confidence": 0.91,
+                }
+                for i in range(5)
+            ]
+        }, ensure_ascii=False)
+        return content, LiteLLMCallSummary(
+            model_alias=model_alias,
+            request_id="req-over-local",
+            latency_ms=1.0,
+            status="success",
+            input_hash="hash-over-local",
+        )
+
+
 def _seed_ref(session) -> models.NormalizedAssetRef:
     data_source = models.DataSource(
         id="ds-kg-worker",
@@ -390,6 +423,37 @@ def test_process_textbook_graph_build_persists_evidence_bound_rows(session):
     }
     assert all(row.locator["heading_path"][0]["title"] == "项目一 短视频认知"
                for row in evidence_rows)
+
+
+def test_process_graph_build_marks_over_localized_graph_review_required(session):
+    ref = _seed_ref(session)
+    build = create_graph_build(
+        session,
+        normalized_ref_id=ref.id,
+        graph_profile="report_document",
+        strategy_version="evidence_kg.v1",
+        status=KnowledgeGraphBuildStatus.PENDING,
+    )
+    session.commit()
+
+    result = process_one_pending_graph_build(
+        session,
+        worker_id="worker-test",
+        llm_client=_OverLocalGraphLLM(),
+    )
+
+    assert result is not None
+    assert result.status == KnowledgeGraphBuildStatus.REVIEW_REQUIRED
+    refreshed = session.get(models.KnowledgeGraphBuild, build.id)
+    assert refreshed is not None
+    assert refreshed.status == KnowledgeGraphBuildStatus.REVIEW_REQUIRED
+    assert refreshed.fact_count == 5
+    assert refreshed.quality_summary["graph_quality_gate"]["decision"] == "review_required"
+    assert "no_chunk_context_links" in refreshed.quality_summary["graph_quality_gate"]["warnings"]
+    assert "over_localized_single_chunk_graph" in (
+        refreshed.quality_summary["graph_quality_gate"]["warnings"]
+    )
+    assert refreshed.quality_summary["build_scope_governance"]["context_link_count"] == 0
 
 
 def test_recover_stale_running_graph_build_requeues_for_worker(session):
