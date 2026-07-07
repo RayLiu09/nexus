@@ -43,6 +43,7 @@ from nexus_app.enums import (
 )
 from nexus_app.governance.decision_service import GovernanceDecisionService
 from nexus_app.index.kb_registry import KbRegistry, reset_kb_registry
+from nexus_app.index.embedding_client import FakeEmbeddingClient
 from nexus_app.index.ragflow_adapter import FakeRAGFlowAdapter
 from nexus_app.ingest import gateway as ingest_gateway
 from nexus_app.metadata.version_state import (
@@ -325,7 +326,7 @@ class TestIndexSubmitIntegration:
         finally:
             reset_kb_registry()
 
-    def test_nexus_owned_chunks_skip_ragflow_submit(self, session, make_ai_run, monkeypatch):
+    def test_nexus_owned_chunks_index_to_pgvector(self, session, make_ai_run, monkeypatch):
         from nexus_app.pipeline import stages
 
         _, version, ref = make_ai_run(ai_output={"classification": "D4",
@@ -339,6 +340,11 @@ class TestIndexSubmitIntegration:
         from nexus_app.index import ragflow_adapter as ra_mod
         from nexus_app.index import kb_registry as kb_mod
         monkeypatch.setattr(ra_mod, "get_ragflow_adapter", lambda settings=None: fake_adapter)
+        monkeypatch.setattr(
+            stages,
+            "get_pgvector_embedding_client",
+            lambda settings=None: FakeEmbeddingClient(dimension=settings.default_embedding_dimension),
+        )
         kb_mod._default_registry = KbRegistry(adapter=fake_adapter, settings=get_settings())
 
         try:
@@ -355,8 +361,17 @@ class TestIndexSubmitIntegration:
             ctx.job = _existing_job_for_ref(session, ref.id)
 
             manifests = stages.run_index_submit(ctx, version, ref, chunks)
-            assert manifests == []
+            assert len(manifests) == 1
+            assert manifests[0].index_status == IndexManifestStatus.INDEXED
+            assert manifests[0].ragflow_doc_id is None
+            assert manifests[0].chunk_count == 2
+            assert all(chunk.embedding_status.value == "embedded" for chunk in chunks)
             assert len(fake_adapter._docs) == 0
+            assert session.scalar(
+                select(models.KnowledgeEmbeddingPgvector).where(
+                    models.KnowledgeEmbeddingPgvector.normalized_ref_id == ref.id
+                )
+            ) is not None
 
             stage_row = session.scalars(
                 select(models.JobStage).where(
@@ -364,9 +379,10 @@ class TestIndexSubmitIntegration:
                     models.JobStage.stage_name == "index_submit",
                 )
             ).all()[-1]
-            assert stage_row.status == StageStatus.SKIPPED
-            assert stage_row.detail["reason"] == "nexus-owned chunks are not submitted to RAGFlow yet"
-            assert stage_row.detail["skipped_knowledge_types"][0]["chunk_types"] == ["semantic_block"]
+            assert stage_row.status == StageStatus.SUCCEEDED
+            assert stage_row.detail["pgvector_knowledge_types"] == ["textbook_kb"]
+            assert stage_row.detail["ragflow_knowledge_types"] == []
+            assert stage_row.detail["pgvector_index_summaries"][0]["embedded_chunk_count"] == 2
         finally:
             reset_kb_registry()
 

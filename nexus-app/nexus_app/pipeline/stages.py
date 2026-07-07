@@ -74,6 +74,12 @@ def _stage_started() -> "datetime":
     return models.utcnow()
 
 
+def get_pgvector_embedding_client(settings):
+    from nexus_app.index.embedding_client import create_embedding_client
+
+    return create_embedding_client(settings)
+
+
 def _begin_stage(
     ctx: PipelineContext,
     stage_name: str,
@@ -1479,70 +1485,87 @@ def run_index_submit(
         ).all()
     }
 
-    from nexus_app.index.kb_registry import get_kb_registry
-    from nexus_app.index.ragflow_adapter import get_ragflow_adapter
-    from nexus_app.knowledge.config_loader import get_knowledge_type_config
-
     chunks_by_kt: dict[str, list[models.KnowledgeChunk]] = {}
     for chunk in chunks:
         chunks_by_kt.setdefault(chunk.knowledge_type_code, []).append(chunk)
 
-    # Nexus-owned chunks are persisted for preview / downstream Nexus search,
-    # but are not submitted to RAGFlow in the current rollout. Only the legacy
-    # passthrough descriptor path still creates a RAGFlow document.
-    skipped_nexus_owned: list[dict[str, Any]] = []
+    # NEXUS-owned chunks are indexed into pgvector. Only the legacy passthrough
+    # descriptor path remains on the historical RAGFlow branch for compatibility.
+    pgvector_chunks_by_kt: dict[str, list[models.KnowledgeChunk]] = {}
     ragflow_chunks_by_kt: dict[str, list[models.KnowledgeChunk]] = {}
     for kt_code, kt_chunks in chunks_by_kt.items():
         if all(c.chunk_type == ChunkType.PASSTHROUGH_DESCRIPTOR for c in kt_chunks):
             ragflow_chunks_by_kt[kt_code] = kt_chunks
             continue
-        skipped_nexus_owned.append({
-            "knowledge_type_code": kt_code,
-            "chunk_count": len(kt_chunks),
-            "chunk_types": sorted({
-                c.chunk_type.value if hasattr(c.chunk_type, "value") else str(c.chunk_type)
-                for c in kt_chunks
-            }),
-            "reason": "nexus-owned chunks are not submitted to RAGFlow yet",
-        })
-
-    if not ragflow_chunks_by_kt:
-        reason = "nexus-owned chunks are not submitted to RAGFlow yet"
-        _add_stage(
-            ctx,
-            "index_submit",
-            StageStatus.SKIPPED,
-            {
-                "reason": reason,
-                "normalized_ref_id": normalized_ref.id,
-                "chunk_count": len(chunks),
-                "skipped_knowledge_types": skipped_nexus_owned,
-            },
-            started_at=started_at,
-        )
-        write_audit(
-            ctx.session,
-            AuditEventType.INDEX_SUBMIT_SKIPPED,
-            target_type="normalized_asset_ref",
-            target_id=normalized_ref.id,
-            trace_id=ctx.trace_id,
-            summary={
-                "normalized_ref_id": normalized_ref.id,
-                "version_id": version.id,
-                "reason": reason,
-                "chunk_count": len(chunks),
-                "skipped_knowledge_types": skipped_nexus_owned,
-            },
-        )
-        return []
-
-    adapter = get_ragflow_adapter(ctx.settings)
-    kb_registry = get_kb_registry()
-    normalized_content = _load_normalized_content(ctx, normalized_ref)
-    doc_name_base = (normalized_ref.title or normalized_ref.id)[:120]
+        pgvector_chunks_by_kt[kt_code] = kt_chunks
 
     manifests: list[models.IndexManifest] = []
     error_messages: list[str] = []
+    pgvector_index_summaries: list[dict[str, Any]] = []
+
+    if pgvector_chunks_by_kt:
+        from nexus_app.index.pgvector_indexer import index_chunks_pgvector
+
+        embedding_client = get_pgvector_embedding_client(ctx.settings)
+        for kt_code, kt_chunks in pgvector_chunks_by_kt.items():
+            if kt_code in existing_by_kt:
+                manifests.append(existing_by_kt[kt_code])
+                continue
+            try:
+                result = index_chunks_pgvector(
+                    ctx.session,
+                    normalized_ref,
+                    kt_chunks,
+                    settings=ctx.settings,
+                    embedding_client=embedding_client,
+                    trace_id=ctx.trace_id,
+                )
+                manifest = models.IndexManifest(
+                    normalized_ref_id=normalized_ref.id,
+                    knowledge_type_code=kt_code,
+                    index_status=IndexManifestStatus.INDEXED,
+                    chunk_count=result.embedded_chunk_count,
+                    indexed_at=models.utcnow(),
+                    trace_id=ctx.trace_id,
+                )
+                ctx.session.add(manifest)
+                ctx.session.flush()
+                manifests.append(manifest)
+                pgvector_index_summaries.append({
+                    "knowledge_type_code": kt_code,
+                    "chunk_count": len(kt_chunks),
+                    "embedded_chunk_count": result.embedded_chunk_count,
+                    "collection_count": result.collection_count,
+                    "collection_keys": result.collection_keys,
+                })
+            except Exception as exc:
+                err = (
+                    f"pgvector index_submit failed for kt={kt_code}: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+                logger.warning(err)
+                error_messages.append(err)
+                manifest = models.IndexManifest(
+                    normalized_ref_id=normalized_ref.id,
+                    knowledge_type_code=kt_code,
+                    index_status=IndexManifestStatus.FAILED,
+                    chunk_count=0,
+                    error_message=err[:1000],
+                    trace_id=ctx.trace_id,
+                )
+                ctx.session.add(manifest)
+                ctx.session.flush()
+                manifests.append(manifest)
+
+    if ragflow_chunks_by_kt:
+        from nexus_app.index.kb_registry import get_kb_registry
+        from nexus_app.index.ragflow_adapter import get_ragflow_adapter
+        from nexus_app.knowledge.config_loader import get_knowledge_type_config
+
+    adapter = get_ragflow_adapter(ctx.settings) if ragflow_chunks_by_kt else None
+    kb_registry = get_kb_registry() if ragflow_chunks_by_kt else None
+    normalized_content = _load_normalized_content(ctx, normalized_ref) if ragflow_chunks_by_kt else ""
+    doc_name_base = (normalized_ref.title or normalized_ref.id)[:120]
 
     for kt_code, kt_chunks in ragflow_chunks_by_kt.items():
         if kt_code in existing_by_kt:
@@ -1550,6 +1573,8 @@ def run_index_submit(
             continue
         try:
             kt_config = get_knowledge_type_config(kt_code)
+            assert kb_registry is not None
+            assert adapter is not None
             kb_id = kb_registry.ensure_kb(kt_code)
             chunk_method = kt_config.ragflow.get("chunk_method", "naive")
             parser_config = kt_config.ragflow.get("parser_config")
@@ -1656,7 +1681,7 @@ def run_index_submit(
                 normalized_ref_id=normalized_ref.id,
                 knowledge_type_code=kt_code,
                 index_status=IndexManifestStatus.FAILED,
-                ragflow_kb_id=kb_registry.get_cached(kt_code),
+                ragflow_kb_id=kb_registry.get_cached(kt_code) if kb_registry else None,
                 chunk_count=0,
                 error_message=err[:1000],
                 trace_id=ctx.trace_id,
@@ -1681,8 +1706,10 @@ def run_index_submit(
         overall_status,
         {
             "normalized_ref_id": normalized_ref.id,
-            "knowledge_types": list(ragflow_chunks_by_kt.keys()),
-            "skipped_knowledge_types": skipped_nexus_owned,
+            "knowledge_types": list(chunks_by_kt.keys()),
+            "pgvector_knowledge_types": list(pgvector_chunks_by_kt.keys()),
+            "ragflow_knowledge_types": list(ragflow_chunks_by_kt.keys()),
+            "pgvector_index_summaries": pgvector_index_summaries,
             "manifest_count": len(manifests),
             "indexed_count": indexed_count,
             "failed_count": failed_count,

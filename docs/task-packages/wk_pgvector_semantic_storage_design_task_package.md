@@ -87,3 +87,46 @@ Add the minimal pgvector storage foundation needed by the v1.0 retrieval plan wi
 - The LiteLLM embedding client sends `{"model": alias, "input": texts}` to `{LITELLM_ENDPOINT}/v1/embeddings` and rejects dimension mismatches.
 - Collection keys are separated by data asset domain type and include normalized type, model alias, and schema version.
 - Metadata projection includes asset/ref/chunk traceability fields and future permission/governance filter fields.
+
+## Implementation Slice: PGV-02 Chunk Embedding Indexing
+
+### Goal
+
+Index NEXUS-owned `knowledge_chunk` rows into the pgvector projection tables created by PGV-01 so available normalized assets become vector-indexed without using RAGFlow as the semantic retrieval backend.
+
+### Scope
+
+- Add a pgvector indexing service that:
+  - groups chunks by resolved `vector_collection`;
+  - batches text embedding calls through LiteLLM;
+  - creates or reuses `vector_collection`;
+  - upserts `knowledge_embedding_pgvector` rows anchored by `knowledge_chunk`;
+  - marks successfully embedded chunks as `embedding_status=embedded`;
+  - marks failed chunks as `embedding_status=failed` when indexing fails.
+- Wire NEXUS-owned chunk types in `run_index_submit` to the pgvector service.
+- Preserve the legacy passthrough descriptor RAGFlow branch only for historical compatibility tests; it is not the semantic retrieval baseline.
+- Persist `index_manifest` rows for pgvector-indexed knowledge types using the existing manifest state enum.
+- Add focused unit/integration tests with `FakeEmbeddingClient`; no real LiteLLM calls in tests.
+
+### Out Of Scope
+
+- Replacing `/open/v1/search` or `/open/v1/qa`.
+- Implementing vector similarity search, rerank, retrieval orchestration, intent recognition, query transformation, or Console UI.
+- Running large-scale benchmark/capacity validation.
+- Permission/governance filter execution.
+
+### Forbidden Changes
+
+- Do not call embedding providers directly; use LiteLLM embedding client only.
+- Do not log chunk content or API keys.
+- Do not add external backend ids or reverse pointers to `knowledge_chunk`.
+- Do not route Pipeline B structured domain tables through vector retrieval by default.
+- Do not reintroduce RAGFlow as the platform semantic retrieval baseline.
+
+### Acceptance
+
+- NEXUS-owned chunks produce `knowledge_embedding_pgvector` rows and `IndexManifest(indexed)`.
+- Existing pgvector rows are updated idempotently instead of duplicated on retry.
+- `vector_collection` rows are separated by asset domain type/model/schema.
+- Successfully indexed chunks have `embedding_status=embedded`; failed chunks have `embedding_status=failed`.
+- Tests cover success, idempotent retry, and embedding failure without real network calls.
