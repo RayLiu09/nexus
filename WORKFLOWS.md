@@ -196,7 +196,7 @@ The following changes require human approval before merge.
 | Rule Engine Gate | Rule expressions, save-to-activate rule changes, conflict handling | No arbitrary code execution; input is standardized object context; conflicts are traceable; rule save/disable is audited. |
 | Permission And Audit Gate | Search, QA, API Key, org scope, L3/L4 exception masking, audit logs | Auth before return; no permission leakage; high-sensitivity exception data is masked by default; key actions audited; trace_id present. |
 | Version State Gate | `processing`, `available`, `review_required`, `archived`, `disabled`, `failed` transitions | Only one available version; correct review triggers; index status consistency; state changes audited. |
-| RAGFlow Integration Gate | Chunking, indexing, retrieval, QA citations | `index_manifest` is queryable; failures recoverable; results trace to version, normalized ref, chunk, and raw object. |
+| Semantic Retrieval Integration Gate | Chunking, indexing, retrieval, QA citations | `index_manifest` is queryable; failures recoverable; selected retrieval backend is behind an adapter; results trace to version, normalized ref, chunk, and raw object. |
 | API Contract Gate | New or changed `/v1` API behavior | Request/response schema stable; errors defined; idempotency addressed; frontend mapping updated; tests added. |
 | Frontend UX Gate | P0 console flow, high-risk dialogs, state labels | Prototype v2.2 aligned; no NEXUS AI gateway management page; disabled states and errors clear. |
 | Acceptance Gate | Milestone or final acceptance | E2E evidence, permission leakage 0, traceability 100%, audit coverage 100%, no P1/P2 creep. |
@@ -234,7 +234,7 @@ Before merging, check:
 |-----------|-------------------|
 | M1 Ingest To Asset | Ingest request, raw object, job record, normalized reference, asset catalog, asset detail, current version read model. |
 | M2 AI Governance And Rules | Prompt config version, LiteLLM alias, AI run, `governance_result.quality_summary`, rule hit, `governance_result.decision_trail`, `available` and `review_required` examples. |
-| M3 P0 Full Flow | RAGFlow index manifest, search/QA result, permission filtering, L3/L4 exception masking, source traceability, reprocess, re-governance, AI re-score, audit log. |
+| M3 P0 Full Flow | Index manifest, search/QA result, permission filtering, L3/L4 exception masking, source traceability, reprocess, re-governance, AI re-score, audit log. |
 | M4 Formal Acceptance | 12 E2E results, NFR metrics, Go/No-Go table, business acceptance opinion, known issues by severity, delivery docs. |
 
 ## Buffer Rules

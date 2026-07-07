@@ -12,9 +12,9 @@ This file is the Claude coding-agent contract for NEXUS. It is distilled from th
 
 ## Project Mission
 
-NEXUS is an enterprise data and knowledge asset platform. It unifies ingestion, raw retention, parsing, standardization, AI-led governance, rule guardrails, quality scoring, RAGFlow indexing, permission-filtered search, QA, audit, and API service exposure for D1-D4 pilot data domains.
+NEXUS is an enterprise data and knowledge asset platform. It unifies ingestion, raw retention, parsing, standardization, AI-led governance, rule guardrails, quality scoring, adapter-based semantic retrieval indexing, permission-filtered search, QA, audit, and API service exposure for D1-D4 pilot data domains.
 
-P0 is the smallest usable loop: data source → raw object → ingest_validate → assetize → parse/normalize → normalized_asset_ref → AI governance and quality score → rules → available or review_required → RAGFlow index → permission-filtered search / QA → traceable source citation.
+P0 is the smallest usable loop: data source → raw object → ingest_validate → assetize → parse/normalize → normalized_asset_ref → AI governance and quality score → rules → available or review_required → semantic retrieval index → permission-filtered search / QA → traceable source citation.
 
 ## Non-Negotiable Architecture Rules
 
@@ -35,7 +35,7 @@ P0 is the smallest usable loop: data source → raw object → ingest_validate �
 - **assetize** (create asset/asset_version anchor) and **normalize** (content standardization) are distinct stages with distinct owners. Do not conflate them.
 - **normalize-service uses LLM semantic extraction + rule-engine fallback validation. Rules are defined by domain experts, not hard-coded.**
 - **MinerU is called with auto-selected `model_version` (HTML→MinerU-HTML, default→pipeline, complex→vlm) and auto-enabled OCR for image/pdf/tiff. Images must be stored at `parsed/<version_id>/<artifact_id>/images/` alongside the JSON result.**
-- **Knowledge Pipeline is independent of Asset Pipeline.** They connect only through `normalized_asset_ref`. P0 Knowledge Pipeline scope = Pipeline 1 (RAG retrieval KB) only.
+- **Knowledge Pipeline is independent of Asset Pipeline.** They connect only through `normalized_asset_ref`. P0 Knowledge Pipeline scope = Pipeline 1 (semantic retrieval KB) only.
 - **`metadata_enrich` tag generation targets normalized assets, not chunks.** High-confidence tags auto-commit (with audit log); low-confidence tags enter human review queue.
 
 ## Core Domain Objects
@@ -97,7 +97,7 @@ Only one `available` version may exist for the same asset at a time. Current ver
 - Use Python + FastAPI + Pydantic v2 + SQLAlchemy 2.x + Alembic for API/control-plane work.
 - Use `uv` for Python dependency management. Prefer `pyproject.toml` and `uv.lock`.
 - Use React + Next.js + TypeScript for console work.
-- Use PostgreSQL for master data and P0 job queue, MinIO for object storage, MinerU for parsing, RAGFlow for chunking/index/search execution. The P0 job queue must use row-level claim locking, lock lease/heartbeat, retry/backoff, and dead-letter states.
+- Use PostgreSQL for master data and P0 job queue, MinIO for object storage, MinerU for parsing, and adapter-based semantic retrieval for index/search execution. The concrete semantic retrieval backend is selected outside the domain model; RAGFlow is no longer the platform semantic retrieval baseline. The P0 job queue must use row-level claim locking, lock lease/heartbeat, retry/backoff, and dead-letter states.
 - Business governance rules (classifications, levels, tags, quality scoring, knowledge types) are stored exclusively in `config/governance_rules.json`. This file is the single source of truth for AI governance decisions. Console edits must pass Pydantic schema validation, ETag optimistic locking (to prevent lost updates), and fcntl exclusive file lock (to guarantee atomic writes). Never execute arbitrary user-supplied code or expressions.
 - All mutating API and job operations need idempotency strategy, audit events, and trace IDs.
 - Logs must not contain sensitive fields, API keys, raw L3/L4 content, or large document bodies.

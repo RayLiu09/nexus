@@ -25,7 +25,7 @@ This is the Codex coding-agent contract for NEXUS. It applies to the whole repos
 - Imported data sources default to L1/L2. L3/L4 are exception levels requiring explicit approval, rule evidence, and audit.
 - **`assetize` and `normalize` are distinct pipeline stages.** assetize = create asset/asset_version anchor (job-orchestrator + metadata-service). normalize = content standardization (normalize-service with LLM extraction + rule fallback). Do not conflate them.
 - **MinerU must be called with auto-selected `model_version` and OCR auto-enabled for image/pdf/tiff.** Images must be stored at `parsed/<version_id>/<artifact_id>/images/` alongside `mineru-result.json`.
-- **Knowledge Pipeline is independent of Asset Pipeline.** P0 Knowledge Pipeline scope = Pipeline 1 (RAG retrieval KB) only. Pipelines 2-5 are reserved extension points.
+- **Knowledge Pipeline is independent of Asset Pipeline.** P0 Knowledge Pipeline scope = Pipeline 1 (semantic retrieval KB) only. Pipelines 2-5 are reserved extension points.
 - **`metadata_enrich` tag generation targets normalized assets (not chunks).** High-confidence tags auto-commit with audit log. Low-confidence tags enter human review queue.
 
 ## Domain And State Rules
@@ -62,7 +62,7 @@ Required audit events for both pipelines: `INGEST_BATCH_SUBMITTED`, `RAW_OBJECT_
 - Python dependency management: uv with `pyproject.toml` and `uv.lock`.
 - Frontend console: React 19, Next.js 16 App Router, TypeScript, ECharts for basic charts.
 - Async jobs: PostgreSQL job table + Worker poller, row-level claim locking, lock lease/heartbeat, retry/backoff, dead-letter state. RabbitMQ + Celery are scale-up components only.
-- Storage/search: PostgreSQL 15+, MinIO, in-process TTL cache for P0, RAGFlow. Redis 7.x is a scale-up component only.
+- Storage/search: PostgreSQL 15+, MinIO, in-process TTL cache for P0, adapter-based semantic retrieval backend. Redis 7.x is a scale-up component only. RAGFlow is no longer the platform semantic retrieval baseline.
 - Parsing and AI: MinerU (pipeline / vlm / MinerU-HTML, auto-selected by mime_type), LiteLLM, `bge-large-zh-v1.5`, `bge-reranker-large`.
 
 ## Working Practice
@@ -77,4 +77,4 @@ Required audit events for both pipelines: `INGEST_BATCH_SUBMITTED`, `RAW_OBJECT_
 - Avoid broad rewrites unless the user asks for a version upgrade.
 - Do not silently change the v3.0 contract to simplify implementation.
 - Add or update tests for state transitions, permission filtering, governance rules, AI output validation, Prompt versioning, and audit trails.
-- High-risk changes to data model, AI governance, rule engine, permissions/audit, version state, RAGFlow integration, API contract, or P0 UX require the corresponding `WORKFLOWS.md` Review Gate before they can be considered complete.
+- High-risk changes to data model, AI governance, rule engine, permissions/audit, version state, semantic retrieval integration, API contract, or P0 UX require the corresponding `WORKFLOWS.md` Review Gate before they can be considered complete.
