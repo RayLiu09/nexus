@@ -36,7 +36,7 @@ Role constraints:
 - AI governance and quality scoring from normalized objects via `metadata-service.ai-governance`. Governance target is `normalized_asset_ref`.
 - Configurable governance rules for classification, level, tags, org scope, quality admission, review triggers, and index admission.
 - Governance decision tracking in `governance_result.decision_trail`.
-- NEXUS-owned `knowledge_chunk` construction for source citation and downstream knowledge processing. P0 vector storage uses PostgreSQL pgvector through the index/search adapter; backend execution state belongs in `index_manifest`, not `knowledge_chunk`. `knowledge_chunk.normalized_ref_id` links chunks to `normalized_asset_ref`.
+- NEXUS-owned `knowledge_chunk` construction for source citation and downstream knowledge processing. P0 vector storage uses PostgreSQL pgvector through the index/search adapter; backend execution state belongs in `index_manifest`, not `knowledge_chunk`. `vector_collection` separates logical collectors by data asset domain type/model/schema, and `knowledge_embedding_pgvector` stores embedding projection rows plus filter-ready metadata anchored by `knowledge_chunk`. `knowledge_chunk.normalized_ref_id` links chunks to `normalized_asset_ref`.
 - Knowledge Pipeline 1: semantic retrieval KB for D4 teaching materials and D3 talent cultivation plans. Knowledge Pipeline is independent of Asset Pipeline; P0 semantic vector storage defaults to PostgreSQL pgvector behind the index/search adapter, and RAGFlow is no longer the platform baseline.
 - Course textbook Task Outline processing for D4 `course_textbook`
   normalized documents: training-operation textbooks are detected, persisted

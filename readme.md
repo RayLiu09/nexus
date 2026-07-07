@@ -97,7 +97,7 @@ Root documents are distilled implementation contracts:
 - Pipeline B structured record assets, including job demand, occupational ability analysis, and professional major-distribution tables with domain read models.
 - AI-led classification, level, tag, org-scope suggestions, and quality scoring.
 - Configurable governance rules and decision tracking.
-- NEXUS-owned knowledge chunk construction and adapter-based semantic retrieval integration; P0 defaults to PostgreSQL pgvector for text chunk embeddings, while the concrete search/index backend remains decoupled from the domain model and RAGFlow is no longer the platform's semantic retrieval baseline.
+- NEXUS-owned knowledge chunk construction and adapter-based semantic retrieval integration; P0 defaults to PostgreSQL pgvector for text chunk embeddings, with `vector_collection` separating logical collectors by asset domain type and `knowledge_embedding_pgvector` storing chunk-anchored embedding projections. The concrete search/index backend remains decoupled from the domain model and RAGFlow is no longer the platform's semantic retrieval baseline.
 - Course textbook Task Outline processing for D4 teaching materials:
   training-operation textbooks are detected from normalized documents,
   persisted as profile/tree rows, projected into unified `knowledge_chunk`

@@ -121,6 +121,24 @@ class Settings(BaseSettings):
         default=None,
         alias="LITELLM_BODY_MARKDOWN_MODEL_ALIAS",
     )
+    default_embedding_model: str = Field(
+        default="bge-large-zh-v1.5",
+        alias="DEFAULT_EMBEDDING_MODEL",
+    )
+    default_embedding_dimension: int = Field(
+        default=1024,
+        alias="DEFAULT_EMBEDDING_DIMENSION",
+    )
+    default_embedding_distance_metric: str = Field(
+        default="cosine",
+        alias="DEFAULT_EMBEDDING_DISTANCE_METRIC",
+    )
+    embedding_batch_size: int = Field(default=32, alias="EMBEDDING_BATCH_SIZE")
+    embedding_timeout: float = Field(default=60.0, alias="EMBEDDING_TIMEOUT")
+    litellm_embedding_model_alias: str | None = Field(
+        default=None,
+        alias="LITELLM_EMBEDDING_MODEL_ALIAS",
+    )
 
     # ── Auth (P1 JWT) ──────────────────────────────────────────────────────
     # HS256 symmetric secret. MUST be set in production; an in-memory default is
@@ -158,6 +176,11 @@ class Settings(BaseSettings):
         password = quote_plus(self.rabbitmq_password)
         vhost = quote_plus(self.rabbitmq_vhost)
         return f"{self.rabbitmq_scheme}://{user}:{password}@{self.rabbitmq_host}:{self.rabbitmq_port}/{vhost}"
+
+    @computed_field
+    @property
+    def effective_embedding_model_alias(self) -> str:
+        return self.litellm_embedding_model_alias or self.default_embedding_model
 
 
 @lru_cache

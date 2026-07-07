@@ -43,7 +43,7 @@ NEXUS 同时管理非结构化文档资产和结构化 record 资产，两类资
 
 | 资产形态 | 来源 Pipeline | 典型分类 | 检索执行方式 | 结果组织方式 |
 | --- | --- | --- | --- | --- |
-| 非结构化文档 | Pipeline A document | 政策、报告、标准、教材、专业简介、人才培养方案 | `knowledge_chunk` + pgvector P0 adapter，支持关键词/语义/混合召回 | LLM 基于片段、章节、图谱事实、任务大纲、专业结构化上下文组织返回 |
+| 非结构化文档 | Pipeline A document | 政策、报告、标准、教材、专业简介、人才培养方案 | `knowledge_chunk` + pgvector P0 adapter，支持关键词/语义/混合召回 | LLM 基于片段、章节、任务大纲、专业结构化上下文组织返回 |
 | 结构化数据 | Pipeline B record | 岗位需求、职业能力分析、专业布点数 | 受控 SQL 查询 PostgreSQL 领域表，支持过滤、排序、聚合、树查询 | LLM 基于记录集、聚合表、能力树等结构化结果生成 Markdown |
 | 混合型资产 | Pipeline A + 领域投影 | 专业简介、任务型教材、带领域抽取结果的文档 | chunk 召回 + 领域表/领域模型回查 | 片段证据与结构化字段合并展示 |
 
@@ -230,7 +230,7 @@ retrieval_plan
 2. 调用语义化检索后端执行召回；P0 默认通过 pgvector adapter 执行向量召回，后端仍通过 index/search adapter 接入。
 3. 将命中结果映射回 NEXUS `knowledge_chunk.id`。
 4. 回查 `normalized_ref_id`、`asset_version_id`、locator、source blocks。
-5. 按需要加载 Evidence Graph、Task Outline、Major Profile 等增强上下文。
+5. 按需要加载 Task Outline、Major Profile 等增强上下文。
 
 非结构化结果结构：
 
@@ -521,7 +521,6 @@ SQL 安全边界：
 | 结果来源 | LLM 汇总方式 | Markdown 表达 |
 | --- | --- | --- |
 | 非结构化 chunk | 对片段按主题聚类、去重、提炼要点，并保留原文定位 | 小节 + 引用列表 + 原文定位 |
-| Evidence Graph | 将事实、实体、关系转为可读事实链，不展示无证据节点 | “事实/关系/证据”三段式 |
 | Task Outline | 按任务、步骤、资源、产物组织 | 步骤列表或任务卡片 |
 | Major Profile | 按专业基本信息、职业面向、能力、课程、证书组织 | 专业卡片 + 字段表 |
 | Job Demand | 按岗位、城市、学历、薪资、需求项组织 | 记录表 + 聚合图表数据 |
@@ -677,7 +676,6 @@ SQL 安全边界：
 | profile | 适用资产 | 增强内容 |
 | --- | --- | --- |
 | `semantic_only` | 默认兜底 | chunk 内容、章节、原文定位 |
-| `evidence_graph` | 政策、报告、理论型教材 | 证据绑定 facts、entities、edges、同主题证据 chunks |
 | `task_outline` | 任务型教材、实训任务书 | 当前任务、父任务、前后步骤、资源、产物 |
 | `major_profile` | 专业简介 | 专业代码、名称、职业面向、能力、课程、证书、接续专业 |
 
@@ -887,7 +885,7 @@ GET /internal/v1/knowledge-retrieval/results/{result_id}/context
 用途：
 
 - 检索列表轻量返回。
-- 用户展开时加载 graph/task/major/structured record 详情。
+- 用户展开时加载 task/major/structured record 详情。
 
 ### 7.4 原文/源记录定位
 
@@ -1088,13 +1086,11 @@ v1.0 暂不实现：
 范围：
 
 - `semantic_only`
-- `evidence_graph`
 - `task_outline`
 - `major_profile`
 
 验收：
 
-- 政策/报告问题能返回 evidence-bound facts。
 - 任务型教材问题能返回步骤上下文。
 - 专业简介问题能返回专业结构化卡片。
 
@@ -1175,4 +1171,4 @@ NEXUS 检索/召回结果增强不应只做“用户问题 -> Top-K chunk -> 答
 3. 平台按查询计划并行执行非结构化 chunk 召回和结构化 SQL 查询。
 4. LLM 基于可追溯证据集合生成 Markdown 结构化结果。
 
-该方案能够同时覆盖文档知识片段、图谱事实、任务步骤、专业简介、岗位需求、职业能力分析和专业布点数等不同资产形态。非结构化内容 P0 采用 `knowledge_chunk` + pgvector adapter 召回，pgvector 只承载文本 chunk embedding 与索引投影，不拥有资产主数据、治理结果、权限判断或审计结论；结构化内容由受控 SQL 查询领域表后交给 LLM 解释和呈现。Console 对话界面必须呈现意图识别、召回计划、并行检索和结果汇总的多步骤实时过程；意图不清晰或置信度 `< 0.78` 时先询问用户是否愿意优化问题。v1.0 默认所有资产均可访问，权限、治理和质量过滤作为查询结构与 pgvector adapter 预留字段，后续阶段启用。pgvector 的存储容量增长、PostgreSQL 并发压力、filtered ANN 召回风险和不覆盖多模态向量检索是明确短板，需通过容量评测和升级触发条件管理。最终输出既面向用户可读，也保留 chunk/record/source locator，满足后续治理、审计和质量评测要求。
+该方案能够同时覆盖文档知识片段、任务步骤、专业简介、岗位需求、职业能力分析和专业布点数等不同资产形态。非结构化内容 P0 采用 `knowledge_chunk` + pgvector adapter 召回，pgvector 只承载文本 chunk embedding 与索引投影，不拥有资产主数据、治理结果、权限判断或审计结论；结构化内容由受控 SQL 查询领域表后交给 LLM 解释和呈现。Console 对话界面必须呈现意图识别、召回计划、并行检索和结果汇总的多步骤实时过程；意图不清晰或置信度 `< 0.78` 时先询问用户是否愿意优化问题。v1.0 默认所有资产均可访问，权限、治理和质量过滤作为查询结构与 pgvector adapter 预留字段，后续阶段启用。pgvector 的存储容量增长、PostgreSQL 并发压力、filtered ANN 召回风险和不覆盖多模态向量检索是明确短板，需通过容量评测和升级触发条件管理。最终输出既面向用户可读，也保留 chunk/record/source locator，满足后续治理、审计和质量评测要求。

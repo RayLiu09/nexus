@@ -21,4 +21,25 @@ def test_env_dev_middleware_values_are_loaded():
     assert settings.default_governance_model == "doubao-seed-2-0-lite-260215"
     assert settings.litellm_timeout == 300
     assert settings.litellm_retry_attempts == 3
-    assert settings.ragflow_endpoint == "http://10.100.11.182:9380"
+    assert settings.ragflow_endpoint is None
+
+
+def test_env_dev_embedding_values_are_loaded():
+    settings = Settings()
+
+    assert settings.default_embedding_model == "bge-m3:latest"
+    assert settings.default_embedding_dimension == 1024
+    assert settings.default_embedding_distance_metric == "cosine"
+    assert settings.embedding_batch_size == 32
+    assert settings.embedding_timeout == 60.0
+    assert settings.effective_embedding_model_alias == "bge-m3:latest"
+
+
+def test_litellm_embedding_alias_overrides_default_embedding_model(monkeypatch):
+    monkeypatch.setenv("DEFAULT_EMBEDDING_MODEL", "default-embedding")
+    monkeypatch.setenv("LITELLM_EMBEDDING_MODEL_ALIAS", "gateway/embedding")
+
+    settings = Settings()
+
+    assert settings.default_embedding_model == "default-embedding"
+    assert settings.effective_embedding_model_alias == "gateway/embedding"

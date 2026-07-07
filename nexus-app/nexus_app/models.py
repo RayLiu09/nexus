@@ -19,6 +19,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.orm import Mapped, declared_attr, mapped_column, relationship
+from sqlalchemy.types import TypeDecorator
 
 from nexus_app.database import Base
 from nexus_app.enums import (
@@ -60,6 +61,55 @@ def new_uuid() -> str:
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+class Vector(TypeDecorator[list[float]]):
+    """PostgreSQL pgvector type with a JSON fallback for SQLite tests."""
+
+    impl = JSON
+    cache_ok = True
+
+    def __init__(self, dimensions: int = 1024) -> None:
+        super().__init__()
+        self.dimensions = dimensions
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            from sqlalchemy.dialects.postgresql import DOUBLE_PRECISION
+            from sqlalchemy.types import UserDefinedType
+
+            dimensions = self.dimensions
+
+            class _PgVector(UserDefinedType):
+                cache_ok = True
+
+                def get_col_spec(self, **kw) -> str:
+                    return f"vector({dimensions})"
+
+                def bind_processor(self, dialect):
+                    def process(value):
+                        if value is None:
+                            return None
+                        return "[" + ",".join(str(float(item)) for item in value) + "]"
+
+                    return process
+
+                def result_processor(self, dialect, coltype):
+                    def process(value):
+                        if value is None or isinstance(value, list):
+                            return value
+                        text_value = str(value).strip("[]")
+                        if not text_value:
+                            return []
+                        return [float(item) for item in text_value.split(",")]
+
+                    return process
+
+            # Keep DOUBLE_PRECISION imported so SQLAlchemy's PG dialect is loaded
+            # before the user-defined vector spec is compiled.
+            _ = DOUBLE_PRECISION
+            return dialect.type_descriptor(_PgVector())
+        return dialect.type_descriptor(JSON())
 
 
 class TimestampMixin:
@@ -977,6 +1027,97 @@ class KnowledgeChunk(TimestampMixin, Base):
     normalized_ref: Mapped[NormalizedAssetRef] = relationship()
 
 
+class VectorCollection(TimestampMixin, Base):
+    """Logical pgvector collector for one asset domain/model/schema combination."""
+
+    __tablename__ = "vector_collection"
+    __table_args__ = (
+        UniqueConstraint("collection_key", name="uq_vector_collection_key"),
+        Index(
+            "ix_vector_collection_lookup",
+            "asset_domain_type", "normalized_type", "embedding_model",
+        ),
+        Index("ix_vector_collection_status", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    collection_key: Mapped[str] = mapped_column(String(256), nullable=False)
+    asset_domain_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    normalized_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    embedding_provider: Mapped[str] = mapped_column(String(40), nullable=False, default="litellm")
+    embedding_model: Mapped[str] = mapped_column(String(128), nullable=False)
+    embedding_dimension: Mapped[int] = mapped_column(Integer, nullable=False)
+    distance_metric: Mapped[str] = mapped_column(String(32), nullable=False, default="cosine")
+    metadata_schema_version: Mapped[str] = mapped_column(String(32), nullable=False, default="v1")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
+    collection_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSON, default=dict, nullable=False,
+    )
+    created_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class KnowledgeEmbeddingPgvector(TimestampMixin, Base):
+    """pgvector projection row anchored by a NEXUS-owned knowledge_chunk."""
+
+    __tablename__ = "knowledge_embedding_pgvector"
+    __table_args__ = (
+        UniqueConstraint(
+            "collection_id", "chunk_id",
+            name="uq_kep_collection_chunk",
+        ),
+        Index("ix_kep_collection_model", "collection_id", "embedding_model"),
+        Index("ix_kep_collection_domain", "collection_id", "asset_domain_type"),
+        Index("ix_kep_normalized_ref_id", "normalized_ref_id"),
+        Index("ix_kep_asset_version_id", "asset_version_id"),
+        Index("ix_kep_filter_common", "asset_domain_type", "content_type", "language"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    collection_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("vector_collection.id", ondelete="CASCADE"), nullable=False,
+    )
+    collection_key: Mapped[str] = mapped_column(String(256), nullable=False)
+    chunk_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("knowledge_chunk.id", ondelete="CASCADE"), nullable=False,
+    )
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("normalized_asset_ref.id", ondelete="CASCADE"), nullable=False,
+    )
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("asset.id"), nullable=False)
+    asset_version_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("asset_version.id"), nullable=False,
+    )
+    asset_domain_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    knowledge_type_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    domain_profile: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    normalized_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    content_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    source_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    language: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    chunk_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    chunking_strategy: Mapped[str] = mapped_column(String(64), nullable=False)
+    embedding_provider: Mapped[str] = mapped_column(String(40), nullable=False, default="litellm")
+    embedding_model: Mapped[str] = mapped_column(String(128), nullable=False)
+    embedding_dimension: Mapped[int] = mapped_column(Integer, nullable=False)
+    distance_metric: Mapped[str] = mapped_column(String(32), nullable=False, default="cosine")
+    metadata_schema_version: Mapped[str] = mapped_column(String(32), nullable=False, default="v1")
+    embedding: Mapped[list[float]] = mapped_column(Vector(1024), nullable=False)
+    embedding_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    vector_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSON, default=dict, nullable=False,
+    )
+    embedded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False,
+    )
+    trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    collection: Mapped[VectorCollection] = relationship()
+    chunk: Mapped[KnowledgeChunk] = relationship()
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+    asset: Mapped[Asset] = relationship()
+    asset_version: Mapped[AssetVersion] = relationship()
 
 
 # ---------------------------------------------------------------------------

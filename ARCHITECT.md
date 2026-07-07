@@ -149,7 +149,12 @@ P0 record profiles include job demand, occupational ability analysis, and major 
 - AI governance: `ai_prompt_profile` (including `scenario` and dry-run preview contract), `ai_governance_run`.
 - Governance rules (file-based): `config/governance_rules.json` — single source of truth for business rules, maintained by business experts via console, protected by schema validation + ETag + fcntl write lock.
 - Governance result: `governance_result` (embedded `quality_summary` + `decision_trail`; records `rules_schema_version` + `rules_content_hash` as snapshot evidence).
-- Knowledge and index: `knowledge_chunk`, `index_manifest`.
+- Knowledge and index: `knowledge_chunk`, `index_manifest`, `vector_collection`,
+  `knowledge_embedding_pgvector`. `vector_collection` and
+  `knowledge_embedding_pgvector` are pgvector adapter projection tables only:
+  they store logical collectors, embeddings, vector metadata, and filter-ready
+  columns anchored by `knowledge_chunk`; they do not own asset master data,
+  governance, permissions, audit authority, or chunk semantics.
 - Course textbook Task Outline: `task_outline_profile`,
   `task_outline_node`. These tables store the detected processing profile and
   project/task/step/artifact tree for `course_textbook` training-operation

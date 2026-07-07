@@ -47,3 +47,43 @@ Document pgvector as the P0 default semantic vector storage and retrieval adapte
 - The design reserves permission and governance status filters while stating that P0 defaults to all-assets access.
 - The design explicitly lists pgvector weaknesses: storage capacity growth, PostgreSQL concurrency pressure, filtered ANN recall risk, and lack of multimodal vector retrieval coverage.
 - The design defines upgrade triggers for dedicated vector/retrieval engines.
+
+## Implementation Slice: PGV-01 LiteLLM Embedding Config And Collector Storage
+
+### Goal
+
+Add the minimal pgvector storage foundation needed by the v1.0 retrieval plan without replacing `/v1/search` or `/v1/qa` yet.
+
+### Scope
+
+- Add embedding configuration loaded from `.env.dev`, with `DEFAULT_EMBEDDING_MODEL` as the default model alias and optional `LITELLM_EMBEDDING_MODEL_ALIAS` as the LiteLLM gateway override.
+- Add pgvector-backed logical collector tables:
+  - `vector_collection`: one logical collector per data asset domain type, normalized type, model alias, metric, and schema version.
+  - `knowledge_embedding_pgvector`: embedding projection rows anchored by `knowledge_chunk`.
+- Add a LiteLLM embedding client that calls the OpenAI-compatible `/v1/embeddings` endpoint and validates dimensions without logging input text or credentials.
+- Add a collector resolver and metadata projection helper that derives `asset_domain_type`, `collection_key`, traceability fields, and future filter metadata from `NormalizedAssetRef` and `KnowledgeChunk`.
+- Add focused tests for config loading, client behavior, collection resolution, metadata projection, and SQLite model compatibility.
+
+### Out Of Scope
+
+- Replacing existing `/open/v1/search` and `/open/v1/qa` runtime behavior.
+- Implementing LLM intent recognition, query transformation, rerank, SQL structured retrieval, or Console multi-step interaction UI.
+- Building the background index worker that batches chunks into embeddings.
+- Permission filtering execution. Metadata/filter fields are reserved only.
+
+### Forbidden Changes
+
+- Do not call embedding providers directly; embedding calls must go through LiteLLM.
+- Do not use RAGFlow as a semantic retrieval baseline.
+- Do not add external backend ids or reverse pointers to `knowledge_chunk`.
+- Do not make structured Pipeline B domain tables use vector retrieval by default.
+- Do not log API keys, raw chunk text, prompt text, or large content.
+
+### Acceptance
+
+- `Settings()` loads `DEFAULT_EMBEDDING_MODEL` from `.env.dev`.
+- `effective_embedding_model_alias` prefers `LITELLM_EMBEDDING_MODEL_ALIAS` when set.
+- pgvector projection tables can be created by Alembic on PostgreSQL and by SQLAlchemy metadata in SQLite tests.
+- The LiteLLM embedding client sends `{"model": alias, "input": texts}` to `{LITELLM_ENDPOINT}/v1/embeddings` and rejects dimension mismatches.
+- Collection keys are separated by data asset domain type and include normalized type, model alias, and schema version.
+- Metadata projection includes asset/ref/chunk traceability fields and future permission/governance filter fields.
