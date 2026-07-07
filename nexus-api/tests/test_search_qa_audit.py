@@ -24,59 +24,6 @@ from nexus_app.index.embedding_client import EmbeddingResult
 from nexus_app.index.pgvector_search import PgvectorSearchAdapter
 
 
-def _seed_fake_chain(session, n: int = 3) -> None:
-    """Seed DataSource / IngestBatch / RawObject / Asset / AssetVersion rows
-    matching FakeRAGFlowAdapter ids (fake_ds_{i}, fake_raw_{i}, fake_asset_{i},
-    fake_version_{i}) so fake hits survive _filter_hits_to_available and so
-    enrichment via raw.data_source_id can resolve.
-
-    The fake adapter populates `nexus_chunk_id` directly on hits, which causes
-    _enrich_with_nexus_refs to skip DB lookup; but _filter_hits_to_available
-    still requires the AssetVersion row to exist and be AVAILABLE.
-    """
-    for i in range(1, n + 1):
-        ds = models.DataSource(
-            id=f"fake_ds_{i}",
-            code=f"fake_ds_code_{i}",
-            name=f"Fake Source {i}",
-            source_type=DataSourceType.FILE_UPLOAD,
-        )
-        batch = models.IngestBatch(
-            id=f"fake_batch_{i}",
-            data_source_id=f"fake_ds_{i}",
-            idempotency_key=f"idem_{i}",
-            source_type=DataSourceType.FILE_UPLOAD,
-            status=IngestBatchStatus.COMPLETED,
-        )
-        raw = models.RawObject(
-            id=f"fake_raw_{i}",
-            batch_id=f"fake_batch_{i}",
-            data_source_id=f"fake_ds_{i}",
-            source_type=DataSourceType.FILE_UPLOAD,
-            object_uri=f"s3://nexus-raw/fake/{i}/source.pdf",
-            checksum=f"sha256:fake_checksum_{i}",
-            status=RawObjectStatus.RAW_PERSISTED,
-        )
-        asset = models.Asset(
-            id=f"fake_asset_{i}",
-            data_source_id=f"fake_ds_{i}",
-            source_object_key=f"fake/key/{i}",
-            title=f"Fake Asset {i}",
-            asset_kind=AssetKind.DOCUMENT,
-            status=AssetVersionStatus.AVAILABLE,
-        )
-        version = models.AssetVersion(
-            id=f"fake_version_{i}",
-            asset_id=f"fake_asset_{i}",
-            raw_object_id=f"fake_raw_{i}",
-            version_no=1,
-            source_checksum=f"sha256:fake_checksum_{i}",
-            version_status=AssetVersionStatus.AVAILABLE,
-        )
-        session.add_all([ds, batch, raw, asset, version])
-    session.commit()
-
-
 class _StaticEmbeddingClient:
     def __init__(self, vector: list[float]) -> None:
         self.vector = vector
@@ -215,22 +162,18 @@ def _seed_pgvector_search_chain(session, n: int = 3) -> None:
     session.commit()
 
 
-@pytest.fixture(autouse=True)
-def use_fake_ragflow(monkeypatch):
-    """Force FakeRAGFlowAdapter for these tests so we don't hit a real RAGFlow.
+class _FakeQAService:
+    def __init__(self, sources: list[dict], answer: str = "fake answer") -> None:
+        self.sources = sources
+        self.answer_text = answer
+        self.generate_calls: list[dict] = []
 
-    Two patches are needed: kb_registry pulls `get_ragflow_adapter` via
-    `from ... import ...`, so the name inside `kb_registry`'s module
-    globals is a frozen copy of the original. Patching `ra.get_ragflow_adapter`
-    alone does NOT redirect `KbRegistry.__init__`'s lookup."""
-    from nexus_app.index import kb_registry as kr
-    from nexus_app.index import ragflow_adapter as ra
-    fake = ra.FakeRAGFlowAdapter()
-    monkeypatch.setattr(ra, "get_ragflow_adapter", lambda settings=None: fake)
-    monkeypatch.setattr(kr, "get_ragflow_adapter", lambda settings=None: fake)
-    kr._default_registry = None
-    yield fake
-    kr._default_registry = None
+    def retrieve_sources(self, session, *, question, knowledge_type_code=None, top_k=5):
+        return self.sources[:top_k]
+
+    def generate_answer(self, *, question, sources):
+        self.generate_calls.append({"question": question, "sources": list(sources)})
+        return {"answer": self.answer_text, "sources": sources, "model_alias": "qa-model"}
 
 
 def _seed_caller(session) -> models.ApiCaller:
@@ -359,10 +302,26 @@ class TestSearchEndpoint:
 
 
 class TestQAEndpoint:
-    def test_qa_returns_sources_with_citation(self, app, session):
+    def test_qa_returns_sources_with_citation(self, app, session, monkeypatch):
+        _seed_pgvector_search_chain(session, n=1)
         caller = _seed_caller(session)
         from nexus_api.auth import require_api_caller
+        from nexus_api.api import open as open_api
         app.dependency_overrides[require_api_caller] = lambda: caller
+        monkeypatch.setattr(
+            open_api,
+            "get_pgvector_qa_service",
+            lambda: _FakeQAService(
+                [
+                    {
+                        "nexus_chunk_id": "search_chunk_1",
+                        "normalized_ref_id": "search_ref",
+                        "score": 0.8,
+                        "content": "search content 1",
+                    }
+                ]
+            ),
+        )
 
         client = TestClient(app)
         resp = client.get("/open/v1/qa?q=what+is+x&kb=textbook_kb")
@@ -373,10 +332,26 @@ class TestQAEndpoint:
         for src in data["sources"]:
             assert "normalized_ref_id" in src
 
-    def test_qa_writes_audit_event(self, app, session):
+    def test_qa_writes_audit_event(self, app, session, monkeypatch):
+        _seed_pgvector_search_chain(session, n=1)
         caller = _seed_caller(session)
         from nexus_api.auth import require_api_caller
+        from nexus_api.api import open as open_api
         app.dependency_overrides[require_api_caller] = lambda: caller
+        monkeypatch.setattr(
+            open_api,
+            "get_pgvector_qa_service",
+            lambda: _FakeQAService(
+                [
+                    {
+                        "nexus_chunk_id": "search_chunk_1",
+                        "normalized_ref_id": "search_ref",
+                        "score": 0.8,
+                        "content": "search content 1",
+                    }
+                ]
+            ),
+        )
 
         client = TestClient(app)
         client.get("/open/v1/qa?q=what+is+nexus&kb=textbook_kb")
@@ -387,12 +362,38 @@ class TestQAEndpoint:
         assert "question_hash" in last.summary
         assert "cited_normalized_ref_ids" in last.summary
 
-    def test_qa_audit_carries_answer_confidence(self, app, session):
-        """Fake qa sources carry scores 0.8/0.7/0.6; derived confidence = max."""
-        _seed_fake_chain(session, n=3)
+    def test_qa_audit_carries_answer_confidence(self, app, session, monkeypatch):
+        _seed_pgvector_search_chain(session, n=3)
         caller = _seed_caller(session)
         from nexus_api.auth import require_api_caller
+        from nexus_api.api import open as open_api
         app.dependency_overrides[require_api_caller] = lambda: caller
+        monkeypatch.setattr(
+            open_api,
+            "get_pgvector_qa_service",
+            lambda: _FakeQAService(
+                [
+                    {
+                        "nexus_chunk_id": "search_chunk_1",
+                        "normalized_ref_id": "search_ref",
+                        "score": 0.8,
+                        "content": "search content 1",
+                    },
+                    {
+                        "nexus_chunk_id": "search_chunk_2",
+                        "normalized_ref_id": "search_ref",
+                        "score": 0.7,
+                        "content": "search content 2",
+                    },
+                    {
+                        "nexus_chunk_id": "search_chunk_3",
+                        "normalized_ref_id": "search_ref",
+                        "score": 0.6,
+                        "content": "search content 3",
+                    },
+                ]
+            ),
+        )
 
         client = TestClient(app)
         resp = client.get("/open/v1/qa?q=conf-check&kb=textbook_kb&top_k=3")
@@ -405,15 +406,16 @@ class TestQAEndpoint:
         ds_ids = last.summary.get("data_source_ids")
         assert isinstance(ds_ids, list) and ds_ids == sorted(ds_ids)
 
-    def test_qa_no_sources_no_confidence(self, app, session, use_fake_ragflow):
-        """When the adapter returns no sources, answer_confidence must be null."""
-        def empty_qa(kb_id, question, top_k=5):
-            return {"answer": "no sources", "sources": []}
-        use_fake_ragflow.qa = empty_qa
-
+    def test_qa_no_sources_no_confidence(self, app, session, monkeypatch):
         caller = _seed_caller(session)
         from nexus_api.auth import require_api_caller
+        from nexus_api.api import open as open_api
         app.dependency_overrides[require_api_caller] = lambda: caller
+        monkeypatch.setattr(
+            open_api,
+            "get_pgvector_qa_service",
+            lambda: _FakeQAService([], answer="no sources"),
+        )
 
         client = TestClient(app)
         resp = client.get("/open/v1/qa?q=empty&kb=textbook_kb")
@@ -424,6 +426,40 @@ class TestQAEndpoint:
         last = events[-1]
         assert last.summary.get("answer_confidence") is None
         assert last.summary.get("data_source_ids") == []
+
+    def test_qa_generates_answer_after_available_filtering(self, app, session, monkeypatch):
+        _seed_pgvector_search_chain(session, n=1)
+        caller = _seed_caller(session)
+        qa = _FakeQAService(
+            [
+                {
+                    "nexus_chunk_id": "search_chunk_1",
+                    "normalized_ref_id": "search_ref",
+                    "score": 0.8,
+                    "content": "available content",
+                },
+                {
+                    "nexus_chunk_id": "missing_chunk",
+                    "normalized_ref_id": "missing_ref",
+                    "version_id": "missing_version",
+                    "score": 0.9,
+                    "content": "filtered content",
+                },
+            ]
+        )
+        from nexus_api.auth import require_api_caller
+        from nexus_api.api import open as open_api
+        app.dependency_overrides[require_api_caller] = lambda: caller
+        monkeypatch.setattr(open_api, "get_pgvector_qa_service", lambda: qa)
+
+        client = TestClient(app)
+        resp = client.get("/open/v1/qa?q=filter-check&kb=textbook_kb&top_k=2")
+
+        assert resp.status_code == 200
+        assert len(qa.generate_calls) == 1
+        generated_sources = qa.generate_calls[0]["sources"]
+        assert [source["nexus_chunk_id"] for source in generated_sources] == ["search_chunk_1"]
+        assert "filtered content" not in str(generated_sources)
 
 
 class TestPermissionHookNoop:

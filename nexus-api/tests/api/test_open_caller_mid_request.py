@@ -21,25 +21,6 @@ from nexus_app import auth_service, models
 from nexus_app.enums import AuditEventType
 
 
-@pytest.fixture(autouse=True)
-def use_fake_ragflow(monkeypatch):
-    """Stub RAGFlow so the test never touches the configured endpoint —
-    the adapter return value is irrelevant here: the patched
-    `_filter_hits_to_available` raises before it's actually consumed."""
-    from nexus_app.index import kb_registry as kr
-    from nexus_app.index import ragflow_adapter as ra
-
-    fake = ra.FakeRAGFlowAdapter()
-    # Patch the alias *inside* each importer so a freshly-built KbRegistry
-    # also sees the fake (kb_registry imported the function at module-load
-    # time, not via attribute lookup on `ra`).
-    monkeypatch.setattr(ra, "get_ragflow_adapter", lambda settings=None: fake)
-    monkeypatch.setattr(kr, "get_ragflow_adapter", lambda settings=None: fake)
-    kr._default_registry = None
-    yield fake
-    kr._default_registry = None
-
-
 @pytest.fixture()
 def caller(session: Session) -> tuple[models.ApiCaller, str]:
     plaintext = auth_service.generate_api_caller_key()
@@ -109,8 +90,22 @@ def test_search_fails_closed_when_caller_revoked_mid_request(
 
 
 def test_qa_fails_closed_when_caller_revoked_mid_request(
-    app_no_auth_override, session, caller
+    app_no_auth_override, session, caller, monkeypatch
 ):
+    from nexus_api.api import open as open_api
+
+    class _FakeQAService:
+        def retrieve_sources(self, session, *, question, knowledge_type_code=None, top_k=5):
+            return []
+
+        def generate_answer(self, *, question, sources):
+            return {"answer": "fake", "sources": sources}
+
+    monkeypatch.setattr(
+        open_api,
+        "get_pgvector_qa_service",
+        lambda: _FakeQAService(),
+    )
     row, plaintext = caller
     target = "nexus_api.api.open._filter_hits_to_available"
     with patch(target, side_effect=_revoke_during(session, row.id)):

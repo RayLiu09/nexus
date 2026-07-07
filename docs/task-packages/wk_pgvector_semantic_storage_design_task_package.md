@@ -170,3 +170,43 @@ Route `/open/v1/search` through the pgvector-backed semantic search adapter so p
 - Search audit still records query hash, hit refs, cited chunks, locators, data source ids, `top_k`, and `similarity_threshold`.
 - Search results are filtered to available versions and pass through the existing permission hook.
 - Tests cover adapter scoring, API citation response, audit fields, and no-hit behavior without real LiteLLM calls.
+
+## Implementation Slice: PGV-04 pgvector QA Runtime
+
+### Goal
+
+Route `/open/v1/qa` through pgvector-backed source retrieval plus LiteLLM answer generation so public QA no longer uses RAGFlow as its execution baseline.
+
+### Scope
+
+- Add a pgvector QA service that:
+  - calls the pgvector search adapter to retrieve source chunks;
+  - builds a bounded citation-aware prompt from retrieved sources;
+  - calls LiteLLM through the existing chat client boundary;
+  - returns `answer`, `sources`, and answer metadata compatible with the existing API contract.
+- Wire `/open/v1/qa` to the pgvector QA service.
+- Keep source enrichment, available-version filtering, permission hook, fail-closed caller recheck, and `QAAnswerGenerated` audit behavior.
+- Add tests with fake search and fake LLM clients; no real LiteLLM calls in tests.
+
+### Out Of Scope
+
+- Intent recognition, query transformation, rerank, structured SQL retrieval, or Console multi-step UI.
+- Streaming answer generation.
+- Production answer-quality evaluation.
+- Permission/governance filter execution beyond the existing hooks.
+
+### Forbidden Changes
+
+- Do not call model providers directly; answer generation must go through LiteLLM.
+- Do not log question plaintext, retrieved chunk content, answer text, API keys, or large context.
+- Do not reintroduce RAGFlow as `/open/v1/qa` execution baseline.
+- Do not change `/open/v1/qa` request parameters or audit event shape.
+- Do not persist answer plaintext or question plaintext into audit logs.
+
+### Acceptance
+
+- `/open/v1/qa` returns an answer generated from pgvector-retrieved sources.
+- QA response still includes source citations enriched with normalized ref, asset version, chunk id, locator, and raw object URI where available.
+- `QAAnswerGenerated` audit still records question hash, source count, cited refs/chunks/locators, data source ids, answer confidence, and `top_k`.
+- Caller revocation after retrieval but before response still fails closed with no audit row.
+- Tests cover normal answer, no-source answer, audit confidence, and mid-request revocation without real network calls.

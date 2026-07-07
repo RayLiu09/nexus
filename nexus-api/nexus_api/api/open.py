@@ -11,7 +11,7 @@ surfaces resources whose anchoring asset version is `available`:
   - `/open/v1/normalized-refs/{id}/governance-result` — forced `view=public`
   - `/open/v1/knowledge-chunks/{id}` — citation lookup for search/qa results
   - `/open/v1/search`              — pgvector-backed retrieval
-  - `/open/v1/qa`                  — RAGFlow-backed answering
+  - `/open/v1/qa`                  — pgvector-backed retrieval + LiteLLM answering
 
 The `available`-only filter is the read-side hinge that keeps in-progress,
 review-required, archived, disabled, or failed material out of upstream
@@ -663,7 +663,7 @@ def get_raw_object_download_url(
 
 
 # ---------------------------------------------------------------------------
-# Search & QA — pgvector-backed retrieval and legacy QA answering
+# Search & QA — pgvector-backed retrieval and answering
 # ---------------------------------------------------------------------------
 
 def get_pgvector_search_adapter():
@@ -671,14 +671,19 @@ def get_pgvector_search_adapter():
 
     return create_pgvector_search_adapter()
 
+
+def get_pgvector_qa_service():
+    from nexus_app.index.pgvector_qa import create_pgvector_qa_service
+
+    return create_pgvector_qa_service()
+
 def _enrich_with_nexus_refs(
     session: Session, hits: list[dict]
 ) -> list[dict]:
     """Enrich hits with NEXUS-side citation fields when NEXUS ids are present.
 
-    `knowledge_chunk` no longer stores RAGFlow-internal chunk ids. Search
-    backends that want source-level enrichment must return `nexus_chunk_id` or
-    `normalized_ref_id` directly. Adds:
+    Retrieval backends that want source-level enrichment must return
+    `nexus_chunk_id` or `normalized_ref_id` directly. Adds:
         - nexus_chunk_id, normalized_ref_id, version_id, asset_id
         - locator, source_block_ids (chunk-to-source coordinate provenance)
         - raw_object_uri (MinIO key of the original uploaded file)
@@ -810,10 +815,8 @@ def _derive_answer_confidence(sources: list[dict]) -> float | None:
     """Derive an answer confidence from cited source scores.
 
     P0 strategy: take the max retrieval score across cited chunks as a proxy
-    for "strength of strongest evidence". RAGFlow does not surface a native
-    confidence field today; if a future RAGFlow upgrade provides one, prefer
-    that value and demote this to a fallback. Returns None when no scored
-    source is available.
+    for "strength of strongest evidence". Returns None when no scored source
+    is available.
     """
     scores = [
         s["score"] for s in sources
@@ -873,7 +876,7 @@ def search_knowledge(
     results = _filter_hits_to_available(session, results)
     results = apply_permission_filter(caller, results)
 
-    # Caller may have been revoked while the RAGFlow round-trip was in flight.
+    # Caller may have been revoked while the retrieval round-trip was in flight.
     _assert_caller_still_active(session, caller)
 
     trace_id = request.headers.get("x-trace-id")
@@ -921,32 +924,30 @@ def qa_knowledge(
     caller: models.ApiCaller = Depends(require_api_caller),
     session: Session = Depends(get_db),
 ):
-    """Question answering with source citations via RAGFlow.
+    """Question answering with pgvector-retrieved source citations.
 
     Args:
         q: Question (1–2048 chars)
         kb: Knowledge type code. If omitted, uses default KB.
         top_k: Max source chunks to retrieve, 1–50
     """
-    from nexus_app.index.kb_registry import get_kb_registry
-    from nexus_app.index.ragflow_adapter import get_ragflow_adapter
-
-    adapter = get_ragflow_adapter()
-    registry = get_kb_registry()
-
     kb_code = kb or "textbook_kb"
-    kb_id = registry.ensure_kb(kb_code)
-
-    result = adapter.qa(kb_id=kb_id, question=q, top_k=top_k)
-    sources = result.get("sources", []) or []
+    qa_service = get_pgvector_qa_service()
+    sources = qa_service.retrieve_sources(
+        session,
+        question=q,
+        knowledge_type_code=kb_code,
+        top_k=top_k,
+    )
     sources = _enrich_with_nexus_refs(session, sources)
     sources = _filter_hits_to_available(session, sources)
     sources = apply_permission_filter(caller, sources)
+    result = qa_service.generate_answer(question=q, sources=sources)
     result["sources"] = sources
     answer_confidence = _derive_answer_confidence(sources)
     result["answer_confidence"] = answer_confidence
 
-    # Same liveness check as /search — RAGFlow qa is the slowest of the
+    # Same liveness check as /search — QA generation can be the slowest
     # consumption paths and most likely to outlive a revocation event.
     _assert_caller_still_active(session, caller)
 
