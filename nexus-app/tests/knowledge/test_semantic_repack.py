@@ -271,6 +271,33 @@ class TestDropMeaningless:
         kept = drop_meaningless([chart, _p(53, "本页正文具有检索价值。", page=7)])
         assert [b["block_id"] for b in kept] == ["p-53"]
 
+    def test_drops_media_shell_with_only_page_marker(self):
+        image = _img(53, page=8, caption="", bid="block-p08-053")
+        image["bbox"] = [250, 760, 330, 805]
+        image["content"] = "- 1"
+
+        kept = drop_meaningless([image, _p(54, "本页正文具有检索价值。", page=8)])
+
+        assert [b["block_id"] for b in kept] == ["p-54"]
+
+    def test_drops_tiny_decorative_media_with_short_label_and_punctuation(self):
+        image = _img(100, page=10, caption="H5", bid="block-p10-100")
+        image["bbox"] = [522, 473, 559, 511]
+        image["content"] = "-"
+
+        kept = drop_meaningless([image, _p(101, "本页正文具有检索价值。", page=10)])
+
+        assert [b["block_id"] for b in kept] == ["p-101"]
+
+    def test_keeps_large_media_even_with_short_label(self):
+        image = _img(100, page=10, caption="H5")
+        image["bbox"] = [0, 0, 320, 180]
+        image["content"] = "-"
+
+        kept = drop_meaningless([image])
+
+        assert [b["block_id"] for b in kept] == ["img-100"]
+
 
 # ---------------------------------------------------------------------------
 # attach_attribution

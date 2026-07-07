@@ -109,6 +109,11 @@ _PAGE_FOOTER_RE = re.compile(
     re.IGNORECASE,
 )
 _MIN_MEANINGFUL_CHARS = 4  # ultra-short orphan threshold (excluding whitespace)
+_SMALL_DECORATIVE_MEDIA_AREA = 2500
+_SHORT_MEDIA_LABEL_RE = re.compile(
+    r"^\s*([A-Z]{1,3}\d{0,2}|\d+[A-Z]{0,2}|[A-Z]\d[A-Z]?)\s*$",
+    re.IGNORECASE,
+)
 _QR_CODE_RE = re.compile(r"\b(QR\s*code|Quick Response code|matrix barcode)\b", re.IGNORECASE)
 _QR_ONLY_IMAGE_RE = re.compile(
     r"(image\s+(displays|shows|is).*QR\s*code|"
@@ -304,10 +309,38 @@ def _is_empty_media_noise(block: dict[str, Any]) -> bool:
     text = _text_of(block).strip()
     caption = str(block.get("caption") or "").strip()
     if caption:
+        if (
+            _SHORT_MEDIA_LABEL_RE.match(caption)
+            and (not text or _PUNCT_OR_SYMBOL_ONLY_RE.match(text))
+            and _media_bbox_area(block) <= _SMALL_DECORATIVE_MEDIA_AREA
+        ):
+            return True
         return False
     if not text:
         return True
+    if _is_media_page_marker_noise(text):
+        return True
     return bool(_PUNCT_OR_SYMBOL_ONLY_RE.match(text))
+
+
+def _is_media_page_marker_noise(text: str) -> bool:
+    compact = re.sub(r"\s+", "", text)
+    if _PAGE_FOOTER_RE.match(text) or _PURE_DIGITS_RE.match(text):
+        return True
+    return bool(re.fullmatch(r"[\-—–－]?\d{1,4}[\-—–－]?", compact))
+
+
+def _media_bbox_area(block: dict[str, Any]) -> float:
+    bbox = block.get("bbox")
+    if (
+        not isinstance(bbox, (list, tuple))
+        or len(bbox) != 4
+        or not all(isinstance(v, (int, float)) for v in bbox)
+    ):
+        return float("inf")
+    width = max(0.0, float(bbox[2]) - float(bbox[0]))
+    height = max(0.0, float(bbox[3]) - float(bbox[1]))
+    return width * height
 
 
 def _is_front_matter_promo_noise(block: dict[str, Any], text: str) -> bool:

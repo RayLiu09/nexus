@@ -90,6 +90,51 @@ def _make_chunk(ref_id: str) -> models.KnowledgeChunk:
     )
 
 
+def _context_chunk(
+    ref_id: str,
+    *,
+    chunk_id: str,
+    index: int,
+    content: str,
+    anchor_role: str = "body",
+    heading_title: str = "政策",
+    source_block_id: str | None = None,
+    extra_meta: dict | None = None,
+) -> models.KnowledgeChunk:
+    metadata = {"anchor_role": anchor_role}
+    if extra_meta:
+        metadata.update(extra_meta)
+    return models.KnowledgeChunk(
+        id=chunk_id,
+        normalized_ref_id=ref_id,
+        knowledge_type_code="industry_research_kb",
+        chunk_type=ChunkType.SEMANTIC_BLOCK,
+        chunking_strategy=ChunkingStrategy.SEMANTIC_REPACK,
+        source_kind=SourceKind.EXTRACTED_FROM_NORMALIZED,
+        chunk_index=index,
+        content=content,
+        chunk_metadata=metadata,
+        embedding_status=EmbeddingStatus.PENDING,
+        source_block_ids=[source_block_id or f"block-{index}"],
+        locator={
+            "page_start": 1,
+            "page_end": 1,
+            "bbox_union": None,
+            "md_char_range": [index * 10, index * 10 + 5],
+            "md_spans": None,
+            "heading_path": [{"level": 1, "title": heading_title}],
+            "blocks": [
+                {
+                    "block_id": source_block_id or f"block-{index}",
+                    "page": 1,
+                    "bbox": None,
+                    "md_char_range": [index * 10, index * 10 + 5],
+                }
+            ],
+        },
+    )
+
+
 class TestInternalChunkPreview:
     def test_preview_returns_chunk_source_and_highlight(self, app, session, monkeypatch):
         _, _, _, ref = _seed_asset(session)
@@ -165,3 +210,76 @@ class TestInternalChunkPreview:
         client = TestClient(app)
         resp = client.get(f"/internal/v1/normalized-refs/{ref.id}/page-image?page=0&bbox=1,2,3")
         assert resp.status_code == 422
+
+    def test_semantic_context_returns_neighbors_section_and_table_overview(self, app, session):
+        _, _, _, ref = _seed_asset(session)
+        chunks = [
+            _context_chunk(ref.id, chunk_id="ctx-prev", index=0, content="前文"),
+            _context_chunk(
+                ref.id,
+                chunk_id="ctx-overview",
+                index=1,
+                content="表格概览",
+                anchor_role="table_overview",
+                extra_meta={"table_parent_block_id": "tbl-main"},
+            ),
+            _context_chunk(
+                ref.id,
+                chunk_id="ctx-current",
+                index=2,
+                content="表格行",
+                anchor_role="table_row",
+                extra_meta={"table_parent_block_id": "tbl-main", "table_row_index": 1},
+            ),
+            _context_chunk(
+                ref.id,
+                chunk_id="ctx-next",
+                index=3,
+                content="后文",
+            ),
+            _context_chunk(
+                ref.id,
+                chunk_id="ctx-other-section",
+                index=4,
+                content="其它章节",
+                heading_title="其它政策",
+            ),
+        ]
+        session.add_all(chunks)
+        session.commit()
+
+        client = TestClient(app)
+        resp = client.get("/internal/v1/knowledge-chunks/ctx-current/semantic-context")
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["chunk"]["id"] == "ctx-current"
+        context = data["context"]
+        assert context["neighbors"]["previous"][0]["id"] == "ctx-overview"
+        assert context["neighbors"]["next"][0]["id"] == "ctx-next"
+        assert context["table"]["overview"]["id"] == "ctx-overview"
+        sibling_ids = {item["id"] for item in context["section"]["siblings"]}
+        assert "ctx-prev" in sibling_ids
+        assert "ctx-next" in sibling_ids
+        assert "ctx-other-section" not in sibling_ids
+        assert context["policy"]["source"] == "internal_console"
+
+    def test_semantic_context_returns_media_nearby_body_chunks(self, app, session):
+        _, _, _, ref = _seed_asset(session)
+        session.add_all([
+            _context_chunk(ref.id, chunk_id="media-body-prev", index=0, content="图前说明"),
+            _context_chunk(
+                ref.id,
+                chunk_id="media-current",
+                index=1,
+                content="图 1",
+                anchor_role="image",
+            ),
+            _context_chunk(ref.id, chunk_id="media-body-next", index=2, content="图后解释"),
+        ])
+        session.commit()
+
+        client = TestClient(app)
+        resp = client.get("/internal/v1/knowledge-chunks/media-current/semantic-context")
+        assert resp.status_code == 200
+        nearby = resp.json()["data"]["context"]["media"]["nearby_body_chunks"]
+        assert [item["id"] for item in nearby] == ["media-body-prev", "media-body-next"]

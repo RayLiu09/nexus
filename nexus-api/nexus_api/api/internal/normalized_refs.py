@@ -23,6 +23,7 @@ from nexus_api.dependencies import Pagination, pagination_params
 from nexus_api.responses import list_response, response
 from nexus_app import models, schemas as domain_schemas, services
 from nexus_app.database import get_db
+from nexus_app.knowledge.chunk_context import build_chunk_semantic_context
 
 router = APIRouter()
 
@@ -340,6 +341,51 @@ def get_knowledge_chunk_preview(
             "heading_path": locator.get("heading_path") or [],
             "anchor_role": (chunk.chunk_metadata or {}).get("anchor_role"),
         },
+    }
+    return response(out, request)
+
+
+@router.get(
+    "/knowledge-chunks/{chunk_id}/semantic-context",
+    response_model=schemas.ApiResponse[dict],
+)
+def get_knowledge_chunk_semantic_context(
+    chunk_id: str,
+    request: Request,
+    neighbor_window: int = Query(1, ge=0, le=3),
+    section_limit: int = Query(6, ge=0, le=20),
+    table_row_window: int = Query(1, ge=0, le=3),
+    session: Session = Depends(get_db),
+):
+    """Return console-only semantic hierarchy for one knowledge chunk.
+
+    This endpoint is mounted under `/internal/v1` and intentionally does not
+    alter `/open/v1/search` or QA runtime behavior.
+    """
+    chunk = session.get(models.KnowledgeChunk, chunk_id)
+    if chunk is None:
+        raise HTTPException(status_code=404, detail=f"knowledge_chunk '{chunk_id}' not found")
+    ref = session.get(models.NormalizedAssetRef, chunk.normalized_ref_id)
+    if ref is None:
+        raise HTTPException(status_code=404, detail="chunk normalized_ref not found")
+    version = session.get(models.AssetVersion, ref.version_id)
+
+    payload: dict[str, Any] = {}
+    try:
+        payload = _load_normalized_payload(ref)
+    except HTTPException:
+        payload = {}
+
+    out = {
+        "chunk": _serialize_chunk(chunk, ref, version),
+        "context": build_chunk_semantic_context(
+            session,
+            chunk,
+            normalized_blocks=payload.get("blocks") if isinstance(payload.get("blocks"), list) else None,
+            neighbor_window=neighbor_window,
+            section_limit=section_limit,
+            table_row_window=table_row_window,
+        ),
     }
     return response(out, request)
 

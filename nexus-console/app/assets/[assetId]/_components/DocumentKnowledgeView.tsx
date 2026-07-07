@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Segmented } from "antd";
 
 import { ChunkListSection } from "./ChunkListSection";
+import { DocumentKnowledgeGraphView } from "./DocumentKnowledgeGraphView";
 import { EvidenceGraphView } from "./EvidenceGraphView";
 import { TaskOutlineView } from "./TaskOutlineView";
 import type { NormalizedAssetRef, TaskOutlineEnvelope } from "@/lib/api";
@@ -16,9 +17,10 @@ type Props = {
   taskOutlineTraceId?: string | null;
 };
 
-type ViewKey = "chunks" | "task_outline" | "evidence_graph";
+type ViewKey = "chunks" | "knowledge_graph" | "task_outline" | "evidence_graph";
 
 const CHUNK_VIEW_OPTION = { label: "RAG知识块", value: "chunks" as const };
+const KNOWLEDGE_GRAPH_VIEW_OPTION = { label: "知识图谱", value: "knowledge_graph" as const };
 const TASK_OUTLINE_VIEW_OPTION = { label: "任务大纲", value: "task_outline" as const };
 const EVIDENCE_GRAPH_VIEW_OPTION = { label: "Evidence Graph", value: "evidence_graph" as const };
 
@@ -43,6 +45,7 @@ export function DocumentKnowledgeView({
       graphAdmission === "recommended";
   const viewOptions: Array<{ label: string; value: ViewKey }> = [
     CHUNK_VIEW_OPTION,
+    KNOWLEDGE_GRAPH_VIEW_OPTION,
     ...(showTaskOutline ? [TASK_OUTLINE_VIEW_OPTION] : []),
     ...(showEvidenceGraph ? [EVIDENCE_GRAPH_VIEW_OPTION] : []),
   ];
@@ -75,6 +78,9 @@ export function DocumentKnowledgeView({
           mode="preview"
           actionLabel="定位原文"
         />
+      ) : null}
+      {view === "knowledge_graph" ? (
+        <DocumentKnowledgeGraphView normalizedRef={normalizedRef} />
       ) : null}
       {view === "task_outline" && showTaskOutline ? (
         <TaskOutlineView

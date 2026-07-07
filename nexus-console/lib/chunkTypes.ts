@@ -136,6 +136,93 @@ export interface ChunkPreviewResponse {
   };
 }
 
+export interface SemanticContextChunk {
+  id: string;
+  chunk_id: string;
+  normalized_ref_id: string;
+  knowledge_type_code: string;
+  chunk_type: string;
+  chunk_index: number;
+  content: string;
+  locator?: LocatorInfo | null;
+  source_block_ids?: string[] | null;
+  anchor_role?: string | null;
+  caption?: string | null;
+  reason: string;
+}
+
+export interface SemanticContextSection {
+  section_key?: string | null;
+  section_key_hash?: string | null;
+  section_path: Array<{ level: number; title: string }>;
+  siblings: SemanticContextChunk[];
+}
+
+export interface SemanticHierarchyPathItem {
+  node_id: string;
+  title: string;
+  display_title: string;
+  node_type: "chapter" | "section" | "knowledge_point" | string;
+  level: number;
+  source_block_id?: string | null;
+  seq_range?: [number | null, number | null] | null;
+}
+
+export interface SemanticHierarchyNode extends SemanticHierarchyPathItem {
+  is_current: boolean;
+  contains_current: boolean;
+  chunks: Array<SemanticContextChunk & { is_current?: boolean }>;
+  chunk_range?: [number, number] | null;
+  children: SemanticHierarchyNode[];
+}
+
+export interface SemanticHierarchyParentScope extends SemanticHierarchyPathItem {
+  overview_chunks: SemanticContextChunk[];
+  knowledge_points: SemanticHierarchyNode[];
+  children: SemanticHierarchyNode[];
+  chunk_range?: [number, number] | null;
+  is_current_parent: boolean;
+}
+
+export interface SemanticHierarchyContext {
+  current_chunk_id: string;
+  current_node_id?: string | null;
+  parent_node_id?: string | null;
+  path: SemanticHierarchyPathItem[];
+  tree: SemanticHierarchyNode[];
+  parent_scope: SemanticHierarchyParentScope | null;
+  source: "normalized_blocks" | "chunk_locator" | string;
+}
+
+export interface ChunkSemanticContext {
+  current_chunk_id: string;
+  section: SemanticContextSection;
+  neighbors: {
+    previous: SemanticContextChunk[];
+    next: SemanticContextChunk[];
+  };
+  table: {
+    overview: SemanticContextChunk | null;
+    related_rows: SemanticContextChunk[];
+    table_parent_block_id?: string | null;
+  };
+  media: {
+    nearby_body_chunks: SemanticContextChunk[];
+  };
+  hierarchy?: SemanticHierarchyContext;
+  policy: {
+    neighbor_window: number;
+    section_limit: number;
+    table_row_window: number;
+    source: "internal_console" | string;
+  };
+}
+
+export interface ChunkSemanticContextResponse {
+  chunk: KnowledgeChunkHit;
+  context: ChunkSemanticContext;
+}
+
 /** Response of `/api/normalized-refs/[id]/content`. */
 export interface NormalizedRefContent {
   ref_id: string;
