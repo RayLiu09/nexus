@@ -1,0 +1,224 @@
+"""Static domain/query-profile registry for retrieval/recall v1.0."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from nexus_app.retrieval.schemas import BusinessDomain, RetrievalChannel
+
+
+@dataclass(frozen=True)
+class QueryProfile:
+    key: str
+    channel: RetrievalChannel
+    description: str
+    executor_key: str
+    table_profile: str | None = None
+    allowed_filters: tuple[str, ...] = ()
+    allowed_group_by: tuple[str, ...] = ()
+    allowed_metrics: tuple[str, ...] = ()
+    default_limit: int = 50
+    max_limit: int = 200
+
+
+@dataclass(frozen=True)
+class DomainDefinition:
+    domain: BusinessDomain
+    display_name: str
+    default_channel: RetrievalChannel
+    allowed_channels: tuple[RetrievalChannel, ...]
+    executor_key: str
+    default_query_profile_key: str
+    query_profiles: tuple[QueryProfile, ...]
+
+    def get_query_profile(self, key: str | None = None) -> QueryProfile:
+        target_key = key or self.default_query_profile_key
+        for profile in self.query_profiles:
+            if profile.key == target_key:
+                return profile
+        raise KeyError(f"query profile {target_key!r} is not registered for {self.domain}")
+
+
+MAJOR_DISTRIBUTION_FIELDS = (
+    "year",
+    "province_name",
+    "major_code",
+    "major_name",
+    "education_level",
+    "region_scope",
+    "distribution_count",
+)
+
+
+DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
+    BusinessDomain.COURSE_TEXTBOOK: DomainDefinition(
+        domain=BusinessDomain.COURSE_TEXTBOOK,
+        display_name="课程教材",
+        default_channel=RetrievalChannel.UNSTRUCTURED,
+        allowed_channels=(RetrievalChannel.UNSTRUCTURED,),
+        executor_key="unstructured_pgvector",
+        default_query_profile_key="semantic_chunk",
+        query_profiles=(
+            QueryProfile(
+                key="semantic_chunk",
+                channel=RetrievalChannel.UNSTRUCTURED,
+                description="教材内容语义 chunk 召回",
+                executor_key="unstructured_pgvector",
+                default_limit=8,
+                max_limit=50,
+            ),
+            QueryProfile(
+                key="task_outline_context",
+                channel=RetrievalChannel.UNSTRUCTURED,
+                description="任务型教材 Task Outline 上下文召回",
+                executor_key="unstructured_pgvector",
+                default_limit=8,
+                max_limit=50,
+            ),
+        ),
+    ),
+    BusinessDomain.MAJOR_PROFILE: DomainDefinition(
+        domain=BusinessDomain.MAJOR_PROFILE,
+        display_name="专业简介",
+        default_channel=RetrievalChannel.HYBRID,
+        allowed_channels=(RetrievalChannel.UNSTRUCTURED, RetrievalChannel.HYBRID),
+        executor_key="unstructured_pgvector",
+        default_query_profile_key="major_profile_semantic",
+        query_profiles=(
+            QueryProfile(
+                key="major_profile_semantic",
+                channel=RetrievalChannel.UNSTRUCTURED,
+                description="专业简介、职业面向、课程、能力等语义召回",
+                executor_key="unstructured_pgvector",
+                default_limit=8,
+                max_limit=50,
+            ),
+        ),
+    ),
+    BusinessDomain.MAJOR_DISTRIBUTION: DomainDefinition(
+        domain=BusinessDomain.MAJOR_DISTRIBUTION,
+        display_name="专业布点",
+        default_channel=RetrievalChannel.STRUCTURED,
+        allowed_channels=(RetrievalChannel.STRUCTURED,),
+        executor_key="major_distribution_sql",
+        default_query_profile_key="major_distribution.trend_by_year",
+        query_profiles=(
+            QueryProfile(
+                key="major_distribution.trend_by_year",
+                channel=RetrievalChannel.STRUCTURED,
+                description="按年份聚合专业布点数",
+                executor_key="major_distribution_sql",
+                table_profile="major_distribution.v1",
+                allowed_filters=MAJOR_DISTRIBUTION_FIELDS,
+                allowed_group_by=("year",),
+                allowed_metrics=("sum:distribution_count", "count:record"),
+            ),
+            QueryProfile(
+                key="major_distribution.by_province",
+                channel=RetrievalChannel.STRUCTURED,
+                description="按省份聚合专业布点数",
+                executor_key="major_distribution_sql",
+                table_profile="major_distribution.v1",
+                allowed_filters=MAJOR_DISTRIBUTION_FIELDS,
+                allowed_group_by=("province_name",),
+                allowed_metrics=("sum:distribution_count", "count:record"),
+            ),
+            QueryProfile(
+                key="major_distribution.by_education_level",
+                channel=RetrievalChannel.STRUCTURED,
+                description="按培养层次聚合专业布点数",
+                executor_key="major_distribution_sql",
+                table_profile="major_distribution.v1",
+                allowed_filters=MAJOR_DISTRIBUTION_FIELDS,
+                allowed_group_by=("education_level",),
+                allowed_metrics=("sum:distribution_count", "count:record"),
+            ),
+            QueryProfile(
+                key="major_distribution.record_list",
+                channel=RetrievalChannel.STRUCTURED,
+                description="专业布点明细记录查询",
+                executor_key="major_distribution_sql",
+                table_profile="major_distribution.v1",
+                allowed_filters=MAJOR_DISTRIBUTION_FIELDS,
+            ),
+        ),
+    ),
+    BusinessDomain.JOB_DEMAND: DomainDefinition(
+        domain=BusinessDomain.JOB_DEMAND,
+        display_name="岗位需求",
+        default_channel=RetrievalChannel.STRUCTURED,
+        allowed_channels=(RetrievalChannel.STRUCTURED,),
+        executor_key="job_demand_sql",
+        default_query_profile_key="job_demand.record_list",
+        query_profiles=(
+            QueryProfile(
+                key="job_demand.record_list",
+                channel=RetrievalChannel.STRUCTURED,
+                description="岗位需求明细记录查询",
+                executor_key="job_demand_sql",
+                table_profile="job_demand.v1",
+                allowed_filters=(
+                    "major_name",
+                    "industry_name",
+                    "job_title",
+                    "city",
+                    "education_requirement",
+                    "salary_min",
+                    "salary_max",
+                ),
+            ),
+        ),
+    ),
+    BusinessDomain.COMPETENCY_ANALYSIS: DomainDefinition(
+        domain=BusinessDomain.COMPETENCY_ANALYSIS,
+        display_name="职业能力分析",
+        default_channel=RetrievalChannel.STRUCTURED,
+        allowed_channels=(RetrievalChannel.STRUCTURED,),
+        executor_key="competency_sql",
+        default_query_profile_key="competency.task_tree",
+        query_profiles=(
+            QueryProfile(
+                key="competency.task_tree",
+                channel=RetrievalChannel.STRUCTURED,
+                description="工作任务、工作内容、能力项树查询",
+                executor_key="competency_sql",
+                table_profile="ability_analysis.pgsd.v1",
+                allowed_filters=(
+                    "major_name",
+                    "profile_id",
+                    "task_code",
+                    "ability_major_category_code",
+                    "ability_code",
+                ),
+            ),
+        ),
+    ),
+}
+
+
+def get_domain_definition(domain: BusinessDomain | str) -> DomainDefinition:
+    try:
+        domain_key = domain if isinstance(domain, BusinessDomain) else BusinessDomain(domain)
+    except ValueError as exc:
+        raise KeyError(f"retrieval domain {domain!r} is not registered") from exc
+    try:
+        return DOMAIN_REGISTRY[domain_key]
+    except KeyError as exc:
+        raise KeyError(f"retrieval domain {domain_key!r} is not registered") from exc
+
+
+def get_query_profile(domain: BusinessDomain | str, key: str | None = None) -> QueryProfile:
+    return get_domain_definition(domain).get_query_profile(key)
+
+
+def list_domain_definitions() -> list[DomainDefinition]:
+    return [DOMAIN_REGISTRY[key] for key in BusinessDomain]
+
+
+def domains_for_channel(channel: RetrievalChannel | str) -> list[DomainDefinition]:
+    channel_key = channel if isinstance(channel, RetrievalChannel) else RetrievalChannel(channel)
+    return [
+        definition
+        for definition in list_domain_definitions()
+        if channel_key in definition.allowed_channels
+    ]
+
