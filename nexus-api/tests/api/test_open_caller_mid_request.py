@@ -1,6 +1,6 @@
 """Caller-revocation mid-request guard on `/open/v1/search` and `/qa`.
 
-`require_api_caller` checks `revoked_at` at request entry, but RAGFlow
+`require_api_caller` checks `revoked_at` at request entry, but retrieval/QA
 round-trips can take seconds. Without a second check before audit
 emission, a key revoked while the request is in flight would still get
 credited with the access in the audit log and receive a 200 response.
@@ -71,8 +71,19 @@ def _revoke_during(session: Session, caller_id: str) -> callable:
 
 
 def test_search_fails_closed_when_caller_revoked_mid_request(
-    app_no_auth_override, session, caller
+    app_no_auth_override, session, caller, monkeypatch
 ):
+    from nexus_api.api import open as open_api
+
+    class _FakeSearchAdapter:
+        def search(self, session, *, query, knowledge_type_code=None, top_k=10, similarity_threshold=0.7):
+            return []
+
+    monkeypatch.setattr(
+        open_api,
+        "get_pgvector_search_adapter",
+        lambda: _FakeSearchAdapter(),
+    )
     row, plaintext = caller
     # `_filter_hits_to_available` is called between the adapter call and the
     # audit write. Patch it to revoke the caller at that moment.

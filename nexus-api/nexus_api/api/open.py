@@ -10,7 +10,7 @@ surfaces resources whose anchoring asset version is `available`:
   - `/open/v1/normalized-refs/{id}` — refs whose version is available
   - `/open/v1/normalized-refs/{id}/governance-result` — forced `view=public`
   - `/open/v1/knowledge-chunks/{id}` — citation lookup for search/qa results
-  - `/open/v1/search`              — RAGFlow-backed retrieval
+  - `/open/v1/search`              — pgvector-backed retrieval
   - `/open/v1/qa`                  — RAGFlow-backed answering
 
 The `available`-only filter is the read-side hinge that keeps in-progress,
@@ -663,8 +663,13 @@ def get_raw_object_download_url(
 
 
 # ---------------------------------------------------------------------------
-# Search & QA — RAGFlow-backed retrieval and answering
+# Search & QA — pgvector-backed retrieval and legacy QA answering
 # ---------------------------------------------------------------------------
+
+def get_pgvector_search_adapter():
+    from nexus_app.index.pgvector_search import create_pgvector_search_adapter
+
+    return create_pgvector_search_adapter()
 
 def _enrich_with_nexus_refs(
     session: Session, hits: list[dict]
@@ -847,7 +852,7 @@ def search_knowledge(
     caller: models.ApiCaller = Depends(require_api_caller),
     session: Session = Depends(get_db),
 ):
-    """Search indexed knowledge base via RAGFlow.
+    """Search indexed knowledge chunks via pgvector.
 
     Args:
         q: Search query (1–1024 chars)
@@ -855,18 +860,12 @@ def search_knowledge(
         top_k: Max results, 1–100 (DoS guard against unbounded fan-out)
         similarity_threshold: Minimum similarity score, 0.0–1.0
     """
-    from nexus_app.index.kb_registry import get_kb_registry
-    from nexus_app.index.ragflow_adapter import get_ragflow_adapter
-
-    adapter = get_ragflow_adapter()
-    registry = get_kb_registry()
-
     kb_code = kb or "textbook_kb"
-    kb_id = registry.ensure_kb(kb_code)
-
+    adapter = get_pgvector_search_adapter()
     results = adapter.search(
-        kb_id=kb_id,
+        session,
         query=q,
+        knowledge_type_code=kb_code,
         top_k=top_k,
         similarity_threshold=similarity_threshold,
     )

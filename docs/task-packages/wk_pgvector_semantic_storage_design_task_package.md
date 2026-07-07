@@ -130,3 +130,43 @@ Index NEXUS-owned `knowledge_chunk` rows into the pgvector projection tables cre
 - `vector_collection` rows are separated by asset domain type/model/schema.
 - Successfully indexed chunks have `embedding_status=embedded`; failed chunks have `embedding_status=failed`.
 - Tests cover success, idempotent retry, and embedding failure without real network calls.
+
+## Implementation Slice: PGV-03 pgvector Search Adapter
+
+### Goal
+
+Route `/open/v1/search` through the pgvector-backed semantic search adapter so public search consumes NEXUS-owned vector projections instead of RAGFlow, while preserving existing response citation fields and audit behavior.
+
+### Scope
+
+- Add a pgvector search adapter that:
+  - embeds the query through the LiteLLM embedding client;
+  - searches `knowledge_embedding_pgvector` rows by vector similarity;
+  - filters by `knowledge_type_code` when the API `kb` query parameter is present;
+  - returns hits with `nexus_chunk_id`, `normalized_ref_id`, `score`, content/snippet, and projection metadata.
+- Wire `/open/v1/search` to the pgvector adapter.
+- Keep `_enrich_with_nexus_refs`, available-version filtering, permission hook, and `SearchQueryExecuted` audit unchanged.
+- Add SQLite-compatible fallback scoring for tests so unit tests do not need PostgreSQL pgvector.
+
+### Out Of Scope
+
+- `/open/v1/qa` replacement and answer generation.
+- LLM intent recognition, query transformation, rerank, hybrid keyword retrieval, and structured SQL retrieval.
+- Console retrieval conversation UI.
+- Production recall/capacity benchmarking.
+- Permission/governance filter execution beyond existing reserved filters.
+
+### Forbidden Changes
+
+- Do not call embedding providers directly; query embeddings go through LiteLLM.
+- Do not log query plaintext beyond the existing response payload contract and hashed audit summary.
+- Do not reintroduce RAGFlow as `/open/v1/search` execution baseline.
+- Do not change `/open/v1/search` request parameters or audit event shape.
+- Do not route structured Pipeline B domain tables through vector search by default.
+
+### Acceptance
+
+- `/open/v1/search` returns pgvector-backed hits with source citation enrichment.
+- Search audit still records query hash, hit refs, cited chunks, locators, data source ids, `top_k`, and `similarity_threshold`.
+- Search results are filtered to available versions and pass through the existing permission hook.
+- Tests cover adapter scoring, API citation response, audit fields, and no-hit behavior without real LiteLLM calls.
