@@ -6,9 +6,9 @@ This document is the concise product and requirement contract for implementation
 
 NEXUS一期 builds the minimum usable loop for enterprise data assets and knowledge assets:
 
-`data ingestion → ingest_validate → assetize → parse/normalize → normalized_asset_ref → AI governance and quality scoring → rule guardrails → available/review_required → NEXUS knowledge_chunk construction → external index backend adapter → permission-filtered search/QA → traceable citation and audit`
+`data ingestion → ingest_validate → assetize → parse/normalize → normalized_asset_ref → AI governance and quality scoring → rule guardrails → available/review_required → NEXUS knowledge_chunk construction → pgvector P0 index/search adapter → permission/governance-filter-ready search/QA → traceable citation and audit`
 
-The platform focuses on D1-D4 pilot domains. Knowledge Pipeline P0 scope = Pipeline 1 (RAG retrieval KB) only. D5/D6 ingestion, knowledge graph, SFT corpus, evaluation standard library, and an operations center are not productized in P0.
+The platform focuses on D1-D4 pilot domains. Knowledge Pipeline P0 scope = Pipeline 1 (semantic retrieval KB) only. D5/D6 ingestion, productized knowledge graph, SFT corpus, evaluation standard library, and an operations center are not productized in P0.
 
 ## Roles
 
@@ -36,8 +36,8 @@ Role constraints:
 - AI governance and quality scoring from normalized objects via `metadata-service.ai-governance`. Governance target is `normalized_asset_ref`.
 - Configurable governance rules for classification, level, tags, org scope, quality admission, review triggers, and index admission.
 - Governance decision tracking in `governance_result.decision_trail`.
-- NEXUS-owned `knowledge_chunk` construction for source citation and downstream knowledge processing. External index backends are adapter-selected later; backend execution state belongs in `index_manifest`, not `knowledge_chunk`. `knowledge_chunk.normalized_ref_id` links chunks to `normalized_asset_ref`.
-- Knowledge Pipeline 1: RAG retrieval KB for D4 teaching materials and D3 talent cultivation plans. Knowledge Pipeline is independent of Asset Pipeline.
+- NEXUS-owned `knowledge_chunk` construction for source citation and downstream knowledge processing. P0 vector storage uses PostgreSQL pgvector through the index/search adapter; backend execution state belongs in `index_manifest`, not `knowledge_chunk`. `knowledge_chunk.normalized_ref_id` links chunks to `normalized_asset_ref`.
+- Knowledge Pipeline 1: semantic retrieval KB for D4 teaching materials and D3 talent cultivation plans. Knowledge Pipeline is independent of Asset Pipeline; P0 semantic vector storage defaults to PostgreSQL pgvector behind the index/search adapter, and RAGFlow is no longer the platform baseline.
 - Course textbook Task Outline processing for D4 `course_textbook`
   normalized documents: training-operation textbooks are detected, persisted
   as `task_outline_profile` plus `task_outline_node` trees, and projected into
@@ -223,11 +223,11 @@ P0 end-to-end cases:
 - Unauthorized caller cannot retrieve L3/L4 exception content.
 - QA response includes source citations with `normalized_ref_id` and image_uri references where applicable.
 - Reprocess creates new job/version → `available` or `review_required`.
-- RAGFlow sync failure retried and traced in `index_manifest`.
+- Index sync failure retried and traced in `index_manifest`.
 - Duplicate `idempotency_key` → no duplicate effective assets.
 - Local identity works without DingTalk.
 - AI re-score produces new `ai_governance_run` and updated `governance_result.quality_summary` while retaining feedback in `decision_trail`.
-- Knowledge Pipeline 1: normalized D4 asset → RAGFlow chunked → chunk carries `normalized_ref_id` → search returns result traceable to normalized ref.
+- Knowledge Pipeline 1: normalized D4 asset → NEXUS `knowledge_chunk` / pgvector-backed semantic retrieval index → chunk carries `normalized_ref_id` → search returns result traceable to normalized ref.
 
 Go / No-Go:
 - Permission leakage rate must be 0.

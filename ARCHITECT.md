@@ -17,7 +17,7 @@ This document is the concise architecture baseline for implementation. It is dis
 | `governance_result` target    | Implicitly `asset_version`                             | Explicitly `normalized_asset_ref`; `knowledge_chunk.normalized_ref_id` links chunk to normalized ref                                                                                                          |
 | Auto-tagging subject          | Implied from chunks/asset                              | `metadata_enrich` targets **normalized assets**; chunks do not exist yet at tag generation time                                                                                                               |
 | Auto-tagging admission        | All tags go to draft queue                             | High-confidence tags auto-committed (audit logged); low-confidence tags enter human review queue                                                                                                              |
-| Knowledge Pipeline            | Coupled to Asset Pipeline                              | **Decoupled**: Knowledge Pipeline is independent, triggered by `normalized_asset_ref`; P0 scope = Pipeline 1 (RAG retrieval KB) only                                                                          |
+| Knowledge Pipeline            | Coupled to Asset Pipeline                              | **Decoupled**: Knowledge Pipeline is independent, triggered by `normalized_asset_ref`; P0 scope = Pipeline 1 (semantic retrieval KB) only                                                                     |
 
 ## Architecture Goal
 
@@ -33,10 +33,10 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
 | MinerU                           | PDF/Office/image/scanned-document parsing; image extraction                                                              | Asset governance, permissions, indexes                                |
 | LiteLLM                          | Existing AI gateway: model routing, provider adaptation, credentials, gateway-side limits                                | NEXUS Prompt versions, governance states, asset master data           |
 | `metadata-service.ai-governance` | Internal AI governance submodule: Prompt/profile management, LiteLLM calls, AI suggestions, quality scoring              | Independent deployment, bypassing rule guardrails                     |
-| RAGFlow                          | Chunking execution, index construction, retrieval execution                                                              | NEXUS master data, permissions, audit authority                       |
+| Semantic retrieval backend        | Index construction and retrieval execution behind NEXUS adapter; P0 default = PostgreSQL pgvector adapter, replaceable by dedicated retrieval engines later | NEXUS master data, permissions, audit authority, or chunk semantics   |
 | Crawler systems                  | Dynamic data source push                                                                                                 | Governance, index governance, permissions                             |
 | Scan-task orchestration          | Turns NAS/Webhook/crawler/database scan items into `raw_object` + PostgreSQL ingest jobs using existing pipeline routing | Live filesystem crawler daemon, MQ scheduler, or new execution engine |
-| Upper systems                    | Consume NEXUS APIs                                                                                                       | Direct calls to MinerU, RAGFlow, LiteLLM, or internal DBs             |
+| Upper systems                    | Consume NEXUS APIs                                                                                                       | Direct calls to MinerU, retrieval backends, LiteLLM, or internal DBs  |
 
 ## Design Principles
 
@@ -68,8 +68,8 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
 3. **Job and processing layer**: `job-orchestrator`, PostgreSQL job queue + Worker poller (P0) / RabbitMQ + Celery (scale-up). Both pipelines include: `ingest_validate` → `assetize` → parse (A only) → `normalize`.
 4. **Standardization and governance layer**: `normalize-service` (LLM extraction + rule fallback), `normalized_document`, `normalized_record`, `normalized_asset_ref` (with full governance/quality/lineage fields), `metadata-service.ai-governance`, `metadata_enrich`, `governance-rule`.
 5. **Master data layer**: `metadata-service` for assets, versions, governance results (embedded `quality_summary` and `decision_trail`), read models.
-6. **Index, permission, and service layer**: `ragflow-adapter`, RAGFlow, `search-service`, `iam-audit-service`, `nexus-api`.
-7. **Knowledge Pipeline layer** (independent): input = `normalized_asset_ref`; P0 scope = Pipeline 1 (RAG retrieval KB) only.
+6. **Index, permission, and service layer**: index/search adapter, semantic retrieval backend, `search-service`, `iam-audit-service`, `nexus-api`.
+7. **Knowledge Pipeline layer** (independent): input = `normalized_asset_ref`; P0 scope = Pipeline 1 (semantic retrieval KB) only.
 
 ## Two Processing Pipelines
 
@@ -239,7 +239,7 @@ Chunking strategies that consume `normalized_document.blocks[]` should pass the 
 - Computed once by `mineru_converter._annotate_md_ranges` against the `"\n\n".join(md_parts)` cursor.
 - `body_markdown[start:end] == md_parts[i]` for every populated block (substring invariant; locked by `tests/pipeline/test_mineru_markdown_stability.py`).
 - Blocks with no markdown footprint (e.g. visual blocks with no caption / table / VLM output) carry `md_char_range = None`.
-- **`body_markdown` itself is byte-identical with or without md_char_range** — the index lives only on the blocks list, never injected as anchors / comments / zero-width characters into the markdown stream. This keeps LLM Prompts, RAGFlow upload, and asset detail preview unaffected.
+- **`body_markdown` itself is byte-identical with or without md_char_range** — the index lives only on the blocks list, never injected as anchors / comments / zero-width characters into the markdown stream. This keeps LLM Prompts, retrieval-index uploads, and asset detail preview unaffected.
 - `mineru_converter.assert_no_anchor_pollution(text)` is the runtime tripwire (enabled via env `NEXUS_ASSERT_NO_ANCHORS=1` in dev/staging). Forbidden patterns: `<!--block:…`, `[#block-…`, `{{anchor:…}}`, U+200B/200C/200D/FEFF.
 
 `nexus_app.knowledge.chunk_builder.resolve_blocks_for_span(blocks, span, doc_fallback=...)` is the reverse-lookup helper used by strategies (`qa_extract`, `process_step_extract`, `case_decompose`, `indicator_decompose`). When no block overlaps it falls back to `doc_fallback`, preserving Stage 1 document-level locator behaviour. Omitting the kwarg defaults to `content_blocks`; passing an explicit `None` (used by `graph_extract`) disables the fallback so primary-extraction blocks can be distinguished from supporting evidence.
@@ -373,7 +373,7 @@ Upgrade trigger: mime_type-based routing produces visibly degraded structure qua
 
 `SearchQueryExecuted`: `caller_id`, `caller_type`, `query_hash` (SHA-256 of query text, not plaintext), `hit_normalized_ref_ids` (list), `cited_chunk_ids` (list of `knowledge_chunk.id`), `cited_locators` (compact list `[{chunk_id, page_start, page_end}]`; full locator stays in `knowledge_chunk.locator`), `hit_count`, `data_source_ids` (distinct), `trace_id`.
 
-`QAAnswerGenerated`: `caller_id`, `caller_type`, `question_hash` (SHA-256), `cited_normalized_ref_ids` (list), `cited_chunk_ids` (list of `knowledge_chunk.id`), `cited_locators` (compact list `[{chunk_id, page_start, page_end}]`), `data_source_ids` (distinct), `answer_confidence` (P0: derived as `max(sources[].score)`; null when no scored sources; future RAGFlow-native confidence will be preferred when available), `trace_id`.
+`QAAnswerGenerated`: `caller_id`, `caller_type`, `question_hash` (SHA-256), `cited_normalized_ref_ids` (list), `cited_chunk_ids` (list of `knowledge_chunk.id`), `cited_locators` (compact list `[{chunk_id, page_start, page_end}]`), `data_source_ids` (distinct), `answer_confidence` (P0: derived as `max(sources[].score)`; null when no scored sources; future retrieval-backend-native confidence may be preferred when available), `trace_id`.
 
 These three events are the foundation for Phase 2 consumption-side data lineage analysis. They must be written by `nexus-api` search/QA handlers before returning results. Logs must not contain query plaintext, answer content, or L3/L4 data.
 
@@ -390,7 +390,7 @@ These three events are the foundation for Phase 2 consumption-side data lineage 
 Asset Pipeline → normalized_asset_ref (stable contract)
                         ↓ (trigger: normalized_asset_ref.status = generated)
               Knowledge Pipeline (independent, per-scenario)
-                  P0: Pipeline 1 (RAG retrieval KB via ragflow-adapter → RAGFlow)
+                  P0: Pipeline 1 (semantic retrieval KB via index/search adapter)
                   Later: Pipeline 2 (QA corpus), Pipeline 3 (process corpus),
                          Pipeline 4 (knowledge graph), Pipeline 5 (eval standard)
 ```
@@ -415,13 +415,13 @@ Asset Pipeline → normalized_asset_ref (stable contract)
 ## Core Flows
 
 **Pipeline A (Document):**
-`upload → raw_object (binary) → ingest_validate → Job(pipeline_type="document") → assetize (asset/asset_version) → MinerU parse (parse_artifact + images) → normalize (normalized_document) → normalized_asset_ref → AI governance → rules → governance_result → available/review_required → RAGFlow index`
+`upload → raw_object (binary) → ingest_validate → Job(pipeline_type="document") → assetize (asset/asset_version) → MinerU parse (parse_artifact + images) → normalize (normalized_document) → normalized_asset_ref → AI governance → rules → governance_result → available/review_required → semantic retrieval index`
 
 **Pipeline B (Record):**
 `crawler/webhook/batch/file upload → raw_object (JSON/XLSX structured data) → ingest_validate → Job(pipeline_type="record") → assetize (asset/asset_version) → structured_parse/profile_detect when applicable → normalize (normalized_record) → normalized_asset_ref → AI governance → rules → governance_result → index`
 
 **Retrieval and QA:**
-`caller/user context → auth verify (RBAC + org scope) → search-service → RAGFlow retrieval → org scope and level check → rerank/context → answer with source citations → audit`
+`caller/user context → auth verify (RBAC + org scope) → search-service → pgvector semantic adapter / structured SQL retrieval → reserved org scope and level filters → rerank/context → answer with source citations → audit`
 
 **Reprocess and re-governance:**
 Rule change, Prompt update, parse failure, index failure, manual review, or score calibration may trigger reprocess, re-governance, AI re-score, or index rebuild. All flows must be idempotent and auditable.
@@ -466,7 +466,7 @@ Single-node capacity (16 Core / 64 GB / 48 GB GPU):
 | MinerU parse jobs (Pipeline A)    | 2-4         | 4        |
 | Standardization jobs (Pipeline B) | 4-8         | 8        |
 | AI governance / quality jobs      | 2-4         | 6        |
-| RAGFlow sync jobs                 | 2-4         | 6        |
+| Index sync jobs                   | 2-4         | 6        |
 
 ## AI Governance Architecture
 
@@ -499,7 +499,7 @@ Single-node capacity (16 Core / 64 GB / 48 GB GPU):
 | Charts            | ECharts 5.x                                          | —                                        |
 | Parsing           | MinerU (pipeline / vlm / MinerU-HTML, auto-selected) | MinerU cluster (CPU + GPU Worker groups) |
 | AI gateway        | Existing LiteLLM                                     | —                                        |
-| Search/index      | RAGFlow                                              | —                                        |
+| Search/index      | Adapter-based semantic retrieval backend; P0 default = PostgreSQL pgvector for text chunk embeddings; RAGFlow is not the semantic retrieval baseline | Dedicated vector/retrieval engine when capacity, concurrency, filtered ANN, or multimodal requirements exceed pgvector |
 | Embedding/rerank  | `bge-large-zh-v1.5`, `bge-reranker-large`            | —                                        |
 
 ## Security and Audit
@@ -536,7 +536,7 @@ Single-node capacity (16 Core / 64 GB / 48 GB GPU):
 | ABAC extension                                  | Cross-org sharing, temporary approval, or attribute-based dynamic permissions                                |
 | Default L1/L2 source level                      | Source approved to contain L3/L4 data with explicit review, masking, and audit                               |
 | MinerU single node                              | Parse queue P95 > 20 min for 3 days, or GPU utilization peak > 80% sustained                                 |
-| Knowledge Pipeline 1 only                       | Need QA corpus, process corpus, knowledge graph, or evaluation standard library                              |
+| Knowledge Pipeline 1 only                       | Need QA corpus, process corpus, productized knowledge graph, or evaluation standard library                  |
 | `document_asset`/`document_version` table names | Execute v2.6 M15 migration                                                                                   |
 | Consumption-side audit events only              | Need downstream dependency graph, impact analysis, or data lineage visualization across systems              |
 

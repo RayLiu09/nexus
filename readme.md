@@ -14,8 +14,8 @@ data source
   -> configurable rule guardrails
   -> available or review_required asset version
   -> NEXUS knowledge_chunk construction
-  -> external index backend adapter
-  -> permission-filtered search / QA / API consumption
+  -> pgvector P0 index/search adapter
+  -> permission/governance-filter-ready search / QA / API consumption
   -> source citation and audit
 ```
 
@@ -97,7 +97,7 @@ Root documents are distilled implementation contracts:
 - Pipeline B structured record assets, including job demand, occupational ability analysis, and professional major-distribution tables with domain read models.
 - AI-led classification, level, tag, org-scope suggestions, and quality scoring.
 - Configurable governance rules and decision tracking.
-- RAGFlow chunking, indexing, and retrieval integration.
+- NEXUS-owned knowledge chunk construction and adapter-based semantic retrieval integration; P0 defaults to PostgreSQL pgvector for text chunk embeddings, while the concrete search/index backend remains decoupled from the domain model and RAGFlow is no longer the platform's semantic retrieval baseline.
 - Course textbook Task Outline processing for D4 teaching materials:
   training-operation textbooks are detected from normalized documents,
   persisted as profile/tree rows, projected into unified `knowledge_chunk`
@@ -126,10 +126,10 @@ Root documents are distilled implementation contracts:
 - Python dependency management: uv with `pyproject.toml` and `uv.lock`.
 - Frontend console: React 19, Next.js 16 App Router, TypeScript.
 - Async jobs: PostgreSQL job table + Worker poller; RabbitMQ + Celery are scale-up components.
-- Storage: PostgreSQL 15+, MinIO; Redis is an optional scale-up cache.
+- Storage: PostgreSQL 15+ with pgvector for P0 semantic text vector storage, MinIO; Redis is an optional scale-up cache.
 - Parsing: MinerU.
 - AI gateway: existing LiteLLM.
-- Search/index: RAGFlow, with Elasticsearch/vector engine managed by RAGFlow.
+- Search/index: adapter-based semantic retrieval backend; P0 default is pgvector, with dedicated vector/retrieval engines reserved for larger capacity, higher concurrency, filtered ANN pressure, or multimodal vector retrieval.
 - Embedding/rerank: `bge-large-zh-v1.5`, `bge-reranker-large`.
 
 ## Implementation Guidance
