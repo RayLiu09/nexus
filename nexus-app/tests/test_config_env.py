@@ -43,3 +43,25 @@ def test_litellm_embedding_alias_overrides_default_embedding_model(monkeypatch):
 
     assert settings.default_embedding_model == "default-embedding"
     assert settings.effective_embedding_model_alias == "gateway/embedding"
+
+
+def test_retrieval_intent_model_falls_back_to_governance_model(monkeypatch):
+    monkeypatch.delenv("DEFAULT_RETRIEVAL_INTENT_MODEL", raising=False)
+    monkeypatch.setenv("DEFAULT_GOVERNANCE_MODEL", "governance-model")
+
+    settings = Settings()
+
+    assert settings.retrieval_intent_confidence_threshold == 0.78
+    assert settings.effective_retrieval_intent_model_alias == "governance-model"
+
+
+def test_retrieval_intent_model_can_be_overridden(monkeypatch):
+    monkeypatch.setenv("DEFAULT_GOVERNANCE_MODEL", "governance-model")
+    monkeypatch.setenv("DEFAULT_RETRIEVAL_INTENT_MODEL", "retrieval-intent-model")
+    monkeypatch.setenv("RETRIEVAL_INTENT_CONFIDENCE_THRESHOLD", "0.82")
+
+    settings = Settings()
+
+    assert settings.default_retrieval_intent_model == "retrieval-intent-model"
+    assert settings.effective_retrieval_intent_model_alias == "retrieval-intent-model"
+    assert settings.retrieval_intent_confidence_threshold == 0.82

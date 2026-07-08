@@ -139,6 +139,14 @@ class Settings(BaseSettings):
         default=None,
         alias="LITELLM_EMBEDDING_MODEL_ALIAS",
     )
+    default_retrieval_intent_model: str | None = Field(
+        default=None,
+        alias="DEFAULT_RETRIEVAL_INTENT_MODEL",
+    )
+    retrieval_intent_confidence_threshold: float = Field(
+        default=0.78,
+        alias="RETRIEVAL_INTENT_CONFIDENCE_THRESHOLD",
+    )
 
     # ── Auth (P1 JWT) ──────────────────────────────────────────────────────
     # HS256 symmetric secret. MUST be set in production; an in-memory default is
@@ -181,6 +189,11 @@ class Settings(BaseSettings):
     @property
     def effective_embedding_model_alias(self) -> str:
         return self.litellm_embedding_model_alias or self.default_embedding_model
+
+    @computed_field
+    @property
+    def effective_retrieval_intent_model_alias(self) -> str:
+        return self.default_retrieval_intent_model or self.default_governance_model
 
 
 @lru_cache

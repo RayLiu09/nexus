@@ -8,6 +8,11 @@ from nexus_app.retrieval.domain_registry import (
     get_query_profile,
     list_domain_definitions,
 )
+from nexus_app.retrieval.intent import (
+    IntentRecognitionResult,
+    IntentRecognitionService,
+    create_intent_recognition_service,
+)
 from nexus_app.retrieval.schemas import (
     ACCESS_SCOPE_ALL_ASSETS,
     INTENT_CONFIDENCE_THRESHOLD,
@@ -46,6 +51,8 @@ __all__ = [
     "ConversationStepName",
     "ContextPackStatus",
     "DomainDefinition",
+    "IntentRecognitionResult",
+    "IntentRecognitionService",
     "LlmSummary",
     "QueryMetric",
     "QueryOrder",
@@ -62,9 +69,9 @@ __all__ = [
     "StructuredPlan",
     "UnstructuredResultItem",
     "UnstructuredPlan",
+    "create_intent_recognition_service",
     "domains_for_channel",
     "get_domain_definition",
     "get_query_profile",
     "list_domain_definitions",
 ]
-
