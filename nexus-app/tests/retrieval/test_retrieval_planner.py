@@ -241,6 +241,97 @@ def test_planner_fails_safely_when_output_exceeds_max_sub_queries():
     assert result.plan is None
     assert result.conversation_step.status == StepStatus.FAILED
     assert result.warnings == ("retrieval_plan_schema_invalid",)
+    diagnostics = result.conversation_step.display_payload["diagnostics"]
+    assert diagnostics["failure_type"] == "schema_validation_failed"
+    assert diagnostics["sub_query_count"] == 6
+    assert diagnostics["validation_error_count"] >= 1
+
+
+def test_planner_reports_candidate_intent_array_misoutput():
+    llm = _FakeLLMClient(
+        json.dumps(
+            [
+                {
+                    "business_domain": "course_textbook",
+                    "question_type": "definition",
+                    "confidence": 0.82,
+                },
+                {
+                    "business_domain": "major_profile",
+                    "question_type": "definition",
+                    "confidence": 0.42,
+                },
+            ],
+            ensure_ascii=False,
+        )
+    )
+    service = RetrievalPlannerService(settings=_settings(), llm_client=llm)
+
+    result = service.generate_plan("什么是直播电商？", _intent())
+
+    assert result.success is False
+    assert result.warnings == ("retrieval_plan_schema_invalid",)
+    diagnostics = result.conversation_step.display_payload["diagnostics"]
+    assert diagnostics["failure_type"] == "intent_candidates_returned_instead_of_plan"
+    assert diagnostics["raw_shape"] == "array"
+    assert diagnostics["item_count"] == 2
+    assert diagnostics["required_top_level_shape"] == "object"
+    assert diagnostics["first_item_keys"] == [
+        "business_domain",
+        "confidence",
+        "question_type",
+    ]
+
+
+def test_planner_reports_intent_payload_misoutput():
+    llm = _FakeLLMClient(
+        json.dumps(
+            {
+                "business_domains": ["course_textbook"],
+                "retrieval_channels": ["unstructured"],
+                "question_type": "definition",
+                "confidence": 0.82,
+            },
+            ensure_ascii=False,
+        )
+    )
+    service = RetrievalPlannerService(settings=_settings(), llm_client=llm)
+
+    result = service.generate_plan("什么是直播电商？", _intent())
+
+    assert result.success is False
+    diagnostics = result.conversation_step.display_payload["diagnostics"]
+    assert diagnostics["failure_type"] == "intent_payload_returned_instead_of_plan"
+    assert diagnostics["missing_top_level_fields"] == ["sub_queries"]
+
+
+def test_planner_reports_channel_plan_mismatch():
+    llm = _FakeLLMClient(
+        json.dumps(
+            _plan_payload(
+                [
+                    {
+                        "query_id": "q1",
+                        "channel": "unstructured",
+                        "domain": "course_textbook",
+                        "purpose": "definition_lookup",
+                        "query_text": "直播电商 定义",
+                    }
+                ]
+            ),
+            ensure_ascii=False,
+        )
+    )
+    service = RetrievalPlannerService(settings=_settings(), llm_client=llm)
+
+    result = service.generate_plan("什么是直播电商？", _intent())
+
+    assert result.success is False
+    diagnostics = result.conversation_step.display_payload["diagnostics"]
+    assert diagnostics["failure_type"] == "channel_plan_mismatch"
+    assert diagnostics["sub_query_shapes"][0]["plan_mismatch"] == (
+        "unstructured_channel_requires_unstructured_plan"
+    )
 
 
 def test_planner_fails_safely_when_structured_plan_contains_raw_sql():
@@ -272,6 +363,9 @@ def test_planner_fails_safely_when_structured_plan_contains_raw_sql():
     assert result.plan is None
     assert result.conversation_step.status == StepStatus.FAILED
     assert result.warnings == ("retrieval_plan_schema_invalid",)
+    diagnostics = result.conversation_step.display_payload["diagnostics"]
+    assert diagnostics["failure_type"] == "extra_fields_forbidden"
+    assert diagnostics["unsafe_field_names"] == ["raw_sql"]
 
 
 def test_planner_handles_litellm_call_error_safely():
@@ -307,4 +401,5 @@ def test_retrieval_plan_prompt_contains_registry_and_no_credentials():
     assert "api_key" not in rendered
     assert "litellm_api_key" not in rendered
     assert "raw_sql" in rendered
-
+    assert "candidate_intents" in rendered
+    assert "top-level output must be a json object" in rendered

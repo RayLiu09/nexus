@@ -3,8 +3,8 @@
 Strategy:
 - KB-per-knowledge-type: each knowledge_type in governance_rules.json has its own KB.
 - Naming: `{prefix}-{knowledge_type_code}` (machine-stable).
-  e.g. `nexus-dev-textbook_kb`, `nexus-dev-qa_corpus`.
-- Description: human-readable name from rules (Chinese), e.g. "教材知识库".
+  e.g. `nexus-dev-course_textbook`, `nexus-dev-qa_corpus`.
+- Description: human-readable name from rules (Chinese), e.g. "课程资源教材".
 - Lazy mode (default): create-or-get on first ensure_kb() call.
 - Eager mode (settings.ragflow_kb_eager_preload=True): preload_all() at startup.
 """

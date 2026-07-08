@@ -102,7 +102,7 @@ Root documents are distilled implementation contracts:
   training-operation textbooks are detected from normalized documents,
   persisted as profile/tree rows, projected into unified `knowledge_chunk`
   rows, exposed in the Console asset detail read view, and rebuilt
-  idempotently with `index_manifest(textbook_kb)` marked stale after projection
+  idempotently with `index_manifest(course_textbook)` marked stale after projection
   replacement.
 - Evidence-grounded Knowledge Graph data foundation, with build/node/fact/edge/
   mention/evidence tables linked to `normalized_asset_ref` and `knowledge_chunk`

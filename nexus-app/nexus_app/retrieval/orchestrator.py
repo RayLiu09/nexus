@@ -40,6 +40,7 @@ from nexus_app.retrieval.schemas import (
     RetrievalSourceRef,
     RetrievalSubQuery,
     StepStatus,
+    UnstructuredPlan,
 )
 
 
@@ -110,30 +111,15 @@ class RetrievalOrchestrator:
 
     def run(self, session: Session, query: str) -> RetrievalContextPack:
         intent_result = self._intent_service.recognize(query)
-        if intent_result.context_pack is not None:
-            return intent_result.context_pack
         if intent_result.intent is None:
             raise RuntimeError("intent recognizer returned neither intent nor context_pack")
 
         steps = [intent_result.conversation_step]
-        planner_result = self._planner_service.generate_plan(query, intent_result.intent)
-        steps.append(planner_result.conversation_step)
-        warnings = list(intent_result.warnings) + list(planner_result.warnings)
+        plan, plan_step, plan_warnings = self._build_plan_for_intent(query, intent_result.intent)
+        warnings = list(intent_result.warnings) + plan_warnings
+        steps.append(plan_step)
 
-        if not planner_result.success or planner_result.plan is None:
-            return RetrievalContextPack(
-                status=ContextPackStatus.FAILED,
-                original_query=query,
-                intent=intent_result.intent,
-                retrieval_plan=None,
-                retrieval_results=[],
-                source_refs=[],
-                conversation_steps=steps,
-                access_scope=ACCESS_SCOPE_ALL_ASSETS,
-                warnings=warnings,
-            )
-
-        retrieval_step, results = self._execute_plan(session, planner_result.plan)
+        retrieval_step, results = self._execute_plan(session, plan)
         steps.append(retrieval_step)
         source_refs = _merge_source_refs(results)
         steps.append(_context_assembly_step(results=results, source_refs=source_refs))
@@ -143,7 +129,7 @@ class RetrievalOrchestrator:
             status=status,
             original_query=query,
             intent=intent_result.intent,
-            retrieval_plan=planner_result.plan,
+            retrieval_plan=plan,
             retrieval_results=results,
             source_refs=source_refs,
             conversation_steps=steps,
@@ -153,39 +139,53 @@ class RetrievalOrchestrator:
 
     def plan(self, query: str) -> RetrievalContextPack:
         intent_result = self._intent_service.recognize(query)
-        if intent_result.context_pack is not None:
-            return intent_result.context_pack
         if intent_result.intent is None:
             raise RuntimeError("intent recognizer returned neither intent nor context_pack")
 
         steps = [intent_result.conversation_step]
-        planner_result = self._planner_service.generate_plan(query, intent_result.intent)
-        steps.append(planner_result.conversation_step)
-        warnings = list(intent_result.warnings) + list(planner_result.warnings)
-
-        if not planner_result.success or planner_result.plan is None:
-            return RetrievalContextPack(
-                status=ContextPackStatus.FAILED,
-                original_query=query,
-                intent=intent_result.intent,
-                retrieval_plan=None,
-                retrieval_results=[],
-                source_refs=[],
-                conversation_steps=steps,
-                access_scope=ACCESS_SCOPE_ALL_ASSETS,
-                warnings=warnings,
-            )
+        plan, plan_step, plan_warnings = self._build_plan_for_intent(query, intent_result.intent)
+        warnings = list(intent_result.warnings) + plan_warnings
+        steps.append(plan_step)
 
         return RetrievalContextPack(
             status=ContextPackStatus.PLANNED,
             original_query=query,
             intent=intent_result.intent,
-            retrieval_plan=planner_result.plan,
+            retrieval_plan=plan,
             retrieval_results=[],
             source_refs=[],
             conversation_steps=steps,
             access_scope=ACCESS_SCOPE_ALL_ASSETS,
             warnings=warnings,
+        )
+
+    def _build_plan_for_intent(
+        self,
+        query: str,
+        intent: RetrievalIntent,
+    ) -> tuple[RetrievalPlan, ConversationStep, list[str]]:
+        if _can_direct_retrieve(intent):
+            plan = _direct_retrieval_plan(query, intent)
+            return (
+                plan,
+                _direct_retrieval_plan_step(plan),
+                ["retrieval_plan_direct_used"],
+            )
+
+        planner_result = self._planner_service.generate_plan(query, intent)
+        warnings = list(planner_result.warnings)
+        if planner_result.success and planner_result.plan is not None:
+            return planner_result.plan, planner_result.conversation_step, warnings
+
+        plan = _fallback_plan(query, intent)
+        warnings.append("retrieval_plan_fallback_used")
+        return (
+            plan,
+            _fallback_plan_step(
+                original_step=planner_result.conversation_step,
+                plan=plan,
+            ),
+            warnings,
         )
 
     def _execute_plan(
@@ -294,6 +294,153 @@ def _failed_result(sub_query: RetrievalSubQuery, message: str) -> RetrievalResul
         status=StepStatus.FAILED,
         result_shape="error",
         error_message=message,
+    )
+
+
+def _fallback_plan(query: str, intent: RetrievalIntent) -> RetrievalPlan:
+    domains = [
+        domain
+        for domain in intent.business_domains
+        if (str(RetrievalChannel.UNSTRUCTURED), str(domain)) in _FALLBACK_EXECUTOR_KEYS
+    ]
+    if not domains:
+        domains = [BusinessDomain.COURSE_TEXTBOOK]
+    sub_queries = [
+        RetrievalSubQuery(
+            query_id=f"q{index}",
+            channel=RetrievalChannel.UNSTRUCTURED,
+            domain=domain,
+            purpose="fallback_semantic_retrieval",
+            query_text=query,
+            unstructured_plan=UnstructuredPlan(top_k=8, filters={}, query_terms=[]),
+        )
+        for index, domain in enumerate(domains[:3], start=1)
+    ]
+    return RetrievalPlan(
+        original_query=query,
+        sub_queries=sub_queries,
+        merge_goal="基于原始问题执行广域语义召回，并生成可追溯的结构化结果。",
+    )
+
+
+def _can_direct_retrieve(intent: RetrievalIntent) -> bool:
+    if len(intent.business_domains) != 1:
+        return False
+    domain = intent.business_domains[0]
+    if (str(RetrievalChannel.UNSTRUCTURED), str(domain)) not in _FALLBACK_EXECUTOR_KEYS:
+        return False
+    channels = {str(channel) for channel in intent.retrieval_channels}
+    if channels - {str(RetrievalChannel.UNSTRUCTURED), str(RetrievalChannel.HYBRID)}:
+        return False
+    if _question_type_requires_planning(intent.question_type):
+        return False
+    return True
+
+
+def _question_type_requires_planning(question_type: str) -> bool:
+    normalized = question_type.strip().lower()
+    return normalized in {
+        "aggregation",
+        "comparison",
+        "trend",
+        "ranking",
+        "record_list",
+        "multi_hop",
+        "multi_question",
+        "structured_query",
+    }
+
+
+def _direct_retrieval_plan(query: str, intent: RetrievalIntent) -> RetrievalPlan:
+    domain = intent.business_domains[0]
+    return RetrievalPlan(
+        original_query=query,
+        sub_queries=[
+            RetrievalSubQuery(
+                query_id="q1",
+                channel=RetrievalChannel.UNSTRUCTURED,
+                domain=domain,
+                purpose="direct_semantic_retrieval",
+                query_text=query,
+                unstructured_plan=UnstructuredPlan(
+                    top_k=8,
+                    filters={},
+                    query_terms=[],
+                ),
+            )
+        ],
+        merge_goal="直接基于原始问题执行语义召回，并生成增强后的可追溯结果。",
+    )
+
+
+def _direct_retrieval_plan_step(plan: RetrievalPlan) -> ConversationStep:
+    return ConversationStep(
+        step=ConversationStepName.QUERY_TRANSFORMATION,
+        status=StepStatus.SKIPPED,
+        title="问题转化",
+        message="问题较直接，已跳过 LLM 问题转化并直接执行语义召回。",
+        display_payload={
+            "direct_retrieval": True,
+            "sub_query_count": len(plan.sub_queries),
+            "sub_queries": [
+                {
+                    "query_id": sub_query.query_id,
+                    "channel": sub_query.channel,
+                    "domain": sub_query.domain,
+                    "purpose": sub_query.purpose,
+                    "query_text": sub_query.query_text,
+                    "unstructured_plan": (
+                        sub_query.unstructured_plan.model_dump()
+                        if sub_query.unstructured_plan
+                        else None
+                    ),
+                }
+                for sub_query in plan.sub_queries
+            ],
+            "merge_goal": plan.merge_goal,
+        },
+    )
+
+
+_FALLBACK_EXECUTOR_KEYS = {
+    (str(RetrievalChannel.UNSTRUCTURED), str(BusinessDomain.COURSE_TEXTBOOK)),
+    (str(RetrievalChannel.UNSTRUCTURED), str(BusinessDomain.MAJOR_PROFILE)),
+}
+
+
+def _fallback_plan_step(
+    *,
+    original_step: ConversationStep,
+    plan: RetrievalPlan,
+) -> ConversationStep:
+    payload = {
+        "fallback": True,
+        "fallback_reason": original_step.display_payload.get("reason"),
+        "original_plan_error": original_step.display_payload,
+        "sub_query_count": len(plan.sub_queries),
+        "sub_queries": [
+            {
+                "query_id": sub_query.query_id,
+                "channel": sub_query.channel,
+                "domain": sub_query.domain,
+                "purpose": sub_query.purpose,
+                "query_text": sub_query.query_text,
+                "unstructured_plan": (
+                    sub_query.unstructured_plan.model_dump()
+                    if sub_query.unstructured_plan
+                    else None
+                ),
+            }
+            for sub_query in plan.sub_queries
+        ],
+        "merge_goal": plan.merge_goal,
+    }
+    return ConversationStep(
+        step=ConversationStepName.QUERY_TRANSFORMATION,
+        status=StepStatus.COMPLETED,
+        title="召回计划",
+        message="召回计划生成失败，已使用原问题构造最小可执行语义召回计划。",
+        display_payload=payload,
     )
 
 

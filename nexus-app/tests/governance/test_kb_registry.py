@@ -46,8 +46,8 @@ def isolated_rules(tmp_path: Path):
         },
         "knowledge_types": [
             {
-                "code": "textbook_kb",
-                "name": "教材知识库",
+                "code": "course_textbook",
+                "name": "课程资源教材",
                 "description": "d",
                 "applicable_classifications": ["D4"],
                 "default_level": "L1",
@@ -95,24 +95,24 @@ def isolated_rules(tmp_path: Path):
 class TestLazyEnsureKb:
     def test_first_call_creates_kb(self, fake_adapter, fake_settings, isolated_rules):
         registry = KbRegistry(adapter=fake_adapter, settings=fake_settings)
-        kb_id = registry.ensure_kb("textbook_kb")
+        kb_id = registry.ensure_kb("course_textbook")
         assert kb_id.startswith("fake_kb_")
-        assert registry.get_cached("textbook_kb") == kb_id
-        assert registry.kb_name_for("textbook_kb") == "nexus-test-textbook_kb"
+        assert registry.get_cached("course_textbook") == kb_id
+        assert registry.kb_name_for("course_textbook") == "nexus-test-course_textbook"
 
     def test_second_call_reuses_cache(self, fake_adapter, fake_settings, isolated_rules):
         registry = KbRegistry(adapter=fake_adapter, settings=fake_settings)
-        kb_id_a = registry.ensure_kb("textbook_kb")
-        kb_id_b = registry.ensure_kb("textbook_kb")
+        kb_id_a = registry.ensure_kb("course_textbook")
+        kb_id_b = registry.ensure_kb("course_textbook")
         assert kb_id_a == kb_id_b
         assert len(fake_adapter._datasets) == 1
 
     def test_existing_dataset_is_reused(self, fake_adapter, fake_settings, isolated_rules):
         existing = fake_adapter.create_dataset(
-            name="nexus-test-textbook_kb", chunk_method="book"
+            name="nexus-test-course_textbook", chunk_method="book"
         )
         registry = KbRegistry(adapter=fake_adapter, settings=fake_settings)
-        kb_id = registry.ensure_kb("textbook_kb")
+        kb_id = registry.ensure_kb("course_textbook")
         assert kb_id == existing["id"]
         assert len(fake_adapter._datasets) == 1
 
@@ -121,7 +121,7 @@ class TestEagerPreload:
     def test_preload_creates_all_kbs(self, fake_adapter, fake_settings, isolated_rules):
         registry = KbRegistry(adapter=fake_adapter, settings=fake_settings)
         result = registry.preload_all()
-        assert set(result.keys()) == {"textbook_kb", "qa_corpus"}
+        assert set(result.keys()) == {"course_textbook", "qa_corpus"}
         assert len(fake_adapter._datasets) == 2
 
     def test_preload_idempotent(self, fake_adapter, fake_settings, isolated_rules):
@@ -135,18 +135,18 @@ class TestEagerPreload:
 class TestKbNamingConvention:
     def test_chunk_method_matches_rules(self, fake_adapter, fake_settings, isolated_rules):
         registry = KbRegistry(adapter=fake_adapter, settings=fake_settings)
-        registry.ensure_kb("textbook_kb")
+        registry.ensure_kb("course_textbook")
         registry.ensure_kb("qa_corpus")
         names_to_methods = {
             ds["name"]: ds["chunk_method"] for ds in fake_adapter._datasets.values()
         }
-        assert names_to_methods["nexus-test-textbook_kb"] == "book"
+        assert names_to_methods["nexus-test-course_textbook"] == "book"
         assert names_to_methods["nexus-test-qa_corpus"] == "qa"
 
     def test_description_carries_chinese_name(
         self, fake_adapter, fake_settings, isolated_rules
     ):
         registry = KbRegistry(adapter=fake_adapter, settings=fake_settings)
-        registry.ensure_kb("textbook_kb")
+        registry.ensure_kb("course_textbook")
         ds = next(iter(fake_adapter._datasets.values()))
-        assert ds["description"] == "教材知识库"
+        assert ds["description"] == "课程资源教材"

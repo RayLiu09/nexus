@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 from nexus_app.config import Settings, get_settings
 from nexus_app.index.pgvector_search import PgvectorSearchAdapter, create_pgvector_search_adapter
 from nexus_app.retrieval.schemas import (
-    BusinessDomain,
     RetrievalChannel,
     RetrievalResult,
     RetrievalSourceRef,
@@ -17,12 +16,6 @@ from nexus_app.retrieval.schemas import (
     StepStatus,
     UnstructuredResultItem,
 )
-
-
-DEFAULT_DOMAIN_KNOWLEDGE_TYPE: dict[str, str] = {
-    BusinessDomain.COURSE_TEXTBOOK: "textbook_kb",
-    BusinessDomain.MAJOR_PROFILE: "major_profile",
-}
 
 
 class UnstructuredRetrievalExecutor:
@@ -90,7 +83,7 @@ def _resolve_knowledge_type_code(sub_query: RetrievalSubQuery) -> str | None:
         only = classification[0]
         if isinstance(only, str) and only:
             return only
-    return DEFAULT_DOMAIN_KNOWLEDGE_TYPE.get(str(sub_query.domain))
+    return str(sub_query.domain)
 
 
 def _normalize_hits(
@@ -172,4 +165,3 @@ def _metadata_get(metadata: dict[str, Any], section: str, key: str) -> Any:
     if isinstance(nested, dict):
         return nested.get(key)
     return None
-

@@ -5,7 +5,7 @@ from nexus_app.knowledge.config_loader import get_knowledge_type_config, reload_
 from nexus_app.knowledge.services import run_knowledge_pipeline
 
 
-def test_course_textbook_textbook_kb_builds_semantic_chunks_with_locator():
+def test_course_textbook_course_textbook_builds_semantic_chunks_with_locator():
     reload_config()
     content = "\n".join([
         "# 项目一 短视频认知",
@@ -67,20 +67,20 @@ def test_course_textbook_textbook_kb_builds_semantic_chunks_with_locator():
         },
     ]
 
-    kt_config = get_knowledge_type_config("textbook_kb")
+    kt_config = get_knowledge_type_config("course_textbook")
     assert kt_config.chunking_mode == "nexus_semantic"
     assert kt_config.chunking_strategy == "semantic_repack"
     assert "course_textbook" in kt_config.raw["applicable_classifications"]
 
     chunks = run_knowledge_pipeline(
         content,
-        [{"code": "textbook_kb", "primary": True, "co_emission_origin": None}],
+        [{"code": "course_textbook", "primary": True, "co_emission_origin": None}],
         "ref-course-textbook",
         content_blocks=blocks,
     )
 
     assert chunks
-    assert all(chunk.knowledge_type_code == "textbook_kb" for chunk in chunks)
+    assert all(chunk.knowledge_type_code == "course_textbook" for chunk in chunks)
     assert all(chunk.chunk_type == ChunkType.SEMANTIC_BLOCK for chunk in chunks)
     assert all(chunk.content.strip() for chunk in chunks)
     assert all(chunk.source_block_ids for chunk in chunks)
@@ -92,7 +92,7 @@ def test_course_textbook_textbook_kb_builds_semantic_chunks_with_locator():
     )
 
 
-def test_course_textbook_textbook_kb_filters_metadata_toc_appendix_and_dirty_blocks():
+def test_course_textbook_course_textbook_filters_metadata_toc_appendix_and_dirty_blocks():
     reload_config()
     content = "\n".join([
         "主编：张三 李四",
@@ -164,7 +164,7 @@ def test_course_textbook_textbook_kb_filters_metadata_toc_appendix_and_dirty_blo
 
     chunks = run_knowledge_pipeline(
         content,
-        [{"code": "textbook_kb", "primary": True, "co_emission_origin": None}],
+        [{"code": "course_textbook", "primary": True, "co_emission_origin": None}],
         "ref-course-textbook-filter",
         content_blocks=blocks,
     )

@@ -85,7 +85,7 @@ def _seed_ref(session) -> models.NormalizedAssetRef:
         governance={"classification": "course_textbook"},
         quality={},
         lineage={"raw_object_id": raw.id},
-        metadata_summary={"knowledge_emissions": [{"code": "textbook_kb"}]},
+        metadata_summary={"knowledge_emissions": [{"code": "course_textbook"}]},
     )
     session.add_all([ds, batch, raw, asset, version, ref])
     session.commit()

@@ -72,8 +72,6 @@ def resolve_asset_domain_type(normalized_ref: NormalizedAssetRef, chunk: Knowled
         metadata.get("classification"),
         metadata.get("asset_domain_type"),
         metadata.get("domain_type"),
-        metadata.get("domain_profile"),
-        chunk_metadata.get("domain_profile"),
         chunk.knowledge_type_code,
     ]
     for candidate in candidates:
@@ -113,7 +111,7 @@ def build_vector_projection(
         "asset_id": resolved_asset_id,
         "asset_version_id": resolved_asset_version_id,
         "asset_domain_type": resolution.asset_domain_type,
-        "knowledge_type_code": chunk.knowledge_type_code,
+        "knowledge_type_code": resolution.asset_domain_type,
         "domain_profile": metadata["chunk"].get("domain_profile")
         or metadata["normalized_ref"].get("domain_profile"),
         "normalized_type": resolution.normalized_type,
@@ -175,7 +173,7 @@ def build_vector_metadata(
         },
         "chunk": {
             "chunk_id": chunk.id,
-            "knowledge_type_code": chunk.knowledge_type_code,
+            "knowledge_type_code": resolution.asset_domain_type,
             "chunk_index": chunk.chunk_index,
             "chunk_type": _enum_value(chunk.chunk_type),
             "chunking_strategy": _enum_value(chunk.chunking_strategy),

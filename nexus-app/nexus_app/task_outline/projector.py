@@ -12,7 +12,7 @@ from nexus_app.enums import ChunkingStrategy, ChunkType, EmbeddingStatus, Source
 
 DOMAIN_MODEL = "task_outline.v1"
 SEMANTIC_VARIANT = "task_outline_repack"
-DEFAULT_KNOWLEDGE_TYPE_CODE = "textbook_kb"
+DEFAULT_KNOWLEDGE_TYPE_CODE = "course_textbook"
 
 MUST_PROJECT_NODE_TYPES = {
     "task",

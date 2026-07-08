@@ -69,7 +69,7 @@ def test_pgvector_qa_service_generates_answer_from_sources(session):
     result = service.answer(
         session,
         question="课程是什么？",
-        knowledge_type_code="textbook_kb",
+        knowledge_type_code="course_textbook",
         top_k=3,
     )
 
@@ -92,7 +92,7 @@ def test_pgvector_qa_service_returns_no_source_answer_without_llm_call(session):
     result = service.answer(
         session,
         question="没有来源？",
-        knowledge_type_code="textbook_kb",
+        knowledge_type_code="course_textbook",
         top_k=3,
     )
 

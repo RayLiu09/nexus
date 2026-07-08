@@ -1,10 +1,13 @@
 import { PageHeader } from "@/components/PageHeader";
-import { Alert } from "antd";
 import { fetchGovernanceRules } from "@/lib/governance-rules-api";
 import { SearchPlayground } from "./_components/SearchPlayground";
 import type { KnowledgeTypeOption } from "./_lib/searchTypes";
 
 export const dynamic = "force-dynamic";
+
+const FALLBACK_KNOWLEDGE_TYPES: KnowledgeTypeOption[] = [
+  { code: "textbook_kb", name: "教材知识库" },
+];
 
 interface KnowledgeTypeEntry {
   code: string;
@@ -13,45 +16,39 @@ interface KnowledgeTypeEntry {
 
 async function loadKnowledgeTypes(): Promise<{
   knowledgeTypes: KnowledgeTypeOption[];
-  warning: string | null;
 }> {
   const res = await fetchGovernanceRules();
   if (!res.ok) {
-    return { knowledgeTypes: [], warning: `无法加载知识类型：${res.error}` };
+    return { knowledgeTypes: FALLBACK_KNOWLEDGE_TYPES };
   }
   const rules = res.data as Record<string, unknown>;
-  const rawList = Array.isArray(rules.knowledge_types)
-    ? (rules.knowledge_types as unknown[])
-    : [];
-  const knowledgeTypes: KnowledgeTypeOption[] = [];
+  const rawList = Array.isArray(rules.knowledge_types) ? (rules.knowledge_types as unknown[]) : [];
+  const knowledgeTypes = new Map<string, KnowledgeTypeOption>(
+    FALLBACK_KNOWLEDGE_TYPES.map((item) => [item.code, item]),
+  );
   for (const raw of rawList) {
     if (!raw || typeof raw !== "object") continue;
     const obj = raw as Record<string, unknown>;
     const code = typeof obj.code === "string" ? obj.code : null;
     if (!code) continue;
-    knowledgeTypes.push({
+    knowledgeTypes.set(code, {
       code,
       name: typeof obj.name === "string" ? obj.name : code,
     } satisfies KnowledgeTypeEntry);
   }
-  return { knowledgeTypes, warning: null };
+  return { knowledgeTypes: [...knowledgeTypes.values()] };
 }
 
 export default async function SearchPage() {
-  const { knowledgeTypes, warning } = await loadKnowledgeTypes();
+  const { knowledgeTypes } = await loadKnowledgeTypes();
 
   return (
     <>
       <PageHeader
-        eyebrow="访问与审计 — 检索与问答验证"
-        title="检索验证"
-        description="消费侧验证页面：通过运维 caller key 调用 /v1/search 与 /v1/qa，验证 KB 路由、相似度过滤与引用追溯。"
+        eyebrow="访问与审计 — 检索/召回验证"
+        title="检索召回对话验证"
+        description="以对话窗口呈现 v1.0 检索/召回流程，展示意图识别、问题转化、并行检索、上下文组装和 Markdown 结果生成的执行过程与辅助分析。"
       />
-
-      {warning && (
-        <Alert type="warning" showIcon className="mb-4" title={warning} />
-      )}
-
       <SearchPlayground knowledgeTypes={knowledgeTypes} />
     </>
   );

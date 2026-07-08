@@ -10,12 +10,10 @@ from nexus_app.retrieval.planner import RetrievalPlannerResult
 from nexus_app.retrieval.schemas import (
     ACCESS_SCOPE_ALL_ASSETS,
     BusinessDomain,
-    Clarification,
     ContextPackStatus,
     ConversationStep,
     ConversationStepName,
     RetrievalChannel,
-    RetrievalContextPack,
     RetrievalIntent,
     RetrievalPlan,
     RetrievalResult,
@@ -305,31 +303,12 @@ def _harness(
 
 def test_orchestrator_returns_clarification_without_planning_or_retrieval(session):
     intent = _intent(confidence=0.62, missing_constraints=["专业名称"])
-    clarification_pack = RetrievalContextPack(
-        status=ContextPackStatus.NEEDS_CLARIFICATION,
-        original_query="帮我查一下趋势",
-        intent=intent,
-        conversation_steps=[
-            ConversationStep(
-                step=ConversationStepName.INTENT_RECOGNITION,
-                status=StepStatus.NEEDS_CLARIFICATION,
-                title="意图识别",
-                message="当前问题的检索意图不够清晰，是否愿意进一步优化问题？",
-            )
-        ],
-        clarification=Clarification(
-            message="当前问题的检索意图不够清晰，是否愿意进一步优化问题？",
-            missing_constraints=["专业名称"],
-        ),
-        access_scope=ACCESS_SCOPE_ALL_ASSETS,
-        warnings=["intent_confidence_below_threshold"],
-    )
     intent_service = _FakeIntentService(
         IntentRecognitionResult(
-            status=ContextPackStatus.NEEDS_CLARIFICATION,
+            status=ContextPackStatus.COMPLETED,
             intent=intent,
-            conversation_step=clarification_pack.conversation_steps[0],
-            context_pack=clarification_pack,
+            conversation_step=_intent_step(intent),
+            warnings=("intent_confidence_below_threshold",),
         )
     )
     planner_service = _FakePlannerService(
@@ -352,11 +331,14 @@ def test_orchestrator_returns_clarification_without_planning_or_retrieval(sessio
 
     pack = orchestrator.run(session, "帮我查一下趋势")
 
-    assert pack.status == ContextPackStatus.NEEDS_CLARIFICATION
-    assert pack.retrieval_plan is None
-    assert pack.clarification is not None
+    assert pack.status == ContextPackStatus.COMPLETED
+    assert pack.retrieval_plan is not None
+    assert pack.warnings == [
+        "intent_confidence_below_threshold",
+        "retrieval_plan_direct_used",
+    ]
     assert planner_service.calls == []
-    assert executor.calls == []
+    assert len(executor.calls) == 1
 
 
 def test_orchestrator_completes_single_unstructured_query(session):
@@ -386,8 +368,11 @@ def test_orchestrator_completes_single_unstructured_query(session):
     retrieval_step = pack.conversation_steps[2]
     assert retrieval_step.status == StepStatus.COMPLETED
     assert retrieval_step.display_payload["sub_queries"][0]["item_count"] == 1
+    assert pack.conversation_steps[1].status == StepStatus.SKIPPED
+    assert pack.conversation_steps[1].display_payload["direct_retrieval"] is True
     assert len(harness.unstructured_executor.calls) == 1
     assert harness.major_distribution_executor.calls == []
+    assert harness.planner_service.calls == []
 
 
 def test_orchestrator_plan_preview_does_not_execute_retrieval(session):
@@ -410,8 +395,72 @@ def test_orchestrator_plan_preview_does_not_execute_retrieval(session):
         ConversationStepName.INTENT_RECOGNITION,
         ConversationStepName.QUERY_TRANSFORMATION,
     ]
+    assert pack.conversation_steps[1].status == StepStatus.SKIPPED
+    assert pack.conversation_steps[1].display_payload["direct_retrieval"] is True
     assert harness.unstructured_executor.calls == []
     assert harness.major_distribution_executor.calls == []
+    assert harness.planner_service.calls == []
+
+
+def test_orchestrator_falls_back_when_planner_fails(session):
+    intent = _intent(
+        business_domains=["course_textbook", "major_profile"],
+        retrieval_channels=["unstructured"],
+        question_type="definition",
+    )
+    intent_service = _FakeIntentService(
+        IntentRecognitionResult(
+            status=ContextPackStatus.COMPLETED,
+            intent=intent,
+            conversation_step=_intent_step(intent),
+        )
+    )
+    failed_plan_step = ConversationStep(
+        step=ConversationStepName.QUERY_TRANSFORMATION,
+        status=StepStatus.FAILED,
+        title="召回计划",
+        message="召回计划无法通过 schema 校验，未执行检索。",
+        display_payload={
+            "reason": "retrieval_plan_schema_invalid",
+            "diagnostics": {"failure_type": "intent_candidates_returned_instead_of_plan"},
+        },
+    )
+    planner_service = _FakePlannerService(
+        RetrievalPlannerResult(
+            plan=None,
+            conversation_step=failed_plan_step,
+            warnings=("retrieval_plan_schema_invalid",),
+        )
+    )
+    executor = _FakeExecutor(
+        {
+            "q1": _unstructured_result("q1"),
+            "q2": _unstructured_result("q2"),
+        }
+    )
+    orchestrator = RetrievalOrchestrator(
+        intent_service=intent_service,
+        planner_service=planner_service,
+        unstructured_executor=executor,
+        major_distribution_executor=_FakeExecutor({}),
+    )
+
+    pack = orchestrator.run(session, "解释直播电商和电子商务专业简介")
+
+    assert pack.status == ContextPackStatus.COMPLETED
+    assert pack.warnings == [
+        "retrieval_plan_schema_invalid",
+        "retrieval_plan_fallback_used",
+    ]
+    assert pack.retrieval_plan is not None
+    assert [sub_query.domain for sub_query in pack.retrieval_plan.sub_queries] == [
+        "course_textbook",
+        "major_profile",
+    ]
+    assert pack.conversation_steps[1].status == StepStatus.COMPLETED
+    assert pack.conversation_steps[1].display_payload["fallback"] is True
+    assert len(planner_service.calls) == 1
+    assert len(executor.calls) == 2
 
 
 def test_orchestrator_completes_major_distribution_structured_query(session):

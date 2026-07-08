@@ -27,7 +27,7 @@ def _chunk(
     return models.KnowledgeChunk(
         id=chunk_id,
         normalized_ref_id=ref_id,
-        knowledge_type_code="textbook_kb",
+        knowledge_type_code="course_textbook",
         chunk_type=ChunkType.SEMANTIC_BLOCK,
         chunking_strategy=ChunkingStrategy.SEMANTIC_REPACK,
         source_kind=SourceKind.EXTRACTED_FROM_NORMALIZED,

@@ -115,7 +115,7 @@ def _seed_search_rows(session) -> None:
     chunk_1 = models.KnowledgeChunk(
         id="chunk-search-1",
         normalized_ref_id=ref.id,
-        knowledge_type_code="textbook_kb",
+        knowledge_type_code="course_textbook",
         chunk_type=ChunkType.SEMANTIC_BLOCK,
         chunking_strategy=ChunkingStrategy.SEMANTIC_REPACK,
         source_kind=SourceKind.EXTRACTED_FROM_NORMALIZED,
@@ -145,7 +145,7 @@ def _seed_search_rows(session) -> None:
         asset_id=asset.id,
         asset_version_id=version.id,
         asset_domain_type="course_textbook",
-        knowledge_type_code="textbook_kb",
+        knowledge_type_code="course_textbook",
         normalized_type="document",
         content_type="document",
         source_type="file_upload",
@@ -202,7 +202,7 @@ def test_pgvector_search_adapter_scores_and_filters_by_knowledge_type(session):
     hits = adapter.search(
         session,
         query="课程",
-        knowledge_type_code="textbook_kb",
+        knowledge_type_code="course_textbook",
         top_k=5,
         similarity_threshold=0.7,
     )
@@ -224,7 +224,7 @@ def test_pgvector_search_adapter_returns_empty_below_threshold(session):
     hits = adapter.search(
         session,
         query="无匹配",
-        knowledge_type_code="textbook_kb",
+        knowledge_type_code="course_textbook",
         top_k=5,
         similarity_threshold=0.1,
     )

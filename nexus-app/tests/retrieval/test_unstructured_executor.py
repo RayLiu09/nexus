@@ -66,7 +66,7 @@ def test_unstructured_executor_normalizes_pgvector_hits(session):
                     },
                     "locator": {"page_start": 2, "page_end": 2},
                 },
-                "knowledge_type_code": "textbook_kb",
+                "knowledge_type_code": "course_textbook",
                 "collection_key": "course_textbook.document.bge.v1",
             }
         ]
@@ -87,7 +87,7 @@ def test_unstructured_executor_normalizes_pgvector_hits(session):
     assert item.asset_version_id == "version-1"
     assert item.score == pytest.approx(0.91)
     assert item.locator == {"page_start": 2, "page_end": 2}
-    assert item.metadata["knowledge_type_code"] == "textbook_kb"
+    assert item.metadata["knowledge_type_code"] == "course_textbook"
     assert item.source_ref_id == "q1-src-1"
     source = result.source_refs[0]
     assert source.source_ref_id == "q1-src-1"
@@ -97,7 +97,7 @@ def test_unstructured_executor_normalizes_pgvector_hits(session):
     assert adapter.calls == [
         {
             "query": "直播电商 定义 概念",
-            "knowledge_type_code": "textbook_kb",
+            "knowledge_type_code": "course_textbook",
             "top_k": 3,
             "similarity_threshold": 0.62,
         }

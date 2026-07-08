@@ -104,7 +104,7 @@ def _seed_ref(session) -> models.NormalizedAssetRef:
         governance={"classification": "course_textbook"},
         quality={},
         lineage={"raw_object_id": raw.id},
-        metadata_summary={"knowledge_emissions": [{"code": "textbook_kb"}]},
+        metadata_summary={"knowledge_emissions": [{"code": "course_textbook"}]},
     )
     session.add_all([ds, batch, raw, asset, version, ref])
     session.commit()
@@ -125,7 +125,7 @@ def _persist_outline(session) -> tuple[models.NormalizedAssetRef, models.TaskOut
     return ref, profile
 
 
-def test_projects_task_outline_nodes_to_textbook_kb_chunks(session) -> None:
+def test_projects_task_outline_nodes_to_course_textbook_chunks(session) -> None:
     ref, profile = _persist_outline(session)
 
     chunks = project_profile_to_chunks(session, profile=profile)
@@ -133,7 +133,7 @@ def test_projects_task_outline_nodes_to_textbook_kb_chunks(session) -> None:
 
     assert chunks
     assert all(chunk.normalized_ref_id == ref.id for chunk in chunks)
-    assert all(chunk.knowledge_type_code == "textbook_kb" for chunk in chunks)
+    assert all(chunk.knowledge_type_code == "course_textbook" for chunk in chunks)
     assert all(chunk.chunk_type == ChunkType.SEMANTIC_BLOCK for chunk in chunks)
     assert all(chunk.chunking_strategy == ChunkingStrategy.SEMANTIC_REPACK for chunk in chunks)
     assert all(chunk.source_kind == SourceKind.EXTRACTED_FROM_NORMALIZED for chunk in chunks)
@@ -176,7 +176,7 @@ def test_reprojection_replaces_only_task_outline_chunks(session) -> None:
         models.KnowledgeChunk(
             id="generic-semantic",
             normalized_ref_id=ref.id,
-            knowledge_type_code="textbook_kb",
+            knowledge_type_code="course_textbook",
             chunk_type=ChunkType.SEMANTIC_BLOCK,
             chunking_strategy=ChunkingStrategy.SEMANTIC_REPACK,
             source_kind=SourceKind.EXTRACTED_FROM_NORMALIZED,

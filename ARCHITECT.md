@@ -265,7 +265,7 @@ For D4 `course_textbook` assets detected as `training_operation`, NEXUS
 persists a Task Outline profile/tree and projects high-value nodes back into
 the unified `knowledge_chunk` table. No task-specific chunk table is allowed.
 
-Projected chunks keep `knowledge_type_code = textbook_kb`,
+Projected chunks keep `knowledge_type_code = course_textbook`,
 `chunk_type = semantic_block`, `chunking_strategy = semantic_repack`, and
 `source_kind = extracted_from_normalized`. Task Outline identity lives in
 `chunk_metadata`:
@@ -289,7 +289,7 @@ Projected chunks keep `knowledge_type_code = textbook_kb`,
 audit, and source preview. Rebuilding a Task Outline is idempotent: the active
 profile is updated, nodes are replaced, prior Task Outline projected chunks for
 the profile are replaced or removed, and an existing
-`index_manifest(textbook_kb)` for that normalized ref is marked `stale`.
+`index_manifest(course_textbook)` for that normalized ref is marked `stale`.
 
 Theory textbooks continue to use ordinary semantic chunks and are eligible for
 Evidence Graph selection. Task Outline chunks set `graph_candidate=false` and

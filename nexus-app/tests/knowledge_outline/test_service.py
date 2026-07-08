@@ -116,7 +116,7 @@ def _seed_chunk(
     chunk = models.KnowledgeChunk(
         id=chunk_id,
         normalized_ref_id=ref.id,
-        knowledge_type_code="textbook_kb",
+        knowledge_type_code="course_textbook",
         chunk_type=ChunkType.SEMANTIC_BLOCK,
         chunking_strategy=ChunkingStrategy.STRUCTURED_DECOMPOSE,
         source_kind=SourceKind.EXTRACTED_FROM_NORMALIZED,

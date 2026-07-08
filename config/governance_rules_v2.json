@@ -1315,7 +1315,7 @@
       ],
       "decomposition_note": "结构清晰",
       "structure_description": "能识别章/项目/任务/小节、学习目标、知识点、案例、训练题、实训任务等层级",
-      "primary_knowledge_type": "textbook_kb",
+      "primary_knowledge_type": "course_textbook",
       "default_level": "L2",
       "co_emission_rules": []
     }
@@ -1410,16 +1410,13 @@
   },
   "knowledge_types": [
     {
-      "code": "textbook_kb",
-      "name": "教材知识库",
-      "description": "教材、课件、讲义等教学材料，适合语义检索和问答",
+      "code": "course_textbook",
+      "name": "课程资源教材",
+      "description": "课程资源教材、课件、讲义等教学材料，适合语义检索和问答；该 code 与 governance.classification 保持一致。",
       "applicable_classifications": [
-        "course_textbook",
-        "teaching_standard",
-        "talent_training_plan",
-        "major_profile"
+        "course_textbook"
       ],
-      "default_level": "L1",
+      "default_level": "L2",
       "source_kind": "extracted_from_normalized",
       "chunking_mode": "nexus_semantic",
       "rag_pipeline": "pipeline_1",
@@ -1458,7 +1455,7 @@
         }
       ],
       "implementation_tier": "A",
-      "kb_name": "nexus-kb-textbook"
+      "kb_name": "nexus-kb-course-textbook"
     },
     {
       "code": "talent_training_dataset",

@@ -43,7 +43,7 @@ Role constraints:
   as `task_outline_profile` plus `task_outline_node` trees, and projected into
   unified `knowledge_chunk` rows with `domain_model=task_outline.v1`.
   Rebuild uses the normalized payload only, replaces nodes/chunks idempotently,
-  and marks the existing `index_manifest(textbook_kb)` stale after projection
+  and marks the existing `index_manifest(course_textbook)` stale after projection
   replacement. Hybrid chapter-level routing and enterprise training task
   extraction remain later slices.
 - Evidence-grounded KG is tracked as a bounded extension under implementation:
@@ -205,7 +205,7 @@ P0 end-to-end cases:
   `processing_profile=task_outline` and
   `evidence_graph_admission=not_recommended` → project/task/task-section/
   operation-step/task-artifact nodes preserve `source_block_ids` and
-  `locator` → high-value nodes project to `knowledge_chunk(textbook_kb)` with
+  `locator` → high-value nodes project to `knowledge_chunk(course_textbook)` with
   `domain_model=task_outline.v1`, `outline_node_id`,
   `section_processing_profile=task_outline`, and `graph_candidate=false` →
   Task Outline chunks are skipped by default Evidence Graph candidate selection
@@ -213,7 +213,7 @@ P0 end-to-end cases:
   locations.
 - Task Outline rebuild: rebuilding from the same normalized document is
   idempotent, does not duplicate effective nodes or chunks, and marks the
-  existing `index_manifest(textbook_kb)` stale when projected chunks are
+  existing `index_manifest(course_textbook)` stale when projected chunks are
   replaced or removed.
 - High-confidence AI + quality pass → `available`.
 - Low-confidence AI or quality below threshold → `review_required`, with reason recorded in `governance_result.decision_trail`.

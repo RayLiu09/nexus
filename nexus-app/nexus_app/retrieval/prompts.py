@@ -22,6 +22,32 @@ def build_intent_recognition_messages(
     payload = {
         "user_query": query,
         "confidence_threshold": confidence_threshold,
+        "task": (
+            "识别用户问题最可能涉及的 NEXUS 平台数据资产类别，用于缩小检索范围；"
+            "不要把意图识别作为是否检索的阻断条件。"
+        ),
+        "platform_asset_categories": [
+            "产业政策",
+            "政策/行业/研究报告",
+            "岗位需求数据",
+            "职业能力分析",
+            "专业简介",
+            "专业布点",
+            "专业标准",
+            "人才培养方案",
+            "课程资源教材",
+        ],
+        "runtime_domain_mapping": {
+            "产业政策": "course_textbook",
+            "政策/行业/研究报告": "course_textbook",
+            "岗位需求数据": "job_demand",
+            "职业能力分析": "competency_analysis",
+            "专业简介": "major_profile",
+            "专业布点": "major_distribution",
+            "专业标准": "major_profile",
+            "人才培养方案": "major_profile",
+            "课程资源教材": "course_textbook",
+        },
         "domains": [_domain_to_prompt_payload(definition) for definition in list_domain_definitions()],
         "allowed_channels": ["unstructured", "structured", "hybrid"],
         "required_output_schema": {
@@ -47,9 +73,11 @@ def build_intent_recognition_messages(
             "role": "system",
             "content": (
                 "你是 NEXUS 企业数据与知识资产平台的检索意图识别器。"
-                "只能基于给定领域字典判断用户问题应映射到哪些业务领域、检索通道和问题类型。"
+                "你的目标是识别用户问题涉及的平台数据资产类别，并将其映射到运行时可执行领域，"
+                "用于缩小检索范围和辅助分析展示。"
                 "必须只输出 JSON，不要输出 Markdown 或解释。"
-                "当意图不清晰或置信度低于阈值时，仍输出候选意图、缺失约束和建议补充项。"
+                "当意图不清晰时，选择最可能的宽泛领域并降低 confidence，"
+                "同时输出候选意图、缺失约束和建议补充项；不要拒绝检索。"
             ),
         },
         {
@@ -99,9 +127,13 @@ def build_retrieval_plan_messages(
             "merge_goal": "how results should be merged into Markdown",
         },
         "rules": [
+            "Top-level output MUST be a JSON object with original_query, sub_queries, and merge_goal.",
+            "Do not output intent recognition results, candidate_intents arrays, or confidence scores.",
             "Do not output SQL text or raw_sql.",
             "Structured sub queries must use registered query profiles and field names.",
+            "When channel is structured, structured_plan is required and unstructured_plan should be omitted or null.",
             "Unstructured sub queries must use semantic query_text and optional metadata filters.",
+            "When channel is unstructured, unstructured_plan is required and structured_plan should be omitted or null.",
             "Do not exceed max_sub_queries.",
         ],
     }
@@ -112,6 +144,8 @@ def build_retrieval_plan_messages(
                 "你是 NEXUS 企业数据与知识资产平台的召回计划生成器。"
                 "你的任务是把用户问题和已识别意图转化为可执行 retrieval_plan JSON。"
                 "只能输出 JSON，不要输出 Markdown 或解释。"
+                "顶层 JSON 必须是 retrieval_plan 对象，必须包含 original_query、sub_queries、merge_goal；"
+                "不得输出意图识别结果、candidate_intents 数组或 confidence 字段。"
                 "结构化查询只能输出 table_profile、query_profile、filters、group_by、metrics、order_by、limit，"
                 "严禁输出 SQL、raw_sql、DDL、DML 或任意数据库语句。"
             ),

@@ -114,7 +114,7 @@ def _seed_ref(session, *, ref_id: str = "ref-task-orchestration") -> models.Norm
         governance={"classification": "course_textbook"},
         quality={},
         lineage={"raw_object_id": raw.id},
-        metadata_summary={"knowledge_emissions": [{"code": "textbook_kb"}]},
+        metadata_summary={"knowledge_emissions": [{"code": "course_textbook"}]},
     )
     session.add_all([ds, batch, raw, asset, version, ref])
     session.commit()
@@ -126,7 +126,7 @@ def test_rebuild_task_outline_is_idempotent_and_marks_index_stale(session) -> No
     manifest = models.IndexManifest(
         id="manifest-task-orchestration",
         normalized_ref_id=ref.id,
-        knowledge_type_code="textbook_kb",
+        knowledge_type_code="course_textbook",
         index_status=IndexManifestStatus.INDEXED,
         chunk_count=3,
         indexed_at=None,
@@ -188,7 +188,7 @@ def test_rebuild_non_training_textbook_records_profile_without_projecting_chunks
     stale_chunk = models.KnowledgeChunk(
         id="chunk-stale-task-outline",
         normalized_ref_id=ref.id,
-        knowledge_type_code="textbook_kb",
+        knowledge_type_code="course_textbook",
         chunk_type=ChunkType.SEMANTIC_BLOCK,
         chunking_strategy=ChunkingStrategy.SEMANTIC_REPACK,
         source_kind=SourceKind.EXTRACTED_FROM_NORMALIZED,
@@ -205,7 +205,7 @@ def test_rebuild_non_training_textbook_records_profile_without_projecting_chunks
     manifest = models.IndexManifest(
         id="manifest-task-orchestration-theory",
         normalized_ref_id=ref.id,
-        knowledge_type_code="textbook_kb",
+        knowledge_type_code="course_textbook",
         index_status=IndexManifestStatus.INDEXED,
         chunk_count=1,
     )

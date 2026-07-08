@@ -270,7 +270,7 @@ def _seed_textbook_ref(session) -> models.NormalizedAssetRef:
     ref.title = "短视频拍摄与剪辑"
     ref.metadata_summary = {
         "graph_profile": "textbook",
-        "knowledge_emissions": [{"code": "textbook_kb", "primary": True}],
+        "knowledge_emissions": [{"code": "course_textbook", "primary": True}],
     }
     chunk = session.get(models.KnowledgeChunk, "chunk-kg-worker")
     assert chunk is not None
@@ -278,7 +278,7 @@ def _seed_textbook_ref(session) -> models.NormalizedAssetRef:
     assert chunk_2 is not None
     chunk.id = "chunk-textbook-worker"
     chunk.normalized_ref_id = ref.id
-    chunk.knowledge_type_code = "textbook_kb"
+    chunk.knowledge_type_code = "course_textbook"
     chunk.content = "项目一 短视频认知。本项目讲授短视频平台、账号定位和内容形态。"
     chunk.source_block_ids = ["tb1"]
     chunk.locator = {
@@ -289,7 +289,7 @@ def _seed_textbook_ref(session) -> models.NormalizedAssetRef:
     }
     chunk_2.id = "chunk-textbook-worker-2"
     chunk_2.normalized_ref_id = ref.id
-    chunk_2.knowledge_type_code = "textbook_kb"
+    chunk_2.knowledge_type_code = "course_textbook"
     chunk_2.content = "本项目讲授短视频平台、账号定位和内容形态。"
     chunk_2.source_block_ids = ["tb2"]
     chunk_2.locator = {

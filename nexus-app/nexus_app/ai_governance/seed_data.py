@@ -468,7 +468,7 @@ def _apply_classification_defaults(cls_dict: dict[str, Any]) -> None:
         title_keywords=cls_dict["title_keywords"],
         content_keywords=cls_dict["content_keywords"],
     )
-    cls_dict["primary_knowledge_type"] = "textbook_kb"
+    cls_dict["primary_knowledge_type"] = "course_textbook"
     cls_dict["default_level"] = "L2"
     cls_dict["co_emission_rules"] = []
     _normalise_course_textbook_quality_dimensions(cls_dict)

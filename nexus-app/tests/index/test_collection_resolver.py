@@ -68,11 +68,11 @@ def test_resolve_asset_domain_type_prefers_governance_classification():
     assert resolve_asset_domain_type(ref, chunk) == "major_profile"
 
 
-def test_resolve_asset_domain_type_uses_metadata_domain_profile_before_chunk_type():
+def test_resolve_asset_domain_type_ignores_processing_profile_for_domain_isolation():
     ref = _ref(metadata_summary={"domain_profile": "Industry Policy"})
     chunk = _chunk(knowledge_type_code="course_textbook")
 
-    assert resolve_asset_domain_type(ref, chunk) == "industry_policy"
+    assert resolve_asset_domain_type(ref, chunk) == "course_textbook"
 
 
 def test_resolve_asset_domain_type_falls_back_to_knowledge_type_code():
@@ -83,7 +83,7 @@ def test_resolve_asset_domain_type_falls_back_to_knowledge_type_code():
 
 
 def test_resolve_collection_builds_domain_separated_key():
-    ref = _ref(metadata_summary={"domain_profile": "course_textbook"})
+    ref = _ref(governance={"classification": "course_textbook"})
     chunk = _chunk()
 
     resolution = resolve_collection(

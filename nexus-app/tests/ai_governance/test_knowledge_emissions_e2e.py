@@ -21,7 +21,7 @@ from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
 
 @pytest.fixture
 def registry_with_textbook(tmp_path: Path):
-    """Rules with classification ``D4`` mapped to KT ``textbook_kb`` via
+    """Rules with classification ``D4`` mapped to KT ``course_textbook`` via
     ``primary_knowledge_type``. Mirrors the v2.1 schema shape."""
     rules = {
         "schema_version": "1.0",
@@ -31,7 +31,7 @@ def registry_with_textbook(tmp_path: Path):
                 "name": "Teaching",
                 "description": "d",
                 "criteria": ["c"],
-                "primary_knowledge_type": "textbook_kb",
+                "primary_knowledge_type": "course_textbook",
                 "default_level": "L1",
                 "co_emission_rules": [],
             },
@@ -54,7 +54,7 @@ def registry_with_textbook(tmp_path: Path):
         "manual_review_triggers": [],
         "knowledge_types": [
             {
-                "code": "textbook_kb",
+                "code": "course_textbook",
                 "name": "Textbook KB",
                 "applicable_classifications": ["D4"],
                 "chunking_mode": "passthrough_to_ragflow",
@@ -79,7 +79,7 @@ class TestKnowledgeEmissions:
         emissions = infer_knowledge_emissions(ai_output, ref_dict, registry_with_textbook)
         assert emissions
         primary = emissions[0]
-        assert primary["code"] == "textbook_kb"
+        assert primary["code"] == "course_textbook"
         assert primary["primary"] is True
         assert primary["source"] == "rule_lookup"
         assert primary["confidence"] == pytest.approx(0.91)
@@ -96,7 +96,7 @@ class TestKnowledgeEmissions:
         ref_dict = {"content_type": "document", "summary": ""}
         emissions = infer_knowledge_emissions(ai_output, ref_dict, registry_with_textbook)
         assert emissions
-        assert emissions[0]["code"] == "textbook_kb"  # rules win
+        assert emissions[0]["code"] == "course_textbook"  # rules win
 
     def test_missing_classification_returns_empty(self, registry_with_textbook):
         emissions = infer_knowledge_emissions({}, {}, registry_with_textbook)
@@ -137,8 +137,8 @@ class TestKnowledgeEmissions:
     def test_registry_exposes_knowledge_types(self, registry_with_textbook):
         kts = registry_with_textbook.get_knowledge_types()
         codes = {kt["code"] for kt in kts}
-        assert "textbook_kb" in codes
-        assert registry_with_textbook.get_knowledge_type("textbook_kb") is not None
+        assert "course_textbook" in codes
+        assert registry_with_textbook.get_knowledge_type("course_textbook") is not None
         assert registry_with_textbook.get_knowledge_type("nonexistent") is None
 
     def test_ai_output_schema_still_accepts_optional_knowledge_type(self):
@@ -146,15 +146,15 @@ class TestKnowledgeEmissions:
         from nexus_app.ai_governance.output_validator import AIGovernanceOutput
         out = AIGovernanceOutput(
             classification="D4", level="L1", overall_score=85.0, confidence=0.9,
-            knowledge_type="textbook_kb",
+            knowledge_type="course_textbook",
         )
-        assert out.knowledge_type == "textbook_kb"
+        assert out.knowledge_type == "course_textbook"
         out2 = AIGovernanceOutput(
             classification="D4", level="L1", overall_score=85.0, confidence=0.9,
         )
         assert out2.knowledge_type is None
 
-    def test_course_textbook_maps_to_textbook_kb(self, tmp_path):
+    def test_course_textbook_uses_course_textbook(self, tmp_path):
         rules = {
             "schema_version": "2.1",
             "classifications": [
@@ -163,7 +163,7 @@ class TestKnowledgeEmissions:
                     "name": "教材",
                     "description": "课程资源教材",
                     "criteria": ["标题/封面关键词：教材"],
-                    "primary_knowledge_type": "textbook_kb",
+                    "primary_knowledge_type": "course_textbook",
                     "default_level": "L2",
                     "co_emission_rules": [],
                 },
@@ -190,7 +190,7 @@ class TestKnowledgeEmissions:
             "manual_review_triggers": [],
             "knowledge_types": [
                 {
-                    "code": "textbook_kb",
+                    "code": "course_textbook",
                     "name": "教材知识库",
                     "applicable_classifications": ["course_textbook"],
                     "chunking_mode": "nexus_semantic",
@@ -213,13 +213,13 @@ class TestKnowledgeEmissions:
 
         assert emissions == [
             {
-                "code": "textbook_kb",
+                "code": "course_textbook",
                 "name": "教材知识库",
                 "primary": True,
                 "confidence": 0.93,
                 "source": "rule_lookup",
                 "evidence": [
-                    "classification=course_textbook → primary_knowledge_type=textbook_kb "
+                    "classification=course_textbook → primary_knowledge_type=course_textbook "
                     "(active rules)"
                 ],
                 "co_emission_origin": None,

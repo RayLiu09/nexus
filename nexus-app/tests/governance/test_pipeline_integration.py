@@ -307,7 +307,7 @@ class TestIndexSubmitIntegration:
         kb_mod._default_registry = KbRegistry(adapter=fake_adapter, settings=get_settings())
 
         try:
-            chunks = self._make_chunks(session, ref.id, "textbook_kb",
+            chunks = self._make_chunks(session, ref.id, "course_textbook",
                                         ChunkType.PASSTHROUGH_DESCRIPTOR, 1)
 
             class _Ctx:
@@ -348,7 +348,7 @@ class TestIndexSubmitIntegration:
         kb_mod._default_registry = KbRegistry(adapter=fake_adapter, settings=get_settings())
 
         try:
-            chunks = self._make_chunks(session, ref.id, "textbook_kb",
+            chunks = self._make_chunks(session, ref.id, "course_textbook",
                                         ChunkType.SEMANTIC_BLOCK, 2)
 
             class _Ctx:
@@ -380,7 +380,7 @@ class TestIndexSubmitIntegration:
                 )
             ).all()[-1]
             assert stage_row.status == StageStatus.SUCCEEDED
-            assert stage_row.detail["pgvector_knowledge_types"] == ["textbook_kb"]
+            assert stage_row.detail["pgvector_knowledge_types"] == ["course_textbook"]
             assert stage_row.detail["ragflow_knowledge_types"] == []
             assert stage_row.detail["pgvector_index_summaries"][0]["embedded_chunk_count"] == 2
         finally:
@@ -420,13 +420,13 @@ class TestIdempotencyOnRetry:
                                                  "org_scope": "all",
                                                  "confidence": 0.9})
         version.version_status = AssetVersionStatus.AVAILABLE
-        ref.metadata_summary = {"knowledge_emissions": [{"code": "textbook_kb"}]}
+        ref.metadata_summary = {"knowledge_emissions": [{"code": "course_textbook"}]}
         session.flush()
 
         # Seed existing chunk
         seed = models.KnowledgeChunk(
             normalized_ref_id=ref.id,
-            knowledge_type_code="textbook_kb",
+            knowledge_type_code="course_textbook",
             chunk_type=ChunkType.PASSTHROUGH_DESCRIPTOR,
             chunking_strategy="passthrough_to_ragflow",
             chunk_index=0,
@@ -574,7 +574,7 @@ class TestRagflowErrorHandling:
             chunks = [
                 models.KnowledgeChunk(
                     normalized_ref_id=ref.id,
-                    knowledge_type_code="textbook_kb",
+                    knowledge_type_code="course_textbook",
                     chunk_type=ChunkType.PASSTHROUGH_DESCRIPTOR,
                     chunking_strategy="passthrough_to_ragflow",
                     chunk_index=0, content="c", chunk_metadata={},
@@ -624,10 +624,10 @@ class TestIndexSubmitPerKtIdempotency:
         version.version_status = AssetVersionStatus.AVAILABLE
         session.flush()
 
-        # Seed an already-indexed manifest for textbook_kb
+        # Seed an already-indexed manifest for course_textbook
         seeded = models.IndexManifest(
             normalized_ref_id=ref.id,
-            knowledge_type_code="textbook_kb",
+            knowledge_type_code="course_textbook",
             index_status=IndexManifestStatus.INDEXED,
             ragflow_kb_id="kb-existing",
             ragflow_doc_id="doc-existing",
@@ -649,7 +649,7 @@ class TestIndexSubmitPerKtIdempotency:
             chunks = [
                 models.KnowledgeChunk(
                     normalized_ref_id=ref.id,
-                    knowledge_type_code="textbook_kb",
+                    knowledge_type_code="course_textbook",
                     chunk_type=ChunkType.PASSTHROUGH_DESCRIPTOR,
                     chunking_strategy="passthrough_to_ragflow",
                     chunk_index=0, content="x", chunk_metadata={},
@@ -694,8 +694,8 @@ class TestRagflowDocIdempotency:
 
         fake_adapter = FakeRAGFlowAdapter()
         # Pre-seed the doc as if a previous attempt created it.
-        doc_name = f"{(ref.title or ref.id)[:120]}__textbook_kb"
-        fake_adapter.create_dataset(name="nexus-test-textbook_kb",
+        doc_name = f"{(ref.title or ref.id)[:120]}__course_textbook"
+        fake_adapter.create_dataset(name="nexus-test-course_textbook",
                                      chunk_method="book")
         kb_id = next(iter(fake_adapter._datasets.keys()))
         fake_adapter.create_document(
@@ -706,9 +706,9 @@ class TestRagflowDocIdempotency:
         from nexus_app.index import ragflow_adapter as ra_mod
         from nexus_app.index import kb_registry as kb_mod
         monkeypatch.setattr(ra_mod, "get_ragflow_adapter", lambda settings=None: fake_adapter)
-        # Force KbRegistry to map textbook_kb -> our pre-seeded kb_id
+        # Force KbRegistry to map course_textbook -> our pre-seeded kb_id
         registry = KbRegistry(adapter=fake_adapter, settings=get_settings())
-        registry._cache["textbook_kb"] = kb_id
+        registry._cache["course_textbook"] = kb_id
         kb_mod._default_registry = registry
         monkeypatch.setattr(stages, "_load_normalized_content",
                             lambda ctx, ref: "synthetic")
@@ -717,7 +717,7 @@ class TestRagflowDocIdempotency:
             chunks = [
                 models.KnowledgeChunk(
                     normalized_ref_id=ref.id,
-                    knowledge_type_code="textbook_kb",
+                    knowledge_type_code="course_textbook",
                     chunk_type=ChunkType.PASSTHROUGH_DESCRIPTOR,
                     chunking_strategy="passthrough_to_ragflow",
                     chunk_index=0, content="c", chunk_metadata={},
@@ -786,7 +786,7 @@ class TestIndexSubmitPartialSuccess:
             chunks = [
                 models.KnowledgeChunk(
                     normalized_ref_id=ref.id,
-                    knowledge_type_code="textbook_kb",
+                    knowledge_type_code="course_textbook",
                     chunk_type=ChunkType.PASSTHROUGH_DESCRIPTOR,
                     chunking_strategy="passthrough_to_ragflow",
                     chunk_index=0, content="c1", chunk_metadata={},
@@ -1041,7 +1041,7 @@ class TestKnowledgeEmissionsEdgeCases:
                                                  "org_scope": "all",
                                                  "confidence": 0.9})
         # version stays PROCESSING
-        ref.metadata_summary = {"knowledge_emissions": [{"code": "textbook_kb"}]}
+        ref.metadata_summary = {"knowledge_emissions": [{"code": "course_textbook"}]}
         session.flush()
 
         chunks = stages.run_knowledge_chunking(self._ctx(session, ref), version, ref)
@@ -1063,7 +1063,7 @@ class TestKnowledgeEmissionsEdgeCases:
             },
         )
         version.version_status = AssetVersionStatus.REVIEW_REQUIRED
-        ref.metadata_summary = {"knowledge_emissions": [{"code": "textbook_kb"}]}
+        ref.metadata_summary = {"knowledge_emissions": [{"code": "course_textbook"}]}
         result = models.GovernanceResult(
             normalized_ref_id=ref.id,
             ai_run_id=run.id,
@@ -1091,7 +1091,7 @@ class TestKnowledgeEmissionsEdgeCases:
 
         chunks = stages.run_knowledge_chunking(ctx, version, ref)
         assert chunks
-        assert all(chunk.knowledge_type_code == "textbook_kb" for chunk in chunks)
+        assert all(chunk.knowledge_type_code == "course_textbook" for chunk in chunks)
 
         stage = session.scalars(
             select(models.JobStage).where(

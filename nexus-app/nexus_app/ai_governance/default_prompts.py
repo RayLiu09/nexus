@@ -184,7 +184,7 @@ _KNOWLEDGE_TYPE_INFERENCE_PROMPT = """## 任务
 
 1. 根据文档的内容特征，判断它具有哪些知识类型的产生潜力
 2. 考虑以下知识类型：
-   - 教材知识库（textbook_kb）：教学材料，适合语义检索和问答
+   - 课程资源教材（course_textbook）：教学材料，适合语义检索和问答
    - 人才培养方案数据集（talent_training_dataset）：结构化培养方案数据
    - 教学问答语料库（qa_corpus）：问答对语料，适合问答检索
    - 流程语料（*_process）：可拆解为流程步骤的文档

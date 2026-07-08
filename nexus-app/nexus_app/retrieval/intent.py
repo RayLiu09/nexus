@@ -16,12 +16,10 @@ from nexus_app.ai_governance.litellm_client import (
 from nexus_app.config import Settings, get_settings
 from nexus_app.retrieval.prompts import build_intent_recognition_messages
 from nexus_app.retrieval.schemas import (
-    ACCESS_SCOPE_ALL_ASSETS,
     Clarification,
     ContextPackStatus,
     ConversationStep,
     ConversationStepName,
-    RetrievalContextPack,
     RetrievalIntent,
     StepStatus,
 )
@@ -34,7 +32,6 @@ class IntentRecognitionResult:
     status: ContextPackStatus
     intent: RetrievalIntent | None
     conversation_step: ConversationStep
-    context_pack: RetrievalContextPack | None = None
     model_alias: str | None = None
     warnings: tuple[str, ...] = ()
 
@@ -72,7 +69,7 @@ class IntentRecognitionService:
             )
         except LiteLLMCallError as exc:
             logger.warning("retrieval intent LiteLLM call failed error_type=%s", exc.error_type)
-            return self._failed_result(query, "intent_llm_call_failed")
+            return self._fallback_result("intent_llm_call_failed", status=StepStatus.FAILED)
 
         try:
             intent = self._parse_intent(content)
@@ -82,10 +79,10 @@ class IntentRecognitionService:
                 self._model_alias,
                 summary.request_id,
             )
-            return self._failed_result(query, "intent_schema_invalid")
+            return self._fallback_result("intent_schema_invalid", status=StepStatus.FAILED)
 
         if intent.confidence < self._confidence_threshold:
-            return self._clarification_result(query, intent)
+            return self._low_confidence_result(intent)
 
         step = _intent_step(
             status=StepStatus.COMPLETED,
@@ -112,75 +109,66 @@ class IntentRecognitionService:
         except ValidationError as exc:
             raise ValueError("intent output does not match RetrievalIntent schema") from exc
 
-    def _clarification_result(self, query: str, intent: RetrievalIntent) -> IntentRecognitionResult:
+    def _low_confidence_result(self, intent: RetrievalIntent) -> IntentRecognitionResult:
         clarification = _clarification_from_intent(intent)
         step = _intent_step(
-            status=StepStatus.NEEDS_CLARIFICATION,
+            status=StepStatus.COMPLETED,
             intent=intent,
-            message=clarification.message,
-        )
-        pack = RetrievalContextPack(
-            status=ContextPackStatus.NEEDS_CLARIFICATION,
-            original_query=query,
-            intent=intent,
-            conversation_steps=[
-                step,
-                ConversationStep(
-                    step=ConversationStepName.QUERY_TRANSFORMATION,
-                    status=StepStatus.BLOCKED,
-                    title="召回计划",
-                    message="意图置信度低于阈值，等待用户优化问题或确认继续。",
-                ),
-            ],
-            clarification=clarification,
-            access_scope=ACCESS_SCOPE_ALL_ASSETS,
-            warnings=["intent_confidence_below_threshold"],
+            message="意图识别置信度偏低，已保留辅助分析并继续执行广域召回。",
+            extra_payload={
+                "clarification": clarification.model_dump(mode="json"),
+                "fail_open": True,
+                "reason": "intent_confidence_below_threshold",
+            },
         )
         return IntentRecognitionResult(
-            status=ContextPackStatus.NEEDS_CLARIFICATION,
+            status=ContextPackStatus.COMPLETED,
             intent=intent,
             conversation_step=step,
-            context_pack=pack,
             model_alias=self._model_alias,
             warnings=("intent_confidence_below_threshold",),
         )
 
-    def _failed_result(self, query: str, reason: str) -> IntentRecognitionResult:
-        intent = RetrievalIntent(
-            business_domains=["course_textbook"],
-            retrieval_channels=["unstructured"],
-            question_type="unknown",
-            confidence=0.0,
-            confidence_threshold=self._confidence_threshold,
-            missing_constraints=["数据领域", "问题目标"],
-            suggested_refinements=[
-                "请补充要查询的数据领域，例如岗位需求、职业能力、专业布点或教材内容。",
-                "请说明希望得到统计表、知识解释、操作步骤还是来源定位。",
-            ],
-        )
+    def _fallback_result(
+        self,
+        reason: str,
+        *,
+        status: StepStatus,
+    ) -> IntentRecognitionResult:
+        intent = _fallback_intent(self._confidence_threshold)
         clarification = _clarification_from_intent(intent)
         step = _intent_step(
-            status=StepStatus.FAILED,
+            status=status,
             intent=intent,
-            message="意图识别结果无法通过 schema 校验。",
-        )
-        pack = RetrievalContextPack(
-            status=ContextPackStatus.NEEDS_CLARIFICATION,
-            original_query=query,
-            intent=intent,
-            conversation_steps=[step],
-            clarification=clarification,
-            access_scope=ACCESS_SCOPE_ALL_ASSETS,
-            warnings=[reason],
+            message="意图识别不可用，已使用默认广域召回范围继续执行。",
+            extra_payload={
+                "clarification": clarification.model_dump(mode="json"),
+                "fail_open": True,
+                "reason": reason,
+            },
         )
         return IntentRecognitionResult(
-            status=ContextPackStatus.NEEDS_CLARIFICATION,
+            status=ContextPackStatus.COMPLETED,
             intent=intent,
             conversation_step=step,
-            context_pack=pack,
             model_alias=self._model_alias,
-            warnings=(reason,),
+            warnings=(reason, "intent_fallback_used"),
         )
+
+
+def _fallback_intent(confidence_threshold: float) -> RetrievalIntent:
+    return RetrievalIntent(
+        business_domains=["course_textbook"],
+        retrieval_channels=["unstructured"],
+        question_type="unknown",
+        confidence=0.0,
+        confidence_threshold=confidence_threshold,
+        missing_constraints=["数据领域", "问题目标"],
+        suggested_refinements=[
+            "请补充要查询的数据领域，例如岗位需求、职业能力、专业布点或教材内容。",
+            "请说明希望得到统计表、知识解释、操作步骤还是来源定位。",
+        ],
+    )
 
 
 def create_intent_recognition_service(
@@ -218,25 +206,29 @@ def _intent_step(
     status: StepStatus,
     intent: RetrievalIntent,
     message: str,
+    extra_payload: dict | None = None,
 ) -> ConversationStep:
+    display_payload = {
+        "business_domains": intent.business_domains,
+        "retrieval_channels": intent.retrieval_channels,
+        "question_type": intent.question_type,
+        "constraints": intent.constraints,
+        "confidence": intent.confidence,
+        "confidence_threshold": intent.confidence_threshold,
+        "candidate_intents": [
+            candidate.model_dump() for candidate in intent.candidate_intents
+        ],
+        "missing_constraints": intent.missing_constraints,
+        "suggested_refinements": intent.suggested_refinements,
+    }
+    if extra_payload:
+        display_payload.update(extra_payload)
     return ConversationStep(
         step=ConversationStepName.INTENT_RECOGNITION,
         status=status,
         title="意图识别",
         message=message,
-        display_payload={
-            "business_domains": intent.business_domains,
-            "retrieval_channels": intent.retrieval_channels,
-            "question_type": intent.question_type,
-            "constraints": intent.constraints,
-            "confidence": intent.confidence,
-            "confidence_threshold": intent.confidence_threshold,
-            "candidate_intents": [
-                candidate.model_dump() for candidate in intent.candidate_intents
-            ],
-            "missing_constraints": intent.missing_constraints,
-            "suggested_refinements": intent.suggested_refinements,
-        },
+        display_payload=display_payload,
     )
 
 
@@ -252,4 +244,3 @@ def _clarification_from_intent(intent: RetrievalIntent) -> Clarification:
         candidate_intents=intent.candidate_intents,
         missing_constraints=intent.missing_constraints,
     )
-

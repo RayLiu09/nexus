@@ -23,7 +23,7 @@ def test_excel_course_textbook_row_builds_stable_governance_contract():
 
     assert textbook["name"] == "教材"
     assert textbook["parent_type"] == "课程资源"
-    assert textbook["primary_knowledge_type"] == "textbook_kb"
+    assert textbook["primary_knowledge_type"] == "course_textbook"
     assert textbook["default_level"] == "L2"
     assert "教材" in "、".join(textbook["title_keywords"])
     assert "本书" in textbook["content_keywords"]
@@ -45,15 +45,15 @@ def test_governance_rules_v2_contains_course_textbook_and_validates():
     GovernanceRulesConfig.model_validate(rules)
 
     textbook = _find(rules["classifications"], "course_textbook")
-    assert textbook["primary_knowledge_type"] == "textbook_kb"
+    assert textbook["primary_knowledge_type"] == "course_textbook"
     assert textbook["default_level"] == "L2"
     assert "教材" in "\n".join(textbook["criteria"])
     assert sum(dim["weight"] for dim in textbook["quality_dimensions"]) == 1.0
 
-    textbook_kb = _find(rules["knowledge_types"], "textbook_kb")
-    assert "course_textbook" in textbook_kb["applicable_classifications"]
-    assert textbook_kb["chunking_mode"] == "nexus_semantic"
-    assert textbook_kb["chunking_strategy"] == "semantic_repack"
+    course_textbook = _find(rules["knowledge_types"], "course_textbook")
+    assert "course_textbook" in course_textbook["applicable_classifications"]
+    assert course_textbook["chunking_mode"] == "nexus_semantic"
+    assert course_textbook["chunking_strategy"] == "semantic_repack"
 
 
 def test_default_governance_prompts_stay_rule_driven_for_course_textbook():

@@ -84,7 +84,6 @@ def test_intent_recognition_returns_completed_step_for_high_confidence_output():
     assert result.intent is not None
     assert result.intent.business_domains == ["major_distribution"]
     assert result.intent.confidence == pytest.approx(0.91)
-    assert result.context_pack is None
     assert result.conversation_step.status == StepStatus.COMPLETED
     assert result.conversation_step.display_payload["confidence"] == pytest.approx(0.91)
     assert llm.calls[0]["model_alias"] == "intent-model"
@@ -114,15 +113,15 @@ def test_intent_recognition_returns_clarification_for_low_confidence_output():
 
     result = service.recognize("帮我查一下趋势")
 
-    assert result.status == ContextPackStatus.NEEDS_CLARIFICATION
-    assert result.context_pack is not None
-    assert result.context_pack.retrieval_plan is None
-    assert result.context_pack.clarification is not None
-    assert result.context_pack.clarification.message == (
-        "当前问题的检索意图不够清晰，是否愿意进一步优化问题？"
+    assert result.status == ContextPackStatus.COMPLETED
+    assert result.intent is not None
+    assert result.intent.business_domains == ["major_distribution"]
+    assert result.warnings == ("intent_confidence_below_threshold",)
+    assert result.conversation_step.status == StepStatus.COMPLETED
+    assert result.conversation_step.display_payload["fail_open"] is True
+    assert result.conversation_step.display_payload["reason"] == (
+        "intent_confidence_below_threshold"
     )
-    assert result.context_pack.warnings == ["intent_confidence_below_threshold"]
-    assert result.conversation_step.status == StepStatus.NEEDS_CLARIFICATION
     assert result.conversation_step.display_payload["missing_constraints"] == ["专业名称"]
 
 
@@ -132,12 +131,12 @@ def test_intent_recognition_handles_invalid_json_without_unhandled_exception():
 
     result = service.recognize("随便查查")
 
-    assert result.status == ContextPackStatus.NEEDS_CLARIFICATION
-    assert result.context_pack is not None
-    assert result.context_pack.warnings == ["intent_schema_invalid"]
+    assert result.status == ContextPackStatus.COMPLETED
     assert result.conversation_step.status == StepStatus.FAILED
     assert result.intent is not None
     assert result.intent.confidence == 0.0
+    assert result.warnings == ("intent_schema_invalid", "intent_fallback_used")
+    assert result.conversation_step.display_payload["fail_open"] is True
 
 
 def test_intent_recognition_handles_schema_invalid_json_safely():
@@ -146,10 +145,10 @@ def test_intent_recognition_handles_schema_invalid_json_safely():
 
     result = service.recognize("随便查查")
 
-    assert result.status == ContextPackStatus.NEEDS_CLARIFICATION
-    assert result.context_pack is not None
-    assert result.context_pack.warnings == ["intent_schema_invalid"]
+    assert result.status == ContextPackStatus.COMPLETED
+    assert result.intent is not None
     assert result.conversation_step.status == StepStatus.FAILED
+    assert result.warnings == ("intent_schema_invalid", "intent_fallback_used")
 
 
 def test_intent_recognition_handles_litellm_call_error_safely():
@@ -160,9 +159,9 @@ def test_intent_recognition_handles_litellm_call_error_safely():
 
     result = service.recognize("随便查查")
 
-    assert result.status == ContextPackStatus.NEEDS_CLARIFICATION
-    assert result.context_pack is not None
-    assert result.context_pack.warnings == ["intent_llm_call_failed"]
+    assert result.status == ContextPackStatus.COMPLETED
+    assert result.intent is not None
+    assert result.warnings == ("intent_llm_call_failed", "intent_fallback_used")
     assert result.conversation_step.status == StepStatus.FAILED
 
 
@@ -174,6 +173,9 @@ def test_intent_prompt_includes_domain_registry_and_no_credentials():
 
     assert len(messages) == 2
     payload = json.loads(messages[1]["content"])
+    assert payload["task"].startswith("识别用户问题最可能涉及")
+    assert "岗位需求数据" in payload["platform_asset_categories"]
+    assert payload["runtime_domain_mapping"]["课程资源教材"] == "course_textbook"
     domains = {item["domain"] for item in payload["domains"]}
     assert "major_distribution" in domains
     assert "course_textbook" in domains
@@ -181,4 +183,3 @@ def test_intent_prompt_includes_domain_registry_and_no_credentials():
     rendered = json.dumps(payload, ensure_ascii=False)
     assert "api_key" not in rendered.lower()
     assert "litellm_api_key" not in rendered.lower()
-

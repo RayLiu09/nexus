@@ -31,7 +31,7 @@ def registry() -> GovernanceRulesRegistry:
                 "name": "Teaching",
                 "description": "d",
                 "criteria": ["c"],
-                "primary_knowledge_type": "textbook_kb",
+                "primary_knowledge_type": "course_textbook",
                 "co_emission_rules": [],
             },
         ],
@@ -50,8 +50,8 @@ def registry() -> GovernanceRulesRegistry:
         },
         "knowledge_types": [
             {
-                "code": "textbook_kb",
-                "name": "Textbook KB",
+                "code": "course_textbook",
+                "name": "Course Textbook",
                 "applicable_classifications": ["D4"],
                 "chunking_mode": "nexus_semantic",
                 "chunking_strategy": "semantic_repack",
@@ -141,14 +141,14 @@ class TestExplicitWrite:
         )
         with patch(
             "nexus_app.ai_governance.services.infer_knowledge_emissions",
-            return_value=[{"code": "textbook_kb", "primary": True, "confidence": 0.9}],
+            return_value=[{"code": "course_textbook", "primary": True, "confidence": 0.9}],
         ):
             svc = AIGovernanceService()
             emissions = svc.write_knowledge_emissions(session, run, registry)
 
-        assert emissions and emissions[0]["code"] == "textbook_kb"
+        assert emissions and emissions[0]["code"] == "course_textbook"
         session.refresh(ref)
-        assert ref.metadata_summary["knowledge_emissions"][0]["code"] == "textbook_kb"
+        assert ref.metadata_summary["knowledge_emissions"][0]["code"] == "course_textbook"
 
     def test_idempotent_skip_when_existing_emissions_match(self, session, registry):
         ref, run = _make_ref_and_run(
@@ -158,7 +158,7 @@ class TestExplicitWrite:
         )
         ref.metadata_summary = {
             "knowledge_emissions": [
-                {"code": "textbook_kb", "primary": True, "confidence": 0.5}
+                {"code": "course_textbook", "primary": True, "confidence": 0.5}
             ]
         }
         session.flush()
@@ -167,7 +167,7 @@ class TestExplicitWrite:
         emissions = svc.write_knowledge_emissions(session, run, registry)
 
         assert emissions == [
-            {"code": "textbook_kb", "primary": True, "confidence": 0.5}
+            {"code": "course_textbook", "primary": True, "confidence": 0.5}
         ]
 
     def test_replaces_stale_emissions_after_regovernance(self, session, registry):
@@ -186,9 +186,9 @@ class TestExplicitWrite:
         svc = AIGovernanceService()
         emissions = svc.write_knowledge_emissions(session, run, registry)
 
-        assert emissions and emissions[0]["code"] == "textbook_kb"
+        assert emissions and emissions[0]["code"] == "course_textbook"
         session.refresh(ref)
-        assert ref.metadata_summary["knowledge_emissions"][0]["code"] == "textbook_kb"
+        assert ref.metadata_summary["knowledge_emissions"][0]["code"] == "course_textbook"
 
     def test_no_ai_output_returns_empty(self, session, registry):
         _, run = _make_ref_and_run(session, ai_output=None)
