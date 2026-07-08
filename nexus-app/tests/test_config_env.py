@@ -75,3 +75,12 @@ def test_retrieval_planner_model_can_be_overridden(monkeypatch):
     assert settings.default_retrieval_planner_model == "retrieval-planner-model"
     assert settings.effective_retrieval_planner_model_alias == "retrieval-planner-model"
     assert settings.retrieval_max_sub_queries == 4
+
+
+def test_retrieval_summary_model_can_be_overridden(monkeypatch):
+    monkeypatch.setenv("DEFAULT_RETRIEVAL_SUMMARY_MODEL", "retrieval-summary-model")
+
+    settings = Settings(DEFAULT_GOVERNANCE_MODEL="governance-model")
+
+    assert settings.default_retrieval_summary_model == "retrieval-summary-model"
+    assert settings.effective_retrieval_summary_model_alias == "retrieval-summary-model"

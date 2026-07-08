@@ -54,6 +54,12 @@ from nexus_app.retrieval.schemas import (
     UnstructuredResultItem,
     UnstructuredPlan,
 )
+from nexus_app.retrieval.summary import (
+    NO_EVIDENCE_MARKDOWN,
+    RetrievalSummaryResult,
+    RetrievalSummaryService,
+    create_retrieval_summary_service,
+)
 
 __all__ = [
     "ACCESS_SCOPE_ALL_ASSETS",
@@ -70,6 +76,7 @@ __all__ = [
     "IntentRecognitionService",
     "LlmSummary",
     "MajorDistributionRetrievalExecutor",
+    "NO_EVIDENCE_MARKDOWN",
     "QueryMetric",
     "QueryOrder",
     "QueryProfile",
@@ -83,6 +90,8 @@ __all__ = [
     "RetrievalResult",
     "RetrievalSourceRef",
     "RetrievalSubQuery",
+    "RetrievalSummaryResult",
+    "RetrievalSummaryService",
     "StepStatus",
     "StructuredAggregation",
     "StructuredPlan",
@@ -93,6 +102,7 @@ __all__ = [
     "create_major_distribution_retrieval_executor",
     "create_retrieval_orchestrator",
     "create_retrieval_planner_service",
+    "create_retrieval_summary_service",
     "create_unstructured_retrieval_executor",
     "domains_for_channel",
     "get_domain_definition",
