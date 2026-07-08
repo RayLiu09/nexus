@@ -43,6 +43,26 @@ def test_major_distribution_registry_exposes_structured_query_profiles():
     assert "sum:distribution_count" in trend.allowed_metrics
 
 
+def test_job_demand_registry_exposes_structured_query_profiles():
+    city = get_query_profile("job_demand", "job_demand.count_by_city")
+    requirement = get_query_profile("job_demand", "job_demand.requirement_keyword")
+
+    assert city.table_profile == "job_demand.v1"
+    assert "city" in city.allowed_group_by
+    assert "sum:job_count" in city.allowed_metrics
+    assert "item_name" in requirement.allowed_filters
+
+
+def test_competency_registry_exposes_structured_query_profiles():
+    category = get_query_profile("competency_analysis", "competency.ability_items_by_category")
+    relations = get_query_profile("competency_analysis", "competency.relations_by_ability")
+
+    assert category.table_profile == "ability_analysis.pgsd.v1"
+    assert "ability_major_category_code" in category.allowed_group_by
+    assert "count:record" in category.allowed_metrics
+    assert "relation_type" in relations.allowed_filters
+
+
 def test_domains_for_channel_includes_hybrid_major_profile():
     structured_domains = {definition.domain for definition in domains_for_channel("structured")}
     hybrid_domains = {definition.domain for definition in domains_for_channel(RetrievalChannel.HYBRID)}
@@ -59,4 +79,3 @@ def test_unknown_domain_or_profile_fails_closed():
 
     with pytest.raises(KeyError):
         get_query_profile("major_distribution", "raw_sql")
-

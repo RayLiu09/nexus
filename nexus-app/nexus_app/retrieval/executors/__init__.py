@@ -1,5 +1,13 @@
 """Retrieval executor implementations."""
 
+from nexus_app.retrieval.executors.competency import (
+    CompetencyRetrievalExecutor,
+    create_competency_retrieval_executor,
+)
+from nexus_app.retrieval.executors.job_demand import (
+    JobDemandRetrievalExecutor,
+    create_job_demand_retrieval_executor,
+)
 from nexus_app.retrieval.executors.major_distribution import (
     MajorDistributionRetrievalExecutor,
     create_major_distribution_retrieval_executor,
@@ -10,8 +18,12 @@ from nexus_app.retrieval.executors.unstructured import (
 )
 
 __all__ = [
+    "CompetencyRetrievalExecutor",
+    "JobDemandRetrievalExecutor",
     "MajorDistributionRetrievalExecutor",
     "UnstructuredRetrievalExecutor",
+    "create_competency_retrieval_executor",
+    "create_job_demand_retrieval_executor",
     "create_major_distribution_retrieval_executor",
     "create_unstructured_retrieval_executor",
 ]

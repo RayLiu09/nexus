@@ -48,6 +48,58 @@ MAJOR_DISTRIBUTION_FIELDS = (
     "distribution_count",
 )
 
+JOB_DEMAND_FIELDS = (
+    "major_name",
+    "industry_name",
+    "job_title",
+    "city",
+    "region",
+    "education_requirement",
+    "employment_type",
+    "enterprise_size",
+    "company_name",
+    "salary_min",
+    "salary_max",
+    "job_count",
+    "source_platform",
+)
+
+COMPETENCY_TASK_TREE_FIELDS = (
+    "analysis_id",
+    "major_name",
+    "profile_id",
+    "analysis_model",
+    "task_code",
+    "task_name",
+    "content_code",
+    "ability_major_category_code",
+    "ability_code",
+)
+
+COMPETENCY_ABILITY_ITEM_FIELDS = (
+    "analysis_id",
+    "major_name",
+    "profile_id",
+    "analysis_model",
+    "task_code",
+    "task_name",
+    "content_code",
+    "ability_major_category_code",
+    "ability_code",
+)
+
+COMPETENCY_RELATION_FIELDS = (
+    "analysis_id",
+    "major_name",
+    "profile_id",
+    "analysis_model",
+    "relation_type",
+    "source_type",
+    "source_id",
+    "target_type",
+    "target_id",
+)
+
 
 DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
     BusinessDomain.COURSE_TEXTBOOK: DomainDefinition(
@@ -156,14 +208,55 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 description="岗位需求明细记录查询",
                 executor_key="job_demand_sql",
                 table_profile="job_demand.v1",
+                allowed_filters=JOB_DEMAND_FIELDS,
+            ),
+            QueryProfile(
+                key="job_demand.count_by_city",
+                channel=RetrievalChannel.STRUCTURED,
+                description="按城市聚合岗位需求记录数",
+                executor_key="job_demand_sql",
+                table_profile="job_demand.v1",
+                allowed_filters=JOB_DEMAND_FIELDS,
+                allowed_group_by=("city",),
+                allowed_metrics=("count:record", "sum:job_count"),
+            ),
+            QueryProfile(
+                key="job_demand.count_by_education",
+                channel=RetrievalChannel.STRUCTURED,
+                description="按学历要求聚合岗位需求记录数",
+                executor_key="job_demand_sql",
+                table_profile="job_demand.v1",
+                allowed_filters=JOB_DEMAND_FIELDS,
+                allowed_group_by=("education_requirement",),
+                allowed_metrics=("count:record", "sum:job_count"),
+            ),
+            QueryProfile(
+                key="job_demand.salary_distribution",
+                channel=RetrievalChannel.STRUCTURED,
+                description="按城市或学历聚合薪资区间",
+                executor_key="job_demand_sql",
+                table_profile="job_demand.v1",
+                allowed_filters=JOB_DEMAND_FIELDS,
+                allowed_group_by=("city", "education_requirement", "job_title"),
+                allowed_metrics=(
+                    "avg:salary_min",
+                    "avg:salary_max",
+                    "count:record",
+                ),
+            ),
+            QueryProfile(
+                key="job_demand.requirement_keyword",
+                channel=RetrievalChannel.STRUCTURED,
+                description="岗位需求项关键词明细查询",
+                executor_key="job_demand_sql",
+                table_profile="job_demand.v1",
                 allowed_filters=(
-                    "major_name",
-                    "industry_name",
-                    "job_title",
-                    "city",
-                    "education_requirement",
-                    "salary_min",
-                    "salary_max",
+                    *JOB_DEMAND_FIELDS,
+                    "item_type",
+                    "item_name",
+                    "normalized_name",
+                    "taxonomy_code",
+                    "evidence_field",
                 ),
             ),
         ),
@@ -182,13 +275,35 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 description="工作任务、工作内容、能力项树查询",
                 executor_key="competency_sql",
                 table_profile="ability_analysis.pgsd.v1",
-                allowed_filters=(
-                    "major_name",
-                    "profile_id",
-                    "task_code",
-                    "ability_major_category_code",
-                    "ability_code",
-                ),
+                allowed_filters=COMPETENCY_TASK_TREE_FIELDS,
+            ),
+            QueryProfile(
+                key="competency.ability_items_by_category",
+                channel=RetrievalChannel.STRUCTURED,
+                description="按能力大类查询能力项",
+                executor_key="competency_sql",
+                table_profile="ability_analysis.pgsd.v1",
+                allowed_filters=COMPETENCY_ABILITY_ITEM_FIELDS,
+                allowed_group_by=("ability_major_category_code",),
+                allowed_metrics=("count:record",),
+            ),
+            QueryProfile(
+                key="competency.ability_items_by_task",
+                channel=RetrievalChannel.STRUCTURED,
+                description="按工作任务查询能力项",
+                executor_key="competency_sql",
+                table_profile="ability_analysis.pgsd.v1",
+                allowed_filters=COMPETENCY_ABILITY_ITEM_FIELDS,
+                allowed_group_by=("task_code",),
+                allowed_metrics=("count:record",),
+            ),
+            QueryProfile(
+                key="competency.relations_by_ability",
+                channel=RetrievalChannel.STRUCTURED,
+                description="能力分析关系查询",
+                executor_key="competency_sql",
+                table_profile="ability_analysis.pgsd.v1",
+                allowed_filters=COMPETENCY_RELATION_FIELDS,
             ),
         ),
     ),
@@ -221,4 +336,3 @@ def domains_for_channel(channel: RetrievalChannel | str) -> list[DomainDefinitio
         for definition in list_domain_definitions()
         if channel_key in definition.allowed_channels
     ]
-

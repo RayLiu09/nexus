@@ -9,8 +9,12 @@ from nexus_app.retrieval.domain_registry import (
     list_domain_definitions,
 )
 from nexus_app.retrieval.executors import (
+    CompetencyRetrievalExecutor,
+    JobDemandRetrievalExecutor,
     MajorDistributionRetrievalExecutor,
     UnstructuredRetrievalExecutor,
+    create_competency_retrieval_executor,
+    create_job_demand_retrieval_executor,
     create_major_distribution_retrieval_executor,
     create_unstructured_retrieval_executor,
 )
@@ -71,9 +75,11 @@ __all__ = [
     "ConversationStep",
     "ConversationStepName",
     "ContextPackStatus",
+    "CompetencyRetrievalExecutor",
     "DomainDefinition",
     "IntentRecognitionResult",
     "IntentRecognitionService",
+    "JobDemandRetrievalExecutor",
     "LlmSummary",
     "MajorDistributionRetrievalExecutor",
     "NO_EVIDENCE_MARKDOWN",
@@ -99,6 +105,8 @@ __all__ = [
     "UnstructuredPlan",
     "UnstructuredRetrievalExecutor",
     "create_intent_recognition_service",
+    "create_competency_retrieval_executor",
+    "create_job_demand_retrieval_executor",
     "create_major_distribution_retrieval_executor",
     "create_retrieval_orchestrator",
     "create_retrieval_planner_service",

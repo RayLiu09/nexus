@@ -82,6 +82,8 @@ class _Harness:
     planner_service: _FakePlannerService
     unstructured_executor: _FakeExecutor | _FailingExecutor
     major_distribution_executor: _FakeExecutor | _FailingExecutor
+    job_demand_executor: _FakeExecutor | _FailingExecutor
+    competency_executor: _FakeExecutor | _FailingExecutor
 
 
 def _intent(**overrides) -> RetrievalIntent:
@@ -142,6 +144,26 @@ def _structured_sub_query(query_id: str = "q1") -> RetrievalSubQuery:
             query_profile="major_distribution.trend_by_year",
             filters={"major_name": "电子商务"},
             group_by=["year"],
+        ),
+    )
+
+
+def _domain_structured_sub_query(
+    *,
+    query_id: str,
+    domain: BusinessDomain,
+    table_profile: str,
+    query_profile: str,
+) -> RetrievalSubQuery:
+    return RetrievalSubQuery(
+        query_id=query_id,
+        channel=RetrievalChannel.STRUCTURED,
+        domain=domain,
+        purpose="structured_query",
+        query_text="结构化查询",
+        structured_plan=StructuredPlan(
+            table_profile=table_profile,
+            query_profile=query_profile,
         ),
     )
 
@@ -216,6 +238,25 @@ def _structured_result(query_id: str = "q1") -> RetrievalResult:
     )
 
 
+def _domain_structured_result(query_id: str, domain: BusinessDomain) -> RetrievalResult:
+    source = RetrievalSourceRef(
+        source_ref_id=f"{query_id}-src-1",
+        channel=RetrievalChannel.STRUCTURED,
+        domain=domain,
+        normalized_ref_id=f"ref-{query_id}",
+        record_ref=f"{domain}:record-1",
+    )
+    return RetrievalResult(
+        query_id=query_id,
+        channel=RetrievalChannel.STRUCTURED,
+        domain=domain,
+        status=StepStatus.COMPLETED,
+        result_shape="record_list",
+        records=[{"id": f"record-{query_id}"}],
+        source_refs=[source],
+    )
+
+
 def _harness(
     *,
     intent: RetrievalIntent,
@@ -224,6 +265,8 @@ def _harness(
     structured_results: dict[str, RetrievalResult] | None = None,
     unstructured_executor=None,
     major_distribution_executor=None,
+    job_demand_executor=None,
+    competency_executor=None,
 ) -> _Harness:
     intent_service = _FakeIntentService(
         IntentRecognitionResult(
@@ -240,17 +283,23 @@ def _harness(
     )
     unstructured = unstructured_executor or _FakeExecutor(unstructured_results)
     structured = major_distribution_executor or _FakeExecutor(structured_results)
+    job_demand = job_demand_executor or _FakeExecutor(structured_results)
+    competency = competency_executor or _FakeExecutor(structured_results)
     return _Harness(
         orchestrator=RetrievalOrchestrator(
             intent_service=intent_service,
             planner_service=planner_service,
             unstructured_executor=unstructured,
             major_distribution_executor=structured,
+            job_demand_executor=job_demand,
+            competency_executor=competency,
         ),
         intent_service=intent_service,
         planner_service=planner_service,
         unstructured_executor=unstructured,
         major_distribution_executor=structured,
+        job_demand_executor=job_demand,
+        competency_executor=competency,
     )
 
 
@@ -451,17 +500,12 @@ def test_orchestrator_marks_partial_when_one_sub_query_fails(session):
     assert retrieval_step.progress["failed"] == 1
 
 
-def test_orchestrator_fails_closed_for_unsupported_structured_domain(session):
-    sub_query = RetrievalSubQuery(
+def test_orchestrator_dispatches_job_demand_structured_query(session):
+    sub_query = _domain_structured_sub_query(
         query_id="q1",
-        channel=RetrievalChannel.STRUCTURED,
         domain=BusinessDomain.JOB_DEMAND,
-        purpose="record_list",
-        query_text="岗位需求",
-        structured_plan=StructuredPlan(
-            table_profile="job_demand.v1",
-            query_profile="job_demand.record_list",
-        ),
+        table_profile="job_demand.v1",
+        query_profile="job_demand.record_list",
     )
     intent = _intent(
         business_domains=["job_demand"],
@@ -472,12 +516,41 @@ def test_orchestrator_fails_closed_for_unsupported_structured_domain(session):
         intent=intent,
         plan=_plan(sub_query),
         unstructured_results={},
-        structured_results={},
+        structured_results={"q1": _domain_structured_result("q1", BusinessDomain.JOB_DEMAND)},
     )
 
     pack = harness.orchestrator.run(session, "岗位需求")
 
-    assert pack.status == ContextPackStatus.FAILED
-    assert pack.retrieval_results[0].status == StepStatus.FAILED
-    assert "unsupported_retrieval_sub_query" in pack.retrieval_results[0].error_message
-    assert pack.warnings == ["sub_query_failed:q1"]
+    assert pack.status == ContextPackStatus.COMPLETED
+    assert pack.retrieval_results[0].domain == "job_demand"
+    assert len(harness.job_demand_executor.calls) == 1
+    assert harness.major_distribution_executor.calls == []
+
+
+def test_orchestrator_dispatches_competency_structured_query(session):
+    sub_query = _domain_structured_sub_query(
+        query_id="q1",
+        domain=BusinessDomain.COMPETENCY_ANALYSIS,
+        table_profile="ability_analysis.pgsd.v1",
+        query_profile="competency.task_tree",
+    )
+    intent = _intent(
+        business_domains=["competency_analysis"],
+        retrieval_channels=["structured"],
+        question_type="task_tree",
+    )
+    harness = _harness(
+        intent=intent,
+        plan=_plan(sub_query),
+        unstructured_results={},
+        structured_results={
+            "q1": _domain_structured_result("q1", BusinessDomain.COMPETENCY_ANALYSIS)
+        },
+    )
+
+    pack = harness.orchestrator.run(session, "职业能力任务树")
+
+    assert pack.status == ContextPackStatus.COMPLETED
+    assert pack.retrieval_results[0].domain == "competency_analysis"
+    assert len(harness.competency_executor.calls) == 1
+    assert harness.major_distribution_executor.calls == []

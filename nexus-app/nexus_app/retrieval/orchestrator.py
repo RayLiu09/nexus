@@ -9,8 +9,12 @@ from sqlalchemy.orm import Session
 
 from nexus_app.config import Settings, get_settings
 from nexus_app.retrieval.executors import (
+    CompetencyRetrievalExecutor,
+    JobDemandRetrievalExecutor,
     MajorDistributionRetrievalExecutor,
     UnstructuredRetrievalExecutor,
+    create_competency_retrieval_executor,
+    create_job_demand_retrieval_executor,
     create_major_distribution_retrieval_executor,
     create_unstructured_retrieval_executor,
 )
@@ -63,6 +67,8 @@ class RetrievalOrchestrator:
         planner_service: RetrievalPlannerProtocol | None = None,
         unstructured_executor: RetrievalExecutorProtocol | None = None,
         major_distribution_executor: RetrievalExecutorProtocol | None = None,
+        job_demand_executor: RetrievalExecutorProtocol | None = None,
+        competency_executor: RetrievalExecutorProtocol | None = None,
     ) -> None:
         self._settings = settings or get_settings()
         self._intent_service = intent_service or create_intent_recognition_service(self._settings)
@@ -72,6 +78,12 @@ class RetrievalOrchestrator:
         )
         default_major_distribution_executor = (
             major_distribution_executor or create_major_distribution_retrieval_executor()
+        )
+        default_job_demand_executor = (
+            job_demand_executor or create_job_demand_retrieval_executor()
+        )
+        default_competency_executor = (
+            competency_executor or create_competency_retrieval_executor()
         )
         self._executors: dict[tuple[str, str], RetrievalExecutorProtocol] = {
             (
@@ -86,6 +98,14 @@ class RetrievalOrchestrator:
                 str(RetrievalChannel.STRUCTURED),
                 str(BusinessDomain.MAJOR_DISTRIBUTION),
             ): default_major_distribution_executor,
+            (
+                str(RetrievalChannel.STRUCTURED),
+                str(BusinessDomain.JOB_DEMAND),
+            ): default_job_demand_executor,
+            (
+                str(RetrievalChannel.STRUCTURED),
+                str(BusinessDomain.COMPETENCY_ANALYSIS),
+            ): default_competency_executor,
         }
 
     def run(self, session: Session, query: str) -> RetrievalContextPack:
@@ -252,6 +272,8 @@ def create_retrieval_orchestrator(
     planner_service: RetrievalPlannerService | None = None,
     unstructured_executor: UnstructuredRetrievalExecutor | None = None,
     major_distribution_executor: MajorDistributionRetrievalExecutor | None = None,
+    job_demand_executor: JobDemandRetrievalExecutor | None = None,
+    competency_executor: CompetencyRetrievalExecutor | None = None,
 ) -> RetrievalOrchestrator:
     return RetrievalOrchestrator(
         settings=settings,
@@ -259,6 +281,8 @@ def create_retrieval_orchestrator(
         planner_service=planner_service,
         unstructured_executor=unstructured_executor,
         major_distribution_executor=major_distribution_executor,
+        job_demand_executor=job_demand_executor,
+        competency_executor=competency_executor,
     )
 
 
