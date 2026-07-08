@@ -143,10 +143,15 @@ class Settings(BaseSettings):
         default=None,
         alias="DEFAULT_RETRIEVAL_INTENT_MODEL",
     )
+    default_retrieval_planner_model: str | None = Field(
+        default=None,
+        alias="DEFAULT_RETRIEVAL_PLANNER_MODEL",
+    )
     retrieval_intent_confidence_threshold: float = Field(
         default=0.78,
         alias="RETRIEVAL_INTENT_CONFIDENCE_THRESHOLD",
     )
+    retrieval_max_sub_queries: int = Field(default=5, alias="RETRIEVAL_MAX_SUB_QUERIES")
 
     # ── Auth (P1 JWT) ──────────────────────────────────────────────────────
     # HS256 symmetric secret. MUST be set in production; an in-memory default is
@@ -194,6 +199,11 @@ class Settings(BaseSettings):
     @property
     def effective_retrieval_intent_model_alias(self) -> str:
         return self.default_retrieval_intent_model or self.default_governance_model
+
+    @computed_field
+    @property
+    def effective_retrieval_planner_model_alias(self) -> str:
+        return self.default_retrieval_planner_model or self.default_governance_model
 
 
 @lru_cache

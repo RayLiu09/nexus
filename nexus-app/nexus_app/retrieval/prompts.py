@@ -5,7 +5,7 @@ import json
 from typing import Any
 
 from nexus_app.retrieval.domain_registry import list_domain_definitions
-from nexus_app.retrieval.schemas import INTENT_CONFIDENCE_THRESHOLD
+from nexus_app.retrieval.schemas import INTENT_CONFIDENCE_THRESHOLD, MAX_SUB_QUERIES, RetrievalIntent
 
 
 def build_intent_recognition_messages(
@@ -54,6 +54,70 @@ def build_intent_recognition_messages(
     ]
 
 
+def build_retrieval_plan_messages(
+    query: str,
+    intent: RetrievalIntent,
+    *,
+    max_sub_queries: int = MAX_SUB_QUERIES,
+) -> list[dict[str, str]]:
+    """Build schema-constrained messages for retrieval plan generation."""
+    payload = {
+        "original_query": query,
+        "intent": intent.model_dump(),
+        "max_sub_queries": max_sub_queries,
+        "domains": [_domain_to_prompt_payload(definition) for definition in list_domain_definitions()],
+        "required_output_schema": {
+            "original_query": "copy the original user query",
+            "sub_queries": [
+                {
+                    "query_id": "q1",
+                    "channel": "unstructured | structured",
+                    "domain": "registered domain code",
+                    "purpose": "retrieval purpose",
+                    "query_text": "executable semantic/search question",
+                    "unstructured_plan": {
+                        "top_k": 8,
+                        "filters": {},
+                        "query_terms": [],
+                    },
+                    "structured_plan": {
+                        "table_profile": "registered table profile",
+                        "query_profile": "registered query profile key",
+                        "filters": {},
+                        "group_by": [],
+                        "metrics": [{"field": "field", "function": "sum"}],
+                        "order_by": [{"field": "field", "direction": "asc"}],
+                        "limit": 50,
+                    },
+                }
+            ],
+            "merge_goal": "how results should be merged into Markdown",
+        },
+        "rules": [
+            "Do not output SQL text or raw_sql.",
+            "Structured sub queries must use registered query profiles and field names.",
+            "Unstructured sub queries must use semantic query_text and optional metadata filters.",
+            "Do not exceed max_sub_queries.",
+        ],
+    }
+    return [
+        {
+            "role": "system",
+            "content": (
+                "你是 NEXUS 企业数据与知识资产平台的召回计划生成器。"
+                "你的任务是把用户问题和已识别意图转化为可执行 retrieval_plan JSON。"
+                "只能输出 JSON，不要输出 Markdown 或解释。"
+                "结构化查询只能输出 table_profile、query_profile、filters、group_by、metrics、order_by、limit，"
+                "严禁输出 SQL、raw_sql、DDL、DML 或任意数据库语句。"
+            ),
+        },
+        {
+            "role": "user",
+            "content": json.dumps(payload, ensure_ascii=False, sort_keys=True),
+        },
+    ]
+
+
 def _domain_to_prompt_payload(definition: Any) -> dict[str, Any]:
     return {
         "domain": definition.domain,
@@ -72,4 +136,3 @@ def _domain_to_prompt_payload(definition: Any) -> dict[str, Any]:
             for profile in definition.query_profiles
         ],
     }
-

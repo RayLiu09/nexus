@@ -47,12 +47,11 @@ def test_litellm_embedding_alias_overrides_default_embedding_model(monkeypatch):
 
 def test_retrieval_intent_model_falls_back_to_governance_model(monkeypatch):
     monkeypatch.delenv("DEFAULT_RETRIEVAL_INTENT_MODEL", raising=False)
-    monkeypatch.setenv("DEFAULT_GOVERNANCE_MODEL", "governance-model")
 
     settings = Settings()
 
     assert settings.retrieval_intent_confidence_threshold == 0.78
-    assert settings.effective_retrieval_intent_model_alias == "governance-model"
+    assert settings.effective_retrieval_intent_model_alias == settings.default_governance_model
 
 
 def test_retrieval_intent_model_can_be_overridden(monkeypatch):
@@ -65,3 +64,14 @@ def test_retrieval_intent_model_can_be_overridden(monkeypatch):
     assert settings.default_retrieval_intent_model == "retrieval-intent-model"
     assert settings.effective_retrieval_intent_model_alias == "retrieval-intent-model"
     assert settings.retrieval_intent_confidence_threshold == 0.82
+
+
+def test_retrieval_planner_model_can_be_overridden(monkeypatch):
+    monkeypatch.setenv("DEFAULT_RETRIEVAL_PLANNER_MODEL", "retrieval-planner-model")
+    monkeypatch.setenv("RETRIEVAL_MAX_SUB_QUERIES", "4")
+
+    settings = Settings(DEFAULT_GOVERNANCE_MODEL="governance-model")
+
+    assert settings.default_retrieval_planner_model == "retrieval-planner-model"
+    assert settings.effective_retrieval_planner_model_alias == "retrieval-planner-model"
+    assert settings.retrieval_max_sub_queries == 4

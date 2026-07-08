@@ -13,6 +13,11 @@ from nexus_app.retrieval.intent import (
     IntentRecognitionService,
     create_intent_recognition_service,
 )
+from nexus_app.retrieval.planner import (
+    RetrievalPlannerResult,
+    RetrievalPlannerService,
+    create_retrieval_planner_service,
+)
 from nexus_app.retrieval.schemas import (
     ACCESS_SCOPE_ALL_ASSETS,
     INTENT_CONFIDENCE_THRESHOLD,
@@ -61,6 +66,8 @@ __all__ = [
     "RetrievalContextPack",
     "RetrievalIntent",
     "RetrievalPlan",
+    "RetrievalPlannerResult",
+    "RetrievalPlannerService",
     "RetrievalResult",
     "RetrievalSourceRef",
     "RetrievalSubQuery",
@@ -70,6 +77,7 @@ __all__ = [
     "UnstructuredResultItem",
     "UnstructuredPlan",
     "create_intent_recognition_service",
+    "create_retrieval_planner_service",
     "domains_for_channel",
     "get_domain_definition",
     "get_query_profile",
