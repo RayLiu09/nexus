@@ -19,6 +19,10 @@ from nexus_app.retrieval.intent import (
     IntentRecognitionService,
     create_intent_recognition_service,
 )
+from nexus_app.retrieval.orchestrator import (
+    RetrievalOrchestrator,
+    create_retrieval_orchestrator,
+)
 from nexus_app.retrieval.planner import (
     RetrievalPlannerResult,
     RetrievalPlannerService,
@@ -72,6 +76,7 @@ __all__ = [
     "RetrievalChannel",
     "RetrievalContextPack",
     "RetrievalIntent",
+    "RetrievalOrchestrator",
     "RetrievalPlan",
     "RetrievalPlannerResult",
     "RetrievalPlannerService",
@@ -86,6 +91,7 @@ __all__ = [
     "UnstructuredRetrievalExecutor",
     "create_intent_recognition_service",
     "create_major_distribution_retrieval_executor",
+    "create_retrieval_orchestrator",
     "create_retrieval_planner_service",
     "create_unstructured_retrieval_executor",
     "domains_for_channel",
