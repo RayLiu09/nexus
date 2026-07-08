@@ -341,6 +341,30 @@ def test_orchestrator_completes_single_unstructured_query(session):
     assert harness.major_distribution_executor.calls == []
 
 
+def test_orchestrator_plan_preview_does_not_execute_retrieval(session):
+    sub_query = _unstructured_sub_query()
+    intent = _intent()
+    harness = _harness(
+        intent=intent,
+        plan=_plan(sub_query),
+        unstructured_results={"q1": _unstructured_result()},
+        structured_results={},
+    )
+
+    pack = harness.orchestrator.plan("什么是直播电商？")
+
+    assert pack.status == ContextPackStatus.PLANNED
+    assert pack.retrieval_plan is not None
+    assert pack.retrieval_results == []
+    assert pack.source_refs == []
+    assert [step.step for step in pack.conversation_steps] == [
+        ConversationStepName.INTENT_RECOGNITION,
+        ConversationStepName.QUERY_TRANSFORMATION,
+    ]
+    assert harness.unstructured_executor.calls == []
+    assert harness.major_distribution_executor.calls == []
+
+
 def test_orchestrator_completes_major_distribution_structured_query(session):
     sub_query = _structured_sub_query()
     intent = _intent(

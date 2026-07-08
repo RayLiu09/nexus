@@ -35,6 +35,7 @@ from nexus_api.api.internal.capability_graph_staging import (
 )
 from nexus_api.api.internal.evidence_graph import router as _evidence_graph_router
 from nexus_api.api.internal.task_outline import router as _task_outline_router
+from nexus_api.api.internal.knowledge_retrieval import router as _knowledge_retrieval_router
 
 # Auth router — separate top-level mount, no shared deps.
 from nexus_api.api.internal.auth import router as auth_router
@@ -125,6 +126,10 @@ from nexus_api.api.internal.governance_prompts import (  # noqa: F401
     update_prompt_template,
     disable_prompt_template,
 )
+from nexus_api.api.internal.knowledge_retrieval import (  # noqa: F401
+    preview_knowledge_retrieval_plan,
+    run_knowledge_retrieval_query,
+)
 
 
 # Main router — prefix + JWT dependency applied here once.
@@ -151,6 +156,7 @@ router.include_router(_major_profiles_router)
 router.include_router(_capability_graph_staging_router)
 router.include_router(_evidence_graph_router)
 router.include_router(_task_outline_router)
+router.include_router(_knowledge_retrieval_router)
 
 
 __all__ = ["router", "auth_router"]

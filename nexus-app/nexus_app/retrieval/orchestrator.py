@@ -131,6 +131,43 @@ class RetrievalOrchestrator:
             warnings=warnings + _result_warnings(results),
         )
 
+    def plan(self, query: str) -> RetrievalContextPack:
+        intent_result = self._intent_service.recognize(query)
+        if intent_result.context_pack is not None:
+            return intent_result.context_pack
+        if intent_result.intent is None:
+            raise RuntimeError("intent recognizer returned neither intent nor context_pack")
+
+        steps = [intent_result.conversation_step]
+        planner_result = self._planner_service.generate_plan(query, intent_result.intent)
+        steps.append(planner_result.conversation_step)
+        warnings = list(intent_result.warnings) + list(planner_result.warnings)
+
+        if not planner_result.success or planner_result.plan is None:
+            return RetrievalContextPack(
+                status=ContextPackStatus.FAILED,
+                original_query=query,
+                intent=intent_result.intent,
+                retrieval_plan=None,
+                retrieval_results=[],
+                source_refs=[],
+                conversation_steps=steps,
+                access_scope=ACCESS_SCOPE_ALL_ASSETS,
+                warnings=warnings,
+            )
+
+        return RetrievalContextPack(
+            status=ContextPackStatus.PLANNED,
+            original_query=query,
+            intent=intent_result.intent,
+            retrieval_plan=planner_result.plan,
+            retrieval_results=[],
+            source_refs=[],
+            conversation_steps=steps,
+            access_scope=ACCESS_SCOPE_ALL_ASSETS,
+            warnings=warnings,
+        )
+
     def _execute_plan(
         self,
         session: Session,
