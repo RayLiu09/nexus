@@ -8,6 +8,12 @@ from nexus_app.retrieval.domain_registry import (
     get_query_profile,
     list_domain_definitions,
 )
+from nexus_app.retrieval.executors import (
+    MajorDistributionRetrievalExecutor,
+    UnstructuredRetrievalExecutor,
+    create_major_distribution_retrieval_executor,
+    create_unstructured_retrieval_executor,
+)
 from nexus_app.retrieval.intent import (
     IntentRecognitionResult,
     IntentRecognitionService,
@@ -59,6 +65,7 @@ __all__ = [
     "IntentRecognitionResult",
     "IntentRecognitionService",
     "LlmSummary",
+    "MajorDistributionRetrievalExecutor",
     "QueryMetric",
     "QueryOrder",
     "QueryProfile",
@@ -76,8 +83,11 @@ __all__ = [
     "StructuredPlan",
     "UnstructuredResultItem",
     "UnstructuredPlan",
+    "UnstructuredRetrievalExecutor",
     "create_intent_recognition_service",
+    "create_major_distribution_retrieval_executor",
     "create_retrieval_planner_service",
+    "create_unstructured_retrieval_executor",
     "domains_for_channel",
     "get_domain_definition",
     "get_query_profile",
