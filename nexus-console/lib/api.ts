@@ -213,6 +213,56 @@ export type TaskOutlineEnvelope = {
   };
 };
 
+// Knowledge Outline (theory_knowledge textbooks) — 3-level radial tree.
+export type KnowledgeOutlineNode = {
+  id: string;
+  parent_id: string | null;
+  level: number;
+  order_index: number;
+  title: string;
+  numbering: string | null;
+  numbering_path: number[] | null;
+  anchor_range: {
+    block_ids?: string[];
+    page_start?: number;
+    page_end?: number;
+  } | null;
+  chunk_count: number;
+};
+
+export type KnowledgeOutlineTree = {
+  ref_id: string;
+  build_run_id: string;
+  total_nodes: number;
+  max_depth: number;
+  fallback_used: boolean;
+  root_id: string;
+  nodes: KnowledgeOutlineNode[];
+};
+
+export type KnowledgeOutlineChunkListEntry = {
+  id: string;
+  normalized_ref_id: string;
+  knowledge_type_code: string;
+  chunk_index: number;
+  content_preview: string;
+  source_block_ids: string[];
+  knowledge_outline_node_id: string | null;
+};
+
+export type KnowledgeOutlineChunkPage = {
+  node_id: string;
+  chunks: KnowledgeOutlineChunkListEntry[];
+  next_cursor: string | null;
+};
+
+export type KnowledgeOutlineNodePreview = {
+  node_id: string;
+  title: string;
+  summary: string;
+  chunk_count: number;
+};
+
 export type Asset = {
   id: string;
   data_source_id: string;

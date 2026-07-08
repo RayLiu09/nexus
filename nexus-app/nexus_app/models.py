@@ -1023,8 +1023,70 @@ class KnowledgeChunk(TimestampMixin, Base):
     # Coordinate locator contract — see ARCHITECT.md "Chunk Locator Contract".
     # Shape: {page_start, page_end, bbox_union, blocks: [{block_id, page, bbox}]}
     locator: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    # Leaf-node link to knowledge_outline_node (theory_knowledge textbooks).
+    # Dedicated column: chunk_metadata.outline_node_id is reserved for
+    # task_outline chunk projection and must not be reused here.
+    knowledge_outline_node_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("knowledge_outline_node.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+
+
+class KnowledgeOutlineNode(TimestampMixin, Base):
+    """Deterministic 3-level outline over a normalized textbook.
+
+    Built from the MinerU heading tree at the end of ``normalize`` when the
+    matching ``task_outline_profile.textbook_subtype == "theory_knowledge"``.
+    Root is ``level=0``; L1/L2/L3 headings map to ``level=1/2/3``. Deeper
+    headings collapse under the nearest L3 ancestor. ``anchor_range`` is
+    populated on LEAF nodes only; ``build_run_id`` identifies the specific
+    normalize sub-step or rebuild worker invocation and enables atomic replace.
+    """
+    __tablename__ = "knowledge_outline_node"
+    __table_args__ = (
+        UniqueConstraint(
+            "normalized_ref_id", "parent_id", "order_index",
+            name="uq_knowledge_outline_sibling_order",
+        ),
+        Index(
+            "ix_knowledge_outline_node_ref_level",
+            "normalized_ref_id", "level",
+        ),
+        Index("ix_knowledge_outline_node_parent_id", "parent_id"),
+        Index("ix_knowledge_outline_node_build_run_id", "build_run_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("normalized_asset_ref.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    parent_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("knowledge_outline_node.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    level: Mapped[int] = mapped_column(Integer, nullable=False)
+    order_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    numbering: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    numbering_path: Mapped[list[int] | None] = mapped_column(JSON, nullable=True)
+    anchor_range: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    chunk_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    build_run_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    fallback_used: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False,
+    )
+    node_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSON, default=dict, nullable=False,
+    )
+
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+    parent: Mapped["KnowledgeOutlineNode | None"] = relationship(remote_side=[id])
 
 
 class VectorCollection(TimestampMixin, Base):

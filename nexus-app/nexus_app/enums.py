@@ -300,6 +300,12 @@ class AuditEventType(StrEnum):
     GOVERNANCE_PROMPT_TEMPLATE_UPDATED   = "GovernancePromptTemplateUpdated"
     GOVERNANCE_PROMPT_TEMPLATE_ARCHIVED  = "GovernancePromptTemplateArchived"
     GOVERNANCE_PROMPT_TEMPLATE_DISABLED  = "GovernancePromptTemplateDisabled"
+    # Knowledge Outline (Textbook Knowledge Outline v1) — deterministic 3-level
+    # outline over theory_knowledge textbooks. BUILT is emitted from both the
+    # normalize sub-step and the rebuild worker on completion;
+    # REBUILD_REQUESTED is emitted when a manual rebuild is enqueued.
+    KNOWLEDGE_OUTLINE_BUILT              = "KnowledgeOutlineBuilt"
+    KNOWLEDGE_OUTLINE_REBUILD_REQUESTED  = "KnowledgeOutlineRebuildRequested"
 
 
 class AssetAccessType(StrEnum):
