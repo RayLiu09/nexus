@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { tagLabel, type TagDictionary } from "@/lib/tagLabels";
 import { Tabs, Tag, Progress, Empty } from "antd";
 import { StatusLabel } from "@/components/StatusLabel";
@@ -215,6 +215,7 @@ function KnowledgeChunksTab({
   taskOutlineOk,
   taskOutlineError,
   taskOutlineTraceId,
+  onJumpToBlock,
 }: {
   latestRef: NormalizedAssetRef | null;
   assetTitle?: string | null;
@@ -222,6 +223,7 @@ function KnowledgeChunksTab({
   taskOutlineOk?: boolean;
   taskOutlineError?: string | null;
   taskOutlineTraceId?: string | null;
+  onJumpToBlock?: (blockId: string) => void;
 }) {
   // B9 — "知识块" tab adapts to the underlying record_type. Pipeline A
   // documents see the RAG chunk list (unchanged). Pipeline B record
@@ -251,6 +253,7 @@ function KnowledgeChunksTab({
       taskOutlineOk={taskOutlineOk}
       taskOutlineError={taskOutlineError}
       taskOutlineTraceId={taskOutlineTraceId}
+      onJumpToBlock={onJumpToBlock}
     />
   );
 }
@@ -702,6 +705,16 @@ export function AssetDetailTabs({
   const [activeTab, setActiveTab] = useState("lineage");
   const knowledgeTabLabel = latestRef?.normalized_type === "record" ? "结构化图谱" : "知识块";
 
+  // Wired to KnowledgeOutlineView's Drawer "跳到原文" button.
+  // Setting `location.hash` before the tab switch lets SourcePreviewSection
+  // pick up the target block on mount and scroll+highlight it.
+  const handleJumpToBlock = useCallback((blockId: string) => {
+    if (typeof window !== "undefined") {
+      window.location.hash = `#block-${blockId}`;
+    }
+    setActiveTab("preview");
+  }, []);
+
   const tabItems = TABS.map((t) => {
     const badgeCount =
       t.key === "ai-governance" && (governanceRuns.length > 0 || latestGovernanceResult)
@@ -760,6 +773,7 @@ export function AssetDetailTabs({
             taskOutlineOk={taskOutlineOk}
             taskOutlineError={taskOutlineError}
             taskOutlineTraceId={taskOutlineTraceId}
+            onJumpToBlock={handleJumpToBlock}
           />
         )}
         {activeTab === "ai-governance" && (

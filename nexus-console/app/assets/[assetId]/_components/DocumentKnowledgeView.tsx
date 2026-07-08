@@ -15,6 +15,9 @@ type Props = {
   taskOutlineOk?: boolean;
   taskOutlineError?: string | null;
   taskOutlineTraceId?: string | null;
+  // Forwarded from AssetDetailTabs — invoked by KnowledgeOutlineView
+  // to jump the "原文预览" tab to a specific block.
+  onJumpToBlock?: (blockId: string) => void;
 };
 
 type ViewKey = "chunks" | "knowledge_outline" | "task_outline" | "evidence_graph";
@@ -34,6 +37,7 @@ export function DocumentKnowledgeView({
   taskOutlineOk = true,
   taskOutlineError = null,
   taskOutlineTraceId = null,
+  onJumpToBlock,
 }: Props) {
   const [view, setView] = useState<ViewKey>("chunks");
   const normalizedRefId = normalizedRef?.id ?? null;
@@ -90,7 +94,11 @@ export function DocumentKnowledgeView({
         />
       ) : null}
       {view === "knowledge_outline" && showKnowledgeOutline ? (
-        <KnowledgeOutlineView refId={normalizedRefId} isTheoryKnowledge={showKnowledgeOutline} />
+        <KnowledgeOutlineView
+          refId={normalizedRefId}
+          isTheoryKnowledge={showKnowledgeOutline}
+          onJumpToBlock={onJumpToBlock}
+        />
       ) : null}
       {view === "task_outline" && showTaskOutline ? (
         <TaskOutlineView

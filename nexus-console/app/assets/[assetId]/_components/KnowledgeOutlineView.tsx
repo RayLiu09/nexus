@@ -30,6 +30,9 @@ import type {
 type Props = {
   refId: string | null;
   isTheoryKnowledge: boolean;
+  // When provided, node click enables a "跳到原文" action that jumps
+  // to the preview tab and highlights the target block.
+  onJumpToBlock?: (blockId: string) => void;
 };
 
 type ViewMode = "tree" | "radial";
@@ -60,7 +63,7 @@ type ChartTreeNode = {
 const CHART_HEIGHT_CLASS = "h-[560px] min-h-[420px]";
 const DRAWER_CHUNK_LIMIT = 50;
 
-export function KnowledgeOutlineView({ refId, isTheoryKnowledge }: Props) {
+export function KnowledgeOutlineView({ refId, isTheoryKnowledge, onJumpToBlock }: Props) {
   const [tree, setTree] = useState<KnowledgeOutlineTree | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -155,10 +158,18 @@ export function KnowledgeOutlineView({ refId, isTheoryKnowledge }: Props) {
   const rootTreeItems = useMemo(() => buildTreeItems(tree), [tree]);
   const chartOption = useMemo(() => buildChartOption(rootTreeItems), [rootTreeItems]);
   const antdTreeData = useMemo(() => rootTreeItems.map(toAntdTreeNode), [rootTreeItems]);
-  const drawerNodeTitle = useMemo(() => {
+  const drawerNode = useMemo(() => {
     if (!drawerNodeId || !tree) return null;
-    return tree.nodes.find((n) => n.id === drawerNodeId)?.title ?? null;
+    return tree.nodes.find((n) => n.id === drawerNodeId) ?? null;
   }, [drawerNodeId, tree]);
+  const drawerNodeTitle = drawerNode?.title ?? null;
+  // Prefer the node's own anchor (leaf-only). Fall back to first chunk's
+  // origin block so non-leaf nodes still land somewhere useful.
+  const jumpBlockId = useMemo(() => {
+    const nodeAnchor = drawerNode?.anchor_range?.block_ids?.[0];
+    if (nodeAnchor) return nodeAnchor;
+    return drawerChunks?.chunks[0]?.source_block_ids?.[0] ?? null;
+  }, [drawerNode, drawerChunks]);
 
   if (!refId) {
     return (
@@ -229,6 +240,19 @@ export function KnowledgeOutlineView({ refId, isTheoryKnowledge }: Props) {
         title={drawerNodeTitle ?? "节点内容"}
         width={520}
         destroyOnClose
+        extra={
+          onJumpToBlock && jumpBlockId ? (
+            <Button
+              type="link"
+              onClick={() => {
+                onJumpToBlock(jumpBlockId);
+                setDrawerNodeId(null);
+              }}
+            >
+              跳到原文
+            </Button>
+          ) : null
+        }
       >
         {drawerLoading ? (
           <Skeleton active paragraph={{ rows: 4 }} />

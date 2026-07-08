@@ -736,6 +736,32 @@ def _enrich_with_nexus_refs(
         ).all():
             raw_objects[ro.id] = ro
 
+    # Knowledge outline enrichment: for chunks linked to a theory_knowledge
+    # textbook outline, surface the target node + full ancestor path so
+    # citations render as "第一章 引论 › 1.1 概念 › 1.1.1 定义".
+    outline_node_ids = {
+        c.knowledge_outline_node_id
+        for c in chunks_by_id.values()
+        if c.knowledge_outline_node_id
+    }
+    outline_nodes_by_id: dict[str, models.KnowledgeOutlineNode] = {}
+    outline_nodes_by_ref: dict[str, dict[str, models.KnowledgeOutlineNode]] = {}
+    if outline_node_ids:
+        for node in session.scalars(
+            select(models.KnowledgeOutlineNode).where(
+                models.KnowledgeOutlineNode.id.in_(outline_node_ids)
+            )
+        ).all():
+            outline_nodes_by_id[node.id] = node
+        involved_ref_ids = {n.normalized_ref_id for n in outline_nodes_by_id.values()}
+        if involved_ref_ids:
+            for node in session.scalars(
+                select(models.KnowledgeOutlineNode).where(
+                    models.KnowledgeOutlineNode.normalized_ref_id.in_(involved_ref_ids)
+                )
+            ).all():
+                outline_nodes_by_ref.setdefault(node.normalized_ref_id, {})[node.id] = node
+
     for item in hits:
         chunk = chunks_by_id.get(str(item.get("nexus_chunk_id") or ""))
         ref_id = chunk.normalized_ref_id if chunk is not None else item.get("normalized_ref_id")
@@ -757,6 +783,11 @@ def _enrich_with_nexus_refs(
                 item["primary_block_ids"] = primary_ids
             if evidence_ids is not None:
                 item["evidence_block_ids"] = evidence_ids
+            if chunk.knowledge_outline_node_id:
+                node = outline_nodes_by_id.get(chunk.knowledge_outline_node_id)
+                if node is not None:
+                    ref_nodes = outline_nodes_by_ref.get(node.normalized_ref_id, {})
+                    item["knowledge_outline"] = _serialize_outline_citation(node, ref_nodes)
         if ref is not None:
             item["normalized_ref_id"] = ref.id
         if ver is not None:
@@ -768,6 +799,81 @@ def _enrich_with_nexus_refs(
             item["data_source_id"] = raw.data_source_id
 
     return hits
+
+
+def _serialize_outline_citation(
+    node: "models.KnowledgeOutlineNode",
+    nodes_by_id: dict[str, "models.KnowledgeOutlineNode"],
+) -> dict:
+    """Compute the ancestor path (root-most first, excluding the synthetic root)
+    for a knowledge_outline_node so citations can render a breadcrumb."""
+    path_nodes: list = []
+    cursor: "models.KnowledgeOutlineNode | None" = node
+    while cursor is not None:
+        path_nodes.append(cursor)
+        if cursor.parent_id is None:
+            break
+        cursor = nodes_by_id.get(cursor.parent_id)
+    # Reverse to root-first; drop the synthetic root (level 0).
+    path_nodes.reverse()
+    path = [
+        {
+            "id": n.id,
+            "title": n.title,
+            "numbering": n.numbering,
+            "level": n.level,
+        }
+        for n in path_nodes
+        if n.level > 0
+    ]
+    return {
+        "node_id": node.id,
+        "title": node.title,
+        "numbering": node.numbering,
+        "level": node.level,
+        "path": path,
+    }
+
+
+def _collect_outline_subtree_chunk_ids(
+    session: Session, outline_node_id: str,
+) -> set[str] | None:
+    """Return chunk ids linked to the outline node's subtree (self + descendants).
+
+    Returns None when the outline node does not exist, letting callers 404.
+    An empty set is a valid answer (subtree exists but has no chunks yet).
+    """
+    root = session.get(models.KnowledgeOutlineNode, outline_node_id)
+    if root is None:
+        return None
+    ref_id = root.normalized_ref_id
+    nodes = list(session.scalars(
+        select(models.KnowledgeOutlineNode)
+        .where(models.KnowledgeOutlineNode.normalized_ref_id == ref_id)
+    ))
+    children_by_parent: dict[str, list[str]] = {}
+    for n in nodes:
+        if n.parent_id:
+            children_by_parent.setdefault(n.parent_id, []).append(n.id)
+
+    subtree_ids: set[str] = {outline_node_id}
+    frontier = [outline_node_id]
+    while frontier:
+        next_frontier: list[str] = []
+        for nid in frontier:
+            for cid in children_by_parent.get(nid, []):
+                subtree_ids.add(cid)
+                next_frontier.append(cid)
+        frontier = next_frontier
+
+    chunk_ids = set(session.scalars(
+        select(models.KnowledgeChunk.id)
+        .where(
+            models.KnowledgeChunk.normalized_ref_id == ref_id,
+            models.KnowledgeChunk.knowledge_outline_node_id.in_(subtree_ids),
+        )
+    ).all())
+    return chunk_ids
 
 
 def _filter_hits_to_available(
@@ -852,6 +958,14 @@ def search_knowledge(
     kb: str | None = Query(None, max_length=128),
     top_k: int = Query(10, ge=1, le=100),
     similarity_threshold: float = Query(0.7, ge=0.0, le=1.0),
+    outline_node: str | None = Query(
+        None,
+        max_length=36,
+        description=(
+            "Restrict hits to chunks under this knowledge_outline_node's "
+            "subtree (theory_knowledge textbook chapter/section filter)."
+        ),
+    ),
     caller: models.ApiCaller = Depends(require_api_caller),
     session: Session = Depends(get_db),
 ):
@@ -862,8 +976,18 @@ def search_knowledge(
         kb: Knowledge type code (e.g. 'textbook_kb'). If omitted, default KB is used.
         top_k: Max results, 1–100 (DoS guard against unbounded fan-out)
         similarity_threshold: Minimum similarity score, 0.0–1.0
+        outline_node: Optional knowledge_outline_node_id — filters hits to
+            chunks under that node's subtree. 404 if the node does not exist.
     """
     kb_code = kb or "textbook_kb"
+    subtree_chunk_ids: set[str] | None = None
+    if outline_node is not None:
+        subtree_chunk_ids = _collect_outline_subtree_chunk_ids(session, outline_node)
+        if subtree_chunk_ids is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"knowledge_outline_node '{outline_node}' not found",
+            )
     adapter = get_pgvector_search_adapter()
     results = adapter.search(
         session,
@@ -872,6 +996,11 @@ def search_knowledge(
         top_k=top_k,
         similarity_threshold=similarity_threshold,
     )
+    if subtree_chunk_ids is not None:
+        results = [
+            hit for hit in results
+            if str(hit.get("nexus_chunk_id") or "") in subtree_chunk_ids
+        ]
     results = _enrich_with_nexus_refs(session, results)
     results = _filter_hits_to_available(session, results)
     results = apply_permission_filter(caller, results)

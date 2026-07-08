@@ -41,6 +41,13 @@ export function ChunkCard({ chunk, onSelect, hideAssetLink, actionLabel = "展�
             {chunk.evidence_block_ids?.length ?? 0} 证据
           </Tag>
         )}
+        {chunk.knowledge_outline?.path?.length ? (
+          <Tag color="geekblue" title="知识点大纲章节路径">
+            {chunk.knowledge_outline.path
+              .map((p) => (p.numbering ? `${p.numbering} ${p.title}` : p.title))
+              .join(" › ")}
+          </Tag>
+        ) : null}
       </Space>
       <Typography.Paragraph className="!mb-0" ellipsis={{ rows: 3, expandable: false }}>
         {chunk.content}

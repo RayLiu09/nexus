@@ -62,6 +62,25 @@ export interface KnowledgeChunkHit {
   chunk_type?: string;
   chunk_index?: number;
   id?: string;
+  // Theory-knowledge textbook citation breadcrumb — populated by
+  // `_enrich_with_nexus_refs` when the chunk links to a knowledge_outline_node.
+  knowledge_outline?: KnowledgeOutlineCitation;
+}
+
+export interface KnowledgeOutlineCitationPathEntry {
+  id: string;
+  title: string;
+  numbering: string | null;
+  level: number;
+}
+
+export interface KnowledgeOutlineCitation {
+  node_id: string;
+  title: string;
+  numbering: string | null;
+  level: number;
+  /** Root-first breadcrumb; the synthetic root (level 0) is not included. */
+  path: KnowledgeOutlineCitationPathEntry[];
 }
 
 /** Response of `/api/raw-objects/[id]/download-url`. */

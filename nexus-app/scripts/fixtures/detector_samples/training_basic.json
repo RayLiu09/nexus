@@ -1,0 +1,70 @@
+{
+  "expected": "training_operation",
+  "description": "Work-task style textbook with 2 task cycles and 6 operation steps.",
+  "blocks": [
+    {
+      "block_id": "b1",
+      "block_type": "heading",
+      "heading_level": 1,
+      "text": "项目一 数据采集"
+    },
+    {
+      "block_id": "b2",
+      "block_type": "heading",
+      "heading_level": 2,
+      "text": "工作任务一 需求调研"
+    },
+    {
+      "block_id": "b3",
+      "block_type": "heading",
+      "heading_level": 3,
+      "text": "工作子任务1 场景分析"
+    },
+    {
+      "block_id": "b4",
+      "block_type": "text",
+      "text": "任务背景：企业需要采集数据以驱动决策"
+    },
+    {
+      "block_id": "b5",
+      "block_type": "text",
+      "text": "任务分析：分析现有数据源和采集方式"
+    },
+    { "block_id": "b6", "block_type": "text", "text": "任务实施：" },
+    { "block_id": "b7", "block_type": "text", "text": "步骤 1. 制定采集计划" },
+    { "block_id": "b8", "block_type": "text", "text": "步骤 2. 部署采集脚本" },
+    { "block_id": "b9", "block_type": "text", "text": "步骤 3. 验证采集数据" },
+    {
+      "block_id": "b10",
+      "block_type": "text",
+      "text": "任务产物：采集完成的数据集"
+    },
+    {
+      "block_id": "b11",
+      "block_type": "heading",
+      "heading_level": 2,
+      "text": "工作任务二 数据清洗"
+    },
+    {
+      "block_id": "b12",
+      "block_type": "heading",
+      "heading_level": 3,
+      "text": "工作子任务2 清洗规则"
+    },
+    {
+      "block_id": "b13",
+      "block_type": "text",
+      "text": "任务背景：清洗采集数据"
+    },
+    { "block_id": "b14", "block_type": "text", "text": "任务分析：识别异常值" },
+    { "block_id": "b15", "block_type": "text", "text": "任务实施：" },
+    { "block_id": "b16", "block_type": "text", "text": "步骤 1. 缺失值填充" },
+    { "block_id": "b17", "block_type": "text", "text": "步骤 2. 异常值处理" },
+    { "block_id": "b18", "block_type": "text", "text": "步骤 3. 数据校验" },
+    {
+      "block_id": "b19",
+      "block_type": "text",
+      "text": "任务产物：清洗后的数据集"
+    }
+  ]
+}
