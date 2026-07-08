@@ -14,7 +14,14 @@ TASK_KEYWORDS = (
 )
 THEORY_KEYWORDS = (
     "概念", "定义", "原理", "机制", "分类", "影响因素", "知识点", "理论基础",
-    "特征", "内涵", "关系模型", "指标体系",
+    "特征", "内涵", "关系模型", "指标体系", "知识体系", "知识与技能",
+    "基础知识", "理论知识", "讲解", "介绍", "理解", "认识", "认知",
+    "内容提要", "知识内容", "基本理论", "基本概念",
+)
+NEW_FORM_THEORY_KEYWORDS = (
+    "内容提要", "知识与技能", "知识技能体系", "知识体系", "理论与实践相结合",
+    "知识内容的讲解", "深入浅出", "基础认知", "介绍了", "分别介绍了",
+    "核心知识", "基础知识", "掌握相关知识", "理解", "认识",
 )
 
 
@@ -47,7 +54,10 @@ def detect_course_textbook_subtype(
     else:
         task_ratio = task_score / total_signal
         theory_ratio = theory_score / total_signal
-        if _looks_like_theory_with_practice_drills(normalized, task_score, theory_score):
+        if _looks_like_new_form_theory_textbook(normalized, joined, task_score, theory_score):
+            subtype = "theory_knowledge"
+            confidence = min(0.94, 0.72 + min(theory_score, 16) / 80)
+        elif _looks_like_theory_with_practice_drills(normalized, task_score, theory_score):
             subtype = "theory_knowledge"
             confidence = min(0.92, 0.66 + min(theory_score, 12) / 80)
         elif _has_strong_task_outline(normalized):
@@ -150,6 +160,56 @@ def _looks_like_theory_with_practice_drills(
         section_counts.get("task_background", 0),
         section_counts.get("task_analysis", 0),
         section_counts.get("operation_steps", 0),
+    )
+
+
+def _looks_like_new_form_theory_textbook(
+    blocks: list[NormalizedBlock],
+    joined: str,
+    task_score: float,
+    theory_score: float,
+) -> bool:
+    """Identify new-form project-driven textbooks whose primary content is
+    knowledge/concept exposition, not executable work-task training."""
+    if theory_score < 7 or task_score < 3:
+        return False
+    if _has_strong_task_outline(blocks):
+        return False
+
+    first_text = "\n".join(block.text for block in blocks[:80])
+    theory_keyword_hits = sum(joined.count(keyword) for keyword in THEORY_KEYWORDS)
+    new_form_hits = sum(first_text.count(keyword) for keyword in NEW_FORM_THEORY_KEYWORDS)
+    project_count = sum(1 for block in blocks if block.role == "project_heading")
+    knowledge_prepare_count = _section_counts(blocks).get("knowledge_prepare", 0)
+    operation_count = _section_counts(blocks).get("operation_steps", 0)
+    background_count = _section_counts(blocks).get("task_background", 0)
+    analysis_count = _section_counts(blocks).get("task_analysis", 0)
+    work_structural_count = sum(
+        1 for block in blocks
+        if block.role == "work_subtask_heading"
+        or (block.role == "task_heading" and "工作任务" in block.text)
+    )
+    if work_structural_count:
+        return False
+
+    preface_says_knowledge = (
+        new_form_hits >= 2
+        and any(term in first_text for term in ("教材", "本书", "教学内容"))
+        and any(term in first_text for term in ("知识", "理论", "概念", "讲解", "介绍"))
+    )
+    projectized_knowledge_sections = (
+        project_count >= 2
+        and knowledge_prepare_count >= 2
+        and theory_keyword_hits >= 8
+        and background_count <= max(1, project_count // 3)
+        and analysis_count <= max(1, project_count // 3)
+    )
+    weak_operations = operation_count <= max(2, project_count)
+    dominant_theory = theory_score >= task_score * 0.55
+    return (
+        dominant_theory
+        and weak_operations
+        and (preface_says_knowledge or projectized_knowledge_sections)
     )
     if task_cycle_count >= 2:
         return False
@@ -255,6 +315,11 @@ def _score_theory(
     if keyword_hits:
         score += min(8.0, keyword_hits * 0.55)
         evidence.append("正文包含概念/定义/原理/机制等理论关键词")
+
+    new_form_hits = sum(joined[:8000].count(keyword) for keyword in NEW_FORM_THEORY_KEYWORDS)
+    if new_form_hits:
+        score += min(4.0, new_form_hits * 0.6)
+        evidence.append("前置内容呈现知识讲授型新形态教材特征")
 
     theory_blocks = [
         block for block in blocks

@@ -151,6 +151,22 @@ class Settings(BaseSettings):
         default=None,
         alias="DEFAULT_RETRIEVAL_SUMMARY_MODEL",
     )
+    task_outline_subtype_llm_enabled: bool = Field(
+        default=False,
+        alias="TASK_OUTLINE_SUBTYPE_LLM_ENABLED",
+    )
+    task_outline_subtype_llm_model: str | None = Field(
+        default=None,
+        alias="TASK_OUTLINE_SUBTYPE_LLM_MODEL",
+    )
+    task_outline_subtype_llm_block_limit: int = Field(
+        default=200,
+        alias="TASK_OUTLINE_SUBTYPE_LLM_BLOCK_LIMIT",
+    )
+    task_outline_subtype_llm_min_confidence: float = Field(
+        default=0.82,
+        alias="TASK_OUTLINE_SUBTYPE_LLM_MIN_CONFIDENCE",
+    )
     retrieval_intent_confidence_threshold: float = Field(
         default=0.78,
         alias="RETRIEVAL_INTENT_CONFIDENCE_THRESHOLD",
@@ -213,6 +229,11 @@ class Settings(BaseSettings):
     @property
     def effective_retrieval_summary_model_alias(self) -> str:
         return self.default_retrieval_summary_model or self.default_governance_model
+
+    @computed_field
+    @property
+    def effective_task_outline_subtype_model_alias(self) -> str:
+        return self.task_outline_subtype_llm_model or self.default_governance_model
 
 
 @lru_cache

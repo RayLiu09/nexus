@@ -20,6 +20,10 @@ from nexus_app.task_outline.projector import (
     project_profile_to_chunks,
 )
 from nexus_app.task_outline.service import replace_nodes, upsert_profile
+from nexus_app.task_outline.subtype_llm import (
+    TextbookSubtypeArbiterProtocol,
+    create_textbook_subtype_arbiter,
+)
 
 
 @dataclass(frozen=True)
@@ -37,6 +41,8 @@ def rebuild_task_outline_for_ref(
     ref: models.NormalizedAssetRef,
     payload: dict[str, Any],
     knowledge_type_code: str = DEFAULT_KNOWLEDGE_TYPE_CODE,
+    subtype_arbiter: TextbookSubtypeArbiterProtocol | None = None,
+    use_default_subtype_arbiter: bool = True,
 ) -> TaskOutlineRebuildResult:
     """Rebuild Task Outline artifacts for one normalized document ref.
 
@@ -54,6 +60,13 @@ def rebuild_task_outline_for_ref(
         title=_title_for_ref(ref, payload),
         blocks=_blocks_from_payload(payload),
         body_markdown=_body_markdown_from_payload(payload),
+        subtype_arbiter=(
+            subtype_arbiter
+            if subtype_arbiter is not None
+            else create_textbook_subtype_arbiter()
+            if use_default_subtype_arbiter
+            else None
+        ),
     )
     profile = upsert_profile(session, extraction.profile)
     nodes = replace_nodes(session, profile=profile, nodes=extraction.nodes)

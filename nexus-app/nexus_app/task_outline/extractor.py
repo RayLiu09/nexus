@@ -24,6 +24,7 @@ from nexus_app.task_outline.schemas import (
     TaskOutlineNodeCreate,
     TaskOutlineProfileCreate,
 )
+from nexus_app.task_outline.subtype_llm import TextbookSubtypeArbiterProtocol
 
 
 @dataclass(frozen=True)
@@ -41,8 +42,15 @@ def extract_course_textbook_outline(
     title: str | None,
     blocks: list[dict[str, Any]],
     body_markdown: str | None = None,
+    subtype_arbiter: TextbookSubtypeArbiterProtocol | None = None,
 ) -> TaskOutlineExtraction:
     detection = detect_course_textbook_subtype(blocks, body_markdown=body_markdown)
+    if subtype_arbiter is not None:
+        detection = subtype_arbiter.arbitrate(
+            blocks=blocks,
+            body_markdown=body_markdown,
+            rule_detection=detection,
+        )
     normalized = normalize_blocks(blocks)
 
     nodes: list[TaskOutlineNodeCreate] = []

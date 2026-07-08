@@ -93,6 +93,59 @@ def _projectized_theory_with_practice_blocks() -> list[dict]:
     ]
 
 
+def _short_video_new_form_theory_blocks() -> list[dict]:
+    return [
+        _block("s1", "heading", "职业教育电子商务类专业改革创新教材", 1),
+        _block("s2", "heading", "短视频拍摄与剪辑", 1),
+        _block(
+            "s3",
+            "paragraph",
+            "内容提要：本书对短视频拍摄与剪辑工作中涉及的知识与技能进行提炼、梳理并整合形成7个项目。",
+            1,
+        ),
+        _block(
+            "s4",
+            "paragraph",
+            "本书不仅将理论与实践相结合，深入浅出地对短视频拍摄与剪辑进行讲解，帮助学生掌握相关知识与技能。",
+            1,
+        ),
+        _block("s5", "heading", "项目一 短视频认知", 2),
+        _block("s6", "heading", "知识准备", 2),
+        _block(
+            "s7",
+            "paragraph",
+            "短视频的概念、定义、特征、类型和传播机制是理解短视频内容生产的基础知识。",
+            2,
+        ),
+        _block(
+            "s8",
+            "paragraph",
+            "短视频平台规则、推荐机制和用户心理共同影响短视频的传播效果。",
+            3,
+        ),
+        _block("s9", "heading", "任务实施", 4),
+        _block("s10", "paragraph", "1. 分析不同类型短视频的内容特征。", 4),
+        _block("s11", "heading", "项目二 短视频账号创建与矩阵搭建", 5),
+        _block("s12", "heading", "知识准备", 5),
+        _block(
+            "s13",
+            "paragraph",
+            "账号定位的内涵、作用、原则和分类方法构成短视频账号运营的理论知识体系。",
+            5,
+        ),
+        _block("s14", "heading", "任务实施", 6),
+        _block("s15", "paragraph", "1. 根据案例说明账号定位原则。", 6),
+        _block("s16", "heading", "项目三 短视频内容策划与脚本撰写", 7),
+        _block("s17", "heading", "知识准备", 7),
+        _block(
+            "s18",
+            "paragraph",
+            "内容策划需要理解选题分类、受众画像、传播路径和脚本结构等概念。",
+            7,
+        ),
+    ]
+
+
 def _work_task_textbook_blocks() -> list[dict]:
     return [
         _block("w1", "heading", "工作领域一 基础数据采集", 1),
@@ -243,6 +296,17 @@ def test_projectized_theory_textbook_with_practice_drills_uses_evidence_graph() 
     assert result.evidence_graph_admission == "recommended"
     assert result.scores["task_score"] > 0
     assert result.scores["theory_score"] > 0
+
+
+def test_new_form_project_driven_theory_textbook_is_not_classified_by_project_words_only() -> None:
+    result = detect_course_textbook_subtype(_short_video_new_form_theory_blocks())
+
+    assert result.textbook_subtype == "theory_knowledge"
+    assert result.processing_profile == "evidence_graph"
+    assert result.evidence_graph_admission == "recommended"
+    assert result.scores["task_score"] > 0
+    assert result.scores["theory_score"] > 0
+    assert "前置内容呈现知识讲授型新形态教材特征" in result.subtype_evidence
 
 
 def test_detects_hybrid_when_theory_and_task_signals_coexist() -> None:

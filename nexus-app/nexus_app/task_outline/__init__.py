@@ -31,6 +31,13 @@ from nexus_app.task_outline.service import (
     replace_nodes,
     upsert_profile,
 )
+from nexus_app.task_outline.subtype_llm import (
+    LiteLLMTextbookSubtypeArbiter,
+    TextbookSubtypeArbiterProtocol,
+    TextbookSubtypeLlmDecision,
+    build_subtype_arbitration_messages,
+    create_textbook_subtype_arbiter,
+)
 
 __all__ = [
     "DOMAIN_MODEL",
@@ -41,7 +48,12 @@ __all__ = [
     "TaskOutlineProfileCreate",
     "TaskOutlineProfileRead",
     "TaskOutlineRebuildResult",
+    "TextbookSubtypeArbiterProtocol",
     "TextbookSubtypeDetection",
+    "TextbookSubtypeLlmDecision",
+    "LiteLLMTextbookSubtypeArbiter",
+    "build_subtype_arbitration_messages",
+    "create_textbook_subtype_arbiter",
     "detect_course_textbook_subtype",
     "delete_projected_chunks",
     "extract_course_textbook_outline",
