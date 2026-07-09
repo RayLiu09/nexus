@@ -23,7 +23,12 @@ from nexus_app.knowledge_outline.builder import (
     build_outline,
 )
 
-TEXTBOOK_SUBTYPE_GATE = "theory_knowledge"
+# Subtypes eligible for the knowledge-outline view. ``theory_knowledge`` is
+# the primary target; ``hybrid`` textbooks also benefit (the LLM v2 path
+# handles them cleanly — chapters + knowledge points come out well even
+# when a task-outline layer is intermixed).
+TEXTBOOK_SUBTYPE_GATE = "theory_knowledge"  # kept for backward compat
+KNOWLEDGE_OUTLINE_ELIGIBLE_SUBTYPES = frozenset({"theory_knowledge", "hybrid"})
 TASK_OUTLINE_ASSET_PROFILE = "course_textbook"
 HEADING_BLOCK_TYPES = {"heading", "title"}
 
@@ -72,7 +77,7 @@ def has_theory_knowledge_profile(session: Session, ref_id: str) -> bool:
             models.TaskOutlineProfile.asset_profile == TASK_OUTLINE_ASSET_PROFILE,
         )
     )
-    return row == TEXTBOOK_SUBTYPE_GATE
+    return row in KNOWLEDGE_OUTLINE_ELIGIBLE_SUBTYPES
 
 
 def get_outline_tree(session: Session, ref_id: str) -> OutlineTree | None:

@@ -47,8 +47,13 @@ export function DocumentKnowledgeView({
   const normalizedRefId = normalizedRef?.id ?? null;
   const taskProfile = initialTaskOutline?.profile ?? null;
   const graphAdmission = taskProfile?.evidence_graph_admission ?? null;
+  // theory_knowledge is the primary target for 知识点大纲; hybrid textbooks
+  // also benefit (LLM v2 handles them cleanly). Kept in sync with
+  // KNOWLEDGE_OUTLINE_ELIGIBLE_SUBTYPES on the backend.
   const showKnowledgeOutline =
-    taskOutlineOk && taskProfile?.textbook_subtype === "theory_knowledge";
+    taskOutlineOk &&
+    (taskProfile?.textbook_subtype === "theory_knowledge" ||
+      taskProfile?.textbook_subtype === "hybrid");
   const showTaskOutline =
     taskOutlineOk &&
     taskProfile?.processing_profile === "task_outline" &&
