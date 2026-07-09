@@ -119,7 +119,12 @@ def get_knowledge_outline_node_chunks(
         .where(
             models.KnowledgeChunk.knowledge_outline_node_id.in_(descendant_ids),
         )
-        .order_by(models.KnowledgeChunk.id.asc())
+        # chunk_index gives document reading order; id is a UUID tiebreak so
+        # pagination stays stable.
+        .order_by(
+            models.KnowledgeChunk.chunk_index.asc(),
+            models.KnowledgeChunk.id.asc(),
+        )
         .limit(limit + 1)
     )
     if cursor:
@@ -167,7 +172,12 @@ def get_knowledge_outline_node_preview(
         .where(
             models.KnowledgeChunk.knowledge_outline_node_id.in_(descendant_ids),
         )
-        .order_by(models.KnowledgeChunk.id.asc())
+        # chunk_index gives document reading order; id is a UUID tiebreak so
+        # pagination stays stable.
+        .order_by(
+            models.KnowledgeChunk.chunk_index.asc(),
+            models.KnowledgeChunk.id.asc(),
+        )
         .limit(20)
     ))
 
