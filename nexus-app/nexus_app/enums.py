@@ -306,6 +306,10 @@ class AuditEventType(StrEnum):
     # REBUILD_REQUESTED is emitted when a manual rebuild is enqueued.
     KNOWLEDGE_OUTLINE_BUILT              = "KnowledgeOutlineBuilt"
     KNOWLEDGE_OUTLINE_REBUILD_REQUESTED  = "KnowledgeOutlineRebuildRequested"
+    # Knowledge Outline v2 review queue lifecycle.
+    KNOWLEDGE_OUTLINE_REVIEW_ITEM_CREATED    = "KnowledgeOutlineReviewItemCreated"
+    KNOWLEDGE_OUTLINE_REVIEW_ITEM_OVERRIDDEN = "KnowledgeOutlineReviewItemOverridden"
+    KNOWLEDGE_OUTLINE_REVIEW_ITEM_APPROVED   = "KnowledgeOutlineReviewItemApproved"
 
 
 class AssetAccessType(StrEnum):

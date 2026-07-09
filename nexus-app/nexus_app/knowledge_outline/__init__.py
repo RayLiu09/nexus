@@ -12,6 +12,11 @@ from nexus_app.knowledge_outline.builder import (
     build_outline,
     parse_numbering,
 )
+from nexus_app.knowledge_outline.llm_classifier import (
+    LLMOutlineOutcome,
+    build_and_persist_outline_llm,
+    ensure_knowledge_outline_prompt_profile,
+)
 
 __all__ = [
     "HeadingInput",
@@ -19,4 +24,8 @@ __all__ = [
     "OutlineNodeSpec",
     "build_outline",
     "parse_numbering",
+    # v2 LLM path
+    "LLMOutlineOutcome",
+    "build_and_persist_outline_llm",
+    "ensure_knowledge_outline_prompt_profile",
 ]

@@ -14,6 +14,7 @@ noise. Only chapter + knowledge_point survive into the tree.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -28,12 +29,22 @@ from nexus_app.ai_governance.litellm_client import (
     LiteLLMCallError,
     LiteLLMClientProtocol,
 )
+from nexus_app.enums import (
+    AIGovernanceRunAdoptionStatus,
+    AIGovernanceRunValidationStatus,
+    PromptProfileStatus,
+)
 from nexus_app.audit import write_audit
 from nexus_app.enums import AuditEventType
 from nexus_app.knowledge_outline.builder import (
     OutlineBuildResult,
     OutlineNodeSpec,
     parse_numbering,
+)
+from nexus_app.knowledge_outline.review_service import (
+    ClassifiedHeadingInput,
+    get_sme_decisions,
+    upsert_review_items,
 )
 from nexus_app.knowledge_outline.service import (
     _apply_chunk_backfill,
@@ -52,6 +63,25 @@ DEFAULT_BATCH_SIZE = 40
 DEFAULT_CONTEXT_CHARS = 120
 CHAPTER_LEVEL = 1
 KNOWLEDGE_POINT_LEVEL = 2
+
+# Confidence thresholds for the v2 adoption gate. Headings with confidence
+# in ``[HIGH, 1.0]`` auto-adopt into the tree; ``[LOW, HIGH)`` land in the
+# tree but the run is flagged review_required; ``[0.0, LOW)`` are downgraded
+# to ``noise`` (dropped from the tree) so SME can rescue via the queue.
+CONFIDENCE_HIGH = 0.85
+CONFIDENCE_LOW = 0.5
+# Fraction of headings that must land in the ``high`` bucket for the run
+# to auto-adopt with no review.
+AUTO_ADOPT_HIGH_RATIO = 0.9
+
+# AIPromptProfile bindings — the classifier prompt lives in the DB so
+# operators can edit it via the console instead of shipping a new commit.
+PROMPT_PROFILE_NAME = "knowledge_outline.heading_classifier"
+PROMPT_PROFILE_SCENARIO = "knowledge_outline_heading_classification"
+PROMPT_PROFILE_TASK_TYPE = "knowledge_outline_heading_classification"
+PROMPT_PROFILE_DOMAIN = "course_textbook"
+PROMPT_PROFILE_VERSION = "v1"
+PROMPT_PROFILE_OUTPUT_SCHEMA = "1.0"
 
 VALID_LABELS = {
     "book_title", "chapter", "section", "knowledge_point",
@@ -102,6 +132,13 @@ class LLMOutlineOutcome:
     total_headings: int
     kept_headings: int
     label_distribution: dict[str, int]
+    prompt_profile_id: str | None = None
+    prompt_version: str | None = None
+    model_alias: str | None = None
+    ai_run_id: str | None = None
+    adoption_status: str | None = None
+    validation_status: str | None = None
+    confidence_buckets: dict[str, int] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -206,12 +243,18 @@ def classify_headings(
     model_alias: str,
     batch_size: int = DEFAULT_BATCH_SIZE,
     temperature: float = 0.1,
+    system_prompt: str | None = None,
 ) -> tuple[list[HeadingClassification], list[LLMCallStat]]:
     """Classify each heading via batched LLM calls. Missing classifications
-    default to 'noise' with confidence 0 so downstream code always has a label."""
+    default to 'noise' with confidence 0 so downstream code always has a label.
+
+    ``system_prompt`` defaults to the module-level ``SYSTEM_PROMPT`` for
+    backward compatibility with the v1 script. Production callers should
+    inject the active ``AIPromptProfile.prompt_template``."""
     if not candidates:
         return [], []
 
+    prompt = system_prompt or SYSTEM_PROMPT
     stats: list[LLMCallStat] = []
     label_by_idx: dict[int, HeadingClassification] = {}
 
@@ -234,7 +277,7 @@ def classify_headings(
             content, summary = client.call(
                 model_alias=model_alias,
                 messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "system", "content": prompt},
                     {"role": "user", "content": user_msg},
                 ],
                 temperature=temperature,
@@ -330,6 +373,60 @@ def _parse_llm_response(
 # ---------------------------------------------------------------------------
 
 
+SHORT_CHAPTER_PREFIX_RE = re.compile(
+    r"^(?:项目\s?[一二三四五六七八九十百千万\d]+"
+    r"|第[一二三四五六七八九十百千万\d]+章"
+    r"|单元\s?[一二三四五六七八九十百千万\d]+"
+    r"|模块\s?[一二三四五六七八九十百千万\d]+)$"
+)
+FALLBACK_ROOT_TITLES = {"", "全文", "全书"}
+CHAPTER_MERGE_MAX_DISTANCE = 3
+
+
+def _merge_adjacent_chapters(
+    kept: list[tuple[HeadingCandidate, str]],
+    *,
+    max_distance: int = CHAPTER_MERGE_MAX_DISTANCE,
+) -> list[tuple[HeadingCandidate, str]]:
+    """Merge a bare-prefix chapter with its immediately-following chapter.
+
+    MinerU splits "项目一 短视频认知" into two consecutive h1 blocks. Without
+    this pass the tree shows a stub node named just "项目一". We keep the
+    first candidate's idx / block_id but concatenate the titles and let the
+    downstream span computation extend to cover the second heading's block."""
+    merged: list[tuple[HeadingCandidate, str]] = []
+    i = 0
+    while i < len(kept):
+        cand, label = kept[i]
+        if (
+            label == "chapter"
+            and i + 1 < len(kept)
+            and kept[i + 1][1] == "chapter"
+            and SHORT_CHAPTER_PREFIX_RE.match(cand.text.strip())
+            and kept[i + 1][0].block_index - cand.block_index <= max_distance
+        ):
+            next_cand, _ = kept[i + 1]
+            merged.append(
+                (
+                    HeadingCandidate(
+                        idx=cand.idx,
+                        block_id=cand.block_id,
+                        block_index=cand.block_index,
+                        text=f"{cand.text.strip()} {next_cand.text.strip()}",
+                        heading_level=cand.heading_level,
+                        prev_para=cand.prev_para,
+                        next_para=next_cand.next_para,
+                    ),
+                    "chapter",
+                )
+            )
+            i += 2
+        else:
+            merged.append((cand, label))
+            i += 1
+    return merged
+
+
 def build_outline_from_classifications(
     candidates: list[HeadingCandidate],
     classifications: list[HeadingClassification],
@@ -343,18 +440,24 @@ def build_outline_from_classifications(
     heading's block span so their chunks still attach."""
     labels: dict[int, HeadingClassification] = {c.idx: c for c in classifications}
 
-    # LLM-tagged book_title overrides caller-supplied root when present.
-    for cand in candidates:
-        cls = labels.get(cand.idx)
-        if cls and cls.label == "book_title":
-            root_title = cand.text.strip()
-            break
+    # v1-fix#1: LLM's book_title label is only a **last-resort** fallback.
+    # The caller (payload.title / ref.title) is authoritative — the LLM often
+    # picks a series name over the actual book title.
+    if root_title.strip() in FALLBACK_ROOT_TITLES:
+        for cand in candidates:
+            cls = labels.get(cand.idx)
+            if cls and cls.label == "book_title":
+                root_title = cand.text.strip()
+                break
 
     kept: list[tuple[HeadingCandidate, str]] = []
     for cand in candidates:
         cls = labels.get(cand.idx)
         if cls and cls.label in KEEP_LABELS:
             kept.append((cand, cls.label))
+
+    # v1-fix#2: fold bare-prefix chapters into their following chapter title.
+    kept = _merge_adjacent_chapters(kept)
 
     root = OutlineNodeSpec(
         id=new_uuid(),
@@ -385,13 +488,17 @@ def build_outline_from_classifications(
         )
         kept.insert(0, (placeholder, "chapter"))
 
-    # Per-heading block span: [heading_idx+1, next_kept_heading_idx). Non-kept
+    # Per-heading block span: [heading_idx, next_kept_heading_idx). Non-kept
     # headings + their descendant blocks get absorbed into the surrounding
     # kept heading, so their chunks still find a home.
+    #
+    # v1-fix#3: the FIRST kept heading's span starts at block 0, not at its
+    # own block_index — this claims the front-matter blocks (title page,
+    # 内容提要, 前言, 目录, etc.) into the tree instead of losing them.
     spans: dict[int, list[str]] = {}
     pages: dict[int, list[int]] = {}
     for i, (cand, _lbl) in enumerate(kept):
-        span_start = cand.block_index
+        span_start = 0 if i == 0 else cand.block_index
         span_end = (
             kept[i + 1][0].block_index if i + 1 < len(kept) else len(blocks)
         )
@@ -403,6 +510,26 @@ def build_outline_from_classifications(
             int(b.get("page")) for b in span_blocks
             if isinstance(b.get("page"), int)
         ]
+
+    # v1-fix#3 cont'd: chapter intro blocks (between the chapter heading and
+    # its first knowledge_point child) need to attach to the FIRST kp so the
+    # chunks land on a leaf. Without this, chapters with children keep the
+    # intro blocks in a non-leaf node and their chunks are orphaned.
+    first_kp_by_chapter: dict[int, int] = {}
+    current_chapter_idx: int | None = None
+    for cand, label in kept:
+        if label == "chapter":
+            current_chapter_idx = cand.idx
+        elif (
+            label == "knowledge_point"
+            and current_chapter_idx is not None
+            and current_chapter_idx not in first_kp_by_chapter
+        ):
+            first_kp_by_chapter[current_chapter_idx] = cand.idx
+
+    for ch_idx, kp_idx in first_kp_by_chapter.items():
+        spans[kp_idx] = spans[ch_idx] + spans[kp_idx]
+        pages[kp_idx] = pages[ch_idx] + pages[kp_idx]
 
     nodes: list[OutlineNodeSpec] = [root]
     current_chapter: OutlineNodeSpec | None = None
@@ -488,6 +615,201 @@ def _anchor_from_span(
 
 
 # ---------------------------------------------------------------------------
+# AIPromptProfile seeding — the classifier prompt lives in the DB
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Confidence gating + AIGovernanceRun bookkeeping
+# ---------------------------------------------------------------------------
+
+
+def _apply_sme_decisions(
+    candidates: list[HeadingCandidate],
+    classifications: list[HeadingClassification],
+    sme_decisions: dict[str, tuple[str, str]],
+) -> list[HeadingClassification]:
+    """Overlay confirmed SME labels onto the raw LLM classifications so the
+    downstream gate + tree builder see the human-approved truth. The LLM's
+    original label + confidence still land in ``AIGovernanceRun.ai_output``
+    for audit; only the tree-facing copy is rewritten."""
+    if not sme_decisions:
+        return classifications
+    cand_by_idx = {c.idx: c for c in candidates}
+    out: list[HeadingClassification] = []
+    for cls in classifications:
+        cand = cand_by_idx.get(cls.idx)
+        block_id = cand.block_id if cand else None
+        decision = sme_decisions.get(block_id or "")
+        if decision is None:
+            out.append(cls)
+            continue
+        label, provenance = decision
+        out.append(
+            HeadingClassification(
+                idx=cls.idx, label=label, confidence=1.0,
+                reason=f"[{provenance}]"[:60],
+            )
+        )
+    return out
+
+
+def _bucket_of(cls: HeadingClassification) -> str:
+    if cls.confidence >= CONFIDENCE_HIGH:
+        return "high"
+    if cls.confidence >= CONFIDENCE_LOW:
+        return "mid"
+    return "low"
+
+
+def apply_confidence_gate(
+    classifications: list[HeadingClassification],
+) -> tuple[list[HeadingClassification], dict[str, int]]:
+    """Downgrade low-confidence non-noise labels to ``noise`` so the tree
+    builder drops them. Returns the adjusted list plus per-bucket counts."""
+    buckets = {"high": 0, "mid": 0, "low": 0}
+    adjusted: list[HeadingClassification] = []
+    for cls in classifications:
+        bucket = _bucket_of(cls)
+        buckets[bucket] += 1
+        if bucket == "low" and cls.label != "noise":
+            adjusted.append(
+                HeadingClassification(
+                    idx=cls.idx, label="noise",
+                    confidence=cls.confidence,
+                    reason=f"[gated<{CONFIDENCE_LOW}] {cls.reason}"[:60],
+                )
+            )
+        else:
+            adjusted.append(cls)
+    return adjusted, buckets
+
+
+def compute_adoption_status(
+    validation_status: AIGovernanceRunValidationStatus,
+    buckets: dict[str, int],
+) -> AIGovernanceRunAdoptionStatus:
+    if validation_status != AIGovernanceRunValidationStatus.SCHEMA_VALID:
+        return AIGovernanceRunAdoptionStatus.REJECTED
+    total = sum(buckets.values())
+    if total == 0:
+        return AIGovernanceRunAdoptionStatus.REJECTED
+    high_ratio = buckets["high"] / total
+    if high_ratio >= AUTO_ADOPT_HIGH_RATIO and buckets["low"] == 0:
+        return AIGovernanceRunAdoptionStatus.AUTO_ADOPTED
+    return AIGovernanceRunAdoptionStatus.REVIEW_REQUIRED
+
+
+def _compute_input_hash(candidates: list[HeadingCandidate]) -> str:
+    """Stable across reruns for the same block set."""
+    payload = [
+        {"block_id": c.block_id, "text": c.text} for c in candidates
+    ]
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=False).encode(
+        "utf-8"
+    )
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _validation_status_from(
+    candidates: list[HeadingCandidate],
+    classifications: list[HeadingClassification],
+    stats: list[LLMCallStat],
+) -> tuple[AIGovernanceRunValidationStatus, str | None]:
+    if not candidates:
+        return AIGovernanceRunValidationStatus.SCHEMA_VALID, None
+    if all(s.status != "success" for s in stats):
+        return (
+            AIGovernanceRunValidationStatus.FAILED,
+            "all LLM batches failed",
+        )
+    fallback_noise = sum(
+        1 for c in classifications
+        if c.label == "noise" and c.confidence == 0.0
+    )
+    if fallback_noise > len(candidates) * 0.5:
+        return (
+            AIGovernanceRunValidationStatus.SCHEMA_INVALID,
+            f"{fallback_noise}/{len(candidates)} headings missing labels",
+        )
+    return AIGovernanceRunValidationStatus.SCHEMA_VALID, None
+
+
+def _serialize_classifications_for_audit(
+    candidates: list[HeadingCandidate],
+    classifications: list[HeadingClassification],
+) -> list[dict[str, Any]]:
+    cand_by_idx = {c.idx: c for c in candidates}
+    out: list[dict[str, Any]] = []
+    for cls in classifications:
+        cand = cand_by_idx.get(cls.idx)
+        out.append(
+            {
+                "idx": cls.idx,
+                "block_id": cand.block_id if cand is not None else None,
+                "label": cls.label,
+                "confidence": round(cls.confidence, 3),
+                "reason": cls.reason[:60],
+            }
+        )
+    return out
+
+
+def ensure_knowledge_outline_prompt_profile(
+    session: Session,
+    *,
+    default_model_alias: str,
+    force_reseed: bool = False,
+) -> models.AIPromptProfile:
+    """Return the active heading-classifier prompt profile, creating it on
+    first use.
+
+    Idempotent: if an active profile already exists we return it unchanged;
+    operators own the profile lifecycle via the console after the first seed.
+    Pass ``force_reseed=True`` only from an admin migration path — it
+    archives the current active row and installs a fresh v+1.
+    """
+    existing = session.scalars(
+        select(models.AIPromptProfile)
+        .where(
+            models.AIPromptProfile.scenario == PROMPT_PROFILE_SCENARIO,
+            models.AIPromptProfile.status == PromptProfileStatus.ACTIVE,
+        )
+        .order_by(models.AIPromptProfile.profile_version.desc())
+    ).first()
+
+    if existing is not None and not force_reseed:
+        return existing
+
+    next_version = 1
+    if existing is not None:
+        existing.status = PromptProfileStatus.ARCHIVED
+        session.flush()
+        next_version = existing.profile_version + 1
+
+    profile = models.AIPromptProfile(
+        profile_name=PROMPT_PROFILE_NAME,
+        profile_version=next_version,
+        task_type=PROMPT_PROFILE_TASK_TYPE,
+        scenario=PROMPT_PROFILE_SCENARIO,
+        domain=PROMPT_PROFILE_DOMAIN,
+        status=PromptProfileStatus.ACTIVE,
+        litellm_model_alias=default_model_alias,
+        prompt_version=PROMPT_PROFILE_VERSION,
+        prompt_template=SYSTEM_PROMPT,
+        output_schema_version=PROMPT_PROFILE_OUTPUT_SCHEMA,
+        scoring_weight_version="1.0",
+        temperature=0.1,
+        max_input_tokens=8192,
+        redaction_policy="masked_content",
+        created_by="seed:knowledge_outline",
+    )
+    session.add(profile)
+    session.flush()
+    return profile
+
+
+# ---------------------------------------------------------------------------
 # Persistence — mirrors service.build_and_persist_outline shape
 # ---------------------------------------------------------------------------
 
@@ -518,15 +840,93 @@ def build_and_persist_outline_llm(
             actor_type=actor_type, actor_id=actor_id,
         )
 
-    blocks = _blocks_from_payload(payload)
-    candidates = extract_heading_candidates(blocks)
-    classifications, stats = classify_headings(
-        candidates, client=client, model_alias=model_alias, batch_size=batch_size,
+    profile = ensure_knowledge_outline_prompt_profile(
+        session, default_model_alias=model_alias,
     )
 
+    blocks = _blocks_from_payload(payload)
+    candidates = extract_heading_candidates(blocks)
+    raw_classifications, stats = classify_headings(
+        candidates,
+        client=client,
+        model_alias=profile.litellm_model_alias,
+        batch_size=batch_size,
+        temperature=profile.temperature,
+        system_prompt=profile.prompt_template,
+    )
+
+    # SME decisions from prior reviews win over LLM output. Apply BEFORE
+    # the confidence gate so overrides land in the tree with certainty.
+    sme_decisions = get_sme_decisions(session, ref.id)
+    if sme_decisions:
+        raw_classifications = _apply_sme_decisions(
+            candidates, raw_classifications, sme_decisions,
+        )
+
+    # v2 gate: downgrade low-confidence non-noise to noise; buckets drive
+    # the AIGovernanceRun adoption status. High/mid go into the tree.
+    classifications, confidence_buckets = apply_confidence_gate(raw_classifications)
+    input_hash = _compute_input_hash(candidates)
+    validation_status, validation_error = _validation_status_from(
+        candidates, classifications, stats,
+    )
+    adoption_status = compute_adoption_status(validation_status, confidence_buckets)
+
+    ai_run = models.AIGovernanceRun(
+        normalized_ref_id=ref.id,
+        profile_id=profile.id,
+        model_alias=profile.litellm_model_alias,
+        prompt_version=profile.prompt_version,
+        input_hash=input_hash,
+        input_summary={
+            "strategy": "llm_v2",
+            "total_headings": len(candidates),
+            "blocks_count": len(blocks),
+            "batches": len(stats),
+            "batches_ok": sum(1 for s in stats if s.status == "success"),
+            "confidence_buckets": confidence_buckets,
+        },
+        ai_output={
+            "classifications": _serialize_classifications_for_audit(
+                candidates, classifications,
+            ),
+        },
+        validation_status=validation_status,
+        adoption_status=adoption_status,
+        validation_error=validation_error,
+        call_latency_ms=sum(s.latency_ms for s in stats) or None,
+        trace_id=trace_id,
+        created_by=actor_id,
+    )
+    session.add(ai_run)
+    session.flush()
+
+    # v2 review queue: upsert one row per non-high heading so SME can
+    # confirm / override. SME-decided rows keep their status.
+    review_headings = [
+        ClassifiedHeadingInput(
+            block_id=cand.block_id,
+            heading_text=cand.text,
+            llm_label=cls.label,
+            llm_confidence=cls.confidence,
+            llm_reason=cls.reason,
+            bucket=_bucket_of(cls),
+        )
+        for cand, cls in zip(candidates, classifications)
+    ]
+    review_created, review_updated = upsert_review_items(
+        session, ref=ref, ai_run=ai_run, headings=review_headings,
+        trace_id=trace_id, actor_type=actor_type, actor_id=actor_id,
+    )
+
+    # v1-fix#1: prefer authoritative sources over the LLM's book_title
+    # inference — LLM often tags the series name (职业教育电子商务类专业改革
+    # 创新教材) instead of the actual book title (短视频拍摄与剪辑).
+    ref_title = getattr(ref, "title", None) or ""
     root_title = (
         (root_title_override or "").strip()
         or (payload.get("title") or "").strip()
+        or ref_title.strip()
         or "全文"
     )
     build_run_id = new_uuid()
@@ -599,8 +999,20 @@ def build_and_persist_outline_llm(
         {
             "ref_id": ref.id,
             "build_run_id": result.build_run_id,
-            "strategy": "llm_v1",
-            "model_alias": model_alias,
+            "strategy": "llm_v2",
+            "prompt_profile_id": profile.id,
+            "prompt_profile_name": profile.profile_name,
+            "prompt_profile_version": profile.profile_version,
+            "prompt_version": profile.prompt_version,
+            "model_alias": profile.litellm_model_alias,
+            "ai_run_id": ai_run.id,
+            "adoption_status": adoption_status.value,
+            "validation_status": validation_status.value,
+            "confidence_buckets": confidence_buckets,
+            "input_hash": input_hash,
+            "review_items_created": review_created,
+            "review_items_updated": review_updated,
+            "sme_override_count": len(sme_decisions),
             "node_count": result.total_nodes,
             "max_depth": result.max_depth,
             "fallback_used": result.fallback_used,
@@ -621,6 +1033,13 @@ def build_and_persist_outline_llm(
         total_headings=len(candidates),
         kept_headings=len([c for c in classifications if c.label in KEEP_LABELS]),
         label_distribution=label_dist,
+        prompt_profile_id=profile.id,
+        prompt_version=profile.prompt_version,
+        model_alias=profile.litellm_model_alias,
+        ai_run_id=ai_run.id,
+        adoption_status=adoption_status.value,
+        validation_status=validation_status.value,
+        confidence_buckets=confidence_buckets,
     )
 
 

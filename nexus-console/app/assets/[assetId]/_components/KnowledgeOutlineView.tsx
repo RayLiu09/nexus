@@ -66,6 +66,9 @@ const DRAWER_CHUNK_LIMIT = 50;
 export function KnowledgeOutlineView({ refId, isTheoryKnowledge, onJumpToBlock }: Props) {
   const [tree, setTree] = useState<KnowledgeOutlineTree | null>(null);
   const [loading, setLoading] = useState(false);
+  // v2 review queue stub: pending count only. Full override drawer lands
+  // in the next iteration.
+  const [pendingReviewCount, setPendingReviewCount] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("radial");
   const [rebuilding, setRebuilding] = useState(false);
@@ -98,6 +101,32 @@ export function KnowledgeOutlineView({ refId, isTheoryKnowledge, onJumpToBlock }
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!refId || !isTheoryKnowledge) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/normalized-refs/${encodeURIComponent(refId)}/knowledge-outline-reviews?status=pending&limit=200`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const body = (await res.json()) as ApiEnvelope<{
+          items?: Array<{ id: string }>;
+        }>;
+        if (!cancelled) {
+          setPendingReviewCount(body.data?.items?.length ?? 0);
+        }
+      } catch {
+        // Best-effort — silent failure keeps the outline view usable when
+        // the v2 review API isn't reachable (e.g. rules-based rebuild only).
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [refId, isTheoryKnowledge, tree?.build_run_id]);
 
   const rebuild = useCallback(async () => {
     if (!refId) return;
@@ -189,6 +218,11 @@ export function KnowledgeOutlineView({ refId, isTheoryKnowledge, onJumpToBlock }
             {tree?.fallback_used ? <Tag color="warning">未识别标题，已回退为单节点</Tag> : null}
             {tree ? <Tag>{tree.total_nodes} 节点</Tag> : null}
             {tree && tree.max_depth > 0 ? <Tag>{tree.max_depth} 级深度</Tag> : null}
+            {pendingReviewCount > 0 ? (
+              <Tag color="warning" title="SME 待审的 LLM 分类项">
+                {pendingReviewCount} 项待审
+              </Tag>
+            ) : null}
           </Space>
         }
         extra={

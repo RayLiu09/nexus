@@ -1089,6 +1089,62 @@ class KnowledgeOutlineNode(TimestampMixin, Base):
     parent: Mapped["KnowledgeOutlineNode | None"] = relationship(remote_side=[id])
 
 
+class KnowledgeOutlineReviewItem(TimestampMixin, Base):
+    """One row per LLM heading classification that needs SME confirmation.
+
+    Created by the LLM v2 rebuild path for headings whose ``confidence`` fell
+    below ``CONFIDENCE_HIGH``. SME can confirm the label (approve) or flip it
+    (override); the choice persists across rebuilds via ``(ref_id, block_id)``.
+    """
+
+    __tablename__ = "knowledge_outline_review_item"
+    __table_args__ = (
+        UniqueConstraint(
+            "normalized_ref_id", "heading_block_id",
+            name="uq_knowledge_outline_review_ref_block",
+        ),
+        Index(
+            "ix_knowledge_outline_review_ref_status",
+            "normalized_ref_id", "status",
+        ),
+        Index(
+            "ix_knowledge_outline_review_ai_run_id",
+            "ai_run_id",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("normalized_asset_ref.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    ai_run_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("ai_governance_run.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    heading_block_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    heading_text: Mapped[str] = mapped_column(Text, nullable=False)
+    llm_label: Mapped[str] = mapped_column(String(32), nullable=False)
+    llm_confidence: Mapped[Decimal] = mapped_column(Numeric(4, 3), nullable=False)
+    llm_reason: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    confidence_bucket: Mapped[str] = mapped_column(String(8), nullable=False)
+    sme_override_label: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    sme_override_reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    sme_override_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    sme_override_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
+    review_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSON, default=dict, nullable=False,
+    )
+
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+    ai_run: Mapped["AIGovernanceRun | None"] = relationship()
+
+
 class VectorCollection(TimestampMixin, Base):
     """Logical pgvector collector for one asset domain/model/schema combination."""
 

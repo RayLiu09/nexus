@@ -36,6 +36,9 @@ from nexus_api.api.internal.capability_graph_staging import (
 from nexus_api.api.internal.evidence_graph import router as _evidence_graph_router
 from nexus_api.api.internal.task_outline import router as _task_outline_router
 from nexus_api.api.internal.knowledge_outline import router as _knowledge_outline_router
+from nexus_api.api.internal.knowledge_outline_review import (
+    router as _knowledge_outline_review_router,
+)
 from nexus_api.api.internal.knowledge_retrieval import router as _knowledge_retrieval_router
 
 # Auth router — separate top-level mount, no shared deps.
@@ -158,6 +161,7 @@ router.include_router(_capability_graph_staging_router)
 router.include_router(_evidence_graph_router)
 router.include_router(_task_outline_router)
 router.include_router(_knowledge_outline_router)
+router.include_router(_knowledge_outline_review_router)
 router.include_router(_knowledge_retrieval_router)
 
 
