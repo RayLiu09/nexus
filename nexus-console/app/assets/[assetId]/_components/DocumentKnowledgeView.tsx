@@ -4,10 +4,15 @@ import { useEffect, useState } from "react";
 import { Segmented } from "antd";
 
 import { ChunkListSection } from "./ChunkListSection";
-import { EvidenceGraphView } from "./EvidenceGraphView";
+// Evidence Graph is temporarily hidden: block-level extraction is too fine
+// and produces low-quality graphs. See knowledge outline P2/P3 plans for
+// the replacement. Re-enable by flipping SHOW_EVIDENCE_GRAPH below.
+// import { EvidenceGraphView } from "./EvidenceGraphView";
 import { KnowledgeOutlineView } from "./KnowledgeOutlineView";
 import { TaskOutlineView } from "./TaskOutlineView";
 import type { NormalizedAssetRef, TaskOutlineEnvelope } from "@/lib/api";
+
+const SHOW_EVIDENCE_GRAPH = false as const;
 
 type Props = {
   normalizedRef: NormalizedAssetRef | null;
@@ -20,7 +25,7 @@ type Props = {
   onJumpToBlock?: (blockId: string) => void;
 };
 
-type ViewKey = "chunks" | "knowledge_outline" | "task_outline" | "evidence_graph";
+type ViewKey = "chunks" | "knowledge_outline" | "task_outline";
 
 const CHUNK_VIEW_OPTION = { label: "RAG知识块", value: "chunks" as const };
 // theory_knowledge textbooks get the persisted 3-level knowledge outline.
@@ -29,7 +34,6 @@ const KNOWLEDGE_OUTLINE_VIEW_OPTION = {
   value: "knowledge_outline" as const,
 };
 const TASK_OUTLINE_VIEW_OPTION = { label: "任务大纲", value: "task_outline" as const };
-const EVIDENCE_GRAPH_VIEW_OPTION = { label: "Evidence Graph", value: "evidence_graph" as const };
 
 export function DocumentKnowledgeView({
   normalizedRef,
@@ -49,16 +53,14 @@ export function DocumentKnowledgeView({
     taskOutlineOk &&
     taskProfile?.processing_profile === "task_outline" &&
     taskProfile?.textbook_subtype === "training_operation";
-  const showEvidenceGraph =
-    !taskProfile ||
-    taskProfile.processing_profile === "evidence_graph" ||
-    graphAdmission === "recommended";
+  // Evidence Graph currently hidden (block-level extraction too fine).
+  // graphAdmission is still tracked for future re-enable.
+  void graphAdmission;
 
   const viewOptions: Array<{ label: string; value: ViewKey }> = [
     CHUNK_VIEW_OPTION,
     ...(showKnowledgeOutline ? [KNOWLEDGE_OUTLINE_VIEW_OPTION] : []),
     ...(showTaskOutline ? [TASK_OUTLINE_VIEW_OPTION] : []),
-    ...(showEvidenceGraph ? [EVIDENCE_GRAPH_VIEW_OPTION] : []),
   ];
 
   useEffect(() => {
@@ -68,10 +70,7 @@ export function DocumentKnowledgeView({
     if (view === "task_outline" && !showTaskOutline) {
       setView("chunks");
     }
-    if (view === "evidence_graph" && !showEvidenceGraph) {
-      setView("chunks");
-    }
-  }, [showEvidenceGraph, showKnowledgeOutline, showTaskOutline, view]);
+  }, [showKnowledgeOutline, showTaskOutline, view]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -111,7 +110,8 @@ export function DocumentKnowledgeView({
           }
         />
       ) : null}
-      {view === "evidence_graph" ? <EvidenceGraphView normalizedRef={normalizedRef} /> : null}
+      {/* Evidence Graph view temporarily hidden — see SHOW_EVIDENCE_GRAPH */}
+      {SHOW_EVIDENCE_GRAPH ? null : null}
     </div>
   );
 }

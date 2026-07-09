@@ -26,6 +26,10 @@ import type {
   KnowledgeOutlineNode,
   KnowledgeOutlineTree,
 } from "@/lib/api";
+import {
+  GraphViewportActions,
+  downloadEchartsGraphImage,
+} from "./GraphViewportActions";
 
 type Props = {
   refId: string | null;
@@ -248,7 +252,35 @@ export function KnowledgeOutlineView({ refId, isTheoryKnowledge, onJumpToBlock }
         ) : !tree ? (
           <Empty description="暂无知识点大纲" />
         ) : viewMode === "radial" ? (
-          <RadialChart option={chartOption} nodeCount={tree.total_nodes} onNodeClick={openDrawer} />
+          <div className="flex flex-col gap-2">
+            <div className="flex justify-end">
+              <GraphViewportActions
+                title="知识点大纲径向图"
+                disabled={tree.total_nodes <= 1}
+                downloadLabel="下载知识点大纲 PNG"
+                downloadAriaLabel="下载知识点大纲径向图"
+                onDownload={() =>
+                  downloadEchartsGraphImage({
+                    option: chartOption,
+                    filename: `${tree ? `${tree.total_nodes}节点` : "知识点大纲"}-径向图.png`,
+                    nodeCount: tree.total_nodes,
+                  })
+                }
+                immersive
+              >
+                <RadialChart
+                  option={chartOption}
+                  nodeCount={tree.total_nodes}
+                  onNodeClick={openDrawer}
+                />
+              </GraphViewportActions>
+            </div>
+            <RadialChart
+              option={chartOption}
+              nodeCount={tree.total_nodes}
+              onNodeClick={openDrawer}
+            />
+          </div>
         ) : (
           <div className="border-line bg-bg-subtle rounded border px-4 py-3">
             <Tree
