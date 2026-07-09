@@ -338,8 +338,8 @@ export function KnowledgeOutlineView({ refId, isTheoryKnowledge, onJumpToBlock }
         open={drawerNodeId !== null}
         onClose={() => setDrawerNodeId(null)}
         title={drawerNodeTitle ?? "节点内容"}
-        width={520}
-        destroyOnClose
+        size={520}
+        destroyOnHidden
         extra={
           onJumpToBlock && jumpBlockId ? (
             <Button
