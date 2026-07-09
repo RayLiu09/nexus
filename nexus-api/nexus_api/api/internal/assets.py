@@ -15,7 +15,14 @@ from nexus_api.responses import list_response, response
 from nexus_app import models, pipeline, schemas as domain_schemas, services
 from nexus_app.audit import write_audit
 from nexus_app.database import get_db
-from nexus_app.enums import AssetVersionStatus, AuditEventType, GovernanceResultStatus, IndexManifestStatus, StageStatus
+from nexus_app.enums import (
+    AssetVersionStatus,
+    AuditEventType,
+    GovernanceResultStatus,
+    IndexManifestStatus,
+    NormalizedType,
+    StageStatus,
+)
 
 router = APIRouter()
 
@@ -86,13 +93,17 @@ def _latest_governance_result(
 
 def _index_status(
     session: Session,
-    ref_id: str | None,
+    ref: "models.NormalizedAssetRef | None",
     governance_result: "models.GovernanceResult | None" = None,
 ) -> str | None:
     """Aggregate per-ref IndexManifest statuses into a single asset-level
     string for the catalog read model.
 
     Mapping:
+      - Pipeline B (normalized_type=record) → None. Record-type assets are
+        structured data and never go through the semantic index; the console
+        renders this column as "-" for them, matching the "not-applicable"
+        semantic used elsewhere.
       - any FAILED → "failed"
       - all INDEXED → "indexed"
       - mixed → first manifest's raw status (rare; needs operator look)
@@ -105,12 +116,14 @@ def _index_status(
       - NO manifest AND governance did NOT approve → None (genuinely
         not-applicable; render as blank).
     """
-    if ref_id is None:
+    if ref is None:
+        return None
+    if ref.normalized_type == NormalizedType.RECORD:
         return None
     statuses = list(
         session.scalars(
             select(models.IndexManifest.index_status)
-            .where(models.IndexManifest.normalized_ref_id == ref_id)
+            .where(models.IndexManifest.normalized_ref_id == ref.id)
         ).all()
     )
     if statuses:
@@ -180,7 +193,7 @@ def _catalog_row(session: Session, asset: models.Asset) -> domain_schemas.AssetC
         ),
         index_status=_index_status(
             session,
-            ref_for_catalog.id if ref_for_catalog is not None else None,
+            ref_for_catalog,
             governance_result=result,
         ),
     )
