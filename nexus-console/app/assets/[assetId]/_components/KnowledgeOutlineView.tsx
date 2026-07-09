@@ -64,7 +64,10 @@ type ChartTreeNode = {
   children?: ChartTreeNode[];
 };
 
-const CHART_HEIGHT_CLASS = "h-[560px] min-h-[420px]";
+const CHART_HEIGHT_INLINE = "h-[560px] min-h-[420px]";
+const CHART_HEIGHT_FULLSCREEN = "h-full min-h-0";
+const TREE_HEIGHT_INLINE = "max-h-[560px] overflow-auto";
+const TREE_HEIGHT_FULLSCREEN = "h-full overflow-auto";
 const DRAWER_CHUNK_LIMIT = 50;
 
 export function KnowledgeOutlineView({ refId, isTheoryKnowledge, onJumpToBlock }: Props) {
@@ -191,6 +194,26 @@ export function KnowledgeOutlineView({ refId, isTheoryKnowledge, onJumpToBlock }
   const rootTreeItems = useMemo(() => buildTreeItems(tree), [tree]);
   const chartOption = useMemo(() => buildChartOption(rootTreeItems), [rootTreeItems]);
   const antdTreeData = useMemo(() => rootTreeItems.map(toAntdTreeNode), [rootTreeItems]);
+
+  const handleDownload = useCallback(
+    async (currentTree: KnowledgeOutlineTree) => {
+      const baseName = currentTree.nodes.find((n) => n.id === currentTree.root_id)
+        ?.title || "知识点大纲";
+      if (viewMode === "radial") {
+        await downloadEchartsGraphImage({
+          option: chartOption,
+          filename: `${baseName}-径向图.png`,
+          nodeCount: currentTree.total_nodes,
+        });
+      } else {
+        downloadMarkdownFile(
+          `${baseName}.md`,
+          outlineTreeToMarkdown(currentTree),
+        );
+      }
+    },
+    [chartOption, viewMode],
+  );
   const drawerNode = useMemo(() => {
     if (!drawerNodeId || !tree) return null;
     return tree.nodes.find((n) => n.id === drawerNodeId) ?? null;
@@ -240,6 +263,38 @@ export function KnowledgeOutlineView({ refId, isTheoryKnowledge, onJumpToBlock }
               ]}
               aria-label="切换知识点大纲视图"
             />
+            {tree && tree.total_nodes > 1 ? (
+              <GraphViewportActions
+                title={viewMode === "radial" ? "知识点大纲径向图" : "知识点大纲树"}
+                disabled={tree.total_nodes <= 1}
+                downloadLabel={
+                  viewMode === "radial" ? "下载知识点大纲 PNG" : "下载知识点大纲 Markdown"
+                }
+                downloadAriaLabel={
+                  viewMode === "radial"
+                    ? "下载知识点大纲径向图"
+                    : "下载知识点大纲树 Markdown"
+                }
+                onDownload={() => handleDownload(tree)}
+                immersive={viewMode === "radial"}
+              >
+                {viewMode === "radial" ? (
+                  <RadialChart
+                    option={chartOption}
+                    nodeCount={tree.total_nodes}
+                    onNodeClick={openDrawer}
+                    fullscreen
+                  />
+                ) : (
+                  <TreeViewInner
+                    tree={tree}
+                    antdTreeData={antdTreeData}
+                    onNodeSelect={openDrawer}
+                    fullscreen
+                  />
+                )}
+              </GraphViewportActions>
+            ) : null}
             <Button onClick={handleRebuildClick} loading={rebuilding}>
               重建
             </Button>
@@ -252,51 +307,17 @@ export function KnowledgeOutlineView({ refId, isTheoryKnowledge, onJumpToBlock }
         ) : !tree ? (
           <Empty description="暂无知识点大纲" />
         ) : viewMode === "radial" ? (
-          <div className="flex flex-col gap-2">
-            <div className="flex justify-end">
-              <GraphViewportActions
-                title="知识点大纲径向图"
-                disabled={tree.total_nodes <= 1}
-                downloadLabel="下载知识点大纲 PNG"
-                downloadAriaLabel="下载知识点大纲径向图"
-                onDownload={() =>
-                  downloadEchartsGraphImage({
-                    option: chartOption,
-                    filename: `${tree ? `${tree.total_nodes}节点` : "知识点大纲"}-径向图.png`,
-                    nodeCount: tree.total_nodes,
-                  })
-                }
-                immersive
-              >
-                <RadialChart
-                  option={chartOption}
-                  nodeCount={tree.total_nodes}
-                  onNodeClick={openDrawer}
-                />
-              </GraphViewportActions>
-            </div>
-            <RadialChart
-              option={chartOption}
-              nodeCount={tree.total_nodes}
-              onNodeClick={openDrawer}
-            />
-          </div>
+          <RadialChart
+            option={chartOption}
+            nodeCount={tree.total_nodes}
+            onNodeClick={openDrawer}
+          />
         ) : (
-          <div className="border-line bg-bg-subtle rounded border px-4 py-3">
-            <Tree
-              treeData={antdTreeData}
-              defaultExpandAll
-              showLine
-              blockNode
-              onSelect={(keys) => {
-                const key = keys[0];
-                if (typeof key === "string" && key !== tree.root_id) {
-                  openDrawer(key);
-                }
-              }}
-              aria-label="知识点大纲树"
-            />
-          </div>
+          <TreeViewInner
+            tree={tree}
+            antdTreeData={antdTreeData}
+            onNodeSelect={openDrawer}
+          />
         )}
       </Card>
 
@@ -340,9 +361,10 @@ type RadialChartProps = {
   option: EChartsOption;
   nodeCount: number;
   onNodeClick: (nodeId: string) => void;
+  fullscreen?: boolean;
 };
 
-function RadialChart({ option, onNodeClick }: RadialChartProps) {
+function RadialChart({ option, onNodeClick, fullscreen = false }: RadialChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<ECharts | null>(null);
 
@@ -388,11 +410,96 @@ function RadialChart({ option, onNodeClick }: RadialChartProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [option]);
 
+  const heightClass = fullscreen ? CHART_HEIGHT_FULLSCREEN : CHART_HEIGHT_INLINE;
   return (
-    <div className={`border-line bg-bg-subtle w-full rounded border ${CHART_HEIGHT_CLASS}`}>
+    <div className={`border-line bg-bg-subtle w-full rounded border ${heightClass}`}>
       <div ref={containerRef} className="h-full w-full" />
     </div>
   );
+}
+
+
+// ---------------------------------------------------------------------------
+// Tree view (Antd Tree) — shares maximize/download plumbing with the radial
+// chart via the Card `extra` toolbar.
+// ---------------------------------------------------------------------------
+
+type TreeViewInnerProps = {
+  tree: KnowledgeOutlineTree;
+  antdTreeData: DataNode[];
+  onNodeSelect: (nodeId: string) => void;
+  fullscreen?: boolean;
+};
+
+function TreeViewInner({
+  tree,
+  antdTreeData,
+  onNodeSelect,
+  fullscreen = false,
+}: TreeViewInnerProps) {
+  const heightClass = fullscreen ? TREE_HEIGHT_FULLSCREEN : TREE_HEIGHT_INLINE;
+  return (
+    <div
+      className={`border-line bg-bg-subtle rounded border px-4 py-3 ${heightClass}`}
+    >
+      <Tree
+        treeData={antdTreeData}
+        defaultExpandAll
+        showLine
+        blockNode
+        onSelect={(keys) => {
+          const key = keys[0];
+          if (typeof key === "string" && key !== tree.root_id) {
+            onNodeSelect(key);
+          }
+        }}
+        aria-label="知识点大纲树"
+      />
+    </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Markdown export
+// ---------------------------------------------------------------------------
+
+function outlineTreeToMarkdown(tree: KnowledgeOutlineTree): string {
+  const byParent = new Map<string | null, KnowledgeOutlineNode[]>();
+  for (const node of tree.nodes) {
+    const list = byParent.get(node.parent_id) ?? [];
+    list.push(node);
+    byParent.set(node.parent_id, list);
+  }
+  for (const list of byParent.values()) {
+    list.sort((a, b) => a.order_index - b.order_index);
+  }
+  const lines: string[] = [];
+  const walk = (parentId: string | null, depth: number) => {
+    for (const node of byParent.get(parentId) ?? []) {
+      const hashes = "#".repeat(Math.min(depth, 6));
+      const label = node.numbering ? `${node.numbering} ${node.title}` : node.title;
+      lines.push(`${hashes} ${label}`);
+      walk(node.id, depth + 1);
+    }
+  };
+  walk(null, 1);
+  return `${lines.join("\n")}\n`;
+}
+
+function downloadMarkdownFile(filename: string, content: string): boolean {
+  if (typeof document === "undefined") return false;
+  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  try {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    return true;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 // ---------------------------------------------------------------------------
