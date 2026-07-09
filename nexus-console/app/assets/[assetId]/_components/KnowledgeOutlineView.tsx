@@ -64,6 +64,19 @@ type ChartTreeNode = {
   children?: ChartTreeNode[];
 };
 
+// Render helper: concat numbering + title unless title already carries the
+// numbering (avoids "第一章 第一章 短视频概述"-style duplication).
+function nodeDisplayLabel(node: {
+  numbering: string | null;
+  title: string;
+}): string {
+  const { numbering, title } = node;
+  if (!numbering) return title;
+  const trimmedTitle = title.trim();
+  if (trimmedTitle.startsWith(numbering)) return trimmedTitle;
+  return `${numbering} ${trimmedTitle}`;
+}
+
 const CHART_HEIGHT_INLINE = "h-[560px] min-h-[420px]";
 const CHART_HEIGHT_FULLSCREEN = "h-full min-h-0";
 const TREE_HEIGHT_INLINE = "max-h-[560px] overflow-auto";
@@ -478,7 +491,7 @@ function outlineTreeToMarkdown(tree: KnowledgeOutlineTree): string {
   const walk = (parentId: string | null, depth: number) => {
     for (const node of byParent.get(parentId) ?? []) {
       const hashes = "#".repeat(Math.min(depth, 6));
-      const label = node.numbering ? `${node.numbering} ${node.title}` : node.title;
+      const label = nodeDisplayLabel(node);
       lines.push(`${hashes} ${label}`);
       walk(node.id, depth + 1);
     }
@@ -529,7 +542,7 @@ function buildTreeItems(tree: KnowledgeOutlineTree | null): TreeItem[] {
 }
 
 function toChartTree(item: TreeItem): ChartTreeNode {
-  const label = item.node.numbering ? `${item.node.numbering} ${item.node.title}` : item.node.title;
+  const label = nodeDisplayLabel(item.node);
   return {
     name: label,
     value: item.node.id,
@@ -606,7 +619,7 @@ function buildChartOption(roots: TreeItem[]): EChartsOption {
 }
 
 function toAntdTreeNode(item: TreeItem): DataNode {
-  const label = item.node.numbering ? `${item.node.numbering} ${item.node.title}` : item.node.title;
+  const label = nodeDisplayLabel(item.node);
   return {
     key: item.key,
     title: (
