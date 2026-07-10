@@ -1,0 +1,20 @@
+{
+  "fixture_id": "report_nationwide_scope_zhejiang_example",
+  "classification": "industry_report",
+  "text": "《2025 年中国电子商务行业发展报告》\n本报告统计范围覆盖全国 32 个省级行政区。直播电商保持高速增长。例如浙江省义乌市的跨境电商产业带经验值得借鉴。",
+  "expected": {
+    "scope": {
+      "regions": ["全国"],
+      "industries": ["电子商务", "直播电商"],
+      "occupations": [],
+      "majors": []
+    },
+    "example": {
+      "regions": ["浙江省", "义乌市"],
+      "industries": ["跨境电商"],
+      "occupations": [],
+      "majors": []
+    }
+  },
+  "notes": "主体：'统计范围覆盖全国'。举例：'例如浙江省义乌市' 后紧跟'经验值得借鉴' 是典型举例。跨境电商是举例中的具体行业。"
+}

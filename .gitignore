@@ -43,3 +43,6 @@ elasticsearch-data/
 
 # Local sample files
 docs/samples/
+
+# Milestone A: real-LLM evaluation reports (regenerable)
+reports/

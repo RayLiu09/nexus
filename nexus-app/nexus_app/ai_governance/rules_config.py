@@ -89,6 +89,53 @@ class ManualReviewTriggerDef(BaseModel):
     condition: str
 
 
+# ---------------------------------------------------------------------------
+# tag_taxonomy — cross-asset retrieval-side tag type skeleton (v1.3 §4.4)
+# ---------------------------------------------------------------------------
+
+
+TagTypeCode = Literal[
+    "region", "industry", "occupation", "major", "ability", "topic", "time_range"
+]
+TagTypeCardinality = Literal["low", "medium", "high"]
+
+
+class TagTaxonomyType(BaseModel):
+    code: TagTypeCode
+    name: str
+    description: str = ""
+    canonical_source: str | None = None
+    allow_free_form: bool = True
+    expected_cardinality: TagTypeCardinality = "medium"
+
+    model_config = {"extra": "ignore"}
+
+
+class TagTaxonomyConfig(BaseModel):
+    version: str = "1.0"
+    types: list[TagTaxonomyType] = Field(min_length=1)
+    auto_accept_threshold: float = Field(default=0.75, ge=0, le=1)
+    review_threshold: float = Field(default=0.55, ge=0, le=1)
+    notes: str = ""
+
+    model_config = {"extra": "ignore"}
+
+    @model_validator(mode="after")
+    def check_type_codes_unique(self) -> "TagTaxonomyConfig":
+        codes = [t.code for t in self.types]
+        if len(codes) != len(set(codes)):
+            raise ValueError("tag_taxonomy.types codes must be unique")
+        return self
+
+    @model_validator(mode="after")
+    def check_thresholds(self) -> "TagTaxonomyConfig":
+        if self.review_threshold >= self.auto_accept_threshold:
+            raise ValueError(
+                "tag_taxonomy.review_threshold must be < auto_accept_threshold"
+            )
+        return self
+
+
 class GovernanceRulesConfig(BaseModel):
     schema_version: str
     classifications: list[ClassificationDef] = Field(min_length=1)
@@ -98,6 +145,7 @@ class GovernanceRulesConfig(BaseModel):
     manual_review_triggers: list[ManualReviewTriggerDef] = Field(default_factory=list)
     approved_private_model_aliases: list[str] = Field(default_factory=list)
     tag_dimensions: dict = Field(default_factory=dict)
+    tag_taxonomy: TagTaxonomyConfig | None = None
 
     model_config = {"extra": "ignore"}
 

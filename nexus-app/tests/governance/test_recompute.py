@@ -11,6 +11,8 @@ from nexus_app.config import get_settings
 from nexus_app.enums import AssetVersionStatus, AuditEventType, GovernanceResultStatus
 from nexus_app.governance.recompute import (
     enumerate_affected_refs,
+    enumerate_tagging_recompute_targets,
+    plan_tagging_recompute,
     trigger_recompute,
 )
 from nexus_app.ingest import gateway as ingest_gateway
@@ -180,3 +182,133 @@ class TestTriggerRecompute:
         )
         assert summary["affected_total"] == 0
         assert summary["rescheduled_count"] == 0
+
+
+class TestEnumerateTaggingRecomputeTargets:
+    """v1.3 §16.4 narrow tagging-only recompute — targets enumeration.
+
+    Behavior mirrors ``enumerate_affected_refs`` (schema_version mismatch),
+    but honors ``include_available`` for prod-vs-dev policy.
+    """
+
+    def test_includes_available_by_default(self, session):
+        v_avail, _ = _prepare_governed_version(
+            session, snapshot_schema_version="2.0",
+            final_status=AssetVersionStatus.AVAILABLE,
+        )
+        v_review, _ = _prepare_governed_version(
+            session, snapshot_schema_version="2.0",
+            final_status=AssetVersionStatus.REVIEW_REQUIRED,
+        )
+
+        targets = enumerate_tagging_recompute_targets(
+            session, current_schema_version="3.0",
+        )
+        target_ids = {v.id for _, v in targets}
+
+        assert v_avail.id in target_ids
+        assert v_review.id in target_ids
+
+    def test_include_available_false_filters_out_available(self, session):
+        v_avail, _ = _prepare_governed_version(
+            session, snapshot_schema_version="2.0",
+            final_status=AssetVersionStatus.AVAILABLE,
+        )
+        v_review, _ = _prepare_governed_version(
+            session, snapshot_schema_version="2.0",
+            final_status=AssetVersionStatus.REVIEW_REQUIRED,
+        )
+
+        targets = enumerate_tagging_recompute_targets(
+            session, current_schema_version="3.0",
+            include_available=False,
+        )
+        target_ids = {v.id for _, v in targets}
+
+        assert v_avail.id not in target_ids
+        assert v_review.id in target_ids
+
+    def test_current_schema_returns_no_targets(self, session):
+        _prepare_governed_version(
+            session, snapshot_schema_version="3.0",
+            final_status=AssetVersionStatus.REVIEW_REQUIRED,
+        )
+        targets = enumerate_tagging_recompute_targets(
+            session, current_schema_version="3.0",
+        )
+        assert targets == []
+
+
+class TestPlanTaggingRecompute:
+    """Dry-run planner must be side-effect free: no status flip, no audit."""
+
+    def test_returns_expected_summary_shape(self, session):
+        v_review, _ = _prepare_governed_version(
+            session, snapshot_schema_version="2.0",
+            final_status=AssetVersionStatus.REVIEW_REQUIRED,
+        )
+        v_avail, _ = _prepare_governed_version(
+            session, snapshot_schema_version="2.0",
+            final_status=AssetVersionStatus.AVAILABLE,
+        )
+
+        plan = plan_tagging_recompute(
+            session, current_schema_version="3.0",
+        )
+
+        assert plan["mode"] == "tagging_only"
+        assert plan["include_available"] is True
+        assert plan["current_schema_version"] == "3.0"
+        assert plan["target_total"] == 2
+        assert plan["review_required_count"] == 1
+        assert plan["available_count"] == 1
+        assert plan["other_count"] == 0
+        assert v_review.id in plan["review_required_version_ids"]
+        assert v_avail.id in plan["available_version_ids"]
+        assert plan["execution"] is None
+
+    def test_does_not_flip_status(self, session):
+        v_review, _ = _prepare_governed_version(
+            session, snapshot_schema_version="2.0",
+            final_status=AssetVersionStatus.REVIEW_REQUIRED,
+        )
+
+        plan_tagging_recompute(session, current_schema_version="3.0")
+
+        session.refresh(v_review)
+        assert v_review.version_status == AssetVersionStatus.REVIEW_REQUIRED
+
+    def test_does_not_write_audit(self, session):
+        _prepare_governed_version(
+            session, snapshot_schema_version="2.0",
+            final_status=AssetVersionStatus.REVIEW_REQUIRED,
+        )
+
+        plan_tagging_recompute(session, current_schema_version="3.0")
+
+        audits = session.scalars(
+            select(models.AuditLog).where(
+                models.AuditLog.event_type
+                == AuditEventType.GOVERNANCE_RULES_RECOMPUTE_REQUESTED
+            )
+        ).all()
+        assert audits == []
+
+    def test_include_available_false_filters(self, session):
+        _prepare_governed_version(
+            session, snapshot_schema_version="2.0",
+            final_status=AssetVersionStatus.AVAILABLE,
+        )
+        _prepare_governed_version(
+            session, snapshot_schema_version="2.0",
+            final_status=AssetVersionStatus.REVIEW_REQUIRED,
+        )
+
+        plan = plan_tagging_recompute(
+            session, current_schema_version="3.0",
+            include_available=False,
+        )
+        assert plan["include_available"] is False
+        assert plan["target_total"] == 1
+        assert plan["review_required_count"] == 1
+        assert plan["available_count"] == 0

@@ -1,0 +1,20 @@
+{
+  "fixture_id": "major_profile_ecommerce_pure_scope",
+  "classification": "major_profile",
+  "text": "电子商务专业（高职）专业简介\n专业代码：610101。职业面向：面向直播电商、跨境电商行业，涉及运营、直播主播、客服等岗位。",
+  "expected": {
+    "scope": {
+      "regions": [],
+      "industries": ["直播电商", "跨境电商"],
+      "occupations": ["运营", "直播主播", "客服"],
+      "majors": ["电子商务"]
+    },
+    "example": {
+      "regions": [],
+      "industries": [],
+      "occupations": [],
+      "majors": []
+    }
+  },
+  "notes": "正样本：专业简介通常无举例。主体：专业本身 + '面向...行业' + '涉及...岗位' 全部是主体范围。用于验证 LLM 在无举例场景不会误判。"
+}

@@ -1,0 +1,39 @@
+{
+  "fixture_id": "major_distribution_beijing_ecom_2024_2026",
+  "purpose": "structural_static + mock_smoke",
+  "input": {
+    "classification": "major_distribution",
+    "normalized_document_excerpt": "北京市高职电子商务专业布点数据（2024-2026）\n统计范围：北京市所属高职院校。专业名称：电子商务，专业代码：610101，教育层次：高职。2024 年布点 32 所，2025 年 41 所，2026 年 58 所。"
+  },
+  "expected": {
+    "tags": {
+      "regions": [
+        {
+          "value": "北京市",
+          "confidence": 0.96,
+          "evidence_span": "统计范围：北京市所属高职院校"
+        }
+      ],
+      "industries": [],
+      "occupations": [],
+      "majors": [
+        {
+          "value": "电子商务",
+          "confidence": 0.94,
+          "evidence_span": "专业名称：电子商务"
+        }
+      ],
+      "abilities": [],
+      "topics": [
+        {
+          "value": "高职",
+          "confidence": 0.9,
+          "evidence_span": "教育层次：高职"
+        }
+      ],
+      "time_ranges": [{ "kind": "year_range", "start": 2024, "end": 2026 }]
+    },
+    "confidence_range": [0.85, 0.96]
+  },
+  "notes": "专业布点数据主体明确；用于验证 regions/majors/time_range 三维度主体输出。数值细节（布点 32/41/58）属于 SQL 层过滤，不进 tag。"
+}

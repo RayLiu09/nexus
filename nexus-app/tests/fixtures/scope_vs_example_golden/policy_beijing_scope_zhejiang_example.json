@@ -1,0 +1,20 @@
+{
+  "fixture_id": "policy_beijing_scope_zhejiang_example",
+  "classification": "industry_policy",
+  "text": "北京市直播电商产业促进办法\n本办法适用于北京市行政区域内直播电商相关企业。以浙江省先行经验作为对标案例，学习长三角地区跨境电商综合试验区做法。",
+  "expected": {
+    "scope": {
+      "regions": ["北京市"],
+      "industries": ["直播电商"],
+      "occupations": [],
+      "majors": []
+    },
+    "example": {
+      "regions": ["浙江省", "长三角"],
+      "industries": ["跨境电商"],
+      "occupations": [],
+      "majors": []
+    }
+  },
+  "notes": "主体：'本办法适用于北京市' / '直播电商产业促进'。举例：'以浙江省先行经验' / '学习长三角地区跨境电商综合试验区做法'。跨境电商是举例中提及的行业，不是本文适用范围。"
+}

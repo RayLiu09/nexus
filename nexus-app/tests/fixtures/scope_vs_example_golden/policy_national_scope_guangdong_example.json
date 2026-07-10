@@ -1,0 +1,20 @@
+{
+  "fixture_id": "policy_national_scope_guangdong_example",
+  "classification": "industry_policy",
+  "text": "国务院办公厅关于促进数字经济健康发展的指导意见\n发文机关：国务院办公厅。本指导意见适用于全国范围内数字经济领域。参考广东省数字经济试点做法，借鉴浙江省平台经济治理经验。",
+  "expected": {
+    "scope": {
+      "regions": ["全国"],
+      "industries": ["数字经济"],
+      "occupations": [],
+      "majors": []
+    },
+    "example": {
+      "regions": ["广东省", "浙江省"],
+      "industries": ["平台经济"],
+      "occupations": [],
+      "majors": []
+    }
+  },
+  "notes": "主体：'适用于全国范围内数字经济领域' + 发文机关='国务院办公厅'。举例：'参考广东省' / '借鉴浙江省'。平台经济是举例中提到的行业，不是主体。"
+}

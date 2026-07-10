@@ -1,0 +1,55 @@
+{
+  "fixture_id": "course_textbook_livestream_ops_ch3",
+  "purpose": "structural_static + mock_smoke",
+  "input": {
+    "classification": "course_textbook",
+    "normalized_document_excerpt": "《直播电商运营实务》第三章 数据分析与投放优化\n本章面向电子商务专业学生，讲解 GMV 拆解方法、投放 ROI 分析框架以及用户运营基础指标。本教材适合高职层次教学使用。以杭州某 MCN 机构的实际运营数据为教学案例。"
+  },
+  "expected": {
+    "tags": {
+      "regions": [],
+      "industries": [
+        {
+          "value": "直播电商",
+          "confidence": 0.9,
+          "evidence_span": "《直播电商运营实务》"
+        }
+      ],
+      "occupations": [],
+      "majors": [
+        {
+          "value": "电子商务",
+          "confidence": 0.88,
+          "evidence_span": "本章面向电子商务专业学生"
+        }
+      ],
+      "abilities": [
+        {
+          "value": "GMV 拆解",
+          "confidence": 0.85,
+          "evidence_span": "讲解 GMV 拆解方法"
+        },
+        {
+          "value": "投放 ROI 分析",
+          "confidence": 0.82,
+          "evidence_span": "投放 ROI 分析框架"
+        },
+        {
+          "value": "用户运营",
+          "confidence": 0.75,
+          "evidence_span": "用户运营基础指标"
+        }
+      ],
+      "topics": [
+        {
+          "value": "高职",
+          "confidence": 0.7,
+          "evidence_span": "本教材适合高职层次教学使用"
+        }
+      ],
+      "time_ranges": []
+    },
+    "confidence_range": [0.65, 0.92]
+  },
+  "notes": "主体 vs 举例：'面向电子商务专业学生' 属主体（输出 majors=['电子商务']）；'杭州某 MCN 机构' 是教学案例，属举例，不输出 regions=['杭州市']。"
+}

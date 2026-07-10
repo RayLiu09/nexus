@@ -1,0 +1,46 @@
+{
+  "fixture_id": "industry_policy_beijing_livestream_ecom",
+  "purpose": "structural_static + mock_smoke",
+  "input": {
+    "classification": "industry_policy",
+    "normalized_document_excerpt": "北京市直播电商产业促进办法（2024-2026）\n发文机关：北京市商务局。本办法适用于北京市行政区域内从事直播电商业务的企业与从业人员。规划期为2024年至2026年。重点支持直播电商产业发展，规范平台经营行为，加强主播培训和数据合规要求。以浙江省作为对标案例，学习先行经验。"
+  },
+  "expected": {
+    "tags": {
+      "regions": [
+        {
+          "value": "北京市",
+          "confidence": 0.95,
+          "evidence_span": "本办法适用于北京市行政区域内"
+        }
+      ],
+      "industries": [
+        {
+          "value": "直播电商",
+          "confidence": 0.92,
+          "evidence_span": "重点支持直播电商产业发展"
+        }
+      ],
+      "occupations": [
+        { "value": "主播", "confidence": 0.72, "evidence_span": "加强主播培训" }
+      ],
+      "majors": [],
+      "abilities": [],
+      "topics": [
+        {
+          "value": "数据合规",
+          "confidence": 0.78,
+          "evidence_span": "数据合规要求"
+        },
+        {
+          "value": "平台经营",
+          "confidence": 0.68,
+          "evidence_span": "规范平台经营行为"
+        }
+      ],
+      "time_ranges": [{ "kind": "year_range", "start": 2024, "end": 2026 }]
+    },
+    "confidence_range": [0.65, 0.95]
+  },
+  "notes": "主体 vs 举例：'适用于北京市' 是主体范围（输出）；'以浙江省作为对标案例' 是举例（不输出）。用于验证 tagging prompt v2 的主体/举例区分能力。"
+}

@@ -597,6 +597,72 @@ class AIGovernanceService:
                       "validation_status": run.validation_status.value})
         return run
 
+    def run_tagging_only(
+        self,
+        session: Session,
+        *,
+        normalized_ref_id: str,
+        prompt_registry: "GovernancePromptRegistry",
+        rules_registry: "GovernanceRulesRegistry | None" = None,
+        litellm_client: LiteLLMClientProtocol | None = None,
+    ) -> dict[str, Any]:
+        """Run **only** the tagging LLM stage for a single asset.
+
+        Returns a payload matching the ``TaggingLLMCall`` contract in
+        ``nexus_app.governance.recompute``::
+
+            {"tags": <StructuredTagBag-shaped dict>, "confidence": <float>}
+
+        Used by the v1.3 §16.4 narrow tagging-only recompute path.  Reuses
+        :meth:`_run_llm_stage` so retry / redaction / rules-injection /
+        JSON-extraction all follow the same guarantees as the multi-stage
+        governance run.
+
+        Raises
+        ------
+        AIGovernanceError
+            If the normalized_ref is missing.
+        RuntimeError
+            Wrapping any LLM stage failure (``_error`` in the stage output,
+            missing tags key, wrong shape).  Callers should adapt this to
+            ``TaggingRecomputeError`` at the callable boundary.
+        """
+        client = litellm_client or _create_default_litellm_client()
+
+        ref = session.get(models.NormalizedAssetRef, normalized_ref_id)
+        if ref is None:
+            raise AIGovernanceError(
+                f"NormalizedAssetRef '{normalized_ref_id}' not found"
+            )
+        ref_dict = self._build_ref_dict(ref)
+        sensitivity_level = (ref.governance or {}).get("level", "L1")
+
+        stage_out = self._run_llm_stage(
+            client, prompt_registry, "tagging",
+            ref_dict, sensitivity_level, rules_registry,
+        )
+        if not isinstance(stage_out, dict):
+            raise RuntimeError(
+                f"tagging stage returned {type(stage_out).__name__}, expected dict"
+            )
+        if "_error" in stage_out:
+            raise RuntimeError(
+                f"tagging stage failed: {stage_out.get('_error')}"
+            )
+
+        tags_payload = stage_out.get("tags")
+        if not isinstance(tags_payload, dict):
+            raise RuntimeError(
+                "tagging stage produced no dict-shaped tags — "
+                "prompt v2 must be active (see migration 0069)"
+            )
+
+        confidence = stage_out.get("confidence")
+        if not isinstance(confidence, (int, float)):
+            confidence = None
+
+        return {"tags": tags_payload, "confidence": confidence}
+
     def run_governance_multi(
         self,
         session: Session,

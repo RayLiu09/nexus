@@ -61,6 +61,20 @@ def _is_valid_tag_value(value: str) -> bool:
 
 
 def _extract_governance_tags(ai_output: dict[str, Any]) -> list[str]:
+    """Backwards-compatible flat-list projection of ``ai_output.tags``.
+
+    v1.3 §4.1 tagging profile v2 emits a **structured 7-category dict**,
+    while pre-v1.3 tagging profile v1 emitted a flat list (or a 5-dimension
+    dict later flattened here).  This function collapses either shape into
+    the same ``list[str]`` currently expected by ``GovernanceResult.tags``
+    (see the ``list[str]`` column type declared in
+    ``nexus_app.models.GovernanceResult``).
+
+    Structured payloads are also stored **verbatim** in
+    ``AIGovernanceRun.ai_output.tags`` so downstream consumers that read
+    the run rather than the derived result can reconstruct the full 7-bucket
+    view via :func:`nexus_app.ai_governance.tag_payload.normalize_to_structured`.
+    """
     tags: list[str] = []
     seen: set[str] = set()
 
@@ -86,15 +100,63 @@ def _extract_governance_tags(ai_output: dict[str, Any]) -> list[str]:
         else:
             add(value)
 
-    add_many(ai_output.get("tags"))
+    # v1.3 structured-shape fast path: if the tagging payload is already a
+    # StructuredTagBag-shaped dict, delegate flattening to the canonical
+    # ``flatten_to_legacy`` helper.  This keeps the ordering and dedup
+    # semantics of the structured-tag world consistent with the legacy
+    # world without duplicating the traversal rules here.
+    tagging_payload = ai_output.get("tags")
+    if _looks_structured_tag_bag(tagging_payload):
+        from nexus_app.ai_governance.tag_payload import (
+            STRUCTURED_TAG_CATEGORY_CODES,
+            flatten_to_legacy,
+        )
+
+        # ``flatten_to_legacy`` already de-duplicates and preserves canonical
+        # bucket order.  We still run the flat output through the
+        # ``_is_valid_tag_value`` filter to stay consistent with the legacy
+        # cleanup rules (drops model-alias-shaped strings, "_"-prefixed
+        # sentinels, etc.).
+        _ = STRUCTURED_TAG_CATEGORY_CODES  # keep import cost accounted for
+        for value in flatten_to_legacy(tagging_payload):
+            add(value)
+    else:
+        add_many(tagging_payload)
+
+    # _stages.tagging follows the same shape as the top-level tags; support
+    # both structured and legacy payloads here too.
     stages = ai_output.get("_stages")
     tagging_stage = stages.get("tagging") if isinstance(stages, dict) else None
     if isinstance(tagging_stage, dict):
-        add_many(tagging_stage.get("tags"))
+        stage_payload = tagging_stage.get("tags")
+        if _looks_structured_tag_bag(stage_payload):
+            from nexus_app.ai_governance.tag_payload import flatten_to_legacy
+
+            for value in flatten_to_legacy(stage_payload):
+                add(value)
+        else:
+            add_many(stage_payload)
     for dim_key in _TAG_DIMENSION_KEYS:
         if dim_key in ai_output:
             add_many(ai_output[dim_key])
     return tags
+
+
+def _looks_structured_tag_bag(payload: Any) -> bool:
+    """Return True when the payload uses v1.3 §4.1 structured shape.
+
+    A structured tag bag is a dict with **at least one** of the seven
+    canonical bucket names (regions / industries / occupations / majors /
+    abilities / topics / time_ranges).  Legacy 5-dimension outputs
+    (professional_domain / geographic_scope / …) intentionally do **not**
+    match — they go through the recursive ``add_many`` path so their
+    per-dimension keys are handled uniformly.
+    """
+    if not isinstance(payload, dict):
+        return False
+    from nexus_app.ai_governance.tag_payload import STRUCTURED_TAG_CATEGORY_CODES
+
+    return any(key in payload for key in STRUCTURED_TAG_CATEGORY_CODES)
 
 
 class GovernanceDecisionError(Exception):

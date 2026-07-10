@@ -650,12 +650,27 @@ class AIGovernanceRunRead(ORMModel):
 
 
 class GovernanceResultRead(ORMModel):
+    """Serialized shape for ``GovernanceResult``.
+
+    ``tags`` supports **dual read** during the v1.3 rollout window:
+
+    * legacy flat ``list[str]`` (pre-v1.3 tagging-profile output)
+    * v1.3 §4.1 structured dict keyed by ``tag_taxonomy`` bucket names
+
+    Consumers that need a normalised structured view should read
+    ``tags_structured``, which is derived from ``tags`` at serialization
+    time.  Consumers that need the legacy flat view (e.g. existing
+    console filters) can call ``flatten_to_legacy`` on the derived bag.
+    """
+
     id: str
     normalized_ref_id: str
     ai_run_id: str | None
     classification: str | None
     level: str | None
-    tags: list[str]
+    tags: list[str] | dict[str, Any]
+    tags_structured: dict[str, Any] = Field(default_factory=dict)
+    tags_shape: str = "empty"
     org_scope: str | None
     index_admission: bool
     quality_summary: dict[str, Any] | None
@@ -667,3 +682,20 @@ class GovernanceResultRead(ORMModel):
     trace_id: str | None
     created_at: datetime
     updated_at: datetime
+
+    @model_validator(mode="after")
+    def _populate_structured_view(self) -> "GovernanceResultRead":
+        # Local import to avoid a circular dependency between schemas and
+        # the ai_governance package at module-load time.
+        from nexus_app.ai_governance.tag_payload import (
+            detect_tags_shape,
+            normalize_to_structured,
+        )
+
+        # If a caller supplied a value explicitly, respect it; otherwise
+        # derive from ``tags``.
+        if not self.tags_structured:
+            self.tags_structured = normalize_to_structured(self.tags).model_dump()
+        if self.tags_shape == "empty":
+            self.tags_shape = detect_tags_shape(self.tags)
+        return self

@@ -1,0 +1,81 @@
+{
+  "fixture_id": "major_profile_ecommerce_higher_voc",
+  "purpose": "structural_static + mock_smoke",
+  "input": {
+    "classification": "major_profile",
+    "normalized_document_excerpt": "电子商务专业（高职）专业简介\n专业代码：610101。基本修业年限：三年。职业面向：面向直播电商、跨境电商行业，涉及运营、直播主播、客服等岗位。主要专业能力要求：具备直播脚本策划、GMV 拆解、投放 ROI 分析、消费者数据合规意识等核心能力。核心课程包括电子商务基础、直播运营实务、数据分析等。"
+  },
+  "expected": {
+    "tags": {
+      "regions": [],
+      "industries": [
+        {
+          "value": "直播电商",
+          "confidence": 0.9,
+          "evidence_span": "面向直播电商、跨境电商行业"
+        },
+        {
+          "value": "跨境电商",
+          "confidence": 0.86,
+          "evidence_span": "面向直播电商、跨境电商行业"
+        }
+      ],
+      "occupations": [
+        {
+          "value": "运营",
+          "confidence": 0.82,
+          "evidence_span": "涉及运营、直播主播、客服等岗位"
+        },
+        {
+          "value": "直播主播",
+          "confidence": 0.8,
+          "evidence_span": "涉及运营、直播主播、客服等岗位"
+        },
+        {
+          "value": "客服",
+          "confidence": 0.7,
+          "evidence_span": "涉及运营、直播主播、客服等岗位"
+        }
+      ],
+      "majors": [
+        {
+          "value": "电子商务",
+          "confidence": 0.96,
+          "evidence_span": "电子商务专业（高职）专业简介"
+        }
+      ],
+      "abilities": [
+        {
+          "value": "直播脚本策划",
+          "confidence": 0.85,
+          "evidence_span": "直播脚本策划"
+        },
+        {
+          "value": "GMV 拆解",
+          "confidence": 0.85,
+          "evidence_span": "GMV 拆解"
+        },
+        {
+          "value": "投放 ROI 分析",
+          "confidence": 0.82,
+          "evidence_span": "投放 ROI 分析"
+        },
+        {
+          "value": "消费者数据合规意识",
+          "confidence": 0.75,
+          "evidence_span": "消费者数据合规意识"
+        }
+      ],
+      "topics": [
+        {
+          "value": "高职",
+          "confidence": 0.9,
+          "evidence_span": "电子商务专业（高职）专业简介"
+        }
+      ],
+      "time_ranges": []
+    },
+    "confidence_range": [0.65, 0.96]
+  },
+  "notes": "专业简介主体明确，无举例场景；用于验证 majors 主体识别、industries 多值输出、abilities 长列表输出。"
+}

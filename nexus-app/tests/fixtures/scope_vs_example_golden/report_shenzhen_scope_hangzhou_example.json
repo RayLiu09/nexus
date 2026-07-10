@@ -1,0 +1,20 @@
+{
+  "fixture_id": "report_shenzhen_scope_hangzhou_example",
+  "classification": "industry_report",
+  "text": "深圳市跨境电商产业发展白皮书\n本白皮书的调研范围限于深圳市。跨境电商行业蓬勃发展。参考杭州市直播电商发展模式，对比广州市传统电商基础。",
+  "expected": {
+    "scope": {
+      "regions": ["深圳市"],
+      "industries": ["跨境电商"],
+      "occupations": [],
+      "majors": []
+    },
+    "example": {
+      "regions": ["杭州市", "广州市"],
+      "industries": ["直播电商", "传统电商"],
+      "occupations": [],
+      "majors": []
+    }
+  },
+  "notes": "主体：'调研范围限于深圳市' / 报告名'跨境电商'。举例：'参考杭州市' / '对比广州市'。相关行业均为举例中提及。"
+}

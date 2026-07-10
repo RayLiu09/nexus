@@ -1,0 +1,71 @@
+{
+  "fixture_id": "competency_analysis_livestream_ops",
+  "purpose": "structural_static + mock_smoke",
+  "input": {
+    "classification": "competency_analysis",
+    "normalized_document_excerpt": "直播运营岗位职业能力分析（PGSD 模型）\n本分析面向直播运营、短视频运营岗位。能力大类：数字营销、数据分析。核心能力项包括：直播脚本策划、短视频创作、投放 ROI 分析、GMV 拆解、用户运营。适用于电子商务专业人才培养方案设计。"
+  },
+  "expected": {
+    "tags": {
+      "regions": [],
+      "industries": [],
+      "occupations": [
+        {
+          "value": "直播运营",
+          "confidence": 0.9,
+          "evidence_span": "本分析面向直播运营、短视频运营岗位"
+        },
+        {
+          "value": "短视频运营",
+          "confidence": 0.86,
+          "evidence_span": "本分析面向直播运营、短视频运营岗位"
+        }
+      ],
+      "majors": [
+        {
+          "value": "电子商务",
+          "confidence": 0.75,
+          "evidence_span": "适用于电子商务专业人才培养方案设计"
+        }
+      ],
+      "abilities": [
+        {
+          "value": "直播脚本策划",
+          "confidence": 0.88,
+          "evidence_span": "直播脚本策划"
+        },
+        {
+          "value": "短视频创作",
+          "confidence": 0.85,
+          "evidence_span": "短视频创作"
+        },
+        {
+          "value": "投放 ROI 分析",
+          "confidence": 0.85,
+          "evidence_span": "投放 ROI 分析"
+        },
+        {
+          "value": "GMV 拆解",
+          "confidence": 0.82,
+          "evidence_span": "GMV 拆解"
+        },
+        { "value": "用户运营", "confidence": 0.78, "evidence_span": "用户运营" }
+      ],
+      "topics": [
+        {
+          "value": "数字营销",
+          "confidence": 0.8,
+          "evidence_span": "能力大类：数字营销、数据分析"
+        },
+        {
+          "value": "数据分析",
+          "confidence": 0.8,
+          "evidence_span": "能力大类：数字营销、数据分析"
+        }
+      ],
+      "time_ranges": []
+    },
+    "confidence_range": [0.65, 0.92]
+  },
+  "notes": "职业能力分析类；用于验证 occupations 与 abilities 大批量共存的场景。"
+}

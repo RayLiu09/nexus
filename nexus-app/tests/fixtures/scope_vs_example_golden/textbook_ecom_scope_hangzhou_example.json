@@ -1,0 +1,20 @@
+{
+  "fixture_id": "textbook_ecom_scope_hangzhou_example",
+  "classification": "course_textbook",
+  "text": "《直播电商运营实务》\n本教材面向电子商务专业学生，讲解直播运营核心能力。以杭州某 MCN 机构的实际数据作为教学案例。",
+  "expected": {
+    "scope": {
+      "regions": [],
+      "industries": ["直播电商"],
+      "occupations": [],
+      "majors": ["电子商务"]
+    },
+    "example": {
+      "regions": ["杭州"],
+      "industries": [],
+      "occupations": [],
+      "majors": []
+    }
+  },
+  "notes": "主体：'面向电子商务专业学生' + 教材主题'直播电商'。举例：'以杭州某 MCN 机构' 是教学案例，属举例。annotated 用文本中原样出现的 '杭州'（而非 '杭州市'）以满足 verbatim 校验。"
+}

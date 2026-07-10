@@ -1,0 +1,65 @@
+{
+  "fixture_id": "industry_report_ecom_trends_2025",
+  "purpose": "structural_static + mock_smoke",
+  "input": {
+    "classification": "industry_report",
+    "normalized_document_excerpt": "《2025 年中国电子商务行业发展报告》\n发布单位：中国信通院。本报告统计范围覆盖全国 32 个省级行政区。核心结论：直播电商与跨境电商保持高速增长，社交电商呈现平稳态势。运营人才缺口扩大，急需数据分析、投放优化、GMV 拆解等核心能力。例如广东省的跨境电商综合试验区经验值得借鉴。"
+  },
+  "expected": {
+    "tags": {
+      "regions": [
+        {
+          "value": "全国",
+          "confidence": 0.9,
+          "evidence_span": "本报告统计范围覆盖全国 32 个省级行政区"
+        }
+      ],
+      "industries": [
+        {
+          "value": "直播电商",
+          "confidence": 0.88,
+          "evidence_span": "直播电商与跨境电商保持高速增长"
+        },
+        {
+          "value": "跨境电商",
+          "confidence": 0.86,
+          "evidence_span": "直播电商与跨境电商保持高速增长"
+        },
+        {
+          "value": "社交电商",
+          "confidence": 0.7,
+          "evidence_span": "社交电商呈现平稳态势"
+        }
+      ],
+      "occupations": [
+        {
+          "value": "运营",
+          "confidence": 0.7,
+          "evidence_span": "运营人才缺口扩大"
+        }
+      ],
+      "majors": [],
+      "abilities": [
+        {
+          "value": "数据分析",
+          "confidence": 0.85,
+          "evidence_span": "急需数据分析、投放优化、GMV 拆解等核心能力"
+        },
+        {
+          "value": "投放优化",
+          "confidence": 0.8,
+          "evidence_span": "急需数据分析、投放优化、GMV 拆解等核心能力"
+        },
+        {
+          "value": "GMV 拆解",
+          "confidence": 0.78,
+          "evidence_span": "急需数据分析、投放优化、GMV 拆解等核心能力"
+        }
+      ],
+      "topics": [],
+      "time_ranges": [{ "kind": "point_in_time", "year": 2025 }]
+    },
+    "confidence_range": [0.65, 0.92]
+  },
+  "notes": "主体 vs 举例：'统计范围覆盖全国 32 个省级行政区' 属主体（输出 regions=['全国']）；'广东省的跨境电商综合试验区经验值得借鉴' 属举例，不输出 regions=['广东省']。"
+}

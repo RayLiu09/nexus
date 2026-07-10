@@ -1,0 +1,70 @@
+{
+  "fixture_id": "job_demand_beijing_livestream_ops",
+  "purpose": "structural_static + mock_smoke",
+  "input": {
+    "classification": "job_demand",
+    "normalized_document_excerpt": "岗位需求数据（2025）\n本次采集覆盖北京市朝阳区、海淀区。行业：直播电商、社交电商。热招岗位：直播运营（招 128 人）、短视频运营（招 76 人）、投放优化师（招 34 人）。技能要求：熟练掌握 GMV 拆解、投放 ROI 分析、用户运营等核心能力。学历要求：本科及以上占 62%。"
+  },
+  "expected": {
+    "tags": {
+      "regions": [
+        {
+          "value": "北京市",
+          "confidence": 0.94,
+          "evidence_span": "本次采集覆盖北京市朝阳区、海淀区"
+        }
+      ],
+      "industries": [
+        {
+          "value": "直播电商",
+          "confidence": 0.9,
+          "evidence_span": "行业：直播电商、社交电商"
+        },
+        {
+          "value": "社交电商",
+          "confidence": 0.82,
+          "evidence_span": "行业：直播电商、社交电商"
+        }
+      ],
+      "occupations": [
+        {
+          "value": "直播运营",
+          "confidence": 0.92,
+          "evidence_span": "直播运营（招 128 人）"
+        },
+        {
+          "value": "短视频运营",
+          "confidence": 0.88,
+          "evidence_span": "短视频运营（招 76 人）"
+        },
+        {
+          "value": "投放优化师",
+          "confidence": 0.85,
+          "evidence_span": "投放优化师（招 34 人）"
+        }
+      ],
+      "majors": [],
+      "abilities": [
+        {
+          "value": "GMV 拆解",
+          "confidence": 0.85,
+          "evidence_span": "GMV 拆解"
+        },
+        {
+          "value": "投放 ROI 分析",
+          "confidence": 0.82,
+          "evidence_span": "投放 ROI 分析"
+        },
+        {
+          "value": "用户运营",
+          "confidence": 0.78,
+          "evidence_span": "用户运营等核心能力"
+        }
+      ],
+      "topics": [],
+      "time_ranges": [{ "kind": "point_in_time", "year": 2025 }]
+    },
+    "confidence_range": [0.65, 0.95]
+  },
+  "notes": "岗位需求主体明确；用于验证 regions/industries/occupations 三维度主体输出，以及 abilities 从技能要求正文抽取。"
+}

@@ -1,0 +1,20 @@
+{
+  "fixture_id": "major_distribution_beijing_scope",
+  "classification": "major_distribution",
+  "text": "北京市高职电子商务专业布点数据\n统计范围：北京市所属高职院校。专业名称：电子商务。",
+  "expected": {
+    "scope": {
+      "regions": ["北京市"],
+      "industries": [],
+      "occupations": [],
+      "majors": ["电子商务"]
+    },
+    "example": {
+      "regions": [],
+      "industries": [],
+      "occupations": [],
+      "majors": []
+    }
+  },
+  "notes": "正样本：专业布点数据通常无举例。主体：'统计范围' + 专业名称。"
+}

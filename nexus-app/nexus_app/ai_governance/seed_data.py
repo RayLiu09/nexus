@@ -510,6 +510,11 @@ def build_rules_content(excel_path: str | Path | None = None) -> dict[str, Any]:
     This is the one-time seed data entry point.  Returns a dict ready for
     insertion into ``GovernanceRulesVersion.rules_content``.
 
+    ``schema_version`` starts at ``3.0`` (v1.3 §4.4): introduces the top-level
+    ``tag_taxonomy`` block for the cross-asset semantic tag skeleton.  The
+    legacy ``tag_dimensions`` block is preserved so that governance-side
+    per-classification rules keep working unchanged.
+
     Parameters
     ----------
     excel_path:
@@ -519,11 +524,15 @@ def build_rules_content(excel_path: str | Path | None = None) -> dict[str, Any]:
     -------
     dict
         Complete rules content with ``schema_version``, ``tag_dimensions``,
-        ``classifications``, ``levels``, and ``quality_scoring``.
+        ``tag_taxonomy``, ``classifications``, ``levels``, and
+        ``quality_scoring``.
     """
+    from nexus_app.ai_governance.tag_taxonomy import build_tag_taxonomy_seed
+
     return {
-        "schema_version": "2.0",
+        "schema_version": "3.0",
         "tag_dimensions": parse_tag_dimensions(excel_path),
+        "tag_taxonomy": build_tag_taxonomy_seed(),
         "classifications": parse_classifications(excel_path),
         "levels": _BUILTIN_LEVELS,
         "quality_scoring": _DEFAULT_QUALITY_SCORING,
