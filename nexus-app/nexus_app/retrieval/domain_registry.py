@@ -18,6 +18,19 @@ class QueryProfile:
     allowed_metrics: tuple[str, ...] = ()
     default_limit: int = 50
     max_limit: int = 200
+    # v1.3 §5.3 R3 addition — allowed tag_filters for this profile.
+    # Values are plural bucket names ("regions" / "industries" / …) that
+    # match the v1.3 TagFilter dict keys.  An empty tuple means the
+    # profile does not participate in tag_asset_index projection (e.g.
+    # pre-v1.3 unstructured profiles).  Guardrails reject tag_filter
+    # keys outside this set (F2-4 unrelated-domain protection).
+    allowed_tag_types: tuple[str, ...] = ()
+    # v1.3 R3 — declares whether the executor supports the
+    # ``__target_id_in__`` structured_filters slot for id IN (?) set
+    # injection produced by ``TagAssetIndexResolver`` (F6-1 / F6-2).
+    # Structured domains default to True; unstructured/hybrid profiles
+    # can opt out.
+    id_in_supported: bool = True
 
 
 @dataclass(frozen=True)
@@ -117,6 +130,11 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 executor_key="unstructured_pgvector",
                 default_limit=8,
                 max_limit=50,
+                allowed_tag_types=("majors", "abilities", "topics"),
+                # Unstructured pgvector executor uses normalized_ref_id
+                # filter (see F7/F8 in reliability matrix) — no direct
+                # id_in slot on the chunk table.
+                id_in_supported=False,
             ),
             QueryProfile(
                 key="task_outline_context",
@@ -125,6 +143,8 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 executor_key="unstructured_pgvector",
                 default_limit=8,
                 max_limit=50,
+                allowed_tag_types=("majors", "abilities", "topics"),
+                id_in_supported=False,
             ),
         ),
     ),
@@ -143,6 +163,8 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 executor_key="unstructured_pgvector",
                 default_limit=8,
                 max_limit=50,
+                allowed_tag_types=("majors", "occupations", "abilities", "topics"),
+                id_in_supported=False,
             ),
         ),
     ),
@@ -163,6 +185,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 allowed_filters=MAJOR_DISTRIBUTION_FIELDS,
                 allowed_group_by=("year",),
                 allowed_metrics=("sum:distribution_count", "count:record"),
+                allowed_tag_types=("regions", "majors", "time_ranges"),
             ),
             QueryProfile(
                 key="major_distribution.by_province",
@@ -173,6 +196,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 allowed_filters=MAJOR_DISTRIBUTION_FIELDS,
                 allowed_group_by=("province_name",),
                 allowed_metrics=("sum:distribution_count", "count:record"),
+                allowed_tag_types=("regions", "majors", "time_ranges"),
             ),
             QueryProfile(
                 key="major_distribution.by_education_level",
@@ -183,6 +207,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 allowed_filters=MAJOR_DISTRIBUTION_FIELDS,
                 allowed_group_by=("education_level",),
                 allowed_metrics=("sum:distribution_count", "count:record"),
+                allowed_tag_types=("regions", "majors", "time_ranges"),
             ),
             QueryProfile(
                 key="major_distribution.record_list",
@@ -191,6 +216,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 executor_key="major_distribution_sql",
                 table_profile="major_distribution.v1",
                 allowed_filters=MAJOR_DISTRIBUTION_FIELDS,
+                allowed_tag_types=("regions", "majors", "time_ranges"),
             ),
         ),
     ),
@@ -209,6 +235,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 executor_key="job_demand_sql",
                 table_profile="job_demand.v1",
                 allowed_filters=JOB_DEMAND_FIELDS,
+                allowed_tag_types=("regions", "industries", "occupations", "time_ranges"),
             ),
             QueryProfile(
                 key="job_demand.count_by_city",
@@ -219,6 +246,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 allowed_filters=JOB_DEMAND_FIELDS,
                 allowed_group_by=("city",),
                 allowed_metrics=("count:record", "sum:job_count"),
+                allowed_tag_types=("regions", "industries", "occupations", "time_ranges"),
             ),
             QueryProfile(
                 key="job_demand.count_by_education",
@@ -229,6 +257,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 allowed_filters=JOB_DEMAND_FIELDS,
                 allowed_group_by=("education_requirement",),
                 allowed_metrics=("count:record", "sum:job_count"),
+                allowed_tag_types=("regions", "industries", "occupations", "time_ranges"),
             ),
             QueryProfile(
                 key="job_demand.salary_distribution",
@@ -243,6 +272,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                     "avg:salary_max",
                     "count:record",
                 ),
+                allowed_tag_types=("regions", "industries", "occupations", "time_ranges"),
             ),
             QueryProfile(
                 key="job_demand.requirement_keyword",
@@ -257,6 +287,13 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                     "normalized_name",
                     "taxonomy_code",
                     "evidence_field",
+                ),
+                # requirement_item flows into ability + topic (v1.3 §2.4
+                # conditional projection); other job dimensions still
+                # apply at the parent-record level.
+                allowed_tag_types=(
+                    "regions", "industries", "occupations",
+                    "abilities", "topics", "time_ranges",
                 ),
             ),
         ),
@@ -276,6 +313,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 executor_key="competency_sql",
                 table_profile="ability_analysis.pgsd.v1",
                 allowed_filters=COMPETENCY_TASK_TREE_FIELDS,
+                allowed_tag_types=("occupations", "abilities", "majors"),
             ),
             QueryProfile(
                 key="competency.ability_items_by_category",
@@ -286,6 +324,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 allowed_filters=COMPETENCY_ABILITY_ITEM_FIELDS,
                 allowed_group_by=("ability_major_category_code",),
                 allowed_metrics=("count:record",),
+                allowed_tag_types=("occupations", "abilities", "majors"),
             ),
             QueryProfile(
                 key="competency.ability_items_by_task",
@@ -296,6 +335,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 allowed_filters=COMPETENCY_ABILITY_ITEM_FIELDS,
                 allowed_group_by=("task_code",),
                 allowed_metrics=("count:record",),
+                allowed_tag_types=("occupations", "abilities", "majors"),
             ),
             QueryProfile(
                 key="competency.relations_by_ability",
@@ -304,6 +344,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 executor_key="competency_sql",
                 table_profile="ability_analysis.pgsd.v1",
                 allowed_filters=COMPETENCY_RELATION_FIELDS,
+                allowed_tag_types=("occupations", "abilities", "majors"),
             ),
         ),
     ),
