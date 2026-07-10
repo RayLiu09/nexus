@@ -8,6 +8,11 @@ from typing import Protocol
 from sqlalchemy.orm import Session
 
 from nexus_app.config import Settings, get_settings
+from nexus_app.retrieval.dag_orchestrator import (
+    DagCycleDetected,
+    DagDepthExceeded,
+    execute_plan_as_dag,
+)
 from nexus_app.retrieval.executors import (
     CompetencyRetrievalExecutor,
     JobDemandRetrievalExecutor,
@@ -195,7 +200,24 @@ class RetrievalOrchestrator:
     ) -> tuple[ConversationStep, list[RetrievalResult]]:
         started_at = _now()
         started_monotonic = time.monotonic()
-        results = [self._execute_sub_query(session, sub_query) for sub_query in plan.sub_queries]
+        # v1.3 PR-11 — schedule under DAG semantics.  Pre-v1.3 plans have
+        # no depends_on / binding_map / binding-string tags → the DAG
+        # collapses to one layer with every sub_query independent, so
+        # this path is fully backwards-compatible.
+        try:
+            dag_result = execute_plan_as_dag(
+                session=session,
+                plan=plan,
+                execute_sub_query=self._execute_sub_query,
+            )
+            results = dag_result.results
+        except (DagCycleDetected, DagDepthExceeded) as exc:
+            # Fail every sub_query with a clear reason.  The pack status
+            # aggregator will collapse this to FAILED.
+            results = [
+                _failed_result(sub_query, f"dag_error:{type(exc).__name__}: {exc}")
+                for sub_query in plan.sub_queries
+            ]
         elapsed_ms = (time.monotonic() - started_monotonic) * 1000
         failed = [result for result in results if result.status == StepStatus.FAILED]
         completed = [result for result in results if result.status == StepStatus.COMPLETED]
