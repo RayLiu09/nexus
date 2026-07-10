@@ -16,6 +16,14 @@ INTENT_CONFIDENCE_THRESHOLD = 0.78
 MAX_SUB_QUERIES = 5
 ACCESS_SCOPE_ALL_ASSETS = "all_assets"
 
+# v1.3 R3 defaults for DAG planner limits (see §5.3, §5.4 and
+# tag_filter_reliability_matrix_v1.md §2 step 3).  Kept as module
+# constants so callers (and PR-4 Resolver / PR-11 orchestrator) can
+# import a single source of truth.
+MAX_DAG_DEPTH_DEFAULT = 3
+MAX_SUB_QUERIES_V1_3 = 8
+DEFAULT_COMBINE_OP = "AND"
+
 
 class BusinessDomain(StrEnum):
     COURSE_TEXTBOOK = "course_textbook"
@@ -81,6 +89,15 @@ class RetrievalIntent(StrictModel):
     missing_constraints: list[str] = Field(default_factory=list)
     suggested_refinements: list[str] = Field(default_factory=list)
     clarification_policy: str = "ask_user_when_confidence_below_0_78"
+    # v1.3 §5.1 R3 additions — all default-empty so pre-v1.3 payloads
+    # still validate.
+    cross_asset_tags: "CrossAssetTags | None" = None
+    unresolved_terms: list[str] = Field(default_factory=list)
+    tag_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    # Domain-code → resource-hint (e.g. "outline_traversal",
+    # "sql_aggregation", "ability_graph_walk").  Free string values so
+    # planner can extend without a schema bump.
+    resource_hints: dict[str, str] = Field(default_factory=dict)
 
     @property
     def needs_clarification(self) -> bool:
@@ -135,6 +152,14 @@ class RetrievalSubQuery(StrictModel):
     query_text: str = Field(min_length=1)
     structured_plan: StructuredPlan | None = None
     unstructured_plan: UnstructuredPlan | None = None
+    # v1.3 §5.3 R3 additions — DAG + tag_filter + binding contract.
+    # All default-empty so pre-v1.3 sub_queries still validate.
+    tag_filters: dict[str, "TagFilter"] = Field(default_factory=dict)
+    binding_map: dict[str, "BindingSpec"] = Field(default_factory=dict)
+    depends_on: list[str] = Field(default_factory=list)
+    structured_filters: dict[str, Any] = Field(default_factory=dict)
+    combine: str = DEFAULT_COMBINE_OP
+    output_binding: str | None = None
 
     @model_validator(mode="after")
     def _validate_plan_for_channel(self):
@@ -147,17 +172,87 @@ class RetrievalSubQuery(StrictModel):
                 raise ValueError("hybrid sub query requires at least one plan")
         return self
 
+    @model_validator(mode="after")
+    def _validate_v1_3_extensions(self):
+        # tag_filters keys must be canonical plural bucket names to keep
+        # the resolver contract single-source (I-3 invariant).
+        from nexus_app.retrieval.tag_schemas import TAG_BUCKET_NAMES
+
+        for key in self.tag_filters:
+            if key not in TAG_BUCKET_NAMES:
+                raise ValueError(
+                    f"tag_filters key must be one of {TAG_BUCKET_NAMES}; got {key!r}"
+                )
+
+        # depends_on must not self-reference; cycle-detection at DAG
+        # execution time (PR-11).
+        if self.query_id in self.depends_on:
+            raise ValueError(
+                f"sub_query {self.query_id!r} depends on itself"
+            )
+
+        # combine restricted to the three known ops (kept as str for
+        # planner extensibility, validated here).
+        if self.combine not in ("AND", "OR", "WEIGHTED"):
+            raise ValueError(
+                f"combine must be one of AND/OR/WEIGHTED; got {self.combine!r}"
+            )
+
+        return self
+
 
 class RetrievalPlan(StrictModel):
     original_query: str = Field(min_length=1)
-    sub_queries: list[RetrievalSubQuery] = Field(min_length=1, max_length=MAX_SUB_QUERIES)
+    # NOTE: sub_queries max_length keeps MAX_SUB_QUERIES (5) for
+    # backwards read-compat with pre-v1.3 plans.  R3 introduced
+    # MAX_SUB_QUERIES_V1_3 (8) — planner may emit up to 8 by using
+    # ``max_sub_queries`` field to signal the intended cap, and callers
+    # override the Pydantic validator via a factory (see PR-11).  For
+    # now we keep the strict cap at 8 to match v1.3 §5.3 example plans.
+    sub_queries: list[RetrievalSubQuery] = Field(min_length=1, max_length=MAX_SUB_QUERIES_V1_3)
     merge_goal: str = Field(default="生成结构化 Markdown 检索/召回结果")
+    # v1.3 §5.3 R3 additions — DAG + merge strategy + friendly_view.
+    # All default-empty so pre-v1.3 plans still validate.
+    shared_constraints: "CrossAssetTags | None" = None
+    merge_strategy: str = Field(default="default")
+    max_dag_depth: int = Field(default=MAX_DAG_DEPTH_DEFAULT, ge=1, le=6)
+    max_sub_queries: int = Field(default=MAX_SUB_QUERIES_V1_3, ge=1, le=20)
+    friendly_view: "FriendlyRetrievalPlanView | None" = None
 
     @model_validator(mode="after")
     def _validate_unique_query_ids(self):
         query_ids = [sub_query.query_id for sub_query in self.sub_queries]
         if len(query_ids) != len(set(query_ids)):
             raise ValueError("sub query ids must be unique")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_v1_3_extensions(self):
+        # merge_strategy restricted to two known values; kept as str for
+        # planner extensibility.
+        if self.merge_strategy not in ("default", "evidence_chain"):
+            raise ValueError(
+                f"merge_strategy must be 'default' or 'evidence_chain'; "
+                f"got {self.merge_strategy!r}"
+            )
+
+        # depends_on must reference an existing sub_query in the plan.
+        query_id_set = {sub.query_id for sub in self.sub_queries}
+        for sub in self.sub_queries:
+            for dep in sub.depends_on:
+                if dep not in query_id_set:
+                    raise ValueError(
+                        f"sub_query {sub.query_id!r} depends on unknown "
+                        f"query_id {dep!r}"
+                    )
+
+        # sub_queries count vs declared max_sub_queries.
+        if len(self.sub_queries) > self.max_sub_queries:
+            raise ValueError(
+                f"sub_queries count ({len(self.sub_queries)}) exceeds "
+                f"declared max_sub_queries ({self.max_sub_queries})"
+            )
+
         return self
 
 
@@ -264,3 +359,44 @@ class RetrievalContextPack(StrictModel):
             raise ValueError("needs_clarification context pack requires clarification")
         return self
 
+
+
+# ---------------------------------------------------------------------------
+# Forward-ref resolution for v1.3 extensions.
+#
+# The extended fields on RetrievalIntent / RetrievalSubQuery / RetrievalPlan
+# reference types defined in ``tag_schemas.py`` — which itself imports
+# ``StrictModel`` from this file.  The forward references above (quoted
+# annotations) let Pydantic parse the classes lazily; the ``model_rebuild``
+# calls below finish binding once ``tag_schemas`` is fully loaded.
+# ---------------------------------------------------------------------------
+
+
+def _rebuild_v1_3_models() -> None:
+    from nexus_app.retrieval.tag_schemas import (  # noqa: F401 — needed for namespace
+        BindingSpec,
+        CrossAssetTags,
+        FriendlyRetrievalPlanView,
+        TagFilter,
+    )
+
+    RetrievalIntent.model_rebuild(
+        _types_namespace={
+            "CrossAssetTags": CrossAssetTags,
+        }
+    )
+    RetrievalSubQuery.model_rebuild(
+        _types_namespace={
+            "TagFilter": TagFilter,
+            "BindingSpec": BindingSpec,
+        }
+    )
+    RetrievalPlan.model_rebuild(
+        _types_namespace={
+            "CrossAssetTags": CrossAssetTags,
+            "FriendlyRetrievalPlanView": FriendlyRetrievalPlanView,
+        }
+    )
+
+
+_rebuild_v1_3_models()

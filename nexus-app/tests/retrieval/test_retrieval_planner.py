@@ -230,7 +230,10 @@ def test_planner_fails_safely_when_output_exceeds_max_sub_queries():
             "query_text": f"查询 {i}",
             "unstructured_plan": {"top_k": 3},
         }
-        for i in range(1, 7)
+        # v1.3 R3 raised MAX_SUB_QUERIES_V1_3 to 8; 9 sub_queries now
+        # trips the same schema cap that 6 used to trip against the
+        # pre-v1.3 MAX_SUB_QUERIES=5.
+        for i in range(1, 10)
     ]
     llm = _FakeLLMClient(json.dumps(_plan_payload(sub_queries), ensure_ascii=False))
     service = RetrievalPlannerService(settings=_settings(), llm_client=llm)
@@ -243,7 +246,7 @@ def test_planner_fails_safely_when_output_exceeds_max_sub_queries():
     assert result.warnings == ("retrieval_plan_schema_invalid",)
     diagnostics = result.conversation_step.display_payload["diagnostics"]
     assert diagnostics["failure_type"] == "schema_validation_failed"
-    assert diagnostics["sub_query_count"] == 6
+    assert diagnostics["sub_query_count"] == 9
     assert diagnostics["validation_error_count"] >= 1
 
 
