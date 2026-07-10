@@ -383,3 +383,25 @@ class EmbeddingStatus(StrEnum):
     PENDING  = "pending"
     EMBEDDED = "embedded"
     FAILED   = "failed"
+
+
+class TagAssetIndexTargetType(StrEnum):
+    """v1.3 tag_asset_index polymorphic target — one of the six FK-shaped
+    targets a tag row can point at.  See docs/knowledge_retrieval_result_
+    enhancement_v1.3.md §2.2."""
+    NORMALIZED_ASSET_REF        = "normalized_asset_ref"
+    OUTLINE_NODE                = "outline_node"
+    JOB_DEMAND_RECORD           = "job_demand_record"
+    JOB_DEMAND_REQUIREMENT_ITEM = "job_demand_requirement_item"
+    MAJOR_DISTRIBUTION_RECORD   = "major_distribution_record"
+    OCCUPATIONAL_ABILITY_ITEM   = "occupational_ability_item"
+
+
+class TagAssetIndexSource(StrEnum):
+    """v1.3 tag_asset_index source axis — labels *why* the row is here.
+    See docs/knowledge_retrieval_result_enhancement_v1.3.md §2.3."""
+    FIELD_PROJECTION    = "field_projection"     # structured writer projection
+    OUTLINE_PROJECTION  = "outline_projection"   # knowledge / task outline node
+    GOVERNANCE_TAG      = "governance_tag"       # AI tagging profile v2 output
+    EXPERT_MANUAL       = "expert_manual"        # Console-authored tag
+    DICT_ALIAS_HIT      = "dict_alias_hit"       # dim_*_alias upgrade path

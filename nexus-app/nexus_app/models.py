@@ -51,6 +51,8 @@ from nexus_app.enums import (
     RawObjectStatus,
     SourceKind,
     StageStatus,
+    TagAssetIndexSource,
+    TagAssetIndexTargetType,
     UserRole,
 )
 
@@ -2393,3 +2395,103 @@ class KnowledgeGraphEvidence(TimestampMixin, Base):
     evidence_text: Mapped[str] = mapped_column(Text, nullable=False)
     extraction_method: Mapped[str] = mapped_column(String(32), nullable=False)
     confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+
+
+class TagAssetIndex(TimestampMixin, Base):
+    """v1.3 §2 tag_asset_index — polymorphic semantic inverted枢纽.
+
+    One row = one (tag_type, tag_value) applied to one target (structured
+    record / outline node / normalized_asset_ref).  Powers all four
+    match layers used by the tag_filter chain (see
+    ``docs/tag_filter_reliability_matrix_v1.md``):
+
+    * L1 exact match on ``(tag_type, tag_value_normalized)``.
+    * L1.5 identical, after applying built-in normalisation (see
+      ``nexus_app.ai_governance.tag_normalization``) to the query side.
+    * L2 alias-matched value normalised through ``dim_*_alias`` and then
+      looked up on the same column.
+    * L3 exact match on ``(tag_type, standard_code)`` when a dictionary
+      hit populated the code (partial-index protected).
+    * L4 semantic HNSW lookup on ``tag_embedding``.
+
+    Column contract:
+
+    * ``tag_value`` — original human-readable form (preserved for display).
+    * ``tag_value_normalized`` — canonical form written by the projection
+      hook via ``normalize_tag_value``.  L1/L1.5/L2 read this column.
+    * ``standard_code`` — nullable; populated **only** when the alias
+      dictionary matched and unambiguous.  L3 is index-protected against
+      NULLs via a partial index.
+    * ``tag_embedding`` — nullable; produced asynchronously by the
+      embedding worker.  Rows without embedding get bypassed at L4 (see
+      matrix I-6 optional filter contract) but stay usable at L1/L1.5.
+    * ``target_type`` + ``target_id`` — polymorphic FK; the enum bounds
+      the six write-side sources documented in v1.3 §2.4 projection rules.
+    * ``asset_version_id`` — redundant with the target row's own
+      ``asset_version_id`` but cheaper to filter on for cache invalidation
+      when an asset version flips.
+    * ``source`` — provenance code; drives per-source retention / rewrite
+      / dedup rules (governance_tag is rewriten by ``recompute_tagging_only``,
+      field_projection is idempotent on writer re-run, etc.).
+    * ``extraction_run_id`` — nullable; correlates governance_tag rows to
+      the ``ai_governance_run`` that produced them so a retagging run can
+      atomically supersede its predecessors.
+    """
+
+    __tablename__ = "tag_asset_index"
+    __table_args__ = (
+        # L1 / L1.5 / L2 — exact + normalised value lookup.
+        Index("ix_tai_type_norm", "tag_type", "tag_value_normalized"),
+        # L3 — dictionary standard code (populated only when non-null).
+        Index(
+            "ix_tai_type_code",
+            "tag_type", "standard_code",
+            postgresql_where=text("standard_code IS NOT NULL"),
+        ),
+        # Reverse lookup — "which tags does this target carry".
+        Index("ix_tai_target", "target_type", "target_id"),
+        # Cache invalidation — flush all rows for a version in one sweep.
+        Index("ix_tai_asset_version", "asset_version_id"),
+        # Source projection auditability (small-cardinality axis).
+        Index("ix_tai_source", "source"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    tag_type: Mapped[str] = mapped_column(String(32), nullable=False,
+        comment="One of tag_taxonomy.types[*].code (region / industry / occupation / "
+                "major / ability / topic / time_range)")
+    tag_value: Mapped[str] = mapped_column(Text, nullable=False,
+        comment="Original human-readable form; preserved for display")
+    tag_value_normalized: Mapped[str] = mapped_column(Text, nullable=False,
+        comment="normalize_tag_value(tag_value, tag_type) — L1/L1.5/L2 lookup key")
+    standard_code: Mapped[str | None] = mapped_column(Text, nullable=True,
+        comment="Populated only when the alias dictionary hit was unambiguous")
+    tag_embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(512), nullable=True,
+        comment="bge-small-zh-v1.5 (512-d) — async, nullable while pending",
+    )
+    target_type: Mapped[TagAssetIndexTargetType] = mapped_column(
+        Enum(TagAssetIndexTargetType,
+             values_callable=lambda enum: [item.value for item in enum]),
+        nullable=False,
+    )
+    target_id: Mapped[str] = mapped_column(String(36), nullable=False,
+        comment="Polymorphic FK — must match target_type")
+    asset_version_id: Mapped[str] = mapped_column(String(36), nullable=False,
+        comment="Redundant with the target's own asset_version_id for cheap "
+                "version-cache invalidation")
+    source: Mapped[TagAssetIndexSource] = mapped_column(
+        Enum(TagAssetIndexSource,
+             values_callable=lambda enum: [item.value for item in enum]),
+        nullable=False,
+    )
+    confidence: Mapped[float | None] = mapped_column(nullable=True,
+        comment="Governance_tag source: LLM confidence 0-1. field/outline "
+                "projection: NULL. expert_manual: 1.0")
+    extraction_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True,
+        comment="ai_governance_run.id for governance_tag rows; nullable for "
+                "other sources")
+    extracted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False,
+    )
+    trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
