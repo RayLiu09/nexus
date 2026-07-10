@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from nexus_app.enums import TagAssetIndexTargetType
 from nexus_app.retrieval.schemas import BusinessDomain, RetrievalChannel
 
 
@@ -31,6 +32,15 @@ class QueryProfile:
     # Structured domains default to True; unstructured/hybrid profiles
     # can opt out.
     id_in_supported: bool = True
+    # v1.3 PR-9 — the polymorphic ``tag_asset_index.target_type`` that
+    # this profile's records anchor to.  Phase A of the two-phase
+    # structured executor narrows resolver lookups to a single target
+    # type; the executor injects the resolved id set into
+    # ``TARGET_ID_IN_KEY``.  Left as ``None`` for profiles whose join
+    # shape doesn't have a clean anchor column (e.g. competency
+    # task_tree with outer-joined items) — those profiles emit
+    # ``tag_target_type_not_configured`` and skip Phase A.
+    tag_target_type: TagAssetIndexTargetType | None = None
 
 
 @dataclass(frozen=True)
@@ -186,6 +196,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 allowed_group_by=("year",),
                 allowed_metrics=("sum:distribution_count", "count:record"),
                 allowed_tag_types=("regions", "majors", "time_ranges"),
+                tag_target_type=TagAssetIndexTargetType.MAJOR_DISTRIBUTION_RECORD,
             ),
             QueryProfile(
                 key="major_distribution.by_province",
@@ -197,6 +208,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 allowed_group_by=("province_name",),
                 allowed_metrics=("sum:distribution_count", "count:record"),
                 allowed_tag_types=("regions", "majors", "time_ranges"),
+                tag_target_type=TagAssetIndexTargetType.MAJOR_DISTRIBUTION_RECORD,
             ),
             QueryProfile(
                 key="major_distribution.by_education_level",
@@ -208,6 +220,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 allowed_group_by=("education_level",),
                 allowed_metrics=("sum:distribution_count", "count:record"),
                 allowed_tag_types=("regions", "majors", "time_ranges"),
+                tag_target_type=TagAssetIndexTargetType.MAJOR_DISTRIBUTION_RECORD,
             ),
             QueryProfile(
                 key="major_distribution.record_list",
@@ -217,6 +230,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 table_profile="major_distribution.v1",
                 allowed_filters=MAJOR_DISTRIBUTION_FIELDS,
                 allowed_tag_types=("regions", "majors", "time_ranges"),
+                tag_target_type=TagAssetIndexTargetType.MAJOR_DISTRIBUTION_RECORD,
             ),
         ),
     ),
@@ -236,6 +250,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 table_profile="job_demand.v1",
                 allowed_filters=JOB_DEMAND_FIELDS,
                 allowed_tag_types=("regions", "industries", "occupations", "time_ranges"),
+                tag_target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
             ),
             QueryProfile(
                 key="job_demand.count_by_city",
@@ -247,6 +262,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 allowed_group_by=("city",),
                 allowed_metrics=("count:record", "sum:job_count"),
                 allowed_tag_types=("regions", "industries", "occupations", "time_ranges"),
+                tag_target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
             ),
             QueryProfile(
                 key="job_demand.count_by_education",
@@ -258,6 +274,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 allowed_group_by=("education_requirement",),
                 allowed_metrics=("count:record", "sum:job_count"),
                 allowed_tag_types=("regions", "industries", "occupations", "time_ranges"),
+                tag_target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
             ),
             QueryProfile(
                 key="job_demand.salary_distribution",
@@ -273,6 +290,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                     "count:record",
                 ),
                 allowed_tag_types=("regions", "industries", "occupations", "time_ranges"),
+                tag_target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
             ),
             QueryProfile(
                 key="job_demand.requirement_keyword",
@@ -295,6 +313,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                     "regions", "industries", "occupations",
                     "abilities", "topics", "time_ranges",
                 ),
+                tag_target_type=TagAssetIndexTargetType.JOB_DEMAND_REQUIREMENT_ITEM,
             ),
         ),
     ),

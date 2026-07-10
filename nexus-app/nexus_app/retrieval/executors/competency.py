@@ -1,4 +1,14 @@
-"""Structured retrieval executor for ability_analysis.pgsd.v1."""
+"""Structured retrieval executor for ability_analysis.pgsd.v1.
+
+PR-9 note: competency profiles do not yet declare a
+``tag_target_type`` because ``task_tree`` and ``relations_by_ability``
+have outer-joined or ambiguous anchor columns.  A follow-up PR will
+add the "join lift" strategy that resolves tag_filters on ability
+items and then narrows the outer joins.  For now, if a caller supplies
+``tag_filters`` on a competency sub_query, Phase A emits
+``tag_target_type_not_configured`` and the executor runs pre-v1.3
+semantics with the warning attached to the result.
+"""
 from __future__ import annotations
 
 import time
@@ -41,11 +51,20 @@ class CompetencyRetrievalExecutor:
         else:
             result = _execute_ability_items(session, sub_query, guarded)
         result.elapsed_ms = (time.monotonic() - started) * 1000
+        if sub_query.tag_filters:
+            _dedup_append_warning(
+                result, "tag_target_type_not_configured"
+            )
         return result
 
 
 def create_competency_retrieval_executor() -> CompetencyRetrievalExecutor:
     return CompetencyRetrievalExecutor()
+
+
+def _dedup_append_warning(result: RetrievalResult, code: str) -> None:
+    if code not in result.warnings:
+        result.warnings.append(code)
 
 
 def _execute_task_tree(

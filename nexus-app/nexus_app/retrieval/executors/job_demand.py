@@ -1,4 +1,11 @@
-"""Structured retrieval executor for job_demand.v1."""
+"""Structured retrieval executor for job_demand.v1.
+
+v1.3 PR-9 — Phase A resolves ``tag_filters`` to a target_id set (narrowed
+to ``JOB_DEMAND_RECORD`` for record-shaped profiles, or
+``JOB_DEMAND_REQUIREMENT_ITEM`` for ``requirement_keyword``).  Phase B
+picks up the sentinel from ``structured_plan.filters`` and adds a
+``WHERE record.id IN (…)`` (or ``item.id IN (…)``) clause.
+"""
 from __future__ import annotations
 
 import time
@@ -17,7 +24,17 @@ from nexus_app.retrieval.schemas import (
     StepStatus,
     StructuredAggregation,
 )
-from nexus_app.retrieval.sql_guardrails import GuardedStructuredPlan, validate_structured_plan
+from nexus_app.retrieval.sql_guardrails import (
+    GuardedStructuredPlan,
+    TARGET_ID_IN_KEY,
+    validate_structured_plan,
+)
+from nexus_app.retrieval.tag_filter_execution import (
+    TagFilterExecutionResult,
+    apply_target_id_in_to_filters,
+    execute_tag_filters,
+)
+from nexus_app.retrieval.tag_resolver import TagAssetIndexResolver
 
 AGGREGATION_PROFILES = {
     "job_demand.count_by_city": "city",
@@ -27,6 +44,15 @@ AGGREGATION_PROFILES = {
 
 
 class JobDemandRetrievalExecutor:
+    def __init__(
+        self,
+        *,
+        resolver_factory: "callable | None" = None,
+    ) -> None:
+        self._resolver_factory = resolver_factory or (
+            lambda session: TagAssetIndexResolver(session)
+        )
+
     def execute(self, session: Session, sub_query: RetrievalSubQuery) -> RetrievalResult:
         if sub_query.channel != RetrievalChannel.STRUCTURED:
             raise ValueError("JobDemandRetrievalExecutor only accepts structured sub queries")
@@ -36,9 +62,26 @@ class JobDemandRetrievalExecutor:
             raise ValueError("structured sub query requires structured_plan")
 
         started = time.monotonic()
+
+        prepared_plan, phase_a = _prepare_two_phase_plan(
+            session=session,
+            sub_query=sub_query,
+            resolver_factory=self._resolver_factory,
+        )
+        if phase_a.applied and not phase_a.target_ids:
+            elapsed = (time.monotonic() - started) * 1000
+            return _empty_result(
+                sub_query=sub_query,
+                phase_a=phase_a,
+                elapsed_ms=elapsed,
+                query_profile_key=(
+                    sub_query.structured_plan.query_profile or ""
+                ),
+            )
+
         guarded = validate_structured_plan(
             domain=BusinessDomain.JOB_DEMAND,
-            plan=sub_query.structured_plan,
+            plan=prepared_plan,
         )
         if guarded.query_profile.key == "job_demand.requirement_keyword":
             result = _execute_requirement_keywords(session, sub_query, guarded)
@@ -47,11 +90,99 @@ class JobDemandRetrievalExecutor:
         else:
             result = _execute_record_list(session, sub_query, guarded)
         result.elapsed_ms = (time.monotonic() - started) * 1000
+        _attach_phase_a_meta(result, phase_a)
         return result
 
 
 def create_job_demand_retrieval_executor() -> JobDemandRetrievalExecutor:
     return JobDemandRetrievalExecutor()
+
+
+# ---------------------------------------------------------------------------
+# Two-phase helpers
+# ---------------------------------------------------------------------------
+
+
+def _prepare_two_phase_plan(
+    *,
+    session: Session,
+    sub_query: RetrievalSubQuery,
+    resolver_factory,
+) -> tuple[Any, TagFilterExecutionResult]:
+    from nexus_app.retrieval.domain_registry import get_query_profile
+
+    profile = get_query_profile(
+        BusinessDomain.JOB_DEMAND,
+        sub_query.structured_plan.query_profile,
+    )
+
+    merged_filters: dict[str, Any] = dict(sub_query.structured_plan.filters)
+    for field, value in sub_query.structured_filters.items():
+        merged_filters.setdefault(field, value)
+
+    resolver = resolver_factory(session)
+    phase_a = execute_tag_filters(
+        sub_query=sub_query,
+        profile=profile,
+        resolver=resolver,
+    )
+    apply_target_id_in_to_filters(
+        filters=merged_filters,
+        target_ids=phase_a.target_ids,
+        key=TARGET_ID_IN_KEY,
+    )
+    prepared = sub_query.structured_plan.model_copy(
+        update={"filters": merged_filters}
+    )
+    return prepared, phase_a
+
+
+def _attach_phase_a_meta(
+    result: RetrievalResult,
+    phase_a: TagFilterExecutionResult,
+) -> None:
+    for warning in phase_a.warnings:
+        if warning not in result.warnings:
+            result.warnings.append(warning)
+    if not phase_a.applied:
+        return
+    result.retrieval_meta["tag_filter_target_ids_count"] = (
+        len(phase_a.target_ids or set())
+    )
+    result.retrieval_meta["tag_filter_bucket_hit_counts"] = dict(
+        phase_a.bucket_hit_counts
+    )
+    result.retrieval_meta["tag_filter_match_layer_counts"] = dict(
+        phase_a.match_layer_counts
+    )
+    if phase_a.dropped_optional_buckets:
+        result.retrieval_meta["tag_filter_dropped_optional_buckets"] = list(
+            phase_a.dropped_optional_buckets
+        )
+
+
+def _empty_result(
+    *,
+    sub_query: RetrievalSubQuery,
+    phase_a: TagFilterExecutionResult,
+    elapsed_ms: float,
+    query_profile_key: str,
+) -> RetrievalResult:
+    result_shape = (
+        "requirement_items"
+        if query_profile_key == "job_demand.requirement_keyword"
+        else "record_list"
+    )
+    result = RetrievalResult(
+        query_id=sub_query.query_id,
+        channel=RetrievalChannel.STRUCTURED,
+        domain=BusinessDomain.JOB_DEMAND,
+        status=StepStatus.COMPLETED,
+        result_shape=result_shape,
+        elapsed_ms=elapsed_ms,
+    )
+    _attach_phase_a_meta(result, phase_a)
+    return result
 
 
 def _execute_aggregation(
@@ -163,6 +294,10 @@ def _execute_requirement_keywords(
 
 def _apply_record_filters(stmt: Select, filters: dict[str, Any]) -> Select:
     for field, value in filters.items():
+        if field == TARGET_ID_IN_KEY:
+            id_set = value if isinstance(value, (list, tuple, set)) else [value]
+            stmt = stmt.where(models.JobDemandRecord.id.in_(id_set))
+            continue
         if field not in RECORD_COLUMNS:
             continue
         stmt = _apply_filter(stmt, _record_column(field), field, value)
@@ -171,6 +306,12 @@ def _apply_record_filters(stmt: Select, filters: dict[str, Any]) -> Select:
 
 def _apply_requirement_filters(stmt: Select, filters: dict[str, Any]) -> Select:
     for field, value in filters.items():
+        if field == TARGET_ID_IN_KEY:
+            # requirement_keyword profile → the injected id set is
+            # requirement_item ids, not record ids.
+            id_set = value if isinstance(value, (list, tuple, set)) else [value]
+            stmt = stmt.where(models.JobDemandRequirementItem.id.in_(id_set))
+            continue
         if field in RECORD_COLUMNS:
             stmt = _apply_filter(stmt, _record_column(field), field, value)
         elif field in REQUIREMENT_COLUMNS:

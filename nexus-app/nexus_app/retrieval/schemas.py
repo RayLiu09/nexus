@@ -303,6 +303,16 @@ class RetrievalResult(StrictModel):
     source_refs: list[RetrievalSourceRef] = Field(default_factory=list)
     elapsed_ms: float | None = Field(default=None, ge=0.0)
     error_message: str | None = None
+    # v1.3 PR-9 — soft-failure signals surfaced from Phase A (Resolver
+    # warnings, dropped optional buckets, target_type mismatches) and
+    # Phase B (SQL execution advisories).  Empty by default so pre-v1.3
+    # payloads still validate.
+    warnings: list[str] = Field(default_factory=list)
+    # Two-phase execution metadata: match_layer counts, resolved
+    # target_ids count, per-bucket hit counts.  Kept as a free-form dict
+    # so downstream Console friendly-view / audit surface can extend
+    # without a schema bump.
+    retrieval_meta: dict[str, Any] = Field(default_factory=dict)
 
 
 class Clarification(StrictModel):

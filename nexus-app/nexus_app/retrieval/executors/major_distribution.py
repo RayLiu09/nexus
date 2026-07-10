@@ -1,4 +1,13 @@
-"""Structured retrieval executor for major_distribution.v1."""
+"""Structured retrieval executor for major_distribution.v1.
+
+v1.3 PR-9 upgrade — two-phase execution.  Phase A resolves any
+``tag_filters`` on the sub_query into a target_id set (narrowed to
+``MAJOR_DISTRIBUTION_RECORD``) via :class:`TagAssetIndexResolver` and
+injects it into ``TARGET_ID_IN_KEY``.  Phase B (SQL) detects the
+sentinel and adds a ``WHERE MajorDistributionRecord.id IN (…)`` clause,
+turning tag_filters × structured_filters into a bounded WHERE list
+rather than a cartesian join.
+"""
 from __future__ import annotations
 
 import time
@@ -19,8 +28,15 @@ from nexus_app.retrieval.schemas import (
 )
 from nexus_app.retrieval.sql_guardrails import (
     GuardedStructuredPlan,
+    TARGET_ID_IN_KEY,
     validate_structured_plan,
 )
+from nexus_app.retrieval.tag_filter_execution import (
+    TagFilterExecutionResult,
+    apply_target_id_in_to_filters,
+    execute_tag_filters,
+)
+from nexus_app.retrieval.tag_resolver import TagAssetIndexResolver
 
 AGGREGATION_PROFILES = {
     "major_distribution.trend_by_year": "year",
@@ -30,6 +46,19 @@ AGGREGATION_PROFILES = {
 
 
 class MajorDistributionRetrievalExecutor:
+    def __init__(
+        self,
+        *,
+        resolver_factory: "callable | None" = None,
+    ) -> None:
+        # ``resolver_factory(session)`` → TagAssetIndexResolver.  Left
+        # optional so tests can inject a stub; the default builds a
+        # resolver with no embedding_client (L1/L1.5 only) — production
+        # wires an EmbeddingClient through the orchestrator.
+        self._resolver_factory = resolver_factory or (
+            lambda session: TagAssetIndexResolver(session)
+        )
+
     def execute(self, session: Session, sub_query: RetrievalSubQuery) -> RetrievalResult:
         if sub_query.channel != RetrievalChannel.STRUCTURED:
             raise ValueError("MajorDistributionRetrievalExecutor only accepts structured sub queries")
@@ -39,20 +68,124 @@ class MajorDistributionRetrievalExecutor:
             raise ValueError("structured sub query requires structured_plan")
 
         started = time.monotonic()
+
+        # -- Phase A: resolve tag_filters + fold structured_filters ----
+        prepared_plan, phase_a = _prepare_two_phase_plan(
+            session=session,
+            sub_query=sub_query,
+            resolver_factory=self._resolver_factory,
+        )
+        # v1.3 §5.3 R3 — a short-circuit result when Phase A intersected
+        # to empty on AND op.  Skip the SQL round-trip entirely.
+        if phase_a.applied and not phase_a.target_ids:
+            elapsed = (time.monotonic() - started) * 1000
+            return _empty_result(
+                sub_query=sub_query,
+                phase_a=phase_a,
+                elapsed_ms=elapsed,
+            )
+
         guarded = validate_structured_plan(
             domain=BusinessDomain.MAJOR_DISTRIBUTION,
-            plan=sub_query.structured_plan,
+            plan=prepared_plan,
         )
         if guarded.query_profile.key in AGGREGATION_PROFILES:
             result = _execute_aggregation(session, sub_query, guarded)
         else:
             result = _execute_record_list(session, sub_query, guarded)
         result.elapsed_ms = (time.monotonic() - started) * 1000
+        _attach_phase_a_meta(result, phase_a)
         return result
 
 
 def create_major_distribution_retrieval_executor() -> MajorDistributionRetrievalExecutor:
     return MajorDistributionRetrievalExecutor()
+
+
+# ---------------------------------------------------------------------------
+# Two-phase helpers
+# ---------------------------------------------------------------------------
+
+
+def _prepare_two_phase_plan(
+    *,
+    session: Session,
+    sub_query: RetrievalSubQuery,
+    resolver_factory,
+) -> tuple[Any, TagFilterExecutionResult]:
+    """Fold ``structured_filters`` + Phase A output into ``structured_plan``.
+
+    Returns the mutated plan (a shallow copy so the caller's original
+    payload is not touched) and the Phase A result for observability.
+    """
+    from nexus_app.retrieval.domain_registry import get_query_profile
+
+    profile = get_query_profile(
+        BusinessDomain.MAJOR_DISTRIBUTION,
+        sub_query.structured_plan.query_profile,
+    )
+
+    merged_filters: dict[str, Any] = dict(sub_query.structured_plan.filters)
+    for field, value in sub_query.structured_filters.items():
+        merged_filters.setdefault(field, value)
+
+    resolver = resolver_factory(session)
+    phase_a = execute_tag_filters(
+        sub_query=sub_query,
+        profile=profile,
+        resolver=resolver,
+    )
+    apply_target_id_in_to_filters(
+        filters=merged_filters,
+        target_ids=phase_a.target_ids,
+        key=TARGET_ID_IN_KEY,
+    )
+    prepared = sub_query.structured_plan.model_copy(
+        update={"filters": merged_filters}
+    )
+    return prepared, phase_a
+
+
+def _attach_phase_a_meta(
+    result: RetrievalResult,
+    phase_a: TagFilterExecutionResult,
+) -> None:
+    for warning in phase_a.warnings:
+        if warning not in result.warnings:
+            result.warnings.append(warning)
+    if not phase_a.applied:
+        return
+    result.retrieval_meta["tag_filter_target_ids_count"] = (
+        len(phase_a.target_ids or set())
+    )
+    result.retrieval_meta["tag_filter_bucket_hit_counts"] = dict(
+        phase_a.bucket_hit_counts
+    )
+    result.retrieval_meta["tag_filter_match_layer_counts"] = dict(
+        phase_a.match_layer_counts
+    )
+    if phase_a.dropped_optional_buckets:
+        result.retrieval_meta["tag_filter_dropped_optional_buckets"] = list(
+            phase_a.dropped_optional_buckets
+        )
+
+
+def _empty_result(
+    *,
+    sub_query: RetrievalSubQuery,
+    phase_a: TagFilterExecutionResult,
+    elapsed_ms: float,
+) -> RetrievalResult:
+    result = RetrievalResult(
+        query_id=sub_query.query_id,
+        channel=RetrievalChannel.STRUCTURED,
+        domain=BusinessDomain.MAJOR_DISTRIBUTION,
+        status=StepStatus.COMPLETED,
+        result_shape="record_list",
+        elapsed_ms=elapsed_ms,
+    )
+    _attach_phase_a_meta(result, phase_a)
+    return result
 
 
 def _execute_aggregation(
@@ -128,6 +261,13 @@ def _execute_record_list(
 
 def _apply_filters(stmt: Select, filters: dict[str, Any]) -> Select:
     for field, value in filters.items():
+        # PR-9 — Phase A's resolved target_id set arrives here.  Bind it
+        # to the anchor record.id column and skip the normal column
+        # lookup path so ``_column()`` isn't asked for the sentinel.
+        if field == TARGET_ID_IN_KEY:
+            id_set = value if isinstance(value, (list, tuple, set)) else [value]
+            stmt = stmt.where(models.MajorDistributionRecord.id.in_(id_set))
+            continue
         column = _column(field)
         if field == "major_name" and isinstance(value, str):
             stmt = stmt.where(column.contains(value))
