@@ -25,6 +25,7 @@ class _FakeSearchAdapter:
         knowledge_type_code=None,
         top_k=10,
         similarity_threshold=0.7,
+        normalized_ref_ids=None,
     ):
         self.calls.append(
             {
@@ -32,6 +33,7 @@ class _FakeSearchAdapter:
                 "knowledge_type_code": knowledge_type_code,
                 "top_k": top_k,
                 "similarity_threshold": similarity_threshold,
+                "normalized_ref_ids": normalized_ref_ids,
             }
         )
         return self.hits[:top_k]
@@ -100,6 +102,7 @@ def test_unstructured_executor_normalizes_pgvector_hits(session):
             "knowledge_type_code": "course_textbook",
             "top_k": 3,
             "similarity_threshold": 0.62,
+            "normalized_ref_ids": None,
         }
     ]
 

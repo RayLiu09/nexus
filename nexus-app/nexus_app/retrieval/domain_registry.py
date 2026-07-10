@@ -145,6 +145,9 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 # filter (see F7/F8 in reliability matrix) — no direct
                 # id_in slot on the chunk table.
                 id_in_supported=False,
+                # PR-10: Phase A narrows tag_filters to normalized_ref
+                # rows; Phase B (pgvector) filters chunks by ref set.
+                tag_target_type=TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
             ),
             QueryProfile(
                 key="task_outline_context",
@@ -155,6 +158,11 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 max_limit=50,
                 allowed_tag_types=("majors", "abilities", "topics"),
                 id_in_supported=False,
+                # OUTLINE_NODE support requires a chunk→outline_node
+                # join lift — deferred to a follow-up.  Left as None so
+                # PR-10 code path emits ``tag_target_type_not_configured``
+                # and falls back to unfiltered semantic search.
+                tag_target_type=None,
             ),
         ),
     ),
@@ -175,6 +183,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 max_limit=50,
                 allowed_tag_types=("majors", "occupations", "abilities", "topics"),
                 id_in_supported=False,
+                tag_target_type=TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
             ),
         ),
     ),

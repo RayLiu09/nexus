@@ -142,6 +142,12 @@ class UnstructuredPlan(StrictModel):
     filters: dict[str, Any] = Field(default_factory=dict)
     query_terms: list[str] = Field(default_factory=list)
     similarity_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    # v1.3 PR-10 — explicit query_profile lets the executor pick the
+    # right profile without falling back to the domain default (which is
+    # ambiguous when a domain has multiple unstructured profiles, e.g.
+    # course_textbook.semantic_chunk vs course_textbook.task_outline_context).
+    # Defaults to ``None`` so pre-v1.3 payloads still validate.
+    query_profile: str | None = None
 
 
 class RetrievalSubQuery(StrictModel):
