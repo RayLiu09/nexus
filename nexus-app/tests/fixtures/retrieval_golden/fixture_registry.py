@@ -654,6 +654,145 @@ def seed_major_distribution_from_xlsx_sample(session) -> dict[str, Any]:
     }
 
 
+def seed_ability_analysis_from_synthetic(session) -> dict[str, Any]:
+    """M-C.3 Step 4 — bootstrap ability_analysis data via a synthetic
+    record_body instead of the full xlsx→B5→B6 pipeline.
+
+    Rationale: the ability_analysis sample xlsx has 10+ sheets and
+    requires the B5 LLM task_description_structuring stage plus PGSD
+    profile + prompt profile seeds.  The value / complexity ratio for
+    a golden fixture is poor.  We instead hand-craft a minimal
+    ``record_body`` and call ``ability_analysis_writer.write()``
+    directly — this still exercises PR-6b's write-side tag_projection
+    hook (OccupationalAbilityItem → ability tag) end-to-end, just
+    without the B5 LLM detour.
+
+    Seeds a minimal PGSD profile (analogous to
+    tests/e2e/pipeline_b/conftest.py::_seed_pipeline_b_runtime_rows
+    but stripped to what the writer needs).
+
+    Returns:
+    - ``analysis_id``
+    - ``ability_item_ids`` — order stable via ability_code
+    - ``asset_version_id`` / ``ref_id`` — governance anchors
+    """
+    from sqlalchemy import select
+
+    from nexus_app.domain_normalize import ability_analysis_writer
+
+    _PGSD_CATEGORY_SCHEMA = [
+        {"code": "P", "name": "职业能力"},
+        {"code": "G", "name": "通用能力"},
+        {"code": "S", "name": "社会能力"},
+        {"code": "D", "name": "发展能力"},
+    ]
+    _PGSD_CODE_PATTERN = {
+        "P": {"regex": r"^P-\d+\.\d+\.\d+$", "segments": 3,
+              "requires_work_content": True},
+        "G": {"regex": r"^G-\d+\.\d+$", "segments": 2,
+              "requires_work_content": False},
+        "S": {"regex": r"^S-\d+\.\d+$", "segments": 2,
+              "requires_work_content": False},
+        "D": {"regex": r"^D-\d+\.\d+$", "segments": 2,
+              "requires_work_content": False},
+    }
+
+    # Idempotent — Postgres dev DB may already have a PGSD profile
+    # from the alembic seed (uq_aap_model_schema on model_code +
+    # schema_version).  SQLite tests start from empty schema every
+    # call, so the profile is always inserted fresh.
+    existing_profile = session.scalar(
+        select(models.AbilityAnalysisProfile).where(
+            models.AbilityAnalysisProfile.model_code == "PGSD",
+            models.AbilityAnalysisProfile.schema_version
+            == "ability_analysis.pgsd.v1",
+        )
+    )
+    if existing_profile is None:
+        session.add(models.AbilityAnalysisProfile(
+            id="prof-pgsd-golden",
+            model_code="PGSD", model_name="PGSD",
+            schema_version="ability_analysis.pgsd.v1",
+            category_schema=_PGSD_CATEGORY_SCHEMA,
+            code_pattern=_PGSD_CODE_PATTERN,
+            is_active=True, is_builtin=True,
+            initialized_by="golden_fixture",
+        ))
+        session.flush()
+
+    scaffold = _seed_asset_scaffold(
+        session, ref_id="ref-aa-synth",
+        asset_kind=AssetKind.RECORD,
+        normalized_type=NormalizedType.RECORD,
+        domain_profile="ability_analysis.pgsd.v1",
+    )
+    ref = session.scalar(
+        select(models.NormalizedAssetRef).where(
+            models.NormalizedAssetRef.id == scaffold["ref_id"]
+        )
+    )
+
+    # Hand-crafted record_body: 1 task, 1 work_content, 2 P-abilities
+    # under it + 1 G-ability directly on the task.  Exercises both
+    # code patterns and the tag_projection hook.
+    record_body = {
+        "analysis": {
+            "analysis_model": "PGSD",
+            "major_name": "大数据技术应用",
+        },
+        "tasks": [{
+            "task_code": "1",
+            "task_name": "数据采集",
+            "task_description": "从多源采集数据",
+            "work_contents": [{
+                "content_code": "1.1",
+                "content_name": "日志系统数据采集",
+                "abilities": [
+                    {
+                        "ability_code": "P-1.1.1",
+                        "ability_content": "掌握 Flume 日志采集技术",
+                        "ability_major_category_code": "P",
+                        "ability_sequence": "1.1.1",
+                    },
+                    {
+                        "ability_code": "P-1.1.2",
+                        "ability_content": "掌握 Kafka 流数据接入",
+                        "ability_major_category_code": "P",
+                        "ability_sequence": "1.1.2",
+                    },
+                ],
+            }],
+            "general_abilities": {
+                "G": [{
+                    "ability_code": "G-1.1",
+                    "ability_content": "具备团队协作与沟通能力",
+                    "ability_major_category_code": "G",
+                    "ability_sequence": "1.1",
+                }],
+            },
+        }],
+    }
+    result = ability_analysis_writer.write(session, ref, record_body)
+    if result.skipped:
+        raise RuntimeError(
+            f"ability_analysis_writer skipped: {result.reason}"
+        )
+
+    analysis = session.scalar(select(models.OccupationalAbilityAnalysis))
+    ability_items = list(session.scalars(
+        select(models.OccupationalAbilityItem)
+        .order_by(models.OccupationalAbilityItem.ability_code)
+    ))
+    session.commit()
+
+    return {
+        "analysis_id": analysis.id if analysis else None,
+        "ability_item_ids": [i.id for i in ability_items],
+        "asset_version_id": scaffold["version_id"],
+        "ref_id": scaffold["ref_id"],
+    }
+
+
 FIXTURE_REGISTRY: dict[str, Callable] = {
     "major_distribution_zj_js": seed_major_distribution_zj_js,
     "major_distribution_with_region_tags": seed_major_distribution_with_region_tags,
@@ -663,6 +802,7 @@ FIXTURE_REGISTRY: dict[str, Callable] = {
     "course_textbook_outline_topic": seed_course_textbook_outline_topic,
     "job_demand_from_xlsx_sample": seed_job_demand_from_xlsx_sample,
     "major_distribution_from_xlsx_sample": seed_major_distribution_from_xlsx_sample,
+    "ability_analysis_from_synthetic": seed_ability_analysis_from_synthetic,
 }
 
 
