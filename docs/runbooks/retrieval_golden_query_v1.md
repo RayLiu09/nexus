@@ -123,13 +123,47 @@ cassette 后，`prebuilt_plan=None` 的 case 才会开始被执行。
 
 ---
 
+## 两条执行路径
+
+Golden case 走两条互斥路径（二选一，不能都写）：
+
+### A. `prebuilt_plan`（M-C.1）— bypass intent+planner
+
+直接把手写 `RetrievalPlan` 灌进 DAG orchestrator。用于验证执行器
+/ 编排 / rerank / 审计层，不覆盖 LLM 决策。
+
+```jsonc
+"prebuilt_plan": { "original_query": "…", "sub_queries": [ … ] }
+```
+
+### B. `llm_cassette_id`（M-C.2）— full orchestrator loop
+
+指向 `tests/fixtures/retrieval_golden/llm_cassettes/<id>.json`。
+harness 用 `CassetteLiteLLMClient` 回放 intent + planner 响应，
+`RetrievalOrchestrator.run()` 全链路执行。
+
+```jsonc
+"question": "北京的电商运营岗位",
+"llm_cassette_id": "cs_jd_tag_filter_regions"
+```
+
+cassette JSON 编写规范见 `llm_cassettes/README.md`。
+
+---
+
 ## 新增 case 的操作步骤
 
 1. **决定 category + domain**。
 2. **检查/新增 fixture**：
    - 已注册 fixture 请复用（`fixture_registry.FIXTURE_REGISTRY`）
    - 新 fixture 添加到 `fixture_registry.py`，同时更新 `FIXTURE_REGISTRY` dict
-3. **构造 prebuilt_plan**：拷贝相似 case 骨架，修改 profile / filters / tag_filters
+3. **选择路径 A 或 B**：
+   - **A (`prebuilt_plan`)**：拷贝相似 case 骨架，修改 profile / filters / tag_filters
+   - **B (`llm_cassette_id`)**：
+     - 在 `llm_cassettes/<case_id>.json` 手写 intent + planner 响应
+     - intent JSON 必须过 `RetrievalIntent.model_validate`
+     - planner JSON 必须过 `RetrievalPlan.model_validate`
+     - 参考现有 5 个 cassette 骨架（cs_jd__, cs_md__）
 4. **写断言**：按上面四层依次加，能不断的层次就不断（避免 flaky）
 5. **本地跑通**：
    ```bash

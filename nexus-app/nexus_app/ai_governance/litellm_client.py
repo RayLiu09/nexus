@@ -174,6 +174,61 @@ class FakeLiteLLMClient:
         return content, summary
 
 
+class CassetteLiteLLMClient:
+    """Replay a fixed sequence of pre-recorded responses.
+
+    Used by the M-C.2 golden retrieval harness so full orchestrator
+    flows (intent → planner → executors) can run without a live
+    LiteLLM connection.  Each ``.call()`` returns the next entry from
+    ``responses``; running out of tape raises so silent under-recording
+    surfaces as a hard failure rather than a mystery LLM error.
+
+    Responses are the raw ``choices[0].message.content`` string the real
+    client would produce — JSON when the caller passes
+    ``response_format={"type": "json_object"}``, else free text.
+    """
+
+    def __init__(self, responses: list[str]) -> None:
+        if not responses:
+            raise ValueError("CassetteLiteLLMClient requires at least one response")
+        self._responses = list(responses)
+        self._index = 0
+        self.calls: list[dict[str, Any]] = []
+
+    def call(
+        self,
+        model_alias: str,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float = 0.2,
+        max_tokens: int = 2048,
+        response_format: dict[str, Any] | None = None,
+    ) -> tuple[str, LiteLLMCallSummary]:
+        if self._index >= len(self._responses):
+            raise RuntimeError(
+                f"CassetteLiteLLMClient exhausted after {self._index} call(s); "
+                f"caller made an extra .call() with model_alias={model_alias!r}"
+            )
+        content = self._responses[self._index]
+        self._index += 1
+        input_hash = _hash_messages(messages)
+        self.calls.append({
+            "model_alias": model_alias,
+            "input_hash": input_hash,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "response_format": response_format,
+        })
+        summary = LiteLLMCallSummary(
+            model_alias=model_alias,
+            request_id=f"cassette-{self._index}",
+            latency_ms=0.0,
+            status="success",
+            input_hash=input_hash,
+        )
+        return content, summary
+
+
 def create_litellm_client(
     config: LiteLLMConfig | None = None,
     api_key: str = "",

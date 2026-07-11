@@ -64,6 +64,17 @@ class GoldenQuery(BaseModel):
     # runtime ``RetrievalPlan`` Pydantic model at load time.
     prebuilt_plan: dict[str, Any] | None = None
 
+    # M-C.2 — points to a cassette JSON file under
+    # ``tests/fixtures/retrieval_golden/llm_cassettes/{id}.json``.  When
+    # set (and ``prebuilt_plan`` is ``None``), the harness runs the full
+    # ``RetrievalOrchestrator.run()`` loop with a
+    # ``CassetteLiteLLMClient`` injected in place of the real LiteLLM
+    # client, so intent recognition + planner + executors all execute
+    # against recorded responses.  ``None`` means the case cannot yet
+    # be run via the LLM path (either it has ``prebuilt_plan`` for
+    # M-C.1 backward-compat, or its cassette is pending).
+    llm_cassette_id: str | None = None
+
     # ---- Structural expectations ----
 
     expected_pack_status: Literal[

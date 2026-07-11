@@ -1,0 +1,6 @@
+{
+  "case_id": "cs_jd_tag_filter_regions",
+  "description": "北京的电商运营岗位 — planner 生成 tag_filters.regions;Phase A 收窄到 record-jd-bj",
+  "intent_content": "{\"business_domains\": [\"job_demand\"], \"retrieval_channels\": [\"structured\"], \"question_type\": \"record_list\", \"output_expectation\": [\"records\"], \"constraints\": {\"regions\": [\"北京\"]}, \"confidence\": 0.9, \"candidate_intents\": [{\"business_domain\": \"job_demand\", \"question_type\": \"record_list\", \"confidence\": 0.9}], \"resource_hints\": {\"job_demand\": \"sql_record_list\"}}",
+  "planner_content": "{\"original_query\": \"北京的电商运营岗位\", \"sub_queries\": [{\"query_id\": \"q1\", \"channel\": \"structured\", \"domain\": \"job_demand\", \"purpose\": \"北京区域 job records\", \"query_text\": \"北京 电商运营\", \"structured_plan\": {\"table_profile\": \"job_demand.v1\", \"query_profile\": \"job_demand.record_list\"}, \"tag_filters\": {\"regions\": {\"tags\": [\"北京\"], \"match_strategy\": \"l1|l1.5\", \"optional\": false}}}], \"merge_goal\": \"北京区域电商运营岗位\"}"
+}

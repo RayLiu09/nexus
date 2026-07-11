@@ -1,0 +1,6 @@
+{
+  "case_id": "cs_jd_count_by_city_with_tag",
+  "description": "北京岗位按城市聚合 — 聚合 profile + tag_filter 收窄, 验证 Phase A + group_by 双通道",
+  "intent_content": "{\"business_domains\": [\"job_demand\"], \"retrieval_channels\": [\"structured\"], \"question_type\": \"aggregation\", \"output_expectation\": [\"aggregation\"], \"constraints\": {\"regions\": [\"北京\"]}, \"confidence\": 0.9, \"candidate_intents\": [{\"business_domain\": \"job_demand\", \"question_type\": \"aggregation\", \"confidence\": 0.9}], \"resource_hints\": {\"job_demand\": \"sql_aggregation\"}}",
+  "planner_content": "{\"original_query\": \"北京岗位按城市聚合\", \"sub_queries\": [{\"query_id\": \"q1\", \"channel\": \"structured\", \"domain\": \"job_demand\", \"purpose\": \"count records per city, narrowed to 北京\", \"query_text\": \"北京 岗位数\", \"structured_plan\": {\"table_profile\": \"job_demand.v1\", \"query_profile\": \"job_demand.count_by_city\", \"group_by\": [\"city\"], \"metrics\": [{\"field\": \"record\", \"function\": \"count\"}]}, \"tag_filters\": {\"regions\": {\"tags\": [\"北京\"], \"match_strategy\": \"l1|l1.5\", \"optional\": false}}}], \"merge_goal\": \"按城市统计北京区域岗位数\"}"
+}

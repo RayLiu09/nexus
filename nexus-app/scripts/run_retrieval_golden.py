@@ -48,6 +48,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from nexus_app.ai_governance.litellm_client import CassetteLiteLLMClient
 from nexus_app.database import Base
 from nexus_app.retrieval.dag_orchestrator import execute_plan_as_dag
 from nexus_app.retrieval.executors import (
@@ -58,6 +59,9 @@ from nexus_app.retrieval.executors.job_demand import JobDemandRetrievalExecutor
 from nexus_app.retrieval.executors.major_distribution import (
     MajorDistributionRetrievalExecutor,
 )
+from nexus_app.retrieval.intent import IntentRecognitionService
+from nexus_app.retrieval.orchestrator import RetrievalOrchestrator
+from nexus_app.retrieval.planner import RetrievalPlannerService
 from nexus_app.retrieval.schemas import (
     BusinessDomain,
     RetrievalChannel,
@@ -66,7 +70,11 @@ from nexus_app.retrieval.schemas import (
     RetrievalSubQuery,
     StepStatus,
 )
-from tests.fixtures.retrieval_golden import GoldenQuery, seed_fixture
+from tests.fixtures.retrieval_golden import (
+    GoldenQuery,
+    cassette_responses,
+    seed_fixture,
+)
 
 
 def _load_queries(path: Path) -> list[GoldenQuery]:
@@ -173,13 +181,41 @@ def _pack_status(results: list[RetrievalResult]) -> str:
     return "failed"
 
 
+def _envelope_for(
+    case_id: str,
+    elapsed_ms: float,
+    results: list[RetrievalResult],
+) -> dict[str, Any]:
+    return {
+        "case_id": case_id,
+        "elapsed_ms": round(elapsed_ms, 2),
+        "pack_status": _pack_status(results),
+        "warnings": [w for r in results for w in r.warnings],
+        "sub_queries": [
+            {
+                "query_id": r.query_id,
+                "channel": str(r.channel),
+                "domain": str(r.domain),
+                "status": str(r.status),
+                "result_shape": r.result_shape,
+                "record_ids": _record_ids(r),
+                "warnings": list(r.warnings),
+                "retrieval_meta": dict(r.retrieval_meta),
+                "error_message": r.error_message,
+            }
+            for r in results
+        ],
+        "error": None,
+    }
+
+
 def run_one(golden: GoldenQuery) -> dict[str, Any]:
     """Execute one golden query and return the flattened result envelope."""
-    if golden.prebuilt_plan is None:
+    if golden.prebuilt_plan is None and golden.llm_cassette_id is None:
         return {
             "case_id": golden.case_id,
             "skipped": True,
-            "reason": "prebuilt_plan missing; deferred to M-C.2",
+            "reason": "neither prebuilt_plan nor llm_cassette_id set",
         }
 
     session = _make_session()
@@ -191,45 +227,62 @@ def run_one(golden: GoldenQuery) -> dict[str, Any]:
             golden.expected_rerank_order
         )
         executor_map = _executor_map(rerank_enabled=rerank_enabled)
-        dispatch = _dispatch_for(executor_map)
-
-        try:
-            plan = RetrievalPlan.model_validate(golden.prebuilt_plan)
-        except Exception as exc:  # noqa: BLE001
-            return {
-                "case_id": golden.case_id,
-                "error": f"plan_validation_error: {type(exc).__name__}: {exc}",
-                "skipped": False,
-            }
 
         started = time.monotonic()
-        dag_result = execute_plan_as_dag(
-            session=session, plan=plan, execute_sub_query=dispatch,
-        )
-        elapsed_ms = (time.monotonic() - started) * 1000
-        results = dag_result.results
-
-        return {
-            "case_id": golden.case_id,
-            "elapsed_ms": round(elapsed_ms, 2),
-            "pack_status": _pack_status(results),
-            "warnings": [w for r in results for w in r.warnings],
-            "sub_queries": [
-                {
-                    "query_id": r.query_id,
-                    "channel": str(r.channel),
-                    "domain": str(r.domain),
-                    "status": str(r.status),
-                    "result_shape": r.result_shape,
-                    "record_ids": _record_ids(r),
-                    "warnings": list(r.warnings),
-                    "retrieval_meta": dict(r.retrieval_meta),
-                    "error_message": r.error_message,
+        if golden.prebuilt_plan is not None:
+            # M-C.1 path — DAG only.
+            dispatch = _dispatch_for(executor_map)
+            try:
+                plan = RetrievalPlan.model_validate(golden.prebuilt_plan)
+            except Exception as exc:  # noqa: BLE001
+                return {
+                    "case_id": golden.case_id,
+                    "error": f"plan_validation_error: {type(exc).__name__}: {exc}",
+                    "skipped": False,
                 }
-                for r in results
-            ],
-            "error": None,
-        }
+            dag_result = execute_plan_as_dag(
+                session=session, plan=plan, execute_sub_query=dispatch,
+            )
+            results = dag_result.results
+        else:
+            # M-C.2 path — full orchestrator loop with cassette client.
+            try:
+                responses = cassette_responses(golden.llm_cassette_id)
+            except FileNotFoundError as exc:
+                return {
+                    "case_id": golden.case_id,
+                    "error": f"cassette_missing: {exc}",
+                    "skipped": False,
+                }
+            client = CassetteLiteLLMClient(responses)
+            intent_service = IntentRecognitionService(
+                llm_client=client, model_alias="cassette-intent",
+                confidence_threshold=0.78,
+            )
+            planner_service = RetrievalPlannerService(
+                llm_client=client, model_alias="cassette-planner",
+                max_sub_queries=8,
+            )
+            orchestrator = RetrievalOrchestrator(
+                intent_service=intent_service,
+                planner_service=planner_service,
+                major_distribution_executor=executor_map[
+                    (str(RetrievalChannel.STRUCTURED),
+                     str(BusinessDomain.MAJOR_DISTRIBUTION))
+                ],
+                job_demand_executor=executor_map[
+                    (str(RetrievalChannel.STRUCTURED),
+                     str(BusinessDomain.JOB_DEMAND))
+                ],
+                competency_executor=executor_map[
+                    (str(RetrievalChannel.STRUCTURED),
+                     str(BusinessDomain.COMPETENCY_ANALYSIS))
+                ],
+            )
+            context_pack = orchestrator.run(session, golden.question)
+            results = list(context_pack.retrieval_results)
+        elapsed_ms = (time.monotonic() - started) * 1000
+        return _envelope_for(golden.case_id, elapsed_ms, results)
     finally:
         session.close()
 

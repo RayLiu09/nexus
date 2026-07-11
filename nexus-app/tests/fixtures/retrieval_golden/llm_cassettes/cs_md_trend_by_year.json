@@ -1,0 +1,6 @@
+{
+  "case_id": "cs_md_trend_by_year",
+  "description": "电子商务专业布点年度趋势 — 单域聚合; planner 生成 group_by+metrics",
+  "intent_content": "{\"business_domains\": [\"major_distribution\"], \"retrieval_channels\": [\"structured\"], \"question_type\": \"trend\", \"output_expectation\": [\"aggregation\"], \"confidence\": 0.9, \"candidate_intents\": [{\"business_domain\": \"major_distribution\", \"question_type\": \"trend\", \"confidence\": 0.9}], \"resource_hints\": {\"major_distribution\": \"sql_aggregation\"}}",
+  "planner_content": "{\"original_query\": \"电子商务专业布点年度趋势\", \"sub_queries\": [{\"query_id\": \"q1\", \"channel\": \"structured\", \"domain\": \"major_distribution\", \"purpose\": \"trend of distribution_count by year\", \"query_text\": \"电子商务专业年度布点\", \"structured_plan\": {\"table_profile\": \"major_distribution.v1\", \"query_profile\": \"major_distribution.trend_by_year\", \"filters\": {\"major_name\": \"电子商务\"}, \"group_by\": [\"year\"], \"metrics\": [{\"field\": \"distribution_count\", \"function\": \"sum\"}]}}], \"merge_goal\": \"按年度聚合专业布点数变化\"}"
+}

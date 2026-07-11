@@ -1,20 +1,21 @@
-"""M-C.1 baseline pytest harness for retrieval golden queries.
+"""M-C.1 / M-C.2 baseline pytest harness for retrieval golden queries.
 
-Reads ``tests/fixtures/retrieval_golden/queries.jsonl``, and for each
-``GoldenQuery``:
+Reads ``tests/fixtures/retrieval_golden/queries.jsonl`` and dispatches
+each case down one of two execution paths:
 
-1. Seeds the requested fixture into the SQLite session (via the fixture
-   registry).
-2. Materialises the ``prebuilt_plan`` as a real ``RetrievalPlan``.
-3. Runs the orchestrator's DAG execution loop over the plan using the
-   real executors (structured + unstructured stubs).  No LiteLLM or
-   pgvector traffic.
-4. Asserts every declared expectation, producing per-case pass/fail
-   reports in the pytest output.
+* **M-C.1 path** — when ``prebuilt_plan`` is present, the harness
+  materialises it as a ``RetrievalPlan`` and runs it through the DAG
+  orchestrator directly.  No intent / planner LLM calls.
+* **M-C.2 path** — when ``llm_cassette_id`` is present, the harness
+  loads the cassette JSON, wraps its recorded strings in a
+  ``CassetteLiteLLMClient``, and injects the client into both
+  ``IntentRecognitionService`` and ``RetrievalPlannerService``.  The
+  full ``RetrievalOrchestrator.run()`` loop then executes intent →
+  planner → executors → DAG → audit end-to-end.
 
-Extending: add another JSONL entry validated by ``GoldenQuery``, and
-optionally register a new named seed function in
-``fixture_registry.py``.
+Cases with neither field are skipped (deferred to a future milestone).
+
+Assertions and fixture seeding are shared between both paths.
 """
 
 from __future__ import annotations
@@ -25,17 +26,19 @@ from typing import Any
 
 import pytest
 
+from nexus_app.ai_governance.litellm_client import CassetteLiteLLMClient
+from nexus_app.retrieval.dag_orchestrator import execute_plan_as_dag
 from nexus_app.retrieval.executors import (
     create_competency_retrieval_executor,
-    create_job_demand_retrieval_executor,
-    create_major_distribution_retrieval_executor,
     create_unstructured_retrieval_executor,
 )
 from nexus_app.retrieval.executors.job_demand import JobDemandRetrievalExecutor
 from nexus_app.retrieval.executors.major_distribution import (
     MajorDistributionRetrievalExecutor,
 )
-from nexus_app.retrieval.dag_orchestrator import execute_plan_as_dag
+from nexus_app.retrieval.intent import IntentRecognitionService
+from nexus_app.retrieval.orchestrator import RetrievalOrchestrator
+from nexus_app.retrieval.planner import RetrievalPlannerService
 from nexus_app.retrieval.schemas import (
     BusinessDomain,
     RetrievalChannel,
@@ -46,6 +49,7 @@ from nexus_app.retrieval.schemas import (
 )
 from tests.fixtures.retrieval_golden import (
     GoldenQuery,
+    cassette_responses,
     seed_fixture,
 )
 
@@ -254,36 +258,26 @@ def _apply_expectations(
     ids=[q.case_id for q in _QUERIES],
 )
 def test_golden_query(golden: GoldenQuery, session):
-    """Run one golden retrieval case through the executor + DAG path."""
+    """Run one golden retrieval case through the appropriate path."""
     if golden.fixture_setup is not None:
         seed_fixture(golden.fixture_setup, session)
 
-    if golden.prebuilt_plan is None:
+    if golden.prebuilt_plan is not None:
+        results = _run_prebuilt_plan(golden, session)
+    elif golden.llm_cassette_id is not None:
+        results = _run_cassette(golden, session)
+    else:
         pytest.skip(
-            f"{golden.case_id}: prebuilt_plan missing "
-            f"— intent + planner integration lands in M-C.2"
+            f"{golden.case_id}: neither prebuilt_plan nor llm_cassette_id — "
+            f"case deferred to a later milestone"
         )
-
-    # Rerank cases: enable the switch at executor level so ordering is
-    # deterministic under test.  Default OFF for all other cases mirrors
-    # production behavior.
-    rerank_enabled = golden.category == "rerank" and bool(
-        golden.expected_rerank_order
-    )
-    executor_map = _build_executor_map(rerank_enabled=rerank_enabled)
-    dispatch = _make_dispatch(executor_map)
-
-    plan = RetrievalPlan.model_validate(golden.prebuilt_plan)
-    dag_result = execute_plan_as_dag(
-        session=session,
-        plan=plan,
-        execute_sub_query=dispatch,
-    )
-    results = dag_result.results
 
     failures = _apply_expectations(golden, results)
 
     # Rerank order — asserted only when explicitly requested + rerank on.
+    rerank_enabled = golden.category == "rerank" and bool(
+        golden.expected_rerank_order
+    )
     if rerank_enabled:
         result_by_qid = {r.query_id: r for r in results}
         for qid, expected_order in golden.expected_rerank_order.items():
@@ -305,3 +299,73 @@ def test_golden_query(golden: GoldenQuery, session):
             "\n".join([f"[{golden.case_id}] {golden.notes}", *failures]),
             pytrace=False,
         )
+
+
+# ---------------------------------------------------------------------------
+# Execution paths
+# ---------------------------------------------------------------------------
+
+
+def _run_prebuilt_plan(
+    golden: GoldenQuery, session,
+) -> list[RetrievalResult]:
+    """M-C.1 path — bypass intent + planner, execute the plan directly."""
+    rerank_enabled = golden.category == "rerank" and bool(
+        golden.expected_rerank_order
+    )
+    executor_map = _build_executor_map(rerank_enabled=rerank_enabled)
+    dispatch = _make_dispatch(executor_map)
+
+    plan = RetrievalPlan.model_validate(golden.prebuilt_plan)
+    dag_result = execute_plan_as_dag(
+        session=session, plan=plan, execute_sub_query=dispatch,
+    )
+    return dag_result.results
+
+
+def _run_cassette(
+    golden: GoldenQuery, session,
+) -> list[RetrievalResult]:
+    """M-C.2 path — full orchestrator loop with a cassette LiteLLM client."""
+    responses = cassette_responses(golden.llm_cassette_id)
+    client = CassetteLiteLLMClient(responses)
+
+    intent_service = IntentRecognitionService(
+        llm_client=client,
+        model_alias="cassette-intent",
+        confidence_threshold=0.78,
+    )
+    planner_service = RetrievalPlannerService(
+        llm_client=client,
+        model_alias="cassette-planner",
+        max_sub_queries=8,
+    )
+
+    rerank_enabled = golden.category == "rerank" and bool(
+        golden.expected_rerank_order
+    )
+    executor_map = _build_executor_map(rerank_enabled=rerank_enabled)
+
+    # RetrievalOrchestrator expects an executor per (channel, domain) —
+    # the constructor accepts the individual executor overrides, so we
+    # unpack the map.  Unstructured executor is left as the default
+    # (create_unstructured_retrieval_executor) since M-C.2 cases don't
+    # exercise the pgvector path yet (that's M-C.3 territory).
+    orchestrator = RetrievalOrchestrator(
+        intent_service=intent_service,
+        planner_service=planner_service,
+        major_distribution_executor=executor_map[
+            (str(RetrievalChannel.STRUCTURED),
+             str(BusinessDomain.MAJOR_DISTRIBUTION))
+        ],
+        job_demand_executor=executor_map[
+            (str(RetrievalChannel.STRUCTURED),
+             str(BusinessDomain.JOB_DEMAND))
+        ],
+        competency_executor=executor_map[
+            (str(RetrievalChannel.STRUCTURED),
+             str(BusinessDomain.COMPETENCY_ANALYSIS))
+        ],
+    )
+    context_pack = orchestrator.run(session, golden.question)
+    return list(context_pack.retrieval_results)

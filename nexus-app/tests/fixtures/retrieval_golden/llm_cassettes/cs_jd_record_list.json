@@ -1,0 +1,6 @@
+{
+  "case_id": "cs_jd_record_list",
+  "description": "电商运营岗位有哪些 — 单域结构化 record_list; intent→planner→job_demand executor 全链路",
+  "intent_content": "{\"business_domains\": [\"job_demand\"], \"retrieval_channels\": [\"structured\"], \"question_type\": \"record_list\", \"output_expectation\": [\"records\"], \"confidence\": 0.92, \"candidate_intents\": [{\"business_domain\": \"job_demand\", \"question_type\": \"record_list\", \"confidence\": 0.92}], \"resource_hints\": {\"job_demand\": \"sql_record_list\"}}",
+  "planner_content": "{\"original_query\": \"电商运营岗位有哪些\", \"sub_queries\": [{\"query_id\": \"q1\", \"channel\": \"structured\", \"domain\": \"job_demand\", \"purpose\": \"list electronic-commerce operations job records\", \"query_text\": \"电商运营岗位明细\", \"structured_plan\": {\"table_profile\": \"job_demand.v1\", \"query_profile\": \"job_demand.record_list\"}}], \"merge_goal\": \"列出电商运营岗位明细\"}"
+}
