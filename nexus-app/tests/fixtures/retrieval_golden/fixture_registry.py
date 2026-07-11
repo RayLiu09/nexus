@@ -537,6 +537,207 @@ def seed_course_textbook_outline_topic(session) -> dict[str, Any]:
     }
 
 
+def seed_course_textbook_semantic_two_refs(session) -> dict[str, Any]:
+    """Two course_textbook refs (直播运营 / 网络营销), 2 chunks each, one
+    NORMALIZED_ASSET_REF-anchored tag row per ref.
+
+    Backs the ``semantic_chunk`` query_profile — Phase A narrows a
+    ``majors`` tag_filter to one of the two refs, and the pgvector
+    adapter's ``normalized_ref_ids`` filter restricts semantic search to
+    the chunks under that ref.  With no tag_filter, all four chunks are
+    reachable (single_domain baseline).
+
+    IDs are fixed literals so the JSONL can assert on chunk membership
+    without runtime UUID substitution.
+    """
+    from nexus_app.config import get_settings
+
+    settings = get_settings()
+    embedding_model = settings.effective_embedding_model_alias
+    embedding_dimension = settings.default_embedding_dimension
+
+    refs: dict[str, dict[str, Any]] = {}
+    collection_key = "course_textbook.document.bge.v1"
+    collection = models.VectorCollection(
+        id="vc-ct-semantic",
+        collection_key=collection_key,
+        asset_domain_type="course_textbook",
+        normalized_type="document",
+        embedding_provider="fake",
+        embedding_model=embedding_model,
+        embedding_dimension=embedding_dimension,
+        distance_metric="cosine",
+        collection_metadata={},
+    )
+    session.add(collection)
+    session.flush()
+
+    for slug, major, contents in (
+        ("dl", "直播运营", ("直播运营基础", "直播带货实战")),
+        ("wl", "网络营销", ("网络营销概论", "SEO 与内容营销")),
+    ):
+        scaffold = _seed_asset_scaffold(
+            session, ref_id=f"ref-ct-{slug}",
+            asset_kind=AssetKind.DOCUMENT,
+            normalized_type=NormalizedType.DOCUMENT,
+            domain_profile="course_textbook.v1",
+        )
+        chunk_ids: list[str] = []
+        for idx, content in enumerate(contents):
+            chunk = models.KnowledgeChunk(
+                id=f"chunk-ct-{slug}-{idx + 1}",
+                normalized_ref_id=scaffold["ref_id"],
+                knowledge_type_code="course_textbook",
+                chunk_type="semantic_block",
+                chunking_strategy="structured_decompose",
+                source_kind="extracted_from_normalized",
+                chunk_index=idx,
+                content=content,
+                chunk_metadata={},
+                embedding_status="pending",
+                source_block_ids=None,
+                locator=None,
+                knowledge_outline_node_id=None,
+            )
+            session.add(chunk)
+            session.flush()
+            _seed_pgvector_embedding_for_chunk(
+                session,
+                collection_id=collection.id,
+                collection_key=collection_key,
+                chunk=chunk,
+                asset_id=f"asset-{scaffold['ref_id']}",
+                asset_version_id=scaffold["version_id"],
+                embedding_model=embedding_model,
+                embedding_dimension=embedding_dimension,
+            )
+            chunk_ids.append(chunk.id)
+        # Tag row anchors the whole ref — semantic_chunk profile's
+        # tag_target_type is NORMALIZED_ASSET_REF, so Phase A resolves
+        # ``majors`` (bucket) → ``major`` (tag_type, singular via
+        # BUCKET_TO_TAG_TYPE) against ref-level rows.
+        _seed_tag(
+            session,
+            target_type=TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
+            target_id=scaffold["ref_id"],
+            asset_version_id=scaffold["version_id"],
+            tag_type="major", tag_value=major,
+        )
+        refs[slug] = {
+            "ref_id": scaffold["ref_id"],
+            "asset_version_id": scaffold["version_id"],
+            "chunk_ids": chunk_ids,
+        }
+    session.commit()
+    return {
+        "collection_id": collection.id,
+        "dl_ref_id": refs["dl"]["ref_id"],
+        "dl_chunk_ids": refs["dl"]["chunk_ids"],
+        "wl_ref_id": refs["wl"]["ref_id"],
+        "wl_chunk_ids": refs["wl"]["chunk_ids"],
+    }
+
+
+def seed_course_textbook_outline_no_chunks(session) -> dict[str, Any]:
+    """One course_textbook ref + one outline_node with NO chunks
+    linking back — exercises the ``outline_chunk_lift_empty`` warning
+    branch of the ``task_outline_context`` profile.
+
+    Phase A resolves the ``topics`` tag_filter to the outline_node, then
+    ``_resolve_outline_to_chunk_ids`` returns ``[]`` because no chunk
+    carries ``knowledge_outline_node_id = outline_node.id``.  The
+    executor short-circuits with ``outline_chunk_lift_empty`` in
+    ``result.warnings`` and no items.
+
+    We still seed one orphan chunk + its pgvector row so the collection
+    isn't empty (matches production shape — an orphaned outline node is
+    coincident with other chunks in the ref, not a bare document).
+    """
+    from nexus_app.config import get_settings
+
+    settings = get_settings()
+    embedding_model = settings.effective_embedding_model_alias
+    embedding_dimension = settings.default_embedding_dimension
+
+    scaffold = _seed_asset_scaffold(
+        session, ref_id="ref-ct-empty",
+        asset_kind=AssetKind.DOCUMENT,
+        normalized_type=NormalizedType.DOCUMENT,
+        domain_profile="course_textbook.v1",
+    )
+    outline_node = models.KnowledgeOutlineNode(
+        id="outline-empty-a",
+        normalized_ref_id=scaffold["ref_id"],
+        parent_id=None,
+        level=0,
+        order_index=0,
+        title="第一章 待补充",
+        numbering=None, numbering_path=None,
+        anchor_range=None, chunk_count=0,
+        build_run_id="build-empty", fallback_used=False,
+        node_metadata={},
+    )
+    session.add(outline_node)
+    session.flush()
+    # Orphan chunk — knowledge_outline_node_id=None, so the outline
+    # lift finds nothing linking back to outline-empty-a.
+    orphan = models.KnowledgeChunk(
+        id="chunk-empty-orphan",
+        normalized_ref_id=scaffold["ref_id"],
+        knowledge_type_code="course_textbook",
+        chunk_type="semantic_block",
+        chunking_strategy="structured_decompose",
+        source_kind="extracted_from_normalized",
+        chunk_index=0,
+        content="未挂 outline 的孤儿 chunk",
+        chunk_metadata={},
+        embedding_status="pending",
+        source_block_ids=None,
+        locator=None,
+        knowledge_outline_node_id=None,
+    )
+    session.add(orphan)
+    session.flush()
+    _seed_tag(
+        session,
+        target_type=TagAssetIndexTargetType.OUTLINE_NODE,
+        target_id=outline_node.id,
+        asset_version_id=scaffold["version_id"],
+        tag_type="topic", tag_value="空章节",
+    )
+    collection_key = "course_textbook.document.bge.v1"
+    collection = models.VectorCollection(
+        id="vc-ct-empty",
+        collection_key=collection_key,
+        asset_domain_type="course_textbook",
+        normalized_type="document",
+        embedding_provider="fake",
+        embedding_model=embedding_model,
+        embedding_dimension=embedding_dimension,
+        distance_metric="cosine",
+        collection_metadata={},
+    )
+    session.add(collection)
+    session.flush()
+    _seed_pgvector_embedding_for_chunk(
+        session,
+        collection_id=collection.id,
+        collection_key=collection_key,
+        chunk=orphan,
+        asset_id=f"asset-{scaffold['ref_id']}",
+        asset_version_id=scaffold["version_id"],
+        embedding_model=embedding_model,
+        embedding_dimension=embedding_dimension,
+    )
+    session.commit()
+    return {
+        "asset_version_id": scaffold["version_id"],
+        "ref_id": scaffold["ref_id"],
+        "outline_node_id": outline_node.id,
+        "orphan_chunk_id": orphan.id,
+    }
+
+
 def seed_job_demand_from_xlsx_sample(session) -> dict[str, Any]:
     """M-C.3 Step 2 — bootstrap job_demand records from the real sample
     workbook.
@@ -898,6 +1099,8 @@ FIXTURE_REGISTRY: dict[str, Callable] = {
     "job_demand_with_region_tags": seed_job_demand_with_region_tags,
     "job_demand_weighted_rerank": seed_job_demand_weighted_rerank,
     "course_textbook_outline_topic": seed_course_textbook_outline_topic,
+    "course_textbook_semantic_two_refs": seed_course_textbook_semantic_two_refs,
+    "course_textbook_outline_no_chunks": seed_course_textbook_outline_no_chunks,
     "job_demand_from_xlsx_sample": seed_job_demand_from_xlsx_sample,
     "major_distribution_from_xlsx_sample": seed_major_distribution_from_xlsx_sample,
     "ability_analysis_from_synthetic": seed_ability_analysis_from_synthetic,

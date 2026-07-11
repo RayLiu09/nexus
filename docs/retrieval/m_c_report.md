@@ -4,8 +4,8 @@
 - **基线**：`main @ ce2c90a`（M-C.3 收官 + dev-DB 隔离）
 - **范围**：v1.3 tag_asset_index 检索链路端到端（intent → planner → executors → DAG → rerank → audit），覆盖 M-C.1（离线契约）/ M-C.2（LLM cassette 回放）/ M-C.3（Postgres + pgvector 真实环境）
 - **测试基线**：
-  - SQLite (默认)：`tests/retrieval/` **300 passed**；`tests/retrieval/test_golden_baseline.py` **25/25**
-  - Postgres (`NEXUS_GOLDEN_USE_POSTGRES=1`)：`test_golden_baseline.py` **25/25**（先前 22 pass + 3 fail → 全绿）
+  - SQLite (默认)：`tests/retrieval/` **303 passed**；`tests/retrieval/test_golden_baseline.py` **28/28**（含 M-D prep 追加的 3 条 course_textbook case）
+  - Postgres (`NEXUS_GOLDEN_USE_POSTGRES=1`)：`test_golden_baseline.py` **28/28**
 
 ---
 
@@ -22,29 +22,29 @@
 
 ## 二、Golden 覆盖矩阵
 
-**Case 数：25**（全部 pass on SQLite + Postgres）
+**Case 数：28**（全部 pass on SQLite + Postgres）
 
 ### 按 category × domain_focus
 
 |               | job_demand | major_distribution | competency_analysis | course_textbook | 合计   |
 | ------------- | ---------- | ------------------ | ------------------- | --------------- | ------ |
-| single_domain | 3          | 2                  | 1                   | ——              | 6      |
-| tag_filter    | 6          | 2                  | 1                   | ——              | 9      |
-| aggregation   | 3          | 1                  | ——                  | ——              | 4      |
-| multi_hop     | 1          | 1                  | ——                  | ——              | 2      |
+| single_domain | 3          | 2                  | 1                   | 1               | 7      |
+| tag_filter    | 4          | 2                  | 2                   | 2               | 10     |
+| aggregation   | 1          | 3                  | ——                  | ——              | 4      |
+| multi_hop     | 2          | ——                 | ——                  | ——              | 2      |
 | rerank        | 1          | ——                 | ——                  | ——              | 1      |
-| negative      | ——         | ——                 | 1                   | ——              | 1      |
-| edge_case     | ——         | 1                  | ——                  | 1               | 2      |
-| **合计**      | **14**     | **7**              | **3**               | **1**           | **25** |
+| negative      | 1          | ——                 | ——                  | ——              | 1      |
+| edge_case     | 2          | ——                 | ——                  | 1               | 3      |
+| **合计**      | **14**     | **7**              | **3**               | **4**           | **28** |
 
 ### 执行路径
 
-- **prebuilt_plan（离线）**：20 case — bypass intent/planner，直接调用 executor + DAG，验证 Phase A/B SQL + rerank + audit。
+- **prebuilt_plan（离线）**：23 case — bypass intent/planner，直接调用 executor + DAG，验证 Phase A/B SQL + rerank + audit。
 - **llm_cassette_id（cassette）**：5 case — 通过 `CassetteLiteLLMClient` 完整走 intent → planner → executor → DAG 全链路。
 
 ### 数据源分布
 
-- **合成 fixture**：`job_demand_bj_sh`（×3）、`job_demand_with_region_tags`（×7）、`job_demand_weighted_rerank`（×1）、`major_distribution_zj_js`（×3）、`major_distribution_with_region_tags`（×1）、`ability_analysis_from_synthetic`（×3）、`course_textbook_outline_topic`（×1）
+- **合成 fixture**：`job_demand_bj_sh`（×3）、`job_demand_with_region_tags`（×7）、`job_demand_weighted_rerank`（×1）、`major_distribution_zj_js`（×3）、`major_distribution_with_region_tags`（×1）、`ability_analysis_from_synthetic`（×3）、`course_textbook_outline_topic`（×1）、`course_textbook_semantic_two_refs`（×2）、`course_textbook_outline_no_chunks`（×1）
 - **真实 xlsx bootstrap**：`job_demand_from_xlsx_sample`（×3，走 `docs/samples/1.（岗位需求）...xlsx`）、`major_distribution_from_xlsx_sample`（×3，走 `docs/samples/2.（专业布点数）...xlsx`）
 
 ---
@@ -120,17 +120,15 @@
 
 ## 四、Acceptance Gate 指标
 
-| 指标                         | 目标                  | 实际                                                                 | 结论 |
-| ---------------------------- | --------------------- | -------------------------------------------------------------------- | ---- |
-| Golden case 全绿（SQLite）   | 25/25                 | **25 passed** in 1.60s                                               | ✅   |
-| Golden case 全绿（Postgres） | 25/25                 | **25 passed** in 3.22s                                               | ✅   |
-| retrieval 套件回归（SQLite） | 100%                  | **300 passed** in 4.34s                                              | ✅   |
-| Dev DB 无污染                | 差 = 0                | pre = post = `dataset=1, record=2, tag=257`                          | ✅   |
-| 覆盖矩阵                     | 4 domain × 7 category | 4 / 7（course_textbook 仅 edge_case，其他 domain 均有多个 category） | ✅ * |
-| Cassette 场景                | ≥ 3                   | 5 case（intent + planner 全链路）                                    | ✅   |
-| 真实 xlsx 端到端             | ≥ 1                   | 2 xlsx sample + 6 golden case                                        | ✅   |
-
-*course_textbook 仅覆盖 outline_topic edge_case，其余 category 归入 M-D（PR-10 unstructured executor 已完成，golden 侧后补）。
+| 指标                         | 目标                  | 实际                                                                                                                                             | 结论 |
+| ---------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ---- |
+| Golden case 全绿（SQLite）   | 28/28                 | **28 passed** in 1.69s                                                                                                                           | ✅   |
+| Golden case 全绿（Postgres） | 28/28                 | **28 passed** in 3.65s                                                                                                                           | ✅   |
+| retrieval 套件回归（SQLite） | 100%                  | **303 passed** in 4.75s                                                                                                                          | ✅   |
+| Dev DB 无污染                | 差 = 0                | pre = post = `dataset=1, record=2, tag=257`                                                                                                      | ✅   |
+| 覆盖矩阵                     | 4 domain × 7 category | 4 domain × 4-7 category（course_textbook 补齐 single_domain / tag_filter / edge_case 三条基础路径；unstructured multi_hop / rerank 由 M-D 承接） | ✅   |
+| Cassette 场景                | ≥ 3                   | 5 case（intent + planner 全链路）                                                                                                                | ✅   |
+| 真实 xlsx 端到端             | ≥ 1                   | 2 xlsx sample + 6 golden case                                                                                                                    | ✅   |
 
 ---
 
@@ -195,7 +193,7 @@ export NEXUS_GOLDEN_USE_POSTGRES=1
 
 ### 7.1 已知限制
 
-- **course_textbook 覆盖偏薄**：仅 1 case（edge_case）。unstructured executor 覆盖依赖 M-D 追加 golden。
+- **course_textbook 覆盖已补齐基础三条**（single_domain / tag_filter / edge_case，共 4 case），multi_hop 与 rerank 依赖 unstructured executor 侧对应能力，归入 M-D。
 - **rerank 场景 1 case**：`gq_rerank_weighted` 覆盖 WEIGHTED combine op；LINEAR / RRF 等其他 op 未覆盖。
 - **xlsx bootstrap fixture 依赖 stub LLM**：pipeline 内的 `body_markdown` / governance / knowledge_extraction 阶段全部 skip；如需验证这些阶段与检索的联动，得单独 cassette 化 pipeline LLM 调用（作 M-D 候选）。
 - **Dev-DB 隔离用 DELETE 全表**：目前策略是清 `job_demand_dataset` / `major_distribution_dataset` / 相关 `tag_asset_index` 全表。若未来 dev DB 里出现「需要保留的种子 dataset」，需要改成按 code / trace_id 白名单过滤。
@@ -203,14 +201,14 @@ export NEXUS_GOLDEN_USE_POSTGRES=1
 
 ### 7.2 Follow-ups（新任务候选）
 
-| 优先级 | 项                                                                                  | 建议 milestone |
-| ------ | ----------------------------------------------------------------------------------- | -------------- |
-| P0     | course_textbook golden 补齐（tag_filter / multi_hop / rerank）                      | M-D            |
-| P1     | rerank 其他 op（LINEAR / RRF / MMR）golden case                                     | M-D            |
-| P1     | P1 console retrieval-test 页面接后端 orchestrator（把 M-C 能力上 UI）               | UI-P1          |
-| P2     | Pipeline B LLM 阶段 cassette 化 —— 覆盖 body_markdown / governance 与检索之间的耦合 | M-D+           |
-| P2     | Dev-DB 隔离改按 trace_id 白名单，允许保留人工 seed                                  | 运维           |
-| P3     | pgvector golden 引入 `IVFFlat` / `HNSW` 参数校验                                    | 性能           |
+| 优先级 | 项                                                                                                     | 建议 milestone |
+| ------ | ------------------------------------------------------------------------------------------------------ | -------------- |
+| P1     | course_textbook unstructured multi_hop / rerank（依赖 unstructured 侧 combine + WEIGHTED rerank 支持） | M-D            |
+| P1     | rerank 其他 op（LINEAR / RRF / MMR）golden case                                                        | M-D            |
+| P1     | P1 console retrieval-test 页面接后端 orchestrator（把 M-C 能力上 UI）                                  | UI-P1          |
+| P2     | Pipeline B LLM 阶段 cassette 化 —— 覆盖 body_markdown / governance 与检索之间的耦合                    | M-D+           |
+| P2     | Dev-DB 隔离改按 trace_id 白名单，允许保留人工 seed                                                     | 运维           |
+| P3     | pgvector golden 引入 `IVFFlat` / `HNSW` 参数校验                                                       | 性能           |
 
 ---
 
