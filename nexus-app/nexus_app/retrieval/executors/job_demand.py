@@ -24,6 +24,7 @@ from nexus_app.retrieval.schemas import (
     StepStatus,
     StructuredAggregation,
 )
+from nexus_app.retrieval.rerank import apply_weighted_rerank
 from nexus_app.retrieval.sql_guardrails import (
     GuardedStructuredPlan,
     TARGET_ID_IN_KEY,
@@ -48,10 +49,16 @@ class JobDemandRetrievalExecutor:
         self,
         *,
         resolver_factory: "callable | None" = None,
+        rerank_enabled: bool | None = None,
     ) -> None:
         self._resolver_factory = resolver_factory or (
             lambda session: TagAssetIndexResolver(session)
         )
+        # PR-13 kill switch — resolved once per instance so tests can
+        # inject True/False without touching global settings.  Default
+        # None → read from settings.effective_rerank_enabled at request
+        # time.
+        self._rerank_enabled_override = rerank_enabled
 
     def execute(self, session: Session, sub_query: RetrievalSubQuery) -> RetrievalResult:
         if sub_query.channel != RetrievalChannel.STRUCTURED:
@@ -91,7 +98,24 @@ class JobDemandRetrievalExecutor:
             result = _execute_record_list(session, sub_query, guarded)
         result.elapsed_ms = (time.monotonic() - started) * 1000
         _attach_phase_a_meta(result, phase_a)
+        # PR-13 — inject scores + optionally reorder records for
+        # WEIGHTED combine.  Aggregation profiles skip because the
+        # ``records`` list carries group_value payloads without target
+        # ids.
+        if guarded.query_profile.key not in AGGREGATION_PROFILES:
+            _apply_rerank(
+                result=result,
+                sub_query=sub_query,
+                phase_a=phase_a,
+                rerank_enabled=self._resolve_rerank_enabled(),
+            )
         return result
+
+    def _resolve_rerank_enabled(self) -> bool:
+        if self._rerank_enabled_override is not None:
+            return self._rerank_enabled_override
+        from nexus_app.config import get_settings
+        return bool(get_settings().effective_rerank_enabled)
 
 
 def create_job_demand_retrieval_executor() -> JobDemandRetrievalExecutor:
@@ -142,6 +166,36 @@ def _prepare_two_phase_plan(
         update={"filters": merged_filters}
     )
     return prepared, phase_a
+
+
+def _apply_rerank(
+    *,
+    result: RetrievalResult,
+    sub_query: RetrievalSubQuery,
+    phase_a: TagFilterExecutionResult,
+    rerank_enabled: bool,
+) -> None:
+    """PR-13 — inject per-record score + optionally reorder records.
+
+    The record dict's ``id`` field is the resolver target — matches
+    JobDemandRecord.id for record_list variants and
+    JobDemandRequirementItem.id for requirement_keyword.  Skipped
+    silently when Phase A had nothing to score against.
+    """
+    if not result.records:
+        return
+    if not phase_a.target_scores:
+        return
+    decision = apply_weighted_rerank(
+        records=result.records,
+        sub_query=sub_query,
+        phase_a=phase_a,
+        rerank_enabled=rerank_enabled,
+    )
+    if decision.warning_code not in result.warnings:
+        result.warnings.append(decision.warning_code)
+    if decision.score_stats:
+        result.retrieval_meta["rerank_score_stats"] = decision.score_stats
 
 
 def _attach_phase_a_meta(

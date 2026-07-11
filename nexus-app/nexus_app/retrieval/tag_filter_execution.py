@@ -84,6 +84,13 @@ class TagFilterExecutionResult:
     # the guardrail catches this first, but Phase A runs even when the
     # caller bypasses the guardrail (unit tests, direct executor calls).
     skipped_bucket_out_of_domain: list[str] = field(default_factory=list)
+    # v1.3 PR-13 — per-target aggregated score.  Populated across all
+    # combine ops (observability + audit) but only consumed by the
+    # WEIGHTED rerank path in Phase B.  Score value = sum over buckets
+    # of the max ResolvedTag.score for that target in that bucket
+    # (L1 = 1.0, L1.5 = 1.0, L4 = cosine similarity).  Empty dict when
+    # Phase A didn't apply.
+    target_scores: dict[str, float] = field(default_factory=dict)
 
     @property
     def applied(self) -> bool:
@@ -136,6 +143,11 @@ def execute_tag_filters(
     allowed_buckets = frozenset(profile.allowed_tag_types)
     skipped_out_of_domain: list[str] = []
     per_bucket_ids: dict[str, set[str]] = {}
+    # v1.3 PR-13 — per-bucket per-target max score.  Kept alongside
+    # per_bucket_ids so the WEIGHTED combine can preserve L4 cosine
+    # scores (or L1's 1.0) into the final target_scores dict without
+    # touching the resolver signature.
+    per_bucket_scores: dict[str, dict[str, float]] = {}
     per_bucket_optional: dict[str, bool] = {}
     per_bucket_hit_counts: dict[str, int] = {}
     combined_layer_counts: dict[str, int] = {}
@@ -196,8 +208,19 @@ def execute_tag_filters(
                 combined_layer_counts.get(layer, 0) + count
             )
 
-        target_ids = {hit.target_id for hit in resolver_result.hits}
+        # PR-13 — collapse duplicates within a bucket by taking the max
+        # score.  Same target hit at both L1 (1.0) and L4 (0.87) counts
+        # as one hit at score 1.0 for the WEIGHTED aggregation.
+        bucket_scores: dict[str, float] = {}
+        for hit in resolver_result.hits:
+            existing = bucket_scores.get(hit.target_id, 0.0)
+            score = float(hit.score)
+            if score > existing:
+                bucket_scores[hit.target_id] = score
+
+        target_ids = set(bucket_scores.keys())
         per_bucket_ids[bucket_name] = target_ids
+        per_bucket_scores[bucket_name] = bucket_scores
         per_bucket_hit_counts[bucket_name] = len(target_ids)
 
         if not target_ids and tag_filter.optional:
@@ -223,6 +246,16 @@ def execute_tag_filters(
         ):
             warnings.append("tag_filters_empty_intersection")
 
+    # PR-13 — sum per-bucket max scores for each id that survived the
+    # combine.  Populated for AND / OR / WEIGHTED alike; only the
+    # WEIGHTED rerank path in Phase B uses them for ORDER BY.
+    target_scores = _aggregate_target_scores(
+        per_bucket_scores=per_bucket_scores,
+        per_bucket_optional=per_bucket_optional,
+        combined_ids=combined_ids,
+        combine=combine,
+    )
+
     return TagFilterExecutionResult(
         target_ids=combined_ids,
         warnings=warnings,
@@ -230,6 +263,7 @@ def execute_tag_filters(
         bucket_hit_counts=per_bucket_hit_counts,
         dropped_optional_buckets=dropped_optional,
         skipped_bucket_out_of_domain=skipped_out_of_domain,
+        target_scores=target_scores,
     )
 
 
@@ -290,6 +324,47 @@ def _combine_bucket_ids(
 def _dedup_append(warnings: list[str], code: str) -> None:
     if code not in warnings:
         warnings.append(code)
+
+
+def _aggregate_target_scores(
+    *,
+    per_bucket_scores: dict[str, dict[str, float]],
+    per_bucket_optional: dict[str, bool],
+    combined_ids: set[str] | None,
+    combine: str,
+) -> dict[str, float]:
+    """Sum per-bucket max scores for each target that survived combine.
+
+    Semantics:
+
+    * ``AND`` — only ids in the intersection.  Score = sum of
+      contributing (non-optional-empty) buckets' max scores.
+    * ``OR`` / ``WEIGHTED`` — union of ids.  Score = sum across every
+      bucket that emitted the id.
+    * ``combined_ids is None`` — Phase A produced no filter → empty dict.
+
+    Return value keeps insertion order stable so downstream
+    ``sorted(records, key=score desc)`` remains deterministic when ties
+    exist.
+    """
+    if combined_ids is None:
+        return {}
+
+    contributing_buckets = [
+        (bucket, scores)
+        for bucket, scores in per_bucket_scores.items()
+        if not (not scores and per_bucket_optional.get(bucket, False))
+    ]
+    scores: dict[str, float] = {}
+    for target_id in combined_ids:
+        total = 0.0
+        for _bucket, bucket_scores in contributing_buckets:
+            score = bucket_scores.get(target_id)
+            if score is None:
+                continue
+            total += score
+        scores[target_id] = total
+    return scores
 
 
 # ---------------------------------------------------------------------------

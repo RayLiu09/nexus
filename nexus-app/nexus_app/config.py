@@ -172,6 +172,22 @@ class Settings(BaseSettings):
         alias="RETRIEVAL_INTENT_CONFIDENCE_THRESHOLD",
     )
     retrieval_max_sub_queries: int = Field(default=5, alias="RETRIEVAL_MAX_SUB_QUERIES")
+    # v1.3 PR-13 — WEIGHTED combine op rerank kill-switch.
+    # ``default_reranking_model`` mirrors the .env.dev convention
+    # (DEFAULT_RERANKING_MODEL) but is currently unavailable in the
+    # production model gateway.  ``retrieval_rerank_enabled`` gates the
+    # actual reorder step so the score-plumbing code path runs
+    # regardless (observability + audit) while the ORDER BY score
+    # mutation is skipped until the reranker is provisioned.  Flip both
+    # to True to enable end-to-end rerank in downstream envs.
+    default_reranking_model: str | None = Field(
+        default=None,
+        alias="DEFAULT_RERANKING_MODEL",
+    )
+    retrieval_rerank_enabled: bool = Field(
+        default=False,
+        alias="RETRIEVAL_RERANK_ENABLED",
+    )
 
     # ── Auth (P1 JWT) ──────────────────────────────────────────────────────
     # HS256 symmetric secret. MUST be set in production; an in-memory default is
@@ -234,6 +250,17 @@ class Settings(BaseSettings):
     @property
     def effective_task_outline_subtype_model_alias(self) -> str:
         return self.task_outline_subtype_llm_model or self.default_governance_model
+
+    @computed_field
+    @property
+    def effective_rerank_enabled(self) -> bool:
+        """WEIGHTED rerank actually runs only when the switch is on AND
+        a reranking model alias is configured.  Either condition alone
+        keeps the code path in "dry-run" mode (scores propagate but no
+        reorder), which is the current .env.dev state."""
+        return bool(self.retrieval_rerank_enabled) and bool(
+            self.default_reranking_model
+        )
 
 
 @lru_cache
