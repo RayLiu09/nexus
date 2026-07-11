@@ -268,12 +268,83 @@ def seed_job_demand_weighted_rerank(session) -> dict[str, Any]:
     return seeded
 
 
+def seed_course_textbook_outline_topic(session) -> dict[str, Any]:
+    """PR-7b — course_textbook doc with one outline node + one linked
+    chunk + one OUTLINE_NODE tag row so tag_filters=topics narrows to
+    chunk-outline-a1."""
+    scaffold = _seed_asset_scaffold(
+        session, ref_id="ref-ct-topic",
+        asset_kind=AssetKind.DOCUMENT,
+        normalized_type=NormalizedType.DOCUMENT,
+        domain_profile="course_textbook.v1",
+    )
+    outline_node = models.KnowledgeOutlineNode(
+        id="outline-topic-a",
+        normalized_ref_id=scaffold["ref_id"],
+        parent_id=None,
+        level=0,
+        order_index=0,
+        title="第一章 直播运营",
+        numbering=None, numbering_path=None,
+        anchor_range=None, chunk_count=1,
+        build_run_id="build-1", fallback_used=False,
+        node_metadata={},
+    )
+    chunk = models.KnowledgeChunk(
+        id="chunk-outline-a1",
+        normalized_ref_id=scaffold["ref_id"],
+        knowledge_type_code="course_textbook",
+        chunk_type="semantic_block",
+        chunking_strategy="structured_decompose",
+        source_kind="extracted_from_normalized",
+        chunk_index=0,
+        content="直播运营基础知识",
+        chunk_metadata={},
+        embedding_status="pending",
+        source_block_ids=None,
+        locator=None,
+        knowledge_outline_node_id=outline_node.id,
+    )
+    orphan_chunk = models.KnowledgeChunk(
+        id="chunk-orphan-a1",
+        normalized_ref_id=scaffold["ref_id"],
+        knowledge_type_code="course_textbook",
+        chunk_type="semantic_block",
+        chunking_strategy="structured_decompose",
+        source_kind="extracted_from_normalized",
+        chunk_index=1,
+        content="不属于任何 outline_node",
+        chunk_metadata={},
+        embedding_status="pending",
+        source_block_ids=None,
+        locator=None,
+        knowledge_outline_node_id=None,
+    )
+    session.add_all([outline_node, chunk, orphan_chunk])
+    _seed_tag(
+        session,
+        target_type=TagAssetIndexTargetType.OUTLINE_NODE,
+        target_id=outline_node.id,
+        asset_version_id=scaffold["version_id"],
+        tag_type="topic", tag_value="直播运营",
+    )
+    session.commit()
+    return {
+        "asset_version_id": scaffold["version_id"],
+        "ref_id": scaffold["ref_id"],
+        "outline_node_id": outline_node.id,
+        "linked_chunk_id": chunk.id,
+        "orphan_chunk_id": orphan_chunk.id,
+    }
+
+
 FIXTURE_REGISTRY: dict[str, Callable] = {
     "major_distribution_zj_js": seed_major_distribution_zj_js,
     "major_distribution_with_region_tags": seed_major_distribution_with_region_tags,
     "job_demand_bj_sh": seed_job_demand_bj_sh,
     "job_demand_with_region_tags": seed_job_demand_with_region_tags,
     "job_demand_weighted_rerank": seed_job_demand_weighted_rerank,
+    "course_textbook_outline_topic": seed_course_textbook_outline_topic,
 }
 
 

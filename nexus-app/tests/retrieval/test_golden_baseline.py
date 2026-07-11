@@ -95,7 +95,20 @@ def _build_executor_map(*, rerank_enabled: bool):
     major_distribution = MajorDistributionRetrievalExecutor(
         rerank_enabled=rerank_enabled,
     )
-    unstructured = create_unstructured_retrieval_executor()
+    # Unstructured executor uses a PgvectorSearchAdapter with a
+    # ``FakeEmbeddingClient`` so golden cases don't need a real LiteLLM
+    # endpoint.  Semantic scoring stays deterministic (fake vectors are
+    # hash-derived), and the chunk-lift path is fully exercised because
+    # the adapter's chunk_ids filter is orthogonal to the embedding.
+    from nexus_app.index.embedding_client import FakeEmbeddingClient
+    from nexus_app.index.pgvector_search import PgvectorSearchAdapter
+
+    fake_adapter = PgvectorSearchAdapter(
+        embedding_client=FakeEmbeddingClient(),
+    )
+    unstructured = create_unstructured_retrieval_executor(
+        search_adapter=fake_adapter,
+    )
     competency = create_competency_retrieval_executor()
     return {
         (str(RetrievalChannel.STRUCTURED), str(BusinessDomain.JOB_DEMAND)):

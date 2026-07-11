@@ -58,17 +58,25 @@ class PgvectorSearchAdapter:
         top_k: int = 10,
         similarity_threshold: float = 0.7,
         normalized_ref_ids: "list[str] | tuple[str, ...] | set[str] | None" = None,
+        chunk_ids: "list[str] | tuple[str, ...] | set[str] | None" = None,
     ) -> list[dict[str, Any]]:
-        """v1.3 PR-10: ``normalized_ref_ids`` narrows the candidate pool
-        to chunks whose parent normalized_ref is in the given set.  An
-        empty collection (``[]``/``set()``) is treated as "the caller
+        """v1.3 PR-10 + PR-7b — the pool can be narrowed by *either* the
+        parent normalized_ref set (ref-level anchor: majors/abilities on
+        the ref) or a concrete chunk_id set (chunk-level anchor: outline
+        node → chunk mapping in ``task_outline_context``).
+
+        An empty collection for either filter is treated as "the caller
         knows there are no matches" and short-circuits to no hits so
         Phase A's mandatory-intersection collapse honors I-6 semantics.
-        Passing ``None`` disables the filter (pre-v1.3 behaviour).
+        Passing ``None`` disables that filter dimension.  When both are
+        set, they combine with SQL ``AND`` — the intersection.  In
+        practice the executor keeps them mutually exclusive.
         """
-        # F6-3 — empty ref set means Phase A found no candidates;
+        # F6-3 / PR-7b — empty set means Phase A found no candidates;
         # skip the embedding round-trip and return no hits.
         if normalized_ref_ids is not None and not normalized_ref_ids:
+            return []
+        if chunk_ids is not None and not chunk_ids:
             return []
 
         embedding_result = self._embedding_client.embed_texts(
@@ -88,6 +96,7 @@ class PgvectorSearchAdapter:
                 top_k=top_k,
                 similarity_threshold=similarity_threshold,
                 normalized_ref_ids=normalized_ref_ids,
+                chunk_ids=chunk_ids,
             )
         else:
             hits = self._search_python(
@@ -97,13 +106,16 @@ class PgvectorSearchAdapter:
                 top_k=top_k,
                 similarity_threshold=similarity_threshold,
                 normalized_ref_ids=normalized_ref_ids,
+                chunk_ids=chunk_ids,
             )
         logger.info(
-            "pgvector search complete kb=%s top_k=%s hit_count=%s ref_filter=%s",
+            "pgvector search complete kb=%s top_k=%s hit_count=%s "
+            "ref_filter=%s chunk_filter=%s",
             knowledge_type_code,
             top_k,
             len(hits),
             "yes" if normalized_ref_ids is not None else "no",
+            "yes" if chunk_ids is not None else "no",
         )
         return [hit.to_api_hit() for hit in hits]
 
@@ -116,6 +128,7 @@ class PgvectorSearchAdapter:
         top_k: int,
         similarity_threshold: float,
         normalized_ref_ids: "list[str] | tuple[str, ...] | set[str] | None" = None,
+        chunk_ids: "list[str] | tuple[str, ...] | set[str] | None" = None,
     ) -> list[PgvectorSearchHit]:
         where = [
             "embedding_model = :embedding_model",
@@ -136,6 +149,9 @@ class PgvectorSearchAdapter:
             # interpolation into an IN () clause.
             where.append("normalized_ref_id = ANY(:normalized_ref_ids)")
             params["normalized_ref_ids"] = list(normalized_ref_ids)
+        if chunk_ids is not None:
+            where.append("chunk_id = ANY(:chunk_ids)")
+            params["chunk_ids"] = list(chunk_ids)
 
         sql = text(
             f"""
@@ -154,8 +170,8 @@ class PgvectorSearchAdapter:
             """
         )
         rows = session.execute(sql, params).mappings().all()
-        chunk_ids = [row["chunk_id"] for row in rows]
-        content_by_chunk_id = _load_chunk_content(session, chunk_ids)
+        row_chunk_ids = [row["chunk_id"] for row in rows]
+        content_by_chunk_id = _load_chunk_content(session, row_chunk_ids)
         hits: list[PgvectorSearchHit] = []
         for row in rows:
             hits.append(
@@ -180,6 +196,7 @@ class PgvectorSearchAdapter:
         top_k: int,
         similarity_threshold: float,
         normalized_ref_ids: "list[str] | tuple[str, ...] | set[str] | None" = None,
+        chunk_ids: "list[str] | tuple[str, ...] | set[str] | None" = None,
     ) -> list[PgvectorSearchHit]:
         query = session.query(KnowledgeEmbeddingPgvector)
         query = query.filter(
@@ -192,9 +209,13 @@ class PgvectorSearchAdapter:
             query = query.filter(
                 KnowledgeEmbeddingPgvector.normalized_ref_id.in_(list(normalized_ref_ids)),
             )
+        if chunk_ids is not None:
+            query = query.filter(
+                KnowledgeEmbeddingPgvector.chunk_id.in_(list(chunk_ids)),
+            )
         rows = query.all()
-        chunk_ids = [row.chunk_id for row in rows]
-        content_by_chunk_id = _load_chunk_content(session, chunk_ids)
+        row_chunk_ids = [row.chunk_id for row in rows]
+        content_by_chunk_id = _load_chunk_content(session, row_chunk_ids)
 
         hits: list[PgvectorSearchHit] = []
         for row in rows:

@@ -66,6 +66,7 @@ class _FakeSearchAdapter:
         top_k=10,
         similarity_threshold=0.7,
         normalized_ref_ids=None,
+        chunk_ids=None,
     ):
         self.calls.append({
             "query": query,
@@ -76,6 +77,9 @@ class _FakeSearchAdapter:
                 sorted(normalized_ref_ids)
                 if normalized_ref_ids is not None
                 else None
+            ),
+            "chunk_ids": (
+                sorted(chunk_ids) if chunk_ids is not None else None
             ),
         })
         # PR-10 contract — empty ref set short-circuits.
@@ -354,20 +358,105 @@ class TestMandatoryEmptyCollapses:
 # ---------------------------------------------------------------------------
 
 
-class TestProfileWithoutTargetType:
-    def test_task_outline_context_falls_back_to_full_corpus(self, session):
+class TestTaskOutlineContextOutlineNodeAnchor:
+    """PR-7b — ``task_outline_context.tag_target_type=OUTLINE_NODE``:
+    Phase A resolves tag_filters against outline_node rows in
+    tag_asset_index, then the executor reverse-looks-up
+    knowledge_chunk.knowledge_outline_node_id and passes the resulting
+    chunk_ids to the pgvector adapter."""
+
+    def _seed_outline_and_chunk(
+        self, session, *, ref_id: str, outline_node_id: str, chunk_id: str,
+    ) -> None:
+        session.add(models.KnowledgeOutlineNode(
+            id=outline_node_id, normalized_ref_id=ref_id,
+            parent_id=None, level=0, order_index=0,
+            title="Root Node", numbering=None, numbering_path=None,
+            anchor_range=None, chunk_count=1,
+            build_run_id="build-1", fallback_used=False,
+            node_metadata={},
+        ))
+        session.add(models.KnowledgeChunk(
+            id=chunk_id, normalized_ref_id=ref_id,
+            knowledge_type_code="course_textbook",
+            chunk_type="semantic_block",
+            chunking_strategy="structured_decompose",
+            source_kind="extracted_from_normalized",
+            chunk_index=0, content="…",
+            chunk_metadata={}, embedding_status="pending",
+            source_block_ids=None, locator=None,
+            knowledge_outline_node_id=outline_node_id,
+        ))
+        session.commit()
+
+    def test_outline_node_tag_narrows_to_linked_chunks(self, session):
         seeded = _seed_two_refs(session)
-        adapter = _FakeSearchAdapter({None: [_hit(seeded["ref_a"], "chunk-a1")]})
+        self._seed_outline_and_chunk(
+            session, ref_id=seeded["ref_a"],
+            outline_node_id="on-a", chunk_id="chunk-a1",
+        )
+        # Tag the outline node so Phase A resolves it.
+        _seed_tag_index(
+            session,
+            target_type=TagAssetIndexTargetType.OUTLINE_NODE,
+            target_id="on-a",
+            asset_version_id=seeded["version_id"],
+            tag_type="topic", tag_value="直播运营",
+            tag_value_normalized="直播运营",
+        )
+        adapter = _FakeSearchAdapter({None: [
+            _hit(seeded["ref_a"], "chunk-a1"),
+            _hit(seeded["ref_b"], "chunk-b1"),
+        ]})
         executor = UnstructuredRetrievalExecutor(search_adapter=adapter)
         result = executor.execute(session, _sub_query(
             query_profile="task_outline_context",
             tag_filters={
-                "majors": TagFilter(tags=["电子商务"]).model_dump(),
+                "topics": TagFilter(
+                    tags=["直播运营"], match_strategy="l1|l1.5",
+                ).model_dump(),
             },
         ))
         assert result.status == StepStatus.COMPLETED
+        # Adapter got chunk_ids, not normalized_ref_ids.
+        assert adapter.calls[0]["chunk_ids"] == ["chunk-a1"]
         assert adapter.calls[0]["normalized_ref_ids"] is None
-        assert "tag_target_type_not_configured" in result.warnings
+
+    def test_outline_node_without_linked_chunks_short_circuits(self, session):
+        seeded = _seed_two_refs(session)
+        # Outline node exists but no chunk links back to it.
+        session.add(models.KnowledgeOutlineNode(
+            id="on-orphan", normalized_ref_id=seeded["ref_a"],
+            parent_id=None, level=0, order_index=0,
+            title="Orphan Node", numbering=None, numbering_path=None,
+            anchor_range=None, chunk_count=0,
+            build_run_id="build-1", fallback_used=False,
+            node_metadata={},
+        ))
+        _seed_tag_index(
+            session,
+            target_type=TagAssetIndexTargetType.OUTLINE_NODE,
+            target_id="on-orphan",
+            asset_version_id=seeded["version_id"],
+            tag_type="topic", tag_value="孤儿节点",
+            tag_value_normalized="孤儿节点",
+        )
+        session.commit()
+        adapter = _FakeSearchAdapter({None: []})
+        executor = UnstructuredRetrievalExecutor(search_adapter=adapter)
+        result = executor.execute(session, _sub_query(
+            query_profile="task_outline_context",
+            tag_filters={
+                "topics": TagFilter(
+                    tags=["孤儿节点"], match_strategy="l1|l1.5",
+                ).model_dump(),
+            },
+        ))
+        assert result.status == StepStatus.COMPLETED
+        assert result.items == []
+        assert "outline_chunk_lift_empty" in result.warnings
+        # Adapter never called — empty chunk set short-circuited.
+        assert adapter.calls == []
 
 
 # ---------------------------------------------------------------------------

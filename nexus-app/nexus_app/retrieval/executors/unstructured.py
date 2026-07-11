@@ -92,11 +92,23 @@ class UnstructuredRetrievalExecutor:
             elapsed = (time.monotonic() - started) * 1000
             return _empty_result(sub_query, phase_a, elapsed)
 
-        normalized_ref_ids = (
-            list(phase_a.target_ids)
-            if phase_a.applied and phase_a.target_ids
-            else None
+        # PR-7b — dispatch the Phase A target_ids into either the ref-set
+        # filter (NORMALIZED_ASSET_REF anchor) or the chunk-set filter
+        # (OUTLINE_NODE anchor, translated via chunk.knowledge_outline_node_id
+        # reverse lookup).  The two are mutually exclusive at the
+        # executor level.
+        search_kwargs = _phase_a_search_filter(
+            session=session, profile=profile, phase_a=phase_a,
         )
+        # An outline lift that resolves to zero chunks (nodes exist but
+        # no chunks link back) short-circuits with a distinct warning so
+        # the empty result is observable.
+        if search_kwargs.get("chunk_ids") == []:
+            elapsed = (time.monotonic() - started) * 1000
+            empty = _empty_result(sub_query, phase_a, elapsed)
+            if "outline_chunk_lift_empty" not in empty.warnings:
+                empty.warnings.append("outline_chunk_lift_empty")
+            return empty
 
         hits = self._search_adapter.search(
             session,
@@ -106,7 +118,7 @@ class UnstructuredRetrievalExecutor:
             similarity_threshold=(
                 plan.similarity_threshold if plan.similarity_threshold is not None else 0.0
             ),
-            normalized_ref_ids=normalized_ref_ids,
+            **search_kwargs,
         )
         elapsed_ms = (time.monotonic() - started) * 1000
         items, source_refs = _normalize_hits(sub_query, hits)
@@ -172,6 +184,76 @@ def _run_phase_a(
         phase_a=phase_a,
     )
     return phase_a
+
+
+def _phase_a_search_filter(
+    *,
+    session: Session,
+    profile: QueryProfile,
+    phase_a: TagFilterExecutionResult,
+) -> dict[str, "list[str] | None"]:
+    """Translate Phase A's target_id set into the search adapter's
+    filter kwargs.
+
+    * ``NORMALIZED_ASSET_REF`` anchor (semantic_chunk /
+      major_profile_semantic): pass the target_ids as
+      ``normalized_ref_ids``.
+    * ``OUTLINE_NODE`` anchor (task_outline_context, PR-7b): reverse-
+      lookup ``knowledge_chunk.knowledge_outline_node_id`` to get the
+      chunk_ids that belong to those outline nodes; pass those as
+      ``chunk_ids``.  An empty set (nodes without any linked chunks) is
+      preserved as ``[]`` so the caller can short-circuit with a
+      dedicated warning.
+    * Phase A wasn't applied (no tag_filters or profile has no
+      tag_target_type): pass ``None`` for both filters — the search
+      runs against the full corpus.
+    """
+    from nexus_app.enums import TagAssetIndexTargetType
+
+    if not (phase_a.applied and phase_a.target_ids):
+        return {"normalized_ref_ids": None, "chunk_ids": None}
+
+    target_type = profile.tag_target_type
+    if target_type == TagAssetIndexTargetType.NORMALIZED_ASSET_REF:
+        return {
+            "normalized_ref_ids": list(phase_a.target_ids),
+            "chunk_ids": None,
+        }
+    if target_type == TagAssetIndexTargetType.OUTLINE_NODE:
+        chunk_ids = _resolve_outline_to_chunk_ids(session, phase_a.target_ids)
+        return {"normalized_ref_ids": None, "chunk_ids": chunk_ids}
+    # Any other target_type on an unstructured profile is a
+    # configuration bug — fall back to no filter with the warning
+    # already surfaced by execute_tag_filters.
+    return {"normalized_ref_ids": None, "chunk_ids": None}
+
+
+def _resolve_outline_to_chunk_ids(
+    session: Session,
+    outline_node_ids: "set[str] | list[str]",
+) -> list[str]:
+    """Return the KnowledgeChunk ids whose ``knowledge_outline_node_id``
+    is in the given outline_node set.  Sorted for deterministic tests /
+    audit hashing.  Returns ``[]`` when no chunks link back to the
+    provided nodes (legacy data, record-type chunks) — the caller uses
+    that to signal ``outline_chunk_lift_empty``.
+    """
+    from sqlalchemy import select
+
+    from nexus_app import models
+
+    if not outline_node_ids:
+        return []
+    stmt = (
+        select(models.KnowledgeChunk.id)
+        .where(
+            models.KnowledgeChunk.knowledge_outline_node_id.in_(
+                list(outline_node_ids)
+            )
+        )
+    )
+    rows = session.execute(stmt).scalars().all()
+    return sorted(str(row) for row in rows)
 
 
 def _attach_phase_a_meta(

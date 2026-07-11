@@ -988,6 +988,12 @@ class KnowledgeChunk(TimestampMixin, Base):
     __table_args__ = (
         Index("ix_knowledge_chunk_ref_type", "normalized_ref_id", "knowledge_type_code"),
         Index("ix_knowledge_chunk_type_created", "knowledge_type_code", "created_at"),
+        # v1.3 PR-7b — reverse lookup for outline-driven Phase A: given
+        # a resolved set of outline_node ids, find every chunk whose
+        # leaf link points at those nodes.  Partial-null column, so we
+        # keep this as a plain index (LIKE + IN scans still gate on
+        # non-null via the FK semantics).
+        Index("ix_knowledge_chunk_outline_node_id", "knowledge_outline_node_id"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)

@@ -245,14 +245,20 @@ class _FakeSearchAdapter:
     def search(
         self, session, *, query, knowledge_type_code=None,
         top_k=10, similarity_threshold=0.7, normalized_ref_ids=None,
+        chunk_ids=None,
     ):
         self.calls.append({
             "normalized_ref_ids": (
                 sorted(normalized_ref_ids)
                 if normalized_ref_ids is not None else None
             ),
+            "chunk_ids": (
+                sorted(chunk_ids) if chunk_ids is not None else None
+            ),
         })
         if normalized_ref_ids is not None and not normalized_ref_ids:
+            return []
+        if chunk_ids is not None and not chunk_ids:
             return []
         return self._hits[:top_k]
 

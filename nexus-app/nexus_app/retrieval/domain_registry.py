@@ -158,14 +158,14 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 max_limit=50,
                 allowed_tag_types=("majors", "abilities", "topics"),
                 id_in_supported=False,
-                # PR-7 landed the OUTLINE_NODE write side (outline title
-                # projected to tag_asset_index).  The read side still
-                # needs a chunk→outline_node join lift so the pgvector
-                # ref-set filter can be reused — deferred to PR-7b.  Left
-                # as None so PR-10 code path emits
-                # ``tag_target_type_not_configured`` and falls back to
-                # unfiltered semantic search until then.
-                tag_target_type=None,
+                # PR-7b — Phase A resolves tag_filters against OUTLINE_NODE
+                # rows in tag_asset_index (written by the PR-7 outline
+                # projection hook), then translates the outline_node ids
+                # to chunk ids via KnowledgeChunk.knowledge_outline_node_id.
+                # The chunk_ids get passed to the pgvector adapter's
+                # chunk-level filter so semantic scoring only runs on
+                # chunks that belong to matching outline nodes.
+                tag_target_type=TagAssetIndexTargetType.OUTLINE_NODE,
             ),
         ),
     ),
