@@ -79,6 +79,7 @@ export const navigation: Navigation = [
       { href: "/iam-audit", label: "权限与审计", icon: "⌘" },
       { href: "/api-callers", label: "API Caller", icon: "⊡" },
       { href: "/search", label: "检索验证", icon: "?" },
+      { href: "/retrieval-test", label: "检索联调", icon: "⚗", minRole: "data_steward" },
     ],
   },
   {

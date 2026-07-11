@@ -1,0 +1,54 @@
+{
+  "schema_version": "retrieval-fixtures.v1",
+  "description": "M-C v1.3 联调面板预设查询。手工镜像自 nexus-app/tests/fixtures/retrieval_golden/queries.jsonl 的一个子集，覆盖 4 个 domain × 5 个 category。前端只用 question 字段驱动后端 orchestrator 现算，不带 prebuilt_plan / expected_*。演进请手工同步。",
+  "presets": [
+    {
+      "id": "gq_jd_record_list_all",
+      "label": "岗位需求 · 基础召回",
+      "category": "single_domain",
+      "domain_focus": "job_demand",
+      "question": "电商运营岗位有哪些",
+      "notes": "无 tag_filter，覆盖两条记录。用于验证 planner → structured executor 基线路径。"
+    },
+    {
+      "id": "gq_jd_tag_filter_regions",
+      "label": "岗位需求 · regions tag_filter 收窄",
+      "category": "tag_filter",
+      "domain_focus": "job_demand",
+      "question": "北京的电商运营岗位",
+      "notes": "regions 桶收窄到北京。用于验证 Phase A → Phase B 的 target_id IN 收窄链路。"
+    },
+    {
+      "id": "gq_jd_weighted_rerank",
+      "label": "岗位需求 · WEIGHTED rerank",
+      "category": "rerank",
+      "domain_focus": "job_demand",
+      "question": "北京优先电商运营",
+      "notes": "双桶命中 BJ (score=2) 优先 SH (score=1)。用于验证 PR-13 WEIGHTED combine op。"
+    },
+    {
+      "id": "gq_md_trend_by_year",
+      "label": "专业布点 · 聚合结果",
+      "category": "aggregation",
+      "domain_focus": "major_distribution",
+      "question": "电子商务专业近三年布点变化趋势",
+      "notes": "聚合 profile，返回 aggregations 而非 records。"
+    },
+    {
+      "id": "gq_synth_aa_tag_filter_ability",
+      "label": "能力分析 · abilities tag_filter",
+      "category": "tag_filter",
+      "domain_focus": "competency_analysis",
+      "question": "Kafka 相关的能力项",
+      "notes": "PR-13b competency join lift：Phase A → OCCUPATIONAL_ABILITY_ITEM anchor，Phase B WHERE item.id IN 收窄命中掌握 Kafka 的能力项。"
+    },
+    {
+      "id": "gq_ct_semantic_tag_filter_major",
+      "label": "课程教材 · unstructured majors tag_filter",
+      "category": "tag_filter",
+      "domain_focus": "course_textbook",
+      "question": "直播运营课程教材",
+      "notes": "semantic_chunk profile anchor=NORMALIZED_ASSET_REF，Phase A 收窄 majors=直播运营 → 只对目标 ref 下的 chunks 做 pgvector 语义召回。"
+    }
+  ]
+}
