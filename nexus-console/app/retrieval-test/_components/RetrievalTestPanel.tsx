@@ -8,12 +8,13 @@ import { useState } from "react";
 import { ApiState } from "@/components/ApiState";
 import type { KnowledgeRetrievalResponse } from "@/lib/retrievalTypes";
 
+import { IntentCard } from "@/components/retrieval/IntentCard";
+import { PlanSection } from "@/components/retrieval/PlanSection";
+import { ResultTabs } from "@/components/retrieval/ResultTabs";
+import { WarningsPanel } from "@/components/retrieval/WarningsPanel";
+
 import type { FixturePreset } from "./fixtures.types";
-import { IntentCard } from "./IntentCard";
-import { PlanSection } from "./PlanSection";
 import { QueryForm, type QueryMode } from "./QueryForm";
-import { ResultTabs } from "./ResultTabs";
-import { WarningsPanel } from "./WarningsPanel";
 
 interface RetrievalTestPanelProps {
   presets: FixturePreset[];
@@ -95,15 +96,9 @@ export function RetrievalTestPanel({ presets }: RetrievalTestPanelProps) {
 
   return (
     <div className="flex flex-col gap-4" data-testid="retrieval-test-panel">
-      <QueryForm
-        presets={presets}
-        submitting={state.submitting}
-        onSubmit={handleSubmit}
-      />
+      <QueryForm presets={presets} submitting={state.submitting} onSubmit={handleSubmit} />
 
-      {state.error && (
-        <ApiState ok={false} error={state.error} traceId={state.traceId} />
-      )}
+      {state.error && <ApiState ok={false} error={state.error} traceId={state.traceId} />}
 
       {state.submitting && (
         <Card size="small">
