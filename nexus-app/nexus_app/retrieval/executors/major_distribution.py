@@ -118,6 +118,7 @@ def _prepare_two_phase_plan(
     Returns the mutated plan (a shallow copy so the caller's original
     payload is not touched) and the Phase A result for observability.
     """
+    from nexus_app.audit import write_retrieval_tag_filter_audit
     from nexus_app.retrieval.domain_registry import get_query_profile
 
     profile = get_query_profile(
@@ -139,6 +140,14 @@ def _prepare_two_phase_plan(
         filters=merged_filters,
         target_ids=phase_a.target_ids,
         key=TARGET_ID_IN_KEY,
+    )
+    # PR-12 — Phase A audit trail.  Skipped for pass-through sub_queries
+    # (no tag_filters declared); helper is best-effort and never raises.
+    write_retrieval_tag_filter_audit(
+        session,
+        sub_query=sub_query,
+        profile=profile,
+        phase_a=phase_a,
     )
     prepared = sub_query.structured_plan.model_copy(
         update={"filters": merged_filters}

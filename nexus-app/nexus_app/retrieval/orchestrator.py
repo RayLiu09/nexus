@@ -204,6 +204,7 @@ class RetrievalOrchestrator:
         # no depends_on / binding_map / binding-string tags → the DAG
         # collapses to one layer with every sub_query independent, so
         # this path is fully backwards-compatible.
+        dag_result = None
         try:
             dag_result = execute_plan_as_dag(
                 session=session,
@@ -219,6 +220,16 @@ class RetrievalOrchestrator:
                 for sub_query in plan.sub_queries
             ]
         elapsed_ms = (time.monotonic() - started_monotonic) * 1000
+        # PR-12 — one audit row per plan execution (best-effort; retrieval
+        # already succeeded regardless of audit outcome).
+        if dag_result is not None:
+            from nexus_app.audit import write_retrieval_dag_audit
+
+            write_retrieval_dag_audit(
+                session,
+                plan=plan,
+                dag_result=dag_result,
+            )
         failed = [result for result in results if result.status == StepStatus.FAILED]
         completed = [result for result in results if result.status == StepStatus.COMPLETED]
         step_status = StepStatus.COMPLETED

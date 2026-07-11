@@ -310,6 +310,16 @@ class AuditEventType(StrEnum):
     KNOWLEDGE_OUTLINE_REVIEW_ITEM_CREATED    = "KnowledgeOutlineReviewItemCreated"
     KNOWLEDGE_OUTLINE_REVIEW_ITEM_OVERRIDDEN = "KnowledgeOutlineReviewItemOverridden"
     KNOWLEDGE_OUTLINE_REVIEW_ITEM_APPROVED   = "KnowledgeOutlineReviewItemApproved"
+    # v1.3 PR-12 — retrieval-side observability.  Emitted per sub_query
+    # when tag_filters were declared, so operators can trace how the
+    # Resolver reduced the corpus (per-bucket hit counts, match-layer
+    # distribution, dropped optional buckets, target_ids_count).
+    RETRIEVAL_TAG_FILTER_APPLIED         = "RetrievalTagFilterApplied"
+    # v1.3 PR-12 — one per plan execution.  Records the DAG layers, the
+    # binding rewrites that fired, and any DAG-level warnings.  Gives
+    # audit reviewers a single row per query answering "why did we run
+    # these sub_queries in this order?".
+    RETRIEVAL_DAG_EXECUTED               = "RetrievalDagExecuted"
 
 
 class AssetAccessType(StrEnum):

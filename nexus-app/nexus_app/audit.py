@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.orm import Session
 
 from nexus_app import models
 from nexus_app.enums import AssetAccessType, AuditEventType
+
+if TYPE_CHECKING:  # pragma: no cover
+    from nexus_app.retrieval.dag_orchestrator import DagExecutionResult
+    from nexus_app.retrieval.domain_registry import QueryProfile
+    from nexus_app.retrieval.schemas import RetrievalPlan, RetrievalSubQuery
+    from nexus_app.retrieval.tag_filter_execution import TagFilterExecutionResult
 
 # Keys (case-insensitive substrings) whose values are stripped from audit
 # summaries before persistence. Compared after lower-casing the key.
@@ -166,3 +172,119 @@ def write_asset_version_accessed_audit(
         actor_type="api_caller",
         actor_id=caller.id,
     )
+
+
+# ---------------------------------------------------------------------------
+# v1.3 PR-12 — retrieval-side audits
+# ---------------------------------------------------------------------------
+
+
+def write_retrieval_tag_filter_audit(
+    session: Session,
+    *,
+    sub_query: "RetrievalSubQuery",
+    profile: "QueryProfile",
+    phase_a: "TagFilterExecutionResult",
+    trace_id: str | None = None,
+) -> models.AuditLog | None:
+    """Emit ``RETRIEVAL_TAG_FILTER_APPLIED`` when Phase A ran.
+
+    Skipped when the sub_query declared no tag_filters — the audit only
+    exists to explain *how* tag_filter narrowing behaved, so a pass-
+    through sub_query needs no row.  Failure to write the audit never
+    raises; retrieval must not be blocked by an audit-side problem.
+    """
+    if not sub_query.tag_filters:
+        return None
+    summary: dict[str, Any] = {
+        "sub_query_id": sub_query.query_id,
+        "channel": str(sub_query.channel),
+        "domain": str(sub_query.domain),
+        "profile_key": profile.key,
+        "tag_target_type": (
+            str(profile.tag_target_type) if profile.tag_target_type else None
+        ),
+        "combine": sub_query.combine,
+        "bucket_hit_counts": dict(phase_a.bucket_hit_counts),
+        "match_layer_counts": dict(phase_a.match_layer_counts),
+        "dropped_optional_buckets": list(phase_a.dropped_optional_buckets),
+        "skipped_bucket_out_of_domain": list(
+            phase_a.skipped_bucket_out_of_domain
+        ),
+        "target_ids_count": (
+            len(phase_a.target_ids) if phase_a.target_ids is not None else None
+        ),
+        "applied": phase_a.applied,
+        "warnings": list(phase_a.warnings),
+        # Which buckets were declared (values kept — tag values are
+        # published taxonomy strings, not user PII).
+        "declared_buckets": sorted(sub_query.tag_filters.keys()),
+    }
+    try:
+        return write_audit(
+            session,
+            AuditEventType.RETRIEVAL_TAG_FILTER_APPLIED,
+            target_type="retrieval_sub_query",
+            target_id=sub_query.query_id,
+            trace_id=trace_id,
+            summary=summary,
+        )
+    except Exception:  # noqa: BLE001 - never fail retrieval on audit error
+        return None
+
+
+def write_retrieval_dag_audit(
+    session: Session,
+    *,
+    plan: "RetrievalPlan",
+    dag_result: "DagExecutionResult",
+    trace_id: str | None = None,
+) -> models.AuditLog | None:
+    """Emit ``RETRIEVAL_DAG_EXECUTED`` once per plan run.
+
+    Records the DAG layer structure + summary counts.  Original query
+    text is NOT persisted — it can carry user PII; the sub_query ids
+    together with the layer sequence are enough to reconstruct the plan
+    from ``retrieval_plan`` on disk.
+    """
+    summary: dict[str, Any] = {
+        "sub_query_count": len(plan.sub_queries),
+        "layer_count": len(dag_result.layers),
+        "max_dag_depth_declared": plan.max_dag_depth,
+        "layers": [
+            {
+                "depth": layer.depth,
+                "sub_query_ids": list(layer.sub_query_ids),
+            }
+            for layer in dag_result.layers
+        ],
+        "shared_constraints_present": plan.shared_constraints is not None,
+        "warnings": list(dag_result.warnings),
+        # Per-sub_query outcome recap so a single audit row explains
+        # both order and status without joining another table.
+        "sub_query_outcomes": [
+            {
+                "sub_query_id": r.query_id,
+                "status": str(r.status),
+                "result_shape": r.result_shape,
+                "warning_count": len(r.warnings),
+            }
+            for r in dag_result.results
+        ],
+    }
+    try:
+        # Plan-level id: pick the first sub_query.query_id as a stable
+        # anchor (plans don't carry their own persistent id).
+        target_id = (
+            plan.sub_queries[0].query_id if plan.sub_queries else "plan"
+        )
+        return write_audit(
+            session,
+            AuditEventType.RETRIEVAL_DAG_EXECUTED,
+            target_type="retrieval_plan",
+            target_id=target_id,
+            trace_id=trace_id,
+            summary=summary,
+        )
+    except Exception:  # noqa: BLE001
+        return None

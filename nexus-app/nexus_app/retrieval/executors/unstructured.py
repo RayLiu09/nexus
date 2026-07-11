@@ -154,15 +154,24 @@ def _run_phase_a(
     profile: QueryProfile,
     resolver_factory,
 ) -> TagFilterExecutionResult:
+    from nexus_app.audit import write_retrieval_tag_filter_audit
+
     # No tag_filters → Phase A is a pure no-op (returns applied=False).
     if not sub_query.tag_filters:
         return TagFilterExecutionResult(target_ids=None)
     resolver = resolver_factory(session)
-    return execute_tag_filters(
+    phase_a = execute_tag_filters(
         sub_query=sub_query,
         profile=profile,
         resolver=resolver,
     )
+    write_retrieval_tag_filter_audit(
+        session,
+        sub_query=sub_query,
+        profile=profile,
+        phase_a=phase_a,
+    )
+    return phase_a
 
 
 def _attach_phase_a_meta(
