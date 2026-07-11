@@ -31,6 +31,54 @@ from nexus_app.enums import (
 # ---------------------------------------------------------------------------
 
 
+def _isolate_pipeline_b_scope(session) -> None:
+    """Delete any pre-existing Pipeline-B data the retrieval query would see.
+
+    Rationale — the shared dev Postgres (used by ``NEXUS_GOLDEN_USE_POSTGRES``)
+    carries leftover ``job_demand_dataset`` / ``major_distribution_dataset``
+    rows plus their descendants and 250+ ``tag_asset_index`` projections
+    from PR-6b backfill work and earlier ad-hoc pipeline runs.  The M-C.3
+    xlsx tag_filter golden cases use ``expected_record_ids_disjoint`` to
+    prove the tag_filter narrowed the result — but the executor's Phase A
+    resolver scans all ``tag_asset_index`` rows for the given
+    (``tag_type``, ``tag_value_normalized``), so any pre-existing row with
+    a matching value gets returned alongside the fixture's fresh rows and
+    breaks the disjoint check.
+
+    Because the enclosing test runs inside the ``create_savepoint`` outer
+    transaction (see ``tests/conftest.py``), every DELETE here is undone
+    on teardown — the shared dev DB is unchanged.  This is a no-op on the
+    SQLite in-memory backend (fresh schema per test), so we don't need to
+    branch on the backend explicitly.
+
+    Cascade note — ``job_demand_record`` /
+    ``job_demand_requirement_item`` / ``major_distribution_record`` all
+    ondelete=CASCADE off their dataset, so deleting the two dataset rows
+    is enough to sweep their descendants.  ``tag_asset_index`` is
+    polymorphic (no FK back to source tables), so its rows are deleted
+    explicitly by ``target_type``.
+    """
+    from sqlalchemy import delete
+    from nexus_app.enums import TagAssetIndexTargetType
+
+    # Sweep tag_asset_index rows for every target_type the xlsx pipelines
+    # feed into.  Ability-item rows aren't touched by these fixtures but
+    # keeping the set complete guards against future domain additions
+    # sharing this helper.
+    session.execute(
+        delete(models.TagAssetIndex).where(
+            models.TagAssetIndex.target_type.in_([
+                TagAssetIndexTargetType.JOB_DEMAND_RECORD,
+                TagAssetIndexTargetType.JOB_DEMAND_REQUIREMENT_ITEM,
+                TagAssetIndexTargetType.MAJOR_DISTRIBUTION_RECORD,
+            ])
+        )
+    )
+    session.execute(delete(models.JobDemandDataset))
+    session.execute(delete(models.MajorDistributionDataset))
+    session.flush()
+
+
 def _run_pipeline_without_live_llm(execute_job, *args, **kwargs) -> None:
     """Invoke ``execute_job`` with every LiteLLM entry point neutralised.
 
@@ -536,6 +584,8 @@ def seed_job_demand_from_xlsx_sample(session) -> dict[str, Any]:
     if not sample.exists():
         raise FileNotFoundError(f"xlsx sample not found: {sample}")
 
+    _isolate_pipeline_b_scope(session)
+
     storage = InMemoryObjectStorage()
     xlsx_mime = (
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -645,6 +695,8 @@ def seed_major_distribution_from_xlsx_sample(session) -> dict[str, Any]:
     sample = _REPO_ROOT / "docs" / "samples" / "2.（专业布点数）专业布点数.xlsx"
     if not sample.exists():
         raise FileNotFoundError(f"xlsx sample not found: {sample}")
+
+    _isolate_pipeline_b_scope(session)
 
     storage = InMemoryObjectStorage()
     xlsx_mime = (
