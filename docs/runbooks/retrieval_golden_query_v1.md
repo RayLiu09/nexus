@@ -190,13 +190,13 @@ cassette JSON 编写规范见 `llm_cassettes/README.md`。
 
 ## M-C 后续阶段
 
-| 阶段         | 交付                                                               | 依赖                                                       |
-| ------------ | ------------------------------------------------------------------ | ---------------------------------------------------------- |
-| M-C.1        | 基础设施 + 10 条种子                                               | 无                                                         |
-| M-C.2        | recorded LiteLLM cassette; 支持 `prebuilt_plan=None` 的 case       | LiteLLM 一次性录制授权                                     |
-| M-C.3 Step 1 | Postgres opt-in + FakeEmbedding hash 向量 pgvector 种子 + 内容断言 | `.env.dev` Postgres + `alembic upgrade head` + vector 扩展 |
-| M-C.3 Step 2 | 真实 xlsx 样本 bootstrap（结构化域）+ ID snapshot                  | test_b4 bootstrap 模式复用                                 |
-| M-C.4        | Nightly 真实 LLM 验收; 性能基线                                    | 前三阶段就位                                               |
+| 阶段         | 交付                                                                                               | 依赖                                                                                                      |
+| ------------ | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| M-C.1        | 基础设施 + 10 条种子                                                                               | 无                                                                                                        |
+| M-C.2        | recorded LiteLLM cassette; 支持 `prebuilt_plan=None` 的 case                                       | LiteLLM 一次性录制授权                                                                                    |
+| M-C.3 Step 1 | Postgres opt-in + FakeEmbedding hash 向量 pgvector 种子 + 内容断言                                 | `.env.dev` Postgres + `alembic upgrade head` + vector 扩展                                                |
+| M-C.3 Step 2 | 真实 xlsx 样本 bootstrap（job_demand 域） + `$fixture.*` 占位符 + `expected_records_at_least` 断言 | test_b4 bootstrap 模式复用；仅 SQLite 生效（Postgres 上 pipeline commits 与 savepoint 隔离冲突, 已 skip） |
+| M-C.4        | Nightly 真实 LLM 验收; 性能基线                                                                    | 前三阶段就位                                                                                              |
 
 ---
 

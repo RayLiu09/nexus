@@ -445,6 +445,187 @@ def seed_course_textbook_outline_topic(session) -> dict[str, Any]:
     }
 
 
+def seed_job_demand_from_xlsx_sample(session) -> dict[str, Any]:
+    """M-C.3 Step 2 — bootstrap job_demand records from the real sample
+    workbook.
+
+    Runs the whole B0-B4 pipeline (submit_file_bytes → execute_job) on
+    ``docs/samples/1.（岗位需求）电子商务岗位招聘数据.xlsx`` and returns
+    the persisted IDs so golden cases can reference production-shape
+    data with two Beijing/Tianjin-flavored records.
+
+    After the pipeline lands ``JobDemandDataset`` + ``JobDemandRecord``,
+    this fixture manually invokes the projection engine to seed
+    ``tag_asset_index`` (source=FIELD_PROJECTION).  The B4 writer does
+    NOT auto-project — wiring it into ``dispatch_domain_normalize`` is
+    a separate governance-level PR.  For M-C.3 Step 2 we accept the
+    coupling here in the fixture layer.
+
+    Sample content (fixed at commit time):
+    - Row 2: 城市=天津滨海新区, 岗位名称=无人机飞手, 薪资=4千-7千
+    - Row 3: 城市=天津静海区, 岗位名称=平面设计师助理, 薪资=4千-8千
+
+    Returns a dict with (all values are runtime-generated UUIDs unless
+    noted):
+    - ``dataset_id`` — the persisted JobDemandDataset row
+    - ``record_ids`` — list of record IDs in xlsx row order
+    - ``asset_version_id`` — the anchoring version
+    - ``ref_id`` — the normalized_asset_ref (governance anchor)
+
+    Because IDs are random UUIDs, golden cases assert content /
+    structural properties (``record_ids_at_least`` in the harness)
+    rather than specific IDs.
+    """
+    from pathlib import Path
+    from sqlalchemy import select
+
+    from nexus_app import services
+    from nexus_app.ai_governance.tag_projection import (
+        persist_tag_rows,
+        project_record_to_tag_rows,
+    )
+    from nexus_app.config import Settings
+    from nexus_app.enums import (
+        TagAssetIndexSource,
+        TagAssetIndexTargetType,
+    )
+    from nexus_app.ingest.gateway import submit_file_bytes
+    from nexus_app.mineru import FakeMinerUAdapter
+    from nexus_app.schemas import DataSourceCreate
+    from nexus_app.storage import InMemoryObjectStorage
+    from nexus_app.worker.runner import execute_job
+
+    _REPO_ROOT = Path(__file__).resolve().parents[3].parent
+    sample = _REPO_ROOT / "docs" / "samples" / "1.（岗位需求）电子商务岗位招聘数据.xlsx"
+    if not sample.exists():
+        raise FileNotFoundError(f"xlsx sample not found: {sample}")
+
+    storage = InMemoryObjectStorage()
+    xlsx_mime = (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    xlsx_settings = Settings(pipeline_b_xlsx_enabled=True)
+
+    source = services.create_data_source(
+        session,
+        DataSourceCreate(
+            code="golden-xlsx-jd",
+            name="golden-xlsx-jd",
+            source_type="file_upload",
+        ),
+    )
+    accepted = submit_file_bytes(
+        session,
+        data_source_id=source.id,
+        idempotency_key="golden-xlsx-jd-key",
+        content=sample.read_bytes(),
+        filename=sample.name,
+        content_type=xlsx_mime,
+        storage=storage,
+        settings=xlsx_settings,
+        trace_id="trace-golden-xlsx-jd",
+    )
+    session.refresh(accepted.job)
+    execute_job(
+        accepted.job, session, storage, FakeMinerUAdapter(), xlsx_settings,
+    )
+    session.refresh(accepted.job)
+
+    ref = session.scalar(select(models.NormalizedAssetRef))
+    dataset = session.scalar(select(models.JobDemandDataset))
+    # Ordering by ``source_record_key`` (encodes xlsx sheet+row) so
+    # ``record_ids[0]`` reliably corresponds to the first data row of
+    # the sample workbook across runs.  Ordering by ``id`` is not
+    # stable (random UUIDs).
+    records = list(session.scalars(
+        select(models.JobDemandRecord)
+        .order_by(models.JobDemandRecord.source_record_key)
+    ))
+    items = list(session.scalars(
+        select(models.JobDemandRequirementItem)
+        .order_by(models.JobDemandRequirementItem.item_name)
+    ))
+
+    if dataset is None or not records:
+        # B4 writer skipped (pipeline stage variance) — golden case
+        # aggregation must still succeed but reports zero records.
+        return {
+            "dataset_id": None,
+            "record_ids": [],
+            "asset_version_id": ref.version_id if ref else None,
+            "ref_id": ref.id if ref else None,
+            "requirement_item_ids": [],
+        }
+
+    # Project each record's structured fields onto tag_asset_index so
+    # tag_filter cases can find them at Phase A resolve time.  Uses
+    # FIELD_PROJECTION source to match Pipeline B semantics.
+    for record in records:
+        payloads = project_record_to_tag_rows(
+            table_name="job_demand_record",
+            record=_record_to_projection_dict(record),
+            target_id=record.id,
+            asset_version_id=dataset.asset_version_id,
+            source=TagAssetIndexSource.FIELD_PROJECTION,
+        )
+        persist_tag_rows(
+            session, payloads,
+            target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
+            target_id=record.id,
+            source=TagAssetIndexSource.FIELD_PROJECTION,
+        )
+    for item in items:
+        payloads = project_record_to_tag_rows(
+            table_name="job_demand_requirement_item",
+            record=_item_to_projection_dict(item),
+            target_id=item.id,
+            asset_version_id=dataset.asset_version_id,
+            source=TagAssetIndexSource.FIELD_PROJECTION,
+        )
+        persist_tag_rows(
+            session, payloads,
+            target_type=TagAssetIndexTargetType.JOB_DEMAND_REQUIREMENT_ITEM,
+            target_id=item.id,
+            source=TagAssetIndexSource.FIELD_PROJECTION,
+        )
+    session.commit()
+
+    return {
+        "dataset_id": dataset.id,
+        "record_ids": [r.id for r in records],
+        "asset_version_id": dataset.asset_version_id,
+        "ref_id": ref.id if ref else dataset.normalized_ref_id,
+        "requirement_item_ids": [i.id for i in items],
+    }
+
+
+def _record_to_projection_dict(
+    record: "models.JobDemandRecord",
+) -> dict[str, Any]:
+    """Convert a JobDemandRecord ORM row into the flat dict shape
+    ``project_record_to_tag_rows`` expects for the ``job_demand_record``
+    table entry in the projection whitelist."""
+    return {
+        "city": record.city,
+        "industry_name": record.industry_name,
+        "job_title": record.job_title,
+        "employment_type": record.employment_type,
+        "enterprise_size": record.enterprise_size,
+        "education_requirement": record.education_requirement,
+        "source_published_at": record.source_published_at,
+    }
+
+
+def _item_to_projection_dict(
+    item: "models.JobDemandRequirementItem",
+) -> dict[str, Any]:
+    return {
+        "item_type": item.item_type,
+        "item_name": item.item_name,
+        "normalized_name": item.normalized_name,
+    }
+
+
 FIXTURE_REGISTRY: dict[str, Callable] = {
     "major_distribution_zj_js": seed_major_distribution_zj_js,
     "major_distribution_with_region_tags": seed_major_distribution_with_region_tags,
@@ -452,6 +633,7 @@ FIXTURE_REGISTRY: dict[str, Callable] = {
     "job_demand_with_region_tags": seed_job_demand_with_region_tags,
     "job_demand_weighted_rerank": seed_job_demand_weighted_rerank,
     "course_textbook_outline_topic": seed_course_textbook_outline_topic,
+    "job_demand_from_xlsx_sample": seed_job_demand_from_xlsx_sample,
 }
 
 

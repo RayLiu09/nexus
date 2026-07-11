@@ -94,11 +94,18 @@ class GoldenQuery(BaseModel):
 
     # qid → record IDs that must appear in ``result.records`` (or
     # ``result.items`` for unstructured channel).  Empty list means "no
-    # assertion for this sub_query".
+    # assertion for this sub_query".  Entries may contain
+    # ``$fixture.<key>`` placeholders (e.g. ``$fixture.record_ids[0]``)
+    # that the harness substitutes against the fixture return dict
+    # before comparing.
     expected_record_ids_subset: dict[str, list[str]] = Field(default_factory=dict)
     # qid → record IDs that must NOT appear.  Useful for edge cases
     # where a tag_filter should have excluded a specific record.
     expected_record_ids_disjoint: dict[str, list[str]] = Field(default_factory=dict)
+    # qid → minimum number of records the executor must return.  Useful
+    # for xlsx-bootstrap fixtures where individual UUIDs are unstable
+    # but structural cardinality is guaranteed by the sample content.
+    expected_records_at_least: dict[str, int] = Field(default_factory=dict)
 
     # ---- Rerank expectations (WEIGHTED cases) ----
 
