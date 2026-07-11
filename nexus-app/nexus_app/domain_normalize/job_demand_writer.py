@@ -33,7 +33,26 @@ from nexus_app.domain_normalize.fingerprint import (
     compute_job_demand_record_fingerprint,
 )
 from nexus_app.domain_normalize.schemas import DomainNormalizeResult
+from nexus_app.domain_normalize.tag_projection_hook import (
+    project_writer_records,
+)
 from nexus_app.enums import AuditEventType
+
+
+def _project_job_demand_record(
+    record: "models.JobDemandRecord",
+) -> dict[str, Any]:
+    """Flatten a JobDemandRecord ORM row into the shape the projection
+    engine's ``job_demand_record`` whitelist entry consumes."""
+    return {
+        "city": record.city,
+        "industry_name": record.industry_name,
+        "job_title": record.job_title,
+        "employment_type": record.employment_type,
+        "enterprise_size": record.enterprise_size,
+        "education_requirement": record.education_requirement,
+        "source_published_at": record.source_published_at,
+    }
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -388,6 +407,9 @@ def write(
     invalid_count = 0
     per_record_flag_dicts: list[dict[str, Any]] = []
     seen_fingerprints: set[str] = set()
+    # PR-6b — collect persisted record rows so the write-side tag
+    # projection hook can iterate them after the flush.
+    persisted_records: list[models.JobDemandRecord] = []
 
     total_record_payloads = len(records_payload)
 
@@ -513,6 +535,7 @@ def write(
         )
         session.add(record_row)
         per_record_flag_dicts.append(record_flags)
+        persisted_records.append(record_row)
         records_inserted += 1
 
     # ----- Finalise dataset counts + quality_summary -------------------------
@@ -525,6 +548,18 @@ def write(
     dataset.duplicate_count = duplicate_count
     dataset.quality_summary = quality_summary
     session.flush()
+
+    # PR-6b — write-side tag_asset_index projection.  Best-effort: any
+    # projection failure is captured on the summary; the writer's own
+    # commit still succeeds.  Runs before the audit events so summary
+    # is embedded in the dataset audit payload.
+    tag_projection_summary = project_writer_records(
+        session,
+        table_name="job_demand_record",
+        records=persisted_records,
+        asset_version_id=normalized_ref.version_id,
+        record_to_dict=_project_job_demand_record,
+    )
 
     # ----- Audit (per §七) — both events target the dataset row -------------
     write_audit(
@@ -542,6 +577,7 @@ def write(
             "invalid_count": dataset.invalid_count,
             "duplicate_count": dataset.duplicate_count,
             "quality_summary": quality_summary,
+            "tag_projection": tag_projection_summary.to_audit_payload(),
         },
     )
     write_audit(

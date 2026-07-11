@@ -480,15 +480,7 @@ def seed_job_demand_from_xlsx_sample(session) -> dict[str, Any]:
     from sqlalchemy import select
 
     from nexus_app import services
-    from nexus_app.ai_governance.tag_projection import (
-        persist_tag_rows,
-        project_record_to_tag_rows,
-    )
     from nexus_app.config import Settings
-    from nexus_app.enums import (
-        TagAssetIndexSource,
-        TagAssetIndexTargetType,
-    )
     from nexus_app.ingest.gateway import submit_file_bytes
     from nexus_app.mineru import FakeMinerUAdapter
     from nexus_app.schemas import DataSourceCreate
@@ -557,37 +549,10 @@ def seed_job_demand_from_xlsx_sample(session) -> dict[str, Any]:
             "requirement_item_ids": [],
         }
 
-    # Project each record's structured fields onto tag_asset_index so
-    # tag_filter cases can find them at Phase A resolve time.  Uses
-    # FIELD_PROJECTION source to match Pipeline B semantics.
-    for record in records:
-        payloads = project_record_to_tag_rows(
-            table_name="job_demand_record",
-            record=_record_to_projection_dict(record),
-            target_id=record.id,
-            asset_version_id=dataset.asset_version_id,
-            source=TagAssetIndexSource.FIELD_PROJECTION,
-        )
-        persist_tag_rows(
-            session, payloads,
-            target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-            target_id=record.id,
-            source=TagAssetIndexSource.FIELD_PROJECTION,
-        )
-    for item in items:
-        payloads = project_record_to_tag_rows(
-            table_name="job_demand_requirement_item",
-            record=_item_to_projection_dict(item),
-            target_id=item.id,
-            asset_version_id=dataset.asset_version_id,
-            source=TagAssetIndexSource.FIELD_PROJECTION,
-        )
-        persist_tag_rows(
-            session, payloads,
-            target_type=TagAssetIndexTargetType.JOB_DEMAND_REQUIREMENT_ITEM,
-            target_id=item.id,
-            source=TagAssetIndexSource.FIELD_PROJECTION,
-        )
+    # PR-6b — tag_asset_index projection now runs inside the B4 writer
+    # (dispatch_domain_normalize → job_demand_writer.write →
+    # project_writer_records).  The fixture used to do this manually
+    # before PR-6b; now it just observes the resulting rows.
     session.commit()
 
     return {
@@ -596,33 +561,6 @@ def seed_job_demand_from_xlsx_sample(session) -> dict[str, Any]:
         "asset_version_id": dataset.asset_version_id,
         "ref_id": ref.id if ref else dataset.normalized_ref_id,
         "requirement_item_ids": [i.id for i in items],
-    }
-
-
-def _record_to_projection_dict(
-    record: "models.JobDemandRecord",
-) -> dict[str, Any]:
-    """Convert a JobDemandRecord ORM row into the flat dict shape
-    ``project_record_to_tag_rows`` expects for the ``job_demand_record``
-    table entry in the projection whitelist."""
-    return {
-        "city": record.city,
-        "industry_name": record.industry_name,
-        "job_title": record.job_title,
-        "employment_type": record.employment_type,
-        "enterprise_size": record.enterprise_size,
-        "education_requirement": record.education_requirement,
-        "source_published_at": record.source_published_at,
-    }
-
-
-def _item_to_projection_dict(
-    item: "models.JobDemandRequirementItem",
-) -> dict[str, Any]:
-    return {
-        "item_type": item.item_type,
-        "item_name": item.item_name,
-        "normalized_name": item.normalized_name,
     }
 
 

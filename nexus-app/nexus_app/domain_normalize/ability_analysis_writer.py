@@ -39,7 +39,27 @@ from sqlalchemy import select
 from nexus_app import models
 from nexus_app.audit import write_audit
 from nexus_app.domain_normalize.schemas import DomainNormalizeResult
+from nexus_app.domain_normalize.tag_projection_hook import (
+    project_writer_records,
+)
 from nexus_app.enums import AuditEventType
+
+
+def _project_occupational_ability_item(
+    item: "models.OccupationalAbilityItem",
+) -> dict[str, Any]:
+    """Flatten an OccupationalAbilityItem ORM row into the projection
+    engine's ``occupational_ability_item`` whitelist shape.
+
+    Per ``projection_config.PROJECTION_WHITELIST_V1_3``, the primary
+    projected field is ``text`` → ability tag.  Wait — that's the
+    ``major_profile_ability`` shape.  For OccupationalAbilityItem the
+    whitelist uses ``ability_content`` → ability.  Different table,
+    different key.
+    """
+    return {
+        "ability_content": item.ability_content,
+    }
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -361,6 +381,18 @@ def write(
     analysis.ability_item_count = len(ability_objects)
     analysis.quality_summary = dict(quality_summary)
     session.flush()
+
+    # PR-6b — write-side tag_asset_index projection for ability items.
+    # Best-effort: any failure captured on summary, writer flow continues.
+    tag_projection_summary = project_writer_records(
+        session,
+        table_name="occupational_ability_item",
+        records=ability_objects,
+        asset_version_id=normalized_ref.version_id,
+        record_to_dict=_project_occupational_ability_item,
+    )
+    quality_summary["tag_projection"] = tag_projection_summary.to_audit_payload()
+    analysis.quality_summary = dict(quality_summary)
 
     # ------------------------------------------------------------------ #
     # 6. Audit events — `ABILITY_ANALYSIS_PERSISTED`, then either
