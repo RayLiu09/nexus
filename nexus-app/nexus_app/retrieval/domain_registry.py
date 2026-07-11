@@ -158,10 +158,13 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 max_limit=50,
                 allowed_tag_types=("majors", "abilities", "topics"),
                 id_in_supported=False,
-                # OUTLINE_NODE support requires a chunk→outline_node
-                # join lift — deferred to a follow-up.  Left as None so
-                # PR-10 code path emits ``tag_target_type_not_configured``
-                # and falls back to unfiltered semantic search.
+                # PR-7 landed the OUTLINE_NODE write side (outline title
+                # projected to tag_asset_index).  The read side still
+                # needs a chunk→outline_node join lift so the pgvector
+                # ref-set filter can be reused — deferred to PR-7b.  Left
+                # as None so PR-10 code path emits
+                # ``tag_target_type_not_configured`` and falls back to
+                # unfiltered semantic search until then.
                 tag_target_type=None,
             ),
         ),

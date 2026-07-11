@@ -9,6 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from nexus_app import models
+from nexus_app.ai_governance.outline_projection import (
+    project_and_persist_outline_nodes,
+)
 from nexus_app.enums import IndexManifestStatus, NormalizedType
 from nexus_app.task_outline.extractor import (
     TaskOutlineExtraction,
@@ -70,6 +73,23 @@ def rebuild_task_outline_for_ref(
     )
     profile = upsert_profile(session, extraction.profile)
     nodes = replace_nodes(session, profile=profile, nodes=extraction.nodes)
+
+    # v1.3 PR-7 — project title → topic tag rows onto tag_asset_index.
+    # Best-effort; a projection failure must not revert the outline
+    # rebuild (which the caller has already committed to at this
+    # point in the session).
+    try:
+        project_and_persist_outline_nodes(
+            session,
+            table_name="task_outline_node",
+            nodes=nodes,
+            asset_version_id=ref.version_id,
+        )
+    except Exception:  # noqa: BLE001 - projection must never abort rebuild
+        # Deliberately silent: the audit for outline rebuild is emitted
+        # elsewhere; projection observability lands in PR-12 audit
+        # (RETRIEVAL_TAG_FILTER_APPLIED) as usage arrives.
+        pass
 
     chunks: list[models.KnowledgeChunk] = []
     chunks_changed = False

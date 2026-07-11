@@ -14,6 +14,9 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from nexus_app import models
+from nexus_app.ai_governance.outline_projection import (
+    project_and_persist_outline_nodes,
+)
 from nexus_app.audit import write_audit
 from nexus_app.enums import AuditEventType
 from nexus_app.knowledge_outline.builder import (
@@ -138,6 +141,17 @@ def build_and_persist_outline(
         chunk_associations=chunk_associations,
     )
 
+    # v1.3 PR-7 — project title → topic tag rows onto tag_asset_index
+    # so the retrieval-side unstructured OUTLINE_NODE anchor can find
+    # these nodes.  Best-effort: an exception here would waste the
+    # already-persisted outline; wrap so the write_audit still fires.
+    projection = _project_outline_tags(
+        session,
+        nodes=result.nodes,
+        asset_version_id=ref.version_id,
+        trace_id=trace_id,
+    )
+
     write_audit(
         session,
         AuditEventType.KNOWLEDGE_OUTLINE_BUILT,
@@ -152,6 +166,15 @@ def build_and_persist_outline(
             "fallback_used": result.fallback_used,
             "leaf_chunk_backfill_count": leaf_backfill_count,
             "rules_etag": rules_etag,
+            # PR-7 observability — surfaces both the projection outcome
+            # and any degradation so the audit alone explains missing
+            # tag rows.
+            "tag_projection": {
+                "node_count": projection.node_count,
+                "rows_persisted": projection.rows_persisted,
+                "empty_title_count": projection.empty_title_count,
+                "error": projection.error,
+            },
         },
         actor_type=actor_type,
         actor_id=actor_id,
@@ -290,6 +313,50 @@ def _compute_anchor(blocks_in_span: list[dict[str, Any]]) -> dict[str, Any] | No
 # ---------------------------------------------------------------------------
 # Persistence
 # ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _OutlineTagProjectionSummary:
+    node_count: int
+    rows_persisted: int
+    empty_title_count: int
+    error: str | None
+
+
+def _project_outline_tags(
+    session: Session,
+    *,
+    nodes: list[OutlineNodeSpec],
+    asset_version_id: str | None,
+    trace_id: str | None,
+) -> _OutlineTagProjectionSummary:
+    """Run PR-7 outline tag projection.  Never raises — errors are
+    captured on the summary so the caller's audit event still fires and
+    the outline build isn't reverted."""
+    if not asset_version_id:
+        return _OutlineTagProjectionSummary(
+            node_count=0, rows_persisted=0, empty_title_count=0,
+            error="missing_asset_version_id",
+        )
+    try:
+        result = project_and_persist_outline_nodes(
+            session,
+            table_name="knowledge_outline_node",
+            nodes=nodes,
+            asset_version_id=asset_version_id,
+            trace_id=trace_id,
+        )
+    except Exception as exc:  # noqa: BLE001 - projection must never abort the build
+        return _OutlineTagProjectionSummary(
+            node_count=0, rows_persisted=0, empty_title_count=0,
+            error=f"{type(exc).__name__}: {exc}",
+        )
+    return _OutlineTagProjectionSummary(
+        node_count=result.node_count,
+        rows_persisted=result.rows_persisted,
+        empty_title_count=result.empty_title_count,
+        error=None,
+    )
 
 
 def _replace_outline_rows(
