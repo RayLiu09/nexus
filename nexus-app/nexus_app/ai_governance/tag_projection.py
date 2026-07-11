@@ -38,6 +38,7 @@ from nexus_app.ai_governance.projection_config import (
     get_conditional_projections,
     get_field_projections,
     get_long_text_fields,
+    get_metadata_projections,
 )
 from nexus_app.ai_governance.tag_normalization import (
     TagTypeCode,
@@ -49,6 +50,7 @@ __all__ = [
     "TagRowPayload",
     "project_field_projections",
     "project_conditional_projections",
+    "project_metadata_projections",
     "project_record_to_tag_rows",
     "persist_tag_rows",
 ]
@@ -80,6 +82,9 @@ class TagRowPayload:
     Immutability keeps the engine's output safe to reuse (e.g. cached
     projection rerun during a writer retry).  ``created_at`` / ``id`` are
     filled in by the ORM at persistence time.
+
+    ``evidence_span`` (v1.3 PR-8) carries the LLM-produced snippet from
+    the source document; NULL for field/outline/expert_manual sources.
     """
 
     tag_type: str
@@ -93,6 +98,7 @@ class TagRowPayload:
     confidence: float | None = None
     extraction_run_id: str | None = None
     trace_id: str | None = None
+    evidence_span: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -138,6 +144,7 @@ def _emit_payloads_from_value(
     confidence: float | None,
     extraction_run_id: str | None,
     trace_id: str | None,
+    evidence_span: str | None = None,
 ) -> list[TagRowPayload]:
     """Emit one ``TagRowPayload`` per (tag_type × normalised value)."""
     if raw_value is None:
@@ -169,6 +176,7 @@ def _emit_payloads_from_value(
                         confidence=confidence,
                         extraction_run_id=extraction_run_id,
                         trace_id=trace_id,
+                        evidence_span=evidence_span,
                     )
                 )
             else:
@@ -186,6 +194,7 @@ def _emit_payloads_from_value(
                         confidence=confidence,
                         extraction_run_id=extraction_run_id,
                         trace_id=trace_id,
+                        evidence_span=evidence_span,
                     )
                 )
             continue
@@ -205,6 +214,7 @@ def _emit_payloads_from_value(
                 confidence=confidence,
                 extraction_run_id=extraction_run_id,
                 trace_id=trace_id,
+                evidence_span=evidence_span,
             )
         )
     return payloads
@@ -266,6 +276,71 @@ def _pick_conditional_value(
         if text:
             return raw
     return None
+
+
+def _resolve_dotted_path(
+    record: Mapping[str, Any],
+    dotted_path: str,
+) -> Any:
+    """Walk a ``"a.b.c"`` dotted path over a nested mapping.
+
+    Returns ``None`` when any intermediate segment is missing or is not
+    a mapping.  The terminal value may be any type; the caller decides
+    whether to iterate it (list-of-strings) or scalar-normalise it.
+    Kept intentionally strict — deep JSON schemas like
+    ``node_metadata.keywords`` are declared explicitly in the whitelist,
+    so unexpected shapes should surface as "no projection rows", not
+    silently bulldoze through mismatched types.
+    """
+    segments = dotted_path.split(".")
+    current: Any = record
+    for segment in segments:
+        if isinstance(current, Mapping) and segment in current:
+            current = current[segment]
+        else:
+            return None
+    return current
+
+
+def project_metadata_projections(
+    *,
+    table_name: str,
+    record: Mapping[str, Any],
+    target_type: TagAssetIndexTargetType,
+    target_id: str,
+    asset_version_id: str,
+    source: TagAssetIndexSource,
+    trace_id: str | None = None,
+) -> list[TagRowPayload]:
+    """Emit rows for the ``metadata_projections`` section of the whitelist.
+
+    v1.3 PR-8 addition — walks dotted paths into JSON columns.  When
+    the resolved value is a list, each element becomes an independent
+    projection (deduplicated at the top-level engine).  When it's a
+    single scalar, one row is emitted.  Any other shape (nested dict,
+    non-string element) is silently dropped by the value normaliser.
+    """
+    payloads: list[TagRowPayload] = []
+    for dotted_path, tag_types in get_metadata_projections(table_name).items():
+        resolved = _resolve_dotted_path(record, dotted_path)
+        if resolved is None:
+            continue
+        values = resolved if isinstance(resolved, (list, tuple)) else [resolved]
+        for value in values:
+            payloads.extend(
+                _emit_payloads_from_value(
+                    raw_value=value,
+                    tag_types=tag_types,
+                    target_type=target_type,
+                    target_id=target_id,
+                    asset_version_id=asset_version_id,
+                    source=source,
+                    confidence=None,
+                    extraction_run_id=None,
+                    trace_id=trace_id,
+                )
+            )
+    return payloads
 
 
 def project_conditional_projections(
@@ -355,10 +430,19 @@ def project_record_to_tag_rows(
         source=source,
         trace_id=trace_id,
     )
+    metadata_payloads = project_metadata_projections(
+        table_name=table_name,
+        record=record,
+        target_type=resolved_target_type,
+        target_id=target_id,
+        asset_version_id=asset_version_id,
+        source=source,
+        trace_id=trace_id,
+    )
 
     seen: set[tuple[str, str]] = set()
     deduplicated: list[TagRowPayload] = []
-    for payload in field_payloads + conditional_payloads:
+    for payload in field_payloads + conditional_payloads + metadata_payloads:
         key = (payload.tag_type, payload.tag_value_normalized)
         if key in seen:
             continue
@@ -420,6 +504,7 @@ def persist_tag_rows(
                 extraction_run_id=p.extraction_run_id,
                 extracted_at=datetime.now(timezone.utc),
                 trace_id=p.trace_id,
+                evidence_span=p.evidence_span,
             )
             for p in payloads
         ]

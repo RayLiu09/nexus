@@ -789,6 +789,19 @@ class AIGovernanceService:
         if quality_summary is not None:
             run.quality_summary = quality_summary
 
+        # v1.3 PR-8 — project the tagging stage's StructuredTagBag onto
+        # tag_asset_index (source=governance_tag).  Best-effort — a
+        # projection failure must not lose the AIGovernanceRun; the
+        # audit event still fires with a note.
+        tag_projection_summary = self._project_governance_tags(
+            session,
+            ref=ref,
+            tag_output=tag_output,
+            extraction_run_id=run.id,
+            rules_registry=rules_registry,
+            trace_id=trace_id,
+        )
+
         _write_audit(
             session, AuditEventType.AI_GOVERNANCE_RUN_CREATED,
             "ai_governance_run", run.id, user_id, trace_id,
@@ -798,9 +811,82 @@ class AIGovernanceService:
                 "task_types": sorted(prompt_ids),
                 "validation_status": run.validation_status.value,
                 "total_latency_ms": total_latency_ms,
+                "tag_projection": tag_projection_summary,
             },
         )
         return run
+
+    # ------------------------------------------------------------------
+    # PR-8 — governance tag projection into tag_asset_index
+    # ------------------------------------------------------------------
+
+    def _project_governance_tags(
+        self,
+        session: Session,
+        *,
+        ref: models.NormalizedAssetRef,
+        tag_output: dict[str, Any],
+        extraction_run_id: str,
+        rules_registry: "GovernanceRulesRegistry | None",
+        trace_id: str | None,
+    ) -> dict[str, Any]:
+        """Best-effort projection of the tagging stage into tag_asset_index.
+
+        Returns a summary dict suitable for embedding in the run's audit
+        event (or ``ai_output`` if a follow-up PR extracts it there).
+        Failure never propagates — a projection error would else lose
+        the whole governance run, which is the wrong risk tradeoff.
+        """
+        if not isinstance(tag_output, dict) or "_error" in tag_output:
+            return {"skipped": "tagging_stage_unavailable"}
+
+        tag_bag = tag_output.get("tags")
+        if not isinstance(tag_bag, dict):
+            return {"skipped": "no_structured_tag_bag"}
+
+        # Threshold: use the governance rules' confidence_threshold_auto_adopt
+        # when a rules registry is wired; otherwise 0.0 (no filter).  This
+        # matches decision_service.py's global threshold semantics — sub-
+        # threshold tags stay off the semantic bridge but remain visible
+        # in ai_governance_run.raw_output for human review.
+        threshold = 0.0
+        if rules_registry is not None:
+            try:
+                config = rules_registry.get_active_config()
+                threshold = float(
+                    config.quality_scoring.confidence_threshold_auto_adopt
+                )
+            except Exception:
+                pass
+
+        try:
+            from nexus_app.ai_governance.governance_tag_projection import (
+                project_governance_tag_bag,
+            )
+            result = project_governance_tag_bag(
+                session,
+                normalized_ref_id=ref.id,
+                asset_version_id=ref.version_id,
+                tag_bag=tag_bag,
+                extraction_run_id=extraction_run_id,
+                confidence_threshold=threshold,
+                trace_id=trace_id,
+            )
+        except Exception as exc:  # noqa: BLE001 - projection must never abort the run
+            logger.warning(
+                "governance_tag projection failed for run %s: %s",
+                extraction_run_id, exc,
+            )
+            return {"error": f"{type(exc).__name__}: {exc}"}
+
+        return {
+            "rows_persisted": result.rows_persisted,
+            "tag_count_examined": result.tag_count_examined,
+            "dropped_below_threshold": result.dropped_below_threshold,
+            "dropped_malformed": result.dropped_malformed,
+            "confidence_threshold": threshold,
+            "dropped_buckets": list(result.dropped_buckets),
+        }
 
     # ------------------------------------------------------------------
     # Multi-stage helpers

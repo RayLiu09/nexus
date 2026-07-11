@@ -233,5 +233,16 @@ def get_long_text_fields(table: str) -> list[str]:
     return list(_cfg(table).get("long_text_fields", []))
 
 
+def get_metadata_projections(table: str) -> dict[str, list[str]]:
+    """Return ``{dotted_path: [tag_type, …]}`` for metadata projections.
+
+    v1.3 PR-8 addition — dotted paths like ``"node_metadata.keywords"``
+    let the engine reach into JSON columns without a per-table SQL
+    accessor.  When the terminal segment resolves to a list, the engine
+    iterates it and emits one row per element.
+    """
+    return dict(_cfg(table).get("metadata_projections", {}))
+
+
 def iter_tables() -> list[str]:
     return list(PROJECTION_WHITELIST_V1_3.keys())

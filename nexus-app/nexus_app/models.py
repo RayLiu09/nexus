@@ -2495,3 +2495,10 @@ class TagAssetIndex(TimestampMixin, Base):
         DateTime(timezone=True), default=utcnow, nullable=False,
     )
     trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # v1.3 PR-8 — per-tag copy-pasted snippet from the source document that
+    # justifies why the LLM produced this tag.  Populated for
+    # source=governance_tag rows (from _TAGGING_PROMPT_V2 evidence_span
+    # field); NULL for field/outline/expert_manual sources.
+    evidence_span: Mapped[str | None] = mapped_column(Text, nullable=True,
+        comment="LLM-produced evidence snippet (3-60 chars); NULL for non-"
+                "governance sources")
