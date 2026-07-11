@@ -361,23 +361,6 @@ def test_golden_query(golden: GoldenQuery, session):
     """Run one golden retrieval case through the appropriate path."""
     fixture_ids: dict[str, object] | None = None
     if golden.fixture_setup is not None:
-        # xlsx-bootstrap fixtures drive the whole B0-B4 pipeline whose
-        # internal ``session.commit()`` calls don't play well with the
-        # M-C.3 Postgres savepoint isolation (execute_job hangs on
-        # shared connection).  Skip on Postgres mode; SQLite path is
-        # fully validated.  Follow-up: switch pipeline commits to
-        # ``flush()`` or run these under a dedicated Postgres
-        # transaction strategy.
-        import os
-        if (
-            "xlsx" in golden.fixture_setup
-            and os.getenv("NEXUS_GOLDEN_USE_POSTGRES", "").lower()
-            in ("1", "true", "yes", "on")
-        ):
-            pytest.skip(
-                f"{golden.case_id}: xlsx bootstrap deferred on Postgres "
-                f"(pipeline commits vs savepoint isolation)"
-            )
         fixture_ids = seed_fixture(golden.fixture_setup, session)
 
     resolved = _substitute_placeholders(golden, fixture_ids)

@@ -31,6 +31,50 @@ from nexus_app.enums import (
 # ---------------------------------------------------------------------------
 
 
+def _run_pipeline_without_live_llm(execute_job, *args, **kwargs) -> None:
+    """Invoke ``execute_job`` with every LiteLLM entry point neutralised.
+
+    The M-C.3 xlsx bootstrap fixtures need the full B0-B4 pipeline to run
+    end-to-end so ``project_writer_records`` populates ``tag_asset_index``,
+    but the pipeline also fires body_markdown / requirement_extraction /
+    task_structuring / governance_multi stages that reach for
+    ``_create_default_litellm_client`` and hang against the real dev
+    LiteLLM endpoint (Postgres session sat ``idle in transaction`` while
+    Python blocked on httpx).  The golden xlsx cases assert on
+    tag_asset_index rows and record ordering — nothing that needs a real
+    LLM response — so we patch the factory to return a stub whose
+    ``.call()`` raises ``LiteLLMCallError``.  Every stage's defensive
+    ``except`` swallows that error and audits it as skipped, matching
+    what happens in a fresh dev environment without LiteLLM credentials.
+    """
+    from unittest.mock import patch
+
+    from nexus_app.ai_governance.litellm_client import (
+        LiteLLMCallError,
+        LiteLLMErrorType,
+    )
+
+    class _StubLiteLLMClient:
+        def call(self, *_args, **_kwargs):  # pragma: no cover - test stub
+            raise LiteLLMCallError(
+                "litellm disabled in xlsx fixture (M-C.3 pipeline unlock)",
+                LiteLLMErrorType.UNKNOWN,
+            )
+
+    def _stub_factory(*_args, **_kwargs):
+        return _StubLiteLLMClient()
+
+    # ``_create_default_litellm_client`` is looked up on the services
+    # module by every stage (late import inside runner._build_* helpers +
+    # module-scope reference inside AIGovernanceService).  Patching the
+    # attribute on that module covers both.
+    with patch(
+        "nexus_app.ai_governance.services._create_default_litellm_client",
+        _stub_factory,
+    ):
+        execute_job(*args, **kwargs)
+
+
 def _seed_asset_scaffold(
     session,
     *,
@@ -518,7 +562,8 @@ def seed_job_demand_from_xlsx_sample(session) -> dict[str, Any]:
         trace_id="trace-golden-xlsx-jd",
     )
     session.refresh(accepted.job)
-    execute_job(
+    _run_pipeline_without_live_llm(
+        execute_job,
         accepted.job, session, storage, FakeMinerUAdapter(), xlsx_settings,
     )
     session.refresh(accepted.job)
@@ -627,7 +672,8 @@ def seed_major_distribution_from_xlsx_sample(session) -> dict[str, Any]:
         trace_id="trace-golden-xlsx-md",
     )
     session.refresh(accepted.job)
-    execute_job(
+    _run_pipeline_without_live_llm(
+        execute_job,
         accepted.job, session, storage, FakeMinerUAdapter(), xlsx_settings,
     )
     session.refresh(accepted.job)
