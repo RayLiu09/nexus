@@ -190,12 +190,45 @@ cassette JSON 编写规范见 `llm_cassettes/README.md`。
 
 ## M-C 后续阶段
 
-| 阶段          | 交付                                                         | 依赖                   |
-| ------------- | ------------------------------------------------------------ | ---------------------- |
-| M-C.1 (本 PR) | 基础设施 + 10 条种子                                         | 无                     |
-| M-C.2         | recorded LiteLLM cassette; 支持 `prebuilt_plan=None` 的 case | LiteLLM 一次性录制授权 |
-| M-C.3         | docker-compose 真 pgvector; 语义 chunk case                  | Docker 环境            |
-| M-C.4         | Nightly 真实 LLM 验收; 性能基线                              | 前三阶段就位           |
+| 阶段         | 交付                                                               | 依赖                                                       |
+| ------------ | ------------------------------------------------------------------ | ---------------------------------------------------------- |
+| M-C.1        | 基础设施 + 10 条种子                                               | 无                                                         |
+| M-C.2        | recorded LiteLLM cassette; 支持 `prebuilt_plan=None` 的 case       | LiteLLM 一次性录制授权                                     |
+| M-C.3 Step 1 | Postgres opt-in + FakeEmbedding hash 向量 pgvector 种子 + 内容断言 | `.env.dev` Postgres + `alembic upgrade head` + vector 扩展 |
+| M-C.3 Step 2 | 真实 xlsx 样本 bootstrap（结构化域）+ ID snapshot                  | test_b4 bootstrap 模式复用                                 |
+| M-C.4        | Nightly 真实 LLM 验收; 性能基线                                    | 前三阶段就位                                               |
+
+---
+
+## Postgres 模式启用（M-C.3 Step 1）
+
+对同一组 golden case 在真实 Postgres+pgvector 上跑一次，验证：
+
+- pgvector 扩展 + HNSW cosine SQL 路径
+- PR-7b `ANY(:chunk_ids)` chunk-level 过滤
+- 全 pipeline 在 Postgres enum / FK 约束下的正确性
+
+**前置**：
+
+1. `.env.dev` 已配置 Postgres 连接（`POSTGRES_HOST` / `POSTGRES_PORT` / `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB`）
+2. `CREATE EXTENSION vector` 已在 DB 上执行
+3. `alembic upgrade head` 应用完所有迁移（含 `0072` chunk outline index + `0073` audit enum values）
+
+**启用命令**：
+
+```bash
+# pytest
+NEXUS_GOLDEN_USE_POSTGRES=1 ./.venv/bin/pytest tests/retrieval/test_golden_baseline.py -v
+
+# CLI
+NEXUS_GOLDEN_USE_POSTGRES=1 ./.venv/bin/python scripts/run_retrieval_golden.py --case-id gq_ct_outline_context_topic
+# 或直接指定 URL
+./.venv/bin/python scripts/run_retrieval_golden.py --database-url postgresql+psycopg://user:pass@host:5432/dev
+```
+
+**隔离**：每 test 用外层 transaction + savepoint 包裹，测完 rollback。共享 DB 无写入残留。DDL 不由 harness 触发 —— 假设 alembic 已升级完成。
+
+**FK 顺序**：Postgres 强制外键约束。fixture 里 `session.add_all` 混合 parent + child 会 fail，需要显式 `session.flush()` 分批。参见 `seed_job_demand_bj_sh` / `seed_course_textbook_outline_topic` 中的模式。
 
 ---
 

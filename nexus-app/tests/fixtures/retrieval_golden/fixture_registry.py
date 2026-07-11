@@ -146,7 +146,10 @@ def seed_major_distribution_zj_js(session) -> dict[str, Any]:
         education_level="高职", distribution_count=5,
         quality_flags={}, trace={},
     )
-    session.add_all([dataset, record_zj, record_js])
+    # Postgres FK ordering: dataset → records.
+    session.add(dataset)
+    session.flush()
+    session.add_all([record_zj, record_js])
     session.commit()
     return {
         "asset_version_id": scaffold["version_id"],
@@ -215,7 +218,13 @@ def seed_job_demand_bj_sh(session) -> dict[str, Any]:
         normalized_name="用户增长",
         confidence=0.9, evidence_field="requirement_text",
     )
-    session.add_all([dataset, record_bj, record_sh, item_bj, item_sh])
+    # Postgres FK ordering: dataset → records → items (children after
+    # parents).  SQLite tolerates any order.
+    session.add(dataset)
+    session.flush()
+    session.add_all([record_bj, record_sh])
+    session.flush()
+    session.add_all([item_bj, item_sh])
     session.commit()
     return {
         "asset_version_id": scaffold["version_id"],
@@ -268,10 +277,74 @@ def seed_job_demand_weighted_rerank(session) -> dict[str, Any]:
     return seeded
 
 
+def _seed_pgvector_embedding_for_chunk(
+    session,
+    *,
+    collection_id: str,
+    collection_key: str,
+    chunk: "models.KnowledgeChunk",
+    asset_id: str,
+    asset_version_id: str,
+    embedding_model: str,
+    embedding_dimension: int,
+) -> None:
+    """Register one KnowledgeEmbeddingPgvector row for a chunk so the
+    pgvector adapter's Python + Postgres search paths can find it.
+
+    Uses ``FakeEmbeddingClient``'s hash-derived vectors — same shape as
+    what the real production embedding client produces, but zero
+    LiteLLM traffic.  Determinism means M-C.3 baselines don't shift
+    between runs.
+    """
+    import hashlib
+    from nexus_app.index.embedding_client import _fake_vector, _hash_text
+
+    embedding = _fake_vector(chunk.content, embedding_dimension)
+    session.add(models.KnowledgeEmbeddingPgvector(
+        collection_id=collection_id,
+        collection_key=collection_key,
+        chunk_id=chunk.id,
+        normalized_ref_id=chunk.normalized_ref_id,
+        asset_id=asset_id,
+        asset_version_id=asset_version_id,
+        asset_domain_type="course_textbook",
+        knowledge_type_code=chunk.knowledge_type_code,
+        domain_profile="course_textbook.v1",
+        normalized_type="document",
+        content_type="markdown",
+        source_type="file_upload",
+        language="zh-CN",
+        chunk_type=str(chunk.chunk_type),
+        chunking_strategy=str(chunk.chunking_strategy),
+        embedding_provider="fake",
+        embedding_model=embedding_model,
+        embedding_dimension=embedding_dimension,
+        distance_metric="cosine",
+        embedding=embedding,
+        embedding_hash=_hash_text(chunk.content),
+        content_hash=_hash_text(chunk.content),
+        vector_metadata={},
+    ))
+
+
 def seed_course_textbook_outline_topic(session) -> dict[str, Any]:
     """PR-7b — course_textbook doc with one outline node + one linked
     chunk + one OUTLINE_NODE tag row so tag_filters=topics narrows to
-    chunk-outline-a1."""
+    chunk-outline-a1.
+
+    M-C.3 addition: seeds a ``VectorCollection`` + one
+    ``KnowledgeEmbeddingPgvector`` row per chunk so the fixture works
+    against real Postgres+pgvector as well as SQLite in-memory.  The
+    embedding vector is hash-derived via
+    :func:`nexus_app.index.embedding_client._fake_vector` — deterministic
+    and 1024-d (matching Settings.default_embedding_dimension).
+    """
+    from nexus_app.config import get_settings
+
+    settings = get_settings()
+    embedding_model = settings.effective_embedding_model_alias
+    embedding_dimension = settings.default_embedding_dimension
+
     scaffold = _seed_asset_scaffold(
         session, ref_id="ref-ct-topic",
         asset_kind=AssetKind.DOCUMENT,
@@ -320,7 +393,13 @@ def seed_course_textbook_outline_topic(session) -> dict[str, Any]:
         locator=None,
         knowledge_outline_node_id=None,
     )
-    session.add_all([outline_node, chunk, orphan_chunk])
+    # Postgres enforces FK constraints on flush order; SQLite tolerates
+    # any order.  Add + flush the outline node first so chunk inserts
+    # (which FK to knowledge_outline_node.id) find the parent row.
+    session.add(outline_node)
+    session.flush()
+    session.add_all([chunk, orphan_chunk])
+    session.flush()
     _seed_tag(
         session,
         target_type=TagAssetIndexTargetType.OUTLINE_NODE,
@@ -328,6 +407,33 @@ def seed_course_textbook_outline_topic(session) -> dict[str, Any]:
         asset_version_id=scaffold["version_id"],
         tag_type="topic", tag_value="直播运营",
     )
+    # Vector collection + embeddings so the pgvector adapter can
+    # return hits on both SQLite fallback and real Postgres paths.
+    collection_key = "course_textbook.document.bge.v1"
+    collection = models.VectorCollection(
+        id="vc-ct-topic",
+        collection_key=collection_key,
+        asset_domain_type="course_textbook",
+        normalized_type="document",
+        embedding_provider="fake",
+        embedding_model=embedding_model,
+        embedding_dimension=embedding_dimension,
+        distance_metric="cosine",
+        collection_metadata={},
+    )
+    session.add(collection)
+    session.flush()
+    for c in (chunk, orphan_chunk):
+        _seed_pgvector_embedding_for_chunk(
+            session,
+            collection_id=collection.id,
+            collection_key=collection_key,
+            chunk=c,
+            asset_id=f"asset-{scaffold['ref_id']}",
+            asset_version_id=scaffold["version_id"],
+            embedding_model=embedding_model,
+            embedding_dimension=embedding_dimension,
+        )
     session.commit()
     return {
         "asset_version_id": scaffold["version_id"],
@@ -335,6 +441,7 @@ def seed_course_textbook_outline_topic(session) -> dict[str, Any]:
         "outline_node_id": outline_node.id,
         "linked_chunk_id": chunk.id,
         "orphan_chunk_id": orphan_chunk.id,
+        "collection_id": collection.id,
     }
 
 

@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -96,7 +97,35 @@ def _load_queries(path: Path) -> list[GoldenQuery]:
     return queries
 
 
-def _make_session():
+def _make_session(*, database_url: str | None = None):
+    """Session factory — returns ``(session, cleanup_callable)``.
+
+    - SQLite in-memory (default): fresh DDL via ``create_all``, no
+      cleanup needed beyond ``session.close()``.
+    - Postgres when ``database_url`` is provided: outer transaction
+      wrapping the run so all seeded rows roll back at teardown.
+      Assumes ``alembic upgrade head`` has been applied — no DDL runs.
+    """
+    if database_url:
+        engine = create_engine(database_url, future=True)
+        connection = engine.connect()
+        transaction = connection.begin()
+        Session = sessionmaker(
+            bind=connection,
+            autoflush=False, autocommit=False,
+            expire_on_commit=False, future=True,
+            join_transaction_mode="create_savepoint",
+        )
+        session = Session()
+
+        def _cleanup():
+            session.close()
+            transaction.rollback()
+            connection.close()
+            engine.dispose()
+
+        return session, _cleanup
+
     engine = create_engine(
         "sqlite+pysqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -108,7 +137,8 @@ def _make_session():
         bind=engine, autoflush=False, autocommit=False,
         expire_on_commit=False, future=True,
     )
-    return Session()
+    session = Session()
+    return session, lambda: session.close()
 
 
 def _executor_map(*, rerank_enabled: bool):
@@ -209,8 +239,17 @@ def _envelope_for(
     }
 
 
-def run_one(golden: GoldenQuery) -> dict[str, Any]:
-    """Execute one golden query and return the flattened result envelope."""
+def run_one(
+    golden: GoldenQuery,
+    *,
+    database_url: str | None = None,
+) -> dict[str, Any]:
+    """Execute one golden query and return the flattened result envelope.
+
+    ``database_url`` — when provided, connect against that DB instead of
+    the default SQLite in-memory instance.  Postgres path assumes
+    ``alembic upgrade head`` has been applied.
+    """
     if golden.prebuilt_plan is None and golden.llm_cassette_id is None:
         return {
             "case_id": golden.case_id,
@@ -218,7 +257,7 @@ def run_one(golden: GoldenQuery) -> dict[str, Any]:
             "reason": "neither prebuilt_plan nor llm_cassette_id set",
         }
 
-    session = _make_session()
+    session, cleanup = _make_session(database_url=database_url)
     try:
         if golden.fixture_setup is not None:
             seed_fixture(golden.fixture_setup, session)
@@ -284,7 +323,7 @@ def run_one(golden: GoldenQuery) -> dict[str, Any]:
         elapsed_ms = (time.monotonic() - started) * 1000
         return _envelope_for(golden.case_id, elapsed_ms, results)
     finally:
-        session.close()
+        cleanup()
 
 
 def main() -> None:
@@ -304,7 +343,25 @@ def main() -> None:
         "--case-id", type=str, action="append", default=None,
         help="Restrict to specific case_id(s); may be repeated",
     )
+    parser.add_argument(
+        "--database-url", type=str, default=None,
+        help=(
+            "Connect against this SQLAlchemy URL instead of SQLite in-memory. "
+            "Also read from $NEXUS_DATABASE_URL when the flag is omitted "
+            "and $NEXUS_GOLDEN_USE_POSTGRES=1."
+        ),
+    )
     args = parser.parse_args()
+
+    database_url = args.database_url
+    if (
+        database_url is None
+        and os.getenv("NEXUS_GOLDEN_USE_POSTGRES", "").lower() in (
+            "1", "true", "yes", "on",
+        )
+    ):
+        from nexus_app.config import get_settings
+        database_url = get_settings().database_url
 
     queries = _load_queries(args.golden)
     if args.case_id:
@@ -317,7 +374,7 @@ def main() -> None:
             )
             sys.exit(2)
 
-    envelopes = [run_one(q) for q in queries]
+    envelopes = [run_one(q, database_url=database_url) for q in queries]
     lines = [
         json.dumps(env, ensure_ascii=False, default=str) for env in envelopes
     ]
