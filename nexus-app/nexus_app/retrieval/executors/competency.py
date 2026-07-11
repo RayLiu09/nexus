@@ -1,7 +1,7 @@
 """Structured retrieval executor for ability_analysis.pgsd.v1.
 
-v1.3 PR-13b — Phase A / Phase B two-phase execution for competency
-profiles anchored at ``OccupationalAbilityItem.id``:
+v1.3 PR-13b / PR-13b.2 — Phase A / Phase B two-phase execution for
+all four competency profiles anchored at ``OccupationalAbilityItem.id``:
 
 * ``competency.ability_items_by_task`` — inner joins throughout;
   ``WHERE item.id IN (…)`` cleanly narrows results.
@@ -12,12 +12,13 @@ profiles anchored at ``OccupationalAbilityItem.id``:
   rows with NULL item are excluded (because ``NULL NOT IN (…)``).
   Documented as intentional; call sites that need the full outer
   shape should omit tag_filters.
-* ``competency.relations_by_ability`` — retains ``tag_target_type=None``.
-  The relation table's ``target_id`` column is polymorphic (points at
-  work_content OR ability_item OR task depending on relation_type), so
-  a direct ID IN clause would be semantically wrong.  Emits
-  ``tag_target_type_not_configured`` as before; a follow-up PR-13b.2
-  will add ``AND target_type='ability_item'`` co-conditions.
+* ``competency.relations_by_ability`` (PR-13b.2) — ``relation.target_id``
+  and ``source_id`` are polymorphic (either can point at work_content
+  OR ability_item OR task depending on ``relation_type``).  Phase A
+  still resolves to ability_item ids; the executor rewrites the
+  ``TARGET_ID_IN_KEY`` slot as ``(target_type='ability_item' AND
+  target_id IN (…)) OR (source_type='ability_item' AND source_id IN
+  (…))``, so relations pointing AT OR FROM an ability item both match.
 """
 from __future__ import annotations
 
@@ -51,6 +52,11 @@ from nexus_app.retrieval.tag_filter_execution import (
 from nexus_app.retrieval.tag_resolver import TagAssetIndexResolver
 
 
+# Profiles whose ``records`` payload carries a direct ``ability_item.id``
+# anchor (top-level ``id`` or nested ``ability_item.id``).  The rerank
+# hook uses this to decide whether score injection makes sense.
+# ``relations_by_ability`` records carry ``relation_id`` at the top
+# level — no ability_item anchor — so rerank still skips.
 _ITEM_ANCHOR_PROFILES = frozenset({
     "competency.task_tree",
     "competency.ability_items_by_task",
@@ -102,11 +108,10 @@ class CompetencyRetrievalExecutor:
             result = _execute_ability_items(session, sub_query, guarded)
         result.elapsed_ms = (time.monotonic() - started) * 1000
         _attach_phase_a_meta(result, phase_a)
-        # relations_by_ability profile still declines tag_filters — the
-        # per-profile warning surfaces from Phase A's
-        # ``tag_target_type_not_configured``; nothing more to do here.
-        # Rerank only on record-shaped results (aggregation profiles
-        # carry group_value payloads without target ids).
+        # PR-13b.2 — relations_by_ability now supports polymorphic
+        # ability_item narrowing (see _execute_relations).  Rerank still
+        # skips relations because their records key on relation_id
+        # rather than ability_item.id.
         if (
             guarded.query_profile.key in _ITEM_ANCHOR_PROFILES
             and result.records
@@ -394,13 +399,38 @@ def _execute_relations(
     sub_query: RetrievalSubQuery,
     guarded: GuardedStructuredPlan,
 ) -> RetrievalResult:
-    stmt = _apply_filters(
-        select(models.OccupationalAbilityAnalysis, models.OccupationalAbilityRelation).join(
-            models.OccupationalAbilityRelation,
-            models.OccupationalAbilityRelation.analysis_id == models.OccupationalAbilityAnalysis.id,
-        ),
-        guarded.plan.filters,
+    from sqlalchemy import or_
+
+    stmt = select(
+        models.OccupationalAbilityAnalysis, models.OccupationalAbilityRelation,
+    ).join(
+        models.OccupationalAbilityRelation,
+        models.OccupationalAbilityRelation.analysis_id
+        == models.OccupationalAbilityAnalysis.id,
     )
+
+    # PR-13b.2 — polymorphic ability_item filter.  Extract the
+    # Phase A ``TARGET_ID_IN_KEY`` slot from filters and rewrite it as
+    # ``(target_type='ability_item' AND target_id IN (…))
+    #  OR (source_type='ability_item' AND source_id IN (…))`` so
+    # relations pointing AT OR FROM an ability item both match.  The
+    # remaining filter keys go through ``_apply_filters`` untouched.
+    filters = dict(guarded.plan.filters)
+    ability_item_id_in = filters.pop(TARGET_ID_IN_KEY, None)
+    if ability_item_id_in is not None:
+        id_set = (
+            ability_item_id_in
+            if isinstance(ability_item_id_in, (list, tuple, set))
+            else [ability_item_id_in]
+        )
+        stmt = stmt.where(or_(
+            (models.OccupationalAbilityRelation.target_type == "ability_item")
+            & (models.OccupationalAbilityRelation.target_id.in_(id_set)),
+            (models.OccupationalAbilityRelation.source_type == "ability_item")
+            & (models.OccupationalAbilityRelation.source_id.in_(id_set)),
+        ))
+
+    stmt = _apply_filters(stmt, filters)
     stmt = _apply_order_by(stmt, guarded, default_field="relation_type")
     rows = list(session.execute(stmt.limit(guarded.limit)).all())
     return RetrievalResult(

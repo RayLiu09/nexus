@@ -364,20 +364,34 @@ def test_pr13b_task_tree_tag_filter_drops_null_item_rows(session):
     assert item_ids == {"ability-ca-1"}
 
 
-def test_pr13b_relations_by_ability_still_declines_tag_filters(session):
+def test_pr13b_2_relations_narrowed_by_ability_polymorphic(session):
+    """PR-13b.2 — relations_by_ability now uses the polymorphic OR
+    filter (target_id OR source_id references an ability_item)."""
     from nexus_app.retrieval.tag_schemas import TagFilter
 
     _seed_competency(session)
+    # Add a SECOND relation whose target points at ability-ca-2 so we
+    # can prove the filter reliably drops non-matching relations.
+    session.add(models.OccupationalAbilityRelation(
+        id="rel-ca-2",
+        analysis_id="analysis-ca",
+        source_type="work_content",
+        source_id="content-ca",
+        relation_type="WORK_CONTENT_REQUIRES_ABILITY",
+        target_type="ability_item",
+        target_id="ability-ca-2",
+        evidence={},
+    ))
+    session.commit()
     _seed_ability_item_tags(session)
     executor = CompetencyRetrievalExecutor()
     sub_query = RetrievalSubQuery.model_validate({
         "query_id": "q1", "channel": "structured",
         "domain": "competency_analysis", "purpose": "relations",
-        "query_text": "关系查询",
+        "query_text": "日志采集能力的关系",
         "structured_plan": {
             "table_profile": "ability_analysis.pgsd.v1",
             "query_profile": "competency.relations_by_ability",
-            "filters": {"relation_type": "WORK_CONTENT_REQUIRES_ABILITY"},
         },
         "tag_filters": {
             "abilities": TagFilter(
@@ -386,6 +400,52 @@ def test_pr13b_relations_by_ability_still_declines_tag_filters(session):
         },
     })
     result = executor.execute(session, sub_query)
-    # relations_by_ability keeps tag_target_type=None (PR-13b.2
-    # deferred); Phase A must emit the warning.
-    assert "tag_target_type_not_configured" in result.warnings
+    assert result.status == "completed"
+    # Only rel-ca-1 (targets ability-ca-1 = 日志采集) matches; rel-ca-2
+    # targets ability-ca-2 = 沟通能力, which is NOT in the tag filter.
+    ids = {r["id"] for r in result.records}
+    assert ids == {"rel-ca-1"}
+    assert "tag_target_type_not_configured" not in result.warnings
+
+
+def test_pr13b_2_relations_source_side_match(session):
+    """PR-13b.2 — the polymorphic filter also matches when the
+    ability_item appears on the ``source`` side, not just ``target``."""
+    from nexus_app.retrieval.tag_schemas import TagFilter
+
+    _seed_competency(session)
+    # Add a relation where ability-ca-1 appears as the SOURCE (e.g.
+    # ABILITY_DERIVED_FROM_JOB_REQUIREMENT).
+    session.add(models.OccupationalAbilityRelation(
+        id="rel-ca-src",
+        analysis_id="analysis-ca",
+        source_type="ability_item",
+        source_id="ability-ca-1",
+        relation_type="ABILITY_DERIVED_FROM_JOB_REQUIREMENT",
+        target_type="job_requirement",
+        target_id="jr-external",
+        evidence={},
+    ))
+    session.commit()
+    _seed_ability_item_tags(session)
+    executor = CompetencyRetrievalExecutor()
+    sub_query = RetrievalSubQuery.model_validate({
+        "query_id": "q1", "channel": "structured",
+        "domain": "competency_analysis", "purpose": "relations",
+        "query_text": "日志采集反向溯源",
+        "structured_plan": {
+            "table_profile": "ability_analysis.pgsd.v1",
+            "query_profile": "competency.relations_by_ability",
+        },
+        "tag_filters": {
+            "abilities": TagFilter(
+                tags=["日志采集"], match_strategy="l1|l1.5",
+            ).model_dump(),
+        },
+    })
+    result = executor.execute(session, sub_query)
+    assert result.status == "completed"
+    ids = {r["id"] for r in result.records}
+    # rel-ca-1 (target=ability-ca-1) AND rel-ca-src (source=ability-ca-1)
+    # both match; the pre-existing TASK_HAS_WORK_CONTENT relation does not.
+    assert ids == {"rel-ca-1", "rel-ca-src"}

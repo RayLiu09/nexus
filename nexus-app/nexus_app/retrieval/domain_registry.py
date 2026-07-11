@@ -384,12 +384,13 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 table_profile="ability_analysis.pgsd.v1",
                 allowed_filters=COMPETENCY_RELATION_FIELDS,
                 allowed_tag_types=("occupations", "abilities", "majors"),
-                # PR-13b — relation.target_id is polymorphic (points at
-                # work_content OR ability_item OR task depending on
-                # relation_type); a plain ID IN clause would be
-                # semantically wrong.  PR-13b.2 will add the co-
-                # condition ``AND target_type='ability_item'``.
-                tag_target_type=None,
+                # PR-13b.2 — relation.target_id / source_id is polymorphic.
+                # The executor rewrites ``target_id IN (item_ids)`` to
+                # ``(target_type='ability_item' AND target_id IN (…))
+                # OR (source_type='ability_item' AND source_id IN (…))``,
+                # so relations pointing at OR from an ability item both
+                # match.  See ``_execute_relations``.
+                tag_target_type=TagAssetIndexTargetType.OCCUPATIONAL_ABILITY_ITEM,
             ),
         ),
     ),

@@ -451,20 +451,23 @@ class TestPhaseAExecution:
         )
 
     def test_profile_without_target_type_emits_warning(self, session):
-        # PR-13b — competency.task_tree / ability_items_* now expose
-        # OCCUPATIONAL_ABILITY_ITEM anchor.  ``relations_by_ability``
-        # is the last competency profile that still declines tag_filters
-        # (polymorphic relation.target_id, PR-13b.2 deferred).
-        profile = get_query_profile(
-            BusinessDomain.COMPETENCY_ANALYSIS, "competency.relations_by_ability",
+        # PR-13b.2 — every domain_registry profile now declares a
+        # tag_target_type, so we build a synthetic profile with
+        # ``tag_target_type=None`` to keep the contract test alive.
+        from dataclasses import replace
+
+        real = get_query_profile(
+            BusinessDomain.COMPETENCY_ANALYSIS,
+            "competency.ability_items_by_task",
         )
+        profile = replace(real, tag_target_type=None)
         assert profile.tag_target_type is None
         sub_query = RetrievalSubQuery.model_validate({
             "query_id": "q1", "channel": "structured", "domain": "competency_analysis",
             "purpose": "test", "query_text": "test",
             "structured_plan": {
                 "table_profile": "ability_analysis.pgsd.v1",
-                "query_profile": "competency.relations_by_ability",
+                "query_profile": "competency.ability_items_by_task",
             },
             "tag_filters": {
                 "abilities": TagFilter(tags=["Python"]).model_dump(),
@@ -712,29 +715,8 @@ class TestJobDemandTwoPhase:
 
 
 # ---------------------------------------------------------------------------
-# Competency fallback — profile has no tag_target_type
+# Competency executors — all 4 profiles now support tag_filters
+# (PR-13b for item-anchor profiles, PR-13b.2 for relations_by_ability).
+# The historical "fallback / decline" test class has been removed;
+# per-profile behaviour is covered in tests/retrieval/test_competency_executor.py.
 # ---------------------------------------------------------------------------
-
-
-class TestCompetencyFallback:
-    def test_tag_filters_emit_warning_but_do_not_fail(self, session):
-        # PR-13b — ability_items_by_category / task_tree now support
-        # tag_filters via OCCUPATIONAL_ABILITY_ITEM.  relations_by_ability
-        # remains the fallback profile (polymorphic target_id).
-        executor = CompetencyRetrievalExecutor()
-        sub_query = RetrievalSubQuery.model_validate({
-            "query_id": "q1", "channel": "structured",
-            "domain": "competency_analysis", "purpose": "test",
-            "query_text": "test",
-            "structured_plan": {
-                "table_profile": "ability_analysis.pgsd.v1",
-                "query_profile": "competency.relations_by_ability",
-                "filters": {"relation_type": "WORK_CONTENT_REQUIRES_ABILITY"},
-            },
-            "tag_filters": {
-                "abilities": TagFilter(tags=["Python"]).model_dump(),
-            },
-        })
-        result = executor.execute(session, sub_query)
-        assert result.status == StepStatus.COMPLETED
-        assert "tag_target_type_not_configured" in result.warnings
