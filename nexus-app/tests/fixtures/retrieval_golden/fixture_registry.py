@@ -564,6 +564,96 @@ def seed_job_demand_from_xlsx_sample(session) -> dict[str, Any]:
     }
 
 
+def seed_major_distribution_from_xlsx_sample(session) -> dict[str, Any]:
+    """M-C.3 Step 3 — bootstrap major_distribution records from the
+    real sample workbook.
+
+    Runs the whole B0-B4 pipeline on ``docs/samples/2.（专业布点数）
+    专业布点数.xlsx`` and returns the persisted IDs.  PR-6b wired the
+    B4 writer to auto-project onto ``tag_asset_index``, so this
+    fixture (unlike M-C.3 Step 2's job_demand xlsx bootstrap in its
+    original form) does no manual projection.
+
+    Sample content (fixed at commit time):
+    - Row 2: 网络营销与直播电商 (530704) 北京市 高职 布点数=4 2026年
+    - Row 3: 跨境电子商务 (530702) 北京市 高职 布点数=3 2026年
+    - Row 4: placeholder row (dropped by writer)
+
+    Returns:
+    - ``dataset_id`` — the MajorDistributionDataset id
+    - ``record_ids`` — persisted record ids, ordered by
+      ``source_record_key`` for stability
+    - ``asset_version_id`` / ``ref_id`` — governance anchors
+    """
+    from pathlib import Path
+    from sqlalchemy import select
+
+    from nexus_app import services
+    from nexus_app.config import Settings
+    from nexus_app.ingest.gateway import submit_file_bytes
+    from nexus_app.mineru import FakeMinerUAdapter
+    from nexus_app.schemas import DataSourceCreate
+    from nexus_app.storage import InMemoryObjectStorage
+    from nexus_app.worker.runner import execute_job
+
+    _REPO_ROOT = Path(__file__).resolve().parents[3].parent
+    sample = _REPO_ROOT / "docs" / "samples" / "2.（专业布点数）专业布点数.xlsx"
+    if not sample.exists():
+        raise FileNotFoundError(f"xlsx sample not found: {sample}")
+
+    storage = InMemoryObjectStorage()
+    xlsx_mime = (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    xlsx_settings = Settings(pipeline_b_xlsx_enabled=True)
+
+    source = services.create_data_source(
+        session,
+        DataSourceCreate(
+            code="golden-xlsx-md",
+            name="golden-xlsx-md",
+            source_type="file_upload",
+        ),
+    )
+    accepted = submit_file_bytes(
+        session,
+        data_source_id=source.id,
+        idempotency_key="golden-xlsx-md-key",
+        content=sample.read_bytes(),
+        filename=sample.name,
+        content_type=xlsx_mime,
+        storage=storage,
+        settings=xlsx_settings,
+        trace_id="trace-golden-xlsx-md",
+    )
+    session.refresh(accepted.job)
+    execute_job(
+        accepted.job, session, storage, FakeMinerUAdapter(), xlsx_settings,
+    )
+    session.refresh(accepted.job)
+
+    ref = session.scalar(select(models.NormalizedAssetRef))
+    dataset = session.scalar(select(models.MajorDistributionDataset))
+    records = list(session.scalars(
+        select(models.MajorDistributionRecord)
+        .order_by(models.MajorDistributionRecord.source_record_key)
+    ))
+    if dataset is None or not records:
+        return {
+            "dataset_id": None,
+            "record_ids": [],
+            "asset_version_id": ref.version_id if ref else None,
+            "ref_id": ref.id if ref else None,
+        }
+    session.commit()
+    return {
+        "dataset_id": dataset.id,
+        "record_ids": [r.id for r in records],
+        "asset_version_id": dataset.asset_version_id,
+        "ref_id": ref.id if ref else dataset.normalized_ref_id,
+    }
+
+
 FIXTURE_REGISTRY: dict[str, Callable] = {
     "major_distribution_zj_js": seed_major_distribution_zj_js,
     "major_distribution_with_region_tags": seed_major_distribution_with_region_tags,
@@ -572,6 +662,7 @@ FIXTURE_REGISTRY: dict[str, Callable] = {
     "job_demand_weighted_rerank": seed_job_demand_weighted_rerank,
     "course_textbook_outline_topic": seed_course_textbook_outline_topic,
     "job_demand_from_xlsx_sample": seed_job_demand_from_xlsx_sample,
+    "major_distribution_from_xlsx_sample": seed_major_distribution_from_xlsx_sample,
 }
 
 
