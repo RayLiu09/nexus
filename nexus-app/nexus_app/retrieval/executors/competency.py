@@ -1,13 +1,23 @@
 """Structured retrieval executor for ability_analysis.pgsd.v1.
 
-PR-9 note: competency profiles do not yet declare a
-``tag_target_type`` because ``task_tree`` and ``relations_by_ability``
-have outer-joined or ambiguous anchor columns.  A follow-up PR will
-add the "join lift" strategy that resolves tag_filters on ability
-items and then narrows the outer joins.  For now, if a caller supplies
-``tag_filters`` on a competency sub_query, Phase A emits
-``tag_target_type_not_configured`` and the executor runs pre-v1.3
-semantics with the warning attached to the result.
+v1.3 PR-13b — Phase A / Phase B two-phase execution for competency
+profiles anchored at ``OccupationalAbilityItem.id``:
+
+* ``competency.ability_items_by_task`` — inner joins throughout;
+  ``WHERE item.id IN (…)`` cleanly narrows results.
+* ``competency.ability_items_by_category`` — same as above.
+* ``competency.task_tree`` — outer joins content + item.  When
+  ``tag_filters`` are present, the injected ``WHERE item.id IN (…)``
+  effectively converts the outer join to an inner join for that call:
+  rows with NULL item are excluded (because ``NULL NOT IN (…)``).
+  Documented as intentional; call sites that need the full outer
+  shape should omit tag_filters.
+* ``competency.relations_by_ability`` — retains ``tag_target_type=None``.
+  The relation table's ``target_id`` column is polymorphic (points at
+  work_content OR ability_item OR task depending on relation_type), so
+  a direct ID IN clause would be semantically wrong.  Emits
+  ``tag_target_type_not_configured`` as before; a follow-up PR-13b.2
+  will add ``AND target_type='ability_item'`` co-conditions.
 """
 from __future__ import annotations
 
@@ -18,6 +28,7 @@ from sqlalchemy import Select, asc, desc, func, select
 from sqlalchemy.orm import Session
 
 from nexus_app import models
+from nexus_app.retrieval.rerank import apply_weighted_rerank
 from nexus_app.retrieval.schemas import (
     BusinessDomain,
     RetrievalChannel,
@@ -27,10 +38,38 @@ from nexus_app.retrieval.schemas import (
     StepStatus,
     StructuredAggregation,
 )
-from nexus_app.retrieval.sql_guardrails import GuardedStructuredPlan, validate_structured_plan
+from nexus_app.retrieval.sql_guardrails import (
+    GuardedStructuredPlan,
+    TARGET_ID_IN_KEY,
+    validate_structured_plan,
+)
+from nexus_app.retrieval.tag_filter_execution import (
+    TagFilterExecutionResult,
+    apply_target_id_in_to_filters,
+    execute_tag_filters,
+)
+from nexus_app.retrieval.tag_resolver import TagAssetIndexResolver
+
+
+_ITEM_ANCHOR_PROFILES = frozenset({
+    "competency.task_tree",
+    "competency.ability_items_by_task",
+    "competency.ability_items_by_category",
+})
 
 
 class CompetencyRetrievalExecutor:
+    def __init__(
+        self,
+        *,
+        resolver_factory: "callable | None" = None,
+        rerank_enabled: bool | None = None,
+    ) -> None:
+        self._resolver_factory = resolver_factory or (
+            lambda session: TagAssetIndexResolver(session)
+        )
+        self._rerank_enabled_override = rerank_enabled
+
     def execute(self, session: Session, sub_query: RetrievalSubQuery) -> RetrievalResult:
         if sub_query.channel != RetrievalChannel.STRUCTURED:
             raise ValueError("CompetencyRetrievalExecutor only accepts structured sub queries")
@@ -40,9 +79,20 @@ class CompetencyRetrievalExecutor:
             raise ValueError("structured sub query requires structured_plan")
 
         started = time.monotonic()
+
+        # -- Phase A: resolve tag_filters + fold structured_filters ----
+        prepared_plan, phase_a = _prepare_two_phase_plan(
+            session=session,
+            sub_query=sub_query,
+            resolver_factory=self._resolver_factory,
+        )
+        if phase_a.applied and not phase_a.target_ids:
+            elapsed = (time.monotonic() - started) * 1000
+            return _empty_result(sub_query, phase_a, elapsed)
+
         guarded = validate_structured_plan(
             domain=BusinessDomain.COMPETENCY_ANALYSIS,
-            plan=sub_query.structured_plan,
+            plan=prepared_plan,
         )
         if guarded.query_profile.key == "competency.task_tree":
             result = _execute_task_tree(session, sub_query, guarded)
@@ -51,11 +101,29 @@ class CompetencyRetrievalExecutor:
         else:
             result = _execute_ability_items(session, sub_query, guarded)
         result.elapsed_ms = (time.monotonic() - started) * 1000
-        if sub_query.tag_filters:
-            _dedup_append_warning(
-                result, "tag_target_type_not_configured"
+        _attach_phase_a_meta(result, phase_a)
+        # relations_by_ability profile still declines tag_filters — the
+        # per-profile warning surfaces from Phase A's
+        # ``tag_target_type_not_configured``; nothing more to do here.
+        # Rerank only on record-shaped results (aggregation profiles
+        # carry group_value payloads without target ids).
+        if (
+            guarded.query_profile.key in _ITEM_ANCHOR_PROFILES
+            and result.records
+        ):
+            _apply_rerank(
+                result=result,
+                sub_query=sub_query,
+                phase_a=phase_a,
+                rerank_enabled=self._resolve_rerank_enabled(),
             )
         return result
+
+    def _resolve_rerank_enabled(self) -> bool:
+        if self._rerank_enabled_override is not None:
+            return self._rerank_enabled_override
+        from nexus_app.config import get_settings
+        return bool(get_settings().effective_rerank_enabled)
 
 
 def create_competency_retrieval_executor() -> CompetencyRetrievalExecutor:
@@ -65,6 +133,139 @@ def create_competency_retrieval_executor() -> CompetencyRetrievalExecutor:
 def _dedup_append_warning(result: RetrievalResult, code: str) -> None:
     if code not in result.warnings:
         result.warnings.append(code)
+
+
+# ---------------------------------------------------------------------------
+# Two-phase helpers (mirror job_demand / major_distribution executors)
+# ---------------------------------------------------------------------------
+
+
+def _prepare_two_phase_plan(
+    *,
+    session: Session,
+    sub_query: RetrievalSubQuery,
+    resolver_factory,
+) -> tuple[Any, TagFilterExecutionResult]:
+    from nexus_app.audit import write_retrieval_tag_filter_audit
+    from nexus_app.retrieval.domain_registry import get_query_profile
+
+    profile = get_query_profile(
+        BusinessDomain.COMPETENCY_ANALYSIS,
+        sub_query.structured_plan.query_profile,
+    )
+    merged_filters: dict[str, Any] = dict(sub_query.structured_plan.filters)
+    for field, value in sub_query.structured_filters.items():
+        merged_filters.setdefault(field, value)
+
+    resolver = resolver_factory(session)
+    phase_a = execute_tag_filters(
+        sub_query=sub_query,
+        profile=profile,
+        resolver=resolver,
+    )
+    apply_target_id_in_to_filters(
+        filters=merged_filters,
+        target_ids=phase_a.target_ids,
+        key=TARGET_ID_IN_KEY,
+    )
+    write_retrieval_tag_filter_audit(
+        session,
+        sub_query=sub_query,
+        profile=profile,
+        phase_a=phase_a,
+    )
+    prepared = sub_query.structured_plan.model_copy(
+        update={"filters": merged_filters}
+    )
+    return prepared, phase_a
+
+
+def _attach_phase_a_meta(
+    result: RetrievalResult,
+    phase_a: TagFilterExecutionResult,
+) -> None:
+    for warning in phase_a.warnings:
+        if warning not in result.warnings:
+            result.warnings.append(warning)
+    if not phase_a.applied:
+        return
+    result.retrieval_meta["tag_filter_target_ids_count"] = (
+        len(phase_a.target_ids or set())
+    )
+    result.retrieval_meta["tag_filter_bucket_hit_counts"] = dict(
+        phase_a.bucket_hit_counts
+    )
+    result.retrieval_meta["tag_filter_match_layer_counts"] = dict(
+        phase_a.match_layer_counts
+    )
+    if phase_a.dropped_optional_buckets:
+        result.retrieval_meta["tag_filter_dropped_optional_buckets"] = list(
+            phase_a.dropped_optional_buckets
+        )
+
+
+def _empty_result(
+    sub_query: RetrievalSubQuery,
+    phase_a: TagFilterExecutionResult,
+    elapsed_ms: float,
+) -> RetrievalResult:
+    profile_key = sub_query.structured_plan.query_profile or ""
+    if profile_key == "competency.task_tree":
+        result_shape = "task_tree"
+    elif profile_key == "competency.relations_by_ability":
+        result_shape = "relations"
+    else:
+        result_shape = "ability_items"
+    result = RetrievalResult(
+        query_id=sub_query.query_id,
+        channel=RetrievalChannel.STRUCTURED,
+        domain=BusinessDomain.COMPETENCY_ANALYSIS,
+        status=StepStatus.COMPLETED,
+        result_shape=result_shape,
+        elapsed_ms=elapsed_ms,
+    )
+    _attach_phase_a_meta(result, phase_a)
+    return result
+
+
+def _apply_rerank(
+    *,
+    result: RetrievalResult,
+    sub_query: RetrievalSubQuery,
+    phase_a: TagFilterExecutionResult,
+    rerank_enabled: bool,
+) -> None:
+    """PR-13 — inject score + optional reorder for WEIGHTED combine.
+
+    The ``id`` key on each record dict is the ability_item id — that's
+    what the resolver anchored on, so per-target scores line up.  For
+    ``task_tree`` records the top-level dict uses ``analysis_id``; the
+    ability_item id lives under ``ability_item.id``.  We normalise
+    ordering via a per-shape id extractor.
+    """
+    if not phase_a.target_scores:
+        return
+    # Inject via ``ability_item.id`` for task_tree, else ``id`` (which
+    # is the ability_item's own id in ability_items_* payloads).
+    profile_key = sub_query.structured_plan.query_profile or ""
+    if profile_key == "competency.task_tree":
+        # Task_tree records carry ability_item as a nested dict; add a
+        # top-level ``id`` alias so apply_weighted_rerank picks the
+        # right anchor.  Skip records without an ability_item entry.
+        for record in list(result.records):
+            item = record.get("ability_item")
+            if isinstance(item, dict) and item.get("id"):
+                record["id"] = item["id"]
+    decision = apply_weighted_rerank(
+        records=result.records,
+        sub_query=sub_query,
+        phase_a=phase_a,
+        rerank_enabled=rerank_enabled,
+    )
+    if decision.warning_code not in result.warnings:
+        result.warnings.append(decision.warning_code)
+    if decision.score_stats:
+        result.retrieval_meta["rerank_score_stats"] = decision.score_stats
 
 
 def _execute_task_tree(
@@ -238,6 +439,14 @@ def _ability_item_select() -> Select:
 
 def _apply_filters(stmt: Select, filters: dict[str, Any]) -> Select:
     for field, value in filters.items():
+        # PR-13b — Phase A's resolved target_id set arrives here bound
+        # to OccupationalAbilityItem.id.  For task_tree the outer join
+        # on item silently becomes an inner join (NULL rows dropped by
+        # NOT IN); documented in module docstring.
+        if field == TARGET_ID_IN_KEY:
+            id_set = value if isinstance(value, (list, tuple, set)) else [value]
+            stmt = stmt.where(models.OccupationalAbilityItem.id.in_(id_set))
+            continue
         column = _column(field)
         if field in {"major_name", "task_name"} and isinstance(value, str):
             stmt = stmt.where(column.contains(value))

@@ -451,8 +451,12 @@ class TestPhaseAExecution:
         )
 
     def test_profile_without_target_type_emits_warning(self, session):
+        # PR-13b — competency.task_tree / ability_items_* now expose
+        # OCCUPATIONAL_ABILITY_ITEM anchor.  ``relations_by_ability``
+        # is the last competency profile that still declines tag_filters
+        # (polymorphic relation.target_id, PR-13b.2 deferred).
         profile = get_query_profile(
-            BusinessDomain.COMPETENCY_ANALYSIS, "competency.task_tree",
+            BusinessDomain.COMPETENCY_ANALYSIS, "competency.relations_by_ability",
         )
         assert profile.tag_target_type is None
         sub_query = RetrievalSubQuery.model_validate({
@@ -460,7 +464,7 @@ class TestPhaseAExecution:
             "purpose": "test", "query_text": "test",
             "structured_plan": {
                 "table_profile": "ability_analysis.pgsd.v1",
-                "query_profile": "competency.task_tree",
+                "query_profile": "competency.relations_by_ability",
             },
             "tag_filters": {
                 "abilities": TagFilter(tags=["Python"]).model_dump(),
@@ -714,8 +718,9 @@ class TestJobDemandTwoPhase:
 
 class TestCompetencyFallback:
     def test_tag_filters_emit_warning_but_do_not_fail(self, session):
-        # No competency data needed — the executor should still run and
-        # return an empty result_list with the warning attached.
+        # PR-13b — ability_items_by_category / task_tree now support
+        # tag_filters via OCCUPATIONAL_ABILITY_ITEM.  relations_by_ability
+        # remains the fallback profile (polymorphic target_id).
         executor = CompetencyRetrievalExecutor()
         sub_query = RetrievalSubQuery.model_validate({
             "query_id": "q1", "channel": "structured",
@@ -723,7 +728,8 @@ class TestCompetencyFallback:
             "query_text": "test",
             "structured_plan": {
                 "table_profile": "ability_analysis.pgsd.v1",
-                "query_profile": "competency.ability_items_by_category",
+                "query_profile": "competency.relations_by_ability",
+                "filters": {"relation_type": "WORK_CONTENT_REQUIRES_ABILITY"},
             },
             "tag_filters": {
                 "abilities": TagFilter(tags=["Python"]).model_dump(),

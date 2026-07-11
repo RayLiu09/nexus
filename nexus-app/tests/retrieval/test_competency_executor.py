@@ -261,3 +261,131 @@ def test_competency_executor_rejects_non_whitelisted_filter(session):
 
     with pytest.raises(StructuredPlanGuardrailError):
         CompetencyRetrievalExecutor().execute(session, _sub_query(plan))
+
+
+# ---------------------------------------------------------------------------
+# PR-13b — competency join lift (Phase A / Phase B two-phase)
+# ---------------------------------------------------------------------------
+
+
+def _seed_ability_item_tags(session) -> None:
+    """Attach OCCUPATIONAL_ABILITY_ITEM tag rows so Phase A can resolve
+    tag_filters to the two ability items in ``_seed_competency``."""
+    from nexus_app.enums import (
+        TagAssetIndexSource, TagAssetIndexTargetType,
+    )
+    session.add_all([
+        models.TagAssetIndex(
+            tag_type="ability",
+            tag_value="日志采集",
+            tag_value_normalized="日志采集",
+            target_type=TagAssetIndexTargetType.OCCUPATIONAL_ABILITY_ITEM,
+            target_id="ability-ca-1",
+            asset_version_id="version-ca",
+            source=TagAssetIndexSource.FIELD_PROJECTION,
+            tag_embedding=None,
+        ),
+        models.TagAssetIndex(
+            tag_type="ability",
+            tag_value="沟通能力",
+            tag_value_normalized="沟通能力",
+            target_type=TagAssetIndexTargetType.OCCUPATIONAL_ABILITY_ITEM,
+            target_id="ability-ca-2",
+            asset_version_id="version-ca",
+            source=TagAssetIndexSource.FIELD_PROJECTION,
+            tag_embedding=None,
+        ),
+    ])
+    session.commit()
+
+
+def test_pr13b_tag_filter_narrows_ability_items_by_task(session):
+    from nexus_app.retrieval.tag_schemas import TagFilter
+
+    _seed_competency(session)
+    _seed_ability_item_tags(session)
+    executor = CompetencyRetrievalExecutor()
+    sub_query = RetrievalSubQuery.model_validate({
+        "query_id": "q1", "channel": "structured",
+        "domain": "competency_analysis", "purpose": "narrow",
+        "query_text": "日志采集能力",
+        "structured_plan": {
+            "table_profile": "ability_analysis.pgsd.v1",
+            "query_profile": "competency.ability_items_by_task",
+            "filters": {"task_code": "1"},
+        },
+        "tag_filters": {
+            "abilities": TagFilter(
+                tags=["日志采集"], match_strategy="l1|l1.5",
+            ).model_dump(),
+        },
+    })
+    result = executor.execute(session, sub_query)
+    assert result.status == "completed"
+    # Only ability-ca-1 (采集日志) matches; ability-ca-2 (沟通能力) does not.
+    item_ids = {
+        r["ability_item"]["id"] for r in result.records
+        if r.get("ability_item")
+    }
+    assert item_ids == {"ability-ca-1"}
+    assert "tag_target_type_not_configured" not in result.warnings
+
+
+def test_pr13b_task_tree_tag_filter_drops_null_item_rows(session):
+    from nexus_app.retrieval.tag_schemas import TagFilter
+
+    _seed_competency(session)
+    _seed_ability_item_tags(session)
+    executor = CompetencyRetrievalExecutor()
+    sub_query = RetrievalSubQuery.model_validate({
+        "query_id": "q1", "channel": "structured",
+        "domain": "competency_analysis", "purpose": "tree_narrow",
+        "query_text": "日志采集树",
+        "structured_plan": {
+            "table_profile": "ability_analysis.pgsd.v1",
+            "query_profile": "competency.task_tree",
+            "filters": {},
+        },
+        "tag_filters": {
+            "abilities": TagFilter(
+                tags=["日志采集"], match_strategy="l1|l1.5",
+            ).model_dump(),
+        },
+    })
+    result = executor.execute(session, sub_query)
+    assert result.status == "completed"
+    # task_tree with tag_filters: outer join effectively becomes inner
+    # (NULL item rows filtered by WHERE item.id IN (...)); only the
+    # row anchored on ability-ca-1 survives.
+    item_ids = {
+        r["ability_item"]["id"] for r in result.records
+        if r.get("ability_item")
+    }
+    assert item_ids == {"ability-ca-1"}
+
+
+def test_pr13b_relations_by_ability_still_declines_tag_filters(session):
+    from nexus_app.retrieval.tag_schemas import TagFilter
+
+    _seed_competency(session)
+    _seed_ability_item_tags(session)
+    executor = CompetencyRetrievalExecutor()
+    sub_query = RetrievalSubQuery.model_validate({
+        "query_id": "q1", "channel": "structured",
+        "domain": "competency_analysis", "purpose": "relations",
+        "query_text": "关系查询",
+        "structured_plan": {
+            "table_profile": "ability_analysis.pgsd.v1",
+            "query_profile": "competency.relations_by_ability",
+            "filters": {"relation_type": "WORK_CONTENT_REQUIRES_ABILITY"},
+        },
+        "tag_filters": {
+            "abilities": TagFilter(
+                tags=["日志采集"], match_strategy="l1|l1.5",
+            ).model_dump(),
+        },
+    })
+    result = executor.execute(session, sub_query)
+    # relations_by_ability keeps tag_target_type=None (PR-13b.2
+    # deferred); Phase A must emit the warning.
+    assert "tag_target_type_not_configured" in result.warnings

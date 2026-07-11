@@ -345,6 +345,12 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 table_profile="ability_analysis.pgsd.v1",
                 allowed_filters=COMPETENCY_TASK_TREE_FIELDS,
                 allowed_tag_types=("occupations", "abilities", "majors"),
+                # PR-13b — item is outer-joined, but ``WHERE item.id IN
+                # (…)`` filters out NULL rows so the outer join
+                # effectively becomes an inner join for tag_filter
+                # queries.  Callers that need the full tree shape
+                # should omit tag_filters.
+                tag_target_type=TagAssetIndexTargetType.OCCUPATIONAL_ABILITY_ITEM,
             ),
             QueryProfile(
                 key="competency.ability_items_by_category",
@@ -356,6 +362,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 allowed_group_by=("ability_major_category_code",),
                 allowed_metrics=("count:record",),
                 allowed_tag_types=("occupations", "abilities", "majors"),
+                tag_target_type=TagAssetIndexTargetType.OCCUPATIONAL_ABILITY_ITEM,
             ),
             QueryProfile(
                 key="competency.ability_items_by_task",
@@ -367,6 +374,7 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 allowed_group_by=("task_code",),
                 allowed_metrics=("count:record",),
                 allowed_tag_types=("occupations", "abilities", "majors"),
+                tag_target_type=TagAssetIndexTargetType.OCCUPATIONAL_ABILITY_ITEM,
             ),
             QueryProfile(
                 key="competency.relations_by_ability",
@@ -376,6 +384,12 @@ DOMAIN_REGISTRY: dict[BusinessDomain, DomainDefinition] = {
                 table_profile="ability_analysis.pgsd.v1",
                 allowed_filters=COMPETENCY_RELATION_FIELDS,
                 allowed_tag_types=("occupations", "abilities", "majors"),
+                # PR-13b — relation.target_id is polymorphic (points at
+                # work_content OR ability_item OR task depending on
+                # relation_type); a plain ID IN clause would be
+                # semantically wrong.  PR-13b.2 will add the co-
+                # condition ``AND target_type='ability_item'``.
+                tag_target_type=None,
             ),
         ),
     ),
