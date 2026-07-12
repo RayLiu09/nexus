@@ -49,6 +49,78 @@ test.describe("Retrieval test panel", () => {
     await expect(retrievalPage.warningsSlot).toContainText("weighted_rerank_applied");
   });
 
+  test("clicking a source_ref opens the chunk preview drawer", async ({ page }) => {
+    const responseWithSourceRef = {
+      ...(makeRetrievalResponse({ hasResults: true }) as Record<string, unknown>),
+      source_refs: [
+        {
+          source_ref_id: "sr-e2e-1",
+          channel: "structured",
+          domain: "job_demand",
+          asset_id: "asset-1",
+          asset_version_id: "ver-1",
+          normalized_ref_id: "nref-1",
+          chunk_id: "chunk-e2e-1",
+          record_ref: null,
+          locator: {},
+          score: 0.42,
+          metadata: {},
+        },
+      ],
+    };
+    await mockRetrievalApi(page, { fullResponse: responseWithSourceRef });
+
+    // ChunkPreviewDrawer fetches this endpoint by chunk_id. Return a
+    // minimal ChunkPreviewResponse — just enough for the drawer header.
+    await page.route("**/api/knowledge-chunks/chunk-e2e-1/preview", async (route) => {
+      await route.fulfill({
+        json: {
+          ok: true,
+          status: 200,
+          data: {
+            chunk: {
+              chunk_id: "chunk-e2e-1",
+              id: "chunk-e2e-1",
+              nexus_chunk_id: "chunk-e2e-1",
+              content: "这是引用原文的正文。",
+              knowledge_type_code: "textbook_kb",
+            },
+            normalized_ref: {
+              ref_id: "nref-1",
+              asset_id: "asset-1",
+              version_id: "ver-1",
+              normalized_type: "document",
+            },
+            source: { body_markdown: null, blocks: null, record_body: null },
+            highlight: {
+              markdown_ranges: [],
+              page_anchors: [],
+              heading_path: [],
+            },
+          },
+          traceId: "e2e-preview-001",
+        },
+      });
+    });
+
+    const retrievalPage = new RetrievalTestPage(page);
+    await retrievalPage.goto();
+    await retrievalPage.switchMode("Full Run");
+    await retrievalPage.submitFreeform("北京优先电商运营");
+
+    await expect(retrievalPage.resultsSlot).toBeVisible();
+    // Switch to the source_refs tab so the ref row appears.
+    await retrievalPage.resultsSlot.getByRole("tab", { name: /source_refs/ }).click();
+    const refRow = retrievalPage.resultsSlot.locator(
+      '[data-testid="source-ref-row"][data-clickable="true"]',
+    );
+    await expect(refRow).toBeVisible();
+    await refRow.click();
+
+    // Drawer surfaces the chunk preview content.
+    await expect(page.getByText("这是引用原文的正文。")).toBeVisible();
+  });
+
   test("shows ApiState banner on backend error", async ({ page }) => {
     await mockRetrievalApi(page, { errorEndpoint: "plans" });
     const retrievalPage = new RetrievalTestPage(page);

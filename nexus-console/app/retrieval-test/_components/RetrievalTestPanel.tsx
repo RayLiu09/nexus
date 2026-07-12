@@ -6,7 +6,9 @@ import remarkGfm from "remark-gfm";
 import { useState } from "react";
 
 import { ApiState } from "@/components/ApiState";
-import type { KnowledgeRetrievalResponse } from "@/lib/retrievalTypes";
+import { ChunkPreviewDrawer } from "@/components/chunk/ChunkPreviewDrawer";
+import type { KnowledgeChunkHit } from "@/lib/chunkTypes";
+import type { KnowledgeRetrievalResponse, RetrievalSourceRef } from "@/lib/retrievalTypes";
 
 import { IntentCard } from "@/components/retrieval/IntentCard";
 import { PlanSection } from "@/components/retrieval/PlanSection";
@@ -52,6 +54,27 @@ const INITIAL_STATE: RunState = {
 
 export function RetrievalTestPanel({ presets }: RetrievalTestPanelProps) {
   const [state, setState] = useState<RunState>(INITIAL_STATE);
+  const [previewChunk, setPreviewChunk] = useState<KnowledgeChunkHit | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  // Hydrate a synthetic KnowledgeChunkHit for ChunkPreviewDrawer — same
+  // pattern as /search (SearchPlayground.openSourceRefPreview). Drawer
+  // resolves the full preview payload by chunk_id itself.
+  const handleSelectSourceRef = (ref: RetrievalSourceRef) => {
+    if (!ref.chunk_id) return;
+    const chunkId = ref.chunk_id;
+    setPreviewChunk({
+      chunk_id: chunkId,
+      id: chunkId,
+      nexus_chunk_id: chunkId,
+      content: "",
+      normalized_ref_id: ref.normalized_ref_id ?? undefined,
+      asset_id: ref.asset_id ?? undefined,
+      version_id: ref.asset_version_id ?? undefined,
+      score: ref.score ?? undefined,
+    });
+    setPreviewOpen(true);
+  };
 
   const handleSubmit = async (query: string, mode: QueryMode): Promise<void> => {
     setState({ ...INITIAL_STATE, submitting: true, mode });
@@ -109,8 +132,18 @@ export function RetrievalTestPanel({ presets }: RetrievalTestPanelProps) {
       )}
 
       {state.data && !state.submitting && (
-        <ResponseView data={state.data} mode={state.mode ?? "plan"} />
+        <ResponseView
+          data={state.data}
+          mode={state.mode ?? "plan"}
+          onSelectSourceRef={handleSelectSourceRef}
+        />
       )}
+
+      <ChunkPreviewDrawer
+        chunk={previewChunk}
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+      />
     </div>
   );
 }
@@ -118,9 +151,10 @@ export function RetrievalTestPanel({ presets }: RetrievalTestPanelProps) {
 interface ResponseViewProps {
   data: KnowledgeRetrievalResponse;
   mode: QueryMode;
+  onSelectSourceRef?: (ref: RetrievalSourceRef) => void;
 }
 
-function ResponseView({ data, mode }: ResponseViewProps) {
+function ResponseView({ data, mode, onSelectSourceRef }: ResponseViewProps) {
   return (
     <div className="flex flex-col gap-4" data-testid="response-view">
       <Card size="small">
@@ -147,7 +181,7 @@ function ResponseView({ data, mode }: ResponseViewProps) {
 
       {mode === "full" && (
         <div data-testid="results-slot">
-          <ResultTabs data={data} />
+          <ResultTabs data={data} onSelectSourceRef={onSelectSourceRef} />
         </div>
       )}
 

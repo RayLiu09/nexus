@@ -9,7 +9,7 @@ import { IntentCard } from "@/components/retrieval/IntentCard";
 import { PlanSection } from "@/components/retrieval/PlanSection";
 import { ResultTabs } from "@/components/retrieval/ResultTabs";
 import { WarningsPanel } from "@/components/retrieval/WarningsPanel";
-import type { KnowledgeRetrievalResponse } from "@/lib/retrievalTypes";
+import type { KnowledgeRetrievalResponse, RetrievalSourceRef } from "@/lib/retrievalTypes";
 
 import type { ConversationMessage } from "../_lib/playgroundTypes";
 import {
@@ -26,12 +26,14 @@ interface RetrievalConversationResultProps {
   message: ConversationMessage;
   progressTick: number;
   onApplyRefinement: (text: string) => void;
+  onSelectSourceRef?: (ref: RetrievalSourceRef) => void;
 }
 
 export function RetrievalConversationResult({
   message,
   progressTick,
   onApplyRefinement,
+  onSelectSourceRef,
 }: RetrievalConversationResultProps) {
   const data = message.retrievalData;
   const steps = data?.conversation_steps?.length
@@ -74,7 +76,7 @@ export function RetrievalConversationResult({
                   text={`执行结果 (${data.retrieval_results.length})`}
                 />
               ),
-              children: <ResultTabs data={data} />,
+              children: <ResultTabs data={data} onSelectSourceRef={onSelectSourceRef} />,
             },
             {
               key: "warnings",

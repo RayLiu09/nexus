@@ -4,6 +4,7 @@ import { Alert, Button, Tag, Typography } from "antd";
 import { Bot, Loader2, RefreshCw, UserRound } from "lucide-react";
 
 import type { KnowledgeChunkHit } from "@/lib/chunkTypes";
+import type { RetrievalSourceRef } from "@/lib/retrievalTypes";
 
 import type { ConversationMessage, MessageStatus } from "../_lib/playgroundTypes";
 import { formatTime, statusColor, statusLabel } from "../_lib/playgroundHelpers";
@@ -17,6 +18,7 @@ interface ConversationBubbleProps {
   onSelectChunk: (chunk: KnowledgeChunkHit) => void;
   onRerun: (message: ConversationMessage) => void;
   onApplyRefinement: (text: string) => void;
+  onSelectSourceRef?: (ref: RetrievalSourceRef) => void;
 }
 
 export function ConversationBubble({
@@ -25,6 +27,7 @@ export function ConversationBubble({
   onSelectChunk,
   onRerun,
   onApplyRefinement,
+  onSelectSourceRef,
 }: ConversationBubbleProps) {
   const isUser = message.role === "user";
   return (
@@ -52,6 +55,7 @@ export function ConversationBubble({
               progressTick={progressTick}
               onSelectChunk={onSelectChunk}
               onApplyRefinement={onApplyRefinement}
+              onSelectSourceRef={onSelectSourceRef}
             />
             <div className="mt-4 flex justify-end">
               <Button
@@ -92,6 +96,7 @@ interface AssistantMessageBodyProps {
   progressTick: number;
   onSelectChunk: (chunk: KnowledgeChunkHit) => void;
   onApplyRefinement: (text: string) => void;
+  onSelectSourceRef?: (ref: RetrievalSourceRef) => void;
 }
 
 function AssistantMessageBody({
@@ -99,6 +104,7 @@ function AssistantMessageBody({
   progressTick,
   onSelectChunk,
   onApplyRefinement,
+  onSelectSourceRef,
 }: AssistantMessageBodyProps) {
   if (message.error) {
     return <Alert type="error" showIcon title={message.error} />;
@@ -131,6 +137,7 @@ function AssistantMessageBody({
       message={message}
       progressTick={progressTick}
       onApplyRefinement={onApplyRefinement}
+      onSelectSourceRef={onSelectSourceRef}
     />
   );
 }

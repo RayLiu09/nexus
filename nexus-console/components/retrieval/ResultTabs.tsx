@@ -15,9 +15,15 @@ import { JsonPreview } from "./JsonPreview";
 
 interface ResultTabsProps {
   data: KnowledgeRetrievalResponse;
+  /**
+   * Optional click handler for individual source_refs. When provided,
+   * refs whose `chunk_id` is set become clickable rows — typically a
+   * page-level owner uses this to open ChunkPreviewDrawer.
+   */
+  onSelectSourceRef?: (ref: RetrievalSourceRef) => void;
 }
 
-export function ResultTabs({ data }: ResultTabsProps) {
+export function ResultTabs({ data, onSelectSourceRef }: ResultTabsProps) {
   const counts = useMemo(() => {
     const records = data.retrieval_results.reduce((n, r) => n + (r.records?.length ?? 0), 0);
     const items = data.retrieval_results.reduce((n, r) => n + (r.items?.length ?? 0), 0);
@@ -65,7 +71,7 @@ export function ResultTabs({ data }: ResultTabsProps) {
           {
             key: "source_refs",
             label: `source_refs (${counts.sourceRefs})`,
-            children: <SourceRefsView refs={data.source_refs} />,
+            children: <SourceRefsView refs={data.source_refs} onSelect={onSelectSourceRef} />,
           },
           {
             key: "steps",
@@ -111,7 +117,12 @@ function ResultsList({ results, kind }: ResultsListProps) {
   );
 }
 
-function SourceRefsView({ refs }: { refs: RetrievalSourceRef[] }) {
+interface SourceRefsViewProps {
+  refs: RetrievalSourceRef[];
+  onSelect?: (ref: RetrievalSourceRef) => void;
+}
+
+function SourceRefsView({ refs, onSelect }: SourceRefsViewProps) {
   if (refs.length === 0) {
     return (
       <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前执行没有产生 source_refs" />
@@ -119,33 +130,62 @@ function SourceRefsView({ refs }: { refs: RetrievalSourceRef[] }) {
   }
   return (
     <div className="flex flex-col gap-2">
-      {refs.map((ref) => (
-        <div
-          key={ref.source_ref_id}
-          className="border-line flex flex-col gap-1 rounded-md border p-3"
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <Tag color="blue">{ref.source_ref_id}</Tag>
-            <Tag color="geekblue">{ref.channel}</Tag>
-            <Tag color="cyan">{ref.domain}</Tag>
-            {ref.score != null && <Tag color="green">{ref.score.toFixed(3)}</Tag>}
+      {refs.map((ref) => {
+        // A ref is clickable when the caller wired a handler AND we have
+        // a chunk_id to feed into ChunkPreviewDrawer. record_ref / raw
+        // refs stay non-interactive for now (no chunk preview endpoint
+        // for those yet).
+        const clickable = Boolean(onSelect && ref.chunk_id);
+        const handleClick = () => {
+          if (clickable) onSelect?.(ref);
+        };
+        const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+          if (!clickable) return;
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onSelect?.(ref);
+          }
+        };
+        return (
+          <div
+            key={ref.source_ref_id}
+            data-testid="source-ref-row"
+            data-clickable={clickable || undefined}
+            className={
+              "border-line flex flex-col gap-1 rounded-md border p-3 transition-colors " +
+              (clickable ? "cursor-pointer hover:border-blue-400 hover:bg-blue-50" : "")
+            }
+            role={clickable ? "button" : undefined}
+            tabIndex={clickable ? 0 : undefined}
+            onClick={handleClick}
+            onKeyDown={handleKeyDown}
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <Tag color="blue">{ref.source_ref_id}</Tag>
+              <Tag color="geekblue">{ref.channel}</Tag>
+              <Tag color="cyan">{ref.domain}</Tag>
+              {ref.score != null && <Tag color="green">{ref.score.toFixed(3)}</Tag>}
+              {clickable && (
+                <span className="ml-auto text-xs text-blue-500">点击查看引用原文 →</span>
+              )}
+            </div>
+            <span className="text-xs text-gray-600">
+              asset={ref.asset_id ?? "-"} · version={ref.asset_version_id ?? "-"} · ref=
+              {ref.normalized_ref_id ?? "-"}
+            </span>
+            <span className="text-xs text-gray-600">
+              {ref.chunk_id ?? ref.record_ref ?? "无 chunk / record 定位"}
+            </span>
+            {ref.locator && Object.keys(ref.locator).length > 0 && (
+              <JsonPreview
+                value={ref.locator}
+                maxHeight={160}
+                label={`${ref.source_ref_id}.locator`}
+              />
+            )}
           </div>
-          <span className="text-xs text-gray-600">
-            asset={ref.asset_id ?? "-"} · version={ref.asset_version_id ?? "-"} · ref=
-            {ref.normalized_ref_id ?? "-"}
-          </span>
-          <span className="text-xs text-gray-600">
-            {ref.chunk_id ?? ref.record_ref ?? "无 chunk / record 定位"}
-          </span>
-          {ref.locator && Object.keys(ref.locator).length > 0 && (
-            <JsonPreview
-              value={ref.locator}
-              maxHeight={160}
-              label={`${ref.source_ref_id}.locator`}
-            />
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -4,7 +4,9 @@ import { Card, Empty, Space } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ChunkDetailDrawer } from "@/components/chunk/ChunkDetailDrawer";
+import { ChunkPreviewDrawer } from "@/components/chunk/ChunkPreviewDrawer";
 import type { KnowledgeChunkHit } from "@/lib/chunkTypes";
+import type { RetrievalSourceRef } from "@/lib/retrievalTypes";
 
 import { fetchKnowledgeRetrieval, fetchQa, fetchSearch } from "../_lib/fetchers";
 import { createId } from "../_lib/playgroundHelpers";
@@ -32,6 +34,13 @@ export function SearchPlayground({ knowledgeTypes }: SearchPlaygroundProps) {
   const [progressTick, setProgressTick] = useState(0);
   const [selectedChunk, setSelectedChunk] = useState<KnowledgeChunkHit | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // M-C v1.3 source_refs go through the preview drawer instead — it
+  // fetches full chunk detail from /api/knowledge-chunks/{id}/preview
+  // given only the id, which matches the wire shape source_refs carry.
+  const [selectedSourceRefChunk, setSelectedSourceRefChunk] = useState<KnowledgeChunkHit | null>(
+    null,
+  );
+  const [sourceRefDrawerOpen, setSourceRefDrawerOpen] = useState(false);
   const feedRef = useRef<HTMLDivElement | null>(null);
 
   const loading = activeRunId !== null;
@@ -154,6 +163,27 @@ export function SearchPlayground({ knowledgeTypes }: SearchPlaygroundProps) {
     setDrawerOpen(true);
   }, []);
 
+  // Hydrate a synthetic KnowledgeChunkHit from the M-C source_ref — only
+  // the id needs to survive the trip; ChunkPreviewDrawer will fetch the
+  // full preview payload by chunk_id itself. previewChunkId() prefers
+  // `id`/`nexus_chunk_id` (not `chunk_id`), so we mirror the ref's id
+  // into all three slots for safety.
+  const openSourceRefPreview = useCallback((ref: RetrievalSourceRef) => {
+    if (!ref.chunk_id) return;
+    const chunkId = ref.chunk_id;
+    setSelectedSourceRefChunk({
+      chunk_id: chunkId,
+      id: chunkId,
+      nexus_chunk_id: chunkId,
+      content: "",
+      normalized_ref_id: ref.normalized_ref_id ?? undefined,
+      asset_id: ref.asset_id ?? undefined,
+      version_id: ref.asset_version_id ?? undefined,
+      score: ref.score ?? undefined,
+    });
+    setSourceRefDrawerOpen(true);
+  }, []);
+
   return (
     <>
       <section className="grid min-h-[calc(100vh-210px)] grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -178,6 +208,7 @@ export function SearchPlayground({ knowledgeTypes }: SearchPlaygroundProps) {
                       onSelectChunk={openChunkDetail}
                       onRerun={rerunMessage}
                       onApplyRefinement={applyRefinement}
+                      onSelectSourceRef={openSourceRefPreview}
                     />
                   ))}
                 </Space>
@@ -212,6 +243,11 @@ export function SearchPlayground({ knowledgeTypes }: SearchPlaygroundProps) {
         chunk={selectedChunk}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
+      />
+      <ChunkPreviewDrawer
+        chunk={selectedSourceRefChunk}
+        open={sourceRefDrawerOpen}
+        onClose={() => setSourceRefDrawerOpen(false)}
       />
     </>
   );
