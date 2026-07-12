@@ -5,6 +5,7 @@ import { Database, FileSearch, ListChecks, Split } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { FriendlyPlanView } from "@/components/retrieval/FriendlyPlanView";
 import { IntentCard } from "@/components/retrieval/IntentCard";
 import { PlanSection } from "@/components/retrieval/PlanSection";
 import { ResultTabs } from "@/components/retrieval/ResultTabs";
@@ -51,6 +52,18 @@ export function RetrievalConversationResult({
         <ClarificationPanel data={data} onApplyRefinement={onApplyRefinement} />
       ) : (
         <MarkdownAnswer data={data} />
+      )}
+
+      {/*
+        FriendlyView is the v1.3 §5.5 planner-emitted natural-language
+        projection meant for direct user consumption. Show it before the
+        technical Collapse so users see reasoning first; only render when
+        the backend actually attached one (v1.2 responses / partial
+        results don't have it and we prefer silence over a placeholder in
+        the conversation stream).
+       */}
+      {data?.retrieval_plan?.friendly_view && (
+        <FriendlyPlanView friendlyView={data.retrieval_plan.friendly_view} />
       )}
 
       {data && (

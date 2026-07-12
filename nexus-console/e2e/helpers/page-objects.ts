@@ -251,6 +251,7 @@ export class RetrievalTestPage {
   readonly submitButton: Locator;
   readonly intentSlot: Locator;
   readonly planSlot: Locator;
+  readonly friendlyPlanSlot: Locator;
   readonly resultsSlot: Locator;
   readonly warningsSlot: Locator;
 
@@ -262,6 +263,7 @@ export class RetrievalTestPage {
     this.submitButton = page.getByTestId("submit-button");
     this.intentSlot = page.getByTestId("intent-slot");
     this.planSlot = page.getByTestId("plan-slot");
+    this.friendlyPlanSlot = page.getByTestId("friendly-plan-slot");
     this.resultsSlot = page.getByTestId("results-slot");
     this.warningsSlot = page.getByTestId("warnings-slot");
   }
@@ -309,9 +311,16 @@ export function makeRetrievalResponse(
     hasPlan?: boolean;
     hasResults?: boolean;
     warnings?: string[];
+    friendlyView?: unknown;
   } = {},
 ): unknown {
-  const { status = "completed", hasPlan = true, hasResults = true, warnings = [] } = overrides;
+  const {
+    status = "completed",
+    hasPlan = true,
+    hasResults = true,
+    warnings = [],
+    friendlyView = null,
+  } = overrides;
   return {
     query_id: "qr-e2e-001",
     status,
@@ -346,6 +355,7 @@ export function makeRetrievalResponse(
             },
           ],
           merge_goal: "regions tag_filter 收窄",
+          friendly_view: friendlyView,
         }
       : null,
     retrieval_results: hasResults
@@ -381,6 +391,73 @@ export function makeRetrievalResponse(
     source_refs: [],
     clarification: null,
     warnings,
+  };
+}
+
+/**
+ * Minimal FriendlyRetrievalPlanView payload — enough for the
+ * FriendlyPlanView React component to render intent, one sub_query card,
+ * and the overall footer. Keeps in sync with `nexus_app.retrieval.tag_schemas`.
+ */
+export function makeFriendlyView(): unknown {
+  return {
+    intent_summary: {
+      natural_language: "查询北京地区的电商运营岗位需求",
+      business_domains_display: ["岗位需求"],
+      identified_constraints: [
+        {
+          label: "地区",
+          value: "北京市",
+          confidence: 0.95,
+          source_display: "从问题中识别",
+        },
+      ],
+      unresolved_terms: [],
+      confidence: 0.82,
+      confidence_level: "high",
+      clarification_suggestions: [],
+    },
+    sub_query_cards: [
+      {
+        query_id: "q1",
+        display_index: "①",
+        title: "查询北京岗位",
+        purpose_display: "在岗位需求库中查询北京相关记录",
+        channel_display: "结构化",
+        domain_display: "岗位需求",
+        depends_on_display: [],
+        filter_summary: [
+          {
+            label: "地区",
+            values: ["北京市"],
+            match_strategy_display: "精确匹配",
+            is_optional: false,
+            is_from_binding: false,
+            binding_source_display: null,
+          },
+        ],
+        status: "completed",
+        status_display: "完成",
+        degraded_reasons: [],
+        result_summary: {
+          hit_count: 156,
+          hit_count_display: "156 条记录",
+          duration_ms: 620,
+          duration_display: "620 ms",
+          match_layer_summary: "L1 精确匹配 · 156 命中",
+          evidence_strength: "strong",
+          evidence_strength_display: "证据强度：强",
+          warnings: [],
+        },
+        actions_available: ["view_details", "rerun"],
+      },
+    ],
+    overall: {
+      total_sub_queries: 1,
+      max_depth: 1,
+      estimated_duration_ms: 620,
+      combine_summary: "所有维度均需匹配（AND）",
+    },
   };
 }
 

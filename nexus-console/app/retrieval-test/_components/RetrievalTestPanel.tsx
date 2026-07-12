@@ -10,6 +10,7 @@ import { ChunkPreviewDrawer } from "@/components/chunk/ChunkPreviewDrawer";
 import type { KnowledgeChunkHit } from "@/lib/chunkTypes";
 import type { KnowledgeRetrievalResponse, RetrievalSourceRef } from "@/lib/retrievalTypes";
 
+import { FriendlyPlanView } from "@/components/retrieval/FriendlyPlanView";
 import { IntentCard } from "@/components/retrieval/IntentCard";
 import { PlanSection } from "@/components/retrieval/PlanSection";
 import { ResultTabs } from "@/components/retrieval/ResultTabs";
@@ -169,6 +170,10 @@ function ResponseView({ data, mode, onSelectSourceRef }: ResponseViewProps) {
           </span>
         </div>
       </Card>
+
+      <div data-testid="friendly-plan-slot">
+        <FriendlyPlanView friendlyView={data.retrieval_plan?.friendly_view ?? null} />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="lg:col-span-1" data-testid="intent-slot">

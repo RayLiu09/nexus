@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 
-import { RetrievalTestPage, makeRetrievalResponse, mockRetrievalApi } from "./helpers/page-objects";
+import {
+  RetrievalTestPage,
+  makeFriendlyView,
+  makeRetrievalResponse,
+  mockRetrievalApi,
+} from "./helpers/page-objects";
 
 test.describe("Retrieval test panel", () => {
   test("renders panel skeleton on first load", async ({ page }) => {
@@ -24,9 +29,43 @@ test.describe("Retrieval test panel", () => {
 
     await expect(retrievalPage.intentSlot).toBeVisible();
     await expect(retrievalPage.planSlot).toBeVisible();
+    // FriendlyView slot always renders — empty placeholder when the
+    // backend did not attach a friendly_view (this fixture's case).
+    await expect(retrievalPage.friendlyPlanSlot).toBeVisible();
+    await expect(
+      retrievalPage.friendlyPlanSlot.getByTestId("friendly-plan-view-empty"),
+    ).toBeVisible();
     // Plan Only mode hides the results tabs entirely.
     await expect(retrievalPage.resultsSlot).toHaveCount(0);
     await expect(retrievalPage.warningsSlot).toBeVisible();
+  });
+
+  test("renders FriendlyPlanView when backend attaches friendly_view", async ({ page }) => {
+    await mockRetrievalApi(page, {
+      fullResponse: makeRetrievalResponse({
+        hasResults: true,
+        friendlyView: makeFriendlyView(),
+      }),
+    });
+    const retrievalPage = new RetrievalTestPage(page);
+    await retrievalPage.goto();
+
+    await retrievalPage.switchMode("Full Run");
+    await retrievalPage.submitFreeform("北京的电商运营岗位");
+
+    const friendly = retrievalPage.friendlyPlanSlot.getByTestId("friendly-plan-view");
+    await expect(friendly).toBeVisible();
+    // Intent summary renders the natural-language description.
+    await expect(friendly.getByTestId("friendly-intent-summary")).toContainText(
+      "查询北京地区的电商运营岗位需求",
+    );
+    // Exactly one sub_query card, with hit-count summary from result_summary.
+    await expect(friendly.getByTestId("friendly-sub-query-card")).toHaveCount(1);
+    await expect(friendly.getByTestId("friendly-sub-query-result")).toContainText("156 条记录");
+    // Overall footer surfaces the combine strategy.
+    await expect(friendly.getByTestId("friendly-overall-summary")).toContainText(
+      "所有维度均需匹配（AND）",
+    );
   });
 
   test("Full Run mode renders results tabs and warnings", async ({ page }) => {
