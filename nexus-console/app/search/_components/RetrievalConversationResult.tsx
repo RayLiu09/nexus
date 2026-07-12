@@ -5,6 +5,10 @@ import { Database, FileSearch, ListChecks, Split } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { IntentCard } from "@/components/retrieval/IntentCard";
+import { PlanSection } from "@/components/retrieval/PlanSection";
+import { ResultTabs } from "@/components/retrieval/ResultTabs";
+import { WarningsPanel } from "@/components/retrieval/WarningsPanel";
 import type { KnowledgeRetrievalResponse } from "@/lib/retrievalTypes";
 
 import type { ConversationMessage } from "../_lib/playgroundTypes";
@@ -16,12 +20,6 @@ import {
 } from "../_lib/playgroundHelpers";
 
 import { ExecutionSteps } from "./ExecutionSteps";
-import {
-  IntentAnalysisPanel,
-  RetrievalPlanPanel,
-  RetrievalResultList,
-  SourceRefList,
-} from "./RetrievalDetailPanels";
 import { RunningNotice } from "./RunningNotice";
 
 interface RetrievalConversationResultProps {
@@ -60,13 +58,13 @@ export function RetrievalConversationResult({
           items={[
             {
               key: "intent",
-              label: <CollapseLabel icon={<Split size={15} />} text="意图识别辅助分析" />,
-              children: <IntentAnalysisPanel data={data} />,
+              label: <CollapseLabel icon={<Split size={15} />} text="意图识别" />,
+              children: <IntentCard intent={data.intent} />,
             },
             {
               key: "plan",
-              label: <CollapseLabel icon={<ListChecks size={15} />} text="召回计划" />,
-              children: <RetrievalPlanPanel data={data} />,
+              label: <CollapseLabel icon={<ListChecks size={15} />} text="检索计划" />,
+              children: <PlanSection plan={data.retrieval_plan ?? null} />,
             },
             {
               key: "results",
@@ -76,17 +74,17 @@ export function RetrievalConversationResult({
                   text={`执行结果 (${data.retrieval_results.length})`}
                 />
               ),
-              children: <RetrievalResultList results={data.retrieval_results} />,
+              children: <ResultTabs data={data} />,
             },
             {
-              key: "sources",
+              key: "warnings",
               label: (
                 <CollapseLabel
                   icon={<FileSearch size={15} />}
-                  text={`来源与定位 (${data.source_refs.length})`}
+                  text={`告警 (${data.warnings.length})`}
                 />
               ),
-              children: <SourceRefList refs={data.source_refs} />,
+              children: <WarningsPanel warnings={data.warnings} />,
             },
           ]}
         />
@@ -113,15 +111,6 @@ function MarkdownAnswer({ data }: { data: KnowledgeRetrievalResponse }) {
       ) : (
         <Empty description="本次召回没有生成 Markdown 结果" />
       )}
-      {data.warnings.length > 0 && (
-        <Alert
-          type="warning"
-          showIcon
-          className="mt-4"
-          title="结果警告"
-          description={data.warnings.join("；")}
-        />
-      )}
     </div>
   );
 }
@@ -138,7 +127,10 @@ function ClarificationPanel({ data, onApplyRefinement }: ClarificationPanelProps
     : (data.intent.suggested_refinements ?? []);
 
   return (
-    <div className="rounded-lg border border-[var(--warning-100)] bg-[var(--warning-bg)] p-4">
+    <div
+      className="rounded-lg border border-[var(--warning-100)] bg-[var(--warning-bg)] p-4"
+      data-testid="clarification-panel"
+    >
       <Alert
         type="warning"
         showIcon
@@ -156,10 +148,16 @@ function ClarificationPanel({ data, onApplyRefinement }: ClarificationPanelProps
       ) : null}
       {refinements.length > 0 && (
         <div className="mt-4">
-          <Typography.Text strong>可继续追问</Typography.Text>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <Typography.Text strong>快捷追问（点击即自动重跑）</Typography.Text>
+          <div className="mt-2 flex flex-wrap gap-2" data-testid="clarification-refinements">
             {refinements.map((item) => (
-              <Button key={item} size="small" onClick={() => onApplyRefinement(item)}>
+              <Button
+                key={item}
+                size="small"
+                type="primary"
+                ghost
+                onClick={() => onApplyRefinement(item)}
+              >
                 {item}
               </Button>
             ))}

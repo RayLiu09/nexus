@@ -135,13 +135,18 @@ export function SearchPlayground({ knowledgeTypes }: SearchPlaygroundProps) {
     [executeQuery, loading],
   );
 
+  // Clarification refinements are actionable shortcuts, not draft-in-textarea
+  // hints — the plan (§六 PR 2) is "一键补充约束再提交", so we route the
+  // click straight through executeQuery instead of just filling the input.
+  // The defensive setMode keeps the assumption safe in case the user
+  // somehow lands on a legacy mode.
   const applyRefinement = useCallback(
     (text: string) => {
       if (loading) return;
       setMode("retrieval");
-      setQuery(text);
+      void executeQuery(text, "retrieval");
     },
-    [loading],
+    [executeQuery, loading],
   );
 
   const openChunkDetail = useCallback((chunk: KnowledgeChunkHit) => {
