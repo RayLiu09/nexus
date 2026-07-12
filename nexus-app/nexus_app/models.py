@@ -2508,3 +2508,62 @@ class TagAssetIndex(TimestampMixin, Base):
     evidence_span: Mapped[str | None] = mapped_column(Text, nullable=True,
         comment="LLM-produced evidence snippet (3-60 chars); NULL for non-"
                 "governance sources")
+
+
+class DimTagAlias(TimestampMixin, Base):
+    """v1.3 §3.4 L2 alias dictionary — maps俗称 / 缩写 / 别名 to canonical values.
+
+    Rather than spinning up a separate table per tag_type
+    (``dim_region_alias`` / ``dim_industry_alias`` / …), we polymorphic
+    on ``tag_type`` so extending the taxonomy (v1.4+) never requires a
+    schema change.  L3 later reuses ``standard_code`` for exact 国标 code
+    lookups — populated only when the dictionary entry carries an
+    unambiguous code (empty for pure alias mappings).
+
+    Lookup contract (L2 read path in ``TagAssetIndexResolver``):
+
+    1. Normalise the user's raw candidate via
+       :func:`nexus_app.ai_governance.tag_normalization.normalize_tag_value`.
+    2. ``SELECT canonical_value_normalized FROM dim_tag_alias WHERE
+       tag_type = :t AND alias_value_normalized IN :n``.
+    3. Re-run L1 lookup with the resulting canonical set, tagging every
+       hit as L2.
+    """
+
+    __tablename__ = "dim_tag_alias"
+    __table_args__ = (
+        # L2 forward lookup: (tag_type, alias_value_normalized) → canonical
+        Index("ix_dta_type_alias_norm", "tag_type", "alias_value_normalized"),
+        # Reverse lookup — "what aliases point to this canonical" (admin UI)
+        Index("ix_dta_type_canonical_norm", "tag_type", "canonical_value_normalized"),
+        # L3 direct code hits (populated only when standard_code is set)
+        Index(
+            "ix_dta_type_code",
+            "tag_type", "standard_code",
+            postgresql_where=text("standard_code IS NOT NULL"),
+        ),
+        # Same (tag_type, alias_norm) must be unique — the dictionary
+        # cannot say "京" means both "北京" and "南京"; use two rows with
+        # distinct alias values when ambiguity exists.
+        UniqueConstraint(
+            "tag_type", "alias_value_normalized",
+            name="uq_dta_type_alias_norm",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    tag_type: Mapped[str] = mapped_column(String(32), nullable=False,
+        comment="One of tag_taxonomy.types[*].code — matches tag_asset_index.tag_type")
+    alias_value: Mapped[str] = mapped_column(Text, nullable=False,
+        comment="Original alias form as authored — preserved for admin display")
+    alias_value_normalized: Mapped[str] = mapped_column(Text, nullable=False,
+        comment="normalize_tag_value(alias_value, tag_type) — L2 lookup key")
+    canonical_value: Mapped[str] = mapped_column(Text, nullable=False,
+        comment="Canonical human-readable form pushed downstream to L1 lookup")
+    canonical_value_normalized: Mapped[str] = mapped_column(Text, nullable=False,
+        comment="normalize_tag_value(canonical_value, tag_type) — L1 join key")
+    standard_code: Mapped[str | None] = mapped_column(Text, nullable=True,
+        comment="国标/国际 code (e.g. 行政区划代码 / GB/T 4754 industry code); "
+                "populated when the entry is unambiguously coded — enables L3")
+    note: Mapped[str | None] = mapped_column(Text, nullable=True,
+        comment="Curator-facing free text (source, ambiguity notes, etc.)")

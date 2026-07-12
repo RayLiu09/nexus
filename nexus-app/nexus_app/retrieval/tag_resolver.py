@@ -34,12 +34,13 @@ Contract highlights:
 * **F4-7 exception isolation** — an unexpected error inside one layer
   never poisons the other layers; each layer runs in its own try/except.
 
-PR-4 does **not** implement L2 (alias dictionaries) or L3 (standard
-code lookup) — the layer methods are stubs that emit
-``layer_l2_not_implemented`` / ``layer_l3_not_implemented`` warnings
-when a caller asks for them via ``match_strategy``.  Wiring the layers
-lands in a later sprint when ``dim_*_alias`` seeds and dictionary
-maintenance UI are on the plate.
+PR-4 shipped L1 / L1.5 / L4.  PR-5 (v1.3 §3.4) wires L2 against the
+``dim_tag_alias`` dictionary:  the resolver normalises the candidate,
+looks up its canonical form in ``dim_tag_alias``, then dispatches to
+the shared L1 SQL body with the canonical set labelled ``L2``.  L3
+(standard_code lookup) and L5 (chunk fallback) remain stubs — the
+``layer_l3_not_implemented`` / ``layer_l5_chunk_fallback_out_of_scope``
+warnings still fire when a caller asks for them via ``match_strategy``.
 """
 
 from __future__ import annotations
@@ -230,10 +231,9 @@ class TagAssetIndexResolver:
         tag_type = BUCKET_TO_TAG_TYPE[bucket_name]
 
         parsed_layers = self._parse_match_strategy(match_strategy)
-        # Emit stub warnings for L2 / L3 up-front so callers know they
-        # asked for something the resolver can't provide yet.
-        if "l2" in parsed_layers:
-            result.add_warning("layer_l2_not_implemented")
+        # PR-5: L2 is live against dim_tag_alias; no up-front warning.
+        # L3 / L5 remain stubs.  Callers get a warning only when they
+        # explicitly asked for those layers via match_strategy.
         if "l3" in parsed_layers:
             result.add_warning("layer_l3_not_implemented")
         if "l5" in parsed_layers:
@@ -347,6 +347,12 @@ class TagAssetIndexResolver:
                 only_raw_equals_normalised=False,
                 label="L1.5",
             )
+        if layer == "l2":
+            return self._l2_alias(
+                tag_type=tag_type,
+                normalised_candidates=normalised_candidates,
+                target_type_filter=target_type_filter,
+            )
         if layer == "l4":
             return self._l4_semantic(
                 tag_type=tag_type,
@@ -356,7 +362,7 @@ class TagAssetIndexResolver:
                 top_k_per_candidate=top_k_per_candidate,
                 result=result,
             )
-        # l2 / l3 / l5 — stubs already warned above; no rows.
+        # l3 / l5 — stubs already warned above; no rows.
         return []
 
     # -- L1 / L1.5 ----------------------------------------------------------
@@ -385,14 +391,31 @@ class TagAssetIndexResolver:
                 for raw, normalised in normalised_candidates
                 if raw != normalised
             ]
-        if not eligible_values:
+        return self._lookup_by_normalised(
+            tag_type=tag_type,
+            normalised_values=eligible_values,
+            target_type_filter=target_type_filter,
+            label=label,
+        )
+
+    def _lookup_by_normalised(
+        self,
+        *,
+        tag_type: TagTypeCode,
+        normalised_values: list[str] | set[str],
+        target_type_filter: TagAssetIndexTargetType | None,
+        label: MatchLayer,
+    ) -> list[ResolvedTag]:
+        """Shared exact-match SQL used by L1, L1.5, and L2's canonical join."""
+        values = list(dict.fromkeys(normalised_values))  # preserve order, dedup
+        if not values:
             return []
 
         stmt = (
             select(models.TagAssetIndex)
             .where(
                 models.TagAssetIndex.tag_type == tag_type,
-                models.TagAssetIndex.tag_value_normalized.in_(eligible_values),
+                models.TagAssetIndex.tag_value_normalized.in_(values),
             )
         )
         if target_type_filter is not None:
@@ -412,6 +435,49 @@ class TagAssetIndexResolver:
             )
             for row in rows
         ]
+
+    # -- L2 ----------------------------------------------------------------
+
+    def _l2_alias(
+        self,
+        *,
+        tag_type: TagTypeCode,
+        normalised_candidates: list[tuple[str, str]],
+        target_type_filter: TagAssetIndexTargetType | None,
+    ) -> list[ResolvedTag]:
+        """L2 alias dictionary lookup.
+
+        Two-step per §3.4:
+
+        1. Look up ``dim_tag_alias`` rows whose ``alias_value_normalized``
+           matches any of the input candidate norms — collect their
+           ``canonical_value_normalized`` set.
+        2. Drop canonicals that already equal an input norm (they would
+           re-hit L1 / L1.5 for the same target_id) and reuse the L1
+           SQL body with the remaining canonical set, labelling every
+           hit ``L2``.
+        """
+        input_norms = {norm for _raw, norm in normalised_candidates}
+        if not input_norms:
+            return []
+
+        stmt = (
+            select(models.DimTagAlias.canonical_value_normalized)
+            .where(
+                models.DimTagAlias.tag_type == tag_type,
+                models.DimTagAlias.alias_value_normalized.in_(list(input_norms)),
+            )
+        )
+        canonical_norms = set(self._session.scalars(stmt).all())
+        # Never re-hit L1/L1.5 with the same value — the layer priority
+        # already promoted those rows above L2 in the seen-set logic.
+        canonical_norms -= input_norms
+        return self._lookup_by_normalised(
+            tag_type=tag_type,
+            normalised_values=canonical_norms,
+            target_type_filter=target_type_filter,
+            label="L2",
+        )
 
     # -- L4 ----------------------------------------------------------------
 

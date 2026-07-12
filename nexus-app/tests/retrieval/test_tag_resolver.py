@@ -233,16 +233,209 @@ class TestLayerRoutingAndOrder:
         assert len(result.hits) == 1
         assert result.hits[0].match_layer == "L1"
 
-    def test_l2_l3_l5_emit_stub_warnings(self, session) -> None:
+    def test_l3_l5_emit_stub_warnings_l2_now_live(self, session) -> None:
+        """PR-5 flipped L2 live against dim_tag_alias; L3 / L5 remain stubs."""
         resolver = TagAssetIndexResolver(session)
         result = resolver.resolve(
             bucket_name="regions",
             candidates=["北京"],
             match_strategy="l1|l2|l3|l5",
         )
-        assert "layer_l2_not_implemented" in result.warnings
+        assert "layer_l2_not_implemented" not in result.warnings
         assert "layer_l3_not_implemented" in result.warnings
         assert "layer_l5_chunk_fallback_out_of_scope" in result.warnings
+
+
+# ---------------------------------------------------------------------------
+# L2 alias dictionary (PR-5)
+# ---------------------------------------------------------------------------
+
+
+def _seed_alias(
+    session,
+    *,
+    tag_type: str,
+    alias_value: str,
+    alias_value_normalized: str,
+    canonical_value: str,
+    canonical_value_normalized: str,
+    standard_code: str | None = None,
+) -> models.DimTagAlias:
+    row = models.DimTagAlias(
+        tag_type=tag_type,
+        alias_value=alias_value,
+        alias_value_normalized=alias_value_normalized,
+        canonical_value=canonical_value,
+        canonical_value_normalized=canonical_value_normalized,
+        standard_code=standard_code,
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
+class TestL2AliasResolution:
+    """L2 tests use industry / occupation / major aliases — those tag_types'
+    ``normalize_tag_value`` is largely identity, so the alias→canonical
+    mapping actually goes through the dim_tag_alias path rather than
+    getting rewritten by the L1.5 normaliser (regions have baked-in rules
+    like "京" → "北京" that make them unsuitable for L2 fixtures).
+    """
+
+    def test_l2_maps_alias_to_canonical_and_labels_hit_l2(self, session) -> None:
+        # "直播电商" (alias) → "电子商务" (canonical); tag_asset_index carries "电子商务".
+        _seed_alias(
+            session,
+            tag_type="industry",
+            alias_value="直播电商",
+            alias_value_normalized="直播电商",
+            canonical_value="电子商务",
+            canonical_value_normalized="电子商务",
+        )
+        _seed(
+            session,
+            tag_type="industry",
+            tag_value="电子商务",
+            tag_value_normalized="电子商务",
+        )
+
+        resolver = TagAssetIndexResolver(session)
+        result = resolver.resolve(
+            bucket_name="industries",
+            candidates=["直播电商"],
+            match_strategy="l1|l2",
+        )
+
+        assert len(result.hits) == 1
+        assert result.hits[0].match_layer == "L2"
+        assert result.hits[0].tag_value_normalized == "电子商务"
+
+    def test_l1_still_wins_when_input_is_already_canonical(self, session) -> None:
+        """When the user types the canonical form directly, L1 fires first
+        and L2 must not double-count the same target (I-5 layer ordering)."""
+        _seed_alias(
+            session,
+            tag_type="industry",
+            alias_value="直播电商",
+            alias_value_normalized="直播电商",
+            canonical_value="电子商务",
+            canonical_value_normalized="电子商务",
+        )
+        _seed(
+            session,
+            tag_type="industry",
+            tag_value="电子商务",
+            tag_value_normalized="电子商务",
+        )
+
+        resolver = TagAssetIndexResolver(session)
+        result = resolver.resolve(
+            bucket_name="industries",
+            candidates=["电子商务"],
+            match_strategy="l1|l2",
+        )
+
+        assert len(result.hits) == 1
+        assert result.hits[0].match_layer == "L1"
+
+    def test_l2_no_hits_when_alias_dict_empty(self, session) -> None:
+        """Missing dictionary just returns no L2 rows — no warning fires."""
+        _seed(
+            session,
+            tag_type="industry",
+            tag_value="电子商务",
+            tag_value_normalized="电子商务",
+        )
+
+        resolver = TagAssetIndexResolver(session)
+        result = resolver.resolve(
+            bucket_name="industries",
+            candidates=["直播电商"],
+            match_strategy="l2",
+        )
+
+        assert result.hits == []
+        # PR-5 removed the not_implemented warning entirely.
+        assert "layer_l2_not_implemented" not in result.warnings
+
+    def test_l2_respects_target_type_filter(self, session) -> None:
+        """L2 canonical join must honour the caller's target_type filter."""
+        _seed_alias(
+            session,
+            tag_type="occupation",
+            alias_value="前端",
+            alias_value_normalized="前端",
+            canonical_value="前端工程师",
+            canonical_value_normalized="前端工程师",
+        )
+        # Two rows with the same canonical: one on a job_demand_record,
+        # one on an ability_item. Filtering to job_demand_record must
+        # only surface the first.
+        _seed(
+            session,
+            tag_type="occupation",
+            tag_value="前端工程师",
+            tag_value_normalized="前端工程师",
+            target_id="jd-1",
+            target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
+        )
+        _seed(
+            session,
+            tag_type="occupation",
+            tag_value="前端工程师",
+            tag_value_normalized="前端工程师",
+            target_id="ai-1",
+            target_type=TagAssetIndexTargetType.OCCUPATIONAL_ABILITY_ITEM,
+        )
+
+        resolver = TagAssetIndexResolver(session)
+        result = resolver.resolve(
+            bucket_name="occupations",
+            candidates=["前端"],
+            match_strategy="l2",
+            target_type_filter=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
+        )
+
+        assert len(result.hits) == 1
+        assert result.hits[0].target_id == "jd-1"
+        assert result.hits[0].match_layer == "L2"
+
+    def test_multiple_aliases_dedup_on_shared_canonical(self, session) -> None:
+        """Two different aliases mapping to the same canonical shouldn't
+        double-count the same target row."""
+        _seed_alias(
+            session,
+            tag_type="major",
+            alias_value="计算机",
+            alias_value_normalized="计算机",
+            canonical_value="计算机科学与技术",
+            canonical_value_normalized="计算机科学与技术",
+        )
+        _seed_alias(
+            session,
+            tag_type="major",
+            alias_value="CS",
+            alias_value_normalized="cs",
+            canonical_value="计算机科学与技术",
+            canonical_value_normalized="计算机科学与技术",
+        )
+        _seed(
+            session,
+            tag_type="major",
+            tag_value="计算机科学与技术",
+            tag_value_normalized="计算机科学与技术",
+        )
+
+        resolver = TagAssetIndexResolver(session)
+        result = resolver.resolve(
+            bucket_name="majors",
+            candidates=["计算机", "CS"],
+            match_strategy="l2",
+        )
+
+        # Both aliases resolve to the same canonical → single target hit.
+        assert len(result.hits) == 1
+        assert result.hits[0].match_layer == "L2"
 
 
 # ---------------------------------------------------------------------------

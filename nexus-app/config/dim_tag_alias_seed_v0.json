@@ -1,0 +1,90 @@
+{
+  "schema_version": "dim_tag_alias_seed.v0",
+  "description": "Starter L2 alias dictionary — v1.3 §3.4. Each row: raw alias (as user might type) → canonical (matches what projection writes into tag_asset_index.tag_value_normalized). Curators can grow this via Console 标签审核页 or by re-running scripts/seed_dim_tag_alias.py with an expanded config. Kept small on purpose so PR-5 can ship without a full curator workflow — the resolver silently returns [] when the dictionary lacks an entry.",
+  "aliases": {
+    "industry": [
+      {
+        "alias": "直播电商",
+        "canonical": "电子商务",
+        "note": "垂直细分 → 上位大类"
+      },
+      {
+        "alias": "跨境电商",
+        "canonical": "电子商务",
+        "note": "垂直细分 → 上位大类"
+      },
+      {
+        "alias": "社交电商",
+        "canonical": "电子商务",
+        "note": "垂直细分 → 上位大类"
+      },
+      {
+        "alias": "内容电商",
+        "canonical": "电子商务",
+        "note": "垂直细分 → 上位大类"
+      },
+      { "alias": "快消", "canonical": "快速消费品", "note": "缩写" },
+      { "alias": "FMCG", "canonical": "快速消费品", "note": "英文缩写" },
+      { "alias": "TMT", "canonical": "科技互联网", "note": "行业惯用缩写" },
+      {
+        "alias": "生物医药",
+        "canonical": "医药制造",
+        "note": "俗称 → 上位大类"
+      },
+      {
+        "alias": "新能源汽车",
+        "canonical": "汽车制造",
+        "note": "细分 → 上位大类"
+      },
+      { "alias": "锂电", "canonical": "新能源", "note": "环节缩写" }
+    ],
+    "occupation": [
+      { "alias": "前端", "canonical": "前端工程师", "note": "岗位缩写" },
+      { "alias": "后端", "canonical": "后端工程师", "note": "岗位缩写" },
+      { "alias": "全栈", "canonical": "全栈工程师", "note": "岗位缩写" },
+      { "alias": "算法", "canonical": "算法工程师", "note": "岗位缩写" },
+      { "alias": "数分", "canonical": "数据分析师", "note": "岗位缩写" },
+      { "alias": "产品", "canonical": "产品经理", "note": "岗位缩写" },
+      { "alias": "PM", "canonical": "产品经理", "note": "英文缩写" },
+      { "alias": "运营", "canonical": "运营专员", "note": "岗位缩写" },
+      { "alias": "UI", "canonical": "UI设计师", "note": "岗位缩写" },
+      { "alias": "UED", "canonical": "用户体验设计师", "note": "缩写" },
+      { "alias": "PMO", "canonical": "项目管理专员", "note": "缩写" },
+      {
+        "alias": "HRBP",
+        "canonical": "人力资源业务合作伙伴",
+        "note": "英文缩写"
+      }
+    ],
+    "major": [
+      {
+        "alias": "计算机",
+        "canonical": "计算机科学与技术",
+        "note": "俗称 → 国标专业名"
+      },
+      { "alias": "CS", "canonical": "计算机科学与技术", "note": "英文缩写" },
+      { "alias": "软工", "canonical": "软件工程", "note": "缩写" },
+      { "alias": "自动化", "canonical": "自动化", "note": "已一致（占位）" },
+      {
+        "alias": "机械",
+        "canonical": "机械设计制造及其自动化",
+        "note": "俗称 → 国标专业名"
+      },
+      { "alias": "土木", "canonical": "土木工程", "note": "俗称 → 国标专业名" },
+      { "alias": "金融", "canonical": "金融学", "note": "俗称 → 国标专业名" },
+      { "alias": "法学", "canonical": "法学", "note": "已一致（占位）" },
+      { "alias": "生医", "canonical": "生物医学工程", "note": "缩写" },
+      { "alias": "电商", "canonical": "电子商务", "note": "俗称 → 国标专业名" },
+      {
+        "alias": "跨境电商",
+        "canonical": "跨境电子商务",
+        "note": "俗称 → 国标专业名"
+      },
+      {
+        "alias": "直播电商",
+        "canonical": "网络营销与直播电商",
+        "note": "俗称 → 国标专业名"
+      }
+    ]
+  }
+}
