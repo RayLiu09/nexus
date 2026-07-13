@@ -48,6 +48,8 @@ __all__ = [
     "TagBucketName",
     "MatchLayer",
     "CombineOp",
+    "RERANK_COMBINE_OPS",
+    "DEFAULT_RRF_K",
     "TAG_TYPE_CODES",
     "TAG_BUCKET_NAMES",
     # tag primitives
@@ -101,7 +103,16 @@ TAG_BUCKET_NAMES: tuple[str, ...] = (
 # Literal so future additions land through code review.
 MatchLayer = Literal["L1", "L1.5", "L2", "L3", "L4", "L5"]
 
-CombineOp = Literal["AND", "OR", "WEIGHTED"]
+CombineOp = Literal["AND", "OR", "WEIGHTED", "LINEAR", "RRF"]
+
+# Ops that produce union set and drive rerank score aggregation.  Kept
+# as a constant so tag_filter_execution / rerank / friendly_view stay in
+# lock-step when a new op lands.
+RERANK_COMBINE_OPS: frozenset[str] = frozenset({"WEIGHTED", "LINEAR", "RRF"})
+
+# Reciprocal Rank Fusion — the k constant recommended by Cormack et al.
+# (2009).  Overridable per-sub_query via ``RetrievalSubQuery.rrf_k``.
+DEFAULT_RRF_K: int = 60
 
 
 # ---------------------------------------------------------------------------

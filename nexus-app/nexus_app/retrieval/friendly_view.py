@@ -355,6 +355,10 @@ def _combine_summary(plan: "RetrievalPlan") -> str:
         return "任一维度匹配即可（OR）"
     if combines == {"WEIGHTED"}:
         return "按权重加权合并（WEIGHTED）"
+    if combines == {"LINEAR"}:
+        return "按线性权重合并（LINEAR）"
+    if combines == {"RRF"}:
+        return "按倒数排名融合（RRF）"
     if combines:
         return "混合合并策略（" + " / ".join(sorted(combines)) + "）"
     return "默认合并策略"

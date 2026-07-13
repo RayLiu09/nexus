@@ -247,13 +247,17 @@ def execute_tag_filters(
             warnings.append("tag_filters_empty_intersection")
 
     # PR-13 — sum per-bucket max scores for each id that survived the
-    # combine.  Populated for AND / OR / WEIGHTED alike; only the
-    # WEIGHTED rerank path in Phase B uses them for ORDER BY.
+    # combine.  Populated for AND / OR / WEIGHTED alike; only rerank ops
+    # (WEIGHTED / LINEAR / RRF) actually consume them for ORDER BY in
+    # Phase B.  M-D adds LINEAR (weighted sum with per-bucket weights)
+    # and RRF (rank-based reciprocal fusion) alongside WEIGHTED.
     target_scores = _aggregate_target_scores(
         per_bucket_scores=per_bucket_scores,
         per_bucket_optional=per_bucket_optional,
         combined_ids=combined_ids,
         combine=combine,
+        combine_weights=sub_query.combine_weights,
+        rrf_k=sub_query.rrf_k,
     )
 
     return TagFilterExecutionResult(
@@ -297,7 +301,9 @@ def _combine_bucket_ids(
         # doesn't see an empty IN () clause.
         return None
 
-    if combine == "OR" or combine == "WEIGHTED":
+    # OR / WEIGHTED / LINEAR / RRF — all produce a union set.  The score
+    # aggregation step downstream is where their semantics diverge.
+    if combine in ("OR", "WEIGHTED", "LINEAR", "RRF"):
         result: set[str] = set()
         for bucket_ids in per_bucket_ids.values():
             result |= bucket_ids
@@ -332,6 +338,8 @@ def _aggregate_target_scores(
     per_bucket_optional: dict[str, bool],
     combined_ids: set[str] | None,
     combine: str,
+    combine_weights: dict[str, float] | None = None,
+    rrf_k: int | None = None,
 ) -> dict[str, float]:
     """Sum per-bucket max scores for each target that survived combine.
 
@@ -355,15 +363,70 @@ def _aggregate_target_scores(
         for bucket, scores in per_bucket_scores.items()
         if not (not scores and per_bucket_optional.get(bucket, False))
     ]
+
+    if combine == "RRF":
+        return _aggregate_rrf_scores(
+            contributing_buckets=contributing_buckets,
+            combined_ids=combined_ids,
+            rrf_k=rrf_k,
+        )
+
+    # AND / OR / WEIGHTED / LINEAR share a weighted-sum shape; the only
+    # difference is the per-bucket weight vector.  AND / OR / WEIGHTED
+    # get uniform weight 1.0 (WEIGHTED's "sum of max scores" contract).
+    # LINEAR uses caller-provided weights, defaulting missing buckets to
+    # 1.0 so a partial spec still produces meaningful ranks.
+    if combine == "LINEAR":
+        weights = combine_weights or {}
+    else:
+        weights = {}
+
     scores: dict[str, float] = {}
     for target_id in combined_ids:
         total = 0.0
-        for _bucket, bucket_scores in contributing_buckets:
+        for bucket, bucket_scores in contributing_buckets:
             score = bucket_scores.get(target_id)
             if score is None:
                 continue
-            total += score
+            weight = float(weights.get(bucket, 1.0))
+            total += weight * score
         scores[target_id] = total
+    return scores
+
+
+def _aggregate_rrf_scores(
+    *,
+    contributing_buckets: list[tuple[str, dict[str, float]]],
+    combined_ids: set[str],
+    rrf_k: int | None,
+) -> dict[str, float]:
+    """Reciprocal Rank Fusion — per Cormack et al. (2009).
+
+    For each bucket, rank its ids by score descending (ties broken by
+    id lexicographic order for determinism), then contribute
+    ``1 / (k + rank)`` to the aggregated score.  Ids absent from a
+    bucket contribute nothing from that bucket.  The bucket-count
+    normalisation is intentionally omitted — RRF's virtue is that the
+    aggregate remains bounded by ``num_buckets / (k + 1)`` regardless
+    of raw score scale.
+    """
+    from nexus_app.retrieval.tag_schemas import DEFAULT_RRF_K
+
+    k = rrf_k if rrf_k is not None else DEFAULT_RRF_K
+    scores: dict[str, float] = {tid: 0.0 for tid in combined_ids}
+    for _bucket, bucket_scores in contributing_buckets:
+        if not bucket_scores:
+            continue
+        # rank 1 = highest score; stable tie-break by id ensures
+        # deterministic ordering across sqlite / postgres runs.
+        ranked = sorted(
+            bucket_scores.items(),
+            key=lambda kv: (-kv[1], kv[0]),
+        )
+        for rank, (target_id, _score) in enumerate(ranked, start=1):
+            if target_id not in scores:
+                continue
+            scores[target_id] += 1.0 / (k + rank)
     return scores
 
 

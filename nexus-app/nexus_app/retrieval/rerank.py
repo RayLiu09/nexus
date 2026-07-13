@@ -105,16 +105,18 @@ def apply_weighted_rerank(
             continue
         record["score"] = float(phase_a.target_scores.get(rid, 0.0))
 
+    from nexus_app.retrieval.tag_schemas import RERANK_COMBINE_OPS
+
     combine = (sub_query.combine or "AND").upper()
-    if combine != "WEIGHTED":
+    if combine not in RERANK_COMBINE_OPS:
         return RerankDecision(
             reordered=False,
             warning_code=f"weighted_rerank_skipped_combine={combine}",
             score_stats=_score_stats(records),
         )
 
-    # Explicit order_by wins.  Even when WEIGHTED is set, respect the
-    # user's declared intent.
+    # Explicit order_by wins.  Even when a rerank op is set, respect
+    # the user's declared intent.
     if (
         sub_query.structured_plan is not None
         and sub_query.structured_plan.order_by
@@ -134,9 +136,16 @@ def apply_weighted_rerank(
 
     # Stable sort by score desc — preserves SQL order for ties.
     records.sort(key=lambda r: r.get("score") or 0.0, reverse=True)
+    # M-D — the warning code encodes the op so audit / friendly_view
+    # can distinguish WEIGHTED-sum vs LINEAR-weighted vs RRF ranks.
+    warning_code = (
+        "weighted_rerank_applied"
+        if combine == "WEIGHTED"
+        else f"weighted_rerank_applied_op={combine}"
+    )
     return RerankDecision(
         reordered=True,
-        warning_code="weighted_rerank_applied",
+        warning_code=warning_code,
         score_stats=_score_stats(records),
     )
 
@@ -227,8 +236,10 @@ def apply_unstructured_weighted_rerank(
             score_stats={},
         )
 
+    from nexus_app.retrieval.tag_schemas import RERANK_COMBINE_OPS
+
     combine = (sub_query.combine or "AND").upper()
-    if combine != "WEIGHTED":
+    if combine not in RERANK_COMBINE_OPS:
         return RerankDecision(
             reordered=False,
             warning_code=f"unstructured_rerank_skipped_combine={combine}",
@@ -265,9 +276,14 @@ def apply_unstructured_weighted_rerank(
         item.score = blended
 
     items.sort(key=lambda i: i.score or 0.0, reverse=True)
+    warning_code = (
+        "unstructured_rerank_applied"
+        if combine == "WEIGHTED"
+        else f"unstructured_rerank_applied_op={combine}"
+    )
     return RerankDecision(
         reordered=True,
-        warning_code="unstructured_rerank_applied",
+        warning_code=warning_code,
         score_stats=_score_stats_from_items(items),
     )
 

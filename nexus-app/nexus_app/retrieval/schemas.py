@@ -166,6 +166,12 @@ class RetrievalSubQuery(StrictModel):
     structured_filters: dict[str, Any] = Field(default_factory=dict)
     combine: str = DEFAULT_COMBINE_OP
     output_binding: str | None = None
+    # M-D — LINEAR / RRF combine op parameters.  Both are ignored for
+    # non-rerank ops.  ``combine_weights`` keys are bucket names; missing
+    # keys default to weight 1.0.  ``rrf_k`` overrides the default
+    # RRF constant (60) for a single sub_query — useful for A/B tuning.
+    combine_weights: dict[str, float] | None = None
+    rrf_k: int | None = Field(default=None, ge=1)
 
     @model_validator(mode="after")
     def _validate_plan_for_channel(self):
@@ -197,12 +203,29 @@ class RetrievalSubQuery(StrictModel):
                 f"sub_query {self.query_id!r} depends on itself"
             )
 
-        # combine restricted to the three known ops (kept as str for
-        # planner extensibility, validated here).
-        if self.combine not in ("AND", "OR", "WEIGHTED"):
+        # combine restricted to the known ops (kept as str for planner
+        # extensibility, validated here).  M-D adds LINEAR / RRF as
+        # weighted-union variants; AND/OR/WEIGHTED preserved.
+        if self.combine not in ("AND", "OR", "WEIGHTED", "LINEAR", "RRF"):
             raise ValueError(
-                f"combine must be one of AND/OR/WEIGHTED; got {self.combine!r}"
+                f"combine must be one of AND/OR/WEIGHTED/LINEAR/RRF; "
+                f"got {self.combine!r}"
             )
+
+        # combine_weights / rrf_k only meaningful for their respective
+        # ops; reject nonsense combinations up front.
+        if self.combine_weights is not None:
+            if self.combine != "LINEAR":
+                raise ValueError(
+                    "combine_weights only valid when combine=LINEAR"
+                )
+            for bucket, weight in self.combine_weights.items():
+                if weight < 0:
+                    raise ValueError(
+                        f"combine_weights[{bucket!r}] must be non-negative"
+                    )
+        if self.rrf_k is not None and self.combine != "RRF":
+            raise ValueError("rrf_k only valid when combine=RRF")
 
         return self
 
