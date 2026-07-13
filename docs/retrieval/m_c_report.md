@@ -201,14 +201,14 @@ export NEXUS_GOLDEN_USE_POSTGRES=1
 
 ### 7.2 Follow-ups（新任务候选）
 
-| 优先级 | 项                                                                                                     | 建议 milestone |
-| ------ | ------------------------------------------------------------------------------------------------------ | -------------- |
-| P1     | course_textbook unstructured multi_hop / rerank（依赖 unstructured 侧 combine + WEIGHTED rerank 支持） | M-D            |
-| P1     | rerank 其他 op（LINEAR / RRF / MMR）golden case                                                        | M-D            |
-| P1     | P1 console retrieval-test 页面接后端 orchestrator（把 M-C 能力上 UI）                                  | UI-P1          |
-| P2     | Pipeline B LLM 阶段 cassette 化 —— 覆盖 body_markdown / governance 与检索之间的耦合                    | M-D+           |
-| P2     | Dev-DB 隔离改按 trace_id 白名单，允许保留人工 seed                                                     | 运维           |
-| P3     | pgvector golden 引入 `IVFFlat` / `HNSW` 参数校验                                                       | 性能           |
+| 优先级 | 项                                                                                  | 建议 milestone |
+| ------ | ----------------------------------------------------------------------------------- | -------------- |
+| P2     | course_textbook unstructured multi_hop（rerank 已由 PR-7 落地，multi_hop 待补）     | M-D            |
+| P1     | rerank 其他 op（LINEAR / RRF / MMR）golden case                                     | M-D            |
+| P1     | P1 console retrieval-test 页面接后端 orchestrator（把 M-C 能力上 UI）               | UI-P1          |
+| P2     | Pipeline B LLM 阶段 cassette 化 —— 覆盖 body_markdown / governance 与检索之间的耦合 | M-D+           |
+| P2     | Dev-DB 隔离改按 trace_id 白名单，允许保留人工 seed                                  | 运维           |
+| P3     | pgvector golden 引入 `IVFFlat` / `HNSW` 参数校验                                    | 性能           |
 
 ---
 

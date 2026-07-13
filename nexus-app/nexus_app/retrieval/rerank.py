@@ -40,6 +40,7 @@ if TYPE_CHECKING:  # pragma: no cover
 __all__ = [
     "RerankDecision",
     "apply_weighted_rerank",
+    "apply_unstructured_weighted_rerank",
 ]
 
 
@@ -153,3 +154,147 @@ def _score_stats(records: list[dict[str, Any]]) -> dict[str, Any]:
         "min": min(scores),
         "sum": sum(scores),
     }
+
+
+# ---------------------------------------------------------------------------
+# PR-7: unstructured (chunk-level) rerank
+# ---------------------------------------------------------------------------
+#
+# Explicit gates — rerank is **never mandatory**.  Every call site
+# decides on a case-by-case basis whether to run this and the decision
+# is fully observable through the returned warning code.  The user asks
+# ("检索/召回不应该每次都强制 rerank"): the gate hierarchy below is
+# the design answer.
+
+
+def apply_unstructured_weighted_rerank(
+    *,
+    items: list["UnstructuredItemLike"],
+    sub_query: "RetrievalSubQuery",
+    phase_a: "TagFilterExecutionResult",
+    rerank_enabled: bool,
+    profile_supports_rerank: bool,
+    semantic_weight: float = 0.5,
+    tag_weight: float = 0.5,
+) -> RerankDecision:
+    """Blend Phase A tag scores with pgvector semantic scores for unstructured hits.
+
+    The rerank fires ONLY when every gate below passes; each gate emits
+    a distinct warning code so callers can surface why rerank was
+    skipped in the audit trail.  This is the deliberate "根据实际情况判断"
+    behaviour — no silent mandatory rerank on every request.
+
+    Gates (in order):
+
+    1. **profile_supports_rerank** — only NORMALIZED_ASSET_REF anchor
+       for now; OUTLINE_NODE anchor would need a chunk → outline_node
+       reverse lookup that PR-7 defers.  Emits
+       ``unstructured_rerank_skipped_outline_anchor``.
+    2. **combine == WEIGHTED** — the user must explicitly opt in via
+       the combine op.  AND/OR queries stay in pure pgvector order.
+       Emits ``unstructured_rerank_skipped_combine=<op>``.
+    3. **phase_a.target_scores** — nothing to weight against without
+       Phase A signal.  Silent skip (matches structured pattern).
+    4. **len(items) > 1** — no reordering possible below.  Emits
+       ``unstructured_rerank_skipped_single_item``.
+    5. **rerank_enabled** — the runtime kill-switch.  Emits
+       ``unstructured_rerank_disabled_by_config`` so operators can tell
+       the switch flipped a rerank off.
+
+    When all gates pass, the item ``.score`` is replaced with
+    ``semantic_weight * semantic + tag_weight * tag_score`` (tag_score
+    looked up by ``item.normalized_ref_id``), items are stable-sorted
+    by the blended score descending, and the warning code
+    ``unstructured_rerank_applied`` is returned.
+    """
+    # Gate order matters — silent gates first so the "user didn't set
+    # up rerank at all" happy path (no tag_filter → no target_scores)
+    # stays warning-free.  Actionable gates (combine, kill-switch)
+    # emit codes only when the caller did request rerank via Phase A.
+    if not phase_a.target_scores:
+        # Silent — Phase A didn't run or resolved to nothing to weight
+        # against.  Mirrors structured executor semantics.
+        return RerankDecision(
+            reordered=False,
+            warning_code="unstructured_rerank_skipped_no_target_scores",
+            score_stats={},
+        )
+
+    if not profile_supports_rerank:
+        return RerankDecision(
+            reordered=False,
+            warning_code="unstructured_rerank_skipped_outline_anchor",
+            score_stats={},
+        )
+
+    combine = (sub_query.combine or "AND").upper()
+    if combine != "WEIGHTED":
+        return RerankDecision(
+            reordered=False,
+            warning_code=f"unstructured_rerank_skipped_combine={combine}",
+            score_stats={},
+        )
+
+    if len(items) < 2:
+        return RerankDecision(
+            reordered=False,
+            warning_code="unstructured_rerank_skipped_single_item",
+            score_stats={},
+        )
+
+    if not rerank_enabled:
+        return RerankDecision(
+            reordered=False,
+            warning_code="unstructured_rerank_disabled_by_config",
+            score_stats={},
+        )
+
+    # Blend semantic + tag; both should be in ~[0, 1] range.
+    total_weight = (semantic_weight or 0.0) + (tag_weight or 0.0)
+    if total_weight <= 0:
+        return RerankDecision(
+            reordered=False,
+            warning_code="unstructured_rerank_skipped_zero_weights",
+            score_stats={},
+        )
+
+    for item in items:
+        semantic = float(item.score or 0.0)
+        tag_score = float(phase_a.target_scores.get(item.normalized_ref_id, 0.0))
+        blended = (semantic_weight * semantic + tag_weight * tag_score) / total_weight
+        item.score = blended
+
+    items.sort(key=lambda i: i.score or 0.0, reverse=True)
+    return RerankDecision(
+        reordered=True,
+        warning_code="unstructured_rerank_applied",
+        score_stats=_score_stats_from_items(items),
+    )
+
+
+def _score_stats_from_items(items: list["UnstructuredItemLike"]) -> dict[str, Any]:
+    if not items:
+        return {"count": 0}
+    scores = [float(i.score or 0.0) for i in items]
+    return {
+        "count": len(scores),
+        "max": max(scores),
+        "min": min(scores),
+        "sum": sum(scores),
+    }
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Protocol
+
+    class UnstructuredItemLike(Protocol):
+        """Minimal shape apply_unstructured_weighted_rerank needs.
+
+        In-tree consumers pass ``nexus_app.retrieval.schemas.UnstructuredResultItem``
+        directly.  The Protocol lets tests pass a lightweight dataclass
+        without importing the Pydantic model.
+        """
+
+        chunk_id: str
+        normalized_ref_id: str
+        score: float | None

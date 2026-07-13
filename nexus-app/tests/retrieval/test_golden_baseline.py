@@ -176,6 +176,7 @@ def _build_executor_map(*, rerank_enabled: bool):
     )
     unstructured = create_unstructured_retrieval_executor(
         search_adapter=fake_adapter,
+        rerank_enabled=rerank_enabled,
     )
     competency = create_competency_retrieval_executor()
     return {
@@ -413,10 +414,19 @@ def _run_prebuilt_plan(
     golden: GoldenQuery, session,
 ) -> list[RetrievalResult]:
     """M-C.1 path — bypass intent + planner, execute the plan directly."""
-    rerank_enabled = golden.category == "rerank" and bool(
-        golden.expected_rerank_order
+    # Rerank gate: category=rerank golden cases either assert an explicit
+    # ordering via ``expected_rerank_order`` (structured records) OR
+    # signal via ``expected_warnings_contains`` that the *_rerank_applied
+    # warning must surface (unstructured items — chunk order depends on
+    # pgvector fake scores that are semantically noisy, so we don't
+    # assert per-chunk order there).
+    rerank_signalled = golden.category == "rerank" and (
+        bool(golden.expected_rerank_order)
+        or any(
+            "rerank_applied" in w for w in golden.expected_warnings_contains
+        )
     )
-    executor_map = _build_executor_map(rerank_enabled=rerank_enabled)
+    executor_map = _build_executor_map(rerank_enabled=rerank_signalled)
     dispatch = _make_dispatch(executor_map)
 
     plan = RetrievalPlan.model_validate(golden.prebuilt_plan)

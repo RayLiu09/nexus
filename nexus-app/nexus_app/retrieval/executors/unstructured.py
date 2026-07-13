@@ -43,6 +43,7 @@ from nexus_app.retrieval.schemas import (
     StepStatus,
     UnstructuredResultItem,
 )
+from nexus_app.retrieval.rerank import apply_unstructured_weighted_rerank
 from nexus_app.retrieval.tag_filter_execution import (
     TagFilterExecutionResult,
     execute_tag_filters,
@@ -57,12 +58,23 @@ class UnstructuredRetrievalExecutor:
         settings: Settings | None = None,
         search_adapter: PgvectorSearchAdapter | None = None,
         resolver_factory: "callable | None" = None,
+        rerank_enabled: bool | None = None,
     ) -> None:
         self._settings = settings or get_settings()
         self._search_adapter = search_adapter or create_pgvector_search_adapter(self._settings)
         self._resolver_factory = resolver_factory or (
             lambda session: TagAssetIndexResolver(session)
         )
+        # PR-7 kill switch — resolved once per instance so tests can
+        # inject True/False without touching global settings.  Default
+        # None → read from settings.effective_rerank_enabled at request
+        # time (mirrors JobDemandRetrievalExecutor).
+        self._rerank_enabled_override = rerank_enabled
+
+    def _resolve_rerank_enabled(self) -> bool:
+        if self._rerank_enabled_override is not None:
+            return self._rerank_enabled_override
+        return bool(self._settings.effective_rerank_enabled)
 
     def execute(
         self,
@@ -133,6 +145,13 @@ class UnstructuredRetrievalExecutor:
             elapsed_ms=elapsed_ms,
         )
         _attach_phase_a_meta(result, phase_a)
+        _apply_unstructured_rerank(
+            result=result,
+            sub_query=sub_query,
+            phase_a=phase_a,
+            profile=profile,
+            rerank_enabled=self._resolve_rerank_enabled(),
+        )
         return result
 
 
@@ -140,8 +159,13 @@ def create_unstructured_retrieval_executor(
     settings: Settings | None = None,
     *,
     search_adapter: PgvectorSearchAdapter | None = None,
+    rerank_enabled: bool | None = None,
 ) -> UnstructuredRetrievalExecutor:
-    return UnstructuredRetrievalExecutor(settings=settings, search_adapter=search_adapter)
+    return UnstructuredRetrievalExecutor(
+        settings=settings,
+        search_adapter=search_adapter,
+        rerank_enabled=rerank_enabled,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -254,6 +278,56 @@ def _resolve_outline_to_chunk_ids(
     )
     rows = session.execute(stmt).scalars().all()
     return sorted(str(row) for row in rows)
+
+
+def _apply_unstructured_rerank(
+    *,
+    result: RetrievalResult,
+    sub_query: RetrievalSubQuery,
+    phase_a: TagFilterExecutionResult,
+    profile: QueryProfile,
+    rerank_enabled: bool,
+) -> None:
+    """PR-7 — optionally blend Phase A tag scores into item ordering.
+
+    The gate hierarchy lives inside ``apply_unstructured_weighted_rerank``.
+    This wrapper only knows how to plumb items, decide whether the
+    profile's anchor is rerank-capable, stash the decision's warning
+    code on ``result.warnings``, and record the score stats in
+    ``result.retrieval_meta`` for observability.  Every gate outcome is
+    observable — matches the "根据实际情况判断" contract.
+    """
+    from nexus_app.enums import TagAssetIndexTargetType
+
+    if not result.items:
+        return
+    # Silent short-circuit — no Phase A signal means rerank is entirely
+    # inapplicable, not "skipped by choice".  Mirrors structured
+    # executor's _apply_rerank so plain semantic queries (no tag_filter)
+    # don't get a noisy skip warning.
+    if not phase_a.target_scores:
+        return
+
+    # Only NORMALIZED_ASSET_REF anchor items carry a normalized_ref_id
+    # that maps 1:1 to phase_a.target_scores.  OUTLINE_NODE anchor items
+    # would need a chunk → outline_node reverse lookup that PR-7 defers.
+    profile_supports_rerank = (
+        profile.tag_target_type == TagAssetIndexTargetType.NORMALIZED_ASSET_REF
+    )
+
+    decision = apply_unstructured_weighted_rerank(
+        items=result.items,
+        sub_query=sub_query,
+        phase_a=phase_a,
+        rerank_enabled=rerank_enabled,
+        profile_supports_rerank=profile_supports_rerank,
+    )
+    if decision.warning_code not in result.warnings:
+        result.warnings.append(decision.warning_code)
+    if decision.score_stats:
+        result.retrieval_meta["unstructured_rerank_score_stats"] = (
+            decision.score_stats
+        )
 
 
 def _attach_phase_a_meta(
