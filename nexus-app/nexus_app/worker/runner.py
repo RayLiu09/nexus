@@ -935,6 +935,9 @@ def _run_major_profile_normalize(
 
     from nexus_app.major_profile import writer
 
+    # The source normalized payload resides in object storage. Publish the
+    # preceding normalize writes before fetching it.
+    session.commit()
     try:
         uri = normalized_ref.object_uri
         key = uri.split("/", 3)[-1] if uri.startswith("s3://") else uri
@@ -1012,6 +1015,11 @@ def _run_body_markdown_render(
         )
         return
     key = object_uri.split("/", 3)[-1] if object_uri.startswith("s3://") else object_uri
+
+    # Domain writers may have just flushed rows. Object storage and the
+    # optional renderer LLM are both external work, so publish those writes
+    # before beginning either operation.
+    session.commit()
 
     try:
         raw = ctx.storage.get_bytes(key)
@@ -1619,6 +1627,10 @@ def execute_job(
     try:
         _run_ingest_validate(job, raw_object, session, trace_id, pipeline_type)
         if pipeline_type == PipelineType.RECORD:
+            # Record payload loading may be a slow S3/MinIO operation. The
+            # ingest-validation audit is complete, so release its transaction
+            # before reading the raw JSON/CSV/XLSX bytes.
+            session.commit()
             mime = (raw_object.mime_type or "").lower()
             if mime in XLSX_MIME_TYPES:
                 raw_payload = _run_structured_parse_xlsx(

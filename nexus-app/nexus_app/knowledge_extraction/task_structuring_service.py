@@ -68,6 +68,15 @@ class TaskStructuringTaskResult:
     persisted: bool = False
     rejected: bool = False
     rejected_reason: str | None = None
+    structured: dict[str, list[str]] | None = None
+
+
+@dataclass(frozen=True)
+class _PreparedTask:
+    task_id: str
+    task_code: str | None
+    task_name: str | None
+    description: str
 
 
 @dataclass(frozen=True)
@@ -120,35 +129,74 @@ def structure_task_descriptions_for_analysis(
             tasks_processed=0,
         )
 
-    per_task_results: list[TaskStructuringTaskResult] = []
-    for task in tasks:
-        per_task_results.append(
-            _structure_task(
-                task=task,
-                prompt=prompt,
-                llm_client=llm_client,
+    analysis_id = analysis.id
+    rule_set_id = rule_set.id
+    prompt_profile_id = prompt.id
+    prompt_template = prompt.prompt_template
+    model_alias = resolve_model_alias(prompt)
+    temperature = float(prompt.temperature)
+    max_tokens = int(prompt.max_input_tokens)
+    prepared_tasks = [
+        _PreparedTask(
+            task_id=task.id,
+            task_code=task.task_code,
+            task_name=task.task_name,
+            description=task.task_description or "",
+        )
+        for task in tasks
+    ]
+
+    # Do not let the synchronous LiteLLM requests retain the worker's open
+    # transaction. The prepared tasks and prompt are immutable snapshots; the
+    # result is reloaded and written in the short transaction below.
+    session.commit()
+    per_task_results = [
+        _structure_task(
+            task=task,
+            prompt_template=prompt_template,
+            model_alias=model_alias,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            llm_client=llm_client,
+        )
+        for task in prepared_tasks
+    ]
+    tasks_by_id = {
+        task.id: task
+        for task in session.scalars(
+            select(models.OccupationalWorkTask).where(
+                models.OccupationalWorkTask.id.in_([task.task_id for task in prepared_tasks])
             )
         )
+    }
+    for result in per_task_results:
+        if result.persisted and result.structured is not None:
+            task = tasks_by_id.get(result.task_id)
+            if task is not None:
+                task.task_description_structured = result.structured
     session.flush()
     return _aggregate(
-        analysis_id=analysis.id,
-        rule_set_id=rule_set.id,
-        prompt_profile_id=prompt.id,
+        analysis_id=analysis_id,
+        rule_set_id=rule_set_id,
+        prompt_profile_id=prompt_profile_id,
         per_task=per_task_results,
     )
 
 
 def _structure_task(
     *,
-    task: models.OccupationalWorkTask,
-    prompt: models.AIPromptProfile,
+    task: _PreparedTask,
+    prompt_template: str,
+    model_alias: str,
+    temperature: float,
+    max_tokens: int,
     llm_client: LiteLLMClientProtocol,
 ) -> TaskStructuringTaskResult:
-    description = task.task_description or ""
+    description = task.description
     if not description.strip():
         # Empty descriptions can't produce useful structure — skip silently
         # rather than waste an LLM call. The empty `{}` stays in place.
-        return TaskStructuringTaskResult(task_id=task.id)
+        return TaskStructuringTaskResult(task_id=task.task_id)
 
     payload = {
         "task_code": task.task_code,
@@ -156,41 +204,41 @@ def _structure_task(
         "task_description": description[:_MAX_DESCRIPTION_CHARS_FOR_PROMPT],
     }
     messages = [
-        {"role": "system", "content": prompt.prompt_template},
+        {"role": "system", "content": prompt_template},
         {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
     ]
     try:
         content, _summary = llm_client.call(
-            resolve_model_alias(prompt),
+            model_alias,
             messages,
-            temperature=float(prompt.temperature),
-            max_tokens=int(prompt.max_input_tokens),
+            temperature=temperature,
+            max_tokens=max_tokens,
             response_format={"type": "json_object"},
         )
     except LiteLLMCallError as exc:
         logger.warning(
-            "task_structuring LLM call failed for task=%s: %s", task.id, exc,
+            "task_structuring LLM call failed for task=%s: %s", task.task_id, exc,
         )
         return TaskStructuringTaskResult(
-            task_id=task.id, rejected=True, rejected_reason="llm_call_failed",
+            task_id=task.task_id, rejected=True, rejected_reason="llm_call_failed",
         )
 
     structured = _parse_buckets(content)
     if structured is None:
         return TaskStructuringTaskResult(
-            task_id=task.id, rejected=True,
+            task_id=task.task_id, rejected=True,
             rejected_reason=RejectReason.SCHEMA_INVALID,
         )
 
     reject_reason = _evaluate_guardrails(structured)
     if reject_reason:
         return TaskStructuringTaskResult(
-            task_id=task.id, rejected=True, rejected_reason=reject_reason,
+            task_id=task.task_id, rejected=True, rejected_reason=reject_reason,
         )
 
-    # Mutate the row in place — caller's session captures the dirty state.
-    task.task_description_structured = structured
-    return TaskStructuringTaskResult(task_id=task.id, persisted=True)
+    return TaskStructuringTaskResult(
+        task_id=task.task_id, persisted=True, structured=structured
+    )
 
 
 def _parse_buckets(content: str) -> dict[str, list[str]] | None:

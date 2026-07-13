@@ -84,6 +84,16 @@ class _ScriptedLLM:
         )
 
 
+class _TransactionCheckingLLM(_ScriptedLLM):
+    def __init__(self, session, responses):
+        super().__init__(responses=responses)
+        self._session = session
+
+    def call(self, *args, **kwargs):
+        assert not self._session.in_transaction()
+        return super().call(*args, **kwargs)
+
+
 def _llm_buckets(*, roles=None, tools=None, env=None, modes=None) -> str:
     return json.dumps({
         "target_roles": roles or [],
@@ -216,6 +226,19 @@ class TestServiceSkipPaths:
 
 
 class TestServiceHappyPath:
+    def test_llm_calls_run_outside_database_transaction(self, session, analysis):
+        llm = _TransactionCheckingLLM(
+            session,
+            responses=[_llm_buckets(roles=["数据工程师"])] * 2,
+        )
+
+        result = structure_task_descriptions_for_analysis(
+            session, analysis, llm_client=llm,
+        )
+
+        assert result.tasks_structured == 2
+        assert len(llm.calls) == 2
+
     def test_well_formed_response_populates_structured_column(
         self, session, analysis
     ):

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime
+from types import SimpleNamespace
 from typing import Any
 
 from sqlalchemy import func, select
@@ -441,6 +442,25 @@ def run_normalize_document(
     raw_object = ctx.raw_object
     artifact_uri = artifact.artifact_uri
     artifact_key_path = artifact_uri.split("/", 3)[-1] if artifact_uri.startswith("s3://") else artifact_uri
+
+    # The MinerU-to-normalized conversion can call the visual VLM and object
+    # storage. Snapshot the ORM fields it needs before releasing parse writes;
+    # the external block below must not lazily reload them into a transaction.
+    raw_snapshot = SimpleNamespace(
+        id=raw_object.id,
+        metadata_summary=dict(raw_object.metadata_summary or {}),
+        mime_type=raw_object.mime_type,
+        source_type=raw_object.source_type,
+        object_uri=raw_object.object_uri,
+        batch_id=raw_object.batch_id,
+        source_uri=raw_object.source_uri,
+    )
+    artifact_snapshot = SimpleNamespace(
+        id=artifact.id,
+        metadata_summary=dict(artifact.metadata_summary or {}),
+        artifact_uri=artifact.artifact_uri,
+    )
+    ctx.session.commit()
     raw_bytes = ctx.storage.get_bytes(artifact_key_path)
     try:
         parse_payload = json.loads(raw_bytes.decode("utf-8"))
@@ -449,7 +469,9 @@ def run_normalize_document(
             "title": raw_object.metadata_summary.get("filename", raw_object.id),
             "markdown": raw_bytes.decode("utf-8", errors="ignore")[:4000],
         }
-    normalized_payload = _build_normalized_document(raw_object, artifact, parse_payload, ctx)
+    normalized_payload = _build_normalized_document(
+        raw_snapshot, artifact_snapshot, parse_payload, ctx
+    )
     normalized_payload = _apply_normalize_service(
         ctx, normalized_payload, raw_object.source_type.value, "document"
     )
@@ -519,6 +541,10 @@ def _apply_normalize_service(
     if content_type == "document":
         content_type = ctx.raw_object.mime_type or "application/octet-stream"
     try:
+        # The payload is entirely in memory at this point. Release writes from
+        # assetize/parse and any read transaction before the synchronous LLM
+        # request so the job heartbeat is never blocked by this session.
+        ctx.session.commit()
         result = service.normalize(
             normalized_payload,
             source_type=source_type,
@@ -973,12 +999,35 @@ def _persist_normalized_ref(
     ctx.session.add(ref)
     ctx.session.flush()
 
-    stored = ctx.storage.put_bytes(
-        normalized_key(ctx.settings, normalized_type, version.id, ref.id, checksum),
-        content,
-        "application/json",
-        {"nexus-version-id": version.id, "nexus-ref-id": ref.id},
+    # `ref.id` is the durable idempotency anchor for the object key. Commit it
+    # before talking to object storage: an S3/MinIO retry must not retain the
+    # worker job lock or any version-state writes.
+    ref_id = ref.id
+    version_id = version.id
+    storage_key = normalized_key(
+        ctx.settings, normalized_type, version_id, ref_id, checksum
     )
+    ctx.session.commit()
+
+    try:
+        stored = ctx.storage.put_bytes(
+            storage_key,
+            content,
+            "application/json",
+            {"nexus-version-id": version_id, "nexus-ref-id": ref_id},
+        )
+    except Exception:
+        # A committed anchor with no object must not be selected by the
+        # generated-ref idempotency query on retry.
+        failed_ref = ctx.session.get(models.NormalizedAssetRef, ref_id)
+        if failed_ref is not None:
+            failed_ref.status = NormalizedAssetRefStatus.FAILED
+            ctx.session.commit()
+        raise
+    ref = ctx.session.get(models.NormalizedAssetRef, ref_id)
+    version = ctx.session.get(models.AssetVersion, version_id)
+    if ref is None or version is None:
+        raise RuntimeError(f"normalized persistence anchors disappeared ref={ref_id}")
     ref.object_uri = stored.object_uri
     ctx.session.flush()
 
@@ -1315,6 +1364,10 @@ def run_knowledge_chunking(
 
     from nexus_app.knowledge.services import run_knowledge_pipeline
 
+    # The normalized payload is in object storage. Release governance/chunk
+    # admission reads before fetching it so a slow S3/MinIO response cannot
+    # retain the worker transaction.
+    ctx.session.commit()
     content, content_blocks, record_body, domain_payloads = _load_normalized_payload(
         ctx, normalized_ref
     )
@@ -1499,6 +1552,11 @@ def run_index_submit(
             continue
         pgvector_chunks_by_kt[kt_code] = kt_chunks
 
+    # Existing manifests/chunks were read above and are now represented by
+    # plain ids and values. The following embedding/RAGFlow requests must not
+    # retain that read transaction or prior stage writes.
+    ctx.session.commit()
+
     manifests: list[models.IndexManifest] = []
     error_messages: list[str] = []
     pgvector_index_summaries: list[dict[str, Any]] = []
@@ -1568,6 +1626,10 @@ def run_index_submit(
     doc_name_base = (normalized_ref.title or normalized_ref.id)[:120]
 
     for kt_code, kt_chunks in ragflow_chunks_by_kt.items():
+        # A preceding knowledge type may have written a manifest. Publish it
+        # before the next HTTP retry block, so every RAGFlow request starts
+        # without an open worker transaction.
+        ctx.session.commit()
         if kt_code in existing_by_kt:
             manifests.append(existing_by_kt[kt_code])
             continue

@@ -122,6 +122,10 @@ def render_body_markdown(
                 meta=_meta_from_dict(meta_dict, skeleton),
             )
 
+    # Rules and prompt data have been copied into plain values above. Do not
+    # keep their read transaction open while the render LLM waits on LiteLLM.
+    session.commit()
+
     # ------------------------------------------------------------------ #
     # 1. LLM-assisted attempt (if we have both a client and a prompt).
     # ------------------------------------------------------------------ #

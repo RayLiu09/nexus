@@ -182,6 +182,30 @@ class _FailingEmbeddingClient:
         raise EmbeddingClientError("simulated failure")
 
 
+class _TransactionCheckingEmbeddingClient(FakeEmbeddingClient):
+    def __init__(self, session, *, dimension: int):
+        super().__init__(dimension=dimension)
+        self._session = session
+
+    def embed_texts(self, *args, **kwargs):
+        assert not self._session.in_transaction()
+        return super().embed_texts(*args, **kwargs)
+
+
+def test_index_embedding_call_runs_outside_database_transaction(session):
+    ref, chunks = _seed_ref_and_chunks(session, chunk_count=3)
+
+    result = index_chunks_pgvector(
+        session,
+        ref,
+        chunks,
+        settings=_settings(),
+        embedding_client=_TransactionCheckingEmbeddingClient(session, dimension=8),
+    )
+
+    assert result.embedded_chunk_count == 3
+
+
 def test_index_chunks_pgvector_marks_chunks_failed_on_embedding_failure(session):
     ref, chunks = _seed_ref_and_chunks(session, chunk_count=2)
 

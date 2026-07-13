@@ -634,6 +634,16 @@ class AIGovernanceService:
             raise AIGovernanceError(
                 f"NormalizedAssetRef '{normalized_ref_id}' not found"
             )
+        # `_build_ref_dict` may use the historical object-storage fallback for
+        # a missing content snippet. Detach a fully-loaded read snapshot before
+        # that I/O so the compatibility path cannot retain a worker lock.
+        _ = (
+            ref.id, ref.version_id, ref.object_uri, ref.title, ref.schema_version,
+            ref.source_type, ref.content_type, ref.language, ref.normalized_type,
+            ref.metadata_summary, ref.governance,
+        )
+        session.expunge(ref)
+        session.commit()
         ref_dict = self._build_ref_dict(ref)
         sensitivity_level = (ref.governance or {}).get("level", "L1")
 
@@ -693,6 +703,15 @@ class AIGovernanceService:
             raise AIGovernanceError(
                 f"NormalizedAssetRef '{normalized_ref_id}' not found"
             )
+        # `_build_ref_dict` can use object storage for old refs without a
+        # summary. Keep this detached snapshot across that compatibility I/O.
+        _ = (
+            ref.id, ref.version_id, ref.object_uri, ref.title, ref.schema_version,
+            ref.source_type, ref.content_type, ref.language, ref.normalized_type,
+            ref.metadata_summary, ref.governance,
+        )
+        session.expunge(ref)
+        session.commit()
         ref_dict = self._build_ref_dict(ref)
         sensitivity_level = (ref.governance or {}).get("level", "L1")
 
@@ -723,6 +742,12 @@ class AIGovernanceService:
         )
         session.add(run)
         session.flush()
+
+        # The following calls are external and may take seconds. The run is a
+        # durable audit anchor, so release the worker transaction before the
+        # parallel LiteLLM block. The output is persisted in a fresh short
+        # transaction below.
+        session.commit()
 
         stage_outputs: dict[str, Any] = self._run_llm_stages_parallel(
             client,

@@ -59,6 +59,9 @@ def index_chunks_pgvector(
     distance_metric = current_settings.default_embedding_distance_metric
     batch_size = max(1, current_settings.embedding_batch_size)
     version = _load_version(session, normalized_ref)
+    normalized_ref_id = normalized_ref.id
+    asset_id = version.asset_id
+    asset_version_id = version.id
 
     chunks_by_collection: dict[str, tuple[CollectionResolution, list[KnowledgeChunk]]] = {}
     for chunk in chunks:
@@ -72,51 +75,95 @@ def index_chunks_pgvector(
         entry = chunks_by_collection.setdefault(resolution.collection_key, (resolution, []))
         entry[1].append(chunk)
 
-    embedded_count = 0
-    failed_count = 0
-    collection_keys: list[str] = []
-
+    # Materialize every external-call input before releasing the caller's
+    # transaction. In particular, do not carry ORM objects into `embed_texts`:
+    # a later lazy load would silently reacquire a transaction while LiteLLM is
+    # waiting.
+    prepared_batches: list[tuple[CollectionResolution, list[tuple[str, str]]]] = []
     for resolution, collection_chunks in chunks_by_collection.values():
-        collection = _get_or_create_collection(session, resolution, trace_id=trace_id)
-        collection_keys.append(collection.collection_key)
         for batch in _chunked(collection_chunks, batch_size):
-            try:
-                embedding_result = client.embed_texts(
-                    [chunk.content or "" for chunk in batch],
-                    model_alias=resolution.embedding_model,
-                    expected_dimension=resolution.embedding_dimension,
-                )
-                for chunk, vector in zip(batch, embedding_result.vectors, strict=True):
-                    _upsert_embedding_row(
-                        session,
-                        normalized_ref,
-                        chunk,
-                        collection,
-                        resolution,
-                        vector,
-                        asset_id=version.asset_id,
-                        asset_version_id=version.id,
-                        trace_id=trace_id,
-                    )
-                    chunk.embedding_status = EmbeddingStatus.EMBEDDED
-                    embedded_count += 1
-            except Exception:
-                failed_count += len(batch)
-                for chunk in batch:
-                    chunk.embedding_status = EmbeddingStatus.FAILED
-                logger.exception(
-                    "pgvector embedding batch failed normalized_ref_id=%s collection_key=%s count=%s",
-                    normalized_ref.id,
-                    resolution.collection_key,
-                    len(batch),
-                )
-                raise
+            prepared_batches.append(
+                (resolution, [(chunk.id, chunk.content or "") for chunk in batch])
+            )
+
+    session.commit()
+
+    embeddings: list[tuple[CollectionResolution, str, list[float]]] = []
+    failed_chunk_ids: list[str] = []
+    embedding_error: Exception | None = None
+    for resolution, batch in prepared_batches:
+        try:
+            embedding_result = client.embed_texts(
+                [content for _, content in batch],
+                model_alias=resolution.embedding_model,
+                expected_dimension=resolution.embedding_dimension,
+            )
+            embeddings.extend(
+                (resolution, chunk_id, vector)
+                for (chunk_id, _), vector in zip(batch, embedding_result.vectors, strict=True)
+            )
+        except Exception as exc:
+            failed_chunk_ids.extend(chunk_id for chunk_id, _ in batch)
+            embedding_error = exc
+            logger.exception(
+                "pgvector embedding batch failed normalized_ref_id=%s collection_key=%s count=%s",
+                normalized_ref_id,
+                resolution.collection_key,
+                len(batch),
+            )
+            break
+
+    ref = session.get(NormalizedAssetRef, normalized_ref_id)
+    if ref is None:
+        raise ValueError(f"normalized ref not found after embedding: {normalized_ref_id}")
+    chunks_by_id = {
+        chunk.id: chunk
+        for chunk in session.scalars(
+            select(KnowledgeChunk).where(
+                KnowledgeChunk.id.in_([chunk.id for chunk in chunks])
+            )
+        )
+    }
+    collections: dict[str, VectorCollection] = {}
+    for resolution, _, _ in embeddings:
+        if resolution.collection_key not in collections:
+            collections[resolution.collection_key] = _get_or_create_collection(
+                session, resolution, trace_id=trace_id
+            )
+
+    for resolution, chunk_id, vector in embeddings:
+        chunk = chunks_by_id.get(chunk_id)
+        collection = collections[resolution.collection_key]
+        if chunk is None:
+            continue
+        _upsert_embedding_row(
+            session,
+            ref,
+            chunk,
+            collection,
+            resolution,
+            vector,
+            asset_id=asset_id,
+            asset_version_id=asset_version_id,
+            trace_id=trace_id,
+        )
+        chunk.embedding_status = EmbeddingStatus.EMBEDDED
+
+    if failed_chunk_ids:
+        for chunk_id in failed_chunk_ids:
+            chunk = chunks_by_id.get(chunk_id)
+            if chunk is not None:
+                chunk.embedding_status = EmbeddingStatus.FAILED
+        session.flush()
+        assert embedding_error is not None
+        raise embedding_error
 
     session.flush()
+    collection_keys = list(collections)
     return PgvectorIndexResult(
         collection_count=len(collection_keys),
-        embedded_chunk_count=embedded_count,
-        failed_chunk_count=failed_count,
+        embedded_chunk_count=len(embeddings),
+        failed_chunk_count=0,
         collection_keys=collection_keys,
     )
 
