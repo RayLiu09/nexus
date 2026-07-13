@@ -562,6 +562,81 @@ def check_asset_version_available_count(
     )
 
 
+def check_seed_migrations(session: Session, settings: Settings) -> CheckResult:
+    """Detect the 'recorded as applied but never inserted' migration
+    failure mode via ``scripts/audit_seed_migrations.py``.
+
+    We import the audit module lazily so a syntax error in the audit
+    script surfaces here as a BLOCK (not a hard import error at readiness
+    startup).
+    """
+    del settings
+    try:
+        import importlib.util
+
+        # Load the audit script via importlib because it lives next to us
+        # under scripts/ and Python's package resolver doesn't find it
+        # otherwise.  Register in sys.modules BEFORE exec_module so
+        # dataclass(frozen=True) type introspection can find the module's
+        # namespace (otherwise it raises AttributeError deep in dataclasses).
+        path = _REPO_ROOT / "scripts" / "audit_seed_migrations.py"
+        spec = importlib.util.spec_from_file_location(
+            "audit_seed_migrations", path
+        )
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["audit_seed_migrations"] = module
+        spec.loader.exec_module(module)
+        outcome = module.audit_all(session)
+    except Exception as exc:  # noqa: BLE001
+        return CheckResult(
+            name="seed_migrations",
+            severity=SEV_BLOCK,
+            message=f"seed audit crashed: {type(exc).__name__}: {exc}",
+            details={},
+            remediation="fix scripts/audit_seed_migrations.py and re-run",
+        )
+
+    missing = [r for r in outcome.results if not r.ok]
+    if missing:
+        return CheckResult(
+            name="seed_migrations",
+            severity=SEV_BLOCK,
+            message=(
+                f"{len(missing)} of {len(outcome.results)} seed "
+                "migration(s) MISSING — alembic head reached them but "
+                "the INSERT never landed"
+            ),
+            details={
+                "missing": [
+                    {
+                        "migration_id": r.migration_id,
+                        "table": r.table,
+                        "trace_id_pattern": r.trace_id_pattern,
+                        "found_rows": r.found_rows,
+                        "min_rows": r.min_rows,
+                    }
+                    for r in missing
+                ],
+            },
+            remediation=(
+                "run `uv run python scripts/audit_seed_migrations.py` "
+                "to see the details, then manually apply the missing "
+                "INSERT (see the migration file's upgrade() body)"
+            ),
+        )
+
+    return CheckResult(
+        name="seed_migrations",
+        severity=SEV_PASS,
+        message=f"{len(outcome.results)} seed migration(s) verified present",
+        details={
+            "total_checked": len(outcome.results),
+            "results": [r.to_json() for r in outcome.results],
+        },
+    )
+
+
 # ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
@@ -569,6 +644,7 @@ def check_asset_version_available_count(
 
 _ALL_CHECKS: dict[str, Callable[[Session, Settings], CheckResult]] = {
     "alembic_head": check_alembic_head,
+    "seed_migrations": check_seed_migrations,
     "governance_prompts": check_governance_prompts,
     "ai_prompt_profiles": check_ai_prompt_profiles,
     "litellm": check_litellm_reachable,
