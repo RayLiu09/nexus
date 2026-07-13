@@ -7,13 +7,12 @@ import {
   Checkbox,
   Drawer,
   Empty,
-  Input,
+  Select,
   Skeleton,
   Tag,
   Tooltip,
   Typography,
 } from "antd";
-import { Search } from "lucide-react";
 import type { ECharts, EChartsOption } from "echarts";
 import {
   downloadEchartsGraphImage,
@@ -130,6 +129,10 @@ const EDGE_LABELS: Record<string, string> = {
   ABILITY_MAPS_TO_SKILL: "能力映射技能",
 };
 
+// v1 岗位过滤 sentinel — Antd Select 需要一个可比较的常量值来表示"全部岗位"。
+// Antd 若接受空字符串会与"未初始化"混淆，改用带前缀的常量避免与真实 node.id 冲突。
+const JOB_ROLE_ALL = "__all__";
+
 export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props) {
   const [state, setState] = useState<GraphState>({
     loading: true,
@@ -140,9 +143,11 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
     edgesTotal: 0,
     error: null,
   });
-  const [query, setQuery] = useState("");
   const [showEdgeLabels, setShowEdgeLabels] = useState(false);
   const [selectedNode, setSelectedNode] = useState<CapabilityGraphStagingNode | null>(null);
+  // 岗位过滤仅在 job_demand 场景下生效；null 表示尚未初始化，JOB_ROLE_ALL 表示不过滤。
+  // 数据集通常包含多个 JobRole，默认收窄到第一个避免图谱噪声（业务需求）。
+  const [selectedJobRoleId, setSelectedJobRoleId] = useState<string | null>(null);
   const graphRef = useRef<GraphImageHandle | null>(null);
 
   useEffect(() => {
@@ -214,24 +219,71 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
   );
 
   useEffect(() => {
-    setQuery("");
     setSelectedNode(null);
+    setSelectedJobRoleId(null);
   }, [buildType, normalizedRefId]);
 
-  const filteredNodes = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return state.nodes.filter((node) => {
-      const categoryKey = graphCategoryKey(node);
-      if (!q) return true;
-      return [
-        node.display_name,
-        node.canonical_name,
-        node.node_key,
-        node.node_type,
-        NODE_LABELS[categoryKey],
-      ].some((value) => value?.toLowerCase().includes(q));
+  // 排序仅按 display_name 稳定字典序，避免后端返回顺序不确定导致默认岗位漂移。
+  const jobRoleNodes = useMemo(() => {
+    if (buildType !== "job_demand") return [] as CapabilityGraphStagingNode[];
+    return state.nodes
+      .filter((node) => node.node_type === "JobRole")
+      .slice()
+      .sort((a, b) => a.display_name.localeCompare(b.display_name, "zh"));
+  }, [buildType, state.nodes]);
+
+  // 数据到达后，若尚未选定岗位或之前选择已失效，默认收窄到第一个 JobRole。
+  // 用户改选"全部岗位"或其他岗位后，其选择在同一数据集内保留。
+  useEffect(() => {
+    if (buildType !== "job_demand" || jobRoleNodes.length === 0) {
+      return;
+    }
+    setSelectedJobRoleId((prev) => {
+      if (prev === JOB_ROLE_ALL) return prev;
+      if (prev && jobRoleNodes.some((node) => node.id === prev)) return prev;
+      return jobRoleNodes[0].id;
     });
-  }, [query, state.nodes]);
+  }, [buildType, jobRoleNodes]);
+
+  // 子图 BFS：从选定 JobRole 出发沿 source→target 遍历，得到该岗位可达节点集合。
+  // 返回 null 表示不做岗位收窄（非 job_demand、无 JobRole、或用户选"全部岗位"）。
+  const jobRoleSubgraphNodeIds = useMemo<Set<string> | null>(() => {
+    if (
+      buildType !== "job_demand" ||
+      !selectedJobRoleId ||
+      selectedJobRoleId === JOB_ROLE_ALL
+    ) {
+      return null;
+    }
+    const outgoing = new Map<string, string[]>();
+    for (const edge of state.edges) {
+      const bucket = outgoing.get(edge.source_node_id);
+      if (bucket) {
+        bucket.push(edge.target_node_id);
+      } else {
+        outgoing.set(edge.source_node_id, [edge.target_node_id]);
+      }
+    }
+    const visited = new Set<string>([selectedJobRoleId]);
+    const queue: string[] = [selectedJobRoleId];
+    while (queue.length > 0) {
+      const current = queue.shift() as string;
+      const targets = outgoing.get(current);
+      if (!targets) continue;
+      for (const target of targets) {
+        if (!visited.has(target)) {
+          visited.add(target);
+          queue.push(target);
+        }
+      }
+    }
+    return visited;
+  }, [buildType, selectedJobRoleId, state.edges]);
+
+  const filteredNodes = useMemo(() => {
+    if (!jobRoleSubgraphNodeIds) return state.nodes;
+    return state.nodes.filter((node) => jobRoleSubgraphNodeIds.has(node.id));
+  }, [state.nodes, jobRoleSubgraphNodeIds]);
 
   const filteredNodeIds = useMemo(
     () => new Set(filteredNodes.map((node) => node.id)),
@@ -268,7 +320,6 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
                 edges={filteredEdges}
                 buildType={buildType}
                 showEdgeLabels={showEdgeLabels}
-                searchQuery={query}
                 onNodeSelect={setSelectedNode}
                 fullscreen
               />
@@ -295,10 +346,18 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
           ) : null}
 
           <GraphToolbar
-            query={query}
-            onQueryChange={setQuery}
             showEdgeLabels={showEdgeLabels}
             onShowEdgeLabelsChange={setShowEdgeLabels}
+            jobRoleFilter={
+              buildType === "job_demand" && jobRoleNodes.length >= 2
+                ? {
+                    options: jobRoleNodes,
+                    value: selectedJobRoleId ?? JOB_ROLE_ALL,
+                    onChange: setSelectedJobRoleId,
+                    subgraphNodeCount: jobRoleSubgraphNodeIds?.size ?? null,
+                  }
+                : null
+            }
           />
 
           {filteredNodes.length === 0 ? (
@@ -310,7 +369,6 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
               edges={filteredEdges}
               buildType={buildType}
               showEdgeLabels={showEdgeLabels}
-              searchQuery={query}
               onNodeSelect={setSelectedNode}
             />
           )}
@@ -330,27 +388,50 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
   );
 }
 
+type JobRoleFilterProps = {
+  options: CapabilityGraphStagingNode[];
+  value: string;
+  onChange: (value: string) => void;
+  subgraphNodeCount: number | null;
+};
+
 function GraphToolbar({
-  query,
-  onQueryChange,
   showEdgeLabels,
   onShowEdgeLabelsChange,
+  jobRoleFilter,
 }: {
-  query: string;
-  onQueryChange: (value: string) => void;
   showEdgeLabels: boolean;
   onShowEdgeLabelsChange: (value: boolean) => void;
+  jobRoleFilter: JobRoleFilterProps | null;
 }) {
+  const layout = jobRoleFilter
+    ? "grid grid-cols-1 gap-2 lg:grid-cols-[minmax(220px,1fr)_auto]"
+    : "flex justify-end";
   return (
-    <div className="grid grid-cols-1 gap-2 lg:grid-cols-[minmax(220px,1fr)_auto]">
-      <Input
-        allowClear
-        prefix={<Search size={16} aria-hidden="true" />}
-        placeholder="搜索节点"
-        value={query}
-        onChange={(event) => onQueryChange(event.target.value)}
-        aria-label="搜索图谱节点"
-      />
+    <div className={layout}>
+      {jobRoleFilter ? (
+        <div className="flex flex-col gap-1">
+          <Select
+            value={jobRoleFilter.value}
+            onChange={jobRoleFilter.onChange}
+            options={[
+              { label: "全部岗位", value: JOB_ROLE_ALL },
+              ...jobRoleFilter.options.map((node) => ({
+                label: node.display_name,
+                value: node.id,
+              })),
+            ]}
+            aria-label="岗位过滤"
+            showSearch
+            optionFilterProp="label"
+          />
+          {jobRoleFilter.value !== JOB_ROLE_ALL && jobRoleFilter.subgraphNodeCount !== null ? (
+            <span className="text-muted text-xs">
+              已收窄至选定岗位子图（{jobRoleFilter.subgraphNodeCount} 个节点）
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       <Checkbox
         checked={showEdgeLabels}
         onChange={(event) => onShowEdgeLabelsChange(event.target.checked)}
@@ -538,7 +619,6 @@ const EchartsGraph = forwardRef<GraphImageHandle, {
   edges: CapabilityGraphStagingEdge[];
   buildType: BuildType;
   showEdgeLabels: boolean;
-  searchQuery: string;
   onNodeSelect: (node: GraphDisplayNode) => void;
   fullscreen?: boolean;
 }>(function EchartsGraph({
@@ -546,7 +626,6 @@ const EchartsGraph = forwardRef<GraphImageHandle, {
   edges,
   buildType,
   showEdgeLabels,
-  searchQuery,
   onNodeSelect,
   fullscreen = false,
 }, ref) {
@@ -563,8 +642,8 @@ const EchartsGraph = forwardRef<GraphImageHandle, {
   }, [displayGraph.nodes]);
 
   const option = useMemo(
-    () => buildGraphOption(displayGraph.nodes, displayGraph.edges, showEdgeLabels, searchQuery),
-    [displayGraph.edges, displayGraph.nodes, searchQuery, showEdgeLabels],
+    () => buildGraphOption(displayGraph.nodes, displayGraph.edges, showEdgeLabels),
+    [displayGraph.edges, displayGraph.nodes, showEdgeLabels],
   );
 
   useImperativeHandle(ref, () => ({
@@ -632,7 +711,6 @@ function buildGraphOption(
   nodes: GraphDisplayNode[],
   edges: GraphDisplayEdge[],
   showEdgeLabels: boolean,
-  searchQuery: string,
 ): EChartsOption {
   const nodeIds = new Set(nodes.map((node) => node.id));
   const drawableEdges = edges.filter(
@@ -655,7 +733,6 @@ function buildGraphOption(
     degree.set(edge.source_node_id, (degree.get(edge.source_node_id) ?? 0) + 1);
     degree.set(edge.target_node_id, (degree.get(edge.target_node_id) ?? 0) + 1);
   }
-  const q = searchQuery.trim().toLowerCase();
 
   return {
     animationDurationUpdate: 350,
@@ -720,15 +797,6 @@ function buildGraphOption(
         },
         data: nodes.map((node) => {
           const categoryKey = graphCategoryKey(node);
-          const matched =
-            q &&
-            [
-              node.display_name,
-              node.canonical_name,
-              node.node_key,
-              node.node_type,
-              NODE_LABELS[categoryKey],
-            ].some((value) => value?.toLowerCase().includes(q));
           return {
             id: node.id,
             name: truncateName(node.display_name),
@@ -738,8 +806,8 @@ function buildGraphOption(
             confidence: node.confidence,
             symbolSize: symbolSize(node.node_type, degree.get(node.id) ?? 0),
             itemStyle: {
-              borderColor: matched ? "#c03946" : "#ffffff",
-              borderWidth: matched ? 3 : 1,
+              borderColor: "#ffffff",
+              borderWidth: 1,
             },
           };
         }),
