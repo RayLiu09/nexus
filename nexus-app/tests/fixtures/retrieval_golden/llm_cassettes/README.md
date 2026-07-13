@@ -9,6 +9,12 @@ executors → DAG → audit end-to-end, with zero live LLM traffic.
 
 ## File schema
 
+Two shapes are supported. Both may coexist in one file; the loader
+(`tests/fixtures/retrieval_golden/__init__.py::cassette_client_kwargs`)
+prefers `by_model_alias` when present.
+
+### Sequential (M-C.2 — intent + planner only)
+
 ```jsonc
 {
   "case_id": "cs_...",                 // must match GoldenQuery.llm_cassette_id
@@ -26,6 +32,37 @@ executors → DAG → audit end-to-end, with zero live LLM traffic.
   (single unstructured domain + question_type not requiring planning),
   in which case `RetrievalOrchestrator._can_direct_retrieve()` returns
   true and the planner is skipped.
+
+### Keyed (M-D — multi-stage Pipeline B / ingest flows)
+
+```jsonc
+{
+  "case_id": "cs_pipeline_b_jd",
+  "description": "xlsx job_demand ingest without _run_pipeline_without_live_llm stub",
+  "by_model_alias": {
+    "body-markdown": ["{...markdown body JSON...}"],
+    "governance-multi": [
+      "{...classification+level+tags JSON...}",
+      "{...second call if re-run needed...}",
+    ],
+    "knowledge-type-inference": ["{...knowledge_type_code JSON...}"],
+    "task-structuring": ["{...task tree JSON...}"],
+    "_default": ["{...fallback for unrecorded aliases...}"],
+  },
+}
+```
+
+- Keys are matched against the caller's `model_alias` in this order:
+  exact → longest substring match → `_default` bucket.
+- The substring rule lets a cassette author key on the family name
+  (`body-markdown`) even though production ships an alias with a
+  version suffix (`body-markdown-v2`).
+- Missing aliases with no `_default` bucket raise a `RuntimeError` at
+  call time — silent under-recording surfaces as a hard failure.
+- Use keyed mode when the caller order isn't stable (parallel Pipeline
+  B stages, retries, or B0-B4 stages that reshuffle across schema
+  versions). Use sequential mode for the retrieval intent → planner
+  pair where the order is fixed.
 
 ## Editorial rules
 

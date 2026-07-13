@@ -175,25 +175,113 @@ class FakeLiteLLMClient:
 
 
 class CassetteLiteLLMClient:
-    """Replay a fixed sequence of pre-recorded responses.
+    """Replay pre-recorded responses.
 
-    Used by the M-C.2 golden retrieval harness so full orchestrator
-    flows (intent → planner → executors) can run without a live
-    LiteLLM connection.  Each ``.call()`` returns the next entry from
-    ``responses``; running out of tape raises so silent under-recording
-    surfaces as a hard failure rather than a mystery LLM error.
+    Two dispatch modes:
 
-    Responses are the raw ``choices[0].message.content`` string the real
-    client would produce — JSON when the caller passes
+    * **Sequential** — pass ``responses: list[str]``.  Each ``.call()``
+      consumes the next entry.  This is the M-C.2 mode used by the
+      golden retrieval harness (intent → planner order).
+    * **Keyed** — pass ``responses_by_alias: dict[str, list[str]]``.
+      Each ``.call()`` looks up the next unconsumed entry for the given
+      ``model_alias``.  Matches happen by:
+
+      1. exact alias equality;
+      2. substring match against a key (``"body-markdown" in "body-markdown-v1"``);
+      3. fallback ``"_default"`` key if present.
+
+      This is the M-D mode that lets Pipeline B ingest tests (or any
+      multi-stage LLM flow) replay per-stage LiteLLM traffic without
+      requiring the caller to know the exact call order.
+
+    Running out of tape (or missing a matching key) raises so silent
+    under-recording surfaces as a hard failure rather than mystery
+    LLM behaviour.  Responses are the raw ``choices[0].message.content``
+    string the real client would produce — JSON when the caller passes
     ``response_format={"type": "json_object"}``, else free text.
     """
 
-    def __init__(self, responses: list[str]) -> None:
-        if not responses:
-            raise ValueError("CassetteLiteLLMClient requires at least one response")
-        self._responses = list(responses)
-        self._index = 0
+    def __init__(
+        self,
+        responses: list[str] | None = None,
+        *,
+        responses_by_alias: dict[str, list[str]] | None = None,
+    ) -> None:
+        if responses is None and responses_by_alias is None:
+            raise ValueError(
+                "CassetteLiteLLMClient requires responses or responses_by_alias"
+            )
+        if responses is not None and responses_by_alias is not None:
+            raise ValueError(
+                "CassetteLiteLLMClient accepts responses OR responses_by_alias, not both"
+            )
+        if responses is not None:
+            if not responses:
+                raise ValueError(
+                    "CassetteLiteLLMClient requires at least one response"
+                )
+            self._mode: str = "sequential"
+            self._responses: list[str] = list(responses)
+            self._index: int = 0
+            self._keyed: dict[str, list[str]] = {}
+            self._keyed_index: dict[str, int] = {}
+        else:
+            assert responses_by_alias is not None
+            if not responses_by_alias or not any(responses_by_alias.values()):
+                raise ValueError(
+                    "responses_by_alias must have at least one non-empty entry"
+                )
+            self._mode = "keyed"
+            self._responses = []
+            self._index = 0
+            self._keyed = {k: list(v) for k, v in responses_by_alias.items()}
+            self._keyed_index = {k: 0 for k in self._keyed}
         self.calls: list[dict[str, Any]] = []
+
+    def _resolve_keyed(self, model_alias: str) -> str:
+        """Return the next unconsumed response for ``model_alias``.
+
+        Look-up order: exact key → substring key → ``"_default"`` fallback.
+        Raises RuntimeError on no match or exhausted tape.
+        """
+        # 1) exact match
+        if model_alias in self._keyed:
+            idx = self._keyed_index[model_alias]
+            if idx < len(self._keyed[model_alias]):
+                self._keyed_index[model_alias] = idx + 1
+                return self._keyed[model_alias][idx]
+
+        # 2) substring — key contained in alias (e.g. key "governance" matches
+        # alias "governance-multi-v2").  Prefer the longest matching key to
+        # avoid ambiguity when both "governance" and "governance-multi" are
+        # recorded.
+        candidates = sorted(
+            (k for k in self._keyed if k in model_alias),
+            key=len,
+            reverse=True,
+        )
+        for key in candidates:
+            idx = self._keyed_index[key]
+            if idx < len(self._keyed[key]):
+                self._keyed_index[key] = idx + 1
+                return self._keyed[key][idx]
+
+        # 3) explicit default bucket
+        if "_default" in self._keyed:
+            idx = self._keyed_index["_default"]
+            if idx < len(self._keyed["_default"]):
+                self._keyed_index["_default"] = idx + 1
+                return self._keyed["_default"][idx]
+
+        exhausted = {
+            k: (self._keyed_index[k], len(v))
+            for k, v in self._keyed.items()
+        }
+        raise RuntimeError(
+            f"CassetteLiteLLMClient (keyed) has no unconsumed response for "
+            f"model_alias={model_alias!r}; per-key state (consumed/total)="
+            f"{exhausted}"
+        )
 
     def call(
         self,
@@ -204,13 +292,17 @@ class CassetteLiteLLMClient:
         max_tokens: int = 2048,
         response_format: dict[str, Any] | None = None,
     ) -> tuple[str, LiteLLMCallSummary]:
-        if self._index >= len(self._responses):
-            raise RuntimeError(
-                f"CassetteLiteLLMClient exhausted after {self._index} call(s); "
-                f"caller made an extra .call() with model_alias={model_alias!r}"
-            )
-        content = self._responses[self._index]
-        self._index += 1
+        if self._mode == "sequential":
+            if self._index >= len(self._responses):
+                raise RuntimeError(
+                    f"CassetteLiteLLMClient exhausted after {self._index} call(s); "
+                    f"caller made an extra .call() with model_alias={model_alias!r}"
+                )
+            content = self._responses[self._index]
+            self._index += 1
+        else:
+            content = self._resolve_keyed(model_alias)
+
         input_hash = _hash_messages(messages)
         self.calls.append({
             "model_alias": model_alias,
@@ -221,7 +313,7 @@ class CassetteLiteLLMClient:
         })
         summary = LiteLLMCallSummary(
             model_alias=model_alias,
-            request_id=f"cassette-{self._index}",
+            request_id=f"cassette-{len(self.calls)}",
             latency_ms=0.0,
             status="success",
             input_hash=input_hash,
