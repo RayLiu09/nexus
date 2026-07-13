@@ -49,7 +49,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from nexus_app import models
@@ -57,7 +57,11 @@ from nexus_app.ai_governance.tag_normalization import (
     TagTypeCode,
     normalize_tag_value,
 )
-from nexus_app.enums import TagAssetIndexTargetType
+from nexus_app.enums import (
+    AIGovernanceRunAdoptionStatus,
+    TagAssetIndexSource,
+    TagAssetIndexTargetType,
+)
 from nexus_app.retrieval.tag_schemas import (
     MatchLayer,
     TAG_BUCKET_NAMES,
@@ -173,11 +177,21 @@ class TagAssetIndexResolver:
         embedding_client: "EmbeddingClientProtocol | None" = None,
         hard_limit: int = DEFAULT_HARD_LIMIT,
         embedding_model_alias: str | None = None,
+        enforce_adoption_guardrail: bool = True,
     ) -> None:
         self._session = session
         self._embedding_client = embedding_client
         self._hard_limit = hard_limit
         self._embedding_model_alias = embedding_model_alias
+        # PR #2 — guardrail: source=governance_tag rows are only visible
+        # to retrieval when their producing ai_governance_run reached
+        # AUTO_ADOPTED.  All other sources (field_projection /
+        # outline_projection / expert_manual / dict_alias_hit) bypass
+        # this filter — they don't originate from an LLM decision so
+        # adoption_status is not applicable.  Tests can opt out with
+        # ``enforce_adoption_guardrail=False`` when they want to prove
+        # the raw tag_asset_index shape without the join.
+        self._enforce_adoption_guardrail = enforce_adoption_guardrail
 
     # -- Public API ---------------------------------------------------------
 
@@ -398,6 +412,33 @@ class TagAssetIndexResolver:
             label=label,
         )
 
+    def _apply_adoption_guardrail(self, stmt):
+        """Attach the ``source=governance_tag → AUTO_ADOPTED`` filter.
+
+        Uses a LEFT JOIN so non-governance sources (field_projection /
+        outline_projection / expert_manual / dict_alias_hit) — which
+        carry a ``NULL extraction_run_id`` — pass through unchanged.
+        The predicate says: "either the source is not governance_tag,
+        OR the linked run is AUTO_ADOPTED".  A governance_tag row whose
+        extraction_run was deleted (should never happen in production
+        but is possible after manual maintenance) is excluded — that's
+        the safe default.
+
+        No-op when :attr:`_enforce_adoption_guardrail` is False.
+        """
+        if not self._enforce_adoption_guardrail:
+            return stmt
+        return stmt.outerjoin(
+            models.AIGovernanceRun,
+            models.AIGovernanceRun.id == models.TagAssetIndex.extraction_run_id,
+        ).where(
+            or_(
+                models.TagAssetIndex.source != TagAssetIndexSource.GOVERNANCE_TAG,
+                models.AIGovernanceRun.adoption_status
+                == AIGovernanceRunAdoptionStatus.AUTO_ADOPTED,
+            )
+        )
+
     def _lookup_by_normalised(
         self,
         *,
@@ -421,6 +462,7 @@ class TagAssetIndexResolver:
         if target_type_filter is not None:
             stmt = stmt.where(models.TagAssetIndex.target_type == target_type_filter)
 
+        stmt = self._apply_adoption_guardrail(stmt)
         rows = self._session.scalars(stmt).all()
         return [
             ResolvedTag(
@@ -526,6 +568,7 @@ class TagAssetIndexResolver:
         if target_type_filter is not None:
             stmt = stmt.where(models.TagAssetIndex.target_type == target_type_filter)
 
+        stmt = self._apply_adoption_guardrail(stmt)
         try:
             rows = self._session.scalars(stmt).all()
         except Exception as exc:

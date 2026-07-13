@@ -11,7 +11,12 @@ from dataclasses import dataclass, field
 import pytest
 
 from nexus_app import models
-from nexus_app.enums import TagAssetIndexSource, TagAssetIndexTargetType
+from nexus_app.enums import (
+    AIGovernanceRunAdoptionStatus,
+    AIGovernanceRunValidationStatus,
+    TagAssetIndexSource,
+    TagAssetIndexTargetType,
+)
 from nexus_app.retrieval.tag_resolver import (
     BUCKET_TO_TAG_TYPE,
     DEFAULT_HARD_LIMIT,
@@ -667,3 +672,202 @@ class TestResolverResultHelpers:
         r.add_warning("x")
         r.add_warning("y")
         assert r.warnings == ["x", "y"]
+
+
+# ---------------------------------------------------------------------------
+# Adoption guardrail (#2) — governance_tag rows require an AUTO_ADOPTED run
+# ---------------------------------------------------------------------------
+
+
+def _seed_governance_run(
+    session,
+    *,
+    run_id: str,
+    normalized_ref_id: str,
+    adoption_status: AIGovernanceRunAdoptionStatus,
+) -> models.AIGovernanceRun:
+    """Seed a minimal ai_governance_run row.  Only the fields the
+    guardrail predicate reads (``id`` + ``adoption_status``) matter; the
+    rest are placeholders with the shortest legal values.
+    """
+    run = models.AIGovernanceRun(
+        id=run_id,
+        normalized_ref_id=normalized_ref_id,
+        model_alias="fake",
+        prompt_version="test",
+        input_hash="0" * 32,
+        input_summary={},
+        validation_status=AIGovernanceRunValidationStatus.SCHEMA_VALID,
+        adoption_status=adoption_status,
+    )
+    session.add(run)
+    session.flush()
+    return run
+
+
+class TestAdoptionGuardrail:
+    """Governance-authored tag rows must only surface once their run
+    reached AUTO_ADOPTED.  All other tag sources bypass the filter."""
+
+    def test_field_projection_row_visible_regardless_of_runs(self, session) -> None:
+        """field_projection has no extraction_run_id; the guardrail
+        must not accidentally hide it via the LEFT JOIN semantics."""
+        _seed(
+            session,
+            tag_value_normalized="北京",
+            source=TagAssetIndexSource.FIELD_PROJECTION,
+        )
+        resolver = TagAssetIndexResolver(session)
+        result = resolver.resolve(bucket_name="regions", candidates=["北京"])
+        assert len(result.hits) == 1
+
+    def test_governance_tag_with_auto_adopted_run_is_visible(self, session) -> None:
+        run = _seed_governance_run(
+            session,
+            run_id="run-adopted",
+            normalized_ref_id="ref-a",
+            adoption_status=AIGovernanceRunAdoptionStatus.AUTO_ADOPTED,
+        )
+        row = _seed(
+            session,
+            tag_value_normalized="北京",
+            source=TagAssetIndexSource.GOVERNANCE_TAG,
+            target_id="ref-a",
+        )
+        row.extraction_run_id = run.id
+        session.flush()
+
+        resolver = TagAssetIndexResolver(session)
+        result = resolver.resolve(bucket_name="regions", candidates=["北京"])
+        assert len(result.hits) == 1
+        assert result.hits[0].target_id == "ref-a"
+
+    @pytest.mark.parametrize(
+        "blocked_status",
+        [
+            AIGovernanceRunAdoptionStatus.PENDING_RULE_GUARDRAIL,
+            AIGovernanceRunAdoptionStatus.REVIEW_REQUIRED,
+            AIGovernanceRunAdoptionStatus.REJECTED,
+        ],
+    )
+    def test_governance_tag_hidden_when_run_not_auto_adopted(
+        self, session, blocked_status
+    ) -> None:
+        run = _seed_governance_run(
+            session,
+            run_id=f"run-{blocked_status.value}",
+            normalized_ref_id="ref-b",
+            adoption_status=blocked_status,
+        )
+        row = _seed(
+            session,
+            tag_value_normalized="北京",
+            source=TagAssetIndexSource.GOVERNANCE_TAG,
+            target_id="ref-b",
+        )
+        row.extraction_run_id = run.id
+        session.flush()
+
+        resolver = TagAssetIndexResolver(session)
+        result = resolver.resolve(bucket_name="regions", candidates=["北京"])
+        assert result.hits == []
+
+    def test_governance_tag_with_orphaned_run_id_is_hidden(self, session) -> None:
+        """If the extraction_run_id points at a row that no longer exists,
+        the LEFT JOIN yields NULL adoption_status; the safe default is to
+        hide the tag row."""
+        row = _seed(
+            session,
+            tag_value_normalized="北京",
+            source=TagAssetIndexSource.GOVERNANCE_TAG,
+        )
+        row.extraction_run_id = "run-that-was-deleted"
+        session.flush()
+
+        resolver = TagAssetIndexResolver(session)
+        result = resolver.resolve(bucket_name="regions", candidates=["北京"])
+        assert result.hits == []
+
+    def test_mixed_sources_only_governance_tag_is_gated(self, session) -> None:
+        """One field_projection row + one governance_tag row (unadopted)
+        for the same normalised value — only field_projection surfaces."""
+        _seed(
+            session,
+            tag_value_normalized="北京",
+            source=TagAssetIndexSource.FIELD_PROJECTION,
+            target_id="record-1",
+            target_type=TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
+        )
+        pending_run = _seed_governance_run(
+            session,
+            run_id="run-pending",
+            normalized_ref_id="ref-2",
+            adoption_status=AIGovernanceRunAdoptionStatus.PENDING_RULE_GUARDRAIL,
+        )
+        gov_row = _seed(
+            session,
+            tag_value_normalized="北京",
+            source=TagAssetIndexSource.GOVERNANCE_TAG,
+            target_id="ref-2",
+        )
+        gov_row.extraction_run_id = pending_run.id
+        session.flush()
+
+        resolver = TagAssetIndexResolver(session)
+        result = resolver.resolve(bucket_name="regions", candidates=["北京"])
+        assert {h.target_id for h in result.hits} == {"record-1"}
+
+    def test_constructor_opt_out_disables_guardrail(self, session) -> None:
+        pending_run = _seed_governance_run(
+            session,
+            run_id="run-pending-2",
+            normalized_ref_id="ref-3",
+            adoption_status=AIGovernanceRunAdoptionStatus.PENDING_RULE_GUARDRAIL,
+        )
+        row = _seed(
+            session,
+            tag_value_normalized="北京",
+            source=TagAssetIndexSource.GOVERNANCE_TAG,
+            target_id="ref-3",
+        )
+        row.extraction_run_id = pending_run.id
+        session.flush()
+
+        resolver = TagAssetIndexResolver(session, enforce_adoption_guardrail=False)
+        result = resolver.resolve(bucket_name="regions", candidates=["北京"])
+        assert len(result.hits) == 1
+        assert result.hits[0].target_id == "ref-3"
+
+    def test_l4_semantic_also_applies_guardrail(self, session) -> None:
+        """L4 has its own SQL statement in ``_l4_semantic``; the guardrail
+        must be applied there too, not just in the shared exact-match helper.
+        """
+        pending_run = _seed_governance_run(
+            session,
+            run_id="run-l4-pending",
+            normalized_ref_id="ref-4",
+            adoption_status=AIGovernanceRunAdoptionStatus.PENDING_RULE_GUARDRAIL,
+        )
+        row = _seed(
+            session,
+            tag_value="北京市",
+            tag_value_normalized="北京市",  # deliberately different from candidate
+            source=TagAssetIndexSource.GOVERNANCE_TAG,
+            target_id="ref-4",
+            tag_embedding=[1.0, 0.0, 0.0, 0.0],
+        )
+        row.extraction_run_id = pending_run.id
+        session.flush()
+
+        # Candidate whose embedding vector matches the seeded row's vector
+        # exactly — cosine similarity 1.0 — so without the guardrail L4
+        # would definitely emit a hit.
+        client = _FakeEmbedClient(vector_for_text={"京城": [1.0, 0.0, 0.0, 0.0]})
+        resolver = TagAssetIndexResolver(session, embedding_client=client)
+        result = resolver.resolve(
+            bucket_name="regions",
+            candidates=["京城"],  # doesn't hit L1/L1.5
+            match_strategy="l4",
+            semantic_threshold=0.5,
+        )
+        assert result.hits == []
