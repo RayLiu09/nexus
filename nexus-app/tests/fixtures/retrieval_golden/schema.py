@@ -31,9 +31,17 @@ GoldenCategory = Literal[
     "aggregation",         # count_by / trend_by profile
     "tag_filter",          # narrows via Phase A tag_filters
     "multi_hop",           # DAG binding across two sub_queries
-    "rerank",              # WEIGHTED combine op
+    "rerank",              # WEIGHTED combine op (+ M-D LINEAR/RRF/MMR)
     "edge_case",           # I-6 optional_bucket_empty, empty intersection
     "negative",            # expects failure or empty result
+    # Phase-2 extensions (v1.3 E2E validation plan §L2) —
+    # runnable subset lives alongside prebuilt_plan-backed cases;
+    # remaining values act as documented pending markers that
+    # auto-skip until the harness / features land in M-D.
+    "clarification",       # LC-* — needs_clarification pack_status
+    "degradation",         # binding empty / optional filter empty / embedding missing
+    "permission",          # v1.4 access_scope stub
+    "cross_domain",        # 5-domain flagship evidence_chain
 ]
 
 
@@ -113,6 +121,17 @@ class GoldenQuery(BaseModel):
     # asserted when ``retrieval_rerank_enabled`` is on for the harness
     # invocation.
     expected_rerank_order: dict[str, list[str]] = Field(default_factory=dict)
+
+    # ---- Evidence-chain expectations (v1.3 E2E validation plan §L2) ----
+
+    # section_name → evidence_strength (``strong`` / ``medium`` / ``weak``).
+    # Phase-2 records these as intent; the harness gains a matching
+    # assertion when evidence_chain summary lands in the pack (Milestone D).
+    # Until then the field is preserved but not asserted; the goal is to
+    # freeze the contract early so authors can annotate cases now.
+    expected_evidence_strength_distribution: dict[str, str] = Field(
+        default_factory=dict
+    )
 
     # ---- Editorial ----
 
