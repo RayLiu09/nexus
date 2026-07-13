@@ -379,6 +379,11 @@ def test_golden_query(golden: GoldenQuery, session):
     failures = _apply_expectations(resolved, results)
 
     # Rerank order — asserted only when explicitly requested + rerank on.
+    # PR-9: extract the ordered id list via the same helper _record_ids_for
+    # uses for subset / disjoint checks — this way both structured
+    # (result.records[i].id) and unstructured (result.items[i].chunk_id)
+    # order can be asserted from the JSONL without a channel-specific
+    # branch in the fixture author's head.
     rerank_enabled = resolved.category == "rerank" and bool(
         resolved.expected_rerank_order
     )
@@ -389,9 +394,7 @@ def test_golden_query(golden: GoldenQuery, session):
             if result is None:
                 failures.append(f"rerank_order: no result for qid={qid}")
                 continue
-            actual_order = [
-                r.get("id") for r in result.records if isinstance(r, dict)
-            ]
+            actual_order = _record_ids_for(result)
             if actual_order != expected_order:
                 failures.append(
                     f"rerank_order: qid={qid} "

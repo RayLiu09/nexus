@@ -638,6 +638,125 @@ def seed_course_textbook_semantic_two_refs(session) -> dict[str, Any]:
     }
 
 
+def seed_course_textbook_rerank_uneven_tags(session) -> dict[str, Any]:
+    """Rerank-effect fixture (PR-9). Two refs with uneven Phase A tag scores.
+
+    * ``ref-ct-prime`` — 1 chunk + BOTH ``major`` and ``topic`` tag rows.
+      Under a WEIGHTED combine query that hits both buckets, this ref's
+      target_score sums to 2.0.
+    * ``ref-ct-standard`` — 1 chunk + only the ``major`` tag row.
+      target_score = 1.0.
+
+    Phase A treats WEIGHTED as OR-union across buckets, so both refs
+    survive into ``target_ids`` but with the 2:1 score gap.  Blending
+    ``0.5 * cosine + 0.5 * tag_score`` at the executor forces the prime
+    ref's chunk ahead of the standard ref's chunk regardless of the
+    (near-uniform) fake pgvector cosine values.
+
+    Only one chunk per ref intentionally — keeps the JSONL
+    ``expected_rerank_order`` deterministic without depending on
+    within-ref pgvector tiebreaks that FakeEmbeddingClient's hash-based
+    vectors don't guarantee.
+    """
+    from nexus_app.config import get_settings
+
+    settings = get_settings()
+    embedding_model = settings.effective_embedding_model_alias
+    embedding_dimension = settings.default_embedding_dimension
+
+    collection_key = "course_textbook.document.bge.v1"
+    collection = models.VectorCollection(
+        id="vc-ct-rerank",
+        collection_key=collection_key,
+        asset_domain_type="course_textbook",
+        normalized_type="document",
+        embedding_provider="fake",
+        embedding_model=embedding_model,
+        embedding_dimension=embedding_dimension,
+        distance_metric="cosine",
+        collection_metadata={},
+    )
+    session.add(collection)
+    session.flush()
+
+    refs: dict[str, dict[str, Any]] = {}
+    for slug, content, major_value, extra_tags in (
+        (
+            "prime",
+            "直播运营与核心运营方法论",
+            "直播运营",
+            (("topic", "核心运营"),),
+        ),
+        (
+            "standard",
+            "直播运营基础手册",
+            "直播运营",
+            (),
+        ),
+    ):
+        scaffold = _seed_asset_scaffold(
+            session, ref_id=f"ref-ct-{slug}",
+            asset_kind=AssetKind.DOCUMENT,
+            normalized_type=NormalizedType.DOCUMENT,
+            domain_profile="course_textbook.v1",
+        )
+        chunk = models.KnowledgeChunk(
+            id=f"chunk-ct-{slug}-1",
+            normalized_ref_id=scaffold["ref_id"],
+            knowledge_type_code="course_textbook",
+            chunk_type="semantic_block",
+            chunking_strategy="structured_decompose",
+            source_kind="extracted_from_normalized",
+            chunk_index=0,
+            content=content,
+            chunk_metadata={},
+            embedding_status="pending",
+            source_block_ids=None,
+            locator=None,
+            knowledge_outline_node_id=None,
+        )
+        session.add(chunk)
+        session.flush()
+        _seed_pgvector_embedding_for_chunk(
+            session,
+            collection_id=collection.id,
+            collection_key=collection_key,
+            chunk=chunk,
+            asset_id=f"asset-{scaffold['ref_id']}",
+            asset_version_id=scaffold["version_id"],
+            embedding_model=embedding_model,
+            embedding_dimension=embedding_dimension,
+        )
+        _seed_tag(
+            session,
+            target_type=TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
+            target_id=scaffold["ref_id"],
+            asset_version_id=scaffold["version_id"],
+            tag_type="major", tag_value=major_value,
+        )
+        for tag_type, tag_value in extra_tags:
+            _seed_tag(
+                session,
+                target_type=TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
+                target_id=scaffold["ref_id"],
+                asset_version_id=scaffold["version_id"],
+                tag_type=tag_type, tag_value=tag_value,
+            )
+        refs[slug] = {
+            "ref_id": scaffold["ref_id"],
+            "asset_version_id": scaffold["version_id"],
+            "chunk_id": chunk.id,
+        }
+    session.commit()
+    return {
+        "collection_id": collection.id,
+        "prime_ref_id": refs["prime"]["ref_id"],
+        "prime_chunk_id": refs["prime"]["chunk_id"],
+        "standard_ref_id": refs["standard"]["ref_id"],
+        "standard_chunk_id": refs["standard"]["chunk_id"],
+    }
+
+
 def seed_course_textbook_outline_no_chunks(session) -> dict[str, Any]:
     """One course_textbook ref + one outline_node with NO chunks
     linking back — exercises the ``outline_chunk_lift_empty`` warning
@@ -1100,6 +1219,7 @@ FIXTURE_REGISTRY: dict[str, Callable] = {
     "job_demand_weighted_rerank": seed_job_demand_weighted_rerank,
     "course_textbook_outline_topic": seed_course_textbook_outline_topic,
     "course_textbook_semantic_two_refs": seed_course_textbook_semantic_two_refs,
+    "course_textbook_rerank_uneven_tags": seed_course_textbook_rerank_uneven_tags,
     "course_textbook_outline_no_chunks": seed_course_textbook_outline_no_chunks,
     "job_demand_from_xlsx_sample": seed_job_demand_from_xlsx_sample,
     "major_distribution_from_xlsx_sample": seed_major_distribution_from_xlsx_sample,
