@@ -189,6 +189,161 @@ def test_audit_seed_folds_exception_into_error_field(session):
 
 
 # ---------------------------------------------------------------------------
+# Supersession (#4) — benign alt trace_ids
+# ---------------------------------------------------------------------------
+
+
+def test_audit_seed_reports_superseded_when_primary_missing_but_alt_present(session):
+    """Primary trace_id has 0 rows; a registered SupersededBy has ≥1.
+    Contract: ok=True, is_superseded=True, and the alt is recorded on the result.
+    """
+    _insert_prompt(session, trace_id="manual_reseed_0069")
+
+    spec = AS.SeedExpectation(
+        migration_id="20260710_0069",
+        description="test seed",
+        table="governance_prompt_template",
+        trace_id_pattern="seed_0069_tagging",
+        trace_id_uses_like=False,
+        min_rows=1,
+        superseded_by=(
+            AS.SupersededBy(
+                trace_id_pattern="manual_reseed_0069",
+                trace_id_uses_like=False,
+                note="manual reseed after silent no-op",
+            ),
+        ),
+    )
+    result = AS.audit_seed(session, spec)
+    assert result.ok is True
+    assert result.is_superseded is True
+    assert result.superseded_by_hit == "manual_reseed_0069"
+    assert result.superseded_by_rows == 1
+    assert "manual reseed" in (result.superseded_by_note or "")
+    # Primary row count reflects reality — 0, even though ok=True.
+    assert result.found_rows == 0
+
+
+def test_audit_seed_prefers_primary_over_supersession_when_both_exist(session):
+    """When the canonical trace_id has enough rows, supersession is not
+    consulted at all — result stays "clean OK" (is_superseded=False).
+    """
+    _insert_prompt(session, trace_id="seed_canonical")
+    _insert_prompt(
+        session, trace_id="alt_bypass", task_type="level_assessment",
+    )
+
+    spec = AS.SeedExpectation(
+        migration_id="test",
+        description="",
+        table="governance_prompt_template",
+        trace_id_pattern="seed_canonical",
+        trace_id_uses_like=False,
+        min_rows=1,
+        superseded_by=(
+            AS.SupersededBy(
+                trace_id_pattern="alt_bypass",
+                trace_id_uses_like=False,
+                note="alt path — should be ignored when primary is OK",
+            ),
+        ),
+    )
+    result = AS.audit_seed(session, spec)
+    assert result.ok is True
+    assert result.is_superseded is False
+    assert result.superseded_by_hit is None
+    assert result.found_rows == 1
+
+
+def test_audit_seed_still_missing_when_neither_primary_nor_alt_present(session):
+    """Both primary and every registered supersession yield 0 rows →
+    real MISSING (ok=False, is_superseded=False).
+    """
+    spec = AS.SeedExpectation(
+        migration_id="test",
+        description="",
+        table="governance_prompt_template",
+        trace_id_pattern="seed_primary_absent",
+        trace_id_uses_like=False,
+        min_rows=1,
+        superseded_by=(
+            AS.SupersededBy(
+                trace_id_pattern="alt_also_absent",
+                trace_id_uses_like=False,
+                note="",
+            ),
+        ),
+    )
+    result = AS.audit_seed(session, spec)
+    assert result.ok is False
+    assert result.is_superseded is False
+    assert result.superseded_by_hit is None
+
+
+def test_audit_seed_supersession_respects_min_rows(session):
+    """Supersession must also clear ``min_rows`` — 1 alt row can't
+    satisfy a 5-row expectation.
+    """
+    _insert_prompt(session, trace_id="alt_partial")
+
+    spec = AS.SeedExpectation(
+        migration_id="test",
+        description="",
+        table="governance_prompt_template",
+        trace_id_pattern="seed_absent",
+        trace_id_uses_like=False,
+        min_rows=5,
+        superseded_by=(
+            AS.SupersededBy(
+                trace_id_pattern="alt_partial",
+                trace_id_uses_like=False,
+                note="partial alt",
+            ),
+        ),
+    )
+    result = AS.audit_seed(session, spec)
+    assert result.ok is False
+    assert result.is_superseded is False
+
+
+def test_audit_outcome_counts_supersessions_separately(session):
+    """AuditOutcome.total_missing counts REAL misses; total_superseded
+    tracks the benign path.  A run with 1 superseded and 1 real miss
+    reports total_missing=1, total_superseded=1.
+    """
+    _insert_prompt(session, trace_id="alt_bypass_x")
+
+    specs = [
+        AS.SeedExpectation(
+            migration_id="superseded_1",
+            description="",
+            table="governance_prompt_template",
+            trace_id_pattern="seed_absent_1",
+            trace_id_uses_like=False,
+            min_rows=1,
+            superseded_by=(
+                AS.SupersededBy(
+                    trace_id_pattern="alt_bypass_x",
+                    trace_id_uses_like=False,
+                    note="",
+                ),
+            ),
+        ),
+        AS.SeedExpectation(
+            migration_id="missing_2",
+            description="",
+            table="governance_prompt_template",
+            trace_id_pattern="seed_absent_2",
+            trace_id_uses_like=False,
+            min_rows=1,
+        ),
+    ]
+    outcome = AS.audit_all(session, specs=specs)
+    assert outcome.total_superseded == 1
+    assert outcome.total_missing == 1
+
+
+# ---------------------------------------------------------------------------
 # audit_all — multi-spec batching
 # ---------------------------------------------------------------------------
 

@@ -76,12 +76,44 @@ from nexus_app.database import get_session_local
 
 
 @dataclass(frozen=True)
+class SupersededBy:
+    """A trace_id (literal or LIKE pattern) that acknowledges a benign
+    supersession of the primary seed row.
+
+    Example — after a manual reseed following a silent 0069 no-op::
+
+        SupersededBy(
+            trace_id_pattern="manual_reseed_0069",
+            trace_id_uses_like=False,
+            note="seed_0069_tagging was silently skipped; content applied "
+                 "manually with trace_id=manual_reseed_0069",
+        )
+
+    Ops must explicitly acknowledge every superseded row here — silent
+    downgrades would defeat the audit.
+    """
+
+    trace_id_pattern: str
+    trace_id_uses_like: bool
+    note: str
+
+
+@dataclass(frozen=True)
 class SeedExpectation:
     """One seed migration's contract.
 
     ``trace_id_pattern`` is either a literal value or a SQL LIKE pattern
     (containing ``%``).  ``trace_id_uses_like`` disambiguates so we don't
     have to guess.
+
+    ``superseded_by`` lets ops register **known benign** supersessions
+    (a manual reseed under a different trace_id, or a subsequent
+    user-driven bump that overwrote the seed row).  When the primary
+    trace_id yields 0 rows but any registered supersession does,
+    the audit returns ``ok=True`` with ``superseded_by_hit`` set so the
+    operator sees the exact alt trace_id that fulfilled the contract.
+    On a fresh production deploy no supersession should ever be needed —
+    treat any ``superseded_by_hit`` in prod as a signal to investigate.
     """
 
     migration_id: str
@@ -90,6 +122,7 @@ class SeedExpectation:
     trace_id_pattern: str
     trace_id_uses_like: bool
     min_rows: int
+    superseded_by: tuple[SupersededBy, ...] = ()
 
 
 SEED_EXPECTATIONS: list[SeedExpectation] = [
@@ -116,6 +149,17 @@ SEED_EXPECTATIONS: list[SeedExpectation] = [
         trace_id_pattern="seed_0068",
         trace_id_uses_like=False,
         min_rows=1,
+        superseded_by=(
+            SupersededBy(
+                trace_id_pattern="seed_v2_rules",
+                trace_id_uses_like=False,
+                note=(
+                    "Console team bumped governance_rules_version past 0068's "
+                    "seed content under trace_id=seed_v2_rules (multiple "
+                    "versions — schema_version=2.1). Registered as benign."
+                ),
+            ),
+        ),
     ),
     SeedExpectation(
         migration_id="20260710_0069",
@@ -124,6 +168,17 @@ SEED_EXPECTATIONS: list[SeedExpectation] = [
         trace_id_pattern="seed_0069_tagging",
         trace_id_uses_like=False,
         min_rows=1,
+        superseded_by=(
+            SupersededBy(
+                trace_id_pattern="manual_reseed_0069",
+                trace_id_uses_like=False,
+                note=(
+                    "seed_0069_tagging INSERT was silently skipped on dev DB; "
+                    "content re-applied by hand under manual_reseed_0069 "
+                    "during P0-c triage. Registered as benign."
+                ),
+            ),
+        ),
     ),
 ]
 
@@ -143,6 +198,16 @@ class SeedAuditResult:
     found_rows: int
     min_rows: int
     error: str | None = None
+    # When the primary trace_id yielded 0 rows but a registered
+    # ``SupersededBy`` matched, this is the alt trace_id pattern that
+    # fulfilled the contract.  ``None`` for a clean pass or a real miss.
+    superseded_by_hit: str | None = None
+    superseded_by_note: str | None = None
+    superseded_by_rows: int = 0
+
+    @property
+    def is_superseded(self) -> bool:
+        return self.superseded_by_hit is not None
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -154,6 +219,9 @@ class SeedAuditResult:
             "found_rows": self.found_rows,
             "min_rows": self.min_rows,
             "error": self.error,
+            "superseded_by_hit": self.superseded_by_hit,
+            "superseded_by_note": self.superseded_by_note,
+            "superseded_by_rows": self.superseded_by_rows,
         }
 
 
@@ -163,29 +231,55 @@ class AuditOutcome:
 
     @property
     def total_missing(self) -> int:
+        """Real misses — supersessions don't count."""
         return sum(1 for r in self.results if not r.ok)
+
+    @property
+    def total_superseded(self) -> int:
+        return sum(1 for r in self.results if r.is_superseded)
 
     def to_json(self) -> dict[str, object]:
         return {
             "total_seeds_checked": len(self.results),
             "total_missing": self.total_missing,
+            "total_superseded": self.total_superseded,
             "results": [r.to_json() for r in self.results],
         }
 
 
-def _count_matching_rows(session: Session, spec: SeedExpectation) -> int:
-    op = "LIKE" if spec.trace_id_uses_like else "="
+def _count_rows_by_trace_id(
+    session: Session,
+    *,
+    table: str,
+    trace_id_pattern: str,
+    uses_like: bool,
+) -> int:
+    op = "LIKE" if uses_like else "="
     stmt = text(
-        f"SELECT COUNT(*) FROM {spec.table} WHERE trace_id {op} :pattern"
+        f"SELECT COUNT(*) FROM {table} WHERE trace_id {op} :pattern"
     ).bindparams()
-    row = session.execute(stmt, {"pattern": spec.trace_id_pattern}).scalar()
+    row = session.execute(stmt, {"pattern": trace_id_pattern}).scalar()
     return int(row or 0)
+
+
+def _count_matching_rows(session: Session, spec: SeedExpectation) -> int:
+    return _count_rows_by_trace_id(
+        session,
+        table=spec.table,
+        trace_id_pattern=spec.trace_id_pattern,
+        uses_like=spec.trace_id_uses_like,
+    )
 
 
 def audit_seed(session: Session, spec: SeedExpectation) -> SeedAuditResult:
     """Return one SeedAuditResult per spec.  Never raises — the exception
     is folded into ``error`` so the driver keeps going and the operator
     sees every seed's status in one report.
+
+    Supersession semantics — when the primary trace_id yields 0 rows,
+    check the registered ``superseded_by`` list; if any alt matches the
+    ``min_rows`` threshold, return ``ok=True`` with the alt recorded on
+    the result so the operator sees the exact bypass path.
     """
     try:
         found = _count_matching_rows(session, spec)
@@ -200,12 +294,49 @@ def audit_seed(session: Session, spec: SeedExpectation) -> SeedAuditResult:
             min_rows=spec.min_rows,
             error=f"{type(exc).__name__}: {exc}",
         )
+
+    if found >= spec.min_rows:
+        return SeedAuditResult(
+            migration_id=spec.migration_id,
+            description=spec.description,
+            table=spec.table,
+            trace_id_pattern=spec.trace_id_pattern,
+            ok=True,
+            found_rows=found,
+            min_rows=spec.min_rows,
+        )
+
+    # Primary missing — see if a registered supersession fills the gap.
+    for alt in spec.superseded_by:
+        try:
+            alt_found = _count_rows_by_trace_id(
+                session,
+                table=spec.table,
+                trace_id_pattern=alt.trace_id_pattern,
+                uses_like=alt.trace_id_uses_like,
+            )
+        except Exception:  # noqa: BLE001 — alt lookup failures fall through
+            continue
+        if alt_found >= spec.min_rows:
+            return SeedAuditResult(
+                migration_id=spec.migration_id,
+                description=spec.description,
+                table=spec.table,
+                trace_id_pattern=spec.trace_id_pattern,
+                ok=True,
+                found_rows=found,
+                min_rows=spec.min_rows,
+                superseded_by_hit=alt.trace_id_pattern,
+                superseded_by_note=alt.note,
+                superseded_by_rows=alt_found,
+            )
+
     return SeedAuditResult(
         migration_id=spec.migration_id,
         description=spec.description,
         table=spec.table,
         trace_id_pattern=spec.trace_id_pattern,
-        ok=found >= spec.min_rows,
+        ok=False,
         found_rows=found,
         min_rows=spec.min_rows,
     )
@@ -231,13 +362,25 @@ def audit_all(
 
 def _print_human(outcome: AuditOutcome) -> None:
     for r in outcome.results:
-        marker = "✓" if r.ok else "✗"
+        if not r.ok:
+            marker = "✗"
+        elif r.is_superseded:
+            marker = "~"
+        else:
+            marker = "✓"
         pattern_op = "LIKE" if "%" in r.trace_id_pattern else "="
         detail = f"({r.found_rows} rows, need ≥{r.min_rows})"
         print(
             f"  [{marker}] {r.migration_id:<18} {r.table:<32} "
             f"trace_id {pattern_op} '{r.trace_id_pattern}' {detail}"
         )
+        if r.is_superseded:
+            print(
+                f"           ↳ superseded by trace_id='{r.superseded_by_hit}' "
+                f"({r.superseded_by_rows} rows)"
+            )
+            if r.superseded_by_note:
+                print(f"             note: {r.superseded_by_note}")
         if r.error:
             print(f"           ↳ ERROR: {r.error}")
     print()
@@ -251,6 +394,12 @@ def _print_human(outcome: AuditOutcome) -> None:
             "migration file's upgrade() body) OR reset the alembic head "
             "past the affected migration and let it re-run against a "
             "clean DB."
+        )
+    elif outcome.total_superseded:
+        print(
+            f"Result: {len(outcome.results)} seed migration(s) OK "
+            f"({outcome.total_superseded} superseded by acknowledged alt "
+            "trace_ids)."
         )
     else:
         print(f"Result: {len(outcome.results)} seed migration(s) OK.")

@@ -598,6 +598,8 @@ def check_seed_migrations(session: Session, settings: Settings) -> CheckResult:
         )
 
     missing = [r for r in outcome.results if not r.ok]
+    superseded = [r for r in outcome.results if r.ok and r.is_superseded]
+
     if missing:
         return CheckResult(
             name="seed_migrations",
@@ -624,6 +626,28 @@ def check_seed_migrations(session: Session, settings: Settings) -> CheckResult:
                 "to see the details, then manually apply the missing "
                 "INSERT (see the migration file's upgrade() body)"
             ),
+        )
+
+    if superseded:
+        return CheckResult(
+            name="seed_migrations",
+            severity=SEV_INFO,
+            message=(
+                f"{len(outcome.results)} seed migration(s) verified — "
+                f"{len(superseded)} superseded by acknowledged alt trace_ids"
+            ),
+            details={
+                "total_checked": len(outcome.results),
+                "superseded": [
+                    {
+                        "migration_id": r.migration_id,
+                        "primary_trace_id": r.trace_id_pattern,
+                        "superseded_by": r.superseded_by_hit,
+                        "note": r.superseded_by_note,
+                    }
+                    for r in superseded
+                ],
+            },
         )
 
     return CheckResult(
