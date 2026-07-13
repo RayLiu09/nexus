@@ -142,20 +142,14 @@ test.describe("Search page — M-C v1.3 four-layer embed", () => {
     });
     await expect(page.getByText("查询北京地区的电商运营岗位需求")).toBeVisible();
 
-    // Layer 2 — Collapse header for "意图识别" is the entry point to
-    // IntentCard.  It expands by default (defaultActiveKey includes intent).
-    await expect(page.getByText("意图识别")).toBeVisible();
-
-    // Layer 3 — "检索计划" header is present (Collapse item may be
-    // collapsed; existence proves the panel wired PlanSection in).
-    await expect(page.getByText("检索计划")).toBeVisible();
-
-    // Layer 4 — "执行结果" carries the result count in the label.
-    await expect(page.getByText(/执行结果.*\(1\)/)).toBeVisible();
-
-    // Layer 5 — warnings header shows the count from the response.
-    // Two warnings were requested; catalog translates them client-side.
-    await expect(page.getByText(/告警.*\(2\)/)).toBeVisible();
+    // Layers 2–5 — the four-layer Collapse panel.  We match Collapse
+    // headers by role so we don't collide with the same Chinese phrases
+    // that also appear in the page description, ExecutionSteps timeline,
+    // and the RunInspector sidebar.
+    await expect(page.getByRole("button", { name: /意图识别/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /检索计划/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /执行结果.*\(1\)/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /告警.*\(2\)/ })).toBeVisible();
   });
 
   test("warnings collapse uses the shared catalog labels", async ({ page }) => {
