@@ -20,6 +20,8 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import uuid4
@@ -56,16 +58,35 @@ SCENARIO: str = "job_demand_requirement_extraction"
 _MAX_ITEMS_PER_RECORD = 50
 
 
+@dataclass(frozen=True)
+class _PreparedRecord:
+    record_id: str
+    payload: dict[str, Any]
+
+
+@dataclass
+class _RecordExtraction:
+    result: ExtractionRecordResult
+    accepted_items: list[ExtractedItem]
+
+
 def extract_requirements_for_dataset(
     session: Session,
     dataset: models.JobDemandDataset,
     *,
     llm_client: LiteLLMClientProtocol | None,
+    max_workers: int = 4,
 ) -> ExtractionDatasetResult:
     """Run LLM extraction for every record in `dataset`.
 
-    Caller owns commit. The service flushes to materialize FK targets but
-    does not commit so the surrounding worker transaction stays atomic.
+    The caller may have just created ``dataset`` and its records in the same
+    session. Persist that checkpoint before the first outbound model call:
+    keeping a PostgreSQL transaction open during a slow LiteLLM request holds
+    the job-row lock, which prevents the independent lease heartbeat from
+    renewing it. The LLM/validation phase below is therefore deliberately
+    in-memory only. A new short transaction is opened only to persist accepted
+    items after the calls return. Independent record calls execute in bounded
+    worker threads over immutable snapshots; those threads never use ``session``.
     """
     if llm_client is None:
         return _skipped(dataset, reason="llm_client_unavailable")
@@ -98,76 +119,133 @@ def extract_requirements_for_dataset(
     threshold = Decimal(str(rule_set.auto_admit_threshold))
     guardrail_tokens = list(rule_set.guardrails or [])
     field_whitelist = list(rule_set.field_whitelist or [])
+    dataset_id = dataset.id
+    rule_set_id = rule_set.id
+    prompt_profile_id = prompt.id
+    prompt_template = prompt.prompt_template
+    temperature = float(prompt.temperature)
+    max_tokens = int(prompt.max_input_tokens)
+    prompt_version = prompt.prompt_version
+    model_alias = resolve_model_alias(prompt)
+    prepared_records = [
+        _PreparedRecord(
+            record_id=record.id,
+            payload=_build_llm_input(record, field_whitelist),
+        )
+        for record in records
+    ]
 
-    per_record_results: list[ExtractionRecordResult] = []
-    for record in records:
-        per_record_results.append(
-            _extract_for_record(
-                session,
+    # No database transaction may span the external request below.
+    session.commit()
+
+    worker_count = min(len(prepared_records), max(1, int(max_workers)))
+    with ThreadPoolExecutor(
+        max_workers=worker_count,
+        thread_name_prefix="nexus-job-extract",
+    ) as executor:
+        futures = [
+            executor.submit(
+                _extract_for_record,
                 record=record,
-                dataset_id=dataset.id,
-                prompt=prompt,
-                rule_set=rule_set,
+                prompt_template=prompt_template,
+                output_format=rule_set.output_format,
+                model_alias=model_alias,
+                temperature=temperature,
+                max_tokens=max_tokens,
                 threshold=threshold,
                 guardrail_tokens=guardrail_tokens,
-                field_whitelist=field_whitelist,
                 llm_client=llm_client,
             )
+            for record in prepared_records
+        ]
+        # Preserve record order so aggregate/audit output remains deterministic.
+        extractions = [future.result() for future in futures]
+
+    records_by_id = {
+        record.id: record
+        for record in session.scalars(
+            select(models.JobDemandRecord).where(
+                models.JobDemandRecord.id.in_([item.record_id for item in prepared_records])
+            )
         )
+    }
+    for extraction in extractions:
+        record = records_by_id.get(extraction.result.record_id)
+        if record is None:
+            logger.warning(
+                "knowledge_extraction record vanished before persist record=%s",
+                extraction.result.record_id,
+            )
+            continue
+        for item in extraction.accepted_items:
+            _persist_item(
+                session,
+                record=record,
+                dataset_id=dataset_id,
+                item=item,
+                prompt_template_id=prompt_profile_id,
+                prompt_version=prompt_version,
+                rule_set_id=rule_set_id,
+                model_alias=model_alias,
+            )
     session.flush()
 
     return _aggregate(
-        dataset_id=dataset.id,
-        rule_set_id=rule_set.id,
-        prompt_profile_id=prompt.id,
-        per_record=per_record_results,
+        dataset_id=dataset_id,
+        rule_set_id=rule_set_id,
+        prompt_profile_id=prompt_profile_id,
+        per_record=[extraction.result for extraction in extractions],
     )
 
 
 def _extract_for_record(
-    session: Session,
     *,
-    record: models.JobDemandRecord,
-    dataset_id: str,
-    prompt: models.AIPromptProfile,
-    rule_set: models.AIAnalysisRules,
+    record: _PreparedRecord,
+    prompt_template: str,
+    output_format: str,
+    model_alias: str,
+    temperature: float,
+    max_tokens: int,
     threshold: Decimal,
     guardrail_tokens: list[str],
-    field_whitelist: list[str],
     llm_client: LiteLLMClientProtocol,
-) -> ExtractionRecordResult:
-    payload = _build_llm_input(record, field_whitelist)
+) -> _RecordExtraction:
     messages = [
-        {"role": "system", "content": prompt.prompt_template},
-        {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+        {"role": "system", "content": prompt_template},
+        {"role": "user", "content": json.dumps(record.payload, ensure_ascii=False)},
     ]
-    response_format = {"type": "json_object"} if rule_set.output_format == "json" else None
-    effective_alias = resolve_model_alias(prompt)
+    response_format = {"type": "json_object"} if output_format == "json" else None
 
     try:
         content, _summary = llm_client.call(
-            effective_alias,
+            model_alias,
             messages,
-            temperature=float(prompt.temperature),
-            max_tokens=int(prompt.max_input_tokens),
+            temperature=temperature,
+            max_tokens=max_tokens,
             response_format=response_format,
         )
     except LiteLLMCallError as exc:
         logger.warning(
             "knowledge_extraction LLM call failed for record=%s: %s",
-            record.id, exc,
+            record.record_id, exc,
         )
-        return ExtractionRecordResult(
-            record_id=record.id,
-            reject_counts={"llm_call_failed": 1},
+        return _RecordExtraction(
+            result=ExtractionRecordResult(
+                record_id=record.record_id,
+                reject_counts={"llm_call_failed": 1},
+            ),
+            accepted_items=[],
         )
 
     items_raw = _parse_items(content)
     if items_raw is None:
-        return ExtractionRecordResult(
-            record_id=record.id,
-            items_rejected=1,
-            reject_counts={RejectReason.SCHEMA_INVALID: 1},
+        return _RecordExtraction(
+            result=ExtractionRecordResult(
+                record_id=record.record_id,
+                items_rejected=1,
+                reject_counts={RejectReason.SCHEMA_INVALID: 1},
+            ),
+            accepted_items=[],
         )
     if len(items_raw) > _MAX_ITEMS_PER_RECORD:
         items_raw = items_raw[:_MAX_ITEMS_PER_RECORD]
@@ -176,6 +254,7 @@ def _extract_for_record(
     low_conf = 0
     rejected = 0
     reject_counts: dict[str, int] = {}
+    accepted_items: list[ExtractedItem] = []
 
     for raw_item in items_raw:
         if not isinstance(raw_item, dict):
@@ -196,25 +275,20 @@ def _extract_for_record(
                 reject_counts.get(RejectReason.SCHEMA_INVALID, 0) + 1
             )
             continue
-        _persist_item(
-            session,
-            record=record,
-            dataset_id=dataset_id,
-            item=normalised,
-            prompt=prompt,
-            rule_set=rule_set,
-            model_alias=effective_alias,
-        )
+        accepted_items.append(normalised)
         persisted += 1
         if normalised.is_low_confidence:
             low_conf += 1
 
-    return ExtractionRecordResult(
-        record_id=record.id,
-        items_persisted=persisted,
-        items_low_confidence=low_conf,
-        items_rejected=rejected,
-        reject_counts=reject_counts,
+    return _RecordExtraction(
+        result=ExtractionRecordResult(
+            record_id=record.record_id,
+            items_persisted=persisted,
+            items_low_confidence=low_conf,
+            items_rejected=rejected,
+            reject_counts=reject_counts,
+        ),
+        accepted_items=accepted_items,
     )
 
 
@@ -304,16 +378,11 @@ def _persist_item(
     record: models.JobDemandRecord,
     dataset_id: str,
     item: ExtractedItem,
-    prompt: models.AIPromptProfile,
-    rule_set: models.AIAnalysisRules,
-    model_alias: str | None = None,
+    prompt_template_id: str,
+    prompt_version: str,
+    rule_set_id: str,
+    model_alias: str,
 ) -> None:
-    # `ai_model_alias` records the alias actually sent to LiteLLM. When the
-    # env override is in effect the seeded `prompt.litellm_model_alias` no
-    # longer reflects the real call target, so callers pass the resolved
-    # alias here. Fallback to the seeded value preserves test fixtures and
-    # external callers that haven't been updated.
-    effective_alias = model_alias if model_alias is not None else prompt.litellm_model_alias
     session.add(
         models.JobDemandRequirementItem(
             id=str(uuid4()),
@@ -325,11 +394,11 @@ def _persist_item(
             normalized_name=item.normalized_name,
             taxonomy_code=item.taxonomy_code,
             confidence=item.confidence,
-            extractor_version=prompt.prompt_version,
+            extractor_version=prompt_version,
             evidence_field=item.evidence_field,
-            prompt_template_id=prompt.id,
-            rules_version_id=rule_set.id,
-            ai_model_alias=effective_alias,
+            prompt_template_id=prompt_template_id,
+            rules_version_id=rule_set_id,
+            ai_model_alias=model_alias,
         )
     )
 

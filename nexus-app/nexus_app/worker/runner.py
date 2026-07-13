@@ -1162,7 +1162,10 @@ def _run_requirement_extraction(
     llm_client = _build_extraction_llm_client(ctx.settings)
     try:
         result = extract_requirements_for_dataset(
-            session, dataset, llm_client=llm_client,
+            session,
+            dataset,
+            llm_client=llm_client,
+            max_workers=ctx.settings.worker_max_concurrent,
         )
     except Exception as exc:  # noqa: BLE001 — extraction failure never blocks pipeline
         logger.exception(

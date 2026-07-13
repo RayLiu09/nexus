@@ -18,6 +18,7 @@ What we lock in:
 from __future__ import annotations
 
 import json
+import threading
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
@@ -72,21 +73,23 @@ class _ScriptedLLM:
 
     def __post_init__(self):
         self.calls: list[dict[str, Any]] = []
+        self._lock = threading.Lock()
 
     def call(self, model_alias, messages, *, temperature=0.2, max_tokens=2048,
              response_format=None):
-        idx = len(self.calls)
-        self.calls.append({
-            "model_alias": model_alias,
-            "messages": messages,
-            "response_format": response_format,
-        })
-        if idx >= len(self.responses):
-            raise LiteLLMCallError(
-                f"_ScriptedLLM ran out of responses at call #{idx}",
-                LiteLLMErrorType.UNKNOWN,
-            )
-        rv = self.responses[idx]
+        with self._lock:
+            idx = len(self.calls)
+            self.calls.append({
+                "model_alias": model_alias,
+                "messages": messages,
+                "response_format": response_format,
+            })
+            if idx >= len(self.responses):
+                raise LiteLLMCallError(
+                    f"_ScriptedLLM ran out of responses at call #{idx}",
+                    LiteLLMErrorType.UNKNOWN,
+                )
+            rv = self.responses[idx]
         if isinstance(rv, LiteLLMCallError):
             raise rv
         return rv, LiteLLMCallSummary(
@@ -96,6 +99,35 @@ class _ScriptedLLM:
             status="success",
             input_hash="h",
         )
+
+
+class _TransactionFreeLLM(_ScriptedLLM):
+    """Locks the worker contract: model calls must not hold a DB transaction."""
+
+    def __init__(self, session, responses: list[str | LiteLLMCallError]):
+        super().__init__(responses=responses)
+        self._session = session
+
+    def call(self, *args, **kwargs):
+        assert not self._session.in_transaction()
+        return super().call(*args, **kwargs)
+
+
+class _ParallelTransactionFreeLLM(_TransactionFreeLLM):
+    """Requires two record calls to overlap on different in-memory threads."""
+
+    def __init__(self, session, responses: list[str | LiteLLMCallError]):
+        super().__init__(session, responses)
+        self._barrier = threading.Barrier(2, timeout=2)
+        self.thread_ids: set[int] = set()
+        self._thread_lock = threading.Lock()
+
+    def call(self, *args, **kwargs):
+        assert not self._session.in_transaction()
+        with self._thread_lock:
+            self.thread_ids.add(threading.get_ident())
+        self._barrier.wait()
+        return _ScriptedLLM.call(self, *args, **kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -304,6 +336,50 @@ class TestExtractionService:
         assert all(r.dataset_id == "ds-1" for r in rows)
         assert all(r.rules_version_id == result.rule_set_id for r in rows)
         assert all(r.prompt_template_id == result.prompt_profile_id for r in rows)
+
+    def test_commits_checkpoint_before_each_external_llm_call(self, session, dataset):
+        llm = _TransactionFreeLLM(
+            session,
+            responses=[
+                _llm_payload([
+                    {"item_type": "tool", "item_name": "Python", "confidence": 0.95},
+                ]),
+                _llm_payload([
+                    {"item_type": "tool", "item_name": "SQL", "confidence": 0.95},
+                ]),
+            ],
+        )
+
+        result = extract_requirements_for_dataset(session, dataset, llm_client=llm)
+        session.commit()
+
+        assert result.items_persisted == 2
+        assert len(llm.calls) == 2
+        assert session.scalar(select(models.JobDemandRequirementItem.id).limit(1)) is not None
+
+    def test_extracts_independent_records_in_parallel_without_a_transaction(self, session, dataset):
+        llm = _ParallelTransactionFreeLLM(
+            session,
+            responses=[
+                _llm_payload([
+                    {"item_type": "tool", "item_name": "Python", "confidence": 0.95},
+                ]),
+                _llm_payload([
+                    {"item_type": "tool", "item_name": "SQL", "confidence": 0.95},
+                ]),
+            ],
+        )
+
+        result = extract_requirements_for_dataset(
+            session,
+            dataset,
+            llm_client=llm,
+            max_workers=2,
+        )
+        session.commit()
+
+        assert result.items_persisted == 2
+        assert len(llm.thread_ids) == 2
 
     def test_low_confidence_items_persisted_and_counted(self, session, dataset):
         # threshold = 0.85 per seed; 0.6 < 0.85 → counted as low-confidence.
