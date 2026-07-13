@@ -237,6 +237,13 @@ const CATALOG: Record<string, WarningCatalogEntry> = {
     tone: "warning",
     category: "fallback",
   },
+  friendly_view_build_failed: {
+    label: "友好视图构建失败",
+    description:
+      "orchestrator 生成 friendly_view 时抛错，plan.friendly_view 回退为 null；前端会显示裸 plan 段。查看后端日志定位 build_friendly_view 的异常。",
+    tone: "warning",
+    category: "planner",
+  },
 };
 
 /**

@@ -23,6 +23,7 @@ from nexus_app.retrieval.executors import (
     create_major_distribution_retrieval_executor,
     create_unstructured_retrieval_executor,
 )
+from nexus_app.retrieval.friendly_view import build_friendly_view
 from nexus_app.retrieval.intent import (
     IntentRecognitionService,
     create_intent_recognition_service,
@@ -165,6 +166,25 @@ class RetrievalOrchestrator:
         )
 
     def _build_plan_for_intent(
+        self,
+        query: str,
+        intent: RetrievalIntent,
+    ) -> tuple[RetrievalPlan, ConversationStep, list[str]]:
+        plan, step, warnings = self._build_plan_raw(query, intent)
+        # v1.3 §5.5 R3-c — friendly_view is a mandatory part of the
+        # response shape as of PR #11.  All three plan paths (direct,
+        # planner, fallback) route through the same builder so the
+        # frontend never has to render an empty-state fallback.  Build
+        # failures fall through with friendly_view=None + a warning so
+        # a builder bug can't wipe the whole plan.
+        try:
+            plan.friendly_view = build_friendly_view(intent, plan)
+        except Exception:  # noqa: BLE001 — friendly_view must never abort retrieval
+            warnings = list(warnings)
+            warnings.append("friendly_view_build_failed")
+        return plan, step, warnings
+
+    def _build_plan_raw(
         self,
         query: str,
         intent: RetrievalIntent,
