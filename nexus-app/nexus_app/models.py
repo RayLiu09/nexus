@@ -1255,8 +1255,9 @@ class KnowledgeEmbeddingPgvector(TimestampMixin, Base):
 #   - one `job_demand_dataset` per `normalized_ref_id` (B4 dataset-level
 #     idempotency; re-runs delete+reinsert via the cascade FKs below)
 #   - records cascade-delete from dataset; requirement-items cascade from both
-#   - dedup uses `record_fingerprint` (sha256 of NFKC-normalised company /
-#     title / city / source_record_key) — B5 reads the same field
+    #   - source-row dedup uses `record_fingerprint` (sha256 of NFKC-normalised
+    #     company / title / city / source_record_key); B4 also keeps one
+    #     effective non-empty company/title posting per dataset for B5 input
 #   - JSON columns mirror `governance` / `quality` / `lineage` style on
 #     NormalizedAssetRef (works on Postgres JSONB AND the SQLite test harness)
 
@@ -1397,7 +1398,7 @@ class JobDemandRecord(TimestampMixin, Base):
         JSON, default=dict, nullable=False,
         comment="Closed vocabulary (§四 of b4/b6 freeze): location_unparsed, "
                 "published_at_unparsed, placeholder_row_dropped, "
-                "duplicate_fingerprint, missing_required_field, "
+                "duplicate_company_job, duplicate_fingerprint, missing_required_field, "
                 "unknown_source_channel — never extend without a fresh freeze"
     )
     trace: Mapped[dict[str, Any]] = mapped_column(

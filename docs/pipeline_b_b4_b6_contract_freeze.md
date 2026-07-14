@@ -171,6 +171,13 @@ norm(x) = lower(strip(unicode_nfkc(x || "")))
 - 哈希长度 64 字符，写入 `TEXT NOT NULL`
 - 唯一约束 `uq_jdr_dataset_fingerprint (dataset_id, record_fingerprint)`：dataset 内去重；不同 dataset 允许相同 fingerprint
 
+在源行 fingerprint 之外，B4 写入前执行公司岗位清洗：仅当 `company_name` 和
+`job_title` 均非空时按其 NFKC 规范化值分组。同一组若存在可解析
+`source_published_at`，保留发布时间最新的记录；若全组都没有可解析发布时间，
+保留源输入顺序第一条。公司名为空的记录不参与该规则，以避免将不同未知企业的
+岗位错误合并。被清洗掉的记录不写入 `job_demand_record`，并通过
+`duplicate_company_job` 计入 dataset 的 `duplicate_count` 与 `quality_summary`。
+
 ### 3.2 `occupational_*` 唯一约束
 
 - `uq_owt_analysis_task_code (analysis_id, task_code)`：同 analysis 内 task_code 不重复
@@ -199,6 +206,7 @@ writer 在写入时按下列固定 key 累积 `quality_flags` JSONB；下游 con
 | `location_unparsed`                   | B4     | `city` 原文存在但 `region` 解析失败                                          | 不阻塞                            |
 | `published_at_unparsed`               | B4     | `source_published_at` 原文存在但 ISO 解析失败                                | 不阻塞                            |
 | `placeholder_row_dropped`             | B4     | 行命中占位规则被丢弃；`invalid_count++`                                      | 不阻塞                            |
+| `duplicate_company_job`               | B4     | 同 dataset 内同一非空公司名和岗位名的清洗重复；有有效发布时间取最新，否则取源顺序第一条；`duplicate_count++` | 不阻塞 |
 | `duplicate_fingerprint`               | B4     | 行 fingerprint 与同 dataset 已存在记录冲突；`duplicate_count++`              | 不阻塞                            |
 | `missing_required_field`              | B4     | 必填字段缺失（`job_title` 等）；`invalid_count++`                            | 不阻塞                            |
 | `unknown_source_channel`              | B4     | dataset `source_channel` 不在已知集合                                        | 不阻塞                            |

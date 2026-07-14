@@ -30,6 +30,7 @@ from sqlalchemy import delete, select
 from nexus_app import models
 from nexus_app.audit import write_audit
 from nexus_app.domain_normalize.fingerprint import (
+    compute_job_demand_company_job_key,
     compute_job_demand_record_fingerprint,
 )
 from nexus_app.domain_normalize.schemas import DomainNormalizeResult
@@ -70,6 +71,7 @@ QUALITY_FLAG_KEYS: frozenset[str] = frozenset({
     "location_unparsed",
     "published_at_unparsed",
     "placeholder_row_dropped",
+    "duplicate_company_job",
     "duplicate_fingerprint",
     "missing_required_field",
     "unknown_source_channel",
@@ -312,6 +314,56 @@ def _aggregate_quality_summary(
     return dict(counts)
 
 
+def _company_job_duplicate_winners(
+    records_payload: list[Any],
+) -> dict[int, int]:
+    """Choose one effective source row per company-and-role pair.
+
+    The writer's exact fingerprint remains a separate source-row invariant.
+    This pre-cleaning pass is intentionally in-memory and source-order stable:
+    latest valid publication time wins; when no valid times exist, the first
+    source row wins. Placeholder/invalid-title rows do not compete with valid
+    postings, because they will be handled by the existing cleanup pass.
+    """
+    winners: dict[tuple[str, str], tuple[int, datetime | None]] = {}
+    for index, raw_record in enumerate(records_payload):
+        if not isinstance(raw_record, dict) or _classify_placeholder(raw_record) is not None:
+            continue
+        job_title = _string_or_none(raw_record.get("job_title"))
+        if job_title is None:
+            continue
+        key = compute_job_demand_company_job_key(
+            {"company_name": _string_or_none(raw_record.get("company_name")), "job_title": job_title}
+        )
+        if key is None:
+            continue
+        published_at, _ = _parse_published_at(raw_record.get("source_published_at"))
+        current = winners.get(key)
+        if current is None:
+            winners[key] = (index, published_at)
+            continue
+        current_index, current_published_at = current
+        if published_at is not None and (
+            current_published_at is None or published_at > current_published_at
+        ):
+            winners[key] = (index, published_at)
+
+    winner_indexes = {index for index, _ in winners.values()}
+    duplicate_winners: dict[int, int] = {}
+    for index, raw_record in enumerate(records_payload):
+        if not isinstance(raw_record, dict) or _classify_placeholder(raw_record) is not None:
+            continue
+        job_title = _string_or_none(raw_record.get("job_title"))
+        if job_title is None:
+            continue
+        key = compute_job_demand_company_job_key(
+            {"company_name": _string_or_none(raw_record.get("company_name")), "job_title": job_title}
+        )
+        if key is not None and index not in winner_indexes:
+            duplicate_winners[index] = winners[key][0]
+    return duplicate_winners
+
+
 # ----- Writer entrypoint -----------------------------------------------------
 
 
@@ -412,8 +464,9 @@ def write(
     persisted_records: list[models.JobDemandRecord] = []
 
     total_record_payloads = len(records_payload)
+    company_job_duplicate_winners = _company_job_duplicate_winners(records_payload)
 
-    for raw_record in records_payload:
+    for record_index, raw_record in enumerate(records_payload):
         if not isinstance(raw_record, dict):
             invalid_count += 1
             # We don't have a place to hang the flag (no row created), so
@@ -489,6 +542,26 @@ def write(
             "source_record_key": source_record_key,
         }
         fingerprint = compute_job_demand_record_fingerprint(fp_source)
+        company_job_winner_index = company_job_duplicate_winners.get(record_index)
+        if company_job_winner_index is not None:
+            winner_record = records_payload[company_job_winner_index]
+            winner_fingerprint = compute_job_demand_record_fingerprint({
+                "company_name": _string_or_none(winner_record.get("company_name")),
+                "job_title": _string_or_none(winner_record.get("job_title")),
+                "city": _string_or_none(winner_record.get("city")),
+                "source_record_key": _string_or_none(winner_record.get("source_record_key")),
+            })
+            duplicate_count += 1
+            duplicate_flags: dict[str, Any] = {}
+            _add_flag(
+                duplicate_flags,
+                "duplicate_fingerprint"
+                if fingerprint == winner_fingerprint
+                else "duplicate_company_job",
+            )
+            per_record_flag_dicts.append(duplicate_flags)
+            continue
+
         if fingerprint in seen_fingerprints:
             duplicate_count += 1
             duplicate_flags: dict[str, Any] = {}

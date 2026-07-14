@@ -290,6 +290,64 @@ class TestFieldMapping:
 
 
 class TestFingerprintDedup:
+    def test_same_company_and_role_keeps_newest_valid_publish_time(self, session):
+        ref = _seed_normalized_ref(session)
+        result = write(session, ref, _record_body(records=[
+            _sample_record(key="old", source_published_at="2024-01-01T00:00:00+00:00"),
+            _sample_record(key="new", source_published_at="2024-03-01T00:00:00+00:00"),
+        ]))
+
+        rows = list(session.scalars(select(models.JobDemandRecord)).all())
+        dataset = session.get(models.JobDemandDataset, result.dataset_id)
+        assert [row.source_record_key for row in rows] == ["new"]
+        assert dataset.duplicate_count == 1
+        assert dataset.quality_summary["duplicate_company_job"] == 1
+
+    def test_same_company_and_role_without_valid_dates_keeps_first_source_row(self, session):
+        ref = _seed_normalized_ref(session)
+        result = write(session, ref, _record_body(records=[
+            _sample_record(key="first", source_published_at=None),
+            _sample_record(key="bad-date", source_published_at="not-a-date"),
+            _sample_record(key="second", source_published_at=None),
+        ]))
+
+        rows = list(session.scalars(select(models.JobDemandRecord)).all())
+        dataset = session.get(models.JobDemandDataset, result.dataset_id)
+        assert [row.source_record_key for row in rows] == ["first"]
+        assert dataset.duplicate_count == 2
+        assert dataset.quality_summary["duplicate_company_job"] == 2
+
+    def test_same_publish_time_keeps_first_source_row_deterministically(self, session):
+        ref = _seed_normalized_ref(session)
+        published_at = "2024-03-01T00:00:00+00:00"
+        write(session, ref, _record_body(records=[
+            _sample_record(key="first", source_published_at=published_at),
+            _sample_record(key="second", source_published_at=published_at),
+        ]))
+
+        row = session.scalar(select(models.JobDemandRecord))
+        assert row.source_record_key == "first"
+
+    def test_same_source_key_with_newer_publish_time_keeps_newest_record(self, session):
+        ref = _seed_normalized_ref(session)
+        write(session, ref, _record_body(records=[
+            _sample_record(key="same-source", source_published_at="2024-01-01T00:00:00+00:00"),
+            _sample_record(key="same-source", source_published_at="2024-03-01T00:00:00+00:00"),
+        ]))
+
+        row = session.scalar(select(models.JobDemandRecord))
+        assert row.source_published_at.month == 3
+
+    def test_blank_company_rows_do_not_merge(self, session):
+        ref = _seed_normalized_ref(session)
+        result = write(session, ref, _record_body(records=[
+            _sample_record(key="first", company_name=None),
+            _sample_record(key="second", company_name=None),
+        ]))
+
+        assert result.records_written == 2
+        assert session.get(models.JobDemandDataset, result.dataset_id).duplicate_count == 0
+
     def test_duplicate_records_drop_after_first(self, session):
         ref = _seed_normalized_ref(session)
         body = _record_body(
@@ -330,7 +388,7 @@ class TestFingerprintDedup:
         body = _record_body(
             records=[
                 _sample_record(key="row-1"),
-                _sample_record(key="row-2"),
+                _sample_record(key="row-2", company_name="ACME-2"),
             ]
         )
         write(session, ref, body)
@@ -502,6 +560,7 @@ class TestQualityFlags:
             "location_unparsed",
             "published_at_unparsed",
             "placeholder_row_dropped",
+            "duplicate_company_job",
             "duplicate_fingerprint",
             "missing_required_field",
             "unknown_source_channel",
@@ -544,8 +603,8 @@ class TestQualityFlags:
         body = _record_body(
             records=[
                 _sample_record(key="r1", source_published_at="bad-date"),
-                _sample_record(key="r2", source_published_at="also-bad"),
-                _sample_record(key="r3"),
+                _sample_record(key="r2", company_name="ACME-2", source_published_at="also-bad"),
+                _sample_record(key="r3", company_name="ACME-3"),
             ]
         )
         result = write(session, ref, body)
@@ -600,7 +659,7 @@ class TestAuditEvents:
         body = _record_body(
             records=[
                 _sample_record(key="a"),
-                _sample_record(key="b"),
+                _sample_record(key="b", company_name="ACME-2"),
                 _sample_record(key="a"),  # duplicate
                 {"trace": {}},  # empty / placeholder
             ]

@@ -64,4 +64,20 @@ def compute_job_demand_record_fingerprint(record: Mapping[str, Any]) -> str:
     return hashlib.sha256(joined.encode("utf-8")).hexdigest()
 
 
-__all__ = ["compute_job_demand_record_fingerprint"]
+def compute_job_demand_company_job_key(record: Mapping[str, Any]) -> tuple[str, str] | None:
+    """Return the business cleaning key for a company-and-role posting.
+
+    Empty company names are deliberately excluded. Treating all missing-company
+    rows as one employer would silently merge unrelated postings.
+    """
+    company_name = _norm(record.get("company_name"))
+    job_title = _norm(record.get("job_title"))
+    if not company_name or not job_title:
+        return None
+    return company_name, job_title
+
+
+__all__ = [
+    "compute_job_demand_company_job_key",
+    "compute_job_demand_record_fingerprint",
+]
