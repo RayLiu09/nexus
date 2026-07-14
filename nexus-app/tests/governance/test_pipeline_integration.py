@@ -969,6 +969,75 @@ class TestKnowledgeEmissionsEdgeCases:
         chunks = stages.run_knowledge_chunking(self._ctx(session, ref), version, ref)
         assert chunks == []
 
+    def test_missing_emissions_continue_after_recovery(self, session, make_ai_run, monkeypatch):
+        """A historical skipped job can catch up after deterministic recovery."""
+        from nexus_app.pipeline import stages
+
+        _, version, ref = make_ai_run(ai_output={"classification": "D4",
+                                                 "level": "L1", "tags": [],
+                                                 "org_scope": "all",
+                                                 "confidence": 0.9})
+        version.version_status = AssetVersionStatus.AVAILABLE
+        ref.metadata_summary = None
+        ctx = self._ctx(session, ref)
+        self._put_minimal_textbook_payload(ctx, ref)
+        monkeypatch.setattr(
+            stages,
+            "_recover_knowledge_emissions",
+            lambda _ctx, _ref: (
+                [{"code": "course_textbook", "primary": True}],
+                {"recovery": "materialized", "ai_run_id": "late-run", "emission_count": 1},
+            ),
+        )
+
+        chunks = stages.run_knowledge_chunking(ctx, version, ref)
+
+        assert chunks
+        stage = session.scalars(
+            select(models.JobStage).where(
+                models.JobStage.job_id == ctx.job.id,
+                models.JobStage.stage_name == "knowledge_chunking",
+            ).order_by(models.JobStage.created_at.desc())
+        ).first()
+        assert stage is not None
+        assert stage.status == StageStatus.SUCCEEDED
+        assert stage.detail["recovery"] == "materialized"
+
+    def test_graph_emission_queues_one_idempotent_build(self, session, make_ai_run):
+        from nexus_app.pipeline import stages
+
+        _, version, ref = make_ai_run(ai_output={"classification": "D4",
+                                                 "level": "L1", "tags": [],
+                                                 "org_scope": "all",
+                                                 "confidence": 0.9})
+        session.add(models.KnowledgeChunk(
+            normalized_ref_id=ref.id,
+            knowledge_type_code="course_standard_authoring_process",
+            chunk_type=ChunkType.PROCESS_STEP,
+            chunking_strategy="process_step_extract",
+            source_kind="extracted_from_normalized",
+            chunk_index=0,
+            content="培养规格要求学生具备跨境电商运营能力。",
+            chunk_metadata={},
+        ))
+        session.flush()
+        ctx = self._ctx(session, ref)
+        emissions = [
+            {"code": "course_standard_authoring_process", "primary": True},
+            {"code": "course_knowledge_graph", "primary": False},
+        ]
+
+        queued = stages._enqueue_evidence_graph_build_if_requested(ctx, ref, emissions)
+        reused = stages._enqueue_evidence_graph_build_if_requested(ctx, ref, emissions)
+
+        assert queued is not None
+        assert queued["status"] == "queued"
+        assert reused is not None
+        assert reused["status"] == "existing"
+        assert session.query(models.KnowledgeGraphBuild).filter_by(
+            normalized_ref_id=ref.id
+        ).count() == 1
+
     def _put_minimal_textbook_payload(self, ctx, ref) -> None:
         normalized_key = ref.object_uri.split("/", 3)[-1]
         body_markdown = "\n".join([

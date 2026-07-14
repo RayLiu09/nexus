@@ -173,11 +173,16 @@ def _evaluate_co_emission_condition(
         return 0.3
 
     if condition == "contains_concept_relations":
-        # Check if content suggests concept relationships
+        # Teaching standards normally express their relation-bearing structure
+        # through occupational roles, objectives, specifications and curricula,
+        # not the literal phrase "knowledge graph".
         content_snippet = ref_dict.get("content_snippet", "").lower()
         summary = ref_dict.get("summary", "").lower()
-        if any(kw in content_snippet or kw in summary for kw in ["概念", "关系", "知识图谱", "依赖"]):
-            return 0.7
+        if any(kw in content_snippet or kw in summary for kw in [
+            "概念", "关系", "知识图谱", "依赖", "职业面向", "培养目标",
+            "培养规格", "课程设置", "课程体系", "岗位", "能力要求",
+        ]):
+            return 0.75
         return 0.3
 
     if condition == "contains_process_steps":

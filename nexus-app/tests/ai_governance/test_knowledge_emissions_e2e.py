@@ -15,7 +15,10 @@ from pathlib import Path
 
 import pytest
 
-from nexus_app.ai_governance.knowledge_type_inference import infer_knowledge_emissions
+from nexus_app.ai_governance.knowledge_type_inference import (
+    _evaluate_co_emission_condition,
+    infer_knowledge_emissions,
+)
 from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
 
 
@@ -228,6 +231,21 @@ class TestKnowledgeEmissions:
 
 
 class TestCoEmission:
+    def test_teaching_standard_structure_is_relation_bearing_evidence(self):
+        score = _evaluate_co_emission_condition(
+            "contains_concept_relations",
+            {},
+            {
+                "content_snippet": (
+                    "职业面向跨境电商运营岗位，培养规格包含语言能力、"
+                    "数字营销能力，课程设置覆盖实训课程。"
+                ),
+                "summary": "",
+            },
+        )
+
+        assert score == pytest.approx(0.75)
+
     def test_classification_side_co_emission_triggers(self, tmp_path):
         """co_emission_rules live on classification (§12). Triggers when
         the condition evaluates ≥ min_confidence against the AI run."""

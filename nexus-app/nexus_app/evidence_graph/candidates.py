@@ -52,19 +52,23 @@ def select_graph_candidate_chunks(
     normalized_ref_id: str,
     graph_profile: str,
 ) -> CandidateSelectionResult:
-    """Select all graph-eligible semantic chunks for a normalized ref.
+    """Select all graph-eligible source-grounded chunks for a normalized ref.
 
     The DB query is intentionally scoped only by normalized ref and semantic
     chunk type. Profile/role/noise filtering happens after loading the complete
     candidate universe, so callers cannot accidentally turn this into a Top-K
-    or current-page selection path.
+    or current-page selection path. Process-step chunks are also admissible:
+    teaching standards encode their governed clauses as process steps and each
+    remains source-grounded through its locator.
     """
     config = get_graph_profile_config(graph_profile)
     chunks = list(session.scalars(
         select(models.KnowledgeChunk)
         .where(
             models.KnowledgeChunk.normalized_ref_id == normalized_ref_id,
-            models.KnowledgeChunk.chunk_type == ChunkType.SEMANTIC_BLOCK,
+            models.KnowledgeChunk.chunk_type.in_(
+                (ChunkType.SEMANTIC_BLOCK, ChunkType.PROCESS_STEP)
+            ),
         )
         .order_by(models.KnowledgeChunk.chunk_index.asc())
     ))
@@ -77,7 +81,7 @@ def select_graph_candidate_chunks(
         if reason is not None:
             skipped_by_reason[reason] = skipped_by_reason.get(reason, 0) + 1
             continue
-        anchor_role = str(chunk.chunk_metadata.get("anchor_role"))
+        anchor_role = _anchor_role_for(chunk)
         route = config.route_for(anchor_role)
         if route is None:
             skipped_by_reason["missing_extractor_route"] = (
@@ -116,11 +120,9 @@ def _skip_reason(
     if _is_task_outline_not_graph_candidate(metadata):
         return "task_outline_not_graph_candidate"
 
-    anchor_role = metadata.get("anchor_role")
+    anchor_role = _anchor_role_for(chunk)
     if not anchor_role:
         return "missing_anchor_role"
-    anchor_role = str(anchor_role)
-
     if anchor_role in config.skipped_anchor_roles:
         return "skipped_anchor_role"
     if anchor_role not in config.accepted_anchor_roles:
@@ -131,6 +133,15 @@ def _skip_reason(
     if anchor_role == AnchorRole.IMAGE and _is_non_semantic_image(metadata, content):
         return "non_semantic_image"
 
+    return None
+
+
+def _anchor_role_for(chunk: models.KnowledgeChunk) -> str | None:
+    anchor_role = (chunk.chunk_metadata or {}).get("anchor_role")
+    if anchor_role:
+        return str(anchor_role)
+    if chunk.chunk_type == ChunkType.PROCESS_STEP:
+        return str(AnchorRole.BODY)
     return None
 
 

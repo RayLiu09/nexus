@@ -325,6 +325,34 @@ def test_textbook_profile_selects_full_ref_semantic_textbook_chunks(session):
     assert body.extraction_method == "llm"
 
 
+def test_standard_profile_admits_source_grounded_process_steps(session):
+    """Teaching standards use process-step chunks, not semantic-repack rows."""
+    ref = _seed_ref(session, ref_id="ref-teaching-standard")
+    _add_chunk(
+        session,
+        ref_id=ref.id,
+        chunk_id="chunk-standard-process-step",
+        index=1,
+        anchor_role=None,
+        content="培养规格要求学生具备跨境电商运营、数据分析和合规能力。",
+        chunk_type=ChunkType.PROCESS_STEP,
+    )
+    session.commit()
+
+    result = select_graph_candidate_chunks(
+        session,
+        normalized_ref_id=ref.id,
+        graph_profile="standard_spec",
+    )
+
+    assert result.total_semantic_chunk_count == 1
+    assert result.selected_chunk_count == 1
+    candidate = result.candidate_chunks[0]
+    assert candidate.chunk_id == "chunk-standard-process-step"
+    assert candidate.anchor_role == "body"
+    assert candidate.extractor_name == "BodyLLMExtractor"
+
+
 def test_textbook_profile_skips_task_outline_chunks(session):
     ref = _seed_ref(session, ref_id="ref-textbook-task-outline")
     _add_chunk(

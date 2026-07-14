@@ -413,9 +413,11 @@ Asset Pipeline → normalized_asset_ref (stable contract)
   windows, source block ids, and locators; official graph nodes/facts/edges
   must be evidence-bound through `knowledge_graph_evidence`.
 - Build submission through internal APIs creates or refreshes graph build
-  envelopes and candidate summaries only; asynchronous graph extraction,
-  validation, and persistence remain knowledge-processing work outside the
-  request handler.
+  envelopes and candidate summaries. A completed knowledge-pipeline stage may
+  enqueue the same idempotent envelope only when a rule-derived
+  `knowledge_emissions` entry explicitly requests graph construction;
+  asynchronous graph extraction, validation, and persistence remain
+  knowledge-processing work outside the request handler.
 
 ## Core Flows
 

@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from nexus_app import models
 from nexus_app.audit import write_audit
 from nexus_app.enums import (
+    AIGovernanceRunValidationStatus,
     AssetKind,
     AssetVersionStatus,
     AuditEventType,
@@ -1310,6 +1311,154 @@ def _knowledge_chunking_gate(
     }
 
 
+def _recover_knowledge_emissions(
+    ctx: PipelineContext,
+    normalized_ref: models.NormalizedAssetRef,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Re-materialize deterministic emissions from the latest valid AI run.
+
+    A historical worker could reach chunking before a governance write became
+    durable.  Retrying that job must not leave an index-admitted ref permanently
+    unsearchable merely because its original stage recorded a skip.
+    """
+    from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
+    from nexus_app.ai_governance.services import AIGovernanceService
+
+    ai_run = ctx.session.scalars(
+        select(models.AIGovernanceRun)
+        .where(
+            models.AIGovernanceRun.normalized_ref_id == normalized_ref.id,
+            models.AIGovernanceRun.validation_status
+            == AIGovernanceRunValidationStatus.SCHEMA_VALID,
+            models.AIGovernanceRun.ai_output.is_not(None),
+        )
+        .order_by(models.AIGovernanceRun.created_at.desc())
+        .limit(1)
+    ).first()
+    if ai_run is None:
+        return [], {
+            "recovery": "unavailable",
+            "reason": "no schema-valid AI governance run",
+        }
+
+    registry = GovernanceRulesRegistry()
+    try:
+        registry.load(ctx.session)
+        emissions = AIGovernanceService().write_knowledge_emissions(
+            ctx.session, ai_run, registry
+        )
+    except Exception as exc:
+        logger.warning(
+            "Unable to recover knowledge emissions for ref %s: %s",
+            normalized_ref.id,
+            exc,
+        )
+        return [], {
+            "recovery": "failed",
+            "ai_run_id": ai_run.id,
+            "reason": f"{type(exc).__name__}: {exc}"[:500],
+        }
+
+    ctx.session.refresh(normalized_ref)
+    return emissions, {
+        "recovery": "materialized" if emissions else "no_applicable_emission",
+        "ai_run_id": ai_run.id,
+        "emission_count": len(emissions),
+    }
+
+
+def _enqueue_evidence_graph_build_if_requested(
+    ctx: PipelineContext,
+    normalized_ref: models.NormalizedAssetRef,
+    emissions: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Queue, but never execute, a graph build for an explicit graph emission."""
+    graph_emissions = {
+        emission.get("code") for emission in emissions if isinstance(emission, dict)
+    }
+    if "course_knowledge_graph" not in graph_emissions:
+        return None
+
+    from nexus_app.evidence_graph import (
+        KnowledgeGraphBuildStatus,
+        create_graph_build,
+        get_existing_graph_build,
+        select_graph_candidate_chunks,
+    )
+
+    graph_profile = "standard_spec"
+    strategy_version = "evidence_kg.v1"
+    selection = select_graph_candidate_chunks(
+        ctx.session,
+        normalized_ref_id=normalized_ref.id,
+        graph_profile=graph_profile,
+    )
+    if selection.selected_chunk_count == 0:
+        return {
+            "status": "skipped",
+            "reason": "no graph candidate chunks",
+            "graph_profile": graph_profile,
+            "candidate_count": 0,
+        }
+
+    existing = get_existing_graph_build(
+        ctx.session,
+        normalized_ref_id=normalized_ref.id,
+        graph_profile=graph_profile,
+        strategy_version=strategy_version,
+    )
+    if existing is not None:
+        return {
+            "status": "existing",
+            "build_id": existing.id,
+            "graph_profile": graph_profile,
+            "candidate_count": selection.selected_chunk_count,
+        }
+
+    # A terminal zero-row build is intentionally not reusable, but the active
+    # build-key uniqueness constraint still requires it to be retired before
+    # this recovered pipeline can enqueue a fresh attempt.
+    nonreusable_builds = list(ctx.session.scalars(
+        select(models.KnowledgeGraphBuild).where(
+            models.KnowledgeGraphBuild.normalized_ref_id == normalized_ref.id,
+            models.KnowledgeGraphBuild.graph_type == "evidence_grounded_kg",
+            models.KnowledgeGraphBuild.graph_profile == graph_profile,
+            models.KnowledgeGraphBuild.strategy_version == strategy_version,
+            models.KnowledgeGraphBuild.status
+            != KnowledgeGraphBuildStatus.DEPRECATED,
+        )
+    ))
+    for nonreusable_build in nonreusable_builds:
+        nonreusable_build.status = KnowledgeGraphBuildStatus.DEPRECATED
+    if nonreusable_builds:
+        ctx.session.flush()
+
+    build = create_graph_build(
+        ctx.session,
+        normalized_ref_id=normalized_ref.id,
+        graph_profile=graph_profile,
+        strategy_version=strategy_version,
+        source_chunk_count=selection.total_semantic_chunk_count,
+        candidate_count=selection.selected_chunk_count,
+        status=KnowledgeGraphBuildStatus.PENDING,
+        quality_summary={
+            "candidate_selection": {
+                "selected_chunk_count": selection.selected_chunk_count,
+                "skipped_chunk_count": selection.skipped_chunk_count,
+                "by_anchor_role": selection.by_anchor_role,
+                "skipped_by_reason": selection.skipped_by_reason,
+            },
+            "pipeline_submit": "explicit_course_knowledge_graph_emission",
+        },
+    )
+    return {
+        "status": "queued",
+        "build_id": build.id,
+        "graph_profile": graph_profile,
+        "candidate_count": selection.selected_chunk_count,
+    }
+
+
 def run_knowledge_chunking(
     ctx: PipelineContext,
     version: models.AssetVersion,
@@ -1336,10 +1485,14 @@ def run_knowledge_chunking(
 
     emissions = (normalized_ref.metadata_summary or {}).get("knowledge_emissions", [])
     if not emissions:
+        emissions, recovery_detail = _recover_knowledge_emissions(ctx, normalized_ref)
+    else:
+        recovery_detail = {"recovery": "not_needed"}
+    if not emissions:
         reason = "no knowledge_emissions on normalized_ref"
         _add_stage(ctx, "knowledge_chunking", StageStatus.SKIPPED,
-                   {"reason": reason}, started_at=started_at)
-        _audit_chunking_skipped(ctx, normalized_ref, reason)
+                   {"reason": reason, **recovery_detail}, started_at=started_at)
+        _audit_chunking_skipped(ctx, normalized_ref, reason, recovery_detail)
         return []
 
     # Idempotency: if chunks already exist for this ref (job retry), reuse them.
@@ -1360,6 +1513,21 @@ def run_knowledge_chunking(
             },
             started_at=started_at,
         )
+        graph_detail = _enqueue_evidence_graph_build_if_requested(
+            ctx, normalized_ref, emissions
+        )
+        if graph_detail is not None:
+            _add_stage(
+                ctx,
+                "evidence_graph_submit",
+                (
+                    StageStatus.SUCCEEDED
+                    if graph_detail["status"] in {"queued", "existing"}
+                    else StageStatus.SKIPPED
+                ),
+                graph_detail,
+                started_at=started_at,
+            )
         return existing
 
     from nexus_app.knowledge.services import run_knowledge_pipeline
@@ -1400,10 +1568,26 @@ def run_knowledge_chunking(
             "normalized_ref_id": normalized_ref.id,
             "emission_count": len(emissions),
             "chunk_count": len(chunks),
+            **recovery_detail,
             **admission_detail,
         },
         started_at=started_at,
     )
+    graph_detail = _enqueue_evidence_graph_build_if_requested(
+        ctx, normalized_ref, emissions
+    )
+    if graph_detail is not None:
+        _add_stage(
+            ctx,
+            "evidence_graph_submit",
+            (
+                StageStatus.SUCCEEDED
+                if graph_detail["status"] in {"queued", "existing"}
+                else StageStatus.SKIPPED
+            ),
+            graph_detail,
+            started_at=started_at,
+        )
     return chunks
 
 

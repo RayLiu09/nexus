@@ -50,9 +50,10 @@ Role constraints:
   the current slices add evidence-bound graph build storage over a complete
   `normalized_asset_ref`, profile-based chunk selection, extractor schemas,
   graph persistence, and internal `/internal/v1/knowledge-graphs/*` APIs. These
-  APIs create build envelopes and expose graph reads; they do not execute LLM
-  extraction inline. Console rendering and public/open graph APIs remain later
-  slices.
+  APIs create build envelopes and expose graph reads; a rule-derived graph
+  knowledge emission may enqueue the same idempotent envelope after source
+  chunks are constructed. Neither path executes LLM extraction inline. Console
+  rendering and public/open graph APIs remain later slices.
 - `metadata_enrich` auto-tagging: targets normalized assets (not chunks); high-confidence tags auto-commit (audit logged); low-confidence tags enter human review queue.
 - RBAC, org scope filtering, data-level visibility, masking for L3/L4 exceptions, audit. ABAC is an extension point.
 - `nexus-console` P0 pages and `/v1` P0 APIs.
