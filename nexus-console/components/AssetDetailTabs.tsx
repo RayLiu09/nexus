@@ -12,6 +12,7 @@ import { JobDemandKnowledgeView } from "@/app/assets/[assetId]/_components/JobDe
 import { AbilityAnalysisKnowledgeView } from "@/app/assets/[assetId]/_components/AbilityAnalysisKnowledgeView";
 import { MajorDistributionKnowledgeView } from "@/app/assets/[assetId]/_components/MajorDistributionKnowledgeView";
 import { MajorProfileKnowledgeView } from "@/app/assets/[assetId]/_components/MajorProfileKnowledgeView";
+import { TeachingStandardKnowledgeView } from "@/app/assets/[assetId]/_components/TeachingStandardKnowledgeView";
 import { GenericRecordKnowledgeView } from "@/app/assets/[assetId]/_components/GenericRecordKnowledgeView";
 import { resolveRecordView } from "@/lib/api";
 import {
@@ -233,6 +234,9 @@ function KnowledgeChunksTab({
   const view = resolveRecordView(latestRef);
   if (view === "major_profile" && latestRef) {
     return <MajorProfileKnowledgeView normalizedRefId={latestRef.id} />;
+  }
+  if (view === "teaching_standard" && latestRef) {
+    return <TeachingStandardKnowledgeView normalizedRefId={latestRef.id} />;
   }
   if (view === "job_demand" && latestRef) {
     return <JobDemandKnowledgeView normalizedRefId={latestRef.id} />;

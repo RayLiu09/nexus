@@ -26,7 +26,7 @@ import {
   type CapabilityGraphStagingNode,
 } from "@/lib/api";
 
-type BuildType = "job_demand" | "ability_analysis";
+type BuildType = "job_demand" | "ability_analysis" | "teaching_standard";
 
 type Props = {
   normalizedRefId: string;
@@ -59,6 +59,7 @@ const MAX_EDGES_PER_TYPE = 1600;
 const NODE_TYPES_BY_BUILD: Record<BuildType, string[]> = {
   job_demand: ["JobRole", "Skill", "ProfessionalLiteracy", "WorkContent"],
   ability_analysis: ["WorkTask", "WorkContent", "Ability"],
+  teaching_standard: ["Major", "OccupationalDomain", "TypicalWorkTask", "SkillKnowledgeRequirement"],
 };
 
 const EDGE_TYPES_BY_BUILD: Record<BuildType, string[]> = {
@@ -73,6 +74,11 @@ const EDGE_TYPES_BY_BUILD: Record<BuildType, string[]> = {
     "WORK_CONTENT_REQUIRES_ABILITY",
     "ABILITY_MAPS_TO_SKILL",
     "ABILITY_DERIVED_FROM_JOB_REQUIREMENT",
+  ],
+  teaching_standard: [
+    "MAJOR_HAS_OCCUPATIONAL_DOMAIN",
+    "OCCUPATIONAL_DOMAIN_HAS_TYPICAL_WORK_TASK",
+    "OCCUPATIONAL_DOMAIN_HAS_SKILL_KNOWLEDGE_REQUIREMENT",
   ],
 };
 
@@ -94,6 +100,10 @@ const NODE_LABELS: Record<string, string> = {
   AbilityGeneral: "通用能力",
   AbilitySocial: "社会能力",
   AbilityDevelopment: "发展能力",
+  Major: "专业",
+  OccupationalDomain: "职业领域",
+  TypicalWorkTask: "典型工作任务",
+  SkillKnowledgeRequirement: "主要教学内容与要求",
 };
 
 const NODE_COLORS: Record<string, string> = {
@@ -114,6 +124,10 @@ const NODE_COLORS: Record<string, string> = {
   AbilityGeneral: "#0284c7",
   AbilitySocial: "#ea580c",
   AbilityDevelopment: "#dc2626",
+  Major: "#2563eb",
+  OccupationalDomain: "#0d9488",
+  TypicalWorkTask: "#d97706",
+  SkillKnowledgeRequirement: "#7c3aed",
 };
 
 const EDGE_LABELS: Record<string, string> = {
@@ -127,6 +141,9 @@ const EDGE_LABELS: Record<string, string> = {
   WORK_CONTENT_REQUIRES_ABILITY: "工作内容要求能力",
   ABILITY_DERIVED_FROM_JOB_REQUIREMENT: "能力来源于岗位需求",
   ABILITY_MAPS_TO_SKILL: "能力映射技能",
+  MAJOR_HAS_OCCUPATIONAL_DOMAIN: "专业包含职业领域",
+  OCCUPATIONAL_DOMAIN_HAS_TYPICAL_WORK_TASK: "职业领域包含典型工作任务",
+  OCCUPATIONAL_DOMAIN_HAS_SKILL_KNOWLEDGE_REQUIREMENT: "职业领域包含主要教学内容与要求",
 };
 
 // v1 岗位过滤 sentinel — Antd Select 需要一个可比较的常量值来表示"全部岗位"。
@@ -642,8 +659,8 @@ const EchartsGraph = forwardRef<GraphImageHandle, {
   }, [displayGraph.nodes]);
 
   const option = useMemo(
-    () => buildGraphOption(displayGraph.nodes, displayGraph.edges, showEdgeLabels),
-    [displayGraph.edges, displayGraph.nodes, showEdgeLabels],
+    () => buildGraphOption(displayGraph.nodes, displayGraph.edges, showEdgeLabels, buildType),
+    [buildType, displayGraph.edges, displayGraph.nodes, showEdgeLabels],
   );
 
   useImperativeHandle(ref, () => ({
@@ -711,6 +728,7 @@ function buildGraphOption(
   nodes: GraphDisplayNode[],
   edges: GraphDisplayEdge[],
   showEdgeLabels: boolean,
+  buildType: BuildType,
 ): EChartsOption {
   const nodeIds = new Set(nodes.map((node) => node.id));
   const drawableEdges = edges.filter(
@@ -733,6 +751,9 @@ function buildGraphOption(
     degree.set(edge.source_node_id, (degree.get(edge.source_node_id) ?? 0) + 1);
     degree.set(edge.target_node_id, (degree.get(edge.target_node_id) ?? 0) + 1);
   }
+  const radialPositions = buildType === "teaching_standard"
+    ? teachingStandardRadialPositions(nodes, drawableEdges)
+    : new Map<string, { x: number; y: number }>();
 
   return {
     animationDurationUpdate: 350,
@@ -762,12 +783,12 @@ function buildGraphOption(
     series: [
       {
         type: "graph",
-        layout: "force",
+        layout: buildType === "teaching_standard" ? "none" : "force",
         top: 38,
         roam: true,
         draggable: true,
         categories,
-        force: {
+        force: buildType === "teaching_standard" ? undefined : {
           repulsion: 260,
           edgeLength: [70, 180],
           gravity: 0.08,
@@ -809,6 +830,7 @@ function buildGraphOption(
               borderColor: "#ffffff",
               borderWidth: 1,
             },
+            ...(radialPositions.get(node.id) ?? {}),
           };
         }),
         links: drawableEdges.map((edge) => ({
@@ -824,6 +846,37 @@ function buildGraphOption(
       },
     ],
   };
+}
+
+function teachingStandardRadialPositions(
+  nodes: GraphDisplayNode[],
+  edges: GraphDisplayEdge[],
+): Map<string, { x: number; y: number }> {
+  const positions = new Map<string, { x: number; y: number }>();
+  const root = nodes.find((node) => node.node_type === "Major");
+  if (!root) return positions;
+  positions.set(root.id, { x: 0, y: 0 });
+  const domainIds = nodes.filter((node) => node.node_type === "OccupationalDomain").map((node) => node.id);
+  const leavesByDomain = new Map<string, string[]>();
+  for (const edge of edges) {
+    if (domainIds.includes(edge.source_node_id)) {
+      const leaves = leavesByDomain.get(edge.source_node_id) ?? [];
+      leaves.push(edge.target_node_id);
+      leavesByDomain.set(edge.source_node_id, leaves);
+    }
+  }
+  const domainAngle = (Math.PI * 2) / Math.max(domainIds.length, 1);
+  domainIds.forEach((domainId, domainIndex) => {
+    const angle = -Math.PI / 2 + domainIndex * domainAngle;
+    positions.set(domainId, { x: Math.cos(angle) * 260, y: Math.sin(angle) * 260 });
+    const leaves = leavesByDomain.get(domainId) ?? [];
+    const spread = Math.min(Math.PI * 0.85, domainAngle * 0.9);
+    leaves.forEach((leafId, leafIndex) => {
+      const leafAngle = angle - spread / 2 + (spread * (leafIndex + 0.5)) / Math.max(leaves.length, 1);
+      positions.set(leafId, { x: Math.cos(leafAngle) * 520, y: Math.sin(leafAngle) * 520 });
+    });
+  });
+  return positions;
 }
 
 function NodeDetailDrawer({

@@ -25,6 +25,53 @@ from nexus_app.capability_graph.schemas import EdgeSpec, NodeSpec
 from nexus_app.capability_graph.whitelists import EdgeType, NodeType
 
 
+def build_teaching_standard(
+    payload: dict[str, object],
+) -> tuple[list[NodeSpec], list[EdgeSpec]]:
+    """Build the radial teaching-standard graph from normalized table rows."""
+    major_name = str(payload.get("major_name") or "").strip()
+    major_code = str(payload.get("major_code") or "").strip()
+    rows = payload.get("rows")
+    if not major_name or not isinstance(rows, list):
+        return [], []
+    major_key = f"{major_code}:{major_name}" if major_code else major_name
+    nodes = [NodeSpec(
+        node_type=NodeType.MAJOR, node_key=major_key,
+        display_name=f"{major_name}（{major_code}）" if major_code else major_name,
+        source_table="normalized_document",
+    )]
+    edges: list[EdgeSpec] = []
+    domains: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        domain = str(row.get("occupational_domain") or "").strip()
+        if not domain:
+            continue
+        domain_key = f"{major_key}:domain:{domain}"
+        if domain_key not in domains:
+            domains.add(domain_key)
+            nodes.append(NodeSpec(NodeType.OCCUPATIONAL_DOMAIN, domain_key, domain, source_table="normalized_document"))
+            edges.append(EdgeSpec(EdgeType.MAJOR_HAS_OCCUPATIONAL_DOMAIN, (NodeType.MAJOR, major_key), (NodeType.OCCUPATIONAL_DOMAIN, domain_key), source_table="normalized_document"))
+        evidence = row.get("evidence") if isinstance(row.get("evidence"), dict) else {}
+        row_index = row.get("row_index", 0)
+        for node_type, edge_type, key_name in (
+            (NodeType.TYPICAL_WORK_TASK, EdgeType.OCCUPATIONAL_DOMAIN_HAS_TYPICAL_WORK_TASK, "typical_work_tasks"),
+            (NodeType.SKILL_KNOWLEDGE_REQUIREMENT, EdgeType.OCCUPATIONAL_DOMAIN_HAS_SKILL_KNOWLEDGE_REQUIREMENT, "skill_knowledge_requirements"),
+        ):
+            values = row.get(key_name)
+            if not isinstance(values, list):
+                continue
+            for item_index, value in enumerate(values, start=1):
+                text = str(value).strip()
+                if not text:
+                    continue
+                key = f"{domain_key}:{node_type}:{row_index}:{item_index}:{text}"
+                nodes.append(NodeSpec(node_type, key, text, source_table="normalized_document", properties={"table_row_index": row_index, "source_block_ids": evidence.get("source_block_ids", [])}))
+                edges.append(EdgeSpec(edge_type, (NodeType.OCCUPATIONAL_DOMAIN, domain_key), (node_type, key), source_table="normalized_document", evidence=evidence))
+    return nodes, edges
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

@@ -1017,6 +1017,7 @@ export type KnowledgeGraphLatestSummary = {
 export type RecordView =
   | "document" // legacy / Pipeline A — existing RAG chunk view
   | "major_profile" // Pipeline A — major_profile.v1 structured profile
+  | "teaching_standard" // Pipeline A — standard directory + capability graph
   | "job_demand" // B4 — job_demand_dataset + records
   | "ability_analysis" // B6 — PGSD analysis tree
   | "major_distribution" // PD — major_distribution_dataset + records
@@ -1029,6 +1030,7 @@ export function resolveRecordView(ref: NormalizedAssetRef | null): RecordView {
   const profile =
     typeof meta["domain_profile"] === "string" ? (meta["domain_profile"] as string) : null;
   if (profile === "major_profile.v1") return "major_profile";
+  if (profile === "teaching_standard.v1") return "teaching_standard";
   if (ref.normalized_type === "document") return "document";
   if (profile === "job_demand.v1") return "job_demand";
   if (profile === "ability_analysis.pgsd.v1") return "ability_analysis";

@@ -982,6 +982,38 @@ def _run_major_profile_normalize(
     )
 
 
+def _run_teaching_standard_graph(
+    ctx: PipelineContext,
+    normalized_ref: models.NormalizedAssetRef,
+    raw_object: models.RawObject,
+    session: Session,
+    trace_id: str | None,
+    job_id: str,
+) -> None:
+    """Materialize the table-backed teaching-standard capability graph."""
+    session.commit()
+    try:
+        key = normalized_ref.object_uri.split("/", 3)[-1] if normalized_ref.object_uri.startswith("s3://") else normalized_ref.object_uri
+        payload = json.loads(ctx.storage.get_bytes(key).decode("utf-8"))
+        graph_payload = payload.get("teaching_standard") if isinstance(payload, dict) else None
+        if not isinstance(graph_payload, dict):
+            return
+        from nexus_app.capability_graph import build_capability_staging
+        result = build_capability_staging(
+            session, normalized_ref, build_type="teaching_standard",
+            domain="education", teaching_standard_payload=graph_payload,
+        )
+        write_audit(session, AuditEventType.CAPABILITY_GRAPH_STAGING_GENERATED,
+            "normalized_asset_ref", normalized_ref.id, trace_id,
+            {"raw_object_id": raw_object.id, "job_id": job_id,
+             "build_type": "teaching_standard", "build_id": result.build_id,
+             "skipped": result.skipped, "skipped_reason": result.skipped_reason,
+             "nodes_written": result.nodes_written, "edges_written": result.edges_written,
+             "quality_summary": result.quality_summary})
+    except Exception:
+        logger.exception("teaching_standard capability graph failed for normalized_ref=%s", normalized_ref.id)
+
+
 def _run_body_markdown_render(
     ctx: PipelineContext,
     normalized_ref: models.NormalizedAssetRef,
@@ -1728,6 +1760,11 @@ def execute_job(
 
         # Stage 4: governance decision (optional — skipped if no profile/rules)
         run_governance_decision(ctx, version, normalized_ref)
+
+        if pipeline_type == PipelineType.DOCUMENT:
+            _run_teaching_standard_graph(
+                ctx, normalized_ref, raw_object, session, trace_id, job.id
+            )
 
         # Stage 5a: knowledge chunking (RAG knowledge base only — skipped otherwise)
         chunks = run_knowledge_chunking(ctx, version, normalized_ref)

@@ -19,12 +19,14 @@ class BuildType:
     JOB_DEMAND = "job_demand"
     ABILITY_ANALYSIS = "ability_analysis"
     COMBINED = "combined"
+    TEACHING_STANDARD = "teaching_standard"
 
 
 BUILD_TYPES: frozenset[str] = frozenset({
     BuildType.JOB_DEMAND,
     BuildType.ABILITY_ANALYSIS,
     BuildType.COMBINED,
+    BuildType.TEACHING_STANDARD,
 })
 
 
@@ -62,6 +64,10 @@ class NodeType:
     WORK_CONTENT = "WorkContent"
     ABILITY = "Ability"
     COURSE_MODULE = "CourseModule"  # reserved — not emitted
+    MAJOR = "Major"
+    OCCUPATIONAL_DOMAIN = "OccupationalDomain"
+    TYPICAL_WORK_TASK = "TypicalWorkTask"
+    SKILL_KNOWLEDGE_REQUIREMENT = "SkillKnowledgeRequirement"
 
 
 NODE_TYPES: frozenset[str] = frozenset({
@@ -73,6 +79,10 @@ NODE_TYPES: frozenset[str] = frozenset({
     NodeType.WORK_CONTENT,
     NodeType.ABILITY,
     NodeType.COURSE_MODULE,
+    NodeType.MAJOR,
+    NodeType.OCCUPATIONAL_DOMAIN,
+    NodeType.TYPICAL_WORK_TASK,
+    NodeType.SKILL_KNOWLEDGE_REQUIREMENT,
 })
 
 
@@ -95,6 +105,9 @@ class EdgeType:
     ABILITY_DERIVED_FROM_JOB_REQUIREMENT = "ABILITY_DERIVED_FROM_JOB_REQUIREMENT"
     SKILL_COVERED_BY_COURSE_MODULE = "SKILL_COVERED_BY_COURSE_MODULE"  # reserved
     ABILITY_COVERED_BY_COURSE_MODULE = "ABILITY_COVERED_BY_COURSE_MODULE"  # reserved
+    MAJOR_HAS_OCCUPATIONAL_DOMAIN = "MAJOR_HAS_OCCUPATIONAL_DOMAIN"
+    OCCUPATIONAL_DOMAIN_HAS_TYPICAL_WORK_TASK = "OCCUPATIONAL_DOMAIN_HAS_TYPICAL_WORK_TASK"
+    OCCUPATIONAL_DOMAIN_HAS_SKILL_KNOWLEDGE_REQUIREMENT = "OCCUPATIONAL_DOMAIN_HAS_SKILL_KNOWLEDGE_REQUIREMENT"
 
 
 EDGE_TYPES: frozenset[str] = frozenset({
@@ -112,6 +125,9 @@ EDGE_TYPES: frozenset[str] = frozenset({
     EdgeType.ABILITY_DERIVED_FROM_JOB_REQUIREMENT,
     EdgeType.SKILL_COVERED_BY_COURSE_MODULE,
     EdgeType.ABILITY_COVERED_BY_COURSE_MODULE,
+    EdgeType.MAJOR_HAS_OCCUPATIONAL_DOMAIN,
+    EdgeType.OCCUPATIONAL_DOMAIN_HAS_TYPICAL_WORK_TASK,
+    EdgeType.OCCUPATIONAL_DOMAIN_HAS_SKILL_KNOWLEDGE_REQUIREMENT,
 })
 
 

@@ -782,6 +782,21 @@ def _build_normalized_document(
             "co_emission_origin": None,
         }]
 
+    teaching_standard_payload: dict[str, Any] | None = None
+    try:
+        from nexus_app.teaching_standard import extract as _extract_teaching_standard
+        teaching_standard_payload = _extract_teaching_standard({
+            "content_type": "document",
+            "title": title_from(raw_object, parse_payload),
+            "blocks": blocks,
+            "toc": toc,
+        })
+    except Exception:
+        logger.warning("teaching_standard table extraction failed during normalize", exc_info=True)
+    if teaching_standard_payload is not None:
+        metadata["teaching_standard_graph_rows"] = len(teaching_standard_payload["rows"])
+        metadata["domain_profile"] = "teaching_standard.v1"
+
     return {
         "schema_version": "normalized-document-v1",
         "asset_id": None,
@@ -803,6 +818,7 @@ def _build_normalized_document(
         "attachments": _extract_attachments(artifact),
         "metadata": metadata,
         **({"major_profile": major_profile_payload} if major_profile_payload else {}),
+        **({"teaching_standard": teaching_standard_payload} if teaching_standard_payload else {}),
         "governance": {
             "sensitivity_level": None,
             "org_scope": [],

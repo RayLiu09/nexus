@@ -37,6 +37,7 @@ def build_capability_staging(
     *,
     build_type: str,
     domain: str = "occupation",
+    teaching_standard_payload: dict[str, object] | None = None,
 ) -> BuildResult:
     """Materialise staging nodes + edges for `normalized_ref`.
 
@@ -54,7 +55,7 @@ def build_capability_staging(
             skipped=True, skipped_reason="unsupported_build_type",
         )
 
-    nodes, edges = _collect_specs(session, normalized_ref, build_type)
+    nodes, edges = _collect_specs(session, normalized_ref, build_type, teaching_standard_payload)
     if not nodes:
         return BuildResult(
             build_id="", build_type=build_type,
@@ -167,10 +168,14 @@ def _collect_specs(
     session: Session,
     normalized_ref: models.NormalizedAssetRef,
     build_type: str,
+    teaching_standard_payload: dict[str, object] | None = None,
 ) -> tuple[list[NodeSpec], list[EdgeSpec]]:
     """Run the relevant builder(s) for `build_type` and concat results."""
     nodes: list[NodeSpec] = []
     edges: list[EdgeSpec] = []
+
+    if build_type == BuildType.TEACHING_STANDARD and teaching_standard_payload:
+        return builders.build_teaching_standard(teaching_standard_payload)
 
     if build_type in (BuildType.JOB_DEMAND, BuildType.COMBINED):
         dataset = session.scalar(
