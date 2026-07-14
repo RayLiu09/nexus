@@ -25,6 +25,7 @@ import {
   Empty,
   Input,
   Select,
+  Segmented,
   Skeleton,
   Statistic,
   Table,
@@ -104,12 +105,23 @@ export function JobDemandKnowledgeView({ normalizedRefId }: Props) {
 // ---------------------------------------------------------------------------
 
 function Loaded({ dataset }: { dataset: JobDemandDataset }) {
+  const [viewMode, setViewMode] = useState<"records" | "graph">("records");
+
   return (
     <div className="flex flex-col gap-4">
       <DatasetSummary dataset={dataset} />
-      <JobDemandGraphView datasetId={dataset.id} />
-      <RecordsSection dataset={dataset} />
-      <QualityIssues quality={dataset.quality_summary} />
+      <Segmented
+        value={viewMode}
+        onChange={(value) => setViewMode(value as "records" | "graph")}
+        options={[
+          { label: "岗位记录", value: "records" },
+          { label: "岗位能力图谱", value: "graph" },
+        ]}
+        aria-label="切换岗位需求视图"
+      />
+      {viewMode === "records" ? <RecordsSection dataset={dataset} /> : null}
+      {viewMode === "records" ? <QualityIssues quality={dataset.quality_summary} /> : null}
+      {viewMode === "graph" ? <JobDemandGraphView datasetId={dataset.id} /> : null}
     </div>
   );
 }

@@ -364,6 +364,16 @@ class TestJobDemandStagingRoleGraph:
             session, dataset=dataset, ref=ref, record_id="record-backend",
             title="Backend", key="backend-row",
         )
+        session.add(models.JobDemandRequirementItem(
+            id="item-analyst-python",
+            record_id="record-analyst",
+            dataset_id=dataset.id,
+            item_type="professional_skill",
+            item_name="Python",
+            normalized_name="python",
+            confidence=0.9,
+        ))
+        session.commit()
         build = build_capability_staging(
             session, ref, build_type=BuildType.JOB_DEMAND,
         )
@@ -379,9 +389,9 @@ class TestJobDemandStagingRoleGraph:
         assert data["build_id"] == build.build_id
         assert data["selected_job_title"] == "Analyst"
         assert [role["job_title"] for role in data["roles"]] == ["Analyst", "Backend"]
-        assert {node["display_name"] for node in data["nodes"]} == {"Analyst"}
+        assert {node["display_name"] for node in data["nodes"]} == {"Analyst", "python"}
         assert len(data["edges"]) == 1
-        assert data["edges"][0]["edge_type"] == "JOB_ROLE_AGGREGATES_RECORD"
+        assert data["edges"][0]["edge_type"] == "JOB_ROLE_REQUIRES_SKILL"
 
     def test_requested_role_never_returns_other_role_nodes(self, app, session):
         ref = _seed_anchor(session, ref_id="ref-role-switch", version_id="ver-role-switch")
@@ -407,7 +417,7 @@ class TestJobDemandStagingRoleGraph:
         data = response.json()["data"]
         assert data["selected_job_title"] == "Backend"
         assert {node["display_name"] for node in data["nodes"]} == {"Backend"}
-        assert len(data["edges"]) == 1
+        assert data["edges"] == []
 
 
 # ---------------------------------------------------------------------------

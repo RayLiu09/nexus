@@ -27,6 +27,7 @@ Pipeline B asset details.
 - `nexus-console/app/assets/[assetId]/_components/DocumentKnowledgeView.tsx`
 - `nexus-console/app/assets/[assetId]/_components/JobDemandKnowledgeView.tsx`
 - `nexus-console/app/assets/[assetId]/_components/JobDemandGraphView.tsx`
+- `nexus-console/app/assets/[assetId]/_components/GraphViewportActions.tsx`
 - `nexus-console/components/AssetDetailTabs.tsx`
 - `nexus-app/nexus_app/worker/runner.py`
 - `nexus-api/nexus_api/api/open.py` and Console route proxy
@@ -48,6 +49,13 @@ Pipeline B asset details.
 - The job-demand Console graph reads the latest generated `job_demand`
   CapabilityGraphStaging build. It does not reconstruct graph relations from
   raw record fields at read time.
+- `岗位记录` and `岗位能力图谱` are mutually exclusive views. The graph view
+  retains image download and fullscreen controls.
+- `JobRole` and `JobDemandRecord` remain distinct staging entities for
+  traceability, but recruitment-record nodes are not part of the graph view.
+- The role graph response exposes only the selected `JobRole` and its direct
+  capability, literacy, and work-content edges. `JobDemandRecord` nodes stay
+  in the separate record view and are not rendered in the graph.
 - `GET /internal/v1/record-assets/job-demand-datasets/{dataset_id}/role-graph`
   returns the stable role list and one selected role's graph. Omitted
   `job_title` selects the first title in deterministic order; Console presents
@@ -63,7 +71,10 @@ Pipeline B asset details.
 - The Worker creates a `job_demand` CapabilityGraphStaging build after B5.2;
   extraction unavailability must still permit a record-only build.
 - Job-demand asset details render the selected role's staging subgraph with a
-  dropdown; the default contains only the first role, its records, and related
+  dropdown; the default contains only the first role and its related
   requirement nodes/edges.
+- The job-demand record and graph views can be switched without rendering both
+  heavy surfaces at once; the graph supports fullscreen inspection and PNG
+  download.
 - Evidence Graph can be selected for graph-admitted document assets.
 - `npm run typecheck` and focused backend graph tests pass.

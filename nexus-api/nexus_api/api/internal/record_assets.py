@@ -519,27 +519,16 @@ def get_job_demand_role_graph(
             detail=f"job title '{selected_title}' not found in staging build",
         )
 
-    direct_edges = list(session.scalars(
+    capability_edges = list(session.scalars(
         select(models.CapabilityGraphStagingEdge).where(
             models.CapabilityGraphStagingEdge.build_id == build.id,
             models.CapabilityGraphStagingEdge.source_node_id == selected_role.id,
+            models.CapabilityGraphStagingEdge.edge_type
+            != EdgeType.JOB_ROLE_AGGREGATES_RECORD,
         )
     ))
-    record_node_ids = [
-        edge.target_node_id for edge in direct_edges
-        if edge.edge_type == EdgeType.JOB_ROLE_AGGREGATES_RECORD
-    ]
-    record_edges = []
-    if record_node_ids:
-        record_edges = list(session.scalars(
-            select(models.CapabilityGraphStagingEdge).where(
-                models.CapabilityGraphStagingEdge.build_id == build.id,
-                models.CapabilityGraphStagingEdge.source_node_id.in_(record_node_ids),
-            )
-        ))
-    edges = [*direct_edges, *record_edges]
     node_ids = {selected_role.id}
-    for edge in edges:
+    for edge in capability_edges:
         node_ids.add(edge.source_node_id)
         node_ids.add(edge.target_node_id)
     nodes = list(session.scalars(
@@ -557,7 +546,7 @@ def get_job_demand_role_graph(
             "selected_job_title": selected_title,
             "roles": roles,
             "nodes": [_serialize_capability_graph_node(node) for node in nodes],
-            "edges": [_serialize_capability_graph_edge(edge) for edge in edges],
+            "edges": [_serialize_capability_graph_edge(edge) for edge in capability_edges],
         },
         request,
     )
