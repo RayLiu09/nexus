@@ -4,15 +4,10 @@ import { useEffect, useState } from "react";
 import { Segmented } from "antd";
 
 import { ChunkListSection } from "./ChunkListSection";
-// Evidence Graph is temporarily hidden: block-level extraction is too fine
-// and produces low-quality graphs. See knowledge outline P2/P3 plans for
-// the replacement. Re-enable by flipping SHOW_EVIDENCE_GRAPH below.
-// import { EvidenceGraphView } from "./EvidenceGraphView";
+import { EvidenceGraphView } from "./EvidenceGraphView";
 import { KnowledgeOutlineView } from "./KnowledgeOutlineView";
 import { TaskOutlineView } from "./TaskOutlineView";
 import type { NormalizedAssetRef, TaskOutlineEnvelope } from "@/lib/api";
-
-const SHOW_EVIDENCE_GRAPH = false as const;
 
 type Props = {
   normalizedRef: NormalizedAssetRef | null;
@@ -25,9 +20,10 @@ type Props = {
   onJumpToBlock?: (blockId: string) => void;
 };
 
-type ViewKey = "chunks" | "knowledge_outline" | "task_outline";
+type ViewKey = "chunks" | "evidence_graph" | "knowledge_outline" | "task_outline";
 
 const CHUNK_VIEW_OPTION = { label: "RAG知识块", value: "chunks" as const };
+const EVIDENCE_GRAPH_VIEW_OPTION = { label: "Evidence Graph", value: "evidence_graph" as const };
 // theory_knowledge textbooks get the persisted 3-level knowledge outline.
 const KNOWLEDGE_OUTLINE_VIEW_OPTION = {
   label: "知识点大纲",
@@ -58,12 +54,11 @@ export function DocumentKnowledgeView({
     taskOutlineOk &&
     taskProfile?.processing_profile === "task_outline" &&
     taskProfile?.textbook_subtype === "training_operation";
-  // Evidence Graph currently hidden (block-level extraction too fine).
-  // graphAdmission is still tracked for future re-enable.
-  void graphAdmission;
+  const showEvidenceGraph = graphAdmission !== "not_recommended";
 
   const viewOptions: Array<{ label: string; value: ViewKey }> = [
     CHUNK_VIEW_OPTION,
+    ...(showEvidenceGraph ? [EVIDENCE_GRAPH_VIEW_OPTION] : []),
     ...(showKnowledgeOutline ? [KNOWLEDGE_OUTLINE_VIEW_OPTION] : []),
     ...(showTaskOutline ? [TASK_OUTLINE_VIEW_OPTION] : []),
   ];
@@ -75,7 +70,10 @@ export function DocumentKnowledgeView({
     if (view === "task_outline" && !showTaskOutline) {
       setView("chunks");
     }
-  }, [showKnowledgeOutline, showTaskOutline, view]);
+    if (view === "evidence_graph" && !showEvidenceGraph) {
+      setView("chunks");
+    }
+  }, [showEvidenceGraph, showKnowledgeOutline, showTaskOutline, view]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -97,6 +95,9 @@ export function DocumentKnowledgeView({
           actionLabel="定位原文"
         />
       ) : null}
+      {view === "evidence_graph" && showEvidenceGraph ? (
+        <EvidenceGraphView normalizedRef={normalizedRef} />
+      ) : null}
       {view === "knowledge_outline" && showKnowledgeOutline ? (
         <KnowledgeOutlineView
           refId={normalizedRefId}
@@ -115,8 +116,6 @@ export function DocumentKnowledgeView({
           }
         />
       ) : null}
-      {/* Evidence Graph view temporarily hidden — see SHOW_EVIDENCE_GRAPH */}
-      {SHOW_EVIDENCE_GRAPH ? null : null}
     </div>
   );
 }

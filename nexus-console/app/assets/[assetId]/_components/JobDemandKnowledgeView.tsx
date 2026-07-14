@@ -26,14 +26,13 @@ import {
   Input,
   Select,
   Skeleton,
-  Segmented,
   Statistic,
   Table,
   Tag,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { CapabilityGraphView } from "./CapabilityGraphView";
+import { JobDemandGraphView } from "./JobDemandGraphView";
 import {
   getApiData,
   type JobDemandDataset,
@@ -105,33 +104,12 @@ export function JobDemandKnowledgeView({ normalizedRefId }: Props) {
 // ---------------------------------------------------------------------------
 
 function Loaded({ dataset }: { dataset: JobDemandDataset }) {
-  const [viewMode, setViewMode] = useState<"list" | "graph">("list");
   return (
     <div className="flex flex-col gap-4">
       <DatasetSummary dataset={dataset} />
-      <div className="flex justify-end">
-        <Segmented
-          value={viewMode}
-          onChange={(value) => setViewMode(value as "list" | "graph")}
-          options={[
-            { label: "列表", value: "list" },
-            { label: "岗位图谱", value: "graph" },
-          ]}
-          aria-label="切换岗位需求知识视图"
-        />
-      </div>
-      {viewMode === "list" ? (
-        <>
-          <RecordsSection dataset={dataset} />
-          <QualityIssues quality={dataset.quality_summary} />
-        </>
-      ) : (
-        <CapabilityGraphView
-          normalizedRefId={dataset.normalized_ref_id}
-          buildType="job_demand"
-          title="岗位图谱"
-        />
-      )}
+      <JobDemandGraphView datasetId={dataset.id} />
+      <RecordsSection dataset={dataset} />
+      <QualityIssues quality={dataset.quality_summary} />
     </div>
   );
 }

@@ -19,6 +19,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from nexus_app import models
+from nexus_app.capability_graph import build_capability_staging
+from nexus_app.capability_graph.whitelists import BuildType
 from nexus_app.enums import (
     AssetKind,
     AssetVersionStatus,
@@ -341,6 +343,71 @@ class TestListRecordsForDataset:
             )
         body = r.json()
         assert body["meta"]["total"] == 1
+
+
+# ---------------------------------------------------------------------------
+# B8 staging role graph
+# ---------------------------------------------------------------------------
+
+
+class TestJobDemandStagingRoleGraph:
+    def test_defaults_to_first_role_and_returns_only_its_staging_subgraph(
+        self, app, session,
+    ):
+        ref = _seed_anchor(session, ref_id="ref-role-graph", version_id="ver-role-graph")
+        dataset = _seed_dataset(session, ref=ref, dataset_id="ds-role-graph")
+        _seed_record(
+            session, dataset=dataset, ref=ref, record_id="record-analyst",
+            title="Analyst", key="analyst-row",
+        )
+        _seed_record(
+            session, dataset=dataset, ref=ref, record_id="record-backend",
+            title="Backend", key="backend-row",
+        )
+        build = build_capability_staging(
+            session, ref, build_type=BuildType.JOB_DEMAND,
+        )
+        session.commit()
+
+        with TestClient(app) as client:
+            response = client.get(
+                f"/internal/v1/record-assets/job-demand-datasets/{dataset.id}/role-graph"
+            )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["build_id"] == build.build_id
+        assert data["selected_job_title"] == "Analyst"
+        assert [role["job_title"] for role in data["roles"]] == ["Analyst", "Backend"]
+        assert {node["display_name"] for node in data["nodes"]} == {"Analyst"}
+        assert len(data["edges"]) == 1
+        assert data["edges"][0]["edge_type"] == "JOB_ROLE_AGGREGATES_RECORD"
+
+    def test_requested_role_never_returns_other_role_nodes(self, app, session):
+        ref = _seed_anchor(session, ref_id="ref-role-switch", version_id="ver-role-switch")
+        dataset = _seed_dataset(session, ref=ref, dataset_id="ds-role-switch")
+        _seed_record(
+            session, dataset=dataset, ref=ref, record_id="record-analyst-switch",
+            title="Analyst", key="analyst-switch-row",
+        )
+        _seed_record(
+            session, dataset=dataset, ref=ref, record_id="record-backend-switch",
+            title="Backend", key="backend-switch-row",
+        )
+        build_capability_staging(session, ref, build_type=BuildType.JOB_DEMAND)
+        session.commit()
+
+        with TestClient(app) as client:
+            response = client.get(
+                f"/internal/v1/record-assets/job-demand-datasets/{dataset.id}/role-graph",
+                params={"job_title": "Backend"},
+            )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["selected_job_title"] == "Backend"
+        assert {node["display_name"] for node in data["nodes"]} == {"Backend"}
+        assert len(data["edges"]) == 1
 
 
 # ---------------------------------------------------------------------------

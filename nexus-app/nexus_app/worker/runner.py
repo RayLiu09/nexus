@@ -900,11 +900,10 @@ def _run_domain_normalize(
             analysis_id=result.analysis_id,
         )
 
-    # B8 — CapabilityGraphStaging materialization. Runs on BOTH job_demand
-    # and ability_analysis paths; build_type matches the domain. The
-    # `combined` build_type lives behind a future API trigger (operator
-    # explicitly requests cross-domain build) — automatic worker runs
-    # stay scoped to the active domain to keep the audit chain readable.
+    # B8 — materialise the domain graph after B5 extraction. Job-demand
+    # construction remains useful even if extraction was skipped: it preserves
+    # the JobRole -> JobDemandRecord projection, while accepted requirement
+    # items add the capability nodes when available.
     if not result.skipped and result.domain_profile in {
         "job_demand.v1", "ability_analysis.pgsd.v1"
     }:

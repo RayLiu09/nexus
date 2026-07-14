@@ -18,6 +18,12 @@ from nexus_api.dependencies.user import require_user
 from nexus_api.responses import list_response, response
 from nexus_app import models
 from nexus_app.audit import write_audit
+from nexus_app.capability_graph.whitelists import (
+    BuildStatus,
+    BuildType,
+    EdgeType,
+    NodeType,
+)
 from nexus_app.database import get_db
 from nexus_app.enums import AuditEventType
 
@@ -110,6 +116,32 @@ def _serialize_requirement_item(item: models.JobDemandRequirementItem) -> dict:
         "extractor_version": item.extractor_version,
         "evidence_field": item.evidence_field,
         "ai_model_alias": item.ai_model_alias,
+    }
+
+
+def _serialize_capability_graph_node(
+    node: models.CapabilityGraphStagingNode,
+) -> dict:
+    return {
+        "id": node.id,
+        "node_type": node.node_type,
+        "node_key": node.node_key,
+        "display_name": node.display_name,
+        "canonical_name": node.canonical_name,
+        "properties": node.properties or {},
+        "confidence": float(node.confidence) if node.confidence is not None else None,
+    }
+
+
+def _serialize_capability_graph_edge(
+    edge: models.CapabilityGraphStagingEdge,
+) -> dict:
+    return {
+        "id": edge.id,
+        "source_node_id": edge.source_node_id,
+        "target_node_id": edge.target_node_id,
+        "edge_type": edge.edge_type,
+        "confidence": float(edge.confidence) if edge.confidence is not None else None,
     }
 
 
@@ -391,6 +423,143 @@ def list_job_demand_records_for_dataset(
         page=pagination.page,
         page_size=pagination.page_size,
         total=total,
+    )
+
+
+@router.get(
+    "/record-assets/job-demand-datasets/{dataset_id}/role-graph",
+    response_model=schemas.ApiResponse[dict],
+)
+def get_job_demand_role_graph(
+    dataset_id: str,
+    request: Request,
+    job_title: str | None = Query(None, min_length=1),
+    session: Session = Depends(get_db),
+):
+    """Read one selected role subgraph from the latest B8 staging build."""
+    dataset = session.get(models.JobDemandDataset, dataset_id)
+    if dataset is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"job_demand_dataset '{dataset_id}' not found",
+        )
+
+    build = session.scalar(
+        select(models.CapabilityGraphStagingBuild)
+        .where(
+            models.CapabilityGraphStagingBuild.normalized_ref_id
+            == dataset.normalized_ref_id,
+            models.CapabilityGraphStagingBuild.build_type == BuildType.JOB_DEMAND,
+            models.CapabilityGraphStagingBuild.status == BuildStatus.GENERATED,
+        )
+        .order_by(
+            models.CapabilityGraphStagingBuild.created_at.desc(),
+            models.CapabilityGraphStagingBuild.id.desc(),
+        )
+    )
+    if build is None:
+        raise HTTPException(
+            status_code=404,
+            detail="job_demand capability graph staging build not found",
+        )
+
+    role_nodes = list(session.scalars(
+        select(models.CapabilityGraphStagingNode)
+        .where(
+            models.CapabilityGraphStagingNode.build_id == build.id,
+            models.CapabilityGraphStagingNode.node_type == NodeType.JOB_ROLE,
+        )
+        .order_by(
+            func.lower(models.CapabilityGraphStagingNode.display_name),
+            models.CapabilityGraphStagingNode.display_name,
+            models.CapabilityGraphStagingNode.id,
+        )
+    ))
+    if not role_nodes:
+        return response(
+            {
+                "dataset_id": dataset_id,
+                "build_id": build.id,
+                "selected_job_title": None,
+                "roles": [],
+                "nodes": [],
+                "edges": [],
+            },
+            request,
+        )
+
+    role_ids = [node.id for node in role_nodes]
+    record_counts = dict(session.execute(
+        select(
+            models.CapabilityGraphStagingEdge.source_node_id,
+            func.count(models.CapabilityGraphStagingEdge.id),
+        )
+        .where(
+            models.CapabilityGraphStagingEdge.build_id == build.id,
+            models.CapabilityGraphStagingEdge.source_node_id.in_(role_ids),
+            models.CapabilityGraphStagingEdge.edge_type
+            == EdgeType.JOB_ROLE_AGGREGATES_RECORD,
+        )
+        .group_by(models.CapabilityGraphStagingEdge.source_node_id)
+    ).all())
+    roles = [
+        {
+            "job_title": node.display_name,
+            "record_count": int(record_counts.get(node.id, 0)),
+        }
+        for node in role_nodes
+    ]
+    selected_title = job_title or roles[0]["job_title"]
+    selected_role = next(
+        (node for node in role_nodes if node.display_name == selected_title), None
+    )
+    if selected_role is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"job title '{selected_title}' not found in staging build",
+        )
+
+    direct_edges = list(session.scalars(
+        select(models.CapabilityGraphStagingEdge).where(
+            models.CapabilityGraphStagingEdge.build_id == build.id,
+            models.CapabilityGraphStagingEdge.source_node_id == selected_role.id,
+        )
+    ))
+    record_node_ids = [
+        edge.target_node_id for edge in direct_edges
+        if edge.edge_type == EdgeType.JOB_ROLE_AGGREGATES_RECORD
+    ]
+    record_edges = []
+    if record_node_ids:
+        record_edges = list(session.scalars(
+            select(models.CapabilityGraphStagingEdge).where(
+                models.CapabilityGraphStagingEdge.build_id == build.id,
+                models.CapabilityGraphStagingEdge.source_node_id.in_(record_node_ids),
+            )
+        ))
+    edges = [*direct_edges, *record_edges]
+    node_ids = {selected_role.id}
+    for edge in edges:
+        node_ids.add(edge.source_node_id)
+        node_ids.add(edge.target_node_id)
+    nodes = list(session.scalars(
+        select(models.CapabilityGraphStagingNode)
+        .where(models.CapabilityGraphStagingNode.id.in_(node_ids))
+        .order_by(
+            models.CapabilityGraphStagingNode.node_type,
+            models.CapabilityGraphStagingNode.id,
+        )
+    ))
+    return response(
+        {
+            "dataset_id": dataset_id,
+            "build_id": build.id,
+            "selected_job_title": selected_title,
+            "roles": roles,
+            "nodes": [_serialize_capability_graph_node(node) for node in nodes],
+            "edges": [_serialize_capability_graph_edge(edge) for edge in edges],
+        },
+        request,
     )
 
 

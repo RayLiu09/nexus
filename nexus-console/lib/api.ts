@@ -692,6 +692,29 @@ export type JobDemandRequirementItem = {
   ai_model_alias: string | null;
 };
 
+export type JobDemandRoleGraph = {
+  dataset_id: string;
+  build_id: string;
+  selected_job_title: string | null;
+  roles: Array<{ job_title: string; record_count: number }>;
+  nodes: Array<{
+    id: string;
+    node_type: string;
+    node_key: string;
+    display_name: string;
+    canonical_name: string | null;
+    properties: Record<string, unknown>;
+    confidence: number | null;
+  }>;
+  edges: Array<{
+    id: string;
+    source_node_id: string;
+    target_node_id: string;
+    edge_type: string;
+    confidence: number | null;
+  }>;
+};
+
 export type AbilityAnalysis = {
   id: string;
   normalized_ref_id: string;

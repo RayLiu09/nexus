@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { tagLabel, type TagDictionary } from "@/lib/tagLabels";
 import { Tabs, Tag, Progress, Empty } from "antd";
 import { StatusLabel } from "@/components/StatusLabel";
@@ -704,6 +704,13 @@ export function AssetDetailTabs({
 }: Props) {
   const [activeTab, setActiveTab] = useState("lineage");
   const knowledgeTabLabel = latestRef?.normalized_type === "record" ? "结构化图谱" : "知识块";
+  const isRecordAsset = latestRef?.normalized_type === "record";
+
+  useEffect(() => {
+    if (isRecordAsset && activeTab === "preview") {
+      setActiveTab("lineage");
+    }
+  }, [activeTab, isRecordAsset]);
 
   // Wired to KnowledgeOutlineView's Drawer "跳到原文" button.
   // Setting `location.hash` before the tab switch lets SourcePreviewSection
@@ -715,7 +722,7 @@ export function AssetDetailTabs({
     setActiveTab("preview");
   }, []);
 
-  const tabItems = TABS.map((t) => {
+  const tabItems = TABS.filter((tab) => !(isRecordAsset && tab.key === "preview")).map((t) => {
     const badgeCount =
       t.key === "ai-governance" && (governanceRuns.length > 0 || latestGovernanceResult)
         ? Math.max(governanceRuns.length, 1)
