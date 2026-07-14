@@ -292,17 +292,43 @@ type GraphEdge = {
 };
 
 function MajorProfileGraph({ profiles }: { profiles: MajorProfile[] }) {
-  const graph = useMemo(() => buildMajorProfileGraph(profiles), [profiles]);
+  const [selectedProfileId, setSelectedProfileId] = useState<string>(profiles[0]?.id ?? "");
+  const selectedProfile = useMemo(
+    () => profiles.find((profile) => profile.id === selectedProfileId) ?? profiles[0],
+    [profiles, selectedProfileId],
+  );
+  const graph = useMemo(
+    () => buildMajorProfileGraph(selectedProfile ? [selectedProfile] : []),
+    [selectedProfile],
+  );
   const graphRef = useRef<GraphImageHandle | null>(null);
+
+  useEffect(() => {
+    if (!profiles.some((profile) => profile.id === selectedProfileId)) {
+      setSelectedProfileId(profiles[0]?.id ?? "");
+    }
+  }, [profiles, selectedProfileId]);
+
   return (
     <div className="card">
       <div className="card-header">
-        <span className="card-title inline-flex items-center gap-2">
-          <Network size={16} />
-          专业图谱
-        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="card-title inline-flex items-center gap-2">
+            <Network size={16} />
+            专业图谱
+          </span>
+          <Select
+            className="min-w-[280px]"
+            value={selectedProfile?.id}
+            onChange={setSelectedProfileId}
+            options={profiles.map((profile) => ({
+              value: profile.id,
+              label: `${profile.major_code} ${profile.major_name}`,
+            }))}
+            placeholder="选择专业"
+          />
+        </div>
         <div className="flex items-center gap-2">
-          <Tag className="!mr-0">{graph.nodes.length} 节点 / {graph.edges.length} 边</Tag>
           <GraphViewportActions
             title="专业图谱"
             disabled={graph.nodes.length === 0}

@@ -246,9 +246,8 @@ class TestCoEmission:
 
         assert score == pytest.approx(0.75)
 
-    def test_classification_side_co_emission_triggers(self, tmp_path):
-        """co_emission_rules live on classification (§12). Triggers when
-        the condition evaluates ≥ min_confidence against the AI run."""
+    def test_classification_generates_only_primary_emission(self, tmp_path):
+        """Legacy co-emission configuration cannot create a second emission."""
         rules = {
             "schema_version": "1.0",
             "classifications": [
@@ -295,19 +294,13 @@ class TestCoEmission:
         reg.load(str(path))
 
         ai_output = {"classification": "competency_analysis", "confidence": 0.9}
-        # ref_dict carries content_snippet with the keyword that triggers
-        # contains_skill_taxonomy (≥ min_confidence 0.6).
+        # Even a matching legacy rule cannot produce another knowledge type.
         ref_dict = {"content_snippet": "本表列出岗位的技能点和技能要求…", "summary": ""}
         emissions = infer_knowledge_emissions(ai_output, ref_dict, reg)
-        assert {e["code"] for e in emissions} == {"competency_graph", "skill_tag_library"}
-        primary = next(e for e in emissions if e["primary"])
-        assert primary["code"] == "competency_graph"
-        co = next(e for e in emissions if not e["primary"])
-        assert co["code"] == "skill_tag_library"
-        assert co["co_emission_origin"] == "competency_graph"
-        assert co["source"] == "co_emission_rule"
+        assert [e["code"] for e in emissions] == ["competency_graph"]
+        assert emissions[0]["primary"] is True
 
-    def test_classification_co_emission_skipped_when_condition_weak(self, tmp_path):
+    def test_classification_ignores_legacy_co_emission_when_condition_weak(self, tmp_path):
         rules = {
             "schema_version": "1.0",
             "classifications": [

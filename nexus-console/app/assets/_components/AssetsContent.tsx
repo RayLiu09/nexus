@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { Table, Tag, Select, Button, Alert, Card } from "antd";
+import { Table, Tag, Select, Button, Card } from "antd";
 import { SaveOutlined } from "@ant-design/icons";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import type { FilterValue, SorterResult } from "antd/es/table/interface";
@@ -11,16 +11,14 @@ import { ApiState } from "@/components/ApiState";
 import { StatusLabel } from "@/components/StatusLabel";
 import { CopyableShortId } from "@/components/shared/CopyableShortId";
 import { formatTime } from "@/lib/format-time";
-import type { AssetWithMeta, AssetSummary, AssetStats, DomainDistItem } from "../_lib/types";
+import type { AssetWithMeta, AssetSummary, AssetStats } from "../_lib/types";
 import {
   DOMAIN_OPTIONS,
   canonicalDomain,
   domainLabel,
   toAssetStats,
-  toDomainDistItems,
 } from "../_lib/types";
 import { AssetsSummary } from "./AssetsSummary";
-import { DomainDistribution } from "./DomainDistribution";
 import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 
 type AssetCatalogFilters = {
@@ -102,7 +100,6 @@ export function AssetsContent({
   const pathname = usePathname();
 
   const stats = summary ? toAssetStats(summary) : EMPTY_STATS;
-  const domainDist: DomainDistItem[] = summary ? toDomainDistItems(summary) : [];
 
   const handleTableChange = useCallback(
     (
@@ -322,67 +319,25 @@ export function AssetsContent({
         <Button icon={<SaveOutlined />}>保存视图</Button>
       </div>
 
-      <div className="assets-layout">
-        <Card variant="borderless" style={{ minWidth: 0 }}>
-          <Table
-            rowKey="id"
-            dataSource={assets}
-            columns={columns}
-            size="middle"
-            pagination={{
-              current: currentPage,
-              pageSize,
-              total: totalCount,
-              showSizeChanger: true,
-              showTotal: (total, range) => `${range[0]}-${range[1]} / ${total} 项`,
-              pageSizeOptions: ["10", "20", "50"],
-            }}
-            onChange={handleTableChange}
-            scroll={{ x: 1280 }}
-            locale={{ emptyText: "暂无资产" }}
-          />
-        </Card>
-
-        <div className="assets-side">
-          <DomainDistribution items={domainDist} />
-
-          <Card title="目录页解释" size="small">
-            <Alert
-              type="info"
-              showIcon={false}
-              banner
-              title={
-                <span style={{ fontSize: 12 }}>
-                  <strong>current version</strong> 来自 read model，不在 asset 表上存储反向指针。
-                </span>
-              }
-              style={{ marginBottom: 8 }}
-            />
-            <Alert
-              type="info"
-              showIcon={false}
-              banner
-              title={
-                <span style={{ fontSize: 12 }}>
-                  <strong>current normalized ref</strong> 只表示当前可读标准化引用，不与 version
-                  双向绑定。
-                </span>
-              }
-              style={{ marginBottom: 8 }}
-            />
-            <Alert
-              type="warning"
-              showIcon={false}
-              banner
-              title={
-                <span style={{ fontSize: 12 }}>
-                  <strong>stale index</strong> 表示需要重建索引，不等于资产不可读。
-                </span>
-              }
-            />
-          </Card>
-        </div>
-      </div>
+      <Card variant="borderless" style={{ minWidth: 0 }}>
+        <Table
+          rowKey="id"
+          dataSource={assets}
+          columns={columns}
+          size="middle"
+          pagination={{
+            current: currentPage,
+            pageSize,
+            total: totalCount,
+            showSizeChanger: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} / ${total} 项`,
+            pageSizeOptions: ["10", "20", "50"],
+          }}
+          onChange={handleTableChange}
+          scroll={{ x: 1280 }}
+          locale={{ emptyText: "暂无资产" }}
+        />
+      </Card>
     </>
   );
 }

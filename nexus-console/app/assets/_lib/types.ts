@@ -25,8 +25,6 @@ export type AssetStats = {
   autoAdoptionRate: number;
 };
 
-export type DomainDistItem = { domain: string; label: string; count: number };
-
 export const DOMAIN_LABELS: Record<string, string> = {
   industry_policy: "产业政策",
   industry_report: "产业报告",
@@ -90,15 +88,6 @@ export function toAssetStats(s: AssetSummary): AssetStats {
   };
 }
 
-/** Map AssetSummary.domain_distribution to the shape DomainDistribution expects. */
-export function toDomainDistItems(s: AssetSummary): DomainDistItem[] {
-  return s.domain_distribution.map((item) => ({
-    domain: item.domain,
-    label: domainLabel(item.domain, item.name),
-    count: item.count,
-  }));
-}
-
 export function deriveStats(assets: AssetWithMeta[]): AssetStats {
   let available = 0;
   let reviewRequired = 0;
@@ -125,17 +114,4 @@ export function deriveStats(assets: AssetWithMeta[]): AssetStats {
     totalDecisions > 0 ? Math.round((autoAdopted / totalDecisions) * 100) : 0;
 
   return { available, reviewRequired, currentNormalizedRefs, staleIndex, l3l4, autoAdoptionRate };
-}
-
-export function deriveDomainDist(assets: AssetWithMeta[]): DomainDistItem[] {
-  const counts: Record<string, number> = {};
-  for (const a of assets) {
-    const domain = canonicalDomain(a.domain);
-    if (domain) counts[domain] = (counts[domain] ?? 0) + 1;
-  }
-  return Object.entries(counts).map(([domain, count]) => ({
-    domain,
-    label: domainLabel(domain),
-    count,
-  }));
 }

@@ -1372,11 +1372,13 @@ def _enqueue_evidence_graph_build_if_requested(
     normalized_ref: models.NormalizedAssetRef,
     emissions: list[dict[str, Any]],
 ) -> dict[str, Any] | None:
-    """Queue, but never execute, a graph build for an explicit graph emission."""
-    graph_emissions = {
-        emission.get("code") for emission in emissions if isinstance(emission, dict)
+    """Queue, but never execute, a graph build requested by the primary emission."""
+    graph_profiles = {
+        emission.get("graph_profile")
+        for emission in emissions
+        if isinstance(emission, dict) and isinstance(emission.get("graph_profile"), str)
     }
-    if "course_knowledge_graph" not in graph_emissions:
+    if not graph_profiles:
         return None
 
     from nexus_app.evidence_graph import (
@@ -1386,7 +1388,7 @@ def _enqueue_evidence_graph_build_if_requested(
         select_graph_candidate_chunks,
     )
 
-    graph_profile = "standard_spec"
+    graph_profile = sorted(graph_profiles)[0]
     strategy_version = "evidence_kg.v1"
     selection = select_graph_candidate_chunks(
         ctx.session,
@@ -1448,7 +1450,7 @@ def _enqueue_evidence_graph_build_if_requested(
                 "by_anchor_role": selection.by_anchor_role,
                 "skipped_by_reason": selection.skipped_by_reason,
             },
-            "pipeline_submit": "explicit_course_knowledge_graph_emission",
+            "pipeline_submit": "primary_knowledge_emission_graph_profile",
         },
     )
     return {

@@ -3,9 +3,7 @@
 /**
  * /tag-review — 标签审核（P2.2）
  *
- * v3.2 布局：2-1
- *   左：bulk-bar + 低置信标签草稿表 + 自动提交历史表（只读）
- *   右：标签流程说明（notice × 4）
+ * 主区：bulk-bar + 低置信标签草稿表 + 自动提交历史表（只读）
  *
  * 危险动作（A3）：
  *   - 批量确认  → undo-toast 10s
@@ -301,12 +299,7 @@ export default function TagReviewContent({
 
   return (
     <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 2fr) minmax(280px, 1fr)",
-        gap: 20,
-        alignItems: "start",
-      }}
+      style={{ display: "grid", gap: 16 }}
     >
       {/* ── 左侧主区 ── */}
       <div style={{ display: "grid", gap: 16 }}>
@@ -509,67 +502,6 @@ export default function TagReviewContent({
         )}
       </Drawer>
 
-      {/* ── 右侧说明 ── */}
-      <div
-        style={{
-          background: "var(--surface)",
-          border: "1px solid var(--line)",
-          borderRadius: "var(--radius-xl)",
-          padding: 20,
-        }}
-      >
-        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>标签流程说明</div>
-        <div style={{ display: "grid", gap: 12 }}>
-          <div
-            style={{
-              padding: "12px 14px",
-              borderRadius: "var(--radius-lg)",
-              background: "var(--brand-50)",
-              border: "1px solid var(--brand-200)",
-              fontSize: 13,
-            }}
-          >
-            <strong style={{ display: "block", marginBottom: 4 }}>输入对象</strong>
-            normalized_document / normalized_record。
-          </div>
-          <div
-            style={{
-              padding: "12px 14px",
-              borderRadius: "var(--radius-lg)",
-              background: "var(--surface-alt)",
-              border: "1px solid var(--line)",
-              fontSize: 13,
-            }}
-          >
-            <strong style={{ display: "block", marginBottom: 4 }}>生成阶段</strong>
-            metadata_enrich，在 chunk 生成之前执行。
-          </div>
-          <div
-            style={{
-              padding: "12px 14px",
-              borderRadius: "var(--radius-lg)",
-              background: "var(--warning-bg)",
-              border: "1px solid var(--warning-100)",
-              fontSize: 13,
-            }}
-          >
-            <strong style={{ display: "block", marginBottom: 4 }}>低置信策略</strong>
-            置信度 &lt; 85% 时进入人工审核队列，不自动提交。
-          </div>
-          <div
-            style={{
-              padding: "12px 14px",
-              borderRadius: "var(--radius-lg)",
-              background: "var(--surface-alt)",
-              border: "1px solid var(--line)",
-              fontSize: 13,
-            }}
-          >
-            <strong style={{ display: "block", marginBottom: 4 }}>审计要求</strong>
-            自动提交数据来自真实 AI 治理运行记录；人工确认、撤销、改写待后端审核端点接入。
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

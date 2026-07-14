@@ -5,8 +5,9 @@ Per docs/document_normalize_defects.md §12 (review-gated rules-v2):
   - The primary knowledge type is NOT inferred by the AI model. It is a
     deterministic lookup against the active governance rules:
     ``classification → classification.primary_knowledge_type``.
-  - Co-emission rules also live on the **classification** (not the KT),
-    again read from the active rules at decision time.
+  - A classification produces at most one knowledge-processing emission.
+    Graph construction is declared as metadata on that primary emission, not
+    as a second knowledge type.
   - The D1-D4 fallback heuristics (which never matched the v3.0 business
     codes the AI actually emits) are deleted.
 
@@ -40,9 +41,8 @@ def infer_knowledge_emissions(
       2. Look up the classification in the **active** governance rules; the
          classification's ``primary_knowledge_type`` is the canonical primary
          emission. No model inference, no string heuristics.
-      3. Walk the classification's ``co_emission_rules`` and emit any whose
-         ``condition`` evaluates ≥ ``min_confidence`` against ``ai_output`` /
-         ``ref_dict``.
+      3. Copy declared graph metadata from the primary knowledge type when
+         present. This does not create another emission.
 
     Returns ``[]`` when:
       - the AI output carries no classification, or
@@ -52,8 +52,7 @@ def infer_knowledge_emissions(
 
     Output element schema:
       ``{code, name, primary, confidence, source, evidence,
-         co_emission_origin}``
-      where ``source ∈ {"rule_lookup", "co_emission_rule"}``.
+         co_emission_origin, graph_profile?}``.
     """
     classification = ai_output.get("classification") if isinstance(ai_output, dict) else None
     if not classification or not isinstance(classification, str):
@@ -95,7 +94,7 @@ def infer_knowledge_emissions(
     # know how sure the AI was about the classification it produced).
     primary_confidence = float(ai_output.get("confidence", 1.0))
 
-    emissions: list[dict[str, Any]] = [{
+    emission: dict[str, Any] = {
         "code": primary_code,
         "name": primary_kt_config.get("name", primary_code),
         "primary": True,
@@ -106,49 +105,11 @@ def infer_knowledge_emissions(
             f"(active rules)"
         ],
         "co_emission_origin": None,
-    }]
-
-    # Co-emission rules live on the CLASSIFICATION (rule-driven), not on the
-    # KT (which kept its own list in the old file but is no longer the source
-    # of truth under v2.1).
-    for rule in cls_def.co_emission_rules:
-        target_code = rule.target_code
-        condition = rule.condition
-        min_confidence = rule.min_confidence
-
-        if not target_code or not condition:
-            continue
-
-        target_kt_config = registry.get_knowledge_type(target_code)
-        if not target_kt_config:
-            logger.warning(
-                "co-emission target %r (from classification %r) not in registry",
-                target_code, classification,
-            )
-            continue
-
-        co_confidence = _evaluate_co_emission_condition(condition, ai_output, ref_dict)
-        if co_confidence < min_confidence:
-            continue
-
-        emissions.append({
-            "code": target_code,
-            "name": target_kt_config.get("name", target_code),
-            "primary": False,
-            "confidence": co_confidence,
-            "source": "co_emission_rule",
-            "evidence": [
-                f"triggered by classification.{classification} co_emission_rule: "
-                f"{condition} (confidence {co_confidence:.2f} >= {min_confidence:.2f})"
-            ],
-            "co_emission_origin": primary_code,
-        })
-        logger.info(
-            "co-emission: %s (from classification=%s, condition=%s, conf=%.2f)",
-            target_code, classification, condition, co_confidence,
-        )
-
-    return emissions
+    }
+    graph_profile = primary_kt_config.get("graph_profile")
+    if isinstance(graph_profile, str) and graph_profile.strip():
+        emission["graph_profile"] = graph_profile.strip()
+    return [emission]
 
 
 def _evaluate_co_emission_condition(

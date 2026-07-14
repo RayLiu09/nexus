@@ -415,7 +415,10 @@ Asset Pipeline → normalized_asset_ref (stable contract)
 - Build submission through internal APIs creates or refreshes graph build
   envelopes and candidate summaries. A completed knowledge-pipeline stage may
   enqueue the same idempotent envelope only when a rule-derived
-  `knowledge_emissions` entry explicitly requests graph construction;
+  primary `knowledge_emissions` entry explicitly requests graph construction
+  through its graph-profile metadata. A classification emits at most one
+  knowledge-processing type; graph construction is not represented by a
+  second co-emission;
   asynchronous graph extraction, validation, and persistence remain
   knowledge-processing work outside the request handler.
 

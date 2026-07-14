@@ -824,13 +824,7 @@
       "structure_description": "专业名称，入学要求，进修年限，职业面向，培养目标，培养规格，课程设置与课时安排，师资队伍，教学条件，质量保证和毕业要求",
       "primary_knowledge_type": "course_standard_authoring_process",
       "default_level": "L2",
-      "co_emission_rules": [
-        {
-          "target_code": "course_knowledge_graph",
-          "condition": "contains_concept_relations",
-          "min_confidence": 0.7
-        }
-      ]
+      "co_emission_rules": []
     },
     {
       "code": "major_distribution",
@@ -1655,29 +1649,21 @@
     },
     {
       "code": "course_standard_authoring_process",
-      "name": "课程标准编写流程语料",
-      "description": "课程标准编写过程文档，含标准条款、能力指标、评价要求",
+      "name": "专业教学标准知识",
+      "description": "专业教学标准正文，含培养规格、课程教学内容、职业领域、典型工作任务和知识要求",
       "applicable_classifications": [
         "teaching_standard"
       ],
       "default_level": "L2",
       "source_kind": "extracted_from_normalized",
-      "chunking_mode": "nexus_extract",
-      "rag_pipeline": "pipeline_3",
+      "chunking_mode": "nexus_semantic",
+      "rag_pipeline": "pipeline_1",
       "source_criteria": [
-        "描述课程标准编写阶段、流程",
-        "包含课程目标、能力指标、评价要求"
+        "包含专业培养规格、课程设置或课程教学内容",
+        "包含职业领域、典型工作任务、知识与要求"
       ],
-      "chunking_strategy": "process_step_extract",
-      "chunking_config": {
-        "step_indicators": [
-          "步骤",
-          "阶段",
-          "Step"
-        ],
-        "extract_inputs_outputs": true,
-        "extract_role": true
-      },
+      "chunking_strategy": "semantic_repack",
+      "chunking_config": {},
       "ragflow": {
         "chunk_method": "manual",
         "parser_config": {
@@ -1686,13 +1672,8 @@
         }
       },
       "chunk_type": "process_step",
-      "co_emission_rules": [
-        {
-          "target_code": "competency_graph",
-          "condition": "contains_competency_indicators",
-          "min_confidence": 0.65
-        }
-      ],
+      "co_emission_rules": [],
+      "graph_profile": "standard_spec",
       "implementation_tier": "B",
       "kb_name": "nexus-kb-course-standard-process"
     },
