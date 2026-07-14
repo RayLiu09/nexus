@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Empty, Segmented, Skeleton, Tree } from "antd";
+import type { DataNode } from "antd/es/tree";
 import { ChunkListSection } from "./ChunkListSection";
 import { CapabilityGraphView } from "./CapabilityGraphView";
 
@@ -24,7 +25,19 @@ export function TeachingStandardKnowledgeView({ normalizedRefId }: { normalizedR
     {view === "chunks" ? <ChunkListSection refId={normalizedRefId} title="知识块" emptyDescription="该教学标准暂未生成语义知识块。" mode="preview" actionLabel="定位原文" knowledgeTypeCode="course_standard_authoring_process" /> : null}
     {view === "directory" && loading ? <Skeleton active paragraph={{ rows: 8 }} /> : null}
     {view === "directory" && !loading && toc.length === 0 ? <Empty description="该教学标准暂未提取目录" /> : null}
-    {view === "directory" && !loading && toc.length > 0 ? <Tree treeData={toc.map((item, index) => ({ key: String(index), title: item.title ?? item.text ?? "未命名章节" }))} defaultExpandAll /> : null}
+    {view === "directory" && !loading && toc.length > 0 ? <Tree treeData={tocToTree(toc)} defaultExpandAll /> : null}
     {view === "graph" ? <CapabilityGraphView normalizedRefId={normalizedRefId} buildType="teaching_standard" title="专业图谱" /> : null}
   </div>;
+}
+
+function tocToTree(items: TocItem[], prefix = "section"): DataNode[] {
+  return items.map((item, index) => {
+    const key = `${prefix}-${index}`;
+    const children = Array.isArray(item.children) ? tocToTree(item.children, key) : [];
+    return {
+      key,
+      title: item.title ?? item.text ?? "未命名章节",
+      ...(children.length > 0 ? { children } : {}),
+    };
+  });
 }

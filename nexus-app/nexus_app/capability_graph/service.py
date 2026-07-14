@@ -55,6 +55,24 @@ def build_capability_staging(
             skipped=True, skipped_reason="unsupported_build_type",
         )
 
+    if build_type == BuildType.TEACHING_STANDARD:
+        existing = session.scalar(
+            select(models.CapabilityGraphStagingBuild).where(
+                models.CapabilityGraphStagingBuild.normalized_ref_id == normalized_ref.id,
+                models.CapabilityGraphStagingBuild.build_type == build_type,
+                models.CapabilityGraphStagingBuild.status == BuildStatus.GENERATED,
+            ).order_by(models.CapabilityGraphStagingBuild.created_at.desc())
+        )
+        if existing is not None:
+            summary = existing.quality_summary or {}
+            return BuildResult(
+                build_id=existing.id, build_type=build_type,
+                nodes_written=int(summary.get("nodes_total", 0)),
+                edges_written=int(summary.get("edges_total", 0)),
+                quality_summary=summary, skipped=True,
+                skipped_reason="existing_generated_build",
+            )
+
     nodes, edges = _collect_specs(session, normalized_ref, build_type, teaching_standard_payload)
     if not nodes:
         return BuildResult(

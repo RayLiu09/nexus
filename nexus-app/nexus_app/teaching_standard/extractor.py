@@ -43,7 +43,7 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
             rows.append({
                 "row_index": index,
                 "occupational_domain": domain,
-                "typical_work_tasks": _split_bullets(task),
+                "typical_work_tasks": _split_work_tasks(task),
                 "skill_knowledge_requirements": _split_bullets(requirement),
                 "evidence": evidence,
             })
@@ -86,6 +86,18 @@ def _split_bullets(value: str) -> list[str]:
     if len(parts) == 1:
         parts = re.split(r"[\n。]", value)
     return [re.sub(r"\s+", " ", part).strip(" 。；;") for part in parts if part.strip(" 。；;\n")]
+
+
+def _split_work_tasks(value: str) -> list[str]:
+    """Split explicit `工作内容包括 A、B、C` enumerations without guessing."""
+    bullets = _split_bullets(value)
+    if len(bullets) > 1:
+        return bullets
+    match = re.search(r"(?:工作内容)?包括(.+?)(?:，使用|。|$)", value)
+    if not match:
+        return bullets
+    items = [item.strip(" 、，,。") for item in re.split(r"[、，,]", match.group(1))]
+    return [item for item in items if item]
 
 
 def _evidence(block: dict[str, Any], row_index: int, raw: str | None) -> dict[str, Any]:

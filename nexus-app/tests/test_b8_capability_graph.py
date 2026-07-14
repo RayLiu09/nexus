@@ -84,8 +84,10 @@ class TestWhitelists:
             "ABILITY_COVERED_BY_COURSE_MODULE",
         } <= EDGE_TYPES
 
-    def test_build_types_canonical_three(self):
-        assert BUILD_TYPES == {"job_demand", "ability_analysis", "combined"}
+    def test_build_types_canonical(self):
+        assert BUILD_TYPES == {
+            "job_demand", "ability_analysis", "combined", "teaching_standard",
+        }
 
 
 class TestSpecValidation:
