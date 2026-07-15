@@ -58,6 +58,10 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
 - Processing pipeline is determined at job creation, not at runtime inference.
 - **assetize** builds the master data anchor; **normalize** converts content to the standard contract. These are distinct stages.
 - `normalize-service` uses LLM semantic extraction + rule-engine fallback validation (dual-layer).
+- Teaching-standard table extraction is rule-first. On a diagnosed rule miss,
+  it may use `LITELLM_EXTRACTION_MODEL_ALIAS` only against normalized-document
+  blocks; schema, literal table-row evidence, locator, and confidence gates
+  must admit its output before capability-graph staging consumes it.
 - MinerU is called with auto-selected `model_version` and `ocr_enable`; images are stored alongside the JSON result.
 - Knowledge Pipeline is independent of Asset Pipeline; they connect only through `normalized_asset_ref`.
 

@@ -229,6 +229,11 @@ P0 end-to-end cases:
 - Local identity works without DingTalk.
 - AI re-score produces new `ai_governance_run` and updated `governance_result.quality_summary` while retaining feedback in `decision_trail`.
 - Knowledge Pipeline 1: normalized D4 asset → NEXUS `knowledge_chunk` / pgvector-backed semantic retrieval index → chunk carries `normalized_ref_id` → search returns result traceable to normalized ref.
+- Teaching-standard professional graphs use rule-first table extraction. A
+  configured LiteLLM fallback is used only when the rules report an incomplete
+  extraction; low-confidence, schema-invalid, or evidence-unbound output is
+  not admitted to the graph and records its rejection reason in normalize
+  trace metadata.
 
 Go / No-Go:
 - Permission leakage rate must be 0.

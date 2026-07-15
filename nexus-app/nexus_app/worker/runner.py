@@ -116,6 +116,18 @@ def _build_normalize_service(settings: Settings) -> NormalizeService:
     return NormalizeService(llm_client=llm_client, llm_model_alias=model_alias)
 
 
+def _build_teaching_standard_llm_client(settings: Settings):
+    """Build the opt-in table fallback client only when its alias is set."""
+    if not settings.litellm_extraction_model_alias:
+        return None
+    try:
+        from nexus_app.ai_governance.services import _create_default_litellm_client
+        return _create_default_litellm_client(settings)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("teaching-standard extraction LLM unavailable: %s", exc)
+        return None
+
+
 def _add_failure_stage(session: Session, job: models.Job, stage_name: str, reason: str) -> None:
     now = utcnow()
     existing = session.scalar(
@@ -991,7 +1003,6 @@ def _run_teaching_standard_graph(
     job_id: str,
 ) -> None:
     """Materialize the table-backed teaching-standard capability graph."""
-    session.commit()
     try:
         key = normalized_ref.object_uri.split("/", 3)[-1] if normalized_ref.object_uri.startswith("s3://") else normalized_ref.object_uri
         payload = json.loads(ctx.storage.get_bytes(key).decode("utf-8"))
@@ -1709,6 +1720,7 @@ def execute_job(
         pipeline_type=pipeline_type,
         image_analyzer=image_analyzer if pipeline_type == PipelineType.DOCUMENT else None,
         normalize_service=_build_normalize_service(settings),
+        teaching_standard_llm_client=_build_teaching_standard_llm_client(settings) if pipeline_type == PipelineType.DOCUMENT else None,
     )
 
     # Stage 1: assetize — failures here are rolled back (no significant partial state)

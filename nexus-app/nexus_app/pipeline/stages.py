@@ -783,19 +783,38 @@ def _build_normalized_document(
         }]
 
     teaching_standard_payload: dict[str, Any] | None = None
+    teaching_standard_extraction: dict[str, Any] | None = None
     try:
-        from nexus_app.teaching_standard import extract as _extract_teaching_standard
-        teaching_standard_payload = _extract_teaching_standard({
+        from nexus_app.teaching_standard import extract_with_diagnostics as _extract_teaching_standard
+        rule_result = _extract_teaching_standard({
             "content_type": "document",
             "title": title_from(raw_object, parse_payload),
             "blocks": blocks,
             "toc": toc,
         })
+        teaching_standard_payload = rule_result.payload
+        if teaching_standard_payload is None:
+            # The fallback receives the same normalized blocks, never the raw
+            # file or MinerU result. It is intentionally opt-in via the
+            # extraction alias and cannot write staging data directly.
+            from nexus_app.teaching_standard.llm_fallback import extract as _llm_fallback
+            fallback = _llm_fallback(
+                {"content_type": "document", "title": title_from(raw_object, parse_payload), "blocks": blocks, "toc": toc},
+                llm_client=ctx.teaching_standard_llm_client,
+                model_alias=ctx.settings.litellm_extraction_model_alias,
+                rule_failure_reason=rule_result.failure_reason or "rule_extraction_failed",
+            )
+            teaching_standard_payload = fallback.payload
+            teaching_standard_extraction = fallback.metadata
+        else:
+            teaching_standard_extraction = teaching_standard_payload.get("extractor")
     except Exception:
         logger.warning("teaching_standard table extraction failed during normalize", exc_info=True)
     if teaching_standard_payload is not None:
         metadata["teaching_standard_graph_rows"] = len(teaching_standard_payload["rows"])
         metadata["domain_profile"] = "teaching_standard.v1"
+    if teaching_standard_extraction is not None:
+        metadata["teaching_standard_extraction"] = teaching_standard_extraction
 
     return {
         "schema_version": "normalized-document-v1",
@@ -1071,7 +1090,19 @@ def _persist_normalized_ref(
         ctx,
         "normalize",
         StageStatus.SUCCEEDED,
-        {"normalized_ref_id": ref.id, "normalized_uri": ref.object_uri},
+        {
+            "normalized_ref_id": ref.id,
+            "normalized_uri": ref.object_uri,
+            # This contains strategy/alias/hash/outcome only; the normalized
+            # table text itself remains in object storage and is never copied
+            # into a job-stage audit record.
+            **(
+                {"teaching_standard_extraction": normalized_payload["metadata"]["teaching_standard_extraction"]}
+                if isinstance(normalized_payload.get("metadata"), dict)
+                and isinstance(normalized_payload["metadata"].get("teaching_standard_extraction"), dict)
+                else {}
+            ),
+        },
         started_at=started_at,
     )
     return ref

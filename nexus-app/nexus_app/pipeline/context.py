@@ -10,6 +10,7 @@ from nexus_app.enums import PipelineType
 from nexus_app.image_analysis import ImageAnalyzer
 from nexus_app.mineru import MinerUAdapter
 from nexus_app.normalize.service import NormalizeService
+from nexus_app.ai_governance.litellm_client import LiteLLMClientProtocol
 from nexus_app.storage import ObjectStorage
 
 
@@ -26,3 +27,4 @@ class PipelineContext:
     pipeline_type: PipelineType = PipelineType.DOCUMENT
     image_analyzer: ImageAnalyzer | None = None  # None disables VLM image analysis
     normalize_service: NormalizeService | None = None  # None disables LLM+rule normalize layer
+    teaching_standard_llm_client: LiteLLMClientProtocol | None = None

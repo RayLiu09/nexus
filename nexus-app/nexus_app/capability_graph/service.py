@@ -38,6 +38,7 @@ def build_capability_staging(
     build_type: str,
     domain: str = "occupation",
     teaching_standard_payload: dict[str, object] | None = None,
+    force: bool = False,
 ) -> BuildResult:
     """Materialise staging nodes + edges for `normalized_ref`.
 
@@ -63,7 +64,7 @@ def build_capability_staging(
                 models.CapabilityGraphStagingBuild.status == BuildStatus.GENERATED,
             ).order_by(models.CapabilityGraphStagingBuild.created_at.desc())
         )
-        if existing is not None:
+        if existing is not None and not force:
             summary = existing.quality_summary or {}
             return BuildResult(
                 build_id=existing.id, build_type=build_type,
@@ -72,6 +73,9 @@ def build_capability_staging(
                 quality_summary=summary, skipped=True,
                 skipped_reason="existing_generated_build",
             )
+        if existing is not None and force:
+            session.delete(existing)
+            session.flush()
 
     nodes, edges = _collect_specs(session, normalized_ref, build_type, teaching_standard_payload)
     if not nodes:
