@@ -119,6 +119,15 @@ export interface NormalizedBlock {
   md_char_range: [number, number] | null;
 }
 
+export interface NormalizedTocItem {
+  title?: string;
+  text?: string;
+  number?: string;
+  level?: number;
+  page?: number;
+  block_id?: string;
+  children?: NormalizedTocItem[];
+}
 
 export interface MarkdownHighlightRange {
   start: number;
@@ -250,5 +259,6 @@ export interface NormalizedRefContent {
   normalized_type: "document" | "record" | string;
   body_markdown: string | null;
   blocks: NormalizedBlock[] | null;
+  toc: NormalizedTocItem[] | null;
   record_body: Record<string, unknown> | null;
 }

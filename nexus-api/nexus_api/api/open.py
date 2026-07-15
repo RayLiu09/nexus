@@ -413,6 +413,7 @@ def get_normalized_ref_content(
         "normalized_type": normalized_type,
         "body_markdown": payload.get("body_markdown") or None,
         "blocks": payload.get("blocks") if isinstance(payload.get("blocks"), list) else None,
+        "toc": payload.get("toc") if isinstance(payload.get("toc"), list) else None,
         "record_body": payload.get("record_body") if isinstance(payload.get("record_body"), dict) else None,
     }
 

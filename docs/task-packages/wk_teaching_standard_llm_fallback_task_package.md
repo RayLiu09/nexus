@@ -10,6 +10,8 @@ recognition is incomplete, while retaining the frozen capability-graph model.
 - `nexus_app/teaching_standard` rule diagnostics and LiteLLM fallback.
 - Teaching-standard table row recovery for cross-page continuations and
   duplicated continuation headers.
+- Teaching-standard directory view: prefer generic normalized `toc`, then
+  derive a transient tree from normalized heading blocks when `toc` is empty.
 - Pipeline A normalized-document integration and worker client wiring.
 - Focused teaching-standard graph tests and this documentation.
 
@@ -30,6 +32,8 @@ recognition is incomplete, while retaining the frozen capability-graph model.
   header prefixes such as `典型工作任务` or `主要教学内容与要求`.
 - Console presents this teaching-standard graph as `岗位知识图谱`; it is not an
   Evidence Graph.
+- Directory fallback is a console read model only: it does not add a dedicated
+  directory table or persist a teaching-standard-specific directory projection.
 
 ## Out Of Scope
 

@@ -349,6 +349,7 @@ class TestNormalizedRefContent:
 
     _DOC_PAYLOAD = {
         "body_markdown": "# Title\n\nHello world.\n\nTail.",
+        "toc": [{"level": 1, "number": "1", "title": "概述", "page": 0}],
         "blocks": [
             {"block_id": "block-001", "block_type": "heading",
              "page": 0, "bbox": [10, 10, 100, 30],
@@ -391,6 +392,7 @@ class TestNormalizedRefContent:
         # would silently misalign the frontend block-anchor splitter.
         assert body["body_markdown"] == self._DOC_PAYLOAD["body_markdown"]
         assert body["blocks"] == self._DOC_PAYLOAD["blocks"]
+        assert body["toc"] == self._DOC_PAYLOAD["toc"]
         assert body["normalized_type"] == "document"
         assert body["record_body"] is None
 
