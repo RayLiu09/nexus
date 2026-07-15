@@ -1,0 +1,118 @@
+name: nexus
+
+services:
+  postgresql:
+    image: pgvector/pgvector:pg18
+    container_name: nexus-postgresql
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nexus}
+      POSTGRES_USER: ${POSTGRES_USER:-nexus}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nexus_password}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - nexus-postgresql-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: nexus-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${minio_username:-minio}
+      MINIO_ROOT_PASSWORD: ${minio_password:-minio_password}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - nexus-minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  nexus-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: nexus-api
+    image: nexus-api:local
+    container_name: nexus-api
+    restart: unless-stopped
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      NEXUS_ENV: ${NEXUS_ENV:-development}
+      NEXUS_JWT_SECRET: ${NEXUS_JWT_SECRET:-change-me-at-least-32-characters-long}
+      NEXUS_DATABASE_URL: ${NEXUS_DATABASE_URL:-postgresql+psycopg://nexus:nexus_password@postgresql:5432/nexus}
+      POSTGRES_DRIVER: postgresql
+      POSTGRES_HOST: postgresql
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-nexus}
+      POSTGRES_DATABASE: ${POSTGRES_DB:-nexus}
+      POSTGRES_USER: ${POSTGRES_USER:-nexus}
+      POSTGRES_USERNAME: ${POSTGRES_USER:-nexus}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nexus_password}
+      POSTGRES_SSL_MODE: disable
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${minio_username:-minio}
+      MINIO_SECRET_KEY: ${minio_password:-minio_password}
+      MINIO_ROOT_USER: ${minio_username:-minio}
+      MINIO_ROOT_PASSWORD: ${minio_password:-minio_password}
+      MINIO_BUCKET_PRIMARY: ${MINIO_BUCKET_PRIMARY:-nexus-objects}
+      MINIO_BUCKET_PARTITION_RAW: ${MINIO_BUCKET_PARTITION_RAW:-raw}
+      MINIO_BUCKET_PARTITION_STAGING: ${MINIO_BUCKET_PARTITION_STAGING:-staging}
+      MINIO_BUCKET_PARTITION_PARSED: ${MINIO_BUCKET_PARTITION_PARSED:-parsed}
+      MINIO_BUCKET_PARTITION_NORMALIZED: ${MINIO_BUCKET_PARTITION_NORMALIZED:-normalized}
+      MINIO_BUCKET_PARTITION_EXPORT: ${MINIO_BUCKET_PARTITION_EXPORT:-export}
+      MINIO_BUCKET_PARTITION_MISC: ${MINIO_BUCKET_PARTITION_MISC:-misc}
+      MINIO_SECURE: "false"
+      MINIO_REGION_NAME: ${MINIO_REGION_NAME:-us-east-1}
+      minio_username: ${minio_username:-minio}
+      minio_password: ${minio_password:-minio_password}
+      # MinerU is intentionally external in this deployment file.
+      MINERU_ENDPOINT: ${MINERU_ENDPOINT:-}
+      MINERU_API_KEY: ${MINERU_API_KEY:-}
+      LITELLM_BASE_URL: ${LITELLM_BASE_URL:-}
+      LITELLM_API_KEY: ${LITELLM_API_KEY:-}
+      LITELLM_EXTRACTION_MODEL_ALIAS: ${LITELLM_EXTRACTION_MODEL_ALIAS:-}
+    ports:
+      - "${NEXUS_API_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  nexus-console:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: nexus-console
+    image: nexus-console:local
+    container_name: nexus-console
+    restart: unless-stopped
+    depends_on:
+      nexus-api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NEXUS_API_BASE_URL: ${NEXUS_API_BASE_URL:-http://nexus-api:8000}
+      NEXUS_DEMO_CALLER_KEY: ${NEXUS_DEMO_CALLER_KEY:-}
+    ports:
+      - "${NEXUS_CONSOLE_PORT:-3000}:3000"
+
+volumes:
+  nexus-postgresql-data:
+  nexus-minio-data:
