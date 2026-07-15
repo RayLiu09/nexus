@@ -8,6 +8,8 @@ recognition is incomplete, while retaining the frozen capability-graph model.
 ## Scope
 
 - `nexus_app/teaching_standard` rule diagnostics and LiteLLM fallback.
+- Teaching-standard table row recovery for cross-page continuations and
+  duplicated continuation headers.
 - Pipeline A normalized-document integration and worker client wiring.
 - Focused teaching-standard graph tests and this documentation.
 
@@ -22,6 +24,10 @@ recognition is incomplete, while retaining the frozen capability-graph model.
   before data may be stored in `teaching_standard`.
 - The builder remains `Major -> OccupationalDomain -> {TypicalWorkTask,
   SkillKnowledgeRequirement}`. Course, JobRole, and Ability are forbidden.
+- Cross-page fragments may merge only within one table when the sequence
+  number and normalized occupational-domain identity agree; their source row
+  locators remain aggregated as evidence. Leaf labels must not retain table
+  header prefixes such as `典型工作任务` or `主要教学内容与要求`.
 - Console presents this teaching-standard graph as `岗位知识图谱`; it is not an
   Evidence Graph.
 
