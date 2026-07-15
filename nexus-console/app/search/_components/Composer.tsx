@@ -1,6 +1,16 @@
 "use client";
 
-import { Button, Input, InputNumber, Segmented, Select, Slider, Tooltip, Typography } from "antd";
+import {
+  Button,
+  Input,
+  InputNumber,
+  Segmented,
+  Select,
+  Slider,
+  Space,
+  Tooltip,
+  Typography,
+} from "antd";
 import { FileSearch, Loader2, MessagesSquare, Search, Send } from "lucide-react";
 import { useMemo } from "react";
 
@@ -97,14 +107,18 @@ export function Composer(props: ComposerProps) {
                 label: `${kt.name}（${kt.code}）`,
               }))}
             />
-            <InputNumber
-              addonBefore="top_k"
-              min={1}
-              max={50}
-              value={topK}
-              disabled={loading}
-              onChange={(v) => onTopKChange(typeof v === "number" ? v : DEFAULT_TOP_K)}
-            />
+            <Space.Compact>
+              <div className="flex h-8 items-center rounded-s-md border border-e-0 border-[var(--line)] bg-[var(--surface-alt)] px-3 text-sm text-[var(--muted)]">
+                top_k
+              </div>
+              <InputNumber
+                min={1}
+                max={50}
+                value={topK}
+                disabled={loading}
+                onChange={(v) => onTopKChange(typeof v === "number" ? v : DEFAULT_TOP_K)}
+              />
+            </Space.Compact>
           </>
         )}
         {mode === "search" && (
