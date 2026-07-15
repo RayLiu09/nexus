@@ -22,6 +22,8 @@ recognition is incomplete, while retaining the frozen capability-graph model.
   before data may be stored in `teaching_standard`.
 - The builder remains `Major -> OccupationalDomain -> {TypicalWorkTask,
   SkillKnowledgeRequirement}`. Course, JobRole, and Ability are forbidden.
+- Console presents this teaching-standard graph as `岗位知识图谱`; it is not an
+  Evidence Graph.
 
 ## Out Of Scope
 

@@ -211,6 +211,8 @@ function LineageTab({
 
 function KnowledgeChunksTab({
   latestRef,
+  asset,
+  latestGovernanceResult,
   assetTitle,
   taskOutline,
   taskOutlineOk,
@@ -219,6 +221,8 @@ function KnowledgeChunksTab({
   onJumpToBlock,
 }: {
   latestRef: NormalizedAssetRef | null;
+  asset: Asset | null;
+  latestGovernanceResult?: GovernanceResult | null;
   assetTitle?: string | null;
   taskOutline?: TaskOutlineEnvelope | null;
   taskOutlineOk?: boolean;
@@ -232,10 +236,18 @@ function KnowledgeChunksTab({
   // Routing logic lives in `resolveRecordView()` so the tab stays a
   // thin dispatcher and individual views own their own loading state.
   const view = resolveRecordView(latestRef);
+  // Current Pipeline A refs carry teaching_standard.v1. Older refs were
+  // normalized before that profile marker was added, so use their official
+  // classification as a read-only compatibility signal. This prevents them
+  // from falling back to DocumentKnowledgeView (and its Evidence Graph tab).
+  const isTeachingStandard =
+    view === "teaching_standard" ||
+    latestGovernanceResult?.classification === "teaching_standard" ||
+    asset?.metadata_summary?.domain_profile === "teaching_standard.v1";
   if (view === "major_profile" && latestRef) {
     return <MajorProfileKnowledgeView normalizedRefId={latestRef.id} />;
   }
-  if (view === "teaching_standard" && latestRef) {
+  if (isTeachingStandard && latestRef) {
     return <TeachingStandardKnowledgeView normalizedRefId={latestRef.id} />;
   }
   if (view === "job_demand" && latestRef) {
@@ -779,6 +791,8 @@ export function AssetDetailTabs({
         {activeTab === "knowledge-chunks" && (
           <KnowledgeChunksTab
             latestRef={latestRef}
+            asset={asset}
+            latestGovernanceResult={latestGovernanceResult}
             assetTitle={asset?.title ?? null}
             taskOutline={taskOutline}
             taskOutlineOk={taskOutlineOk}
