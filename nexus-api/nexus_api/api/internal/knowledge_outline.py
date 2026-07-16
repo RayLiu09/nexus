@@ -33,6 +33,11 @@ PREVIEW_MAX_CHARS = 800
 CHUNK_PAGE_DEFAULT = 20
 CHUNK_PAGE_MAX = 100
 
+# A2: cap subtree recursion to defend against deeply-nested pathological trees
+# while covering realistic textbook outlines (typical depth 3-4).
+SUBTREE_MAX_DEPTH_DEFAULT = 5
+SUBTREE_MAX_DEPTH_HARD_LIMIT = 20
+
 
 # ---------------------------------------------------------------------------
 # GET /normalized-refs/{ref_id}/knowledge-outline
@@ -191,6 +196,187 @@ def get_knowledge_outline_node_preview(
         },
         request,
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /knowledge-outline-nodes/{node_id}/subtree
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/knowledge-outline-nodes/{node_id}/subtree",
+    response_model=schemas.ApiResponse[dict],
+)
+def get_knowledge_outline_node_subtree(
+    node_id: str,
+    request: Request,
+    max_depth: int = Query(
+        default=SUBTREE_MAX_DEPTH_DEFAULT,
+        ge=0,
+        le=SUBTREE_MAX_DEPTH_HARD_LIMIT,
+    ),
+    include_chunks: bool = Query(default=False),
+    session: Session = Depends(get_db),
+):
+    """A2 (§10 阶段 A) — recursively expand a knowledge outline subtree.
+
+    Returns the target node plus its descendants as a nested `{node,
+    children: [...]}` shape, so the caller can walk the tree without
+    reassembling parent_id → children joins client-side.
+
+    Depth is capped by `max_depth` (default 5, hard limit 20). Nodes below
+    that depth are omitted; `truncated_depth: true` on that subtree marks
+    the cut so callers know the tree isn't a full snapshot.
+
+    `include_chunks=true` attaches each node's chunks (bounded by
+    `SUBTREE_CHUNKS_PER_NODE`) as a flat preview list — useful for
+    Composer-side single-round context assembly, but the caller pays for
+    the extra DB scan.
+    """
+    node = session.get(models.KnowledgeOutlineNode, node_id)
+    if node is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"knowledge_outline_node '{node_id}' not found",
+        )
+
+    # Load every node under the same normalized_ref in one pass; a textbook
+    # tree fits comfortably in memory (thousands, not millions) and this
+    # avoids O(depth) round-trips.
+    all_nodes = list(session.scalars(
+        select(models.KnowledgeOutlineNode)
+        .where(
+            models.KnowledgeOutlineNode.normalized_ref_id == node.normalized_ref_id,
+        )
+        .order_by(
+            models.KnowledgeOutlineNode.level.asc(),
+            models.KnowledgeOutlineNode.order_index.asc(),
+        )
+    ))
+    node_by_id: dict[str, models.KnowledgeOutlineNode] = {n.id: n for n in all_nodes}
+    children_by_parent: dict[str, list[str]] = {}
+    for n in all_nodes:
+        if n.parent_id:
+            children_by_parent.setdefault(n.parent_id, []).append(n.id)
+
+    chunks_by_node: dict[str, list[models.KnowledgeChunk]] = {}
+    if include_chunks:
+        descendant_ids = _descendant_node_ids(session, node)
+        # Bound the per-request chunk fetch; a caller wanting large payloads
+        # should paginate via the `/chunks` endpoint instead.
+        rows = list(session.scalars(
+            select(models.KnowledgeChunk)
+            .where(
+                models.KnowledgeChunk.knowledge_outline_node_id.in_(descendant_ids),
+            )
+            .order_by(
+                models.KnowledgeChunk.chunk_index.asc(),
+                models.KnowledgeChunk.id.asc(),
+            )
+            .limit(SUBTREE_CHUNKS_PER_REQUEST_HARD_CAP)
+        ))
+        for c in rows:
+            nid = c.knowledge_outline_node_id
+            if nid is None:
+                continue
+            chunks_by_node.setdefault(nid, []).append(c)
+
+    tree_node = _build_subtree(
+        node=node,
+        node_by_id=node_by_id,
+        children_by_parent=children_by_parent,
+        chunks_by_node=chunks_by_node if include_chunks else None,
+        depth=0,
+        max_depth=max_depth,
+        visited=set(),
+    )
+
+    return response(
+        {
+            "root_node_id": node_id,
+            "normalized_ref_id": node.normalized_ref_id,
+            "max_depth": max_depth,
+            "include_chunks": include_chunks,
+            "tree": tree_node,
+        },
+        request,
+    )
+
+
+# Overall cap on total chunks returned in a single subtree call — protects
+# against pathological refs where every leaf has hundreds of chunks.
+SUBTREE_CHUNKS_PER_REQUEST_HARD_CAP = 500
+
+
+def _build_subtree(
+    *,
+    node: models.KnowledgeOutlineNode,
+    node_by_id: dict[str, models.KnowledgeOutlineNode],
+    children_by_parent: dict[str, list[str]],
+    chunks_by_node: dict[str, list[models.KnowledgeChunk]] | None,
+    depth: int,
+    max_depth: int,
+    visited: set[str],
+) -> dict[str, Any]:
+    """Recursively assemble the {node, children: [...]} tree.
+
+    `visited` guards against pathological parent_id cycles — the data model
+    doesn't formally forbid them, so we defend the traversal rather than
+    trusting the input.
+    """
+    if node.id in visited:
+        # Break the cycle; report it in the payload so callers can flag data.
+        return {
+            "node": _serialize_subtree_node(node),
+            "children": [],
+            "cycle_detected": True,
+        }
+    visited = visited | {node.id}
+
+    entry: dict[str, Any] = {"node": _serialize_subtree_node(node)}
+    if chunks_by_node is not None:
+        entry["chunks"] = [
+            _serialize_chunk(c) for c in chunks_by_node.get(node.id, [])
+        ]
+
+    if depth >= max_depth:
+        # Signal that this branch was cut so the caller doesn't misread an
+        # empty children list as "no descendants".
+        remaining = children_by_parent.get(node.id, [])
+        entry["children"] = []
+        entry["truncated_depth"] = bool(remaining)
+        return entry
+
+    child_ids = children_by_parent.get(node.id, [])
+    children_payload: list[dict[str, Any]] = []
+    for child_id in child_ids:
+        child = node_by_id.get(child_id)
+        if child is None:
+            continue
+        children_payload.append(_build_subtree(
+            node=child,
+            node_by_id=node_by_id,
+            children_by_parent=children_by_parent,
+            chunks_by_node=chunks_by_node,
+            depth=depth + 1,
+            max_depth=max_depth,
+            visited=visited,
+        ))
+    entry["children"] = children_payload
+    return entry
+
+
+def _serialize_subtree_node(node: models.KnowledgeOutlineNode) -> dict[str, Any]:
+    return {
+        "id": node.id,
+        "parent_id": node.parent_id,
+        "level": node.level,
+        "order_index": node.order_index,
+        "title": node.title,
+        "numbering": node.numbering,
+        "numbering_path": node.numbering_path,
+        "anchor_range": node.anchor_range,
+    }
 
 
 # ---------------------------------------------------------------------------

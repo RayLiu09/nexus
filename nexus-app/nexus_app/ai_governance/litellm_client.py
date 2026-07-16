@@ -47,6 +47,58 @@ class LiteLLMCallSummary(BaseModel):
     error_message: str | None = None
 
 
+# ---------------------------------------------------------------------------
+# A0 (§10 阶段 A + §1.11 决策 #4) — function calling / tool use support.
+# ---------------------------------------------------------------------------
+#
+# The Query Router v2 dispatcher (phase B B4) needs to hand a list of
+# tool schemas to the LLM and receive structured tool_calls back. We
+# extend both the Protocol and the OpenAI-compatible client to accept
+# `tools` + `tool_choice`, returning the raw `tool_calls` alongside the
+# usual content string.
+#
+# Fallback contract: when the LLM chooses NOT to invoke any tool (e.g.
+# `finish_reason=stop`, empty tool_calls) OR when arguments fail
+# Pydantic validation upstream, the dispatcher receives an empty
+# `tool_calls` list. §1.11 决策 #4 mandates that the caller then
+# routes to the `unknown` fallback path — this client library does
+# not retry.
+
+
+class ToolCall(BaseModel):
+    """Structured record of a single LLM-requested tool invocation.
+
+    `arguments` stays as the raw JSON string emitted by the model so
+    the caller can validate it against the tool's Pydantic schema
+    (§1.11 decision — schema violations trigger dispatcher fallback,
+    not a client-side retry).
+    """
+
+    id: str
+    name: str
+    arguments: str
+
+
+class ToolCallingResult(BaseModel):
+    """Return shape for `call_with_tools`.
+
+    `content` — free-form text the model may have produced alongside
+    the tool_calls (usually empty when tool_choice="required").
+    `tool_calls` — one entry per requested invocation, empty when the
+    model chose not to invoke any tool.
+    `finish_reason` — mirrors the OpenAI-compatible payload so the
+    dispatcher can distinguish "stop" (model deliberately answered
+    without a tool) from "tool_calls" (model requested tool use).
+    `summary` — inherits the standard call-level metadata (latency,
+    request_id, etc.) for audit sinks.
+    """
+
+    content: str
+    tool_calls: list[ToolCall] = Field(default_factory=list)
+    finish_reason: str | None = None
+    summary: LiteLLMCallSummary
+
+
 class LiteLLMClientProtocol(Protocol):
     def call(
         self,
@@ -57,6 +109,17 @@ class LiteLLMClientProtocol(Protocol):
         max_tokens: int = 2048,
         response_format: dict[str, Any] | None = None,
     ) -> tuple[str, LiteLLMCallSummary]: ...
+
+    def call_with_tools(
+        self,
+        model_alias: str,
+        messages: list[dict[str, str]],
+        *,
+        tools: list[dict[str, Any]],
+        tool_choice: str | dict[str, Any] = "auto",
+        temperature: float = 0.2,
+        max_tokens: int = 2048,
+    ) -> ToolCallingResult: ...
 
 
 class RealLiteLLMClient:
@@ -119,6 +182,84 @@ class RealLiteLLMClient:
                     model_alias, request_id, latency_ms)
         return content, summary
 
+    def call_with_tools(
+        self,
+        model_alias: str,
+        messages: list[dict[str, str]],
+        *,
+        tools: list[dict[str, Any]],
+        tool_choice: str | dict[str, Any] = "auto",
+        temperature: float = 0.2,
+        max_tokens: int = 2048,
+    ) -> ToolCallingResult:
+        """A0 (§1.11 决策 #4) — pass tools through to OpenAI-compatible chat.
+
+        Returns `tool_calls=[]` when the model chose not to invoke any
+        tool. The caller (B4 dispatcher) is expected to fall back to the
+        `unknown` scenario in that case — this method never retries.
+        Errors surface as `LiteLLMCallError` exactly like `call()`.
+        """
+        input_hash = _hash_messages(messages)
+        kwargs: dict[str, Any] = dict(
+            model=model_alias,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            tools=tools,
+            tool_choice=tool_choice,
+        )
+        start = time.monotonic()
+        try:
+            resp = self._client.chat.completions.create(**kwargs)
+        except Exception as exc:
+            latency_ms = (time.monotonic() - start) * 1000
+            error_type = self._classify_error(exc)
+            logger.warning(
+                "LiteLLM call_with_tools failed alias=%s error_type=%s "
+                "latency_ms=%.1f",
+                model_alias, error_type, latency_ms,
+            )
+            raise LiteLLMCallError(
+                f"LiteLLM call_with_tools failed: {exc}", error_type,
+            ) from exc
+
+        latency_ms = (time.monotonic() - start) * 1000
+        choice = resp.choices[0]
+        message = choice.message
+        content = message.content or ""
+        raw_tool_calls = getattr(message, "tool_calls", None) or []
+        parsed_tool_calls: list[ToolCall] = []
+        for tc in raw_tool_calls:
+            # OpenAI SDK returns objects with `.function.name/arguments`
+            # nested; keep the parsing defensive so a shape change
+            # doesn't crash retrieval.
+            fn = getattr(tc, "function", None)
+            if fn is None:
+                continue
+            parsed_tool_calls.append(ToolCall(
+                id=getattr(tc, "id", ""),
+                name=getattr(fn, "name", ""),
+                arguments=getattr(fn, "arguments", "") or "",
+            ))
+        finish_reason = getattr(choice, "finish_reason", None)
+        request_id = getattr(resp, "id", None)
+        summary = LiteLLMCallSummary(
+            model_alias=model_alias, request_id=request_id, latency_ms=latency_ms,
+            status="success", input_hash=input_hash,
+        )
+        logger.info(
+            "LiteLLM call_with_tools ok alias=%s request_id=%s "
+            "latency_ms=%.1f tool_calls=%d finish=%s",
+            model_alias, request_id, latency_ms,
+            len(parsed_tool_calls), finish_reason,
+        )
+        return ToolCallingResult(
+            content=content,
+            tool_calls=parsed_tool_calls,
+            finish_reason=finish_reason,
+            summary=summary,
+        )
+
     def _classify_error(self, exc: Exception) -> LiteLLMErrorType:
         name = type(exc).__name__
         if "Timeout" in name:
@@ -133,10 +274,30 @@ class RealLiteLLMClient:
 
 
 class FakeLiteLLMClient:
-    """Returns deterministic fake responses for demo/test environments."""
+    """Returns deterministic fake responses for demo/test environments.
 
-    def __init__(self, response_override: str | None = None) -> None:
+    Two response overrides — one for `call()` (JSON content string) and
+    one for `call_with_tools()` (list of ToolCall). Both default to
+    canned demo payloads so tests that don't care about the actual
+    LLM response can just instantiate `FakeLiteLLMClient()`.
+    """
+
+    def __init__(
+        self,
+        response_override: str | None = None,
+        *,
+        tool_calls_override: list[ToolCall] | None = None,
+        content_override_with_tools: str = "",
+        finish_reason_with_tools: str | None = None,
+    ) -> None:
         self._response_override = response_override
+        # Empty list → simulate "model chose not to invoke any tool" so
+        # dispatcher tests can exercise the §1.11 decision #4 fallback
+        # without a custom subclass. `None` (the default) keeps the
+        # historical single-tool canned response for backwards compat.
+        self._tool_calls_override = tool_calls_override
+        self._content_override_with_tools = content_override_with_tools
+        self._finish_reason_with_tools = finish_reason_with_tools
 
     def call(
         self,
@@ -172,6 +333,45 @@ class FakeLiteLLMClient:
             latency_ms=50.0, status="success", input_hash=input_hash,
         )
         return content, summary
+
+    def call_with_tools(
+        self,
+        model_alias: str,
+        messages: list[dict[str, str]],
+        *,
+        tools: list[dict[str, Any]],
+        tool_choice: str | dict[str, Any] = "auto",
+        temperature: float = 0.2,
+        max_tokens: int = 2048,
+    ) -> ToolCallingResult:
+        input_hash = _hash_messages(messages)
+        if self._tool_calls_override is not None:
+            tool_calls = list(self._tool_calls_override)
+        else:
+            # Canned "invoke the first available tool with empty args"
+            # response — enough for smoke tests that don't want to
+            # micro-manage the LLM's decision.
+            tool_calls = []
+            if tools:
+                first = tools[0]
+                fn = first.get("function", first)
+                tool_calls.append(ToolCall(
+                    id="fake-tool-call-1",
+                    name=fn.get("name", "unknown"),
+                    arguments="{}",
+                ))
+        finish_reason = self._finish_reason_with_tools or (
+            "tool_calls" if tool_calls else "stop"
+        )
+        return ToolCallingResult(
+            content=self._content_override_with_tools,
+            tool_calls=tool_calls,
+            finish_reason=finish_reason,
+            summary=LiteLLMCallSummary(
+                model_alias=model_alias, request_id="fake-req-tools-001",
+                latency_ms=25.0, status="success", input_hash=input_hash,
+            ),
+        )
 
 
 class CassetteLiteLLMClient:

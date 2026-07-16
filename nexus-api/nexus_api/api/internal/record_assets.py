@@ -366,6 +366,171 @@ def get_job_demand_dataset(
     return response(_serialize_job_demand_dataset(dataset), request)
 
 
+# ---------------------------------------------------------------------------
+# A1b (§10 阶段 A + §1.14 §1.15 B1) — cross-dataset job-demand-records
+# ---------------------------------------------------------------------------
+#
+# Scope narrowed by 4 rounds of review:
+# * §1.9 决策 #2 — drop dataset-level filters, focus on the record list
+# * §1.11 闭合 — major filter goes through job_demand_dataset.major_name
+#   JOIN (no industry_name fallback that would collapse the semantic
+#   distinction between "专业" and "行业")
+# * §1.14 收窄 — remove even `job_title` (and every other细粒度 filter);
+#   Composer takes care of追问 for narrower slices
+# * §1.15 B1 — when `fields=industry_distribution` is present, the
+#   endpoint additionally returns a Top-5 industry aggregation so
+#   scenario_2 tools don't have to GROUP BY client-side
+#
+# `_INDUSTRY_DISTRIBUTION_TOP_K` is a hard cap; this is the scenario_2
+# "岗位行业分布图 (Top-5)" contract, not a tunable pagination knob.
+
+_INDUSTRY_DISTRIBUTION_FIELD = "industry_distribution"
+_INDUSTRY_DISTRIBUTION_TOP_K = 5
+_JOB_DEMAND_KNOWN_FIELDS: frozenset[str] = frozenset({
+    "count",
+    "industry_distribution",
+    "tasks",
+    "capability_requirements",
+})
+
+
+@router.get(
+    "/record-assets/job-demand-records",
+    response_model=schemas.ListResponse[dict],
+)
+def list_job_demand_records(
+    request: Request,
+    major: str = Query(
+        ...,
+        min_length=1,
+        max_length=256,
+        description=(
+            "Required — substring match on `job_demand_dataset.major_name` "
+            "(JOIN'd through `dataset_id`). §1.11 决策：do NOT fall back to "
+            "`industry_name` — 专业 (major) ≠ 行业 (industry)."
+        ),
+    ),
+    normalized_ref_id: str | None = Query(
+        None,
+        max_length=36,
+        description="Optional trace-scoped narrowing (users referencing a specific dataset).",
+    ),
+    fields: list[str] | None = Query(
+        None,
+        description=(
+            "Optional aggregation whitelist. When it contains "
+            "`industry_distribution` the response includes a Top-5 industry "
+            "aggregation over the same filter set (§1.15 B1). Unknown values "
+            "are rejected (422) so typos don't silently no-op."
+        ),
+    ),
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+):
+    """A1b — cross-dataset list of job_demand_records filtered by major.
+
+    Response is `ListResponse[dict]` with an additional `aggregations`
+    object riding on the top-level meta payload — see `list_response`
+    below for how the aggregation is threaded in.
+
+    §1.14 explicitly forbids `job_title` / `salary_*` / `region` /
+    `experience_requirement` / `education_requirement` /
+    `source_published_at` filters on this endpoint. Callers sending
+    unknown query params should get FastAPI's default warn behaviour
+    (silently ignored) — that's fine here because query param typos are
+    a display problem, not a data-correctness one. The `fields` list is
+    the one exception: unknown *field* names are rejected to keep the
+    aggregation contract tight.
+    """
+    if fields:
+        unknown = sorted(set(fields) - _JOB_DEMAND_KNOWN_FIELDS)
+        if unknown:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "unknown_field_name",
+                    "unknown_fields": unknown,
+                    "known_fields": sorted(_JOB_DEMAND_KNOWN_FIELDS),
+                },
+            )
+
+    major_pattern = f"%{major}%"
+    # Base filter — the JOIN + ILIKE + optional trace narrowing is shared
+    # by both the record page query and the industry_distribution
+    # aggregation, so keep it in one place.
+    filter_clauses = [
+        models.JobDemandRecord.dataset_id == models.JobDemandDataset.id,
+        models.JobDemandDataset.major_name.ilike(major_pattern),
+    ]
+    if normalized_ref_id is not None:
+        filter_clauses.append(
+            models.JobDemandRecord.normalized_ref_id == normalized_ref_id
+        )
+
+    stmt = (
+        select(models.JobDemandRecord)
+        .join(models.JobDemandDataset,
+              models.JobDemandRecord.dataset_id == models.JobDemandDataset.id)
+        .where(*filter_clauses)
+    )
+    count_stmt = (
+        select(func.count(models.JobDemandRecord.id))
+        .join(models.JobDemandDataset,
+              models.JobDemandRecord.dataset_id == models.JobDemandDataset.id)
+        .where(*filter_clauses)
+    )
+
+    total = session.scalar(count_stmt) or 0
+    rows = list(
+        session.scalars(
+            stmt.order_by(models.JobDemandRecord.created_at.desc())
+            .offset(pagination.offset)
+            .limit(pagination.limit)
+        ).all()
+    )
+
+    aggregations: dict[str, Any] = {}
+    if fields and _INDUSTRY_DISTRIBUTION_FIELD in fields:
+        aggregations[_INDUSTRY_DISTRIBUTION_FIELD] = (
+            _industry_distribution_top_k(session, filter_clauses)
+        )
+
+    return list_response(
+        [_serialize_job_demand_record(row) for row in rows],
+        request,
+        page=pagination.page,
+        page_size=pagination.page_size,
+        total=total,
+        aggregations=aggregations or None,
+    )
+
+
+def _industry_distribution_top_k(
+    session: Session,
+    filter_clauses: list,
+) -> list[dict[str, Any]]:
+    """Aggregate `industry_name` counts under the same major/join filter.
+
+    Returns Top-5 non-null industries with counts, ordered by count DESC
+    then industry_name ASC. Null industries (records missing the field)
+    are folded out — the "distribution of KNOWN industries" is what the
+    scenario_2 chart expects.
+    """
+    industry_col = models.JobDemandRecord.industry_name
+    agg_stmt = (
+        select(industry_col, func.count(models.JobDemandRecord.id).label("count"))
+        .join(models.JobDemandDataset,
+              models.JobDemandRecord.dataset_id == models.JobDemandDataset.id)
+        .where(*filter_clauses, industry_col.isnot(None))
+        .group_by(industry_col)
+        .order_by(func.count(models.JobDemandRecord.id).desc(),
+                  industry_col.asc())
+        .limit(_INDUSTRY_DISTRIBUTION_TOP_K)
+    )
+    rows = list(session.execute(agg_stmt).all())
+    return [{"industry_name": row[0], "count": int(row[1])} for row in rows]
+
+
 @router.get(
     "/record-assets/job-demand-datasets/{dataset_id}/records",
     response_model=schemas.ListResponse[dict],
@@ -1037,7 +1202,14 @@ def list_ability_analyses(
     request: Request,
     normalized_ref_id: str | None = Query(None, max_length=36),
     profile_id: str | None = Query(None, max_length=36),
-    major_name: str | None = Query(None, max_length=256),
+    major_name: str | None = Query(
+        None,
+        max_length=256,
+        description=(
+            "专业名称过滤，走 ILIKE substring 匹配（自 v2.0.1 起从 exact 升级为 substring，"
+            "配合 §1.13 归一化的 build.major_name 命中父子专业）"
+        ),
+    ),
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
 ):
@@ -1056,9 +1228,10 @@ def list_ability_analyses(
             models.OccupationalAbilityAnalysis.profile_id == profile_id
         )
     if major_name is not None:
-        stmt = stmt.where(models.OccupationalAbilityAnalysis.major_name == major_name)
+        pattern = f"%{major_name}%"
+        stmt = stmt.where(models.OccupationalAbilityAnalysis.major_name.ilike(pattern))
         count_stmt = count_stmt.where(
-            models.OccupationalAbilityAnalysis.major_name == major_name
+            models.OccupationalAbilityAnalysis.major_name.ilike(pattern)
         )
 
     total = session.scalar(count_stmt) or 0

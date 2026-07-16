@@ -1027,6 +1027,12 @@ def search_knowledge(
             "data_source_ids": _hit_data_source_ids(results),
             "top_k": top_k,
             "similarity_threshold": similarity_threshold,
+            # A7 (§10 阶段 A) — record caller_type in summary so operators
+            # can slice audits by identity source without joining ApiCaller.
+            # `api_caller` here; console → JWT session will emit
+            # `console_session` under /internal/v1/query in phase B.
+            "caller_type": "api_caller",
+            "route": "search",  # A6 pre-wire — /open/v1/query in phase B
         },
         actor_type="api_caller",
         actor_id=caller.id,
@@ -1100,6 +1106,9 @@ def qa_knowledge(
             "data_source_ids": _hit_data_source_ids(sources),
             "answer_confidence": answer_confidence,
             "top_k": top_k,
+            # A7 — see /search endpoint for rationale.
+            "caller_type": "api_caller",
+            "route": "qa",  # A6 pre-wire — /open/v1/query in phase B
         },
         actor_type="api_caller",
         actor_id=caller.id,

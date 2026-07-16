@@ -164,7 +164,14 @@ def list_ability_analyses(
     request: Request,
     normalized_ref_id: str | None = Query(None, max_length=36),
     profile_id: str | None = Query(None, max_length=36),
-    major_name: str | None = Query(None, max_length=256),
+    major_name: str | None = Query(
+        None,
+        max_length=256,
+        description=(
+            "专业名称过滤，走 ILIKE substring 匹配（自 v2.0.1 起从 exact 升级为 substring，"
+            "配合 §1.13 归一化的 build.major_name 命中父子专业）"
+        ),
+    ),
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
 ):
@@ -189,9 +196,10 @@ def list_ability_analyses(
             models.OccupationalAbilityAnalysis.profile_id == profile_id
         )
     if major_name is not None:
-        stmt = stmt.where(models.OccupationalAbilityAnalysis.major_name == major_name)
+        pattern = f"%{major_name}%"
+        stmt = stmt.where(models.OccupationalAbilityAnalysis.major_name.ilike(pattern))
         count_stmt = count_stmt.where(
-            models.OccupationalAbilityAnalysis.major_name == major_name
+            models.OccupationalAbilityAnalysis.major_name.ilike(pattern)
         )
 
     total = session.scalar(count_stmt) or 0

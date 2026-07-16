@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -12,6 +12,9 @@ from sqlalchemy.orm import Session
 from nexus_app.config import Settings, get_settings
 from nexus_app.index.embedding_client import EmbeddingClientProtocol, create_embedding_client
 from nexus_app.models import KnowledgeEmbeddingPgvector
+
+if TYPE_CHECKING:  # pragma: no cover
+    from nexus_app.retrieval.query_expansion import QueryExpansionProvider
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +62,8 @@ class PgvectorSearchAdapter:
         similarity_threshold: float = 0.7,
         normalized_ref_ids: "list[str] | tuple[str, ...] | set[str] | None" = None,
         chunk_ids: "list[str] | tuple[str, ...] | set[str] | None" = None,
+        expand_queries: bool = False,
+        expansion_provider: "QueryExpansionProvider | None" = None,
     ) -> list[dict[str, Any]]:
         """v1.3 PR-10 + PR-7b — the pool can be narrowed by *either* the
         parent normalized_ref set (ref-level anchor: majors/abilities on
@@ -71,6 +76,20 @@ class PgvectorSearchAdapter:
         Passing ``None`` disables that filter dimension.  When both are
         set, they combine with SQL ``AND`` — the intersection.  In
         practice the executor keeps them mutually exclusive.
+
+        **A5 (§10 阶段 A + §1.15 §4.2.6)** — set ``expand_queries=True``
+        to run the LLM-driven synonym-expansion pipeline. When enabled,
+        the original query plus 3-5 paraphrases (from
+        ``expansion_provider``) each hit pgvector, and results are
+        chunk-id deduped with max-score wins. `expand_queries=False`
+        (default) is strictly the v1 code path — no LLM call, no
+        merge_and_dedup, byte-identical hits vs. before A5.
+
+        When ``expand_queries=True`` a provider MUST be supplied; a
+        missing provider falls back to the raw-query-only path and
+        stamps every result's metadata with
+        ``expand_queries_status="false_due_to_error"`` so the audit
+        summary can surface the misconfiguration.
         """
         # F6-3 / PR-7b — empty set means Phase A found no candidates;
         # skip the embedding round-trip and return no hits.
@@ -79,6 +98,49 @@ class PgvectorSearchAdapter:
         if chunk_ids is not None and not chunk_ids:
             return []
 
+        # Fast path: original query only. Preserves the pre-A5 behaviour
+        # exactly so v1 callers see no change (single embedding call,
+        # single execute, no post-processing).
+        if not expand_queries:
+            return self._run_single_query(
+                session,
+                query=query,
+                knowledge_type_code=knowledge_type_code,
+                top_k=top_k,
+                similarity_threshold=similarity_threshold,
+                normalized_ref_ids=normalized_ref_ids,
+                chunk_ids=chunk_ids,
+            )
+
+        # A5 expansion path — orchestrated separately so the fast path
+        # keeps its exact v1 shape and metrics.
+        return self._run_expanded_query(
+            session,
+            query=query,
+            knowledge_type_code=knowledge_type_code,
+            top_k=top_k,
+            similarity_threshold=similarity_threshold,
+            normalized_ref_ids=normalized_ref_ids,
+            chunk_ids=chunk_ids,
+            expansion_provider=expansion_provider,
+        )
+
+    # ------------------------------------------------------------------ #
+    # A5 support — extracted so the pre-existing search() body stays a
+    # thin dispatcher and both paths are individually testable.
+    # ------------------------------------------------------------------ #
+
+    def _run_single_query(
+        self,
+        session: Session,
+        *,
+        query: str,
+        knowledge_type_code: str | None,
+        top_k: int,
+        similarity_threshold: float,
+        normalized_ref_ids: "list[str] | tuple[str, ...] | set[str] | None",
+        chunk_ids: "list[str] | tuple[str, ...] | set[str] | None",
+    ) -> list[dict[str, Any]]:
         embedding_result = self._embedding_client.embed_texts(
             [query],
             model_alias=self._settings.effective_embedding_model_alias,
@@ -118,6 +180,62 @@ class PgvectorSearchAdapter:
             "yes" if chunk_ids is not None else "no",
         )
         return [hit.to_api_hit() for hit in hits]
+
+    def _run_expanded_query(
+        self,
+        session: Session,
+        *,
+        query: str,
+        knowledge_type_code: str | None,
+        top_k: int,
+        similarity_threshold: float,
+        normalized_ref_ids: "list[str] | tuple[str, ...] | set[str] | None",
+        chunk_ids: "list[str] | tuple[str, ...] | set[str] | None",
+        expansion_provider: "QueryExpansionProvider | None",
+    ) -> list[dict[str, Any]]:
+        # Imported lazily so pgvector_search doesn't grow a top-level
+        # dependency on retrieval/ modules — keeps import cycles impossible.
+        from nexus_app.retrieval.query_expansion import (
+            build_expansion_queries,
+            merge_and_dedup_hits,
+        )
+
+        expansion = build_expansion_queries(
+            original_query=query,
+            provider=expansion_provider,
+            expand_queries=True,
+        )
+
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for q in expansion.queries:
+            grouped[q] = self._run_single_query(
+                session,
+                query=q,
+                knowledge_type_code=knowledge_type_code,
+                top_k=top_k,
+                similarity_threshold=similarity_threshold,
+                normalized_ref_ids=normalized_ref_ids,
+                chunk_ids=chunk_ids,
+            )
+
+        merged = merge_and_dedup_hits(grouped, top_k=top_k)
+        # Stamp status onto every result so the calling audit code can
+        # copy it into `RetrievalV2SummaryFields.expand_queries_status`
+        # (see nexus_app.audit_v2_retrieval).
+        for hit in merged:
+            metadata = hit.setdefault("metadata", {})
+            metadata["expand_queries_status"] = expansion.status
+            if expansion.error_message:
+                metadata["expand_queries_error"] = expansion.error_message
+        logger.info(
+            "pgvector expanded search kb=%s top_k=%s queries=%s hit_count=%s status=%s",
+            knowledge_type_code,
+            top_k,
+            len(expansion.queries),
+            len(merged),
+            expansion.status,
+        )
+        return merged
 
     def _search_postgresql(
         self,

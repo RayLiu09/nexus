@@ -2039,11 +2039,25 @@ class CapabilityGraphStagingBuild(TimestampMixin, Base):
     - `job_demand`        — uses only job_demand_dataset + records + requirement_items
     - `ability_analysis`  — uses only occupational_* tables
     - `combined`          — uses both, plus ability_analysis_source_dataset links
+    - `teaching_standard` — projected from parsed teaching_standard tables
+
+    ``major_name`` and ``major_code`` are the A1f (§10 阶段 A + §1.12
+    §1.13) "方案 B" business-key columns — populated by the build
+    producer for ``teaching_standard`` / ``ability_analysis`` builds
+    from the extractor's `(major_code, major_name)` output run through
+    `capability_graph.major_normalizer.normalize_major_name`. Left
+    NULL for ``job_demand`` / ``combined`` builds (§1.12 决策 #4).
     """
     __tablename__ = "capability_graph_staging_build"
     __table_args__ = (
         Index("ix_cgsb_normalized_ref_id", "normalized_ref_id"),
         Index("ix_cgsb_status", "status"),
+        # Composite index — the /by-major endpoint always filters on
+        # major_name AND build_type AND status='GENERATED' together
+        # (§1.12 决策 #5), so a single covering index is more useful
+        # than two separate ones on major_name / major_code.
+        Index("ix_cgsb_major_type", "major_name", "build_type"),
+        Index("ix_cgsb_major_code", "major_code"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
@@ -2059,6 +2073,8 @@ class CapabilityGraphStagingBuild(TimestampMixin, Base):
     quality_summary: Mapped[dict[str, Any]] = mapped_column(
         JSON, default=dict, nullable=False,
     )
+    major_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    major_code: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
 
 class CapabilityGraphStagingNode(TimestampMixin, Base):

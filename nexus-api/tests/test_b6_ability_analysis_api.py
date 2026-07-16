@@ -271,6 +271,31 @@ class TestApiAbilityAnalysisList:
         assert r.status_code == 200
         assert r.json()["meta"]["total"] == 1
 
+    def test_filter_by_major_name_substring_hits(self, app, session):
+        """A1e / §1.11 决策 #7：major_name 从 exact 升级为 substring 匹配。
+
+        seeded major_name is "大数据技术应用"；用短语 "大数据" 检索应命中。
+        Exact match ("大数据技术应用") 仍然是 substring 的超集，向后兼容。
+        """
+        _seed_full_analysis(session)
+        client = TestClient(app)
+        r = client.get(
+            "/open/v1/record-assets/ability-analyses",
+            params={"major_name": "大数据"},
+        )
+        assert r.status_code == 200
+        assert r.json()["meta"]["total"] == 1
+
+    def test_filter_by_major_name_substring_no_hit(self, app, session):
+        _seed_full_analysis(session)
+        client = TestClient(app)
+        r = client.get(
+            "/open/v1/record-assets/ability-analyses",
+            params={"major_name": "电子商务"},
+        )
+        assert r.status_code == 200
+        assert r.json()["meta"]["total"] == 0
+
     def test_pagination_meta_returned(self, app, session):
         _seed_full_analysis(session)
         client = TestClient(app)

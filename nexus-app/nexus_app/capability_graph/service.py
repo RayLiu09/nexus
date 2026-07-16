@@ -128,6 +128,17 @@ def build_capability_staging(
         nodes=list(unique_nodes.values()),
         edges=list(unique_edges.values()),
     )
+    # A1f (§10 阶段 A + §1.12 §1.13) — capture major_name/major_code
+    # for teaching_standard / ability_analysis builds so the /by-major
+    # endpoint's substring lookup can hit them without joining
+    # normalized_asset_ref back through dataset. Other build_types
+    # (job_demand, combined) intentionally stay NULL per §1.12 决策 #4.
+    major_name, major_code = _resolve_major_columns_for_build(
+        session=session,
+        normalized_ref=normalized_ref,
+        build_type=build_type,
+        teaching_standard_payload=teaching_standard_payload,
+    )
     build = models.CapabilityGraphStagingBuild(
         id=str(uuid4()),
         normalized_ref_id=normalized_ref.id,
@@ -136,6 +147,8 @@ def build_capability_staging(
         status=BuildStatus.GENERATED,
         schema_version=STAGING_SCHEMA_VERSION,
         quality_summary=quality_summary,
+        major_name=major_name,
+        major_code=major_code,
     )
     session.add(build)
     session.flush()
@@ -317,6 +330,75 @@ def _aggregate_quality(
         "schema_version": STAGING_SCHEMA_VERSION,
     }
     return summary
+
+
+# ---------------------------------------------------------------------------
+# A1f (§10 阶段 A + §1.12 §1.13) — major_name / major_code capture at build
+# insert time. Separate function so the write-path change stays small and
+# the extractor / normalizer choice is exercised by dedicated tests.
+# ---------------------------------------------------------------------------
+
+
+def _resolve_major_columns_for_build(
+    *,
+    session,
+    normalized_ref: "models.NormalizedAssetRef",
+    build_type: str,
+    teaching_standard_payload: dict[str, object] | None,
+) -> tuple[str | None, str | None]:
+    """Return ``(major_name, major_code)`` to persist on the new build.
+
+    Only ``teaching_standard`` and ``ability_analysis`` builds carry
+    these columns (§1.12 决策 #4); other build_types skip the extractor
+    call entirely and return ``(None, None)``.
+
+    Extractor choice:
+
+    * ``teaching_standard`` — the payload passed in from the caller is
+      the parsed table + block set; run ``_major_identity`` over
+      title + blocks (blocks yield a more accurate result when the
+      title lacks a numeric code).
+    * ``ability_analysis`` — falls back to ``_extract_identity`` on
+      title + concatenated body text; that's the extractor used by the
+      major_profile pipeline which handles this asset family.
+
+    Any exception is swallowed (with a log) so a broken extractor never
+    blocks graph construction — the build lands with NULL columns and
+    the migration-style backfill can retry later.
+    """
+    if build_type not in {BuildType.TEACHING_STANDARD, BuildType.ABILITY_ANALYSIS}:
+        return None, None
+
+    from nexus_app.capability_graph.major_normalizer import (
+        normalize_major_code,
+        normalize_major_name,
+    )
+
+    title = (normalized_ref.title or "").strip()
+    try:
+        if build_type == BuildType.TEACHING_STANDARD:
+            from nexus_app.teaching_standard.extractor import _major_identity
+
+            blocks = (
+                teaching_standard_payload.get("blocks")
+                if isinstance(teaching_standard_payload, dict)
+                else None
+            ) or []
+            code, name = _major_identity(title, blocks)
+        else:  # ABILITY_ANALYSIS
+            from nexus_app.major_profile.extractor import _extract_identity
+
+            # The extractor accepts (title, text); we don't have the
+            # full document text at build time, so pass the title only.
+            code, name = _extract_identity(title, "")
+    except Exception:  # noqa: BLE001 — never block build on identity extraction
+        logger.warning(
+            "A1f identity extraction failed build_type=%s ref_id=%s",
+            build_type, normalized_ref.id,
+        )
+        return None, None
+
+    return normalize_major_name(name), normalize_major_code(code)
 
 
 __all__ = ["build_capability_staging"]

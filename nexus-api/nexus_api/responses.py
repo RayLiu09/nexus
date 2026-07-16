@@ -21,6 +21,7 @@ def list_response(
     page: int = 1,
     page_size: int = 100,
     total: int | None = None,
+    aggregations: dict[str, Any] | None = None,
 ) -> ListResponse[Any]:
     """Standard list envelope.
 
@@ -29,6 +30,10 @@ def list_response(
     so clients can render correct page counts. When `None` we fall back to
     `len(data)` for non-paginated callers (a no-op when the full set is
     returned).
+
+    `aggregations` is optional (defaults to `None` on the envelope) —
+    only endpoints that layer per-request analytics (A1b
+    `industry_distribution`, §1.15 B1) should populate it.
     """
     return ListResponse(
         data=data,
@@ -38,4 +43,5 @@ def list_response(
             page_size=page_size,
             total=len(data) if total is None else total,
         ),
+        aggregations=aggregations,
     )

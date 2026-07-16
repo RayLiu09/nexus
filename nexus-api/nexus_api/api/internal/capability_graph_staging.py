@@ -29,6 +29,142 @@ from nexus_app.database import get_db
 router = APIRouter()
 
 
+# ---------------------------------------------------------------------------
+# A1f (§10 阶段 A + §1.12 方案 B + §1.13) — one-hop by-major lookup
+# ---------------------------------------------------------------------------
+#
+# Contract carried by four rounds of review:
+# * §1.8 originally proposed a build → dataset reverse lookup — the
+#   phase-A team reversed to方案 B (redundant `major_name`/`major_code`
+#   on the build row) in §1.12 for simpler joins + cleaner audit.
+# * §1.13 layered on normalizer reuse + double-column redundancy.
+# * `build_type` enum is fixed to {teaching_standard, ability_analysis}
+#   (§1.15) — job_demand goes through /record-assets/job-demand-* not
+#   this endpoint.
+# * at-least-one-required: caller MUST pass either `major_name` or
+#   `major_code` (or both). 422 otherwise so the caller can't
+#   accidentally scan every build in the table.
+
+
+_BY_MAJOR_SUPPORTED_BUILD_TYPES: frozenset[str] = frozenset({
+    "teaching_standard",
+    "ability_analysis",
+})
+
+
+@router.get("/capability-graph-staging/by-major")
+def get_capability_graph_by_major(
+    request: Request,
+    build_type: str = Query(
+        ...,
+        description=(
+            "Build type — `teaching_standard` for the 教学标准 projection "
+            "or `ability_analysis` for the 职业能力分析表 projection. "
+            "`job_demand` is intentionally excluded: `job_demand` builds "
+            "don't carry major columns per §1.12 决策 #4."
+        ),
+    ),
+    major_name: str | None = Query(
+        None,
+        description=(
+            "Substring match on `build.major_name` (case-insensitive). "
+            "Provide either this or `major_code` (or both)."
+        ),
+    ),
+    major_code: str | None = Query(
+        None,
+        pattern=r"^\d{4,6}$",
+        description=(
+            "4-6 digit major code — exact match. Provide either this or "
+            "`major_name` (or both)."
+        ),
+    ),
+    session: Session = Depends(get_db),
+):
+    """One-hop lookup by major_name / major_code.
+
+    Returns the most recent GENERATED build for the given
+    (major, build_type) pair, alongside every node + edge inside it —
+    the Composer can render a full graph without follow-up queries.
+    """
+    # §1.15 build_type收敛 — anything outside the supported enum is
+    # a caller mistake; report it explicitly rather than silently
+    # returning empty (which would look like a data problem to Composer).
+    if build_type not in _BY_MAJOR_SUPPORTED_BUILD_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "unsupported_build_type",
+                "requested": build_type,
+                "supported": sorted(_BY_MAJOR_SUPPORTED_BUILD_TYPES),
+            },
+        )
+    if major_name is None and major_code is None:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "at_least_one_major_required",
+                "hint": "Provide `major_name`, `major_code`, or both.",
+            },
+        )
+
+    # Ordering: `created_at DESC` picks the latest GENERATED build so
+    # a re-run over the same normalized_ref surfaces the freshest graph.
+    # Limit(1) is intentional — §1.8 explicitly rules out multi-build
+    # aggregation.
+    stmt = select(models.CapabilityGraphStagingBuild).where(
+        models.CapabilityGraphStagingBuild.build_type == build_type,
+        models.CapabilityGraphStagingBuild.status == "GENERATED",
+    )
+    if major_code is not None:
+        stmt = stmt.where(
+            models.CapabilityGraphStagingBuild.major_code == major_code,
+        )
+    if major_name is not None:
+        stmt = stmt.where(
+            models.CapabilityGraphStagingBuild.major_name.ilike(f"%{major_name}%"),
+        )
+    stmt = stmt.order_by(
+        models.CapabilityGraphStagingBuild.created_at.desc()
+    ).limit(1)
+    build = session.scalar(stmt)
+    if build is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "build_not_found",
+                "requested": {
+                    "major_name": major_name,
+                    "major_code": major_code,
+                    "build_type": build_type,
+                },
+            },
+        )
+
+    nodes = list(session.scalars(
+        select(models.CapabilityGraphStagingNode)
+        .where(models.CapabilityGraphStagingNode.build_id == build.id)
+        .order_by(
+            models.CapabilityGraphStagingNode.node_type,
+            models.CapabilityGraphStagingNode.node_key,
+        )
+    ))
+    edges = list(session.scalars(
+        select(models.CapabilityGraphStagingEdge)
+        .where(models.CapabilityGraphStagingEdge.build_id == build.id)
+        .order_by(models.CapabilityGraphStagingEdge.edge_type)
+    ))
+
+    return response(
+        {
+            "build": _build_to_dict(build),
+            "nodes": [_node_to_dict(n) for n in nodes],
+            "edges": [_edge_to_dict(e) for e in edges],
+        },
+        request,
+    )
+
+
 @router.get("/capability-graph-staging/builds")
 def list_capability_graph_staging_builds(
     request: Request,
@@ -166,6 +302,10 @@ def _build_to_dict(b: models.CapabilityGraphStagingBuild) -> dict:
         "status": b.status,
         "schema_version": b.schema_version,
         "quality_summary": b.quality_summary,
+        # A1f (§1.12 §1.13) major_name / major_code — surfaced so
+        # Composer can render trace citations without a follow-up round.
+        "major_name": b.major_name,
+        "major_code": b.major_code,
         "created_at": b.created_at,
         "updated_at": b.updated_at,
     }

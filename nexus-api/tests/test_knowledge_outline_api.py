@@ -365,3 +365,139 @@ def test_get_missing_node_returns_404(app, session) -> None:
     with TestClient(app) as client:
         resp = client.get("/internal/v1/knowledge-outline-nodes/missing/chunks")
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# A2: GET /knowledge-outline-nodes/{node_id}/subtree
+# ---------------------------------------------------------------------------
+
+
+def _build_sample_outline_and_root(app, session, monkeypatch, ref_id: str):
+    """Build the standard sample outline; return (client, root_node)."""
+    ref = _seed_ref(session, ref_id)
+    _seed_profile(session, ref, textbook_subtype="theory_knowledge")
+    _patch_payload_loader(monkeypatch)
+    client = TestClient(app)
+    # Trigger auto-build so the outline nodes exist.
+    resp = client.get(f"/internal/v1/normalized-refs/{ref.id}/knowledge-outline")
+    assert resp.status_code == 200
+    root = session.execute(
+        select(models.KnowledgeOutlineNode)
+        .where(
+            models.KnowledgeOutlineNode.normalized_ref_id == ref.id,
+            models.KnowledgeOutlineNode.parent_id.is_(None),
+        )
+    ).scalar_one()
+    return client, root, ref
+
+
+def test_subtree_returns_nested_tree_from_root(app, session, monkeypatch) -> None:
+    """Root subtree should include all descendants under default max_depth."""
+    client, root, _ref = _build_sample_outline_and_root(
+        app, session, monkeypatch, "ref-ko-subtree-1",
+    )
+    resp = client.get(f"/internal/v1/knowledge-outline-nodes/{root.id}/subtree")
+    assert resp.status_code == 200
+    payload = resp.json()["data"]
+    assert payload["root_node_id"] == root.id
+    assert payload["include_chunks"] is False
+    tree = payload["tree"]
+    assert tree["node"]["id"] == root.id
+    # sample payload has 2 top-level headings → root gathers them as children
+    # (structure depends on outline builder; we just require ≥1 child).
+    assert len(tree["children"]) >= 1
+    # No node in the tree should carry chunks when include_chunks=false.
+    def _walk(entry):
+        yield entry
+        for child in entry.get("children", []):
+            yield from _walk(child)
+    for entry in _walk(tree):
+        assert "chunks" not in entry
+
+
+def test_subtree_max_depth_truncates_deep_branches(app, session, monkeypatch) -> None:
+    client, root, _ref = _build_sample_outline_and_root(
+        app, session, monkeypatch, "ref-ko-subtree-2",
+    )
+    # Depth 0 → return root only; every child that would have existed marks
+    # `truncated_depth: true`.
+    resp = client.get(
+        f"/internal/v1/knowledge-outline-nodes/{root.id}/subtree",
+        params={"max_depth": 0},
+    )
+    assert resp.status_code == 200
+    tree = resp.json()["data"]["tree"]
+    assert tree["children"] == []
+    # Only expect truncation flag if the underlying tree actually has children.
+    all_nodes = session.execute(
+        select(models.KnowledgeOutlineNode).where(
+            models.KnowledgeOutlineNode.normalized_ref_id
+            == tree["node"]["id"].rsplit("-node-", 1)[0]  # ref_id inference not stable
+        )
+    ).all()
+    # More robust: check the root has some children in DB.
+    child_count = session.execute(
+        select(models.KnowledgeOutlineNode).where(
+            models.KnowledgeOutlineNode.parent_id == root.id
+        )
+    ).all()
+    if child_count:
+        assert tree["truncated_depth"] is True
+
+
+def test_subtree_include_chunks_attaches_chunks_per_node(
+    app, session, monkeypatch,
+) -> None:
+    ref = _seed_ref(session, "ref-ko-subtree-3")
+    _seed_profile(session, ref, textbook_subtype="theory_knowledge")
+    _seed_chunk(session, ref, chunk_id="chk-def",
+                content="定义内容", source_block_ids=["b3", "b4"])
+    _seed_chunk(session, ref, chunk_id="chk-boundary",
+                content="边界内容", source_block_ids=["b5", "b6"])
+    _patch_payload_loader(monkeypatch)
+
+    with TestClient(app) as client:
+        client.get(f"/internal/v1/normalized-refs/{ref.id}/knowledge-outline")
+        root = session.execute(
+            select(models.KnowledgeOutlineNode).where(
+                models.KnowledgeOutlineNode.normalized_ref_id == ref.id,
+                models.KnowledgeOutlineNode.parent_id.is_(None),
+            )
+        ).scalar_one()
+        resp = client.get(
+            f"/internal/v1/knowledge-outline-nodes/{root.id}/subtree",
+            params={"include_chunks": "true"},
+        )
+
+    assert resp.status_code == 200
+    payload = resp.json()["data"]
+    assert payload["include_chunks"] is True
+    # Collect all chunk ids present anywhere in the tree.
+    def _walk(entry):
+        yield entry
+        for child in entry.get("children", []):
+            yield from _walk(child)
+    collected: set[str] = set()
+    for entry in _walk(payload["tree"]):
+        for c in entry.get("chunks", []):
+            collected.add(c["id"])
+    assert {"chk-def", "chk-boundary"}.issubset(collected)
+
+
+def test_subtree_missing_node_returns_404(app, session) -> None:
+    with TestClient(app) as client:
+        resp = client.get(
+            "/internal/v1/knowledge-outline-nodes/no-such-node/subtree"
+        )
+    assert resp.status_code == 404
+
+
+def test_subtree_max_depth_boundary_validation(app, session) -> None:
+    # A2 hard limit is 20; anything above should be rejected by FastAPI's
+    # Query(le=…) validator with a 422.
+    with TestClient(app) as client:
+        resp = client.get(
+            "/internal/v1/knowledge-outline-nodes/any/subtree",
+            params={"max_depth": 999},
+        )
+    assert resp.status_code == 422

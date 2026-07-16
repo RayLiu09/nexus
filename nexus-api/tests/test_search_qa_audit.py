@@ -253,6 +253,10 @@ class TestSearchEndpoint:
         assert last.summary["kb"] == "textbook_kb"
         assert "query_hash" in last.summary
         assert isinstance(last.summary.get("hit_normalized_ref_ids"), list)
+        # A7 (§10 阶段 A) — legacy /open/v1/search must carry caller_type
+        # + route so v1 rows share the v2 audit shape.
+        assert last.summary["caller_type"] == "api_caller"
+        assert last.summary["route"] == "search"
 
     def test_search_audit_carries_data_source_ids(self, app, session, monkeypatch):
         _seed_pgvector_search_chain(session, n=3)
@@ -361,6 +365,9 @@ class TestQAEndpoint:
         assert last.actor_id == caller.id
         assert "question_hash" in last.summary
         assert "cited_normalized_ref_ids" in last.summary
+        # A7 (§10 阶段 A) — legacy /open/v1/qa must carry caller_type + route.
+        assert last.summary["caller_type"] == "api_caller"
+        assert last.summary["route"] == "qa"
 
     def test_qa_audit_carries_answer_confidence(self, app, session, monkeypatch):
         _seed_pgvector_search_chain(session, n=3)

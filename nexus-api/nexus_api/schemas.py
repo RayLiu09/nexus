@@ -31,6 +31,11 @@ class ApiResponse(BaseModel, Generic[T]):
 class ListResponse(BaseModel, Generic[T]):
     data: list[T]
     meta: ResponseMeta
+    # Optional aggregations sidecar — used by endpoints that layer
+    # analytics on top of the paginated record set (see A1b
+    # `industry_distribution`, §1.15 B1). Envelope is left `None`
+    # for the vast majority of list endpoints that only paginate.
+    aggregations: dict[str, Any] | None = None
 
 
 class HealthRead(BaseModel):
