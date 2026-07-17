@@ -24,7 +24,7 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 50,
-                "default": 8
+                "default": 10
               },
               "expand_queries": {
                 "type": "boolean",
@@ -41,7 +41,7 @@
       "tools": [
         {
           "name": "internal.query_job_demand",
-          "description": "跨 dataset 检索岗位需求记录，只支持 major 一维业务过滤（§1.14 收窄）；fields 含 industry_distribution 时后端返回 Top-5 行业分布聚合（§1.15 B1）",
+          "description": "跨 dataset 检索岗位需求记录，只支持 major 一维业务过滤（§1.14 收窄）；默认返回按照industry_distribution的Top-10行业分布聚合（§1.15 B1）",
           "parameters": {
             "type": "object",
             "properties": {
@@ -64,7 +64,7 @@
                     "capability_requirements"
                   ]
                 },
-                "description": "返回字段白名单；含 industry_distribution 时 aggregations 附 Top-5"
+                "description": "返回字段白名单；按照 industry_distribution字段aggregations 附 Top-10"
               }
             },
             "required": ["major"]
@@ -72,17 +72,16 @@
         },
         {
           "name": "internal.get_job_demand_role_graph",
-          "description": "按 dataset_id 获取岗位角色子图（岗位 → 职责 → 能力）；§1.15 从 scenario_4 迁到本组，作为岗位角色图结构化输出",
+          "description": "按 job_title 获取岗位角色子图（岗位 → 职责 → 能力）；§1.15 从 scenario_4 迁到本组，作为岗位角色图结构化输出",
           "parameters": {
             "type": "object",
             "properties": {
-              "dataset_id": { "type": "string" },
               "job_title": {
                 "type": "string",
-                "description": "限定某一岗位标题（可选）"
+                "description": "限定某一岗位标题"
               }
             },
-            "required": ["dataset_id"]
+            "required": ["job_title"]
           }
         },
         {
