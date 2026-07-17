@@ -126,10 +126,14 @@ def test_task_outline_api_returns_profile_nodes_and_projection_summary(app, sess
         locator={"page_start": 11, "page_end": 11, "blocks": []},
         node_metadata={"task_title": "任务一 市场数据采集"},
     )
+    # The endpoint counts projected chunks under `DEFAULT_KNOWLEDGE_TYPE_CODE`
+    # (defined in `nexus_app.task_outline.projector` as "course_textbook").
+    # A seeded chunk under any other kb code is invisible to the projection
+    # count and would make `projected_chunk_count == 0`.
     chunk = models.KnowledgeChunk(
         id="chunk-task-outline-api",
         normalized_ref_id=ref.id,
-        knowledge_type_code="textbook_kb",
+        knowledge_type_code="course_textbook",
         chunk_type="semantic_block",
         chunking_strategy="semantic_repack",
         source_kind="extracted_from_normalized",
@@ -235,11 +239,15 @@ def test_task_outline_rebuild_api_builds_profile_and_projection(
     monkeypatch,
 ) -> None:
     ref = _seed_ref(session, ref_id="ref-task-outline-rebuild")
+    # `mark_index_manifest_stale` (nexus_app.task_outline.orchestrator)
+    # looks up the manifest by `DEFAULT_KNOWLEDGE_TYPE_CODE="course_textbook"`;
+    # a manifest under any other code is invisible and the rebuild reports
+    # `index_marked_stale=False` even after chunks change.
     session.add(
         models.IndexManifest(
             id="manifest-task-outline-rebuild",
             normalized_ref_id=ref.id,
-            knowledge_type_code="textbook_kb",
+            knowledge_type_code="course_textbook",
             index_status=IndexManifestStatus.INDEXED,
             chunk_count=1,
         )

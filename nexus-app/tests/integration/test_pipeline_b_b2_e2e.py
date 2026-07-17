@@ -152,7 +152,13 @@ class TestSample1ProfileDetectE2E:
         assert profile["record_type"] == "job_demand_dataset"
         assert profile["domain"] == "occupation"
         assert profile["domain_profile"] == "job_demand.v1"
-        assert profile["analysis_model"] is None  # not an ability_analysis
+        # `_run_record_pipeline` serialises the profile via
+        # `model_dump(mode="json", exclude_none=True)` (see
+        # worker/runner.py:1748), so an optional `str | None` field like
+        # `analysis_model` is *absent* from the mirror when unset — the
+        # semantic assertion is "this is not an ability_analysis", which
+        # is equally true whether the key is missing or explicitly None.
+        assert profile.get("analysis_model") is None
         assert profile["confidence"] >= DEFAULT_AUTO_ADMIT_THRESHOLD, (
             f"sample 1 confidence dropped to {profile['confidence']}"
         )

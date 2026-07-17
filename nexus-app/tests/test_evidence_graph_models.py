@@ -249,7 +249,23 @@ def test_can_persist_evidence_graph_build_rows(session):
 
 
 def test_latest_succeeded_build_prefers_newest_completed_build(session):
+    """`get_latest_succeeded_build` picks the fresh succeeded build and
+    ignores its deprecated predecessors.
+
+    The partial unique index `uq_kgb_active_build_key` (added in commit
+    `b98aaf7e`) enforces at most one non-`deprecated` row per
+    ``(normalized_ref_id, graph_type, graph_profile, strategy_version)``,
+    so the production rebuild flow deprecates the current active build
+    before enqueuing a replacement (see
+    `nexus_app.pipeline.stages.py:1481`). This test mirrors that flow —
+    the older build is marked ``deprecated`` before the newer one is
+    created, and we verify:
+
+    * the query only returns non-deprecated succeeded builds
+    * an unrelated profile's build doesn't leak through the filter
+    """
     ref, _chunk = _seed_ref_and_chunk(session)
+
     older = create_graph_build(
         session,
         normalized_ref_id=ref.id,
@@ -263,6 +279,12 @@ def test_latest_succeeded_build_prefers_newest_completed_build(session):
         edge_count=0,
         fact_count=0,
     )
+    # Emulate the production rebuild step (stages.py:1481) — the older
+    # succeeded build must be retired before a new build with the same
+    # active-build key can be enqueued.
+    older.status = KnowledgeGraphBuildStatus.DEPRECATED
+    session.flush()
+
     newer = create_graph_build(
         session,
         normalized_ref_id=ref.id,
@@ -276,6 +298,8 @@ def test_latest_succeeded_build_prefers_newest_completed_build(session):
         edge_count=1,
         fact_count=1,
     )
+    # A second profile stays active in parallel — different `graph_profile`
+    # sits outside the active-build key so it can co-exist.
     other_profile = create_graph_build(
         session,
         normalized_ref_id=ref.id,
@@ -300,6 +324,9 @@ def test_latest_succeeded_build_prefers_newest_completed_build(session):
 
     assert latest is not None
     assert latest.id == newer.id
+    # `other_profile` matches the ref + graph_type + strategy but not the
+    # profile filter, so it must not sneak into the report_document view.
+    assert latest.graph_profile == "report_document"
 
 
 def test_graph_node_key_is_unique_per_build(session):

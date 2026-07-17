@@ -1022,8 +1022,21 @@ class TestKnowledgeEmissionsEdgeCases:
         ))
         session.flush()
         ctx = self._ctx(session, ref)
+        # `_enqueue_evidence_graph_build_if_requested` reads
+        # `emission["graph_profile"]`. In production, `infer_knowledge_emissions`
+        # (nexus_app.ai_governance.knowledge_type_inference) attaches
+        # `graph_profile` when the KT's rule config declares one — for
+        # `course_standard_authoring_process` that's `"standard_spec"`
+        # (see config/governance_rules_v2.json). The unit test bypasses
+        # `infer_knowledge_emissions` and hand-builds the emission dict, so
+        # it must attach `graph_profile` explicitly to mirror what the
+        # governance service would produce.
         emissions = [
-            {"code": "course_standard_authoring_process", "primary": True},
+            {
+                "code": "course_standard_authoring_process",
+                "primary": True,
+                "graph_profile": "standard_spec",
+            },
             {"code": "course_knowledge_graph", "primary": False},
         ]
 
