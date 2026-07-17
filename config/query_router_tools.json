@@ -86,20 +86,24 @@
         },
         {
           "name": "internal.query_ability_analysis",
-          "description": "按专业检索职业能力分析表（含 tasks / ability-items）；§1.11 决策 #7 major_name substring",
+          "description": "按专业检索职业能力分析表；可用 include 单端点合成 tasks / ability_items（B0.3 §1.15）；major_name substring（§1.11 决策 #7）",
           "parameters": {
             "type": "object",
             "properties": {
-              "major": { "type": "string", "description": "专业名 substring" },
+              "major_name": {
+                "type": "string",
+                "description": "专业名 substring（对齐后端 record_assets.py:1376 及其他工具的 major_name 命名）"
+              },
               "include": {
                 "type": "array",
                 "items": {
                   "type": "string",
                   "enum": ["tasks", "ability_items"]
-                }
+                },
+                "description": "内联 tasks / ability_items 到每条 analysis 行，避免 dispatcher 二次 fan-out（B0.3）"
               }
             },
-            "required": ["major"]
+            "required": ["major_name"]
           }
         },
         {
@@ -251,11 +255,14 @@
         },
         {
           "name": "internal.get_evidence_graph_by_ref",
-          "description": "获取给定 normalized_ref 的证据图（章节内关联事实图）；用于教材类章节知识图谱输出",
+          "description": "获取给定 normalized_ref 的证据图（章节内关联事实图）；用于教材类章节知识图谱输出。Dispatcher 将 `normalized_ref_id` 映射到 `/internal/v1/normalized-refs/{ref_id}/knowledge-graph` 的路径参数",
           "parameters": {
             "type": "object",
             "properties": {
-              "normalized_ref_id": { "type": "string" }
+              "normalized_ref_id": {
+                "type": "string",
+                "description": "normalized_ref UUID；由 dispatcher 映射到端点 path segment `{ref_id}`"
+              }
             },
             "required": ["normalized_ref_id"]
           }

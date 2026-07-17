@@ -377,15 +377,21 @@ def get_job_demand_dataset(
 #   distinction between "专业" and "行业")
 # * §1.14 收窄 — remove even `job_title` (and every other细粒度 filter);
 #   Composer takes care of追问 for narrower slices
-# * §1.15 B1 — when `fields=industry_distribution` is present, the
-#   endpoint additionally returns a Top-5 industry aggregation so
-#   scenario_2 tools don't have to GROUP BY client-side
+# * §1.15 B1 (initial) — `fields=industry_distribution` opts into a Top-K
+#   industry aggregation.
+# * Batch B0.1 (post-registry-review) — the tool contract now says this
+#   aggregation is **default on** and returns **Top-10** so scenario_2
+#   dispatcher can render the "岗位行业分布图" without having to know
+#   the opt-in flag exists. The `fields` whitelist is retained so a
+#   caller CAN suppress the aggregation by passing a non-inclusive
+#   `fields` list (e.g. `fields=count`) — useful for `LIST` UIs that
+#   don't need the chart panel.
 #
-# `_INDUSTRY_DISTRIBUTION_TOP_K` is a hard cap; this is the scenario_2
-# "岗位行业分布图 (Top-5)" contract, not a tunable pagination knob.
+# `_INDUSTRY_DISTRIBUTION_TOP_K` is a hard cap; changing it moves the
+# scenario_2 chart contract with dispatcher and Composer.
 
 _INDUSTRY_DISTRIBUTION_FIELD = "industry_distribution"
-_INDUSTRY_DISTRIBUTION_TOP_K = 5
+_INDUSTRY_DISTRIBUTION_TOP_K = 10
 _JOB_DEMAND_KNOWN_FIELDS: frozenset[str] = frozenset({
     "count",
     "industry_distribution",
@@ -418,9 +424,10 @@ def list_job_demand_records(
     fields: list[str] | None = Query(
         None,
         description=(
-            "Optional aggregation whitelist. When it contains "
-            "`industry_distribution` the response includes a Top-5 industry "
-            "aggregation over the same filter set (§1.15 B1). Unknown values "
+            "Optional aggregation whitelist. `industry_distribution` (Top-10) "
+            "is returned by DEFAULT when `fields` is omitted (Batch B0.1); "
+            "pass a fields list that OMITS `industry_distribution` to "
+            "suppress the aggregation (e.g. `?fields=count`). Unknown values "
             "are rejected (422) so typos don't silently no-op."
         ),
     ),
@@ -489,8 +496,12 @@ def list_job_demand_records(
         ).all()
     )
 
+    # Batch B0.1 — aggregation is default-on. It's only suppressed when
+    # the caller sends an explicit `fields` list that omits the key.
+    # (Explicit `?fields=industry_distribution&fields=count` still ON.)
     aggregations: dict[str, Any] = {}
-    if fields and _INDUSTRY_DISTRIBUTION_FIELD in fields:
+    should_aggregate = fields is None or _INDUSTRY_DISTRIBUTION_FIELD in fields
+    if should_aggregate:
         aggregations[_INDUSTRY_DISTRIBUTION_FIELD] = (
             _industry_distribution_top_k(session, filter_clauses)
         )
@@ -588,6 +599,172 @@ def list_job_demand_records_for_dataset(
         page=pagination.page,
         page_size=pagination.page_size,
         total=total,
+    )
+
+
+# ---------------------------------------------------------------------------
+# B0.2 (§10 Batch B0) — cross-dataset job-demand-role-graph lookup
+# ---------------------------------------------------------------------------
+#
+# The tool registry (§1.15) says scenario_2's `get_job_demand_role_graph`
+# takes `job_title` as its primary key — no dataset_id, per the §2.5.0
+# cross-asset rule. We keep the existing dataset-scoped endpoint intact
+# (console UI still uses it) and add a sibling that fans out across every
+# GENERATED job_demand staging build, unions the matching JOB_ROLE nodes
+# by exact `display_name`, and returns each match's capability subgraph
+# plus a `builds` list that surfaces the trace fields (build_id +
+# normalized_ref_id + dataset_id) so Composer can cite each source.
+
+
+def _load_job_demand_role_subgraph(
+    session: Session,
+    *,
+    build: models.CapabilityGraphStagingBuild,
+    role_node: models.CapabilityGraphStagingNode,
+) -> tuple[list[dict], list[dict]]:
+    """Given a JOB_ROLE node, load its capability edges + endpoint nodes.
+
+    Extracted from `get_job_demand_role_graph` so the cross-dataset
+    endpoint can reuse the exact same subgraph shape.
+    """
+    capability_edges = list(session.scalars(
+        select(models.CapabilityGraphStagingEdge).where(
+            models.CapabilityGraphStagingEdge.build_id == build.id,
+            models.CapabilityGraphStagingEdge.source_node_id == role_node.id,
+            models.CapabilityGraphStagingEdge.edge_type
+            != EdgeType.JOB_ROLE_AGGREGATES_RECORD,
+        )
+    ))
+    node_ids = {role_node.id}
+    for edge in capability_edges:
+        node_ids.add(edge.source_node_id)
+        node_ids.add(edge.target_node_id)
+    nodes = list(session.scalars(
+        select(models.CapabilityGraphStagingNode)
+        .where(models.CapabilityGraphStagingNode.id.in_(node_ids))
+        .order_by(
+            models.CapabilityGraphStagingNode.node_type,
+            models.CapabilityGraphStagingNode.id,
+        )
+    ))
+    return (
+        [_serialize_capability_graph_node(n) for n in nodes],
+        [_serialize_capability_graph_edge(e) for e in capability_edges],
+    )
+
+
+@router.get(
+    "/record-assets/job-demand-role-graph",
+    response_model=schemas.ApiResponse[dict],
+)
+def get_job_demand_role_graph_cross_dataset(
+    request: Request,
+    job_title: str = Query(
+        ...,
+        min_length=1,
+        max_length=256,
+        description=(
+            "Required — case-insensitive substring match on JOB_ROLE "
+            "`display_name` across every GENERATED `job_demand` staging "
+            "build. §2.5.0 forbids trace fields (dataset_id / build_id) as "
+            "primary business input; the response carries them under "
+            "`builds[]` for Composer citation."
+        ),
+    ),
+    session: Session = Depends(get_db),
+):
+    """B0.2 — cross-dataset role-graph lookup by `job_title`.
+
+    Walks every GENERATED `build_type=job_demand` build, picks the
+    JOB_ROLE node whose `display_name == job_title`, and returns the
+    union of each match's capability subgraph. Multiple builds
+    contributing the same role are merged into one `nodes` / `edges`
+    list (deduped by node.id / edge.id — build IDs are UUIDs so
+    collisions are safe to treat as duplicates from replay).
+
+    Returns 404 when no build carries the exact `job_title`. The caller
+    typically obtained the job_title from
+    `/record-assets/job-demand-records` first, so a 404 here means the
+    role staging pipeline hasn't run for any dataset containing that
+    role yet.
+    """
+    # ILIKE substring match — mirrors A1b `major` semantics so a query
+    # like `job_title=数据分析` picks up both "数据分析师" and
+    # "高级数据分析师" without the caller having to know the exact
+    # role naming convention.
+    job_title_pattern = f"%{job_title}%"
+    matches = list(session.execute(
+        select(
+            models.CapabilityGraphStagingBuild,
+            models.CapabilityGraphStagingNode,
+        )
+        .join(
+            models.CapabilityGraphStagingNode,
+            models.CapabilityGraphStagingNode.build_id
+            == models.CapabilityGraphStagingBuild.id,
+        )
+        .where(
+            models.CapabilityGraphStagingBuild.build_type == BuildType.JOB_DEMAND,
+            models.CapabilityGraphStagingBuild.status == BuildStatus.GENERATED,
+            models.CapabilityGraphStagingNode.node_type == NodeType.JOB_ROLE,
+            models.CapabilityGraphStagingNode.display_name.ilike(job_title_pattern),
+        )
+        .order_by(
+            models.CapabilityGraphStagingBuild.created_at.desc(),
+            models.CapabilityGraphStagingBuild.id.desc(),
+        )
+    ).all())
+    if not matches:
+        raise HTTPException(
+            status_code=404,
+            detail=f"no job_demand staging role found for job_title '{job_title}'",
+        )
+
+    # Resolve each build's dataset_id via normalized_ref (a dataset is
+    # 1:1 with its normalized_ref; we look up by ref_id — see
+    # `_seed_dataset` for the invariant).
+    ref_ids = list({build.normalized_ref_id for build, _ in matches})
+    datasets_by_ref = {
+        ds.normalized_ref_id: ds
+        for ds in session.scalars(
+            select(models.JobDemandDataset)
+            .where(models.JobDemandDataset.normalized_ref_id.in_(ref_ids))
+        ).all()
+    }
+
+    build_summaries: list[dict[str, Any]] = []
+    nodes_by_id: dict[str, dict[str, Any]] = {}
+    edges_by_id: dict[str, dict[str, Any]] = {}
+
+    for build, role_node in matches:
+        node_rows, edge_rows = _load_job_demand_role_subgraph(
+            session, build=build, role_node=role_node,
+        )
+        for node in node_rows:
+            nodes_by_id.setdefault(node["id"], node)
+        for edge in edge_rows:
+            edges_by_id.setdefault(edge["id"], edge)
+        ds = datasets_by_ref.get(build.normalized_ref_id)
+        build_summaries.append({
+            "build_id": build.id,
+            "normalized_ref_id": build.normalized_ref_id,
+            "dataset_id": ds.id if ds else None,
+            "major_name": ds.major_name if ds else None,
+            "industry_name": ds.industry_name if ds else None,
+            "role_node_id": role_node.id,
+        })
+
+    return response(
+        {
+            "job_title": job_title,
+            "match_count": len(build_summaries),
+            "builds": build_summaries,
+            "nodes": sorted(nodes_by_id.values(),
+                             key=lambda n: (n.get("node_type", ""), n["id"])),
+            "edges": sorted(edges_by_id.values(),
+                             key=lambda e: e["id"]),
+        },
+        request,
     )
 
 
@@ -1194,6 +1371,12 @@ def _get_analysis_or_404(
     return analysis
 
 
+_ABILITY_ANALYSES_INCLUDE_ALLOWED: frozenset[str] = frozenset({
+    "tasks",
+    "ability_items",
+})
+
+
 @router.get(
     "/record-assets/ability-analyses",
     response_model=schemas.ListResponse[dict],
@@ -1210,9 +1393,32 @@ def list_ability_analyses(
             "配合 §1.13 归一化的 build.major_name 命中父子专业）"
         ),
     ),
+    include: list[str] | None = Query(
+        None,
+        description=(
+            "Batch B0.3 — inline nested payloads to avoid dispatcher "
+            "fan-out. Allowed values: `tasks`, `ability_items`. When "
+            "present, each analysis row carries the corresponding array. "
+            "Unknown values return 422 so typos don't silently no-op."
+        ),
+    ),
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
 ):
+    if include:
+        unknown = sorted(set(include) - _ABILITY_ANALYSES_INCLUDE_ALLOWED)
+        if unknown:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "unknown_include_value",
+                    "unknown": unknown,
+                    "allowed": sorted(_ABILITY_ANALYSES_INCLUDE_ALLOWED),
+                },
+            )
+    include_tasks = bool(include and "tasks" in include)
+    include_ability_items = bool(include and "ability_items" in include)
+
     stmt = select(models.OccupationalAbilityAnalysis)
     count_stmt = select(func.count(models.OccupationalAbilityAnalysis.id))
     if normalized_ref_id is not None:
@@ -1242,13 +1448,94 @@ def list_ability_analyses(
             .limit(pagination.limit)
         ).all()
     )
+
+    tasks_by_analysis: dict[str, list[dict]] = {}
+    items_by_analysis: dict[str, list[dict]] = {}
+    if rows and (include_tasks or include_ability_items):
+        analysis_ids = [row.id for row in rows]
+        if include_tasks:
+            tasks_by_analysis = _load_tasks_for_analyses(session, analysis_ids)
+        if include_ability_items:
+            items_by_analysis = _load_ability_items_for_analyses(
+                session, analysis_ids,
+            )
+
+    serialized: list[dict] = []
+    for row in rows:
+        payload = _serialize_analysis(row)
+        if include_tasks:
+            payload["tasks"] = tasks_by_analysis.get(row.id, [])
+        if include_ability_items:
+            payload["ability_items"] = items_by_analysis.get(row.id, [])
+        serialized.append(payload)
+
     return list_response(
-        [_serialize_analysis(row) for row in rows],
+        serialized,
         request,
         page=pagination.page,
         page_size=pagination.page_size,
         total=total,
     )
+
+
+def _load_tasks_for_analyses(
+    session: Session, analysis_ids: list[str],
+) -> dict[str, list[dict]]:
+    """Batch-load tasks + their work_contents for many analyses at once.
+
+    Reuses the composition logic from `get_ability_analysis_tasks` but
+    across N analyses in one round-trip — critical for `include=tasks`
+    on a page of 20 analyses (avoids 20 separate task queries).
+    """
+    tasks = list(session.scalars(
+        select(models.OccupationalWorkTask)
+        .where(models.OccupationalWorkTask.analysis_id.in_(analysis_ids))
+        .order_by(
+            models.OccupationalWorkTask.analysis_id,
+            models.OccupationalWorkTask.display_order,
+            models.OccupationalWorkTask.task_code,
+        )
+    ))
+    task_ids = [task.id for task in tasks]
+    work_contents = []
+    if task_ids:
+        work_contents = list(session.scalars(
+            select(models.OccupationalWorkContent)
+            .where(models.OccupationalWorkContent.task_id.in_(task_ids))
+            .order_by(
+                models.OccupationalWorkContent.task_id,
+                models.OccupationalWorkContent.display_order,
+                models.OccupationalWorkContent.content_code,
+            )
+        ))
+    by_task: dict[str, list[models.OccupationalWorkContent]] = {}
+    for wc in work_contents:
+        by_task.setdefault(wc.task_id, []).append(wc)
+
+    out: dict[str, list[dict]] = {}
+    for task in tasks:
+        out.setdefault(task.analysis_id, []).append(
+            _serialize_task(task, by_task.get(task.id, [])),
+        )
+    return out
+
+
+def _load_ability_items_for_analyses(
+    session: Session, analysis_ids: list[str],
+) -> dict[str, list[dict]]:
+    items = list(session.scalars(
+        select(models.OccupationalAbilityItem)
+        .where(models.OccupationalAbilityItem.analysis_id.in_(analysis_ids))
+        .order_by(
+            models.OccupationalAbilityItem.analysis_id,
+            models.OccupationalAbilityItem.ability_sequence,
+            models.OccupationalAbilityItem.ability_code,
+        )
+    ))
+    out: dict[str, list[dict]] = {}
+    for item in items:
+        out.setdefault(item.analysis_id, []).append(_serialize_ability_item(item))
+    return out
 
 
 @router.get(

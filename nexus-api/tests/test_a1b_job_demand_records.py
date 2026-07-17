@@ -224,21 +224,35 @@ class TestIndustryDistribution:
         ref = _seed_anchor(session, ref_id="ref-agg", version_id="v-agg")
         ds = _seed_dataset(session, ref=ref, dataset_id="ds-agg",
                            major_name="电子商务")
-        # 3 records "互联网", 2 records "零售", 1 each of others → Top-5
-        # ordering with the two-key tie-break.
+        # 14 records spread across 12 distinct industries so the Top-10 cap
+        # actually kicks in (§B0.1 Top-K=10 hard cap). Order:
+        # 互联网(3), 零售(2), rest 1 each → the 10-th is one of the
+        # count=1 industries picked in ASC name order; two count=1
+        # industries fall off the tail as excluded.
         for i, ind in enumerate([
             "互联网", "互联网", "互联网",
             "零售", "零售",
+            # 10 count=1 rows below → Top-10 includes 8 of them + the
+            # two multi-count industries above; the 11-th and 12-th
+            # count=1 industries (highest ASC name order) are excluded.
             "教育",
             "金融",
             "制造业",
-            "文娱",       # 6th distinct — should NOT appear in Top-5
+            "文娱",
+            "医疗",
+            "物流",
+            "旅游",
+            "餐饮",
+            "农业",
+            "地产",
         ]):
             _seed_record(session, dataset=ds, ref=ref,
                          record_id=f"r-agg-{i}", industry_name=ind)
         return ref, ds
 
-    def test_no_aggregation_when_fields_absent(self, app, session):
+    def test_aggregation_returned_by_default(self, app, session):
+        """B0.1 — the aggregation is now default-on. A caller that
+        omits `fields` still gets the industry chart payload."""
         self._seed_diverse_industries(session)
         with TestClient(app) as client:
             r = client.get(
@@ -247,11 +261,27 @@ class TestIndustryDistribution:
             )
         assert r.status_code == 200
         body = r.json()
-        # Envelope carries `aggregations`; when the caller didn't request
-        # it, the field is None (or absent) — Pydantic emits None here.
+        agg = body["aggregations"]["industry_distribution"]
+        assert agg[0] == {"industry_name": "互联网", "count": 3}
+
+    def test_aggregation_suppressed_when_fields_omit_it(self, app, session):
+        """B0.1 — the aggregation is suppressed only when the caller
+        sends a `fields` list that does NOT include
+        `industry_distribution` (e.g. list view that only needs record
+        counts)."""
+        self._seed_diverse_industries(session)
+        with TestClient(app) as client:
+            r = client.get(
+                "/internal/v1/record-assets/job-demand-records",
+                params={"major": "电子商务", "fields": "count"},
+            )
+        assert r.status_code == 200
+        body = r.json()
+        # When aggregations is empty, list_response encodes it as None.
         assert body.get("aggregations") is None
 
-    def test_industry_distribution_top_5(self, app, session):
+    def test_industry_distribution_top_10(self, app, session):
+        """B0.1 — Top-K raised from 5 to 10."""
         self._seed_diverse_industries(session)
         with TestClient(app) as client:
             r = client.get(
@@ -261,14 +291,24 @@ class TestIndustryDistribution:
         assert r.status_code == 200
         body = r.json()
         agg = body["aggregations"]["industry_distribution"]
-        assert len(agg) == 5  # Top-5 truncation
-        # First entry — highest count → 互联网 (3), ordered DESC.
+        assert len(agg) == 10  # Top-10 truncation
+        # First — 互联网 (3), Second — 零售 (2), Rest (count=1) in ASC name order.
         assert agg[0] == {"industry_name": "互联网", "count": 3}
-        # Second — 零售 (2). Remaining three each have count=1 in
-        # deterministic industry_name ASC order.
         assert agg[1] == {"industry_name": "零售", "count": 2}
         names = [row["industry_name"] for row in agg[2:]]
-        assert names == sorted(names)  # ties → industry_name ASC
+        assert names == sorted(names)
+        # Verify Top-10 cap: with 12 distinct industries, 2 count=1
+        # industries fall off. Deterministic ASC sort means "餐饮" and
+        # "餐饮"-adjacent characters end up at the tail. We only assert
+        # the *count* fell to 10 and that at least ONE of the 10-count
+        # industries was excluded — the exact tail depends on locale
+        # collation of the DB backend so we don't pin specific names.
+        seen = {row["industry_name"] for row in agg}
+        excluded = {"教育", "金融", "制造业", "文娱", "医疗", "物流",
+                     "旅游", "餐饮", "农业", "地产"} - seen
+        assert len(excluded) == 2, (
+            f"Top-10 cap should exclude 2 count=1 industries; got excluded={excluded}"
+        )
 
     def test_industry_distribution_ignores_null_industry(self, app, session):
         ref = _seed_anchor(session, ref_id="ref-null", version_id="v-null")
@@ -326,9 +366,12 @@ class TestFieldsContract:
         assert "unknown_field_name" in error["message"]
         assert "salary_distribution" in error["message"]
 
-    def test_known_non_aggregation_field_does_not_populate_aggregations(
+    def test_known_non_aggregation_field_suppresses_aggregations(
         self, app, session,
     ):
+        """B0.1 — a `fields` list that includes only non-aggregation
+        keys (e.g. `count`) suppresses the default `industry_distribution`
+        aggregation. Callers use this when they only need the record page."""
         ref = _seed_anchor(session, ref_id="ref-nf", version_id="v-nf")
         ds = _seed_dataset(session, ref=ref, dataset_id="ds-nf",
                            major_name="电子商务")
