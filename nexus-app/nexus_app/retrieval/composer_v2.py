@@ -33,7 +33,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Iterator, Literal
 
 from sqlalchemy.orm import Session
 
@@ -88,6 +88,28 @@ class ComposeResult:
     chart_unused_ids: list[str] = field(default_factory=list)
     fallback_reason: str | None = None
     warnings: tuple[str, ...] = field(default_factory=tuple)
+
+
+ComposeStreamEventType = Literal["chunk", "final", "fallback"]
+
+
+@dataclass(frozen=True)
+class ComposeStreamEvent:
+    """One event on the ``compose_stream`` iterator.
+
+    * ``chunk`` — incremental raw markdown fragment. Concatenating all
+      ``chunk`` events reproduces ``ComposeResult.raw_markdown``.
+    * ``final`` — emitted once at the end with the fully-swapped
+      markdown + audit metadata. SSE endpoints emit this immediately
+      before ``event: done``.
+    * ``fallback`` — emitted (without any ``chunk`` events preceding
+      OR after a mid-stream LLM failure) with a canned ⚠️ payload +
+      populated ``fallback_reason``.
+    """
+
+    type: ComposeStreamEventType
+    text: str = ""
+    result: ComposeResult | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -188,6 +210,108 @@ class MDComposerV2:
             generated_ratio=generated_ratio,
             chart_hallucination_ids=list(replaced.hallucination_ids),
             chart_unused_ids=list(replaced.unused_ids),
+        )
+
+    def compose_stream(
+        self,
+        session: Session,
+        *,
+        query: str,
+        dispatch_result: DispatchResult,
+    ) -> Iterator[ComposeStreamEvent]:
+        """§7.3 streaming variant of ``compose``.
+
+        Yields ``chunk`` events for every LLM delta, then exactly one
+        of ``final`` (happy path — payload has swapped chart
+        placeholders) or ``fallback`` (prompt profile missing / LLM
+        error / empty output — payload uses the canned ⚠️ blockquote).
+        Never raises — SSE endpoints translate ``fallback`` into an
+        ``event: error`` marker if they need to distinguish, but the
+        caller always gets a terminating event.
+        """
+        chart_registry = dispatch_result.chart_registry
+
+        try:
+            profile = get_active_v2_prompt(session, COMPOSE_V2_PROFILE_NAME)
+        except LookupError as exc:
+            logger.warning("compose_v2 stream: prompt profile missing — %s", exc)
+            yield ComposeStreamEvent(
+                type="fallback",
+                result=ComposeResult(
+                    markdown=_FALLBACK_MARKDOWN,
+                    raw_markdown=_FALLBACK_MARKDOWN,
+                    generated_ratio=1.0,
+                    fallback_reason="prompt_profile_missing",
+                ),
+            )
+            return
+
+        tool_results_serialised = _serialise_tool_results(
+            dispatch_result.tool_results,
+        )
+        chart_ids = sorted(chart_registry.registered_ids())
+        prompt_content = _fill_prompt(
+            profile.prompt_template,
+            query=query,
+            intent=dispatch_result.intent,
+            tool_results=tool_results_serialised,
+            chart_ids=chart_ids,
+        )
+        messages = [{"role": "user", "content": prompt_content}]
+
+        accumulated: list[str] = []
+        try:
+            for delta in self.llm_client.call_stream(
+                profile.litellm_model_alias,
+                messages,
+                temperature=profile.temperature,
+                max_tokens=self.max_tokens,
+            ):
+                if not delta:
+                    continue
+                accumulated.append(delta)
+                yield ComposeStreamEvent(type="chunk", text=delta)
+        except LiteLLMCallError as exc:
+            logger.warning(
+                "compose_v2 stream: LLM call_stream failed error_type=%s",
+                exc.error_type,
+            )
+            yield ComposeStreamEvent(
+                type="fallback",
+                result=ComposeResult(
+                    markdown=_FALLBACK_MARKDOWN,
+                    raw_markdown=_FALLBACK_MARKDOWN,
+                    generated_ratio=1.0,
+                    fallback_reason="llm_call_failed",
+                    warnings=(str(exc.error_type),),
+                ),
+            )
+            return
+
+        raw_markdown = "".join(accumulated).strip()
+        if not raw_markdown:
+            yield ComposeStreamEvent(
+                type="fallback",
+                result=ComposeResult(
+                    markdown=_FALLBACK_MARKDOWN,
+                    raw_markdown=_FALLBACK_MARKDOWN,
+                    generated_ratio=1.0,
+                    fallback_reason="empty_llm_output",
+                ),
+            )
+            return
+
+        replaced = replace_chart_placeholders(raw_markdown, chart_registry)
+        generated_ratio = _compute_generated_ratio(replaced.text)
+        yield ComposeStreamEvent(
+            type="final",
+            result=ComposeResult(
+                markdown=replaced.text,
+                raw_markdown=raw_markdown,
+                generated_ratio=generated_ratio,
+                chart_hallucination_ids=list(replaced.hallucination_ids),
+                chart_unused_ids=list(replaced.unused_ids),
+            ),
         )
 
 
@@ -304,5 +428,7 @@ def _compute_generated_ratio(text: str) -> float:
 
 __all__ = [
     "ComposeResult",
+    "ComposeStreamEvent",
+    "ComposeStreamEventType",
     "MDComposerV2",
 ]

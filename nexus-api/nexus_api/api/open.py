@@ -1785,9 +1785,14 @@ def get_major_distribution_record(
 # /internal/v1/query which uses require_user; audit summary captures
 # route="open_query" and caller_type="api_caller" here (§8.2).
 
+from fastapi.responses import StreamingResponse  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402 — kept local to the B6 block
 
 from nexus_api.query_router_v2_deps import get_query_router_v2  # noqa: E402
+from nexus_api.query_router_v2_sse import (  # noqa: E402
+    SSE_MEDIA_TYPE,
+    serialise_router_stream,
+)
 from nexus_app.retrieval.router_v2 import QueryRouterV2, RouterResult  # noqa: E402
 
 
@@ -1856,4 +1861,42 @@ def run_query_router_v2_open(
             audit_summary=summary,
         ),
         request,
+    )
+
+
+# ---------------------------------------------------------------------------
+# B6 SSE variant — POST /open/v1/query/stream
+# ---------------------------------------------------------------------------
+# Same auth + audit contract as /open/v1/query above; response is a
+# text/event-stream. Frame schema: see `query_router_v2_sse.py`.
+
+
+@router.post("/query/stream")
+def run_query_router_v2_open_stream(
+    payload: _QueryRouterV2OpenRequest,
+    request: Request,
+    caller: models.ApiCaller = Depends(require_api_caller),
+    session: Session = Depends(get_db),
+    query_router: QueryRouterV2 = Depends(get_query_router_v2),
+) -> StreamingResponse:
+    """POST /open/v1/query/stream — external api_caller SSE variant."""
+    _assert_caller_still_active(session, caller)
+    trace_id = request.headers.get("x-trace-id")
+    stream = serialise_router_stream(
+        router=query_router,
+        session=session,
+        query=payload.query,
+        route="open_query",
+        caller_type="api_caller",
+        trace_id=trace_id,
+        actor_type="api_caller",
+        actor_id=caller.id,
+    )
+    return StreamingResponse(
+        stream,
+        media_type=SSE_MEDIA_TYPE,
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
     )

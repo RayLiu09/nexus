@@ -1,60 +1,41 @@
 "use client";
 
 /**
- * B8 (§10 Batch B3b) — Query Router v2 playground shell.
+ * B8 (§10 Batch B3b + SSE) — Query Router v2 playground shell.
  *
- * Left column: composer (Antd TextArea + submit). Right column: the
- * assistant response rendered via `QueryRouterAnswer` plus a compact
- * meta strip showing intent / confidence / invoked tools / fallback
- * reason (§8.2 audit fields surfaced to the user for transparency).
- *
- * State model — deliberately local `useState` for now: single query,
- * single response, no history. When the design settles on a
- * conversational history UI (paralleling /search's playground) we
- * can lift into TanStack Query for cache + retry.
+ * Left column: composer (Antd TextArea + submit). Right column:
+ * streaming assistant response.  During the stream we render the
+ * accumulated raw markdown (chart placeholders visible verbatim per
+ * §7.3); when the ``final`` frame arrives we swap to the fully-
+ * replaced markdown and unlock the composer.
  */
 import { Alert, Button, Input, Space, Tag } from "antd";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { QueryRouterAnswer } from "./QueryRouterAnswer";
-import { fetchQueryRouterAnswer } from "../_lib/fetchers";
-import type { QueryRouterResponse } from "../_lib/queryTypes";
+import { useQueryRouterStream } from "../_lib/useQueryRouterStream";
+import type { UseQueryRouterStreamState } from "../_lib/useQueryRouterStream";
 
 const MAX_QUERY_LENGTH = 2048;
 
-type Status = "idle" | "running" | "success" | "error";
-
 export function QueryPlayground() {
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<Status>("idle");
-  const [result, setResult] = useState<QueryRouterResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { state, start, reset } = useQueryRouterStream();
 
-  const isRunning = status === "running";
+  const isRunning = state.status === "running";
   const isEmpty = query.trim().length === 0;
   const isTooLong = query.length > MAX_QUERY_LENGTH;
   const canSubmit = !isRunning && !isEmpty && !isTooLong;
 
-  async function handleSubmit(): Promise<void> {
+  const handleSubmit = useCallback(async () => {
     if (!canSubmit) return;
-    setStatus("running");
-    setError(null);
-    try {
-      const data = await fetchQueryRouterAnswer(query.trim());
-      setResult(data);
-      setStatus("success");
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "请求失败");
-      setStatus("error");
-    }
-  }
+    await start(query.trim());
+  }, [canSubmit, query, start]);
 
-  function handleReset(): void {
+  const handleReset = useCallback(() => {
     setQuery("");
-    setResult(null);
-    setError(null);
-    setStatus("idle");
-  }
+    reset();
+  }, [reset]);
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,340px)_1fr]">
@@ -88,60 +69,94 @@ export function QueryPlayground() {
       </section>
 
       <section aria-label="查询结果区" className="min-h-[240px]">
-        {status === "idle" && !result && <IdleHint />}
-        {status === "error" && (
-          <Alert
-            type="error"
-            title="查询失败"
-            description={error ?? "请稍后重试"}
-            action={
-              <Button size="small" onClick={handleSubmit}>
-                重试
-              </Button>
-            }
-            showIcon
-          />
-        )}
-        {result && <QueryResultView result={result} />}
+        <QueryResultPanel state={state} onRetry={handleSubmit} />
       </section>
     </div>
   );
 }
 
-interface QueryResultViewProps {
-  result: QueryRouterResponse;
+interface QueryResultPanelProps {
+  state: UseQueryRouterStreamState;
+  onRetry: () => void;
 }
 
-function QueryResultView({ result }: QueryResultViewProps) {
+function QueryResultPanel({ state, onRetry }: QueryResultPanelProps) {
+  if (state.status === "idle" && !state.result && !state.rawMarkdown) {
+    return <IdleHint />;
+  }
+
+  if (state.status === "error" && !state.result) {
+    return (
+      <Alert
+        type="error"
+        title="查询失败"
+        description={state.error ?? "请稍后重试"}
+        action={
+          <Button size="small" onClick={onRetry}>
+            重试
+          </Button>
+        }
+        showIcon
+      />
+    );
+  }
+
+  // Final markdown (chart placeholders swapped) takes priority; while
+  // streaming we render `rawMarkdown` so the user sees progress.
+  const markdown = state.result?.markdown ?? state.rawMarkdown;
   return (
     <div className="border-line bg-surface rounded-lg border p-4">
-      <QueryMetaStrip result={result} />
+      <QueryMetaStrip state={state} />
       <div className="border-line mt-3 border-t pt-3">
-        <QueryRouterAnswer markdown={result.markdown} />
+        <QueryRouterAnswer markdown={markdown} />
+        {state.status === "running" && !state.result && <StreamingHint />}
       </div>
     </div>
   );
 }
 
-function QueryMetaStrip({ result }: QueryResultViewProps) {
-  const { intent, intent_confidence, invoked_tools, fallback_reason } = result;
+function QueryMetaStrip({ state }: { state: UseQueryRouterStreamState }) {
+  const meta = state.meta;
+  const result = state.result;
+
+  const intent = result?.intent ?? meta?.intent;
+  const confidence = result?.intent_confidence ?? meta?.intent_confidence;
+  const invokedTools = result?.invoked_tools ?? meta?.invoked_tools ?? [];
+  const fallbackReason = result?.fallback_reason ?? meta?.fallback_reason;
+
+  const confidenceLabel = useMemo(() => {
+    if (typeof confidence !== "number") return null;
+    return confidence.toFixed(2);
+  }, [confidence]);
+
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
-      <Tag color="blue" data-testid="query-meta-intent">
-        意图 · {intent}
-      </Tag>
-      <Tag variant="filled">置信度 {intent_confidence.toFixed(2)}</Tag>
-      {invoked_tools.length > 0 && (
+      {intent && (
+        <Tag color="blue" data-testid="query-meta-intent">
+          意图 · {intent}
+        </Tag>
+      )}
+      {confidenceLabel && <Tag variant="filled">置信度 {confidenceLabel}</Tag>}
+      {invokedTools.length > 0 && (
         <Tag color="geekblue" data-testid="query-meta-tools">
-          工具 · {invoked_tools.length}
+          工具 · {invokedTools.length}
         </Tag>
       )}
-      {fallback_reason && (
+      {fallbackReason && (
         <Tag color="orange" data-testid="query-meta-fallback">
-          {formatFallback(fallback_reason)}
+          {formatFallback(fallbackReason)}
         </Tag>
       )}
+      {state.status === "running" && <Tag color="processing">流式生成中…</Tag>}
     </div>
+  );
+}
+
+function StreamingHint() {
+  return (
+    <p className="mt-3 text-xs text-gray-400" data-testid="query-streaming-hint">
+      正在流式接收模型输出，图表将在完成后统一渲染…
+    </p>
   );
 }
 

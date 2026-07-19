@@ -28,6 +28,7 @@ import hashlib
 import logging
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -41,6 +42,7 @@ from nexus_app.enums import AuditEventType
 from nexus_app.retrieval.router_v2 import QueryRouterV2, RouterResult
 
 from nexus_api.query_router_v2_deps import get_query_router_v2
+from nexus_api.query_router_v2_sse import SSE_MEDIA_TYPE, serialise_router_stream
 
 logger = logging.getLogger(__name__)
 
@@ -110,4 +112,44 @@ def run_query_router_v2(
             audit_summary=summary,
         ),
         request,
+    )
+
+
+# ---------------------------------------------------------------------------
+# SSE variant — /internal/v1/query/stream
+# ---------------------------------------------------------------------------
+# Same auth + audit contract as the non-streaming variant; the response
+# type is `text/event-stream` instead of an ApiResponse envelope. Frame
+# schema is documented in `query_router_v2_sse.py`.
+
+
+@router.post("/query/stream")
+def run_query_router_v2_stream(
+    payload: QueryRouterV2Request,
+    request: Request,
+    session: Session = Depends(get_db),
+    user: models.UserAccount = Depends(require_user),
+    query_router: QueryRouterV2 = Depends(get_query_router_v2),
+) -> StreamingResponse:
+    """POST /internal/v1/query/stream — SSE variant of /query."""
+    trace_id = request.headers.get("x-trace-id")
+    stream = serialise_router_stream(
+        router=query_router,
+        session=session,
+        query=payload.query,
+        route="internal_query",
+        caller_type="console_session",
+        trace_id=trace_id,
+        actor_type="user_account",
+        actor_id=user.id,
+    )
+    # `X-Accel-Buffering: no` disables nginx / cloudfront proxy
+    # buffering so chunks reach the browser as they're emitted.
+    return StreamingResponse(
+        stream,
+        media_type=SSE_MEDIA_TYPE,
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
     )

@@ -5,7 +5,7 @@ import hashlib
 import logging
 import time
 from enum import StrEnum
-from typing import Any, Protocol
+from typing import Any, Iterator, Protocol
 
 from pydantic import BaseModel, Field
 
@@ -120,6 +120,27 @@ class LiteLLMClientProtocol(Protocol):
         temperature: float = 0.2,
         max_tokens: int = 2048,
     ) -> ToolCallingResult: ...
+
+    def call_stream(
+        self,
+        model_alias: str,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float = 0.2,
+        max_tokens: int = 2048,
+    ) -> Iterator[str]:
+        """Yield incremental content chunks from an OpenAI-compatible
+        chat.completions stream.
+
+        Implementations MUST yield only the ``delta.content`` string
+        (or empty string when the chunk carries no text) so consumers
+        can concatenate the sequence into the final message body
+        without further parsing.  Errors raise ``LiteLLMCallError``
+        exactly like ``call()``; the generator is expected to be
+        exhausted by the caller (partial iteration = partial LLM
+        response, no retry semantics at this layer).
+        """
+        ...
 
 
 class RealLiteLLMClient:
@@ -260,6 +281,61 @@ class RealLiteLLMClient:
             summary=summary,
         )
 
+    def call_stream(
+        self,
+        model_alias: str,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float = 0.2,
+        max_tokens: int = 2048,
+    ) -> Iterator[str]:
+        """OpenAI-compatible streaming completion.
+
+        Passes ``stream=True`` and yields each chunk's
+        ``choices[0].delta.content``.  Any exception while opening the
+        stream OR mid-iteration surfaces as ``LiteLLMCallError``; the
+        generator MUST NOT swallow errors silently because the SSE
+        endpoint uses them to emit ``event: error`` to the client.
+        """
+        input_hash = _hash_messages(messages)
+        try:
+            stream = self._client.chat.completions.create(
+                model=model_alias,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=True,
+            )
+        except Exception as exc:
+            error_type = self._classify_error(exc)
+            logger.warning(
+                "LiteLLM call_stream open failed alias=%s error_type=%s",
+                model_alias, error_type,
+            )
+            raise LiteLLMCallError(
+                f"LiteLLM call_stream failed: {exc}", error_type,
+            ) from exc
+        try:
+            for chunk in stream:
+                choices = getattr(chunk, "choices", None) or []
+                if not choices:
+                    continue
+                delta = getattr(choices[0], "delta", None)
+                content = getattr(delta, "content", None) if delta else None
+                if content:
+                    yield content
+        except Exception as exc:  # noqa: BLE001 — bubble as LiteLLMCallError
+            error_type = self._classify_error(exc)
+            logger.warning(
+                "LiteLLM call_stream mid-iteration failed alias=%s "
+                "error_type=%s input_hash=%s",
+                model_alias, error_type, input_hash,
+            )
+            raise LiteLLMCallError(
+                f"LiteLLM call_stream failed mid-iteration: {exc}",
+                error_type,
+            ) from exc
+
     def _classify_error(self, exc: Exception) -> LiteLLMErrorType:
         name = type(exc).__name__
         if "Timeout" in name:
@@ -289,6 +365,7 @@ class FakeLiteLLMClient:
         tool_calls_override: list[ToolCall] | None = None,
         content_override_with_tools: str = "",
         finish_reason_with_tools: str | None = None,
+        stream_chunks_override: list[str] | None = None,
     ) -> None:
         self._response_override = response_override
         # Empty list → simulate "model chose not to invoke any tool" so
@@ -298,6 +375,10 @@ class FakeLiteLLMClient:
         self._tool_calls_override = tool_calls_override
         self._content_override_with_tools = content_override_with_tools
         self._finish_reason_with_tools = finish_reason_with_tools
+        # None (default) → derive stream from `response_override` OR the
+        # canned demo body by splitting on paragraph boundaries.  Tests
+        # exercising specific chunk timing supply the list directly.
+        self._stream_chunks_override = stream_chunks_override
 
     def call(
         self,
@@ -372,6 +453,34 @@ class FakeLiteLLMClient:
                 latency_ms=25.0, status="success", input_hash=input_hash,
             ),
         )
+
+    def call_stream(
+        self,
+        model_alias: str,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float = 0.2,
+        max_tokens: int = 2048,
+    ) -> Iterator[str]:
+        # Delegate to `call()` for the full text unless the caller
+        # supplied a per-chunk override so streaming timing tests can
+        # exercise mid-stream boundaries.
+        if self._stream_chunks_override is not None:
+            for chunk in self._stream_chunks_override:
+                yield chunk
+            return
+        content, _ = self.call(
+            model_alias, messages,
+            temperature=temperature, max_tokens=max_tokens,
+        )
+        # Simulate a two-chunk stream so consumers exercise the
+        # concatenation path — a single-chunk fallback would mask
+        # ordering bugs the real client can expose.
+        if not content:
+            return
+        half = max(1, len(content) // 2)
+        yield content[:half]
+        yield content[half:]
 
 
 class CassetteLiteLLMClient:
@@ -519,6 +628,21 @@ class CassetteLiteLLMClient:
             input_hash=input_hash,
         )
         return content, summary
+
+    def call_stream(
+        self,
+        model_alias: str,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float = 0.2,
+        max_tokens: int = 2048,
+    ) -> Iterator[str]:
+        content, _ = self.call(
+            model_alias, messages,
+            temperature=temperature, max_tokens=max_tokens,
+        )
+        if content:
+            yield content
 
 
 def create_litellm_client(

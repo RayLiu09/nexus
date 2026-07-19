@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Iterator, Literal
 
 from sqlalchemy.orm import Session
 
@@ -39,7 +39,11 @@ from nexus_app.audit_v2_retrieval import (
 )
 from nexus_app.index.pgvector_search import PgvectorSearchAdapter
 from nexus_app.retrieval.chart_adapter import ChartRegistry
-from nexus_app.retrieval.composer_v2 import ComposeResult, MDComposerV2
+from nexus_app.retrieval.composer_v2 import (
+    ComposeResult,
+    ComposeStreamEvent,
+    MDComposerV2,
+)
 from nexus_app.retrieval.dispatcher_v2 import (
     DispatchResult,
     DispatcherV2,
@@ -63,6 +67,36 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Return type
 # ---------------------------------------------------------------------------
+
+
+RouterStreamEventType = Literal["meta", "chunk", "final", "done", "error"]
+
+
+@dataclass(frozen=True)
+class RouterStreamEvent:
+    """One event on the ``QueryRouterV2.run_stream`` iterator.
+
+    * ``meta`` — first event, always. Carries ``intent`` /
+      ``intent_confidence`` / ``invoked_tools`` (empty when the
+      fallback path fires) / registered ``chart_ids`` so the frontend
+      can pre-allocate placeholders before any prose arrives.
+    * ``chunk`` — incremental raw markdown chunk from the Composer's
+      streaming call. Not emitted on the scenario_5 stub path.
+    * ``final`` — sent immediately before ``done``. Payload is a
+      ``RouterResult`` with markdown = the fully-swapped composer
+      output (§7.3 chart placeholder replacement done ONCE at the end).
+    * ``done`` — terminating event. Payload is empty; audit_summary
+      is on the preceding ``final`` event.
+    * ``error`` — non-fatal warning surfaced mid-stream. When the
+      backend downgrades to fallback markdown the ``final`` event still
+      fires; ``error`` here is informational (e.g. ``llm_call_failed``).
+    """
+
+    type: RouterStreamEventType
+    text: str = ""
+    result: "RouterResult | None" = None
+    meta: dict[str, Any] | None = None
+    reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -233,6 +267,216 @@ class QueryRouterV2:
             warnings=tuple(list(dispatch_result.warnings)
                            + list(compose_result.warnings)),
         )
+
+    # ------------------------------------------------------------------ #
+    # Streaming variant — used by /internal|open/v1/query/stream
+    # ------------------------------------------------------------------ #
+
+    def run_stream(
+        self,
+        session: Session,
+        *,
+        query: str,
+        route: RouteType,
+        caller_type: CallerType,
+    ) -> Iterator[RouterStreamEvent]:
+        """SSE-oriented streaming variant of :meth:`run`.
+
+        Emits events in this order:
+
+        1. Exactly one ``meta`` event once L1/L2 finish (so the
+           frontend can render the intent / tool badges before any
+           prose lands).
+        2. Zero or more ``chunk`` events during Composer streaming.
+        3. Exactly one ``final`` event (or ``fallback`` from Composer
+           translated into a final event with fallback_reason set).
+        4. Exactly one ``done`` event.
+
+        Unknown-intent / dispatcher-fallback / scenario_5 paths bypass
+        Composer streaming entirely — they emit ``meta`` → the fully
+        pre-baked ``final`` payload → ``done`` (no ``chunk`` events).
+        This keeps the client's rendering path uniform: whenever a
+        ``final`` event arrives, the accumulated chunk text should be
+        discarded in favour of ``result.markdown``.
+        """
+        registry = self.tool_registry or get_default_tool_registry()
+
+        # ------------------------------------------------------------
+        # Layer 1: intent + params (non-streaming; identical to run())
+        # ------------------------------------------------------------
+        intent_classifier = IntentClassifierV2(llm_client=self.llm_client)
+        intent_result = intent_classifier.classify(session, query)
+
+        param_extractor = ParameterExtractorV2(
+            llm_client=self.llm_client, registry=registry,
+        )
+        param_result = param_extractor.extract(
+            session, query=query, intent=intent_result.intent,
+        )
+
+        # ------------------------------------------------------------
+        # Short-circuit unknown / low-confidence — no chunk stream.
+        # ------------------------------------------------------------
+        if intent_result.intent == "unknown" or intent_result.low_confidence:
+            trigger = (
+                "low_confidence"
+                if intent_result.low_confidence
+                else "unknown_intent"
+            )
+            yield RouterStreamEvent(
+                type="meta",
+                meta={
+                    "intent": "unknown",
+                    "intent_confidence": intent_result.confidence,
+                    "invoked_tools": [],
+                    "chart_ids": [],
+                    "fallback_reason": "unknown_fallback",
+                },
+            )
+            result = self._unknown_fallback_path(
+                session,
+                query=query,
+                intent_result=intent_result,
+                param_result=param_result,
+                route=route,
+                caller_type=caller_type,
+                trigger=trigger,
+            )
+            yield RouterStreamEvent(type="final", result=result)
+            yield RouterStreamEvent(type="done")
+            return
+
+        # ------------------------------------------------------------
+        # Layer 2: dispatcher (non-streaming; tool exec is parallel).
+        # ------------------------------------------------------------
+        dispatcher = DispatcherV2(
+            llm_client=self.llm_client,
+            executor_registry=self.executor_registry,
+            registry=registry,
+        )
+        dispatch_result = dispatcher.dispatch(
+            session,
+            query=query,
+            intent=intent_result.intent,
+            extracted_params=param_result.extracted_params,
+            model_alias=self.model_alias,
+        )
+
+        if dispatch_result.fallback_reason == "scenario_5_template":
+            yield RouterStreamEvent(
+                type="meta",
+                meta={
+                    "intent": "scenario_5",
+                    "intent_confidence": intent_result.confidence,
+                    "invoked_tools": [],
+                    "chart_ids": [],
+                    "template_id": "talent_cultivation_plan",
+                },
+            )
+            result = self._scenario_5_placeholder(
+                query=query,
+                intent_result=intent_result,
+                param_result=param_result,
+                route=route,
+                caller_type=caller_type,
+            )
+            yield RouterStreamEvent(type="final", result=result)
+            yield RouterStreamEvent(type="done")
+            return
+
+        if dispatch_result.fallback_reason is not None:
+            yield RouterStreamEvent(
+                type="meta",
+                meta={
+                    "intent": intent_result.intent,
+                    "intent_confidence": intent_result.confidence,
+                    "invoked_tools": [],
+                    "chart_ids": [],
+                    "fallback_reason": "unknown_fallback",
+                    "dispatch_fallback": dispatch_result.fallback_reason,
+                },
+            )
+            result = self._unknown_fallback_path(
+                session,
+                query=query,
+                intent_result=intent_result,
+                param_result=param_result,
+                route=route,
+                caller_type=caller_type,
+                trigger=dispatch_result.fallback_reason,
+                dispatch_result=dispatch_result,
+            )
+            yield RouterStreamEvent(type="final", result=result)
+            yield RouterStreamEvent(type="done")
+            return
+
+        # ------------------------------------------------------------
+        # Layer 3: Composer streams chunks; router aggregates + emits
+        # a final event with the fully-swapped markdown.
+        # ------------------------------------------------------------
+        yield RouterStreamEvent(
+            type="meta",
+            meta={
+                "intent": intent_result.intent,
+                "intent_confidence": intent_result.confidence,
+                "invoked_tools": dispatch_result.invoked_tool_names,
+                "chart_ids": sorted(
+                    dispatch_result.chart_registry.registered_ids()
+                ),
+            },
+        )
+
+        composer = MDComposerV2(llm_client=self.llm_client)
+        compose_result: ComposeResult | None = None
+        for event in composer.compose_stream(
+            session, query=query, dispatch_result=dispatch_result,
+        ):
+            if event.type == "chunk":
+                yield RouterStreamEvent(type="chunk", text=event.text)
+            elif event.type == "final":
+                compose_result = event.result
+            elif event.type == "fallback":
+                compose_result = event.result
+                if event.result and event.result.fallback_reason:
+                    yield RouterStreamEvent(
+                        type="error",
+                        reason=event.result.fallback_reason,
+                    )
+
+        if compose_result is None:
+            # Composer stream ended without emitting final/fallback —
+            # defensive; treat as empty_llm_output so the client sees
+            # a terminating event with a stable fallback marker.
+            compose_result = ComposeResult(
+                markdown="", raw_markdown="",
+                generated_ratio=0.0,
+                fallback_reason="empty_llm_output",
+            )
+            yield RouterStreamEvent(
+                type="error", reason="empty_llm_output",
+            )
+
+        summary = self._build_summary(
+            route=route,
+            caller_type=caller_type,
+            intent_result=intent_result,
+            param_result=param_result,
+            dispatch_result=dispatch_result,
+            compose_result=compose_result,
+        )
+        result = RouterResult(
+            markdown=compose_result.markdown,
+            raw_markdown=compose_result.raw_markdown,
+            audit_summary=summary,
+            intent=intent_result.intent,
+            intent_confidence=intent_result.confidence,
+            invoked_tools=dispatch_result.invoked_tool_names,
+            fallback_reason=compose_result.fallback_reason,
+            warnings=tuple(list(dispatch_result.warnings)
+                           + list(compose_result.warnings)),
+        )
+        yield RouterStreamEvent(type="final", result=result)
+        yield RouterStreamEvent(type="done")
 
     # ------------------------------------------------------------------ #
     # Fallback paths
@@ -416,4 +660,6 @@ class QueryRouterV2:
 __all__ = [
     "QueryRouterV2",
     "RouterResult",
+    "RouterStreamEvent",
+    "RouterStreamEventType",
 ]
