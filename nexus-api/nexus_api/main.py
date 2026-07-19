@@ -28,6 +28,7 @@ from nexus_app.config import Settings, get_settings
 from nexus_app.database import get_session_local
 from nexus_app.ingest.config_loader import get_ingest_validate_registry
 from nexus_app.normalize.config_loader import get_normalize_schemas_registry
+from nexus_app.retrieval.prompt_profiles_v2 import seed_retrieval_v2_prompts
 from nexus_app.worker.pool import WorkerPool
 
 logger = logging.getLogger(__name__)
@@ -129,11 +130,45 @@ def _load_registries_fail_fast() -> None:
         session.close()
 
 
+def _seed_v2_prompts_idempotent(settings: Settings) -> None:
+    """Ensure the 4 Query Router v2 ai_prompt_profile rows exist.
+
+    Idempotent — `seed_retrieval_v2_prompts` skips profiles that already
+    have an active row so a console-edited template is never clobbered.
+    Wrapped in a try/except because a seed failure must not break API
+    boot; the /query endpoints already degrade to the ⚠️ fallback body
+    when a profile is missing.
+
+    The alias is threaded through explicitly so a fresh environment
+    picks up whatever `default_governance_model` resolves to — the
+    hard-coded `DEFAULT_V2_LITELLM_ALIAS` fallback in
+    `prompt_profiles_v2.py` is a code-only default that doesn't reflect
+    the deployed LiteLLM gateway. Existing rows keep their current
+    alias; console operators change models via the profile UI.
+    """
+    alias = settings.default_governance_model or None
+    session = get_session_local()()
+    try:
+        if alias:
+            seed_retrieval_v2_prompts(session, litellm_model_alias=alias)
+        else:
+            seed_retrieval_v2_prompts(session)
+        session.commit()
+    except Exception as exc:  # noqa: BLE001 - seed failure ≠ API failure
+        logger.warning(
+            "seed_retrieval_v2_prompts skipped at boot: %s", exc,
+        )
+        session.rollback()
+    finally:
+        session.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
     check_production_secrets(settings)
     _load_registries_fail_fast()
+    _seed_v2_prompts_idempotent(settings)
     worker_pool = WorkerPool(settings)
     app.state.worker_pool = worker_pool
     worker_pool.start()
