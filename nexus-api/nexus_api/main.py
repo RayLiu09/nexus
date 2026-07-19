@@ -140,19 +140,17 @@ def _seed_v2_prompts_idempotent(settings: Settings) -> None:
     when a profile is missing.
 
     The alias is threaded through explicitly so a fresh environment
-    picks up whatever `default_governance_model` resolves to — the
-    hard-coded `DEFAULT_V2_LITELLM_ALIAS` fallback in
-    `prompt_profiles_v2.py` is a code-only default that doesn't reflect
-    the deployed LiteLLM gateway. Existing rows keep their current
-    alias; console operators change models via the profile UI.
+    picks up whatever `default_governance_model` resolves to; passing
+    None lets `seed_retrieval_v2_prompts` fall back to the same
+    settings lookup internally.  Existing rows keep their current
+    alias — console operators change models via the profile UI.
     """
-    alias = settings.default_governance_model or None
     session = get_session_local()()
     try:
-        if alias:
-            seed_retrieval_v2_prompts(session, litellm_model_alias=alias)
-        else:
-            seed_retrieval_v2_prompts(session)
+        seed_retrieval_v2_prompts(
+            session,
+            litellm_model_alias=settings.default_governance_model or None,
+        )
         session.commit()
     except Exception as exc:  # noqa: BLE001 - seed failure ≠ API failure
         logger.warning(

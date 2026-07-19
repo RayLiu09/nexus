@@ -6,17 +6,23 @@
  * Wraps `react-markdown` (+ remark-gfm for footnotes / tables) with
  * three v2-specific overrides:
  *
- * 1. `code` — when the fence language is `chart:echarts`, render an
- *    ECharts graph via `EchartsFence` instead of a plain <pre>. Other
- *    fenced blocks (inline code + arbitrary languages) fall through
- *    to Antd's typography defaults.
- * 2. `blockquote` — blocks led by `> ⚠️` are "generated content"
+ * 1. `pre` — react-markdown emits fenced code blocks as
+ *    `<pre><code class="language-*">...</code></pre>`. We inspect the
+ *    inner `<code>`'s className: `chart:echarts` → EchartsFence;
+ *    anything else → a styled `<pre>` block.
+ * 2. `code` — react-markdown emits inline code (e.g. `` `foo` `` inside
+ *    a paragraph or a footnote definition) as a bare `<code>` element
+ *    with no `<pre>` wrapper.  We MUST NOT introduce a `<pre>` here or
+ *    React will throw a hydration error when the inline code lives
+ *    inside a `<p>` (invalid HTML: `<p><pre>...`).
+ * 3. `blockquote` — blocks led by `> ⚠️` are "generated content"
  *    (§4.3) and get a distinct warning-styled treatment so the reader
  *    knows they're model-inferred, not platform-anchored.
- * 3. Footnote anchor navigation — remark-gfm renders `[^refN]` as
- *    superscript links pointing to `#user-content-fn-refN`. We augment
- *    the anchor click with `scrollIntoView` so it works inside
- *    scrollable containers where the browser default falls flat.
+ *
+ * Footnote anchor navigation: remark-gfm renders `[^refN]` as
+ * superscript links pointing to `#user-content-fn-refN`. We augment
+ * the anchor click with `scrollIntoView` so it works inside
+ * scrollable containers where the browser default falls flat.
  */
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -55,7 +61,8 @@ export function QueryRouterAnswer({ markdown }: QueryRouterAnswerProps) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          code: CodeRenderer,
+          pre: PreRenderer,
+          code: InlineCodeRenderer,
           blockquote: BlockquoteRenderer,
         }}
       >
@@ -66,31 +73,43 @@ export function QueryRouterAnswer({ markdown }: QueryRouterAnswerProps) {
 }
 
 // ---------------------------------------------------------------------------
-// code — dispatch to EchartsFence for chart:echarts fenced blocks
+// pre — fenced code block; dispatch to EchartsFence when language matches
+// ---------------------------------------------------------------------------
+
+interface PreProps {
+  children?: ReactNode;
+}
+
+function PreRenderer({ children }: PreProps) {
+  const codeChild = findCodeChild(children);
+  if (codeChild) {
+    const className = readClassName(codeChild);
+    const lang = extractLanguage(className);
+    if (lang === CHART_LANG) {
+      return <EchartsFence raw={extractText(codeChild)} />;
+    }
+  }
+  return (
+    <pre className="border-line my-3 overflow-auto rounded-md border bg-gray-50 p-3 text-xs">
+      {children}
+    </pre>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// code — inline code only (no <pre> wrapper). Fenced blocks go via PreRenderer.
 // ---------------------------------------------------------------------------
 
 interface CodeProps {
   className?: string;
   children?: ReactNode;
-  inline?: boolean;
 }
 
-function CodeRenderer({ className, children, inline, ...rest }: CodeProps) {
-  if (inline) {
-    return (
-      <code className={className} {...rest}>
-        {children}
-      </code>
-    );
-  }
-  const lang = extractLanguage(className);
-  if (lang === CHART_LANG) {
-    return <EchartsFence raw={extractText(children)} />;
-  }
+function InlineCodeRenderer({ className, children, ...rest }: CodeProps) {
   return (
-    <pre className="border-line my-3 overflow-auto rounded-md border bg-gray-50 p-3 text-xs">
-      <code className={className}>{children}</code>
-    </pre>
+    <code className={className} {...rest}>
+      {children}
+    </code>
   );
 }
 
@@ -124,7 +143,7 @@ function BlockquoteRenderer({ children }: BlockquoteProps) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function extractLanguage(className: string | undefined): string | null {
+function extractLanguage(className: string | undefined | null): string | null {
   if (!className) return null;
   // react-markdown renders fence lang as `language-<lang>`, but colons
   // in the language tag (chart:echarts) survive the pass-through so we
@@ -147,4 +166,32 @@ function extractText(node: ReactNode): string {
 function quoteMentionsGeneratedMarker(node: ReactNode): boolean {
   const text = extractText(node);
   return text.includes(GENERATED_MARKER);
+}
+
+// react-markdown's `pre` component receives its children directly; the
+// child is normally a single React element for the inner `<code>`. We
+// walk defensively because whitespace text nodes can sneak in.
+function findCodeChild(node: ReactNode): ReactNode | null {
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const found = findCodeChild(item);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (node && typeof node === "object" && "type" in node) {
+    const el = node as { type?: unknown; props?: { children?: ReactNode } };
+    if (el.type === "code" || (typeof el.type === "function" && el.type.name === "InlineCodeRenderer")) {
+      return node;
+    }
+  }
+  return null;
+}
+
+function readClassName(node: ReactNode): string | undefined {
+  if (node && typeof node === "object" && "props" in node) {
+    const props = (node as { props?: { className?: string } }).props;
+    return props?.className;
+  }
+  return undefined;
 }

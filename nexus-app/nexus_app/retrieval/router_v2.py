@@ -55,7 +55,6 @@ from nexus_app.retrieval.parameter_extractor import (
     ParameterExtractorV2,
     ParamExtractionResult,
 )
-from nexus_app.retrieval.prompt_profiles_v2 import DEFAULT_V2_LITELLM_ALIAS
 from nexus_app.retrieval.tools_registry import (
     ToolRegistry,
     get_default_tool_registry,
@@ -144,7 +143,11 @@ class QueryRouterV2:
     * ``llm_client`` — shared client for intent / param / dispatcher / composer.
     * ``executor_registry`` — real ToolExecutor callables.
     * ``pgvector_adapter`` — used for the §六 unknown-fallback path.
-    * ``tool_registry`` / ``model_alias`` — optional overrides.
+    * ``tool_registry`` — optional override for the tool registry.
+    * ``model_alias`` — LiteLLM alias for dispatcher function-calling
+      turns.  When None we resolve from
+      ``settings.default_governance_model`` on first use so
+      deployments don't have to thread the alias through every caller.
 
     Threading the same ``llm_client`` through every layer keeps the
     LiteLLM alias + retry behaviour consistent across the request.
@@ -154,7 +157,26 @@ class QueryRouterV2:
     executor_registry: ToolExecutorRegistry
     pgvector_adapter: PgvectorSearchAdapter | None = None
     tool_registry: ToolRegistry | None = None
-    model_alias: str = DEFAULT_V2_LITELLM_ALIAS
+    model_alias: str | None = None
+
+    def _effective_model_alias(self) -> str:
+        """Resolve alias lazily from settings when unset.
+
+        Kept as a method so tests can subclass / patch without touching
+        the dataclass default. Missing config raises at first request
+        (rather than at import) so tests that stub the LLM don't need
+        settings to be loaded.
+        """
+        if self.model_alias:
+            return self.model_alias
+        from nexus_app.config import get_settings
+        alias = get_settings().default_governance_model
+        if not alias:
+            raise RuntimeError(
+                "QueryRouterV2.model_alias is unset and "
+                "settings.default_governance_model is not configured."
+            )
+        return alias
 
     def run(
         self,
@@ -212,7 +234,7 @@ class QueryRouterV2:
             query=query,
             intent=intent_result.intent,
             extracted_params=param_result.extracted_params,
-            model_alias=self.model_alias,
+            model_alias=self._effective_model_alias(),
         )
 
         if dispatch_result.fallback_reason == "scenario_5_template":
@@ -359,7 +381,7 @@ class QueryRouterV2:
             query=query,
             intent=intent_result.intent,
             extracted_params=param_result.extracted_params,
-            model_alias=self.model_alias,
+            model_alias=self._effective_model_alias(),
         )
 
         if dispatch_result.fallback_reason == "scenario_5_template":
