@@ -257,6 +257,94 @@ def test_query_ability_analysis_empty_result(session):
 
 
 # ---------------------------------------------------------------------------
+# get_job_demand_role_graph — B0.2 cross-dataset by job_title
+# ---------------------------------------------------------------------------
+
+
+def test_get_job_demand_role_graph_cross_dataset_merges_builds(session):
+    """Two builds each carrying a JOB_ROLE with the same job_title
+    substring — executor merges their subgraphs, dedups nodes/edges,
+    and returns one chart covering the union."""
+    from nexus_app.retrieval.tool_executors_v2 import get_job_demand_role_graph
+    from nexus_app.capability_graph.whitelists import (
+        BuildStatus, BuildType, EdgeType, NodeType,
+    )
+
+    ref_a = _seed_normalized_ref(session, ref_id="ref-a")
+    ref_b = _seed_normalized_ref(session, ref_id="ref-b")
+    ds_a = models.JobDemandDataset(
+        id="jdd-a", normalized_ref_id=ref_a, asset_version_id="ver-a",
+        source_channel="excel_upload", major_name="电子商务", schema_version="v1",
+    )
+    ds_b = models.JobDemandDataset(
+        id="jdd-b", normalized_ref_id=ref_b, asset_version_id="ver-b",
+        source_channel="excel_upload", major_name="市场营销", schema_version="v1",
+    )
+    build_a = models.CapabilityGraphStagingBuild(
+        id="b-a", normalized_ref_id=ref_a, domain="job",
+        build_type=BuildType.JOB_DEMAND, status=BuildStatus.GENERATED,
+        schema_version="v1",
+    )
+    build_b = models.CapabilityGraphStagingBuild(
+        id="b-b", normalized_ref_id=ref_b, domain="job",
+        build_type=BuildType.JOB_DEMAND, status=BuildStatus.GENERATED,
+        schema_version="v1",
+    )
+    role_a = models.CapabilityGraphStagingNode(
+        id="role-a", build_id=build_a.id,
+        node_type=NodeType.JOB_ROLE, node_key="role-a",
+        display_name="AI销售专员",
+    )
+    role_b = models.CapabilityGraphStagingNode(
+        id="role-b", build_id=build_b.id,
+        node_type=NodeType.JOB_ROLE, node_key="role-b",
+        display_name="AI销售专员",
+    )
+    skill_a = models.CapabilityGraphStagingNode(
+        id="skill-a", build_id=build_a.id,
+        node_type="Skill", node_key="skill-a",
+        display_name="沟通能力",
+    )
+    edge_a = models.CapabilityGraphStagingEdge(
+        id="e-a", build_id=build_a.id,
+        source_node_id=role_a.id, target_node_id=skill_a.id,
+        edge_type=EdgeType.JOB_ROLE_REQUIRES_SKILL,
+    )
+    session.add_all([ds_a, ds_b, build_a, build_b, role_a, role_b, skill_a, edge_a])
+    session.flush()
+
+    registry = ChartRegistry()
+    result = get_job_demand_role_graph(
+        session=session,
+        arguments={"job_title": "AI销售"},
+        tool_call_id="tc",
+        chart_registry=registry,
+    )
+    assert result["found"] is True
+    assert result["match_count"] == 2
+    build_ids = {b["build_id"] for b in result["builds"]}
+    assert build_ids == {"b-a", "b-b"}
+    # Merged subgraph includes both role nodes + the one skill node.
+    assert result["node_count"] == 3
+    # Only one capability edge exists (skill on build_a).
+    assert result["edge_count"] == 1
+    # One chart registered for the union.
+    assert result["chart_id"] in registry.registered_ids()
+
+
+def test_get_job_demand_role_graph_returns_not_found_when_no_match(session):
+    from nexus_app.retrieval.tool_executors_v2 import get_job_demand_role_graph
+    result = get_job_demand_role_graph(
+        session=session,
+        arguments={"job_title": "不存在的岗位"},
+        tool_call_id="tc",
+        chart_registry=ChartRegistry(),
+    )
+    assert result["found"] is False
+    assert result["match_count"] == 0
+
+
+# ---------------------------------------------------------------------------
 # query_major_distribution
 # ---------------------------------------------------------------------------
 

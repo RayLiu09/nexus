@@ -31,6 +31,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from nexus_app import models
+from nexus_app.capability_graph.whitelists import (
+    BuildStatus,
+    BuildType,
+    EdgeType,
+    NodeType,
+)
 from nexus_app.evidence_graph.service import KnowledgeGraphBuildStatus
 from nexus_app.index.pgvector_search import PgvectorSearchAdapter
 from nexus_app.retrieval.chart_adapter import (
@@ -345,57 +351,106 @@ def get_job_demand_role_graph(
     tool_call_id: str,
     chart_registry: ChartRegistry,
 ) -> dict[str, Any]:
-    """P0 impl uses ``build_type='job_demand'`` staging graph as the
-    canonical role-graph source (see A1b / B0.2 endpoint mirror).
+    """B0.2 cross-dataset role-graph lookup by ``job_title``.
+
+    Mirrors ``GET /internal/v1/record-assets/job-demand-role-graph``:
+    walks every GENERATED ``build_type=job_demand`` build, finds JOB_ROLE
+    nodes whose ``display_name`` substring-matches ``job_title``, and
+    returns the merged capability subgraph (union across builds, deduped
+    by node.id / edge.id).  Registers ONE chart covering the union so
+    Composer can reference it with a single ``[[CHART:xxx]]`` placeholder.
+
+    §2.5.0 forbids trace fields as primary business input — the schema
+    only accepts ``job_title``; ``builds[]`` in the response carries
+    trace fields (dataset_id / build_id / normalized_ref_id / major_name)
+    for Composer citation.
     """
-    dataset_id = arguments["dataset_id"]
-    job_title = arguments.get("job_title")
+    job_title = arguments["job_title"]
+    job_title_pattern = f"%{job_title}%"
 
-    # For P0 we anchor on normalized_ref_id via dataset_id → normalized_ref_id.
-    ref_stmt = select(models.JobDemandDataset.normalized_ref_id).where(
-        models.JobDemandDataset.id == dataset_id,
-    )
-    normalized_ref_id = session.scalar(ref_stmt)
-    if normalized_ref_id is None:
-        return {"found": False, "dataset_id": dataset_id}
-
-    build = session.scalars(
-        select(models.CapabilityGraphStagingBuild)
-        .where(
-            models.CapabilityGraphStagingBuild.normalized_ref_id
-            == normalized_ref_id,
-            models.CapabilityGraphStagingBuild.build_type == "job_demand",
+    matches = list(session.execute(
+        select(
+            models.CapabilityGraphStagingBuild,
+            models.CapabilityGraphStagingNode,
         )
-        .order_by(models.CapabilityGraphStagingBuild.created_at.desc())
-    ).first()
-    if build is None:
+        .join(
+            models.CapabilityGraphStagingNode,
+            models.CapabilityGraphStagingNode.build_id
+            == models.CapabilityGraphStagingBuild.id,
+        )
+        .where(
+            models.CapabilityGraphStagingBuild.build_type == BuildType.JOB_DEMAND,
+            models.CapabilityGraphStagingBuild.status == BuildStatus.GENERATED,
+            models.CapabilityGraphStagingNode.node_type == NodeType.JOB_ROLE,
+            models.CapabilityGraphStagingNode.display_name.ilike(job_title_pattern),
+        )
+        .order_by(
+            models.CapabilityGraphStagingBuild.created_at.desc(),
+            models.CapabilityGraphStagingBuild.id.desc(),
+        )
+    ).all())
+
+    if not matches:
         return {
             "found": False,
-            "dataset_id": dataset_id,
-            "normalized_ref_id": normalized_ref_id,
+            "job_title": job_title,
+            "match_count": 0,
         }
 
-    node_stmt = select(models.CapabilityGraphStagingNode).where(
-        models.CapabilityGraphStagingNode.build_id == build.id,
-    )
-    if job_title:
-        node_stmt = node_stmt.where(
-            models.CapabilityGraphStagingNode.display_name.ilike(
-                f"%{job_title}%",
-            ),
-        )
-    nodes = list(session.scalars(node_stmt))
-    edges = list(session.scalars(
-        select(models.CapabilityGraphStagingEdge).where(
-            models.CapabilityGraphStagingEdge.build_id == build.id,
-        )
-    ))
+    ref_ids = list({build.normalized_ref_id for build, _ in matches})
+    datasets_by_ref = {
+        ds.normalized_ref_id: ds
+        for ds in session.scalars(
+            select(models.JobDemandDataset)
+            .where(models.JobDemandDataset.normalized_ref_id.in_(ref_ids))
+        ).all()
+    }
+
+    # Merge subgraphs across every matched build.
+    nodes_by_id: dict[str, models.CapabilityGraphStagingNode] = {}
+    edges_by_id: dict[str, models.CapabilityGraphStagingEdge] = {}
+    build_summaries: list[dict[str, Any]] = []
+
+    for build, role_node in matches:
+        capability_edges = list(session.scalars(
+            select(models.CapabilityGraphStagingEdge).where(
+                models.CapabilityGraphStagingEdge.build_id == build.id,
+                models.CapabilityGraphStagingEdge.source_node_id == role_node.id,
+                models.CapabilityGraphStagingEdge.edge_type
+                != EdgeType.JOB_ROLE_AGGREGATES_RECORD,
+            )
+        ))
+        endpoint_ids = {role_node.id}
+        for edge in capability_edges:
+            endpoint_ids.add(edge.source_node_id)
+            endpoint_ids.add(edge.target_node_id)
+        endpoint_nodes = list(session.scalars(
+            select(models.CapabilityGraphStagingNode)
+            .where(models.CapabilityGraphStagingNode.id.in_(endpoint_ids))
+        ))
+        for node in endpoint_nodes:
+            nodes_by_id.setdefault(node.id, node)
+        for edge in capability_edges:
+            edges_by_id.setdefault(edge.id, edge)
+
+        ds = datasets_by_ref.get(build.normalized_ref_id)
+        build_summaries.append({
+            "build_id": build.id,
+            "normalized_ref_id": build.normalized_ref_id,
+            "dataset_id": ds.id if ds else None,
+            "major_name": ds.major_name if ds else None,
+            "industry_name": ds.industry_name if ds else None,
+            "role_node_id": role_node.id,
+        })
+
+    merged_nodes = list(nodes_by_id.values())
+    merged_edges = list(edges_by_id.values())
 
     chart_payload = capability_graph_to_chart(
-        nodes=nodes,
-        edges=edges,
-        title=f"岗位角色图 (dataset {dataset_id[:8]})",
-        source_ref=build.id,
+        nodes=merged_nodes,
+        edges=merged_edges,
+        title=f"{job_title} 岗位能力图谱",
+        source_ref=build_summaries[0]["build_id"],
     )
     chart_id = chart_registry.register(
         tool_call_id=tool_call_id, payload=chart_payload,
@@ -403,10 +458,11 @@ def get_job_demand_role_graph(
 
     return {
         "found": True,
-        "dataset_id": dataset_id,
-        "build_id": build.id,
-        "node_count": len(nodes),
-        "edge_count": len(edges),
+        "job_title": job_title,
+        "match_count": len(build_summaries),
+        "builds": build_summaries,
+        "node_count": len(merged_nodes),
+        "edge_count": len(merged_edges),
         "chart_id": chart_id,
     }
 
