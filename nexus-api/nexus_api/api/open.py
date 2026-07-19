@@ -1776,3 +1776,84 @@ def get_major_distribution_record(
             detail=f"major_distribution_record '{record_id}' not found",
         )
     return response(_serialize_major_distribution_record(record), request)
+
+
+# ---------------------------------------------------------------------------
+# B6 (§10 阶段 B) — POST /open/v1/query
+# ---------------------------------------------------------------------------
+# External api_caller entry point for Query Router v2. Paired with B7's
+# /internal/v1/query which uses require_user; audit summary captures
+# route="open_query" and caller_type="api_caller" here (§8.2).
+
+from pydantic import BaseModel, Field  # noqa: E402 — kept local to the B6 block
+
+from nexus_api.query_router_v2_deps import get_query_router_v2  # noqa: E402
+from nexus_app.retrieval.router_v2 import QueryRouterV2, RouterResult  # noqa: E402
+
+
+class _QueryRouterV2OpenRequest(BaseModel):
+    query: str = Field(..., min_length=1, max_length=2048)
+
+
+class _QueryRouterV2OpenResponseData(BaseModel):
+    markdown: str
+    intent: str
+    intent_confidence: float
+    invoked_tools: list[str]
+    fallback_reason: str | None
+    warnings: list[str]
+    audit_summary: dict
+
+
+@router.post(
+    "/query",
+    response_model=schemas.ApiResponse[_QueryRouterV2OpenResponseData],
+)
+def run_query_router_v2_open(
+    payload: _QueryRouterV2OpenRequest,
+    request: Request,
+    caller: models.ApiCaller = Depends(require_api_caller),
+    session: Session = Depends(get_db),
+    query_router: QueryRouterV2 = Depends(get_query_router_v2),
+):
+    """POST /open/v1/query — external api_caller entry to Query Router v2."""
+    result: RouterResult = query_router.run(
+        session,
+        query=payload.query,
+        route="open_query",
+        caller_type="api_caller",
+    )
+
+    _assert_caller_still_active(session, caller)
+
+    trace_id = request.headers.get("x-trace-id")
+    query_hash = hashlib.sha256(
+        payload.query.encode("utf-8"),
+    ).hexdigest()[:16]
+
+    summary = dict(result.audit_summary)
+    summary.setdefault("query_hash", query_hash)
+    write_audit(
+        session,
+        AuditEventType.SEARCH_QUERY_EXECUTED,
+        target_type="query_router_v2",
+        target_id=trace_id or query_hash,
+        trace_id=trace_id,
+        summary=summary,
+        actor_type="api_caller",
+        actor_id=caller.id,
+    )
+    session.commit()
+
+    return response(
+        _QueryRouterV2OpenResponseData(
+            markdown=result.markdown,
+            intent=result.intent,
+            intent_confidence=result.intent_confidence,
+            invoked_tools=result.invoked_tools,
+            fallback_reason=result.fallback_reason,
+            warnings=list(result.warnings),
+            audit_summary=summary,
+        ),
+        request,
+    )

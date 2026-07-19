@@ -40,6 +40,7 @@ from nexus_api.api.internal.knowledge_outline_review import (
     router as _knowledge_outline_review_router,
 )
 from nexus_api.api.internal.knowledge_retrieval import router as _knowledge_retrieval_router
+from nexus_api.api.internal.query_router import router as _query_router_v2_router
 
 # Auth router — separate top-level mount, no shared deps.
 from nexus_api.api.internal.auth import router as auth_router
@@ -163,6 +164,7 @@ router.include_router(_task_outline_router)
 router.include_router(_knowledge_outline_router)
 router.include_router(_knowledge_outline_review_router)
 router.include_router(_knowledge_retrieval_router)
+router.include_router(_query_router_v2_router)
 
 
 __all__ = ["router", "auth_router"]
