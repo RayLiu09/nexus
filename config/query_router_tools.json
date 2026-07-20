@@ -219,7 +219,7 @@
       "tools": [
         {
           "name": "internal.search_chunks_by_semantic",
-          "description": "在教材类 kb 下按语义召回 top-K chunks；kb 支持 course_textbook / practical_training_kb；chunk metadata 携带 heading_path 供定位章节",
+          "description": "在教材类 kb 下按语义召回 top-K chunks；chunk metadata 携带 heading_path 供定位章节。**除非 query 明确带'实训 / 演练 / 操作步骤 / SOP'字样，一律省略 `kb` 参数**（executor 会同时命中所有教材类 kb）；只有确定要限定实训教材时才传 `practical_training_kb`",
           "parameters": {
             "type": "object",
             "properties": {
@@ -227,7 +227,7 @@
               "kb": {
                 "type": "string",
                 "enum": ["course_textbook", "practical_training_kb"],
-                "description": "教材类知识类型 code"
+                "description": "教材类知识类型 code。**通常应省略此参数**（跨 kb 检索能命中更全的教材内容）。`course_textbook` 覆盖专业理论/概念/规则/方法教材；`practical_training_kb` 仅覆盖实训任务/演练脚本。若 query 是概念/规则/知识/方法查询 → **不要传 kb**；只有 query 明确指向'实训'才传 `practical_training_kb`"
               },
               "top_k": {
                 "type": "integer",
@@ -239,7 +239,8 @@
                 "type": "number",
                 "minimum": 0,
                 "maximum": 1,
-                "default": 0.7
+                "default": 0.5,
+                "description": "余弦相似度阈值；教材类知识 query 建议 0.5，实训精确任务 query 可提到 0.7"
               },
               "outline_node": {
                 "type": "string",

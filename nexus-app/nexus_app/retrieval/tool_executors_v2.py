@@ -73,20 +73,50 @@ def make_search_chunks_executor(adapter: PgvectorSearchAdapter) -> ToolExecutor:
         tool_call_id: str,
         chart_registry: ChartRegistry,
     ) -> dict[str, Any]:
+        requested_kb = arguments.get("kb")
+        top_k = int(arguments.get("top_k", 8))
+        # Default threshold dropped from 0.7 → 0.5 for wider recall on
+        # knowledge/concept queries; scenario_1's tool schema had 0.7
+        # baked in (const kb) so this only affects scenario_3/4 which
+        # don't set a schema default at the tool level.
+        similarity_threshold = float(arguments.get("similarity_threshold", 0.5))
+        expand_queries = bool(arguments.get("expand_queries", False))
+
         hits = adapter.search(
             session,
             query=arguments["query"],
-            knowledge_type_code=arguments.get("kb"),
-            top_k=int(arguments.get("top_k", 8)),
-            similarity_threshold=float(
-                arguments.get("similarity_threshold", 0.7),
-            ),
-            expand_queries=bool(arguments.get("expand_queries", False)),
+            knowledge_type_code=requested_kb,
+            top_k=top_k,
+            similarity_threshold=similarity_threshold,
+            expand_queries=expand_queries,
         )
+
+        # Cross-kb fallback (§4.2.5): if the LLM picked a specific kb
+        # and it returned nothing, retry with kb=None so we cover the
+        # entire semantic index before the router declares "no hits".
+        # This is the recall-side analogue of the intent-classifier
+        # unknown-fallback path — a wrong kb guess shouldn't sink an
+        # otherwise-answerable knowledge query.  Records the widen for
+        # Composer / audit awareness.
+        kb_widened = False
+        if not hits and requested_kb:
+            widened = adapter.search(
+                session,
+                query=arguments["query"],
+                knowledge_type_code=None,
+                top_k=top_k,
+                similarity_threshold=similarity_threshold,
+                expand_queries=expand_queries,
+            )
+            if widened:
+                hits = widened
+                kb_widened = True
+
         return {
             "hits": hits,
             "query": arguments["query"],
-            "kb": arguments.get("kb"),
+            "kb": requested_kb,
+            "kb_widened_to_all": kb_widened,
             "outline_node": arguments.get("outline_node"),
         }
 

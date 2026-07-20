@@ -88,8 +88,103 @@ def test_search_chunks_delegates_to_adapter(session):
     )
     assert result["hits"] == [{"nexus_chunk_id": "c1", "score": 0.9}]
     assert result["kb"] == "industry_research_kb"
+    assert result["kb_widened_to_all"] is False
     assert calls[0]["query"] == "跨境电商"
     assert calls[0]["top_k"] == 5
+
+
+def test_search_chunks_widens_kb_on_empty_result(session):
+    """Regression guard: LLM picking the wrong kb enum value must
+    NOT crater recall — executor retries with kb=None and records
+    the widen for Composer / audit."""
+    calls: list[dict] = []
+
+    class _Adapter:
+        def search(self, session_arg, **kwargs):
+            calls.append(kwargs)
+            # First call (kb=practical_training_kb) → empty.
+            # Second call (kb=None) → hit.
+            if kwargs.get("knowledge_type_code") is None:
+                return [{"nexus_chunk_id": "c2", "score": 0.8}]
+            return []
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    executor = make_search_chunks_executor(_Adapter())
+    result = executor(
+        session=session,
+        arguments={"query": "短视频平台的规则",
+                    "kb": "practical_training_kb"},
+        tool_call_id="tc-1",
+        chart_registry=ChartRegistry(),
+    )
+    assert result["hits"] == [{"nexus_chunk_id": "c2", "score": 0.8}]
+    assert result["kb"] == "practical_training_kb"
+    assert result["kb_widened_to_all"] is True
+    assert len(calls) == 2
+    assert calls[0]["knowledge_type_code"] == "practical_training_kb"
+    assert calls[1]["knowledge_type_code"] is None
+
+
+def test_search_chunks_does_not_widen_when_kb_hits(session):
+    """If the LLM's kb pick returns hits, don't do a second call."""
+    calls: list[dict] = []
+
+    class _Adapter:
+        def search(self, session_arg, **kwargs):
+            calls.append(kwargs)
+            return [{"nexus_chunk_id": "c1", "score": 0.85}]
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    executor = make_search_chunks_executor(_Adapter())
+    result = executor(
+        session=session,
+        arguments={"query": "q", "kb": "course_textbook"},
+        tool_call_id="tc",
+        chart_registry=ChartRegistry(),
+    )
+    assert result["kb_widened_to_all"] is False
+    assert len(calls) == 1
+
+
+def test_search_chunks_does_not_widen_when_kb_none(session):
+    """If the caller didn't specify kb, the initial call already
+    spans everything — no second query needed."""
+    calls: list[dict] = []
+
+    class _Adapter:
+        def search(self, session_arg, **kwargs):
+            calls.append(kwargs)
+            return []
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    executor = make_search_chunks_executor(_Adapter())
+    result = executor(
+        session=session,
+        arguments={"query": "q"},
+        tool_call_id="tc",
+        chart_registry=ChartRegistry(),
+    )
+    assert result["kb_widened_to_all"] is False
+    assert len(calls) == 1
+
+
+def test_search_chunks_default_threshold_is_0_5(session):
+    """Default similarity threshold was raised from 0.7 to 0.5 for
+    wider recall on knowledge / concept queries."""
+    seen: list[float] = []
+
+    class _Adapter:
+        def search(self, session_arg, *, similarity_threshold, **kwargs):
+            seen.append(similarity_threshold)
+            return []
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    executor = make_search_chunks_executor(_Adapter())
+    executor(
+        session=session, arguments={"query": "q"},
+        tool_call_id="tc", chart_registry=ChartRegistry(),
+    )
+    assert seen[0] == 0.5
 
 
 # ---------------------------------------------------------------------------
