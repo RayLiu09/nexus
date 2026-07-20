@@ -25,6 +25,9 @@
 import { Alert, Tag } from "antd";
 import { useState } from "react";
 
+import { ChunkPreviewDrawer } from "@/components/chunk/ChunkPreviewDrawer";
+import type { KnowledgeChunkHit } from "@/lib/chunkTypes";
+
 import { AgenticStepTimeline } from "./AgenticStepTimeline";
 import { QueryRouterAnswer } from "./QueryRouterAnswer";
 import { StepDetailPanel } from "./StepDetailPanel";
@@ -51,6 +54,7 @@ interface AgenticMessageProps {
 
 export function AgenticMessage({ turn }: AgenticMessageProps) {
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
+  const [selectedChunk, setSelectedChunk] = useState<KnowledgeChunkHit | null>(null);
   const selectedStep = selectedStepId
     ? (turn.steps.find((s) => s.id === selectedStepId) ?? null)
     : null;
@@ -73,13 +77,18 @@ export function AgenticMessage({ turn }: AgenticMessageProps) {
             className="border-line min-h-[240px] rounded-md border bg-white p-3"
           >
             {selectedStep ? (
-              <StepDetailPanel step={selectedStep} />
+              <StepDetailPanel step={selectedStep} onSelectChunk={setSelectedChunk} />
             ) : (
               <FinalAnswerPanel turn={turn} />
             )}
           </section>
         </div>
       </div>
+      <ChunkPreviewDrawer
+        chunk={selectedChunk}
+        open={selectedChunk !== null}
+        onClose={() => setSelectedChunk(null)}
+      />
     </article>
   );
 }

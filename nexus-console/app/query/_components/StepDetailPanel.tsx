@@ -10,15 +10,18 @@
  * `null` so operators can distinguish "still executing" from "no
  * output produced".
  */
-import { Alert, Tag } from "antd";
+import { Alert, Button, Tag } from "antd";
+
+import type { KnowledgeChunkHit } from "@/lib/chunkTypes";
 
 import type { StepPayload } from "../_lib/queryTypes";
 
 interface StepDetailPanelProps {
   step: StepPayload;
+  onSelectChunk?: (chunk: KnowledgeChunkHit) => void;
 }
 
-export function StepDetailPanel({ step }: StepDetailPanelProps) {
+export function StepDetailPanel({ step, onSelectChunk }: StepDetailPanelProps) {
   const latencyMs =
     step.completed_at_ms && step.started_at_ms
       ? Math.max(0, step.completed_at_ms - step.started_at_ms)
@@ -56,7 +59,43 @@ export function StepDetailPanel({ step }: StepDetailPanelProps) {
           <JsonBlock value={step.output ?? {}} emptyHint="无输出" />
         )}
       </section>
+
+      {onSelectChunk && <RetrievedChunks value={step.output} onSelectChunk={onSelectChunk} />}
     </div>
+  );
+}
+
+function RetrievedChunks({
+  value,
+  onSelectChunk,
+}: {
+  value: unknown;
+  onSelectChunk: (chunk: KnowledgeChunkHit) => void;
+}) {
+  const chunks = collectChunkHits(value);
+  if (chunks.length === 0) return null;
+  return (
+    <section>
+      <h3 className="mb-2 text-xs font-medium tracking-wider text-gray-500 uppercase">
+        检索知识块
+      </h3>
+      <div className="flex flex-col items-start gap-1">
+        {chunks.map((chunk) => (
+          <Button
+            key={chunk.nexus_chunk_id ?? chunk.chunk_id}
+            type="link"
+            size="small"
+            className="h-auto max-w-full px-0 text-left"
+            data-testid={`query-retrieval-chunk-${chunk.nexus_chunk_id ?? chunk.chunk_id}`}
+            onClick={() => onSelectChunk(chunk)}
+          >
+            <span className="block truncate font-mono text-xs">
+              {chunk.content || chunk.nexus_chunk_id || chunk.chunk_id}
+            </span>
+          </Button>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -93,4 +132,41 @@ function JsonBlock({ value, emptyHint }: JsonBlockProps) {
       {JSON.stringify(value, null, 2)}
     </pre>
   );
+}
+
+function collectChunkHits(value: unknown): KnowledgeChunkHit[] {
+  const chunks: KnowledgeChunkHit[] = [];
+  const seen = new Set<string>();
+  const visit = (item: unknown): void => {
+    if (chunks.length >= 24 || item === null || item === undefined) return;
+    if (Array.isArray(item)) {
+      item.forEach(visit);
+      return;
+    }
+    if (typeof item !== "object") return;
+    const record = item as Record<string, unknown>;
+    const chunkId = stringValue(record.nexus_chunk_id) ?? stringValue(record.chunk_id);
+    if (chunkId && !seen.has(chunkId)) {
+      seen.add(chunkId);
+      chunks.push({
+        chunk_id: chunkId,
+        nexus_chunk_id: chunkId,
+        id: chunkId,
+        content: stringValue(record.content) ?? "",
+        normalized_ref_id: stringValue(record.normalized_ref_id),
+        score: numberValue(record.score),
+      });
+    }
+    Object.values(record).forEach(visit);
+  };
+  visit(value);
+  return chunks;
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }

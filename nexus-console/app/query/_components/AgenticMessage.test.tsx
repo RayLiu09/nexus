@@ -15,6 +15,11 @@ vi.mock("./EchartsFence", () => ({
   EchartsFence: ({ raw }: { raw: string }) => <div data-testid="echarts-fence-stub">{raw}</div>,
 }));
 
+vi.mock("@/components/chunk/ChunkPreviewDrawer", () => ({
+  ChunkPreviewDrawer: ({ chunk, open }: { chunk: { chunk_id: string } | null; open: boolean }) =>
+    open && chunk ? <div data-testid="chunk-preview-drawer-stub">{chunk.chunk_id}</div> : null,
+}));
+
 function makeStep(
   id: StepPayload["id"],
   label: string,
@@ -128,5 +133,21 @@ describe("AgenticMessage", () => {
   it("shows fallback tag when fallback_reason is set", () => {
     render(<AgenticMessage turn={makeTurn({ fallbackReason: "unknown_fallback" })} />);
     expect(screen.getByTestId("query-meta-fallback")).toHaveTextContent("兜底检索");
+  });
+
+  it("opens the source preview drawer when a retrieved chunk is clicked", async () => {
+    const user = userEvent.setup();
+    render(
+      <AgenticMessage
+        turn={makeTurn({
+          steps: [makeStep("dispatch", "工具调度", "completed", {
+            output: { tool_calls: [{ result_preview: { hits: [{ nexus_chunk_id: "chunk-1", content: "命中正文" }] } }] },
+          })],
+        })}
+      />,
+    );
+    await user.click(screen.getByTestId("query-step-dispatch"));
+    await user.click(screen.getByTestId("query-retrieval-chunk-chunk-1"));
+    expect(screen.getByTestId("chunk-preview-drawer-stub")).toHaveTextContent("chunk-1");
   });
 });
