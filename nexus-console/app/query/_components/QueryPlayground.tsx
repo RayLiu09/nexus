@@ -123,7 +123,6 @@ export function QueryPlayground() {
         role="log"
         aria-live="polite"
       >
-        {history.length === 0 && !activeTurn && <IdleHint />}
         {history.map((turn, idx) => (
           <AgenticMessage key={`${turn.createdAt.getTime()}-${idx}`} turn={turn} />
         ))}
@@ -199,19 +198,6 @@ function ComposerBar({
           </div>
         </div>
       </Space>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Idle hint
-// ---------------------------------------------------------------------------
-
-function IdleHint() {
-  return (
-    <div className="border-line mx-auto max-w-lg rounded-lg border border-dashed bg-white/60 p-6 text-center text-sm text-gray-500">
-      在下方输入你的检索问题。系统会：意图分类 → 参数抽取 → 工具调度 → 内容汇总，
-      每一步都可点击查看输入 / 输出。
     </div>
   );
 }
