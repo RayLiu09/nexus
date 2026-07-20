@@ -71,11 +71,18 @@ export function QueryPlayground() {
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      // Cmd/Ctrl + Enter submits — matches Antd's chat conventions.
-      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-        event.preventDefault();
-        void handleSubmit();
-      }
+      if (event.key !== "Enter") return;
+      // Skip while an IME composition is open — otherwise pressing
+      // Enter to confirm a Chinese/Japanese candidate would submit
+      // instead of committing the character.  `isComposing` is on the
+      // native event; React 19 also exposes `event.nativeEvent`.
+      if ((event.nativeEvent as KeyboardEvent).isComposing) return;
+      // Ctrl/Cmd + Enter OR Shift + Enter → newline (default
+      // textarea behaviour; don't preventDefault).
+      if (event.ctrlKey || event.metaKey || event.shiftKey) return;
+      // Plain Enter → submit.
+      event.preventDefault();
+      void handleSubmit();
     },
     [handleSubmit],
   );
@@ -166,7 +173,7 @@ function ComposerBar({
           value={query}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="例如：跨境电商专业 2025 年岗位需求分布如何？（Cmd/Ctrl + Enter 提交）"
+          placeholder="例如：跨境电商专业 2025 年岗位需求分布如何？（Enter 提交，Shift/Ctrl+Enter 换行）"
           autoSize={{ minRows: 3, maxRows: 8 }}
           maxLength={MAX_QUERY_LENGTH}
           showCount
