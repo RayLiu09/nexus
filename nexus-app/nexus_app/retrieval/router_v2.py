@@ -61,6 +61,10 @@ from nexus_app.retrieval.semantic_context import (
     resolve_semantic_scope,
     weak_evidence_chunk_ids,
 )
+from nexus_app.retrieval.subject_routing import (
+    apply_subject_route_guard,
+    resolve_query_subject,
+)
 from nexus_app.retrieval.tools_registry import (
     ToolRegistry,
     get_default_tool_registry,
@@ -312,6 +316,9 @@ class QueryRouterV2:
         # ------------------------------------------------------------
         intent_classifier = IntentClassifierV2(llm_client=self.llm_client)
         intent_result = intent_classifier.classify(session, query)
+        intent_result = apply_subject_route_guard(
+            intent_result, resolve_query_subject(session, query),
+        )
 
         # ------------------------------------------------------------
         # Layer 1: parameter extraction
@@ -461,6 +468,9 @@ class QueryRouterV2:
         )
         intent_classifier = IntentClassifierV2(llm_client=self.llm_client)
         intent_result = intent_classifier.classify(session, query)
+        intent_result = apply_subject_route_guard(
+            intent_result, resolve_query_subject(session, query),
+        )
         yield _step_completed(
             "intent_classify", "意图分类",
             input={"query": query, "threshold": 0.6},

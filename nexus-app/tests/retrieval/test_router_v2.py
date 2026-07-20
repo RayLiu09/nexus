@@ -36,6 +36,7 @@ from nexus_app.retrieval.chart_adapter import ChartRegistry
 from nexus_app.retrieval.dispatcher_v2 import ToolExecutorRegistry
 from nexus_app.retrieval.prompt_profiles_v2 import seed_retrieval_v2_prompts
 from nexus_app.retrieval.router_v2 import QueryRouterV2, RouterResult
+from nexus_app.retrieval.subject_routing import QuerySubject, apply_subject_route_guard
 
 
 # ---------------------------------------------------------------------------
@@ -132,6 +133,29 @@ def seeded_session(session):
 # ---------------------------------------------------------------------------
 # Happy path — dispatcher + composer both succeed
 # ---------------------------------------------------------------------------
+
+
+def test_known_job_subject_overrides_major_only_scenario() -> None:
+    from nexus_app.retrieval.intent_v2 import IntentV2Result
+
+    result = apply_subject_route_guard(
+        IntentV2Result(intent="scenario_3", confidence=0.94),
+        QuerySubject(kind="job", value="无人机飞手"),
+    )
+
+    assert result.intent == "scenario_2"
+    assert "subject_route_override:job_to_scenario_2" in result.warnings
+
+
+def test_major_subject_does_not_override_structured_data_intent() -> None:
+    from nexus_app.retrieval.intent_v2 import IntentV2Result
+
+    result = apply_subject_route_guard(
+        IntentV2Result(intent="scenario_2", confidence=0.94),
+        QuerySubject(kind="major", value="无人机应用技术"),
+    )
+
+    assert result.intent == "scenario_2"
 
 
 class TestHappyPath:
