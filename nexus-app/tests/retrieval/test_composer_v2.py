@@ -299,6 +299,35 @@ def test_section_classification_uses_all_context_chunks_without_llm(seeded_sessi
     assert "`ref-short-video` / `c5`" in result.markdown
 
 
+def test_section_context_restores_locator_subheadings_without_llm(seeded_session):
+    llm = _ScriptedLLM("This response must not be used")
+    result = MDComposerV2(llm_client=llm).compose(
+        seeded_session,
+        query="短视频账号定位的作用",
+        dispatch_result=_dispatch(
+            tool_results=(ToolResult(
+                tool_call_id="account-positioning",
+                name="internal.search_chunks_by_semantic",
+                arguments={"query": "短视频账号定位的作用"},
+                ok=True,
+                result={"answer_contexts": [{
+                    "kind": "section_context",
+                    "normalized_ref_id": "ref-account",
+                    "title": "一、短视频账号定位的作用",
+                    "chunks": [
+                        {"chunk_id": "c1", "locator": {"heading_path": [{"title": "一、短视频账号定位的作用"}]}, "content": "账号定位具有多项作用。"},
+                        {"chunk_id": "c2", "locator": {"heading_path": [{"title": "1. 聚焦目标用户"}]}, "content": "账号定位能够使目标受众更加精准。"},
+                    ],
+                }]},
+            ),),
+        ),
+    )
+
+    assert llm.calls == []
+    assert "### 1. 聚焦目标用户" in result.markdown
+    assert "账号定位能够使目标受众更加精准" in result.markdown
+
+
 # ---------------------------------------------------------------------------
 # Chart placeholder replacement
 # ---------------------------------------------------------------------------

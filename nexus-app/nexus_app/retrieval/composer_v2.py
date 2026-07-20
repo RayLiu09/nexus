@@ -522,12 +522,21 @@ def _render_grounded_section_context(
     normalized_ref_id = str(context.get("normalized_ref_id") or "")
     lines = [f"## {title}"]
     citations: list[str] = []
+    current_subheading: str | None = None
+    fallback_item_number = 0
     for citation_index, chunk in enumerate(chunks, start=1):
         content = str(chunk["content"]).strip()
+        subheading = _section_subheading(chunk, section_title=title)
+        if subheading and subheading != current_subheading:
+            lines.extend(["", f"### {subheading}"])
+            current_subheading = subheading
         if citation_index == 1:
             lines.extend(["", f"{content} [^ref{citation_index}]"])
+        elif subheading:
+            lines.append(f"{content} [^ref{citation_index}]")
         else:
-            lines.append(f"{citation_index - 1}. {content} [^ref{citation_index}]")
+            fallback_item_number += 1
+            lines.append(f"{fallback_item_number}. {content} [^ref{citation_index}]")
         locator = json.dumps(
             chunk.get("locator") or {}, ensure_ascii=False, sort_keys=True,
         )
@@ -538,6 +547,20 @@ def _render_grounded_section_context(
     if context.get("truncated"):
         lines.extend(["", "本章节内容超过当前安全上下文预算，以下仅展示已检索的前序内容。"])
     return "\n".join([*lines, "", *citations])
+
+
+def _section_subheading(chunk: dict[str, Any], *, section_title: str) -> str | None:
+    """Return a chunk's deepest source heading when it adds section structure."""
+    path = (chunk.get("locator") or {}).get("heading_path")
+    if not isinstance(path, list) or not path:
+        return None
+    deepest = path[-1]
+    title = deepest.get("title") if isinstance(deepest, dict) else None
+    if not isinstance(title, str) or not title.strip():
+        return None
+    normalized_title = re.sub(r"[\s，,。.．:：、]", "", title).lower()
+    normalized_section = re.sub(r"[\s，,。.．:：、]", "", section_title).lower()
+    return None if normalized_title == normalized_section else title.strip()
 
 
 def _serialise_tool_results(results: tuple[ToolResult, ...]) -> str:
