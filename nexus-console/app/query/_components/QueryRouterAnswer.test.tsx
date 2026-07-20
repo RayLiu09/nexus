@@ -64,7 +64,10 @@ describe("QueryRouterAnswer", () => {
     // remark-gfm emits <sup> footnote refs with a link inside.
     const supLink = container.querySelector("sup a");
     expect(supLink).not.toBeNull();
-    // The footnote definition ends up in a list at the bottom.
+    const footnotes = screen.getByTestId("query-footnotes");
+    expect(footnotes).not.toHaveAttribute("open");
+    expect(screen.getByText("来源引用")).toBeInTheDocument();
+    // The footnote definition remains in the collapsed source section.
     expect(screen.getByText(/政策原文来源/)).toBeInTheDocument();
   });
 });

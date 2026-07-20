@@ -244,7 +244,7 @@
               },
               "outline_node": {
                 "type": "string",
-                "description": "限定 outline 节点子树 ID（可选）"
+                "description": "限定章节或任务大纲节点子树 ID（可选）。传入时强制在该子树关联 chunks 内完成 pgvector 排序；未传入时系统仅在查询与节点标题高置信匹配时自动缩小范围，范围内无命中会回退宽召回。"
               },
               "expand_queries": {
                 "type": "boolean",

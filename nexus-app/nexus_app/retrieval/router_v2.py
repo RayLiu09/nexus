@@ -56,6 +56,11 @@ from nexus_app.retrieval.parameter_extractor import (
     ParameterExtractorV2,
     ParamExtractionResult,
 )
+from nexus_app.retrieval.semantic_context import (
+    assemble_semantic_context,
+    resolve_semantic_scope,
+    weak_evidence_chunk_ids,
+)
 from nexus_app.retrieval.tools_registry import (
     ToolRegistry,
     get_default_tool_registry,
@@ -821,6 +826,16 @@ class QueryRouterV2:
             else ChartRegistry()
         )
         hits: list[dict[str, Any]] = []
+        scope = resolve_semantic_scope(
+            session,
+            query=query,
+            # Fallback has no reliable domain label. Resolve only within the
+            # refs returned by its broad first pass, never across all textbook
+            # outlines, so industry/report queries cannot be captured by an
+            # unrelated textbook heading.
+            allow_auto_scope=False,
+        )
+        scope_fallback = False
         if self.pgvector_adapter is not None:
             try:
                 hits = self.pgvector_adapter.search(
@@ -830,6 +845,29 @@ class QueryRouterV2:
                     top_k=_UNKNOWN_FALLBACK_TOP_K,
                     similarity_threshold=_UNKNOWN_FALLBACK_SIMILARITY,
                 )
+                candidate_ref_ids = {
+                    str(hit.get("normalized_ref_id") or "")
+                    for hit in hits
+                    if hit.get("normalized_ref_id")
+                }
+                scope = resolve_semantic_scope(
+                    session,
+                    query=query,
+                    allowed_normalized_ref_ids=candidate_ref_ids,
+                )
+                if scope.applied and scope.chunk_ids:
+                    scoped_hits = self.pgvector_adapter.search(
+                        session,
+                        query=query,
+                        knowledge_type_code=None,
+                        top_k=_UNKNOWN_FALLBACK_TOP_K,
+                        similarity_threshold=_UNKNOWN_FALLBACK_SIMILARITY,
+                        chunk_ids=list(scope.chunk_ids),
+                    )
+                    if scoped_hits:
+                        hits = scoped_hits
+                    else:
+                        scope_fallback = True
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     "router_v2: unknown fallback pgvector search failed: %s",
@@ -848,7 +886,19 @@ class QueryRouterV2:
                     "similarity_threshold": _UNKNOWN_FALLBACK_SIMILARITY,
                 },
                 ok=True,
-                result={"hits": hits, "fallback_note": trigger},
+                result={
+                    "hits": hits,
+                    "fallback_note": trigger,
+                    "scope": scope.to_api_dict(
+                        fallback_to_unscoped=scope_fallback,
+                    ),
+                    "answer_contexts": assemble_semantic_context(
+                        session, query=query, hits=hits,
+                    ),
+                    "weak_evidence_chunk_ids": weak_evidence_chunk_ids(
+                        session, hits,
+                    ),
+                },
             ),),
             chart_registry=chart_registry,
         )

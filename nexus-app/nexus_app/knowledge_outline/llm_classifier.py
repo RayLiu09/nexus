@@ -50,8 +50,10 @@ from nexus_app.knowledge_outline.service import (
     _apply_chunk_backfill,
     _blocks_from_payload,
     _ChunkAssociation,
+    _normalise_heading_title,
     _reload_nodes,
     _rows_to_tree,
+    _unique_locator_heading_target,
 )
 from nexus_app.models import new_uuid
 
@@ -943,14 +945,22 @@ def build_and_persist_outline_llm(
     ))
     leaf_ids = _leaf_ids(result.nodes)
     block_to_leaf: dict[str, str] = {}
+    leaf_title_ids: dict[str, list[str]] = {}
     for spec in result.nodes:
         if spec.id not in leaf_ids:
             continue
+        title_key = _normalise_heading_title(spec.title)
+        if title_key:
+            leaf_title_ids.setdefault(title_key, []).append(spec.id)
         for bid in spec.source_block_ids:
             block_to_leaf.setdefault(bid, spec.id)
 
     per_leaf_chunk_ids: dict[str, list[str]] = {lid: [] for lid in leaf_ids}
     for chunk in chunks:
+        leaf_id = _unique_locator_heading_target(chunk, leaf_title_ids)
+        if leaf_id:
+            per_leaf_chunk_ids[leaf_id].append(chunk.id)
+            continue
         for bid in chunk.source_block_ids or []:
             leaf_id = block_to_leaf.get(str(bid))
             if leaf_id:

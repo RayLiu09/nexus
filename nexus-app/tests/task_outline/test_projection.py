@@ -156,7 +156,8 @@ def test_projects_task_outline_nodes_to_course_textbook_chunks(session) -> None:
     )
     assert step_chunk.chunk_metadata["anchor_role"] == "operation_step"
     assert step_chunk.chunk_metadata["step_no"] == 1
-    assert step_chunk.content.startswith("操作步骤 1")
+    assert step_chunk.content.startswith("1. 确定采集渠道")
+    assert step_chunk.content.count("确定采集渠道") == 1
     assert step_chunk.source_block_ids == ["b7"]
     assert step_chunk.locator["page_start"] == 13
 
@@ -208,4 +209,3 @@ def test_reprojection_replaces_only_task_outline_chunks(session) -> None:
     assert {chunk.id for chunk in projected} == second_ids
     assert any(chunk.id == "generic-semantic" for chunk in all_chunks)
     assert len(projected) == len(second)
-

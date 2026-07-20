@@ -45,8 +45,18 @@ from nexus_app.retrieval.chart_adapter import (
     knowledge_graph_to_chart,
 )
 from nexus_app.retrieval.dispatcher_v2 import ToolExecutor, ToolExecutorRegistry
+from nexus_app.retrieval.semantic_context import (
+    assemble_semantic_context,
+    resolve_semantic_scope,
+    weak_evidence_chunk_ids,
+)
 
 logger = logging.getLogger(__name__)
+
+_AUTO_OUTLINE_KNOWLEDGE_TYPES = frozenset({
+    "course_textbook",
+    "practical_training_kb",
+})
 
 
 # ---------------------------------------------------------------------------
@@ -61,9 +71,9 @@ def make_search_chunks_executor(adapter: PgvectorSearchAdapter) -> ToolExecutor:
     (knowledge_type_code, optional/const per scenario), ``top_k``
     (default 8), ``similarity_threshold`` (default 0.7),
     ``expand_queries`` (default False — the adapter defaults it too),
-    ``outline_node`` (informational — the underlying adapter doesn't yet
-    scope by outline heading; passed through in the response for
-    Composer awareness).
+    ``outline_node`` is retained for contract compatibility.  First-stage
+    retrieval remains vector based; after it returns, NEXUS-owned outline
+    relations provide a bounded answer context for section/task questions.
     """
 
     def _run(
@@ -82,6 +92,19 @@ def make_search_chunks_executor(adapter: PgvectorSearchAdapter) -> ToolExecutor:
         similarity_threshold = float(arguments.get("similarity_threshold", 0.5))
         expand_queries = bool(arguments.get("expand_queries", False))
 
+        scope = resolve_semantic_scope(
+            session,
+            query=arguments["query"],
+            requested_outline_node=arguments.get("outline_node"),
+            # Industry reports and policy assets do not use textbook/task
+            # outlines. Their tool schemas always provide their own KB code;
+            # only textbook queries (or scenario_4's omitted KB) may auto-scope.
+            allow_auto_scope=(
+                requested_kb is None
+                or requested_kb in _AUTO_OUTLINE_KNOWLEDGE_TYPES
+            ),
+        )
+        scope_chunk_ids = list(scope.chunk_ids) if scope.applied else None
         hits = adapter.search(
             session,
             query=arguments["query"],
@@ -89,6 +112,7 @@ def make_search_chunks_executor(adapter: PgvectorSearchAdapter) -> ToolExecutor:
             top_k=top_k,
             similarity_threshold=similarity_threshold,
             expand_queries=expand_queries,
+            chunk_ids=scope_chunk_ids,
         )
 
         # Cross-kb fallback (§4.2.5): if the LLM picked a specific kb
@@ -107,17 +131,56 @@ def make_search_chunks_executor(adapter: PgvectorSearchAdapter) -> ToolExecutor:
                 top_k=top_k,
                 similarity_threshold=similarity_threshold,
                 expand_queries=expand_queries,
+                chunk_ids=scope_chunk_ids,
             )
             if widened:
                 hits = widened
                 kb_widened = True
 
+        # An automatically resolved scope is an optimization, not an access
+        # boundary. If it has no vector evidence, fail open to broad recall so
+        # a title mismatch or legacy relation gap cannot hide valid knowledge.
+        # A caller-selected outline node is mandatory and never escapes scope.
+        scope_fallback = False
+        if not hits and scope.applied and not scope.mandatory:
+            scope_fallback = True
+            hits = adapter.search(
+                session,
+                query=arguments["query"],
+                knowledge_type_code=requested_kb,
+                top_k=top_k,
+                similarity_threshold=similarity_threshold,
+                expand_queries=expand_queries,
+            )
+            if not hits and requested_kb:
+                widened = adapter.search(
+                    session,
+                    query=arguments["query"],
+                    knowledge_type_code=None,
+                    top_k=top_k,
+                    similarity_threshold=similarity_threshold,
+                    expand_queries=expand_queries,
+                )
+                if widened:
+                    hits = widened
+                    kb_widened = True
+
+        contexts = assemble_semantic_context(
+            session,
+            query=arguments["query"],
+            hits=hits,
+        )
         return {
             "hits": hits,
             "query": arguments["query"],
             "kb": requested_kb,
             "kb_widened_to_all": kb_widened,
             "outline_node": arguments.get("outline_node"),
+            "scope": scope.to_api_dict(fallback_to_unscoped=scope_fallback),
+            # Original vector hits remain the retrieval evidence. Contexts
+            # only expand those hits through NEXUS-owned outline relations.
+            "answer_contexts": contexts,
+            "weak_evidence_chunk_ids": weak_evidence_chunk_ids(session, hits),
         }
 
     return _run

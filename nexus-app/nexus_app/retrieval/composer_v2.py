@@ -122,6 +122,21 @@ _FALLBACK_MARKDOWN = (
     "> 抱歉，未能生成有效回答。请稍后重试或换一种表述方式。\n"
 )
 
+_ANSWER_CONTEXT_POLICY = """
+
+## 检索上下文使用规则
+
+若某个 `internal.search_chunks_by_semantic` 结果包含 `answer_contexts`：
+
+1. 对“分类 / 类型 / 有哪些”和“流程 / 步骤 / 如何”问题，必须优先使用其中
+   的 `section_context` 或 `task_context.chunks` 作答；不得因为原始 `hits`
+   中的单个学习目标、目录或任务标题未列出答案，就声称“暂无数据”。
+2. `task_context` 的 `step_no` 和可选 `task_title` 是顺序证据；编号重启时按
+   `task_title` 分组呈现。
+3. 每项结论都要使用该上下文 chunk 的 `chunk_id`、`normalized_ref_id` 和
+   `locator` 生成来源脚注。上下文不存在或为空时才可说明检索证据不足。
+"""
+
 
 @dataclass
 class MDComposerV2:
@@ -143,6 +158,17 @@ class MDComposerV2:
         dispatch_result: DispatchResult,
     ) -> ComposeResult:
         chart_registry = dispatch_result.chart_registry
+
+        grounded_procedure = _render_grounded_answer(
+            query=query,
+            dispatch_result=dispatch_result,
+        )
+        if grounded_procedure is not None:
+            return ComposeResult(
+                markdown=grounded_procedure,
+                raw_markdown=grounded_procedure,
+                generated_ratio=0.0,
+            )
 
         try:
             profile = get_active_v2_prompt(session, COMPOSE_V2_PROFILE_NAME)
@@ -230,6 +256,25 @@ class MDComposerV2:
         caller always gets a terminating event.
         """
         chart_registry = dispatch_result.chart_registry
+
+        grounded_procedure = _render_grounded_answer(
+            query=query,
+            dispatch_result=dispatch_result,
+        )
+        if grounded_procedure is not None:
+            # A procedure context is already ordered, complete, and cited
+            # evidence. Streaming an LLM paraphrase here can silently omit
+            # steps, so emit the grounded result as one stable chunk.
+            yield ComposeStreamEvent(type="chunk", text=grounded_procedure)
+            yield ComposeStreamEvent(
+                type="final",
+                result=ComposeResult(
+                    markdown=grounded_procedure,
+                    raw_markdown=grounded_procedure,
+                    generated_ratio=0.0,
+                ),
+            )
+            return
 
         try:
             profile = get_active_v2_prompt(session, COMPOSE_V2_PROFILE_NAME)
@@ -341,6 +386,7 @@ def _fill_prompt(
         .replace("{{INTENT}}", intent)
         .replace("{{TOOL_RESULTS}}", tool_results)
         .replace("{{CHART_PLACEHOLDERS}}", chart_block)
+        + _ANSWER_CONTEXT_POLICY
     )
 
 
@@ -361,6 +407,137 @@ def _render_chart_placeholders_block(chart_ids: list[str]) -> str:
 
 
 _MAX_TOOL_PAYLOAD_BYTES = 32_000  # keep prompt bounded even for large results
+
+_PROCEDURE_QUERY_MARKERS = ("流程", "步骤", "如何", "怎么", "怎样")
+
+
+def _render_grounded_answer(
+    *,
+    query: str,
+    dispatch_result: DispatchResult,
+) -> str | None:
+    """Return a deterministic answer for complete task or section evidence."""
+    procedure = _render_grounded_task_procedure(
+        query=query,
+        dispatch_result=dispatch_result,
+    )
+    if procedure is not None:
+        return procedure
+    return _render_grounded_section_context(
+        query=query,
+        dispatch_result=dispatch_result,
+    )
+
+
+def _render_grounded_task_procedure(
+    *,
+    query: str,
+    dispatch_result: DispatchResult,
+) -> str | None:
+    """Render a complete task procedure directly from ordered chunk evidence.
+
+    ``task_context`` is constructed from Task Outline operation-step nodes,
+    rather than from a vector top-K. Once such a context is available for a
+    procedure question, an LLM summary is not allowed to turn a complete
+    ordered set into a partial answer and then claim the remainder is absent.
+    Only a single unambiguous task context is rendered this way; other
+    questions retain normal Composer behaviour.
+    """
+    if not any(marker in query for marker in _PROCEDURE_QUERY_MARKERS):
+        return None
+
+    contexts: list[dict[str, Any]] = []
+    for tool_result in dispatch_result.tool_results:
+        if not tool_result.ok or not isinstance(tool_result.result, dict):
+            continue
+        for context in tool_result.result.get("answer_contexts") or []:
+            if isinstance(context, dict) and context.get("kind") == "task_context":
+                contexts.append(context)
+    if len(contexts) != 1:
+        return None
+
+    context = contexts[0]
+    chunks = [
+        chunk for chunk in context.get("chunks") or []
+        if isinstance(chunk, dict) and str(chunk.get("content") or "").strip()
+    ]
+    if not chunks:
+        return None
+
+    title = str(context.get("title") or "任务流程")
+    normalized_ref_id = str(context.get("normalized_ref_id") or "")
+    lines = [f"## {title}", "", "以下按资料中的任务结构列出完整操作步骤。"]
+    current_group: str | None = None
+    citations: list[str] = []
+    for citation_index, chunk in enumerate(chunks, start=1):
+        group = str(chunk.get("task_title") or title)
+        if group != current_group:
+            lines.extend(["", f"### {group}"])
+            current_group = group
+        step_no = chunk.get("step_no")
+        label = f"{step_no}." if step_no is not None else "-"
+        content = str(chunk["content"]).strip()
+        lines.append(f"{label} {content} [^ref{citation_index}]")
+        locator = json.dumps(
+            chunk.get("locator") or {}, ensure_ascii=False, sort_keys=True,
+        )
+        citations.append(
+            f"[^ref{citation_index}]: `{normalized_ref_id}` / "
+            f"`{chunk.get('chunk_id') or ''}` / `{locator}`"
+        )
+    return "\n".join([*lines, "", *citations])
+
+
+def _render_grounded_section_context(
+    *,
+    query: str,
+    dispatch_result: DispatchResult,
+) -> str | None:
+    """Render all chunks from one high-confidence query-matched section.
+
+    A section context is only assembled after a high-confidence title match
+    and is structurally expanded in document order. It is more reliable than
+    asking an LLM whether one flat hit represents the whole chapter, so the
+    answer renders complete cited evidence without lossy model summarisation.
+    """
+    contexts: list[dict[str, Any]] = []
+    for tool_result in dispatch_result.tool_results:
+        if not tool_result.ok or not isinstance(tool_result.result, dict):
+            continue
+        for context in tool_result.result.get("answer_contexts") or []:
+            if isinstance(context, dict) and context.get("kind") == "section_context":
+                contexts.append(context)
+    if len(contexts) != 1:
+        return None
+
+    context = contexts[0]
+    chunks = [
+        chunk for chunk in context.get("chunks") or []
+        if isinstance(chunk, dict) and str(chunk.get("content") or "").strip()
+    ]
+    if not chunks:
+        return None
+
+    title = str(context.get("title") or "章节内容")
+    normalized_ref_id = str(context.get("normalized_ref_id") or "")
+    lines = [f"## {title}"]
+    citations: list[str] = []
+    for citation_index, chunk in enumerate(chunks, start=1):
+        content = str(chunk["content"]).strip()
+        if citation_index == 1:
+            lines.extend(["", f"{content} [^ref{citation_index}]"])
+        else:
+            lines.append(f"{citation_index - 1}. {content} [^ref{citation_index}]")
+        locator = json.dumps(
+            chunk.get("locator") or {}, ensure_ascii=False, sort_keys=True,
+        )
+        citations.append(
+            f"[^ref{citation_index}]: `{normalized_ref_id}` / "
+            f"`{chunk.get('chunk_id') or ''}` / `{locator}`"
+        )
+    if context.get("truncated"):
+        lines.extend(["", "本章节内容超过当前安全上下文预算，以下仅展示已检索的前序内容。"])
+    return "\n".join([*lines, "", *citations])
 
 
 def _serialise_tool_results(results: tuple[ToolResult, ...]) -> str:

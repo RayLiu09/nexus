@@ -27,7 +27,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useCallback } from "react";
-import type { ReactNode } from "react";
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
 import { EchartsFence } from "./EchartsFence";
 
@@ -49,6 +49,8 @@ export function QueryRouterAnswer({ markdown }: QueryRouterAnswerProps) {
     const el = document.getElementById(id);
     if (!el) return;
     event.preventDefault();
+    const footnotes = el.closest("details");
+    if (footnotes instanceof HTMLDetailsElement) footnotes.open = true;
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
@@ -64,11 +66,32 @@ export function QueryRouterAnswer({ markdown }: QueryRouterAnswerProps) {
           pre: PreRenderer,
           code: InlineCodeRenderer,
           blockquote: BlockquoteRenderer,
+          section: FootnoteSectionRenderer,
         }}
       >
         {markdown}
       </ReactMarkdown>
     </div>
+  );
+}
+
+type FootnoteSectionProps = ComponentPropsWithoutRef<"section"> & {
+  "data-footnotes"?: string;
+};
+
+function FootnoteSectionRenderer({ children, ...props }: FootnoteSectionProps) {
+  const isFootnotes = Object.hasOwn(props, "data-footnotes");
+  if (!isFootnotes) return <section {...props}>{children}</section>;
+  const { "data-footnotes": _footnotes, ...sectionProps } = props;
+  return (
+    <details className="border-line mt-5 border-t pt-3" data-testid="query-footnotes">
+      <summary className="cursor-pointer text-xs font-medium text-gray-600 hover:text-gray-900">
+        来源引用
+      </summary>
+      <section {...sectionProps} className="mt-2 text-xs text-gray-500">
+        {children}
+      </section>
+    </details>
   );
 }
 

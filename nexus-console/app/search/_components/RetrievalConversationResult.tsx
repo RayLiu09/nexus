@@ -2,8 +2,6 @@
 
 import { Alert, Button, Collapse, Empty, Space, Tag, Typography } from "antd";
 import { Database, FileSearch, ListChecks, Split } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 
 import { FriendlyPlanView } from "@/components/retrieval/FriendlyPlanView";
 import { IntentCard } from "@/components/retrieval/IntentCard";
@@ -11,6 +9,8 @@ import { PlanSection } from "@/components/retrieval/PlanSection";
 import { ResultTabs } from "@/components/retrieval/ResultTabs";
 import { WarningsPanel } from "@/components/retrieval/WarningsPanel";
 import type { KnowledgeRetrievalResponse, RetrievalSourceRef } from "@/lib/retrievalTypes";
+
+import { QueryRouterAnswer } from "../../query/_components/QueryRouterAnswer";
 
 import type { ConversationMessage } from "../_lib/playgroundTypes";
 import {
@@ -121,7 +121,7 @@ function MarkdownAnswer({ data }: { data: KnowledgeRetrievalResponse }) {
       />
       {data.markdown ? (
         <div className="prose max-w-none leading-7">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{data.markdown}</ReactMarkdown>
+          <QueryRouterAnswer markdown={data.markdown} />
         </div>
       ) : (
         <Empty description="本次召回没有生成 Markdown 结果" />

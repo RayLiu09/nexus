@@ -227,6 +227,78 @@ class TestHappyPath:
         assert 0.3 < result.generated_ratio < 0.9
 
 
+def test_task_procedure_uses_all_ordered_context_steps_without_llm(seeded_session):
+    llm = _ScriptedLLM("This response must not be used")
+    composer = MDComposerV2(llm_client=llm)
+    result = composer.compose(
+        seeded_session,
+        query="市场数据采集流程",
+        dispatch_result=_dispatch(
+            tool_results=(ToolResult(
+                tool_call_id="task-steps",
+                name="internal.search_chunks_by_semantic",
+                arguments={"query": "市场数据采集流程"},
+                ok=True,
+                result={"answer_contexts": [{
+                    "kind": "task_context",
+                    "normalized_ref_id": "ref-market",
+                    "title": "工作任务一 市场数据采集",
+                    "chunks": [
+                        {"step_no": 1, "task_title": "子任务一", "chunk_id": "c1", "locator": {"page": 1}, "content": "确定采集指标"},
+                        {"step_no": 2, "task_title": "子任务一", "chunk_id": "c2", "locator": {"page": 2}, "content": "确定数据来源"},
+                        {"step_no": 1, "task_title": "子任务二", "chunk_id": "c3", "locator": {"page": 3}, "content": "采集竞争对手数据"},
+                    ],
+                }]},
+            ),),
+        ),
+    )
+
+    assert llm.calls == []
+    assert "### 子任务一" in result.markdown
+    assert "### 子任务二" in result.markdown
+    assert "确定采集指标" in result.markdown
+    assert "确定数据来源" in result.markdown
+    assert "采集竞争对手数据" in result.markdown
+    assert "`ref-market` / `c3`" in result.markdown
+    assert "其余步骤暂无" not in result.markdown
+
+
+def test_section_classification_uses_all_context_chunks_without_llm(seeded_session):
+    llm = _ScriptedLLM("This response must not be used")
+    composer = MDComposerV2(llm_client=llm)
+    result = composer.compose(
+        seeded_session,
+        query="短视频平台的类型",
+        dispatch_result=_dispatch(
+            tool_results=(ToolResult(
+                tool_call_id="section-types",
+                name="internal.search_chunks_by_semantic",
+                arguments={"query": "短视频平台的类型"},
+                ok=True,
+                result={"answer_contexts": [{
+                    "kind": "section_context",
+                    "normalized_ref_id": "ref-short-video",
+                    "title": "一、短视频平台的类型",
+                    "chunks": [
+                        {"chunk_id": "c1", "locator": {"page": 1}, "content": "短视频平台可分为以下四种。"},
+                        {"chunk_id": "c2", "locator": {"page": 2}, "content": "社交媒体类短视频平台。"},
+                        {"chunk_id": "c3", "locator": {"page": 3}, "content": "新闻资讯类短视频平台。"},
+                        {"chunk_id": "c4", "locator": {"page": 4}, "content": "电商推广类短视频平台。"},
+                        {"chunk_id": "c5", "locator": {"page": 5}, "content": "垂直领域类短视频平台。"},
+                    ],
+                }]},
+            ),),
+        ),
+    )
+
+    assert llm.calls == []
+    assert "社交媒体类短视频平台" in result.markdown
+    assert "新闻资讯类短视频平台" in result.markdown
+    assert "电商推广类短视频平台" in result.markdown
+    assert "垂直领域类短视频平台" in result.markdown
+    assert "`ref-short-video` / `c5`" in result.markdown
+
+
 # ---------------------------------------------------------------------------
 # Chart placeholder replacement
 # ---------------------------------------------------------------------------

@@ -125,6 +125,12 @@ def render_node_content(node: models.TaskOutlineNode) -> str:
     summary = (node.summary or "").strip()
     prefix = _prefix_for_node(node)
 
+    # An operation-step node's title is derived from the first line of its
+    # content. Rendering both creates ``步骤1，...。步骤1，...`` in projected
+    # chunks, which pollutes embeddings as well as user-facing answers.
+    if node.node_type == "operation_step" and content:
+        return content
+
     parts: list[str] = []
     if title:
         parts.append(f"{prefix}：{title}" if prefix else title)

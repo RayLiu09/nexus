@@ -7,6 +7,7 @@ Never invoked from the pipeline — construction is synchronous, gated on
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -226,11 +227,22 @@ def _prepare_headings(
 
     # Associate existing chunks with their owning heading by block-id intersection.
     associations = _ChunkAssociation()
+    heading_title_positions: dict[str, list[int]] = {}
+    for position, heading_index in enumerate(heading_indices):
+        key = _normalise_heading_title(_block_text(blocks[heading_index]))
+        if key:
+            heading_title_positions.setdefault(key, []).append(position)
     chunks = list(session.scalars(
         select(models.KnowledgeChunk)
         .where(models.KnowledgeChunk.normalized_ref_id == ref_id)
     ))
     for chunk in chunks:
+        heading_idx = _unique_locator_heading_target(
+            chunk, heading_title_positions,
+        )
+        if heading_idx is not None:
+            associations.by_heading_index.setdefault(heading_idx, []).append(chunk.id)
+            continue
         source_ids = chunk.source_block_ids or []
         for bid in source_ids:
             key = str(bid)
@@ -262,6 +274,39 @@ def _prepare_headings(
     return headings, associations
 
 
+def _normalise_heading_title(value: str) -> str:
+    return re.sub(r"[\s，,。.:：；;、]", "", value).lower()
+
+
+def _locator_heading_keys(chunk: models.KnowledgeChunk) -> list[str]:
+    """Return deepest-first normalized source heading titles for a chunk."""
+    raw_path = (chunk.locator or {}).get("heading_path")
+    if not isinstance(raw_path, list):
+        raw_path = (chunk.chunk_metadata or {}).get("heading_path")
+    if not isinstance(raw_path, list):
+        return []
+    keys: list[str] = []
+    for item in reversed(raw_path):
+        title = item.get("title") if isinstance(item, dict) else None
+        if isinstance(title, str):
+            key = _normalise_heading_title(title)
+            if key:
+                keys.append(key)
+    return keys
+
+
+def _unique_locator_heading_target(
+    chunk: models.KnowledgeChunk,
+    targets: dict[str, list[Any]],
+) -> Any | None:
+    """Map a chunk's deepest uniquely-known locator title to a target."""
+    for key in _locator_heading_keys(chunk):
+        matches = targets.get(key, [])
+        if len(matches) == 1:
+            return matches[0]
+    return None
+
+
 def _root_title_for(payload: dict[str, Any], ref: models.NormalizedAssetRef) -> str:
     for key in ("title", "asset_title", "name"):
         value = payload.get(key)
@@ -285,12 +330,20 @@ def _block_text(block: dict[str, Any]) -> str:
 
 def _heading_level(block: dict[str, Any]) -> int | None:
     raw = block.get("heading_level")
+    level: int | None = None
     if isinstance(raw, int) and raw > 0:
-        return raw
-    if isinstance(raw, str) and raw.isdigit():
+        level = raw
+    elif isinstance(raw, str) and raw.isdigit():
         parsed = int(raw)
-        return parsed if parsed > 0 else None
-    return None
+        level = parsed if parsed > 0 else None
+    if level is None:
+        return None
+    title = _block_text(block).strip()
+    if re.match(r"^\d+\s*[.．、]", title) or re.match(r"^（\d+）", title):
+        return level + 1
+    if re.match(r"^[①②③④⑤⑥⑦⑧⑨⑩]", title):
+        return level + 2
+    return level
 
 
 def _compute_anchor(blocks_in_span: list[dict[str, Any]]) -> dict[str, Any] | None:

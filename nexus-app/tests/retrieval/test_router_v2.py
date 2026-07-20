@@ -24,6 +24,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from nexus_app import models
 from nexus_app.ai_governance.litellm_client import (
     LiteLLMCallError,
     LiteLLMCallSummary,
@@ -211,6 +212,53 @@ class TestUnknownFallback:
         assert pgvector.calls[0]["knowledge_type_code"] is None
         # audit summary carries fallback trigger via warnings.
         assert "unknown_intent" in result.warnings
+
+    def test_unknown_fallback_retrieves_outline_scope_after_broad_hit(self, seeded_session):
+        root = models.KnowledgeOutlineNode(
+            id="fallback-outline-root", normalized_ref_id="fallback-ref", parent_id=None,
+            level=0, order_index=0, title="教材", build_run_id="run-1",
+            chunk_count=0, fallback_used=False, node_metadata={},
+        )
+        section = models.KnowledgeOutlineNode(
+            id="fallback-outline-section", normalized_ref_id="fallback-ref", parent_id=root.id,
+            level=1, order_index=1, title="短视频平台的类型", build_run_id="run-1",
+            chunk_count=1, fallback_used=False, node_metadata={},
+        )
+        chunk = models.KnowledgeChunk(
+            id="fallback-outline-chunk", normalized_ref_id="fallback-ref",
+            knowledge_type_code="course_textbook", chunk_type="semantic_block",
+            chunking_strategy="semantic_repack", source_kind="extracted_from_normalized",
+            chunk_index=0, content="社交媒体类短视频平台侧重互动和社交功能。",
+            chunk_metadata={}, embedding_status="embedded", source_block_ids=[], locator={},
+            knowledge_outline_node_id=section.id,
+        )
+        seeded_session.add_all([root, section, chunk])
+        seeded_session.flush()
+        llm = _RoutedLLM(
+            intent={"intent": "unknown", "confidence": 0.9},
+            compose_output="范围内回答",
+        )
+        pgvector = _FakePgvectorAdapter(hits=[{
+            "nexus_chunk_id": chunk.id,
+            "normalized_ref_id": "fallback-ref",
+            "score": 0.9,
+        }])
+        router = QueryRouterV2(
+            llm_client=llm,
+            executor_registry=ToolExecutorRegistry(),
+            pgvector_adapter=pgvector,
+        )
+
+        result = router.run(
+            seeded_session, query="短视频平台的类型",
+            route="internal_query", caller_type="console_session",
+        )
+
+        assert result.fallback_reason == "unknown_fallback"
+        assert len(pgvector.calls) == 2
+        assert pgvector.calls[1]["chunk_ids"] == [chunk.id]
+        assert "社交媒体类短视频平台侧重互动和社交功能" in result.markdown
+        assert "`fallback-ref` / `fallback-outline-chunk`" in result.markdown
 
     def test_low_confidence_intent_falls_back(self, seeded_session):
         llm = _RoutedLLM(

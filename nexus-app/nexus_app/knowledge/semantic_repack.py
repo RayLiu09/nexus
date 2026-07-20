@@ -1192,7 +1192,7 @@ def _build_heading_index(
             continue
         level = b.get("heading_level") or _level_from_hashes(_text_of(b))
         title = _strip_heading(_text_of(b))
-        out.append((seq, {"level": int(level or 2), "title": title}))
+        out.append((seq, {"level": _structural_heading_level(int(level or 2), title), "title": title}))
     return out
 
 
@@ -1224,6 +1224,16 @@ def _level_from_hashes(text: str) -> int:
     while n < len(s) and s[n] == "#":
         n += 1
     return max(1, min(n, 6)) if n else 2
+
+
+def _structural_heading_level(level: int, title: str) -> int:
+    """Refine flattened parser levels from stable heading-numbering forms."""
+    stripped = title.strip()
+    if re.match(r"^\d+\s*[.．、]", stripped) or re.match(r"^（\d+）", stripped):
+        return min(level + 1, 6)
+    if re.match(r"^[①②③④⑤⑥⑦⑧⑨⑩]", stripped):
+        return min(level + 2, 6)
+    return level
 
 
 def _strip_heading(text: str) -> str:

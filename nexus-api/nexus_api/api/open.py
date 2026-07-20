@@ -974,13 +974,15 @@ def search_knowledge(
 
     Args:
         q: Search query (1–1024 chars)
-        kb: Knowledge type code (e.g. 'textbook_kb'). If omitted, default KB is used.
+        kb: Knowledge type code (e.g. 'course_textbook'). If omitted, the
+            canonical course-textbook KB is used. `textbook_kb` remains an
+            explicit legacy compatibility value only.
         top_k: Max results, 1–100 (DoS guard against unbounded fan-out)
         similarity_threshold: Minimum similarity score, 0.0–1.0
         outline_node: Optional knowledge_outline_node_id — filters hits to
             chunks under that node's subtree. 404 if the node does not exist.
     """
-    kb_code = kb or "textbook_kb"
+    kb_code = kb or "course_textbook"
     subtree_chunk_ids: set[str] | None = None
     if outline_node is not None:
         subtree_chunk_ids = _collect_outline_subtree_chunk_ids(session, outline_node)
@@ -996,12 +998,8 @@ def search_knowledge(
         knowledge_type_code=kb_code,
         top_k=top_k,
         similarity_threshold=similarity_threshold,
+        chunk_ids=list(subtree_chunk_ids) if subtree_chunk_ids is not None else None,
     )
-    if subtree_chunk_ids is not None:
-        results = [
-            hit for hit in results
-            if str(hit.get("nexus_chunk_id") or "") in subtree_chunk_ids
-        ]
     results = _enrich_with_nexus_refs(session, results)
     results = _filter_hits_to_available(session, results)
     results = apply_permission_filter(caller, results)
@@ -1067,7 +1065,7 @@ def qa_knowledge(
         kb: Knowledge type code. If omitted, uses default KB.
         top_k: Max source chunks to retrieve, 1–50
     """
-    kb_code = kb or "textbook_kb"
+    kb_code = kb or "course_textbook"
     qa_service = get_pgvector_qa_service()
     sources = qa_service.retrieve_sources(
         session,

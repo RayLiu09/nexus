@@ -17,6 +17,7 @@ from types import SimpleNamespace
 import pytest
 
 from nexus_app import models
+from nexus_app.enums import ChunkType, ChunkingStrategy, EmbeddingStatus, SourceKind
 from nexus_app.evidence_graph.service import KnowledgeGraphBuildStatus
 from nexus_app.retrieval.chart_adapter import ChartRegistry
 from nexus_app.retrieval.tool_executors_v2 import (
@@ -185,6 +186,275 @@ def test_search_chunks_default_threshold_is_0_5(session):
         tool_call_id="tc", chart_registry=ChartRegistry(),
     )
     assert seen[0] == 0.5
+
+
+def test_search_chunks_expands_matching_theory_section_not_learning_goal(session):
+    """A learning objective can be the vector hit without becoming the answer."""
+    root = models.KnowledgeOutlineNode(
+        id="outline-root", normalized_ref_id="ref-theory", parent_id=None,
+        level=0, order_index=0, title="教材", build_run_id="build-1",
+        chunk_count=0, fallback_used=False, node_metadata={},
+    )
+    wrong = models.KnowledgeOutlineNode(
+        id="outline-wrong", normalized_ref_id="ref-theory", parent_id=root.id,
+        level=1, order_index=1, title="视觉营销和短视频的定义", build_run_id="build-1",
+        chunk_count=1, fallback_used=False, node_metadata={},
+    )
+    correct = models.KnowledgeOutlineNode(
+        id="outline-platform", normalized_ref_id="ref-theory", parent_id=root.id,
+        level=1, order_index=2, title="短视频平台的类型", build_run_id="build-1",
+        chunk_count=2, fallback_used=False, node_metadata={},
+    )
+    session.add_all([root, wrong, correct])
+    objective = _chunk(
+        "objective", "ref-theory", 1, "4. 了解短视频平台的类型。",
+        outline_id=wrong.id, heading_path=[{"title": "学习目标"}],
+    )
+    social = _chunk("social", "ref-theory", 2, "社交媒体类短视频平台侧重互动和社交功能。", outline_id=correct.id)
+    commerce = _chunk("commerce", "ref-theory", 3, "电商推广类短视频平台用于产品展示和销售推广。", outline_id=correct.id)
+    session.add_all([objective, social, commerce])
+    session.flush()
+
+    calls: list[dict] = []
+
+    class _Adapter:
+        def search(self, *_args, **_kwargs):
+            calls.append(_kwargs)
+            return [{"nexus_chunk_id": objective.id, "normalized_ref_id": "ref-theory", "score": 0.95}]
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    result = make_search_chunks_executor(_Adapter())(
+        session=session, arguments={"query": "短视频平台的类型"},
+        tool_call_id="tc", chart_registry=ChartRegistry(),
+    )
+
+    assert result["weak_evidence_chunk_ids"] == [objective.id]
+    context = result["answer_contexts"][0]
+    assert context["kind"] == "section_context"
+    assert context["outline_node_id"] == correct.id
+    assert [item["chunk_id"] for item in context["chunks"]] == [social.id, commerce.id]
+    assert calls[0]["chunk_ids"] == [commerce.id, social.id]
+    assert result["scope"]["source"] == "auto_outline_resolution"
+
+
+def test_search_chunks_explicit_outline_node_is_mandatory_pre_ranking_scope(session):
+    root = models.KnowledgeOutlineNode(
+        id="explicit-root", normalized_ref_id="ref-explicit", parent_id=None,
+        level=0, order_index=0, title="教材", build_run_id="build-1",
+        chunk_count=0, fallback_used=False, node_metadata={},
+    )
+    section = models.KnowledgeOutlineNode(
+        id="explicit-section", normalized_ref_id="ref-explicit", parent_id=root.id,
+        level=1, order_index=1, title="目标章节", build_run_id="build-1",
+        chunk_count=1, fallback_used=False, node_metadata={},
+    )
+    chunk = _chunk("explicit-chunk", "ref-explicit", 1, "目标章节正文", outline_id=section.id)
+    session.add_all([root, section, chunk])
+    session.flush()
+    calls: list[dict] = []
+
+    class _Adapter:
+        def search(self, *_args, **kwargs):
+            calls.append(kwargs)
+            return []
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    result = make_search_chunks_executor(_Adapter())(
+        session=session,
+        arguments={"query": "任意问题", "outline_node": section.id},
+        tool_call_id="tc", chart_registry=ChartRegistry(),
+    )
+
+    assert calls[0]["chunk_ids"] == [chunk.id]
+    assert len(calls) == 1
+    assert result["scope"] == {
+        "applied": True,
+        "mandatory": True,
+        "source": "explicit_outline_node",
+        "kind": "knowledge_outline",
+        "node_id": section.id,
+        "title": section.title,
+        "candidate_chunk_count": 1,
+        "match_reason": "caller_selected_node",
+        "fallback_to_unscoped": False,
+    }
+
+
+def test_search_chunks_auto_scope_fails_open_when_scoped_search_is_empty(session):
+    root = models.KnowledgeOutlineNode(
+        id="fallback-root", normalized_ref_id="ref-fallback", parent_id=None,
+        level=0, order_index=0, title="教材", build_run_id="build-1",
+        chunk_count=0, fallback_used=False, node_metadata={},
+    )
+    section = models.KnowledgeOutlineNode(
+        id="fallback-section", normalized_ref_id="ref-fallback", parent_id=root.id,
+        level=1, order_index=1, title="目标章节", build_run_id="build-1",
+        chunk_count=1, fallback_used=False, node_metadata={},
+    )
+    chunk = _chunk("fallback-chunk", "ref-fallback", 1, "目标章节正文", outline_id=section.id)
+    session.add_all([root, section, chunk])
+    session.flush()
+    calls: list[dict] = []
+
+    class _Adapter:
+        def search(self, *_args, **kwargs):
+            calls.append(kwargs)
+            return [] if kwargs.get("chunk_ids") else [{"nexus_chunk_id": "wide", "normalized_ref_id": "other"}]
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    result = make_search_chunks_executor(_Adapter())(
+        session=session, arguments={"query": "目标章节"},
+        tool_call_id="tc", chart_registry=ChartRegistry(),
+    )
+
+    assert calls[0]["chunk_ids"] == [chunk.id]
+    assert calls[1].get("chunk_ids") is None
+    assert result["scope"]["fallback_to_unscoped"] is True
+
+
+def test_search_chunks_does_not_auto_scope_industry_kb(session):
+    root = models.KnowledgeOutlineNode(
+        id="industry-guard-root", normalized_ref_id="ref-industry-guard", parent_id=None,
+        level=0, order_index=0, title="教材", build_run_id="build-1",
+        chunk_count=0, fallback_used=False, node_metadata={},
+    )
+    section = models.KnowledgeOutlineNode(
+        id="industry-guard-section", normalized_ref_id="ref-industry-guard", parent_id=root.id,
+        level=1, order_index=1, title="产业平台类型", build_run_id="build-1",
+        chunk_count=0, fallback_used=False, node_metadata={},
+    )
+    session.add_all([root, section])
+    session.flush()
+    calls: list[dict] = []
+
+    class _Adapter:
+        def search(self, *_args, **kwargs):
+            calls.append(kwargs)
+            return []
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    result = make_search_chunks_executor(_Adapter())(
+        session=session,
+        arguments={"query": "产业平台类型", "kb": "industry_research_kb"},
+        tool_call_id="tc", chart_registry=ChartRegistry(),
+    )
+
+    assert calls[0]["chunk_ids"] is None
+    assert result["scope"]["applied"] is False
+    assert result["scope"]["match_reason"] == "auto_scope_not_allowed_for_domain"
+
+
+def test_search_chunks_expands_training_task_to_ordered_operation_steps(session):
+    task = models.TaskOutlineNode(
+        id="task-market", normalized_ref_id="ref-task", profile_id="profile-1",
+        parent_id=None, node_type="task", section_type=None,
+        title="工作任务一 市场数据采集", content=None, summary=None,
+        order_no=1, depth=0, source_block_ids=[], locator=None, node_metadata={},
+    )
+    section = models.TaskOutlineNode(
+        id="task-market-steps", normalized_ref_id="ref-task", profile_id="profile-1",
+        parent_id=task.id, node_type="task_section", section_type="operation_steps",
+        title="任务操作", content=None, summary=None, order_no=2, depth=1,
+        source_block_ids=[], locator=None, node_metadata={},
+    )
+    step_one = models.TaskOutlineNode(
+        id="task-market-step-1", normalized_ref_id="ref-task", profile_id="profile-1",
+        parent_id=section.id, node_type="operation_step", section_type="operation_steps",
+        title="步骤1", content="确定数据来源", summary=None, order_no=3, depth=2,
+        source_block_ids=[], locator=None, node_metadata={"step_no": 1},
+    )
+    step_two = models.TaskOutlineNode(
+        id="task-market-step-2", normalized_ref_id="ref-task", profile_id="profile-1",
+        parent_id=section.id, node_type="operation_step", section_type="operation_steps",
+        title="步骤2", content="确定采集范围", summary=None, order_no=4, depth=2,
+        source_block_ids=[], locator=None, node_metadata={"step_no": 2},
+    )
+    session.add_all([task, section, step_one, step_two])
+    hit = _chunk("task-hit", "ref-task", 1, "任务：工作任务一 市场数据采集", task_node_id=task.id)
+    chunk_one = _chunk("task-step-1", "ref-task", 2, "操作步骤 1：步骤1，确定数据来源。步骤1，确定数据来源。补充说明。", task_node_id=step_one.id)
+    chunk_two = _chunk("task-step-2", "ref-task", 3, "操作步骤 2：确定采集范围", task_node_id=step_two.id)
+    session.add_all([hit, chunk_one, chunk_two])
+    session.flush()
+
+    calls: list[dict] = []
+
+    class _Adapter:
+        def search(self, *_args, **_kwargs):
+            calls.append(_kwargs)
+            return [{"nexus_chunk_id": hit.id, "normalized_ref_id": "ref-task", "score": 0.94}]
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    result = make_search_chunks_executor(_Adapter())(
+        session=session, arguments={"query": "市场数据采集流程是什么"},
+        tool_call_id="tc", chart_registry=ChartRegistry(),
+    )
+
+    context = result["answer_contexts"][0]
+    assert context["kind"] == "task_context"
+    assert context["task_node_id"] == task.id
+    assert [(item["step_no"], item["chunk_id"]) for item in context["chunks"]] == [
+        (1, chunk_one.id), (2, chunk_two.id),
+    ]
+    assert context["chunks"][0]["content"] == "确定数据来源。补充说明。"
+    assert calls[0]["chunk_ids"] == [chunk_one.id, chunk_two.id]
+    assert result["scope"]["match_reason"] == "query_title_containment_operation_steps"
+
+
+def test_search_chunks_scopes_compact_query_to_decorated_outline_title(session):
+    root = models.KnowledgeOutlineNode(
+        id="rules-root", normalized_ref_id="ref-rules", parent_id=None,
+        level=0, order_index=0, title="短视频", build_run_id="build-1",
+        chunk_count=0, fallback_used=False, node_metadata={},
+    )
+    section = models.KnowledgeOutlineNode(
+        id="rules-section", normalized_ref_id="ref-rules", parent_id=root.id,
+        level=1, order_index=1, title="二、短视频平台的相关规则", build_run_id="build-1",
+        chunk_count=1, fallback_used=False, node_metadata={},
+    )
+    chunk = _chunk(
+        "rules-chunk", "ref-rules", 1, "短视频平台应遵守内容发布相关规则。",
+        outline_id=section.id,
+    )
+    stale_chunk = _chunk(
+        "stale-rules-chunk", "ref-rules", 2, "课后训练不属于平台规则正文。",
+        outline_id=section.id,
+    )
+    chunk.locator = {"heading_path": [{"level": 2, "title": "二、短视频平台的相关规则"}]}
+    stale_chunk.locator = {"heading_path": [{"level": 2, "title": "课后训练"}]}
+    session.add_all([root, section, chunk, stale_chunk])
+    session.flush()
+    calls: list[dict] = []
+
+    class _Adapter:
+        def search(self, *_args, **kwargs):
+            calls.append(kwargs)
+            return [{"nexus_chunk_id": chunk.id, "normalized_ref_id": chunk.normalized_ref_id}]
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    result = make_search_chunks_executor(_Adapter())(
+        session=session, arguments={"query": "短视频平台规则"},
+        tool_call_id="tc", chart_registry=ChartRegistry(),
+    )
+
+    assert calls[0]["chunk_ids"] == [chunk.id]
+    assert result["scope"]["title"] == "二、短视频平台的相关规则"
+    assert result["answer_contexts"][0]["title"] == "二、短视频平台的相关规则"
+    assert [item["chunk_id"] for item in result["answer_contexts"][0]["chunks"]] == [chunk.id]
+
+
+def _chunk(
+    chunk_id, ref_id, index, content, *, outline_id=None, task_node_id=None, heading_path=None,
+):
+    metadata = {"heading_path": heading_path or []}
+    if task_node_id:
+        metadata.update({"domain_model": "task_outline.v1", "outline_node_id": task_node_id})
+    return models.KnowledgeChunk(
+        id=chunk_id, normalized_ref_id=ref_id, knowledge_type_code="course_textbook",
+        chunk_type=ChunkType.SEMANTIC_BLOCK, chunking_strategy=ChunkingStrategy.SEMANTIC_REPACK,
+        source_kind=SourceKind.EXTRACTED_FROM_NORMALIZED, chunk_index=index, content=content,
+        chunk_metadata=metadata, embedding_status=EmbeddingStatus.EMBEDDED,
+        source_block_ids=[], locator={}, knowledge_outline_node_id=outline_id,
+    )
 
 
 # ---------------------------------------------------------------------------
