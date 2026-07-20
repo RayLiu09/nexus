@@ -6,7 +6,8 @@
 - `ARCHITECT.md`：现有 crawler/scan-task 只负责将对象进入既有 Job 管道；现有路由将 crawler 固定为 record，若引入文档型 Connector 必须先走架构契约变更。
 - `SPEC.md`：数据源、crawler ingestion、原始留存、治理、索引和 search/QA 为 P0 主链路。
 - `WORKFLOWS.md`：架构、API、数据模型、检索与审计高风险变更先形成有边界的任务包并通过相应 Review Gate。
-- 用户确认：Firecrawl Connector 的 Markdown/PDF 走 Pipeline A；合规数据供应商 Connector 仅预留抽象入口，其未来 JSON 等结构化输出走 Pipeline B；检索入口支持用户选择 `online_search`，实时 AI WebSearch 结果不留存；不增加 `external_search` 专属权限限制；不设计两条链路自动协同。
+- 用户确认：本阶段定向采集聚焦数字经济、电子商务及产业群相关的产业/职业教育/产教融合政策和行业/区域经济报告，以及区域人才需求数据；治理分类只复用 `industry_policy`、`industry_report`、`talent_demand_report`，不新增职业教育、产教融合、区域经济、产业群等分类 code；地域范围覆盖中国大陆 31 个省级行政区，浙江省只作为专题计划举例；提取地域范围文本与证据，不建设行政区字典或代码映射；政策类默认 5 年高有效性窗口，报告和区域人才需求类默认 2 年高有效性窗口；Firecrawl Connector 的 Markdown/PDF 走 Pipeline A；合规数据供应商 Connector 仅预留抽象入口，其未来 JSON 等结构化输出走 Pipeline B；检索入口支持用户选择 `online_search`，实时 AI WebSearch 结果不留存；不增加 `external_search` 专属权限限制；不设计两条链路自动协同。
+- Firecrawl 官方文档：`/v2/search`、`/v2/scrape`、`/v2/batch/scrape`、`/v2/crawl`、Document Parsing、任务状态与 webhook 是本设计的外部能力依据。
 
 ## Goal
 
@@ -17,12 +18,15 @@
 - 新增 `docs/crawler_design_v1.0.md`。
 - 新增本任务包。
 - 设计 Firecrawl Document Connector、合规结构化数据供应商 Connector 的抽象协议、来源注册表、专题采集计划、候选质量门和实时 AI WebSearch 契约。
+- 冻结既有三种治理分类、数字经济/电子商务/产业群主题标签、中国大陆 31 个省级行政区及其下钻地域范围文本与证据、分类时间有效性作为本阶段采集与治理的核心业务维度。
 - 记录需修改的根契约和 Review Gate，但本包不修改代码、根契约或 API。
 
 ## Out Of Scope
 
 - 不实现 Firecrawl、AI WebSearch 或任何外部供应商调用。
 - 不实现合规数据供应商 Connector 的 SDK、认证、API、轮询或具体供应商适配器。
+- 不将 Firecrawl `Crawl` 用于无限站点全爬、外链跟随或忽略 robots.txt；不将 Firecrawl 搜索摘要直接入库。
+- 不增加职业教育、产教融合、区域经济、产业群或区域人才需求等新的治理分类 code；不因 `source_registry` 为空拒绝候选发现或已通过质量阈值的高置信来源进入治理链路。
 - 不创建数据表、Alembic 迁移、API 端点、Console 页面、Worker 或测试。
 - 不实现两条链路的自动互相转化；实时搜索结果不进入采集候选。
 - 不把联网搜索接入 `unknown` 或本地未命中默认 fallback。
@@ -44,8 +48,13 @@
 
 ## Acceptance
 
-- 文档明确区分“定期采集入库”和“实时联网不留存”，且无两链路自动协同机制。
+- 文档明确本阶段仅覆盖数字经济、电子商务及产业群相关的政策、报告和区域人才需求数据，且治理分类仅复用 `industry_policy`、`industry_report`、`talent_demand_report`；明确区分“定期采集入库”和“实时联网不留存”，且无两链路自动协同机制。
 - Firecrawl Markdown/HTML/PDF 明确进入 Pipeline A；合规 JSON/CSV/XLSX 明确进入 Pipeline B。
+- 文档基于 Firecrawl 官方 Search、Batch Scrape、Crawl 和 Document Parsing 能力，限定 Search 候选发现、Batch Scrape 批量抓取、受控 Crawl 目录发现、任务 ID/webhook 幂等和 PDF 完整性检查。
+- 治理维度至少覆盖产业/行业领域、产业群、地域范围文本、发布时间、有效期/统计期和分类时间有效性，且关键值须有证据定位。
+- 地域范围支持全国、任一或多个省级行政区及其地市/区县/园区下钻；提取结果不要求映射为行政区代码；浙江只作为文档样例，不得成为默认过滤条件。
+- 政策类默认 5 年高有效性窗口；产业/行业/区域经济报告及区域人才需求类默认 2 年高有效性窗口；超窗数据必须降级质量并按资产类别进入复核或不自动入库。
+- Firecrawl Search 默认使用 `country=CN` 和中文语言环境 `zh-CN`；`source_registry` 是允许为空的高置信白名单，非空时约束 `includeDomains`，为空时由质量门核验官方统计、政府公开报告或具备明确授权的协会/研究机构，达到阈值后可进入治理链路。
 - 文档规定路由在 Job 创建时冻结，并指出当前 crawler 固定 record 契约需经架构评审修改。
 - `online_search` 默认关闭、用户可选、无 `external_search` 专属权限门禁；基础认证、敏感查询外发阻断、限流和审计保留。
 - 文档明确实时外部结果不写入任何资产、治理、索引或跨请求缓存对象。
