@@ -485,7 +485,14 @@ def query_ability_analysis(
     Uses ``OccupationalAbilityAnalysis`` (per-ref analysis) rather than
     ``AbilityAnalysisProfile`` (system-seeded schema descriptor).
     """
-    major = arguments["major"]
+    # Schema declares `major_name` (required); we accept the historical
+    # `major` key as a fallback so a stale prompt / hand-crafted
+    # tool_call doesn't 500 the executor. §2.5.0 business dimension is
+    # the major name — no trace fields here.
+    major = arguments.get("major_name") or arguments.get("major")
+    if not major:
+        return {"analyses": [], "count": 0,
+                "error": "missing required argument major_name"}
     include = set(arguments.get("include") or [])
     include_tasks = "tasks" in include
     include_items = "ability_items" in include
@@ -498,7 +505,7 @@ def query_ability_analysis(
         .limit(20)
     ))
     if not analyses:
-        return {"analyses": [], "major": major}
+        return {"analyses": [], "count": 0, "major_name": major}
 
     analysis_ids = [a.id for a in analyses]
 
@@ -554,7 +561,7 @@ def query_ability_analysis(
     return {
         "analyses": payload_analyses,
         "count": len(payload_analyses),
-        "major": major,
+        "major_name": major,
     }
 
 
@@ -656,18 +663,28 @@ def get_outline_subtree(
 ) -> dict[str, Any]:
     node_id = arguments["node_id"]
     include_chunks = bool(arguments.get("include_chunks", False))
+    # Honour the schema's optional `max_depth` when the LLM asks for a
+    # shallower subtree (Composer might want just the immediate
+    # chapter-level headings for a summary). We CAP at
+    # _OUTLINE_MAX_DEPTH so a bad tool_call arg can never OOM us — the
+    # cap remains the safety floor.
+    requested_depth = arguments.get("max_depth")
+    if isinstance(requested_depth, int) and requested_depth > 0:
+        effective_depth = min(requested_depth, _OUTLINE_MAX_DEPTH)
+    else:
+        effective_depth = _OUTLINE_MAX_DEPTH
 
     root = session.get(models.KnowledgeOutlineNode, node_id)
     if root is None:
         return {"found": False, "node_id": node_id}
 
-    # Iterative BFS bounded to depth _OUTLINE_MAX_DEPTH — the outline
-    # is at most 3 levels in the current data but headroom keeps
-    # anomalous cases from OOMing.
+    # Iterative BFS bounded to `effective_depth` — the outline is at
+    # most 3 levels in current data but the cap keeps anomalous cases
+    # from OOMing.
     visited: set[str] = {root.id}
     layer: list[models.KnowledgeOutlineNode] = [root]
     all_nodes: list[models.KnowledgeOutlineNode] = [root]
-    for _depth in range(_OUTLINE_MAX_DEPTH):
+    for _depth in range(effective_depth):
         if not layer:
             break
         parent_ids = [n.id for n in layer]
@@ -700,6 +717,7 @@ def get_outline_subtree(
         "nodes": [_serialise(n) for n in all_nodes],
         "node_count": len(all_nodes),
         "include_chunks_requested": include_chunks,
+        "effective_depth": effective_depth,
     }
 
 

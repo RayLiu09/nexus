@@ -231,13 +231,17 @@ def test_query_ability_analysis_with_include(session):
     session.add_all([analysis, task, item])
     session.flush()
 
+    # Schema-canonical arg name is `major_name`. Executor still accepts
+    # the historical `major` alias for hand-crafted tool_calls.
     result = query_ability_analysis(
         session=session,
-        arguments={"major": "跨境电商", "include": ["tasks", "ability_items"]},
+        arguments={"major_name": "跨境电商",
+                    "include": ["tasks", "ability_items"]},
         tool_call_id="tc",
         chart_registry=ChartRegistry(),
     )
     assert result["count"] == 1
+    assert result["major_name"] == "跨境电商"
     a = result["analyses"][0]
     assert a["major_name"] == "跨境电商"
     assert len(a["tasks"]) == 1
@@ -246,10 +250,49 @@ def test_query_ability_analysis_with_include(session):
     assert a["ability_items"][0]["ability_content"] == "沟通能力"
 
 
+def test_query_ability_analysis_accepts_legacy_major_alias(session):
+    """Guards the alias path — a hand-crafted / older tool_call that
+    passes `major` instead of `major_name` should still resolve."""
+    ref_id = _seed_normalized_ref(session, ref_id="ref-alias")
+    profile = models.AbilityAnalysisProfile(
+        id="prof-alias", model_code="PGSD", model_name="PGSD",
+        schema_version="v1",
+    )
+    session.add(profile)
+    session.flush()
+    session.add(models.OccupationalAbilityAnalysis(
+        id="a-alias", normalized_ref_id=ref_id, asset_version_id="ver-alias",
+        profile_id=profile.id, analysis_model="PGSD",
+        major_name="电子商务", schema_version="v1",
+    ))
+    session.flush()
+    result = query_ability_analysis(
+        session=session,
+        arguments={"major": "电子商务"},  # legacy alias
+        tool_call_id="tc",
+        chart_registry=ChartRegistry(),
+    )
+    assert result["count"] == 1
+    assert result["major_name"] == "电子商务"
+
+
+def test_query_ability_analysis_missing_major_returns_error_marker(session):
+    """Neither key present → return a structured error marker so the
+    dispatcher can surface it without crashing the request."""
+    result = query_ability_analysis(
+        session=session,
+        arguments={},
+        tool_call_id="tc",
+        chart_registry=ChartRegistry(),
+    )
+    assert result["analyses"] == []
+    assert "major_name" in result.get("error", "")
+
+
 def test_query_ability_analysis_empty_result(session):
     result = query_ability_analysis(
         session=session,
-        arguments={"major": "不存在"},
+        arguments={"major_name": "不存在"},
         tool_call_id="tc",
         chart_registry=ChartRegistry(),
     )
@@ -417,6 +460,18 @@ def test_get_outline_subtree_bfs_expansion(session):
     assert result["node_count"] == 3
     ids = {n["id"] for n in result["nodes"]}
     assert ids == {root.id, l1.id, l2.id}
+
+    # Schema-driven max_depth honoured: depth=1 keeps root + one BFS
+    # layer only (root + l1, drops l2 grandchild).
+    shallow = get_outline_subtree(
+        session=session,
+        arguments={"node_id": root.id, "max_depth": 1},
+        tool_call_id="tc",
+        chart_registry=ChartRegistry(),
+    )
+    assert shallow["node_count"] == 2
+    assert {n["id"] for n in shallow["nodes"]} == {root.id, l1.id}
+    assert shallow["effective_depth"] == 1
 
 
 def test_get_outline_subtree_missing_node(session):
