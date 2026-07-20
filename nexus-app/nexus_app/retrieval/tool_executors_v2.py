@@ -577,6 +577,20 @@ def query_major_distribution(
     tool_call_id: str,
     chart_registry: ChartRegistry,
 ) -> dict[str, Any]:
+    # Read every optional arg through `.get()` up-front so the
+    # schema-alignment contract test can statically distinguish
+    # required from optional access — a mixed `arguments[X]` inside an
+    # `if arguments.get(X):` guard reads as required to AST scanners
+    # even though it's safe.
+    major_code = arguments.get("major_code")
+    major_name = arguments.get("major_name")
+    year = arguments.get("year")
+    province_name = arguments.get("province_name")
+    education_level = arguments.get("education_level")
+    region_scope = arguments.get("region_scope")
+    min_count = arguments.get("min_count")
+    max_count = arguments.get("max_count")
+
     stmt = (
         select(
             models.MajorDistributionRecord, models.MajorDistributionDataset,
@@ -587,41 +601,37 @@ def query_major_distribution(
             == models.MajorDistributionDataset.id,
         )
     )
-    if arguments.get("major_code"):
+    if major_code:
         stmt = stmt.where(
-            models.MajorDistributionRecord.major_code == arguments["major_code"],
+            models.MajorDistributionRecord.major_code == major_code,
         )
-    if arguments.get("major_name"):
+    if major_name:
         stmt = stmt.where(
-            models.MajorDistributionRecord.major_name.ilike(
-                f"%{arguments['major_name']}%",
-            ),
+            models.MajorDistributionRecord.major_name.ilike(f"%{major_name}%"),
         )
-    if arguments.get("year") is not None:
+    if year is not None:
         # Records carry their own `year` — filter directly rather than
         # via dataset year_min/year_max envelope which spans multiple years.
+        stmt = stmt.where(models.MajorDistributionRecord.year == year)
+    if province_name:
         stmt = stmt.where(
-            models.MajorDistributionRecord.year == arguments["year"],
+            models.MajorDistributionRecord.province_name == province_name,
         )
-    if arguments.get("province_name"):
+    if education_level:
         stmt = stmt.where(
-            models.MajorDistributionRecord.province_name == arguments["province_name"],
+            models.MajorDistributionRecord.education_level == education_level,
         )
-    if arguments.get("education_level"):
+    if region_scope:
         stmt = stmt.where(
-            models.MajorDistributionRecord.education_level == arguments["education_level"],
+            models.MajorDistributionRecord.region_scope == region_scope,
         )
-    if arguments.get("region_scope"):
+    if min_count is not None:
         stmt = stmt.where(
-            models.MajorDistributionRecord.region_scope == arguments["region_scope"],
+            models.MajorDistributionRecord.distribution_count >= min_count,
         )
-    if arguments.get("min_count") is not None:
+    if max_count is not None:
         stmt = stmt.where(
-            models.MajorDistributionRecord.distribution_count >= arguments["min_count"],
-        )
-    if arguments.get("max_count") is not None:
-        stmt = stmt.where(
-            models.MajorDistributionRecord.distribution_count <= arguments["max_count"],
+            models.MajorDistributionRecord.distribution_count <= max_count,
         )
     stmt = stmt.limit(100)
 
