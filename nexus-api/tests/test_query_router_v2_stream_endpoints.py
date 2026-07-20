@@ -213,3 +213,92 @@ class TestOpenStreamEndpoint:
             )
         ))
         assert rows
+
+
+# ---------------------------------------------------------------------------
+# Step frames — B4a Agentic timeline event serialisation
+# ---------------------------------------------------------------------------
+
+
+class TestStepFrames:
+    def test_step_events_serialize_as_sse_step_frames(
+        self, app, stub_api_caller, session,
+    ):
+        """Verify the SSE serialiser emits `event: step` frames with
+        the full step payload shape the frontend timeline consumes."""
+        import json as _json
+        from nexus_app.retrieval.router_v2 import StepPayload
+
+        class _StepRouter:
+            def run_stream(self, session, *, query, route, caller_type):
+                yield RouterStreamEvent(
+                    type="step",
+                    step=StepPayload(
+                        id="intent_classify",
+                        status="running",
+                        label="意图分类",
+                        input={"query": query, "threshold": 0.6},
+                        started_at_ms=1000,
+                    ),
+                )
+                yield RouterStreamEvent(
+                    type="step",
+                    step=StepPayload(
+                        id="intent_classify",
+                        status="completed",
+                        label="意图分类",
+                        input={"query": query, "threshold": 0.6},
+                        output={"intent": "scenario_1", "confidence": 0.9},
+                        started_at_ms=1000,
+                        completed_at_ms=1050,
+                    ),
+                )
+                yield RouterStreamEvent(
+                    type="meta",
+                    meta={
+                        "intent": "scenario_1",
+                        "intent_confidence": 0.9,
+                        "invoked_tools": [],
+                        "chart_ids": [],
+                    },
+                )
+                yield RouterStreamEvent(type="final", result=_fake_result())
+                yield RouterStreamEvent(type="done")
+
+        session.add(stub_api_caller)
+        session.flush()
+        app.dependency_overrides[get_query_router_v2] = lambda: _StepRouter()
+        client = TestClient(app)
+
+        response = client.post(
+            "/internal/v1/query/stream", json={"query": "q"},
+        )
+        assert response.status_code == 200
+        frames = []
+        current: dict = {}
+        for raw in response.text.split("\n"):
+            line = raw.rstrip()
+            if not line:
+                if current:
+                    frames.append(current)
+                    current = {}
+                continue
+            if line.startswith("event:"):
+                current["event"] = line.removeprefix("event:").strip()
+            elif line.startswith("data:"):
+                current["data"] = line.removeprefix("data:").strip()
+        if current:
+            frames.append(current)
+
+        step_frames = [f for f in frames if f.get("event") == "step"]
+        assert len(step_frames) == 2
+        first = _json.loads(step_frames[0]["data"])
+        second = _json.loads(step_frames[1]["data"])
+        assert first["id"] == "intent_classify"
+        assert first["status"] == "running"
+        assert first["label"] == "意图分类"
+        assert first["input"]["query"] == "q"
+        assert first["output"] is None
+        assert second["status"] == "completed"
+        assert second["output"]["intent"] == "scenario_1"
+        assert second["completed_at_ms"] == 1050

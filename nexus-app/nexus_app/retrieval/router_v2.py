@@ -24,6 +24,7 @@ Design red lines picked up here:
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any, Iterator, Literal
 
@@ -68,7 +69,42 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-RouterStreamEventType = Literal["meta", "chunk", "final", "done", "error"]
+RouterStreamEventType = Literal[
+    "meta", "step", "chunk", "final", "done", "error",
+]
+
+StepId = Literal[
+    "intent_classify",
+    "param_extract",
+    "dispatch",
+    "compose",
+    "unknown_fallback",
+    "scenario_5_placeholder",
+]
+
+StepStatus = Literal["running", "completed", "failed"]
+
+
+@dataclass(frozen=True)
+class StepPayload:
+    """One layer of the Agentic pipeline, captured for the UI timeline.
+
+    Emitted twice per step — once with ``status="running"`` (input
+    snapshot only) and once with ``status="completed"`` OR
+    ``"failed"`` (output snapshot appended, latency filled).
+    Consumers dedupe by ``id`` (last-write wins).  ``label`` is a
+    Chinese-friendly display name so the frontend doesn't have to
+    maintain its own translation map.
+    """
+
+    id: StepId
+    status: StepStatus
+    label: str
+    input: dict[str, Any] = field(default_factory=dict)
+    output: dict[str, Any] | None = None
+    started_at_ms: int = 0
+    completed_at_ms: int = 0
+    error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -79,6 +115,11 @@ class RouterStreamEvent:
       ``intent_confidence`` / ``invoked_tools`` (empty when the
       fallback path fires) / registered ``chart_ids`` so the frontend
       can pre-allocate placeholders before any prose arrives.
+    * ``step`` — pipeline stage transition. Payload is a
+      ``StepPayload`` describing which layer (intent_classify /
+      param_extract / dispatch / compose / fallback) started or
+      completed, plus its input/output snapshots for the Agentic
+      timeline. Emitted twice per stage (running + completed).
     * ``chunk`` — incremental raw markdown chunk from the Composer's
       streaming call. Not emitted on the scenario_5 stub path.
     * ``final`` — sent immediately before ``done``. Payload is a
@@ -96,6 +137,7 @@ class RouterStreamEvent:
     result: "RouterResult | None" = None
     meta: dict[str, Any] | None = None
     reason: str | None = None
+    step: StepPayload | None = None
 
 
 @dataclass(frozen=True)
@@ -133,6 +175,78 @@ class RouterResult:
 
 _UNKNOWN_FALLBACK_TOP_K = 20
 _UNKNOWN_FALLBACK_SIMILARITY = 0.3
+
+
+# Cap on how much of a tool result payload we ship into the step
+# event's ``output.tool_calls[].result_preview``. Large chunk lists
+# would blow the SSE frame; the frontend can drill into the full
+# payload via a subsequent audit query if it ever needs the tail.
+_TOOL_RESULT_PREVIEW_CHARS = 2000
+
+
+def _now_ms() -> int:
+    return int(time.monotonic() * 1000)
+
+
+def _step_running(
+    step_id: StepId,
+    label: str,
+    *,
+    input: dict[str, Any],
+    started_at_ms: int,
+) -> RouterStreamEvent:
+    return RouterStreamEvent(
+        type="step",
+        step=StepPayload(
+            id=step_id,
+            status="running",
+            label=label,
+            input=input,
+            started_at_ms=started_at_ms,
+        ),
+    )
+
+
+def _step_completed(
+    step_id: StepId,
+    label: str,
+    *,
+    input: dict[str, Any],
+    output: dict[str, Any],
+    started_at_ms: int,
+    error: str | None = None,
+) -> RouterStreamEvent:
+    return RouterStreamEvent(
+        type="step",
+        step=StepPayload(
+            id=step_id,
+            status="failed" if error else "completed",
+            label=label,
+            input=input,
+            output=output,
+            started_at_ms=started_at_ms,
+            completed_at_ms=_now_ms(),
+            error=error,
+        ),
+    )
+
+
+def _truncate_preview(value: Any) -> Any:
+    """JSON-safe truncated preview of a tool_result payload for the
+    step event. Non-mutating: takes the raw dict/list and returns a
+    shallow-copied structure with long strings capped."""
+    import json as _json
+    try:
+        rendered = _json.dumps(value, ensure_ascii=False, default=str)
+    except (TypeError, ValueError):
+        return {"__preview_error__": "non-serialisable payload"}
+    if len(rendered) <= _TOOL_RESULT_PREVIEW_CHARS:
+        return value
+    return {
+        "__truncated__": True,
+        "preview": rendered[:_TOOL_RESULT_PREVIEW_CHARS],
+        "original_size_chars": len(rendered),
+    }
 
 
 @dataclass
@@ -309,35 +423,82 @@ class QueryRouterV2:
         1. Exactly one ``meta`` event once L1/L2 finish (so the
            frontend can render the intent / tool badges before any
            prose lands).
-        2. Zero or more ``chunk`` events during Composer streaming.
-        3. Exactly one ``final`` event (or ``fallback`` from Composer
+        2. ``step`` events pair-wise (running → completed) per
+           pipeline stage (intent_classify / param_extract / dispatch
+           / compose / fallback), each carrying an input snapshot on
+           ``running`` and an output snapshot on ``completed``.
+        3. Zero or more ``chunk`` events during Composer streaming
+           (interleaved with the ``compose`` step's running / completed
+           pair — the compose step wraps the entire chunk sequence).
+        4. Exactly one ``final`` event (or ``fallback`` from Composer
            translated into a final event with fallback_reason set).
-        4. Exactly one ``done`` event.
+        5. Exactly one ``done`` event.
 
         Unknown-intent / dispatcher-fallback / scenario_5 paths bypass
-        Composer streaming entirely — they emit ``meta`` → the fully
-        pre-baked ``final`` payload → ``done`` (no ``chunk`` events).
-        This keeps the client's rendering path uniform: whenever a
-        ``final`` event arrives, the accumulated chunk text should be
-        discarded in favour of ``result.markdown``.
+        Composer streaming entirely — they emit ``meta`` + a shortened
+        step list (intent_classify → unknown_fallback OR
+        intent_classify → param_extract → scenario_5_placeholder) →
+        the pre-baked ``final`` payload → ``done`` (no ``chunk``
+        events). This keeps the client's rendering path uniform:
+        whenever a ``final`` event arrives, the accumulated chunk text
+        should be discarded in favour of ``result.markdown``.
         """
         registry = self.tool_registry or get_default_tool_registry()
 
         # ------------------------------------------------------------
-        # Layer 1: intent + params (non-streaming; identical to run())
+        # Step 1 — Layer 1a: intent classification
         # ------------------------------------------------------------
+        intent_started = _now_ms()
+        yield _step_running(
+            "intent_classify", "意图分类",
+            input={"query": query, "threshold": 0.6},
+            started_at_ms=intent_started,
+        )
         intent_classifier = IntentClassifierV2(llm_client=self.llm_client)
         intent_result = intent_classifier.classify(session, query)
+        yield _step_completed(
+            "intent_classify", "意图分类",
+            input={"query": query, "threshold": 0.6},
+            output={
+                "intent": intent_result.intent,
+                "confidence": intent_result.confidence,
+                "low_confidence": intent_result.low_confidence,
+                "fallback_reason": intent_result.fallback_reason,
+                "warnings": list(intent_result.warnings),
+            },
+            started_at_ms=intent_started,
+        )
 
+        # ------------------------------------------------------------
+        # Step 2 — Layer 1b: parameter extraction
+        # ------------------------------------------------------------
+        param_started = _now_ms()
+        yield _step_running(
+            "param_extract", "参数抽取",
+            input={"query": query, "intent": intent_result.intent},
+            started_at_ms=param_started,
+        )
         param_extractor = ParameterExtractorV2(
             llm_client=self.llm_client, registry=registry,
         )
         param_result = param_extractor.extract(
             session, query=query, intent=intent_result.intent,
         )
+        yield _step_completed(
+            "param_extract", "参数抽取",
+            input={"query": query, "intent": intent_result.intent},
+            output={
+                "extracted_params": dict(param_result.extracted_params),
+                "missing_required": list(param_result.missing_required),
+                "fallback_reason": param_result.fallback_reason,
+            },
+            started_at_ms=param_started,
+        )
 
         # ------------------------------------------------------------
         # Short-circuit unknown / low-confidence — no chunk stream.
+        # Emit a single "unknown_fallback" step wrapping the pgvector
+        # top-K search + composer pre-baked answer.
         # ------------------------------------------------------------
         if intent_result.intent == "unknown" or intent_result.low_confidence:
             trigger = (
@@ -355,6 +516,17 @@ class QueryRouterV2:
                     "fallback_reason": "unknown_fallback",
                 },
             )
+            fallback_started = _now_ms()
+            yield _step_running(
+                "unknown_fallback", "兜底检索",
+                input={
+                    "query": query,
+                    "trigger": trigger,
+                    "top_k": _UNKNOWN_FALLBACK_TOP_K,
+                    "similarity_threshold": _UNKNOWN_FALLBACK_SIMILARITY,
+                },
+                started_at_ms=fallback_started,
+            )
             result = self._unknown_fallback_path(
                 session,
                 query=query,
@@ -364,13 +536,33 @@ class QueryRouterV2:
                 caller_type=caller_type,
                 trigger=trigger,
             )
+            yield _step_completed(
+                "unknown_fallback", "兜底检索",
+                input={"query": query, "trigger": trigger},
+                output={
+                    "markdown_length": len(result.markdown),
+                    "warnings": list(result.warnings),
+                    "fallback_reason": result.fallback_reason,
+                },
+                started_at_ms=fallback_started,
+            )
             yield RouterStreamEvent(type="final", result=result)
             yield RouterStreamEvent(type="done")
             return
 
         # ------------------------------------------------------------
-        # Layer 2: dispatcher (non-streaming; tool exec is parallel).
+        # Step 3 — Layer 2: dispatcher (non-streaming; tool exec is parallel).
         # ------------------------------------------------------------
+        dispatch_started = _now_ms()
+        yield _step_running(
+            "dispatch", "工具调度",
+            input={
+                "intent": intent_result.intent,
+                "extracted_params": dict(param_result.extracted_params),
+                "model_alias": self._effective_model_alias(),
+            },
+            started_at_ms=dispatch_started,
+        )
         dispatcher = DispatcherV2(
             llm_client=self.llm_client,
             executor_registry=self.executor_registry,
@@ -382,6 +574,31 @@ class QueryRouterV2:
             intent=intent_result.intent,
             extracted_params=param_result.extracted_params,
             model_alias=self._effective_model_alias(),
+        )
+        yield _step_completed(
+            "dispatch", "工具调度",
+            input={
+                "intent": intent_result.intent,
+                "extracted_params": dict(param_result.extracted_params),
+            },
+            output={
+                "invoked_tools": dispatch_result.invoked_tool_names,
+                "tool_calls": [
+                    {
+                        "tool_call_id": r.tool_call_id,
+                        "name": r.name,
+                        "arguments": r.arguments,
+                        "ok": r.ok,
+                        "error": r.error,
+                        "chart_ids": list(r.chart_ids),
+                        "result_preview": _truncate_preview(r.result),
+                    }
+                    for r in dispatch_result.tool_results
+                ],
+                "fallback_reason": dispatch_result.fallback_reason,
+                "warnings": list(dispatch_result.warnings),
+            },
+            started_at_ms=dispatch_started,
         )
 
         if dispatch_result.fallback_reason == "scenario_5_template":
@@ -395,12 +612,27 @@ class QueryRouterV2:
                     "template_id": "talent_cultivation_plan",
                 },
             )
+            s5_started = _now_ms()
+            yield _step_running(
+                "scenario_5_placeholder", "培养方案模板（P0 占位）",
+                input={"template_id": "talent_cultivation_plan"},
+                started_at_ms=s5_started,
+            )
             result = self._scenario_5_placeholder(
                 query=query,
                 intent_result=intent_result,
                 param_result=param_result,
                 route=route,
                 caller_type=caller_type,
+            )
+            yield _step_completed(
+                "scenario_5_placeholder", "培养方案模板（P0 占位）",
+                input={"template_id": "talent_cultivation_plan"},
+                output={
+                    "markdown_length": len(result.markdown),
+                    "fallback_reason": result.fallback_reason,
+                },
+                started_at_ms=s5_started,
             )
             yield RouterStreamEvent(type="final", result=result)
             yield RouterStreamEvent(type="done")
@@ -418,6 +650,17 @@ class QueryRouterV2:
                     "dispatch_fallback": dispatch_result.fallback_reason,
                 },
             )
+            fallback_started = _now_ms()
+            yield _step_running(
+                "unknown_fallback", "兜底检索",
+                input={
+                    "query": query,
+                    "trigger": dispatch_result.fallback_reason,
+                    "top_k": _UNKNOWN_FALLBACK_TOP_K,
+                    "similarity_threshold": _UNKNOWN_FALLBACK_SIMILARITY,
+                },
+                started_at_ms=fallback_started,
+            )
             result = self._unknown_fallback_path(
                 session,
                 query=query,
@@ -428,13 +671,27 @@ class QueryRouterV2:
                 trigger=dispatch_result.fallback_reason,
                 dispatch_result=dispatch_result,
             )
+            yield _step_completed(
+                "unknown_fallback", "兜底检索",
+                input={
+                    "query": query,
+                    "trigger": dispatch_result.fallback_reason,
+                },
+                output={
+                    "markdown_length": len(result.markdown),
+                    "warnings": list(result.warnings),
+                    "fallback_reason": result.fallback_reason,
+                },
+                started_at_ms=fallback_started,
+            )
             yield RouterStreamEvent(type="final", result=result)
             yield RouterStreamEvent(type="done")
             return
 
         # ------------------------------------------------------------
-        # Layer 3: Composer streams chunks; router aggregates + emits
-        # a final event with the fully-swapped markdown.
+        # Step 4 — Layer 3: Composer streams chunks; router aggregates
+        # + emits a final event with the fully-swapped markdown. The
+        # compose step wraps the entire chunk sequence.
         # ------------------------------------------------------------
         yield RouterStreamEvent(
             type="meta",
@@ -448,6 +705,18 @@ class QueryRouterV2:
             },
         )
 
+        compose_started = _now_ms()
+        yield _step_running(
+            "compose", "Markdown 汇总",
+            input={
+                "intent": intent_result.intent,
+                "tool_result_count": len(dispatch_result.tool_results),
+                "chart_ids": sorted(
+                    dispatch_result.chart_registry.registered_ids()
+                ),
+            },
+            started_at_ms=compose_started,
+        )
         composer = MDComposerV2(llm_client=self.llm_client)
         compose_result: ComposeResult | None = None
         for event in composer.compose_stream(
@@ -496,6 +765,28 @@ class QueryRouterV2:
             fallback_reason=compose_result.fallback_reason,
             warnings=tuple(list(dispatch_result.warnings)
                            + list(compose_result.warnings)),
+        )
+        yield _step_completed(
+            "compose", "Markdown 汇总",
+            input={
+                "intent": intent_result.intent,
+                "tool_result_count": len(dispatch_result.tool_results),
+                "chart_ids": sorted(
+                    dispatch_result.chart_registry.registered_ids()
+                ),
+            },
+            output={
+                "generated_ratio": compose_result.generated_ratio,
+                "markdown_length": len(compose_result.markdown),
+                "raw_markdown_length": len(compose_result.raw_markdown),
+                "chart_hallucination_ids": list(
+                    compose_result.chart_hallucination_ids
+                ),
+                "chart_unused_ids": list(compose_result.chart_unused_ids),
+                "fallback_reason": compose_result.fallback_reason,
+                "warnings": list(compose_result.warnings),
+            },
+            started_at_ms=compose_started,
         )
         yield RouterStreamEvent(type="final", result=result)
         yield RouterStreamEvent(type="done")
@@ -684,4 +975,7 @@ __all__ = [
     "RouterResult",
     "RouterStreamEvent",
     "RouterStreamEventType",
+    "StepId",
+    "StepPayload",
+    "StepStatus",
 ]

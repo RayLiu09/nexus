@@ -138,6 +138,18 @@ def _event_to_frame(event: RouterStreamEvent) -> str | None:
     """Translate one RouterStreamEvent to an SSE frame body."""
     if event.type == "meta":
         return _format_sse("meta", event.meta or {})
+    if event.type == "step" and event.step is not None:
+        step = event.step
+        return _format_sse("step", {
+            "id": step.id,
+            "status": step.status,
+            "label": step.label,
+            "input": step.input,
+            "output": step.output,
+            "started_at_ms": step.started_at_ms,
+            "completed_at_ms": step.completed_at_ms,
+            "error": step.error,
+        })
     if event.type == "chunk":
         return _format_sse("chunk", {"text": event.text})
     if event.type == "final" and event.result is not None:

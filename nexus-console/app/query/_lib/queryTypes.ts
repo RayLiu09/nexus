@@ -19,6 +19,27 @@ export type QueryRouterFallbackReason =
   | "scenario_5_template_not_implemented"
   | null;
 
+export type StepId =
+  | "intent_classify"
+  | "param_extract"
+  | "dispatch"
+  | "compose"
+  | "unknown_fallback"
+  | "scenario_5_placeholder";
+
+export type StepStatus = "running" | "completed" | "failed";
+
+export interface StepPayload {
+  id: StepId;
+  status: StepStatus;
+  label: string;
+  input: Record<string, unknown>;
+  output: Record<string, unknown> | null;
+  started_at_ms: number;
+  completed_at_ms: number;
+  error: string | null;
+}
+
 export interface QueryRouterAuditSummary {
   route?: string;
   caller_type?: string;

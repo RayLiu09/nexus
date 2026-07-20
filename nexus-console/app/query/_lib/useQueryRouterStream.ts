@@ -17,7 +17,7 @@
  */
 import { useCallback, useRef, useState } from "react";
 
-import type { QueryRouterResponse } from "./queryTypes";
+import type { QueryRouterResponse, StepPayload } from "./queryTypes";
 
 export type StreamStatus = "idle" | "running" | "success" | "error";
 
@@ -38,6 +38,14 @@ export interface UseQueryRouterStreamState {
   result: QueryRouterResponse | null;
   error: string | null;
   warnings: string[];
+  /**
+   * Ordered list of pipeline steps as reported by the backend. The
+   * SSE stream emits two frames per step (running + completed); this
+   * array keeps ONE entry per step id — the latest state wins so a
+   * `completed` frame overwrites the earlier `running` snapshot in
+   * place, preserving list order.
+   */
+  steps: StepPayload[];
 }
 
 const INITIAL_STATE: UseQueryRouterStreamState = {
@@ -47,6 +55,7 @@ const INITIAL_STATE: UseQueryRouterStreamState = {
   result: null,
   error: null,
   warnings: [],
+  steps: [],
 };
 
 export interface UseQueryRouterStream {
@@ -186,6 +195,12 @@ function applyFrame(frame: SseFrame, setState: ApplyFrame): void {
     case "meta":
       setState((prev) => ({ ...prev, meta: parsed as StreamMeta }));
       return;
+    case "step": {
+      const step = parsed as StepPayload | null;
+      if (!step || typeof step.id !== "string") return;
+      setState((prev) => ({ ...prev, steps: mergeStep(prev.steps, step) }));
+      return;
+    }
     case "chunk": {
       const text = typeof parsed?.text === "string" ? parsed.text : "";
       setState((prev) => ({ ...prev, rawMarkdown: prev.rawMarkdown + text }));
@@ -219,6 +234,18 @@ function applyFrame(frame: SseFrame, setState: ApplyFrame): void {
     default:
       return;
   }
+}
+
+function mergeStep(prev: StepPayload[], incoming: StepPayload): StepPayload[] {
+  // First occurrence of `incoming.id` → append. Later occurrences
+  // (typically the `completed` frame following a `running` one)
+  // overwrite in place so the array preserves emission order,
+  // matching the Agentic timeline the UI renders.
+  const idx = prev.findIndex((step) => step.id === incoming.id);
+  if (idx === -1) return [...prev, incoming];
+  const next = prev.slice();
+  next[idx] = incoming;
+  return next;
 }
 
 // A safe JSON.parse that shrugs on invalid payloads — SSE consumers

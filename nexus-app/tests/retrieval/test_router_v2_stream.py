@@ -134,12 +134,15 @@ class TestStreamHappyPath:
             route="internal_query", caller_type="console_session",
         ))
         types = [e.type for e in events]
-        assert types[0] == "meta"
-        assert types[-1] == "done"
-        assert types[-2] == "final"
-        assert "chunk" in types
-        # Meta carries intent + tool list.
-        meta = events[0].meta or {}
+        # Structural anchors ignoring step events which are additive.
+        core_types = [t for t in types if t != "step"]
+        assert core_types[0] == "meta"
+        assert core_types[-1] == "done"
+        assert core_types[-2] == "final"
+        assert "chunk" in core_types
+        # Meta carries intent + tool list. Meta is the first non-step event.
+        meta_event = next(e for e in events if e.type == "meta")
+        meta = meta_event.meta or {}
         assert meta["intent"] == "scenario_1"
         assert meta["invoked_tools"] == ["internal.search_chunks_by_semantic"]
         # Concatenated chunk text matches raw_markdown on final result.
@@ -175,8 +178,10 @@ class TestStreamShortCircuits:
         # No chunk events on the short-circuit path — the unknown path
         # composes non-streamingly and jumps straight to final.
         assert "chunk" not in types
-        assert types == ["meta", "final", "done"]
-        assert (events[0].meta or {}).get("fallback_reason") == "unknown_fallback"
+        core_types = [t for t in types if t != "step"]
+        assert core_types == ["meta", "final", "done"]
+        meta_event = next(e for e in events if e.type == "meta")
+        assert (meta_event.meta or {}).get("fallback_reason") == "unknown_fallback"
 
     def test_scenario_5_meta_final_done_only(self, seeded_session):
         llm = _StreamRoutedLLM(
@@ -194,9 +199,10 @@ class TestStreamShortCircuits:
             seeded_session, query="培养方案",
             route="internal_query", caller_type="console_session",
         ))
-        assert [e.type for e in events] == ["meta", "final", "done"]
-        meta = events[0].meta or {}
-        assert meta["template_id"] == "talent_cultivation_plan"
+        core_types = [e.type for e in events if e.type != "step"]
+        assert core_types == ["meta", "final", "done"]
+        meta_event = next(e for e in events if e.type == "meta")
+        assert (meta_event.meta or {})["template_id"] == "talent_cultivation_plan"
 
     def test_no_tool_call_short_circuits_via_fallback(self, seeded_session):
         llm = _StreamRoutedLLM(
@@ -213,9 +219,10 @@ class TestStreamShortCircuits:
             seeded_session, query="q",
             route="internal_query", caller_type="console_session",
         ))
-        assert [e.type for e in events] == ["meta", "final", "done"]
-        meta = events[0].meta or {}
-        assert meta.get("dispatch_fallback") == "no_tool_call"
+        core_types = [e.type for e in events if e.type != "step"]
+        assert core_types == ["meta", "final", "done"]
+        meta_event = next(e for e in events if e.type == "meta")
+        assert (meta_event.meta or {}).get("dispatch_fallback") == "no_tool_call"
 
 
 # ---------------------------------------------------------------------------
@@ -259,6 +266,120 @@ class TestStreamErrors:
         assert types.count("done") == 1
         assert "error" in types
         assert types.index("error") < types.index("final")
-        final_result = events[-2].result
-        assert final_result is not None
-        assert final_result.fallback_reason == "llm_call_failed"
+        final_event = next(e for e in events if e.type == "final")
+        assert final_event.result is not None
+        assert final_event.result.fallback_reason == "llm_call_failed"
+
+
+# ---------------------------------------------------------------------------
+# Step events (Agentic timeline)
+# ---------------------------------------------------------------------------
+
+
+class TestStreamStepEvents:
+    def test_happy_path_emits_paired_step_events(self, seeded_session):
+        """Every layer emits running + completed step events in
+        order, and the output of the completed event carries the
+        expected fields for the timeline UI."""
+        tc = ToolCall(
+            id="c1",
+            name="internal.search_chunks_by_semantic",
+            arguments='{"query": "q", "kb": "industry_research_kb"}',
+        )
+        llm = _StreamRoutedLLM(
+            intent={"intent": "scenario_1", "confidence": 0.9},
+            params={"extracted_params": {"query": "q"}, "missing_required": []},
+            compose_chunks=["ok"],
+            tool_calls=[tc],
+        )
+        exec_reg = ToolExecutorRegistry()
+        exec_reg.register(
+            "internal.search_chunks_by_semantic",
+            lambda *, session, arguments, tool_call_id, chart_registry: {"hits": []},
+        )
+        router = QueryRouterV2(
+            llm_client=llm, executor_registry=exec_reg,
+            pgvector_adapter=_FakePgvector(),
+        )
+        events = list(router.run_stream(
+            seeded_session, query="q",
+            route="internal_query", caller_type="console_session",
+        ))
+        steps = [e.step for e in events if e.type == "step" and e.step is not None]
+        # Every step id must appear twice (running + completed) in the happy path.
+        by_id: dict[str, list] = {}
+        for s in steps:
+            by_id.setdefault(s.id, []).append(s.status)
+        assert by_id["intent_classify"] == ["running", "completed"]
+        assert by_id["param_extract"] == ["running", "completed"]
+        assert by_id["dispatch"] == ["running", "completed"]
+        assert by_id["compose"] == ["running", "completed"]
+        # Sanity: outputs populated on completed events.
+        intent_done = next(s for s in steps
+                            if s.id == "intent_classify" and s.status == "completed")
+        assert intent_done.output is not None
+        assert intent_done.output["intent"] == "scenario_1"
+        dispatch_done = next(s for s in steps
+                              if s.id == "dispatch" and s.status == "completed")
+        assert dispatch_done.output is not None
+        assert dispatch_done.output["invoked_tools"] == [
+            "internal.search_chunks_by_semantic",
+        ]
+        # Compose step completes AFTER any chunk event.
+        compose_done_idx = next(
+            i for i, e in enumerate(events)
+            if e.type == "step" and e.step is not None
+            and e.step.id == "compose" and e.step.status == "completed"
+        )
+        last_chunk_idx = max(
+            i for i, e in enumerate(events) if e.type == "chunk"
+        )
+        assert compose_done_idx > last_chunk_idx
+
+    def test_unknown_short_circuit_emits_intent_and_fallback_steps(
+        self, seeded_session,
+    ):
+        llm = _StreamRoutedLLM(
+            intent={"intent": "unknown", "confidence": 0.9},
+            compose_chunks=["ok"],
+        )
+        router = QueryRouterV2(
+            llm_client=llm, executor_registry=ToolExecutorRegistry(),
+            pgvector_adapter=_FakePgvector(),
+        )
+        events = list(router.run_stream(
+            seeded_session, query="q",
+            route="internal_query", caller_type="console_session",
+        ))
+        step_ids = [e.step.id for e in events
+                     if e.type == "step" and e.step is not None]
+        # Unknown short-circuit: intent + param + fallback only, no
+        # dispatch / compose.
+        assert set(step_ids) == {"intent_classify", "param_extract", "unknown_fallback"}
+        # Every step appears twice.
+        for sid in {"intent_classify", "param_extract", "unknown_fallback"}:
+            assert step_ids.count(sid) == 2, f"{sid} should be running + completed"
+
+    def test_scenario_5_emits_placeholder_step(self, seeded_session):
+        llm = _StreamRoutedLLM(
+            intent={"intent": "scenario_5", "confidence": 0.9},
+            params={"extracted_params": {"major_name": "跨境电商"},
+                     "missing_required": []},
+            tool_calls=[],
+        )
+        router = QueryRouterV2(
+            llm_client=llm, executor_registry=ToolExecutorRegistry(),
+            pgvector_adapter=None,
+        )
+        events = list(router.run_stream(
+            seeded_session, query="培养方案",
+            route="internal_query", caller_type="console_session",
+        ))
+        step_ids = [e.step.id for e in events
+                     if e.type == "step" and e.step is not None]
+        # scenario_5: intent + params + dispatch + placeholder.
+        assert "scenario_5_placeholder" in step_ids
+        # Dispatch also emits (LLM returned zero tool_calls; dispatch
+        # completes with the scenario_5_template fallback marker before
+        # the placeholder step fires).
+        assert "dispatch" in step_ids

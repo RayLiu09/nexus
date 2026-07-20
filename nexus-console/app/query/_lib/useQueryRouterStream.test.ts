@@ -177,4 +177,79 @@ describe("useQueryRouterStream", () => {
       expect(result.current.state.status).toBe("error");
     });
   });
+
+  it("accumulates step events; completed frame overwrites running in place", async () => {
+    // Two steps, each emitted as (running → completed). Order must
+    // stay stable: intent_classify before param_extract; per-step
+    // status must end as `completed` (the running snapshot is
+    // replaced, not duplicated).
+    (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      buildStreamResponse([
+        sse("step", {
+          id: "intent_classify",
+          status: "running",
+          label: "意图分类",
+          input: { query: "q" },
+          output: null,
+          started_at_ms: 100,
+          completed_at_ms: 0,
+          error: null,
+        }),
+        sse("step", {
+          id: "intent_classify",
+          status: "completed",
+          label: "意图分类",
+          input: { query: "q" },
+          output: { intent: "scenario_1" },
+          started_at_ms: 100,
+          completed_at_ms: 150,
+          error: null,
+        }),
+        sse("step", {
+          id: "param_extract",
+          status: "running",
+          label: "参数抽取",
+          input: {},
+          output: null,
+          started_at_ms: 160,
+          completed_at_ms: 0,
+          error: null,
+        }),
+        sse("step", {
+          id: "param_extract",
+          status: "completed",
+          label: "参数抽取",
+          input: {},
+          output: { extracted_params: { query: "q" } },
+          started_at_ms: 160,
+          completed_at_ms: 200,
+          error: null,
+        }),
+        sse("final", {
+          markdown: "ok",
+          raw_markdown: "ok",
+          intent: "scenario_1",
+          intent_confidence: 0.9,
+          invoked_tools: [],
+          fallback_reason: null,
+          warnings: [],
+          audit_summary: {},
+        }),
+        sse("done", {}),
+      ]),
+    );
+    const { result } = renderHook(() => useQueryRouterStream());
+    await act(async () => {
+      await result.current.start("q");
+    });
+    await waitFor(() => {
+      expect(result.current.state.status).toBe("success");
+    });
+    const steps = result.current.state.steps;
+    // ONE entry per id (in-place overwrite), ordering preserved.
+    expect(steps.map((s) => s.id)).toEqual(["intent_classify", "param_extract"]);
+    expect(steps.map((s) => s.status)).toEqual(["completed", "completed"]);
+    expect(steps[0].output).toEqual({ intent: "scenario_1" });
+    expect(steps[0].completed_at_ms).toBe(150);
+  });
 });
