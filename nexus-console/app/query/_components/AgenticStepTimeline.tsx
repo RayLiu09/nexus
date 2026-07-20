@@ -29,10 +29,13 @@ export function AgenticStepTimeline({ steps, selectedStepId, onSelect }: Agentic
     );
   }
 
+  // Antd 6 renamed Timeline `items.children` → `items.content`
+  // (CLAUDE.md §四 v5→v6 migration table). The deprecated key still
+  // renders but logs a warning, so use the new API.
   const items = steps.map((step) => ({
     color: dotColor(step.status),
     dot: dotIcon(step.status),
-    children: <StepRow step={step} selected={step.id === selectedStepId} onSelect={onSelect} />,
+    content: <StepRow step={step} selected={step.id === selectedStepId} onSelect={onSelect} />,
   }));
 
   return (
