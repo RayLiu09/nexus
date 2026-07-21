@@ -231,5 +231,6 @@ function snapshotTurn(
     templateId,
     isStreaming,
     error: state.error,
+    externalWebResults: state.result?.external_web_results ?? [],
   };
 }

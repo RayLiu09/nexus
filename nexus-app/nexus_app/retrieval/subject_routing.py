@@ -39,6 +39,10 @@ _MAJOR_INFORMATION_UNIT_PATTERNS = (
     "专业核心课程",
     "专业拓展课程",
 )
+_INDUSTRY_INFORMATION_MARKERS = (
+    "发展趋势", "行业趋势", "产业趋势", "市场趋势", "行业报告",
+    "产业报告", "研究报告", "白皮书",
+)
 
 
 def resolve_query_subject(session: Session, query: str) -> QuerySubject:
@@ -81,6 +85,14 @@ def apply_subject_route_guard(
             intent,
             intent="scenario_3",
             warnings=(*intent.warnings, "subject_route_override:major_information_to_scenario_3"),
+        )
+    if intent.intent == "unknown" and any(
+        marker in query for marker in _INDUSTRY_INFORMATION_MARKERS
+    ):
+        return replace(
+            intent,
+            intent="scenario_1",
+            warnings=(*intent.warnings, "intent_route_override:industry_information_to_scenario_1"),
         )
     return intent
 

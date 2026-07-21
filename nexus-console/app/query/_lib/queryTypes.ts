@@ -56,6 +56,18 @@ export interface QueryRouterAuditSummary {
   [extra: string]: unknown;
 }
 
+export interface ExternalWebResult {
+  source_type: "external_web";
+  provider: string;
+  title: string;
+  url: string;
+  domain: string;
+  snippet: string | null;
+  published_at: string | null;
+  retrieved_at: string;
+  rank: number;
+}
+
 export interface QueryRouterResponse {
   markdown: string;
   intent: QueryRouterIntent;
@@ -64,6 +76,7 @@ export interface QueryRouterResponse {
   fallback_reason: QueryRouterFallbackReason;
   warnings: string[];
   audit_summary: QueryRouterAuditSummary;
+  external_web_results: ExternalWebResult[];
 }
 
 export interface ProxySuccessEnvelope<T> {

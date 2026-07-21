@@ -135,6 +135,28 @@ describe("AgenticMessage", () => {
     expect(screen.getByTestId("query-meta-fallback")).toHaveTextContent("兜底检索");
   });
 
+  it("renders ungoverned public-web results separately from the NEXUS answer", () => {
+    render(<AgenticMessage turn={makeTurn({
+      externalWebResults: [{
+        source_type: "external_web",
+        provider: "firecrawl",
+        title: "AI Agent Report",
+        url: "https://example.org/ai-agent",
+        domain: "example.org",
+        snippet: "公开资料摘要",
+        published_at: null,
+        retrieved_at: "2026-07-21T00:00:00+00:00",
+        rank: 1,
+      }],
+    })} />);
+
+    expect(screen.getByRole("region", { name: "公开网络实时结果" })).toBeInTheDocument();
+    expect(screen.getByText(/未纳入 NEXUS 治理与验证/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "AI Agent Report" })).toHaveAttribute(
+      "href", "https://example.org/ai-agent",
+    );
+  });
+
   it("opens the source preview drawer when a retrieved chunk is clicked", async () => {
     const user = userEvent.setup();
     render(

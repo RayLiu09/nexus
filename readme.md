@@ -111,6 +111,11 @@ Root documents are distilled implementation contracts:
   under active implementation; Console graph rendering and public/open graph
   APIs are later slices.
 - Permission-filtered search and QA with source citations.
+- Query Router automatically falls back to request-scoped Firecrawl WebSearch
+  only for no-evidence `scenario_1` industry/report and `scenario_4`
+  textbook/general-knowledge requests. Public-web results remain separate from
+  governed NEXUS assets and are never persisted, governed, or indexed; all
+  other query scenarios stay local-only.
 - Audit logs for access, governance, rules, Prompt changes, permissions, API keys, and AI adoption.
 
 ## Main Roles

@@ -61,6 +61,7 @@ class QueryRouterV2ResponseData(BaseModel):
     fallback_reason: str | None
     warnings: list[str]
     audit_summary: dict
+    external_web_results: list[dict]
 
 
 @router.post(
@@ -110,6 +111,7 @@ def run_query_router_v2(
             fallback_reason=result.fallback_reason,
             warnings=list(result.warnings),
             audit_summary=summary,
+            external_web_results=list(getattr(result, "external_web_results", ())),
         ),
         request,
     )

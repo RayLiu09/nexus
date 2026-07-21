@@ -87,6 +87,7 @@ class TestInternalQueryEndpoint:
         assert "跨境电商 2025 政策" in data["markdown"]
         assert data["intent"] == "scenario_1"
         assert data["invoked_tools"] == ["internal.search_chunks_by_semantic"]
+        assert data["external_web_results"] == []
 
     def test_router_receives_internal_route_labels(self, client, fake_router):
         client.post("/internal/v1/query", json={"query": "q"})

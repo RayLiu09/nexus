@@ -29,7 +29,10 @@
 - 不增加职业教育、产教融合、区域经济、产业群或区域人才需求等新的治理分类 code；不因 `source_registry` 为空拒绝候选发现或已通过质量阈值的高置信来源进入治理链路。
 - 不创建数据表、Alembic 迁移、API 端点、Console 页面、Worker 或测试。
 - 不实现两条链路的自动互相转化；实时搜索结果不进入采集候选。
-- 不把联网搜索接入 `unknown` 或本地未命中默认 fallback。
+- 不把联网搜索接入 `unknown` 或通用 dispatcher-failure fallback。本包的
+  “用户显式开启”设计已由
+  `wk_query_router_web_search_fallback_task_package.md` 中经用户确认的
+  `scenario_1` / `scenario_4` 无本地证据自动兜底策略取代。
 - 不新增 `external_search` 专属权限、角色或 API caller scope 限制。
 
 ## Forbidden Changes
@@ -56,7 +59,8 @@
 - 政策类默认 5 年高有效性窗口；产业/行业/区域经济报告及区域人才需求类默认 2 年高有效性窗口；超窗数据必须降级质量并按资产类别进入复核或不自动入库。
 - Firecrawl Search 默认使用 `country=CN` 和中文语言环境 `zh-CN`；`source_registry` 是允许为空的高置信白名单，非空时约束 `includeDomains`，为空时由质量门核验官方统计、政府公开报告或具备明确授权的协会/研究机构，达到阈值后可进入治理链路。
 - 文档规定路由在 Job 创建时冻结，并指出当前 crawler 固定 record 契约需经架构评审修改。
-- `online_search` 默认关闭、用户可选、无 `external_search` 专属权限门禁；基础认证、敏感查询外发阻断、限流和审计保留。
+- 实时搜索原设计的“默认关闭、用户可选”已由后续任务包取代；仍保留无
+  `external_search` 专属权限门禁、基础认证、敏感查询外发阻断、限流和审计。
 - 文档明确实时外部结果不写入任何资产、治理、索引或跨请求缓存对象。
 - 本次仅为文档设计，无代码和数据模型变更，因此不运行测试；通过 `git diff --check` 及人工契约复核验证。
 

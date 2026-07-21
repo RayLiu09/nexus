@@ -15,6 +15,7 @@ from nexus_app.ai_governance.services import _create_default_litellm_client
 from nexus_app.index.pgvector_search import PgvectorSearchAdapter
 from nexus_app.retrieval.router_v2 import QueryRouterV2
 from nexus_app.retrieval.tool_executors_v2 import default_v2_executor_registry
+from nexus_app.retrieval.web_search import create_default_ai_web_search_client
 
 
 @lru_cache(maxsize=1)
@@ -37,6 +38,7 @@ def build_query_router_v2() -> QueryRouterV2:
             pgvector_adapter=adapter,
         ),
         pgvector_adapter=adapter,
+        web_search_client=create_default_ai_web_search_client(),
     )
 
 

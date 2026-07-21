@@ -34,6 +34,7 @@ from nexus_app.ai_governance.litellm_client import (
 )
 from nexus_app.retrieval.chart_adapter import ChartRegistry
 from nexus_app.retrieval.dispatcher_v2 import ToolExecutorRegistry
+from nexus_app.retrieval.web_search import ExternalWebResult, WebSearchOutcome
 from nexus_app.retrieval.prompt_profiles_v2 import seed_retrieval_v2_prompts
 from nexus_app.retrieval.router_v2 import QueryRouterV2, RouterResult
 from nexus_app.retrieval.subject_routing import (
@@ -127,6 +128,39 @@ class _FakePgvectorAdapter:
         return list(self._hits)
 
 
+class _FakeWebSearch:
+    def __init__(self, outcome: WebSearchOutcome | None = None) -> None:
+        self.queries: list[str] = []
+        self._outcome = outcome
+
+    def search(self, query: str) -> WebSearchOutcome:
+        self.queries.append(query)
+        if self._outcome is not None:
+            return self._outcome
+        return WebSearchOutcome(
+            results=(ExternalWebResult(
+                provider="firecrawl", title="AI agent report",
+                url="https://example.org/ai-agent", domain="example.org",
+                snippet="Public result", published_at=None,
+                retrieved_at="2026-07-21T00:00:00+00:00", rank=1,
+            ),),
+            provider="firecrawl",
+            latency_ms=12.5,
+        )
+
+
+def _compose_call_count(llm: _RoutedLLM) -> int:
+    return sum(
+        1
+        for call in llm.calls
+        if call["kind"] == "call"
+        and (
+            "Markdown 汇总器" in call["content"]
+            or "输出规范" in call["content"]
+        )
+    )
+
+
 @pytest.fixture()
 def seeded_session(session):
     seed_retrieval_v2_prompts(session)
@@ -195,6 +229,19 @@ def test_known_major_distribution_question_stays_scenario_2(session) -> None:
     assert result.intent == "scenario_2"
 
 
+def test_industry_trend_unknown_is_corrected_to_scenario_1() -> None:
+    from nexus_app.retrieval.intent_v2 import IntentV2Result
+
+    result = apply_subject_route_guard(
+        IntentV2Result(intent="unknown", confidence=0.9),
+        QuerySubject(kind="unknown"),
+        "最新的AI智能体的发展趋势",
+    )
+
+    assert result.intent == "scenario_1"
+    assert "intent_route_override:industry_information_to_scenario_1" in result.warnings
+
+
 class TestHappyPath:
     def test_scenario_1_flows_through_all_three_layers(self, seeded_session):
         tc = ToolCall(
@@ -242,6 +289,174 @@ class TestHappyPath:
         assert summary["invoked_tools"] == ["internal.search_chunks_by_semantic"]
         assert "generated_ratio" in summary
 
+    @pytest.mark.parametrize(
+        ("intent", "tool_call"),
+        [
+            ("scenario_1", ToolCall(
+                id="web-s1", name="internal.search_chunks_by_semantic",
+                arguments='{"query":"最新AI智能体的发展趋势","kb":"industry_research_kb"}',
+            )),
+            ("scenario_4", ToolCall(
+                id="web-s4", name="internal.search_chunks_by_semantic",
+                arguments='{"query":"AI智能体是什么","kb":"course_textbook"}',
+            )),
+        ],
+    )
+    def test_eligible_empty_local_result_uses_web_search(
+        self, seeded_session, intent, tool_call,
+    ):
+        llm = _RoutedLLM(
+            intent={"intent": intent, "confidence": 0.95},
+            params={"extracted_params": {"query": "q"}, "missing_required": []},
+            compose_output="# 本地无命中",
+            tool_calls=[tool_call],
+        )
+        registry = ToolExecutorRegistry()
+        registry.register(
+            "internal.search_chunks_by_semantic",
+            lambda **kwargs: {"hits": []},
+        )
+        web = _FakeWebSearch()
+        result = QueryRouterV2(
+            llm_client=llm, executor_registry=registry,
+            pgvector_adapter=_FakePgvectorAdapter(), web_search_client=web,
+        ).run(seeded_session, query="最新AI智能体的发展趋势", route="internal_query", caller_type="console_session")
+
+        assert web.queries == ["最新AI智能体的发展趋势"]
+        assert result.external_web_results[0]["url"] == "https://example.org/ai-agent"
+        assert result.audit_summary["online_search_requested"] is True
+        assert result.audit_summary["external_result_domains"] == ["example.org"]
+        assert "Public result" not in repr(result.audit_summary)
+        assert "本地无命中" not in result.markdown
+        assert "公开网络实时结果" in result.markdown
+        assert result.audit_summary["generated_ratio"] == 0.0
+        assert _compose_call_count(llm) == 0
+
+    @pytest.mark.parametrize("intent", ["scenario_1", "scenario_4"])
+    def test_eligible_empty_local_result_without_web_results_skips_composer(
+        self, seeded_session, intent,
+    ):
+        tool_call = ToolCall(
+            id="empty-web", name="internal.search_chunks_by_semantic",
+            arguments='{"query":"AI智能体的发展趋势","kb":"industry_research_kb"}',
+        )
+        llm = _RoutedLLM(
+            intent={"intent": intent, "confidence": 0.95},
+            params={"extracted_params": {"query": "q"}, "missing_required": []},
+            compose_output="# 不应出现",
+            tool_calls=[tool_call],
+        )
+        registry = ToolExecutorRegistry()
+        registry.register(
+            "internal.search_chunks_by_semantic",
+            lambda **kwargs: {"hits": [], "count": "0"},
+        )
+        web = _FakeWebSearch(WebSearchOutcome(
+            provider="firecrawl",
+            warning="external_search_unavailable",
+            error_type="timeout",
+        ))
+
+        result = QueryRouterV2(
+            llm_client=llm,
+            executor_registry=registry,
+            pgvector_adapter=_FakePgvectorAdapter(),
+            web_search_client=web,
+        ).run(
+            seeded_session,
+            query="AI智能体的发展趋势",
+            route="internal_query",
+            caller_type="console_session",
+        )
+
+        assert web.queries == ["AI智能体的发展趋势"]
+        assert result.external_web_results == ()
+        assert result.audit_summary["generated_ratio"] == 0.0
+        assert result.audit_summary["external_search_error_type"] == "timeout"
+        assert "公开网络检索当前不可用或未返回结果" in result.markdown
+        assert "不应出现" not in result.markdown
+        assert _compose_call_count(llm) == 0
+
+    @pytest.mark.parametrize(
+        ("intent", "tool_call", "payload", "expected"),
+        [
+            (
+                "scenario_2",
+                ToolCall(
+                    id="job-empty",
+                    name="internal.get_job_demand_role_graph",
+                    arguments='{"job_title":"不存在岗位"}',
+                ),
+                {"found": False, "records": [], "count": 0},
+                "未检索到匹配的岗位需求、职业能力或专业布点结构化数据",
+            ),
+            (
+                "scenario_3",
+                ToolCall(
+                    id="major-empty",
+                    name="internal.query_major_information",
+                    arguments=(
+                        '{"major_name":"不存在专业",'
+                        '"units":["basic_identity"]}'
+                    ),
+                ),
+                {"found": False, "units": {"basic_identity": {"status": "missing"}}},
+                "未检索到可核验的专业信息或专业图谱数据",
+            ),
+        ],
+    )
+    def test_scenario_2_and_3_empty_assets_skip_composer(
+        self, seeded_session, intent, tool_call, payload, expected,
+    ):
+        llm = _RoutedLLM(
+            intent={"intent": intent, "confidence": 0.95},
+            params={"extracted_params": {}, "missing_required": []},
+            compose_output="# 不应出现",
+            tool_calls=[tool_call],
+        )
+        registry = ToolExecutorRegistry()
+        registry.register(tool_call.name, lambda **kwargs: payload)
+
+        result = QueryRouterV2(
+            llm_client=llm,
+            executor_registry=registry,
+            pgvector_adapter=_FakePgvectorAdapter(),
+            web_search_client=_FakeWebSearch(),
+        ).run(
+            seeded_session,
+            query="不存在的数据资产",
+            route="internal_query",
+            caller_type="console_session",
+        )
+
+        assert expected in result.markdown
+        assert "不应出现" not in result.markdown
+        assert result.external_web_results == ()
+        assert result.audit_summary["online_search_requested"] is False
+        assert result.audit_summary["generated_ratio"] == 0.0
+        assert _compose_call_count(llm) == 0
+
+    @pytest.mark.parametrize("intent", ["scenario_2", "scenario_3"])
+    def test_structured_and_major_scenarios_never_use_web_search(self, intent):
+        web = _FakeWebSearch()
+        router = QueryRouterV2(
+            llm_client=_RoutedLLM(), executor_registry=ToolExecutorRegistry(),
+            web_search_client=web,
+        )
+        from nexus_app.retrieval.dispatcher_v2 import DispatchResult, ToolResult
+
+        outcome = router._maybe_web_search(
+            query="平面设计师岗位信息",
+            intent=intent,
+            dispatch_result=DispatchResult(intent=intent, tool_results=(ToolResult(
+                tool_call_id="empty", name="internal.query_job_demand", arguments={},
+                ok=True, result={"records": []},
+            ),)),
+        )
+
+        assert outcome is None
+        assert web.queries == []
+
 
 # ---------------------------------------------------------------------------
 # §六 unknown fallback
@@ -255,10 +470,12 @@ class TestUnknownFallback:
             compose_output="兜底回答",
         )
         pgvector = _FakePgvectorAdapter(hits=[{"chunk_id": "x", "score": 0.5}])
+        web = _FakeWebSearch()
         router = QueryRouterV2(
             llm_client=llm,
             executor_registry=ToolExecutorRegistry(),
             pgvector_adapter=pgvector,
+            web_search_client=web,
         )
         result = router.run(
             seeded_session, query="无法归类的问题",
@@ -273,6 +490,7 @@ class TestUnknownFallback:
         assert pgvector.calls[0]["knowledge_type_code"] is None
         # audit summary carries fallback trigger via warnings.
         assert "unknown_intent" in result.warnings
+        assert web.queries == []
 
     def test_unknown_fallback_retrieves_outline_scope_after_broad_hit(self, seeded_session):
         root = models.KnowledgeOutlineNode(
@@ -348,18 +566,225 @@ class TestUnknownFallback:
             compose_output="兜底",
             tool_calls=[],  # LLM chose no tool → §1.11 decision #4 fallback
         )
-        pgvector = _FakePgvectorAdapter()
+        registry = ToolExecutorRegistry()
+        registry.register(
+            "internal.search_chunks_by_semantic",
+            lambda **kwargs: {"hits": [], "answer_contexts": []},
+        )
+        web = _FakeWebSearch()
         router = QueryRouterV2(
             llm_client=llm,
-            executor_registry=ToolExecutorRegistry(),
-            pgvector_adapter=pgvector,
+            executor_registry=registry,
+            pgvector_adapter=_FakePgvectorAdapter(),
+            web_search_client=web,
         )
         result = router.run(
             seeded_session, query="q",
             route="open_query", caller_type="api_caller",
         )
-        assert result.fallback_reason == "unknown_fallback"
+        assert result.fallback_reason is None
         assert result.audit_summary["dispatch_fallback"] == "no_tool_call"
+        assert result.intent == "scenario_1"
+        assert web.queries == ["q"]
+        assert result.external_web_results[0]["provider"] == "firecrawl"
+        assert "公开网络实时结果" in result.markdown
+        assert _compose_call_count(llm) == 0
+
+    def test_scenario_1_embedding_failure_does_not_use_web_search(
+        self, seeded_session,
+    ):
+        llm = _RoutedLLM(
+            intent={"intent": "scenario_1", "confidence": 0.9},
+            params={"extracted_params": {"query": "2025年直播电商的发展趋势"},
+                    "missing_required": []},
+            compose_output="不应出现",
+            tool_calls=[],
+        )
+        registry = ToolExecutorRegistry()
+
+        def _raise_embedding(**kwargs):
+            raise RuntimeError(
+                "EmbeddingClientError: LiteLLM embedding request failed",
+            )
+
+        registry.register("internal.search_chunks_by_semantic", _raise_embedding)
+        web = _FakeWebSearch()
+
+        result = QueryRouterV2(
+            llm_client=llm,
+            executor_registry=registry,
+            pgvector_adapter=_FakePgvectorAdapter(),
+            web_search_client=web,
+        ).run(
+            seeded_session,
+            query="2025年直播电商的发展趋势",
+            route="open_query",
+            caller_type="api_caller",
+        )
+
+        assert result.intent == "scenario_1"
+        assert result.fallback_reason == "local_retrieval_unavailable"
+        assert result.audit_summary["online_search_requested"] is False
+        assert result.audit_summary["generated_ratio"] == 0.0
+        assert web.queries == []
+        assert result.external_web_results == ()
+        assert "本地语义检索链路当前不可用" in result.markdown
+        assert _compose_call_count(llm) == 0
+
+    def test_scenario_1_dispatch_fallback_tries_semantic_chunks_before_web(
+        self, seeded_session,
+    ):
+        llm = _RoutedLLM(
+            intent={"intent": "scenario_1", "confidence": 0.9},
+            params={"extracted_params": {"query": "直播电商行业发展面临的挑战和成因"},
+                    "missing_required": []},
+            compose_output="# 平台资料汇总\n\n直播电商挑战来自平台治理。",
+            tool_calls=[],
+        )
+        registry = ToolExecutorRegistry()
+        registry.register(
+            "internal.search_chunks_by_semantic",
+            lambda **kwargs: {
+                "hits": [{
+                    "nexus_chunk_id": "industry-chunk-1",
+                    "normalized_ref_id": "industry-ref",
+                    "score": 0.86,
+                }],
+                "answer_contexts": [],
+            },
+        )
+        web = _FakeWebSearch()
+
+        result = QueryRouterV2(
+            llm_client=llm,
+            executor_registry=registry,
+            pgvector_adapter=_FakePgvectorAdapter(),
+            web_search_client=web,
+        ).run(
+            seeded_session,
+            query="直播电商行业发展面临的挑战和成因",
+            route="open_query",
+            caller_type="api_caller",
+        )
+
+        assert result.intent == "scenario_1"
+        assert result.invoked_tools == ["internal.search_chunks_by_semantic"]
+        assert result.audit_summary["dispatch_fallback"] == "no_tool_call"
+        assert result.audit_summary["online_search_requested"] is False
+        assert web.queries == []
+        assert "平台资料汇总" in result.markdown
+        assert _compose_call_count(llm) == 1
+
+    def test_scenario_1_dispatch_fallback_uses_web_only_after_semantic_empty(
+        self, seeded_session,
+    ):
+        llm = _RoutedLLM(
+            intent={"intent": "scenario_1", "confidence": 0.9},
+            params={"extracted_params": {"query": "最新AI智能体的发展趋势"},
+                    "missing_required": []},
+            compose_output="不应出现",
+            tool_calls=[],
+        )
+        registry = ToolExecutorRegistry()
+        registry.register(
+            "internal.search_chunks_by_semantic",
+            lambda **kwargs: {"hits": [], "answer_contexts": []},
+        )
+        web = _FakeWebSearch()
+
+        result = QueryRouterV2(
+            llm_client=llm,
+            executor_registry=registry,
+            pgvector_adapter=_FakePgvectorAdapter(),
+            web_search_client=web,
+        ).run(
+            seeded_session,
+            query="最新AI智能体的发展趋势",
+            route="open_query",
+            caller_type="api_caller",
+        )
+
+        assert result.intent == "scenario_1"
+        assert result.invoked_tools == ["internal.search_chunks_by_semantic"]
+        assert result.audit_summary["dispatch_fallback"] == "no_tool_call"
+        assert result.audit_summary["generated_ratio"] == 0.0
+        assert web.queries == ["最新AI智能体的发展趋势"]
+        assert "公开网络实时结果" in result.markdown
+        assert _compose_call_count(llm) == 0
+
+    def test_industry_trend_dispatch_fallback_uses_web_search_without_composer(
+        self, seeded_session,
+    ):
+        llm = _RoutedLLM(
+            intent={"intent": "unknown", "confidence": 0.9},
+            params={"extracted_params": {"query": "q"}, "missing_required": []},
+            compose_output="不应出现",
+            tool_calls=[],
+        )
+        registry = ToolExecutorRegistry()
+        registry.register(
+            "internal.search_chunks_by_semantic",
+            lambda **kwargs: {"hits": [], "answer_contexts": []},
+        )
+        web = _FakeWebSearch()
+        router = QueryRouterV2(
+            llm_client=llm,
+            executor_registry=registry,
+            pgvector_adapter=_FakePgvectorAdapter(),
+            web_search_client=web,
+        )
+
+        result = router.run(
+            seeded_session,
+            query="最新AI智能体的发展趋势",
+            route="open_query",
+            caller_type="api_caller",
+        )
+
+        assert result.fallback_reason is None
+        assert result.intent == "scenario_1"
+        assert web.queries == ["最新AI智能体的发展趋势"]
+        assert result.external_web_results[0]["source_type"] == "external_web"
+        assert result.audit_summary["generated_ratio"] == 0.0
+        assert "公开网络实时结果" in result.markdown
+        assert _compose_call_count(llm) == 0
+
+    def test_stream_industry_trend_unknown_override_reaches_web_search(
+        self, seeded_session,
+    ):
+        llm = _RoutedLLM(
+            intent={"intent": "unknown", "confidence": 0.9},
+            params={"extracted_params": {"query": "q"}, "missing_required": []},
+            compose_output="不应出现",
+            tool_calls=[],
+        )
+        registry = ToolExecutorRegistry()
+        registry.register(
+            "internal.search_chunks_by_semantic",
+            lambda **kwargs: {"hits": [], "answer_contexts": []},
+        )
+        web = _FakeWebSearch()
+        router = QueryRouterV2(
+            llm_client=llm,
+            executor_registry=registry,
+            pgvector_adapter=_FakePgvectorAdapter(),
+            web_search_client=web,
+        )
+
+        events = list(router.run_stream(
+            seeded_session,
+            query="最新AI智能体的发展趋势",
+            route="open_query",
+            caller_type="api_caller",
+        ))
+        final = [event.result for event in events if event.type == "final"][0]
+
+        assert final is not None
+        assert final.intent == "scenario_1"
+        assert web.queries == ["最新AI智能体的发展趋势"]
+        assert final.audit_summary["generated_ratio"] == 0.0
+        assert "公开网络实时结果" in final.markdown
+        assert _compose_call_count(llm) == 0
 
     def test_pgvector_missing_still_produces_answer(self, seeded_session):
         llm = _RoutedLLM(

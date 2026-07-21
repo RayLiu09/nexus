@@ -31,7 +31,7 @@ import type { KnowledgeChunkHit } from "@/lib/chunkTypes";
 import { AgenticStepTimeline } from "./AgenticStepTimeline";
 import { QueryRouterAnswer } from "./QueryRouterAnswer";
 import { StepDetailPanel } from "./StepDetailPanel";
-import type { StepPayload } from "../_lib/queryTypes";
+import type { ExternalWebResult, StepPayload } from "../_lib/queryTypes";
 
 export interface AgenticTurnState {
   query: string;
@@ -46,6 +46,7 @@ export interface AgenticTurnState {
   templateId: string | null;
   isStreaming: boolean;
   error: string | null;
+  externalWebResults?: ExternalWebResult[];
 }
 
 interface AgenticMessageProps {
@@ -167,6 +168,25 @@ function FinalAnswerPanel({ turn, onSelectChunk }: FinalAnswerPanelProps) {
   return (
     <>
       <QueryRouterAnswer markdown={turn.markdown} onSelectChunk={onSelectChunk} />
+      {(turn.externalWebResults?.length ?? 0) > 0 && (
+        <section className="mt-4 border-t border-amber-200 pt-3" aria-label="公开网络实时结果">
+          <p className="text-sm font-medium text-amber-800">公开网络实时结果</p>
+          <p className="mt-1 text-xs text-amber-700">
+            以下资料未纳入 NEXUS 治理与验证，仅供当次查询参考。
+          </p>
+          <ul className="mt-2 space-y-2 text-sm">
+            {turn.externalWebResults?.map((item) => (
+              <li key={item.url} className="rounded border border-amber-100 bg-amber-50 px-3 py-2">
+                <a className="font-medium text-blue-700 hover:underline" href={item.url} target="_blank" rel="noreferrer">
+                  {item.title}
+                </a>
+                <p className="mt-1 text-xs text-gray-600">{item.domain} · {item.retrieved_at}</p>
+                {item.snippet && <p className="mt-1 text-xs text-gray-700">{item.snippet}</p>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {turn.isStreaming && (
         <p className="mt-3 text-xs text-gray-400" data-testid="query-streaming-hint">
           正在流式接收模型输出，图表将在完成后统一渲染…

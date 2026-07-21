@@ -229,6 +229,13 @@ P0 end-to-end cases:
 - Local identity works without DingTalk.
 - AI re-score produces new `ai_governance_run` and updated `governance_result.quality_summary` while retaining feedback in `decision_trail`.
 - Knowledge Pipeline 1: normalized D4 asset → NEXUS `knowledge_chunk` / pgvector-backed semantic retrieval index → chunk carries `normalized_ref_id` → search returns result traceable to normalized ref.
+- Query Router external fallback: when a `scenario_1` industry/report query or
+  `scenario_4` textbook/general-knowledge query has no usable governed local
+  evidence, return request-scoped `external_web_results` from the configured
+  WebSearch adapter. The result is explicitly ungoverned and never persisted,
+  indexed, or assigned NEXUS citations. Structured (`scenario_2`), major/
+  graph (`scenario_3`), planning (`scenario_5`), and `unknown` queries never
+  invoke WebSearch.
 - Teaching-standard professional graphs use rule-first table extraction. A
   configured LiteLLM fallback is used only when the rules report an incomplete
   extraction; low-confidence, schema-invalid, or evidence-unbound output is

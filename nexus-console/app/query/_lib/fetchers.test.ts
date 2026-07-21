@@ -18,6 +18,7 @@ const okResponse: QueryRouterResponse = {
   fallback_reason: null,
   warnings: [],
   audit_summary: { query_route: "v2" },
+  external_web_results: [],
 };
 
 describe("fetchQueryRouterAnswer", () => {

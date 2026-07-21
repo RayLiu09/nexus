@@ -82,6 +82,14 @@ class RetrievalV2SummaryFields(TypedDict, total=False):
     matched_queries: list[str] | None
     expand_queries_status: ExpandQueriesStatus | None
 
+    # --- request-scoped public-web fallback ---
+    online_search_requested: bool
+    web_search_provider: str | None
+    external_result_count: int
+    external_result_domains: list[str]
+    external_search_latency_ms: float | None
+    external_search_error_type: str | None
+
     # --- versioning marker for future audit-analytics migrations ---
     query_route: Literal["v2"]
 

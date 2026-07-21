@@ -2,7 +2,7 @@
 
 > **状态**：初稿，待架构 / API Contract / Security Review。
 > **目标**：以定向、可验证的外部采集补足 NEXUS 冷启动期数字经济、电子商务及产业群相关的政策、报告与区域人才需求资产；同时提供用户主动开启的、仅当次有效的实时联网检索。
-> **非目标**：不将联网检索作为 `unknown` 或本地未命中的默认降级；不建设任意站点、无限深度的通用爬虫；不以实时 WebSearch 内容直接写入治理或索引。
+> **非目标**：不将联网检索作为 `unknown`、`scenario_2` 或 `scenario_3` 的降级；不建设任意站点、无限深度的通用爬虫；不以实时 WebSearch 内容直接写入治理或索引。
 
 ---
 
@@ -11,7 +11,7 @@
 本设计包含两条彼此独立的链路：
 
 1. **定期定向采集链路**：Firecrawl Connector 采集的文档和未来合规数据供应商 Connector 提供的结构化数据，必须经过 NEXUS 原始留存、标准化、治理、版本和索引，才成为可检索资产。
-2. **实时联网检索链路**：用户在检索请求中显式选择 `online_search=true` 后，AI WebSearch 仅返回当前请求的公开网络结果；结果不留存、不治理、不索引。
+2. **实时联网检索链路**：仅当 `scenario_1`（产业/行业报告）或 `scenario_4`（教材/通用知识）没有可用的本地 NEXUS 资产证据时，Query Router 自动调用当前配置的 WebSearch Provider。结果仅属于当前请求，且不留存、不治理、不索引。
 
 两条链路不得互相自动转换：实时 WebSearch 返回的 URL 或正文不自动进入采集候选或资产管道；定期采集作业也不依赖任意用户检索触发。
 
@@ -22,7 +22,8 @@
 - `pipeline_type` 在 Connector / ingest gateway 创建 Job 时显式决定并冻结在 `Job.payload.pipeline_type`；Worker 不做路由推断。
 - 采集 Connector 的来源、许可、抓取规则和内容质量必须可追溯。
 - 合规数据供应商 Connector 在本设计中仅定义抽象入口与入站契约；不实现任何具体供应商适配器、认证或数据拉取逻辑。
-- `online_search` 默认关闭；开启后不设置 `external_search` 专属权限门禁，已认证的 Console 用户和 API caller 都可使用。
+- WebSearch 由符合条件的无本地证据请求自动触发；不设置
+  `external_search` 专属权限门禁，已认证的 Console 用户和 API caller 都可使用。
 - 即使不做专属权限限制，敏感查询外发阻断、供应商额度、速率、超时、审计和安全防护仍是强制约束。
 
 ---
@@ -56,10 +57,10 @@
       |
       +--> 本地 NEXUS 检索（始终执行）
       |
-      +--> options.online_search=true
+      +--> scenario_1 / scenario_4 且本地无有效证据
               |
               v
-          AI WebSearch -> external_web_results（仅当前响应）
+          WebSearch Provider -> external_web_results（仅当前响应）
 ```
 
 NEXUS 负责资产、原始内容、治理、索引、权限和审计。Connector 负责按批准计划采集外部内容。NEXUS 不承担一个可随意访问任何网站的常驻通用网络爬虫。
@@ -301,27 +302,9 @@ Firecrawl 输出的采集对象必须包含：
 
 ### 4.1 用户与 API 行为
 
-检索界面增加开关：
+Query Router 的内外入口不接受用户强制 WebSearch 的选项。本地 NEXUS 检索始终先执行；只有 `scenario_1` 或 `scenario_4` 的成功本地检索没有可用 chunk/上下文证据时，才自动调用 WebSearch。`scenario_2`（结构化岗位/能力/布点）、`scenario_3`（专业信息/图谱）、`scenario_5` 和 `unknown` 永不调用该 Provider。
 
-```text
-[ ] 联网搜索公开资料
-```
-
-默认关闭。开启后，系统提示“联网结果来自公开网络，未纳入 NEXUS 治理与资产库，结果不会保存”。不配置 `external_search` 专属权限，也不按 Console 用户或 API caller 额外限制；现有 Console session / API key 鉴权仍然是入口基础认证。
-
-Query Router 的内外入口使用同一选项：
-
-```json
-{
-  "query": "2026年浙江省电子商务和数字经济的产业政策、报告与人才需求",
-  "options": {
-    "online_search": true,
-    "online_search_mode": "supplement"
-  }
-}
-```
-
-`online_search_mode` 在初期固定为 `supplement`。本地 NEXUS 检索始终执行；不提供 `web_only`，也不把联网结果改写成 NEXUS 的本地召回结果。
+当前默认 Provider 是 Firecrawl Search，配置使用既有 `FIRECRAWL_API_ENDPOINT` 与 `FIRECRAWL_API_KEY`；通过 `AI_WEB_SEARCH_PROVIDER` 选择适配器，后续供应商必须实现相同的 request-scoped `AIWebSearchClient` 契约。NEXUS 不提供 `web_only`，也不把外部结果改写为本地召回结果。
 
 ### 4.2 返回模型与展示
 
@@ -374,7 +357,7 @@ Query Router 的内外入口使用同一选项：
 - 只向 WebSearch Provider 发送经过策略处理后的 query；不发送会话历史、内部检索正文、内部资产元数据、用户身份或权限信息。
 - 外部页面/摘要是非可信输入；禁止由其触发新的工具调用、文件下载、二次网页抓取或改变系统指令。
 - 限制单次结果数、响应大小、总超时、并发、供应商调用成本；供应商 429/5xx/超时时不影响本地检索结果。
-- Provider 失败时，返回 `external_search_unavailable` warning 和正常本地结果。
+- Provider 未配置、失败、429/5xx 或超时时，返回 `external_search_unavailable` warning 和正常本地结果。
 - 审计只记录 `query_hash`、`online_search_requested`、`provider`、结果数、域名列表、延迟、错误类型和 trace ID；不记录外部正文、完整摘要或敏感原 query。
 
 ---
@@ -413,7 +396,7 @@ Query Router 的内外入口使用同一选项：
 - 未来合规 JSON 岗位数据能依照抽象协议以 `pipeline_type=record` 进入 Pipeline B，保留数据来源、授权、时间和地域证据。
 - 未注册域名、来源等级不足、内容不完整或不合规的对象不得创建正式资产。
 - 同一规范 URL 内容更新产生新版本；相同正文的跨来源重复可追溯且不重复索引。
-- `online_search=false` 时没有任何外部请求；`true` 时本地和外部结果分区返回。
+- 只有 `scenario_1` / `scenario_4` 本地无有效证据时允许外部请求；其余场景、`unknown`、本地有证据和敏感 query 均不得发起外部请求。
 - 实时外部结果在请求结束后不落库、不入治理、不入索引、不进入跨请求缓存。
 - 敏感 query 被阻断外发；Provider 故障不影响本地检索。
 

@@ -62,6 +62,7 @@ def _result_payload(result: RouterResult) -> dict[str, Any]:
         "fallback_reason": result.fallback_reason,
         "warnings": list(result.warnings),
         "audit_summary": result.audit_summary,
+        "external_web_results": list(getattr(result, "external_web_results", ())),
     }
 
 

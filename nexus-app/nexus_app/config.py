@@ -95,6 +95,21 @@ class Settings(BaseSettings):
     litellm_api_key: str | None = None
     litellm_timeout: float = Field(default=30.0, alias="LITELLM_TIMEOUT")
     litellm_retry_attempts: int = Field(default=3, alias="LITELLM_RETRY_ATTEMPTS")
+    ai_web_search_provider: str = Field(
+        default="firecrawl", alias="AI_WEB_SEARCH_PROVIDER",
+    )
+    ai_web_search_timeout_seconds: float = Field(
+        default=12.0, alias="AI_WEB_SEARCH_TIMEOUT_SECONDS",
+    )
+    ai_web_search_max_results: int = Field(
+        default=5, ge=1, le=10, alias="AI_WEB_SEARCH_MAX_RESULTS",
+    )
+    firecrawl_api_endpoint: str | None = Field(
+        default=None, alias="FIRECRAWL_API_ENDPOINT",
+    )
+    firecrawl_api_key: str | None = Field(
+        default=None, alias="FIRECRAWL_API_KEY",
+    )
     default_governance_model: str = Field(
         default="gpt-4o-mini",
         alias="DEFAULT_GOVERNANCE_MODEL",

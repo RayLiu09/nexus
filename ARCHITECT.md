@@ -64,6 +64,11 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
   must admit its output before capability-graph staging consumes it.
 - MinerU is called with auto-selected `model_version` and `ocr_enable`; images are stored alongside the JSON result.
 - Knowledge Pipeline is independent of Asset Pipeline; they connect only through `normalized_asset_ref`.
+- Query Router may use request-scoped public-web fallback only after a
+  `scenario_1` or `scenario_4` local retrieval has no usable NEXUS evidence.
+  `scenario_2`, `scenario_3`, `scenario_5`, and `unknown` never use it.
+  Web results are ungoverned, never persisted/indexed, and are returned in a
+  separate `external_web_results` response field.
 
 ## Logical Layers
 

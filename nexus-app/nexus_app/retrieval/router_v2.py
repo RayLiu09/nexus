@@ -69,6 +69,7 @@ from nexus_app.retrieval.tools_registry import (
     ToolRegistry,
     get_default_tool_registry,
 )
+from nexus_app.retrieval.web_search import AIWebSearchClient, WebSearchOutcome
 
 logger = logging.getLogger(__name__)
 
@@ -175,6 +176,7 @@ class RouterResult:
     invoked_tools: list[str]
     fallback_reason: str | None = None
     warnings: tuple[str, ...] = field(default_factory=tuple)
+    external_web_results: tuple[dict[str, Any], ...] = field(default_factory=tuple)
 
 
 # ---------------------------------------------------------------------------
@@ -280,6 +282,7 @@ class QueryRouterV2:
     executor_registry: ToolExecutorRegistry
     pgvector_adapter: PgvectorSearchAdapter | None = None
     tool_registry: ToolRegistry | None = None
+    web_search_client: AIWebSearchClient | None = None
     model_alias: str | None = None
 
     def _effective_model_alias(self) -> str:
@@ -373,6 +376,17 @@ class QueryRouterV2:
             )
 
         if dispatch_result.fallback_reason is not None:
+            if _is_web_search_eligible_intent(intent_result.intent):
+                return self._semantic_tool_fallback_path(
+                    session,
+                    query=query,
+                    intent_result=intent_result,
+                    param_result=param_result,
+                    route=route,
+                    caller_type=caller_type,
+                    trigger=dispatch_result.fallback_reason,
+                    dispatch_result=dispatch_result,
+                )
             # unknown_intent / no_tool_call / param_validation_failed /
             # llm_call_failed / no_tools_registered / tool_execution_failed
             # → all route through §六 vector-only fallback.
@@ -385,16 +399,34 @@ class QueryRouterV2:
                 caller_type=caller_type,
                 trigger=dispatch_result.fallback_reason,
                 dispatch_result=dispatch_result,
+                preserve_intent_for_web_search=_is_web_search_eligible_intent(
+                    intent_result.intent,
+                ),
             )
 
         # ------------------------------------------------------------
         # Layer 3: composer
         # ------------------------------------------------------------
-        composer = MDComposerV2(llm_client=self.llm_client)
-        compose_result = composer.compose(
-            session, query=query, dispatch_result=dispatch_result,
-        )
-
+        web_search_outcome = None
+        local_retrieval_failed = _has_local_retrieval_failure(dispatch_result)
+        if local_retrieval_failed:
+            compose_result = _local_retrieval_failure_compose_result(
+                intent_result.intent,
+            )
+        else:
+            web_search_outcome = self._maybe_web_search(
+                query=query,
+                intent=intent_result.intent,
+                dispatch_result=dispatch_result,
+            )
+            if _requires_no_evidence_result(intent_result.intent, dispatch_result):
+                compose_result = _no_evidence_compose_result(
+                    intent_result.intent, web_search_outcome,
+                )
+            else:
+                compose_result = MDComposerV2(llm_client=self.llm_client).compose(
+                    session, query=query, dispatch_result=dispatch_result,
+                )
         summary = self._build_summary(
             route=route,
             caller_type=caller_type,
@@ -402,6 +434,7 @@ class QueryRouterV2:
             param_result=param_result,
             dispatch_result=dispatch_result,
             compose_result=compose_result,
+            web_search_outcome=web_search_outcome,
         )
 
         return RouterResult(
@@ -413,7 +446,12 @@ class QueryRouterV2:
             invoked_tools=dispatch_result.invoked_tool_names,
             fallback_reason=compose_result.fallback_reason,
             warnings=tuple(list(dispatch_result.warnings)
-                           + list(compose_result.warnings)),
+                           + list(compose_result.warnings)
+                           + ([web_search_outcome.warning]
+                              if web_search_outcome and web_search_outcome.warning else [])),
+            external_web_results=tuple(
+                item.to_api_dict() for item in web_search_outcome.results
+            ) if web_search_outcome else (),
         )
 
     # ------------------------------------------------------------------ #
@@ -469,7 +507,7 @@ class QueryRouterV2:
         intent_classifier = IntentClassifierV2(llm_client=self.llm_client)
         intent_result = intent_classifier.classify(session, query)
         intent_result = apply_subject_route_guard(
-            intent_result, resolve_query_subject(session, query),
+            intent_result, resolve_query_subject(session, query), query,
         )
         yield _step_completed(
             "intent_classify", "意图分类",
@@ -676,16 +714,28 @@ class QueryRouterV2:
                 },
                 started_at_ms=fallback_started,
             )
-            result = self._unknown_fallback_path(
-                session,
-                query=query,
-                intent_result=intent_result,
-                param_result=param_result,
-                route=route,
-                caller_type=caller_type,
-                trigger=dispatch_result.fallback_reason,
-                dispatch_result=dispatch_result,
-            )
+            if _is_web_search_eligible_intent(intent_result.intent):
+                result = self._semantic_tool_fallback_path(
+                    session,
+                    query=query,
+                    intent_result=intent_result,
+                    param_result=param_result,
+                    route=route,
+                    caller_type=caller_type,
+                    trigger=dispatch_result.fallback_reason,
+                    dispatch_result=dispatch_result,
+                )
+            else:
+                result = self._unknown_fallback_path(
+                    session,
+                    query=query,
+                    intent_result=intent_result,
+                    param_result=param_result,
+                    route=route,
+                    caller_type=caller_type,
+                    trigger=dispatch_result.fallback_reason,
+                    dispatch_result=dispatch_result,
+                )
             yield _step_completed(
                 "unknown_fallback", "兜底检索",
                 input={
@@ -732,22 +782,41 @@ class QueryRouterV2:
             },
             started_at_ms=compose_started,
         )
-        composer = MDComposerV2(llm_client=self.llm_client)
         compose_result: ComposeResult | None = None
-        for event in composer.compose_stream(
-            session, query=query, dispatch_result=dispatch_result,
-        ):
-            if event.type == "chunk":
-                yield RouterStreamEvent(type="chunk", text=event.text)
-            elif event.type == "final":
-                compose_result = event.result
-            elif event.type == "fallback":
-                compose_result = event.result
-                if event.result and event.result.fallback_reason:
-                    yield RouterStreamEvent(
-                        type="error",
-                        reason=event.result.fallback_reason,
-                    )
+        web_search_outcome = None
+        local_retrieval_failed = _has_local_retrieval_failure(dispatch_result)
+        if local_retrieval_failed:
+            compose_result = _local_retrieval_failure_compose_result(
+                intent_result.intent,
+            )
+            yield RouterStreamEvent(type="chunk", text=compose_result.raw_markdown)
+        else:
+            web_search_outcome = self._maybe_web_search(
+                query=query,
+                intent=intent_result.intent,
+                dispatch_result=dispatch_result,
+            )
+            if _requires_no_evidence_result(intent_result.intent, dispatch_result):
+                compose_result = _no_evidence_compose_result(
+                    intent_result.intent, web_search_outcome,
+                )
+                yield RouterStreamEvent(type="chunk", text=compose_result.raw_markdown)
+            else:
+                composer = MDComposerV2(llm_client=self.llm_client)
+                for event in composer.compose_stream(
+                    session, query=query, dispatch_result=dispatch_result,
+                ):
+                    if event.type == "chunk":
+                        yield RouterStreamEvent(type="chunk", text=event.text)
+                    elif event.type == "final":
+                        compose_result = event.result
+                    elif event.type == "fallback":
+                        compose_result = event.result
+                        if event.result and event.result.fallback_reason:
+                            yield RouterStreamEvent(
+                                type="error",
+                                reason=event.result.fallback_reason,
+                            )
 
         if compose_result is None:
             # Composer stream ended without emitting final/fallback —
@@ -769,6 +838,7 @@ class QueryRouterV2:
             param_result=param_result,
             dispatch_result=dispatch_result,
             compose_result=compose_result,
+            web_search_outcome=web_search_outcome,
         )
         result = RouterResult(
             markdown=compose_result.markdown,
@@ -779,7 +849,12 @@ class QueryRouterV2:
             invoked_tools=dispatch_result.invoked_tool_names,
             fallback_reason=compose_result.fallback_reason,
             warnings=tuple(list(dispatch_result.warnings)
-                           + list(compose_result.warnings)),
+                           + list(compose_result.warnings)
+                           + ([web_search_outcome.warning]
+                              if web_search_outcome and web_search_outcome.warning else [])),
+            external_web_results=tuple(
+                item.to_api_dict() for item in web_search_outcome.results
+            ) if web_search_outcome else (),
         )
         yield _step_completed(
             "compose", "Markdown 汇总",
@@ -821,6 +896,7 @@ class QueryRouterV2:
         caller_type: CallerType,
         trigger: str,
         dispatch_result: DispatchResult | None = None,
+        preserve_intent_for_web_search: bool = False,
     ) -> RouterResult:
         """§六 vector-only cross-type top-K fallback.
 
@@ -884,8 +960,11 @@ class QueryRouterV2:
                     exc,
                 )
 
+        fallback_intent = (
+            intent_result.intent if preserve_intent_for_web_search else "unknown"
+        )
         synthetic_result = DispatchResult(
-            intent="unknown",
+            intent=fallback_intent,
             tool_results=(ToolResult(
                 tool_call_id="__unknown_fallback__",
                 name="internal.search_chunks_by_semantic",
@@ -913,15 +992,24 @@ class QueryRouterV2:
             chart_registry=chart_registry,
         )
 
-        composer = MDComposerV2(llm_client=self.llm_client)
-        compose_result = composer.compose(
-            session, query=query, dispatch_result=synthetic_result,
+        web_search_outcome = self._maybe_web_search(
+            query=query,
+            intent=fallback_intent,
+            dispatch_result=synthetic_result,
         )
+        if _requires_no_evidence_result(fallback_intent, synthetic_result):
+            compose_result = _no_evidence_compose_result(
+                fallback_intent, web_search_outcome,
+            )
+        else:
+            compose_result = MDComposerV2(llm_client=self.llm_client).compose(
+                session, query=query, dispatch_result=synthetic_result,
+            )
 
         summary_fields: RetrievalV2SummaryFields = {
             "route": route,
             "caller_type": caller_type,
-            "intent": "unknown",
+            "intent": fallback_intent,
             "intent_confidence": intent_result.confidence,
             "invoked_tools": [],
             "missing_optional_params": param_result.missing_required,
@@ -939,6 +1027,7 @@ class QueryRouterV2:
             "matched_queries": None,
             "expand_queries_status": None,
             "query_route": "v2",
+            **_web_search_audit_fields(web_search_outcome),
         }
         summary = build_retrieval_v2_summary(fields=summary_fields)
 
@@ -946,11 +1035,173 @@ class QueryRouterV2:
             markdown=compose_result.markdown,
             raw_markdown=compose_result.raw_markdown,
             audit_summary=summary,
-            intent="unknown",
+            intent=fallback_intent,
             intent_confidence=intent_result.confidence,
             invoked_tools=[],
             fallback_reason="unknown_fallback",
-            warnings=(trigger,),
+            warnings=tuple([trigger] + ([web_search_outcome.warning]
+                if web_search_outcome and web_search_outcome.warning else [])),
+            external_web_results=tuple(
+                item.to_api_dict() for item in web_search_outcome.results
+            ) if web_search_outcome else (),
+        )
+
+    def _semantic_tool_fallback_path(
+        self,
+        session: Session,
+        *,
+        query: str,
+        intent_result: IntentV2Result,
+        param_result: ParamExtractionResult,
+        route: RouteType,
+        caller_type: CallerType,
+        trigger: str,
+        dispatch_result: DispatchResult,
+    ) -> RouterResult:
+        """Run the single semantic tool deterministically after dispatch failure.
+
+        Scenario 1/4 are semantic-chunk retrieval scenarios. If the LLM
+        dispatcher returns no tool call or fails, the router should still try
+        the registered NEXUS semantic retrieval before public-web fallback.
+        """
+        tool_name = "internal.search_chunks_by_semantic"
+        executor = self.executor_registry.get(tool_name)
+        chart_registry = dispatch_result.chart_registry
+        if executor is None:
+            compose_result = _local_retrieval_failure_compose_result(
+                intent_result.intent,
+            )
+            synthetic_result = DispatchResult(
+                intent=intent_result.intent,
+                tool_results=(ToolResult(
+                    tool_call_id="__semantic_dispatch_fallback__",
+                    name=tool_name,
+                    arguments={},
+                    ok=False,
+                    error="no executor registered",
+                ),),
+                chart_registry=chart_registry,
+                warnings=(
+                    *dispatch_result.warnings,
+                    trigger,
+                    "semantic_tool_unavailable",
+                ),
+            )
+            summary = self._build_summary(
+                route=route,
+                caller_type=caller_type,
+                intent_result=intent_result,
+                param_result=param_result,
+                dispatch_result=synthetic_result,
+                compose_result=compose_result,
+                web_search_outcome=None,
+                dispatch_fallback=trigger,
+            )
+            return RouterResult(
+                markdown=compose_result.markdown,
+                raw_markdown=compose_result.raw_markdown,
+                audit_summary=summary,
+                intent=intent_result.intent,
+                intent_confidence=intent_result.confidence,
+                invoked_tools=[],
+                fallback_reason=compose_result.fallback_reason,
+                warnings=synthetic_result.warnings,
+            )
+
+        arguments = _semantic_fallback_arguments(
+            query=query,
+            intent=intent_result.intent,
+            extracted_params=param_result.extracted_params,
+        )
+        try:
+            payload = executor(
+                session=session,
+                arguments=arguments,
+                tool_call_id="__semantic_dispatch_fallback__",
+                chart_registry=chart_registry,
+            )
+            tool_result = ToolResult(
+                tool_call_id="__semantic_dispatch_fallback__",
+                name=tool_name,
+                arguments=arguments,
+                ok=True,
+                result=payload,
+            )
+            warnings = (
+                *dispatch_result.warnings,
+                trigger,
+                "semantic_tool_fallback",
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "router_v2: semantic dispatch fallback failed: %s",
+                exc,
+            )
+            tool_result = ToolResult(
+                tool_call_id="__semantic_dispatch_fallback__",
+                name=tool_name,
+                arguments=arguments,
+                ok=False,
+                error=type(exc).__name__,
+            )
+            warnings = (
+                *dispatch_result.warnings,
+                trigger,
+                "semantic_tool_fallback_failed",
+            )
+
+        semantic_result = DispatchResult(
+            intent=intent_result.intent,
+            tool_results=(tool_result,),
+            chart_registry=chart_registry,
+            warnings=warnings,
+        )
+        web_search_outcome = None
+        local_retrieval_failed = _has_local_retrieval_failure(semantic_result)
+        if local_retrieval_failed:
+            compose_result = _local_retrieval_failure_compose_result(
+                intent_result.intent,
+            )
+        else:
+            web_search_outcome = self._maybe_web_search(
+                query=query,
+                intent=intent_result.intent,
+                dispatch_result=semantic_result,
+            )
+            if _requires_no_evidence_result(intent_result.intent, semantic_result):
+                compose_result = _no_evidence_compose_result(
+                    intent_result.intent, web_search_outcome,
+                )
+            else:
+                compose_result = MDComposerV2(llm_client=self.llm_client).compose(
+                    session, query=query, dispatch_result=semantic_result,
+                )
+
+        summary = self._build_summary(
+            route=route,
+            caller_type=caller_type,
+            intent_result=intent_result,
+            param_result=param_result,
+            dispatch_result=semantic_result,
+            compose_result=compose_result,
+            web_search_outcome=web_search_outcome,
+            dispatch_fallback=trigger,
+        )
+        return RouterResult(
+            markdown=compose_result.markdown,
+            raw_markdown=compose_result.raw_markdown,
+            audit_summary=summary,
+            intent=intent_result.intent,
+            intent_confidence=intent_result.confidence,
+            invoked_tools=semantic_result.invoked_tool_names,
+            fallback_reason=compose_result.fallback_reason,
+            warnings=tuple(list(semantic_result.warnings)
+                           + list(compose_result.warnings)
+                           + ([web_search_outcome.warning]
+                              if web_search_outcome and web_search_outcome.warning else [])),
+            external_web_results=tuple(
+                item.to_api_dict() for item in web_search_outcome.results
+            ) if web_search_outcome else (),
         )
 
     def _scenario_5_placeholder(
@@ -1007,6 +1258,8 @@ class QueryRouterV2:
         param_result: ParamExtractionResult,
         dispatch_result: DispatchResult,
         compose_result: ComposeResult,
+        web_search_outcome: WebSearchOutcome | None = None,
+        dispatch_fallback: str | None = None,
     ) -> dict[str, Any]:
         intent_typed: IntentType = intent_result.intent  # type: ignore[assignment]
         summary_fields: RetrievalV2SummaryFields = {
@@ -1016,7 +1269,7 @@ class QueryRouterV2:
             "intent_confidence": intent_result.confidence,
             "invoked_tools": dispatch_result.invoked_tool_names,
             "missing_optional_params": param_result.missing_required,
-            "dispatch_fallback": None,
+            "dispatch_fallback": dispatch_fallback,  # type: ignore[typeddict-item]
             "generated_ratio": compose_result.generated_ratio,
             "template_id": None,
             "chart_hallucination_ids": list(
@@ -1026,8 +1279,165 @@ class QueryRouterV2:
             "matched_queries": None,
             "expand_queries_status": None,
             "query_route": "v2",
+            **_web_search_audit_fields(web_search_outcome),
         }
         return build_retrieval_v2_summary(fields=summary_fields)
+
+    def _maybe_web_search(
+        self,
+        *,
+        query: str,
+        intent: str,
+        dispatch_result: DispatchResult,
+    ) -> WebSearchOutcome | None:
+        """Use public-web search only for eligible no-local-evidence queries."""
+        if intent not in {"scenario_1", "scenario_4"}:
+            return None
+        if _has_local_retrieval_failure(dispatch_result):
+            return None
+        if _has_usable_local_evidence(dispatch_result):
+            return None
+        if self.web_search_client is None:
+            return WebSearchOutcome(
+                warning="external_search_unavailable",
+                error_type="not_configured",
+            )
+        return self.web_search_client.search(query)
+
+
+def _has_usable_local_evidence(dispatch_result: DispatchResult) -> bool:
+    """Return true only for actual local retrieval evidence, not an empty call."""
+    for tool_result in dispatch_result.tool_results:
+        if not tool_result.ok or not isinstance(tool_result.result, dict):
+            continue
+        payload = tool_result.result
+        if isinstance(payload.get("hits"), list) and payload["hits"]:
+            return True
+        if isinstance(payload.get("answer_contexts"), list) and payload["answer_contexts"]:
+            return True
+        count = payload.get("count")
+        if payload.get("found") is True or (
+            isinstance(count, int) and count > 0
+        ):
+            return True
+        if any(isinstance(payload.get(key), list) and payload[key]
+               for key in ("records", "analyses", "items", "results")):
+            return True
+        units = payload.get("units")
+        if isinstance(units, dict) and any(
+            isinstance(unit, dict)
+            and unit.get("status") in {"structured", "chunk_fallback"}
+            for unit in units.values()
+        ):
+            return True
+    return False
+
+
+def _has_local_retrieval_failure(dispatch_result: DispatchResult) -> bool:
+    """True means local NEXUS retrieval failed, not that assets are absent."""
+    for tool_result in dispatch_result.tool_results:
+        if tool_result.ok:
+            continue
+        if _is_semantic_retrieval_tool(tool_result.name):
+            return True
+        error = tool_result.error or ""
+        if "EmbeddingClientError" in error or "embedding" in error.lower():
+            return True
+    return False
+
+
+def _is_semantic_retrieval_tool(name: str) -> bool:
+    return name == "internal.search_chunks_by_semantic"
+
+
+def _is_web_search_eligible_intent(intent: str) -> bool:
+    return intent in {"scenario_1", "scenario_4"}
+
+
+def _semantic_fallback_arguments(
+    *,
+    query: str,
+    intent: str,
+    extracted_params: dict[str, Any],
+) -> dict[str, Any]:
+    fallback_query = extracted_params.get("query")
+    if not isinstance(fallback_query, str) or not fallback_query.strip():
+        fallback_query = query
+    arguments: dict[str, Any] = {
+        "query": fallback_query.strip(),
+        "top_k": 10,
+        "expand_queries": True,
+    }
+    if intent == "scenario_1":
+        arguments["kb"] = "industry_research_kb"
+    return arguments
+
+
+def _requires_no_evidence_result(
+    intent: str,
+    dispatch_result: DispatchResult,
+) -> bool:
+    return intent in {"scenario_1", "scenario_2", "scenario_3", "scenario_4"} and not _has_usable_local_evidence(dispatch_result)
+
+
+def _no_evidence_compose_result(
+    intent: str,
+    outcome: WebSearchOutcome | None,
+) -> ComposeResult:
+    """Return a bounded no-data response without invoking the Composer LLM."""
+    if intent in {"scenario_1", "scenario_4"}:
+        if outcome and outcome.results:
+            markdown = (
+                "> NEXUS 当前没有检索到可核验的已治理资料。\n\n"
+                "已在下方返回公开网络实时结果；这些结果未纳入 NEXUS 治理与验证。"
+            )
+        elif outcome and outcome.warning:
+            markdown = (
+                "> NEXUS 当前没有检索到可核验的已治理资料。\n\n"
+                "公开网络检索当前不可用或未返回结果。"
+            )
+        else:
+            markdown = "> NEXUS 当前没有检索到可核验的已治理资料。"
+    elif intent == "scenario_2":
+        markdown = "> 未检索到匹配的岗位需求、职业能力或专业布点结构化数据。"
+    else:
+        markdown = "> 未检索到可核验的专业信息或专业图谱数据。"
+    return ComposeResult(
+        markdown=markdown,
+        raw_markdown=markdown,
+        generated_ratio=0.0,
+    )
+
+
+def _local_retrieval_failure_compose_result(intent: str) -> ComposeResult:
+    if intent in {"scenario_1", "scenario_4"}:
+        markdown = (
+            "> NEXUS 本地语义检索链路当前不可用，未能完成平台资产检索。\n\n"
+            "本次不会启用公开网络检索兜底；请稍后重试或检查 LiteLLM embedding 服务状态。"
+        )
+    else:
+        markdown = "> NEXUS 本地检索链路当前不可用，未能完成平台资产检索。"
+    return ComposeResult(
+        markdown=markdown,
+        raw_markdown=markdown,
+        generated_ratio=0.0,
+        fallback_reason="local_retrieval_unavailable",
+    )
+
+
+def _web_search_audit_fields(
+    outcome: WebSearchOutcome | None,
+) -> dict[str, Any]:
+    if outcome is None:
+        return {"online_search_requested": False}
+    return {
+        "online_search_requested": True,
+        "web_search_provider": outcome.provider,
+        "external_result_count": len(outcome.results),
+        "external_result_domains": outcome.domains,
+        "external_search_latency_ms": outcome.latency_ms,
+        "external_search_error_type": outcome.error_type,
+    }
 
 
 __all__ = [
