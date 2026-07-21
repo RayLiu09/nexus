@@ -150,4 +150,19 @@ describe("AgenticMessage", () => {
     await user.click(screen.getByTestId("query-retrieval-chunk-chunk-1"));
     expect(screen.getByTestId("chunk-preview-drawer-stub")).toHaveTextContent("chunk-1");
   });
+
+  it("opens the source preview drawer from a final-answer footnote", async () => {
+    const user = userEvent.setup();
+    const chunkId = "8493639b-197c-4ca0-8986-cdd4850da081";
+    render(
+      <AgenticMessage
+        turn={makeTurn({
+          markdown: `结论[^ref1]。\n\n[^ref1]: 来源：白皮书，chunk_id: ${chunkId}，页码：第14页`,
+        })}
+      />,
+    );
+
+    await user.click(screen.getByRole("link", { name: "查看原文" }));
+    expect(screen.getByTestId("chunk-preview-drawer-stub")).toHaveTextContent(chunkId);
+  });
 });

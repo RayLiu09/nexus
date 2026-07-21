@@ -9,6 +9,7 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import { QueryRouterAnswer } from "./QueryRouterAnswer";
 
@@ -69,5 +70,23 @@ describe("QueryRouterAnswer", () => {
     expect(screen.getByText("来源引用")).toBeInTheDocument();
     // The footnote definition remains in the collapsed source section.
     expect(screen.getByText(/政策原文来源/)).toBeInTheDocument();
+  });
+
+  it("opens the selected chunk from a footnote source link", async () => {
+    const user = userEvent.setup();
+    const onSelectChunk = vi.fn();
+    const chunkId = "8493639b-197c-4ca0-8986-cdd4850da081";
+    render(
+      <QueryRouterAnswer
+        markdown={`结论[^ref1]。\n\n[^ref1]: 来源：白皮书，chunk_id: ${chunkId}，页码：第14页`}
+        onSelectChunk={onSelectChunk}
+      />,
+    );
+
+    await user.click(screen.getByRole("link", { name: "查看原文" }));
+    expect(onSelectChunk).toHaveBeenCalledWith(expect.objectContaining({
+      chunk_id: chunkId,
+      nexus_chunk_id: chunkId,
+    }));
   });
 });

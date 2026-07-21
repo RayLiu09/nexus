@@ -29,16 +29,19 @@ import remarkGfm from "remark-gfm";
 import { useCallback } from "react";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
+import type { KnowledgeChunkHit } from "@/lib/chunkTypes";
+
 import { EchartsFence } from "./EchartsFence";
 
 interface QueryRouterAnswerProps {
   markdown: string;
+  onSelectChunk?: (chunk: KnowledgeChunkHit) => void;
 }
 
 const CHART_LANG = "chart:echarts";
 const GENERATED_MARKER = "⚠️";
 
-export function QueryRouterAnswer({ markdown }: QueryRouterAnswerProps) {
+export function QueryRouterAnswer({ markdown, onSelectChunk }: QueryRouterAnswerProps) {
   const handleAnchorClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
     if (target.tagName !== "A") return;
@@ -46,13 +49,22 @@ export function QueryRouterAnswer({ markdown }: QueryRouterAnswerProps) {
     const href = anchor.getAttribute("href") || "";
     if (!href.startsWith("#")) return;
     const id = href.slice(1);
+    if (id.startsWith("chunk-preview-")) {
+      const chunkId = decodeURIComponent(id.slice("chunk-preview-".length));
+      if (!chunkId || !onSelectChunk) return;
+      event.preventDefault();
+      onSelectChunk({ chunk_id: chunkId, nexus_chunk_id: chunkId, id: chunkId, content: "" });
+      return;
+    }
     const el = document.getElementById(id);
     if (!el) return;
     event.preventDefault();
     const footnotes = el.closest("details");
     if (footnotes instanceof HTMLDetailsElement) footnotes.open = true;
     el.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, []);
+  }, [onSelectChunk]);
+
+  const renderMarkdown = onSelectChunk ? addFootnotePreviewLinks(markdown) : markdown;
 
   return (
     <div
@@ -69,9 +81,19 @@ export function QueryRouterAnswer({ markdown }: QueryRouterAnswerProps) {
           section: FootnoteSectionRenderer,
         }}
       >
-        {markdown}
+        {renderMarkdown}
       </ReactMarkdown>
     </div>
+  );
+}
+
+const FOOTNOTE_CHUNK_ID_RE = /(^\[\^[^\]]+\]:[^\n]*?\bchunk_id\s*[:：]\s*`?)([0-9a-f-]{36})(`?[^\n]*)$/gim;
+
+function addFootnotePreviewLinks(markdown: string): string {
+  return markdown.replace(
+    FOOTNOTE_CHUNK_ID_RE,
+    (_matched, prefix: string, chunkId: string, suffix: string) =>
+      `${prefix}${chunkId}${suffix} [查看原文](#chunk-preview-${chunkId})`,
   );
 }
 

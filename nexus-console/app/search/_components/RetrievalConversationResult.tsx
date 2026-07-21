@@ -51,7 +51,7 @@ export function RetrievalConversationResult({
       ) : data.status === "needs_clarification" ? (
         <ClarificationPanel data={data} onApplyRefinement={onApplyRefinement} />
       ) : (
-        <MarkdownAnswer data={data} />
+        <MarkdownAnswer data={data} onSelectSourceRef={onSelectSourceRef} />
       )}
 
       {/*
@@ -108,7 +108,13 @@ export function RetrievalConversationResult({
   );
 }
 
-function MarkdownAnswer({ data }: { data: KnowledgeRetrievalResponse }) {
+function MarkdownAnswer({
+  data,
+  onSelectSourceRef,
+}: {
+  data: KnowledgeRetrievalResponse;
+  onSelectSourceRef?: (ref: RetrievalSourceRef) => void;
+}) {
   return (
     <div className="rounded-lg border border-[var(--line)] bg-[var(--surface-alt)] p-4">
       <ResultSectionTitle
@@ -121,7 +127,20 @@ function MarkdownAnswer({ data }: { data: KnowledgeRetrievalResponse }) {
       />
       {data.markdown ? (
         <div className="prose max-w-none leading-7">
-          <QueryRouterAnswer markdown={data.markdown} />
+          <QueryRouterAnswer
+            markdown={data.markdown}
+            onSelectChunk={
+              onSelectSourceRef
+                ? (chunk) => onSelectSourceRef({
+                    source_ref_id: `footnote:${chunk.nexus_chunk_id ?? chunk.chunk_id}`,
+                    channel: "semantic",
+                    domain: "knowledge",
+                    chunk_id: chunk.nexus_chunk_id ?? chunk.chunk_id,
+                    normalized_ref_id: chunk.normalized_ref_id,
+                  })
+                : undefined
+            }
+          />
         </div>
       ) : (
         <Empty description="本次召回没有生成 Markdown 结果" />

@@ -79,7 +79,7 @@ export function AgenticMessage({ turn }: AgenticMessageProps) {
             {selectedStep ? (
               <StepDetailPanel step={selectedStep} onSelectChunk={setSelectedChunk} />
             ) : (
-              <FinalAnswerPanel turn={turn} />
+              <FinalAnswerPanel turn={turn} onSelectChunk={setSelectedChunk} />
             )}
           </section>
         </div>
@@ -148,9 +148,10 @@ function TurnMetaStrip({ turn }: TurnMetaStripProps) {
 
 interface FinalAnswerPanelProps {
   turn: AgenticTurnState;
+  onSelectChunk: (chunk: KnowledgeChunkHit) => void;
 }
 
-function FinalAnswerPanel({ turn }: FinalAnswerPanelProps) {
+function FinalAnswerPanel({ turn, onSelectChunk }: FinalAnswerPanelProps) {
   if (turn.error && !turn.markdown) {
     return <Alert type="error" title="查询失败" description={turn.error} showIcon />;
   }
@@ -165,7 +166,7 @@ function FinalAnswerPanel({ turn }: FinalAnswerPanelProps) {
   }
   return (
     <>
-      <QueryRouterAnswer markdown={turn.markdown} />
+      <QueryRouterAnswer markdown={turn.markdown} onSelectChunk={onSelectChunk} />
       {turn.isStreaming && (
         <p className="mt-3 text-xs text-gray-400" data-testid="query-streaming-hint">
           正在流式接收模型输出，图表将在完成后统一渲染…
