@@ -149,6 +149,11 @@ class TestPromptContent:
         assert "结构化数据" in INTENT_V2_PROMPT_TEMPLATE
         assert "教学标准" in INTENT_V2_PROMPT_TEMPLATE
         assert "教材类" in INTENT_V2_PROMPT_TEMPLATE
+
+    def test_intent_template_routes_major_basic_information_to_scenario_3(self):
+        assert "网络营销与直播电商专业的基本信息" in INTENT_V2_PROMPT_TEMPLATE
+        assert "优先 scenario_3" in INTENT_V2_PROMPT_TEMPLATE
+        assert "专业布点数量" in INTENT_V2_PROMPT_TEMPLATE
         assert "Agentic RAG" in INTENT_V2_PROMPT_TEMPLATE
         # Confidence threshold contract — see §4.1.1.
         assert "0.6" in INTENT_V2_PROMPT_TEMPLATE

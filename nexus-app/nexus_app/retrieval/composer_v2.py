@@ -135,6 +135,18 @@ _ANSWER_CONTEXT_POLICY = """
    `task_title` 分组呈现。
 3. 每项结论都要使用该上下文 chunk 的 `chunk_id`、`normalized_ref_id` 和
    `locator` 生成来源脚注。上下文不存在或为空时才可说明检索证据不足。
+
+若某个 `internal.query_major_information` 结果包含 `requested_units` 与
+`units`：
+
+4. 只能输出 `requested_units` 中的专业信息单元；不得补充教育层次开设数量、
+   岗位图谱或其他未请求字段，也不得对未请求字段写“暂无数据”。
+5. `units[unit].status=structured` 时以该领域表值为准；
+   `chunk_fallback` 时仅依据该单元的 evidence 内容作答并保留每个 chunk 的
+   `chunk_id`、`normalized_ref_id`、`locator` 脚注；`unavailable` 只可对该
+   已请求单元说明证据不足。
+6. 图谱只在 `internal.query_capability_graph_by_major` 实际返回结果时展示，
+   不得仅因问题涉及专业而生成图谱段落。
 """
 
 
@@ -164,10 +176,15 @@ class MDComposerV2:
             dispatch_result=dispatch_result,
         )
         if grounded_procedure is not None:
+            replaced = replace_chart_placeholders(
+                grounded_procedure, chart_registry,
+            )
             return ComposeResult(
-                markdown=grounded_procedure,
+                markdown=replaced.text,
                 raw_markdown=grounded_procedure,
                 generated_ratio=0.0,
+                chart_hallucination_ids=list(replaced.hallucination_ids),
+                chart_unused_ids=list(replaced.unused_ids),
             )
 
         try:
@@ -266,12 +283,17 @@ class MDComposerV2:
             # evidence. Streaming an LLM paraphrase here can silently omit
             # steps, so emit the grounded result as one stable chunk.
             yield ComposeStreamEvent(type="chunk", text=grounded_procedure)
+            replaced = replace_chart_placeholders(
+                grounded_procedure, chart_registry,
+            )
             yield ComposeStreamEvent(
                 type="final",
                 result=ComposeResult(
-                    markdown=grounded_procedure,
+                    markdown=replaced.text,
                     raw_markdown=grounded_procedure,
                     generated_ratio=0.0,
+                    chart_hallucination_ids=list(replaced.hallucination_ids),
+                    chart_unused_ids=list(replaced.unused_ids),
                 ),
             )
             return
@@ -417,6 +439,12 @@ def _render_grounded_answer(
     dispatch_result: DispatchResult,
 ) -> str | None:
     """Return a deterministic answer for complete task or section evidence."""
+    graph = _render_grounded_capability_graph(dispatch_result)
+    if graph is not None:
+        return graph
+    major_information = _render_grounded_major_information(dispatch_result)
+    if major_information is not None:
+        return major_information
     procedure = _render_grounded_task_procedure(
         query=query,
         dispatch_result=dispatch_result,
@@ -426,6 +454,205 @@ def _render_grounded_answer(
     return _render_grounded_section_context(
         query=query,
         dispatch_result=dispatch_result,
+    )
+
+
+_GRAPH_TOOL_NAMES = frozenset({
+    "internal.query_capability_graph_by_major",
+    "internal.get_job_demand_role_graph",
+})
+
+
+def _render_grounded_capability_graph(
+    dispatch_result: DispatchResult,
+) -> str | None:
+    """Render a retrieved capability graph directly, without LLM synthesis."""
+    graph_results = [
+        result.result
+        for result in dispatch_result.tool_results
+        if result.ok
+        and result.name in _GRAPH_TOOL_NAMES
+        and isinstance(result.result, dict)
+    ]
+    if len(graph_results) != 1:
+        return None
+
+    result = graph_results[0]
+    subject = str(result.get("job_title") or result.get("major_name") or "该对象")
+    is_job_graph = result.get("job_title") is not None
+    graph_label = "岗位技能图谱" if is_job_graph else "专业能力图谱"
+    if not result.get("found"):
+        return f"## {subject}{graph_label}\n\n未检索到该{graph_label}数据资产。"
+
+    nodes = [
+        node for node in result.get("graph_nodes") or []
+        if isinstance(node, dict) and str(node.get("display_name") or "").strip()
+    ]
+    edges = [
+        edge for edge in result.get("graph_edges") or []
+        if isinstance(edge, dict)
+        and str(edge.get("source_name") or "").strip()
+        and str(edge.get("target_name") or "").strip()
+    ]
+    lines = [
+        f"## {subject}{graph_label}",
+        "",
+        f"已检索到 {len(nodes)} 个图谱节点和 {len(edges)} 条关系。",
+    ]
+    citations: list[str] = []
+    citation_index = 0
+
+    if edges:
+        lines.extend(["", "### 图谱关系"])
+        for edge in edges:
+            citation_index += 1
+            lines.append(
+                f"- {edge['source_name']} -[{edge.get('edge_type') or '关联'}]-> "
+                f"{edge['target_name']} [^ref{citation_index}]"
+            )
+            citations.append(_capability_graph_citation(
+                citation_index, result=result, edge=edge,
+            ))
+    elif nodes:
+        lines.extend(["", "### 图谱节点"])
+        for node in nodes:
+            citation_index += 1
+            lines.append(
+                f"- {node['display_name']}（{node.get('node_type') or 'unknown'}） "
+                f"[^ref{citation_index}]"
+            )
+            citations.append(_capability_graph_citation(
+                citation_index, result=result, edge=None,
+            ))
+
+    chart_id = result.get("chart_id")
+    if isinstance(chart_id, str) and chart_id:
+        lines.extend(["", f"[[CHART:{chart_id}]]"])
+    return "\n".join([*lines, "", *citations])
+
+
+def _capability_graph_citation(
+    citation_index: int,
+    *,
+    result: dict[str, Any],
+    edge: dict[str, Any] | None,
+) -> str:
+    normalized_ref_id = result.get("normalized_ref_id")
+    if not normalized_ref_id:
+        builds = result.get("builds")
+        if isinstance(builds, list) and builds and isinstance(builds[0], dict):
+            normalized_ref_id = builds[0].get("normalized_ref_id")
+    evidence = edge.get("evidence") if edge else {}
+    return (
+        f"[^ref{citation_index}]: `{normalized_ref_id or ''}` / "
+        f"`{(edge or {}).get('edge_id') or ''}` / "
+        f"`{json.dumps(evidence or {}, ensure_ascii=False, sort_keys=True)}`"
+    )
+
+
+_MAJOR_UNIT_LABELS = {
+    "basic_identity": "基本信息",
+    "admission_requirements": "入学基本要求",
+    "basic_study_duration": "基本修业年限",
+    "occupation_oriented": "职业面向",
+    "training_goal": "培养目标",
+    "training_specification": "培养规格",
+    "curriculum": "课程设置",
+    "public_basic_courses": "公共基础课程",
+    "professional_basic_courses": "专业基础课程",
+    "professional_core_courses": "专业核心课程",
+    "professional_extension_courses": "专业拓展课程",
+}
+
+
+def _render_grounded_major_information(
+    dispatch_result: DispatchResult,
+) -> str | None:
+    """Render requested professional units without model-side field expansion."""
+    results = [
+        tool_result.result
+        for tool_result in dispatch_result.tool_results
+        if tool_result.ok
+        and tool_result.name == "internal.query_major_information"
+        and isinstance(tool_result.result, dict)
+        and isinstance(tool_result.result.get("requested_units"), list)
+        and isinstance(tool_result.result.get("units"), dict)
+    ]
+    if len(results) != 1:
+        return None
+
+    result = results[0]
+    requested_units = [
+        unit for unit in result["requested_units"]
+        if isinstance(unit, str) and unit in _MAJOR_UNIT_LABELS
+    ]
+    if not requested_units:
+        return None
+
+    major_name = str(result.get("major_name") or "该专业")
+    lines = [f"## {major_name}"]
+    citations: list[str] = []
+    citation_index = 0
+    units = result["units"]
+    for unit in requested_units:
+        payload = units.get(unit)
+        if not isinstance(payload, dict):
+            continue
+        lines.extend(["", f"### {_MAJOR_UNIT_LABELS[unit]}"])
+        status = payload.get("status")
+        value = payload.get("value")
+        if status == "unavailable" or value is None:
+            lines.append("未找到可核验的平台资产证据。")
+            continue
+
+        evidence = payload.get("evidence")
+        references = evidence if isinstance(evidence, list) else []
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if item:
+                    citation_index += 1
+                    lines.append(f"- {key}：{item} [^ref{citation_index}]")
+                    citations.append(_major_information_citation(
+                        citation_index, references, payload.get("source"),
+                    ))
+        elif isinstance(value, list):
+            for index, item in enumerate(value):
+                citation_index += 1
+                if isinstance(item, dict):
+                    text = str(item.get("text") or item.get("content") or "").strip()
+                else:
+                    text = str(item).strip()
+                if not text:
+                    continue
+                lines.append(f"- {text} [^ref{citation_index}]")
+                ref = references[index:index + 1] if index < len(references) else references
+                citations.append(_major_information_citation(
+                    citation_index, ref, payload.get("source"),
+                ))
+        else:
+            citation_index += 1
+            lines.append(f"{value} [^ref{citation_index}]")
+            citations.append(_major_information_citation(
+                citation_index, references, payload.get("source"),
+            ))
+    return "\n".join([*lines, "", *citations])
+
+
+def _major_information_citation(
+    citation_index: int,
+    evidence: list[Any],
+    source: Any,
+) -> str:
+    first = evidence[0] if evidence and isinstance(evidence[0], dict) else {}
+    normalized_ref_id = first.get("normalized_ref_id")
+    chunk_id = first.get("chunk_id")
+    locator = first.get("locator") or {}
+    if not normalized_ref_id and isinstance(source, dict):
+        normalized_ref_id = source.get("normalized_ref_id")
+    return (
+        f"[^ref{citation_index}]: `{normalized_ref_id or ''}` / "
+        f"`{chunk_id or ''}` / "
+        f"`{json.dumps(locator, ensure_ascii=False, sort_keys=True)}`"
     )
 
 

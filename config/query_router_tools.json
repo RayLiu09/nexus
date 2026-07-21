@@ -1,6 +1,6 @@
 {
   "$schema_version": "1.0",
-  "$comment": "A3 (§10 阶段 A + §1.15 §4.2.1) — Query Router v2 tool registry. Grouped by scenario per §1.15 business-view remapping: scenario_1 讯息类 / scenario_2 结构化 / scenario_3 教学标准双路 / scenario_4 教材类 / scenario_5 Agentic RAG (placeholder). Every tool JSON schema is consumed both by (a) A0 LiteLLM function-calling (see LiteLLMClientProtocol.call_with_tools) and (b) Layer 1 parameter extractor's union-of-required build. Adding a tool requires: (1) a real `internal.*` API endpoint that matches the described contract, (2) parameters that respect §2.5.0 cross-asset principle (business dimensions first, trace fields optional). Job_demand builds intentionally skip the by-major tool (see §1.12 决策 #4).",
+  "$comment": "A3 (§10 阶段 A + §4.2.1) — Query Router v2 tool registry. Grouped by scenario per business-view remapping: scenario_1 讯息类 / scenario_2 结构化 / scenario_3 专业信息（领域表优先，图谱按需） / scenario_4 教材类 / scenario_5 Agentic RAG (placeholder). Every tool JSON schema is consumed both by (a) A0 LiteLLM function-calling (see LiteLLMClientProtocol.call_with_tools) and (b) Layer 1 parameter extractor's union-of-required build. Adding a tool requires: (1) a real `internal.*` API endpoint that matches the described contract, (2) parameters that respect §2.5.0 cross-asset principle (business dimensions first, trace fields optional). Job_demand builds intentionally skip the by-major tool (see §1.12 决策 #4).",
   "scenarios": {
     "scenario_1": {
       "business_label": "讯息类检索 (产业政策/产业报告/行业报告)",
@@ -155,12 +155,56 @@
       ]
     },
     "scenario_3": {
-      "business_label": "专业教学标准综合检索 (培养目标 + 职业面向 + 岗位知识图谱)",
-      "$comment": "§1.15 A2 双路方案：本 scenario 命中时 dispatcher 会并行调用图谱工具 + chunks 工具；Composer 汇总为三段结构化输出",
+      "business_label": "专业信息检索 (领域表优先、教学标准图谱按需)",
+      "$comment": "专业简介投影到 MajorProfile；教学标准保留 course_standard_authoring_process chunks 与能力图谱。基础信息按请求数据单元先读领域表，缺失单元才回退两类 chunks；不得使用教材 outline_node。",
       "tools": [
         {
+          "name": "internal.query_major_information",
+          "description": "查询某专业的基础信息。必须根据用户实际问题只传所需 units；执行器优先读取专业简介的 MajorProfile/关联领域表，并仅对缺失单元从 major_profile_knowledge 或 course_standard_authoring_process chunks 取证据。用户不需要指定数据来源。不得传 outline_node，也不得为了基础信息调用图谱。",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "major_name": {
+                "type": "string",
+                "description": "专业名称 substring，优先使用 Layer 1 已抽取值"
+              },
+              "major_code": {
+                "type": "string",
+                "pattern": "^\\d{4,6}$",
+                "description": "专业代码精确匹配"
+              },
+              "units": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "basic_identity",
+                    "admission_requirements",
+                    "basic_study_duration",
+                    "occupation_oriented",
+                    "training_goal",
+                    "training_specification",
+                    "curriculum",
+                    "public_basic_courses",
+                    "professional_basic_courses",
+                    "professional_core_courses",
+                    "professional_extension_courses"
+                  ]
+                },
+                "description": "严格只列出用户请求的数据单元。用户问“基本信息”时使用 basic_identity 与 basic_study_duration；明确问入学要求时再加入 admission_requirements。不要因模板习惯加入未请求 unit。"
+              }
+            },
+            "required": ["units"],
+            "anyOf": [
+              { "required": ["major_name"] },
+              { "required": ["major_code"] }
+            ]
+          }
+        },
+        {
           "name": "internal.query_capability_graph_by_major",
-          "description": "拿专业教学标准的岗位知识图谱（build_type=teaching_standard 分支，§1.12 §1.13）",
+          "description": "仅当用户明确要求专业岗位能力图谱、知识图谱、能力关系图或节点关系时调用。图谱只来自专业教学标准，build_type 固定 teaching_standard。询问专业名称、职业面向、培养目标、培养规格或课程设置等事实时不得调用。",
           "parameters": {
             "type": "object",
             "properties": {
@@ -176,7 +220,7 @@
               "build_type": {
                 "type": "string",
                 "const": "teaching_standard",
-                "description": "在本 scenario 下固定 teaching_standard"
+                "description": "固定 teaching_standard"
               }
             },
             "required": ["build_type"],
@@ -184,31 +228,6 @@
               { "required": ["major_name"] },
               { "required": ["major_code"] }
             ]
-          }
-        },
-        {
-          "name": "internal.search_chunks_by_semantic",
-          "description": "在 course_standard_authoring_process kb 下按 outline_node 定位培养目标 / 职业面向段落（§1.15 A2 决策：补齐 teaching_standard 抽取器缺失的两个结构化字段）",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "query": {
-                "type": "string",
-                "description": "语义查询（如 `{major} 培养目标` / `{major} 职业面向`）"
-              },
-              "kb": {
-                "type": "string",
-                "const": "course_standard_authoring_process",
-                "description": "固定 course_standard_authoring_process kb"
-              },
-              "outline_node": {
-                "type": "string",
-                "enum": ["培养目标", "职业面向"],
-                "description": "限定 outline 节点（教学标准正式发布文档结构固定）；无匹配则退化为纯语义 top-K"
-              },
-              "top_k": { "type": "integer", "default": 5 }
-            },
-            "required": ["query"]
           }
         }
       ]

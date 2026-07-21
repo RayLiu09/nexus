@@ -317,7 +317,7 @@ class QueryRouterV2:
         intent_classifier = IntentClassifierV2(llm_client=self.llm_client)
         intent_result = intent_classifier.classify(session, query)
         intent_result = apply_subject_route_guard(
-            intent_result, resolve_query_subject(session, query),
+            intent_result, resolve_query_subject(session, query), query,
         )
 
         # ------------------------------------------------------------

@@ -63,7 +63,7 @@ class TestDefaultRegistry:
         # would signal doc drift.
         assert "讯息类" in reg.scenarios["scenario_1"].business_label
         assert "结构化数据" in reg.scenarios["scenario_2"].business_label
-        assert "专业教学标准" in reg.scenarios["scenario_3"].business_label
+        assert "专业信息" in reg.scenarios["scenario_3"].business_label
         assert "教材类" in reg.scenarios["scenario_4"].business_label
         assert "Agentic RAG" in reg.scenarios["scenario_5"].business_label
 
@@ -114,7 +114,7 @@ class TestScenarioOverlap:
             == "teaching_standard"
         )
 
-    def test_search_chunks_tool_kb_partitioned_across_scenarios(self):
+    def test_major_information_tool_replaces_teaching_standard_outline_search(self):
         reg = load_tool_registry()
         # scenario_1 → industry_research_kb (const)
         s1_tool = reg.find_tool("scenario_1", "internal.search_chunks_by_semantic")
@@ -122,12 +122,11 @@ class TestScenarioOverlap:
             s1_tool.parameters["properties"]["kb"]["const"]
             == "industry_research_kb"
         )
-        # scenario_3 → course_standard_authoring_process (const)
-        s3_tool = reg.find_tool("scenario_3", "internal.search_chunks_by_semantic")
-        assert (
-            s3_tool.parameters["properties"]["kb"]["const"]
-            == "course_standard_authoring_process"
-        )
+        s3_tool = reg.find_tool("scenario_3", "internal.query_major_information")
+        assert s3_tool is not None
+        assert "outline_node" not in s3_tool.parameters["properties"]
+        assert "units" in s3_tool.parameters["required"]
+        assert "occupation_oriented" in s3_tool.parameters["properties"]["units"]["items"]["enum"]
         # scenario_4 → enum (course_textbook | practical_training_kb)
         s4_tool = reg.find_tool("scenario_4", "internal.search_chunks_by_semantic")
         assert set(s4_tool.parameters["properties"]["kb"]["enum"]) == {

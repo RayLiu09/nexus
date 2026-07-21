@@ -249,6 +249,23 @@ def _validate_arguments(
                 f"got {type(value).__name__}"
             )
 
+        if isinstance(value, (list, tuple)):
+            min_items = prop.get("minItems")
+            if isinstance(min_items, int) and len(value) < min_items:
+                return (
+                    f"argument {name!r} must contain at least {min_items} items"
+                )
+            item_schema = prop.get("items")
+            if isinstance(item_schema, dict):
+                item_enum = item_schema.get("enum")
+                if item_enum is not None:
+                    invalid = [item for item in value if item not in item_enum]
+                    if invalid:
+                        return (
+                            f"argument {name!r} contains values outside "
+                            f"{item_enum!r}: {invalid!r}"
+                        )
+
         pattern = prop.get("pattern")
         if pattern and isinstance(value, str):
             if re.fullmatch(pattern, value) is None:
@@ -290,6 +307,10 @@ def _type_matches(expected_type: str | list[str], value: Any) -> bool:
 
 
 _DEFAULT_MAX_WORKERS: int = 4
+_EXPLICIT_GRAPH_RE = re.compile(
+    r"(?:图谱|关系图|节点关系|能力结构图|知识网络)",
+    re.IGNORECASE,
+)
 _RETRY_HINT = (
     "Your previous tool_calls failed argument validation. Fix the "
     "specific issue noted below and re-emit tool_calls. Do not answer "
@@ -442,19 +463,30 @@ class DispatcherV2:
                 chart_registry=chart_registry,
             )
 
-        # scenario_3 dual-path soft check — the design (§1.15) says both
-        # tools SHOULD fire together; we surface a warning rather than
-        # fallback because a single-tool answer is still usable and the
-        # retry above already gave the LLM a chance to correct.
         warnings: list[str] = []
-        if intent == "scenario_3":
-            unique_names = {inv.name for inv in valid_invocations}
-            expected = {t.name for t in tools}
-            missing = expected - unique_names
-            if missing:
-                warnings.append(
-                    f"scenario_3_dual_path_missing:{sorted(missing)}"
-                )
+        # Graphs are an explicitly requested representation. This is a
+        # post-tool-choice guard, not business-subject classification: a
+        # model must not attach a teaching-standard graph to a facts query.
+        if intent == "scenario_3" and not _EXPLICIT_GRAPH_RE.search(query):
+            graph_calls = [
+                invocation for invocation in valid_invocations
+                if invocation.name == "internal.query_capability_graph_by_major"
+            ]
+            if graph_calls:
+                valid_invocations = [
+                    invocation for invocation in valid_invocations
+                    if invocation.name != "internal.query_capability_graph_by_major"
+                ]
+                warnings.append("scenario_3_graph_call_dropped:not_explicitly_requested")
+
+        if not valid_invocations:
+            return DispatchResult(
+                intent=intent,
+                tool_invocations=tuple(invocations),
+                fallback_reason="no_tool_call",
+                warnings=tuple(warnings),
+                chart_registry=chart_registry,
+            )
 
         tool_results = self._execute_in_parallel(
             session,
@@ -504,15 +536,17 @@ class DispatcherV2:
         * what the user asked (the query),
         * the pre-extracted params (Layer 1 hints — the model may use
           them verbatim or adjust based on the tool's schema),
-        * which scenario we're in (so scenario_3 knows to fire both
-          tools, per §1.15).
+        * which scenario we're in and which data representation was
+          requested.  Scenario 3 graph output is opt-in, not a fixed
+          companion to professional facts.
         """
         scenario_note = ""
         if intent == "scenario_3":
             scenario_note = (
-                "\n\n**Scenario 3 双路约束**：请同时调用 "
-                + ", ".join(f"`{t.name}`" for t in tools)
-                + " 两个 tool；单独调用一个会被视为不完整。"
+                "\n\n**Scenario 3 专业信息约束**：基础专业信息必须调用 "
+                "`internal.query_major_information` 并只传用户请求的 `units`。"
+                "只有用户明确要求图谱、能力关系或节点关系时，才额外调用 "
+                "`internal.query_capability_graph_by_major`；不得使用教材 outline 参数。"
             )
 
         content = (

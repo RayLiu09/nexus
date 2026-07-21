@@ -6,7 +6,7 @@ Covers:
 * Validation retry (first invalid → second valid → success).
 * Fallback paths (no tool_call, param_validation_failed after retry,
   llm_call_failed, no_tools_registered, tool_execution_failed).
-* scenario_3 dual-path warning surfaces when the LLM only calls one tool.
+* scenario_3 uses data-unit retrieval; graph retrieval remains opt-in.
 * Chart registration flow — executor writes into shared ChartRegistry
   and the returned ``ToolResult.chart_ids`` picks up the new ids.
 """
@@ -94,6 +94,21 @@ class TestValidateArguments:
         }
         assert _validate_arguments(schema, {"kb": "a"}) is None
         assert _validate_arguments(schema, {"kb": "c"}) is not None
+
+    def test_array_item_enum_and_min_items(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "units": {
+                    "type": "array", "minItems": 1,
+                    "items": {"type": "string", "enum": ["basic_identity"]},
+                },
+            },
+            "required": ["units"],
+        }
+        assert _validate_arguments(schema, {"units": []}) is not None
+        assert _validate_arguments(schema, {"units": ["unknown"]}) is not None
+        assert _validate_arguments(schema, {"units": ["basic_identity"]}) is None
 
     def test_type_mismatch(self):
         schema = {
@@ -349,46 +364,69 @@ class TestHappyPath:
         assert result.tool_results[0].result == {"hits": [{"chunk_id": "c1"}]}
         assert result.invoked_tool_names == ["internal.search_chunks_by_semantic"]
 
-    def test_multiple_tool_calls_run_in_parallel(self, session):
-        tc1 = ToolCall(
+    def test_scenario_3_basic_information_does_not_require_graph(self, session):
+        tc = ToolCall(
             id="call-1",
-            name="internal.query_capability_graph_by_major",
-            arguments='{"major_name": "跨境电商", "build_type": "teaching_standard"}',
-        )
-        tc2 = ToolCall(
-            id="call-2",
-            name="internal.search_chunks_by_semantic",
+            name="internal.query_major_information",
             arguments=(
-                '{"query": "跨境电商 培养目标", '
-                '"kb": "course_standard_authoring_process", '
-                '"outline_node": "培养目标"}'
+                '{"major_name": "跨境电商", '
+                '"units": ["basic_identity", "occupation_oriented"]}'
             ),
         )
-        llm = _ScriptedToolLLM([_tc_result([tc1, tc2])])
+        llm = _ScriptedToolLLM([_tc_result([tc])])
         exec_reg = ToolExecutorRegistry()
         exec_reg.register(
-            "internal.query_capability_graph_by_major",
-            _fake_executor({"call-1": {"nodes": [], "edges": []}}),
-        )
-        exec_reg.register(
-            "internal.search_chunks_by_semantic",
-            _fake_executor({"call-2": {"hits": []}}),
+            "internal.query_major_information",
+            _fake_executor({"call-1": {"units": {}}}),
         )
         dispatcher = DispatcherV2(
             llm_client=llm, executor_registry=exec_reg,
         )
         result = dispatcher.dispatch(
             session,
-            query="跨境电商专业教学标准",
+            query="跨境电商专业基本信息和职业面向",
             intent="scenario_3",
             extracted_params={"major_name": "跨境电商"},
             model_alias="primary-llm",
         )
         assert result.fallback_reason is None
-        assert len(result.tool_results) == 2
+        assert len(result.tool_results) == 1
         assert all(r.ok for r in result.tool_results)
-        # scenario_3 with both tools present → no warning
         assert result.warnings == ()
+
+    def test_scenario_3_drops_unrequested_graph_call(self, session):
+        major = ToolCall(
+            id="major",
+            name="internal.query_major_information",
+            arguments='{"major_name": "跨境电商", "units": ["basic_identity"]}',
+        )
+        graph = ToolCall(
+            id="graph",
+            name="internal.query_capability_graph_by_major",
+            arguments='{"major_name": "跨境电商", "build_type": "teaching_standard"}',
+        )
+        llm = _ScriptedToolLLM([_tc_result([major, graph])])
+        exec_reg = ToolExecutorRegistry()
+        exec_reg.register(
+            "internal.query_major_information",
+            _fake_executor({"major": {"units": {}}}),
+        )
+        exec_reg.register(
+            "internal.query_capability_graph_by_major",
+            _fake_executor({"graph": {"nodes": []}}),
+        )
+        result = DispatcherV2(llm_client=llm, executor_registry=exec_reg).dispatch(
+            session,
+            query="跨境电商专业基本信息",
+            intent="scenario_3",
+            extracted_params={"major_name": "跨境电商"},
+            model_alias="primary-llm",
+        )
+
+        assert [item.name for item in result.tool_results] == [
+            "internal.query_major_information",
+        ]
+        assert "scenario_3_graph_call_dropped:not_explicitly_requested" in result.warnings
 
     def test_extracted_params_appear_in_llm_messages(self, session):
         tc = ToolCall(
@@ -683,13 +721,12 @@ class TestExecutorOutcomes:
 
 
 # ---------------------------------------------------------------------------
-# scenario_3 dual-path soft check
+# scenario_3 graph opt-in
 # ---------------------------------------------------------------------------
 
 
-class TestScenario3DualPath:
-    def test_only_one_tool_called_surfaces_warning(self, session):
-        # scenario_3 expects both tools; we script only one.
+class TestScenario3GraphOptIn:
+    def test_explicit_graph_tool_call_has_no_missing_companion_warning(self, session):
         tc = ToolCall(
             id="a",
             name="internal.query_capability_graph_by_major",
@@ -705,13 +742,9 @@ class TestScenario3DualPath:
             llm_client=llm, executor_registry=exec_reg,
         )
         result = dispatcher.dispatch(
-            session, query="教学标准", intent="scenario_3",
+            session, query="跨境电商教学标准岗位能力图谱", intent="scenario_3",
             extracted_params={"major_name": "跨境电商"},
             model_alias="primary-llm",
         )
-        # Soft check: still succeeds but flags the missing tool.
         assert result.fallback_reason is None
-        assert any(
-            w.startswith("scenario_3_dual_path_missing")
-            for w in result.warnings
-        )
+        assert result.warnings == ()

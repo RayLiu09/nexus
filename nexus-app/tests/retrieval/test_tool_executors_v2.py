@@ -27,6 +27,7 @@ from nexus_app.retrieval.tool_executors_v2 import (
     query_ability_analysis,
     query_capability_graph_by_major,
     query_job_demand,
+    query_major_information,
     query_major_distribution,
 )
 
@@ -55,6 +56,7 @@ def test_default_registry_has_all_tools():
     )
     expected = {
         "internal.search_chunks_by_semantic",
+        "internal.query_major_information",
         "internal.query_capability_graph_by_major",
         "internal.get_evidence_graph_by_ref",
         "internal.query_job_demand",
@@ -64,6 +66,78 @@ def test_default_registry_has_all_tools():
         "internal.get_outline_subtree",
     }
     assert set(reg.executors.keys()) == expected
+
+
+# ---------------------------------------------------------------------------
+# query_major_information
+# ---------------------------------------------------------------------------
+
+
+def test_query_major_information_prefers_profile_and_uses_per_unit_chunk_fallback(session):
+    profile = models.MajorProfile(
+        id="profile-major", normalized_ref_id="ref-profile", asset_version_id="version-profile",
+        domain_profile="major_profile.v1", major_name="网络营销与直播电商", major_code="530704",
+        education_level="高职", basic_study_duration="三年", training_goal="培养直播电商运营人才",
+        extractor_version="test", evidence={"source_block_ids": ["block-profile"]},
+    )
+    occupation = models.MajorProfileOccupation(
+        id="occupation-major", profile_id=profile.id, normalized_ref_id=profile.normalized_ref_id,
+        item_index=1, text="互联网营销专业人员", normalized_name="互联网营销专业人员",
+        occupation_type="职业", evidence_block_ids=["block-occupation"], locator={"page_start": 2},
+    )
+    fallback = _chunk(
+        "chunk-admission", "ref-standard", 1,
+        "网络营销与直播电商专业入学基本要求为普通高中毕业生。",
+        heading_path=[{"title": "入学基本要求"}],
+    )
+    fallback.knowledge_type_code = "course_standard_authoring_process"
+    fallback.locator = {"heading_path": [{"title": "入学基本要求"}], "page_start": 3}
+    session.add_all([profile, occupation, fallback])
+    session.flush()
+
+    result = query_major_information(
+        session=session,
+        arguments={
+            "major_name": "网络营销与直播电商",
+            "units": ["basic_identity", "occupation_oriented", "admission_requirements"],
+        },
+        tool_call_id="tc", chart_registry=ChartRegistry(),
+    )
+
+    assert result["found_profile"] is True
+    assert result["units"]["basic_identity"]["status"] == "structured"
+    assert result["units"]["basic_identity"]["value"]["major_code"] == "530704"
+    assert result["units"]["occupation_oriented"]["status"] == "structured"
+    assert result["units"]["admission_requirements"]["status"] == "chunk_fallback"
+    evidence = result["units"]["admission_requirements"]["evidence"]
+    assert evidence[0]["chunk_id"] == fallback.id
+    assert evidence[0]["knowledge_type_code"] == "course_standard_authoring_process"
+    assert evidence[0]["locator"]["page_start"] == 3
+
+
+def test_query_major_information_does_not_use_chunks_when_structured_unit_exists(session):
+    profile = models.MajorProfile(
+        id="profile-goal", normalized_ref_id="ref-profile", asset_version_id="version-profile",
+        domain_profile="major_profile.v1", major_name="网络营销与直播电商", major_code="530704",
+        training_goal="结构化培养目标", extractor_version="test", evidence={},
+    )
+    fallback = _chunk(
+        "chunk-goal", "ref-standard", 1, "网络营销与直播电商培养目标。",
+        heading_path=[{"title": "培养目标"}],
+    )
+    fallback.knowledge_type_code = "course_standard_authoring_process"
+    session.add_all([profile, fallback])
+    session.flush()
+
+    result = query_major_information(
+        session=session,
+        arguments={"major_name": "网络营销与直播电商", "units": ["training_goal"]},
+        tool_call_id="tc", chart_registry=ChartRegistry(),
+    )
+
+    assert result["units"]["training_goal"]["status"] == "structured"
+    assert result["units"]["training_goal"]["value"] == "结构化培养目标"
+    assert result["missing_structured_units"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -736,6 +810,10 @@ def test_get_job_demand_role_graph_cross_dataset_merges_builds(session):
     assert result["node_count"] == 3
     # Only one capability edge exists (skill on build_a).
     assert result["edge_count"] == 1
+    assert {node["display_name"] for node in result["graph_nodes"]} == {
+        "AI销售专员", "沟通能力",
+    }
+    assert result["graph_edges"][0]["target_name"] == "沟通能力"
     # One chart registered for the union.
     assert result["chart_id"] in registry.registered_ids()
 

@@ -36,7 +36,11 @@ from nexus_app.retrieval.chart_adapter import ChartRegistry
 from nexus_app.retrieval.dispatcher_v2 import ToolExecutorRegistry
 from nexus_app.retrieval.prompt_profiles_v2 import seed_retrieval_v2_prompts
 from nexus_app.retrieval.router_v2 import QueryRouterV2, RouterResult
-from nexus_app.retrieval.subject_routing import QuerySubject, apply_subject_route_guard
+from nexus_app.retrieval.subject_routing import (
+    QuerySubject,
+    apply_subject_route_guard,
+    resolve_query_subject,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -153,6 +157,39 @@ def test_major_subject_does_not_override_structured_data_intent() -> None:
     result = apply_subject_route_guard(
         IntentV2Result(intent="scenario_2", confidence=0.94),
         QuerySubject(kind="major", value="无人机应用技术"),
+    )
+
+    assert result.intent == "scenario_2"
+
+
+def test_known_major_basic_information_overrides_scenario_4(session) -> None:
+    from nexus_app.retrieval.intent_v2 import IntentV2Result
+
+    session.add(models.MajorProfile(
+        id="major-route-profile", normalized_ref_id="major-route-ref",
+        asset_version_id="major-route-version", domain_profile="major_profile.v1",
+        major_name="网络营销与直播电商", major_code="530704",
+        extractor_version="test", evidence={},
+    ))
+    session.flush()
+    query = "网络营销与直播电商专业的基本信息"
+    subject = resolve_query_subject(session, query)
+    result = apply_subject_route_guard(
+        IntentV2Result(intent="scenario_4", confidence=0.88), subject, query,
+    )
+
+    assert subject == QuerySubject(kind="major", value="网络营销与直播电商")
+    assert result.intent == "scenario_3"
+    assert "subject_route_override:major_information_to_scenario_3" in result.warnings
+
+
+def test_known_major_distribution_question_stays_scenario_2(session) -> None:
+    from nexus_app.retrieval.intent_v2 import IntentV2Result
+
+    result = apply_subject_route_guard(
+        IntentV2Result(intent="scenario_2", confidence=0.88),
+        QuerySubject(kind="major", value="网络营销与直播电商"),
+        "网络营销与直播电商专业布点数量",
     )
 
     assert result.intent == "scenario_2"

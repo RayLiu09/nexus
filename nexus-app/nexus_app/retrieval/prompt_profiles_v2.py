@@ -25,7 +25,7 @@ Design notes:
 * Placeholder set is small and explicit — no Jinja to keep the
   substitution auditable in the redaction path.
 * The intent classifier prompt encodes the §1.15 business-view
-  scenario semantics (讯息类 / 结构化 / 教学标准双路 / 教材类 / Agentic
+  scenario semantics (讯息类 / 结构化 / 专业信息 / 教材类 / Agentic
   RAG) rather than the older §1.1 检索行为分类 — this is the *only*
   place where the LLM sees which scenario ids mean what, so keeping it
   aligned to the tool registry is mandatory.
@@ -71,7 +71,7 @@ _INTENT_V2_PROMPT = """## 任务
 |-------------|---------|-----------|
 | `scenario_1` | **讯息类检索**（产业政策 / 产业报告 / 行业报告 汇总）| 政策、报告、行业趋势、发展方向、综述、"XX 年趋势"、"XX 政策解读" |
 | `scenario_2` | **结构化数据检索**（岗位需求 / 职业能力分析 / 专业布点，按 major / job_title）| 岗位需求、招聘量、薪资分布、专业布点、能力分析、就业方向、"岗位分布 Top-N"、"XX 岗位能力要求" |
-| `scenario_3` | **专业教学标准综合检索**（培养目标 + 职业面向 + 岗位知识图谱）| 教学标准、培养目标、职业面向、专业岗位知识图谱、专业核心课程 |
+| `scenario_3` | **专业信息检索**（领域表优先、教学标准图谱按需）| 某专业的基本信息、专业名称/代码、入学要求、修业年限、职业面向、培养目标、培养规格、课程设置；明确要求专业能力/岗位图谱时也归入本场景 |
 | `scenario_4` | **教材类检索**（普通教材 + 实训教材，按 kb 区分；广义知识 / 概念 / 方法 / 规则问答默认走这里）| 课程、教材、章节、知识点、实训任务；概念查询："是什么"、"什么是 XX"、"介绍下 XX"、"XX 是什么意思"；方法/步骤查询："如何"、"怎么"、"怎样"、"有哪些步骤"、"XX 方法"；规则/规范查询："规则"、"规范"、"标准"、"要求"、"注意事项"、"有哪些 XX"；原理/分类查询："原理"、"特点"、"分类"、"区别"、"对比" |
 | `scenario_5` | **Agentic RAG**（多步骤模板，如人才培养方案）| 培养方案、规划、综合方案、跨年度、"为 XX 学院设计..." |
 | `unknown` | 与数据检索无关（闲聊、系统指令、无实际问题） | — |
@@ -79,9 +79,10 @@ _INTENT_V2_PROMPT = """## 任务
 ## 边界规则
 
 * **场景 1 vs 4**：讯息类看**发文主体**（政府/行业机构发布的政策文件、产业报告、行业趋势报告）；教材类看**知识/概念/方法/规则的通用问答**。用户问"XX 平台有哪些规则"、"XX 的发布规范"这类**平台/工具/领域内部规则** → **scenario_4**（不是 scenario_1，除非明确带"政策文件/产业政策"字样）
-* **场景 2 vs 3**：结构化数据要"岗位 / 招聘 / 薪资 / 布点"数值类；教学标准要"培养目标 / 职业面向"文档类
-* **场景 3 vs 5**：教学标准是单资产综合检索；Agentic RAG 是跨资产多步骤（含培养方案模板）
-* **模糊边界优先级**：优先选择召回范围更大的 scenario（4 > 3、5 > 2）
+* **场景 2 vs 3**：场景 2 是岗位需求、招聘、薪资、专业布点、职业能力分析等数值/记录查询；场景 3 是某一专业的基础信息和培养信息。仅出现“专业”不够，问题必须实际询问该专业的数据单元。
+* **场景 3 vs 4**：当用户指向某个专业，并询问专业名称代码、入学要求、修业年限、职业面向、培养目标、培养规格或课程设置时，**优先 scenario_3**，即使未写“教学标准”。只有教材章节、课程知识点、概念、方法、规则或实训任务问题才走 scenario_4。
+* **场景 3 vs 5**：场景 3 是单专业信息查询；Agentic RAG 是跨资产多步骤（含培养方案模板）
+* **模糊边界优先级**：专业基础数据单元优先 scenario_3；其余通用知识问答才优先 scenario_4。
 * **兜底规则（重要）**：只要 query 表达了对某个领域知识 / 概念 / 方法 / 规则的求知意图（含"是什么"、"有哪些"、"如何"、"规则"、"步骤"、"方法"、"原理"等疑问 / 求解词），即便无法精确匹配 scenario_1/2/3/5，也**归入 scenario_4**（教材类通用知识检索）。**仅**当 query 完全非检索意图（闲聊、系统命令、乱码）时才返回 `unknown`
 * Confidence < 0.6 时强制降级 `unknown`
 
@@ -92,6 +93,10 @@ _INTENT_V2_PROMPT = """## 任务
 * "直播带货有哪些步骤" → `scenario_4` (0.85) — 方法/步骤查询
 * "2025 年跨境电商行业趋势" → `scenario_1` (0.90) — 行业趋势报告
 * "跨境电商专业教学标准培养目标" → `scenario_3` (0.95) — 教学标准
+* "网络营销与直播电商专业的基本信息" → `scenario_3` (0.95) — 已询问专业基础数据单元，不要求用户指定专业简介或教学标准来源
+* "网络营销与直播电商专业的职业面向和培养规格" → `scenario_3` (0.95) — 专业培养信息
+* "网络营销与直播电商专业布点数量" → `scenario_2` (0.95) — 专业布点记录/统计
+* "网络营销与直播电商专业教材中的短视频运营知识点" → `scenario_4` (0.90) — 教材知识点
 * "跨境电商 2025 年岗位需求 Top-10" → `scenario_2` (0.90) — 结构化数据
 * "为电商学院设计人才培养方案" → `scenario_5` (0.95) — Agentic 规划
 * "你好" → `unknown` (0.5) — 闲聊
@@ -346,7 +351,7 @@ def seed_retrieval_v2_prompts(
             profile_name=spec.profile_name,
             task_type=RETRIEVAL_V2_TASK_TYPE,
             litellm_model_alias=resolved_alias,
-            prompt_version="v2.0.1",
+            prompt_version="v2.0.2",
             prompt_template=spec.prompt_template,
             scenario=spec.scenario,
             temperature=spec.temperature,

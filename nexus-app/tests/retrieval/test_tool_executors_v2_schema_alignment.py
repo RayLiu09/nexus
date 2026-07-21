@@ -59,6 +59,7 @@ LEGACY_ALIAS_ALLOWLIST: dict[str, set[str]] = {
 # find the nested FunctionDef.
 EXECUTOR_FN_BY_TOOL: dict[str, tuple[str, str | None]] = {
     "internal.search_chunks_by_semantic": ("make_search_chunks_executor", "_run"),
+    "internal.query_major_information": ("query_major_information", None),
     "internal.query_capability_graph_by_major":
         ("query_capability_graph_by_major", None),
     "internal.get_evidence_graph_by_ref": ("get_evidence_graph_by_ref", None),

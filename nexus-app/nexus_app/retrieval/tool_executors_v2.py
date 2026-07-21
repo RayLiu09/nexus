@@ -25,10 +25,11 @@ Design contract carried in:
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from nexus_app import models
 from nexus_app.capability_graph.whitelists import (
@@ -57,6 +58,39 @@ _AUTO_OUTLINE_KNOWLEDGE_TYPES = frozenset({
     "course_textbook",
     "practical_training_kb",
 })
+
+_MAJOR_INFORMATION_UNITS = frozenset({
+    "basic_identity",
+    "admission_requirements",
+    "basic_study_duration",
+    "occupation_oriented",
+    "training_goal",
+    "training_specification",
+    "curriculum",
+    "public_basic_courses",
+    "professional_basic_courses",
+    "professional_core_courses",
+    "professional_extension_courses",
+})
+
+_MAJOR_INFORMATION_CHUNK_TYPES = (
+    "major_profile_knowledge",
+    "course_standard_authoring_process",
+)
+
+_UNIT_SECTION_TERMS: dict[str, tuple[str, ...]] = {
+    "basic_identity": ("专业名称", "专业代码"),
+    "admission_requirements": ("入学基本要求", "入学要求"),
+    "basic_study_duration": ("基本修业年限", "修业年限"),
+    "occupation_oriented": ("职业面向", "面向职业", "就业面向"),
+    "training_goal": ("培养目标", "培养目标定位"),
+    "training_specification": ("培养规格",),
+    "curriculum": ("课程设置", "专业课程", "实习实训"),
+    "public_basic_courses": ("公共基础课程",),
+    "professional_basic_courses": ("专业基础课程",),
+    "professional_core_courses": ("专业核心课程",),
+    "professional_extension_courses": ("专业拓展课程",),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +221,302 @@ def make_search_chunks_executor(adapter: PgvectorSearchAdapter) -> ToolExecutor:
 
 
 # ---------------------------------------------------------------------------
+# Tool: internal.query_major_information
+# ---------------------------------------------------------------------------
+
+
+def query_major_information(
+    *,
+    session: Session,
+    arguments: dict[str, Any],
+    tool_call_id: str,
+    chart_registry: ChartRegistry,
+) -> dict[str, Any]:
+    """Read professional facts by requested unit, with chunk-only fallback.
+
+    ``MajorProfile`` is the normalized read model for professional
+    introductions.  Users do not need to choose a source asset, so a field
+    that is absent from that read model is filled from the evidence chunks of
+    either professional introductions or teaching standards.  A teaching
+    standard is deliberately *not* mapped to textbook outline nodes here.
+    """
+    major_name = _clean_text(arguments.get("major_name"))
+    major_code = _clean_text(arguments.get("major_code"))
+    requested_units = _normalise_major_information_units(arguments.get("units"))
+
+    profile = _find_major_profile(
+        session, major_name=major_name, major_code=major_code,
+    )
+    resolved_name = major_name or (profile.major_name if profile else None)
+    resolved_code = major_code or (profile.major_code if profile else None)
+
+    units: dict[str, dict[str, Any]] = {}
+    missing_units: list[str] = []
+    for unit in requested_units:
+        structured = _structured_major_information_unit(profile, unit)
+        if structured is not None:
+            units[unit] = {
+                "status": "structured",
+                "value": structured,
+                "source": _major_profile_source(profile),
+                "evidence": _structured_major_evidence(profile, unit),
+            }
+        else:
+            missing_units.append(unit)
+
+    # A missing unit is not evidence that a professional fact is absent.  It
+    # is a signal to search only the two professional knowledge collections
+    # for that unit's section evidence.
+    for unit in missing_units:
+        chunks = _find_major_information_chunks(
+            session,
+            major_name=resolved_name,
+            major_code=resolved_code,
+            unit=unit,
+        )
+        units[unit] = {
+            "status": "chunk_fallback" if chunks else "unavailable",
+            "value": [item["content"] for item in chunks] if chunks else None,
+            "source": "knowledge_chunk",
+            "evidence": chunks,
+        }
+
+    return {
+        "found_profile": profile is not None,
+        "major_name": resolved_name,
+        "major_code": resolved_code,
+        "requested_units": requested_units,
+        "units": units,
+        "missing_structured_units": missing_units,
+        "chunk_fallback_knowledge_types": list(_MAJOR_INFORMATION_CHUNK_TYPES),
+    }
+
+
+def _normalise_major_information_units(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    seen: set[str] = set()
+    units: list[str] = []
+    for raw in value:
+        if not isinstance(raw, str) or raw not in _MAJOR_INFORMATION_UNITS:
+            continue
+        if raw not in seen:
+            seen.add(raw)
+            units.append(raw)
+    return units
+
+
+def _find_major_profile(
+    session: Session,
+    *,
+    major_name: str | None,
+    major_code: str | None,
+) -> models.MajorProfile | None:
+    stmt = select(models.MajorProfile).options(
+        selectinload(models.MajorProfile.occupations),
+        selectinload(models.MajorProfile.abilities),
+        selectinload(models.MajorProfile.courses),
+    )
+    if major_code:
+        profile = session.scalars(
+            stmt.where(models.MajorProfile.major_code == major_code)
+            .order_by(models.MajorProfile.updated_at.desc())
+        ).first()
+        if profile is not None:
+            return profile
+    if major_name:
+        return session.scalars(
+            stmt.where(models.MajorProfile.major_name.ilike(f"%{major_name}%"))
+            .order_by(models.MajorProfile.updated_at.desc())
+        ).first()
+    return None
+
+
+def _structured_major_information_unit(
+    profile: models.MajorProfile | None,
+    unit: str,
+) -> Any | None:
+    if profile is None:
+        return None
+    if unit == "basic_identity":
+        return {
+            "major_name": profile.major_name,
+            "major_code": profile.major_code,
+            "education_level": profile.education_level,
+        }
+    if unit == "basic_study_duration":
+        return profile.basic_study_duration or None
+    if unit == "occupation_oriented":
+        items = [
+            {
+                "text": item.text,
+                "normalized_name": item.normalized_name,
+                "occupation_type": item.occupation_type,
+            }
+            for item in sorted(profile.occupations, key=lambda item: item.item_index)
+            if item.text.strip()
+        ]
+        return items or None
+    if unit == "training_goal":
+        return profile.training_goal or None
+    if unit in {
+        "curriculum",
+        "public_basic_courses",
+        "professional_basic_courses",
+        "professional_core_courses",
+        "professional_extension_courses",
+    }:
+        courses = [
+            {"text": item.text, "course_group": item.course_group, "course_type": item.course_type}
+            for item in sorted(profile.courses, key=lambda item: (item.course_group, item.item_index))
+            if item.text.strip() and _course_matches_unit(item.course_group, unit)
+        ]
+        return courses or None
+    return None
+
+
+def _course_matches_unit(course_group: str, unit: str) -> bool:
+    if unit == "curriculum":
+        return True
+    terms = _UNIT_SECTION_TERMS[unit]
+    normalized = course_group.replace(" ", "")
+    return any(term.replace(" ", "") in normalized for term in terms)
+
+
+def _major_profile_source(profile: models.MajorProfile) -> dict[str, Any]:
+    return {
+        "source": "major_profile",
+        "profile_id": profile.id,
+        "normalized_ref_id": profile.normalized_ref_id,
+        "asset_version_id": profile.asset_version_id,
+    }
+
+
+def _structured_major_evidence(
+    profile: models.MajorProfile,
+    unit: str,
+) -> list[dict[str, Any]]:
+    if unit == "occupation_oriented":
+        return [
+            {
+                "normalized_ref_id": item.normalized_ref_id,
+                "locator": item.locator or {},
+                "evidence_block_ids": item.evidence_block_ids or [],
+                "source_text": item.source_text,
+            }
+            for item in sorted(profile.occupations, key=lambda item: item.item_index)
+        ]
+    if unit in {
+        "curriculum", "public_basic_courses", "professional_basic_courses",
+        "professional_core_courses", "professional_extension_courses",
+    }:
+        return [
+            {
+                "normalized_ref_id": item.normalized_ref_id,
+                "locator": item.locator or {},
+                "evidence_block_ids": item.evidence_block_ids or [],
+                "source_text": item.source_text,
+            }
+            for item in profile.courses
+            if _course_matches_unit(item.course_group, unit)
+        ]
+    evidence = profile.evidence or {}
+    return [{
+        "normalized_ref_id": profile.normalized_ref_id,
+        "locator": evidence.get("locator", {}),
+        "evidence_block_ids": evidence.get("source_block_ids", []),
+    }]
+
+
+def _find_major_information_chunks(
+    session: Session,
+    *,
+    major_name: str | None,
+    major_code: str | None,
+    unit: str,
+) -> list[dict[str, Any]]:
+    if not major_name and not major_code:
+        return []
+    stmt = (
+        select(models.KnowledgeChunk)
+        .outerjoin(
+            models.NormalizedAssetRef,
+            models.NormalizedAssetRef.id == models.KnowledgeChunk.normalized_ref_id,
+        )
+        .where(models.KnowledgeChunk.knowledge_type_code.in_(_MAJOR_INFORMATION_CHUNK_TYPES))
+    )
+    # Bound candidates by a professional entity in either asset title or
+    # chunk body.  Heading matching happens in Python because historical
+    # heading paths are stored in locator or metadata with different shapes.
+    entity_conditions = []
+    if major_name:
+        entity_conditions.extend((
+            models.NormalizedAssetRef.title.ilike(f"%{major_name}%"),
+            models.KnowledgeChunk.content.ilike(f"%{major_name}%"),
+        ))
+    if major_code:
+        entity_conditions.extend((
+            models.NormalizedAssetRef.title.ilike(f"%{major_code}%"),
+            models.KnowledgeChunk.content.ilike(f"%{major_code}%"),
+        ))
+    if entity_conditions:
+        from sqlalchemy import or_
+        stmt = stmt.where(or_(*entity_conditions))
+
+    terms = _UNIT_SECTION_TERMS[unit]
+    ranked: list[tuple[int, models.KnowledgeChunk]] = []
+    for chunk in session.scalars(stmt.order_by(models.KnowledgeChunk.chunk_index)).all():
+        score = _major_chunk_unit_score(chunk, terms)
+        if score:
+            ranked.append((score, chunk))
+    ranked.sort(key=lambda pair: (-pair[0], pair[1].chunk_index, pair[1].id))
+    return [_serialise_major_chunk(chunk) for _, chunk in ranked[:8]]
+
+
+def _major_chunk_unit_score(
+    chunk: models.KnowledgeChunk,
+    terms: tuple[str, ...],
+) -> int:
+    headings = _chunk_heading_text(chunk)
+    content_start = chunk.content[:500]
+    heading_hits = sum(1 for term in terms if term in headings)
+    content_hits = sum(1 for term in terms if term in content_start)
+    return heading_hits * 100 + content_hits * 10
+
+
+def _chunk_heading_text(chunk: models.KnowledgeChunk) -> str:
+    values: list[str] = []
+    for payload in (chunk.locator or {}, chunk.chunk_metadata or {}):
+        path = payload.get("heading_path")
+        if not isinstance(path, list):
+            continue
+        for item in path:
+            if isinstance(item, dict) and isinstance(item.get("title"), str):
+                values.append(item["title"])
+            elif isinstance(item, str):
+                values.append(item)
+    return "\n".join(values)
+
+
+def _serialise_major_chunk(chunk: models.KnowledgeChunk) -> dict[str, Any]:
+    return {
+        "chunk_id": chunk.id,
+        "normalized_ref_id": chunk.normalized_ref_id,
+        "knowledge_type_code": chunk.knowledge_type_code,
+        "content": chunk.content,
+        "locator": chunk.locator or {},
+        "heading_path": _chunk_heading_text(chunk),
+    }
+
+
+def _clean_text(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    cleaned = re.sub(r"\s+", " ", value).strip()
+    return cleaned or None
+
+
+# ---------------------------------------------------------------------------
 # Tool: internal.query_capability_graph_by_major
 # ---------------------------------------------------------------------------
 
@@ -264,6 +594,7 @@ def query_capability_graph_by_major(
     chart_id = chart_registry.register(
         tool_call_id=tool_call_id, payload=chart_payload,
     )
+    graph_nodes, graph_edges = _serialise_capability_graph_facts(nodes, edges)
 
     return {
         "found": True,
@@ -274,6 +605,8 @@ def query_capability_graph_by_major(
         "normalized_ref_id": build.normalized_ref_id,
         "node_count": len(nodes),
         "edge_count": len(edges),
+        "graph_nodes": graph_nodes,
+        "graph_edges": graph_edges,
         "chart_id": chart_id,
     }
 
@@ -548,6 +881,9 @@ def get_job_demand_role_graph(
     chart_id = chart_registry.register(
         tool_call_id=tool_call_id, payload=chart_payload,
     )
+    graph_nodes, graph_edges = _serialise_capability_graph_facts(
+        merged_nodes, merged_edges,
+    )
 
     return {
         "found": True,
@@ -556,8 +892,44 @@ def get_job_demand_role_graph(
         "builds": build_summaries,
         "node_count": len(merged_nodes),
         "edge_count": len(merged_edges),
+        "graph_nodes": graph_nodes,
+        "graph_edges": graph_edges,
         "chart_id": chart_id,
     }
+
+
+def _serialise_capability_graph_facts(
+    nodes: list[models.CapabilityGraphStagingNode],
+    edges: list[models.CapabilityGraphStagingEdge],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Expose graph facts for deterministic answer rendering, not LLM prose."""
+    node_by_id = {node.id: node for node in nodes}
+    graph_nodes = [
+        {
+            "node_id": node.id,
+            "node_type": node.node_type,
+            "display_name": node.display_name,
+            "properties": node.properties or {},
+            "confidence": float(node.confidence) if node.confidence is not None else None,
+        }
+        for node in nodes
+    ]
+    graph_edges = [
+        {
+            "edge_id": edge.id,
+            "edge_type": edge.edge_type,
+            "source_node_id": edge.source_node_id,
+            "source_name": node_by_id.get(edge.source_node_id).display_name
+            if edge.source_node_id in node_by_id else None,
+            "target_node_id": edge.target_node_id,
+            "target_name": node_by_id.get(edge.target_node_id).display_name
+            if edge.target_node_id in node_by_id else None,
+            "evidence": edge.evidence or {},
+            "confidence": float(edge.confidence) if edge.confidence is not None else None,
+        }
+        for edge in edges
+    ]
+    return graph_nodes, graph_edges
 
 
 # ---------------------------------------------------------------------------
@@ -846,6 +1218,10 @@ def default_v2_executor_registry(
         make_search_chunks_executor(adapter),
     )
     registry.register(
+        "internal.query_major_information",
+        query_major_information,
+    )
+    registry.register(
         "internal.query_capability_graph_by_major",
         query_capability_graph_by_major,
     )
@@ -876,5 +1252,6 @@ __all__ = [
     "query_ability_analysis",
     "query_capability_graph_by_major",
     "query_job_demand",
+    "query_major_information",
     "query_major_distribution",
 ]

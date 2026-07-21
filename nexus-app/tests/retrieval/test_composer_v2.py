@@ -33,6 +33,7 @@ from nexus_app.retrieval.chart_adapter import (
 from nexus_app.retrieval.composer_v2 import (
     MDComposerV2,
     _compute_generated_ratio,
+    _render_grounded_major_information,
     _serialise_tool_results,
 )
 from nexus_app.retrieval.dispatcher_v2 import (
@@ -103,6 +104,116 @@ def _sample_chart() -> ChartPayload:
         edges=[],
         meta=ChartMeta(title="示例图", source_ref="ref-1"),
     )
+
+
+# ---------------------------------------------------------------------------
+# Deterministic major-information rendering
+# ---------------------------------------------------------------------------
+
+
+def test_major_information_renderer_outputs_only_requested_units():
+    rendered = _render_grounded_major_information(_dispatch(
+        intent="scenario_3",
+        tool_results=(ToolResult(
+            tool_call_id="major-1",
+            name="internal.query_major_information",
+            arguments={
+                "major_name": "网络营销与直播电商",
+                "units": ["basic_identity", "occupation_oriented"],
+            },
+            ok=True,
+            result={
+                "major_name": "网络营销与直播电商",
+                "requested_units": ["basic_identity", "occupation_oriented"],
+                "units": {
+                    "basic_identity": {
+                        "status": "structured",
+                        "value": {"major_code": "530704", "education_level": "高职"},
+                        "source": {"normalized_ref_id": "ref-profile"},
+                        "evidence": [{"normalized_ref_id": "ref-profile", "locator": {}}],
+                    },
+                    "occupation_oriented": {
+                        "status": "structured",
+                        "value": [{"text": "互联网营销专业人员"}],
+                        "source": {"normalized_ref_id": "ref-profile"},
+                        "evidence": [{"normalized_ref_id": "ref-profile", "locator": {"page_start": 2}}],
+                    },
+                },
+            },
+        ),),
+    ))
+
+    assert rendered is not None
+    assert "基本信息" in rendered
+    assert "职业面向" in rendered
+    assert "530704" in rendered
+    assert "互联网营销专业人员" in rendered
+    assert "培养目标" not in rendered
+    assert "暂无数据" not in rendered
+
+
+def test_capability_graph_renderer_bypasses_llm_and_renders_facts(seeded_session):
+    llm = _ScriptedLLM("This response must not be used")
+    registry = ChartRegistry()
+    chart_id = registry.register(tool_call_id="graph", payload=_sample_chart())
+    composer = MDComposerV2(llm_client=llm)
+    result = composer.compose(
+        seeded_session,
+        query="平面设计师岗位技能图谱",
+        dispatch_result=_dispatch(
+            intent="scenario_2",
+            chart_registry=registry,
+            tool_results=(ToolResult(
+                tool_call_id="graph",
+                name="internal.get_job_demand_role_graph",
+                arguments={"job_title": "平面设计师"},
+                ok=True,
+                result={
+                    "found": True,
+                    "job_title": "平面设计师",
+                    "node_count": 2,
+                    "edge_count": 1,
+                    "builds": [{"normalized_ref_id": "ref-job"}],
+                    "graph_nodes": [
+                        {"node_id": "role", "node_type": "job_role", "display_name": "平面设计师"},
+                        {"node_id": "skill", "node_type": "skill", "display_name": "版式设计"},
+                    ],
+                    "graph_edges": [{
+                        "edge_id": "edge-1", "edge_type": "REQUIRES",
+                        "source_name": "平面设计师", "target_name": "版式设计",
+                        "evidence": {"source_block_ids": ["block-1"]},
+                    }],
+                    "chart_id": chart_id,
+                },
+            ),),
+        ),
+    )
+
+    assert llm.calls == []
+    assert "平面设计师 -[REQUIRES]-> 版式设计" in result.markdown
+    assert "```chart:echarts" in result.markdown
+    assert "模型推断" not in result.markdown
+
+
+def test_missing_capability_graph_returns_direct_no_asset_result(seeded_session):
+    llm = _ScriptedLLM("This response must not be used")
+    result = MDComposerV2(llm_client=llm).compose(
+        seeded_session,
+        query="不存在岗位技能图谱",
+        dispatch_result=_dispatch(
+            intent="scenario_2",
+            tool_results=(ToolResult(
+                tool_call_id="graph",
+                name="internal.get_job_demand_role_graph",
+                arguments={"job_title": "不存在岗位"},
+                ok=True,
+                result={"found": False, "job_title": "不存在岗位"},
+            ),),
+        ),
+    )
+
+    assert llm.calls == []
+    assert "未检索到该岗位技能图谱数据资产" in result.markdown
 
 
 # ---------------------------------------------------------------------------

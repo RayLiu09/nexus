@@ -23,6 +23,24 @@ class QuerySubject:
     value: str | None = None
 
 
+_MAJOR_INFORMATION_UNIT_PATTERNS = (
+    "基本信息",
+    "专业名称",
+    "专业代码",
+    "入学基本要求",
+    "入学要求",
+    "修业年限",
+    "职业面向",
+    "培养目标",
+    "培养规格",
+    "课程设置",
+    "公共基础课程",
+    "专业基础课程",
+    "专业核心课程",
+    "专业拓展课程",
+)
+
+
 def resolve_query_subject(session: Session, query: str) -> QuerySubject:
     """Resolve the longest unambiguous known business entity in ``query``."""
     query_key = _key(query)
@@ -45,14 +63,24 @@ def resolve_query_subject(session: Session, query: str) -> QuerySubject:
 
 
 def apply_subject_route_guard(
-    intent: IntentV2Result, subject: QuerySubject,
+    intent: IntentV2Result, subject: QuerySubject, query: str = "",
 ) -> IntentV2Result:
-    """Prevent a known job entity from entering the major-only scenario."""
+    """Correct only data-backed entity/representation route contradictions."""
     if subject.kind == "job" and intent.intent == "scenario_3":
         return replace(
             intent,
             intent="scenario_2",
             warnings=(*intent.warnings, "subject_route_override:job_to_scenario_2"),
+        )
+    if (
+        subject.kind == "major"
+        and intent.intent == "scenario_4"
+        and _requests_major_information_unit(query)
+    ):
+        return replace(
+            intent,
+            intent="scenario_3",
+            warnings=(*intent.warnings, "subject_route_override:major_information_to_scenario_3"),
         )
     return intent
 
@@ -69,6 +97,7 @@ def _job_titles(session: Session, query: str) -> list[str]:
 def _major_names(session: Session, query: str) -> list[str]:
     values: set[str] = set()
     for model in (
+        models.MajorProfile,
         models.OccupationalAbilityAnalysis,
         models.MajorDistributionRecord,
         models.CapabilityGraphStagingBuild,
@@ -83,6 +112,11 @@ def _major_names(session: Session, query: str) -> list[str]:
             if isinstance(value, str) and value.strip()
         )
     return sorted(values)
+
+
+def _requests_major_information_unit(query: str) -> bool:
+    normalized_query = _key(query)
+    return any(_key(pattern) in normalized_query for pattern in _MAJOR_INFORMATION_UNIT_PATTERNS)
 
 
 def _matches(query_key: str, candidates: list[str | None]) -> list[str]:
