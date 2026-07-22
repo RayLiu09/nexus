@@ -85,6 +85,27 @@ def test_capability_graph_to_chart_maps_nodes_and_edges():
     assert j["meta"] == {"title": "电子商务 教学标准", "source_ref": "build-abc"}
 
 
+def test_capability_graph_to_chart_normalises_camel_case_node_types():
+    nodes = [
+        _CGSNode(id="n1", node_type="Major", display_name="网络营销与直播电商"),
+        _CGSNode(id="n2", node_type="OccupationalDomain", display_name="市场策划"),
+        _CGSNode(id="n3", node_type="TypicalWorkTask", display_name="产品策划"),
+        _CGSNode(
+            id="n4",
+            node_type="SkillKnowledgeRequirement",
+            display_name="市场定位分析",
+        ),
+    ]
+    payload = capability_graph_to_chart(nodes=nodes, edges=[], title="t")
+
+    assert [node["category"] for node in payload.to_json()["nodes"]] == [
+        "major",
+        "occupational_domain",
+        "typical_work_task",
+        "skill_knowledge_requirement",
+    ]
+
+
 def test_capability_graph_to_chart_drops_dangling_edges():
     """Defence-in-depth: an edge whose endpoint is missing from the node
     list gets silently dropped. Composer can't render a graph with

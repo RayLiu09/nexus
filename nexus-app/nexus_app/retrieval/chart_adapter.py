@@ -92,10 +92,30 @@ def _normalise_category(node_type: str | None) -> str:
     """Fold graph builder node_type into a display category.
 
     ECharts categories are surface-level buckets for hover / colour; we
-    keep them equal to the domain node_type verbatim (already lowercase
-    snake_case in the whitelist).
+    expose stable lowercase snake_case labels even though capability graph
+    staging stores whitelist values as CamelCase.
     """
-    return (node_type or "unknown").lower()
+    raw = (node_type or "").strip()
+    if not raw:
+        return "unknown"
+    compact_aliases = {
+        "jobrole": "job_role",
+        "jobdemandrecord": "job_demand_record",
+        "professionalliteracy": "professional_literacy",
+        "worktask": "work_task",
+        "workcontent": "work_content",
+        "coursemodule": "course_module",
+        "occupationaldomain": "occupational_domain",
+        "typicalworktask": "typical_work_task",
+        "skillknowledgerequirement": "skill_knowledge_requirement",
+    }
+    compact = re.sub(r"[^A-Za-z0-9]", "", raw).lower()
+    if compact in compact_aliases:
+        return compact_aliases[compact]
+    if raw.isupper():
+        return raw.lower()
+    snake = re.sub(r"(?<!^)(?=[A-Z])", "_", raw).lower()
+    return re.sub(r"[^a-z0-9]+", "_", snake).strip("_") or "unknown"
 
 
 def capability_graph_to_chart(
