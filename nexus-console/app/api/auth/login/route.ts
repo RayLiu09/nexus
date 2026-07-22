@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server";
 
 import { proxy } from "@/lib/api/proxy";
-import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@/lib/auth/token";
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, isCookieSecure } from "@/lib/auth/token";
 
 // Cookies from backend are short-lived; maxAge values are coordinated with backend.
 const ACCESS_MAX_AGE = 900; // 15 min
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
   // server-side cookie read in `lib/api/proxy.ts`.
   response.cookies.set(ACCESS_TOKEN_COOKIE, access_token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: isCookieSecure(),
     sameSite: "lax",
     path: "/",
     maxAge: ACCESS_MAX_AGE,
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
   // Set refresh token — httpOnly for security
   response.cookies.set(REFRESH_TOKEN_COOKIE, refresh_token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: isCookieSecure(),
     sameSite: "lax",
     path: "/",
     maxAge: REFRESH_MAX_AGE,

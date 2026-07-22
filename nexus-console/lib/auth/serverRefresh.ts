@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { proxy } from "@/lib/api/proxy";
-import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@/lib/auth/token";
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, isCookieSecure } from "@/lib/auth/token";
 
 const ACCESS_MAX_AGE = 900;
 const REFRESH_MAX_AGE = 604800;
@@ -41,7 +41,7 @@ export async function refreshServerTokens(): Promise<{ ok: true; traceId: string
 
   store.set(ACCESS_TOKEN_COOKIE, result.data.access_token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: isCookieSecure(),
     sameSite: "lax",
     path: "/",
     maxAge: ACCESS_MAX_AGE,
@@ -50,7 +50,7 @@ export async function refreshServerTokens(): Promise<{ ok: true; traceId: string
   if (result.data.refresh_token) {
     store.set(REFRESH_TOKEN_COOKIE, result.data.refresh_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: isCookieSecure(),
       sameSite: "lax",
       path: "/",
       maxAge: REFRESH_MAX_AGE,

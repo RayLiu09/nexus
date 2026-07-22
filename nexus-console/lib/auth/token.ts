@@ -30,6 +30,13 @@ export interface JwtPayload {
 const ACCESS_TOKEN_COOKIE = "nexus_access_token";
 const REFRESH_TOKEN_COOKIE = "nexus_refresh_token";
 
+function isCookieSecure(): boolean {
+  return (
+    process.env.NEXUS_COOKIE_SECURE === "true" ||
+    (process.env.NEXUS_COOKIE_SECURE !== "false" && process.env.NODE_ENV === "production")
+  );
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function decodeJwtPayload(token: string): JwtPayload | null {
@@ -136,4 +143,10 @@ export async function authorizationHeader(): Promise<string | null> {
   return token ? `Bearer ${token}` : null;
 }
 
-export { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, decodeJwtPayload, isTokenExpired };
+export {
+  ACCESS_TOKEN_COOKIE,
+  REFRESH_TOKEN_COOKIE,
+  decodeJwtPayload,
+  isCookieSecure,
+  isTokenExpired,
+};

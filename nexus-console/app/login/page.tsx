@@ -10,6 +10,16 @@ interface LoginFormValues {
   password: string;
 }
 
+function safeRedirect(value: string | null): string {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+    return "/workbench";
+  }
+  if (value === "/login" || value.startsWith("/login?")) {
+    return "/workbench";
+  }
+  return value;
+}
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -26,8 +36,8 @@ function LoginForm() {
         const resp = await fetch("/api/auth/session", { cache: "no-store" });
         // 200 = session exists; 204 = no cookie / expired → show login form
         if (resp.status === 200 && !cancelled) {
-          const redirect = searchParams.get("redirect") ?? "/workbench";
-          router.replace(redirect);
+          router.replace(safeRedirect(searchParams.get("redirect")));
+          router.refresh();
           return;
         }
       } catch {
@@ -62,8 +72,8 @@ function LoginForm() {
         }
 
         message.success(`欢迎回来，${body.data?.displayName ?? "用户"}`);
-        const redirect = searchParams.get("redirect") ?? "/workbench";
-        router.push(redirect);
+        router.replace(safeRedirect(searchParams.get("redirect")));
+        router.refresh();
       } catch {
         setError("网络异常，无法连接认证服务");
       } finally {
