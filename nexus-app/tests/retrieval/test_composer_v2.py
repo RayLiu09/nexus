@@ -195,6 +195,97 @@ def test_capability_graph_renderer_bypasses_llm_and_renders_facts(seeded_session
     assert "模型推断" not in result.markdown
 
 
+@pytest.mark.parametrize(
+    ("query", "question_type", "expected_limit"),
+    [
+        (
+            "浙江省2026年电子商务人才需求缺口情况",
+            "demand_gap",
+            "不能计算严格人才需求缺口",
+        ),
+        (
+            "2026年电子商务专业市场需求如何",
+            "demand_scale",
+            "不能计算严格招聘人数规模",
+        ),
+    ],
+)
+def test_job_demand_renderer_outputs_raw_counts_and_blocks_generated_warning(
+    seeded_session, query, question_type, expected_limit,
+):
+    llm = _ScriptedLLM(
+        "> ⚠️ 以下为模型推断内容，未匹配到平台资产\n> 不应使用这段模型推断"
+    )
+    result = MDComposerV2(llm_client=llm).compose(
+        seeded_session,
+        query=query,
+        dispatch_result=_dispatch(
+            intent="scenario_2",
+            tool_results=(ToolResult(
+                tool_call_id="job-demand",
+                name="internal.query_job_demand",
+                arguments={"major": "电子商务", "year": 2026},
+                ok=True,
+                result={
+                    "major": "电子商务",
+                    "records": [
+                        {
+                            "id": "r1",
+                            "job_title": "电商运营主管",
+                            "industry_name": "电子商务",
+                            "city": "杭州滨江区",
+                            "normalized_ref_id": "ref-job",
+                            "dataset_id": "ds-job",
+                        },
+                        {
+                            "id": "r2",
+                            "job_title": "跨境供应链经理",
+                            "industry_name": "贸易/进出口",
+                            "city": "杭州拱墅区",
+                            "normalized_ref_id": "ref-job",
+                            "dataset_id": "ds-job",
+                        },
+                    ],
+                    "record_count": 50,
+                    "total_record_count": 1056,
+                    "job_count_sum": 0,
+                    "aggregations": {
+                        "industry_distribution": [
+                            {"industry_name": "电子商务", "count": 144},
+                            {"industry_name": "互联网", "count": 41},
+                        ],
+                    },
+                    "filters": {
+                        "year": 2026,
+                        "province_name": "浙江省",
+                        "question_type": question_type,
+                    },
+                    "data_limitations": {
+                        "year_filter_requires_source_published_at": True,
+                        "year_filter_relaxed_due_to_missing_source_published_at": True,
+                        "demand_scale_requires_job_count": True,
+                        "demand_gap_requires_supply_side_data": question_type == "demand_gap",
+                    },
+                },
+            ),),
+        ),
+    )
+
+    assert llm.calls == []
+    assert "匹配岗位需求记录总数：1056 条" in result.markdown
+    assert "本次返回用于摘要的样本记录：50 条" in result.markdown
+    assert "招聘人数汇总（job_count）：当前匹配记录未提供可汇总人数" in result.markdown
+    assert "年度口径：用户指定 2026 年" in result.markdown
+    assert "系统已放宽年度过滤" in result.markdown
+    assert expected_limit in result.markdown
+    assert "电子商务：144 条" in result.markdown
+    assert "电商运营主管" in result.markdown
+    assert "job_demand_record:r1" in result.markdown
+    assert "模型推断" not in result.markdown
+    assert "未匹配到平台资产" not in result.markdown
+    assert result.generated_ratio == 0.0
+
+
 def test_missing_capability_graph_returns_direct_no_asset_result(seeded_session):
     llm = _ScriptedLLM("This response must not be used")
     result = MDComposerV2(llm_client=llm).compose(

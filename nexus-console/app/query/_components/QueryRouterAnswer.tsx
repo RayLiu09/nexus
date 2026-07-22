@@ -26,7 +26,8 @@
  */
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useCallback } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { useCallback, useState } from "react";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
 import type { KnowledgeChunkHit } from "@/lib/chunkTypes";
@@ -40,6 +41,13 @@ interface QueryRouterAnswerProps {
 
 const CHART_LANG = "chart:echarts";
 const GENERATED_MARKER = "⚠️";
+const GRAPH_RELATIONS_HEADING_RE = /^#{1,6}\s+图谱关系\s*$/;
+const MARKDOWN_LIST_ITEM_RE = /^\s*[-*+]\s+/;
+const FOOTNOTE_DEFINITION_RE = /^\[\^[^\]]+\]:/;
+
+type MarkdownSection =
+  | { type: "markdown"; markdown: string }
+  | { type: "graph_relations"; markdown: string; relationCount: number };
 
 export function QueryRouterAnswer({ markdown, onSelectChunk }: QueryRouterAnswerProps) {
   const handleAnchorClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
@@ -72,19 +80,124 @@ export function QueryRouterAnswer({ markdown, onSelectChunk }: QueryRouterAnswer
       onClick={handleAnchorClick}
       data-testid="query-router-answer"
     >
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          pre: PreRenderer,
-          code: InlineCodeRenderer,
-          blockquote: BlockquoteRenderer,
-          section: FootnoteSectionRenderer,
-        }}
-      >
-        {renderMarkdown}
-      </ReactMarkdown>
+      {splitGraphRelationSections(renderMarkdown).map((section, index) =>
+        section.type === "graph_relations" ? (
+          <GraphRelationsDisclosure
+            key={`graph-relations-${index}`}
+            markdown={section.markdown}
+            relationCount={section.relationCount}
+          />
+        ) : (
+          <MarkdownContent key={`markdown-${index}`} markdown={section.markdown} />
+        ),
+      )}
     </div>
   );
+}
+
+function MarkdownContent({ markdown }: { markdown: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        pre: PreRenderer,
+        code: InlineCodeRenderer,
+        blockquote: BlockquoteRenderer,
+        section: FootnoteSectionRenderer,
+      }}
+    >
+      {markdown}
+    </ReactMarkdown>
+  );
+}
+
+function GraphRelationsDisclosure({
+  markdown,
+  relationCount,
+}: {
+  markdown: string;
+  relationCount: number;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const actionLabel = isOpen ? "收起图谱关系" : "展开图谱关系";
+  const Icon = isOpen ? ChevronDown : ChevronRight;
+
+  return (
+    <section className="border-line my-3 border-y py-2" data-testid="query-graph-relations">
+      <h3 className="m-0 text-sm font-semibold text-gray-800">
+        <button
+          type="button"
+          className="inline-flex items-center gap-1.5 rounded px-1 py-1 text-left hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+          onClick={() => setIsOpen((open) => !open)}
+          aria-expanded={isOpen}
+          aria-label={actionLabel}
+          title={actionLabel}
+        >
+          <Icon aria-hidden="true" size={16} strokeWidth={2} />
+          <span>图谱关系（{relationCount} 条）</span>
+        </button>
+      </h3>
+      {isOpen ? <MarkdownContent markdown={markdown} /> : null}
+    </section>
+  );
+}
+
+function splitGraphRelationSections(markdown: string): MarkdownSection[] {
+  const lines = markdown.split("\n");
+  const sections: MarkdownSection[] = [];
+  let markdownStart = 0;
+  let index = 0;
+
+  while (index < lines.length) {
+    if (!GRAPH_RELATIONS_HEADING_RE.test(lines[index])) {
+      index += 1;
+      continue;
+    }
+
+    let listStart = index + 1;
+    while (listStart < lines.length && lines[listStart].trim() === "") listStart += 1;
+    if (listStart >= lines.length || !MARKDOWN_LIST_ITEM_RE.test(lines[listStart])) {
+      index += 1;
+      continue;
+    }
+
+    let listEnd = listStart;
+    while (listEnd < lines.length) {
+      const line = lines[listEnd];
+      if (line.trim() === "" || MARKDOWN_LIST_ITEM_RE.test(line) || /^\s{2,}\S/.test(line)) {
+        listEnd += 1;
+        continue;
+      }
+      break;
+    }
+    while (listEnd > listStart && lines[listEnd - 1].trim() === "") listEnd -= 1;
+
+    let sectionEnd = listEnd;
+    while (
+      sectionEnd < lines.length &&
+      (lines[sectionEnd].trim() === "" || FOOTNOTE_DEFINITION_RE.test(lines[sectionEnd]))
+    ) {
+      sectionEnd += 1;
+    }
+
+    const precedingMarkdown = lines.slice(markdownStart, index).join("\n");
+    if (precedingMarkdown) sections.push({ type: "markdown", markdown: precedingMarkdown });
+
+    const relationMarkdown = lines.slice(listStart, sectionEnd).join("\n");
+    sections.push({
+      type: "graph_relations",
+      markdown: relationMarkdown,
+      relationCount: lines.slice(listStart, listEnd).filter((line) => MARKDOWN_LIST_ITEM_RE.test(line)).length,
+    });
+    markdownStart = sectionEnd;
+    index = sectionEnd;
+  }
+
+  const trailingMarkdown = lines.slice(markdownStart).join("\n");
+  if (trailingMarkdown || sections.length === 0) {
+    sections.push({ type: "markdown", markdown: trailingMarkdown });
+  }
+  return sections;
 }
 
 const FOOTNOTE_CHUNK_ID_RE = /(^\[\^[^\]]+\]:[^\n]*?\bchunk_id\s*[:：]\s*`?)([0-9a-f-]{36})(`?[^\n]*)$/gim;

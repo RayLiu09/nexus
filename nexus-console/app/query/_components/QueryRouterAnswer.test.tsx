@@ -59,6 +59,36 @@ describe("QueryRouterAnswer", () => {
     expect(screen.getByText(/普通引用段落/)).toBeInTheDocument();
   });
 
+  it("collapses graph relations by default and expands the original cited list", async () => {
+    const user = userEvent.setup();
+    const markdown = [
+      "## 直播运营岗位能力图谱",
+      "",
+      "已检索到 3 个图谱节点和 2 条关系。",
+      "",
+      "### 图谱关系",
+      "- 直播运营 -[OCCUPATIONAL_DOMAIN_HAS_TYPICAL_WORK_TASK]-> 供应链协调 [^ref1]",
+      "- 直播运营 -[OCCUPATIONAL_DOMAIN_HAS_TYPICAL_WORK_TASK]-> 人员分配 [^ref2]",
+      "",
+      "[^ref1]: 来源：教学标准。",
+      "[^ref2]: 来源：教学标准。",
+    ].join("\n");
+
+    render(<QueryRouterAnswer markdown={markdown} />);
+
+    const relations = screen.getByTestId("query-graph-relations");
+    const toggle = screen.getByRole("button", { name: "展开图谱关系" });
+    expect(toggle).toHaveTextContent("图谱关系（2 条）");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(relations).not.toHaveTextContent("供应链协调");
+    await user.click(toggle);
+
+    expect(screen.getByRole("button", { name: "收起图谱关系" })).toHaveAttribute("aria-expanded", "true");
+    expect(relations).toHaveTextContent("直播运营 -[OCCUPATIONAL_DOMAIN_HAS_TYPICAL_WORK_TASK]-> 供应链协调");
+    expect(relations).toHaveTextContent("直播运营 -[OCCUPATIONAL_DOMAIN_HAS_TYPICAL_WORK_TASK]-> 人员分配");
+    expect(screen.getByText("来源引用")).toBeInTheDocument();
+  });
+
   it("renders footnote references via remark-gfm", () => {
     const markdown = "参考本条政策[^ref1]。\n\n[^ref1]: 政策原文来源";
     const { container } = render(<QueryRouterAnswer markdown={markdown} />);

@@ -445,6 +445,9 @@ def _render_grounded_answer(
     major_information = _render_grounded_major_information(dispatch_result)
     if major_information is not None:
         return major_information
+    job_demand = _render_grounded_job_demand(dispatch_result)
+    if job_demand is not None:
+        return job_demand
     procedure = _render_grounded_task_procedure(
         query=query,
         dispatch_result=dispatch_result,
@@ -548,6 +551,117 @@ def _capability_graph_citation(
         f"`{(edge or {}).get('edge_id') or ''}` / "
         f"`{json.dumps(evidence or {}, ensure_ascii=False, sort_keys=True)}`"
     )
+
+
+def _render_grounded_job_demand(
+    dispatch_result: DispatchResult,
+) -> str | None:
+    """Render job-demand market statistics directly from local assets.
+
+    Market scale / demand-gap questions must surface the raw NEXUS record
+    counts and data limitations. Letting the LLM summarize this payload can
+    incorrectly claim that no platform asset matched while records were in
+    fact retrieved.
+    """
+    results = [
+        tool_result.result
+        for tool_result in dispatch_result.tool_results
+        if tool_result.ok
+        and tool_result.name == "internal.query_job_demand"
+        and isinstance(tool_result.result, dict)
+    ]
+    if len(results) != 1:
+        return None
+
+    result = results[0]
+    records = [
+        record for record in result.get("records") or []
+        if isinstance(record, dict)
+    ]
+    total_record_count = result.get("total_record_count")
+    if not isinstance(total_record_count, int):
+        total_record_count = len(records)
+    if total_record_count <= 0 and not records:
+        return None
+
+    returned_count = result.get("record_count")
+    if not isinstance(returned_count, int):
+        returned_count = len(records)
+    job_count_sum = result.get("job_count_sum")
+    filters = result.get("filters") if isinstance(result.get("filters"), dict) else {}
+    limitations = (
+        result.get("data_limitations")
+        if isinstance(result.get("data_limitations"), dict) else {}
+    )
+    major = str(result.get("major") or filters.get("major") or "岗位需求")
+    question_type = filters.get("question_type")
+
+    lines = [
+        "## NEXUS 本地岗位需求资产检索结果",
+        "",
+        f"本次已从 NEXUS 平台岗位需求记录中检索到 `{major}` 相关本地资产。",
+        "",
+        "### 核心统计数据",
+        f"- 匹配岗位需求记录总数：{total_record_count} 条",
+        f"- 本次返回用于摘要的样本记录：{returned_count} 条",
+    ]
+    if isinstance(job_count_sum, int):
+        if job_count_sum > 0:
+            lines.append(f"- 招聘人数汇总（job_count）：{job_count_sum}")
+        else:
+            lines.append("- 招聘人数汇总（job_count）：当前匹配记录未提供可汇总人数，不能据此计算招聘人数规模")
+
+    year = filters.get("year")
+    if year:
+        if limitations.get("year_filter_relaxed_due_to_missing_source_published_at"):
+            lines.append(
+                f"- 年度口径：用户指定 {year} 年；当前匹配岗位记录缺少 `source_published_at`，"
+                "系统已放宽年度过滤，因此以下统计代表当前已治理岗位样本，不等同于严格年度统计"
+            )
+        else:
+            lines.append(f"- 年度口径：已按 {year} 年过滤 `source_published_at`")
+    province_name = filters.get("province_name")
+    city = filters.get("city")
+    if province_name or city:
+        scope = " / ".join(str(item) for item in (province_name, city) if item)
+        lines.append(f"- 地域口径：{scope}")
+    if question_type == "demand_gap" or limitations.get("demand_gap_requires_supply_side_data"):
+        lines.append("- 缺口口径：当前仅命中需求侧岗位记录，未检索到供给侧数据，不能计算严格人才需求缺口")
+    elif question_type == "demand_scale" or limitations.get("demand_scale_requires_job_count"):
+        lines.append("- 规模口径：当前可呈现岗位记录样本规模；因 `job_count` 缺失，不能计算严格招聘人数规模")
+
+    aggregations = result.get("aggregations")
+    distribution = (
+        aggregations.get("industry_distribution")
+        if isinstance(aggregations, dict) else None
+    )
+    if isinstance(distribution, list) and distribution:
+        lines.extend(["", "### 行业分布 Top 项"])
+        for item in distribution[:10]:
+            if not isinstance(item, dict):
+                continue
+            name = item.get("industry_name") or "未标注行业"
+            count = item.get("count")
+            lines.append(f"- {name}：{count} 条")
+
+    if records:
+        lines.extend(["", "### 样本岗位记录"])
+        citations: list[str] = []
+        for citation_index, record in enumerate(records[:10], start=1):
+            title = str(record.get("job_title") or "未标注岗位").strip()
+            industry = str(record.get("industry_name") or "未标注行业").strip()
+            location = str(record.get("city") or record.get("region") or "未标注地区").strip()
+            lines.append(
+                f"- {title}；行业：{industry}；地区：{location} [^ref{citation_index}]"
+            )
+            citations.append(
+                f"[^ref{citation_index}]: `job_demand_record:{record.get('id') or ''}` / "
+                f"`{record.get('normalized_ref_id') or ''}` / "
+                f"`dataset_id={record.get('dataset_id') or ''}`"
+            )
+        lines.extend(["", *citations])
+
+    return "\n".join(lines)
 
 
 _MAJOR_UNIT_LABELS = {
