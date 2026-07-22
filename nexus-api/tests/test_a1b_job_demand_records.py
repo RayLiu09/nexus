@@ -4,12 +4,12 @@ New internal endpoint at `/internal/v1/record-assets/job-demand-records`.
 
 Contract highlights (why these tests exist):
 
-* `major` is required and does substring matching on
-  `job_demand_dataset.major_name` (§1.11 闭合 — no `industry_name`
-  fallback). Reverse-verify with a "industry names contain the query
-  but major_name doesn't" fixture.
-* Only 1 business filter (`major`) + trace filter (`normalized_ref_id`).
-  Every other query knob is deliberately absent (§1.14 收窄).
+* `major` is required and does substring matching on record-level
+  job-demand business fields. `job_demand_dataset` is only the
+  processing container; `job_demand_record` is the market-demand fact
+  table.
+* P0 filters: business keyword (`major`), trace filter (`normalized_ref_id`),
+  and market-stat dimensions (`year`, `province_name`, `city`).
 * `fields=industry_distribution` triggers a Top-5 aggregation in the
   response envelope (§1.15 B1) — GROUP BY + COUNT + ORDER DESC + LIMIT 5,
   omitting rows with a null industry.
@@ -83,7 +83,7 @@ def _seed_anchor(session, *, ref_id: str, version_id: str):
 
 
 def _seed_dataset(
-    session, *, ref, dataset_id: str, major_name: str,
+    session, *, ref, dataset_id: str, major_name: str | None = None,
     industry_name: str | None = None,
 ):
     dataset = models.JobDemandDataset(
@@ -107,13 +107,14 @@ def _seed_record(
     industry_name: str | None = "互联网",
     job_title: str = "数据分析师",
     company: str = "ACME",
+    city: str = "上海",
 ):
     from nexus_app.domain_normalize.fingerprint import (
         compute_job_demand_record_fingerprint,
     )
     fp = compute_job_demand_record_fingerprint({
         "company_name": company, "job_title": job_title,
-        "city": "上海", "source_record_key": record_id,
+        "city": city, "source_record_key": record_id,
     })
     record = models.JobDemandRecord(
         id=record_id,
@@ -121,7 +122,7 @@ def _seed_record(
         normalized_ref_id=ref.id,
         source_record_key=record_id,
         job_title=job_title,
-        city="上海",
+        city=city,
         industry_name=industry_name,
         company_name=company,
         record_fingerprint=fp,
@@ -145,21 +146,18 @@ class TestMajorFilter:
         # FastAPI Query(...) with no default → 422 when missing.
         assert r.status_code == 422
 
-    def test_major_substring_hits_across_datasets(self, app, session):
-        """A record in dataset major="跨境电商" and another in dataset
-        major="电商运营" should both surface when the query says
-        `major=电商` (substring match across two datasets)."""
+    def test_major_substring_hits_record_fields_across_datasets(self, app, session):
+        """Records should surface by record-level business fields even when
+        dataset.major_name is empty because dataset is only a processing
+        container."""
         ref_a = _seed_anchor(session, ref_id="ref-a", version_id="v-a")
         ref_b = _seed_anchor(session, ref_id="ref-b", version_id="v-b")
-        # Both dataset major_name values contain the substring "电商" —
-        # the point of the test is that A1b's ILIKE hits multiple
-        # datasets in a single call.
-        ds_a = _seed_dataset(session, ref=ref_a, dataset_id="ds-a",
-                              major_name="跨境电商")
-        ds_b = _seed_dataset(session, ref=ref_b, dataset_id="ds-b",
-                              major_name="电商运营")
-        _seed_record(session, dataset=ds_a, ref=ref_a, record_id="r-a1")
-        _seed_record(session, dataset=ds_b, ref=ref_b, record_id="r-b1")
+        ds_a = _seed_dataset(session, ref=ref_a, dataset_id="ds-a")
+        ds_b = _seed_dataset(session, ref=ref_b, dataset_id="ds-b")
+        _seed_record(session, dataset=ds_a, ref=ref_a, record_id="r-a1",
+                     job_title="跨境电商运营")
+        _seed_record(session, dataset=ds_b, ref=ref_b, record_id="r-b1",
+                     industry_name="电子商务")
 
         with TestClient(app) as client:
             r = client.get(
@@ -172,17 +170,13 @@ class TestMajorFilter:
         assert ids == {"r-a1", "r-b1"}
         assert body["meta"]["total"] == 2
 
-    def test_major_does_not_fall_back_to_industry_name(self, app, session):
-        """Reverse case (§1.11 决策): a record where the record's own
-        `industry_name` matches the query but the dataset's `major_name`
-        does NOT should be excluded — no industry_name兜底."""
-        ref = _seed_anchor(session, ref_id="ref-neg", version_id="v-neg")
-        # Dataset registered as major="其他专业" (not "跨境电商").
-        ds = _seed_dataset(session, ref=ref, dataset_id="ds-neg",
+    def test_major_uses_record_industry_even_when_dataset_major_differs(self, app, session):
+        """Dataset major_name must not hide real job-demand facts.
+        The record itself is the retrieval subject."""
+        ref = _seed_anchor(session, ref_id="ref-rec", version_id="v-rec")
+        ds = _seed_dataset(session, ref=ref, dataset_id="ds-rec",
                            major_name="其他专业")
-        # Record's own industry_name matches the query substring,
-        # tempting a naive fallback implementation to pick it up.
-        _seed_record(session, dataset=ds, ref=ref, record_id="r-neg-1",
+        _seed_record(session, dataset=ds, ref=ref, record_id="r-rec-1",
                      industry_name="跨境电商行业")
 
         with TestClient(app) as client:
@@ -192,18 +186,18 @@ class TestMajorFilter:
             )
         assert r.status_code == 200
         body = r.json()
-        assert body["meta"]["total"] == 0
-        assert body["data"] == []
+        assert body["meta"]["total"] == 1
+        assert [row["id"] for row in body["data"]] == ["r-rec-1"]
 
     def test_normalized_ref_id_trace_filter(self, app, session):
         ref_a = _seed_anchor(session, ref_id="ref-tr-a", version_id="v-tr-a")
         ref_b = _seed_anchor(session, ref_id="ref-tr-b", version_id="v-tr-b")
-        ds_a = _seed_dataset(session, ref=ref_a, dataset_id="ds-tr-a",
-                              major_name="电子商务")
-        ds_b = _seed_dataset(session, ref=ref_b, dataset_id="ds-tr-b",
-                              major_name="电子商务")
-        _seed_record(session, dataset=ds_a, ref=ref_a, record_id="r-tr-a")
-        _seed_record(session, dataset=ds_b, ref=ref_b, record_id="r-tr-b")
+        ds_a = _seed_dataset(session, ref=ref_a, dataset_id="ds-tr-a")
+        ds_b = _seed_dataset(session, ref=ref_b, dataset_id="ds-tr-b")
+        _seed_record(session, dataset=ds_a, ref=ref_a, record_id="r-tr-a",
+                     job_title="电子商务运营")
+        _seed_record(session, dataset=ds_b, ref=ref_b, record_id="r-tr-b",
+                     job_title="电子商务客服")
 
         with TestClient(app) as client:
             r = client.get(
@@ -214,6 +208,27 @@ class TestMajorFilter:
         assert [row["id"] for row in r.json()["data"]] == ["r-tr-a"]
 
 
+class TestYearFilter:
+    def test_year_filter_relaxes_when_matching_records_are_undated(self, app, session):
+        ref = _seed_anchor(session, ref_id="ref-year-relax", version_id="v-year-relax")
+        ds = _seed_dataset(session, ref=ref, dataset_id="ds-year-relax")
+        _seed_record(
+            session, dataset=ds, ref=ref, record_id="r-year-relax",
+            job_title="电子商务运营", city="杭州滨江区", industry_name="电子商务",
+        )
+
+        with TestClient(app) as client:
+            r = client.get(
+                "/internal/v1/record-assets/job-demand-records",
+                params={"major": "电子商务", "province_name": "浙江省", "year": 2026},
+            )
+
+        assert r.status_code == 200
+        body = r.json()
+        assert body["meta"]["total"] == 1
+        assert [row["id"] for row in body["data"]] == ["r-year-relax"]
+
+
 # ---------------------------------------------------------------------------
 # industry_distribution aggregation — §1.15 B1
 # ---------------------------------------------------------------------------
@@ -222,8 +237,7 @@ class TestMajorFilter:
 class TestIndustryDistribution:
     def _seed_diverse_industries(self, session):
         ref = _seed_anchor(session, ref_id="ref-agg", version_id="v-agg")
-        ds = _seed_dataset(session, ref=ref, dataset_id="ds-agg",
-                           major_name="电子商务")
+        ds = _seed_dataset(session, ref=ref, dataset_id="ds-agg")
         # 14 records spread across 12 distinct industries so the Top-10 cap
         # actually kicks in (§B0.1 Top-K=10 hard cap). Order:
         # 互联网(3), 零售(2), rest 1 each → the 10-th is one of the
@@ -247,7 +261,8 @@ class TestIndustryDistribution:
             "地产",
         ]):
             _seed_record(session, dataset=ds, ref=ref,
-                         record_id=f"r-agg-{i}", industry_name=ind)
+                         record_id=f"r-agg-{i}", industry_name=ind,
+                         job_title="电子商务运营")
         return ref, ds
 
     def test_aggregation_returned_by_default(self, app, session):
@@ -312,12 +327,11 @@ class TestIndustryDistribution:
 
     def test_industry_distribution_ignores_null_industry(self, app, session):
         ref = _seed_anchor(session, ref_id="ref-null", version_id="v-null")
-        ds = _seed_dataset(session, ref=ref, dataset_id="ds-null",
-                           major_name="电子商务")
+        ds = _seed_dataset(session, ref=ref, dataset_id="ds-null")
         _seed_record(session, dataset=ds, ref=ref, record_id="r-null-1",
-                     industry_name=None)
+                     industry_name=None, job_title="电子商务运营")
         _seed_record(session, dataset=ds, ref=ref, record_id="r-null-2",
-                     industry_name="互联网")
+                     industry_name="互联网", job_title="电子商务运营")
 
         with TestClient(app) as client:
             r = client.get(
@@ -330,8 +344,7 @@ class TestIndustryDistribution:
 
     def test_industry_distribution_empty_when_no_records(self, app, session):
         ref = _seed_anchor(session, ref_id="ref-empty", version_id="v-empty")
-        _seed_dataset(session, ref=ref, dataset_id="ds-empty",
-                      major_name="电子商务")
+        _seed_dataset(session, ref=ref, dataset_id="ds-empty")
         with TestClient(app) as client:
             r = client.get(
                 "/internal/v1/record-assets/job-demand-records",
@@ -373,9 +386,9 @@ class TestFieldsContract:
         keys (e.g. `count`) suppresses the default `industry_distribution`
         aggregation. Callers use this when they only need the record page."""
         ref = _seed_anchor(session, ref_id="ref-nf", version_id="v-nf")
-        ds = _seed_dataset(session, ref=ref, dataset_id="ds-nf",
-                           major_name="电子商务")
-        _seed_record(session, dataset=ds, ref=ref, record_id="r-nf")
+        ds = _seed_dataset(session, ref=ref, dataset_id="ds-nf")
+        _seed_record(session, dataset=ds, ref=ref, record_id="r-nf",
+                     job_title="电子商务运营")
 
         with TestClient(app) as client:
             r = client.get(

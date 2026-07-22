@@ -88,17 +88,17 @@ class TestBuildUnionSchema:
         assert "major_name" in schema["properties"]
         assert schema["required"] == []
 
-    def test_required_only_when_declared_by_every_tool_that_uses_it(self):
+    def test_required_only_when_declared_by_every_tool(self):
         """`year` required by tool A, tool B doesn't declare it at all →
-        year still required (only 1 tool declares it, and that tool
-        marks it required — the "every tool that uses it" rule holds)."""
+        not scenario-level required. The dispatcher validates selected-tool
+        required fields after the scenario sub-domain is known."""
         t1 = _tool("internal.a",
                     {"year": {"type": "integer"}}, ["year"])
         t2 = _tool("internal.b",
                     {"other": {"type": "string"}}, [])
         schema = build_union_schema([t1, t2])
         assert "year" in schema["properties"]
-        assert schema["required"] == ["year"]
+        assert schema["required"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -156,10 +156,10 @@ class TestExtractorHappyPath:
         )
 
         assert result.extracted_params == {"major_name": "跨境电商"}
-        # `major_name` is optional in scenario_2 (only build_type is
-        # required across every tool that has it), so missing_required
-        # only surfaces genuinely-required fields the model didn't fill.
-        assert "major_name" not in result.missing_required
+        # scenario_2 is a mixed-tool scenario. Fields required by only
+        # one branch (job_title / build_type / major) must not become
+        # scenario-level missing parameters.
+        assert result.missing_required == []
         # LLM saw a real schema with scenario_2 properties.
         prompt_content = llm.calls[0]["messages"][0]["content"]
         assert "跨境电商的岗位需求分布如何？" in prompt_content

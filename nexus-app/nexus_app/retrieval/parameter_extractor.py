@@ -111,10 +111,11 @@ def build_union_schema(tools: list[ToolSpec]) -> dict[str, Any]:
     * `properties` — union of every tool's properties. When two tools
       declare the same field with different types, the FIRST tool wins
       (arbitrary but stable — tools are ordered per the registry file).
-    * `required` — a field is required in the union iff EVERY tool
-      that declares it marks it required. This preserves the "will
-      dispatcher be able to call any tool?" semantics: if any tool
-      leaves it optional, we can still fall through.
+    * `required` — a field is required in the union iff every tool in
+      the scenario declares it and marks it required. In mixed-tool
+      scenarios, fields required by only one optional branch (for
+      example scenario_2's `job_title` role-graph field) must not
+      become scenario-level required.
 
     The result is what the extractor asks the LLM to fill.
     """
@@ -130,9 +131,10 @@ def build_union_schema(tools: list[ToolSpec]) -> dict[str, Any]:
         for name in params.get("required", []):
             required_counts[name] = required_counts.get(name, 0) + 1
 
+    tool_count = len(tools)
     required_union: list[str] = sorted(
         name for name, count in required_counts.items()
-        if declared_counts.get(name, 0) == count
+        if declared_counts.get(name, 0) == tool_count and count == tool_count
     )
 
     return {

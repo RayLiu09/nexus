@@ -41,17 +41,34 @@
       "tools": [
         {
           "name": "internal.query_job_demand",
-          "description": "跨 dataset 检索岗位需求记录，只支持 major 一维业务过滤（§1.14 收窄）；默认返回按照industry_distribution的Top-10行业分布聚合（§1.15 B1）",
+          "description": "跨 dataset 检索岗位需求记录；major 作为业务关键词在 job_demand_record 岗位、行业、技能、职责、要求等字段召回，dataset 仅作为处理隔离维度；默认返回 industry_distribution Top-10 聚合",
           "parameters": {
             "type": "object",
             "properties": {
               "major": {
                 "type": "string",
-                "description": "专业名 substring，走 job_demand_dataset.major_name JOIN；不使用 industry_name 兜底（§1.11 闭合）"
+                "description": "专业/业务关键词，在 job_demand_record 的岗位标题、行业、技能、描述、职责、要求字段召回"
               },
               "normalized_ref_id": {
                 "type": "string",
                 "description": "可选精确定位（trace 字段）"
+              },
+              "year": {
+                "type": "integer",
+                "description": "可选年份过滤，依赖 job_demand_record.source_published_at"
+              },
+              "province_name": {
+                "type": "string",
+                "description": "可选省份过滤，优先使用 record.region/city"
+              },
+              "city": {
+                "type": "string",
+                "description": "可选城市过滤，使用 record.city/region"
+              },
+              "question_type": {
+                "type": "string",
+                "enum": ["demand_scale", "demand_gap", "market_overview"],
+                "description": "市场需求类问题类型，仅用于回答口径说明"
               },
               "fields": {
                 "type": "array",

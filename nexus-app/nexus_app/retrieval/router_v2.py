@@ -24,6 +24,7 @@ Design red lines picked up here:
 from __future__ import annotations
 
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Iterator, Literal
@@ -914,67 +915,102 @@ class QueryRouterV2:
         intent: str,
         extracted_params: dict[str, Any],
     ) -> DispatchResult | None:
-        """Deterministically run semantic retrieval for scenario_1/4.
+        """Deterministically run safe primary tools for selected scenarios.
 
-        These scenarios each have a safe primary retrieval path:
-        ``internal.search_chunks_by_semantic``. The LLM dispatcher is
-        intentionally bypassed here so industry/report and textbook/practical
-        QA cannot be misrouted to WebSearch merely because Layer-2 returned no
-        tool call. Scenario 2/3 continue to use the LLM dispatcher unchanged.
+        Scenario 1/4 each have a safe primary semantic retrieval path.
+        Scenario 2 has several structured sub-domains in one registry group,
+        so market demand / ability / major-distribution / role-graph queries
+        are planned by rule first and only ambiguous cases fall through to
+        the LLM dispatcher.
         """
+        if intent == "scenario_2":
+            planned = _scenario_2_planner_arguments(
+                query=query,
+                extracted_params=extracted_params,
+            )
+            if planned is None:
+                return None
+            tool_name, arguments, warning = planned
+            return self._run_deterministic_tool(
+                session,
+                intent=intent,
+                tool_name=tool_name,
+                arguments=arguments,
+                tool_call_id="__deterministic_scenario_2__",
+                warning=warning,
+            )
+
         if not _uses_deterministic_semantic_dispatch(intent):
             return None
 
-        tool_name = "internal.search_chunks_by_semantic"
-        chart_registry = ChartRegistry()
         arguments = _semantic_dispatch_arguments(
             query=query,
             intent=intent,
             extracted_params=extracted_params,
         )
+        return self._run_deterministic_tool(
+            session,
+            intent=intent,
+            tool_name="internal.search_chunks_by_semantic",
+            arguments=arguments,
+            tool_call_id="__deterministic_semantic__",
+            warning="deterministic_semantic_dispatch",
+        )
+
+    def _run_deterministic_tool(
+        self,
+        session: Session,
+        *,
+        intent: str,
+        tool_name: str,
+        arguments: dict[str, Any],
+        tool_call_id: str,
+        warning: str,
+    ) -> DispatchResult:
+        chart_registry = ChartRegistry()
         executor = self.executor_registry.get(tool_name)
         if executor is None:
             return DispatchResult(
                 intent=intent,
                 tool_results=(ToolResult(
-                    tool_call_id="__deterministic_semantic__",
+                    tool_call_id=tool_call_id,
                     name=tool_name,
                     arguments=arguments,
                     ok=False,
                     error="no executor registered",
                 ),),
                 chart_registry=chart_registry,
-                warnings=("deterministic_semantic_tool_unavailable",),
+                warnings=(f"{warning}_tool_unavailable",),
             )
 
         try:
             payload = executor(
                 session=session,
                 arguments=arguments,
-                tool_call_id="__deterministic_semantic__",
+                tool_call_id=tool_call_id,
                 chart_registry=chart_registry,
             )
             tool_result = ToolResult(
-                tool_call_id="__deterministic_semantic__",
+                tool_call_id=tool_call_id,
                 name=tool_name,
                 arguments=arguments,
                 ok=True,
                 result=payload,
             )
-            warnings = ("deterministic_semantic_dispatch",)
+            warnings = (warning,)
         except Exception as exc:  # noqa: BLE001
             logger.warning(
-                "router_v2: deterministic semantic dispatch failed: %s",
+                "router_v2: deterministic dispatch failed: %s",
                 exc,
             )
             tool_result = ToolResult(
-                tool_call_id="__deterministic_semantic__",
+                tool_call_id=tool_call_id,
                 name=tool_name,
                 arguments=arguments,
                 ok=False,
                 error=f"{type(exc).__name__}: {exc}",
             )
-            warnings = ("deterministic_semantic_dispatch_failed",)
+            warnings = (f"{warning}_failed",)
 
         return DispatchResult(
             intent=intent,
@@ -1454,6 +1490,133 @@ def _is_web_search_eligible_intent(intent: str) -> bool:
 
 def _uses_deterministic_semantic_dispatch(intent: str) -> bool:
     return intent in {"scenario_1", "scenario_4"}
+
+
+_SCENARIO_2_MAJOR_DISTRIBUTION_RE = re.compile(
+    r"(?:专业布点|布点|开设院校|开设学校|院校数量|学校数量|专业分布|区域分布|省份分布)"
+)
+_SCENARIO_2_ABILITY_RE = re.compile(
+    r"(?:能力分析|职业能力|能力要求|能力图谱|能力关系|能力结构|岗位能力|技能图谱)"
+)
+_SCENARIO_2_GRAPH_RE = re.compile(r"(?:图谱|关系|节点|结构图)")
+_SCENARIO_2_ROLE_GRAPH_RE = re.compile(
+    r"(?:岗位图谱|岗位能力|岗位职责|职责|任职要求|能力要求|技能要求|技能图谱)"
+)
+_SCENARIO_2_MARKET_RE = re.compile(
+    r"(?:市场需求|人才需求|需求规模|需求缺口|招聘需求|岗位需求|就业需求|用人需求|岗位规模)"
+)
+_SCENARIO_2_JOB_TITLE_RE = re.compile(
+    r"([\u4e00-\u9fffA-Za-z0-9（）()·/\\-]{2,40}?(?:师|员|主管|经理|专员|助理|运营|客服|美工|设计|工程师|销售|会计|采购|飞手|主播|剪辑|策划|编辑|岗|岗位))"
+)
+
+
+def _scenario_2_planner_arguments(
+    *,
+    query: str,
+    extracted_params: dict[str, Any],
+) -> tuple[str, dict[str, Any], str] | None:
+    """Rule-first planner for scenario_2 structured sub-domains."""
+    major = _first_non_blank(
+        extracted_params.get("major"),
+        extracted_params.get("major_name"),
+        _major_from_query(query),
+    )
+
+    if _SCENARIO_2_MAJOR_DISTRIBUTION_RE.search(query):
+        args: dict[str, Any] = {}
+        for key in (
+            "major_code", "major_name", "year", "province_name",
+            "education_level", "region_scope", "min_count", "max_count",
+        ):
+            value = extracted_params.get(key)
+            if value not in (None, ""):
+                args[key] = value
+        if major and "major_name" not in args:
+            args["major_name"] = major
+        return (
+            "internal.query_major_distribution",
+            args,
+            "deterministic_scenario_2_major_distribution_dispatch",
+        )
+
+    job_title = _first_non_blank(
+        extracted_params.get("job_title"),
+        _job_title_from_query(query),
+    )
+    if job_title and _SCENARIO_2_ROLE_GRAPH_RE.search(query):
+        return (
+            "internal.get_job_demand_role_graph",
+            {"job_title": job_title},
+            "deterministic_scenario_2_role_graph_dispatch",
+        )
+
+    if _SCENARIO_2_ABILITY_RE.search(query):
+        args: dict[str, Any] = {}
+        if major:
+            args["major_name"] = major
+        major_code = extracted_params.get("major_code")
+        if major_code:
+            args["major_code"] = major_code
+        if _SCENARIO_2_GRAPH_RE.search(query):
+            args["build_type"] = "ability_analysis"
+            return (
+                "internal.query_capability_graph_by_major",
+                args,
+                "deterministic_scenario_2_ability_graph_dispatch",
+            )
+        if "include" in extracted_params:
+            args["include"] = extracted_params["include"]
+        return (
+            "internal.query_ability_analysis",
+            args,
+            "deterministic_scenario_2_ability_analysis_dispatch",
+        )
+
+    if _SCENARIO_2_MARKET_RE.search(query):
+        args: dict[str, Any] = {"major": major or query}
+        for key in ("year", "province_name", "city", "normalized_ref_id", "fields"):
+            value = extracted_params.get(key)
+            if value not in (None, ""):
+                args[key] = value
+        if "需求缺口" in query:
+            args["question_type"] = "demand_gap"
+        elif "需求规模" in query or "市场需求" in query or "人才需求" in query:
+            args["question_type"] = "demand_scale"
+        return (
+            "internal.query_job_demand",
+            args,
+            "deterministic_scenario_2_job_demand_dispatch",
+        )
+
+    return None
+
+
+def _first_non_blank(*values: Any) -> str | None:
+    for value in values:
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _major_from_query(query: str) -> str | None:
+    for candidate in ("网络营销与直播电商", "跨境电商", "直播电商", "电子商务", "电商"):
+        if candidate in query:
+            return candidate
+    match = re.search(r"([\u4e00-\u9fffA-Za-z0-9（）()·/\\-]{2,40})专业", query)
+    if match:
+        return match.group(1).strip()
+    return None
+
+
+def _job_title_from_query(query: str) -> str | None:
+    match = _SCENARIO_2_JOB_TITLE_RE.search(query)
+    if not match:
+        return None
+    title = match.group(1).strip()
+    for suffix in ("岗位", "岗"):
+        if title.endswith(suffix):
+            title = title[: -len(suffix)]
+    return title or None
 
 
 def _semantic_fallback_arguments(

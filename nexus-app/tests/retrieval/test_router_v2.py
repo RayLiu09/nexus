@@ -36,7 +36,7 @@ from nexus_app.retrieval.chart_adapter import ChartRegistry
 from nexus_app.retrieval.dispatcher_v2 import ToolExecutorRegistry
 from nexus_app.retrieval.web_search import ExternalWebResult, WebSearchOutcome
 from nexus_app.retrieval.prompt_profiles_v2 import seed_retrieval_v2_prompts
-from nexus_app.retrieval.router_v2 import QueryRouterV2, RouterResult
+from nexus_app.retrieval.router_v2 import QueryRouterV2, RouterResult, _scenario_2_planner_arguments
 from nexus_app.retrieval.subject_routing import (
     QuerySubject,
     apply_subject_route_guard,
@@ -240,6 +240,52 @@ def test_industry_trend_unknown_is_corrected_to_scenario_1() -> None:
 
     assert result.intent == "scenario_1"
     assert "intent_route_override:industry_information_to_scenario_1" in result.warnings
+
+
+def test_scenario_2_rule_planner_covers_structured_subdomains() -> None:
+    cases = [
+        (
+            "2026年电子商务专业市场需求如何",
+            {"major": "电子商务", "year": 2026},
+            "internal.query_job_demand",
+            {"major": "电子商务", "year": 2026, "question_type": "demand_scale"},
+        ),
+        (
+            "电子商务职业能力分析",
+            {"major_name": "电子商务"},
+            "internal.query_ability_analysis",
+            {"major_name": "电子商务"},
+        ),
+        (
+            "电子商务能力图谱",
+            {"major_name": "电子商务"},
+            "internal.query_capability_graph_by_major",
+            {"major_name": "电子商务", "build_type": "ability_analysis"},
+        ),
+        (
+            "电子商务专业布点数量",
+            {"major_name": "电子商务", "year": 2026},
+            "internal.query_major_distribution",
+            {"major_name": "电子商务", "year": 2026},
+        ),
+        (
+            "平面设计师岗位职责和能力要求",
+            {"job_title": "平面设计师"},
+            "internal.get_job_demand_role_graph",
+            {"job_title": "平面设计师"},
+        ),
+    ]
+
+    for query, params, expected_tool, expected_args in cases:
+        planned = _scenario_2_planner_arguments(
+            query=query, extracted_params=params,
+        )
+        assert planned is not None
+        tool_name, args, warning = planned
+        assert tool_name == expected_tool
+        for key, value in expected_args.items():
+            assert args[key] == value
+        assert warning.startswith("deterministic_scenario_2_")
 
 
 class TestHappyPath:
@@ -536,24 +582,74 @@ class TestHappyPath:
         assert calls[0]["outline_node"] == "outline-1"
         assert not any(call["kind"] == "call_with_tools" for call in llm.calls)
 
-    @pytest.mark.parametrize(
-        ("intent", "tool_call"),
-        [
-            ("scenario_2", ToolCall(
-                id="s2", name="internal.query_job_demand",
-                arguments='{ "major": "电子商务" }',
-            )),
-            ("scenario_3", ToolCall(
-                id="s3", name="internal.query_major_information",
-                arguments='{ "major_name": "电子商务", "units": ["basic_identity"] }',
-            )),
-        ],
-    )
-    def test_scenario_2_and_3_still_use_llm_dispatcher(
-        self, seeded_session, intent, tool_call,
+    def test_scenario_2_market_query_uses_deterministic_planner(
+        self, seeded_session,
     ):
         llm = _RoutedLLM(
-            intent={"intent": intent, "confidence": 0.95},
+            intent={"intent": "scenario_2", "confidence": 0.95},
+            params={
+                "extracted_params": {
+                    "major": "电子商务",
+                    "major_name": "电子商务",
+                    "build_type": "ability_analysis",
+                    "year": 2026,
+                    "province_name": "浙江省",
+                },
+                "missing_required": [],
+            },
+            compose_output="# 结构化汇总",
+            tool_calls=[ToolCall(
+                id="wrong", name="internal.query_capability_graph_by_major",
+                arguments='{ "major_name": "电子商务", "build_type": "ability_analysis" }',
+            )],
+        )
+        registry = ToolExecutorRegistry()
+        calls: list[dict] = []
+        registry.register(
+            "internal.query_job_demand",
+            lambda **kwargs: calls.append(kwargs["arguments"]) or {
+                "records": [{"id": "r1"}],
+                "record_count": 1,
+            },
+        )
+        registry.register(
+            "internal.query_capability_graph_by_major",
+            lambda **kwargs: pytest.fail("market demand must not use ability graph"),
+        )
+
+        result = QueryRouterV2(
+            llm_client=llm,
+            executor_registry=registry,
+            pgvector_adapter=_FakePgvectorAdapter(),
+            web_search_client=_FakeWebSearch(),
+        ).run(
+            seeded_session,
+            query="浙江省2026年电子商务人才需求规模如何",
+            route="internal_query",
+            caller_type="console_session",
+        )
+
+        assert result.intent == "scenario_2"
+        assert result.invoked_tools == ["internal.query_job_demand"]
+        assert calls == [{
+            "major": "电子商务",
+            "year": 2026,
+            "province_name": "浙江省",
+            "question_type": "demand_scale",
+        }]
+        assert not any(call["kind"] == "call_with_tools" for call in llm.calls)
+        assert "deterministic_scenario_2_job_demand_dispatch" in result.warnings
+        assert result.audit_summary["online_search_requested"] is False
+
+    def test_scenario_3_still_uses_llm_dispatcher(
+        self, seeded_session,
+    ):
+        tool_call = ToolCall(
+            id="s3", name="internal.query_major_information",
+            arguments='{ "major_name": "电子商务", "units": ["basic_identity"] }',
+        )
+        llm = _RoutedLLM(
+            intent={"intent": "scenario_3", "confidence": 0.95},
             params={"extracted_params": {}, "missing_required": []},
             compose_output="# 结构化汇总",
             tool_calls=[tool_call],
@@ -573,7 +669,7 @@ class TestHappyPath:
             caller_type="console_session",
         )
 
-        assert result.intent == intent
+        assert result.intent == "scenario_3"
         assert any(call["kind"] == "call_with_tools" for call in llm.calls)
         assert result.audit_summary["online_search_requested"] is False
 

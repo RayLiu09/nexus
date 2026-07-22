@@ -584,16 +584,16 @@ def test_query_job_demand_returns_records_and_industry_distribution(session):
     ds = models.JobDemandDataset(
         id="jdd-1", normalized_ref_id=ref_id, asset_version_id="ver-1",
         source_channel="excel_upload",
-        major_name="跨境电商", schema_version="v1",
+        major_name=None, schema_version="v1",
     )
     rec1 = models.JobDemandRecord(
         id="r-1", dataset_id=ds.id, normalized_ref_id=ref_id,
-        source_record_key="k1", job_title="运营", city="上海",
+        source_record_key="k1", job_title="跨境电商运营", city="上海",
         industry_name="电子商务", record_fingerprint="abc1",
     )
     rec2 = models.JobDemandRecord(
         id="r-2", dataset_id=ds.id, normalized_ref_id=ref_id,
-        source_record_key="k2", job_title="推广", city="杭州",
+        source_record_key="k2", job_title="电商推广", city="杭州",
         industry_name="电子商务", record_fingerprint="abc2",
     )
     rec3 = models.JobDemandRecord(
@@ -610,23 +610,54 @@ def test_query_job_demand_returns_records_and_industry_distribution(session):
         tool_call_id="tc",
         chart_registry=ChartRegistry(),
     )
-    assert result["record_count"] == 3
+    assert result["record_count"] == 2
+    assert result["total_record_count"] == 2
+    assert result["job_count_sum"] == 0
     dist = result["aggregations"]["industry_distribution"]
     # 电子商务 has 2 records, 教育 has 1 — desc order.
     assert dist[0] == {"industry_name": "电子商务", "count": 2}
-    assert dist[1] == {"industry_name": "教育", "count": 1}
+    assert "教育" not in {row["industry_name"] for row in dist}
+    assert result["matched_terms"] == ["跨境电商", "跨境", "外贸", "电商"]
+
+
+def test_query_job_demand_relaxes_year_when_records_are_undated(session):
+    ref_id = _seed_normalized_ref(session, ref_id="ref-year-relax")
+    ds = models.JobDemandDataset(
+        id="jdd-year-relax", normalized_ref_id=ref_id, asset_version_id="ver-year",
+        source_channel="excel_upload", major_name=None, schema_version="v1",
+    )
+    session.add_all([
+        ds,
+        models.JobDemandRecord(
+            id="r-year-1", dataset_id=ds.id, normalized_ref_id=ref_id,
+            source_record_key="k1", job_title="电子商务运营", city="杭州滨江区",
+            industry_name="电子商务", record_fingerprint="fp-year-1",
+        ),
+    ])
+    session.flush()
+
+    result = query_job_demand(
+        session=session,
+        arguments={"major": "电子商务", "province_name": "浙江省", "year": 2026},
+        tool_call_id="tc",
+        chart_registry=ChartRegistry(),
+    )
+
+    assert result["total_record_count"] == 1
+    assert result["data_limitations"]["year_filter_requires_source_published_at"] is True
+    assert result["data_limitations"]["year_filter_relaxed_due_to_missing_source_published_at"] is True
 
 
 def test_query_job_demand_suppresses_distribution_when_fields_omit(session):
     ds = models.JobDemandDataset(
         id="jdd-2", normalized_ref_id="ref-suppress", asset_version_id="ver-2",
         source_channel="excel_upload",
-        major_name="跨境电商", schema_version="v1",
+        major_name=None, schema_version="v1",
     )
     session.add(ds)
     session.add(models.JobDemandRecord(
         id="r-9", dataset_id=ds.id, normalized_ref_id="ref-suppress",
-        source_record_key="k1", job_title="x", record_fingerprint="fp",
+        source_record_key="k1", job_title="跨境电商运营", record_fingerprint="fp",
     ))
     session.flush()
 

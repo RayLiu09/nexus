@@ -6,9 +6,9 @@ consumers:
 
 * **B4 dispatcher** — `for_scenario("scenario_2")` returns the tool
   list to feed into `LiteLLMClientProtocol.call_with_tools`.
-* **Layer 1 parameter extractor** — `union_of_required(scenario)`
-  returns the merged parameter schema so the extractor can ask the
-  LLM for every field any tool in the scenario might want.
+* **Layer 1 parameter extractor** — builds a merged parameter schema from
+  the scenario tools so the extractor can ask the LLM for fields any tool
+  in the scenario might want.
 
 Loader is deliberately strict about the JSON schema shape so config
 drift surfaces at process start, not during a phase-B live request.
@@ -171,19 +171,27 @@ class ToolRegistry(BaseModel):
         return None
 
     def union_of_required(self, scenario_id: str) -> list[str]:
-        """Set of parameter names any tool in the scenario marks required.
+        """Scenario-level required fields after mixed-tool reconciliation.
 
-        Used by Layer 1 parameter extractor to know which fields to
-        prompt the LLM to pull out of the query.
+        A field is scenario-required only when every tool in the scenario
+        declares it and marks it required. Required fields for a single
+        optional branch are validated after that tool is selected.
         """
-        seen: set[str] = set()
-        ordered: list[str] = []
-        for tool in self.for_scenario(scenario_id):
+        tools = self.for_scenario(scenario_id)
+        if not tools:
+            return []
+        declared_counts: dict[str, int] = {}
+        required_counts: dict[str, int] = {}
+        for tool in tools:
+            for name in tool.parameters.get("properties", {}):
+                declared_counts[name] = declared_counts.get(name, 0) + 1
             for name in tool.parameters.get("required", []):
-                if name not in seen:
-                    seen.add(name)
-                    ordered.append(name)
-        return ordered
+                required_counts[name] = required_counts.get(name, 0) + 1
+        tool_count = len(tools)
+        return sorted(
+            name for name, count in required_counts.items()
+            if declared_counts.get(name, 0) == tool_count and count == tool_count
+        )
 
 
 # ---------------------------------------------------------------------------

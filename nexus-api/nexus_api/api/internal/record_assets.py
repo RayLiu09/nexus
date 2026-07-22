@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import func, select
+from sqlalchemy import extract, func, or_, select
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
@@ -372,11 +372,13 @@ def get_job_demand_dataset(
 #
 # Scope narrowed by 4 rounds of review:
 # * §1.9 决策 #2 — drop dataset-level filters, focus on the record list
-# * §1.11 闭合 — major filter goes through job_demand_dataset.major_name
-#   JOIN (no industry_name fallback that would collapse the semantic
-#   distinction between "专业" and "行业")
-# * §1.14 收窄 — remove even `job_title` (and every other细粒度 filter);
-#   Composer takes care of追问 for narrower slices
+# * Runtime correction — `job_demand_dataset` is a processing container,
+#   not the market-demand fact table. `major` is now treated as a business
+#   keyword against `job_demand_record` job/industry/skill/description/
+#   responsibility/requirement fields.
+# * Keep trace narrowing (`normalized_ref_id`) and P0-safe optional
+#   year/province/city filters; fine-grained salary/experience filters
+#   remain out of scope.
 # * §1.15 B1 (initial) — `fields=industry_distribution` opts into a Top-K
 #   industry aggregation.
 # * Batch B0.1 (post-registry-review) — the tool contract now says this
@@ -398,6 +400,55 @@ _JOB_DEMAND_KNOWN_FIELDS: frozenset[str] = frozenset({
     "tasks",
     "capability_requirements",
 })
+_ZHEJIANG_CITY_PREFIXES = (
+    "杭州", "宁波", "温州", "嘉兴", "湖州", "绍兴",
+    "金华", "衢州", "舟山", "台州", "丽水",
+)
+
+
+def _job_demand_terms(major: str) -> list[str]:
+    major = (major or "").strip()
+    terms = [major] if major else []
+    if major in {"电子商务", "电商"}:
+        terms.extend(["电商", "电子商务", "跨境电商", "直播电商", "网络营销"])
+    elif major == "跨境电商":
+        terms.extend(["跨境电商", "跨境", "外贸", "电商"])
+    elif major == "直播电商":
+        terms.extend(["直播电商", "直播", "电商", "网络营销"])
+    return list(dict.fromkeys(term for term in terms if term))
+
+
+def _job_demand_record_filter(major: str):
+    clauses = []
+    for term in _job_demand_terms(major):
+        pattern = f"%{term}%"
+        clauses.append(or_(
+            models.JobDemandRecord.job_title.ilike(pattern),
+            models.JobDemandRecord.industry_name.ilike(pattern),
+            models.JobDemandRecord.job_function_category.ilike(pattern),
+            models.JobDemandRecord.job_skill_text.ilike(pattern),
+            models.JobDemandRecord.job_description.ilike(pattern),
+            models.JobDemandRecord.responsibility_text.ilike(pattern),
+            models.JobDemandRecord.requirement_text.ilike(pattern),
+        ))
+    return or_(*clauses) if clauses else True
+
+
+def _job_demand_location_filter(province_name: str | None, city: str | None):
+    clauses = []
+    if city:
+        clauses.append(models.JobDemandRecord.city.ilike(f"%{city}%"))
+        clauses.append(models.JobDemandRecord.region.ilike(f"%{city}%"))
+    if province_name:
+        province = province_name.removesuffix("省").removesuffix("市")
+        clauses.append(models.JobDemandRecord.region.ilike(f"%{province}%"))
+        clauses.append(models.JobDemandRecord.city.ilike(f"%{province}%"))
+        if province == "浙江":
+            clauses.extend(
+                models.JobDemandRecord.city.ilike(f"{prefix}%")
+                for prefix in _ZHEJIANG_CITY_PREFIXES
+            )
+    return or_(*clauses) if clauses else None
 
 
 @router.get(
@@ -411,9 +462,8 @@ def list_job_demand_records(
         min_length=1,
         max_length=256,
         description=(
-            "Required — substring match on `job_demand_dataset.major_name` "
-            "(JOIN'd through `dataset_id`). §1.11 决策：do NOT fall back to "
-            "`industry_name` — 专业 (major) ≠ 行业 (industry)."
+            "Required — business keyword match on `job_demand_record` "
+            "fields. `job_demand_dataset` is only the processing container."
         ),
     ),
     normalized_ref_id: str | None = Query(
@@ -421,6 +471,9 @@ def list_job_demand_records(
         max_length=36,
         description="Optional trace-scoped narrowing (users referencing a specific dataset).",
     ),
+    year: int | None = Query(None, ge=1900, le=2200),
+    province_name: str | None = Query(None, min_length=1, max_length=128),
+    city: str | None = Query(None, min_length=1, max_length=128),
     fields: list[str] | None = Query(
         None,
         description=(
@@ -440,14 +493,10 @@ def list_job_demand_records(
     object riding on the top-level meta payload — see `list_response`
     below for how the aggregation is threaded in.
 
-    §1.14 explicitly forbids `job_title` / `salary_*` / `region` /
-    `experience_requirement` / `education_requirement` /
-    `source_published_at` filters on this endpoint. Callers sending
-    unknown query params should get FastAPI's default warn behaviour
-    (silently ignored) — that's fine here because query param typos are
-    a display problem, not a data-correctness one. The `fields` list is
-    the one exception: unknown *field* names are rejected to keep the
-    aggregation contract tight.
+    P0 supports business keyword + trace narrowing plus year/province/city
+    filters required by market-demand questions. Salary, experience and
+    education filters remain out of scope. The `fields` list rejects unknown
+    values so aggregation typos don't silently no-op.
     """
     if fields:
         unknown = sorted(set(fields) - _JOB_DEMAND_KNOWN_FIELDS)
@@ -461,18 +510,37 @@ def list_job_demand_records(
                 },
             )
 
-    major_pattern = f"%{major}%"
-    # Base filter — the JOIN + ILIKE + optional trace narrowing is shared
-    # by both the record page query and the industry_distribution
-    # aggregation, so keep it in one place.
-    filter_clauses = [
-        models.JobDemandRecord.dataset_id == models.JobDemandDataset.id,
-        models.JobDemandDataset.major_name.ilike(major_pattern),
-    ]
+    # Base filter — record-level business fields + optional trace narrowing
+    # are shared by both the record page query and the industry_distribution
+    # aggregation. `job_demand_dataset` is the processing container;
+    # `job_demand_record` is the market-demand fact table.
+    base_filter_clauses = [_job_demand_record_filter(major)]
+    location_filter = _job_demand_location_filter(province_name, city)
+    if location_filter is not None:
+        base_filter_clauses.append(location_filter)
     if normalized_ref_id is not None:
-        filter_clauses.append(
+        base_filter_clauses.append(
             models.JobDemandRecord.normalized_ref_id == normalized_ref_id
         )
+
+    filter_clauses = list(base_filter_clauses)
+    if year is not None:
+        year_clause = extract("year", models.JobDemandRecord.source_published_at) == year
+        strict_filter_clauses = [*base_filter_clauses, year_clause]
+        strict_count = session.scalar(
+            select(func.count(models.JobDemandRecord.id))
+            .join(models.JobDemandDataset,
+                  models.JobDemandRecord.dataset_id == models.JobDemandDataset.id)
+            .where(*strict_filter_clauses)
+        ) or 0
+        dated_count = session.scalar(
+            select(func.count(models.JobDemandRecord.id))
+            .join(models.JobDemandDataset,
+                  models.JobDemandRecord.dataset_id == models.JobDemandDataset.id)
+            .where(*base_filter_clauses, models.JobDemandRecord.source_published_at.isnot(None))
+        ) or 0
+        if strict_count > 0 or dated_count > 0:
+            filter_clauses = strict_filter_clauses
 
     stmt = (
         select(models.JobDemandRecord)

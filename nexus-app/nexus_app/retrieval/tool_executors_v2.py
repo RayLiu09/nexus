@@ -28,7 +28,7 @@ import logging
 import re
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import extract, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from nexus_app import models
@@ -673,6 +673,55 @@ def get_evidence_graph_by_ref(
 
 
 _INDUSTRY_DISTRIBUTION_TOP_K = 10
+_ZHEJIANG_CITY_PREFIXES = (
+    "杭州", "宁波", "温州", "嘉兴", "湖州", "绍兴",
+    "金华", "衢州", "舟山", "台州", "丽水",
+)
+
+
+def _job_demand_terms(major: str) -> list[str]:
+    major = (major or "").strip()
+    terms = [major] if major else []
+    if major in {"电子商务", "电商"}:
+        terms.extend(["电商", "电子商务", "跨境电商", "直播电商", "网络营销"])
+    elif major == "跨境电商":
+        terms.extend(["跨境电商", "跨境", "外贸", "电商"])
+    elif major == "直播电商":
+        terms.extend(["直播电商", "直播", "电商", "网络营销"])
+    return list(dict.fromkeys(term for term in terms if term))
+
+
+def _job_demand_record_filter(major: str):
+    clauses = []
+    for term in _job_demand_terms(major):
+        pattern = f"%{term}%"
+        clauses.append(or_(
+            models.JobDemandRecord.job_title.ilike(pattern),
+            models.JobDemandRecord.industry_name.ilike(pattern),
+            models.JobDemandRecord.job_function_category.ilike(pattern),
+            models.JobDemandRecord.job_skill_text.ilike(pattern),
+            models.JobDemandRecord.job_description.ilike(pattern),
+            models.JobDemandRecord.responsibility_text.ilike(pattern),
+            models.JobDemandRecord.requirement_text.ilike(pattern),
+        ))
+    return or_(*clauses) if clauses else True
+
+
+def _job_demand_location_filter(province_name: str | None, city: str | None):
+    clauses = []
+    if city:
+        clauses.append(models.JobDemandRecord.city.ilike(f"%{city}%"))
+        clauses.append(models.JobDemandRecord.region.ilike(f"%{city}%"))
+    if province_name:
+        province = province_name.removesuffix("省").removesuffix("市")
+        clauses.append(models.JobDemandRecord.region.ilike(f"%{province}%"))
+        clauses.append(models.JobDemandRecord.city.ilike(f"%{province}%"))
+        if province == "浙江":
+            clauses.extend(
+                models.JobDemandRecord.city.ilike(f"{prefix}%")
+                for prefix in _ZHEJIANG_CITY_PREFIXES
+            )
+    return or_(*clauses) if clauses else None
 
 
 def query_job_demand(
@@ -682,20 +731,55 @@ def query_job_demand(
     tool_call_id: str,
     chart_registry: ChartRegistry,
 ) -> dict[str, Any]:
-    """A1b cross-dataset job_demand records lookup.
+    """Cross-dataset job_demand record lookup.
 
-    ``fields`` — when omitted OR when it contains ``industry_distribution``
-    the response carries the Top-10 industry aggregation (Batch B0.1
-    default-on decision, §1.15). Records themselves are capped so a
-    single tool call doesn't dump thousands of rows into the Composer
-    prompt.
+    `job_demand_dataset` is the processing container; market-demand
+    facts live in `job_demand_record`. The `major` argument is therefore
+    treated as a business keyword and matched against record-level job,
+    industry, skill, description, responsibility and requirement fields.
     """
     major = arguments["major"]
     normalized_ref_id = arguments.get("normalized_ref_id")
+    province_name = arguments.get("province_name")
+    city = arguments.get("city")
+    year = arguments.get("year")
     fields = arguments.get("fields") or []
     include_distribution = (not fields) or ("industry_distribution" in fields)
 
-    major_pattern = f"%{major}%"
+    base_filter_clauses = [_job_demand_record_filter(major)]
+    location_filter = _job_demand_location_filter(province_name, city)
+    if location_filter is not None:
+        base_filter_clauses.append(location_filter)
+    if normalized_ref_id is not None:
+        base_filter_clauses.append(
+            models.JobDemandRecord.normalized_ref_id == normalized_ref_id
+        )
+
+    filter_clauses = list(base_filter_clauses)
+    year_filter_relaxed = False
+    if isinstance(year, int):
+        year_clause = extract("year", models.JobDemandRecord.source_published_at) == year
+        strict_filter_clauses = [*base_filter_clauses, year_clause]
+        strict_count = session.scalar(
+            select(func.count(models.JobDemandRecord.id))
+            .join(
+                models.JobDemandDataset,
+                models.JobDemandRecord.dataset_id == models.JobDemandDataset.id,
+            )
+            .where(*strict_filter_clauses)
+        ) or 0
+        dated_count = session.scalar(
+            select(func.count(models.JobDemandRecord.id))
+            .join(
+                models.JobDemandDataset,
+                models.JobDemandRecord.dataset_id == models.JobDemandDataset.id,
+            )
+            .where(*base_filter_clauses, models.JobDemandRecord.source_published_at.isnot(None))
+        ) or 0
+        if strict_count > 0 or dated_count > 0:
+            filter_clauses = strict_filter_clauses
+        else:
+            year_filter_relaxed = True
 
     record_stmt = (
         select(models.JobDemandRecord, models.JobDemandDataset.major_name)
@@ -703,13 +787,27 @@ def query_job_demand(
             models.JobDemandDataset,
             models.JobDemandRecord.dataset_id == models.JobDemandDataset.id,
         )
-        .where(models.JobDemandDataset.major_name.ilike(major_pattern))
+        .where(*filter_clauses)
+        .order_by(models.JobDemandRecord.created_at.desc())
         .limit(50)
     )
-    if normalized_ref_id is not None:
-        record_stmt = record_stmt.where(
-            models.JobDemandRecord.normalized_ref_id == normalized_ref_id,
+
+    total_record_count = session.scalar(
+        select(func.count(models.JobDemandRecord.id))
+        .join(
+            models.JobDemandDataset,
+            models.JobDemandRecord.dataset_id == models.JobDemandDataset.id,
         )
+        .where(*filter_clauses)
+    ) or 0
+    job_count_sum = session.scalar(
+        select(func.coalesce(func.sum(models.JobDemandRecord.job_count), 0))
+        .join(
+            models.JobDemandDataset,
+            models.JobDemandRecord.dataset_id == models.JobDemandDataset.id,
+        )
+        .where(*filter_clauses)
+    ) or 0
 
     rows = list(session.execute(record_stmt))
     records = [
@@ -718,10 +816,13 @@ def query_job_demand(
             "job_title": rec.job_title,
             "industry_name": rec.industry_name,
             "city": rec.city,
+            "region": rec.region,
+            "job_count": rec.job_count,
             "salary_min": rec.salary_min,
             "salary_max": rec.salary_max,
             "education_requirement": rec.education_requirement,
             "experience_requirement": rec.experience_requirement,
+            "source_published_at": rec.source_published_at.isoformat() if rec.source_published_at else None,
             "normalized_ref_id": rec.normalized_ref_id,
             "dataset_id": rec.dataset_id,
             "major_name": dataset_major,
@@ -740,16 +841,12 @@ def query_job_demand(
                 models.JobDemandDataset,
                 models.JobDemandRecord.dataset_id == models.JobDemandDataset.id,
             )
-            .where(models.JobDemandDataset.major_name.ilike(major_pattern))
-        )
-        if normalized_ref_id is not None:
-            distribution_stmt = distribution_stmt.where(
-                models.JobDemandRecord.normalized_ref_id == normalized_ref_id,
-            )
-        distribution_stmt = (
-            distribution_stmt
+            .where(*filter_clauses, models.JobDemandRecord.industry_name.isnot(None))
             .group_by(models.JobDemandRecord.industry_name)
-            .order_by(func.count(models.JobDemandRecord.id).desc())
+            .order_by(
+                func.count(models.JobDemandRecord.id).desc(),
+                models.JobDemandRecord.industry_name.asc(),
+            )
             .limit(_INDUSTRY_DISTRIBUTION_TOP_K)
         )
         aggregations["industry_distribution"] = [
@@ -761,7 +858,22 @@ def query_job_demand(
         "records": records,
         "aggregations": aggregations,
         "record_count": len(records),
+        "total_record_count": int(total_record_count),
+        "job_count_sum": int(job_count_sum),
         "major": major,
+        "matched_terms": _job_demand_terms(major),
+        "filters": {
+            "province_name": province_name,
+            "city": city,
+            "year": year,
+            "question_type": arguments.get("question_type"),
+        },
+        "data_limitations": {
+            "year_filter_requires_source_published_at": bool(year),
+            "year_filter_relaxed_due_to_missing_source_published_at": year_filter_relaxed,
+            "demand_scale_requires_job_count": True,
+            "demand_gap_requires_supply_side_data": arguments.get("question_type") == "demand_gap",
+        },
     }
 
 
