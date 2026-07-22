@@ -48,7 +48,6 @@ export const navigation: Navigation = [
     label: "总览",
     items: [
       { href: "/workbench", label: "工作台", icon: "▦" },
-      { href: "/data-assets", label: "数据资产", icon: "◉" },
     ],
   },
   {
