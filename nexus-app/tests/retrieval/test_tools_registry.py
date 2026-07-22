@@ -127,11 +127,18 @@ class TestScenarioOverlap:
         assert "outline_node" not in s3_tool.parameters["properties"]
         assert "units" in s3_tool.parameters["required"]
         assert "occupation_oriented" in s3_tool.parameters["properties"]["units"]["items"]["enum"]
-        # scenario_4 → enum (course_textbook | practical_training_kb)
+        # scenario_4 → deterministic semantic retrieval only; outline /
+        # evidence graph APIs remain implemented but are not model-selectable.
+        s4_tools = reg.for_scenario("scenario_4")
+        assert [tool.name for tool in s4_tools] == [
+            "internal.search_chunks_by_semantic",
+        ]
         s4_tool = reg.find_tool("scenario_4", "internal.search_chunks_by_semantic")
         assert set(s4_tool.parameters["properties"]["kb"]["enum"]) == {
             "course_textbook", "practical_training_kb",
         }
+        assert reg.find_tool("scenario_4", "internal.get_outline_subtree") is None
+        assert reg.find_tool("scenario_4", "internal.get_evidence_graph_by_ref") is None
 
 
 # ---------------------------------------------------------------------------

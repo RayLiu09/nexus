@@ -206,9 +206,9 @@ class TestStreamShortCircuits:
 
     def test_no_tool_call_short_circuits_via_fallback(self, seeded_session):
         llm = _StreamRoutedLLM(
-            intent={"intent": "scenario_1", "confidence": 0.9},
-            params={"extracted_params": {"query": "q"}, "missing_required": []},
-            tool_calls=[],  # dispatcher fallback → unknown path
+            intent={"intent": "scenario_2", "confidence": 0.9},
+            params={"extracted_params": {"major": "电子商务"}, "missing_required": []},
+            tool_calls=[],  # scenario_2 still uses dispatcher; no tool → fallback
         )
         router = QueryRouterV2(
             llm_client=llm,
@@ -223,6 +223,7 @@ class TestStreamShortCircuits:
         assert core_types == ["meta", "final", "done"]
         meta_event = next(e for e in events if e.type == "meta")
         assert (meta_event.meta or {}).get("dispatch_fallback") == "no_tool_call"
+        assert (meta_event.meta or {}).get("intent") == "scenario_2"
 
 
 # ---------------------------------------------------------------------------
@@ -249,7 +250,7 @@ class TestStreamErrors:
         exec_reg.register(
             "internal.search_chunks_by_semantic",
             lambda *, session, arguments, tool_call_id, chart_registry: {
-                "hits": [],
+                "hits": [{"chunk_id": "a"}],
             },
         )
         router = QueryRouterV2(
@@ -319,6 +320,10 @@ class TestStreamStepEvents:
                             if s.id == "intent_classify" and s.status == "completed")
         assert intent_done.output is not None
         assert intent_done.output["intent"] == "scenario_1"
+        dispatch_running = next(s for s in steps
+                                if s.id == "dispatch" and s.status == "running")
+        assert dispatch_running.input.get("mode") == "deterministic_semantic"
+        assert "model_alias" not in dispatch_running.input
         dispatch_done = next(s for s in steps
                               if s.id == "dispatch" and s.status == "completed")
         assert dispatch_done.output is not None

@@ -288,6 +288,8 @@ class TestHappyPath:
         assert summary["query_route"] == "v2"
         assert summary["invoked_tools"] == ["internal.search_chunks_by_semantic"]
         assert "generated_ratio" in summary
+        assert not any(call["kind"] == "call_with_tools" for call in llm.calls)
+        assert "deterministic_semantic_dispatch" in result.warnings
 
     @pytest.mark.parametrize(
         ("intent", "tool_call"),
@@ -457,6 +459,124 @@ class TestHappyPath:
         assert outcome is None
         assert web.queries == []
 
+    def test_scenario_4_uses_deterministic_semantic_only(self, seeded_session):
+        llm = _RoutedLLM(
+            intent={"intent": "scenario_4", "confidence": 0.95},
+            params={"extracted_params": {"query": "短视频平台的类型"},
+                    "missing_required": []},
+            compose_output="# 教材汇总",
+            tool_calls=[],
+        )
+        registry = ToolExecutorRegistry()
+        calls: list[dict] = []
+
+        def _semantic(**kwargs):
+            calls.append(kwargs["arguments"])
+            return {"hits": [{"chunk_id": "textbook-chunk"}]}
+
+        registry.register("internal.search_chunks_by_semantic", _semantic)
+        registry.register(
+            "internal.get_outline_subtree",
+            lambda **kwargs: pytest.fail("outline subtree must not be invoked"),
+        )
+        registry.register(
+            "internal.get_evidence_graph_by_ref",
+            lambda **kwargs: pytest.fail("evidence graph must not be invoked"),
+        )
+
+        result = QueryRouterV2(
+            llm_client=llm,
+            executor_registry=registry,
+            pgvector_adapter=_FakePgvectorAdapter(),
+            web_search_client=_FakeWebSearch(),
+        ).run(
+            seeded_session,
+            query="短视频平台的类型",
+            route="internal_query",
+            caller_type="console_session",
+        )
+
+        assert result.invoked_tools == ["internal.search_chunks_by_semantic"]
+        assert calls == [{"query": "短视频平台的类型", "top_k": 10, "expand_queries": True}]
+        assert not any(call["kind"] == "call_with_tools" for call in llm.calls)
+        assert result.audit_summary["online_search_requested"] is False
+
+    def test_scenario_4_practical_training_and_outline_node_args(self, seeded_session):
+        llm = _RoutedLLM(
+            intent={"intent": "scenario_4", "confidence": 0.95},
+            params={"extracted_params": {
+                "query": "短视频实训任务操作步骤",
+                "outline_node": "outline-1",
+            }, "missing_required": []},
+            compose_output="# 实训汇总",
+            tool_calls=[],
+        )
+        registry = ToolExecutorRegistry()
+        calls: list[dict] = []
+        registry.register(
+            "internal.search_chunks_by_semantic",
+            lambda **kwargs: calls.append(kwargs["arguments"]) or {
+                "hits": [{"chunk_id": "training-chunk"}],
+            },
+        )
+
+        result = QueryRouterV2(
+            llm_client=llm,
+            executor_registry=registry,
+            pgvector_adapter=_FakePgvectorAdapter(),
+        ).run(
+            seeded_session,
+            query="短视频实训任务操作步骤",
+            route="internal_query",
+            caller_type="console_session",
+        )
+
+        assert result.invoked_tools == ["internal.search_chunks_by_semantic"]
+        assert calls[0]["kb"] == "practical_training_kb"
+        assert calls[0]["outline_node"] == "outline-1"
+        assert not any(call["kind"] == "call_with_tools" for call in llm.calls)
+
+    @pytest.mark.parametrize(
+        ("intent", "tool_call"),
+        [
+            ("scenario_2", ToolCall(
+                id="s2", name="internal.query_job_demand",
+                arguments='{ "major": "电子商务" }',
+            )),
+            ("scenario_3", ToolCall(
+                id="s3", name="internal.query_major_information",
+                arguments='{ "major_name": "电子商务", "units": ["basic_identity"] }',
+            )),
+        ],
+    )
+    def test_scenario_2_and_3_still_use_llm_dispatcher(
+        self, seeded_session, intent, tool_call,
+    ):
+        llm = _RoutedLLM(
+            intent={"intent": intent, "confidence": 0.95},
+            params={"extracted_params": {}, "missing_required": []},
+            compose_output="# 结构化汇总",
+            tool_calls=[tool_call],
+        )
+        registry = ToolExecutorRegistry()
+        registry.register(tool_call.name, lambda **kwargs: {"records": [{"id": "r1"}]})
+
+        result = QueryRouterV2(
+            llm_client=llm,
+            executor_registry=registry,
+            pgvector_adapter=_FakePgvectorAdapter(),
+            web_search_client=_FakeWebSearch(),
+        ).run(
+            seeded_session,
+            query="电子商务专业信息",
+            route="internal_query",
+            caller_type="console_session",
+        )
+
+        assert result.intent == intent
+        assert any(call["kind"] == "call_with_tools" for call in llm.calls)
+        assert result.audit_summary["online_search_requested"] is False
+
 
 # ---------------------------------------------------------------------------
 # §六 unknown fallback
@@ -583,8 +703,9 @@ class TestUnknownFallback:
             route="open_query", caller_type="api_caller",
         )
         assert result.fallback_reason is None
-        assert result.audit_summary["dispatch_fallback"] == "no_tool_call"
+        assert result.audit_summary["dispatch_fallback"] is None
         assert result.intent == "scenario_1"
+        assert not any(call["kind"] == "call_with_tools" for call in llm.calls)
         assert web.queries == ["q"]
         assert result.external_web_results[0]["provider"] == "firecrawl"
         assert "公开网络实时结果" in result.markdown
@@ -669,8 +790,9 @@ class TestUnknownFallback:
 
         assert result.intent == "scenario_1"
         assert result.invoked_tools == ["internal.search_chunks_by_semantic"]
-        assert result.audit_summary["dispatch_fallback"] == "no_tool_call"
+        assert result.audit_summary["dispatch_fallback"] is None
         assert result.audit_summary["online_search_requested"] is False
+        assert not any(call["kind"] == "call_with_tools" for call in llm.calls)
         assert web.queries == []
         assert "平台资料汇总" in result.markdown
         assert _compose_call_count(llm) == 1
@@ -706,8 +828,9 @@ class TestUnknownFallback:
 
         assert result.intent == "scenario_1"
         assert result.invoked_tools == ["internal.search_chunks_by_semantic"]
-        assert result.audit_summary["dispatch_fallback"] == "no_tool_call"
+        assert result.audit_summary["dispatch_fallback"] is None
         assert result.audit_summary["generated_ratio"] == 0.0
+        assert not any(call["kind"] == "call_with_tools" for call in llm.calls)
         assert web.queries == ["最新AI智能体的发展趋势"]
         assert "公开网络实时结果" in result.markdown
         assert _compose_call_count(llm) == 0
@@ -746,6 +869,7 @@ class TestUnknownFallback:
         assert web.queries == ["最新AI智能体的发展趋势"]
         assert result.external_web_results[0]["source_type"] == "external_web"
         assert result.audit_summary["generated_ratio"] == 0.0
+        assert not any(call["kind"] == "call_with_tools" for call in llm.calls)
         assert "公开网络实时结果" in result.markdown
         assert _compose_call_count(llm) == 0
 

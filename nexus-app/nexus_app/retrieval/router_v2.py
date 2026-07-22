@@ -337,6 +337,8 @@ class QueryRouterV2:
 
         # ------------------------------------------------------------
         # Layer 2: dispatcher — skipped for unknown / no-tools scenarios.
+        # scenario_1 / scenario_4 have deterministic semantic retrieval
+        # planners; scenario_2 / scenario_3 remain on the LLM dispatcher.
         # ------------------------------------------------------------
         if intent_result.intent == "unknown" or intent_result.low_confidence:
             return self._unknown_fallback_path(
@@ -353,18 +355,25 @@ class QueryRouterV2:
                 ),
             )
 
-        dispatcher = DispatcherV2(
-            llm_client=self.llm_client,
-            executor_registry=self.executor_registry,
-            registry=registry,
-        )
-        dispatch_result = dispatcher.dispatch(
+        dispatch_result = self._deterministic_semantic_dispatch(
             session,
             query=query,
             intent=intent_result.intent,
             extracted_params=param_result.extracted_params,
-            model_alias=self._effective_model_alias(),
         )
+        if dispatch_result is None:
+            dispatcher = DispatcherV2(
+                llm_client=self.llm_client,
+                executor_registry=self.executor_registry,
+                registry=registry,
+            )
+            dispatch_result = dispatcher.dispatch(
+                session,
+                query=query,
+                intent=intent_result.intent,
+                extracted_params=param_result.extracted_params,
+                model_alias=self._effective_model_alias(),
+            )
 
         if dispatch_result.fallback_reason == "scenario_5_template":
             return self._scenario_5_placeholder(
@@ -604,36 +613,48 @@ class QueryRouterV2:
             return
 
         # ------------------------------------------------------------
-        # Step 3 — Layer 2: dispatcher (non-streaming; tool exec is parallel).
+        # Step 3 — Layer 2: dispatcher (non-streaming; tool exec is parallel)
+        # or deterministic semantic planner for scenario_1 / scenario_4.
         # ------------------------------------------------------------
         dispatch_started = _now_ms()
+        deterministic_dispatch = _uses_deterministic_semantic_dispatch(
+            intent_result.intent,
+        )
+        dispatch_input: dict[str, Any] = {
+            "intent": intent_result.intent,
+            "extracted_params": dict(param_result.extracted_params),
+        }
+        if deterministic_dispatch:
+            dispatch_input["mode"] = "deterministic_semantic"
+        else:
+            dispatch_input["model_alias"] = self._effective_model_alias()
         yield _step_running(
             "dispatch", "工具调度",
-            input={
-                "intent": intent_result.intent,
-                "extracted_params": dict(param_result.extracted_params),
-                "model_alias": self._effective_model_alias(),
-            },
+            input=dispatch_input,
             started_at_ms=dispatch_started,
         )
-        dispatcher = DispatcherV2(
-            llm_client=self.llm_client,
-            executor_registry=self.executor_registry,
-            registry=registry,
-        )
-        dispatch_result = dispatcher.dispatch(
+        dispatch_result = self._deterministic_semantic_dispatch(
             session,
             query=query,
             intent=intent_result.intent,
             extracted_params=param_result.extracted_params,
-            model_alias=self._effective_model_alias(),
         )
+        if dispatch_result is None:
+            dispatcher = DispatcherV2(
+                llm_client=self.llm_client,
+                executor_registry=self.executor_registry,
+                registry=registry,
+            )
+            dispatch_result = dispatcher.dispatch(
+                session,
+                query=query,
+                intent=intent_result.intent,
+                extracted_params=param_result.extracted_params,
+                model_alias=self._effective_model_alias(),
+            )
         yield _step_completed(
             "dispatch", "工具调度",
-            input={
-                "intent": intent_result.intent,
-                "extracted_params": dict(param_result.extracted_params),
-            },
+            input=dispatch_input,
             output={
                 "invoked_tools": dispatch_result.invoked_tool_names,
                 "tool_calls": [
@@ -884,6 +905,83 @@ class QueryRouterV2:
     # ------------------------------------------------------------------ #
     # Fallback paths
     # ------------------------------------------------------------------ #
+
+    def _deterministic_semantic_dispatch(
+        self,
+        session: Session,
+        *,
+        query: str,
+        intent: str,
+        extracted_params: dict[str, Any],
+    ) -> DispatchResult | None:
+        """Deterministically run semantic retrieval for scenario_1/4.
+
+        These scenarios each have a safe primary retrieval path:
+        ``internal.search_chunks_by_semantic``. The LLM dispatcher is
+        intentionally bypassed here so industry/report and textbook/practical
+        QA cannot be misrouted to WebSearch merely because Layer-2 returned no
+        tool call. Scenario 2/3 continue to use the LLM dispatcher unchanged.
+        """
+        if not _uses_deterministic_semantic_dispatch(intent):
+            return None
+
+        tool_name = "internal.search_chunks_by_semantic"
+        chart_registry = ChartRegistry()
+        arguments = _semantic_dispatch_arguments(
+            query=query,
+            intent=intent,
+            extracted_params=extracted_params,
+        )
+        executor = self.executor_registry.get(tool_name)
+        if executor is None:
+            return DispatchResult(
+                intent=intent,
+                tool_results=(ToolResult(
+                    tool_call_id="__deterministic_semantic__",
+                    name=tool_name,
+                    arguments=arguments,
+                    ok=False,
+                    error="no executor registered",
+                ),),
+                chart_registry=chart_registry,
+                warnings=("deterministic_semantic_tool_unavailable",),
+            )
+
+        try:
+            payload = executor(
+                session=session,
+                arguments=arguments,
+                tool_call_id="__deterministic_semantic__",
+                chart_registry=chart_registry,
+            )
+            tool_result = ToolResult(
+                tool_call_id="__deterministic_semantic__",
+                name=tool_name,
+                arguments=arguments,
+                ok=True,
+                result=payload,
+            )
+            warnings = ("deterministic_semantic_dispatch",)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "router_v2: deterministic semantic dispatch failed: %s",
+                exc,
+            )
+            tool_result = ToolResult(
+                tool_call_id="__deterministic_semantic__",
+                name=tool_name,
+                arguments=arguments,
+                ok=False,
+                error=f"{type(exc).__name__}: {exc}",
+            )
+            warnings = ("deterministic_semantic_dispatch_failed",)
+
+        return DispatchResult(
+            intent=intent,
+            tool_results=(tool_result,),
+            chart_registry=chart_registry,
+            warnings=warnings,
+        )
 
     def _unknown_fallback_path(
         self,
@@ -1354,7 +1452,24 @@ def _is_web_search_eligible_intent(intent: str) -> bool:
     return intent in {"scenario_1", "scenario_4"}
 
 
+def _uses_deterministic_semantic_dispatch(intent: str) -> bool:
+    return intent in {"scenario_1", "scenario_4"}
+
+
 def _semantic_fallback_arguments(
+    *,
+    query: str,
+    intent: str,
+    extracted_params: dict[str, Any],
+) -> dict[str, Any]:
+    return _semantic_dispatch_arguments(
+        query=query,
+        intent=intent,
+        extracted_params=extracted_params,
+    )
+
+
+def _semantic_dispatch_arguments(
     *,
     query: str,
     intent: str,
@@ -1370,7 +1485,20 @@ def _semantic_fallback_arguments(
     }
     if intent == "scenario_1":
         arguments["kb"] = "industry_research_kb"
+    elif intent == "scenario_4":
+        outline_node = extracted_params.get("outline_node") or extracted_params.get("node_id")
+        if isinstance(outline_node, str) and outline_node.strip():
+            arguments["outline_node"] = outline_node.strip()
+        if _is_practical_training_query(query):
+            arguments["kb"] = "practical_training_kb"
     return arguments
+
+
+def _is_practical_training_query(query: str) -> bool:
+    return any(
+        marker in query
+        for marker in ("实训", "演练", "操作步骤", "SOP", "任务操作")
+    )
 
 
 def _requires_no_evidence_result(

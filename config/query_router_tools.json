@@ -234,7 +234,7 @@
     },
     "scenario_4": {
       "business_label": "教材类检索 (含实训教材)",
-      "$comment": "§1.15 重映射：合并原 scenario_1 精确知识块 + scenario_3 实训任务，按 kb 参数区分普通教材 vs 实训教材",
+      "$comment": "§1.15 重映射：教材/实训类自然语言问答在 Query Router 中只暴露 deterministic semantic retrieval；outline subtree / evidence graph 仍保留内部实现和 API，但不再作为 LLM 可选工具。",
       "tools": [
         {
           "name": "internal.search_chunks_by_semantic",
@@ -271,38 +271,6 @@
               }
             },
             "required": ["query"]
-          }
-        },
-        {
-          "name": "internal.get_evidence_graph_by_ref",
-          "description": "获取给定 normalized_ref 的证据图（章节内关联事实图）；用于教材类章节知识图谱输出。Dispatcher 将 `normalized_ref_id` 映射到 `/internal/v1/normalized-refs/{ref_id}/knowledge-graph` 的路径参数",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "normalized_ref_id": {
-                "type": "string",
-                "description": "normalized_ref UUID；由 dispatcher 映射到端点 path segment `{ref_id}`"
-              }
-            },
-            "required": ["normalized_ref_id"]
-          }
-        },
-        {
-          "name": "internal.get_outline_subtree",
-          "description": "递归展开教材 outline 子树（§1.15 §4.2.1；见 A2 端点）",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "node_id": { "type": "string" },
-              "include_chunks": { "type": "boolean", "default": false },
-              "max_depth": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 20,
-                "default": 5
-              }
-            },
-            "required": ["node_id"]
           }
         }
       ]
