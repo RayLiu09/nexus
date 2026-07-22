@@ -90,7 +90,13 @@ services:
     ports:
       - "${NEXUS_API_PORT:-8000}:8000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/v1/health', timeout=3).read()",
+        ]
       interval: 10s
       timeout: 5s
       retries: 10

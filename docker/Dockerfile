@@ -18,10 +18,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -LsSf https://astral.sh/uv/install.sh | sh
+COPY docker/bin/uv /usr/local/bin/uv
 
 COPY nexus-app/pyproject.toml nexus-app/uv.lock ./nexus-app/
 COPY nexus-api/pyproject.toml nexus-api/uv.lock ./nexus-api/
