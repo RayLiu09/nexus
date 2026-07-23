@@ -11,7 +11,9 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { QueryRouterAnswer } from "./QueryRouterAnswer";
+import type { ReactNode } from "react";
+
+import { findCodeChild, QueryRouterAnswer } from "./QueryRouterAnswer";
 
 vi.mock("./EchartsFence", () => ({
   EchartsFence: ({ raw }: { raw: string }) => <div data-testid="echarts-fence-stub">{raw}</div>,
@@ -34,6 +36,19 @@ describe("QueryRouterAnswer", () => {
     expect(stub).toHaveTextContent(chartJson);
     expect(screen.getByText("前置文本")).toBeInTheDocument();
     expect(screen.getByText("后置文本")).toBeInTheDocument();
+  });
+
+  it("finds fenced code by language class when renderer function names are minified", () => {
+    const chartJson = "{\"type\":\"graph\",\"nodes\":[],\"edges\":[]}";
+    const a = ({ className, children }: { className?: string; children?: ReactNode }) => (
+      <code className={className}>{children}</code>
+    );
+    const MinifiedCodeRenderer = a;
+    const codeNode = (
+      <MinifiedCodeRenderer className="language-chart:echarts">{chartJson}</MinifiedCodeRenderer>
+    );
+
+    expect(findCodeChild(["\n", codeNode])).toBe(codeNode);
   });
 
   it("renders non-chart fenced code as plain <pre>", () => {

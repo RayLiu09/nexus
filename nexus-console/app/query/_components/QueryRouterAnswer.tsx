@@ -329,7 +329,7 @@ function quoteMentionsGeneratedMarker(node: ReactNode): boolean {
 // react-markdown's `pre` component receives its children directly; the
 // child is normally a single React element for the inner `<code>`. We
 // walk defensively because whitespace text nodes can sneak in.
-function findCodeChild(node: ReactNode): ReactNode | null {
+export function findCodeChild(node: ReactNode): ReactNode | null {
   if (Array.isArray(node)) {
     for (const item of node) {
       const found = findCodeChild(item);
@@ -337,12 +337,21 @@ function findCodeChild(node: ReactNode): ReactNode | null {
     }
     return null;
   }
-  if (node && typeof node === "object" && "type" in node) {
-    const el = node as { type?: unknown; props?: { children?: ReactNode } };
-    if (el.type === "code" || (typeof el.type === "function" && el.type.name === "InlineCodeRenderer")) {
+
+  if (node && typeof node === "object" && "props" in node) {
+    const props = (
+      node as {
+        props?: { className?: unknown; children?: ReactNode };
+      }
+    ).props;
+
+    if (typeof props?.className === "string" && props.className.includes("language-")) {
       return node;
     }
+
+    return findCodeChild(props?.children);
   }
+
   return null;
 }
 
