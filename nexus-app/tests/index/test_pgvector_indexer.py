@@ -192,6 +192,43 @@ class _TransactionCheckingEmbeddingClient(FakeEmbeddingClient):
         return super().embed_texts(*args, **kwargs)
 
 
+class _RecordingEmbeddingClient(FakeEmbeddingClient):
+    def __init__(self, *, dimension: int):
+        super().__init__(dimension=dimension)
+        self.calls: list[dict[str, object]] = []
+
+    def embed_texts(self, texts, *, model_alias=None, expected_dimension=None):
+        self.calls.append({
+            "texts": list(texts),
+            "model_alias": model_alias,
+            "expected_dimension": expected_dimension,
+        })
+        return super().embed_texts(
+            texts,
+            model_alias=model_alias,
+            expected_dimension=expected_dimension,
+        )
+
+
+def test_index_chunks_pgvector_passes_configured_embedding_dimension(session):
+    ref, chunks = _seed_ref_and_chunks(session, chunk_count=2)
+    settings = _settings()
+    client = _RecordingEmbeddingClient(dimension=settings.default_embedding_dimension)
+
+    index_chunks_pgvector(
+        session,
+        ref,
+        chunks,
+        settings=settings,
+        embedding_client=client,
+    )
+
+    assert client.calls
+    assert {call["expected_dimension"] for call in client.calls} == {
+        settings.default_embedding_dimension,
+    }
+
+
 def test_index_embedding_call_runs_outside_database_transaction(session):
     ref, chunks = _seed_ref_and_chunks(session, chunk_count=3)
 

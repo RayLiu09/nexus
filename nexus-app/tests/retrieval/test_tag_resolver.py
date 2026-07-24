@@ -20,6 +20,7 @@ from nexus_app.enums import (
 from nexus_app.retrieval.tag_resolver import (
     BUCKET_TO_TAG_TYPE,
     DEFAULT_HARD_LIMIT,
+    DEFAULT_TAG_EMBEDDING_DIMENSION,
     ResolvedTag,
     ResolverResult,
     TagAssetIndexResolver,
@@ -44,10 +45,14 @@ class _FakeEmbedResult:
 class _FakeEmbedClient:
     def __init__(self, vector_for_text: dict[str, list[float]] | None = None):
         self._vector_for_text = vector_for_text or {}
-        self.calls: list[list[str]] = []
+        self.calls: list[dict[str, object]] = []
 
-    def embed_texts(self, texts, *, model_alias=None):
-        self.calls.append(list(texts))
+    def embed_texts(self, texts, *, model_alias=None, expected_dimension=None):
+        self.calls.append({
+            "texts": list(texts),
+            "model_alias": model_alias,
+            "expected_dimension": expected_dimension,
+        })
         vectors = []
         for text in texts:
             vectors.append(
@@ -523,6 +528,26 @@ class TestSemanticFailureModes:
         # F4-3 — bypass, not failure.
         assert result.hits == []
         assert "embedding_lag_bypass" in result.warnings
+
+    def test_l4_embedding_uses_tag_vector_dimension(self, session) -> None:
+        _seed(
+            session,
+            tag_value="北京市",
+            tag_value_normalized="北京市",
+            tag_embedding=[1.0, 0.0, 0.0, 0.0],
+        )
+        client = _FakeEmbedClient(vector_for_text={"京城": [1.0, 0.0, 0.0, 0.0]})
+        resolver = TagAssetIndexResolver(session, embedding_client=client)
+
+        result = resolver.resolve(
+            bucket_name="regions",
+            candidates=["京城"],
+            match_strategy="l4",
+            semantic_threshold=0.5,
+        )
+
+        assert len(result.hits) == 1
+        assert client.calls[0]["expected_dimension"] == DEFAULT_TAG_EMBEDDING_DIMENSION
 
     def test_l1_survives_l4_failure(self, session) -> None:
         _seed(session, tag_value="北京", tag_value_normalized="北京")

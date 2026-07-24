@@ -83,10 +83,19 @@ class LiteLLMEmbeddingClient:
         input_hashes = [_hash_text(text) for text in texts]
         started = time.monotonic()
         try:
+            request_body: dict[str, object] = {
+                "model": alias,
+                "input": _format_embedding_input(texts, model_alias=alias),
+            }
+            if expected_dimension is not None:
+                request_body["dimensions"] = expected_dimension
+                if _needs_volcengine_multimodal_routing_signal(model_alias=alias):
+                    request_body["optional_params"] = {"dimensions": expected_dimension}
+
             response = httpx.post(
                 f"{self._endpoint}/v1/embeddings",
                 headers={"Authorization": f"Bearer {self._api_key}"},
-                json={"model": alias, "input": texts},
+                json=request_body,
                 timeout=self._timeout,
             )
             response.raise_for_status()
@@ -164,6 +173,27 @@ def create_embedding_client(settings: Settings | None = None) -> EmbeddingClient
         default_model_alias=current.effective_embedding_model_alias,
         timeout=current.embedding_timeout,
     )
+
+
+def _uses_volcengine_embedding(*, model_alias: str) -> bool:
+    return model_alias.startswith("volcengine/")
+
+
+def _is_volcengine_vision_embedding(*, model_alias: str) -> bool:
+    model_name = model_alias.rsplit("/", 1)[-1]
+    return model_name.startswith("doubao-embedding-vision-")
+
+
+def _needs_volcengine_multimodal_routing_signal(*, model_alias: str) -> bool:
+    return _uses_volcengine_embedding(
+        model_alias=model_alias,
+    ) and not _is_volcengine_vision_embedding(model_alias=model_alias)
+
+
+def _format_embedding_input(texts: list[str], *, model_alias: str) -> list[str] | list[dict[str, str]]:
+    if _uses_volcengine_embedding(model_alias=model_alias):
+        return [{"type": "text", "text": text} for text in texts]
+    return texts
 
 
 def _extract_vectors(payload: dict) -> list[list[float]]:

@@ -85,6 +85,7 @@ __all__ = [
     "DEFAULT_HARD_LIMIT",
     "DEFAULT_SEMANTIC_THRESHOLD",
     "DEFAULT_MATCH_STRATEGY",
+    "DEFAULT_TAG_EMBEDDING_DIMENSION",
 ]
 
 
@@ -97,6 +98,11 @@ class TagResolverError(Exception):
 DEFAULT_HARD_LIMIT: int = 10_000
 DEFAULT_SEMANTIC_THRESHOLD: float = 0.75
 DEFAULT_MATCH_STRATEGY: str = "l1|l1.5|l4"
+
+# tag_asset_index.tag_embedding is a short-tag semantic vector. Keep it
+# aligned with the Vector(512) column and tag embedding backfill script;
+# do not reuse the 1024-d chunk embedding dimension here.
+DEFAULT_TAG_EMBEDDING_DIMENSION: int = 512
 
 
 # Plural bucket name → singular tag_type code.  Kept in-module so the
@@ -177,12 +183,14 @@ class TagAssetIndexResolver:
         embedding_client: "EmbeddingClientProtocol | None" = None,
         hard_limit: int = DEFAULT_HARD_LIMIT,
         embedding_model_alias: str | None = None,
+        embedding_dimension: int | None = DEFAULT_TAG_EMBEDDING_DIMENSION,
         enforce_adoption_guardrail: bool = True,
     ) -> None:
         self._session = session
         self._embedding_client = embedding_client
         self._hard_limit = hard_limit
         self._embedding_model_alias = embedding_model_alias
+        self._embedding_dimension = embedding_dimension
         # PR #2 — guardrail: source=governance_tag rows are only visible
         # to retrieval when their producing ai_governance_run reached
         # AUTO_ADOPTED.  All other sources (field_projection /
@@ -545,7 +553,9 @@ class TagAssetIndexResolver:
 
         try:
             embed_result = self._embedding_client.embed_texts(
-                query_texts, model_alias=self._embedding_model_alias,
+                query_texts,
+                model_alias=self._embedding_model_alias,
+                expected_dimension=self._embedding_dimension,
             )
         except Exception as exc:
             logger.warning("L4 embedding call failed: %s", exc)
