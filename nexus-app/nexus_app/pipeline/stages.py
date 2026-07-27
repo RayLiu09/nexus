@@ -5,6 +5,7 @@ import logging
 from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
+from urllib.parse import quote
 
 from sqlalchemy import func, select
 
@@ -138,6 +139,11 @@ def title_from(raw_object: models.RawObject, payload: dict[str, Any] | None = No
 
 def _json_bytes(value: dict[str, Any]) -> bytes:
     return json.dumps(value, ensure_ascii=False, sort_keys=True).encode("utf-8")
+
+
+def _s3_metadata_value(value: str) -> str:
+    """Encode arbitrary MinerU archive paths for ASCII-only S3 metadata."""
+    return quote(value, safe="/._-")
 
 
 def _cleanup_storage_keys(ctx: PipelineContext, keys: list[str]) -> None:
@@ -374,7 +380,10 @@ def run_parse(
                 img_key,
                 img_bytes,
                 img_content_type,
-                {"nexus-artifact-id": artifact_id, "nexus-image-name": img_name},
+                {
+                    "nexus-artifact-id": artifact_id,
+                    "nexus-image-name": _s3_metadata_value(img_name),
+                },
             )
             stored_keys.append(img_key)
             image_uris[img_name] = img_stored.object_uri
@@ -667,7 +676,11 @@ def _build_normalized_document(
     else:
         # Fallback: fake adapter or legacy format with top-level 'markdown'/'blocks'
         raw_md = parse_payload.get("markdown") or parse_payload.get("content") or ""
-        body_markdown = str(raw_md)[:8000]
+        # Native Office output commonly provides markdown rather than PDF's
+        # ``pdf_info``. Do not truncate it here: this is the source used for
+        # governance and chunking, and NormalizeService already applies its
+        # own bounded input policy for LLM calls.
+        body_markdown = str(raw_md)
         raw_blocks = parse_payload.get("blocks")
         blocks = raw_blocks if isinstance(raw_blocks, list) else [{
             "block_id": "block-001",
@@ -816,6 +829,19 @@ def _build_normalized_document(
     if teaching_standard_extraction is not None:
         metadata["teaching_standard_extraction"] = teaching_standard_extraction
 
+    office_quality = _office_parse_quality(
+        raw_object.mime_type,
+        parse_payload,
+        blocks,
+        body_markdown,
+        image_uris,
+    )
+    anomaly_items = list(
+        major_profile_quality_summary.get("blocking_reasons", [])
+        if major_profile_quality_summary else []
+    )
+    anomaly_items.extend(office_quality["anomaly_items"])
+
     return {
         "schema_version": "normalized-document-v1",
         "asset_id": None,
@@ -846,16 +872,16 @@ def _build_normalized_document(
         "quality": {
             "parse_score": None,
             "normalize_score": None,
-            "anomaly_items": (
-                major_profile_quality_summary.get("blocking_reasons", [])
-                if major_profile_quality_summary else []
-            ),
+            "anomaly_items": anomaly_items,
             "manual_review_status": (
                 "required"
-                if major_profile_quality_summary
-                and major_profile_quality_summary.get("blocking_reasons")
+                if (
+                    major_profile_quality_summary
+                    and major_profile_quality_summary.get("blocking_reasons")
+                ) or office_quality["manual_review_required"]
                 else "not_required"
             ),
+            **({"office_parse": office_quality} if office_quality["is_office"] else {}),
             **(
                 {"major_profile": major_profile_quality_summary}
                 if major_profile_quality_summary else {}
@@ -868,6 +894,74 @@ def _build_normalized_document(
             "parse_artifact_uri": artifact.artifact_uri,
             "image_uris": image_uris,
         },
+    }
+
+
+_OFFICE_DOCUMENT_MIME_TYPES = frozenset({
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+})
+
+
+def _office_parse_quality(
+    mime_type: str | None,
+    parse_payload: dict[str, Any],
+    blocks: list[dict[str, Any]],
+    body_markdown: str,
+    image_uris: dict[str, str],
+) -> dict[str, Any]:
+    """Summarize native DOCX/PPTX output without interpreting raw Office data.
+
+    The result is normalized-document quality evidence only. Existing
+    governance rules retain ownership of official state decisions.
+    """
+    normalized_mime = (mime_type or "").lower()
+    is_office = normalized_mime in _OFFICE_DOCUMENT_MIME_TYPES
+    if not is_office:
+        return {
+            "is_office": False,
+            "anomaly_items": [],
+            "manual_review_required": False,
+        }
+
+    text_blocks = sum(
+        1
+        for block in blocks
+        if isinstance(block, dict)
+        and isinstance(block.get("text") or block.get("content"), str)
+        and (block.get("text") or block.get("content")).strip()
+    )
+    table_blocks = sum(
+        1 for block in blocks if isinstance(block, dict) and block.get("block_type") == "table"
+    )
+    title_blocks = sum(
+        1 for block in blocks if isinstance(block, dict) and block.get("block_type") == "title"
+    )
+    markdown_char_count = len(body_markdown.strip())
+    anomaly_items: list[str] = []
+    if not blocks or not markdown_char_count:
+        anomaly_items.append("office_parse_empty_content")
+    elif not text_blocks and image_uris:
+        anomaly_items.append("office_parse_image_only")
+    elif len(blocks) == 1 and markdown_char_count > 20_000:
+        anomaly_items.append("office_parse_single_block_degraded")
+
+    return {
+        "is_office": True,
+        "source_format": "docx" if "wordprocessingml" in normalized_mime else "pptx",
+        "output_shape": {
+            "has_pdf_info": isinstance(parse_payload.get("pdf_info"), list),
+            "has_markdown": isinstance(parse_payload.get("markdown"), str),
+            "has_blocks": isinstance(parse_payload.get("blocks"), list),
+        },
+        "block_count": len(blocks),
+        "text_block_count": text_blocks,
+        "title_block_count": title_blocks,
+        "table_block_count": table_blocks,
+        "image_count": len(image_uris),
+        "markdown_char_count": markdown_char_count,
+        "anomaly_items": anomaly_items,
+        "manual_review_required": bool(anomaly_items),
     }
 
 

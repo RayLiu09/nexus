@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 from nexus_app.config import Settings
 from nexus_app.enums import DataSourceType, NormalizedType
 
@@ -54,13 +56,19 @@ def artifact_key(settings: Settings, version_id: str, artifact_id: str) -> str:
 
 def artifact_image_key(settings: Settings, version_id: str, artifact_id: str, image_name: str) -> str:
     """Key for an extracted image stored alongside the parse result JSON."""
+    # MinerU refers to images by archive-relative path. Two Office documents
+    # can legitimately contain different images with the same basename, while
+    # archive paths may also contain unsafe characters. Retain a readable safe
+    # basename and add a stable path hash to prevent overwrite/collision.
+    basename = image_name.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    stable_name = f"{hashlib.sha256(image_name.encode('utf-8')).hexdigest()[:12]}-{_safe_part(basename)}"
     return "/".join(
         [
             settings.minio_bucket_partition_parsed.strip("/"),
             _safe_part(version_id),
             _safe_part(artifact_id),
             "images",
-            _safe_part(image_name) or "image",
+            stable_name,
         ]
     )
 

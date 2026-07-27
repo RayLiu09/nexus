@@ -61,6 +61,12 @@ class MinerUUnavailableError(RuntimeError):
     error_code = "mineru_unavailable"
 
 
+class MinerUResponseError(RuntimeError):
+    """Raised when MinerU returns no usable structured parse result."""
+
+    error_code = "mineru_invalid_response"
+
+
 class MinerUAdapter(Protocol):
     def parse(
         self,
@@ -226,23 +232,27 @@ def _unpack_mineru_response(
     if "zip" in response_type or body[:2] == b"PK":
         try:
             with zipfile.ZipFile(io.BytesIO(body)) as zf:
-                json_entries = [n for n in zf.namelist() if n.endswith(".json")]
+                json_entries = [n for n in zf.namelist() if n.lower().endswith(".json")]
                 image_entries = [
                     n for n in zf.namelist()
                     if not n.endswith(".json") and not n.endswith("/")
                     and any(n.lower().endswith(ext) for ext in (".png", ".jpg", ".jpeg", ".webp", ".gif", ".tiff", ".bmp"))
                 ]
                 if not json_entries:
-                    result_json = body
+                    raise MinerUResponseError("MinerU ZIP response contains no JSON parse result")
                 else:
-                    result_json = zf.read(json_entries[0])
+                    result_json = _select_parse_result_json(zf, json_entries)
                 for img_path in image_entries:
-                    img_name = img_path.rsplit("/", 1)[-1]
-                    images[img_name] = zf.read(img_path)
+                    # Keep the archive-relative key because MinerU middle JSON
+                    # references images by this path. Object storage keys are
+                    # made safe later by artifact_image_key().
+                    images[img_path] = zf.read(img_path)
         except zipfile.BadZipFile:
-            result_json = body
+            raise MinerUResponseError("MinerU declared a ZIP response but returned an invalid archive")
     else:
         result_json = body
+
+    _validate_parse_result_json(result_json)
 
     return ParseResult(
         content=result_json,
@@ -257,6 +267,57 @@ def _unpack_mineru_response(
         },
         images=images,
     )
+
+
+def _select_parse_result_json(zf: zipfile.ZipFile, entries: list[str]) -> bytes:
+    """Select MinerU's substantive result from a multi-file response ZIP.
+
+    MinerU result bundles may include model/debug JSON alongside the middle
+    result. Archive ordering is not a contract, so choosing the first JSON can
+    normalize an incidental payload as a document. Prefer names and payload
+    shapes that identify a structured parse result, then use lexical ordering
+    only as a deterministic final tie-breaker.
+    """
+    ranked: list[tuple[int, str, bytes]] = []
+    for entry in entries:
+        content = zf.read(entry)
+        try:
+            payload = json.loads(content.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+
+        name = entry.lower()
+        has_parse_shape = any(
+            key in payload
+            for key in (
+                "pdf_info", "markdown", "blocks", "content_list", "pages", "layout_dets",
+            )
+        )
+        if not has_parse_shape:
+            continue
+        score = 100
+        if "middle" in name or "result" in name:
+            score += 20
+        if "model_output" in name or "debug" in name:
+            score -= 50
+        ranked.append((score, entry, content))
+
+    if not ranked:
+        raise MinerUResponseError("MinerU ZIP response contains no JSON object parse result")
+    ranked.sort(key=lambda item: (-item[0], item[1]))
+    return ranked[0][2]
+
+
+def _validate_parse_result_json(content: bytes) -> None:
+    """Reject non-object responses before they become a generated artifact."""
+    try:
+        payload = json.loads(content.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise MinerUResponseError("MinerU response is not valid JSON") from exc
+    if not isinstance(payload, dict):
+        raise MinerUResponseError("MinerU response must be a JSON object")
 
 
 def mineru_health(settings: Settings | None = None) -> dict[str, object]:

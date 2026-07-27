@@ -94,7 +94,6 @@ class NormalizeService:
         *,
         source_type: str,
         content_type: str,
-        classification_hint: str | None = None,
     ) -> NormalizeResult:
         contract_key, contract = self._registry.get_contract(source_type, content_type)
 
@@ -125,7 +124,7 @@ class NormalizeService:
 
         # 4. Validate against contract. Issues are returned (not raised) so callers
         #    can decide whether to proceed with degraded payload or escalate.
-        issues = self._validate(enhanced, contract, classification_hint)
+        issues = self._validate(enhanced, contract)
 
         return NormalizeResult(
             payload=enhanced,
@@ -166,7 +165,7 @@ class NormalizeService:
             "Extract the following normalized fields from the content. Return ONLY a JSON object.\n"
             f"Required fields: {required}\n"
             f"Normalized type: {contract.normalized_type}\n"
-            "Fields to consider: title (string), language (BCP-47), classification_hint (D1/D2/D3/D4).\n"
+            "Fields to consider: title (string), language (BCP-47).\n"
             "Content snippet:\n"
             f"<<<\n{body_snippet}\n>>>"
         )
@@ -287,10 +286,6 @@ class NormalizeService:
         for key in ("title", "language"):
             if not merged.get(key) and llm_output.get(key):
                 merged[key] = llm_output[key]
-        if llm_output.get("classification_hint") and "governance" in merged:
-            gov = dict(merged.get("governance") or {})
-            gov.setdefault("classification_hint", llm_output["classification_hint"])
-            merged["governance"] = gov
         return merged
 
     # ------------------------------------------------------------------
@@ -322,7 +317,6 @@ class NormalizeService:
         self,
         payload: dict[str, Any],
         contract: NormalizeContract,
-        classification_hint: str | None,
     ) -> list[NormalizeValidationIssue]:
         issues: list[NormalizeValidationIssue] = []
 
@@ -346,20 +340,6 @@ class NormalizeService:
             issue = self._check_constraint(field, value, constraint)
             if issue:
                 issues.append(issue)
-
-        # Classification hint whitelist
-        hint = classification_hint or (payload.get("governance") or {}).get("classification_hint")
-        if hint and contract.classification_hint_whitelist and hint not in contract.classification_hint_whitelist:
-            issues.append(
-                NormalizeValidationIssue(
-                    field="governance.classification_hint",
-                    code="classification_out_of_whitelist",
-                    message=(
-                        f"classification_hint '{hint}' not in whitelist "
-                        f"{contract.classification_hint_whitelist}"
-                    ),
-                )
-            )
 
         return issues
 

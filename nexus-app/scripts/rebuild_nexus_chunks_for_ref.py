@@ -32,7 +32,7 @@ from nexus_app.storage import get_object_storage
 
 CATEGORY_TO_KT = {
     "industry_research": "industry_research_kb",
-    "textbook": "textbook_kb",
+    "textbook": "course_textbook",
 }
 
 

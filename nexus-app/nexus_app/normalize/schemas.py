@@ -20,7 +20,6 @@ class NormalizeContract(BaseModel):
     normalized_type: Literal["document", "record"]
     required_fields: list[str] = Field(default_factory=list)
     format_constraints: dict[str, FormatConstraint] = Field(default_factory=dict)
-    classification_hint_whitelist: list[str] = Field(default_factory=list)
 
 
 class NormalizeSchemasFile(BaseModel):

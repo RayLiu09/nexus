@@ -108,6 +108,18 @@ _MIME_BY_EXT: dict[str, str] = {
 
 # Files we deliberately skip — prototype HTML mockups etc.
 _SKIP_STEMS_LOWER: frozenset[str] = frozenset({"prototype-v3.1", "prototype-v3.2"})
+_DUPLICATE_JOB_WAIT_SECONDS = 300
+_DUPLICATE_JOB_POLL_SECONDS = 2
+
+
+def _safe_display_text(value: str) -> str:
+    """Return text that can be safely emitted in an UTF-8 JSON report.
+
+    Paths from a directory with legacy byte-encoded filenames can contain
+    surrogate escapes. Keep them out of reporting only; the original Path is
+    still used for discovery and ingestion.
+    """
+    return value.encode("utf-8", "backslashreplace").decode("utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -148,17 +160,31 @@ class RunReport:
 # ---------------------------------------------------------------------------
 
 
-def _preflight(settings: Settings, session: Session) -> list[str]:
+def _preflight(
+    settings: Settings,
+    session: Session,
+    files: Iterable[Path],
+) -> list[str]:
     issues: list[str] = []
     try:
         session.scalar(select(func.count()).select_from(models.DimTagAlias))
     except Exception as exc:  # noqa: BLE001
         issues.append(f"alembic head missing (dim_tag_alias): {exc}")
 
-    if not settings.pipeline_b_xlsx_enabled:
+    selected_mimes = {
+        _MIME_BY_EXT[path.suffix.lower()]
+        for path in files
+        if path.suffix.lower() in _MIME_BY_EXT
+    }
+    if any(mime in XLSX_MIME_TYPES for mime in selected_mimes) and not settings.pipeline_b_xlsx_enabled:
         issues.append(
             "settings.pipeline_b_xlsx_enabled=False — xlsx files would "
             "route to Pipeline A. Set PIPELINE_B_XLSX_ENABLED=true."
+        )
+    if any(mime in CSV_MIME_TYPES for mime in selected_mimes) and not settings.pipeline_b_csv_enabled:
+        issues.append(
+            "settings.pipeline_b_csv_enabled=False — csv files would "
+            "route to Pipeline A. Set PIPELINE_B_CSV_ENABLED=true."
         )
 
     active_prompts = {
@@ -201,18 +227,18 @@ def _discover(
         if not child.is_file():
             continue
         if child.stem.lower() in _SKIP_STEMS_LOWER:
-            skipped.append((child.name, "prototype (explicit skip)"))
+            skipped.append((_safe_display_text(child.name), "prototype (explicit skip)"))
             continue
         ext = child.suffix.lower()
         if ext not in _MIME_BY_EXT:
             reason = "no extension (likely garbled filename)" if not ext else f"unsupported extension: {ext}"
-            skipped.append((child.name, reason))
+            skipped.append((_safe_display_text(child.name), reason))
             continue
         if include_pattern and not fnmatch.fnmatch(child.name, include_pattern):
-            skipped.append((child.name, "include-pattern excluded"))
+            skipped.append((_safe_display_text(child.name), "include-pattern excluded"))
             continue
         if exclude_pattern and fnmatch.fnmatch(child.name, exclude_pattern):
-            skipped.append((child.name, "exclude-pattern matched"))
+            skipped.append((_safe_display_text(child.name), "exclude-pattern matched"))
             continue
         files.append(child)
     if limit is not None:
@@ -227,6 +253,40 @@ def _expected_pipeline(mime: str, settings: Settings) -> str:
     if normalized in CSV_MIME_TYPES and settings.pipeline_b_csv_enabled:
         return PipelineType.RECORD.value
     return PipelineType.DOCUMENT.value
+
+
+def _wait_for_original_job(
+    session_factory,
+    raw_object_id: str,
+    duplicate_job_id: str,
+) -> tuple[models.Job | None, str | None]:
+    """Wait for the job that owns a duplicate raw object to reach a terminal state."""
+    deadline = time.monotonic() + _DUPLICATE_JOB_WAIT_SECONDS
+    while True:
+        with session_factory() as session:
+            original = session.scalar(
+                select(models.Job)
+                .where(
+                    models.Job.raw_object_id == raw_object_id,
+                    models.Job.id != duplicate_job_id,
+                )
+                .order_by(models.Job.created_at.asc())
+            )
+            if original is not None:
+                session.expunge(original)
+                if original.status == JobStatus.SUCCEEDED and original.current_stage == "completed":
+                    return original, None
+                if original.status in {JobStatus.FAILED, JobStatus.DEAD_LETTERED}:
+                    return original, (
+                        f"original duplicate job ended with status={original.status.value} "
+                        f"stage={original.current_stage} reason={original.failure_reason}"
+                    )
+        if time.monotonic() >= deadline:
+            return None, (
+                "timed out waiting for original duplicate job "
+                f"after {_DUPLICATE_JOB_WAIT_SECONDS}s"
+            )
+        time.sleep(_DUPLICATE_JOB_POLL_SECONDS)
 
 
 # ---------------------------------------------------------------------------
@@ -317,21 +377,17 @@ def _process_sample(
 
     # --- Execute -------------------------------------------------------
     if is_duplicate:
-        with session_factory() as session:
-            original = session.scalar(
-                select(models.Job).where(
-                    models.Job.raw_object_id == raw_id,
-                    models.Job.current_stage == "completed",
-                    models.Job.status == JobStatus.SUCCEEDED,
-                ).order_by(models.Job.created_at.asc())
-            )
-            if original is None:
-                outcome.status = "failed"
-                outcome.failure = "duplicate raw object but no original completed job"
-                outcome.duration_ms = (time.monotonic() - started) * 1000
-                return outcome
-            job_id = original.id
-            outcome.job_id = job_id
+        original, duplicate_error = _wait_for_original_job(
+            session_factory, raw_id, job_id
+        )
+        if original is None or duplicate_error is not None:
+            outcome.status = "failed"
+            outcome.failure = duplicate_error or "duplicate raw object but no original job"
+            outcome.duration_ms = (time.monotonic() - started) * 1000
+            return outcome
+        job_id = original.id
+        outcome.job_id = job_id
+        outcome.trace_id = original.trace_id
     else:
         with session_factory() as session:
             claimed = claim_jobs(
@@ -403,28 +459,40 @@ def _verify_artifacts(
     ids: dict[str, str] = {}
     failures: list[str] = []
 
-    # asset + version
-    asset = session.scalar(
-        select(models.Asset).where(models.Asset.data_source_id == data_source_id)
-        .order_by(models.Asset.created_at.desc())
+    # Asset + version: bind verification to the submitted raw object. A data
+    # source can own many samples, and retries may leave a failed later version
+    # beside the version that produced the effective normalized reference.
+    version = session.scalar(
+        select(models.AssetVersion)
+        .join(
+            models.NormalizedAssetRef,
+            models.NormalizedAssetRef.version_id == models.AssetVersion.id,
+        )
+        .where(models.AssetVersion.raw_object_id == raw_object_id)
+        .order_by(models.AssetVersion.version_no.desc())
     )
-    if asset is None:
-        failures.append("no asset for data source")
+    if version is None:
+        version = session.scalar(
+            select(models.AssetVersion)
+            .where(models.AssetVersion.raw_object_id == raw_object_id)
+            .order_by(models.AssetVersion.version_no.desc())
+        )
+    if version is None:
+        failures.append("no asset_version for submitted raw object")
+        details["_first_failure"] = failures[0]
+        return False, details, ids
+    asset = session.get(models.Asset, version.asset_id)
+    if asset is None or asset.data_source_id != data_source_id:
+        failures.append("no asset for submitted raw object")
         details["_first_failure"] = failures[0]
         return False, details, ids
     ids["asset_id"] = asset.id
-
-    versions = list_asset_versions(session, asset.id)
-    if not versions:
-        failures.append("no asset_version")
-        details["_first_failure"] = failures[0]
-        return False, details, ids
-    version = versions[0]
     ids["version_id"] = version.id
     details["version_status"] = version.version_status.value
 
     # normalized ref
     refs = list_normalized_refs_for_versions(session, [version.id])
+    ref: models.NormalizedAssetRef | None = None
     if not refs:
         failures.append("no normalized_asset_ref")
     else:
@@ -435,6 +503,7 @@ def _verify_artifacts(
             "status": ref.status.value if hasattr(ref.status, "value") else str(ref.status),
             "language": ref.language,
             "block_count": ref.block_count,
+            "office_parse": (ref.quality or {}).get("office_parse"),
         }
         expected_type = (
             NormalizedType.DOCUMENT
@@ -448,10 +517,14 @@ def _verify_artifacts(
             )
 
     # governance_result.tags v2 shape (dict with 7 buckets)
-    gov = session.scalar(
-        select(models.GovernanceResult).where(
-            models.GovernanceResult.asset_version_id == version.id
-        ).order_by(models.GovernanceResult.created_at.desc())
+    gov = (
+        session.scalar(
+            select(models.GovernanceResult)
+            .where(models.GovernanceResult.normalized_ref_id == ref.id)
+            .order_by(models.GovernanceResult.created_at.desc())
+        )
+        if ref is not None
+        else None
     )
     if gov is None:
         failures.append("no governance_result")
@@ -627,26 +700,27 @@ def main() -> int:
     settings = get_settings()
     session_factory = get_session_local()
 
-    with session_factory() as session:
-        preflight_issues = _preflight(settings, session)
-    if preflight_issues:
-        for issue in preflight_issues:
-            print(f"  BLOCK  {issue}", file=sys.stderr)
-        return 2
-
     samples_dir = Path(args.samples_dir)
     if not samples_dir.is_absolute():
         cwd_candidate = (Path.cwd() / samples_dir).resolve()
         repo_candidate = (_REPO_ROOT.parent / samples_dir).resolve()
         samples_dir = cwd_candidate if cwd_candidate.exists() else repo_candidate
     files, skipped = _discover(samples_dir, args.include_pattern, args.exclude_pattern, args.limit)
+    if not files:
+        print(f"  no supported samples found under {samples_dir}", file=sys.stderr)
+        return 2
+
+    with session_factory() as session:
+        preflight_issues = _preflight(settings, session, files)
+    if preflight_issues:
+        for issue in preflight_issues:
+            print(f"  BLOCK  {issue}", file=sys.stderr)
+        return 2
+
     if skipped and not args.json:
         print("Skipped files:", file=sys.stderr)
         for name, reason in skipped:
             print(f"  - {name}  [{reason}]", file=sys.stderr)
-    if not files:
-        print(f"  no supported samples found under {samples_dir}", file=sys.stderr)
-        return 2
 
     report = RunReport(
         started_at=time.time(),

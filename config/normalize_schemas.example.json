@@ -1,5 +1,5 @@
 {
-  "_comment": "Normalize output contracts indexed by source_type|content_type. Defines required fields / format constraints / classification hint whitelist for normalize-service. Copy to normalize_schemas.json and customize.",
+  "_comment": "Normalize output contracts indexed by source_type|content_type. Defines required fields and format constraints for normalize-service. Copy to normalize_schemas.json and customize.",
   "schema_version": "1.0",
   "contracts": {
     "file_upload|application/pdf": {
@@ -8,19 +8,16 @@
       "required_fields": ["title", "language", "content_blocks"],
       "format_constraints": {
         "language": { "pattern": "^[a-z]{2}(-[A-Z]{2})?$" }
-      },
-      "classification_hint_whitelist": ["D1", "D2", "D3", "D4"]
+      }
     },
     "crawler|application/json": {
       "description": "Example contract for crawler records",
       "normalized_type": "record",
-      "required_fields": ["primary_key", "columns"],
-      "classification_hint_whitelist": ["D1", "D2"]
+      "required_fields": ["primary_key", "columns"]
     }
   },
   "fallback_contract": {
     "normalized_type": "document",
-    "required_fields": ["title", "language"],
-    "classification_hint_whitelist": ["D1", "D2", "D3", "D4"]
+    "required_fields": ["title", "language"]
   }
 }

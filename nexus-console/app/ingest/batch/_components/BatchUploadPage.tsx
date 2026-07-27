@@ -101,7 +101,7 @@ export function BatchUploadPage({ sources }: BatchUploadPageProps) {
     onRemove: (file) => {
       setFileList((prev) => prev.filter((f) => f.uid !== file.uid));
     },
-    accept: ".pdf,.txt,.md,.html,.json,.docx,.xlsx,.csv,.png,.jpg,.jpeg",
+    accept: ".pdf,.txt,.md,.html,.json,.docx,.pptx,.xlsx,.csv,.png,.jpg,.jpeg",
   };
 
   const handleSubmit = async () => {

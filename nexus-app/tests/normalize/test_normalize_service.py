@@ -24,14 +24,12 @@ def registry(tmp_path: Path):
                     "title": {"min_length": 1, "max_length": 500},
                     "blocks": {"min_items": 1},
                 },
-                "classification_hint_whitelist": ["D1", "D2"],
             },
         },
         "fallback_contract": {
             "normalized_type": "document",
             "required_fields": ["title"],
             "format_constraints": {},
-            "classification_hint_whitelist": ["D1", "D2", "D3", "D4"],
         },
     }
     path = tmp_path / "normalize_schemas.json"
@@ -116,11 +114,11 @@ class TestNormalizeService:
         assert result.contract_key == "fallback"
         assert result.is_valid
 
-    def test_classification_hint_outside_whitelist_flagged(self, registry):
+    def test_deprecated_classification_hint_is_not_a_normalize_constraint(self, registry):
         svc = NormalizeService(registry=registry)
         payload = {
             "title": "t", "language": "zh-CN", "blocks": [{"text": "a"}],
             "governance": {"classification_hint": "D9"},
         }
         result = svc.normalize(payload, source_type="file_upload", content_type="application/pdf")
-        assert any(i.code == "classification_out_of_whitelist" for i in result.issues)
+        assert result.is_valid

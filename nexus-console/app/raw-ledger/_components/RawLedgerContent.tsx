@@ -29,6 +29,7 @@ interface RawLedgerContentProps {
 const MIME_LABELS: Record<string, string> = {
   "application/pdf": "PDF",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "DOCX",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "PPTX",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "XLSX",
   "text/plain": "TXT",
   "text/markdown": "MD",

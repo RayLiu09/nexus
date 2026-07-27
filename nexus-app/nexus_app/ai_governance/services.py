@@ -634,18 +634,11 @@ class AIGovernanceService:
             raise AIGovernanceError(
                 f"NormalizedAssetRef '{normalized_ref_id}' not found"
             )
-        # `_build_ref_dict` may use the historical object-storage fallback for
-        # a missing content snippet. Detach a fully-loaded read snapshot before
-        # that I/O so the compatibility path cannot retain a worker lock.
-        _ = (
-            ref.id, ref.version_id, ref.object_uri, ref.title, ref.schema_version,
-            ref.source_type, ref.content_type, ref.language, ref.normalized_type,
-            ref.metadata_summary, ref.governance,
-        )
-        session.expunge(ref)
-        session.commit()
         ref_dict = self._build_ref_dict(ref)
         sensitivity_level = (ref.governance or {}).get("level", "L1")
+        # The input snapshot above is plain data. Release the read transaction
+        # before the LLM call without passing a detached ORM object downstream.
+        session.commit()
 
         stage_out = self._run_llm_stage(
             client, prompt_registry, "tagging",
@@ -703,17 +696,9 @@ class AIGovernanceService:
             raise AIGovernanceError(
                 f"NormalizedAssetRef '{normalized_ref_id}' not found"
             )
-        # `_build_ref_dict` can use object storage for old refs without a
-        # summary. Keep this detached snapshot across that compatibility I/O.
-        _ = (
-            ref.id, ref.version_id, ref.object_uri, ref.title, ref.schema_version,
-            ref.source_type, ref.content_type, ref.language, ref.normalized_type,
-            ref.metadata_summary, ref.governance,
-        )
-        session.expunge(ref)
-        session.commit()
         ref_dict = self._build_ref_dict(ref)
         sensitivity_level = (ref.governance or {}).get("level", "L1")
+        normalized_ref_version_id = ref.version_id
 
         # Snapshot: record which prompt-templates were used
         prompt_ids: dict[str, str] = {}
@@ -820,7 +805,8 @@ class AIGovernanceService:
         # audit event still fires with a note.
         tag_projection_summary = self._project_governance_tags(
             session,
-            ref=ref,
+            normalized_ref_id=normalized_ref_id,
+            asset_version_id=normalized_ref_version_id,
             tag_output=tag_output,
             extraction_run_id=run.id,
             rules_registry=rules_registry,
@@ -849,7 +835,8 @@ class AIGovernanceService:
         self,
         session: Session,
         *,
-        ref: models.NormalizedAssetRef,
+        normalized_ref_id: str,
+        asset_version_id: str,
         tag_output: dict[str, Any],
         extraction_run_id: str,
         rules_registry: "GovernanceRulesRegistry | None",
@@ -890,8 +877,8 @@ class AIGovernanceService:
             )
             result = project_governance_tag_bag(
                 session,
-                normalized_ref_id=ref.id,
-                asset_version_id=ref.version_id,
+                normalized_ref_id=normalized_ref_id,
+                asset_version_id=asset_version_id,
                 tag_bag=tag_bag,
                 extraction_run_id=extraction_run_id,
                 confidence_threshold=threshold,

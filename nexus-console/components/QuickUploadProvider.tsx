@@ -30,7 +30,7 @@ import { useBatchStatus } from "@/lib/ingest/useBatchStatus";
 
 const MAX_FILES = 20;
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
-const ACCEPT_EXT = ".pdf,.txt,.md,.html,.json,.docx,.xlsx,.csv,.png,.jpg,.jpeg";
+const ACCEPT_EXT = ".pdf,.txt,.md,.html,.json,.docx,.pptx,.xlsx,.csv,.png,.jpg,.jpeg";
 
 // ── Context ───────────────────────────────────────────────────────────────
 
