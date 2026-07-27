@@ -1371,10 +1371,14 @@ def _recover_knowledge_emissions(
     from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
     from nexus_app.ai_governance.services import AIGovernanceService
 
+    # Recovery can be invoked by retry and maintenance entry points where the
+    # caller's ORM object belongs to a different Session. Keep only its stable
+    # id; all reads and writes below must use ctx.session's identity map.
+    normalized_ref_id = normalized_ref.id
     ai_run = ctx.session.scalars(
         select(models.AIGovernanceRun)
         .where(
-            models.AIGovernanceRun.normalized_ref_id == normalized_ref.id,
+            models.AIGovernanceRun.normalized_ref_id == normalized_ref_id,
             models.AIGovernanceRun.validation_status
             == AIGovernanceRunValidationStatus.SCHEMA_VALID,
             models.AIGovernanceRun.ai_output.is_not(None),
@@ -1397,7 +1401,7 @@ def _recover_knowledge_emissions(
     except Exception as exc:
         logger.warning(
             "Unable to recover knowledge emissions for ref %s: %s",
-            normalized_ref.id,
+            normalized_ref_id,
             exc,
         )
         return [], {
@@ -1406,7 +1410,14 @@ def _recover_knowledge_emissions(
             "reason": f"{type(exc).__name__}: {exc}"[:500],
         }
 
-    ctx.session.refresh(normalized_ref)
+    # Do not refresh the caller-provided instance: it can be detached after a
+    # prior transaction/session boundary, which raises InvalidRequestError.
+    # The emission writer has already flushed the canonical row in ctx.session.
+    if ctx.session.get(models.NormalizedAssetRef, normalized_ref_id) is None:
+        raise RuntimeError(
+            "normalized ref disappeared during knowledge-emission recovery: "
+            f"{normalized_ref_id}"
+        )
     return emissions, {
         "recovery": "materialized" if emissions else "no_applicable_emission",
         "ai_run_id": ai_run.id,

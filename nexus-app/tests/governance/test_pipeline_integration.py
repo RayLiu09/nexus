@@ -1003,6 +1003,49 @@ class TestKnowledgeEmissionsEdgeCases:
         assert stage.status == StageStatus.SUCCEEDED
         assert stage.detail["recovery"] == "materialized"
 
+    def test_recovery_accepts_detached_normalized_ref(
+        self, session, make_ai_run, monkeypatch
+    ):
+        """Recovery reloads the ref in ctx.session instead of refreshing its caller instance."""
+        from nexus_app.ai_governance import services as ai_services
+        from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
+        from nexus_app.pipeline import stages
+
+        run, _, ref = make_ai_run(
+            ai_output={"classification": "D4", "level": "L1", "tags": [],
+                       "org_scope": "all", "confidence": 0.9}
+        )
+        ref_id = ref.id
+        ctx = self._ctx(session, ref)
+
+        monkeypatch.setattr(GovernanceRulesRegistry, "load", lambda _self, _session: None)
+
+        def _write_emissions(_self, active_session, ai_run, _registry):
+            assert ai_run.id == run.id
+            canonical_ref = active_session.get(models.NormalizedAssetRef, ref_id)
+            assert canonical_ref is not None
+            canonical_ref.metadata_summary = {
+                **(canonical_ref.metadata_summary or {}),
+                "knowledge_emissions": [{"code": "course_textbook", "primary": True}],
+            }
+            active_session.flush()
+            return canonical_ref.metadata_summary["knowledge_emissions"]
+
+        monkeypatch.setattr(
+            ai_services.AIGovernanceService,
+            "write_knowledge_emissions",
+            _write_emissions,
+        )
+        session.expunge(ref)
+
+        emissions, detail = stages._recover_knowledge_emissions(ctx, ref)
+
+        assert emissions == [{"code": "course_textbook", "primary": True}]
+        assert detail["recovery"] == "materialized"
+        refreshed_ref = session.get(models.NormalizedAssetRef, ref_id)
+        assert refreshed_ref is not None
+        assert refreshed_ref.metadata_summary["knowledge_emissions"] == emissions
+
     def test_graph_emission_queues_one_idempotent_build(self, session, make_ai_run):
         from nexus_app.pipeline import stages
 
