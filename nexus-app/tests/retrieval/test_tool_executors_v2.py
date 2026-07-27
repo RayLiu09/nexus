@@ -877,14 +877,14 @@ def test_query_major_distribution_filters_by_year_and_province(session):
     rec1 = models.MajorDistributionRecord(
         id="mr-1", dataset_id=ds.id, normalized_ref_id=ref_id,
         source_record_key="1", year=2024,
-        province_name="上海", region_scope="华东",
+        province_name="上海市", region_scope="华东",
         major_name="跨境电商", major_code="5301",
         distribution_count=10,
     )
     rec2 = models.MajorDistributionRecord(
         id="mr-2", dataset_id=ds.id, normalized_ref_id=ref_id,
         source_record_key="2", year=2023,
-        province_name="上海", region_scope="华东",
+        province_name="上海市", region_scope="华东",
         major_name="跨境电商", major_code="5301",
         distribution_count=8,
     )
@@ -899,6 +899,7 @@ def test_query_major_distribution_filters_by_year_and_province(session):
     )
     assert result["count"] == 1
     assert result["records"][0]["year"] == 2024
+    assert result["records"][0]["province_name"] == "上海市"
 
 
 # ---------------------------------------------------------------------------

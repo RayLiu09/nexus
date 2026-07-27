@@ -169,3 +169,25 @@ def test_write_is_idempotent_for_same_ref(session) -> None:
     assert first.dataset_id != second.dataset_id
     assert len(list(session.scalars(select(models.MajorDistributionDataset)).all())) == 1
     assert len(list(session.scalars(select(models.MajorDistributionRecord)).all())) == 2
+
+
+def test_write_normalizes_province_alias(session) -> None:
+    ref = _seed_ref(session, ref_id="ref-md-province")
+    body = {
+        "dataset": {"source_channel": "excel_upload", "major_scope": "single_major"},
+        "records": [{
+            "source_record_key": "Sheet1#row2", "year": 2026,
+            "province_name": "新疆", "major_name": "电子商务",
+            "major_code": "530701", "distribution_count": 22,
+        }],
+    }
+
+    result = write(session=session, normalized_ref=ref, record_body=body)
+
+    record = session.scalar(
+        select(models.MajorDistributionRecord).where(
+            models.MajorDistributionRecord.dataset_id == result.dataset_id
+        )
+    )
+    assert record is not None
+    assert record.province_name == "新疆维吾尔自治区"

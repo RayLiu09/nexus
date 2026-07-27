@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import delete, select
 
 from nexus_app import models
+from nexus_app.domain_normalize.administrative_division import normalize_province_name
 from nexus_app.domain_normalize.schemas import DomainNormalizeResult
 from nexus_app.domain_normalize.tag_projection_hook import (
     project_writer_records,
@@ -118,7 +119,7 @@ def write(
             invalid_count += 1
             flag_counter["missing_required_field"] += 1
             continue
-        province = _string_or_none(raw.get("province_name"))
+        province = normalize_province_name(_string_or_none(raw.get("province_name")))
         if province in SUMMARY_MARKERS:
             ignored_summary_count += 1
             flag_counter["summary_row_ignored"] += 1

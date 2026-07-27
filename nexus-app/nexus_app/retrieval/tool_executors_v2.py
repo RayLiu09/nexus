@@ -38,6 +38,7 @@ from nexus_app.capability_graph.whitelists import (
     EdgeType,
     NodeType,
 )
+from nexus_app.domain_normalize.administrative_division import normalize_province_name
 from nexus_app.evidence_graph.service import KnowledgeGraphBuildStatus
 from nexus_app.index.pgvector_search import PgvectorSearchAdapter
 from nexus_app.retrieval.chart_adapter import (
@@ -1162,7 +1163,7 @@ def query_major_distribution(
     major_code = arguments.get("major_code")
     major_name = arguments.get("major_name")
     year = arguments.get("year")
-    province_name = arguments.get("province_name")
+    province_name = normalize_province_name(arguments.get("province_name"))
     education_level = arguments.get("education_level")
     region_scope = arguments.get("region_scope")
     min_count = arguments.get("min_count")

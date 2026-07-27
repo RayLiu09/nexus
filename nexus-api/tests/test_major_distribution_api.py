@@ -241,6 +241,10 @@ class TestOpenMajorDistributionRecords:
             session, dataset=dataset, ref=ref, record_id="mdr-xj",
             source_key="Sheet1#row34", province="新疆生产建设兵团", count=8,
         )
+        _seed_record(
+            session, dataset=dataset, ref=ref, record_id="mdr-xj-ar",
+            source_key="Sheet1#row35", province="新疆维吾尔自治区", count=22,
+        )
 
         resp = open_api.list_major_distribution_records_for_dataset(
             dataset_id=dataset.id,
@@ -260,6 +264,25 @@ class TestOpenMajorDistributionRecords:
         body = _body(resp)
         assert body["meta"]["total"] == 1
         assert body["data"][0]["region_scope"] == "province"
+
+        alias_resp = open_api.list_major_distribution_records_for_dataset(
+            dataset_id=dataset.id,
+            request=fake_request,
+            year=None,
+            major_code=None,
+            major_name=None,
+            province_name="新疆",
+            education_level=None,
+            region_scope="province",
+            min_count=None,
+            max_count=None,
+            pagination=PAGE,
+            caller=stub_api_caller,
+            session=session,
+        )
+        alias_body = _body(alias_resp)
+        assert alias_body["meta"]["total"] == 1
+        assert alias_body["data"][0]["province_name"] == "新疆维吾尔自治区"
 
         resp = open_api.list_major_distribution_records_for_dataset(
             dataset_id=dataset.id,

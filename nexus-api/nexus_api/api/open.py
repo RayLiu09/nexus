@@ -43,6 +43,7 @@ from nexus_api.responses import list_response, response
 from nexus_app import models, pipeline, schemas as domain_schemas, services
 from nexus_app.audit import write_asset_version_accessed_audit, write_audit
 from nexus_app.database import get_db
+from nexus_app.domain_normalize.administrative_division import normalize_province_name
 from nexus_app.enums import AssetAccessType, AssetVersionStatus, AuditEventType
 
 
@@ -1495,6 +1496,7 @@ def _filter_major_distribution_records(
     min_count: int | None = None,
     max_count: int | None = None,
 ):
+    province_name = normalize_province_name(province_name)
     if normalized_ref_id is not None:
         stmt = stmt.where(
             models.MajorDistributionRecord.normalized_ref_id == normalized_ref_id

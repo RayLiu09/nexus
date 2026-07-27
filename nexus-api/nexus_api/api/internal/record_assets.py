@@ -25,6 +25,7 @@ from nexus_app.capability_graph.whitelists import (
     NodeType,
 )
 from nexus_app.database import get_db
+from nexus_app.domain_normalize.administrative_division import normalize_province_name
 from nexus_app.enums import AuditEventType
 
 router = APIRouter()
@@ -279,6 +280,7 @@ def _apply_major_distribution_record_filters(
     min_count: int | None = None,
     max_count: int | None = None,
 ):
+    province_name = normalize_province_name(province_name)
     if normalized_ref_id is not None:
         stmt = stmt.where(
             models.MajorDistributionRecord.normalized_ref_id == normalized_ref_id
@@ -1265,6 +1267,8 @@ def update_major_distribution_record(
     for field, value in updates.items():
         if isinstance(value, str):
             value = value.strip()
+        if field == "province_name":
+            value = normalize_province_name(value)
         setattr(record, field, value)
     if "year" in updates:
         record.year_text = f"{record.year}年"
