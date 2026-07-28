@@ -175,6 +175,13 @@ P0 record profiles include job demand, occupational ability analysis, and major 
   `knowledge_graph_mention`, `knowledge_graph_evidence`. These tables store
   evidence-bound graph builds over a complete `normalized_asset_ref` and are
   separate from Pipeline B `CapabilityGraphStaging` domain graphs.
+- Standard-document capability graphs are evidence-bound `CapabilityGraphStaging`
+  projections over normalized documents. Professional teaching standards retain
+  `Major -> OccupationalDomain -> TypicalWorkTask -> SkillKnowledgeRequirement`.
+  Course standards use the distinct `course_standard` build type and only a
+  `课程模块/教学任务/技能要求/知识要求` normalized table to project
+  `CourseModule -> WorkTask -> SkillRequirement -> KnowledgeRequirement`.
+  Neither path may infer graph facts from raw source content or ungrounded prose.
 - Evidence-grounded KG internal API: `/internal/v1/knowledge-graphs/*` and
   `/internal/v1/normalized-refs/{ref_id}/knowledge-graph` expose build
   envelopes, graph row queries, evidence reverse lookup, dry-run candidate

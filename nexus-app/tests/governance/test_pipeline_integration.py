@@ -1238,7 +1238,7 @@ class TestKnowledgeEmissionsEdgeCases:
         chunks = stages.run_knowledge_chunking(self._ctx(session, ref), version, ref)
         assert chunks == []
 
-    def test_review_required_with_index_admitted_governance_builds_internal_chunks(
+    def test_review_required_governance_does_not_build_internal_chunks(
         self, session, make_ai_run
     ):
         from nexus_app.pipeline import stages
@@ -1262,37 +1262,41 @@ class TestKnowledgeEmissionsEdgeCases:
             level="L1",
             tags=[],
             org_scope="all",
-            index_admission=True,
+            index_admission=False,
             quality_summary=run.quality_summary,
             decision_trail=[
                 {"field_name": "classification", "adoption_status": "auto_adopted"},
                 {"field_name": "level", "adoption_status": "auto_adopted"},
                 {"field_name": "tags", "adoption_status": "auto_adopted"},
-                {"field_name": "quality", "adoption_status": "auto_adopted"},
+                {
+                    "field_name": "quality",
+                    "adoption_status": "review_required",
+                    "review_reason": "quality_level=warning requires review",
+                },
             ],
             rules_schema_version="1.0",
             rules_content_hash="a" * 64,
-            status=GovernanceResultStatus.AVAILABLE,
+            status=GovernanceResultStatus.REVIEW_REQUIRED,
         )
         session.add(result)
         session.flush()
 
         ctx = self._ctx(session, ref)
-        self._put_minimal_textbook_payload(ctx, ref)
-
         chunks = stages.run_knowledge_chunking(ctx, version, ref)
-        assert chunks
-        assert all(chunk.knowledge_type_code == "course_textbook" for chunk in chunks)
+        assert chunks == []
 
         stage = session.scalars(
             select(models.JobStage).where(
                 models.JobStage.job_id == _existing_job_for_ref(session, ref.id).id,
                 models.JobStage.stage_name == "knowledge_chunking",
-                models.JobStage.status == StageStatus.SUCCEEDED,
+                models.JobStage.status == StageStatus.SKIPPED,
             ).order_by(models.JobStage.created_at.desc())
         ).first()
         assert stage is not None
-        assert stage.detail["chunking_admission"] == "governance_index_admitted"
+        assert stage.detail["reason"] == (
+            "version review_required and latest governance_result "
+            "status=review_required"
+        )
         assert stage.detail["governance_result_id"] == result.id
 
         manifests = stages.run_index_submit(ctx, version, ref, chunks)

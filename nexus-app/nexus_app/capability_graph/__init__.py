@@ -1,9 +1,9 @@
 """Pipeline B B8 — CapabilityGraphStaging materialization.
 
-Reads from B4 + B5 + B6 domain tables; writes one
+Reads from Pipeline B domain tables or normalized standard-document payloads;
+writes one
 `capability_graph_staging_build` row plus its nodes + edges. Triggered
-from `worker/runner.py:_run_capability_graph_staging` after B7
-governance succeeds.
+from the worker after normalized-document governance succeeds.
 
 Module layout:
 - `whitelists.py`  — node_type / edge_type whitelists + status / build_type

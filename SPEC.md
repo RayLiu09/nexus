@@ -38,6 +38,12 @@ Role constraints:
 - Governance decision tracking in `governance_result.decision_trail`.
 - NEXUS-owned `knowledge_chunk` construction for source citation and downstream knowledge processing. P0 vector storage uses PostgreSQL pgvector through the index/search adapter; backend execution state belongs in `index_manifest`, not `knowledge_chunk`. `vector_collection` separates logical collectors by data asset domain type/model/schema, and `knowledge_embedding_pgvector` stores embedding projection rows plus filter-ready metadata anchored by `knowledge_chunk`. `knowledge_chunk.normalized_ref_id` links chunks to `normalized_asset_ref`.
 - Knowledge Pipeline 1: semantic retrieval KB for D4 teaching materials and D3 talent cultivation plans. Knowledge Pipeline is independent of Asset Pipeline; P0 semantic vector storage defaults to PostgreSQL pgvector behind the index/search adapter, and RAGFlow is no longer the platform baseline. Each governed asset classification produces at most one knowledge-processing emission; optional evidence-graph construction is capability metadata on that primary emission, not a second knowledge type.
+- Standard-document capability projection supports two distinct, normalized-table
+  contracts under the teaching-standard governance domain: professional teaching
+  standards retain their professional/occupational-task graph; course standards
+  require literal `课程模块`, `教学任务`, `技能要求`, and `知识要求` columns and
+  project `CourseModule -> WorkTask -> SkillRequirement -> KnowledgeRequirement`.
+  A missing or incomplete table is traceably skipped rather than inferred.
 - Course textbook Task Outline processing for D4 `course_textbook`
   normalized documents: training-operation textbooks are detected, persisted
   as `task_outline_profile` plus `task_outline_node` trees, and projected into

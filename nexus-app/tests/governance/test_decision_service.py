@@ -154,6 +154,33 @@ class TestQualityFailReviewRequired:
         assert quality_entry["adoption_status"] == "review_required"
         assert "fail" in quality_entry["review_reason"]
 
+    def test_quality_warning_triggers_review_and_blocks_index_admission(self, rules_registry):
+        svc = GovernanceDecisionService(rules_registry)
+        ai_output = {
+            "classification": "D1",
+            "level": "L1",
+            "tags": ["pii"],
+            "org_scope": "all",
+            "confidence": 0.95,
+        }
+        quality_summary = {
+            "quality_score": 69.0,
+            "quality_level": "warning",
+            "confidence": 0.95,
+        }
+
+        result = svc.execute_governance(
+            _make_session(), _make_ai_run(ai_output, quality_summary)
+        )
+
+        assert result.status == GovernanceResultStatus.REVIEW_REQUIRED
+        assert result.index_admission is False
+        quality_entry = next(
+            entry for entry in result.decision_trail if entry["field_name"] == "quality"
+        )
+        assert quality_entry["adoption_status"] == "review_required"
+        assert "quality_level=warning" in quality_entry["review_reason"]
+
 
 class TestFreeFormTags:
     def test_free_form_tag_values_do_not_trigger_review(self, rules_registry):

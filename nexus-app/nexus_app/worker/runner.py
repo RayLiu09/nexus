@@ -1003,22 +1003,33 @@ def _run_teaching_standard_graph(
     trace_id: str | None,
     job_id: str,
 ) -> None:
-    """Materialize the table-backed teaching-standard capability graph."""
+    """Materialize the table-backed professional or course-standard graph."""
     try:
         key = normalized_ref.object_uri.split("/", 3)[-1] if normalized_ref.object_uri.startswith("s3://") else normalized_ref.object_uri
         payload = json.loads(ctx.storage.get_bytes(key).decode("utf-8"))
-        graph_payload = payload.get("teaching_standard") if isinstance(payload, dict) else None
-        if not isinstance(graph_payload, dict):
+        teaching_payload = payload.get("teaching_standard") if isinstance(payload, dict) else None
+        course_payload = payload.get("course_standard") if isinstance(payload, dict) else None
+        if isinstance(teaching_payload, dict):
+            build_type = "teaching_standard"
+            graph_payload = teaching_payload
+        elif isinstance(course_payload, dict):
+            build_type = "course_standard"
+            graph_payload = course_payload
+        else:
             return
         from nexus_app.capability_graph import build_capability_staging
         result = build_capability_staging(
-            session, normalized_ref, build_type="teaching_standard",
-            domain="education", teaching_standard_payload=graph_payload,
+            session,
+            normalized_ref,
+            build_type=build_type,
+            domain="education",
+            teaching_standard_payload=graph_payload if build_type == "teaching_standard" else None,
+            course_standard_payload=graph_payload if build_type == "course_standard" else None,
         )
         write_audit(session, AuditEventType.CAPABILITY_GRAPH_STAGING_GENERATED,
             "normalized_asset_ref", normalized_ref.id, trace_id,
             {"raw_object_id": raw_object.id, "job_id": job_id,
-             "build_type": "teaching_standard", "build_id": result.build_id,
+             "build_type": build_type, "build_id": result.build_id,
              "skipped": result.skipped, "skipped_reason": result.skipped_reason,
              "nodes_written": result.nodes_written, "edges_written": result.edges_written,
              "quality_summary": result.quality_summary})

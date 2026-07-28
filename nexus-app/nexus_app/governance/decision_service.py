@@ -443,7 +443,11 @@ class GovernanceDecisionService:
                 ),
             )
 
-        if quality_level == "fail":
+        # The version state machine admits a version only when quality is
+        # ``pass``. Keep the official governance result aligned with that
+        # contract so every non-pass result enters the human-review queue
+        # instead of leaving a version-only ``review_required`` state.
+        if quality_level != "pass":
             return DecisionTrailEntry(
                 field_name="quality",
                 ai_suggestion=score,
@@ -451,7 +455,10 @@ class GovernanceDecisionService:
                 threshold_check=checks,
                 final_value=score,
                 adoption_status="review_required",
-                review_reason=f"quality_level=fail (score {score} < pass {thresholds.pass_})",
+                review_reason=(
+                    f"quality_level={quality_level} requires review "
+                    f"(score {score} < pass {thresholds.pass_})"
+                ),
             )
 
         if thresholds.review_required_below > 0 and score < thresholds.review_required_below:

@@ -38,6 +38,7 @@ def build_capability_staging(
     build_type: str,
     domain: str = "occupation",
     teaching_standard_payload: dict[str, object] | None = None,
+    course_standard_payload: dict[str, object] | None = None,
     force: bool = False,
 ) -> BuildResult:
     """Materialise staging nodes + edges for `normalized_ref`.
@@ -56,7 +57,7 @@ def build_capability_staging(
             skipped=True, skipped_reason="unsupported_build_type",
         )
 
-    if build_type == BuildType.TEACHING_STANDARD:
+    if build_type in {BuildType.TEACHING_STANDARD, BuildType.COURSE_STANDARD}:
         existing = session.scalar(
             select(models.CapabilityGraphStagingBuild).where(
                 models.CapabilityGraphStagingBuild.normalized_ref_id == normalized_ref.id,
@@ -77,7 +78,13 @@ def build_capability_staging(
             session.delete(existing)
             session.flush()
 
-    nodes, edges = _collect_specs(session, normalized_ref, build_type, teaching_standard_payload)
+    nodes, edges = _collect_specs(
+        session,
+        normalized_ref,
+        build_type,
+        teaching_standard_payload,
+        course_standard_payload,
+    )
     if not nodes:
         return BuildResult(
             build_id="", build_type=build_type,
@@ -204,6 +211,7 @@ def _collect_specs(
     normalized_ref: models.NormalizedAssetRef,
     build_type: str,
     teaching_standard_payload: dict[str, object] | None = None,
+    course_standard_payload: dict[str, object] | None = None,
 ) -> tuple[list[NodeSpec], list[EdgeSpec]]:
     """Run the relevant builder(s) for `build_type` and concat results."""
     nodes: list[NodeSpec] = []
@@ -211,6 +219,9 @@ def _collect_specs(
 
     if build_type == BuildType.TEACHING_STANDARD and teaching_standard_payload:
         return builders.build_teaching_standard(teaching_standard_payload)
+
+    if build_type == BuildType.COURSE_STANDARD and course_standard_payload:
+        return builders.build_course_standard(course_standard_payload)
 
     if build_type in (BuildType.JOB_DEMAND, BuildType.COMBINED):
         dataset = session.scalar(

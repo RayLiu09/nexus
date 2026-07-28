@@ -111,6 +111,11 @@ Root documents are distilled implementation contracts:
   persistence, and `/internal/v1/knowledge-graphs/*` console-control APIs are
   under active implementation; Console graph rendering and public/open graph
   APIs are later slices.
+- Evidence-bound standard-document capability graphs: professional teaching
+  standards retain the existing professional/occupational-task topology; course
+  standards with a normalized `课程模块/教学任务/技能要求/知识要求` table produce a
+  separate `CourseModule -> WorkTask -> SkillRequirement -> KnowledgeRequirement`
+  staging graph. Both paths are built only from normalized-document evidence.
 - Permission-filtered search and QA with source citations.
 - Query Router automatically falls back to request-scoped Firecrawl WebSearch
   only for no-evidence `scenario_1` industry/report and `scenario_4`

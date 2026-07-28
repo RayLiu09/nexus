@@ -797,6 +797,8 @@ def _build_normalized_document(
 
     teaching_standard_payload: dict[str, Any] | None = None
     teaching_standard_extraction: dict[str, Any] | None = None
+    course_standard_payload: dict[str, Any] | None = None
+    course_standard_extraction: dict[str, Any] | None = None
     try:
         from nexus_app.teaching_standard import extract_with_diagnostics as _extract_teaching_standard
         rule_result = _extract_teaching_standard({
@@ -807,6 +809,29 @@ def _build_normalized_document(
         })
         teaching_standard_payload = rule_result.payload
         if teaching_standard_payload is None:
+            from nexus_app.teaching_standard.course_standard import (
+                extract_with_diagnostics as _extract_course_standard,
+            )
+
+            course_standard_result = _extract_course_standard({
+                "content_type": "document",
+                "title": title_from(raw_object, parse_payload),
+                "blocks": blocks,
+                "toc": toc,
+            })
+            course_standard_payload = course_standard_result.payload
+            course_standard_extraction = (
+                course_standard_payload.get("extractor")
+                if course_standard_payload is not None
+                else {
+                    "strategy": "rule",
+                    "version": "course_standard_table_extractor.v1",
+                    "status": "not_adopted",
+                    "reason": course_standard_result.failure_reason,
+                }
+            )
+
+        if teaching_standard_payload is None and course_standard_payload is None:
             # The fallback receives the same normalized blocks, never the raw
             # file or MinerU result. It is intentionally opt-in via the
             # extraction alias and cannot write staging data directly.
@@ -828,6 +853,11 @@ def _build_normalized_document(
         metadata["domain_profile"] = "teaching_standard.v1"
     if teaching_standard_extraction is not None:
         metadata["teaching_standard_extraction"] = teaching_standard_extraction
+    if course_standard_payload is not None:
+        metadata["course_standard_graph_rows"] = len(course_standard_payload["rows"])
+        metadata["domain_profile"] = "course_standard.v1"
+    if course_standard_extraction is not None:
+        metadata["course_standard_extraction"] = course_standard_extraction
 
     office_quality = _office_parse_quality(
         raw_object.mime_type,
@@ -864,6 +894,7 @@ def _build_normalized_document(
         "metadata": metadata,
         **({"major_profile": major_profile_payload} if major_profile_payload else {}),
         **({"teaching_standard": teaching_standard_payload} if teaching_standard_payload else {}),
+        **({"course_standard": course_standard_payload} if course_standard_payload else {}),
         "governance": {
             "sensitivity_level": None,
             "org_scope": [],
