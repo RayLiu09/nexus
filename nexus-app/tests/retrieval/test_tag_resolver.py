@@ -772,7 +772,6 @@ class TestAdoptionGuardrail:
         [
             AIGovernanceRunAdoptionStatus.PENDING_RULE_GUARDRAIL,
             AIGovernanceRunAdoptionStatus.REVIEW_REQUIRED,
-            AIGovernanceRunAdoptionStatus.REJECTED,
         ],
     )
     def test_governance_tag_hidden_when_run_not_auto_adopted(

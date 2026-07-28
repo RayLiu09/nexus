@@ -96,7 +96,7 @@ P0 pages:
 - **规则配置**: structured editor for `config/governance_rules.json` (classifications, levels, tags, quality scoring, knowledge types); ETag-based concurrency control; save takes effect immediately for future governance runs.
 - **权限与审计**: local users, roles, API keys, org scopes, approvals, audit logs.
 - **AI Prompt 配置**: Prompt templates, LiteLLM alias references, output schema, scoring weights, redaction policies.
-- **标签审核**: tag draft review (confirm / revise / reject), auto-committed tag history.
+- **治理审核**: business experts submit one final governance conclusion for a `review_required` normalized asset. It includes classification, level, structured taxonomy tags, quality disposition/reason, org scope, and review reason. There is no reject/revise/auto-submit-history workflow.
 
 P1 pages:
 - 检索测试
@@ -120,8 +120,9 @@ Level inheritance: asset → asset_version → normalized_document → knowledge
 AI governance:
 - Input: `normalized_document` or `normalized_record` (via `normalized_asset_ref`).
 - Output pipeline: schema validation → field whitelist → redaction policy → `governance_rules.json` threshold checks (confidence_threshold_auto_adopt, quality pass/warning, level requires_approval) → state-machine decision (available / review_required).
-- Results persisted in `ai_governance_run`. Human feedback in `governance_result.decision_trail`.
+- AI runs remain in `ai_governance_run`; official outcomes are immutable `governance_result` snapshots. Human review is persisted in immutable `governance_review_decision` and linked into the resulting `decision_trail`; the source AI run/result is unchanged.
 - High-confidence AI + quality pass → `available`. Low-confidence AI or quality below threshold → `review_required`.
+- A human `pass` conclusion may transition through the existing version state machine and enqueue a knowledge-only continuation job. A `review_required` conclusion still persists expert tags for retrieval but does not queue indexing.
 
 Rules and decisions:
 - Business rules live exclusively in `config/governance_rules.json` (file-based, single source of truth). Edits via console must pass schema validation, ETag optimistic locking, and fcntl exclusive write lock; saves take effect immediately for future governance runs and do not retroactively re-govern existing assets.

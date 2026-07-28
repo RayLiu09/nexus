@@ -237,6 +237,26 @@ def test_asset_catalog_uses_latest_review_required_ref_for_ui_metadata(app, sess
     assert row["governance_status"] == "review_required"
 
 
+def test_asset_catalog_uses_effective_version_status_when_asset_projection_is_stale(
+    app, session
+):
+    seeded = _seed_review_required_asset(session)
+    seeded["version"].version_status = AssetVersionStatus.AVAILABLE
+    # Simulate a legacy review completion that updated only the version.
+    seeded["asset"].status = AssetVersionStatus.REVIEW_REQUIRED
+    seeded["result"].status = GovernanceResultStatus.AVAILABLE
+    seeded["result"].index_admission = True
+    seeded["result"].quality_summary = {"quality_level": "pass"}
+    session.commit()
+
+    with TestClient(app) as client:
+        resp = client.get("/internal/v1/assets")
+
+    assert resp.status_code == 200
+    row = next(item for item in resp.json()["data"] if item["id"] == seeded["asset"].id)
+    assert row["status"] == "available"
+
+
 def test_asset_catalog_canonicalizes_deprecated_program_profile_domain(app, session):
     seeded = _seed_review_required_asset(session)
     seeded["result"].classification = "program_profile"

@@ -96,6 +96,7 @@ Root documents are distilled implementation contracts:
 - MinerU parsing (auto model_version, OCR, image extraction) and standardization into `normalized_document` / `normalized_record` with full `normalized_asset_ref` fields.
 - Pipeline B structured record assets, including job demand, occupational ability analysis, and professional major-distribution tables with domain read models.
 - AI-led classification, level, tag, org-scope suggestions, and quality scoring.
+- Immutable business-expert governance review: experts finalize classification, level, structured tags, quality disposition, and org scope without overwriting AI evidence; admissible conclusions resume only knowledge chunking/indexing.
 - Configurable governance rules and decision tracking.
 - NEXUS-owned knowledge chunk construction and adapter-based semantic retrieval integration; P0 defaults to PostgreSQL pgvector for text chunk embeddings, with `vector_collection` separating logical collectors by asset domain type and `knowledge_embedding_pgvector` storing chunk-anchored embedding projections. The concrete search/index backend remains decoupled from the domain model and RAGFlow is no longer the platform's semantic retrieval baseline.
 - Course textbook Task Outline processing for D4 teaching materials:

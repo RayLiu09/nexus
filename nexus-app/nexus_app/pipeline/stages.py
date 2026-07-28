@@ -1456,12 +1456,15 @@ def _recover_knowledge_emissions(
     ctx: PipelineContext,
     normalized_ref: models.NormalizedAssetRef,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Re-materialize deterministic emissions from the latest valid AI run.
+    """Re-materialize deterministic emissions from the latest official result.
 
     A historical worker could reach chunking before a governance write became
     durable.  Retrying that job must not leave an index-admitted ref permanently
     unsearchable merely because its original stage recorded a skip.
     """
+    from nexus_app.ai_governance.knowledge_type_inference import (
+        infer_knowledge_emissions_for_classification,
+    )
     from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
     from nexus_app.ai_governance.services import AIGovernanceService
 
@@ -1469,6 +1472,12 @@ def _recover_knowledge_emissions(
     # caller's ORM object belongs to a different Session. Keep only its stable
     # id; all reads and writes below must use ctx.session's identity map.
     normalized_ref_id = normalized_ref.id
+    latest_result = ctx.session.scalars(
+        select(models.GovernanceResult)
+        .where(models.GovernanceResult.normalized_ref_id == normalized_ref_id)
+        .order_by(models.GovernanceResult.created_at.desc())
+        .limit(1)
+    ).first()
     ai_run = ctx.session.scalars(
         select(models.AIGovernanceRun)
         .where(
@@ -1480,7 +1489,7 @@ def _recover_knowledge_emissions(
         .order_by(models.AIGovernanceRun.created_at.desc())
         .limit(1)
     ).first()
-    if ai_run is None:
+    if latest_result is None and ai_run is None:
         return [], {
             "recovery": "unavailable",
             "reason": "no schema-valid AI governance run",
@@ -1489,9 +1498,22 @@ def _recover_knowledge_emissions(
     registry = GovernanceRulesRegistry()
     try:
         registry.load(ctx.session)
-        emissions = AIGovernanceService().write_knowledge_emissions(
-            ctx.session, ai_run, registry
-        )
+        if latest_result is not None and latest_result.classification:
+            emissions = infer_knowledge_emissions_for_classification(
+                latest_result.classification, registry, confidence=1.0
+            )
+            ref = ctx.session.get(models.NormalizedAssetRef, normalized_ref_id)
+            if ref is not None:
+                summary = dict(ref.metadata_summary or {})
+                summary["knowledge_emissions"] = emissions
+                ref.metadata_summary = summary
+                ctx.session.flush()
+        elif ai_run is not None:
+            emissions = AIGovernanceService().write_knowledge_emissions(
+                ctx.session, ai_run, registry
+            )
+        else:
+            emissions = []
     except Exception as exc:
         logger.warning(
             "Unable to recover knowledge emissions for ref %s: %s",
@@ -1500,7 +1522,7 @@ def _recover_knowledge_emissions(
         )
         return [], {
             "recovery": "failed",
-            "ai_run_id": ai_run.id,
+            "ai_run_id": ai_run.id if ai_run is not None else None,
             "reason": f"{type(exc).__name__}: {exc}"[:500],
         }
 
@@ -1514,9 +1536,25 @@ def _recover_knowledge_emissions(
         )
     return emissions, {
         "recovery": "materialized" if emissions else "no_applicable_emission",
-        "ai_run_id": ai_run.id,
+        "ai_run_id": ai_run.id if ai_run is not None else None,
+        "governance_result_id": latest_result.id if latest_result is not None else None,
         "emission_count": len(emissions),
     }
+
+
+def _invalid_knowledge_emission_codes(emissions: object) -> list[str]:
+    """Return invalid persisted codes so old projections are re-materialized."""
+    if not isinstance(emissions, list):
+        return ["<malformed>"]
+    from nexus_app.knowledge.config_loader import get_all_knowledge_type_configs
+
+    valid_codes = set(get_all_knowledge_type_configs())
+    invalid: list[str] = []
+    for emission in emissions:
+        code = emission.get("code") if isinstance(emission, dict) else None
+        if not isinstance(code, str) or code not in valid_codes:
+            invalid.append(str(code) if code is not None else "<missing>")
+    return list(dict.fromkeys(invalid))
 
 
 def _enqueue_evidence_graph_build_if_requested(
@@ -1638,8 +1676,11 @@ def run_knowledge_chunking(
         return []
 
     emissions = (normalized_ref.metadata_summary or {}).get("knowledge_emissions", [])
-    if not emissions:
+    invalid_codes = _invalid_knowledge_emission_codes(emissions)
+    if not emissions or invalid_codes:
         emissions, recovery_detail = _recover_knowledge_emissions(ctx, normalized_ref)
+        if invalid_codes:
+            recovery_detail["replaced_invalid_codes"] = invalid_codes
     else:
         recovery_detail = {"recovery": "not_needed"}
     if not emissions:

@@ -782,7 +782,7 @@ export const MOCK_GOVERNANCE_RUNS: AIGovernanceRun[] = [
       blocking_reasons: ["置信度低于自动采纳阈值", "分类结果与其他运行不一致"],
     },
     validation_status: "schema_valid",
-    adoption_status: "rejected",
+    adoption_status: "review_required",
     validation_error: null,
     created_at: "2026-06-01T08:03:20Z",
     updated_at: "2026-06-01T08:04:00Z",

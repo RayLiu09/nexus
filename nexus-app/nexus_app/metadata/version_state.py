@@ -3,7 +3,7 @@
 Admission criteria for `available`:
   1. governance_result exists with status=available
   2. quality_summary.quality_level == "pass"
-  3. All decision_trail entries have adoption_status == "auto_adopted"
+  3. All decision_trail entries have a final adopted status
   4. index_admission == True
   5. No other available version for same asset (unique-available constraint)
 """
@@ -48,6 +48,7 @@ class VersionStateManager:
         governance_result: models.GovernanceResult,
         *,
         user_id: str | None = None,
+        trace_id: str | None = None,
     ) -> models.AssetVersion:
         """Transition version to available, enforcing unique-available.
 
@@ -64,6 +65,7 @@ class VersionStateManager:
         self._archive_old_available(session, version.asset_id, exclude_version_id=version.id)
 
         version.version_status = AssetVersionStatus.AVAILABLE
+        self._sync_asset_status(session, version)
         try:
             session.flush()
         except IntegrityError as exc:
@@ -71,13 +73,13 @@ class VersionStateManager:
                 f"Another available version already exists for asset {version.asset_id}"
             ) from exc
 
-        trace_id = str(uuid.uuid4())
+        audit_trace_id = trace_id or str(uuid.uuid4())
         write_audit(
             session,
             AuditEventType.VERSION_STATUS_CHANGED,
             target_type="asset_version",
             target_id=version.id,
-            trace_id=trace_id,
+            trace_id=audit_trace_id,
             summary={
                 "asset_id": version.asset_id,
                 "new_status": "available",
@@ -94,18 +96,20 @@ class VersionStateManager:
         governance_result: models.GovernanceResult,
         *,
         user_id: str | None = None,
+        trace_id: str | None = None,
     ) -> models.AssetVersion:
         """Transition version to review_required."""
         version.version_status = AssetVersionStatus.REVIEW_REQUIRED
+        self._sync_asset_status(session, version)
         session.flush()
 
-        trace_id = str(uuid.uuid4())
+        audit_trace_id = trace_id or str(uuid.uuid4())
         write_audit(
             session,
             AuditEventType.VERSION_STATUS_CHANGED,
             target_type="asset_version",
             target_id=version.id,
-            trace_id=trace_id,
+            trace_id=audit_trace_id,
             summary={
                 "asset_id": version.asset_id,
                 "new_status": "review_required",
@@ -121,6 +125,15 @@ class VersionStateManager:
     # ------------------------------------------------------------------
 
     @staticmethod
+    def _sync_asset_status(
+        session: Session, version: models.AssetVersion
+    ) -> None:
+        """Maintain the asset status projection with its transitioned version."""
+        asset = session.get(models.Asset, version.asset_id)
+        if asset is not None:
+            asset.status = version.version_status
+
+    @staticmethod
     def _check_admission_criteria(result: models.GovernanceResult) -> bool:
         if result.status != GovernanceResultStatus.AVAILABLE:
             return False
@@ -129,8 +142,13 @@ class VersionStateManager:
         qs = result.quality_summary or {}
         if qs.get("quality_level") != "pass":
             return False
+        final_adopted = {
+            "auto_adopted",
+            "human_confirmed",
+            "human_overridden",
+        }
         for entry in (result.decision_trail or []):
-            if entry.get("adoption_status") != "auto_adopted":
+            if entry.get("adoption_status") not in final_adopted:
                 return False
         return True
 

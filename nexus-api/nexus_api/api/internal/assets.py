@@ -163,6 +163,15 @@ def _catalog_row(session: Session, asset: models.Asset) -> domain_schemas.AssetC
     domain = _canonical_classification(result.classification) if result is not None else None
     domain_name = _classification_label(domain)
     base = domain_schemas.AssetRead.model_validate(asset).model_dump()
+    # `asset.status` is a cached projection.  Prefer the effective version
+    # state for catalog reads so historical rows cannot display a stale review
+    # status after an approved governance review has made a version available.
+    effective_status = (
+        current_version.version_status
+        if current_version is not None
+        else latest_version.version_status if latest_version is not None else asset.status
+    )
+    base["status"] = effective_status
     return domain_schemas.AssetCatalogRead(
         **base,
         current_version_no=(

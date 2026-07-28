@@ -24,7 +24,7 @@ import {
 import {
   CheckCircleOutlined,
   ExclamationCircleOutlined,
-  CloseCircleOutlined,
+  EditOutlined,
 } from "@ant-design/icons";
 import type {
   AdoptionStatus,
@@ -57,7 +57,8 @@ const ADOPTION_META: Record<
 > = {
   auto_adopted: { color: "success", label: "自动采纳", icon: <CheckCircleOutlined /> },
   review_required: { color: "warning", label: "待复核", icon: <ExclamationCircleOutlined /> },
-  rejected: { color: "error", label: "驳回", icon: <CloseCircleOutlined /> },
+  human_confirmed: { color: "success", label: "人工确认", icon: <CheckCircleOutlined /> },
+  human_overridden: { color: "processing", label: "人工调整", icon: <EditOutlined /> },
 };
 
 const REDACTED_TOKEN = "***redacted***";
@@ -178,7 +179,13 @@ function DrawerBody({
 
   // Merge tags: prefer committed result tags, fall back to AI run output tags
   const resolvedTags: string[] = (() => {
-    if (result.tags.length > 0) return result.tags;
+    if (Array.isArray(result.tags) && result.tags.length > 0) return result.tags;
+    const structured = result.tags_structured ?? (typeof result.tags === "object" ? result.tags : null);
+    if (structured && typeof structured === "object") {
+      return Object.values(structured).flatMap((bucket) => Array.isArray(bucket)
+        ? bucket.map((item) => typeof item === "object" && item !== null && "value" in item ? String(item.value) : "").filter(Boolean)
+        : []);
+    }
     if (Array.isArray(fallbackTags)) return fallbackTags.filter((t): t is string => typeof t === "string");
     return extractGovernanceTags(fallbackTags);
   })();
@@ -188,7 +195,8 @@ function DrawerBody({
   return (
     <Space orientation="vertical" size="large" className="w-full">
       <OutcomeSummary
-        result={{ ...result, tags: resolvedTags }}
+        result={result}
+        resolvedTags={resolvedTags}
         tagDictionary={tagDictionary}
         classificationDictionary={classificationDictionary}
       />
@@ -224,10 +232,12 @@ function DrawerBody({
 
 function OutcomeSummary({
   result,
+  resolvedTags,
   tagDictionary,
   classificationDictionary,
 }: {
   result: GovernanceResultRead;
+  resolvedTags: string[];
   tagDictionary: TagDictionary;
   classificationDictionary: ClassificationDictionary;
 }) {
@@ -240,9 +250,9 @@ function OutcomeSummary({
         {result.level ? <Tag>{result.level}</Tag> : "-"}
       </Descriptions.Item>
       <Descriptions.Item label="标签" span={2}>
-        {result.tags?.length ? (
+        {resolvedTags.length ? (
           <Space size={4} wrap>
-            {result.tags.map((t) => (
+            {resolvedTags.map((t) => (
               <Tag key={t}>#{tagLabel(t, tagDictionary)}</Tag>
             ))}
           </Space>

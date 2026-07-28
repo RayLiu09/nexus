@@ -75,7 +75,7 @@ class TestOperatorView:
         entry = _trail_entry(
             ai_suggestion="D2",
             final_value="D4",  # human/rule override happened
-            adoption_status="rejected",
+            adoption_status="review_required",
         )
         out = redact_decision_trail([entry], "operator")
         assert out[0]["ai_suggestion"] == "***redacted***"

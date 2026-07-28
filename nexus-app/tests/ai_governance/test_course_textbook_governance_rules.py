@@ -64,3 +64,14 @@ def test_default_governance_prompts_stay_rule_driven_for_course_textbook():
     assert "{{RULES}}" in joined
     assert "program_profile" not in joined
     assert "course_textbook_classification_prompt" not in joined
+
+
+def test_knowledge_type_inference_prompt_v2_excludes_retired_textbook_code():
+    from nexus_app.ai_governance.default_prompts import (
+        KNOWLEDGE_TYPE_INFERENCE_PROMPT_V2,
+    )
+
+    body = KNOWLEDGE_TYPE_INFERENCE_PROMPT_V2["prompt_template"]
+    assert "textbook_kb" not in body
+    assert "primary_knowledge_type" in body
+    assert "{{RULES}}" in body

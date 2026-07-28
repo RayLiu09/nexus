@@ -21,8 +21,7 @@ export function DecisionTrailTab({
     (r) =>
       r.adoption_status === "auto_adopted" ||
       r.adoption_status === "manually_adopted" ||
-      r.adoption_status === "partially_adopted" ||
-      r.adoption_status === "rejected",
+      r.adoption_status === "partially_adopted",
   );
 
   const columns: ColumnsType<GovernanceRun> = [

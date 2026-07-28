@@ -1003,6 +1003,72 @@ class TestKnowledgeEmissionsEdgeCases:
         assert stage.status == StageStatus.SUCCEEDED
         assert stage.detail["recovery"] == "materialized"
 
+    def test_deprecated_emission_is_replaced_from_latest_official_result(
+        self, session, make_ai_run, monkeypatch
+    ):
+        """A continuation must never pass a retired code to knowledge chunking."""
+        from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
+        from nexus_app.pipeline import stages
+
+        _run, version, ref = make_ai_run(
+            ai_output={"classification": "D4", "level": "L1", "tags": [],
+                       "org_scope": "all", "confidence": 0.9}
+        )
+        version.version_status = AssetVersionStatus.AVAILABLE
+        ref.metadata_summary = {"knowledge_emissions": [{"code": "textbook_kb"}]}
+        session.add(models.GovernanceResult(
+            normalized_ref_id=ref.id,
+            classification="course_textbook",
+            level="L1",
+            tags=[],
+            org_scope="all",
+            index_admission=True,
+            quality_summary={"quality_level": "pass"},
+            decision_trail=[],
+            status=GovernanceResultStatus.AVAILABLE,
+        ))
+        session.flush()
+
+        active_rules = {
+            "schema_version": "test",
+            "classifications": [{
+                "code": "course_textbook", "name": "课程教材", "description": "",
+                "criteria": [], "primary_knowledge_type": "course_textbook",
+            }],
+            "levels": [{"code": "L1", "name": "公开", "description": "", "criteria": []}],
+            "tags": [],
+            "knowledge_types": [{"code": "course_textbook", "name": "课程教材"}],
+            "quality_scoring": {
+                "dimensions": [{
+                    "name": "completeness", "weight": 1.0,
+                    "description": "", "check_items": [],
+                }],
+                "thresholds": {"pass": 70, "warning": 50, "review_required_below": 50},
+                "confidence_threshold_auto_adopt": 0.8,
+            },
+        }
+
+        def _load_active_rules(registry, _session):
+            return registry.load_dict(active_rules)
+
+        monkeypatch.setattr(GovernanceRulesRegistry, "load", _load_active_rules)
+        ctx = self._ctx(session, ref)
+        self._put_minimal_textbook_payload(ctx, ref)
+
+        chunks = stages.run_knowledge_chunking(ctx, version, ref)
+
+        assert chunks
+        assert {chunk.knowledge_type_code for chunk in chunks} == {"course_textbook"}
+        assert ref.metadata_summary["knowledge_emissions"][0]["code"] == "course_textbook"
+        stage = session.scalars(
+            select(models.JobStage).where(
+                models.JobStage.job_id == ctx.job.id,
+                models.JobStage.stage_name == "knowledge_chunking",
+            ).order_by(models.JobStage.created_at.desc())
+        ).first()
+        assert stage is not None
+        assert stage.detail["replaced_invalid_codes"] == ["textbook_kb"]
+
     def test_recovery_accepts_detached_normalized_ref(
         self, session, make_ai_run, monkeypatch
     ):

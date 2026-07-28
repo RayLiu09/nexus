@@ -62,6 +62,7 @@ class JobStatus(StrEnum):
 
 class JobType(StrEnum):
     INGEST_PROCESS = "ingest_process"
+    KNOWLEDGE_CONTINUATION = "knowledge_continuation"
 
 
 class StageStatus(StrEnum):
@@ -175,7 +176,6 @@ class AIGovernanceRunAdoptionStatus(StrEnum):
     REVIEW_REQUIRED        = "review_required"
     PENDING_RULE_GUARDRAIL = "pending_rule_guardrail"
     AUTO_ADOPTED           = "auto_adopted"
-    REJECTED               = "rejected"
 
 
 class AuditEventType(StrEnum):
@@ -280,6 +280,8 @@ class AuditEventType(StrEnum):
     GOVERNANCE_RULES_UPDATED            = "GovernanceRulesUpdated"
     GOVERNANCE_RULES_RECOMPUTE_REQUESTED = "GovernanceRulesRecomputeRequested"
     GOVERNANCE_RESULT_CREATED       = "GovernanceResultCreated"
+    GOVERNANCE_REVIEW_DECISION_SUBMITTED = "GovernanceReviewDecisionSubmitted"
+    KNOWLEDGE_CONTINUATION_QUEUED   = "KnowledgeContinuationQueued"
     VERSION_STATUS_TRANSITIONED     = "VersionStatusTransitioned"
     INDEX_MANIFEST_CREATED          = "IndexManifestCreated"
     # Knowledge Pipeline (Week 4 - TP-W4-05A)

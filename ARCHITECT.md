@@ -157,7 +157,7 @@ P0 record profiles include job demand, occupational ability analysis, and major 
 - Standardization: `normalized_asset_ref`, `normalized_document`, `normalized_record`.
 - AI governance: `ai_prompt_profile` (including `scenario` and dry-run preview contract), `ai_governance_run`.
 - Governance rules (file-based): `config/governance_rules.json` — single source of truth for business rules, maintained by business experts via console, protected by schema validation + ETag + fcntl write lock.
-- Governance result: `governance_result` (embedded `quality_summary` + `decision_trail`; records `rules_schema_version` + `rules_content_hash` as snapshot evidence).
+- Governance result: `governance_result` (embedded `quality_summary` + `decision_trail`; records `rules_schema_version` + `rules_content_hash` as snapshot evidence). A business-expert conclusion is persisted separately as immutable `governance_review_decision` and creates a new official result snapshot; it never overwrites the source AI result.
 - Knowledge and index: `knowledge_chunk`, `index_manifest`, `vector_collection`,
   `knowledge_embedding_pgvector`. `vector_collection` and
   `knowledge_embedding_pgvector` are pgvector adapter projection tables only:
@@ -438,6 +438,12 @@ Asset Pipeline → normalized_asset_ref (stable contract)
 
 **Pipeline B (Record):**
 `crawler/webhook/batch/file upload → raw_object (JSON/XLSX structured data) → ingest_validate → Job(pipeline_type="record") → assetize (asset/asset_version) → structured_parse/profile_detect when applicable → normalize (normalized_record) → normalized_asset_ref → AI governance → rules → governance_result → index`
+
+When an expert finalizes a `review_required` result, the review writes structured
+taxonomy tags with `tag_asset_index.source=expert_manual`, reevaluates the
+version via `VersionStateManager`, and, only for an `available` version, queues
+`knowledge_continuation`. The continuation payload copies the original ingest
+job's persisted `pipeline_type` and runs only knowledge chunking/indexing.
 
 **Retrieval and QA:**
 `caller/user context → auth verify (RBAC + org scope) → search-service → pgvector semantic adapter / structured SQL retrieval → reserved org scope and level filters → rerank/context → answer with source citations → audit`

@@ -134,9 +134,9 @@
 - [ ] DetailDrawer tabs（Review / AI Suggestions / Quality / Decision Trail）真实数据
 - [ ] 裁定操作（adopt / reject / override）
 
-### P5.2 标签审核（/tag-review）
+### P5.2 治理审核（/tag-review）
 
-- [ ] 对接真实标签审核 API
+- [x] 对接真实治理审核 API：提交不可变结论，支持分类、分级、结构化标签、质量处置与组织范围；可用结论排队知识续跑。
 - [ ] 批量审核操作
 
 ### P5.3 规则配置（/rules）

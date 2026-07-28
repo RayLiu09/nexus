@@ -55,6 +55,19 @@ def infer_knowledge_emissions(
          co_emission_origin, graph_profile?}``.
     """
     classification = ai_output.get("classification") if isinstance(ai_output, dict) else None
+    confidence = ai_output.get("confidence", 1.0) if isinstance(ai_output, dict) else 1.0
+    return infer_knowledge_emissions_for_classification(
+        classification, registry, confidence=confidence
+    )
+
+
+def infer_knowledge_emissions_for_classification(
+    classification: str | None,
+    registry: GovernanceRulesRegistry,
+    *,
+    confidence: float = 1.0,
+) -> list[dict[str, Any]]:
+    """Project emissions from an official final classification and active rules."""
     if not classification or not isinstance(classification, str):
         logger.warning(
             "infer_knowledge_emissions: AI output lacks classification — no emissions"
@@ -92,7 +105,7 @@ def infer_knowledge_emissions(
     # Primary emission confidence inherits the AI classification confidence
     # (a rule lookup is deterministic, but downstream telemetry still wants to
     # know how sure the AI was about the classification it produced).
-    primary_confidence = float(ai_output.get("confidence", 1.0))
+    primary_confidence = float(confidence)
 
     emission: dict[str, Any] = {
         "code": primary_code,

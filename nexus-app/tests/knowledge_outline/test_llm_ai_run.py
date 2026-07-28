@@ -22,7 +22,6 @@ VALID = AIGovernanceRunValidationStatus.SCHEMA_VALID
 INVALID = AIGovernanceRunValidationStatus.SCHEMA_INVALID
 AUTO = AIGovernanceRunAdoptionStatus.AUTO_ADOPTED
 REVIEW = AIGovernanceRunAdoptionStatus.REVIEW_REQUIRED
-REJECTED = AIGovernanceRunAdoptionStatus.REJECTED
 
 
 # ---------------------------------------------------------------------------
@@ -96,14 +95,14 @@ def test_auto_adopted_boundary_at_ratio():
     ) == AUTO
 
 
-def test_rejected_when_validation_invalid():
+def test_review_required_when_validation_invalid():
     assert compute_adoption_status(
         INVALID, {"high": 100, "mid": 0, "low": 0}
-    ) == REJECTED
+    ) == REVIEW
 
 
-def test_rejected_when_all_buckets_empty():
-    assert compute_adoption_status(VALID, {"high": 0, "mid": 0, "low": 0}) == REJECTED
+def test_review_required_when_all_buckets_empty():
+    assert compute_adoption_status(VALID, {"high": 0, "mid": 0, "low": 0}) == REVIEW
 
 
 # ---------------------------------------------------------------------------
@@ -233,7 +232,7 @@ def test_low_confidence_downgraded_and_flags_review(session):
         model_alias="fake", rules_etag=None,
     )
     session.commit()
-    assert outcome.adoption_status == REJECTED.value or outcome.adoption_status == REVIEW.value
+    assert outcome.adoption_status == REVIEW.value
     # low-confidence knowledge_point should have been downgraded to noise.
     labels = [c.label for c in outcome.classifications]
     assert "knowledge_point" not in labels

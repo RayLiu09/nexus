@@ -290,7 +290,7 @@ class PromptProfileService:
                 input_hash=f"policy_blocked:{normalized_ref_id}:{profile_id}",
                 input_summary={"blocked_reason": "redaction_policy"},
                 validation_status=AIGovernanceRunValidationStatus.POLICY_BLOCKED,
-                adoption_status=AIGovernanceRunAdoptionStatus.REJECTED,
+                adoption_status=AIGovernanceRunAdoptionStatus.REVIEW_REQUIRED,
                 validation_error=str(exc),
             )
 
@@ -497,7 +497,7 @@ class AIGovernanceService:
                     "policy": profile.redaction_policy,
                 },
                 validation_status=AIGovernanceRunValidationStatus.POLICY_BLOCKED,
-                adoption_status=AIGovernanceRunAdoptionStatus.REJECTED,
+                adoption_status=AIGovernanceRunAdoptionStatus.REVIEW_REQUIRED,
                 validation_error=str(exc),
                 created_by=user_id,
                 trace_id=trace_id,

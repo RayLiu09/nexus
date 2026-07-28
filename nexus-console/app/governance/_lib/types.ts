@@ -57,8 +57,7 @@ export function deriveStats(runs: GovernanceRun[]): GovernanceStats {
     if (r.validation_status === "schema_valid" && conf >= 0.85) highConfidenceAdoptable++;
     if (
       r.adoption_status === "auto_adopted" ||
-      r.adoption_status === "manually_adopted" ||
-      r.adoption_status === "rejected"
+      r.adoption_status === "manually_adopted"
     )
       completedDecisions++;
   }

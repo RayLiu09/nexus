@@ -265,12 +265,10 @@ class GovernanceDecisionService:
     ) -> AIGovernanceRunAdoptionStatus:
         """Project the decision trail onto the AI run adoption enum.
 
-        - Any entry rejected → run rejected.
+        - Any non-adopted entry → review required.
         - Otherwise any review_required entry (or overall review_required) → review_required.
         - Otherwise → auto_adopted.
         """
-        if any(e.adoption_status == "rejected" for e in trail):
-            return AIGovernanceRunAdoptionStatus.REJECTED
         if overall_status == GovernanceResultStatus.REVIEW_REQUIRED:
             return AIGovernanceRunAdoptionStatus.REVIEW_REQUIRED
         return AIGovernanceRunAdoptionStatus.AUTO_ADOPTED
@@ -318,7 +316,7 @@ class GovernanceDecisionService:
                 ai_confidence=confidence,
                 threshold_check=checks,
                 final_value=suggestion,
-                adoption_status="rejected",
+                adoption_status="review_required",
                 review_reason=f"classification '{suggestion}' not in valid set",
             )
 
@@ -481,6 +479,6 @@ class GovernanceDecisionService:
         trail: list[DecisionTrailEntry],
     ) -> GovernanceResultStatus:
         for entry in trail:
-            if entry.adoption_status in ("review_required", "rejected"):
+            if entry.adoption_status == "review_required":
                 return GovernanceResultStatus.REVIEW_REQUIRED
         return GovernanceResultStatus.AVAILABLE

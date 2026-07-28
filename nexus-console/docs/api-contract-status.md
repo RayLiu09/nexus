@@ -105,14 +105,14 @@
 
 ---
 
-## 九、标签审核 (Tag Review)
+## 九、治理审核 (Governance Review)
 
 | Endpoint | Method | Status | 使用页面 | 备注 |
 |----------|--------|--------|----------|------|
-| `/v1/tags/pending` | GET | `mock` | `/tag-review` | 当前使用 mock 数据 |
-| `/v1/tags/committed` | GET | `mock` | `/tag-review` | 当前使用 mock 数据 |
-| `/v1/tags/{id}/approve` | POST | `planned` | `/tag-review` | P5.2 批量审核 |
-| `/v1/tags/{id}/reject` | POST | `planned` | `/tag-review` | P5.2 批量审核 |
+| `/internal/v1/governance-reviews/pending` | GET | `ready` | `/tag-review` | 最新 `review_required` 官方治理结果，每个 normalized ref 一条 |
+| `/internal/v1/governance-results/{id}/review-context` | GET | `ready` | `/tag-review` | 返回审核上下文、AI 证据和有效分类/分级规则 |
+| `/internal/v1/governance-results/{id}/review-decisions` | POST | `ready` | `/tag-review` | 要求 `Idempotency-Key`，提交不可变治理结论 |
+| `/internal/v1/governance-reviews/history` | GET | `ready` | audit only | 审计读取接口，不在首版页面展示 |
 
 ---
 

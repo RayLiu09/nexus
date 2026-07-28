@@ -1,507 +1,150 @@
 "use client";
 
-/**
- * /tag-review — 标签审核（P2.2）
- *
- * 主区：bulk-bar + 低置信标签草稿表 + 自动提交历史表（只读）
- *
- * 危险动作（A3）：
- *   - 批量确认  → undo-toast 10s
- *   - 批量驳回  → confirm-dialog
- *
- * 自动提交历史当前为只读视图；任何针对已自动提交结果的"异议"
- * 走 ADR-002 中规划的申诉 + 人工覆盖通道，不在本页直接 mutate。
- */
-
-import { useMemo, useState } from "react";
-import { Table, Tag, Button, Progress, Tooltip, App, Drawer, Input, Space, Alert } from "antd";
+import { useState } from "react";
+import { Alert, App, Button, Drawer, Form, Input, Select, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { CheckOutlined, CloseOutlined, EditOutlined } from "@ant-design/icons";
-import { ApiState } from "@/components/ApiState";
-import { StatusLabel } from "@/components/StatusLabel";
+import { EditOutlined } from "@ant-design/icons";
 import { AssetRefCell } from "@/components/shared/AssetRefCell";
-import { formatDateTime } from "@/lib/api";
-import { tagLabel, type TagDictionary } from "@/lib/tagLabels";
-import type { CommittedTag, TagDraft } from "../_lib/tagReviewData";
 
-// ── 置信度进度条 ──────────────────────────────────────────────
+type TagEntry = { value: string };
+type StructuredTags = Record<string, TagEntry[]> & { time_ranges?: unknown[] };
 
-function ConfidenceBar({ value }: { value: number }) {
-  const pct = Math.round(value * 100);
-  const status = pct >= 85 ? "success" : pct >= 60 ? "normal" : "exception";
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <Progress
-        percent={pct}
-        size="small"
-        status={status}
-        showInfo={false}
-        style={{ width: 80 }}
-        aria-label={`置信度 ${pct}%`}
-      />
-      <span
-        style={{
-          fontSize: 11,
-          fontWeight: 600,
-          color:
-            pct >= 85
-              ? "var(--success-600)"
-              : pct >= 60
-                ? "var(--warning-600)"
-                : "var(--danger-600)",
-        }}
-      >
-        {pct}%
-      </span>
-    </div>
-  );
+export interface GovernanceReviewItem {
+  governance_result_id: string;
+  normalized_ref_id: string;
+  asset_id: string | null;
+  asset_title: string | null;
+  classification: string | null;
+  level: string | null;
+  org_scope: string | null;
+  tags: StructuredTags;
+  quality_summary: Record<string, unknown>;
+  created_at: string | null;
 }
 
-// ── TagReviewPage ─────────────────────────────────────────────
-
-interface TagReviewContentProps {
-  initialDrafts: TagDraft[];
-  initialCommitted: CommittedTag[];
+interface RuleOption { code: string; name?: string; label?: string }
+interface ReviewContext {
+  rules: { classifications: RuleOption[]; levels: RuleOption[] };
+}
+interface Props {
+  initialItems: GovernanceReviewItem[];
   ok: boolean;
   error: string | null;
   traceId: string | null;
-  tagDictionary: TagDictionary;
 }
 
-export default function TagReviewContent({
-  initialDrafts,
-  initialCommitted,
-  ok,
-  error,
-  traceId,
-  tagDictionary,
-}: TagReviewContentProps) {
-  const [drafts, setDrafts] = useState<TagDraft[]>(initialDrafts);
-  const [committed, setCommitted] = useState<CommittedTag[]>(initialCommitted);
-  const [selectedIds, setSelectedIds] = useState<React.Key[]>([]);
-  const [reviewDraft, setReviewDraft] = useState<TagDraft | null>(null);
-  const [reviewTagsText, setReviewTagsText] = useState("");
-  const { message, modal, notification } = App.useApp();
+const TAG_BUCKETS = ["regions", "industries", "occupations", "majors", "abilities", "topics"] as const;
+const BUCKET_LABELS: Record<(typeof TAG_BUCKETS)[number], string> = {
+  regions: "区域", industries: "行业", occupations: "职业", majors: "专业", abilities: "能力", topics: "主题",
+};
 
-  const reviewedTags = useMemo(
-    () => reviewTagsText
-      .split(/[,，、\n]/)
-      .map((item) => item.trim().replace(/^#/, ""))
-      .filter(Boolean),
-    [reviewTagsText],
-  );
+function asText(tags: StructuredTags, bucket: string): string {
+  const values = Array.isArray(tags[bucket]) ? tags[bucket] : [];
+  return values.map((item) => item?.value).filter(Boolean).join("，");
+}
 
-  const openReview = (draft: TagDraft) => {
-    setReviewDraft(draft);
-    setReviewTagsText(draft.tags.join("、"));
+function splitValues(value: string): TagEntry[] {
+  return [...new Set(value.split(/[，,、\n]/).map((item) => item.trim()).filter(Boolean))].map((item) => ({ value: item }));
+}
+
+function buildTags(values: Record<string, string>): StructuredTags {
+  const tags: StructuredTags = { time_ranges: [] };
+  for (const bucket of TAG_BUCKETS) tags[bucket] = splitValues(values[bucket] ?? "");
+  const periods = (values.time_ranges ?? "").split(/[，,、\n]/).map((item) => item.trim()).filter(Boolean);
+  tags.time_ranges = periods.map((item) => {
+    const match = item.match(/^(\d{4})(?:\s*-\s*(\d{4}))?$/);
+    if (!match) throw new Error("时间范围仅支持 YYYY 或 YYYY-YYYY");
+    return match[2]
+      ? { kind: "year_range", start: Number(match[1]), end: Number(match[2]) }
+      : { kind: "point_in_time", year: Number(match[1]) };
+  });
+  return tags;
+}
+
+export default function TagReviewContent({ initialItems, ok, error, traceId }: Props) {
+  const [items, setItems] = useState(initialItems);
+  const [item, setItem] = useState<GovernanceReviewItem | null>(null);
+  const [context, setContext] = useState<ReviewContext | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [form] = Form.useForm<Record<string, string>>();
+  const { message } = App.useApp();
+
+  const openReview = async (row: GovernanceReviewItem) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/governance-results/${encodeURIComponent(row.governance_result_id)}/review-context`, { cache: "no-store" });
+      const envelope = await res.json() as { data?: ReviewContext; error?: { message?: string } };
+      if (!res.ok || !envelope.data) throw new Error(envelope.error?.message ?? "无法加载审核上下文");
+      setContext(envelope.data);
+      setItem(row);
+      form.setFieldsValue({
+        classification: row.classification ?? "",
+        level: row.level ?? "",
+        org_scope: row.org_scope ?? "",
+        quality_disposition: "pass",
+        quality_reason: "",
+        review_reason: "",
+        ...Object.fromEntries(TAG_BUCKETS.map((bucket) => [bucket, asText(row.tags, bucket)])),
+        time_ranges: "",
+      });
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "无法加载审核上下文");
+    } finally { setLoading(false); }
   };
 
-  const confirmDraft = (draft: TagDraft, tags: string[]) => {
-    const finalTags = tags.length > 0 ? tags : draft.tags;
-    const now = new Date().toISOString();
-    setDrafts((prev) => prev.filter((item) => item.id !== draft.id));
-    setSelectedIds((prev) => prev.filter((id) => id !== draft.id));
-    setCommitted((prev) => [
-      {
-        id: `manual-${Date.now()}-${draft.id}`,
-        normalizedRefId: draft.normalizedRefId,
-        assetId: draft.assetId,
-        assetTitle: draft.assetTitle,
-        tags: finalTags,
-        confidence: draft.confidence,
-        committedAt: now,
-      },
-      ...prev,
-    ]);
-    setReviewDraft(null);
-    message.success("已确认标签草稿");
+  const submit = async () => {
+    if (!item) return;
+    const values = await form.validateFields();
+    let tags: StructuredTags;
+    try { tags = buildTags(values); } catch (err) { message.error(err instanceof Error ? err.message : "标签格式不正确"); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/governance-results/${encodeURIComponent(item.governance_result_id)}/review-decisions`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "Idempotency-Key": crypto.randomUUID() },
+        body: JSON.stringify({
+          classification: values.classification,
+          level: values.level,
+          org_scope: values.org_scope,
+          tags,
+          quality_review: { disposition: values.quality_disposition, reason: values.quality_reason },
+          review_reason: values.review_reason,
+          feedback_labels: [],
+        }),
+      });
+      const envelope = await res.json() as { data?: { version_status?: string }; error?: { message?: string } };
+      if (!res.ok) throw new Error(envelope.error?.message ?? "提交治理结论失败");
+      setItems((previous) => previous.filter((candidate) => candidate.governance_result_id !== item.governance_result_id));
+      setItem(null);
+      message.success(envelope.data?.version_status === "available" ? "治理结论已提交，知识索引续跑已排队" : "治理结论已提交，资产仍待其它准入项解除");
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "提交治理结论失败");
+    } finally { setLoading(false); }
   };
 
-  const rejectDraft = (draft: TagDraft) => {
-    setDrafts((prev) => prev.filter((item) => item.id !== draft.id));
-    setSelectedIds((prev) => prev.filter((id) => id !== draft.id));
-    setReviewDraft(null);
-    message.success("已驳回标签草稿");
-  };
-
-  const reviseDraft = (draft: TagDraft, tags: string[]) => {
-    if (tags.length === 0) {
-      message.warning("请至少保留一个标签");
-      return;
-    }
-    setDrafts((prev) => prev.map((item) => (
-      item.id === draft.id ? { ...item, tags } : item
-    )));
-    setReviewDraft((prev) => (prev ? { ...prev, tags } : prev));
-    message.success("已更新当前草稿标签");
-  };
-
-  // ── 批量确认（undo-toast 10s） ──
-  const handleBulkConfirm = () => {
-    const toConfirm = drafts.filter((d) => selectedIds.includes(d.id));
-    const key = `confirm-${Date.now()}`;
-    setDrafts((prev) => prev.filter((d) => !selectedIds.includes(d.id)));
-    const reverted = [...selectedIds];
-    setSelectedIds([]);
-    notification.success({
-      key,
-      message: `已确认 ${toConfirm.length} 条标签草稿`,
-      description: "当前后端尚未提供标签审核写入端点，本次确认仅更新当前页面状态。",
-      duration: 10,
-      btn: (
-        <Button
-          type="link"
-          size="small"
-          onClick={() => {
-            setDrafts((prev) => [...toConfirm, ...prev]);
-            notification.destroy(key);
-            message.info("已撤销标签确认");
-          }}
-        >
-          撤销
-        </Button>
-      ),
-    });
-    // 后端标签审核写入端点接入前，仅在当前页面内预览确认后的状态。
-    const now = new Date().toISOString();
-    const newCommitted: CommittedTag[] = toConfirm.map((d) => ({
-      id: `c${Date.now()}-${d.id}`,
-      normalizedRefId: d.normalizedRefId,
-      tags: d.tags,
-      confidence: d.confidence,
-      committedAt: now,
-    }));
-    setCommitted((prev) => [...newCommitted, ...prev]);
-    void reverted; // reverted 用于 undo 时恢复选择
-  };
-
-  // ── 批量驳回（confirm-dialog） ──
-  const handleBulkReject = () => {
-    modal.confirm({
-      title: `确认驳回 ${selectedIds.length} 条标签草稿？`,
-      content: "当前后端尚未提供标签审核写入端点，驳回后仅从当前页面队列移除。",
-      okText: "确认驳回",
-      okButtonProps: { danger: true },
-      cancelText: "取消",
-      onOk: () => {
-        setDrafts((prev) => prev.filter((d) => !selectedIds.includes(d.id)));
-        setSelectedIds([]);
-        message.success("已驳回所选标签草稿");
-      },
-    });
-  };
-
-  // ── 低置信草稿表列 ──
-  const draftColumns: ColumnsType<TagDraft> = [
-    {
-      title: "数据资产",
-      width: 220,
-      render: (_: unknown, record: TagDraft) => (
-        <AssetRefCell
-          title={record.assetTitle}
-          assetId={record.assetId}
-          normalizedRefId={record.normalizedRefId}
-        />
-      ),
-    },
-    {
-      title: "候选标签",
-      dataIndex: "tags",
-      render: (tags: string[]) => (
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-          {tags.map((t) => (
-            <Tag key={t} color="default">
-              #{tagLabel(t, tagDictionary)}
-            </Tag>
-          ))}
-        </div>
-      ),
-    },
-    {
-      title: "证据片段",
-      dataIndex: "evidence",
-      render: (text: string) => (
-        <Tooltip title={text}>
-          <span style={{ fontSize: 12, color: "var(--text-secondary)", cursor: "help" }}>
-            {text.slice(0, 30)}…
-          </span>
-        </Tooltip>
-      ),
-    },
-    {
-      title: "置信度",
-      dataIndex: "confidence",
-      width: 120,
-      render: (v: number) => <ConfidenceBar value={v} />,
-    },
-    {
-      title: "操作",
-      width: 60,
-      render: (_: unknown, record: TagDraft) => (
-        <Button
-          size="small"
-          icon={<EditOutlined />}
-          onClick={() => openReview(record)}
-          aria-label={`审核 ${record.normalizedRefId}`}
-        >
-          审核
-        </Button>
-      ),
-    },
+  const columns: ColumnsType<GovernanceReviewItem> = [
+    { title: "数据资产", render: (_v, row) => <AssetRefCell title={row.asset_title} assetId={row.asset_id} normalizedRefId={row.normalized_ref_id} /> },
+    { title: "数据分类", dataIndex: "classification", width: 120, render: (value) => value || "未确定" },
+    { title: "数据分级", dataIndex: "level", width: 100, render: (value) => value || "未确定" },
+    { title: "当前标签", dataIndex: "tags", render: (tags: StructuredTags) => <>{TAG_BUCKETS.flatMap((bucket) => tags[bucket] ?? []).map((entry) => <Tag key={entry.value}>{entry.value}</Tag>)}</> },
+    { title: "操作", width: 84, render: (_v, row) => <Button size="small" icon={<EditOutlined />} loading={loading && item?.governance_result_id === row.governance_result_id} onClick={() => void openReview(row)}>审核</Button> },
   ];
 
-  // ── 自动提交历史列 ──
-  const committedColumns: ColumnsType<CommittedTag> = [
-    {
-      title: "数据资产",
-      width: 220,
-      render: (_: unknown, record: CommittedTag) => (
-        <AssetRefCell
-          title={record.assetTitle}
-          assetId={record.assetId}
-          normalizedRefId={record.normalizedRefId}
-        />
-      ),
-    },
-    {
-      title: "已提交标签",
-      dataIndex: "tags",
-      render: (tags: string[]) => (
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-          {tags.map((t) => (
-            <Tag key={t} color="blue">
-              #{tagLabel(t, tagDictionary)}
-            </Tag>
-          ))}
-        </div>
-      ),
-    },
-    {
-      title: "置信度",
-      dataIndex: "confidence",
-      width: 110,
-      render: (v: number) => <ConfidenceBar value={v} />,
-    },
-    {
-      title: "方式",
-      width: 110,
-      render: () => <StatusLabel value="auto_adopted" label="auto_commit" />,
-    },
-    {
-      title: "提交时间",
-      dataIndex: "committedAt",
-      width: 150,
-      render: (value: string) => (
-        <span className="text-caption text-muted">{formatDateTime(value)}</span>
-      ),
-    },
-  ];
-
-  return (
-    <div
-      style={{ display: "grid", gap: 16 }}
-    >
-      {/* ── 左侧主区 ── */}
-      <div style={{ display: "grid", gap: 16 }}>
-        <ApiState ok={ok} error={error} traceId={traceId} />
-        {/* BulkBar */}
-        {selectedIds.length > 0 && (
-          <div
-            role="toolbar"
-            aria-label="标签批量操作工具栏"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "10px 16px",
-              borderRadius: "var(--radius-lg)",
-              border: "1px solid var(--brand-200)",
-              background: "var(--brand-50)",
-            }}
-          >
-            <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-              已选 <strong style={{ color: "var(--text)" }}>{selectedIds.length}</strong> 项
-            </span>
-            <Button
-              type="primary"
-              size="small"
-              icon={<CheckOutlined />}
-              onClick={handleBulkConfirm}
-            >
-              确认
-            </Button>
-            <Button
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => message.info("改写功能即将上线")}
-            >
-              改写
-            </Button>
-            <Button size="small" danger icon={<CloseOutlined />} onClick={handleBulkReject}>
-              驳回
-            </Button>
-            <Button
-              type="text"
-              size="small"
-              onClick={() => setSelectedIds([])}
-              aria-label="清空选择"
-            >
-              清空
-            </Button>
-          </div>
-        )}
-
-        {/* 低置信标签草稿 */}
-        <div
-          style={{
-            background: "var(--surface)",
-            border: "1px solid var(--line)",
-            borderRadius: "var(--radius-xl)",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              padding: "16px 20px",
-              borderBottom: "1px solid var(--line-light)",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 600 }}>低置信标签草稿</div>
-              <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
-                业务专家需决定 confirm / revise / reject
-              </div>
-            </div>
-          </div>
-          <div style={{ padding: "0 0 4px" }}>
-            <Table
-              rowKey="id"
-              dataSource={drafts}
-              columns={draftColumns}
-              size="middle"
-              pagination={{
-                pageSize: 10,
-                showSizeChanger: true,
-                pageSizeOptions: ["10", "20", "50"],
-                showTotal: (total, range) => range[0] + "-" + range[1] + " / " + total + " 条",
-              }}
-              rowSelection={{
-                selectedRowKeys: selectedIds,
-                onChange: setSelectedIds,
-              }}
-              locale={{ emptyText: "暂无低置信标签草稿 — 所有标签均已高置信自动提交" }}
-            />
-          </div>
-        </div>
-
-        {/* 自动提交历史 */}
-        <div
-          style={{
-            background: "var(--surface)",
-            border: "1px solid var(--line)",
-            borderRadius: "var(--radius-xl)",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              padding: "16px 20px",
-              borderBottom: "1px solid var(--line-light)",
-            }}
-          >
-            <div style={{ fontSize: 15, fontWeight: 600 }}>自动提交历史</div>
-            <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
-              高置信标签来自真实 AI 治理运行记录
-            </div>
-          </div>
-          <Table
-            rowKey="id"
-            dataSource={committed}
-            columns={committedColumns}
-            size="middle"
-            pagination={{
-              pageSize: 10,
-              showSizeChanger: true,
-              pageSizeOptions: ["10", "20", "50"],
-              showTotal: (total, range) => range[0] + "-" + range[1] + " / " + total + " 条",
-            }}
-            locale={{ emptyText: "暂无自动提交记录" }}
-          />
-        </div>
-      </div>
-
-      <Drawer
-        title="标签草稿审核"
-        open={Boolean(reviewDraft)}
-        onClose={() => setReviewDraft(null)}
-        size={520}
-        destroyOnClose
-        extra={reviewDraft ? (
-          <Space>
-            <Button danger icon={<CloseOutlined />} onClick={() => rejectDraft(reviewDraft)}>
-              驳回
-            </Button>
-            <Button icon={<EditOutlined />} onClick={() => reviseDraft(reviewDraft, reviewedTags)}>
-              保存改写
-            </Button>
-            <Button
-              type="primary"
-              icon={<CheckOutlined />}
-              onClick={() => confirmDraft(reviewDraft, reviewedTags)}
-            >
-              确认提交
-            </Button>
-          </Space>
-        ) : null}
-      >
-        {reviewDraft && (
-          <div style={{ display: "grid", gap: 16 }}>
-            <Alert
-              type="info"
-              showIcon
-              title="当前为页面内审核"
-              description="后端标签审核写入端点尚未提供，确认、改写、驳回会立即更新当前页面状态，但刷新后仍以最新 AI 治理运行记录重新派生。"
-            />
-            <div>
-              <div className="text-caption text-muted" style={{ marginBottom: 6 }}>数据资产</div>
-              <AssetRefCell
-                title={reviewDraft.assetTitle}
-                assetId={reviewDraft.assetId}
-                normalizedRefId={reviewDraft.normalizedRefId}
-              />
-            </div>
-            <div>
-              <div className="text-caption text-muted" style={{ marginBottom: 6 }}>置信度</div>
-              <ConfidenceBar value={reviewDraft.confidence} />
-            </div>
-            <div>
-              <div className="text-caption text-muted" style={{ marginBottom: 6 }}>证据片段</div>
-              <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.7 }}>
-                {reviewDraft.evidence}
-              </div>
-            </div>
-            <div>
-              <div className="text-caption text-muted" style={{ marginBottom: 6 }}>
-                标签，使用顿号、逗号或换行分隔
-              </div>
-              <Input.TextArea
-                autoSize={{ minRows: 4, maxRows: 8 }}
-                value={reviewTagsText}
-                onChange={(event) => setReviewTagsText(event.target.value)}
-              />
-              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 10 }}>
-                {reviewedTags.map((tag) => (
-                  <Tag key={tag}>#{tagLabel(tag, tagDictionary)}</Tag>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </Drawer>
-
-    </div>
-  );
+  return <div style={{ display: "grid", gap: 16 }}>
+    {!ok && <Alert type="error" showIcon message="治理审核队列加载失败" description={`${error ?? "未知错误"}${traceId ? `（trace: ${traceId}）` : ""}`} />}
+    <div className="content-panel"><Table rowKey="governance_result_id" dataSource={items} columns={columns} pagination={{ pageSize: 20 }} locale={{ emptyText: "暂无待治理审核资产" }} /></div>
+    <Drawer title="治理审核" open={Boolean(item)} onClose={() => setItem(null)} size="large" destroyOnClose extra={<Button type="primary" loading={loading} onClick={() => void submit()}>提交治理结论</Button>}>
+      {item && <Form form={form} layout="vertical" requiredMark="optional">
+        <Alert type="info" showIcon style={{ marginBottom: 16 }} message="提交后将生成不可变治理结论和新的官方治理快照。" />
+        <Form.Item label="数据分类" name="classification" rules={[{ required: true, message: "请选择数据分类" }]}><Select options={(context?.rules.classifications ?? []).map((entry) => ({ value: entry.code, label: entry.name ?? entry.label ?? entry.code }))} /></Form.Item>
+        <Form.Item label="数据分级" name="level" rules={[{ required: true, message: "请选择数据分级" }]}><Select options={(context?.rules.levels ?? []).map((entry) => ({ value: entry.code, label: entry.name ?? entry.label ?? entry.code }))} /></Form.Item>
+        <Form.Item label="组织范围" name="org_scope" rules={[{ required: true, message: "请填写组织范围" }]}><Input /></Form.Item>
+        {TAG_BUCKETS.map((bucket) => <Form.Item key={bucket} label={`${BUCKET_LABELS[bucket]}标签`} name={bucket}><Input placeholder="使用逗号、顿号或换行分隔" /></Form.Item>)}
+        <Form.Item label="时间标签" name="time_ranges" extra="支持 YYYY 或 YYYY-YYYY，多个值使用逗号分隔"><Input /></Form.Item>
+        <Form.Item label="质量处置" name="quality_disposition" rules={[{ required: true }]}><Select options={[{ value: "pass", label: "通过" }, { value: "review_required", label: "仍需复核" }]} /></Form.Item>
+        <Form.Item label="质量处置说明" name="quality_reason" rules={[{ required: true, message: "请填写质量处置说明" }]}><Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} /></Form.Item>
+        <Form.Item label="审核结论说明" name="review_reason" rules={[{ required: true, message: "请填写审核结论说明" }]}><Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} /></Form.Item>
+      </Form>}
+    </Drawer>
+  </div>;
 }

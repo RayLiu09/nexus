@@ -94,8 +94,10 @@ class TestVersionStateManager:
         VersionStateManager().transition_to_available(session, v2, result)
         session.refresh(v1)
         session.refresh(v2)
+        session.refresh(asset)
         assert v1.version_status == AssetVersionStatus.ARCHIVED
         assert v2.version_status == AssetVersionStatus.AVAILABLE
+        assert asset.status == AssetVersionStatus.AVAILABLE
 
     def test_admission_blocked_when_quality_fail(self, session):
         from nexus_app.metadata.version_state import StateTransitionError

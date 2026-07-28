@@ -23,7 +23,7 @@ export interface DecisionTrailEntry {
   review_reason: string | null;
 }
 
-export type AdoptionStatus = "auto_adopted" | "review_required" | "rejected";
+export type AdoptionStatus = "auto_adopted" | "review_required" | "human_confirmed" | "human_overridden";
 
 /** 决策追踪视图角色（与后端 _VALID_TRAIL_VIEWS 对齐） */
 export type DecisionTrailView = "full" | "operator" | "public";
@@ -35,7 +35,8 @@ export interface GovernanceResultRead {
   ai_run_id: string | null;
   classification: string | null;
   level: string | null;
-  tags: string[];
+  tags: string[] | Record<string, unknown>;
+  tags_structured?: Record<string, unknown>;
   org_scope: string | null;
   index_admission: boolean;
   quality_summary: Record<string, unknown> | null;

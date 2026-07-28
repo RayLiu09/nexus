@@ -8,7 +8,6 @@ const STATUS_MAP: Record<string, { color: string; label: string }> = {
   partially_adopted: { color: "processing", label: "部分采纳" },
   review_required: { color: "warning", label: "待复核" },
   pending_rule_guardrail: { color: "warning", label: "规则冲突" },
-  rejected: { color: "error", label: "驳回" },
   manual_review: { color: "warning", label: "人工审核" },
 };
 

@@ -692,10 +692,10 @@ def compute_adoption_status(
     buckets: dict[str, int],
 ) -> AIGovernanceRunAdoptionStatus:
     if validation_status != AIGovernanceRunValidationStatus.SCHEMA_VALID:
-        return AIGovernanceRunAdoptionStatus.REJECTED
+        return AIGovernanceRunAdoptionStatus.REVIEW_REQUIRED
     total = sum(buckets.values())
     if total == 0:
-        return AIGovernanceRunAdoptionStatus.REJECTED
+        return AIGovernanceRunAdoptionStatus.REVIEW_REQUIRED
     high_ratio = buckets["high"] / total
     if high_ratio >= AUTO_ADOPT_HIGH_RATIO and buckets["low"] == 0:
         return AIGovernanceRunAdoptionStatus.AUTO_ADOPTED

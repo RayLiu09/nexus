@@ -892,6 +892,57 @@ class GovernanceResult(TimestampMixin, Base):
     rules_version: Mapped["GovernanceRulesVersion | None"] = relationship()
 
 
+class GovernanceReviewDecision(TimestampMixin, Base):
+    """Immutable business-expert governance conclusion.
+
+    It records the expert's final structured values against one AI-derived
+    governance result. The source AI run and base result are never mutated;
+    applying a decision creates a new official ``GovernanceResult`` snapshot.
+    """
+
+    __tablename__ = "governance_review_decision"
+    __table_args__ = (
+        UniqueConstraint(
+            "base_governance_result_id",
+            "idempotency_key",
+            name="uq_governance_review_decision_idempotency",
+        ),
+        Index("ix_governance_review_decision_ref_created", "normalized_ref_id", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("normalized_asset_ref.id"), nullable=False
+    )
+    base_governance_result_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("governance_result.id"), nullable=False
+    )
+    base_ai_run_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("ai_governance_run.id"), nullable=True
+    )
+    resulting_governance_result_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("governance_result.id"), nullable=False
+    )
+    decision_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    review_reason: Mapped[str] = mapped_column(Text, nullable=False)
+    feedback_labels: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    reviewer_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("user_account.id"), nullable=False
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(256), nullable=False)
+    trace_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+    base_governance_result: Mapped[GovernanceResult] = relationship(
+        foreign_keys=[base_governance_result_id]
+    )
+    resulting_governance_result: Mapped[GovernanceResult] = relationship(
+        foreign_keys=[resulting_governance_result_id]
+    )
+    base_ai_run: Mapped[AIGovernanceRun | None] = relationship()
+    reviewer: Mapped[UserAccount] = relationship()
+
+
 class GovernanceRulesVersion(TimestampMixin, Base):
     """Versioned governance rules definition — only one active at a time."""
     __tablename__ = "governance_rules_version"

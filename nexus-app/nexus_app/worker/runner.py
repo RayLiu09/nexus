@@ -15,6 +15,7 @@ from nexus_app.enums import (
     AssetVersionStatus,
     AuditEventType,
     IngestBatchStatus,
+    JobType,
     JobStatus,
     NormalizedType,
     PipelineType,
@@ -1605,18 +1606,6 @@ def execute_job(
     if image_analyzer is None:
         image_analyzer = get_image_analyzer(settings)
 
-    raw_object = job.raw_object
-    batch = job.ingest_batch
-    trace_id = job.trace_id
-
-    if raw_object is None or batch is None:
-        job.status = JobStatus.FAILED
-        job.failure_reason = "missing raw_object or ingest_batch"
-        job.last_error_code = "missing_references"
-        _release_lock(job)
-        session.commit()
-        return
-
     # Refuse jobs whose payload schema this worker does not recognize.
     # Sends the row straight to the dead-letter state so an operator can decide
     # whether to re-ingest under the new schema (no retry — this is a permanent
@@ -1644,6 +1633,36 @@ def execute_job(
                 "supported": sorted(SUPPORTED_JOB_PAYLOAD_VERSIONS),
             },
         )
+        session.commit()
+        return
+
+    if job.job_type == JobType.KNOWLEDGE_CONTINUATION:
+        _execute_knowledge_continuation(
+            job,
+            session,
+            storage=storage,
+            mineru=mineru,
+            settings=settings,
+            image_analyzer=image_analyzer,
+        )
+        return
+    if job.job_type != JobType.INGEST_PROCESS:
+        job.status = JobStatus.FAILED
+        job.failure_reason = f"unsupported job_type: {job.job_type.value}"
+        job.last_error_code = "unsupported_job_type"
+        _release_lock(job)
+        session.commit()
+        return
+
+    raw_object = job.raw_object
+    batch = job.ingest_batch
+    trace_id = job.trace_id
+
+    if raw_object is None or batch is None:
+        job.status = JobStatus.FAILED
+        job.failure_reason = "missing raw_object or ingest_batch"
+        job.last_error_code = "missing_references"
+        _release_lock(job)
         session.commit()
         return
 
@@ -1806,5 +1825,82 @@ def execute_job(
 
         _add_failure_stage(session, job, failed_stage, reason)
         _mark_job_outcome(session, job, reason, trace_id, exc)
+        session.commit()
+        raise
+
+
+def _execute_knowledge_continuation(
+    job: models.Job,
+    session: Session,
+    *,
+    storage: ObjectStorage,
+    mineru: MinerUAdapter,
+    settings: Settings,
+    image_analyzer: ImageAnalyzer | None,
+) -> None:
+    """Resume only knowledge stages after a human governance decision."""
+    payload = job.payload or {}
+    ref_id = payload.get("normalized_ref_id")
+    version_id = payload.get("asset_version_id")
+    raw_pipeline_type = payload.get("pipeline_type")
+    if not all(isinstance(value, str) for value in (ref_id, version_id, raw_pipeline_type)):
+        raise NonRetryableError(
+            "knowledge continuation payload is incomplete", "invalid_continuation_payload"
+        )
+    try:
+        pipeline_type = PipelineType(raw_pipeline_type)
+    except ValueError as exc:
+        raise NonRetryableError(
+            "knowledge continuation pipeline_type is invalid", "invalid_continuation_payload"
+        ) from exc
+
+    ref = session.get(models.NormalizedAssetRef, ref_id)
+    version = session.get(models.AssetVersion, version_id)
+    if ref is None or version is None or ref.version_id != version.id:
+        raise NonRetryableError(
+            "knowledge continuation target no longer exists", "missing_continuation_target"
+        )
+    raw_object = version.raw_object
+    batch = raw_object.batch if raw_object is not None else None
+    if raw_object is None or batch is None:
+        raise NonRetryableError(
+            "knowledge continuation raw references are missing",
+            "missing_continuation_references",
+        )
+
+    ctx = PipelineContext(
+        session=session,
+        storage=storage,
+        settings=settings,
+        mineru=mineru if pipeline_type == PipelineType.DOCUMENT else None,
+        job=job,
+        raw_object=raw_object,
+        batch=batch,
+        trace_id=job.trace_id,
+        pipeline_type=pipeline_type,
+        image_analyzer=image_analyzer if pipeline_type == PipelineType.DOCUMENT else None,
+        normalize_service=_build_normalize_service(settings),
+        teaching_standard_llm_client=(
+            _build_teaching_standard_llm_client(settings)
+            if pipeline_type == PipelineType.DOCUMENT
+            else None
+        ),
+    )
+    try:
+        chunks = run_knowledge_chunking(ctx, version, ref)
+        run_index_submit(ctx, version, ref, chunks)
+        job.status = JobStatus.SUCCEEDED
+        job.current_stage = "completed"
+        job.failure_reason = None
+        job.last_error_code = None
+        job.last_error_message = None
+        _release_lock(job)
+        session.commit()
+    except Exception as exc:
+        reason = f"{type(exc).__name__}: {exc}"
+        _add_failure_stage(
+            session, job, job.current_stage or "knowledge_continuation", reason
+        )
+        _mark_job_outcome(session, job, reason, job.trace_id, exc)
         session.commit()
         raise

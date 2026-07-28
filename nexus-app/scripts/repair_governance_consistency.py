@@ -63,8 +63,8 @@ def _derive_run_status_from_result(
 ) -> AIGovernanceRunAdoptionStatus:
     """Mirror GovernanceDecisionService._derive_run_adoption_status."""
     trail = result.decision_trail or []
-    if any(entry.get("adoption_status") == "rejected" for entry in trail):
-        return AIGovernanceRunAdoptionStatus.REJECTED
+    if any(entry.get("adoption_status") == "review_required" for entry in trail):
+        return AIGovernanceRunAdoptionStatus.REVIEW_REQUIRED
     if result.status == GovernanceResultStatus.REVIEW_REQUIRED:
         return AIGovernanceRunAdoptionStatus.REVIEW_REQUIRED
     return AIGovernanceRunAdoptionStatus.AUTO_ADOPTED

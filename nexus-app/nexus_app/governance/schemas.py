@@ -6,7 +6,12 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
-AdoptionStatus = Literal["auto_adopted", "review_required", "rejected"]
+AdoptionStatus = Literal[
+    "auto_adopted",
+    "review_required",
+    "human_confirmed",
+    "human_overridden",
+]
 
 
 # Read-side visibility tiers for governance_result.decision_trail (Review §4.3).
@@ -30,6 +35,10 @@ class DecisionTrailEntry(BaseModel):
     final_value: Any
     adoption_status: AdoptionStatus
     review_reason: str | None = None
+    review_decision_id: str | None = None
+    reviewer_id: str | None = None
+    reviewed_at: str | None = None
+    before_value: Any = None
 
 
 class GovernanceDecisionContext(BaseModel):

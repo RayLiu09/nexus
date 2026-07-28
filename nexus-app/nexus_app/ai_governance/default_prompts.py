@@ -211,6 +211,37 @@ _KNOWLEDGE_TYPE_INFERENCE_PROMPT = """## 任务
 - primary_type: 主要知识类型代码（置信度最高的）
 """
 
+_KNOWLEDGE_TYPE_INFERENCE_PROMPT_V2 = """## 任务
+
+你是知识工程辅助分析员。根据文档内容和当前治理规则，说明可供知识加工参考的内容特征。
+
+## 当前知识类型规则
+
+{{RULES}}
+
+## 约束
+
+1. 只能使用上述规则中列出的知识类型代码；不得创造、改写或使用废弃代码。
+2. 此阶段只提供辅助分析，不决定最终知识类型。最终知识发射由正式数据分类与活动治理规则中的 `primary_knowledge_type` 确定性投影。
+3. 每个推荐项必须给出能在原文中核验的简短依据；没有充分依据时返回空数组。
+4. 不要因教材、课件或讲义等通用描述臆造额外知识类型。
+
+## 文档
+
+{{DOCUMENT}}
+
+## 输出格式
+
+返回 JSON，包含：
+- knowledge_types: [{
+    code: 上述规则中的知识类型代码,
+    name: 知识类型名称,
+    confidence: 对内容特征匹配的置信度（0-1）,
+    rationale: 原文依据
+  }]
+- primary_type: 最符合内容特征的代码；无明确依据时为 null
+"""
+
 # ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
@@ -416,4 +447,19 @@ V1_3_PROMPT_UPGRADES: dict[str, dict[str, Any]] = {
             "evidence_span 强约束（原文连续可复制粘贴字符串，禁止重述/总结/翻译/拼接/补词，自检不达标不输出）。"
         ),
     },
+}
+
+
+KNOWLEDGE_TYPE_INFERENCE_PROMPT_V2: dict[str, Any] = {
+    "template_name": "知识类型辅助分析 Prompt v2（规范代码）",
+    "prompt_template": _KNOWLEDGE_TYPE_INFERENCE_PROMPT_V2,
+    "output_schema_version": "1.0",
+    "litellm_model_alias": "gpt-4o-mini",
+    "temperature": 0.2,
+    "max_input_tokens": 2048,
+    "redaction_policy": "metadata_only",
+    "change_summary": (
+        "移除废弃知识类型 textbook_kb；仅允许活动规则中的代码，并明确最终知识发射"
+        "由正式分类到 primary_knowledge_type 的确定性投影产生。"
+    ),
 }

@@ -2,10 +2,9 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { Avatar, Breadcrumb, Button, Dropdown, Input, Tag, Tooltip } from "antd";
+import { Avatar, Breadcrumb, Button, Dropdown, Tag, Tooltip } from "antd";
 import {
   CloudUploadOutlined,
-  SearchOutlined,
   LogoutOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -64,16 +63,6 @@ export function Topbar() {
     <header className="topbar">
       <div className="topbar-left">
         <Breadcrumb items={breadcrumbItems} />
-
-        <Input
-          className="topbar-search-input"
-          placeholder="搜索 batch / asset / rule / trace_id"
-          prefix={<SearchOutlined />}
-          suffix={<kbd className="topbar-kbd">⌘K</kbd>}
-          variant="filled"
-          readOnly
-          onFocus={(e) => e.target.blur()}
-        />
       </div>
 
       <div className="topbar-right">
