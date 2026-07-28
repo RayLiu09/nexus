@@ -45,6 +45,16 @@ SECTION_DEFS: dict[str, dict[str, Any]] = {
     },
 }
 
+# These sections establish that a document is actually a professional
+# introduction, rather than a report that happens to discuss training or
+# occupations. Certificates and continuation majors are valuable but optional.
+_REQUIRED_PROFILE_SECTION_KEYS = frozenset({
+    "occupation_oriented",
+    "training_goal",
+    "ability_requirements",
+    "courses_and_training",
+})
+
 _SUBSECTION_ALIASES = {
     "foundation": ["专业基础课程", "基础课程"],
     "core": ["专业核心课程", "核心课程"],
@@ -85,7 +95,11 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
         _profile_from_segment(title, code, name, segment_blocks)
         for code, name, segment_blocks in _major_segments(blocks)
     ]
-    profiles = [profile for profile in segment_profiles if profile is not None]
+    profiles = [
+        profile
+        for profile in segment_profiles
+        if profile is not None and _is_publishable_profile(profile)
+    ]
     if profiles:
         profiles = [validate_profile_payload(profile)[0] for profile in profiles]
         primary = dict(profiles[0])
@@ -93,7 +107,8 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
         primary["profile_count"] = len(profiles)
         return validate_payload(primary)
 
-    return _profile_from_segment(title, None, None, blocks)
+    profile = _profile_from_segment(title, None, None, blocks)
+    return profile if profile is not None and _is_publishable_profile(profile) else None
 
 
 def _profile_from_segment(
@@ -190,6 +205,33 @@ def _looks_like_major_profile(title: str, text: str) -> bool:
         if any(alias in haystack for alias in config["aliases"])
     )
     return hits >= 2 and bool(re.search(r"\b\d{4,6}\b", haystack))
+
+
+def _is_publishable_profile(profile: dict[str, Any]) -> bool:
+    """Require identity and core section evidence before creating a domain view.
+
+    The deterministic extractor is deliberately allowed to inspect broad
+    document text. Its result becomes a user-visible domain projection,
+    however, only when the core professional-introduction structure is present.
+    This prevents publication numbers and incidental terminology in reports
+    from creating a `major_profile.v1` asset projection.
+    """
+    major_code = str(profile.get("major_code") or "").strip()
+    major_name = str(profile.get("major_name") or "").strip()
+    if not re.fullmatch(r"\d{4,6}", major_code):
+        return False
+    chinese_name_chars = re.findall(r"[\u4e00-\u9fa5]", major_name)
+    if len(chinese_name_chars) < 2:
+        return False
+    sections = profile.get("sections")
+    if not isinstance(sections, list):
+        return False
+    section_keys = {
+        section.get("section_key")
+        for section in sections
+        if isinstance(section, dict) and str(section.get("text") or "").strip()
+    }
+    return _REQUIRED_PROFILE_SECTION_KEYS.issubset(section_keys)
 
 
 def _extract_identity(title: str, text: str) -> tuple[str | None, str | None]:

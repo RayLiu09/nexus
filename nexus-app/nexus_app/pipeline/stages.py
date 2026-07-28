@@ -1305,6 +1305,27 @@ def run_governance_decision(
     # are logged but don't block the version state transition.
     ai_svc.write_knowledge_emissions(ctx.session, ai_run, registry)
 
+    # The profile detector runs on normalized document structure before AI
+    # governance. Do not let an incidental, low-quality profile detection
+    # activate the Console's professional-profile presentation once the
+    # official classification says this is another document domain.
+    from nexus_app.major_profile.presentation import reconcile_presentation
+
+    suppressed_projection = reconcile_presentation(normalized_ref, result.classification)
+    if suppressed_projection is not None:
+        write_audit(
+            ctx.session,
+            AuditEventType.DOMAIN_NORMALIZE_COMPLETED,
+            "normalized_asset_ref",
+            normalized_ref.id,
+            ctx.trace_id,
+            {
+                "action": "presentation_projection_suppressed",
+                "governance_result_id": result.id,
+                **suppressed_projection,
+            },
+        )
+
     state_mgr = VersionStateManager()
     target_status = state_mgr.determine_version_status(ctx.session, result)
 

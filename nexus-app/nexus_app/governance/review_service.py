@@ -246,7 +246,12 @@ class GovernanceReviewService:
         )
         session.add(decision)
         self._project_expert_tags(session, ref, version, submission.tags, trace_id)
-        self._materialize_final_knowledge_emissions(ref, submission.classification)
+        self._materialize_final_knowledge_emissions(
+            session,
+            ref,
+            submission.classification,
+            trace_id=trace_id,
+        )
 
         state_manager = VersionStateManager()
         target_status = state_manager.determine_version_status(session, result)
@@ -369,7 +374,12 @@ class GovernanceReviewService:
         return job
 
     def _materialize_final_knowledge_emissions(
-        self, ref: models.NormalizedAssetRef, classification: str
+        self,
+        session: Session,
+        ref: models.NormalizedAssetRef,
+        classification: str,
+        *,
+        trace_id: str | None,
     ) -> None:
         """Replace pre-review emissions with the final official classification."""
         summary = dict(ref.metadata_summary or {})
@@ -377,6 +387,19 @@ class GovernanceReviewService:
             classification, self._registry, confidence=1.0
         )
         ref.metadata_summary = summary
+
+        from nexus_app.major_profile.presentation import reconcile_presentation
+
+        suppressed_projection = reconcile_presentation(ref, classification)
+        if suppressed_projection is not None:
+            write_audit(
+                session,
+                AuditEventType.DOMAIN_NORMALIZE_COMPLETED,
+                "normalized_asset_ref",
+                ref.id,
+                trace_id,
+                {"action": "presentation_projection_suppressed", **suppressed_projection},
+            )
 
     @staticmethod
     def _build_final_trail(

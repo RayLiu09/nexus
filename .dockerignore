@@ -1,0 +1,33 @@
+# Repository metadata and local environment files are never build inputs.
+.git
+.gitignore
+.env
+.env.*
+
+# Local JavaScript build/install artifacts. Dependencies and .next are rebuilt
+# inside Docker's builder stage; only that stage's output reaches the runtime.
+**/node_modules
+**/.next
+**/coverage
+**/.turbo
+**/*.tsbuildinfo
+
+# Local Python environments, bytecode, and test artifacts.
+**/.venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.coverage
+**/htmlcov
+
+# Development-only sources and generated local files are not needed by either
+# production image.
+docs
+**/tests
+**/*.test.ts
+**/*.test.tsx
+**/test-results
+**/playwright-report
+*.log

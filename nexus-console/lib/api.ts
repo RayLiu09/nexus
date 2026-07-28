@@ -1042,3 +1042,28 @@ export function resolveRecordView(ref: NormalizedAssetRef | null): RecordView {
   if (ref.normalized_type === "record") return "generic_table";
   return "unknown";
 }
+
+const MAJOR_PROFILE_CLASSIFICATIONS = new Set(["major_profile", "program_profile"]);
+
+/**
+ * A structured professional-profile view is valid only when its normalized
+ * projection agrees with the latest official classification and knowledge
+ * emission. This guards asset details against historical false detections.
+ */
+export function shouldUseMajorProfileView(
+  ref: NormalizedAssetRef | null,
+  classification: string | null | undefined,
+): boolean {
+  if (resolveRecordView(ref) !== "major_profile") return false;
+  if (!classification || !MAJOR_PROFILE_CLASSIFICATIONS.has(classification)) return false;
+  const emissions = ref?.metadata_summary?.knowledge_emissions;
+  return (
+    Array.isArray(emissions) &&
+    emissions.some(
+      (emission) =>
+        typeof emission === "object" &&
+        emission !== null &&
+        (emission as Record<string, unknown>).code === "major_profile_knowledge",
+    )
+  );
+}

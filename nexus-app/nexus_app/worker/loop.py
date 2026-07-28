@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from nexus_app import models
 from nexus_app.config import Settings, get_settings
-from nexus_app.enums import JobStatus
+from nexus_app.enums import JobStatus, JobType, PipelineType
 from nexus_app.mineru import MinerUAdapter, get_mineru_adapter
 from nexus_app.models import utcnow
 from nexus_app.storage import ObjectStorage, get_object_storage
@@ -65,7 +65,9 @@ class _LeaseHeartbeat:
                         return
                     if job.status != JobStatus.RUNNING or job.locked_by != self._worker_id:
                         return
-                    job.lock_expires_at = utcnow() + timedelta(seconds=self._lease_seconds)
+                    now = utcnow()
+                    job.heartbeat_at = now
+                    job.lock_expires_at = now + timedelta(seconds=self._lease_seconds)
                     session.commit()
             except Exception:
                 logger.exception("lease heartbeat failed for job %s", self._job_id)
@@ -130,12 +132,37 @@ class WorkerLoop:
     def _get_storage(self) -> ObjectStorage:
         if self._storage is not None:
             return self._storage
-        return get_object_storage(self._settings)
+        self._storage = get_object_storage(self._settings)
+        return self._storage
 
     def _get_mineru(self) -> MinerUAdapter:
         if self._mineru is not None:
             return self._mineru
-        return get_mineru_adapter(self._settings)
+        self._mineru = get_mineru_adapter(self._settings)
+        return self._mineru
+
+    def _resolve_dependencies(
+        self, job: models.Job
+    ) -> tuple[ObjectStorage, MinerUAdapter | None]:
+        """Build only the adapters required by this persisted job contract."""
+        storage = self._get_storage()
+        if (
+            job.job_type == JobType.INGEST_PROCESS
+            and (job.payload or {}).get("pipeline_type") == PipelineType.DOCUMENT.value
+        ):
+            return storage, self._get_mineru()
+        return storage, None
+
+    def _mark_pre_execution_failure(self, job_id: str, exc: Exception) -> None:
+        """Persist an adapter/session bootstrap failure before releasing its lease."""
+        with self._get_session() as session:
+            job = session.get(models.Job, job_id)
+            if job is None or job.status != JobStatus.RUNNING:
+                return
+            reason = f"{type(exc).__name__}: {exc}"
+            _add_failure_stage(session, job, "initializing_dependencies", reason)
+            _mark_job_outcome(session, job, reason, job.trace_id, exc)
+            session.commit()
 
     def run_once(self) -> int:
         """Claim and execute one batch of jobs. Returns number of jobs processed."""
@@ -156,30 +183,36 @@ class WorkerLoop:
                 )
                 return 1 if graph_result is not None else 0
 
-        storage = self._get_storage()
-        mineru = self._get_mineru()
         processed = 0
 
         for job in jobs:
-            with self._get_session() as session:
-                fresh_job = session.get(models.Job, job.id)
-                if fresh_job is None:
-                    continue
-                heartbeat = _LeaseHeartbeat(
-                    self._get_session,
-                    fresh_job.id,
-                    self.worker_id,
-                    self.lease_seconds,
-                )
-                heartbeat.start()
-                try:
+            # A claim starts the lease immediately. Start the heartbeat before
+            # opening adapters or a per-job session so a slow bootstrap cannot
+            # strand a RUNNING job at its queued stage.
+            heartbeat = _LeaseHeartbeat(
+                self._get_session,
+                job.id,
+                self.worker_id,
+                self.lease_seconds,
+            )
+            heartbeat.start()
+            try:
+                with self._get_session() as session:
+                    fresh_job = session.get(models.Job, job.id)
+                    if fresh_job is None or fresh_job.status != JobStatus.RUNNING:
+                        continue
+                    storage, mineru = self._resolve_dependencies(fresh_job)
                     execute_job(fresh_job, session, storage, mineru, self._settings)
                     processed += 1
+            except Exception as exc:
+                logger.exception("job %s failed in worker", job.id)
+                try:
+                    self._mark_pre_execution_failure(job.id, exc)
                 except Exception:
-                    logger.exception("job %s failed in worker", job.id)
-                    processed += 1
-                finally:
-                    heartbeat.stop()
+                    logger.exception("job %s pre-execution failure could not be persisted", job.id)
+                processed += 1
+            finally:
+                heartbeat.stop()
 
         return processed
 

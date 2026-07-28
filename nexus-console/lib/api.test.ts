@@ -1,5 +1,39 @@
 import { describe, it, expect } from "vitest";
-import { formatDateTime, shortId, textValue } from "./api";
+import {
+  formatDateTime,
+  resolveRecordView,
+  shortId,
+  shouldUseMajorProfileView,
+  textValue,
+  type NormalizedAssetRef,
+} from "./api";
+
+function majorProfileRef(emissionCode = "major_profile_knowledge"): NormalizedAssetRef {
+  return {
+    id: "ref-major-profile",
+    version_id: "version-major-profile",
+    normalized_type: "document",
+    object_uri: "s3://bucket/normalized.json",
+    schema_version: "normalized-document-v1",
+    checksum: "checksum",
+    status: "generated",
+    block_count: 12,
+    record_count: 0,
+    source_type: "file_upload",
+    content_type: "document",
+    metadata_summary: {
+      domain_profile: "major_profile.v1",
+      knowledge_emissions: [{ code: emissionCode }],
+    },
+    governance: {},
+    quality: {},
+    lineage: {},
+    title: "电子商务专业简介",
+    language: "zh-CN",
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+  };
+}
 
 describe("formatDateTime", () => {
   it("returns '-' for null", () => {
@@ -98,5 +132,20 @@ describe("textValue", () => {
 
   it("JSON-stringifies objects", () => {
     expect(textValue({ key: "val" })).toBe('{"key":"val"}');
+  });
+});
+
+describe("shouldUseMajorProfileView", () => {
+  it("requires a matching official classification and knowledge emission", () => {
+    const ref = majorProfileRef();
+    expect(resolveRecordView(ref)).toBe("major_profile");
+    expect(shouldUseMajorProfileView(ref, "major_profile")).toBe(true);
+    expect(shouldUseMajorProfileView(ref, "program_profile")).toBe(true);
+  });
+
+  it("falls back from stale major-profile metadata for an industry report", () => {
+    expect(
+      shouldUseMajorProfileView(majorProfileRef("industry_research_kb"), "industry_report"),
+    ).toBe(false);
   });
 });

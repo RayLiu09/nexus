@@ -29,10 +29,16 @@ def registry() -> GovernanceRulesRegistry:
     value = GovernanceRulesRegistry()
     value.load_dict({
         "schema_version": "test",
-        "classifications": [{"code": "D4", "name": "教材", "description": "", "criteria": [], "primary_knowledge_type": "course_textbook"}],
+        "classifications": [
+            {"code": "D4", "name": "教材", "description": "", "criteria": [], "primary_knowledge_type": "course_textbook"},
+            {"code": "industry_report", "name": "产业报告", "description": "", "criteria": [], "primary_knowledge_type": "industry_research_kb"},
+        ],
         "levels": [{"code": "L2", "name": "内部", "description": "", "criteria": []}],
         "tags": [],
-        "knowledge_types": [{"code": "course_textbook", "name": "课程教材"}],
+        "knowledge_types": [
+            {"code": "course_textbook", "name": "课程教材"},
+            {"code": "industry_research_kb", "name": "行业研究知识库"},
+        ],
         "quality_scoring": {"dimensions": [{"name": "completeness", "weight": 1.0, "description": "", "check_items": []}], "thresholds": {"pass": 70, "warning": 50, "review_required_below": 50}, "confidence_threshold_auto_adopt": 0.8},
     })
     return value
@@ -90,6 +96,44 @@ def test_review_required_quality_does_not_queue_continuation(session, registry):
     outcome = GovernanceReviewService(registry).submit(session, base_result_id=base.id, submission=_submission("review_required"), reviewer_id=user.id, idempotency_key="review-2", trace_id="trace-review")
     assert outcome.version.version_status == AssetVersionStatus.REVIEW_REQUIRED
     assert outcome.continuation_job is None
+
+
+def test_review_suppresses_stale_major_profile_presentation(session, registry):
+    user, _version, ref, base = _seed(session)
+    ref.metadata_summary = {
+        "domain_profile": "major_profile.v1",
+        "domain_profiles": [{"major_code": "9085", "major_name": "号"}],
+        "major_profile_count": 1,
+    }
+    submission = parse_submission({
+        "classification": "industry_report",
+        "level": "L2",
+        "org_scope": "teaching",
+        "tags": {"topics": [{"value": "人才发展"}]},
+        "quality_review": {"disposition": "pass", "reason": "专家复核"},
+        "review_reason": "最终归类为产业报告",
+    })
+
+    outcome = GovernanceReviewService(registry).submit(
+        session,
+        base_result_id=base.id,
+        submission=submission,
+        reviewer_id=user.id,
+        idempotency_key="review-suppress-major-profile",
+        trace_id="trace-review-suppress-major-profile",
+    )
+
+    assert outcome.result.classification == "industry_report"
+    assert ref.metadata_summary["knowledge_emissions"][0]["code"] == "industry_research_kb"
+    assert "domain_profile" not in ref.metadata_summary
+    audits = session.query(models.AuditLog).filter_by(
+        trace_id="trace-review-suppress-major-profile"
+    ).all()
+    projection_audit = next(
+        audit for audit in audits
+        if audit.summary.get("action") == "presentation_projection_suppressed"
+    )
+    assert projection_audit.summary["official_classification"] == "industry_report"
 
 
 def test_stale_base_is_rejected(session, registry):

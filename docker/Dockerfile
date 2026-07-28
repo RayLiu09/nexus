@@ -1,7 +1,10 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker.m.daocloud.io/docker/dockerfile:1.7
 
 ARG PYTHON_VERSION=3.11-slim
 ARG NODE_VERSION=24-bookworm-slim
+ARG DOCKERHUB_MIRROR=docker.m.daocloud.io/library
+ARG PYPI_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ARG NPM_REGISTRY=https://registry.npmmirror.com
 
 # ---------------------------------------------------------------------------
 # nexus-api
@@ -9,11 +12,14 @@ ARG NODE_VERSION=24-bookworm-slim
 # Runtime image for nexus-api only. PostgreSQL, MinIO, MinerU, LiteLLM and
 # embedding services are external runtime dependencies configured by env vars.
 
-FROM python:${PYTHON_VERSION} AS nexus-api
+FROM ${DOCKERHUB_MIRROR}/python:${PYTHON_VERSION} AS nexus-api
+
+ARG PYPI_INDEX_URL
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     UV_LINK_MODE=copy \
+    UV_INDEX_URL=${PYPI_INDEX_URL} \
     PATH="/root/.local/bin:/app/nexus-api/.venv/bin:${PATH}"
 
 WORKDIR /app
@@ -39,18 +45,20 @@ CMD ["uv", "run", "uvicorn", "nexus_api.main:app", "--host", "0.0.0.0", "--port"
 # nexus-console
 # ---------------------------------------------------------------------------
 
-FROM node:${NODE_VERSION} AS nexus-console-builder
+FROM ${DOCKERHUB_MIRROR}/node:${NODE_VERSION} AS nexus-console-builder
+
+ARG NPM_REGISTRY
 
 WORKDIR /app/nexus-console
 
 COPY nexus-console/package.json nexus-console/package-lock.json ./
-RUN npm ci
+RUN npm ci --registry=${NPM_REGISTRY}
 
 COPY nexus-console ./
 RUN npm run build
 
 
-FROM node:${NODE_VERSION} AS nexus-console
+FROM ${DOCKERHUB_MIRROR}/node:${NODE_VERSION} AS nexus-console
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \

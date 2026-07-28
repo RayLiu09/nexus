@@ -14,7 +14,7 @@ import { MajorDistributionKnowledgeView } from "@/app/assets/[assetId]/_componen
 import { MajorProfileKnowledgeView } from "@/app/assets/[assetId]/_components/MajorProfileKnowledgeView";
 import { TeachingStandardKnowledgeView } from "@/app/assets/[assetId]/_components/TeachingStandardKnowledgeView";
 import { GenericRecordKnowledgeView } from "@/app/assets/[assetId]/_components/GenericRecordKnowledgeView";
-import { resolveRecordView } from "@/lib/api";
+import { resolveRecordView, shouldUseMajorProfileView } from "@/lib/api";
 import {
   formatDateTime,
   shortId,
@@ -244,7 +244,7 @@ function KnowledgeChunksTab({
     view === "teaching_standard" ||
     latestGovernanceResult?.classification === "teaching_standard" ||
     asset?.metadata_summary?.domain_profile === "teaching_standard.v1";
-  if (view === "major_profile" && latestRef) {
+  if (latestRef && shouldUseMajorProfileView(latestRef, latestGovernanceResult?.classification)) {
     return <MajorProfileKnowledgeView normalizedRefId={latestRef.id} />;
   }
   if (isTeachingStandard && latestRef) {

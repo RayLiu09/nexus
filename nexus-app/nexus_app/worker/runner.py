@@ -1602,9 +1602,6 @@ def execute_job(
     """
     settings = settings or get_settings()
     storage = storage or get_object_storage(settings)
-    mineru = mineru or get_mineru_adapter(settings)
-    if image_analyzer is None:
-        image_analyzer = get_image_analyzer(settings)
 
     # Refuse jobs whose payload schema this worker does not recognize.
     # Sends the row straight to the dead-letter state so an operator can decide
@@ -1667,6 +1664,10 @@ def execute_job(
         return
 
     pipeline_type = PipelineType(job.payload.get("pipeline_type", PipelineType.DOCUMENT))
+    if pipeline_type == PipelineType.DOCUMENT:
+        mineru = mineru or get_mineru_adapter(settings)
+        if image_analyzer is None:
+            image_analyzer = get_image_analyzer(settings)
 
     # ingest_validate stage — platform-level checks (MIME, size, extension) FIRST,
     # then for Pipeline B dispatch to a payload-loader / parser by MIME:

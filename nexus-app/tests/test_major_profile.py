@@ -17,6 +17,7 @@ from nexus_app.enums import (
 from nexus_app.knowledge.services import run_knowledge_pipeline
 from nexus_app.major_profile.schema import blocking_reasons_from_flags, validate_profile_payload
 from nexus_app.major_profile.extractor import extract
+from nexus_app.major_profile.presentation import reconcile_presentation
 from nexus_app.major_profile.writer import write, write_many
 
 
@@ -147,6 +148,29 @@ def test_extract_major_profile_sections_and_items() -> None:
     assert profile["quality_flags"] == {}
 
 
+def test_report_with_cip_number_and_professional_terms_is_not_major_profile() -> None:
+    """Publication metadata must not become a professional identity."""
+    blocks = [
+        _block("b1", "heading", "北京市人才发展报告 9085 号", 1),
+        _block("b2", "heading", "职业面向", 1),
+        _block("b3", "paragraph", "报告讨论人才服务机构的职业面向。", 1),
+        _block("b4", "heading", "培养目标", 2),
+        _block("b5", "paragraph", "报告分析人才培养目标。", 2),
+        _block("b6", "heading", "专业能力要求", 2),
+        _block("b7", "paragraph", "报告汇总专业能力要求的政策背景。", 2),
+        _block("b8", "heading", "课程设置", 3),
+        _block("b9", "paragraph", "报告比较课程设置与人才发展关系。", 3),
+    ]
+    payload = {
+        "content_type": "document",
+        "title": "北京市人才发展报告 9085 号",
+        "blocks": blocks,
+        "body_markdown": "\n\n".join(block["text"] for block in blocks),
+    }
+
+    assert extract(payload) is None
+
+
 def test_major_profile_schema_adds_blocking_quality_flags() -> None:
     profile = {
         "schema_version": "major_profile.v1",
@@ -168,6 +192,32 @@ def test_major_profile_schema_adds_blocking_quality_flags() -> None:
     assert validated["quality_flags"]["missing_ability_requirements"] is True
     assert validated["quality_flags"]["missing_core_courses"] is True
     assert "major_profile.missing_training_goal" in blocking_reasons_from_flags(flags)
+
+
+def test_reconcile_presentation_suppresses_incompatible_official_classification(session) -> None:
+    ref = _seed_ref(session)
+    ref.metadata_summary = {
+        "domain_profile": "major_profile.v1",
+        "domain_profiles": [{"major_code": "9085", "major_name": "号"}],
+        "major_profile_count": 1,
+        "knowledge_emissions": [{"code": "industry_research_kb"}],
+    }
+
+    detail = reconcile_presentation(ref, "industry_report")
+
+    assert detail is not None
+    assert detail["reason"] == "official_classification_incompatible"
+    assert "domain_profile" not in ref.metadata_summary
+    assert "domain_profiles" not in ref.metadata_summary
+    assert "major_profile_count" not in ref.metadata_summary
+    assert ref.metadata_summary["knowledge_emissions"] == [{"code": "industry_research_kb"}]
+
+
+def test_reconcile_presentation_keeps_legacy_program_profile(session) -> None:
+    ref = _seed_ref(session)
+
+    assert reconcile_presentation(ref, "program_profile") is None
+    assert ref.metadata_summary["domain_profile"] == "major_profile.v1"
 
 
 def test_extract_multiple_major_profiles_from_one_document() -> None:
