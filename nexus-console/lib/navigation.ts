@@ -64,8 +64,8 @@ export const navigation: Navigation = [
     label: "资产与治理",
     items: [
       { href: "/assets", label: "资产目录", icon: "▥" },
-      { href: "/governance", label: "治理中心", icon: "◈", badgeTone: "warning" },
       { href: "/tag-review", label: "治理审核", icon: "#", badgeTone: "warning" },
+      { href: "/governance", label: "治理追踪", icon: "◈" },
       { href: "/rules", label: "规则配置", icon: "≡", minRole: "data_steward" },
       { href: "/governance-prompts", label: "治理 Prompt", icon: "⬡", minRole: "data_steward" },
       { href: "/ai-prompts", label: "AI Prompt", icon: "AI", minRole: "data_steward" },

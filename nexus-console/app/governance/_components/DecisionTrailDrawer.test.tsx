@@ -2,12 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import type { GovernanceResultRead } from "../_lib/decisionTrail.types";
 
-const { fetchGovernanceResultForRefMock } = vi.hoisted(() => ({
-  fetchGovernanceResultForRefMock: vi.fn(),
+const { fetchGovernanceResultMock } = vi.hoisted(() => ({
+  fetchGovernanceResultMock: vi.fn(),
 }));
 
 vi.mock("../_lib/governanceResultApi", () => ({
-  fetchGovernanceResultForRef: fetchGovernanceResultForRefMock,
+  fetchGovernanceResult: fetchGovernanceResultMock,
 }));
 
 import { DecisionTrailDrawer } from "./DecisionTrailDrawer";
@@ -60,11 +60,11 @@ function makeResult(overrides: Partial<GovernanceResultRead> = {}): GovernanceRe
 
 describe("DecisionTrailDrawer", () => {
   beforeEach(() => {
-    fetchGovernanceResultForRefMock.mockReset();
+    fetchGovernanceResultMock.mockReset();
   });
 
   it("falls back to AI run tags when result.tags and trail final_value are empty", async () => {
-    fetchGovernanceResultForRefMock.mockResolvedValue({
+    fetchGovernanceResultMock.mockResolvedValue({
       ok: true,
       status: 200,
       data: makeResult(),
@@ -74,7 +74,7 @@ describe("DecisionTrailDrawer", () => {
     render(
       <DecisionTrailDrawer
         open
-        normalizedRefId="ref-1"
+        governanceResultId="result-1"
         onClose={() => {}}
         tagDictionary={{}}
         classificationDictionary={{ sector_report: "行业报告" }}
@@ -101,7 +101,7 @@ describe("DecisionTrailDrawer", () => {
   });
 
   it("normalizes threshold_check: drops empty valid_tags, exposes extracted_tag_count", async () => {
-    fetchGovernanceResultForRefMock.mockResolvedValue({
+    fetchGovernanceResultMock.mockResolvedValue({
       ok: true,
       status: 200,
       data: makeResult(),
@@ -111,7 +111,7 @@ describe("DecisionTrailDrawer", () => {
     render(
       <DecisionTrailDrawer
         open
-        normalizedRefId="ref-1"
+        governanceResultId="result-1"
         onClose={() => {}}
         tagDictionary={{}}
         classificationDictionary={{}}
@@ -120,7 +120,7 @@ describe("DecisionTrailDrawer", () => {
     );
 
     await waitFor(() => {
-      expect(fetchGovernanceResultForRefMock).toHaveBeenCalled();
+      expect(fetchGovernanceResultMock).toHaveBeenCalledWith("result-1", "full");
     });
 
     // Open every <details> threshold panel so contents are queryable
@@ -137,7 +137,7 @@ describe("DecisionTrailDrawer", () => {
   });
 
   it("uses committed result.tags when present and skips fallback", async () => {
-    fetchGovernanceResultForRefMock.mockResolvedValue({
+    fetchGovernanceResultMock.mockResolvedValue({
       ok: true,
       status: 200,
       data: makeResult({
@@ -164,7 +164,7 @@ describe("DecisionTrailDrawer", () => {
     render(
       <DecisionTrailDrawer
         open
-        normalizedRefId="ref-1"
+        governanceResultId="result-1"
         onClose={() => {}}
         tagDictionary={{}}
         classificationDictionary={{}}

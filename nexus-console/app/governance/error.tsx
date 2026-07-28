@@ -11,7 +11,7 @@ export default function GovernanceErrorPage({
 }) {
   return (
     <ErrorState
-      title="治理中心页面加载异常"
+      title="治理追踪页面加载异常"
       description={error.message || "数据加载失败，请重试。"}
       onRetry={reset}
     />

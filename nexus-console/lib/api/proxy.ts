@@ -23,6 +23,7 @@ export interface ProxySuccess<T> {
   status: number;
   data: T;
   traceId: string | null;
+  total: number | null;
   /** Response `ETag` header verbatim (used by NX-09 optimistic locking). */
   etag: string | null;
 }
@@ -35,7 +36,7 @@ interface BackendEnvelope<T> {
   data?: T;
   error?: { message?: string };
   detail?: unknown;
-  meta?: { trace_id?: string };
+  meta?: { trace_id?: string; total?: number | null };
 }
 
 export interface ProxyOptions {
@@ -111,6 +112,7 @@ async function readEnvelope<T>(response: Response): Promise<ProxyResult<T>> {
     status: response.status,
     data: body.data as T,
     traceId: body.meta?.trace_id ?? null,
+    total: body.meta?.total ?? null,
     etag,
   };
 }

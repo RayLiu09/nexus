@@ -1,31 +1,37 @@
 import { PageHeader } from "@/components/PageHeader";
-import { GovernanceContent } from "./_components/GovernanceContent";
+import { Button } from "antd";
+import { GovernanceTrackingContent, type GovernanceTrace } from "./_components/GovernanceTrackingContent";
 import { getApiData } from "@/lib/api";
-import type { GovernanceRun } from "./_lib/types";
 import { buildTagDictionary, type TagDictionaryEntry } from "@/lib/tagLabels";
 import { buildClassificationDictionary, type ClassificationDictionaryEntry } from "@/lib/classificationLabels";
+import { buildLevelDictionary, type LevelDictionaryEntry } from "@/lib/levelLabels";
 
 export const dynamic = "force-dynamic";
 
 export default async function GovernancePage() {
   const [result, rulesResult] = await Promise.all([
-    getApiData<GovernanceRun[]>("/internal/v1/ai/governance-runs", [], { pageSize: "100" }),
-    getApiData<{ classifications?: ClassificationDictionaryEntry[]; tags?: TagDictionaryEntry[] }>("/internal/v1/admin/governance-rules", {}),
+    getApiData<GovernanceTrace[]>("/internal/v1/governance-traces", [], { pageSize: "20" }),
+    getApiData<{ classifications?: ClassificationDictionaryEntry[]; levels?: LevelDictionaryEntry[]; tags?: TagDictionaryEntry[] }>("/internal/v1/admin/governance-rules", {}),
   ]);
   const tagDictionary = buildTagDictionary(rulesResult.data.tags);
   const classificationDictionary = buildClassificationDictionary(rulesResult.data.classifications);
+  const levelDictionary = buildLevelDictionary(rulesResult.data.levels);
 
   return (
     <>
       <PageHeader
-        eyebrow="资产与治理 — AI + 规则 + 人工协同"
-        title="治理运营中心"
-        description="以任务和裁定为中心组织。待复核队列以卡片呈现，优先级排序，支持完整的裁定交互闭环。标签审核已独立至「标签审核」页面。"
+        eyebrow="资产与治理"
+        title="治理追踪"
+        description="查看正式治理结果、人工审核结论及字段级决策证据。"
+        actions={<Button type="primary" href="/tag-review">进入治理审核</Button>}
       />
-      <GovernanceContent
-        runs={result.data}
+      <GovernanceTrackingContent
+        initialRows={result.data}
+        initialTotal={result.total ?? result.data.length}
+        error={result.ok ? null : result.error}
         tagDictionary={tagDictionary}
         classificationDictionary={classificationDictionary}
+        levelDictionary={levelDictionary}
       />
     </>
   );

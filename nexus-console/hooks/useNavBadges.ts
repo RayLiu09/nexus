@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 interface NavBadges {
-  governancePendingCount: number;
   tagReviewPendingCount: number;
 }
 
@@ -11,7 +10,6 @@ const POLL_INTERVAL_MS = 30_000;
 
 export function useNavBadges(): NavBadges {
   const [badges, setBadges] = useState<NavBadges>({
-    governancePendingCount: 0,
     tagReviewPendingCount: 0,
   });
   const mountedRef = useRef(true);

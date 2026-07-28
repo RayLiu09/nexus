@@ -24,7 +24,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const navBadges = useNavBadges();
 
   const badgeOverrides: Record<string, number> = {
-    "/governance": navBadges.governancePendingCount,
     "/tag-review": navBadges.tagReviewPendingCount,
   };
 

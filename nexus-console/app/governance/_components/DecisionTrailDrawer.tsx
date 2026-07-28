@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * DecisionTrailDrawer — 按 normalized_ref_id 拉取 GovernanceResult 并按角色脱敏展示 decision_trail。
+ * DecisionTrailDrawer — 按 governance_result_id 精确读取历史结果并按角色脱敏展示 decision_trail。
  *
  * 视图角色与后端对齐：
  * - full / operator / public（见 decisionTrail.types.ts）。
@@ -33,7 +33,7 @@ import type {
   DecisionTrailView,
   GovernanceResultRead,
 } from "../_lib/decisionTrail.types";
-import { fetchGovernanceResultForRef } from "../_lib/governanceResultApi";
+import { fetchGovernanceResult } from "../_lib/governanceResultApi";
 import { tagLabel, type TagDictionary } from "@/lib/tagLabels";
 import { extractGovernanceTags } from "@/lib/governance-tags";
 import { classificationLabel, type ClassificationDictionary } from "@/lib/classificationLabels";
@@ -65,7 +65,7 @@ const REDACTED_TOKEN = "***redacted***";
 
 interface DecisionTrailDrawerProps {
   open: boolean;
-  normalizedRefId: string | null;
+  governanceResultId: string | null;
   onClose: () => void;
   tagDictionary: TagDictionary;
   classificationDictionary: ClassificationDictionary;
@@ -75,7 +75,7 @@ interface DecisionTrailDrawerProps {
 
 export function DecisionTrailDrawer({
   open,
-  normalizedRefId,
+  governanceResultId,
   onClose,
   tagDictionary,
   classificationDictionary,
@@ -86,10 +86,10 @@ export function DecisionTrailDrawer({
   const [result, setResult] = useState<GovernanceResultRead | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (refId: string, v: DecisionTrailView) => {
+  const load = useCallback(async (resultId: string, v: DecisionTrailView) => {
     setLoading(true);
     setError(null);
-    const r = await fetchGovernanceResultForRef(refId, v);
+    const r = await fetchGovernanceResult(resultId, v);
     if (r.ok) {
       setResult(r.data);
     } else {
@@ -103,10 +103,10 @@ export function DecisionTrailDrawer({
   }, []);
 
   useEffect(() => {
-    if (open && normalizedRefId) {
-      load(normalizedRefId, view);
+    if (open && governanceResultId) {
+      load(governanceResultId, view);
     }
-  }, [open, normalizedRefId, view, load]);
+  }, [open, governanceResultId, view, load]);
 
   // 关闭时重置视图，避免下次打开沿用上次切换（在事件处理器中触发，避免 effect 引发级联渲染）
   const handleClose = useCallback(() => {
@@ -180,8 +180,8 @@ function DrawerBody({
   // Merge tags: prefer committed result tags, fall back to AI run output tags
   const resolvedTags: string[] = (() => {
     if (Array.isArray(result.tags) && result.tags.length > 0) return result.tags;
-    const structured = result.tags_structured ?? (typeof result.tags === "object" ? result.tags : null);
-    if (structured && typeof structured === "object") {
+    const structured = result.tags_structured ?? (!Array.isArray(result.tags) && typeof result.tags === "object" ? result.tags : null);
+    if (structured && typeof structured === "object" && !Array.isArray(structured)) {
       return Object.values(structured).flatMap((bucket) => Array.isArray(bucket)
         ? bucket.map((item) => typeof item === "object" && item !== null && "value" in item ? String(item.value) : "").filter(Boolean)
         : []);

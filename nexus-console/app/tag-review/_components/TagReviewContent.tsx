@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, App, Button, Drawer, Form, Input, Select, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { EditOutlined } from "@ant-design/icons";
 import { AssetRefCell } from "@/components/shared/AssetRefCell";
+import { classificationLabel, type ClassificationDictionary } from "@/lib/classificationLabels";
+import { levelLabel, type LevelDictionary } from "@/lib/levelLabels";
 
 type TagEntry = { value: string };
 type StructuredTags = Record<string, TagEntry[]> & { time_ranges?: unknown[] };
@@ -31,6 +33,8 @@ interface Props {
   ok: boolean;
   error: string | null;
   traceId: string | null;
+  classificationDictionary: ClassificationDictionary;
+  levelDictionary: LevelDictionary;
 }
 
 const TAG_BUCKETS = ["regions", "industries", "occupations", "majors", "abilities", "topics"] as const;
@@ -61,13 +65,35 @@ function buildTags(values: Record<string, string>): StructuredTags {
   return tags;
 }
 
-export default function TagReviewContent({ initialItems, ok, error, traceId }: Props) {
+export default function TagReviewContent({
+  initialItems,
+  ok,
+  error,
+  traceId,
+  classificationDictionary,
+  levelDictionary,
+}: Props) {
   const [items, setItems] = useState(initialItems);
   const [item, setItem] = useState<GovernanceReviewItem | null>(null);
   const [context, setContext] = useState<ReviewContext | null>(null);
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm<Record<string, string>>();
   const { message } = App.useApp();
+
+  useEffect(() => {
+    if (!item) return;
+    // The form is conditional on `item`; populate it only after Drawer/Form mount.
+    form.setFieldsValue({
+      classification: item.classification ?? "",
+      level: item.level ?? "",
+      org_scope: item.org_scope ?? "",
+      quality_disposition: "pass",
+      quality_reason: "",
+      review_reason: "",
+      ...Object.fromEntries(TAG_BUCKETS.map((bucket) => [bucket, asText(item.tags, bucket)])),
+      time_ranges: "",
+    });
+  }, [form, item]);
 
   const openReview = async (row: GovernanceReviewItem) => {
     setLoading(true);
@@ -77,16 +103,6 @@ export default function TagReviewContent({ initialItems, ok, error, traceId }: P
       if (!res.ok || !envelope.data) throw new Error(envelope.error?.message ?? "无法加载审核上下文");
       setContext(envelope.data);
       setItem(row);
-      form.setFieldsValue({
-        classification: row.classification ?? "",
-        level: row.level ?? "",
-        org_scope: row.org_scope ?? "",
-        quality_disposition: "pass",
-        quality_reason: "",
-        review_reason: "",
-        ...Object.fromEntries(TAG_BUCKETS.map((bucket) => [bucket, asText(row.tags, bucket)])),
-        time_ranges: "",
-      });
     } catch (err) {
       message.error(err instanceof Error ? err.message : "无法加载审核上下文");
     } finally { setLoading(false); }
@@ -124,18 +140,28 @@ export default function TagReviewContent({ initialItems, ok, error, traceId }: P
 
   const columns: ColumnsType<GovernanceReviewItem> = [
     { title: "数据资产", render: (_v, row) => <AssetRefCell title={row.asset_title} assetId={row.asset_id} normalizedRefId={row.normalized_ref_id} /> },
-    { title: "数据分类", dataIndex: "classification", width: 120, render: (value) => value || "未确定" },
-    { title: "数据分级", dataIndex: "level", width: 100, render: (value) => value || "未确定" },
+    {
+      title: "数据分类",
+      dataIndex: "classification",
+      width: 120,
+      render: (value: string | null) => displayClassification(value, classificationDictionary),
+    },
+    {
+      title: "数据分级",
+      dataIndex: "level",
+      width: 100,
+      render: (value: string | null) => displayLevel(value, levelDictionary),
+    },
     { title: "当前标签", dataIndex: "tags", render: (tags: StructuredTags) => <>{TAG_BUCKETS.flatMap((bucket) => tags[bucket] ?? []).map((entry) => <Tag key={entry.value}>{entry.value}</Tag>)}</> },
     { title: "操作", width: 84, render: (_v, row) => <Button size="small" icon={<EditOutlined />} loading={loading && item?.governance_result_id === row.governance_result_id} onClick={() => void openReview(row)}>审核</Button> },
   ];
 
   return <div style={{ display: "grid", gap: 16 }}>
-    {!ok && <Alert type="error" showIcon message="治理审核队列加载失败" description={`${error ?? "未知错误"}${traceId ? `（trace: ${traceId}）` : ""}`} />}
+    {!ok && <Alert type="error" showIcon title="治理审核队列加载失败" description={`${error ?? "未知错误"}${traceId ? `（trace: ${traceId}）` : ""}`} />}
     <div className="content-panel"><Table rowKey="governance_result_id" dataSource={items} columns={columns} pagination={{ pageSize: 20 }} locale={{ emptyText: "暂无待治理审核资产" }} /></div>
     <Drawer title="治理审核" open={Boolean(item)} onClose={() => setItem(null)} size="large" destroyOnClose extra={<Button type="primary" loading={loading} onClick={() => void submit()}>提交治理结论</Button>}>
       {item && <Form form={form} layout="vertical" requiredMark="optional">
-        <Alert type="info" showIcon style={{ marginBottom: 16 }} message="提交后将生成不可变治理结论和新的官方治理快照。" />
+        <Alert type="info" showIcon style={{ marginBottom: 16 }} title="提交后将生成不可变治理结论和新的官方治理快照。" />
         <Form.Item label="数据分类" name="classification" rules={[{ required: true, message: "请选择数据分类" }]}><Select options={(context?.rules.classifications ?? []).map((entry) => ({ value: entry.code, label: entry.name ?? entry.label ?? entry.code }))} /></Form.Item>
         <Form.Item label="数据分级" name="level" rules={[{ required: true, message: "请选择数据分级" }]}><Select options={(context?.rules.levels ?? []).map((entry) => ({ value: entry.code, label: entry.name ?? entry.label ?? entry.code }))} /></Form.Item>
         <Form.Item label="组织范围" name="org_scope" rules={[{ required: true, message: "请填写组织范围" }]}><Input /></Form.Item>
@@ -147,4 +173,16 @@ export default function TagReviewContent({ initialItems, ok, error, traceId }: P
       </Form>}
     </Drawer>
   </div>;
+}
+
+function displayClassification(value: string | null, dictionary: ClassificationDictionary): string {
+  if (!value) return "未确定";
+  const label = classificationLabel(value, dictionary);
+  return label === value ? "未识别分类" : label;
+}
+
+function displayLevel(value: string | null, dictionary: LevelDictionary): string {
+  if (!value) return "未确定";
+  const label = levelLabel(value, dictionary);
+  return label === value ? "未识别分级" : label;
 }
