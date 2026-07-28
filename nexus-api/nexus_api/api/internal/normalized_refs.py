@@ -328,6 +328,11 @@ def get_knowledge_chunk_preview(
             "asset_id": version.asset_id if version is not None else None,
             "version_id": ref.version_id,
             "normalized_type": normalized_type,
+            "source_mime_type": (
+                version.raw_object.mime_type
+                if version is not None and version.raw_object is not None
+                else None
+            ),
         },
         "source": {
             "body_markdown": payload.get("body_markdown") or None,

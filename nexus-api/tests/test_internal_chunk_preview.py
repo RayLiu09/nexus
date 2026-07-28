@@ -51,6 +51,7 @@ def _seed_asset(session, *, raw_mime="application/pdf"):
         object_uri="s3://bucket/normalized/ref-preview.json",
         schema_version="v1", checksum="sha256:norm", status="generated",
         block_count=2, record_count=0,
+        content_type=raw_mime,
         governance={}, quality={}, lineage={}, metadata_summary={},
     )
     session.add_all([ds, batch, raw, asset, version, ref])
@@ -162,6 +163,7 @@ class TestInternalChunkPreview:
         assert resp.status_code == 200
         data = resp.json()["data"]
         assert data["chunk"]["id"] == chunk.id
+        assert data["normalized_ref"]["source_mime_type"] == "application/pdf"
         assert data["source"]["body_markdown"] == payload["body_markdown"]
         assert data["highlight"]["markdown_ranges"] == [
             {"start": 30, "end": 70, "block_id": None}
@@ -198,6 +200,27 @@ class TestInternalChunkPreview:
             {"start": 1, "end": 3, "block_id": "a"},
             {"start": 5, "end": 9, "block_id": "b"},
         ]
+
+    def test_preview_exposes_office_source_mime_for_console_routing(self, app, session, monkeypatch):
+        _, _, _, ref = _seed_asset(
+            session,
+            raw_mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+        chunk = _make_chunk(ref.id)
+        session.add(chunk)
+        session.commit()
+
+        class FakeStorage:
+            def get_bytes(self, key):  # noqa: ARG002
+                return json.dumps({"body_markdown": "# DOCX", "blocks": []}).encode("utf-8")
+
+        monkeypatch.setattr("nexus_app.storage.get_object_storage", lambda settings=None: FakeStorage())
+
+        resp = TestClient(app).get(f"/internal/v1/knowledge-chunks/{chunk.id}/preview")
+        assert resp.status_code == 200
+        assert resp.json()["data"]["normalized_ref"]["source_mime_type"] == (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
 
     def test_page_image_rejects_non_pdf_raw_object(self, app, session):
         _, _, _, ref = _seed_asset(session, raw_mime="text/plain")

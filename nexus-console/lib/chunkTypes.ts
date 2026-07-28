@@ -148,6 +148,8 @@ export interface ChunkPreviewResponse {
     asset_id: string | null;
     version_id: string;
     normalized_type: "document" | "record" | string;
+    /** Original raw-object MIME used to route the source preview. */
+    source_mime_type?: string | null;
   };
   source: {
     body_markdown: string | null;

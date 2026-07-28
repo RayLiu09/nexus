@@ -391,6 +391,12 @@ function PageAnchorPanel({ preview }: { preview: ChunkPreviewResponse }) {
     setImageError(false);
   }, [anchor?.page, anchor?.bbox?.join(",")]);
 
+  const isPdf = preview.normalized_ref.source_mime_type?.toLowerCase() === "application/pdf";
+
+  if (!isPdf) {
+    return <OfficeAnchorPanel preview={preview} anchors={anchors} activeIndex={activeIndex} setActiveIndex={setActiveIndex} />;
+  }
+
   if (!anchor) {
     return (
       <section>
@@ -467,6 +473,103 @@ function PageAnchorPanel({ preview }: { preview: ChunkPreviewResponse }) {
       )}
     </section>
   );
+}
+
+function OfficeAnchorPanel({
+  preview,
+  anchors,
+  activeIndex,
+  setActiveIndex,
+}: {
+  preview: ChunkPreviewResponse;
+  anchors: PageAnchor[];
+  activeIndex: number;
+  setActiveIndex: (index: number) => void;
+}) {
+  const anchor = anchors[activeIndex] ?? null;
+  const sourceBlocks = preview.source.blocks ?? [];
+  const block = anchor?.block_id
+    ? sourceBlocks.find((item) => item.block_id === anchor.block_id) ?? null
+    : null;
+  const content = block?.content ?? block?.text ?? null;
+  const format = officeFormatLabel(preview.normalized_ref.source_mime_type);
+
+  return (
+    <section style={{ position: "sticky", top: 0 }}>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <Typography.Title level={5} className="!mb-0">
+          {format} 文档定位
+        </Typography.Title>
+        <Space size={4} wrap>
+          {anchor ? <Tag>p{anchor.page}</Tag> : null}
+          {anchors.length > 1 ? <Tag color="processing">{activeIndex + 1}/{anchors.length}</Tag> : null}
+          {anchor?.block_id ? <Tag className="font-mono text-xs">{anchor.block_id}</Tag> : null}
+        </Space>
+      </div>
+
+      {anchors.length > 1 ? (
+        <div className="mb-2 flex flex-wrap gap-1">
+          {anchors.map((item, index) => (
+            <button
+              key={`${item.page}-${item.block_id ?? "block"}-${index}`}
+              type="button"
+              onClick={() => setActiveIndex(index)}
+              className="rounded border border-[var(--line)] px-2 py-1 text-xs hover:border-[var(--line-strong)]"
+              style={{
+                background: index === activeIndex ? "var(--brand-50)" : "#fff",
+                color: index === activeIndex ? "var(--brand-700)" : "var(--text-muted)",
+              }}
+            >
+              p{item.page}{item.block_id ? ` · ${item.block_id}` : ""}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <Alert
+        className="!mb-3"
+        type="info"
+        showIcon
+        title={`${format} 不提供 PDF 页面截图，已使用标准化原文定位。`}
+      />
+
+      {content ? (
+        <pre
+          style={{
+            margin: 0,
+            maxHeight: "56vh",
+            overflow: "auto",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            border: "1px solid var(--line)",
+            borderRadius: "var(--radius-md)",
+            padding: "var(--space-3)",
+            background: "var(--gray-50)",
+            fontSize: 12,
+            lineHeight: 1.7,
+          }}
+        >
+          {content}
+        </pre>
+      ) : (
+        <Alert
+          type="info"
+          showIcon
+          title={
+            anchor
+              ? "该定位未匹配到独立 Block 文本，请查看左侧 Markdown 高亮原文。"
+              : "该知识块没有页面 Block 坐标，请查看左侧 Markdown 高亮原文。"
+          }
+        />
+      )}
+    </section>
+  );
+}
+
+function officeFormatLabel(contentType: string | null | undefined): "DOCX" | "PPTX" | "Office" {
+  if (contentType?.includes("presentationml")) return "PPTX";
+  if (contentType?.includes("wordprocessingml")) return "DOCX";
+  return "Office";
 }
 
 function SemanticContextPanel({

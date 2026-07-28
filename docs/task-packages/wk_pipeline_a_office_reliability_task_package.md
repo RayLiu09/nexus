@@ -30,9 +30,13 @@ quality signals to the existing normalization/governance path.
   classification remains owned by AI governance's active registry and rules.
 - Existing Console upload accept lists and raw-ledger MIME label mapping for
   the already-supported PPTX intake path.
+- Existing Console knowledge-chunk preview: route PDF locators to page-image
+  rendering and DOCX/PPTX locators to normalized Markdown/Block previews.
 - The real-sample E2E harness preflight, limited to validating only the
   pipeline feature flags required by files selected for the current run.
 - Focused MinerU, Pipeline A, normalize, and routing regression tests.
+- Existing internal chunk-preview response may add source MIME metadata; no
+  new business-facing endpoint or raw-file preview endpoint is introduced.
 
 ## Out Of Scope
 
@@ -65,6 +69,9 @@ quality signals to the existing normalization/governance path.
 
 - DOCX/PPTX keep `pipeline_type=document`, parse with the existing `pipeline`
   backend, and normalize to `normalized_document`.
+- DOCX/PPTX chunk locators display normalized source Markdown/Block content in
+  the Console without attempting a PDF page-image request; PDF preview keeps
+  its existing page-image behavior.
 - A ZIP with incidental JSON files selects the actual parse payload, not the
   first archive entry.
 - Same-basename images from distinct archive paths both persist without path
