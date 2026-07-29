@@ -75,7 +75,7 @@ def build_teaching_standard(
 def build_course_standard(
     payload: dict[str, object],
 ) -> tuple[list[NodeSpec], list[EdgeSpec]]:
-    """Build `Course -> Module -> Content -> Skill -> Knowledge` from table rows."""
+    """Build course content with parallel skill and knowledge requirements."""
     course_title = str(payload.get("course_title") or "").strip()
     source_title = str(payload.get("source_title") or course_title).strip()
     rows = payload.get("rows")
@@ -129,13 +129,13 @@ def build_course_standard(
                 skill_key = (NodeType.SKILL_REQUIREMENT, f"{content_key[1]}:skill:{skill_index}:{skill_text}")
                 nodes.append(NodeSpec(*skill_key, display_name=skill_text, source_table="normalized_document", properties={"table_row_index": row_index, "source_block_ids": evidence.get("source_block_ids", [])}))
                 edges.append(EdgeSpec(EdgeType.COURSE_CONTENT_HAS_SKILL_REQUIREMENT, content_key, skill_key, source_table="normalized_document", evidence=evidence))
-                for knowledge_index, item in enumerate(knowledge, start=1):
-                    knowledge_text = str(item).strip()
-                    if not knowledge_text:
-                        continue
-                    knowledge_key = (NodeType.KNOWLEDGE_REQUIREMENT, f"{skill_key[1]}:knowledge:{knowledge_index}:{knowledge_text}")
-                    nodes.append(NodeSpec(*knowledge_key, display_name=knowledge_text, source_table="normalized_document", properties={"table_row_index": row_index, "source_block_ids": evidence.get("source_block_ids", [])}))
-                    edges.append(EdgeSpec(EdgeType.SKILL_REQUIREMENT_HAS_KNOWLEDGE_REQUIREMENT, skill_key, knowledge_key, source_table="normalized_document", evidence=evidence))
+            for knowledge_index, item in enumerate(knowledge, start=1):
+                knowledge_text = str(item).strip()
+                if not knowledge_text:
+                    continue
+                knowledge_key = (NodeType.KNOWLEDGE_REQUIREMENT, f"{content_key[1]}:knowledge:{knowledge_index}:{knowledge_text}")
+                nodes.append(NodeSpec(*knowledge_key, display_name=knowledge_text, source_table="normalized_document", properties={"table_row_index": row_index, "source_block_ids": evidence.get("source_block_ids", [])}))
+                edges.append(EdgeSpec(EdgeType.COURSE_CONTENT_HAS_KNOWLEDGE_REQUIREMENT, content_key, knowledge_key, source_table="normalized_document", evidence=evidence))
     return nodes, edges
 
 

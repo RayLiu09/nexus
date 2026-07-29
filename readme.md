@@ -114,7 +114,8 @@ Root documents are distilled implementation contracts:
 - Evidence-bound standard-document capability graphs: professional teaching
   standards retain the existing professional/occupational-task topology; course
   standards with a normalized course-content table produce a separate
-  `Course -> CourseModule -> CourseContent -> SkillRequirement -> KnowledgeRequirement`
+  `Course -> CourseModule -> CourseContent`, with parallel skill and knowledge
+  requirement leaves under each course content,
   staging graph. Table columns use controlled aliases (such as `项目`/`章` for
   modules and `教学任务`/`工作任务` for course content), may be reordered or
   presented as two-row headers, and require an `学时`/`课时` structure anchor.

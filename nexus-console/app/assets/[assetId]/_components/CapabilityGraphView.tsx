@@ -1,13 +1,12 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Card,
   Checkbox,
   Drawer,
   Empty,
-  Segmented,
   Select,
   Skeleton,
   Tag,
@@ -90,7 +89,7 @@ const EDGE_TYPES_BY_BUILD: Record<CapabilityGraphBuildType, string[]> = {
     "COURSE_HAS_COURSE_MODULE",
     "COURSE_MODULE_HAS_COURSE_CONTENT",
     "COURSE_CONTENT_HAS_SKILL_REQUIREMENT",
-    "SKILL_REQUIREMENT_HAS_KNOWLEDGE_REQUIREMENT",
+    "COURSE_CONTENT_HAS_KNOWLEDGE_REQUIREMENT",
   ],
 };
 
@@ -169,7 +168,7 @@ const EDGE_LABELS: Record<string, string> = {
   COURSE_HAS_COURSE_MODULE: "课程包含课程模块",
   COURSE_MODULE_HAS_COURSE_CONTENT: "课程模块包含课程内容",
   COURSE_CONTENT_HAS_SKILL_REQUIREMENT: "课程内容要求技能",
-  SKILL_REQUIREMENT_HAS_KNOWLEDGE_REQUIREMENT: "技能要求关联知识要求",
+  COURSE_CONTENT_HAS_KNOWLEDGE_REQUIREMENT: "课程内容要求知识",
 };
 
 // v1 岗位过滤 sentinel — Antd Select 需要一个可比较的常量值来表示"全部岗位"。
@@ -191,7 +190,7 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
   // 岗位过滤仅在 job_demand 场景下生效；null 表示尚未初始化，JOB_ROLE_ALL 表示不过滤。
   // 数据集通常包含多个 JobRole，默认收窄到第一个避免图谱噪声（业务需求）。
   const [selectedJobRoleId, setSelectedJobRoleId] = useState<string | null>(null);
-  const [courseTreeDepth, setCourseTreeDepth] = useState(3);
+  const [expandedCourseContentIds, setExpandedCourseContentIds] = useState<Set<string>>(new Set());
   const graphRef = useRef<GraphImageHandle | null>(null);
 
   useEffect(() => {
@@ -265,6 +264,7 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
   useEffect(() => {
     setSelectedNode(null);
     setSelectedJobRoleId(null);
+    setExpandedCourseContentIds(new Set());
   }, [buildType, normalizedRefId]);
 
   // 排序仅按 display_name 稳定字典序，避免后端返回顺序不确定导致默认岗位漂移。
@@ -344,14 +344,27 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
   );
 
   const courseTreeGraph = useMemo(
-    () => buildCourseTreeSubgraph(filteredNodes, filteredEdges, courseTreeDepth),
-    [courseTreeDepth, filteredEdges, filteredNodes],
+    () => buildCourseTreeSubgraph(filteredNodes, filteredEdges, expandedCourseContentIds),
+    [expandedCourseContentIds, filteredEdges, filteredNodes],
   );
   const displayedNodes = buildType === "course_standard" ? courseTreeGraph.nodes : filteredNodes;
   const displayedEdges = buildType === "course_standard" ? courseTreeGraph.edges : filteredEdges;
 
   const isTruncated =
     state.nodes.length < state.nodesTotal || state.edges.length < state.edgesTotal;
+
+  const handleGraphNodeSelect = useCallback((node: CapabilityGraphStagingNode) => {
+    if (buildType === "course_standard" && node.node_type === "CourseContent") {
+      setExpandedCourseContentIds((current) => {
+        const next = new Set(current);
+        if (next.has(node.id)) next.delete(node.id);
+        else next.add(node.id);
+        return next;
+      });
+      return;
+    }
+    setSelectedNode(node);
+  }, [buildType]);
 
   return (
     <Card
@@ -371,7 +384,7 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
                 edges={displayedEdges}
                 buildType={buildType}
                 showEdgeLabels={showEdgeLabels}
-                onNodeSelect={setSelectedNode}
+                onNodeSelect={handleGraphNodeSelect}
                 fullscreen
               />
             </GraphViewportActions>
@@ -396,25 +409,22 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
             />
           ) : null}
 
-          <GraphToolbar
-            showEdgeLabels={showEdgeLabels}
-            onShowEdgeLabelsChange={setShowEdgeLabels}
-            jobRoleFilter={
-              buildType === "job_demand" && jobRoleNodes.length >= 2
-                ? {
-                    options: jobRoleNodes,
-                    value: selectedJobRoleId ?? JOB_ROLE_ALL,
-                    onChange: setSelectedJobRoleId,
-                    subgraphNodeCount: jobRoleSubgraphNodeIds?.size ?? null,
-                  }
-                : null
-            }
-            courseTreeDepth={
-              buildType === "course_standard"
-                ? { value: courseTreeDepth, onChange: setCourseTreeDepth }
-                : null
-            }
-          />
+          {buildType !== "course_standard" ? (
+            <GraphToolbar
+              showEdgeLabels={showEdgeLabels}
+              onShowEdgeLabelsChange={setShowEdgeLabels}
+              jobRoleFilter={
+                buildType === "job_demand" && jobRoleNodes.length >= 2
+                  ? {
+                      options: jobRoleNodes,
+                      value: selectedJobRoleId ?? JOB_ROLE_ALL,
+                      onChange: setSelectedJobRoleId,
+                      subgraphNodeCount: jobRoleSubgraphNodeIds?.size ?? null,
+                    }
+                  : null
+              }
+            />
+          ) : null}
 
           {displayedNodes.length === 0 ? (
             <Empty description="当前筛选条件下无图谱节点" image={Empty.PRESENTED_IMAGE_SIMPLE} />
@@ -425,7 +435,7 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
               edges={displayedEdges}
               buildType={buildType}
               showEdgeLabels={showEdgeLabels}
-              onNodeSelect={setSelectedNode}
+              onNodeSelect={handleGraphNodeSelect}
             />
           )}
 
@@ -451,23 +461,16 @@ type JobRoleFilterProps = {
   subgraphNodeCount: number | null;
 };
 
-type CourseTreeDepthProps = {
-  value: number;
-  onChange: (value: number) => void;
-};
-
 function GraphToolbar({
   showEdgeLabels,
   onShowEdgeLabelsChange,
   jobRoleFilter,
-  courseTreeDepth,
 }: {
   showEdgeLabels: boolean;
   onShowEdgeLabelsChange: (value: boolean) => void;
   jobRoleFilter: JobRoleFilterProps | null;
-  courseTreeDepth: CourseTreeDepthProps | null;
 }) {
-  const layout = jobRoleFilter || courseTreeDepth
+  const layout = jobRoleFilter
     ? "grid grid-cols-1 gap-2 lg:grid-cols-[minmax(220px,1fr)_auto]"
     : "flex justify-end";
   return (
@@ -494,18 +497,6 @@ function GraphToolbar({
             </span>
           ) : null}
         </div>
-      ) : null}
-      {courseTreeDepth ? (
-        <Segmented
-          value={courseTreeDepth.value}
-          onChange={(value) => courseTreeDepth.onChange(Number(value))}
-          options={[
-            { label: "3级", value: 3 },
-            { label: "4级", value: 4 },
-            { label: "5级", value: 5 },
-          ]}
-          aria-label="课程知识图谱展开层级"
-        />
       ) : null}
       <Checkbox
         checked={showEdgeLabels}
@@ -943,7 +934,7 @@ function teachingStandardRadialPositions(
 function buildCourseTreeSubgraph(
   nodes: GraphDisplayNode[],
   edges: GraphDisplayEdge[],
-  maxDepth: number,
+  expandedContentIds: Set<string>,
 ): { nodes: GraphDisplayNode[]; edges: GraphDisplayEdge[] } {
   const root = nodes.find((node) => node.node_type === "Course");
   if (!root) return { nodes, edges };
@@ -954,11 +945,16 @@ function buildCourseTreeSubgraph(
     children.set(edge.source_node_id, targets);
   }
   const visibleIds = new Set<string>([root.id]);
-  let frontier = [root.id];
-  for (let depth = 1; depth < maxDepth; depth += 1) {
-    const next = frontier.flatMap((nodeId) => children.get(nodeId) ?? []);
-    next.forEach((nodeId) => visibleIds.add(nodeId));
-    frontier = next;
+  const moduleIds = children.get(root.id) ?? [];
+  moduleIds.forEach((nodeId) => visibleIds.add(nodeId));
+  for (const moduleId of moduleIds) {
+    const contentIds = children.get(moduleId) ?? [];
+    contentIds.forEach((nodeId) => visibleIds.add(nodeId));
+    for (const contentId of contentIds) {
+      if (expandedContentIds.has(contentId)) {
+        (children.get(contentId) ?? []).forEach((nodeId) => visibleIds.add(nodeId));
+      }
+    }
   }
   return {
     nodes: nodes.filter((node) => visibleIds.has(node.id)),

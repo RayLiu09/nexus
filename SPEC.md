@@ -45,7 +45,8 @@ Role constraints:
   (including `课程模块`/`项目`, `教学任务`/`工作任务`, `技能要求`/`技能内容`, and
   `知识要求`/`知识内容`), plus an `学时` or `课时` structure anchor; columns may
   be reordered or use a two-row header, and
-  project `Course -> CourseModule -> CourseContent -> SkillRequirement -> KnowledgeRequirement`.
+  project `Course -> CourseModule -> CourseContent`, with parallel
+  `SkillRequirement` and `KnowledgeRequirement` children under each course content.
   The course root uses the normalized-document title after special-symbol and
   terminal `课程标准` suffix removal.
   A missing or incomplete table is traceably skipped rather than inferred.

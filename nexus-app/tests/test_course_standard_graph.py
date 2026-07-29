@@ -87,7 +87,7 @@ def test_builds_only_frozen_course_standard_topology():
         EdgeType.COURSE_HAS_COURSE_MODULE,
         EdgeType.COURSE_MODULE_HAS_COURSE_CONTENT,
         EdgeType.COURSE_CONTENT_HAS_SKILL_REQUIREMENT,
-        EdgeType.SKILL_REQUIREMENT_HAS_KNOWLEDGE_REQUIREMENT,
+        EdgeType.COURSE_CONTENT_HAS_KNOWLEDGE_REQUIREMENT,
     }
     assert all(edge.evidence["source_block_ids"] == ["course-content-table"] for edge in edges)
     course = next(node for node in nodes if node.node_type == NodeType.COURSE)

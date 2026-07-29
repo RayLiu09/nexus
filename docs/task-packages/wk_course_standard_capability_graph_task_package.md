@@ -23,7 +23,8 @@ existing `teaching_standard` governance classification:
    `Major -> OccupationalDomain -> TypicalWorkTask -> SkillKnowledgeRequirement`.
 2. Course standards build a separate graph from a normalized `课程内容与要求`
    table:
-   `Course -> CourseModule -> CourseContent -> SkillRequirement -> KnowledgeRequirement`.
+   `Course -> CourseModule -> CourseContent`, with `SkillRequirement` and
+   `KnowledgeRequirement` as parallel fourth-level children.
 
 ## Frozen contracts
 
@@ -83,8 +84,9 @@ existing `teaching_standard` governance classification:
   labels it as `课程知识图谱`, and requests that build type without mixing it
   with the professional-standard `岗位知识图谱`; its `Course` root and four
   downstream node layers use a deterministic left-to-right tree layout, with
-  the first three levels expanded by default and the remaining levels selected
-  through the graph depth control.
+  the first three levels expanded by default. Clicking a third-level course
+  content node toggles its parallel fourth-level skill and knowledge children;
+  the course graph shows no toolbar.
 - Unit coverage for extraction, evidence, graph topology, first-path
   non-regression, and absent-table skip behavior.
 - Contract documentation updates.
