@@ -181,7 +181,9 @@ P0 record profiles include job demand, occupational ability analysis, and major 
   Course standards use the distinct `course_standard` build type and only a
   normalized course-content table with controlled module/content/skill/knowledge
   aliases (and an `学时`/`课时` anchor) to project
-  `CourseModule -> CourseContent -> SkillRequirement -> KnowledgeRequirement`.
+  `Course -> CourseModule -> CourseContent -> SkillRequirement -> KnowledgeRequirement`.
+  The course root is the normalized-document title with special symbols and a
+  terminal `课程标准` suffix removed; it is never inferred from body prose.
   Neither path may infer graph facts from raw source content or ungrounded prose.
 - Evidence-grounded KG internal API: `/internal/v1/knowledge-graphs/*` and
   `/internal/v1/normalized-refs/{ref_id}/knowledge-graph` expose build

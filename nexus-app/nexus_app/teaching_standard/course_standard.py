@@ -13,6 +13,9 @@ _CONTENT_HEADERS = ("课程内容", "教学任务", "工作任务", "学习单�
 _SKILL_HEADERS = ("技能要求", "技能内容")
 _KNOWLEDGE_HEADERS = ("知识要求", "知识内容")
 _PERIOD_HEADERS = ("学时", "课时")
+_COURSE_STANDARD_SUFFIX = re.compile(r"课程标准(?:\s*[（(][^（）()]*[）)])?\s*$")
+_TITLE_FILE_EXTENSION = re.compile(r"\.(?:pdf|docx?|xlsx?|pptx?)$", re.IGNORECASE)
+_TITLE_ALLOWED = re.compile(r"[^0-9A-Za-z\u4e00-\u9fff]")
 
 
 @dataclass(frozen=True)
@@ -28,6 +31,10 @@ def extract_with_diagnostics(payload: dict[str, Any]) -> CourseStandardExtractio
     blocks = payload.get("blocks")
     if not isinstance(blocks, list):
         return CourseStandardExtractionResult(None, "invalid_normalized_document")
+    source_title = str(payload.get("title") or "").strip()
+    course_title = _course_title(source_title)
+    if not course_title:
+        return CourseStandardExtractionResult(None, "course_title_missing")
 
     rows: list[dict[str, Any]] = []
     table_seen = False
@@ -74,10 +81,21 @@ def extract_with_diagnostics(payload: dict[str, Any]) -> CourseStandardExtractio
         {
             "schema_version": DOMAIN_PROFILE,
             "extractor_version": EXTRACTOR_VERSION,
+            "course_title": course_title,
+            "source_title": source_title,
             "rows": rows,
             "extractor": {"strategy": "rule", "version": EXTRACTOR_VERSION, "confidence": 1.0},
         }
     )
+
+
+def _course_title(value: object) -> str:
+    """Return a display-safe root name from the literal normalized title."""
+    title = str(value or "").strip()
+    title = _TITLE_FILE_EXTENSION.sub("", title)
+    title = _COURSE_STANDARD_SUFFIX.sub("", title)
+    title = _TITLE_ALLOWED.sub("", title)
+    return re.sub(r"课程标准$", "", title).strip()
 
 
 def _parse_course_table(content: str) -> dict[str, Any] | None:

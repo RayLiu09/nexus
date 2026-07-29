@@ -23,7 +23,7 @@ existing `teaching_standard` governance classification:
    `Major -> OccupationalDomain -> TypicalWorkTask -> SkillKnowledgeRequirement`.
 2. Course standards build a separate graph from a normalized `课程内容与要求`
    table:
-   `CourseModule -> CourseContent -> SkillRequirement -> KnowledgeRequirement`.
+   `Course -> CourseModule -> CourseContent -> SkillRequirement -> KnowledgeRequirement`.
 
 ## Frozen contracts
 
@@ -36,6 +36,9 @@ existing `teaching_standard` governance classification:
   two-row header. Free-text inference and raw-source parsing are out of scope.
 - Every emitted leaf carries its source block IDs, table row index, and raw
   normalized table row as evidence.
+- The graph root is the literal normalized-document `title`, cleaned only by
+  removing special symbols and a terminal `课程标准` suffix; no body-text title
+  inference is allowed. It connects to each literal course module.
 - Course-standard builds use `build_type=course_standard`; they do not reuse
   `build_type=teaching_standard`, `Major`, or `OccupationalDomain` nodes.
 - A document may produce at most one generated build for each build type.
@@ -48,6 +51,9 @@ existing `teaching_standard` governance classification:
 - `nexus-app/nexus_app/capability_graph/`
 - `nexus-app/nexus_app/pipeline/stages.py`
 - `nexus-app/nexus_app/worker/runner.py`
+- `nexus-console/app/assets/[assetId]/_components/`
+- `nexus-console/components/AssetDetailTabs.tsx`
+- `nexus-console/app/assets/[assetId]/page.tsx`
 - focused unit and pipeline tests
 - `ARCHITECT.md`, `SPEC.md`, `readme.md`, and this task package
 
@@ -73,6 +79,9 @@ existing `teaching_standard` governance classification:
 - A strict course-standard table extractor and typed normalized payload.
 - `course_standard` capability graph build with the frozen node/edge chain.
 - Worker dispatch and audit detail for both standard graph paths.
+- Asset-detail knowledge view detects a generated `course_standard` build,
+  labels it as `课程知识图谱`, and requests that build type without mixing it
+  with the professional-standard `岗位知识图谱`.
 - Unit coverage for extraction, evidence, graph topology, first-path
   non-regression, and absent-table skip behavior.
 - Contract documentation updates.

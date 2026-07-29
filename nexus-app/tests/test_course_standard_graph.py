@@ -31,6 +31,8 @@ def test_extracts_course_content_requirement_rows_with_evidence():
 
     assert result.payload is not None
     assert result.payload["schema_version"] == "course_standard.v1"
+    assert result.payload["course_title"] == "零售门店O2O运营"
+    assert result.payload["source_title"] == "《零售门店O2O运营》课程标准"
     assert len(result.payload["rows"]) == 2
     first = result.payload["rows"][0]
     assert first["course_module"] == "模块一：O2O运营认知"
@@ -75,14 +77,40 @@ def test_builds_only_frozen_course_standard_topology():
     nodes, edges = build_course_standard(extracted)
 
     assert {node.node_type for node in nodes} == {
+        NodeType.COURSE,
         NodeType.COURSE_MODULE,
         NodeType.COURSE_CONTENT,
         NodeType.SKILL_REQUIREMENT,
         NodeType.KNOWLEDGE_REQUIREMENT,
     }
     assert {edge.edge_type for edge in edges} == {
+        EdgeType.COURSE_HAS_COURSE_MODULE,
         EdgeType.COURSE_MODULE_HAS_COURSE_CONTENT,
         EdgeType.COURSE_CONTENT_HAS_SKILL_REQUIREMENT,
         EdgeType.SKILL_REQUIREMENT_HAS_KNOWLEDGE_REQUIREMENT,
     }
     assert all(edge.evidence["source_block_ids"] == ["course-content-table"] for edge in edges)
+    course = next(node for node in nodes if node.node_type == NodeType.COURSE)
+    assert course.display_name == "零售门店O2O运营"
+    assert course.properties["source_title"] == "《零售门店O2O运营》课程标准"
+    assert all(symbol not in course.display_name for symbol in "《》：")
+
+
+def test_rejects_course_standard_without_a_usable_title():
+    payload = _payload()
+    payload["title"] = "《课程标准》"
+
+    result = extract_with_diagnostics(payload)
+
+    assert result.payload is None
+    assert result.failure_reason == "course_title_missing"
+
+
+def test_removes_file_extension_before_course_standard_title_suffix():
+    payload = _payload()
+    payload["title"] = "《零售门店O2O运营》课程标准.pdf"
+
+    result = extract_with_diagnostics(payload)
+
+    assert result.payload is not None
+    assert result.payload["course_title"] == "零售门店O2O运营"

@@ -75,12 +75,22 @@ def build_teaching_standard(
 def build_course_standard(
     payload: dict[str, object],
 ) -> tuple[list[NodeSpec], list[EdgeSpec]]:
-    """Build `CourseModule -> CourseContent -> Skill -> Knowledge` from table rows."""
+    """Build `Course -> Module -> Content -> Skill -> Knowledge` from table rows."""
+    course_title = str(payload.get("course_title") or "").strip()
+    source_title = str(payload.get("source_title") or course_title).strip()
     rows = payload.get("rows")
-    if not isinstance(rows, list):
+    if not course_title or not isinstance(rows, list):
         return [], []
 
-    nodes: list[NodeSpec] = []
+    course_key = (NodeType.COURSE, f"course:{course_title}")
+    nodes: list[NodeSpec] = [
+        NodeSpec(
+            *course_key,
+            display_name=course_title,
+            source_table="normalized_document",
+            properties={"source_title": source_title},
+        ),
+    ]
     edges: list[EdgeSpec] = []
     module_keys: dict[str, tuple[str, str]] = {}
     for row in rows:
@@ -98,6 +108,13 @@ def build_course_standard(
         module_key = module_keys.setdefault(module, (NodeType.COURSE_MODULE, f"course-module:{module}"))
         if module_key not in {(node.node_type, node.node_key) for node in nodes}:
             nodes.append(NodeSpec(*module_key, display_name=module, source_table="normalized_document"))
+            edges.append(EdgeSpec(
+                EdgeType.COURSE_HAS_COURSE_MODULE,
+                course_key,
+                module_key,
+                source_table="normalized_document",
+                evidence={"source_title": source_title, **evidence},
+            ))
         for content_index, content in enumerate(contents, start=1):
             content_text = str(content).strip()
             if not content_text:

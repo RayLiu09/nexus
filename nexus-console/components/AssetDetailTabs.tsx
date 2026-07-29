@@ -13,6 +13,7 @@ import { AbilityAnalysisKnowledgeView } from "@/app/assets/[assetId]/_components
 import { MajorDistributionKnowledgeView } from "@/app/assets/[assetId]/_components/MajorDistributionKnowledgeView";
 import { MajorProfileKnowledgeView } from "@/app/assets/[assetId]/_components/MajorProfileKnowledgeView";
 import { TeachingStandardKnowledgeView } from "@/app/assets/[assetId]/_components/TeachingStandardKnowledgeView";
+import type { CapabilityGraphBuildType } from "@/app/assets/[assetId]/_components/CapabilityGraphView";
 import { GenericRecordKnowledgeView } from "@/app/assets/[assetId]/_components/GenericRecordKnowledgeView";
 import { resolveRecordView, shouldUseMajorProfileView } from "@/lib/api";
 import {
@@ -46,6 +47,10 @@ type Props = {
   rawObjectNames?: Map<string, string>;
   dataSourceName?: string | null;
   tagDictionary: TagDictionary;
+  teachingStandardGraphBuildType?: Extract<
+    CapabilityGraphBuildType,
+    "teaching_standard" | "course_standard"
+  >;
 };
 
 const CLASSIFICATION_LABELS: Record<string, string> = {
@@ -219,6 +224,7 @@ function KnowledgeChunksTab({
   taskOutlineError,
   taskOutlineTraceId,
   onJumpToBlock,
+  teachingStandardGraphBuildType = "teaching_standard",
 }: {
   latestRef: NormalizedAssetRef | null;
   asset: Asset | null;
@@ -229,6 +235,10 @@ function KnowledgeChunksTab({
   taskOutlineError?: string | null;
   taskOutlineTraceId?: string | null;
   onJumpToBlock?: (blockId: string) => void;
+  teachingStandardGraphBuildType?: Extract<
+    CapabilityGraphBuildType,
+    "teaching_standard" | "course_standard"
+  >;
 }) {
   // B9 — "知识块" tab adapts to the underlying record_type. Pipeline A
   // documents see the RAG chunk list (unchanged). Pipeline B record
@@ -248,7 +258,12 @@ function KnowledgeChunksTab({
     return <MajorProfileKnowledgeView normalizedRefId={latestRef.id} />;
   }
   if (isTeachingStandard && latestRef) {
-    return <TeachingStandardKnowledgeView normalizedRefId={latestRef.id} />;
+    return (
+      <TeachingStandardKnowledgeView
+        normalizedRefId={latestRef.id}
+        graphBuildType={teachingStandardGraphBuildType}
+      />
+    );
   }
   if (view === "job_demand" && latestRef) {
     return <JobDemandKnowledgeView normalizedRefId={latestRef.id} />;
@@ -717,6 +732,7 @@ export function AssetDetailTabs({
   rawObjectNames,
   dataSourceName,
   tagDictionary,
+  teachingStandardGraphBuildType,
 }: Props) {
   const [activeTab, setActiveTab] = useState("lineage");
   const knowledgeTabLabel = latestRef?.normalized_type === "record" ? "结构化图谱" : "知识块";
@@ -799,6 +815,7 @@ export function AssetDetailTabs({
             taskOutlineError={taskOutlineError}
             taskOutlineTraceId={taskOutlineTraceId}
             onJumpToBlock={handleJumpToBlock}
+            teachingStandardGraphBuildType={teachingStandardGraphBuildType}
           />
         )}
         {activeTab === "ai-governance" && (

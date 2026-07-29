@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Empty, Segmented, Skeleton, Tree } from "antd";
 import { ChunkListSection } from "./ChunkListSection";
 import { CapabilityGraphView } from "./CapabilityGraphView";
+import type { CapabilityGraphBuildType } from "./CapabilityGraphView";
 import {
   resolveTeachingStandardDirectory,
   type TeachingStandardDirectoryNode,
@@ -12,11 +13,22 @@ import {
 import type { NormalizedBlock } from "@/lib/chunkTypes";
 
 type View = "chunks" | "directory" | "graph";
+type TeachingStandardGraphBuildType = Extract<
+  CapabilityGraphBuildType,
+  "teaching_standard" | "course_standard"
+>;
 
-export function TeachingStandardKnowledgeView({ normalizedRefId }: { normalizedRefId: string }) {
+export function TeachingStandardKnowledgeView({
+  normalizedRefId,
+  graphBuildType,
+}: {
+  normalizedRefId: string;
+  graphBuildType: TeachingStandardGraphBuildType;
+}) {
   const [view, setView] = useState<View>("chunks");
   const [directory, setDirectory] = useState<TeachingStandardDirectoryNode[]>([]);
   const [loading, setLoading] = useState(false);
+  const graphTitle = graphBuildType === "course_standard" ? "课程知识图谱" : "岗位知识图谱";
   useEffect(() => {
     if (view !== "directory") return;
     setLoading(true);
@@ -45,9 +57,9 @@ export function TeachingStandardKnowledgeView({ normalizedRefId }: { normalizedR
           options={[
             { label: "知识块", value: "chunks" },
             { label: "目录", value: "directory" },
-            { label: "岗位知识图谱", value: "graph" },
+            { label: graphTitle, value: "graph" },
           ]}
-          aria-label="切换专业教学标准知识视图"
+          aria-label="切换教学标准知识视图"
         />
       </div>
       {view === "chunks" ? (
@@ -70,8 +82,8 @@ export function TeachingStandardKnowledgeView({ normalizedRefId }: { normalizedR
       {view === "graph" ? (
         <CapabilityGraphView
           normalizedRefId={normalizedRefId}
-          buildType="teaching_standard"
-          title="岗位知识图谱"
+          buildType={graphBuildType}
+          title={graphTitle}
         />
       ) : null}
     </div>

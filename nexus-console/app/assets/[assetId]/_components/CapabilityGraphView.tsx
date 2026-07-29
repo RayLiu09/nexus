@@ -26,11 +26,15 @@ import {
   type CapabilityGraphStagingNode,
 } from "@/lib/api";
 
-type BuildType = "job_demand" | "ability_analysis" | "teaching_standard";
+export type CapabilityGraphBuildType =
+  | "job_demand"
+  | "ability_analysis"
+  | "teaching_standard"
+  | "course_standard";
 
 type Props = {
   normalizedRefId: string;
-  buildType: BuildType;
+  buildType: CapabilityGraphBuildType;
   title: string;
 };
 
@@ -56,13 +60,14 @@ const GRAPH_PAGE_SIZE = 200;
 const MAX_NODES_PER_TYPE = 1200;
 const MAX_EDGES_PER_TYPE = 1600;
 
-const NODE_TYPES_BY_BUILD: Record<BuildType, string[]> = {
+const NODE_TYPES_BY_BUILD: Record<CapabilityGraphBuildType, string[]> = {
   job_demand: ["JobRole", "Skill", "ProfessionalLiteracy", "WorkContent"],
   ability_analysis: ["WorkTask", "WorkContent", "Ability"],
   teaching_standard: ["Major", "OccupationalDomain", "TypicalWorkTask", "SkillKnowledgeRequirement"],
+  course_standard: ["Course", "CourseModule", "CourseContent", "SkillRequirement", "KnowledgeRequirement"],
 };
 
-const EDGE_TYPES_BY_BUILD: Record<BuildType, string[]> = {
+const EDGE_TYPES_BY_BUILD: Record<CapabilityGraphBuildType, string[]> = {
   job_demand: [
     "JOB_ROLE_REQUIRES_SKILL",
     "JOB_ROLE_REQUIRES_LITERACY",
@@ -79,6 +84,12 @@ const EDGE_TYPES_BY_BUILD: Record<BuildType, string[]> = {
     "MAJOR_HAS_OCCUPATIONAL_DOMAIN",
     "OCCUPATIONAL_DOMAIN_HAS_TYPICAL_WORK_TASK",
     "OCCUPATIONAL_DOMAIN_HAS_SKILL_KNOWLEDGE_REQUIREMENT",
+  ],
+  course_standard: [
+    "COURSE_HAS_COURSE_MODULE",
+    "COURSE_MODULE_HAS_COURSE_CONTENT",
+    "COURSE_CONTENT_HAS_SKILL_REQUIREMENT",
+    "SKILL_REQUIREMENT_HAS_KNOWLEDGE_REQUIREMENT",
   ],
 };
 
@@ -104,6 +115,11 @@ const NODE_LABELS: Record<string, string> = {
   OccupationalDomain: "职业领域",
   TypicalWorkTask: "典型工作任务",
   SkillKnowledgeRequirement: "主要教学内容与要求",
+  Course: "课程",
+  CourseModule: "课程模块",
+  CourseContent: "课程内容",
+  SkillRequirement: "技能要求",
+  KnowledgeRequirement: "知识要求",
 };
 
 const NODE_COLORS: Record<string, string> = {
@@ -128,6 +144,11 @@ const NODE_COLORS: Record<string, string> = {
   OccupationalDomain: "#0d9488",
   TypicalWorkTask: "#d97706",
   SkillKnowledgeRequirement: "#7c3aed",
+  Course: "#1d4ed8",
+  CourseModule: "#2563eb",
+  CourseContent: "#0d9488",
+  SkillRequirement: "#d97706",
+  KnowledgeRequirement: "#7c3aed",
 };
 
 const EDGE_LABELS: Record<string, string> = {
@@ -144,6 +165,10 @@ const EDGE_LABELS: Record<string, string> = {
   MAJOR_HAS_OCCUPATIONAL_DOMAIN: "专业包含职业领域",
   OCCUPATIONAL_DOMAIN_HAS_TYPICAL_WORK_TASK: "职业领域包含典型工作任务",
   OCCUPATIONAL_DOMAIN_HAS_SKILL_KNOWLEDGE_REQUIREMENT: "职业领域包含主要教学内容与要求",
+  COURSE_HAS_COURSE_MODULE: "课程包含课程模块",
+  COURSE_MODULE_HAS_COURSE_CONTENT: "课程模块包含课程内容",
+  COURSE_CONTENT_HAS_SKILL_REQUIREMENT: "课程内容要求技能",
+  SKILL_REQUIREMENT_HAS_KNOWLEDGE_REQUIREMENT: "技能要求关联知识要求",
 };
 
 // v1 岗位过滤 sentinel — Antd Select 需要一个可比较的常量值来表示"全部岗位"。
@@ -469,7 +494,7 @@ type PagedGraphResult<T> = {
 
 async function fetchGraphNodes(
   buildId: string,
-  buildType: BuildType,
+  buildType: CapabilityGraphBuildType,
 ): Promise<PagedGraphResult<CapabilityGraphStagingNode>> {
   const results = await Promise.all(
     NODE_TYPES_BY_BUILD[buildType].map((nodeType) =>
@@ -485,7 +510,7 @@ async function fetchGraphNodes(
 
 async function fetchGraphEdges(
   buildId: string,
-  buildType: BuildType,
+  buildType: CapabilityGraphBuildType,
 ): Promise<PagedGraphResult<CapabilityGraphStagingEdge>> {
   const results = await Promise.all(
     EDGE_TYPES_BY_BUILD[buildType].map((edgeType) =>
@@ -634,7 +659,7 @@ function numberOrNull(value: unknown): number | null {
 const EchartsGraph = forwardRef<GraphImageHandle, {
   nodes: CapabilityGraphStagingNode[];
   edges: CapabilityGraphStagingEdge[];
-  buildType: BuildType;
+  buildType: CapabilityGraphBuildType;
   showEdgeLabels: boolean;
   onNodeSelect: (node: GraphDisplayNode) => void;
   fullscreen?: boolean;
@@ -728,7 +753,7 @@ function buildGraphOption(
   nodes: GraphDisplayNode[],
   edges: GraphDisplayEdge[],
   showEdgeLabels: boolean,
-  buildType: BuildType,
+  buildType: CapabilityGraphBuildType,
 ): EChartsOption {
   const nodeIds = new Set(nodes.map((node) => node.id));
   const drawableEdges = edges.filter(
@@ -947,7 +972,11 @@ function DetailRow({ label, value }: { label: string; value?: string | null }) {
 function symbolSize(nodeType: string, degree: number): number {
   if (nodeType === "JobAggregate") return Math.min(30 + degree * 1.5, 44);
   const base =
-    nodeType === "JobRole" || nodeType === "WorkTask" ? 34 : nodeType === "WorkContent" ? 26 : 22;
+    nodeType === "Course" || nodeType === "JobRole" || nodeType === "WorkTask"
+      ? 34
+      : nodeType === "WorkContent"
+        ? 26
+        : 22;
   return Math.min(base + degree * 2, 48);
 }
 
@@ -983,7 +1012,7 @@ function abilityCategoryKey(node: CapabilityGraphStagingNode): string {
 function buildDisplayGraph(
   nodes: CapabilityGraphStagingNode[],
   edges: CapabilityGraphStagingEdge[],
-  buildType: BuildType,
+  buildType: CapabilityGraphBuildType,
 ): { nodes: GraphDisplayNode[]; edges: GraphDisplayEdge[] } {
   if (buildType === "ability_analysis") {
     return {

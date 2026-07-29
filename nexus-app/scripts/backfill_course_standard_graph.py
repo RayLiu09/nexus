@@ -43,7 +43,7 @@ def _load_payload(ref: models.NormalizedAssetRef) -> dict[str, Any]:
     return payload
 
 
-def run(ref_id: str, *, apply: bool) -> dict[str, object]:
+def run(ref_id: str, *, apply: bool, force: bool = False) -> dict[str, object]:
     """Dry-run or materialize exactly one normalized-document graph build."""
     SessionLocal = get_session_local()
     with SessionLocal() as session:
@@ -69,9 +69,11 @@ def run(ref_id: str, *, apply: bool) -> dict[str, object]:
             "version_id": ref.version_id,
             "build_type": BuildType.COURSE_STANDARD,
             "dry_run": not apply,
+            "force": force,
             "extraction": {
                 "strategy": "rule",
                 "version": extracted.payload["extractor_version"],
+                "course_title": extracted.payload["course_title"],
                 "row_count": len(rows),
                 "source_block_ids": sorted({block_id for row in rows for block_id in row["evidence"]["source_block_ids"] if block_id}),
             },
@@ -93,6 +95,7 @@ def run(ref_id: str, *, apply: bool) -> dict[str, object]:
             build_type=BuildType.COURSE_STANDARD,
             domain="education",
             course_standard_payload=extracted.payload,
+            force=force,
         )
         audit = write_audit(
             session,
@@ -110,6 +113,7 @@ def run(ref_id: str, *, apply: bool) -> dict[str, object]:
                 "edges_written": result.edges_written,
                 "skipped": result.skipped,
                 "skipped_reason": result.skipped_reason,
+                "force": force,
                 "extraction": summary["extraction"],
             },
             actor_type="script",
@@ -131,8 +135,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--ref-id", required=True, help="normalized_asset_ref.id")
     parser.add_argument("--apply", action="store_true", help="write staging graph and audit event")
+    parser.add_argument("--force", action="store_true", help="replace the existing generated course-standard build")
     args = parser.parse_args()
-    print(json.dumps(run(args.ref_id, apply=args.apply), ensure_ascii=False, indent=2))
+    print(json.dumps(run(args.ref_id, apply=args.apply, force=args.force), ensure_ascii=False, indent=2))
     return 0
 
 
