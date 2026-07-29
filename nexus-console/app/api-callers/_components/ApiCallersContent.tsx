@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { ConfirmButton } from "@/components/shared/ConfirmButton";
 import { ApiState } from "@/components/ApiState";
 import { formatTime } from "@/lib/format-time";
+import { formatApiCallerKeyReference } from "@/lib/api-caller-key";
 import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 
 interface ApiCallersContentProps {
@@ -97,13 +98,6 @@ export function ApiCallersContent({
   const [editTarget, setEditTarget] = useState<ApiCaller | null>(null);
   const [editLoading, setEditLoading] = useState(false);
   const [editForm] = Form.useForm<EditFormValues>();
-
-  /** Mask caller_key: show "nx-" prefix + last 4 chars, middle hidden. */
-  function maskKey(key: string | null): string {
-    if (!key) return "-";
-    // caller_key now always stores a display-safe masked value like "nx-****abcd"
-    return key;
-  }
 
   const handleTableChange = useCallback(
     (
@@ -254,13 +248,13 @@ export function ApiCallersContent({
       ),
     },
     {
-      title: "密钥",
+      title: "密钥摘要",
       dataIndex: "caller_key",
       key: "caller_key",
       width: 160,
-      render: (v: string | null) => (
+      render: (_v: string | null, record: ApiCaller) => (
         <Typography.Text style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>
-          {maskKey(v)}
+          {formatApiCallerKeyReference(record.caller_key, record.caller_key_hash)}
         </Typography.Text>
       ),
     },

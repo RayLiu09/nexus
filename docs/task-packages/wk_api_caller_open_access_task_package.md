@@ -11,6 +11,8 @@ do not map to P0 Open API route authorization.
 - Persist `permission_scope=["open:*"]` for new callers and legacy scope
   updates.
 - Show the fixed effective permission in Console create, edit, and list views.
+- Show a truncated SHA-256 key fingerprint in the Console list for
+  server-minted callers; never redisplay plaintext keys or complete hashes.
 - Record the effective scope in API-caller creation/update audits.
 - Add focused API lifecycle regression coverage.
 
