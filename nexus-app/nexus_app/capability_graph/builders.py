@@ -75,7 +75,7 @@ def build_teaching_standard(
 def build_course_standard(
     payload: dict[str, object],
 ) -> tuple[list[NodeSpec], list[EdgeSpec]]:
-    """Build `CourseModule -> TeachingTask -> Skill -> Knowledge` from table rows."""
+    """Build `CourseModule -> CourseContent -> Skill -> Knowledge` from table rows."""
     rows = payload.get("rows")
     if not isinstance(rows, list):
         return [], []
@@ -88,30 +88,30 @@ def build_course_standard(
             continue
         row_index = row.get("row_index", 0)
         module = str(row.get("course_module") or "").strip()
-        tasks = row.get("teaching_tasks")
+        contents = row.get("course_contents")
         skills = row.get("skill_requirements")
         knowledge = row.get("knowledge_requirements")
         evidence = row.get("evidence") if isinstance(row.get("evidence"), dict) else {}
-        if not module or not all(isinstance(value, list) and value for value in (tasks, skills, knowledge)):
+        if not module or not all(isinstance(value, list) and value for value in (contents, skills, knowledge)):
             continue
 
         module_key = module_keys.setdefault(module, (NodeType.COURSE_MODULE, f"course-module:{module}"))
         if module_key not in {(node.node_type, node.node_key) for node in nodes}:
             nodes.append(NodeSpec(*module_key, display_name=module, source_table="normalized_document"))
-        for task_index, task in enumerate(tasks, start=1):
-            task_text = str(task).strip()
-            if not task_text:
+        for content_index, content in enumerate(contents, start=1):
+            content_text = str(content).strip()
+            if not content_text:
                 continue
-            task_key = (NodeType.WORK_TASK, f"{module_key[1]}:task:{row_index}:{task_index}:{task_text}")
-            nodes.append(NodeSpec(*task_key, display_name=task_text, source_table="normalized_document", properties={"table_row_index": row_index, "source_block_ids": evidence.get("source_block_ids", [])}))
-            edges.append(EdgeSpec(EdgeType.COURSE_MODULE_HAS_TEACHING_TASK, module_key, task_key, source_table="normalized_document", evidence=evidence))
+            content_key = (NodeType.COURSE_CONTENT, f"{module_key[1]}:content:{row_index}:{content_index}:{content_text}")
+            nodes.append(NodeSpec(*content_key, display_name=content_text, source_table="normalized_document", properties={"table_row_index": row_index, "source_block_ids": evidence.get("source_block_ids", [])}))
+            edges.append(EdgeSpec(EdgeType.COURSE_MODULE_HAS_COURSE_CONTENT, module_key, content_key, source_table="normalized_document", evidence=evidence))
             for skill_index, skill in enumerate(skills, start=1):
                 skill_text = str(skill).strip()
                 if not skill_text:
                     continue
-                skill_key = (NodeType.SKILL_REQUIREMENT, f"{task_key[1]}:skill:{skill_index}:{skill_text}")
+                skill_key = (NodeType.SKILL_REQUIREMENT, f"{content_key[1]}:skill:{skill_index}:{skill_text}")
                 nodes.append(NodeSpec(*skill_key, display_name=skill_text, source_table="normalized_document", properties={"table_row_index": row_index, "source_block_ids": evidence.get("source_block_ids", [])}))
-                edges.append(EdgeSpec(EdgeType.TEACHING_TASK_HAS_SKILL_REQUIREMENT, task_key, skill_key, source_table="normalized_document", evidence=evidence))
+                edges.append(EdgeSpec(EdgeType.COURSE_CONTENT_HAS_SKILL_REQUIREMENT, content_key, skill_key, source_table="normalized_document", evidence=evidence))
                 for knowledge_index, item in enumerate(knowledge, start=1):
                     knowledge_text = str(item).strip()
                     if not knowledge_text:

@@ -41,8 +41,11 @@ Role constraints:
 - Standard-document capability projection supports two distinct, normalized-table
   contracts under the teaching-standard governance domain: professional teaching
   standards retain their professional/occupational-task graph; course standards
-  require literal `课程模块`, `教学任务`, `技能要求`, and `知识要求` columns and
-  project `CourseModule -> WorkTask -> SkillRequirement -> KnowledgeRequirement`.
+  require literal values in controlled module/content/skill/knowledge alias columns
+  (including `课程模块`/`项目`, `教学任务`/`工作任务`, `技能要求`/`技能内容`, and
+  `知识要求`/`知识内容`), plus an `学时` or `课时` structure anchor; columns may
+  be reordered or use a two-row header, and
+  project `CourseModule -> CourseContent -> SkillRequirement -> KnowledgeRequirement`.
   A missing or incomplete table is traceably skipped rather than inferred.
 - Course textbook Task Outline processing for D4 `course_textbook`
   normalized documents: training-operation textbooks are detected, persisted

@@ -113,9 +113,12 @@ Root documents are distilled implementation contracts:
   APIs are later slices.
 - Evidence-bound standard-document capability graphs: professional teaching
   standards retain the existing professional/occupational-task topology; course
-  standards with a normalized `课程模块/教学任务/技能要求/知识要求` table produce a
-  separate `CourseModule -> WorkTask -> SkillRequirement -> KnowledgeRequirement`
-  staging graph. Both paths are built only from normalized-document evidence.
+  standards with a normalized course-content table produce a separate
+  `CourseModule -> CourseContent -> SkillRequirement -> KnowledgeRequirement`
+  staging graph. Table columns use controlled aliases (such as `项目`/`章` for
+  modules and `教学任务`/`工作任务` for course content), may be reordered or
+  presented as two-row headers, and require an `学时`/`课时` structure anchor.
+  Both paths are built only from normalized-document evidence.
 - Permission-filtered search and QA with source citations.
 - Query Router automatically falls back to request-scoped Firecrawl WebSearch
   only for no-evidence `scenario_1` industry/report and `scenario_4`

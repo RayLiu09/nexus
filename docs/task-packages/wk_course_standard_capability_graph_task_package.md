@@ -23,14 +23,17 @@ existing `teaching_standard` governance classification:
    `Major -> OccupationalDomain -> TypicalWorkTask -> SkillKnowledgeRequirement`.
 2. Course standards build a separate graph from a normalized `课程内容与要求`
    table:
-   `CourseModule -> TeachingTask -> SkillRequirement -> KnowledgeRequirement`.
+   `CourseModule -> CourseContent -> SkillRequirement -> KnowledgeRequirement`.
 
 ## Frozen contracts
 
 - The course-standard extractor accepts only normalized-document table blocks
-  with all four required columns: `课程模块`, `教学任务`, `技能要求`, and `知识要求`.
-  Header aliases, free-text inference, and raw-source parsing are out of
-  scope for this slice.
+  with one literal column from each controlled alias group: module
+  (`课程模块`/`项目`/`章`/`节`/`工作模块`), content
+  (`课程内容`/`教学任务`/`工作任务`/`学习单元`), skill
+  (`技能要求`/`技能内容`), knowledge (`知识要求`/`知识内容`), plus an
+  `学时` or `课时` header anchor. Columns may be reordered or expressed as a
+  two-row header. Free-text inference and raw-source parsing are out of scope.
 - Every emitted leaf carries its source block IDs, table row index, and raw
   normalized table row as evidence.
 - Course-standard builds use `build_type=course_standard`; they do not reuse
@@ -53,7 +56,9 @@ existing `teaching_standard` governance classification:
 - Changing the first-class professional teaching-standard extraction or graph.
 - LLM extraction fallback for course standards.
 - Public graph APIs, graph operations UI, new queues, or direct historical DB
-  backfills.
+  backfills. A user-authorized, service-backed, audit-recorded rebuild of one
+  normalized reference is permitted for recovery; it must not use direct SQL
+  inserts or mutate raw/normalized source content.
 
 ## Forbidden changes
 

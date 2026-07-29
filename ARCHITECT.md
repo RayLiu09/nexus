@@ -179,8 +179,9 @@ P0 record profiles include job demand, occupational ability analysis, and major 
   projections over normalized documents. Professional teaching standards retain
   `Major -> OccupationalDomain -> TypicalWorkTask -> SkillKnowledgeRequirement`.
   Course standards use the distinct `course_standard` build type and only a
-  `课程模块/教学任务/技能要求/知识要求` normalized table to project
-  `CourseModule -> WorkTask -> SkillRequirement -> KnowledgeRequirement`.
+  normalized course-content table with controlled module/content/skill/knowledge
+  aliases (and an `学时`/`课时` anchor) to project
+  `CourseModule -> CourseContent -> SkillRequirement -> KnowledgeRequirement`.
   Neither path may infer graph facts from raw source content or ungrounded prose.
 - Evidence-grounded KG internal API: `/internal/v1/knowledge-graphs/*` and
   `/internal/v1/normalized-refs/{ref_id}/knowledge-graph` expose build
