@@ -1,15 +1,22 @@
 """Regression coverage for Worker lease ownership before job execution."""
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+import pytest
 from sqlalchemy.orm import sessionmaker
 
 from nexus_app import models
 from nexus_app.config import Settings
-from nexus_app.enums import JobStatus, JobType, StageStatus
+from nexus_app.enums import IndexManifestStatus, JobStatus, JobType, StageStatus
 from nexus_app.storage import InMemoryObjectStorage
 from nexus_app.worker import loop as worker_loop_module
 from nexus_app.worker.loop import WorkerLoop
-from nexus_app.worker.runner import RetryableError, execute_job
+from nexus_app.worker.runner import (
+    RetryableError,
+    _require_continuation_indexed,
+    execute_job,
+)
 
 
 def _session_factory(session):
@@ -141,3 +148,35 @@ def test_direct_continuation_execution_does_not_construct_mineru(session, monkey
         mineru=None,
         settings=Settings(worker_pool_enabled=False),
     )
+
+
+def test_knowledge_continuation_requires_every_chunk_type_to_be_indexed():
+    chunks = [
+        SimpleNamespace(knowledge_type_code="course_textbook"),
+        SimpleNamespace(knowledge_type_code="industry_research_kb"),
+    ]
+    manifests = [
+        SimpleNamespace(
+            knowledge_type_code="course_textbook",
+            index_status=IndexManifestStatus.INDEXED,
+        ),
+        SimpleNamespace(
+            knowledge_type_code="industry_research_kb",
+            index_status=IndexManifestStatus.FAILED,
+        ),
+    ]
+
+    with pytest.raises(RetryableError, match="industry_research_kb"):
+        _require_continuation_indexed(chunks, manifests)
+
+
+def test_knowledge_continuation_accepts_fully_indexed_chunk_types():
+    chunks = [SimpleNamespace(knowledge_type_code="course_textbook")]
+    manifests = [
+        SimpleNamespace(
+            knowledge_type_code="course_textbook",
+            index_status=IndexManifestStatus.INDEXED,
+        )
+    ]
+
+    _require_continuation_indexed(chunks, manifests)

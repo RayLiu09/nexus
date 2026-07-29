@@ -15,6 +15,7 @@ from nexus_app.enums import (
     AssetVersionStatus,
     AuditEventType,
     IngestBatchStatus,
+    IndexManifestStatus,
     JobType,
     JobStatus,
     NormalizedType,
@@ -1900,7 +1901,8 @@ def _execute_knowledge_continuation(
     )
     try:
         chunks = run_knowledge_chunking(ctx, version, ref)
-        run_index_submit(ctx, version, ref, chunks)
+        manifests = run_index_submit(ctx, version, ref, chunks)
+        _require_continuation_indexed(chunks, manifests)
         job.status = JobStatus.SUCCEEDED
         job.current_stage = "completed"
         job.failure_reason = None
@@ -1916,3 +1918,31 @@ def _execute_knowledge_continuation(
         _mark_job_outcome(session, job, reason, job.trace_id, exc)
         session.commit()
         raise
+
+
+def _require_continuation_indexed(
+    chunks: list[models.KnowledgeChunk],
+    manifests: list[models.IndexManifest],
+) -> None:
+    """Prevent a governance-approved continuation from reporting false success.
+
+    ``run_index_submit`` records a failed IndexManifest so partial indexing is
+    observable, but it intentionally does not raise because the primary
+    ingest pipeline can finish with its asset state preserved. A human review
+    continuation is the admission-to-retrieval handoff: once it has chunks,
+    every emitted knowledge type must be indexed before its job is successful.
+    """
+    if not chunks:
+        return
+    expected_types = {chunk.knowledge_type_code for chunk in chunks}
+    indexed_types = {
+        manifest.knowledge_type_code
+        for manifest in manifests
+        if manifest.index_status == IndexManifestStatus.INDEXED
+    }
+    missing_types = sorted(expected_types - indexed_types)
+    if missing_types:
+        raise RetryableError(
+            "knowledge continuation indexing incomplete for knowledge types: "
+            + ", ".join(missing_types)
+        )
