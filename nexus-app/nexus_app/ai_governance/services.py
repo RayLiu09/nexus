@@ -759,6 +759,10 @@ class AIGovernanceService:
         if not isinstance(tag_output, dict):
             tag_output = {}
 
+        self._apply_instructional_material_guard(
+            cls_output, ref_dict, rules_registry
+        )
+
         # ---- Stage 4: Quality Scoring (rule engine, not LLM) ----
         quality_summary: dict[str, Any] | None = None
         if rules_registry is not None and cls_output and "_error" not in cls_output:
@@ -826,6 +830,68 @@ class AIGovernanceService:
             },
         )
         return run
+
+    @staticmethod
+    def _apply_instructional_material_guard(
+        classification_output: dict[str, Any],
+        ref_dict: dict[str, Any],
+        rules_registry: "GovernanceRulesRegistry | None",
+    ) -> None:
+        """Prefer course material over a topic-only report classification.
+
+        A document about an industry can still be a lesson.  This bounded
+        guard only changes report candidates when several explicit teaching
+        structure markers exist and report provenance/data markers do not.
+        It preserves the original model proposal in the stage audit payload.
+        """
+        if rules_registry is None or not classification_output:
+            return
+        candidate = str(
+            classification_output.get("classification_code")
+            or classification_output.get("code")
+            or classification_output.get("classification")
+            or ""
+        )
+        if candidate not in {"sector_report", "industry_report"}:
+            return
+        valid_codes = {item.code for item in rules_registry.get_classifications()}
+        if "course_textbook" not in valid_codes:
+            return
+        content = "\n".join(
+            str(ref_dict.get(key) or "")
+            for key in ("title", "summary", "content_snippet")
+        ).lower()
+        teaching_markers = (
+            "微课堂", "同学们", "主讲老师", "本节课", "知识点", "学习目标",
+            "教学目标", "课堂互动", "课后作业", "课后练习", "课后训练",
+        )
+        report_markers = (
+            "发布单位", "研究机构", "报告年份", "统计周期", "统计口径",
+            "数据来源", "市场规模", "样本数量", "调研方法", "趋势预测",
+        )
+        matched_teaching = [item for item in teaching_markers if item in content]
+        matched_report = [item for item in report_markers if item in content]
+        if len(matched_teaching) < 3 or len(matched_report) >= 2:
+            return
+        original = {
+            "classification_code": candidate,
+            "classification_name": classification_output.get("classification_name"),
+            "confidence": classification_output.get("confidence"),
+            "evidence": classification_output.get("evidence"),
+        }
+        classification_output["classification_code"] = "course_textbook"
+        classification_output["classification_name"] = "课程资源教材"
+        classification_output["evidence"] = (
+            "rule_guardrail: teaching structure markers="
+            + "、".join(matched_teaching)
+            + "; no sufficient report provenance/data markers"
+        )
+        classification_output["_rule_guardrail"] = {
+            "name": "instructional_material_over_topic_report",
+            "original_model_output": original,
+            "teaching_markers": matched_teaching,
+            "report_markers": matched_report,
+        }
 
     # ------------------------------------------------------------------
     # PR-8 — governance tag projection into tag_asset_index
