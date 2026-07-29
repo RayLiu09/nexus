@@ -28,6 +28,13 @@ COPY docker/bin/uv /usr/local/bin/uv
 
 COPY nexus-app/pyproject.toml nexus-app/uv.lock ./nexus-app/
 COPY nexus-api/pyproject.toml nexus-api/uv.lock ./nexus-api/
+# `uv.lock` persists absolute PyPI artifact URLs. Rewrite only the copied
+# build inputs so frozen installs cannot bypass the domestic index via those
+# historical upstream URLs; package versions and integrity hashes stay intact.
+RUN sed -i \
+      -e 's#https://pypi.org/simple#https://pypi.tuna.tsinghua.edu.cn/simple#g' \
+      -e 's#https://files.pythonhosted.org/packages/#https://pypi.tuna.tsinghua.edu.cn/packages/#g' \
+      ./nexus-app/uv.lock ./nexus-api/uv.lock
 COPY nexus-app ./nexus-app
 COPY nexus-api ./nexus-api
 COPY config ./config
@@ -52,7 +59,11 @@ ARG NPM_REGISTRY
 WORKDIR /app/nexus-console
 
 COPY nexus-console/package.json nexus-console/package-lock.json ./
-RUN npm ci --registry=${NPM_REGISTRY}
+# npm lockfiles also retain absolute registry.npmjs.org tarball URLs. Keep
+# the lockfile immutable in the repository, but rewrite its build copy before
+# `npm ci` so the production build does not fall back to the public registry.
+RUN sed -i 's#https://registry.npmjs.org/#https://registry.npmmirror.com/#g' package-lock.json \
+    && npm ci --registry=${NPM_REGISTRY}
 
 COPY nexus-console ./
 RUN npm run build
@@ -73,6 +84,12 @@ COPY --from=nexus-console-builder /app/nexus-console/.next ./.next
 COPY --from=nexus-console-builder /app/nexus-console/public ./public
 COPY --from=nexus-console-builder /app/nexus-console/node_modules ./node_modules
 COPY --from=nexus-console-builder /app/nexus-console/next.config.ts ./next.config.ts
+
+# `.next/cache`, diagnostics, generated type declarations, and dev-only npm
+# packages are Builder artifacts. The production server only needs the Next
+# runtime output and production dependencies.
+RUN npm prune --omit=dev --ignore-scripts \
+    && rm -rf .next/cache .next/diagnostics .next/types /root/.npm
 
 EXPOSE 3000
 

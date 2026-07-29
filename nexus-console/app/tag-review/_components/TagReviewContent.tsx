@@ -6,6 +6,7 @@ import type { ColumnsType } from "antd/es/table";
 import { EditOutlined } from "@ant-design/icons";
 import { AssetRefCell } from "@/components/shared/AssetRefCell";
 import { classificationLabel, type ClassificationDictionary } from "@/lib/classificationLabels";
+import { createIdempotencyKey } from "@/lib/idempotency";
 import { levelLabel, type LevelDictionary } from "@/lib/levelLabels";
 
 type TagEntry = { value: string };
@@ -117,7 +118,7 @@ export default function TagReviewContent({
     try {
       const res = await fetch(`/api/governance-results/${encodeURIComponent(item.governance_result_id)}/review-decisions`, {
         method: "POST",
-        headers: { "content-type": "application/json", "Idempotency-Key": crypto.randomUUID() },
+        headers: { "content-type": "application/json", "Idempotency-Key": createIdempotencyKey() },
         body: JSON.stringify({
           classification: values.classification,
           level: values.level,
