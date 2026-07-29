@@ -81,7 +81,8 @@ existing `teaching_standard` governance classification:
 - Worker dispatch and audit detail for both standard graph paths.
 - Asset-detail knowledge view detects a generated `course_standard` build,
   labels it as `课程知识图谱`, and requests that build type without mixing it
-  with the professional-standard `岗位知识图谱`.
+  with the professional-standard `岗位知识图谱`; its `Course` root and four
+  downstream node layers use a deterministic, hierarchy-aware radial layout.
 - Unit coverage for extraction, evidence, graph topology, first-path
   non-regression, and absent-table skip behavior.
 - Contract documentation updates.

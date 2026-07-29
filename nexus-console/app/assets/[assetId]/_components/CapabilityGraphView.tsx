@@ -778,7 +778,10 @@ function buildGraphOption(
   }
   const radialPositions = buildType === "teaching_standard"
     ? teachingStandardRadialPositions(nodes, drawableEdges)
-    : new Map<string, { x: number; y: number }>();
+    : buildType === "course_standard"
+      ? courseStandardRadialPositions(nodes, drawableEdges)
+      : new Map<string, { x: number; y: number }>();
+  const useRadialLayout = buildType === "teaching_standard" || buildType === "course_standard";
 
   return {
     animationDurationUpdate: 350,
@@ -808,12 +811,12 @@ function buildGraphOption(
     series: [
       {
         type: "graph",
-        layout: buildType === "teaching_standard" ? "none" : "force",
+        layout: useRadialLayout ? "none" : "force",
         top: 38,
         roam: true,
         draggable: true,
         categories,
-        force: buildType === "teaching_standard" ? undefined : {
+        force: useRadialLayout ? undefined : {
           repulsion: 260,
           edgeLength: [70, 180],
           gravity: 0.08,
@@ -901,6 +904,78 @@ function teachingStandardRadialPositions(
       positions.set(leafId, { x: Math.cos(leafAngle) * 520, y: Math.sin(leafAngle) * 520 });
     });
   });
+  return positions;
+}
+
+function courseStandardRadialPositions(
+  nodes: GraphDisplayNode[],
+  edges: GraphDisplayEdge[],
+): Map<string, { x: number; y: number }> {
+  const positions = new Map<string, { x: number; y: number }>();
+  const root = nodes.find((node) => node.node_type === "Course");
+  if (!root) return positions;
+
+  const children = new Map<string, string[]>();
+  for (const edge of edges) {
+    const targets = children.get(edge.source_node_id) ?? [];
+    targets.push(edge.target_node_id);
+    children.set(edge.source_node_id, targets);
+  }
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const modules = (children.get(root.id) ?? []).filter(
+    (id) => nodeById.get(id)?.node_type === "CourseModule",
+  );
+  if (modules.length === 0) return positions;
+
+  const leafCount = new Map<string, number>();
+  const countLeaves = (nodeId: string): number => {
+    const cached = leafCount.get(nodeId);
+    if (cached != null) return cached;
+    const targets = children.get(nodeId) ?? [];
+    const count = targets.length === 0
+      ? 1
+      : targets.reduce((total, targetId) => total + countLeaves(targetId), 0);
+    leafCount.set(nodeId, count);
+    return count;
+  };
+  const angleByNode = new Map<string, number>();
+  const assignAngles = (nodeId: string, start: number, end: number) => {
+    const targets = children.get(nodeId) ?? [];
+    if (targets.length === 0) {
+      angleByNode.set(nodeId, (start + end) / 2);
+      return;
+    }
+    const totalLeaves = targets.reduce((total, targetId) => total + countLeaves(targetId), 0);
+    let cursor = start;
+    for (const targetId of targets) {
+      const width = ((end - start) * countLeaves(targetId)) / Math.max(totalLeaves, 1);
+      assignAngles(targetId, cursor, cursor + width);
+      cursor += width;
+    }
+    angleByNode.set(nodeId, (start + end) / 2);
+  };
+
+  positions.set(root.id, { x: 0, y: 0 });
+  const totalLeaves = modules.reduce((total, moduleId) => total + countLeaves(moduleId), 0);
+  let cursor = -Math.PI / 2;
+  for (const moduleId of modules) {
+    const width = (Math.PI * 2 * countLeaves(moduleId)) / Math.max(totalLeaves, 1);
+    assignAngles(moduleId, cursor, cursor + width);
+    cursor += width;
+  }
+
+  const radiusByType: Record<string, number> = {
+    CourseModule: 250,
+    CourseContent: 470,
+    SkillRequirement: 700,
+    KnowledgeRequirement: 930,
+  };
+  for (const [nodeId, angle] of angleByNode) {
+    const node = nodeById.get(nodeId);
+    const radius = node ? radiusByType[node.node_type] : undefined;
+    if (radius == null) continue;
+    positions.set(nodeId, { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+  }
   return positions;
 }
 
