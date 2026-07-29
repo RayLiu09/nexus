@@ -46,6 +46,10 @@ from nexus_app.enums import (
     AssetVersionStatus,
     GovernanceResultStatus,
 )
+from nexus_app.governance.consistency_repair import (
+    append_review_required_result_for_nonpassing_quality,
+    requires_review_result_correction,
+)
 
 
 _TERMINAL_VERSION_PRIORITY = (
@@ -89,9 +93,12 @@ def _repair_asset(asset_id: str, *, dry_run: bool) -> int:
             print(f"ERROR: asset '{asset_id}' has no versions")
             return 1
 
-        # Step 1 — for every ref under every version, push the latest result's
-        # status back onto every bound run on the ref.
+        # Step 1 — append an immutable official correction for the historical
+        # non-pass-quality mismatch before projecting its status onto AI runs.
+        # This is deliberately narrower than a re-governance: it only repairs
+        # the pre-fix available result that the current decision rules reject.
         run_updates = 0
+        corrected_results = 0
         for v in versions:
             refs = list(
                 session.scalars(
@@ -109,7 +116,23 @@ def _repair_asset(asset_id: str, *, dry_run: bool) -> int:
                 )
                 if latest_result is None:
                     continue
-                target = _derive_run_status_from_result(latest_result)
+                if requires_review_result_correction(latest_result):
+                    print(
+                        f"  governance result {latest_result.id[:8]} on ref {ref.id[:8]}: "
+                        f"available -> review_required (quality="
+                        f"{(latest_result.quality_summary or {}).get('quality_level')!r})"
+                    )
+                    corrected_results += 1
+                    if not dry_run:
+                        corrected = append_review_required_result_for_nonpassing_quality(
+                            session, latest_result
+                        )
+                        if corrected is None:  # defensive: the predicate just passed
+                            raise RuntimeError("governance correction became inapplicable")
+                        latest_result = corrected
+                    target = AIGovernanceRunAdoptionStatus.REVIEW_REQUIRED
+                else:
+                    target = _derive_run_status_from_result(latest_result)
                 runs = list(
                     session.scalars(
                         select(models.AIGovernanceRun).where(
@@ -145,10 +168,18 @@ def _repair_asset(asset_id: str, *, dry_run: bool) -> int:
 
         if dry_run:
             session.rollback()
-            print(f"Dry-run complete; {run_updates} run update(s) staged.")
+            print(
+                "Dry-run complete; "
+                f"{corrected_results} governance result correction(s), "
+                f"{run_updates} run update(s) staged."
+            )
         else:
             session.commit()
-            print(f"Committed: {run_updates} run update(s).")
+            print(
+                "Committed: "
+                f"{corrected_results} governance result correction(s), "
+                f"{run_updates} run update(s)."
+            )
         return 0
 
 
