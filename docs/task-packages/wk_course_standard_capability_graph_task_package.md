@@ -82,7 +82,9 @@ existing `teaching_standard` governance classification:
 - Asset-detail knowledge view detects a generated `course_standard` build,
   labels it as `课程知识图谱`, and requests that build type without mixing it
   with the professional-standard `岗位知识图谱`; its `Course` root and four
-  downstream node layers use a deterministic, hierarchy-aware radial layout.
+  downstream node layers use a deterministic left-to-right tree layout, with
+  the first three levels expanded by default and the remaining levels selected
+  through the graph depth control.
 - Unit coverage for extraction, evidence, graph topology, first-path
   non-regression, and absent-table skip behavior.
 - Contract documentation updates.

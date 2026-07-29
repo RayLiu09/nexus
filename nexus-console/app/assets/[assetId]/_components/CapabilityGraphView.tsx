@@ -7,6 +7,7 @@ import {
   Checkbox,
   Drawer,
   Empty,
+  Segmented,
   Select,
   Skeleton,
   Tag,
@@ -190,6 +191,7 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
   // 岗位过滤仅在 job_demand 场景下生效；null 表示尚未初始化，JOB_ROLE_ALL 表示不过滤。
   // 数据集通常包含多个 JobRole，默认收窄到第一个避免图谱噪声（业务需求）。
   const [selectedJobRoleId, setSelectedJobRoleId] = useState<string | null>(null);
+  const [courseTreeDepth, setCourseTreeDepth] = useState(3);
   const graphRef = useRef<GraphImageHandle | null>(null);
 
   useEffect(() => {
@@ -341,6 +343,13 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
     [filteredNodeIds, state.edges],
   );
 
+  const courseTreeGraph = useMemo(
+    () => buildCourseTreeSubgraph(filteredNodes, filteredEdges, courseTreeDepth),
+    [courseTreeDepth, filteredEdges, filteredNodes],
+  );
+  const displayedNodes = buildType === "course_standard" ? courseTreeGraph.nodes : filteredNodes;
+  const displayedEdges = buildType === "course_standard" ? courseTreeGraph.edges : filteredEdges;
+
   const isTruncated =
     state.nodes.length < state.nodesTotal || state.edges.length < state.edgesTotal;
 
@@ -354,12 +363,12 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
             <Tag color="processing" className="!mr-0">{state.build.status}</Tag>
             <GraphViewportActions
               title={title}
-              disabled={filteredNodes.length === 0}
+              disabled={displayedNodes.length === 0}
               onDownload={() => graphRef.current?.downloadImage(`${title}.png`)}
             >
               <EchartsGraph
-                nodes={filteredNodes}
-                edges={filteredEdges}
+                nodes={displayedNodes}
+                edges={displayedEdges}
                 buildType={buildType}
                 showEdgeLabels={showEdgeLabels}
                 onNodeSelect={setSelectedNode}
@@ -400,15 +409,20 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
                   }
                 : null
             }
+            courseTreeDepth={
+              buildType === "course_standard"
+                ? { value: courseTreeDepth, onChange: setCourseTreeDepth }
+                : null
+            }
           />
 
-          {filteredNodes.length === 0 ? (
+          {displayedNodes.length === 0 ? (
             <Empty description="当前筛选条件下无图谱节点" image={Empty.PRESENTED_IMAGE_SIMPLE} />
           ) : (
             <EchartsGraph
               ref={graphRef}
-              nodes={filteredNodes}
-              edges={filteredEdges}
+              nodes={displayedNodes}
+              edges={displayedEdges}
               buildType={buildType}
               showEdgeLabels={showEdgeLabels}
               onNodeSelect={setSelectedNode}
@@ -437,16 +451,23 @@ type JobRoleFilterProps = {
   subgraphNodeCount: number | null;
 };
 
+type CourseTreeDepthProps = {
+  value: number;
+  onChange: (value: number) => void;
+};
+
 function GraphToolbar({
   showEdgeLabels,
   onShowEdgeLabelsChange,
   jobRoleFilter,
+  courseTreeDepth,
 }: {
   showEdgeLabels: boolean;
   onShowEdgeLabelsChange: (value: boolean) => void;
   jobRoleFilter: JobRoleFilterProps | null;
+  courseTreeDepth: CourseTreeDepthProps | null;
 }) {
-  const layout = jobRoleFilter
+  const layout = jobRoleFilter || courseTreeDepth
     ? "grid grid-cols-1 gap-2 lg:grid-cols-[minmax(220px,1fr)_auto]"
     : "flex justify-end";
   return (
@@ -473,6 +494,18 @@ function GraphToolbar({
             </span>
           ) : null}
         </div>
+      ) : null}
+      {courseTreeDepth ? (
+        <Segmented
+          value={courseTreeDepth.value}
+          onChange={(value) => courseTreeDepth.onChange(Number(value))}
+          options={[
+            { label: "3级", value: 3 },
+            { label: "4级", value: 4 },
+            { label: "5级", value: 5 },
+          ]}
+          aria-label="课程知识图谱展开层级"
+        />
       ) : null}
       <Checkbox
         checked={showEdgeLabels}
@@ -776,12 +809,12 @@ function buildGraphOption(
     degree.set(edge.source_node_id, (degree.get(edge.source_node_id) ?? 0) + 1);
     degree.set(edge.target_node_id, (degree.get(edge.target_node_id) ?? 0) + 1);
   }
-  const radialPositions = buildType === "teaching_standard"
+  const fixedPositions = buildType === "teaching_standard"
     ? teachingStandardRadialPositions(nodes, drawableEdges)
     : buildType === "course_standard"
-      ? courseStandardRadialPositions(nodes, drawableEdges)
+      ? courseStandardTreePositions(nodes, drawableEdges)
       : new Map<string, { x: number; y: number }>();
-  const useRadialLayout = buildType === "teaching_standard" || buildType === "course_standard";
+  const useFixedLayout = buildType === "teaching_standard" || buildType === "course_standard";
 
   return {
     animationDurationUpdate: 350,
@@ -811,12 +844,12 @@ function buildGraphOption(
     series: [
       {
         type: "graph",
-        layout: useRadialLayout ? "none" : "force",
+        layout: useFixedLayout ? "none" : "force",
         top: 38,
         roam: true,
         draggable: true,
         categories,
-        force: useRadialLayout ? undefined : {
+        force: useFixedLayout ? undefined : {
           repulsion: 260,
           edgeLength: [70, 180],
           gravity: 0.08,
@@ -858,7 +891,7 @@ function buildGraphOption(
               borderColor: "#ffffff",
               borderWidth: 1,
             },
-            ...(radialPositions.get(node.id) ?? {}),
+            ...(fixedPositions.get(node.id) ?? {}),
           };
         }),
         links: drawableEdges.map((edge) => ({
@@ -907,75 +940,57 @@ function teachingStandardRadialPositions(
   return positions;
 }
 
-function courseStandardRadialPositions(
+function buildCourseTreeSubgraph(
   nodes: GraphDisplayNode[],
   edges: GraphDisplayEdge[],
-): Map<string, { x: number; y: number }> {
-  const positions = new Map<string, { x: number; y: number }>();
+  maxDepth: number,
+): { nodes: GraphDisplayNode[]; edges: GraphDisplayEdge[] } {
   const root = nodes.find((node) => node.node_type === "Course");
-  if (!root) return positions;
-
+  if (!root) return { nodes, edges };
   const children = new Map<string, string[]>();
   for (const edge of edges) {
     const targets = children.get(edge.source_node_id) ?? [];
     targets.push(edge.target_node_id);
     children.set(edge.source_node_id, targets);
   }
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  const modules = (children.get(root.id) ?? []).filter(
-    (id) => nodeById.get(id)?.node_type === "CourseModule",
-  );
-  if (modules.length === 0) return positions;
-
-  const leafCount = new Map<string, number>();
-  const countLeaves = (nodeId: string): number => {
-    const cached = leafCount.get(nodeId);
-    if (cached != null) return cached;
-    const targets = children.get(nodeId) ?? [];
-    const count = targets.length === 0
-      ? 1
-      : targets.reduce((total, targetId) => total + countLeaves(targetId), 0);
-    leafCount.set(nodeId, count);
-    return count;
-  };
-  const angleByNode = new Map<string, number>();
-  const assignAngles = (nodeId: string, start: number, end: number) => {
-    const targets = children.get(nodeId) ?? [];
-    if (targets.length === 0) {
-      angleByNode.set(nodeId, (start + end) / 2);
-      return;
-    }
-    const totalLeaves = targets.reduce((total, targetId) => total + countLeaves(targetId), 0);
-    let cursor = start;
-    for (const targetId of targets) {
-      const width = ((end - start) * countLeaves(targetId)) / Math.max(totalLeaves, 1);
-      assignAngles(targetId, cursor, cursor + width);
-      cursor += width;
-    }
-    angleByNode.set(nodeId, (start + end) / 2);
-  };
-
-  positions.set(root.id, { x: 0, y: 0 });
-  const totalLeaves = modules.reduce((total, moduleId) => total + countLeaves(moduleId), 0);
-  let cursor = -Math.PI / 2;
-  for (const moduleId of modules) {
-    const width = (Math.PI * 2 * countLeaves(moduleId)) / Math.max(totalLeaves, 1);
-    assignAngles(moduleId, cursor, cursor + width);
-    cursor += width;
+  const visibleIds = new Set<string>([root.id]);
+  let frontier = [root.id];
+  for (let depth = 1; depth < maxDepth; depth += 1) {
+    const next = frontier.flatMap((nodeId) => children.get(nodeId) ?? []);
+    next.forEach((nodeId) => visibleIds.add(nodeId));
+    frontier = next;
   }
-
-  const radiusByType: Record<string, number> = {
-    CourseModule: 250,
-    CourseContent: 470,
-    SkillRequirement: 700,
-    KnowledgeRequirement: 930,
+  return {
+    nodes: nodes.filter((node) => visibleIds.has(node.id)),
+    edges: edges.filter(
+      (edge) => visibleIds.has(edge.source_node_id) && visibleIds.has(edge.target_node_id),
+    ),
   };
-  for (const [nodeId, angle] of angleByNode) {
-    const node = nodeById.get(nodeId);
-    const radius = node ? radiusByType[node.node_type] : undefined;
-    if (radius == null) continue;
-    positions.set(nodeId, { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+}
+
+function courseStandardTreePositions(
+  nodes: GraphDisplayNode[],
+  edges: GraphDisplayEdge[],
+): Map<string, { x: number; y: number }> {
+  const positions = new Map<string, { x: number; y: number }>();
+  const root = nodes.find((node) => node.node_type === "Course");
+  if (!root) return positions;
+  const children = new Map<string, string[]>();
+  for (const edge of edges) {
+    const targets = children.get(edge.source_node_id) ?? [];
+    targets.push(edge.target_node_id);
+    children.set(edge.source_node_id, targets);
   }
+  let nextLeafY = 0;
+  const place = (nodeId: string, depth: number): number => {
+    const targets = children.get(nodeId) ?? [];
+    const y = targets.length === 0
+      ? nextLeafY++ * 86
+      : targets.reduce((total, targetId) => total + place(targetId, depth + 1), 0) / targets.length;
+    positions.set(nodeId, { x: depth * 280, y });
+    return y;
+  };
+  place(root.id, 0);
   return positions;
 }
 
