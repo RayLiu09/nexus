@@ -3,6 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from nexus_app.api_permissions import OPEN_API_FULL_ACCESS_SCOPES
 from nexus_app.enums import (
     AIGovernanceRunAdoptionStatus,
     AIGovernanceRunValidationStatus,
@@ -77,7 +78,7 @@ class ApiCallerCreate(BaseModel):
     caller_key: str | None = Field(default=None, min_length=1, max_length=80)
     name: str = Field(min_length=1, max_length=128)
     org_scope: list[str] = Field(default_factory=list)
-    permission_scope: list[str] = Field(default_factory=list)
+    permission_scope: list[str] = Field(default_factory=lambda: list(OPEN_API_FULL_ACCESS_SCOPES))
     owner_user_id: str | None = None
     expired_at: datetime | None = None
 
@@ -85,8 +86,9 @@ class ApiCallerCreate(BaseModel):
 class ApiCallerUpdate(BaseModel):
     """Request body for PATCH /v1/api-callers/{id} — partial update.
 
-    Only permission_scope and expired_at can be updated. Changes to caller_key require
-    minting a new caller; name/org_scope changes are out of scope for P0.
+    `permission_scope` remains accepted for legacy clients but normalizes to the
+    full P0 Open API scope. Changes to caller_key require minting a new caller;
+    name/org_scope changes are out of scope for P0.
     """
     permission_scope: list[str] | None = Field(default=None)
     expired_at: datetime | None = Field(default=None)

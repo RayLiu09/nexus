@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from nexus_app import models
+from nexus_app.api_permissions import OPEN_API_FULL_ACCESS_SCOPES
 from nexus_app.audit import write_audit
 from nexus_app.auth_service import generate_api_caller_key, hash_api_caller_key
 from nexus_app.enums import AuditEventType
@@ -132,6 +133,10 @@ def mint_api_caller(
     """
     data: dict[str, Any] = payload.model_dump()
     provided_key = data.pop("caller_key", None)
+    # Every P0 API Caller is a credential for the complete public `/open/v1/*`
+    # surface. Do not persist arbitrary UI labels that do not map to route
+    # authorization; future restricted scopes need an explicit route policy.
+    data["permission_scope"] = list(OPEN_API_FULL_ACCESS_SCOPES)
 
     plaintext: str | None
     if provided_key:
@@ -160,6 +165,7 @@ def mint_api_caller(
         {
             "name": row.name,
             "org_scope": row.org_scope,
+            "permission_scope": row.permission_scope,
             "key_source": "server_minted" if plaintext else "client_supplied",
         },
         actor_type=actor_type,

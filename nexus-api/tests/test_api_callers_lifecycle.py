@@ -18,7 +18,7 @@ def test_post_api_callers_server_mints_and_only_returns_plaintext_once(app, sess
     client = TestClient(app)
     resp = client.post(
         "/internal/v1/api-callers",
-        json={"name": "Upper System Z", "org_scope": [], "permission_scope": []},
+        json={"name": "Upper System Z", "org_scope": [], "permission_scope": ["search"]},
     )
     assert resp.status_code == 201, resp.text
     body = resp.json()["data"]
@@ -27,12 +27,21 @@ def test_post_api_callers_server_mints_and_only_returns_plaintext_once(app, sess
     assert plaintext and plaintext.startswith("nx_")
     # The DB never stored the plaintext.
     assert body["caller_key"] is None
+    assert body["permission_scope"] == ["open:*"]
 
     row = session.scalars(
         select(models.ApiCaller).where(models.ApiCaller.id == body["id"])
     ).one()
     assert row.caller_key is None
     assert row.caller_key_hash == hash_api_caller_key(plaintext)
+    assert row.permission_scope == ["open:*"]
+    audit = session.scalars(
+        select(models.AuditLog).where(
+            models.AuditLog.event_type == "ApiCallerCreated",
+            models.AuditLog.target_id == body["id"],
+        )
+    ).one()
+    assert audit.summary["permission_scope"] == ["open:*"]
 
     # Subsequent GET does NOT surface the plaintext.
     get_resp = client.get(f"/internal/v1/api-callers/{body['id']}")
@@ -91,6 +100,19 @@ def test_delete_api_caller_sets_revoked_at_and_is_idempotent(app, session):
         )
     )
     assert len(audits) == 1
+
+
+def test_patch_api_caller_keeps_full_open_api_scope(app):
+    client = TestClient(app)
+    minted = client.post("/internal/v1/api-callers", json={"name": "Scope Stable"}).json()["data"]
+
+    response = client.patch(
+        f"/internal/v1/api-callers/{minted['id']}",
+        json={"permission_scope": ["search"]},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["data"]["permission_scope"] == ["open:*"]
 
 
 def test_revoked_caller_cannot_authenticate(app, session):

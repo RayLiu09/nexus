@@ -28,12 +28,10 @@ interface ApiCallersContentProps {
 
 interface CreateFormValues {
   name: string;
-  permission_scope: string[];
   expiry: string;
 }
 
 interface EditFormValues {
-  permission_scope: string[];
   expiry: string;
 }
 
@@ -44,13 +42,7 @@ interface CreatedCaller {
   caller_key_plaintext: string;
 }
 
-const PERMISSION_OPTIONS = [
-  { label: "search", value: "search" },
-  { label: "qa", value: "qa" },
-  { label: "ingest", value: "ingest" },
-  { label: "read:asset", value: "read:asset" },
-  { label: "read:knowledge", value: "read:knowledge" },
-];
+const OPEN_API_FULL_ACCESS_SCOPE = "open:*";
 
 const EXPIRY_OPTIONS = [
   { label: "1 天", value: "1d" },
@@ -148,7 +140,6 @@ export function ApiCallersContent({
         updated_at: string;
       }>("/api/api-callers", {
         name: values.name,
-        permission_scope: values.permission_scope,
         expired_at: resolveExpiry(values.expiry),
       });
 
@@ -207,7 +198,6 @@ export function ApiCallersContent({
   useEffect(() => {
     if (editOpen && editTarget) {
       editForm.setFieldsValue({
-        permission_scope: editTarget.permission_scope,
         expiry: KEEP_EXPIRY,
       });
     }
@@ -217,9 +207,7 @@ export function ApiCallersContent({
     if (!editTarget) return;
     setEditLoading(true);
     try {
-      const body: Record<string, unknown> = {
-        permission_scope: values.permission_scope,
-      };
+      const body: Record<string, unknown> = {};
       if (values.expiry !== KEEP_EXPIRY) {
         body.expired_at = resolveExpiry(values.expiry);
       }
@@ -228,7 +216,7 @@ export function ApiCallersContent({
         c.id === editTarget.id
           ? {
               ...c,
-              permission_scope: values.permission_scope,
+              permission_scope: [OPEN_API_FULL_ACCESS_SCOPE],
               expired_at: result.data?.expired_at ?? c.expired_at,
             }
           : c,
@@ -280,11 +268,9 @@ export function ApiCallersContent({
       title: "权限范围",
       dataIndex: "permission_scope",
       key: "permission_scope",
-      render: (scopes: string[]) => (
+      render: () => (
         <Space size={4} wrap>
-          {scopes.length > 0
-            ? scopes.map((s) => <Tag key={s}>{s}</Tag>)
-            : <Typography.Text type="secondary">-</Typography.Text>}
+          <Tag>{OPEN_API_FULL_ACCESS_SCOPE}</Tag>
         </Space>
       ),
     },
@@ -469,16 +455,8 @@ export function ApiCallersContent({
               <Input placeholder="例如：数据分析平台、报表系统" />
             </Form.Item>
 
-            <Form.Item
-              name="permission_scope"
-              label="权限范围"
-              rules={[{ required: true, message: "请选择至少一个权限" }]}
-            >
-              <Select
-                mode="multiple"
-                options={PERMISSION_OPTIONS}
-                placeholder="选择 API 调用方可访问的接口范围"
-              />
+            <Form.Item label="权限范围">
+              <Typography.Text>全部 Open API（`/open/v1/*`）</Typography.Text>
             </Form.Item>
 
             <Form.Item
@@ -509,16 +487,8 @@ export function ApiCallersContent({
         destroyOnHidden
       >
         <Form form={editForm} layout="vertical" onFinish={handleEdit}>
-          <Form.Item
-            name="permission_scope"
-            label="权限范围"
-            rules={[{ required: true, message: "请选择至少一个权限" }]}
-          >
-            <Select
-              mode="multiple"
-              options={PERMISSION_OPTIONS}
-              placeholder="选择 API 调用方可访问的接口范围"
-            />
+          <Form.Item label="权限范围">
+            <Typography.Text>全部 Open API（`/open/v1/*`）</Typography.Text>
           </Form.Item>
 
           <Form.Item

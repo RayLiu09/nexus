@@ -11,6 +11,7 @@ from nexus_api import schemas
 from nexus_api.dependencies import Pagination, pagination_params
 from nexus_api.responses import list_response, response
 from nexus_app import models, schemas as domain_schemas, services
+from nexus_app.api_permissions import OPEN_API_FULL_ACCESS_SCOPES
 from nexus_app.audit import write_audit
 from nexus_app.database import get_db
 from nexus_app.enums import AuditEventType
@@ -160,7 +161,7 @@ async def update_api_caller(
     request: Request,
     session: Session = Depends(get_db),
 ):
-    """Update ApiCaller fields (permission_scope, expired_at)."""
+    """Update ApiCaller expiry. Scope remains full `/open/v1/*` access."""
     caller = session.get(models.ApiCaller, api_caller_id)
     if caller is None:
         raise HTTPException(
@@ -178,7 +179,9 @@ async def update_api_caller(
     summary: dict = {"name": caller.name}
 
     if payload.permission_scope is not None:
-        caller.permission_scope = payload.permission_scope
+        # Keep legacy PATCH clients from accidentally narrowing a credential
+        # while the P0 Open API is intentionally an all-routes capability.
+        caller.permission_scope = list(OPEN_API_FULL_ACCESS_SCOPES)
         summary["permission_scope"] = caller.permission_scope
         changed = True
 

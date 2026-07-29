@@ -159,6 +159,8 @@ Search and QA:
 P0 API groups include:
 
 - Identity/org/API caller management.
+- API Caller keys grant the complete current `/open/v1/*` capability. The P0
+  Console does not expose non-enforceable per-route scope selection.
 - Data sources, including scan-task creation for NAS/Webhook/crawler/database Mode B orchestration.
 - Ingest submit and batch query.
 - Raw object query.

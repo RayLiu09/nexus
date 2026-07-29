@@ -544,7 +544,10 @@ Single-node capacity (16 Core / 64 GB / 48 GB GPU):
 - Imported data sources default L1/L2. L3/L4 is an exception requiring evidence and audit.
 - ABAC is an architecture extension point, not P0.
 - Cross-org access denied by default.
-- API keys: scope, quota, `expired_at` revocation, audit.
+- P0 API Caller keys are explicitly minted with `permission_scope=["open:*"]`,
+  granting the complete `/open/v1/*` surface; per-route restricted scopes and
+  quota enforcement are future extensions. Keys retain `expired_at` revocation
+  and audit coverage.
 - Rule expressions cannot execute arbitrary code.
 - Logs must not expose sensitive fields, API keys, or large raw content.
 - Every mutation of Prompt config, rules, version status, governance result, permissions, API keys, AI adoption, or human override must write audit logs.
