@@ -548,6 +548,12 @@ Single-node capacity (16 Core / 64 GB / 48 GB GPU):
   granting the complete `/open/v1/*` surface; per-route restricted scopes and
   quota enforcement are future extensions. Keys retain `expired_at` revocation
   and audit coverage.
+- Pipeline-B job-demand and major-distribution records are separately governed
+  domain facts. Their cross-dataset `/open/v1/record-assets/*` reads do not
+  join or gate on `asset_version.available`; dataset/ref identifiers are
+  returned only for lineage. Generated capability-graph staging projections
+  are exposed through bounded, read-only open adapters while `/internal/v1`
+  retains build, preview, and operational control APIs.
 - Rule expressions cannot execute arbitrary code.
 - Logs must not expose sensitive fields, API keys, or large raw content.
 - Every mutation of Prompt config, rules, version status, governance result, permissions, API keys, AI adoption, or human override must write audit logs.

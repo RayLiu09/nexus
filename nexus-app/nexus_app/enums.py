@@ -274,6 +274,7 @@ class AuditEventType(StrEnum):
     GOVERNANCE_RULES_RELOADED       = "GovernanceRulesReloaded"
     # Consumption-side lineage foundation
     ASSET_VERSION_ACCESSED          = "AssetVersionAccessed"
+    OPEN_RECORD_ASSETS_ACCESSED     = "OpenRecordAssetsAccessed"
     SEARCH_QUERY_EXECUTED           = "SearchQueryExecuted"
     QA_ANSWER_GENERATED             = "QAAnswerGenerated"
     # Governance rules and results (Week 4)

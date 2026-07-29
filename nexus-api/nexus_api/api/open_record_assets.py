@@ -20,6 +20,7 @@ module; the two routers are merged by `main.py.include_router` at boot.
 """
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -30,7 +31,11 @@ from nexus_api import schemas
 from nexus_api.dependencies import Pagination, pagination_params, require_api_caller
 from nexus_api.responses import list_response, response
 from nexus_app import models
+from nexus_app.audit import write_audit
+from nexus_app.capability_graph.whitelists import BuildStatus, BuildType, EdgeType, NodeType
 from nexus_app.database import get_db
+from nexus_app.domain_normalize.administrative_division import normalize_province_name
+from nexus_app.enums import AuditEventType
 
 router = APIRouter(
     prefix="/open/v1/record-assets",
@@ -137,6 +142,107 @@ def _serialize_relation(rel: models.OccupationalAbilityRelation) -> dict[str, An
         "confidence": float(rel.confidence) if rel.confidence is not None else None,
         "evidence": rel.evidence or {},
     }
+
+
+def _serialize_job_demand_record(record: models.JobDemandRecord) -> dict[str, Any]:
+    return {
+        "id": record.id,
+        "dataset_id": record.dataset_id,
+        "normalized_ref_id": record.normalized_ref_id,
+        "source_record_key": record.source_record_key,
+        "source_url": record.source_url,
+        "source_platform": record.source_platform,
+        "source_published_at": record.source_published_at.isoformat() if record.source_published_at else None,
+        "job_title": record.job_title,
+        "employment_type": record.employment_type,
+        "job_function_category": record.job_function_category,
+        "job_count": record.job_count,
+        "city": record.city,
+        "region": record.region,
+        "salary_min": float(record.salary_min) if record.salary_min is not None else None,
+        "salary_max": float(record.salary_max) if record.salary_max is not None else None,
+        "salary_text": record.salary_text,
+        "experience_requirement": record.experience_requirement,
+        "education_requirement": record.education_requirement,
+        "company_name": record.company_name,
+        "company_address": record.company_address,
+        "enterprise_size": record.enterprise_size,
+        "industry_name": record.industry_name,
+        "job_skill_text": record.job_skill_text,
+        "job_description": record.job_description,
+        "responsibility_text": record.responsibility_text,
+        "requirement_text": record.requirement_text,
+        "quality_flags": record.quality_flags or {},
+        "trace": record.trace or {},
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+    }
+
+
+def _serialize_major_distribution_record(record: models.MajorDistributionRecord) -> dict[str, Any]:
+    return {
+        "id": record.id,
+        "dataset_id": record.dataset_id,
+        "normalized_ref_id": record.normalized_ref_id,
+        "source_record_key": record.source_record_key,
+        "source_row_no": record.source_row_no,
+        "year": record.year,
+        "year_text": record.year_text,
+        "province_name": record.province_name,
+        "region_scope": record.region_scope,
+        "major_name": record.major_name,
+        "major_code": record.major_code,
+        "education_level": record.education_level,
+        "distribution_count": record.distribution_count,
+        "quality_flags": record.quality_flags or {},
+        "trace": record.trace or {},
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+    }
+
+
+def _serialize_graph_node(node: models.CapabilityGraphStagingNode) -> dict[str, Any]:
+    return {
+        "id": node.id,
+        "node_type": node.node_type,
+        "node_key": node.node_key,
+        "display_name": node.display_name,
+        "canonical_name": node.canonical_name,
+        "properties": node.properties or {},
+        "confidence": float(node.confidence) if node.confidence is not None else None,
+    }
+
+
+def _serialize_graph_edge(edge: models.CapabilityGraphStagingEdge) -> dict[str, Any]:
+    return {
+        "id": edge.id,
+        "source_node_id": edge.source_node_id,
+        "target_node_id": edge.target_node_id,
+        "edge_type": edge.edge_type,
+        "confidence": float(edge.confidence) if edge.confidence is not None else None,
+    }
+
+
+def _audit_open_record_read(
+    session: Session,
+    *,
+    request: Request,
+    caller: models.ApiCaller,
+    route: str,
+    result_count: int,
+) -> None:
+    """Persist a compact access audit without retaining caller search text."""
+    trace_id = request.headers.get("x-trace-id")
+    request_hash = hashlib.sha256(str(request.url.query).encode("utf-8")).hexdigest()[:16]
+    write_audit(
+        session,
+        AuditEventType.OPEN_RECORD_ASSETS_ACCESSED,
+        target_type="open_record_assets",
+        target_id=trace_id or request_hash,
+        trace_id=trace_id,
+        actor_type="api_caller",
+        actor_id=caller.id,
+        summary={"route": route, "result_count": result_count, "query_hash": request_hash},
+    )
+    session.commit()
 
 
 def _get_analysis_or_404(
@@ -452,6 +558,294 @@ def list_ability_relations(
         page_size=pagination.page_size,
         total=total,
     )
+
+
+# ---------------------------------------------------------------------------
+# Cross-dataset record reads
+# ---------------------------------------------------------------------------
+
+
+def _contains(column, value: str | None):
+    return column.ilike(f"%{value.strip()}%") if value and value.strip() else None
+
+
+@router.get("/job-demand-records", response_model=schemas.ListResponse[dict])
+def list_job_demand_records(
+    request: Request,
+    job_title: str | None = Query(None, min_length=1, max_length=256),
+    company_name: str | None = Query(None, min_length=1, max_length=256),
+    city: str | None = Query(None, min_length=1, max_length=128),
+    education: str | None = Query(None, min_length=1, max_length=128),
+    industry: str | None = Query(None, min_length=1, max_length=128),
+    experience: str | None = Query(None, min_length=1, max_length=128),
+    pagination: Pagination = Depends(pagination_params),
+    caller: models.ApiCaller = Depends(require_api_caller),
+    session: Session = Depends(get_db),
+):
+    """Search job postings across every dataset.
+
+    Pipeline-B records are domain facts, so this route deliberately does not
+    join ``asset_version`` or require an ``available`` version. ``dataset_id``
+    remains a response trace field only.
+    """
+    clauses = [
+        clause
+        for clause in (
+            _contains(models.JobDemandRecord.job_title, job_title),
+            _contains(models.JobDemandRecord.company_name, company_name),
+            _contains(models.JobDemandRecord.city, city),
+            _contains(models.JobDemandRecord.education_requirement, education),
+            _contains(models.JobDemandRecord.industry_name, industry),
+            _contains(models.JobDemandRecord.experience_requirement, experience),
+        )
+        if clause is not None
+    ]
+    stmt = select(models.JobDemandRecord).where(*clauses)
+    count_stmt = select(func.count(models.JobDemandRecord.id)).where(*clauses)
+    total = session.scalar(count_stmt) or 0
+    rows = list(session.scalars(
+        stmt.order_by(models.JobDemandRecord.created_at.desc(), models.JobDemandRecord.id)
+        .offset(pagination.offset).limit(pagination.limit)
+    ).all())
+    _audit_open_record_read(session, request=request, caller=caller, route="job_demand_records", result_count=total)
+    return list_response(
+        [_serialize_job_demand_record(row) for row in rows], request,
+        page=pagination.page, page_size=pagination.page_size, total=total,
+    )
+
+
+def _major_distribution_filters(
+    *, year: int | None, province_name: str | None, major_name: str | None,
+    major_code: str | None,
+) -> list:
+    clauses = []
+    if year is not None:
+        clauses.append(models.MajorDistributionRecord.year == year)
+    normalized_province = normalize_province_name(province_name)
+    if normalized_province:
+        clauses.append(models.MajorDistributionRecord.province_name == normalized_province)
+    if major_name:
+        clauses.append(models.MajorDistributionRecord.major_name.ilike(f"%{major_name.strip()}%"))
+    if major_code:
+        clauses.append(models.MajorDistributionRecord.major_code == major_code.strip())
+    return clauses
+
+
+@router.get("/major-distribution-records", response_model=schemas.ListResponse[dict])
+def list_major_distribution_records(
+    request: Request,
+    year: int | None = Query(None, ge=1900, le=2200),
+    province_name: str | None = Query(None, min_length=1, max_length=128),
+    major_name: str | None = Query(None, min_length=1, max_length=256),
+    major_code: str | None = Query(None, min_length=1, max_length=64),
+    pagination: Pagination = Depends(pagination_params),
+    caller: models.ApiCaller = Depends(require_api_caller),
+    session: Session = Depends(get_db),
+):
+    """Search professional-distribution facts across every dataset."""
+    clauses = _major_distribution_filters(
+        year=year, province_name=province_name, major_name=major_name, major_code=major_code,
+    )
+    total = session.scalar(select(func.count(models.MajorDistributionRecord.id)).where(*clauses)) or 0
+    rows = list(session.scalars(
+        select(models.MajorDistributionRecord).where(*clauses).order_by(
+            models.MajorDistributionRecord.year.desc(),
+            models.MajorDistributionRecord.major_code,
+            models.MajorDistributionRecord.province_name,
+            models.MajorDistributionRecord.id,
+        ).offset(pagination.offset).limit(pagination.limit)
+    ).all())
+    _audit_open_record_read(session, request=request, caller=caller, route="major_distribution_records", result_count=total)
+    return list_response(
+        [_serialize_major_distribution_record(row) for row in rows], request,
+        page=pagination.page, page_size=pagination.page_size, total=total,
+    )
+
+
+_MAJOR_DISTRIBUTION_GROUP_COLUMNS = {
+    "year": models.MajorDistributionRecord.year,
+    "province_name": models.MajorDistributionRecord.province_name,
+    "major_name": models.MajorDistributionRecord.major_name,
+    "major_code": models.MajorDistributionRecord.major_code,
+}
+
+
+@router.get("/major-distribution-records/aggregate", response_model=schemas.ListResponse[dict])
+def aggregate_major_distribution_records(
+    request: Request,
+    group_by: list[str] = Query(["year", "province_name", "major_name", "major_code"]),
+    year: int | None = Query(None, ge=1900, le=2200),
+    province_name: str | None = Query(None, min_length=1, max_length=128),
+    major_name: str | None = Query(None, min_length=1, max_length=256),
+    major_code: str | None = Query(None, min_length=1, max_length=64),
+    pagination: Pagination = Depends(pagination_params),
+    caller: models.ApiCaller = Depends(require_api_caller),
+    session: Session = Depends(get_db),
+):
+    """Return server-side professional-distribution totals grouped by dimensions."""
+    unknown = sorted(set(group_by) - set(_MAJOR_DISTRIBUTION_GROUP_COLUMNS))
+    if unknown:
+        raise HTTPException(status_code=422, detail={"error": "unknown_group_by", "unknown": unknown})
+    if not group_by:
+        raise HTTPException(status_code=422, detail={"error": "group_by_required"})
+    if len(group_by) != len(set(group_by)):
+        raise HTTPException(status_code=422, detail={"error": "duplicate_group_by"})
+
+    columns = [_MAJOR_DISTRIBUTION_GROUP_COLUMNS[name] for name in group_by]
+    clauses = _major_distribution_filters(
+        year=year, province_name=province_name, major_name=major_name, major_code=major_code,
+    )
+    grouped = select(
+        *columns,
+        func.sum(models.MajorDistributionRecord.distribution_count).label("distribution_total"),
+        func.count(models.MajorDistributionRecord.id).label("record_count"),
+    ).where(*clauses).group_by(*columns)
+    total = session.scalar(select(func.count()).select_from(grouped.subquery())) or 0
+    rows = session.execute(
+        grouped.order_by(func.sum(models.MajorDistributionRecord.distribution_count).desc(), *columns)
+        .offset(pagination.offset).limit(pagination.limit)
+    ).all()
+    items = [
+        {
+            **{name: row[index] for index, name in enumerate(group_by)},
+            "distribution_total": int(row.distribution_total or 0),
+            "record_count": int(row.record_count),
+        }
+        for row in rows
+    ]
+    _audit_open_record_read(session, request=request, caller=caller, route="major_distribution_aggregate", result_count=total)
+    return list_response(items, request, page=pagination.page, page_size=pagination.page_size, total=total)
+
+
+# ---------------------------------------------------------------------------
+# Public capability-graph reads. Internal staging APIs remain the operator
+# surface; these adapters expose only generated graph projections.
+# ---------------------------------------------------------------------------
+
+_PUBLIC_GRAPH_NODE_CAP = 1_000
+_PUBLIC_GRAPH_EDGE_CAP = 2_000
+
+
+def _serialize_graph_build(build: models.CapabilityGraphStagingBuild) -> dict[str, Any]:
+    return {
+        "id": build.id,
+        "normalized_ref_id": build.normalized_ref_id,
+        "build_type": build.build_type,
+        "major_name": build.major_name,
+        "major_code": build.major_code,
+        "schema_version": build.schema_version,
+        "created_at": build.created_at.isoformat() if build.created_at else None,
+    }
+
+
+def _generated_graph_by_major_or_404(
+    session: Session, *, build_type: str, major_name: str | None, major_code: str | None,
+) -> models.CapabilityGraphStagingBuild:
+    if not major_name and not major_code:
+        raise HTTPException(status_code=422, detail={"error": "at_least_one_major_required"})
+    stmt = select(models.CapabilityGraphStagingBuild).where(
+        models.CapabilityGraphStagingBuild.build_type == build_type,
+        models.CapabilityGraphStagingBuild.status == BuildStatus.GENERATED,
+    )
+    if major_name:
+        stmt = stmt.where(models.CapabilityGraphStagingBuild.major_name.ilike(f"%{major_name.strip()}%"))
+    if major_code:
+        stmt = stmt.where(models.CapabilityGraphStagingBuild.major_code == major_code.strip())
+    build = session.scalar(stmt.order_by(
+        models.CapabilityGraphStagingBuild.created_at.desc(), models.CapabilityGraphStagingBuild.id.desc(),
+    ).limit(1))
+    if build is None:
+        raise HTTPException(status_code=404, detail={"error": "graph_not_found", "build_type": build_type})
+    return build
+
+
+def _full_graph_payload(session: Session, build: models.CapabilityGraphStagingBuild) -> dict[str, Any]:
+    nodes = list(session.scalars(select(models.CapabilityGraphStagingNode).where(
+        models.CapabilityGraphStagingNode.build_id == build.id,
+    ).order_by(models.CapabilityGraphStagingNode.node_type, models.CapabilityGraphStagingNode.node_key).limit(
+        _PUBLIC_GRAPH_NODE_CAP + 1
+    )).all())
+    edges = list(session.scalars(select(models.CapabilityGraphStagingEdge).where(
+        models.CapabilityGraphStagingEdge.build_id == build.id,
+    ).order_by(models.CapabilityGraphStagingEdge.edge_type, models.CapabilityGraphStagingEdge.id).limit(
+        _PUBLIC_GRAPH_EDGE_CAP + 1
+    )).all())
+    if len(nodes) > _PUBLIC_GRAPH_NODE_CAP or len(edges) > _PUBLIC_GRAPH_EDGE_CAP:
+        raise HTTPException(status_code=413, detail={"error": "graph_response_too_large"})
+    return {"build": _serialize_graph_build(build), "nodes": [_serialize_graph_node(node) for node in nodes], "edges": [_serialize_graph_edge(edge) for edge in edges]}
+
+
+@router.get("/graphs/job-capability", response_model=schemas.ApiResponse[dict])
+def get_job_capability_graph(
+    request: Request,
+    job_title: str = Query(..., min_length=1, max_length=256),
+    caller: models.ApiCaller = Depends(require_api_caller),
+    session: Session = Depends(get_db),
+):
+    """Merge generated job-demand subgraphs matching a position title."""
+    matches = list(session.execute(
+        select(models.CapabilityGraphStagingBuild, models.CapabilityGraphStagingNode).join(
+            models.CapabilityGraphStagingNode,
+            models.CapabilityGraphStagingNode.build_id == models.CapabilityGraphStagingBuild.id,
+        ).where(
+            models.CapabilityGraphStagingBuild.build_type == BuildType.JOB_DEMAND,
+            models.CapabilityGraphStagingBuild.status == BuildStatus.GENERATED,
+            models.CapabilityGraphStagingNode.node_type == NodeType.JOB_ROLE,
+            models.CapabilityGraphStagingNode.display_name.ilike(f"%{job_title.strip()}%"),
+        ).order_by(models.CapabilityGraphStagingBuild.created_at.desc(), models.CapabilityGraphStagingBuild.id.desc())
+    ).all())
+    if not matches:
+        raise HTTPException(status_code=404, detail={"error": "graph_not_found", "job_title": job_title})
+
+    nodes: dict[str, dict[str, Any]] = {}
+    edges: dict[str, dict[str, Any]] = {}
+    builds: list[dict[str, Any]] = []
+    for build, role in matches:
+        role_edges = list(session.scalars(select(models.CapabilityGraphStagingEdge).where(
+            models.CapabilityGraphStagingEdge.build_id == build.id,
+            models.CapabilityGraphStagingEdge.source_node_id == role.id,
+            models.CapabilityGraphStagingEdge.edge_type != EdgeType.JOB_ROLE_AGGREGATES_RECORD,
+        )).all())
+        node_ids = {role.id, *(edge.target_node_id for edge in role_edges)}
+        for node in session.scalars(select(models.CapabilityGraphStagingNode).where(
+            models.CapabilityGraphStagingNode.id.in_(node_ids)
+        )).all():
+            nodes.setdefault(node.id, _serialize_graph_node(node))
+        for edge in role_edges:
+            edges.setdefault(edge.id, _serialize_graph_edge(edge))
+        builds.append(_serialize_graph_build(build))
+    if len(nodes) > _PUBLIC_GRAPH_NODE_CAP or len(edges) > _PUBLIC_GRAPH_EDGE_CAP:
+        raise HTTPException(status_code=413, detail={"error": "graph_response_too_large"})
+    _audit_open_record_read(session, request=request, caller=caller, route="job_capability_graph", result_count=len(nodes))
+    return response({"job_title": job_title, "builds": builds, "nodes": list(nodes.values()), "edges": list(edges.values())}, request)
+
+
+@router.get("/graphs/occupational-capability", response_model=schemas.ApiResponse[dict])
+def get_occupational_capability_graph(
+    request: Request,
+    major_name: str | None = Query(None, min_length=1, max_length=256),
+    major_code: str | None = Query(None, min_length=1, max_length=16),
+    caller: models.ApiCaller = Depends(require_api_caller),
+    session: Session = Depends(get_db),
+):
+    build = _generated_graph_by_major_or_404(session, build_type=BuildType.ABILITY_ANALYSIS, major_name=major_name, major_code=major_code)
+    payload = _full_graph_payload(session, build)
+    _audit_open_record_read(session, request=request, caller=caller, route="occupational_capability_graph", result_count=len(payload["nodes"]))
+    return response(payload, request)
+
+
+@router.get("/graphs/teaching-standard-knowledge", response_model=schemas.ApiResponse[dict])
+def get_teaching_standard_knowledge_graph(
+    request: Request,
+    major_name: str | None = Query(None, min_length=1, max_length=256),
+    major_code: str | None = Query(None, min_length=1, max_length=16),
+    caller: models.ApiCaller = Depends(require_api_caller),
+    session: Session = Depends(get_db),
+):
+    build = _generated_graph_by_major_or_404(session, build_type=BuildType.TEACHING_STANDARD, major_name=major_name, major_code=major_code)
+    payload = _full_graph_payload(session, build)
+    _audit_open_record_read(session, request=request, caller=caller, route="teaching_standard_knowledge_graph", result_count=len(payload["nodes"]))
+    return response(payload, request)
 
 
 __all__ = ["router"]

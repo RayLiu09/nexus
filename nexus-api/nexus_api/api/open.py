@@ -1,8 +1,10 @@
 """Public/external API consumed by upstream applications (`/open/v1/*`).
 
 Scope: read-only access to **governed** data assets and knowledge units. Every
-endpoint requires a valid `ApiCaller` credential (`X-API-Key` header) and only
-surfaces resources whose anchoring asset version is `available`:
+endpoint requires a valid `ApiCaller` credential (`X-API-Key` header). Asset
+and knowledge-unit reads surface resources whose anchoring asset version is
+`available`; Pipeline-B structured-record reads are an explicit exception and
+query their domain fact tables across datasets without an asset-version gate:
 
   - `/open/v1/assets`              — list assets that have an available version
   - `/open/v1/assets/{id}`         — asset detail (available versions only)
@@ -1225,7 +1227,6 @@ def _serialize_requirement_item(item: models.JobDemandRequirementItem) -> dict:
     }
 
 
-@router.get("/record-assets/job-demand-datasets")
 def list_job_demand_datasets(
     request: Request,
     normalized_ref_id: str | None = Query(None, description="Exact match"),
@@ -1272,7 +1273,6 @@ def list_job_demand_datasets(
     )
 
 
-@router.get("/record-assets/job-demand-datasets/{dataset_id}")
 def get_job_demand_dataset(
     dataset_id: str,
     request: Request,
@@ -1290,7 +1290,6 @@ def get_job_demand_dataset(
     return response(_serialize_job_demand_dataset(dataset), request)
 
 
-@router.get("/record-assets/job-demand-datasets/{dataset_id}/records")
 def list_job_demand_records_for_dataset(
     dataset_id: str,
     request: Request,
@@ -1554,7 +1553,6 @@ def _major_distribution_dataset_available(
     return _version_is_available(session.get(models.AssetVersion, dataset.asset_version_id))
 
 
-@router.get("/major-distribution-datasets")
 def list_major_distribution_datasets(
     request: Request,
     normalized_ref_id: str | None = Query(None, description="Exact match"),
@@ -1604,7 +1602,6 @@ def list_major_distribution_datasets(
     )
 
 
-@router.get("/major-distribution-datasets/{dataset_id}")
 def get_major_distribution_dataset(
     dataset_id: str,
     request: Request,
@@ -1621,7 +1618,6 @@ def get_major_distribution_dataset(
     return response(_serialize_major_distribution_dataset(dataset), request)
 
 
-@router.get("/major-distribution-datasets/{dataset_id}/records")
 def list_major_distribution_records_for_dataset(
     dataset_id: str,
     request: Request,
@@ -1690,7 +1686,6 @@ def list_major_distribution_records_for_dataset(
     )
 
 
-@router.get("/major-distribution-records")
 def list_major_distribution_records(
     request: Request,
     normalized_ref_id: str | None = Query(None, description="Exact match"),
@@ -1757,7 +1752,6 @@ def list_major_distribution_records(
     )
 
 
-@router.get("/major-distribution-records/{record_id}")
 def get_major_distribution_record(
     record_id: str,
     request: Request,

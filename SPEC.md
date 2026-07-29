@@ -161,6 +161,21 @@ P0 API groups include:
 - Identity/org/API caller management.
 - API Caller keys grant the complete current `/open/v1/*` capability. The P0
   Console does not expose non-enforceable per-route scope selection.
+- Pipeline-B structured records are public business facts, not asset-version
+  projections: API callers query job-demand and major-distribution records
+  across datasets without an `available`-version prerequisite. `dataset_id`
+  remains response lineage only, never a required public route hierarchy.
+- Public record endpoints include `GET /open/v1/record-assets/job-demand-records`
+  (job title, company, city, education, industry, and experience filters),
+  `GET /open/v1/record-assets/major-distribution-records`, and
+  `GET /open/v1/record-assets/major-distribution-records/aggregate` (grouped
+  server-side totals by year, province, major name, and major code).
+- Read-only public graph adapters expose generated projections only:
+  `GET /open/v1/record-assets/graphs/job-capability?job_title=`,
+  `GET /open/v1/record-assets/graphs/occupational-capability?major_name|major_code=`,
+  and `GET /open/v1/record-assets/graphs/teaching-standard-knowledge?major_name|major_code=`.
+  The equivalent `/internal/v1` graph preview and build-control interfaces
+  remain console-only.
 - Data sources, including scan-task creation for NAS/Webhook/crawler/database Mode B orchestration.
 - Ingest submit and batch query.
 - Raw object query.

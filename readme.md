@@ -95,6 +95,7 @@ Root documents are distilled implementation contracts:
 - Persistent job center with stage, failure reason, retry, reprocess, and re-governance.
 - MinerU parsing (auto model_version, OCR, image extraction) and standardization into `normalized_document` / `normalized_record` with full `normalized_asset_ref` fields.
 - Pipeline B structured record assets, including job demand, occupational ability analysis, and professional major-distribution tables with domain read models.
+- Cross-dataset API-caller reads for Pipeline B job-demand and major-distribution facts, including server-side major-distribution aggregation and generated job, occupational-capability, and teaching-standard graph adapters. Record reads retain dataset/ref lineage but do not depend on an `available` asset-version projection.
 - AI-led classification, level, tag, org-scope suggestions, and quality scoring.
 - Immutable business-expert governance review: experts finalize classification, level, structured tags, quality disposition, and org scope without overwriting AI evidence; admissible conclusions resume only knowledge chunking/indexing.
 - Configurable governance rules and decision tracking.
