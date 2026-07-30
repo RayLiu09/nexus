@@ -30,6 +30,7 @@ from nexus_app.retrieval.rerank import apply_weighted_rerank
 from nexus_app.retrieval.sql_guardrails import (
     GuardedStructuredPlan,
     TARGET_ID_IN_KEY,
+    validate_tag_filters,
     validate_structured_plan,
 )
 from nexus_app.retrieval.tag_filter_execution import (
@@ -69,6 +70,12 @@ class MajorDistributionRetrievalExecutor:
             raise ValueError("MajorDistributionRetrievalExecutor only accepts major_distribution")
         if sub_query.structured_plan is None:
             raise ValueError("structured sub query requires structured_plan")
+
+        validate_tag_filters(
+            domain=BusinessDomain.MAJOR_DISTRIBUTION,
+            tag_filters=sub_query.tag_filters,
+            query_profile_key=sub_query.structured_plan.query_profile,
+        )
 
         started = time.monotonic()
 
@@ -471,4 +478,3 @@ def _row_range(source_row_no: str | None) -> list[int] | None:
     except ValueError:
         return None
     return [row, row]
-

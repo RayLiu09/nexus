@@ -259,10 +259,7 @@ def check_litellm_reachable(session: Session, settings: Settings) -> CheckResult
 def check_tag_asset_index_coverage(
     session: Session, settings: Settings,
 ) -> CheckResult:
-    """Two axes: target_type × source.  Unstructured retrieval requires
-    at least some ``normalized_asset_ref`` × ``governance_tag`` rows;
-    structured requires the per-writer field_projection rows PR-6b
-    lands automatically once records are ingested."""
+    """Document and outline tag-index coverage for L4 tag retrieval."""
     del settings
     stmt = (
         select(
@@ -310,17 +307,6 @@ def check_tag_asset_index_coverage(
         .get(TagAssetIndexSource.OUTLINE_PROJECTION.value, {})
         .get("count", 0)
     )
-    structured_field = sum(
-        matrix.get(t.value, {})
-        .get(TagAssetIndexSource.FIELD_PROJECTION.value, {})
-        .get("count", 0)
-        for t in (
-            TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-            TagAssetIndexTargetType.MAJOR_DISTRIBUTION_RECORD,
-            TagAssetIndexTargetType.OCCUPATIONAL_ABILITY_ITEM,
-        )
-    )
-
     gaps: list[str] = []
     if ref_gov == 0:
         gaps.append(
@@ -328,9 +314,6 @@ def check_tag_asset_index_coverage(
         )
     if outline_proj == 0:
         gaps.append("outline_node × outline_projection = 0 → task_outline_context profile 空")
-    if structured_field == 0:
-        gaps.append("结构化 field_projection = 0 → job_demand / major_distribution 通道空")
-
     details = {
         "total_rows": total,
         "with_embedding": total_with_embed,

@@ -8,6 +8,11 @@
 - **审计基线**：本仓库 `main` 分支 f89afd5 + Milestone A 已交付内容
 - **本文件目的**：在 M-B（索引层）动工前，把 tag_filter 全链路的**衔接点、失败模式、跨步骤不变量、兜底策略、补丁清单**一次性铺开，避免小步实施时反复反悔
 
+> **2026-07-30 scope amendment**: the structured Phase A/Phase B tag-filter
+> path is retired. `TagAssetIndexResolver` is retained only for document
+> `normalized_asset_ref` and `outline_node` targets; structured domains use
+> their controlled SQL filters directly.
+
 ---
 
 ## 1. 全链路 12 步与现状回顾

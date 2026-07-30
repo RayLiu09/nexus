@@ -11,6 +11,16 @@
   - v1.3 修订讨论（业务标签抽取合并到现有 AI 治理阶段，见 §16）
 - **文档关系**：v1.3 **不替代** v1.0 骨架，**替换** v1.1 中"标准编码强 FK 桥接"的部分设计；v1.2 未成为独立文档，其结论已并入 v1.3。
 
+> **2026-07-30 scope amendment**: `tag_asset_index` no longer indexes
+> Pipeline B structured records (`job_demand_record`,
+> `job_demand_requirement_item`, `major_distribution_record`, or
+> `occupational_ability_item`). Those domains use their own exact structured
+> filters. The supported index targets are document `normalized_asset_ref`
+> governance/expert-review tags and `outline_node` tags for textbook chapter
+> knowledge filtering. All tag vectors use `TAG_EMBEDDING_MODEL` and
+> `TAG_EMBEDDING_DIMENSION`; generic chunk/document embedding settings are not
+> a valid fallback.
+
 ---
 
 ## 1. 定位再校准与 v1.1 短板复盘

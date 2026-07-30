@@ -60,6 +60,7 @@ from sqlalchemy.orm import Session
 from nexus_app import models
 from nexus_app.config import get_settings
 from nexus_app.database import get_session_local
+from nexus_app.enums import TagAssetIndexTargetType
 from nexus_app.index.embedding_client import (
     EmbeddingClientError,
     EmbeddingClientProtocol,
@@ -70,13 +71,10 @@ from nexus_app.retrieval.tag_schemas import TAG_TYPE_CODES
 logger = logging.getLogger(__name__)
 
 DEFAULT_BATCH_SIZE: int = 32
-# tag_asset_index.tag_embedding is declared Vector(512) — see the model
-# column comment "bge-small-zh-v1.5 (512-d) — async, nullable while
-# pending".  Do NOT read from ``settings.default_embedding_dimension``
-# — that setting drives chunk embeddings (bge-m3, 1024-d) which this
-# column would refuse.  If you swap the M-B tag embedding model, update
-# both the column type AND this constant in the same PR.
-TAG_EMBEDDING_DIMENSION: int = 512
+_TAG_EMBEDDING_TARGET_TYPES = (
+    TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
+    TagAssetIndexTargetType.OUTLINE_NODE,
+)
 
 
 @dataclass
@@ -146,6 +144,7 @@ def _iter_rows_needing_embedding(
             models.TagAssetIndex.tag_value_normalized,
         )
         .where(needs_embedding)
+        .where(models.TagAssetIndex.target_type.in_(_TAG_EMBEDDING_TARGET_TYPES))
         .order_by(models.TagAssetIndex.id)
     )
     if tag_type_filter is not None:
@@ -181,6 +180,8 @@ def _embed_and_persist(
     driver keeps going on other batches.  Caller decides when to
     commit.
     """
+    if not model_alias:
+        return False, "TAG_EMBEDDING_MODEL is required", None, None
     ids = [row_id for row_id, _ in batch]
     texts = [text for _, text in batch]
     try:
@@ -345,17 +346,6 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Emit summary as JSON on stdout (default: human-readable).",
     )
-    parser.add_argument(
-        "--model-alias",
-        type=str,
-        default=None,
-        help=(
-            "Override the LiteLLM model alias used for tag embeddings. "
-            "Defaults to the client's default alias (typically an alias "
-            "of bge-small-zh-v1.5 configured on the gateway); MUST return "
-            f"{TAG_EMBEDDING_DIMENSION}-dim vectors to match the column."
-        ),
-    )
     args = parser.parse_args(argv)
 
     if args.batch_size <= 0:
@@ -366,7 +356,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     settings = get_settings()
-    expected_dimension = TAG_EMBEDDING_DIMENSION
+    expected_dimension = settings.tag_embedding_dimension
 
     # Dry-run must still be able to iterate the queue without a working
     # LiteLLM endpoint — build the real client lazily.
@@ -388,7 +378,7 @@ def main(argv: list[str] | None = None) -> int:
             batch_size=args.batch_size,
             expected_dimension=expected_dimension,
             apply_changes=args.apply,
-            model_alias=args.model_alias,
+            model_alias=settings.tag_embedding_model,
         )
 
     if args.json:

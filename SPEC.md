@@ -8,6 +8,11 @@ NEXUS一期 builds the minimum usable loop for enterprise data assets and knowle
 
 `data ingestion → ingest_validate → assetize → parse/normalize → normalized_asset_ref → AI governance and quality scoring → rule guardrails → available/review_required → NEXUS knowledge_chunk construction → pgvector P0 index/search adapter → permission/governance-filter-ready search/QA → traceable citation and audit`
 
+For document discovery, approved governance tags and business-expert reviewed
+tags are projected to `tag_asset_index`; textbook outline-node tags remain
+available for chapter knowledge-chunk filtering. Structured Pipeline B records
+do not use this index and are filtered through their domain tables.
+
 The platform focuses on D1-D4 pilot domains. Knowledge Pipeline P0 scope = Pipeline 1 (semantic retrieval KB) only. D5/D6 ingestion, productized knowledge graph, SFT corpus, evaluation standard library, and an operations center are not productized in P0.
 
 ## Roles
@@ -153,6 +158,14 @@ Search and QA:
 - Search handler must write `SearchQueryExecuted` audit event (query hash, hit normalized_ref_ids, caller_id) before returning results.
 - QA handler must write `QAAnswerGenerated` audit event (question hash, cited normalized_ref_ids, cited chunk_ids, caller_id) before returning answer.
 - These audit events must not contain query plaintext, answer content, or L3/L4 data.
+- Query Router v2 is the conversational entry point: `POST /open/v1/query`
+  and `POST /internal/v1/query` expose `section_contexts` when semantic hits
+  link to theory-textbook outline nodes. The response contains no more than
+  three distinct chapters, selected by ranked first hit, each with its complete
+  ordered chunk set plus `total_chunk_count`, `total_char_count`, and
+  `complete=true`. Callers do not provide an `outline_node_id`. This expansion
+  does not apply to industry policies or reports before a general document
+  section model is available. `GET /open/v1/search` stays a hit-evidence API.
 
 ## Public API Groups
 
@@ -161,6 +174,13 @@ P0 API groups include:
 - Identity/org/API caller management.
 - API Caller keys grant the complete current `/open/v1/*` capability. The P0
   Console does not expose non-enforceable per-route scope selection.
+- `GET /open/v1/assets?domain=&tag_type=&tags=&is_exact_matched=false&page=&pageSize=` lists only
+  available data assets. `domain` filters official governance classification;
+  repeated `tags` values retrieve governed content tags semantically with
+  `ANY` recall semantics, and optional `tag_type` narrows the taxonomy scope.
+  `is_exact_matched=true` instead applies normalized exact tag matching.
+  Items expose the stable relative `download_url_endpoint` for on-demand URL
+  minting, never a presigned URL in the list response.
 - Pipeline-B structured records are public business facts, not asset-version
   projections: API callers query job-demand and major-distribution records
   across datasets without an `available`-version prerequisite. `dataset_id`

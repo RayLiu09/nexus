@@ -154,6 +154,16 @@ class Settings(BaseSettings):
         default=None,
         alias="LITELLM_EMBEDDING_MODEL_ALIAS",
     )
+    # Short semantic vectors stored in tag_asset_index use their own model
+    # space. Do not fall back to the document/chunk embedding model here.
+    tag_embedding_model: str = Field(
+        default="quentinz/bge-small-zh-v1.5",
+        alias="TAG_EMBEDDING_MODEL",
+    )
+    tag_embedding_dimension: int = Field(
+        default=512,
+        alias="TAG_EMBEDDING_DIMENSION",
+    )
     default_retrieval_intent_model: str | None = Field(
         default=None,
         alias="DEFAULT_RETRIEVAL_INTENT_MODEL",

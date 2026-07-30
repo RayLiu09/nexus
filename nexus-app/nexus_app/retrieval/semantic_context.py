@@ -17,8 +17,6 @@ from sqlalchemy.orm import Session
 from nexus_app import models
 
 MAX_CONTEXT_REFS = 3
-MAX_SECTION_CHUNKS = 64
-MAX_SECTION_CONTEXT_CHARS = 12_000
 MAX_TASK_STEPS = 24
 
 _QUERY_NOISE_RE = re.compile(
@@ -151,12 +149,23 @@ def assemble_semantic_context(
     query: str,
     hits: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Return bounded context packs for the highest-ranked hit references.
+    """Return complete theory-section contexts for the highest-ranked hits.
 
-    The selection is deliberately query-title-first.  Historical outline
-    backfills can associate a learning-goal block with the preceding section;
-    using that stale association as authority would expand the wrong chapter.
+    A semantic hit with a theory-outline relation is the primary expansion
+    signal.  We expand at most ``MAX_CONTEXT_REFS`` distinct hit sections,
+    ranked by their first occurrence in the vector result.  This keeps a
+    multi-topic query from multiplying its response indefinitely without
+    forcing callers to know internal outline-node identifiers.
+
+    Older data can attach a learning-goal chunk to the preceding section.  A
+    weak hit is therefore not allowed to select a section on its own; in that
+    case the established high-confidence title match remains the fallback.
     """
+    hit_contexts = _section_contexts_for_hit_nodes(session, hits)
+    if hit_contexts:
+        return hit_contexts
+
+    # Compatibility fallback for title-led questions and legacy chunk links.
     ref_ids = _distinct_ref_ids(hits)[:MAX_CONTEXT_REFS]
     contexts: list[dict[str, Any]] = []
     for ref_id in ref_ids:
@@ -168,6 +177,70 @@ def assemble_semantic_context(
         if section_context is not None:
             contexts.append(section_context)
     return contexts
+
+
+def _section_contexts_for_hit_nodes(
+    session: Session,
+    hits: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Expand the first three non-weak theory outline nodes represented by hits."""
+    chunk_ids = [
+        str(hit.get("nexus_chunk_id") or "")
+        for hit in hits
+        if hit.get("nexus_chunk_id")
+    ]
+    if not chunk_ids:
+        return []
+    chunks_by_id = {
+        chunk.id: chunk
+        for chunk in session.scalars(
+            select(models.KnowledgeChunk).where(
+                models.KnowledgeChunk.id.in_(chunk_ids)
+            )
+        ).all()
+    }
+    nodes_by_id: dict[str, models.KnowledgeOutlineNode] = {}
+    selected_node_ids: list[str] = []
+    for chunk_id in chunk_ids:
+        chunk = chunks_by_id.get(chunk_id)
+        if chunk is None or not chunk.knowledge_outline_node_id:
+            continue
+        if _is_weak_section_hit(chunk):
+            continue
+        node_id = chunk.knowledge_outline_node_id
+        if node_id in selected_node_ids:
+            continue
+        node = session.get(models.KnowledgeOutlineNode, node_id)
+        if node is None:
+            continue
+        nodes_by_id[node_id] = node
+        selected_node_ids.append(node_id)
+        if len(selected_node_ids) >= MAX_CONTEXT_REFS:
+            break
+
+    contexts: list[dict[str, Any]] = []
+    for node_id in selected_node_ids:
+        node = nodes_by_id[node_id]
+        nodes = _theory_nodes(session, node.normalized_ref_id)
+        context = _section_context_for_node(
+            session,
+            ref_id=node.normalized_ref_id,
+            nodes=nodes,
+            section=node,
+            selection_reason="ranked_hit_outline_node",
+        )
+        if context is not None:
+            contexts.append(context)
+    return contexts
+
+
+def _is_weak_section_hit(chunk: models.KnowledgeChunk) -> bool:
+    path = (chunk.chunk_metadata or {}).get("heading_path") or []
+    titles = " ".join(
+        str(item.get("title") or "") for item in path if isinstance(item, dict)
+    )
+    content = (chunk.content or "").strip()
+    return "学习目标" in titles or content.startswith(("目录", "目 录", "知识回顾"))
 
 
 def weak_evidence_chunk_ids(
@@ -238,19 +311,41 @@ def _section_context(session: Session, *, ref_id: str, query: str) -> dict[str, 
     )
     if section is None or section_score < 8_000:
         return None
-    chunks, truncated = _bound_section_chunks(
-        _theory_section_chunks(session, ref_id, nodes, section.id),
+    return _section_context_for_node(
+        session,
+        ref_id=ref_id,
+        nodes=nodes,
+        section=section,
+        selection_reason="query_outline_title_match",
     )
+
+
+def _section_context_for_node(
+    session: Session,
+    *,
+    ref_id: str,
+    nodes: list[models.KnowledgeOutlineNode],
+    section: models.KnowledgeOutlineNode,
+    selection_reason: str,
+) -> dict[str, Any] | None:
+    # A chapter-context response promises the complete contents of the stored
+    # outline section.  Its node/subtree relation is therefore authoritative;
+    # the heading-path safeguard used for pre-ranking candidate narrowing must
+    # not silently remove linked chapter chunks from this response.
+    chunks = _all_theory_section_chunks(session, ref_id, nodes, section.id)
     if not chunks:
         return None
     return {
         "kind": "section_context",
-        "selection_reason": "query_outline_title_match",
+        "selection_reason": selection_reason,
         "normalized_ref_id": ref_id,
         "outline_node_id": section.id,
         "title": section.title,
         "chunk_count": len(chunks),
-        "truncated": truncated,
+        "total_chunk_count": len(chunks),
+        "total_char_count": sum(len(chunk.content or "") for chunk in chunks),
+        "complete": True,
+        "truncated": False,
         "chunks": [_chunk_item(chunk) for chunk in chunks],
     }
 
@@ -410,6 +505,26 @@ def _theory_section_chunks(
     )
 
 
+def _all_theory_section_chunks(
+    session: Session,
+    ref_id: str,
+    nodes: list[models.KnowledgeOutlineNode],
+    root_id: str,
+) -> list[models.KnowledgeChunk]:
+    """Return every chunk directly linked to a stored outline subtree.
+
+    Unlike ``_theory_section_chunks``, this is used only for the explicit
+    complete-context response contract, not pre-ranking scope selection.
+    """
+    node_ids = {node.id for node in _descendants(nodes, root_id)}
+    return list(session.scalars(
+        select(models.KnowledgeChunk).where(
+            models.KnowledgeChunk.normalized_ref_id == ref_id,
+            models.KnowledgeChunk.knowledge_outline_node_id.in_(node_ids),
+        ).order_by(models.KnowledgeChunk.chunk_index, models.KnowledgeChunk.id)
+    ))
+
+
 def _filter_chunks_by_heading_path(
     chunks: list[models.KnowledgeChunk],
     *,
@@ -502,24 +617,6 @@ def _structural_heading_level(item: Any) -> int:
     if re.match(r"^[①②③④⑤⑥⑦⑧⑨⑩]", title):
         return level + 2
     return level
-
-
-def _bound_section_chunks(
-    chunks: list[models.KnowledgeChunk],
-) -> tuple[list[models.KnowledgeChunk], bool]:
-    """Bound section context by content budget and report truncation."""
-    selected: list[models.KnowledgeChunk] = []
-    char_count = 0
-    for chunk in chunks:
-        content_size = len(chunk.content or "")
-        if selected and (
-            len(selected) >= MAX_SECTION_CHUNKS
-            or char_count + content_size > MAX_SECTION_CONTEXT_CHARS
-        ):
-            return selected, True
-        selected.append(chunk)
-        char_count += content_size
-    return selected, False
 
 
 def _task_chunk_ids(

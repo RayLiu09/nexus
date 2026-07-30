@@ -545,6 +545,11 @@ class TagAssetIndexResolver:
         if self._embedding_client is None:
             result.add_warning("l4_no_embedding_client")
             return []
+        # Tag vectors have an independent model space. Calling the generic
+        # client default here would compare incompatible vectors.
+        if not self._embedding_model_alias:
+            result.add_warning("l4_tag_embedding_model_not_configured")
+            return []
 
         # Nothing to embed → no-op.
         query_texts = [n for _, n in normalised_candidates]

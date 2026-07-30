@@ -411,6 +411,22 @@ class AssetCatalogRead(AssetRead):
     index_status: str | None = None
 
 
+class OpenAssetCatalogRead(AssetRead):
+    """Public, available-only asset catalog item for API callers.
+
+    The download endpoint is intentionally stable and relative. Callers mint
+    a short-lived URL in a separate request so list pagination never creates
+    bulk presigned URLs.
+    """
+
+    domain: str | None = None
+    normalized_ref_id: str
+    version_id: str
+    raw_object_id: str
+    tags: list[dict[str, str]] = Field(default_factory=list)
+    download_url_endpoint: str
+
+
 class AssetSummaryRead(BaseModel):
     total: int
     available: int

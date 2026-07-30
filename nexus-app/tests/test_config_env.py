@@ -33,6 +33,8 @@ def test_env_dev_embedding_values_are_loaded():
     assert settings.embedding_batch_size == 32
     assert settings.embedding_timeout == 60.0
     assert settings.effective_embedding_model_alias == "bge-m3:latest"
+    assert settings.tag_embedding_model == "quentinz/bge-small-zh-v1.5"
+    assert settings.tag_embedding_dimension == 512
 
 
 def test_litellm_embedding_alias_overrides_default_embedding_model(monkeypatch):

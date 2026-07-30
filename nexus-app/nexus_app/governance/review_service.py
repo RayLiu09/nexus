@@ -28,6 +28,7 @@ from nexus_app.enums import (
     GovernanceResultStatus,
     JobStatus,
     JobType,
+    NormalizedType,
     TagAssetIndexSource,
     TagAssetIndexTargetType,
 )
@@ -474,6 +475,10 @@ class GovernanceReviewService:
         tags: StructuredTagBag,
         trace_id: str | None,
     ) -> None:
+        if ref.normalized_type != NormalizedType.DOCUMENT:
+            # Expert decisions still persist on GovernanceResult, but only
+            # document assets participate in tag-index discovery.
+            return
         payloads: list[TagRowPayload] = []
         raw = tags.model_dump(mode="json")
         for bucket, tag_type in BUCKET_TO_TAG_TYPE.items():

@@ -63,6 +63,7 @@ def _result_payload(result: RouterResult) -> dict[str, Any]:
         "warnings": list(result.warnings),
         "audit_summary": result.audit_summary,
         "external_web_results": list(getattr(result, "external_web_results", ())),
+        "section_contexts": list(getattr(result, "section_contexts", ())),
     }
 
 

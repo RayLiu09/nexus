@@ -42,6 +42,7 @@ from nexus_app.retrieval.schemas import (
 from nexus_app.retrieval.sql_guardrails import (
     GuardedStructuredPlan,
     TARGET_ID_IN_KEY,
+    validate_tag_filters,
     validate_structured_plan,
 )
 from nexus_app.retrieval.tag_filter_execution import (
@@ -83,6 +84,12 @@ class CompetencyRetrievalExecutor:
             raise ValueError("CompetencyRetrievalExecutor only accepts competency_analysis")
         if sub_query.structured_plan is None:
             raise ValueError("structured sub query requires structured_plan")
+
+        validate_tag_filters(
+            domain=BusinessDomain.COMPETENCY_ANALYSIS,
+            tag_filters=sub_query.tag_filters,
+            query_profile_key=sub_query.structured_plan.query_profile,
+        )
 
         started = time.monotonic()
 

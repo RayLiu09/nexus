@@ -211,7 +211,9 @@ class TestLayerRoutingAndOrder:
         client = _FakeEmbedClient(
             vector_for_text={"直播电商": [1.0, 0.0, 0.0, 0.0]},
         )
-        resolver = TagAssetIndexResolver(session, embedding_client=client)
+        resolver = TagAssetIndexResolver(
+            session, embedding_client=client, embedding_model_alias="test-tag-model",
+        )
         result = resolver.resolve(
             bucket_name="industries",
             candidates=["直播电商"],
@@ -504,7 +506,9 @@ class TestSemanticFailureModes:
     def test_embedding_call_failure_isolated(self, session) -> None:
         _seed(session, tag_value_normalized="其他")
         resolver = TagAssetIndexResolver(
-            session, embedding_client=_RaisingEmbedClient(),
+            session,
+            embedding_client=_RaisingEmbedClient(),
+            embedding_model_alias="test-tag-model",
         )
         result = resolver.resolve(
             bucket_name="regions",
@@ -519,7 +523,9 @@ class TestSemanticFailureModes:
     ) -> None:
         _seed(session, tag_value_normalized="其他", tag_embedding=None)
         client = _FakeEmbedClient()
-        resolver = TagAssetIndexResolver(session, embedding_client=client)
+        resolver = TagAssetIndexResolver(
+            session, embedding_client=client, embedding_model_alias="test-tag-model",
+        )
         result = resolver.resolve(
             bucket_name="regions",
             candidates=["北京"],
@@ -537,7 +543,9 @@ class TestSemanticFailureModes:
             tag_embedding=[1.0, 0.0, 0.0, 0.0],
         )
         client = _FakeEmbedClient(vector_for_text={"京城": [1.0, 0.0, 0.0, 0.0]})
-        resolver = TagAssetIndexResolver(session, embedding_client=client)
+        resolver = TagAssetIndexResolver(
+            session, embedding_client=client, embedding_model_alias="test-tag-model",
+        )
 
         result = resolver.resolve(
             bucket_name="regions",
@@ -552,7 +560,9 @@ class TestSemanticFailureModes:
     def test_l1_survives_l4_failure(self, session) -> None:
         _seed(session, tag_value="北京", tag_value_normalized="北京")
         resolver = TagAssetIndexResolver(
-            session, embedding_client=_RaisingEmbedClient(),
+            session,
+            embedding_client=_RaisingEmbedClient(),
+            embedding_model_alias="test-tag-model",
         )
         result = resolver.resolve(
             bucket_name="regions",

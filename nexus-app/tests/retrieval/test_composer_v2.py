@@ -530,6 +530,52 @@ def test_section_context_restores_locator_subheadings_without_llm(seeded_session
     assert "账号定位能够使目标受众更加精准" in result.markdown
 
 
+def test_multiple_section_contexts_render_completely_without_llm(seeded_session):
+    llm = _ScriptedLLM("This response must not be used")
+    result = MDComposerV2(llm_client=llm).compose(
+        seeded_session,
+        query="综合教材问题",
+        dispatch_result=_dispatch(
+            tool_results=(ToolResult(
+                tool_call_id="multiple-sections",
+                name="internal.search_chunks_by_semantic",
+                arguments={"query": "综合教材问题"},
+                ok=True,
+                result={"answer_contexts": [
+                    {
+                        "kind": "section_context",
+                        "normalized_ref_id": "ref-a",
+                        "outline_node_id": "node-a",
+                        "title": "第一章",
+                        "complete": True,
+                        "chunks": [
+                            {"chunk_id": "a1", "locator": {}, "content": "第一章第一段"},
+                            {"chunk_id": "a2", "locator": {}, "content": "第一章第二段"},
+                        ],
+                    },
+                    {
+                        "kind": "section_context",
+                        "normalized_ref_id": "ref-b",
+                        "outline_node_id": "node-b",
+                        "title": "第二章",
+                        "complete": True,
+                        "chunks": [
+                            {"chunk_id": "b1", "locator": {}, "content": "第二章完整内容"},
+                        ],
+                    },
+                ]},
+            ),),
+        ),
+    )
+
+    assert llm.calls == []
+    assert "## 第一章" in result.markdown
+    assert "第一章第二段" in result.markdown
+    assert "## 第二章" in result.markdown
+    assert "第二章完整内容" in result.markdown
+    assert "`ref-b` / `b1`" in result.markdown
+
+
 # ---------------------------------------------------------------------------
 # Chart placeholder replacement
 # ---------------------------------------------------------------------------

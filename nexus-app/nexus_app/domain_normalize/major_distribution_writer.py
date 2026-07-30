@@ -9,24 +9,6 @@ from sqlalchemy import delete, select
 from nexus_app import models
 from nexus_app.domain_normalize.administrative_division import normalize_province_name
 from nexus_app.domain_normalize.schemas import DomainNormalizeResult
-from nexus_app.domain_normalize.tag_projection_hook import (
-    project_writer_records,
-)
-
-
-def _project_major_distribution_record(
-    record: "models.MajorDistributionRecord",
-) -> dict[str, Any]:
-    """Flatten a MajorDistributionRecord ORM row into the projection
-    engine's ``major_distribution_record`` whitelist shape."""
-    return {
-        "province_name": record.province_name,
-        "major_name": record.major_name,
-        "major_code": record.major_code,
-        "education_level": record.education_level,
-        "year": record.year,
-    }
-
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
@@ -193,21 +175,6 @@ def write(
         "flag_counts": dict(flag_counter),
     }
     session.flush()
-
-    # PR-6b — write-side tag_asset_index projection.  Best-effort;
-    # summary is embedded in quality_summary so downstream audit
-    # (DOMAIN_NORMALIZE_COMPLETED) picks it up.
-    tag_projection_summary = project_writer_records(
-        session,
-        table_name="major_distribution_record",
-        records=persisted_records,
-        asset_version_id=normalized_ref.version_id,
-        record_to_dict=_project_major_distribution_record,
-    )
-    dataset.quality_summary = {
-        **dataset.quality_summary,
-        "tag_projection": tag_projection_summary.to_audit_payload(),
-    }
 
     return DomainNormalizeResult(
         domain_profile=DOMAIN_PROFILE,

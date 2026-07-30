@@ -124,11 +124,20 @@ Root documents are distilled implementation contracts:
   special symbols and a terminal `课程标准` suffix removed. Both paths are built
   only from normalized-document evidence.
 - Permission-filtered search and QA with source citations.
+- Authenticated Open asset catalog filtering by governance data domain and
+  content tags, with stable on-demand raw-download endpoints. Tag indexes cover
+  document normalized refs (including expert-reviewed tags) and textbook outline
+  nodes; Pipeline B structured records retain domain-table filtering only.
 - Query Router automatically falls back to request-scoped Firecrawl WebSearch
   only for no-evidence `scenario_1` industry/report and `scenario_4`
   textbook/general-knowledge requests. Public-web results remain separate from
   governed NEXUS assets and are never persisted, governed, or indexed; all
   other query scenarios stay local-only.
+- Query Router v2 automatically expands up to three complete theory-textbook
+  chapters represented by ranked semantic hits and returns them as
+  `section_contexts` from `/open/v1/query` and `/internal/v1/query`.
+  `/open/v1/search` remains compact chunk evidence; policy and report assets
+  remain chunk-only until NEXUS introduces a general document-section model.
 - Audit logs for access, governance, rules, Prompt changes, permissions, API keys, and AI adoption.
 
 ## Main Roles

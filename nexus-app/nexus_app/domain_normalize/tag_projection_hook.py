@@ -55,12 +55,7 @@ __all__ = [
 # Table name → the tag_asset_index target_type that its records land on.
 # Kept in-module rather than reaching into ``tag_projection._TABLE_TO_TARGET_TYPE``
 # so a rename downstream is caught here at import time.
-_WRITER_TABLE_TARGET_TYPES: Mapping[str, TagAssetIndexTargetType] = {
-    "job_demand_record": TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-    "job_demand_requirement_item": TagAssetIndexTargetType.JOB_DEMAND_REQUIREMENT_ITEM,
-    "major_distribution_record": TagAssetIndexTargetType.MAJOR_DISTRIBUTION_RECORD,
-    "occupational_ability_item": TagAssetIndexTargetType.OCCUPATIONAL_ABILITY_ITEM,
-}
+_WRITER_TABLE_TARGET_TYPES: Mapping[str, TagAssetIndexTargetType] = {}
 
 
 @dataclass(frozen=True)

@@ -186,6 +186,7 @@ def test_apply_writes_embeddings_and_reports_success(session):
         batch_size=10,
         expected_dimension=EMBED_DIM,
         apply_changes=True,
+        model_alias="test-tag-model",
     )
 
     assert outcome.dry_run is False
@@ -215,6 +216,7 @@ def test_apply_survives_batch_failure(session):
         batch_size=2,
         expected_dimension=EMBED_DIM,
         apply_changes=True,
+        model_alias="test-tag-model",
     )
     # 4 rows in 2 batches — both fail but the run keeps going.
     assert outcome.total_batches == 2
@@ -251,6 +253,7 @@ def test_apply_partial_success_reports_correctly(session):
         batch_size=2,
         expected_dimension=EMBED_DIM,
         apply_changes=True,
+        model_alias="test-tag-model",
     )
     assert outcome.total_batches == 2
     assert outcome.total_embedded == 1  # only the 3rd row (batch 2 succeeded)

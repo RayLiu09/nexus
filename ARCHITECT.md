@@ -69,6 +69,14 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
   `scenario_2`, `scenario_3`, `scenario_5`, and `unknown` never use it.
   Web results are ungoverned, never persisted/indexed, and are returned in a
   separate `external_web_results` response field.
+- Query Router v2 (`POST /open/v1/query` and `POST /internal/v1/query`) may
+  expand theory-textbook evidence into at most three distinct complete chapter
+  contexts. Expansion is derived from ranked hit chunks'
+  `knowledge_outline_node_id`, never from a caller-supplied internal node id.
+  The returned `section_contexts` carry ordered chunks and explicit complete
+  counts; `/open/v1/search` remains a compact hit-chunk API and never expands
+  chapters automatically. Policy and report documents retain chunk-only
+  retrieval until a general document-section model exists.
 
 ## Logical Layers
 
@@ -320,6 +328,24 @@ not active P0 behavior.
 ## Lineage-Facing API Endpoints
 
 Two read endpoints added to support consumption-side traceability without exposing MinIO credentials to clients:
+
+- `GET /open/v1/assets?domain=&tag_type=&tags=&is_exact_matched=false&page=&pageSize=` — catalog of
+  available assets for authenticated API callers. `domain` applies to the
+  current normalized ref's official governance classification. Repeated
+  `tags` are semantic tag queries against `tag_asset_index.tag_embedding` for
+  `normalized_asset_ref` targets, using `ANY` recall semantics. `tag_type` is
+  an optional narrowing filter, so callers can query a tag value without first
+  knowing its taxonomy bucket. `is_exact_matched=true` switches to normalized
+  exact tag comparison without using an embedding client. Each item returns its available `version_id`,
+  `normalized_ref_id`, `raw_object_id`, governed tags, and the stable relative
+  `download_url_endpoint`; it never mints a presigned URL during listing.
+
+`tag_asset_index` is limited to document `normalized_asset_ref` governance and
+expert-review tags plus `outline_node` projections used to filter textbook
+chapter knowledge chunks. Pipeline B structured records use their own domain
+tables and exact structured filters; they do not create tag-index rows. Tag
+vectors always use `TAG_EMBEDDING_MODEL` and `TAG_EMBEDDING_DIMENSION` (512 by
+default), independently of document/chunk embedding settings.
 
 - `GET /open/v1/normalized-refs/{ref_id}/chunks?page=&pageSize=` — paginated `knowledge_chunk` list anchored on the given normalized_ref. Same `available`-only gate as `/knowledge-chunks/{id}`. Each item carries `locator`, `source_block_ids`, plus the graph-only `primary_block_ids` / `evidence_block_ids` when present. Audit: `ASSET_VERSION_ACCESSED` with `access_type=chunk_list`.
 

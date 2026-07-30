@@ -28,6 +28,7 @@ from nexus_app.retrieval.rerank import apply_weighted_rerank
 from nexus_app.retrieval.sql_guardrails import (
     GuardedStructuredPlan,
     TARGET_ID_IN_KEY,
+    validate_tag_filters,
     validate_structured_plan,
 )
 from nexus_app.retrieval.tag_filter_execution import (
@@ -67,6 +68,12 @@ class JobDemandRetrievalExecutor:
             raise ValueError("JobDemandRetrievalExecutor only accepts job_demand")
         if sub_query.structured_plan is None:
             raise ValueError("structured sub query requires structured_plan")
+
+        validate_tag_filters(
+            domain=BusinessDomain.JOB_DEMAND,
+            tag_filters=sub_query.tag_filters,
+            query_profile_key=sub_query.structured_plan.query_profile,
+        )
 
         started = time.monotonic()
 

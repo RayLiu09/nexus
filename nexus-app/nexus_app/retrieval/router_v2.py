@@ -178,6 +178,9 @@ class RouterResult:
     fallback_reason: str | None = None
     warnings: tuple[str, ...] = field(default_factory=tuple)
     external_web_results: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+    # Complete theory-textbook chapter contexts derived from the ranked hit
+    # chunks.  The tool layer caps this at three distinct outline nodes.
+    section_contexts: tuple[dict[str, Any], ...] = field(default_factory=tuple)
 
 
 # ---------------------------------------------------------------------------
@@ -194,6 +197,28 @@ _UNKNOWN_FALLBACK_SIMILARITY = 0.3
 # would blow the SSE frame; the frontend can drill into the full
 # payload via a subsequent audit query if it ever needs the tail.
 _TOOL_RESULT_PREVIEW_CHARS = 2000
+
+
+def _section_contexts_from_dispatch(
+    dispatch_result: DispatchResult,
+) -> tuple[dict[str, Any], ...]:
+    """Expose the complete, hit-selected theory sections in the v2 response."""
+    contexts: list[dict[str, Any]] = []
+    seen_nodes: set[str] = set()
+    for tool_result in dispatch_result.tool_results:
+        if not tool_result.ok or not isinstance(tool_result.result, dict):
+            continue
+        for context in tool_result.result.get("answer_contexts") or []:
+            if not isinstance(context, dict) or context.get("kind") != "section_context":
+                continue
+            node_id = str(context.get("outline_node_id") or "")
+            if not node_id or node_id in seen_nodes:
+                continue
+            seen_nodes.add(node_id)
+            contexts.append(context)
+            if len(contexts) == 3:
+                return tuple(contexts)
+    return tuple(contexts)
 
 
 def _now_ms() -> int:
@@ -462,6 +487,7 @@ class QueryRouterV2:
             external_web_results=tuple(
                 item.to_api_dict() for item in web_search_outcome.results
             ) if web_search_outcome else (),
+            section_contexts=_section_contexts_from_dispatch(dispatch_result),
         )
 
     # ------------------------------------------------------------------ #
@@ -877,6 +903,7 @@ class QueryRouterV2:
             external_web_results=tuple(
                 item.to_api_dict() for item in web_search_outcome.results
             ) if web_search_outcome else (),
+            section_contexts=_section_contexts_from_dispatch(dispatch_result),
         )
         yield _step_completed(
             "compose", "Markdown 汇总",
@@ -1178,6 +1205,7 @@ class QueryRouterV2:
             external_web_results=tuple(
                 item.to_api_dict() for item in web_search_outcome.results
             ) if web_search_outcome else (),
+            section_contexts=_section_contexts_from_dispatch(semantic_result),
         )
 
     def _semantic_tool_fallback_path(

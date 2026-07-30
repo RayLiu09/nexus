@@ -62,6 +62,7 @@ class QueryRouterV2ResponseData(BaseModel):
     warnings: list[str]
     audit_summary: dict
     external_web_results: list[dict]
+    section_contexts: list[dict]
 
 
 @router.post(
@@ -112,6 +113,7 @@ def run_query_router_v2(
             warnings=list(result.warnings),
             audit_summary=summary,
             external_web_results=list(getattr(result, "external_web_results", ())),
+            section_contexts=list(getattr(result, "section_contexts", ())),
         ),
         request,
     )

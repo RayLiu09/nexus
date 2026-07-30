@@ -834,7 +834,7 @@ def _render_grounded_section_context(
     query: str,
     dispatch_result: DispatchResult,
 ) -> str | None:
-    """Render all chunks from one high-confidence query-matched section.
+    """Render all chunks from the selected complete textbook sections.
 
     A section context is only assembled after a high-confidence title match
     and is structurally expanded in document order. It is more reliable than
@@ -842,51 +842,68 @@ def _render_grounded_section_context(
     answer renders complete cited evidence without lossy model summarisation.
     """
     contexts: list[dict[str, Any]] = []
+    seen_outline_nodes: set[str] = set()
     for tool_result in dispatch_result.tool_results:
         if not tool_result.ok or not isinstance(tool_result.result, dict):
             continue
         for context in tool_result.result.get("answer_contexts") or []:
-            if isinstance(context, dict) and context.get("kind") == "section_context":
-                contexts.append(context)
-    if len(contexts) != 1:
+            if not isinstance(context, dict) or context.get("kind") != "section_context":
+                continue
+            node_id = str(context.get("outline_node_id") or "")
+            context_key = node_id or "|".join((
+                str(context.get("normalized_ref_id") or ""),
+                str(context.get("title") or ""),
+            ))
+            if not context_key or context_key in seen_outline_nodes:
+                continue
+            seen_outline_nodes.add(context_key)
+            contexts.append(context)
+            if len(contexts) == 3:
+                break
+        if len(contexts) == 3:
+            break
+    if not contexts:
         return None
-
-    context = contexts[0]
-    chunks = [
-        chunk for chunk in context.get("chunks") or []
-        if isinstance(chunk, dict) and str(chunk.get("content") or "").strip()
-    ]
-    if not chunks:
-        return None
-
-    title = str(context.get("title") or "章节内容")
-    normalized_ref_id = str(context.get("normalized_ref_id") or "")
-    lines = [f"## {title}"]
+    lines: list[str] = []
     citations: list[str] = []
-    current_subheading: str | None = None
-    fallback_item_number = 0
-    for citation_index, chunk in enumerate(chunks, start=1):
-        content = str(chunk["content"]).strip()
-        subheading = _section_subheading(chunk, section_title=title)
-        if subheading and subheading != current_subheading:
-            lines.extend(["", f"### {subheading}"])
-            current_subheading = subheading
-        if citation_index == 1:
-            lines.extend(["", f"{content} [^ref{citation_index}]"])
-        elif subheading:
-            lines.append(f"{content} [^ref{citation_index}]")
-        else:
-            fallback_item_number += 1
-            lines.append(f"{fallback_item_number}. {content} [^ref{citation_index}]")
-        locator = json.dumps(
-            chunk.get("locator") or {}, ensure_ascii=False, sort_keys=True,
-        )
-        citations.append(
-            f"[^ref{citation_index}]: `{normalized_ref_id}` / "
-            f"`{chunk.get('chunk_id') or ''}` / `{locator}`"
-        )
-    if context.get("truncated"):
-        lines.extend(["", "本章节内容超过当前安全上下文预算，以下仅展示已检索的前序内容。"])
+    citation_index = 0
+    rendered_contexts = 0
+    for context in contexts:
+        chunks = [
+            chunk for chunk in context.get("chunks") or []
+            if isinstance(chunk, dict) and str(chunk.get("content") or "").strip()
+        ]
+        if not chunks:
+            continue
+        rendered_contexts += 1
+        title = str(context.get("title") or "章节内容")
+        normalized_ref_id = str(context.get("normalized_ref_id") or "")
+        lines.extend(([""] if lines else []) + [f"## {title}"])
+        current_subheading: str | None = None
+        fallback_item_number = 0
+        for chunk_offset, chunk in enumerate(chunks, start=1):
+            citation_index += 1
+            content = str(chunk["content"]).strip()
+            subheading = _section_subheading(chunk, section_title=title)
+            if subheading and subheading != current_subheading:
+                lines.extend(["", f"### {subheading}"])
+                current_subheading = subheading
+            if chunk_offset == 1:
+                lines.extend(["", f"{content} [^ref{citation_index}]"])
+            elif subheading:
+                lines.append(f"{content} [^ref{citation_index}]")
+            else:
+                fallback_item_number += 1
+                lines.append(f"{fallback_item_number}. {content} [^ref{citation_index}]")
+            locator = json.dumps(
+                chunk.get("locator") or {}, ensure_ascii=False, sort_keys=True,
+            )
+            citations.append(
+                f"[^ref{citation_index}]: `{normalized_ref_id}` / "
+                f"`{chunk.get('chunk_id') or ''}` / `{locator}`"
+            )
+    if not rendered_contexts:
+        return None
     return "\n".join([*lines, "", *citations])
 
 

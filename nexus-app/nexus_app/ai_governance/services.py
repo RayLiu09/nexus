@@ -918,6 +918,14 @@ class AIGovernanceService:
         if not isinstance(tag_output, dict) or "_error" in tag_output:
             return {"skipped": "tagging_stage_unavailable"}
 
+        normalized_ref = session.get(models.NormalizedAssetRef, normalized_ref_id)
+        if normalized_ref is None:
+            return {"skipped": "normalized_ref_not_found"}
+        if normalized_ref.normalized_type != models.NormalizedType.DOCUMENT:
+            # Structured records retain their governed tag output, but are not
+            # tag-index targets. Their domain tables own exact filtering.
+            return {"skipped": "record_normalized_ref_not_tag_indexed"}
+
         tag_bag = tag_output.get("tags")
         if not isinstance(tag_bag, dict):
             return {"skipped": "no_structured_tag_bag"}

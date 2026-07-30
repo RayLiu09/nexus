@@ -53,6 +53,17 @@ class _FakeQueryRouter:
             invoked_tools=["internal.search_chunks_by_semantic"],
             fallback_reason=None,
             warnings=(),
+            section_contexts=(
+                {
+                    "kind": "section_context",
+                    "outline_node_id": "node-1",
+                    "title": "第一章",
+                    "complete": True,
+                    "total_chunk_count": 2,
+                    "total_char_count": 20,
+                    "chunks": [],
+                },
+            ),
         )
 
 
@@ -88,6 +99,8 @@ class TestInternalQueryEndpoint:
         assert data["intent"] == "scenario_1"
         assert data["invoked_tools"] == ["internal.search_chunks_by_semantic"]
         assert data["external_web_results"] == []
+        assert data["section_contexts"][0]["outline_node_id"] == "node-1"
+        assert data["section_contexts"][0]["complete"] is True
 
     def test_router_receives_internal_route_labels(self, client, fake_router):
         client.post("/internal/v1/query", json={"query": "q"})
@@ -135,6 +148,7 @@ class TestOpenQueryEndpoint:
         assert response.status_code == 200, response.text
         data = response.json()["data"]
         assert "教材类问题" in data["markdown"]
+        assert data["section_contexts"][0]["total_chunk_count"] == 2
 
     def test_router_receives_open_route_labels(self, client, fake_router):
         client.post("/open/v1/query", json={"query": "q"})

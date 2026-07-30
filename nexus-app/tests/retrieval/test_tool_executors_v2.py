@@ -311,6 +311,71 @@ def test_search_chunks_expands_matching_theory_section_not_learning_goal(session
     assert result["scope"]["source"] == "auto_outline_resolution"
 
 
+def test_search_chunks_expands_top_three_distinct_hit_sections_with_full_content(session):
+    root = models.KnowledgeOutlineNode(
+        id="ranked-root", normalized_ref_id="ref-ranked", parent_id=None,
+        level=0, order_index=0, title="教材", build_run_id="build-1",
+        chunk_count=0, fallback_used=False, node_metadata={},
+    )
+    sections = [
+        models.KnowledgeOutlineNode(
+            id=f"ranked-section-{index}", normalized_ref_id="ref-ranked",
+            parent_id=root.id, level=1, order_index=index,
+            title=f"第{index}章", build_run_id="build-1", chunk_count=2,
+            fallback_used=False, node_metadata={},
+        )
+        for index in range(1, 5)
+    ]
+    session.add_all([root, *sections])
+    chunks = []
+    for index, section in enumerate(sections, start=1):
+        chunks.extend([
+            _chunk(
+                f"ranked-{index}-a", "ref-ranked", index * 10,
+                f"第{index}章第一段完整内容", outline_id=section.id,
+            ),
+            _chunk(
+                f"ranked-{index}-b", "ref-ranked", index * 10 + 1,
+                f"第{index}章第二段完整内容", outline_id=section.id,
+            ),
+        ])
+    session.add_all(chunks)
+    session.flush()
+
+    class _Adapter:
+        def search(self, *_args, **_kwargs):
+            # The second hit repeats section 1; the fourth section must be
+            # excluded by the three-section response cap.
+            return [
+                {"nexus_chunk_id": chunks[0].id, "normalized_ref_id": "ref-ranked"},
+                {"nexus_chunk_id": chunks[1].id, "normalized_ref_id": "ref-ranked"},
+                {"nexus_chunk_id": chunks[2].id, "normalized_ref_id": "ref-ranked"},
+                {"nexus_chunk_id": chunks[4].id, "normalized_ref_id": "ref-ranked"},
+                {"nexus_chunk_id": chunks[6].id, "normalized_ref_id": "ref-ranked"},
+            ]
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    result = make_search_chunks_executor(_Adapter())(
+        session=session, arguments={"query": "用户的语义问题不包含章节标题"},
+        tool_call_id="tc", chart_registry=ChartRegistry(),
+    )
+
+    contexts = result["answer_contexts"]
+    assert [context["outline_node_id"] for context in contexts] == [
+        sections[0].id, sections[1].id, sections[2].id,
+    ]
+    assert all(context["complete"] is True for context in contexts)
+    assert [context["total_chunk_count"] for context in contexts] == [2, 2, 2]
+    assert [
+        [item["chunk_id"] for item in context["chunks"]]
+        for context in contexts
+    ] == [
+        [chunks[0].id, chunks[1].id],
+        [chunks[2].id, chunks[3].id],
+        [chunks[4].id, chunks[5].id],
+    ]
+
+
 def test_search_chunks_explicit_outline_node_is_mandatory_pre_ranking_scope(session):
     root = models.KnowledgeOutlineNode(
         id="explicit-root", normalized_ref_id="ref-explicit", parent_id=None,
@@ -513,7 +578,12 @@ def test_search_chunks_scopes_compact_query_to_decorated_outline_title(session):
     assert calls[0]["chunk_ids"] == [chunk.id]
     assert result["scope"]["title"] == "二、短视频平台的相关规则"
     assert result["answer_contexts"][0]["title"] == "二、短视频平台的相关规则"
-    assert [item["chunk_id"] for item in result["answer_contexts"][0]["chunks"]] == [chunk.id]
+    # The full chapter-context contract returns every chunk linked to the
+    # stored outline node. Heading-path filtering remains limited to the
+    # candidate scope used before vector ranking.
+    assert [item["chunk_id"] for item in result["answer_contexts"][0]["chunks"]] == [
+        chunk.id, stale_chunk.id,
+    ]
 
 
 def _chunk(

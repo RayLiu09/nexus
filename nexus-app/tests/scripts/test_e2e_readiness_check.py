@@ -262,16 +262,8 @@ def test_tag_asset_index_warns_when_only_structured_field_projection(session):
     assert "outline_node" in gaps_text
 
 
-def test_tag_asset_index_passes_when_all_three_axes_present(session):
+def test_tag_asset_index_passes_when_document_and_outline_axes_present(session):
     scaffold = _seed_asset_scaffold(session, ref_id="ref-1")
-    # Structured field projection
-    _seed_tag(
-        session,
-        target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-        target_id="jd-1",
-        asset_version_id=scaffold["version_id"],
-        source=TagAssetIndexSource.FIELD_PROJECTION,
-    )
     # Governance tag on a normalized_asset_ref
     _seed_tag(
         session,

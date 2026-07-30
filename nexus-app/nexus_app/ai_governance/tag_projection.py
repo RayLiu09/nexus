@@ -60,10 +60,6 @@ __all__ = [
 # values.  Table names in the whitelist match SQLAlchemy ``__tablename__``
 # so this table doubles as a coverage assertion (see tests).
 _TABLE_TO_TARGET_TYPE: dict[str, TagAssetIndexTargetType] = {
-    "job_demand_record": TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-    "job_demand_requirement_item": TagAssetIndexTargetType.JOB_DEMAND_REQUIREMENT_ITEM,
-    "major_distribution_record": TagAssetIndexTargetType.MAJOR_DISTRIBUTION_RECORD,
-    "occupational_ability_item": TagAssetIndexTargetType.OCCUPATIONAL_ABILITY_ITEM,
     "major_profile_ability": TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
     "knowledge_outline_node": TagAssetIndexTargetType.OUTLINE_NODE,
     "task_outline_node": TagAssetIndexTargetType.OUTLINE_NODE,

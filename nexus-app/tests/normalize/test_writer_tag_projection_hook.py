@@ -132,11 +132,7 @@ class TestJobDemandWriterProjection:
                 == TagAssetIndexSource.FIELD_PROJECTION,
             )
         ).all())
-        assert tag_rows, "no tag_asset_index rows produced"
-        buckets = {r.tag_type for r in tag_rows}
-        assert "region" in buckets
-        assert "industry" in buckets
-        assert "occupation" in buckets
+        assert tag_rows == []
 
     def test_projection_summary_folded_into_audit(self, session):
         ref = _seed_scaffold(
@@ -167,11 +163,7 @@ class TestJobDemandWriterProjection:
             )
         )
         assert audit is not None
-        assert "tag_projection" in audit.summary
-        proj = audit.summary["tag_projection"]
-        assert proj["table_name"] == "job_demand_record"
-        assert proj["rows_persisted"] >= 1
-        assert proj["error"] is None
+        assert "tag_projection" not in audit.summary
 
 
 # ---------------------------------------------------------------------------
@@ -219,8 +211,5 @@ class TestMajorDistributionWriterProjection:
                 == TagAssetIndexSource.FIELD_PROJECTION,
             )
         ).all())
-        assert tag_rows, "no tag_asset_index rows produced"
-        buckets = {r.tag_type for r in tag_rows}
-        assert "region" in buckets
-        assert "major" in buckets
-        assert result.quality_summary["tag_projection"]["rows_persisted"] >= 1
+        assert tag_rows == []
+        assert "tag_projection" not in result.quality_summary

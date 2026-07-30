@@ -31,7 +31,7 @@ from __future__ import annotations
 import hashlib
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
@@ -43,10 +43,36 @@ from nexus_api.dependencies import (
 from nexus_api.permissions import apply_permission_filter
 from nexus_api.responses import list_response, response
 from nexus_app import models, pipeline, schemas as domain_schemas, services
+from nexus_app.ai_governance.tag_normalization import normalize_tag_value
 from nexus_app.audit import write_asset_version_accessed_audit, write_audit
+from nexus_app.config import get_settings
 from nexus_app.database import get_db
 from nexus_app.domain_normalize.administrative_division import normalize_province_name
-from nexus_app.enums import AssetAccessType, AssetVersionStatus, AuditEventType
+from nexus_app.index.embedding_client import create_embedding_client
+from nexus_app.enums import (
+    AssetAccessType,
+    AssetVersionStatus,
+    AuditEventType,
+    TagAssetIndexTargetType,
+)
+from nexus_app.retrieval.tag_resolver import (
+    BUCKET_TO_TAG_TYPE,
+    TagAssetIndexResolver,
+)
+
+
+_OPEN_TAG_TYPES: tuple[str, ...] = (
+    "region",
+    "industry",
+    "occupation",
+    "major",
+    "ability",
+    "topic",
+    "time_range",
+)
+_OPEN_TAG_BUCKETS: dict[str, str] = {
+    tag_type: bucket_name for bucket_name, tag_type in BUCKET_TO_TAG_TYPE.items()
+}
 
 
 def _trace_id(request: Request) -> str | None:
@@ -103,40 +129,219 @@ def _ref_anchors_available_version(
 # Assets
 # ---------------------------------------------------------------------------
 
+def _latest_governance_result(
+    session: Session, normalized_ref_id: str
+) -> models.GovernanceResult | None:
+    return session.scalars(
+        select(models.GovernanceResult)
+        .where(models.GovernanceResult.normalized_ref_id == normalized_ref_id)
+        .order_by(models.GovernanceResult.created_at.desc())
+        .limit(1)
+    ).first()
+
+
+def get_open_tag_embedding_client():
+    """Return a lazy factory for semantic asset-tag retrieval clients."""
+    return create_embedding_client
+
+
+def _exactly_matched_ref_ids(
+    session: Session,
+    *,
+    tags: list[str],
+    tag_type: str | None,
+) -> set[str]:
+    """Match any normalized tag value without invoking the embedding service."""
+    types = (tag_type,) if tag_type else _OPEN_TAG_TYPES
+    type_value_filters = []
+    for value_type in types:
+        normalized_values = {
+            normalize_tag_value(tag, value_type) for tag in tags
+        }
+        type_value_filters.append(and_(
+            models.TagAssetIndex.tag_type == value_type,
+            models.TagAssetIndex.tag_value_normalized.in_(normalized_values),
+        ))
+    return set(session.scalars(
+        select(models.TagAssetIndex.target_id)
+        .where(
+            models.TagAssetIndex.target_type
+            == TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
+            or_(*type_value_filters),
+        )
+        .distinct()
+    ).all())
+
+
+def _semantically_matched_ref_ids(
+    session: Session,
+    *,
+    tags: list[str],
+    tag_type: str | None,
+    embedding_client,
+) -> set[str]:
+    """Return normalized refs matching any caller-supplied tag semantically."""
+    types = (tag_type,) if tag_type else _OPEN_TAG_TYPES
+    # This route applies its own authoritative public gate below: only refs
+    # anchored to an available asset version are returned. The resolver's
+    # default AI-run AUTO_ADOPTED guard would incorrectly discard tags whose
+    # available version was admitted through an expert governance decision.
+    resolver = TagAssetIndexResolver(
+        session,
+        embedding_client=embedding_client,
+        embedding_model_alias=get_settings().tag_embedding_model,
+        embedding_dimension=get_settings().tag_embedding_dimension,
+        enforce_adoption_guardrail=False,
+    )
+    ref_ids: set[str] = set()
+    embedding_failed = False
+    for value_type in types:
+        result = resolver.resolve(
+            bucket_name=_OPEN_TAG_BUCKETS[value_type],
+            candidates=tags,
+            target_type_filter=TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
+            match_strategy="l4",
+        )
+        embedding_failed = embedding_failed or "l4_embedding_call_failed" in result.warnings
+        ref_ids.update(hit.target_id for hit in result.hits)
+    if embedding_failed:
+        raise HTTPException(
+            status_code=503,
+            detail="semantic tag retrieval is temporarily unavailable",
+        )
+    return ref_ids
+
+
+def _public_tags_for_ref(
+    session: Session, normalized_ref_id: str
+) -> list[dict[str, str]]:
+    rows = session.scalars(
+        select(models.TagAssetIndex)
+        .where(
+            models.TagAssetIndex.target_type
+            == TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
+            models.TagAssetIndex.target_id == normalized_ref_id,
+        )
+        .order_by(models.TagAssetIndex.tag_type, models.TagAssetIndex.tag_value)
+    ).all()
+    return [
+        {"type": row.tag_type, "value": row.tag_value}
+        for row in rows
+    ]
+
+
+def _available_open_catalog_rows(
+    session: Session,
+    *,
+    domain: str | None,
+    tag_type: str | None,
+    tags: list[str] | None,
+    is_exact_matched: bool,
+    embedding_client_factory,
+) -> list[domain_schemas.OpenAssetCatalogRead]:
+    """Build public catalog rows from available version/ref anchors only."""
+    tag_ref_ids: set[str] | None = None
+    if tags:
+        if is_exact_matched:
+            tag_ref_ids = _exactly_matched_ref_ids(
+                session, tags=tags, tag_type=tag_type,
+            )
+        else:
+            tag_ref_ids = _semantically_matched_ref_ids(
+                session,
+                tags=tags,
+                tag_type=tag_type,
+                embedding_client=embedding_client_factory(),
+            )
+
+    rows: list[domain_schemas.OpenAssetCatalogRead] = []
+    versions = list(session.scalars(
+        select(models.AssetVersion)
+        .where(models.AssetVersion.version_status == AssetVersionStatus.AVAILABLE)
+        .order_by(models.AssetVersion.created_at.desc())
+    ).all())
+    for version in versions:
+        ref = pipeline.get_current_normalized_ref(session, version.id)
+        if ref is None or (tag_ref_ids is not None and ref.id not in tag_ref_ids):
+            continue
+        governance_result = _latest_governance_result(session, ref.id)
+        classification = (
+            governance_result.classification if governance_result is not None else None
+        )
+        if domain and classification != domain:
+            continue
+        asset = session.get(models.Asset, version.asset_id)
+        if asset is None:
+            continue
+        asset_payload = domain_schemas.AssetRead.model_validate(asset).model_dump()
+        # Asset.status is a cached projection and may lag an approved version
+        # transition. The public catalog has already selected this available
+        # version, so its effective state is the only state we may expose.
+        asset_payload["status"] = version.version_status
+        rows.append(domain_schemas.OpenAssetCatalogRead(
+            **asset_payload,
+            domain=classification,
+            normalized_ref_id=ref.id,
+            version_id=version.id,
+            raw_object_id=version.raw_object_id,
+            tags=_public_tags_for_ref(session, ref.id),
+            download_url_endpoint=(
+                f"/open/v1/raw-objects/{version.raw_object_id}/download-url"
+            ),
+        ))
+    return rows
+
+
 @router.get(
     "/assets",
-    response_model=schemas.ListResponse[domain_schemas.AssetRead],
+    response_model=schemas.ListResponse[domain_schemas.OpenAssetCatalogRead],
 )
 def list_available_assets(
     request: Request,
     caller: models.ApiCaller = Depends(require_api_caller),
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
+    domain: str | None = Query(None, min_length=1, max_length=64),
+    tag_type: str | None = Query(None, min_length=1, max_length=32),
+    tags: list[str] | None = Query(None),
+    is_exact_matched: bool = Query(False),
+    embedding_client_factory=Depends(get_open_tag_embedding_client),
 ):
-    """List assets that currently have an `available` version.
+    """List available assets, optionally filtered by domain and governance tags.
 
-    P1 will additionally intersect with `caller.org_scope`; today the org_scope
-    hook is a no-op.
+    `domain` is the official governance classification. `tags` is a repeated
+    semantic-query parameter with `ANY` recall semantics. Set
+    `is_exact_matched=true` to compare normalized tag values exactly instead.
+    `tag_type` is optional: without it, each tag searches every controlled tag
+    type. Results do not contain a presigned URL; use each item's stable
+    `download_url_endpoint` to mint one on demand.
     """
     _ = caller  # P0: credential auth is the only gate; org_scope is noop
-    available_ids = _available_asset_ids(session)
-    if not available_ids:
-        return list_response(
-            [], request,
-            page=pagination.page, page_size=pagination.page_size, total=0,
+    if tag_type and tag_type not in _OPEN_TAG_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"unsupported tag_type '{tag_type}'",
         )
-    total = len(available_ids)
-    assets = list(
-        session.scalars(
-            select(models.Asset)
-            .where(models.Asset.id.in_(available_ids))
-            .order_by(models.Asset.created_at.desc())
-            .offset(pagination.offset)
-            .limit(pagination.limit)
-        ).all()
+    if tags is not None and (
+        not tags
+        or len(tags) > 10
+        or any(not item.strip() or len(item) > 256 for item in tags)
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="tags must contain 1 to 10 non-blank values of at most 256 characters",
+        )
+    rows = _available_open_catalog_rows(
+        session,
+        domain=domain,
+        tag_type=tag_type,
+        tags=tags,
+        is_exact_matched=is_exact_matched,
+        embedding_client_factory=embedding_client_factory,
     )
+    total = len(rows)
     return list_response(
-        assets, request,
+        rows[pagination.offset: pagination.offset + pagination.limit], request,
         page=pagination.page, page_size=pagination.page_size, total=total,
     )
 
@@ -1803,6 +2008,7 @@ class _QueryRouterV2OpenResponseData(BaseModel):
     warnings: list[str]
     audit_summary: dict
     external_web_results: list[dict]
+    section_contexts: list[dict]
 
 
 @router.post(
@@ -1855,6 +2061,7 @@ def run_query_router_v2_open(
             warnings=list(result.warnings),
             audit_summary=summary,
             external_web_results=list(getattr(result, "external_web_results", ())),
+            section_contexts=list(getattr(result, "section_contexts", ())),
         ),
         request,
     )
