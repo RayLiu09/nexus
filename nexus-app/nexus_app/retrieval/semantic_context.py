@@ -266,26 +266,38 @@ def _section_candidate_sort_key(query: str, candidate: dict[str, Any]) -> tuple[
     vector_score = max(float(hit.get("score") or 0.0) for _, hit, _ in hit_rows)
     first_rank = min(rank for rank, _, _ in hit_rows)
 
-    query_key = _outline_title_key(query)
-    title_key = _outline_title_key(node.title)
-    title_bonus = 0.0
-    if len(title_key) >= 3 and title_key in query_key:
-        # A user directly naming a chapter topic is stronger evidence than a
-        # nearby exercise chunk that happens to contain the same words.
-        title_bonus = 0.16
-    elif title_key:
-        query_bigrams = set(_bigrams(query_key))
-        title_bigrams = set(_bigrams(title_key))
-        if title_bigrams:
-            title_bonus = 0.04 * len(query_bigrams & title_bigrams) / len(title_bigrams)
+    title_relevance = _section_title_relevance(query, node.title)
 
     support_bonus = min(len(hit_rows) - 1, 2) * 0.01
     prompt_penalty = 0.0
     if all(_is_prompt_like_hit(chunk) for _, _, chunk in hit_rows):
         prompt_penalty = 0.08
-    score = vector_score + title_bonus + support_bonus - prompt_penalty
-    # Descending relevance, then original vector rank for deterministic ties.
-    return (-score, first_rank)
+    score = vector_score + (0.35 * title_relevance) + support_bonus - prompt_penalty
+    # A strong section-title match is structural evidence that should outrank
+    # content-only mentions in sibling sections. Weak title overlap remains a
+    # bonus inside the existing vector-ranking order.
+    title_bucket = 1 if title_relevance >= 0.45 else 0
+    return (-title_bucket, -score, first_rank)
+
+
+def _section_title_relevance(query: str, title: str | None) -> float:
+    query_key = _outline_title_key(query)
+    title_key = _outline_title_key(title or "")
+    if len(query_key) < 3 or len(title_key) < 2:
+        return 0.0
+    if query_key in title_key or title_key in query_key:
+        return 1.0
+
+    query_bigrams = set(_bigrams(query_key))
+    title_bigrams = set(_bigrams(title_key))
+    if not query_bigrams or not title_bigrams:
+        return 0.0
+    overlap = query_bigrams & title_bigrams
+    if not overlap:
+        return 0.0
+    query_coverage = len(overlap) / len(query_bigrams)
+    title_coverage = len(overlap) / len(title_bigrams)
+    return (0.7 * query_coverage) + (0.3 * title_coverage)
 
 
 def _is_prompt_like_hit(chunk: models.KnowledgeChunk) -> bool:

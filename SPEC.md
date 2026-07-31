@@ -279,7 +279,12 @@ P0 end-to-end cases:
 - Duplicate `idempotency_key` → no duplicate effective assets.
 - Local identity works without DingTalk.
 - AI re-score produces new `ai_governance_run` and updated `governance_result.quality_summary` while retaining feedback in `decision_trail`.
-- Knowledge Pipeline 1: normalized D4 asset → NEXUS `knowledge_chunk` / pgvector-backed semantic retrieval index → chunk carries `normalized_ref_id` → search returns result traceable to normalized ref.
+- Knowledge Pipeline 1: normalized D4 asset → NEXUS `knowledge_chunk`; eligible
+  `course_textbook` document refs run non-blocking `knowledge_outline_build`
+  before `index_submit` so chunks can carry `knowledge_outline_node_id`;
+  pgvector-backed semantic retrieval index → chunk carries `normalized_ref_id`
+  and, when available, outline ancestry → search returns result traceable to
+  normalized ref.
 - Query Router external fallback: when a `scenario_1` industry/report query or
   `scenario_4` textbook/general-knowledge query has no usable governed local
   evidence, return request-scoped `external_web_results` from the configured

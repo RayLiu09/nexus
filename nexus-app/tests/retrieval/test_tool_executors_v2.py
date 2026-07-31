@@ -546,6 +546,72 @@ def test_search_chunks_reranks_sections_over_prompt_like_first_hit(session):
     assert result["answer_contexts"][0]["selection_reason"] == "section_relevance_rerank"
 
 
+def test_search_chunks_reranks_sections_by_query_core_title_match(session):
+    """A strong title/core-term match outranks a content-only dialogue hit."""
+    root = models.KnowledgeOutlineNode(
+        id="retail-root", normalized_ref_id="ref-retail", parent_id=None,
+        level=0, order_index=0, title="现代零售行业的关键特征",
+        build_run_id="build-1", chunk_count=0, fallback_used=False,
+        node_metadata={},
+    )
+    dialogue_section = models.KnowledgeOutlineNode(
+        id="retail-dialogue", normalized_ref_id="ref-retail", parent_id=root.id,
+        level=1, order_index=1, title="门店互动", build_run_id="build-1",
+        chunk_count=1, fallback_used=False, node_metadata={},
+    )
+    answer_section = models.KnowledgeOutlineNode(
+        id="retail-answer", normalized_ref_id="ref-retail", parent_id=root.id,
+        level=1, order_index=2, title="知识点1：现代零售行业的四大关键特征",
+        build_run_id="build-1", chunk_count=2, fallback_used=False,
+        node_metadata={},
+    )
+    dialogue = _chunk(
+        "retail-dialogue-chunk", "ref-retail", 10,
+        "老师：小优，我们已经掌握了现代零售行业的关键特征，那接下来我们该如何做呢？",
+        outline_id=dialogue_section.id,
+    )
+    intro = _chunk(
+        "retail-answer-intro", "ref-retail", 3,
+        "现代零售以数字化为基础，以用户为中心，以全渠道融合为核心，提供即时化服务，其核心具备四大关键特征。",
+        outline_id=answer_section.id,
+    )
+    feature = _chunk(
+        "retail-answer-feature", "ref-retail", 4,
+        "首先是全渠道深度融合。现代零售打破线上线下渠道壁垒，实现线上引流、线下体验、即时履约、全域复购。",
+        outline_id=answer_section.id,
+    )
+    session.add_all([root, dialogue_section, answer_section, dialogue, intro, feature])
+    session.flush()
+
+    class _Adapter:
+        def search(self, *_args, **_kwargs):
+            return [
+                {"nexus_chunk_id": dialogue.id, "normalized_ref_id": "ref-retail", "score": 0.99},
+                {"nexus_chunk_id": intro.id, "normalized_ref_id": "ref-retail", "score": 0.75},
+            ]
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    result = make_search_chunks_executor(_Adapter())(
+        session=session,
+        arguments={"query": "现代零售行业的关键特征是什么", "kb": "industry_research_kb"},
+        tool_call_id="tc",
+        chart_registry=ChartRegistry(),
+    )
+
+    section_contexts = [
+        context for context in result["answer_contexts"]
+        if context["kind"] == "section_context"
+    ]
+    assert [context["outline_node_id"] for context in section_contexts[:2]] == [
+        answer_section.id,
+        dialogue_section.id,
+    ]
+    assert [item["chunk_id"] for item in section_contexts[0]["chunks"]] == [
+        intro.id,
+        feature.id,
+    ]
+
+
 def test_search_chunks_explicit_outline_node_is_mandatory_pre_ranking_scope(session):
     root = models.KnowledgeOutlineNode(
         id="explicit-root", normalized_ref_id="ref-explicit", parent_id=None,

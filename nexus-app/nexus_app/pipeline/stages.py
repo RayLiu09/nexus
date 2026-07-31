@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
 from urllib.parse import quote
@@ -1836,6 +1837,246 @@ def run_knowledge_chunking(
             started_at=started_at,
         )
     return chunks
+
+
+def run_knowledge_outline_build(
+    ctx: PipelineContext,
+    version: models.AssetVersion,
+    normalized_ref: models.NormalizedAssetRef,
+    chunks: list[models.KnowledgeChunk],
+) -> None:
+    """Stage 5a.1: build textbook knowledge outline before index submit.
+
+    This stage is intentionally best-effort for rollout safety: an outline
+    failure is observable as a failed stage, but it does not block the
+    established chunking -> index_submit path.
+    """
+    started_at = _stage_started()
+    if normalized_ref.normalized_type != NormalizedType.DOCUMENT:
+        normalized_type = normalized_ref.normalized_type
+        _add_stage(
+            ctx,
+            "knowledge_outline_build",
+            StageStatus.SKIPPED,
+            {
+                "reason": "normalized_ref is not document",
+                "normalized_ref_id": normalized_ref.id,
+                "normalized_type": (
+                    normalized_type.value
+                    if hasattr(normalized_type, "value")
+                    else str(normalized_type)
+                ),
+            },
+            started_at=started_at,
+        )
+        return
+
+    if not chunks:
+        _add_stage(
+            ctx,
+            "knowledge_outline_build",
+            StageStatus.SKIPPED,
+            {
+                "reason": "no knowledge chunks",
+                "normalized_ref_id": normalized_ref.id,
+            },
+            started_at=started_at,
+        )
+        return
+
+    if not _has_course_textbook_chunks_or_emissions(normalized_ref, chunks):
+        _add_stage(
+            ctx,
+            "knowledge_outline_build",
+            StageStatus.SKIPPED,
+            {
+                "reason": "not course_textbook knowledge",
+                "normalized_ref_id": normalized_ref.id,
+            },
+            started_at=started_at,
+        )
+        return
+
+    existing_outline_count = ctx.session.scalar(
+        select(func.count())
+        .select_from(models.KnowledgeOutlineNode)
+        .where(models.KnowledgeOutlineNode.normalized_ref_id == normalized_ref.id)
+    ) or 0
+    if existing_outline_count:
+        _add_stage(
+            ctx,
+            "knowledge_outline_build",
+            StageStatus.SKIPPED,
+            {
+                "reason": "knowledge outline already exists",
+                "normalized_ref_id": normalized_ref.id,
+                "outline_node_count": int(existing_outline_count),
+            },
+            started_at=started_at,
+        )
+        return
+
+    try:
+        from nexus_app.knowledge_outline.service import (
+            KNOWLEDGE_OUTLINE_ELIGIBLE_SUBTYPES,
+            build_and_persist_outline,
+        )
+        from nexus_app.task_outline.detector import detect_course_textbook_subtype
+        from nexus_app.task_outline.schemas import TaskOutlineProfileCreate
+        from nexus_app.task_outline.service import get_profile_by_ref, upsert_profile
+
+        profile = get_profile_by_ref(
+            ctx.session,
+            normalized_ref_id=normalized_ref.id,
+            asset_profile="course_textbook",
+        )
+        payload: dict[str, Any] | None = None
+        detection: Any | None = None
+        if profile is None:
+            payload = _load_normalized_payload_dict(ctx, normalized_ref)
+            blocks = (
+                payload.get("blocks")
+                if isinstance(payload.get("blocks"), list)
+                else []
+            )
+            detection = detect_course_textbook_subtype(
+                blocks,
+                body_markdown=payload.get("body_markdown"),
+            )
+            textbook_subtype = detection.textbook_subtype
+            subtype_confidence = detection.subtype_confidence
+            processing_profile = detection.processing_profile
+        else:
+            textbook_subtype = profile.textbook_subtype
+            subtype_confidence = (
+                float(profile.subtype_confidence)
+                if profile.subtype_confidence is not None
+                else None
+            )
+            processing_profile = profile.processing_profile
+
+        if textbook_subtype not in KNOWLEDGE_OUTLINE_ELIGIBLE_SUBTYPES:
+            _add_stage(
+                ctx,
+                "knowledge_outline_build",
+                StageStatus.SKIPPED,
+                {
+                    "reason": "textbook subtype is not knowledge-outline eligible",
+                    "normalized_ref_id": normalized_ref.id,
+                    "task_outline_profile_id": profile.id if profile else None,
+                    "textbook_subtype": textbook_subtype,
+                    "subtype_confidence": subtype_confidence,
+                    "processing_profile": processing_profile,
+                },
+                started_at=started_at,
+            )
+            return
+
+        if payload is None:
+            payload = _load_normalized_payload_dict(ctx, normalized_ref)
+
+        if profile is None and detection is not None:
+            profile = upsert_profile(
+                ctx.session,
+                TaskOutlineProfileCreate(
+                    normalized_ref_id=normalized_ref.id,
+                    asset_version_id=version.id,
+                    asset_profile="course_textbook",
+                    title=payload.get("title") or normalized_ref.title,
+                    textbook_subtype=detection.textbook_subtype,
+                    task_profile=None,
+                    subtype_confidence=Decimal(str(detection.subtype_confidence)),
+                    processing_profile=detection.processing_profile,
+                    evidence_graph_admission=detection.evidence_graph_admission,
+                    source_block_ids=list(detection.source_block_ids),
+                    quality={},
+                    metadata={
+                        "detector_scores": detection.scores,
+                        "source": "pipeline.knowledge_outline_build",
+                    },
+                ),
+            )
+
+        tree = build_and_persist_outline(
+            ctx.session,
+            ref=normalized_ref,
+            payload=payload,
+            rules_etag=_try_governance_rules_etag(),
+            trace_id=ctx.trace_id,
+            actor_type="system",
+            actor_id="pipeline.knowledge_outline_build",
+            is_rebuild=False,
+        )
+        _add_stage(
+            ctx,
+            "knowledge_outline_build",
+            StageStatus.SUCCEEDED,
+            {
+                "normalized_ref_id": normalized_ref.id,
+                "task_outline_profile_id": profile.id if profile else None,
+                "textbook_subtype": textbook_subtype,
+                "subtype_confidence": subtype_confidence,
+                "processing_profile": processing_profile,
+                "outline": {
+                    "build_run_id": tree.build_run_id,
+                    "total_nodes": tree.total_nodes,
+                    "max_depth": tree.max_depth,
+                    "fallback_used": tree.fallback_used,
+                },
+            },
+            started_at=started_at,
+        )
+    except Exception as exc:  # noqa: BLE001 - rollout-safe, non-blocking stage
+        reason = f"{type(exc).__name__}: {exc}"
+        logger.exception(
+            "knowledge_outline_build failed for normalized_ref_id=%s",
+            normalized_ref.id,
+        )
+        _add_stage(
+            ctx,
+            "knowledge_outline_build",
+            StageStatus.FAILED,
+            {
+                "normalized_ref_id": normalized_ref.id,
+                "non_blocking": True,
+            },
+            failure_reason=reason,
+            started_at=started_at,
+        )
+
+
+def _has_course_textbook_chunks_or_emissions(
+    normalized_ref: models.NormalizedAssetRef,
+    chunks: list[models.KnowledgeChunk],
+) -> bool:
+    if any(chunk.knowledge_type_code == "course_textbook" for chunk in chunks):
+        return True
+    emissions = (normalized_ref.metadata_summary or {}).get("knowledge_emissions") or []
+    return any(
+        isinstance(emission, dict) and emission.get("code") == "course_textbook"
+        for emission in emissions
+    )
+
+
+def _load_normalized_payload_dict(
+    ctx: PipelineContext,
+    normalized_ref: models.NormalizedAssetRef,
+) -> dict[str, Any]:
+    uri = normalized_ref.object_uri
+    key = uri.split("/", 3)[-1] if uri.startswith("s3://") else uri
+    raw = ctx.storage.get_bytes(key)
+    return json.loads(raw.decode("utf-8"))
+
+
+def _try_governance_rules_etag() -> str | None:
+    try:
+        from nexus_app.ai_governance.rules_registry import (
+            get_governance_rules_registry,
+        )
+
+        return get_governance_rules_registry().get_rules_content_hash()
+    except Exception:
+        return None
 
 
 def _load_normalized_content(

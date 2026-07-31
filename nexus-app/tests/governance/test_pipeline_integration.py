@@ -13,6 +13,8 @@ from __future__ import annotations
 import base64
 import json
 import threading
+from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
@@ -1310,3 +1312,247 @@ class TestKnowledgeEmissionsEdgeCases:
         assert index_stage is not None
         assert index_stage.status == StageStatus.SKIPPED
         assert index_stage.detail["reason"] == "version not available (status=review_required)"
+
+
+class TestKnowledgeOutlineBuildStage:
+    """Pipeline-owned knowledge outline build with non-blocking rollout safety."""
+
+    def _ctx(self, session, ref):
+        class _Ctx:
+            pass
+
+        ctx = _Ctx()
+        ctx.session = session
+        ctx.settings = get_settings()
+        ctx.storage = InMemoryObjectStorage()
+        ctx.trace_id = "trace-outline-build"
+        ctx.job = _existing_job_for_ref(session, ref.id)
+        return ctx
+
+    def _put_payload(self, ctx, ref) -> None:
+        key = ref.object_uri.split("/", 3)[-1]
+        body_markdown = "\n".join([
+            "# 现代零售行业的关键特征",
+            "## 知识点1：现代零售行业的四大关键特征",
+            "现代零售以数字化为基础，以用户为中心，以全渠道融合为核心。",
+            "首先是全渠道深度融合。",
+            "其次是数据驱动精细化运营。",
+        ])
+        ctx.storage.put_bytes(
+            key,
+            json.dumps(
+                {
+                    "title": "2.现代零售行业的关键特征.pdf",
+                    "body_markdown": body_markdown,
+                    "blocks": [
+                        {
+                            "block_id": "h1",
+                            "block_type": "heading",
+                            "seq_no": 1,
+                            "page": 1,
+                            "bbox": [0, 0, 100, 20],
+                            "text": "现代零售行业的关键特征",
+                            "heading_level": 1,
+                            "md_char_range": [0, 13],
+                        },
+                        {
+                            "block_id": "h2",
+                            "block_type": "heading",
+                            "seq_no": 2,
+                            "page": 1,
+                            "bbox": [0, 25, 100, 45],
+                            "text": "知识点1：现代零售行业的四大关键特征",
+                            "heading_level": 2,
+                            "md_char_range": [14, 35],
+                        },
+                        {
+                            "block_id": "p1",
+                            "block_type": "paragraph",
+                            "seq_no": 3,
+                            "page": 1,
+                            "bbox": [0, 50, 500, 90],
+                            "text": "现代零售以数字化为基础，以用户为中心，以全渠道融合为核心。",
+                            "content": "现代零售以数字化为基础，以用户为中心，以全渠道融合为核心。",
+                            "md_char_range": [36, 70],
+                        },
+                        {
+                            "block_id": "p2",
+                            "block_type": "paragraph",
+                            "seq_no": 4,
+                            "page": 1,
+                            "bbox": [0, 95, 500, 130],
+                            "text": "首先是全渠道深度融合。",
+                            "content": "首先是全渠道深度融合。",
+                            "md_char_range": [71, 84],
+                        },
+                    ],
+                },
+                ensure_ascii=False,
+            ).encode("utf-8"),
+            "application/json",
+        )
+
+    def _seed_course_textbook_chunks(
+        self, session, ref
+    ) -> list[models.KnowledgeChunk]:
+        chunks = [
+            models.KnowledgeChunk(
+                normalized_ref_id=ref.id,
+                knowledge_type_code="course_textbook",
+                chunk_type=ChunkType.SEMANTIC_BLOCK,
+                chunking_strategy="semantic_repack",
+                chunk_index=0,
+                content="现代零售以数字化为基础，以用户为中心，以全渠道融合为核心。",
+                chunk_metadata={},
+                source_block_ids=["p1"],
+            ),
+            models.KnowledgeChunk(
+                normalized_ref_id=ref.id,
+                knowledge_type_code="course_textbook",
+                chunk_type=ChunkType.SEMANTIC_BLOCK,
+                chunking_strategy="semantic_repack",
+                chunk_index=1,
+                content="首先是全渠道深度融合。",
+                chunk_metadata={},
+                source_block_ids=["p2"],
+            ),
+        ]
+        session.add_all(chunks)
+        session.flush()
+        return chunks
+
+    def test_builds_outline_as_pipeline_stage_for_eligible_textbook(
+        self, session, make_ai_run, monkeypatch
+    ):
+        from nexus_app.pipeline import stages
+
+        _, version, ref = make_ai_run(
+            ai_output={"classification": "D4", "level": "L1", "tags": [],
+                       "org_scope": "all", "confidence": 0.9}
+        )
+        version.version_status = AssetVersionStatus.AVAILABLE
+        ref.title = "2.现代零售行业的关键特征.pdf"
+        ref.metadata_summary = {
+            "knowledge_emissions": [{"code": "course_textbook", "primary": True}],
+        }
+        ctx = self._ctx(session, ref)
+        self._put_payload(ctx, ref)
+        chunks = self._seed_course_textbook_chunks(session, ref)
+
+        monkeypatch.setattr(
+            "nexus_app.task_outline.detector.detect_course_textbook_subtype",
+            lambda *_args, **_kwargs: SimpleNamespace(
+                textbook_subtype="theory_knowledge",
+                subtype_confidence=0.94,
+                processing_profile="evidence_graph",
+                evidence_graph_admission="recommended",
+                scores={"theory_score": 16.2},
+                source_block_ids=["h1", "h2"],
+            ),
+        )
+
+        stages.run_knowledge_outline_build(ctx, version, ref, chunks)
+
+        profile = session.scalar(
+            select(models.TaskOutlineProfile).where(
+                models.TaskOutlineProfile.normalized_ref_id == ref.id,
+                models.TaskOutlineProfile.asset_profile == "course_textbook",
+            )
+        )
+        assert profile is not None
+        assert profile.textbook_subtype == "theory_knowledge"
+        nodes = session.scalars(
+            select(models.KnowledgeOutlineNode).where(
+                models.KnowledgeOutlineNode.normalized_ref_id == ref.id
+            )
+        ).all()
+        assert nodes
+        session.expire_all()
+        linked = session.scalars(
+            select(models.KnowledgeChunk).where(
+                models.KnowledgeChunk.normalized_ref_id == ref.id
+            )
+        ).all()
+        assert all(chunk.knowledge_outline_node_id for chunk in linked)
+        stage = session.scalars(
+            select(models.JobStage).where(
+                models.JobStage.job_id == ctx.job.id,
+                models.JobStage.stage_name == "knowledge_outline_build",
+            ).order_by(models.JobStage.created_at.desc())
+        ).first()
+        assert stage is not None
+        assert stage.status == StageStatus.SUCCEEDED
+
+    def test_outline_stage_failure_does_not_raise(self, session, make_ai_run):
+        from nexus_app.pipeline import stages
+
+        _, version, ref = make_ai_run(
+            ai_output={"classification": "D4", "level": "L1", "tags": [],
+                       "org_scope": "all", "confidence": 0.9}
+        )
+        version.version_status = AssetVersionStatus.AVAILABLE
+        ref.metadata_summary = {
+            "knowledge_emissions": [{"code": "course_textbook", "primary": True}],
+        }
+        ctx = self._ctx(session, ref)
+        chunks = self._seed_course_textbook_chunks(session, ref)
+
+        stages.run_knowledge_outline_build(ctx, version, ref, chunks)
+
+        stage = session.scalars(
+            select(models.JobStage).where(
+                models.JobStage.job_id == ctx.job.id,
+                models.JobStage.stage_name == "knowledge_outline_build",
+            ).order_by(models.JobStage.created_at.desc())
+        ).first()
+        assert stage is not None
+        assert stage.status == StageStatus.FAILED
+        assert stage.detail["non_blocking"] is True
+
+    def test_existing_non_eligible_profile_is_not_overwritten(
+        self, session, make_ai_run
+    ):
+        from nexus_app.pipeline import stages
+
+        _, version, ref = make_ai_run(
+            ai_output={"classification": "D4", "level": "L1", "tags": [],
+                       "org_scope": "all", "confidence": 0.9}
+        )
+        version.version_status = AssetVersionStatus.AVAILABLE
+        ref.metadata_summary = {
+            "knowledge_emissions": [{"code": "course_textbook", "primary": True}],
+        }
+        profile = models.TaskOutlineProfile(
+            normalized_ref_id=ref.id,
+            asset_version_id=version.id,
+            asset_profile="course_textbook",
+            title="训练型教材",
+            textbook_subtype="training_operation",
+            task_profile="textbook_training_operation",
+            subtype_confidence=Decimal("0.8800"),
+            processing_profile="task_outline",
+            evidence_graph_admission="not_recommended",
+            source_block_ids=["existing-heading"],
+            quality={},
+            profile_metadata={"keep": True},
+        )
+        session.add(profile)
+        session.flush()
+        ctx = self._ctx(session, ref)
+        chunks = self._seed_course_textbook_chunks(session, ref)
+
+        stages.run_knowledge_outline_build(ctx, version, ref, chunks)
+
+        session.refresh(profile)
+        assert profile.textbook_subtype == "training_operation"
+        assert profile.task_profile == "textbook_training_operation"
+        assert profile.profile_metadata == {"keep": True}
+        stage = session.scalars(
+            select(models.JobStage).where(
+                models.JobStage.job_id == ctx.job.id,
+                models.JobStage.stage_name == "knowledge_outline_build",
+            ).order_by(models.JobStage.created_at.desc())
+        ).first()
+        assert stage is not None
+        assert stage.status == StageStatus.SKIPPED
+        assert stage.detail["task_outline_profile_id"] == profile.id

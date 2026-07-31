@@ -66,11 +66,30 @@ _EXERCISE_RE = re.compile(
 )
 _FIGURE_RE = re.compile(r"(▲?\s*图\s*\d|图\d|表\s*\d|Lumetri\s*颜色)")
 _STRUCTURAL_INTRO_RE = re.compile(
-    r"(任务实施|具体操作步骤如下|通过以上内容的学习|开始为.*设置|决定使用.*模式)"
+    r"(任务实施|具体操作步骤如下|通过以上内容的学习|开始为.*设置|决定使用.*模式|"
+    r"同学们好|欢迎来到微课堂|主讲老师|本节课要解决的核心问题)"
+)
+_DIALOGUE_RE = re.compile(
+    r"^\s*(?:老师|学生|同学|小优|门店机器人|主持人)\s*[：:]"
 )
 _ANSWER_PATTERN_RE = re.compile(
     r"(是|指|用于|用来|目的|作用|可以|能够|需要|通过|依据|确保|"
     r"包括|分为|有三种|有两种|方式|方法|模式|色温|数值|范围|越高|越低)"
+)
+_ENUMERATION_INTRO_RE = re.compile(
+    r"(?:包括|分为|可分为|主要有|主要包括|核心(?:具备|具有|包括)|"
+    r"(?:两|二|三|四|五|六|七|八|九|十|\d+)(?:大|个|种)?(?:关键|核心|主要)?"
+    r"(?:特征|特点|类型|要素|要求|原则|标准|维度|方面))"
+)
+_ENUMERATION_ITEM_RE = re.compile(
+    r"^\s*(?:"
+    r"首先|其次|再次|最后|"
+    r"第一|第二|第三|第四|第五|第六|第七|第八|第九|第十|"
+    r"其一|其二|其三|其四|其五|"
+    r"一是|二是|三是|四是|五是|六是|"
+    r"[一二三四五六七八九十]\s*[、.．]|"
+    r"\(?\d+\)?\s*[、.．)]"
+    r")"
 )
 
 
@@ -180,6 +199,15 @@ def build_answer_span_context(
         if len(selected) >= max_chunks:
             break
 
+    selected, char_count = _expand_enumeration_items(
+        selected=selected,
+        candidates=candidates,
+        seen_ids=seen_ids,
+        char_count=char_count,
+        max_chunks=max_chunks,
+        max_chars=max_chars,
+    )
+
     if not selected:
         return None
 
@@ -260,12 +288,12 @@ def _score_candidate(
             return 0.0, "sibling_topic"
         score += 0.22 * term_hits
 
+    if _is_noise_content(content):
+        return 0.0, "noise"
+
     if _ANSWER_PATTERN_RE.search(content):
         score += 0.18
         role = "answer_core"
-
-    if _STRUCTURAL_INTRO_RE.search(content):
-        return 0.0, "structural_context"
 
     if len(content) < 30 and not re.search(
         r"(是|指|用于|用来|目的|作用|调节|调整|设置|方式|方法|越高|越低|包括|分为)",
@@ -287,25 +315,90 @@ def _score_candidate(
         score += 0.18
         role = "answer_core"
 
-    if _EXERCISE_RE.search(content):
-        score -= 0.75
-        role = "exercise_or_review"
-
-    if _FIGURE_RE.search(content):
-        if _ui_token_count(content) >= 3:
-            return 0.0, "figure_or_ui_noise"
-        score -= 0.28
-        role = "figure_or_ui_noise"
-
-    ui_noise_ratio = _ui_noise_ratio(content)
-    if ui_noise_ratio >= 0.35:
-        score -= 0.55
-        role = "figure_or_ui_noise"
-
     if len(content) < 12 and term_hits == 0:
         score -= 0.3
 
     return score, role
+
+
+def _expand_enumeration_items(
+    *,
+    selected: list[dict[str, Any]],
+    candidates: list[dict[str, Any]],
+    seen_ids: set[str],
+    char_count: int,
+    max_chunks: int,
+    max_chars: int,
+) -> tuple[list[dict[str, Any]], int]:
+    if not selected or len(selected) >= max_chunks:
+        return selected, char_count
+
+    candidate_indices = {
+        str(candidate.get("chunk_id") or candidate.get("nexus_chunk_id") or ""): index
+        for index, candidate in enumerate(candidates)
+    }
+    intro_indices = [
+        candidate_indices.get(str(item.get("chunk_id") or ""))
+        for item in selected
+        if _is_enumeration_intro(str(item.get("content") or ""))
+    ]
+    intro_indices = [index for index in intro_indices if index is not None]
+    if not intro_indices:
+        return selected, char_count
+
+    start_index = min(int(index) for index in intro_indices) + 1
+    appended = 0
+    for candidate in candidates[start_index:]:
+        if len(selected) >= max_chunks:
+            break
+        chunk_id = str(candidate.get("chunk_id") or candidate.get("nexus_chunk_id") or "")
+        if chunk_id and chunk_id in seen_ids:
+            continue
+        content = str(candidate.get("content") or candidate.get("snippet") or "").strip()
+        if not content:
+            continue
+        if _is_noise_content(content):
+            continue
+        if not _is_enumeration_item(content):
+            if appended:
+                break
+            continue
+        if selected and char_count + len(content) > max_chars:
+            break
+        selected.append({
+            "chunk_id": chunk_id,
+            "normalized_ref_id": candidate.get("normalized_ref_id"),
+            "content": content,
+            "locator": candidate.get("locator") or {},
+            "source_block_ids": candidate.get("source_block_ids") or [],
+            "runtime_score": 0.0,
+            "runtime_role": "answer_enumeration_item",
+        })
+        if chunk_id:
+            seen_ids.add(chunk_id)
+        char_count += len(content)
+        appended += 1
+    return selected, char_count
+
+
+def _is_enumeration_intro(content: str) -> bool:
+    return bool(_ENUMERATION_INTRO_RE.search(content))
+
+
+def _is_enumeration_item(content: str) -> bool:
+    return bool(_ENUMERATION_ITEM_RE.match(content))
+
+
+def _is_noise_content(content: str) -> bool:
+    if _STRUCTURAL_INTRO_RE.search(content):
+        return True
+    if _DIALOGUE_RE.search(content):
+        return True
+    if _EXERCISE_RE.search(content):
+        return True
+    if _FIGURE_RE.search(content) and _ui_token_count(content) >= 3:
+        return True
+    return _ui_noise_ratio(content) >= 0.35
 
 
 def _ui_noise_ratio(content: str) -> float:

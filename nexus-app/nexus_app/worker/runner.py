@@ -52,6 +52,7 @@ from nexus_app.pipeline.stages import (
     run_governance_decision,
     run_index_submit,
     run_knowledge_chunking,
+    run_knowledge_outline_build,
     run_normalize_document,
     run_normalize_record,
     run_parse,
@@ -1813,6 +1814,9 @@ def execute_job(
         # Stage 5a: knowledge chunking (RAG knowledge base only — skipped otherwise)
         chunks = run_knowledge_chunking(ctx, version, normalized_ref)
 
+        # Stage 5a.1: textbook knowledge outline (best-effort, before indexing)
+        run_knowledge_outline_build(ctx, version, normalized_ref, chunks)
+
         # Stage 5b: submit chunks to RAGFlow (skipped if no chunks or version not available)
         run_index_submit(ctx, version, normalized_ref, chunks)
 
@@ -1901,6 +1905,7 @@ def _execute_knowledge_continuation(
     )
     try:
         chunks = run_knowledge_chunking(ctx, version, ref)
+        run_knowledge_outline_build(ctx, version, ref, chunks)
         manifests = run_index_submit(ctx, version, ref, chunks)
         _require_continuation_indexed(chunks, manifests)
         job.status = JobStatus.SUCCEEDED

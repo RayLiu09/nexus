@@ -455,6 +455,15 @@ Asset Pipeline → normalized_asset_ref (stable contract)
   `training_operation` textbooks, stores a profile/tree, projects task-aware
   retrieval chunks into `knowledge_chunk`, and marks the relevant index manifest
   stale after projection replacement.
+- Course textbook Knowledge Outline is a Pipeline 1 stage for eligible
+  `course_textbook` normalized documents. After `knowledge_chunking` and before
+  `index_submit`, the worker reuses existing `task_outline_profile` or detects
+  the textbook subtype when no profile exists, creates a profile only for
+  eligible refs, and builds `knowledge_outline_node` for
+  `theory_knowledge` / `hybrid` refs so chunks can carry
+  `knowledge_outline_node_id` before indexing. The stage is non-blocking during
+  rollout: failures are recorded in job stages and logs but do not change the
+  existing chunking-to-index submission path.
 - Evidence-grounded KG is an active extension slice built on the same boundary:
   input is a full `normalized_asset_ref`; `knowledge_chunk` provides semantic
   windows, source block ids, and locators; official graph nodes/facts/edges
@@ -472,7 +481,7 @@ Asset Pipeline → normalized_asset_ref (stable contract)
 ## Core Flows
 
 **Pipeline A (Document):**
-`upload → raw_object (binary) → ingest_validate → Job(pipeline_type="document") → assetize (asset/asset_version) → MinerU parse (parse_artifact + images) → normalize (normalized_document) → normalized_asset_ref → AI governance → rules → governance_result → available/review_required → semantic retrieval index`
+`upload → raw_object (binary) → ingest_validate → Job(pipeline_type="document") → assetize (asset/asset_version) → MinerU parse (parse_artifact + images) → normalize (normalized_document) → normalized_asset_ref → AI governance → rules → governance_result → available/review_required → knowledge_chunking → eligible textbook knowledge_outline_build → semantic retrieval index`
 
 **Pipeline B (Record):**
 `crawler/webhook/batch/file upload → raw_object (JSON/XLSX structured data) → ingest_validate → Job(pipeline_type="record") → assetize (asset/asset_version) → structured_parse/profile_detect when applicable → normalize (normalized_record) → normalized_asset_ref → AI governance → rules → governance_result → index`

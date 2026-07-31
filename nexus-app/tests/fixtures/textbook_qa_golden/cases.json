@@ -142,5 +142,85 @@
     "must_include": ["社交媒体类", "新闻资讯类", "电商推广类", "垂直领域类"],
     "must_not_include": ["未检索到"],
     "max_answer_chars": 1600
+  },
+  {
+    "case_id": "tq_retail_features_definition_enum",
+    "question": "现代零售行业的关键特征是什么",
+    "section_title": "知识点1：现代零售行业的四大关键特征",
+    "expected_context_mode": "compact_answer",
+    "expected_question_type": "definition",
+    "chunks": [
+      {
+        "chunk_id": "retail-intro",
+        "content": "现代零售以数字化为基础，以用户为中心，以全渠道融合为核心，提供即时化服务，与传统零售有着本质区别，其核心具备四大关键特征。"
+      },
+      {
+        "chunk_id": "retail-channel",
+        "content": "首先是全渠道深度融合。现代零售打破线上线下渠道壁垒，实现线上引流、线下体验、即时履约、全域复购。"
+      },
+      {
+        "chunk_id": "retail-data",
+        "content": "其次是数据驱动精细化运营。现代零售通过用户画像、消费行为、交易数据等分析，精准把握用户需求。"
+      },
+      {
+        "chunk_id": "retail-user",
+        "content": "第三大特征是以用户体验为核心。现代零售注重消费场景打造、个性化需求满足和用户粘性培养。"
+      },
+      {
+        "chunk_id": "retail-fulfillment",
+        "content": "第四大特征是即时化履约成为标配。现代零售依托生活圈，实现线上下单、就近发货和快速送达。"
+      },
+      {
+        "chunk_id": "retail-summary",
+        "content": "立足用户真实需求，诚信经营、优化体验，用专业能力为消费者创造价值，是做好零售运营的根本准则。"
+      },
+      {
+        "chunk_id": "retail-dialogue",
+        "content": "老师：小优，我们已经掌握了现代零售行业的关键特征，那接下来我们该如何做呢？"
+      },
+      {
+        "chunk_id": "retail-homework",
+        "content": "课后，请大家选取身边 1 家开展 O2O 运营的零售门店，分析该门店的落地情况。"
+      }
+    ],
+    "must_include": ["四大关键特征", "全渠道深度融合", "数据驱动精细化运营", "用户体验", "即时化履约"],
+    "must_not_include": ["老师：", "课后", "根本准则"],
+    "max_answer_chars": 1800
+  },
+  {
+    "case_id": "tq_course_assessment_standards_definition_enum",
+    "question": "课程评价标准是什么",
+    "section_title": "知识点3：课程评价标准",
+    "expected_context_mode": "compact_answer",
+    "expected_question_type": "definition",
+    "chunks": [
+      {
+        "chunk_id": "assessment-intro",
+        "content": "课程评价标准主要包括三个维度，分别从学习过程、成果质量和职业素养三个方面衡量学生学习成效。"
+      },
+      {
+        "chunk_id": "assessment-process",
+        "content": "一是过程性评价，重点关注学生参与课堂讨论、完成阶段任务和持续改进作品的表现。"
+      },
+      {
+        "chunk_id": "assessment-output",
+        "content": "二是成果性评价，重点考查最终作品的完整性、规范性、创新性和岗位适配度。"
+      },
+      {
+        "chunk_id": "assessment-literacy",
+        "content": "三是职业素养评价，重点观察学生团队协作、沟通表达、责任意识和职业规范。"
+      },
+      {
+        "chunk_id": "assessment-dialogue",
+        "content": "老师：同学们已经了解课程评价标准，接下来请完成课堂互动。"
+      },
+      {
+        "chunk_id": "assessment-homework",
+        "content": "课后，请大家根据本节内容完成一份学习反思。"
+      }
+    ],
+    "must_include": ["三个维度", "过程性评价", "成果性评价", "职业素养评价"],
+    "must_not_include": ["老师：", "课后", "课堂互动"],
+    "max_answer_chars": 1600
   }
 ]

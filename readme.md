@@ -127,7 +127,9 @@ Root documents are distilled implementation contracts:
 - Authenticated Open asset catalog filtering by governance data domain and
   content tags, with stable on-demand raw-download endpoints. Tag indexes cover
   document normalized refs (including expert-reviewed tags) and textbook outline
-  nodes; Pipeline B structured records retain domain-table filtering only.
+  nodes; eligible course-textbook knowledge outlines are built in the knowledge
+  pipeline before index submission. Pipeline B structured records retain
+  domain-table filtering only.
 - Query Router automatically falls back to request-scoped Firecrawl WebSearch
   only for no-evidence `scenario_1` industry/report and `scenario_4`
   textbook/general-knowledge requests. Public-web results remain separate from
