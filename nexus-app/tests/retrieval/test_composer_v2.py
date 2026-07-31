@@ -465,6 +465,60 @@ def test_task_procedure_uses_all_ordered_context_steps_without_llm(seeded_sessio
     assert "其余步骤暂无" not in result.markdown
 
 
+def test_answer_span_context_renders_compact_answer_before_section_context(seeded_session):
+    llm = _ScriptedLLM("This response must not be used")
+    result = MDComposerV2(llm_client=llm).compose(
+        seeded_session,
+        query="什么是感光度，如何设置",
+        dispatch_result=_dispatch(
+            tool_results=(ToolResult(
+                tool_call_id="compact-answer",
+                name="internal.search_chunks_by_semantic",
+                arguments={"query": "什么是感光度，如何设置"},
+                ok=True,
+                result={"answer_contexts": [
+                    {
+                        "kind": "answer_span_context",
+                        "mode": "compact_answer",
+                        "question_type": "definition_with_method",
+                        "normalized_ref_id": "ref-camera",
+                        "chunks": [
+                            {
+                                "chunk_id": "c1",
+                                "normalized_ref_id": "ref-camera",
+                                "locator": {"page": 1},
+                                "content": "感光度是相机对光线敏感程度的参数。",
+                            },
+                            {
+                                "chunk_id": "c2",
+                                "normalized_ref_id": "ref-camera",
+                                "locator": {"page": 2},
+                                "content": "设置感光度时，在光线充足的情况下数值越低越好。",
+                            },
+                        ],
+                    },
+                    {
+                        "kind": "section_context",
+                        "mode": "compact_answer",
+                        "normalized_ref_id": "ref-camera",
+                        "title": "拍摄参数",
+                        "chunks": [
+                            {"chunk_id": "c1", "locator": {}, "content": "感光度是相机对光线敏感程度的参数。"},
+                            {"chunk_id": "noise", "locator": {}, "content": "单项选择题：拍摄设备不包括什么？"},
+                        ],
+                    },
+                ]},
+            ),),
+        ),
+    )
+
+    assert llm.calls == []
+    assert "感光度是相机对光线敏感程度" in result.markdown
+    assert "光线充足的情况下数值越低越好" in result.markdown
+    assert "单项选择题" not in result.markdown
+    assert "`ref-camera` / `c2`" in result.markdown
+
+
 def test_section_classification_uses_all_context_chunks_without_llm(seeded_session):
     llm = _ScriptedLLM("This response must not be used")
     composer = MDComposerV2(llm_client=llm)

@@ -448,6 +448,9 @@ def _render_grounded_answer(
     job_demand = _render_grounded_job_demand(dispatch_result)
     if job_demand is not None:
         return job_demand
+    answer_span = _render_grounded_answer_span(dispatch_result)
+    if answer_span is not None:
+        return answer_span
     procedure = _render_grounded_task_procedure(
         query=query,
         dispatch_result=dispatch_result,
@@ -829,6 +832,52 @@ def _render_grounded_task_procedure(
     return "\n".join([*lines, "", *citations])
 
 
+def _render_grounded_answer_span(
+    dispatch_result: DispatchResult,
+) -> str | None:
+    """Render compact textbook answer evidence selected at retrieval time."""
+    contexts: list[dict[str, Any]] = []
+    for tool_result in dispatch_result.tool_results:
+        if not tool_result.ok or not isinstance(tool_result.result, dict):
+            continue
+        for context in tool_result.result.get("answer_contexts") or []:
+            if isinstance(context, dict) and context.get("kind") == "answer_span_context":
+                contexts.append(context)
+    if len(contexts) != 1:
+        return None
+
+    context = contexts[0]
+    chunks = [
+        chunk for chunk in context.get("chunks") or []
+        if isinstance(chunk, dict) and str(chunk.get("content") or "").strip()
+    ]
+    if not chunks:
+        return None
+
+    question_type = str(context.get("question_type") or "textbook_answer")
+    title = "教材检索答案"
+    if question_type == "definition_with_method":
+        title = "概念与调节方法"
+    elif question_type == "definition":
+        title = "概念说明"
+    elif question_type == "method":
+        title = "方法说明"
+
+    lines = [f"## {title}"]
+    citations: list[str] = []
+    for citation_index, chunk in enumerate(chunks, start=1):
+        content = str(chunk["content"]).strip()
+        lines.append(f"{citation_index}. {content} [^ref{citation_index}]")
+        locator = json.dumps(
+            chunk.get("locator") or {}, ensure_ascii=False, sort_keys=True,
+        )
+        citations.append(
+            f"[^ref{citation_index}]: `{chunk.get('normalized_ref_id') or ''}` / "
+            f"`{chunk.get('chunk_id') or ''}` / `{locator}`"
+        )
+    return "\n".join([*lines, "", *citations])
+
+
 def _render_grounded_section_context(
     *,
     query: str,
@@ -848,6 +897,14 @@ def _render_grounded_section_context(
             continue
         for context in tool_result.result.get("answer_contexts") or []:
             if not isinstance(context, dict) or context.get("kind") != "section_context":
+                continue
+            # Runtime textbook heuristics can keep a section context available
+            # for traceability while selecting a compact answer context for
+            # definition/method questions. Only explicit complete-section
+            # mode should force full deterministic rendering. Legacy tests and
+            # payloads without a mode retain the prior complete render behavior.
+            mode = context.get("mode")
+            if mode is not None and mode != "complete_section":
                 continue
             node_id = str(context.get("outline_node_id") or "")
             context_key = node_id or "|".join((

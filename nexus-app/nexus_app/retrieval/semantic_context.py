@@ -15,6 +15,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from nexus_app import models
+from nexus_app.retrieval.textbook_answer_context import (
+    build_answer_span_context,
+    classify_textbook_question,
+    with_answer_mode,
+)
 
 MAX_CONTEXT_REFS = 3
 MAX_TASK_STEPS = 24
@@ -161,9 +166,14 @@ def assemble_semantic_context(
     weak hit is therefore not allowed to select a section on its own; in that
     case the established high-confidence title match remains the fallback.
     """
+    profile = classify_textbook_question(query)
     hit_contexts = _section_contexts_for_hit_nodes(session, query=query, hits=hits)
     if hit_contexts:
-        return hit_contexts
+        hit_contexts = [with_answer_mode(context, profile) for context in hit_contexts]
+        answer_context = build_answer_span_context(
+            query=query, contexts=hit_contexts, hits=hits,
+        )
+        return ([answer_context] if answer_context else []) + hit_contexts
 
     # Compatibility fallback for title-led questions and legacy chunk links.
     ref_ids = _distinct_ref_ids(hits)[:MAX_CONTEXT_REFS]
@@ -176,7 +186,11 @@ def assemble_semantic_context(
         section_context = _section_context(session, ref_id=ref_id, query=query)
         if section_context is not None:
             contexts.append(section_context)
-    return contexts
+    contexts = [with_answer_mode(context, profile) for context in contexts]
+    answer_context = build_answer_span_context(
+        query=query, contexts=contexts, hits=hits,
+    )
+    return ([answer_context] if answer_context else []) + contexts
 
 
 def _section_contexts_for_hit_nodes(

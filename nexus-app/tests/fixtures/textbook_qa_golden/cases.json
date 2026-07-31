@@ -1,0 +1,146 @@
+[
+  {
+    "case_id": "tq_white_balance_definition_method",
+    "question": "什么是白平衡，如何调节",
+    "section_title": "六、白平衡",
+    "expected_context_mode": "compact_answer",
+    "expected_question_type": "definition_with_method",
+    "chunks": [
+      {
+        "chunk_id": "wb-definition",
+        "content": "白平衡的通俗理解就是不管在任何光源下，都能将白色物体还原为白色，目的是让影像符合人眼的色彩视觉习惯。"
+      },
+      {
+        "chunk_id": "wb-method",
+        "content": "调节白平衡有三种方式：预置白平衡、手动调节白平衡和自动调节白平衡。"
+      },
+      {
+        "chunk_id": "wb-temperature",
+        "content": "手动调节白平衡时可设置色温，色温值越高画面越偏黄，色温值越低画面越偏蓝。"
+      },
+      {
+        "chunk_id": "wb-task-intro",
+        "content": "任务实施：使用手机相机的专业模式进行拍摄，手动设置测光方式、感光度、曝光补偿、对焦方式、白平衡等参数，其具体操作步骤如下。"
+      },
+      {
+        "chunk_id": "wb-iso",
+        "content": "步骤二：设置感光度。点击 ISO 按钮后会弹出多项感光值，拖动滑块选择合适的数值。"
+      },
+      {
+        "chunk_id": "wb-exercise",
+        "content": "单项选择题：使用智能手机拍摄短视频的优点不包括什么？"
+      }
+    ],
+    "must_include": ["白平衡", "白色物体", "预置白平衡", "手动调节白平衡", "自动调节白平衡", "色温"],
+    "must_not_include": ["ISO", "感光度", "曝光补偿", "单项选择题"],
+    "max_answer_chars": 1400
+  },
+  {
+    "case_id": "tq_iso_definition_method",
+    "question": "什么是感光度，如何设置",
+    "section_title": "二、感光度",
+    "expected_context_mode": "compact_answer",
+    "expected_question_type": "definition_with_method",
+    "chunks": [
+      {
+        "chunk_id": "iso-definition",
+        "content": "感光度又称 ISO，指传感器对光的敏感程度，可以协助控制画面亮度。"
+      },
+      {
+        "chunk_id": "iso-method",
+        "content": "在光线充足的情况下，感光度设置越低越好；光线昏暗时也不宜设置得过高，否则会产生噪点。"
+      },
+      {
+        "chunk_id": "iso-wb",
+        "content": "步骤五：设置白平衡。点击 WB 按钮后选择白平衡模式并调整色温值。"
+      },
+      {
+        "chunk_id": "iso-ui",
+        "content": "▲图4-4-2 设置感光度 JPG A 50 400 800 3200 ISO EV AF WB 人像 拍照 录像 专业 更多"
+      }
+    ],
+    "must_include": ["感光度", "ISO", "传感器", "光线充足", "越低越好", "噪点"],
+    "must_not_include": ["白平衡", "WB", "JPG"],
+    "max_answer_chars": 1000
+  },
+  {
+    "case_id": "tq_focus_mode_method",
+    "question": "对焦方式如何选择",
+    "section_title": "步骤四：设置对焦方式",
+    "expected_context_mode": "compact_answer",
+    "expected_question_type": "method",
+    "chunks": [
+      {
+        "chunk_id": "focus-method",
+        "content": "设置对焦方式时，点击 AF 按钮后，可以看到 AF-S、AF-C、MF 等对焦方式，长按 AF 按钮可以锁定焦点。"
+      },
+      {
+        "chunk_id": "focus-ui",
+        "content": "▲图4-4-4 设置对焦方式 JPG AF-S AF-C MF M ISO EV WB 人像 拍照 录像 专业 更多"
+      },
+      {
+        "chunk_id": "focus-lighting",
+        "content": "三点布光包括主光、辅助光和轮廓光，可以增强拍摄主体的立体感。"
+      }
+    ],
+    "must_include": ["对焦方式", "AF", "AF-S", "AF-C", "MF", "锁定焦点"],
+    "must_not_include": ["三点布光", "主光", "JPG"],
+    "max_answer_chars": 900
+  },
+  {
+    "case_id": "tq_hsl_method",
+    "question": "HSL如何调整画面颜色",
+    "section_title": "5. HSL辅助",
+    "expected_context_mode": "compact_answer",
+    "expected_question_type": "method",
+    "chunks": [
+      {
+        "chunk_id": "hsl-method",
+        "content": "HSL分别对应视频画面的色相、饱和度和亮度，可以通过设置 HSL 辅助参数来控制视频画面中的某个颜色。"
+      },
+      {
+        "chunk_id": "hsl-wheel",
+        "content": "色轮和匹配可以选择阴影、中间调和高光的颜色，并调整不同区域的亮度。"
+      },
+      {
+        "chunk_id": "hsl-vignette",
+        "content": "晕影可以为视频画面添加光晕效果，涉及数量、中点、圆度和羽化等参数。"
+      }
+    ],
+    "must_include": ["HSL", "色相", "饱和度", "亮度", "控制", "颜色"],
+    "must_not_include": ["晕影", "色轮和匹配"],
+    "max_answer_chars": 700
+  },
+  {
+    "case_id": "tq_short_video_platform_types_complete",
+    "question": "短视频平台有哪些类型",
+    "section_title": "一、短视频平台的类型",
+    "expected_context_mode": "complete_section",
+    "expected_question_type": "complete_section",
+    "chunks": [
+      {
+        "chunk_id": "platform-intro",
+        "content": "短视频平台可分为以下四种。"
+      },
+      {
+        "chunk_id": "platform-social",
+        "content": "社交媒体类短视频平台侧重互动和社交功能。"
+      },
+      {
+        "chunk_id": "platform-news",
+        "content": "新闻资讯类短视频平台侧重资讯传播。"
+      },
+      {
+        "chunk_id": "platform-commerce",
+        "content": "电商推广类短视频平台用于产品展示和销售推广。"
+      },
+      {
+        "chunk_id": "platform-vertical",
+        "content": "垂直领域类短视频平台聚焦特定兴趣领域。"
+      }
+    ],
+    "must_include": ["社交媒体类", "新闻资讯类", "电商推广类", "垂直领域类"],
+    "must_not_include": ["未检索到"],
+    "max_answer_chars": 1600
+  }
+]

@@ -311,6 +311,81 @@ def test_search_chunks_expands_matching_theory_section_not_learning_goal(session
     assert result["scope"]["source"] == "auto_outline_resolution"
 
 
+def test_search_chunks_builds_compact_answer_context_for_definition_method_query(session):
+    root = models.KnowledgeOutlineNode(
+        id="wb-root", normalized_ref_id="ref-wb", parent_id=None,
+        level=0, order_index=0, title="教材", build_run_id="build-1",
+        chunk_count=0, fallback_used=False, node_metadata={},
+    )
+    section = models.KnowledgeOutlineNode(
+        id="wb-section", normalized_ref_id="ref-wb", parent_id=root.id,
+        level=1, order_index=1, title="六、白平衡", build_run_id="build-1",
+        chunk_count=5, fallback_used=False, node_metadata={},
+    )
+    definition = _chunk(
+        "wb-definition", "ref-wb", 1,
+        "白平衡是让不同光源下的白色物体还原为白色，用来校正色偏。",
+        outline_id=section.id,
+    )
+    methods = _chunk(
+        "wb-methods", "ref-wb", 2,
+        "调节白平衡有三种方式：预置白平衡、手动调节白平衡和自动调节白平衡。",
+        outline_id=section.id,
+    )
+    color_temperature = _chunk(
+        "wb-temperature", "ref-wb", 3,
+        "手动调节白平衡时可设置色温，色温值越高画面越偏黄，越低越偏蓝。",
+        outline_id=section.id,
+    )
+    task_intro = _chunk(
+        "task-intro", "ref-wb", 4,
+        "任务实施：小李决定使用专业模式，手动设置测光方式、感光度、曝光补偿、对焦方式、白平衡等参数。其具体操作步骤如下。",
+        outline_id=section.id,
+    )
+    sibling = _chunk(
+        "iso-sibling", "ref-wb", 5,
+        "步骤二：设置感光度。点击 ISO 按钮后拖动滑块选择合适数值。",
+        outline_id=section.id,
+    )
+    exercise = _chunk(
+        "exercise", "ref-wb", 6,
+        "单项选择题：使用智能手机拍摄短视频的优点不包括什么？",
+        outline_id=section.id,
+    )
+    session.add_all([root, section, definition, methods, color_temperature, task_intro, sibling, exercise])
+    session.flush()
+
+    class _Adapter:
+        def search(self, *_args, **_kwargs):
+            return [{
+                "nexus_chunk_id": definition.id,
+                "normalized_ref_id": "ref-wb",
+                "score": 0.96,
+            }]
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    result = make_search_chunks_executor(_Adapter())(
+        session=session,
+        arguments={"query": "什么是白平衡，如何调节"},
+        tool_call_id="tc",
+        chart_registry=ChartRegistry(),
+    )
+
+    answer_context = result["answer_contexts"][0]
+    assert answer_context["kind"] == "answer_span_context"
+    assert answer_context["question_type"] == "definition_with_method"
+    selected_ids = [item["chunk_id"] for item in answer_context["chunks"]]
+    assert definition.id in selected_ids
+    assert methods.id in selected_ids
+    assert color_temperature.id in selected_ids
+    assert task_intro.id not in selected_ids
+    assert sibling.id not in selected_ids
+    assert exercise.id not in selected_ids
+    section_context = result["answer_contexts"][1]
+    assert section_context["kind"] == "section_context"
+    assert section_context["mode"] == "compact_answer"
+
+
 def test_search_chunks_expands_top_three_distinct_hit_sections_with_full_content(session):
     root = models.KnowledgeOutlineNode(
         id="ranked-root", normalized_ref_id="ref-ranked", parent_id=None,
