@@ -1,6 +1,6 @@
 "use client";
 
-import { Empty, List, Space, Tag, Typography } from "antd";
+import { Empty, Space, Tag, Typography } from "antd";
 
 import { ChunkCard } from "@/components/chunk/ChunkCard";
 import type { KnowledgeChunkHit } from "@/lib/chunkTypes";
@@ -46,14 +46,13 @@ export function LegacySearchResult({
               `caller ${data.caller_id}`,
             ]}
           />
-          <List<KnowledgeChunkHit>
-            dataSource={data.results}
-            renderItem={(item) => (
-              <List.Item key={item.chunk_id}>
+          <div role="list" className="flex flex-col gap-3">
+            {data.results.map((item) => (
+              <div role="listitem" key={item.chunk_id}>
                 <ChunkCard chunk={item} onSelect={onSelectChunk} />
-              </List.Item>
-            )}
-          />
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </Space>
@@ -94,14 +93,13 @@ export function LegacyQaResult({ query, loading, data, onSelectChunk }: LegacyQa
             {data.sources.length === 0 ? (
               <Empty description="未返回引用源" />
             ) : (
-              <List<KnowledgeChunkHit>
-                dataSource={data.sources}
-                renderItem={(src, idx) => (
-                  <List.Item key={src.chunk_id ?? `src-${idx}`}>
+              <div role="list" className="flex flex-col gap-3">
+                {data.sources.map((src, idx) => (
+                  <div role="listitem" key={src.chunk_id ?? `src-${idx}`}>
                     <ChunkCard chunk={src} onSelect={onSelectChunk} />
-                  </List.Item>
-                )}
-              />
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </>

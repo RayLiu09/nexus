@@ -320,6 +320,10 @@ a:focus-visible,
   box-shadow: var(--focus-ring);
 }
 
+nextjs-portal:empty {
+  pointer-events: none;
+}
+
 /* 删除 Reduce motion 时的 focus 过渡 */
 @media (prefers-reduced-motion: reduce) {
   :focus-visible {

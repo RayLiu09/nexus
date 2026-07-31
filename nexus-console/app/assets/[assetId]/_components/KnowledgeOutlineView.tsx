@@ -7,7 +7,6 @@ import {
   Card,
   Drawer,
   Empty,
-  List,
   Modal,
   Segmented,
   Skeleton,
@@ -359,7 +358,9 @@ export function KnowledgeOutlineView({ refId, isTheoryKnowledge, onJumpToBlock }
         ) : !drawerChunks || drawerChunks.chunks.length === 0 ? (
           <Empty description="该节点下暂无知识块" />
         ) : (
-          <List dataSource={drawerChunks.chunks} renderItem={renderChunkItem} />
+          <div role="list" className="flex flex-col divide-y divide-[var(--line-light)]">
+            {drawerChunks.chunks.map(renderChunkItem)}
+          </div>
         )}
       </Drawer>
     </>
@@ -634,7 +635,7 @@ function toAntdTreeNode(item: TreeItem): DataNode {
 
 function renderChunkItem(chunk: KnowledgeOutlineChunkListEntry) {
   return (
-    <List.Item key={chunk.id}>
+    <div role="listitem" key={chunk.id} className="py-3 first:pt-0 last:pb-0">
       <div className="w-full">
         <div className="text-text-secondary mb-1 text-xs">
           #{chunk.chunk_index} · {chunk.source_block_ids.length} blocks
@@ -643,7 +644,7 @@ function renderChunkItem(chunk: KnowledgeOutlineChunkListEntry) {
           {chunk.content_preview || "（无内容）"}
         </div>
       </div>
-    </List.Item>
+    </div>
   );
 }
 

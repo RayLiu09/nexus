@@ -12,7 +12,7 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
 
   return (
     <QuickUploadProvider>
-      <div className={`app-shell${collapsed ? "collapsed" : ""}`}>
+      <div className={`app-shell${collapsed ? " collapsed" : ""}`}>
         <Sidebar collapsed={collapsed} onToggle={toggle} />
         <main className="main-area">
           <Topbar />
