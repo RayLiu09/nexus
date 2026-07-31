@@ -134,7 +134,7 @@ Root documents are distilled implementation contracts:
   governed NEXUS assets and are never persisted, governed, or indexed; all
   other query scenarios stay local-only.
 - Query Router v2 automatically expands up to three complete theory-textbook
-  chapters represented by ranked semantic hits and returns them as
+  chapters selected by section-level query relevance from semantic hits and returns them as
   `section_contexts` from `/open/v1/query` and `/internal/v1/query`.
   `/open/v1/search` remains compact chunk evidence; policy and report assets
   remain chunk-only until NEXUS introduces a general document-section model.

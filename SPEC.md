@@ -161,8 +161,9 @@ Search and QA:
 - Query Router v2 is the conversational entry point: `POST /open/v1/query`
   and `POST /internal/v1/query` expose `section_contexts` when semantic hits
   link to theory-textbook outline nodes. The response contains no more than
-  three distinct chapters, selected by ranked first hit, each with its complete
-  ordered chunk set plus `total_chunk_count`, `total_char_count`, and
+  three distinct chapters, selected by section-level query relevance rather
+  than a single chunk's first-hit rank, each with its complete ordered chunk
+  set plus `total_chunk_count`, `total_char_count`, and
   `complete=true`. Callers do not provide an `outline_node_id`. This expansion
   does not apply to industry policies or reports before a general document
   section model is available. `GET /open/v1/search` stays a hit-evidence API.

@@ -376,6 +376,101 @@ def test_search_chunks_expands_top_three_distinct_hit_sections_with_full_content
     ]
 
 
+def test_search_chunks_auto_scopes_numbered_section_topic(session):
+    """Chapter ordinals must not hide an otherwise exact topic match."""
+    root = models.KnowledgeOutlineNode(
+        id="numbered-root", normalized_ref_id="ref-numbered", parent_id=None,
+        level=0, order_index=0, title="教材", build_run_id="build-1",
+        chunk_count=0, fallback_used=False, node_metadata={},
+    )
+    target = models.KnowledgeOutlineNode(
+        id="numbered-target", normalized_ref_id="ref-numbered", parent_id=root.id,
+        level=1, order_index=1, title="一、拍摄设备", build_run_id="build-1",
+        chunk_count=1, fallback_used=False, node_metadata={},
+    )
+    other = models.KnowledgeOutlineNode(
+        id="numbered-other", normalized_ref_id="ref-numbered", parent_id=root.id,
+        level=1, order_index=2, title="五、其他设备", build_run_id="build-1",
+        chunk_count=1, fallback_used=False, node_metadata={},
+    )
+    target_chunk = _chunk(
+        "numbered-target-chunk", "ref-numbered", 1, "智能手机和摄像机是常用拍摄设备。",
+        outline_id=target.id, heading_path=[{"title": "一、拍摄设备"}],
+    )
+    other_chunk = _chunk(
+        "numbered-other-chunk", "ref-numbered", 2, "摇臂和监视器属于其他设备。",
+        outline_id=other.id, heading_path=[{"title": "五、其他设备"}],
+    )
+    session.add_all([root, target, other, target_chunk, other_chunk])
+    session.flush()
+    calls: list[dict] = []
+
+    class _Adapter:
+        def search(self, *_args, **kwargs):
+            calls.append(kwargs)
+            return [{"nexus_chunk_id": target_chunk.id, "score": 0.8}]
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    result = make_search_chunks_executor(_Adapter())(
+        session=session, arguments={"query": "短视频拍摄设备有哪些"},
+        tool_call_id="tc", chart_registry=ChartRegistry(),
+    )
+
+    assert calls[0]["chunk_ids"] == [target_chunk.id]
+    assert result["scope"]["node_id"] == target.id
+    assert [context["outline_node_id"] for context in result["answer_contexts"]] == [target.id]
+
+
+def test_search_chunks_reranks_sections_over_prompt_like_first_hit(session):
+    """A direct section-title match outranks an isolated exercise prompt."""
+    root = models.KnowledgeOutlineNode(
+        id="rerank-root", normalized_ref_id="ref-rerank", parent_id=None,
+        level=0, order_index=0, title="教材", build_run_id="build-1",
+        chunk_count=0, fallback_used=False, node_metadata={},
+    )
+    prompt_section = models.KnowledgeOutlineNode(
+        id="rerank-prompt", normalized_ref_id="ref-rerank", parent_id=root.id,
+        level=1, order_index=1, title="其他设备", build_run_id="build-1",
+        chunk_count=1, fallback_used=False, node_metadata={},
+    )
+    answer_section = models.KnowledgeOutlineNode(
+        id="rerank-answer", normalized_ref_id="ref-rerank", parent_id=root.id,
+        level=1, order_index=2, title="一、拍摄设备", build_run_id="build-1",
+        chunk_count=1, fallback_used=False, node_metadata={},
+    )
+    prompt_chunk = _chunk(
+        "rerank-prompt-chunk", "ref-rerank", 1, "拍摄短视频时，还会用到哪些常见设备？",
+        outline_id=prompt_section.id,
+    )
+    answer_chunk = _chunk(
+        "rerank-answer-chunk", "ref-rerank", 2, "常用拍摄设备包括智能手机、单反相机和摄像机。",
+        outline_id=answer_section.id,
+    )
+    session.add_all([root, prompt_section, answer_section, prompt_chunk, answer_chunk])
+    session.flush()
+
+    class _Adapter:
+        def search(self, *_args, **_kwargs):
+            return [
+                {"nexus_chunk_id": prompt_chunk.id, "score": 0.90},
+                {"nexus_chunk_id": answer_chunk.id, "score": 0.80},
+            ]
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    result = make_search_chunks_executor(_Adapter())(
+        session=session,
+        # A non-textbook KB disables automatic scope so this exercises the
+        # post-retrieval section reranker directly.
+        arguments={"query": "短视频拍摄设备有哪些", "kb": "industry_research_kb"},
+        tool_call_id="tc", chart_registry=ChartRegistry(),
+    )
+
+    assert [context["outline_node_id"] for context in result["answer_contexts"]] == [
+        answer_section.id, prompt_section.id,
+    ]
+    assert result["answer_contexts"][0]["selection_reason"] == "section_relevance_rerank"
+
+
 def test_search_chunks_explicit_outline_node_is_mandatory_pre_ranking_scope(session):
     root = models.KnowledgeOutlineNode(
         id="explicit-root", normalized_ref_id="ref-explicit", parent_id=None,

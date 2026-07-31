@@ -149,19 +149,19 @@ def assemble_semantic_context(
     query: str,
     hits: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Return complete theory-section contexts for the highest-ranked hits.
+    """Return complete theory-section contexts for the most relevant hits.
 
     A semantic hit with a theory-outline relation is the primary expansion
-    signal.  We expand at most ``MAX_CONTEXT_REFS`` distinct hit sections,
-    ranked by their first occurrence in the vector result.  This keeps a
-    multi-topic query from multiplying its response indefinitely without
-    forcing callers to know internal outline-node identifiers.
+    signal. We expand at most ``MAX_CONTEXT_REFS`` distinct hit sections after
+    section-level relevance ranking. This keeps a multi-topic query from
+    multiplying its response indefinitely without forcing callers to know
+    internal outline-node identifiers.
 
     Older data can attach a learning-goal chunk to the preceding section.  A
     weak hit is therefore not allowed to select a section on its own; in that
     case the established high-confidence title match remains the fallback.
     """
-    hit_contexts = _section_contexts_for_hit_nodes(session, hits)
+    hit_contexts = _section_contexts_for_hit_nodes(session, query=query, hits=hits)
     if hit_contexts:
         return hit_contexts
 
@@ -181,9 +181,18 @@ def assemble_semantic_context(
 
 def _section_contexts_for_hit_nodes(
     session: Session,
+    *,
+    query: str,
     hits: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Expand the first three non-weak theory outline nodes represented by hits."""
+    """Expand the three most relevant theory sections represented by hits.
+
+    Chunk-vector rank is recall evidence, not a sufficient answer-section
+    rank: a discussion question can mention every query term while the source
+    section with the actual answer has a slightly lower vector score. Grouping
+    hit evidence by outline node lets a strong section-title match and multiple
+    supporting chunks outrank an isolated prompt-like hit.
+    """
     chunk_ids = [
         str(hit.get("nexus_chunk_id") or "")
         for hit in hits
@@ -199,39 +208,79 @@ def _section_contexts_for_hit_nodes(
             )
         ).all()
     }
-    nodes_by_id: dict[str, models.KnowledgeOutlineNode] = {}
-    selected_node_ids: list[str] = []
-    for chunk_id in chunk_ids:
+    candidates: dict[str, dict[str, Any]] = {}
+    for rank, hit in enumerate(hits):
+        chunk_id = str(hit.get("nexus_chunk_id") or "")
+        if not chunk_id:
+            continue
         chunk = chunks_by_id.get(chunk_id)
         if chunk is None or not chunk.knowledge_outline_node_id:
             continue
         if _is_weak_section_hit(chunk):
             continue
         node_id = chunk.knowledge_outline_node_id
-        if node_id in selected_node_ids:
-            continue
         node = session.get(models.KnowledgeOutlineNode, node_id)
         if node is None:
             continue
-        nodes_by_id[node_id] = node
-        selected_node_ids.append(node_id)
-        if len(selected_node_ids) >= MAX_CONTEXT_REFS:
-            break
+        candidate = candidates.setdefault(node_id, {"node": node, "hits": []})
+        candidate["hits"].append((rank, hit, chunk))
+
+    ranked_candidates = sorted(
+        candidates.values(),
+        key=lambda candidate: _section_candidate_sort_key(query, candidate),
+    )[:MAX_CONTEXT_REFS]
 
     contexts: list[dict[str, Any]] = []
-    for node_id in selected_node_ids:
-        node = nodes_by_id[node_id]
+    for candidate in ranked_candidates:
+        node = candidate["node"]
         nodes = _theory_nodes(session, node.normalized_ref_id)
         context = _section_context_for_node(
             session,
             ref_id=node.normalized_ref_id,
             nodes=nodes,
             section=node,
-            selection_reason="ranked_hit_outline_node",
+            selection_reason="section_relevance_rerank",
         )
         if context is not None:
             contexts.append(context)
     return contexts
+
+
+def _section_candidate_sort_key(query: str, candidate: dict[str, Any]) -> tuple[float, int]:
+    node = candidate["node"]
+    hit_rows: list[tuple[int, dict[str, Any], models.KnowledgeChunk]] = candidate["hits"]
+    vector_score = max(float(hit.get("score") or 0.0) for _, hit, _ in hit_rows)
+    first_rank = min(rank for rank, _, _ in hit_rows)
+
+    query_key = _outline_title_key(query)
+    title_key = _outline_title_key(node.title)
+    title_bonus = 0.0
+    if len(title_key) >= 3 and title_key in query_key:
+        # A user directly naming a chapter topic is stronger evidence than a
+        # nearby exercise chunk that happens to contain the same words.
+        title_bonus = 0.16
+    elif title_key:
+        query_bigrams = set(_bigrams(query_key))
+        title_bigrams = set(_bigrams(title_key))
+        if title_bigrams:
+            title_bonus = 0.04 * len(query_bigrams & title_bigrams) / len(title_bigrams)
+
+    support_bonus = min(len(hit_rows) - 1, 2) * 0.01
+    prompt_penalty = 0.0
+    if all(_is_prompt_like_hit(chunk) for _, _, chunk in hit_rows):
+        prompt_penalty = 0.08
+    score = vector_score + title_bonus + support_bonus - prompt_penalty
+    # Descending relevance, then original vector rank for deterministic ties.
+    return (-score, first_rank)
+
+
+def _is_prompt_like_hit(chunk: models.KnowledgeChunk) -> bool:
+    content = (chunk.content or "").strip()
+    return (
+        "任务思考" in content
+        or content.startswith(("请", "思考并", "根据以上"))
+        or content.endswith(("？", "?"))
+    )
 
 
 def _is_weak_section_hit(chunk: models.KnowledgeChunk) -> bool:
@@ -370,7 +419,7 @@ def _best_title_match_with_score(
         if preferred_type is not None and getattr(node, "node_type", None) != preferred_type:
             continue
         title = str(getattr(node, "title", "") or "")
-        score = _title_score(query_key, _normalise(title))
+        score = _title_score(query_key, title)
         if score:
             ranked.append((score, node))
     if not ranked:
@@ -379,7 +428,8 @@ def _best_title_match_with_score(
     return ranked[0][1], ranked[0][0]
 
 
-def _title_score(query_key: str, title_key: str) -> int:
+def _title_score(query_key: str, title: str) -> int:
+    title_key = _normalise(title)
     if not title_key:
         return 0
     if query_key in title_key:
@@ -392,7 +442,7 @@ def _title_score(query_key: str, title_key: str) -> int:
     # keeps scope selection deterministic without pretending it is vector or
     # full-text retrieval.
     compact_query = _outline_title_key(query_key)
-    compact_title = _outline_title_key(title_key)
+    compact_title = _outline_title_key(title)
     if len(compact_query) >= 3 and compact_query in compact_title:
         return 9_000 + len(compact_query)
     if len(compact_title) >= 4 and compact_title in compact_query:
@@ -414,9 +464,11 @@ def _outline_title_key(value: str) -> str:
     chapter. Meaningful topic words remain intact, so this is still suitable
     as a pre-vector candidate constraint.
     """
-    return _OUTLINE_TITLE_DECORATION_RE.sub(
-        "", _OUTLINE_ORDINAL_RE.sub("", value),
-    )
+    # Remove the ordinal while its punctuation is still present.  Calling
+    # `_normalise()` first turns ``一、拍摄设备`` into ``一拍摄设备`` and makes
+    # it indistinguishable from an ordinary title starting with ``一``.
+    without_ordinal = _OUTLINE_ORDINAL_RE.sub("", value.strip())
+    return _OUTLINE_TITLE_DECORATION_RE.sub("", _normalise(without_ordinal))
 
 
 def _bigrams(value: str) -> list[str]:
@@ -532,8 +584,8 @@ def _filter_chunks_by_heading_path(
 ) -> list[models.KnowledgeChunk]:
     """Reject stale outline links when locator paths identify another section."""
     accepted_keys = {
-        _outline_title_key(_normalise(title))
-        for title in titles if title and _outline_title_key(_normalise(title))
+        _outline_title_key(title)
+        for title in titles if title and _outline_title_key(title)
     }
     if not accepted_keys:
         return chunks
@@ -571,7 +623,7 @@ def _chunk_heading_keys(chunk: models.KnowledgeChunk) -> set[str]:
     for item in path:
         title = item.get("title") if isinstance(item, dict) else None
         if isinstance(title, str) and title.strip():
-            key = _outline_title_key(_normalise(title))
+            key = _outline_title_key(title)
             if key:
                 result.add(key)
     return result
@@ -585,7 +637,7 @@ def _matching_heading_level(
         return None
     for item in reversed(path):
         title = item.get("title") if isinstance(item, dict) else None
-        if isinstance(title, str) and _outline_title_key(_normalise(title)) in accepted_keys:
+        if isinstance(title, str) and _outline_title_key(title) in accepted_keys:
             return _structural_heading_level(item)
     return None
 
@@ -603,7 +655,7 @@ def _starts_sibling_or_ancestor(
     title = deepest.get("title") if isinstance(deepest, dict) else None
     if not isinstance(title, str):
         return False
-    if _outline_title_key(_normalise(title)) in accepted_keys:
+    if _outline_title_key(title) in accepted_keys:
         return False
     return _structural_heading_level(deepest) <= anchor_level
 

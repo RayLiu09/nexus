@@ -71,8 +71,9 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
   separate `external_web_results` response field.
 - Query Router v2 (`POST /open/v1/query` and `POST /internal/v1/query`) may
   expand theory-textbook evidence into at most three distinct complete chapter
-  contexts. Expansion is derived from ranked hit chunks'
-  `knowledge_outline_node_id`, never from a caller-supplied internal node id.
+  contexts. Expansion is derived from query-relevance-reranked hit sections
+  through `knowledge_outline_node_id`, never from a caller-supplied internal
+  node id.
   The returned `section_contexts` carry ordered chunks and explicit complete
   counts; `/open/v1/search` remains a compact hit-chunk API and never expands
   chapters automatically. Policy and report documents retain chunk-only
