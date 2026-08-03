@@ -53,6 +53,8 @@ Improve policy/report and industry-report retrieval recall quality by expanding 
 - Section grouping by contiguous `locator.heading_path` and chunk order.
 - Section ranking from first-stage hit evidence, title/path relevance, and support count.
 - Bounded context payload with `quality_flags`, `locator`, `source_block_ids`, chunk counts, and char counts.
+- Query-intent gate so policy/report exact facts, locators, asset discovery,
+  definitions, and comparisons do not return full document sections.
 - Query result projection under existing `section_contexts`.
 - Deterministic Composer rendering for `document_section_context`.
 - Golden query validation doc for 5 policy/report assets.
@@ -74,6 +76,10 @@ uv run pytest \
 Key assertions:
 
 - `industry_research_kb` hits can produce `kind=document_section_context`.
+- `document_section_context` is returned only for section/topic summary,
+  trends, stages, and policy-measure enumeration intents.
+- Exact fact, existence/locator, asset discovery, definition, and comparison
+  queries keep compact chunk evidence.
 - Table-like or heading-less chunks remain under the nearest section and expose quality flags when partial.
 - Existing textbook `section_context` behavior still renders.
 - Router exposes the bounded document section context through `section_contexts`.

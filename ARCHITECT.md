@@ -77,10 +77,14 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
   The returned `section_contexts` carry ordered chunks and explicit complete
   counts. For `industry_research_kb` policy/report assets, Query Router v2 may
   also return at most three runtime-derived `document_section_context` entries
-  built from `knowledge_chunk.locator.heading_path` and chunk order. These
-  runtime sections are a bounded query context layer, not persisted master data
-  and not a replacement for chunks. `/open/v1/search` remains a compact
-  hit-chunk API and never expands chapters or document sections automatically.
+  built from `knowledge_chunk.locator.heading_path` and chunk order when the
+  query intent asks for a section/topic summary, trends, stages, or policy
+  measure lists. Exact facts, locators, asset discovery, definitions, and
+  comparison-style queries keep compact chunk evidence instead of full-section
+  expansion. These runtime sections are a bounded query context layer, not
+  persisted master data and not a replacement for chunks. `/open/v1/search`
+  remains a compact hit-chunk API and never expands chapters or document
+  sections automatically.
 
 ## Logical Layers
 

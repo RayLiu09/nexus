@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any
 
 from sqlalchemy import select
@@ -73,9 +74,77 @@ class DerivedDocumentSectionBuilder:
         query: str,
         hits: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
+        intent = classify_policy_report_query_intent(query)
+        if not _should_expand_document_section(intent):
+            return []
         return _document_section_contexts_for_hits(
-            session, query=query, hits=hits,
+            session, query=query, hits=hits, query_intent=intent,
         )
+
+
+class PolicyReportQueryIntent(str, Enum):
+    """Coarse intent gate for policy/report section expansion."""
+
+    SECTION_SUMMARY = "section_summary"
+    EXACT_FACT = "exact_fact"
+    DEFINITION = "definition"
+    EXISTENCE_LOCATOR = "existence_locator"
+    COMPARISON = "comparison"
+    ASSET_DISCOVERY = "asset_discovery"
+    UNKNOWN = "unknown"
+
+
+_SECTION_SUMMARY_TERMS = (
+    "主要内容", "主要观点", "主要结论", "主要判断", "讲了什么", "怎么说",
+    "如何描述", "如何判断", "有哪些趋势", "发展趋势", "趋势是什么",
+    "有哪些阶段", "哪些阶段", "政策演进", "监管演进", "有哪些措施",
+    "哪些措施", "支持措施", "政策措施", "哪些方面", "影响因素",
+    "行业生态", "产业链", "部分讲了什么", "章节讲了什么",
+)
+_EXACT_FACT_TERMS = (
+    "多少", "几", "哪一年", "什么时候", "发布时间", "同比", "占比",
+    "增长率", "金额", "数量", "排名", "规模是多少", "数据是多少",
+)
+_EXISTENCE_LOCATOR_TERMS = (
+    "是否提到", "有没有提到", "是否包含", "有没有包含", "在哪", "第几页",
+    "来源", "出处", "引用",
+)
+_COMPARISON_TERMS = ("对比", "比较", "差异", "不同", "相比", "分别")
+_DEFINITION_TERMS = ("什么是", "定义", "含义", "概念", "指什么")
+_ASSET_DISCOVERY_RE = re.compile(
+    r"(?:找一下|查找|列出|有哪些|有什么).{0,12}(?:报告|文件|资料|白皮书|政策)(?!措施)"
+)
+_YEAR_COMPARISON_RE = re.compile(r"\d{4}\s*(?:年)?\s*(?:和|与|及|、|,|，)\s*\d{4}")
+
+
+def classify_policy_report_query_intent(query: str) -> PolicyReportQueryIntent:
+    """Classify whether a policy/report query needs full section expansion.
+
+    The first slice is intentionally rule-based and conservative: exact facts,
+    locators, asset discovery, and comparisons prefer compact chunk evidence.
+    Section expansion is reserved for questions whose answer is likely spread
+    across adjacent chunks in one business-readable section.
+    """
+    text = (query or "").strip()
+    if not text:
+        return PolicyReportQueryIntent.UNKNOWN
+    if _ASSET_DISCOVERY_RE.search(text):
+        return PolicyReportQueryIntent.ASSET_DISCOVERY
+    if any(term in text for term in _COMPARISON_TERMS) or _YEAR_COMPARISON_RE.search(text):
+        return PolicyReportQueryIntent.COMPARISON
+    if any(term in text for term in _EXISTENCE_LOCATOR_TERMS):
+        return PolicyReportQueryIntent.EXISTENCE_LOCATOR
+    if any(term in text for term in _EXACT_FACT_TERMS):
+        return PolicyReportQueryIntent.EXACT_FACT
+    if any(term in text for term in _SECTION_SUMMARY_TERMS):
+        return PolicyReportQueryIntent.SECTION_SUMMARY
+    if any(term in text for term in _DEFINITION_TERMS):
+        return PolicyReportQueryIntent.DEFINITION
+    return PolicyReportQueryIntent.UNKNOWN
+
+
+def _should_expand_document_section(intent: PolicyReportQueryIntent) -> bool:
+    return intent == PolicyReportQueryIntent.SECTION_SUMMARY
 
 
 def resolve_semantic_scope(
@@ -268,9 +337,18 @@ def _section_contexts_for_hit_nodes(
         candidates.values(),
         key=lambda candidate: _section_candidate_sort_key(query, candidate),
     )[:MAX_CONTEXT_REFS]
+    ref_display_order = {
+        ref_id: index for index, ref_id in enumerate(_distinct_ref_ids(hits))
+    }
+    display_candidates = sorted(
+        ranked_candidates,
+        key=lambda candidate: _section_candidate_display_sort_key(
+            candidate, ref_display_order=ref_display_order,
+        ),
+    )
 
     contexts: list[dict[str, Any]] = []
-    for candidate in ranked_candidates:
+    for candidate in display_candidates:
         node = candidate["node"]
         nodes = _theory_nodes(session, node.normalized_ref_id)
         context = _section_context_for_node(
@@ -305,11 +383,26 @@ def _section_candidate_sort_key(query: str, candidate: dict[str, Any]) -> tuple[
     return (-title_bucket, -score, first_rank)
 
 
+def _section_candidate_display_sort_key(
+    candidate: dict[str, Any],
+    *,
+    ref_display_order: dict[str, int],
+) -> tuple[int, int, str]:
+    node = candidate["node"]
+    ref_id = str(getattr(node, "normalized_ref_id", "") or "")
+    return (
+        ref_display_order.get(ref_id, MAX_CONTEXT_REFS),
+        int(getattr(node, "order_index", 0) or 0),
+        str(getattr(node, "id", "") or ""),
+    )
+
+
 def _document_section_contexts_for_hits(
     session: Session,
     *,
     query: str,
     hits: list[dict[str, Any]],
+    query_intent: PolicyReportQueryIntent,
 ) -> list[dict[str, Any]]:
     """Build runtime-only report/policy section contexts around hit chunks.
 
@@ -386,9 +479,18 @@ def _document_section_contexts_for_hits(
         candidates.values(),
         key=lambda candidate: _document_section_candidate_sort_key(query, candidate),
     )[:MAX_DOCUMENT_SECTION_CONTEXTS]
+    ref_display_order = {ref_id: index for index, ref_id in enumerate(ref_ids)}
+    display_candidates = sorted(
+        ranked,
+        key=lambda candidate: _document_section_display_sort_key(
+            candidate, ref_display_order=ref_display_order,
+        ),
+    )
     contexts: list[dict[str, Any]] = []
-    for candidate in ranked:
-        context = _document_section_context(candidate["section"])
+    for candidate in display_candidates:
+        context = _document_section_context(
+            candidate["section"], query_intent=query_intent,
+        )
         if context is not None:
             contexts.append(context)
     return contexts
@@ -482,8 +584,29 @@ def _document_section_candidate_sort_key(
     return (-title_bucket, -score, first_rank)
 
 
-def _document_section_context(section: dict[str, Any]) -> dict[str, Any] | None:
-    chunks: list[models.KnowledgeChunk] = section.get("_chunks") or []
+def _document_section_display_sort_key(
+    candidate: dict[str, Any],
+    *,
+    ref_display_order: dict[str, int],
+) -> tuple[int, int, str]:
+    section = candidate["section"]
+    ref_id = str(section.get("normalized_ref_id") or "")
+    return (
+        ref_display_order.get(ref_id, MAX_CONTEXT_REFS),
+        int(section.get("order_index") or 0),
+        str(section.get("section_id") or ""),
+    )
+
+
+def _document_section_context(
+    section: dict[str, Any],
+    *,
+    query_intent: PolicyReportQueryIntent,
+) -> dict[str, Any] | None:
+    chunks: list[models.KnowledgeChunk] = sorted(
+        section.get("_chunks") or [],
+        key=lambda chunk: (chunk.chunk_index, chunk.id),
+    )
     if not chunks:
         return None
     total_char_count = sum(len(chunk.content or "") for chunk in chunks)
@@ -511,6 +634,7 @@ def _document_section_context(section: dict[str, Any]) -> dict[str, Any] | None:
     return {
         "kind": "document_section_context",
         "selection_reason": "document_section_relevance_rerank",
+        "query_intent": query_intent.value,
         "normalized_ref_id": section["normalized_ref_id"],
         "section_id": section["section_id"],
         "level": section.get("level") or 0,
@@ -740,6 +864,8 @@ def _section_context_for_node(
         "normalized_ref_id": ref_id,
         "outline_node_id": section.id,
         "title": section.title,
+        "level": section.level,
+        "order_index": section.order_index,
         "chunk_count": len(chunks),
         "total_chunk_count": len(chunks),
         "total_char_count": sum(len(chunk.content or "") for chunk in chunks),

@@ -167,9 +167,14 @@ Search and QA:
   Callers do not provide an `outline_node_id`. For policy/report assets in
   `industry_research_kb`, the same query endpoints may return bounded runtime
   `document_section_context` values under `section_contexts`. These are derived
-  from existing chunks, `locator.heading_path`, and chunk order; they preserve
-  locator/source-block traceability and expose `quality_flags` when the section
-  model is partial. `GET /open/v1/search` stays a hit-evidence API.
+  from existing chunks, `locator.heading_path`, and chunk order only when query
+  intent calls for section/topic summary, trends, stages, or policy-measure
+  enumeration. Exact facts, existence/locator questions, definitions, asset
+  discovery, and comparison questions stay on compact chunk evidence unless a
+  later dedicated comparison/table context is introduced. Runtime section
+  contexts preserve locator/source-block traceability and expose
+  `quality_flags` when the section model is partial. `GET /open/v1/search`
+  stays a hit-evidence API.
 
 ## Public API Groups
 

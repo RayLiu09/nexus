@@ -231,8 +231,27 @@ def _section_contexts_from_dispatch(
             seen_keys.add(context_id)
             contexts.append(context)
             if len(contexts) == 3:
-                return tuple(contexts)
-    return tuple(contexts)
+                return tuple(_contexts_in_document_order(contexts))
+    return tuple(_contexts_in_document_order(contexts))
+
+
+def _contexts_in_document_order(
+    contexts: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    ref_order: dict[str, int] = {}
+    for context in contexts:
+        ref_id = str(context.get("normalized_ref_id") or "")
+        if ref_id and ref_id not in ref_order:
+            ref_order[ref_id] = len(ref_order)
+
+    def _sort_key(item: tuple[int, dict[str, Any]]) -> tuple[int, int, int]:
+        index, context = item
+        ref_id = str(context.get("normalized_ref_id") or "")
+        raw_order = context.get("order_index")
+        order = raw_order if isinstance(raw_order, int) else index
+        return (ref_order.get(ref_id, index), order, index)
+
+    return [context for _, context in sorted(enumerate(contexts), key=_sort_key)]
 
 
 def _now_ms() -> int:

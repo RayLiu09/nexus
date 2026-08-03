@@ -931,6 +931,7 @@ def _render_grounded_section_context(
             break
     if not contexts:
         return None
+    contexts = _contexts_in_document_order(contexts)
     lines: list[str] = []
     citations: list[str] = []
     citation_index = 0
@@ -972,6 +973,23 @@ def _render_grounded_section_context(
     if not rendered_contexts:
         return None
     return "\n".join([*lines, "", *citations])
+
+
+def _contexts_in_document_order(contexts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    ref_order: dict[str, int] = {}
+    for context in contexts:
+        ref_id = str(context.get("normalized_ref_id") or "")
+        if ref_id and ref_id not in ref_order:
+            ref_order[ref_id] = len(ref_order)
+
+    def _sort_key(item: tuple[int, dict[str, Any]]) -> tuple[int, int, int]:
+        index, context = item
+        ref_id = str(context.get("normalized_ref_id") or "")
+        raw_order = context.get("order_index")
+        order = raw_order if isinstance(raw_order, int) else index
+        return (ref_order.get(ref_id, index), order, index)
+
+    return [context for _, context in sorted(enumerate(contexts), key=_sort_key)]
 
 
 def _section_subheading(chunk: dict[str, Any], *, section_title: str) -> str | None:

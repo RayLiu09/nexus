@@ -595,34 +595,58 @@ def test_document_section_context_renders_without_llm(seeded_session):
                 name="internal.search_chunks_by_semantic",
                 arguments={"query": "跨境电商行业趋势", "kb": "industry_research_kb"},
                 ok=True,
-                result={"answer_contexts": [{
-                    "kind": "document_section_context",
-                    "normalized_ref_id": "ref-report",
-                    "section_id": "derived:ref-report:2",
-                    "title": "二、行业趋势",
-                    "order_index": 2,
-                    "complete": True,
-                    "chunks": [
-                        {
-                            "chunk_id": "r1",
-                            "locator": {"heading_path": [{"title": "二、行业趋势"}], "page_start": 8},
-                            "content": "跨境电商平台继续向精细化运营升级。",
-                        },
-                        {
-                            "chunk_id": "r2",
-                            "locator": {
-                                "heading_path": [{"title": "二、行业趋势"}, {"title": "海外仓"}],
-                                "page_start": 9,
+                result={"answer_contexts": [
+                    {
+                        "kind": "document_section_context",
+                        "normalized_ref_id": "ref-report",
+                        "section_id": "derived:ref-report:3",
+                        "title": "三、竞争格局",
+                        "order_index": 3,
+                        "complete": True,
+                        "chunks": [
+                            {
+                                "chunk_id": "r3",
+                                "locator": {"page_start": 10},
+                                "content": "平台竞争从流量竞争转向服务能力竞争。",
                             },
-                            "content": "海外仓成为提升履约效率的重要基础设施。",
-                        },
-                    ],
-                }]},
+                        ],
+                    },
+                    {
+                        "kind": "document_section_context",
+                        "normalized_ref_id": "ref-report",
+                        "section_id": "derived:ref-report:2",
+                        "title": "二、行业趋势",
+                        "order_index": 2,
+                        "complete": True,
+                        "chunks": [
+                            {
+                                "chunk_id": "r1",
+                                "locator": {
+                                    "heading_path": [{"title": "二、行业趋势"}],
+                                    "page_start": 8,
+                                },
+                                "content": "跨境电商平台继续向精细化运营升级。",
+                            },
+                            {
+                                "chunk_id": "r2",
+                                "locator": {
+                                    "heading_path": [
+                                        {"title": "二、行业趋势"},
+                                        {"title": "海外仓"},
+                                    ],
+                                    "page_start": 9,
+                                },
+                                "content": "海外仓成为提升履约效率的重要基础设施。",
+                            },
+                        ],
+                    },
+                ]},
             ),),
         ),
     )
 
     assert llm.calls == []
+    assert result.markdown.index("## 二、行业趋势") < result.markdown.index("## 三、竞争格局")
     assert "## 二、行业趋势" in result.markdown
     assert "### 海外仓" in result.markdown
     assert "精细化运营升级" in result.markdown

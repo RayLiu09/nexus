@@ -497,7 +497,7 @@ def test_search_chunks_auto_scopes_numbered_section_topic(session):
 
 
 def test_search_chunks_reranks_sections_over_prompt_like_first_hit(session):
-    """A direct section-title match outranks an isolated exercise prompt."""
+    """Reranking selects relevant sections; display preserves document order."""
     root = models.KnowledgeOutlineNode(
         id="rerank-root", normalized_ref_id="ref-rerank", parent_id=None,
         level=0, order_index=0, title="教材", build_run_id="build-1",
@@ -535,13 +535,14 @@ def test_search_chunks_reranks_sections_over_prompt_like_first_hit(session):
     result = make_search_chunks_executor(_Adapter())(
         session=session,
         # A non-textbook KB disables automatic scope so this exercises the
-        # post-retrieval section reranker directly.
+        # post-retrieval section reranker directly. Selected contexts are then
+        # displayed in document order.
         arguments={"query": "短视频拍摄设备有哪些", "kb": "industry_research_kb"},
         tool_call_id="tc", chart_registry=ChartRegistry(),
     )
 
     assert [context["outline_node_id"] for context in result["answer_contexts"]] == [
-        answer_section.id, prompt_section.id,
+        prompt_section.id, answer_section.id,
     ]
     assert result["answer_contexts"][0]["selection_reason"] == "section_relevance_rerank"
 
@@ -603,10 +604,10 @@ def test_search_chunks_reranks_sections_by_query_core_title_match(session):
         if context["kind"] == "section_context"
     ]
     assert [context["outline_node_id"] for context in section_contexts[:2]] == [
-        answer_section.id,
         dialogue_section.id,
+        answer_section.id,
     ]
-    assert [item["chunk_id"] for item in section_contexts[0]["chunks"]] == [
+    assert [item["chunk_id"] for item in section_contexts[1]["chunks"]] == [
         intro.id,
         feature.id,
     ]
@@ -872,6 +873,55 @@ def test_search_chunks_builds_document_section_context_for_industry_report(sessi
     ]
 
 
+def test_document_section_contexts_display_in_document_order_after_ranking(session):
+    overview = _industry_chunk(
+        "report-overview", "ref-report-order", 1, "跨境电商总体保持增长。",
+        heading_path=[{"level": 1, "title": "一、行业概况"}],
+    )
+    supply_chain = _industry_chunk(
+        "report-supply-chain", "ref-report-order", 2, "海外仓提升供应链履约效率。",
+        heading_path=[{"level": 1, "title": "二、供应链建设"}],
+    )
+    trend = _industry_chunk(
+        "report-trend", "ref-report-order", 3, "跨境电商趋势包括品牌化和本地化。",
+        heading_path=[{"level": 1, "title": "三、发展趋势"}],
+    )
+    session.add_all([overview, supply_chain, trend])
+    session.flush()
+
+    class _Adapter:
+        def search(self, *_args, **_kwargs):
+            return [
+                {
+                    "nexus_chunk_id": trend.id,
+                    "normalized_ref_id": trend.normalized_ref_id,
+                    "score": 0.93,
+                },
+                {
+                    "nexus_chunk_id": supply_chain.id,
+                    "normalized_ref_id": supply_chain.normalized_ref_id,
+                    "score": 0.9,
+                },
+            ]
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    result = make_search_chunks_executor(_Adapter())(
+        session=session,
+        arguments={"query": "跨境电商供应链和发展趋势", "kb": "industry_research_kb"},
+        tool_call_id="tc",
+        chart_registry=ChartRegistry(),
+    )
+
+    contexts = [
+        context for context in result["answer_contexts"]
+        if context["kind"] == "document_section_context"
+    ]
+    assert [context["title"] for context in contexts] == [
+        "二、供应链建设",
+        "三、发展趋势",
+    ]
+
+
 def test_document_section_context_marks_partial_missing_heading_path(session):
     headed = _industry_chunk(
         "report-headed", "ref-partial", 1, "跨境电商供应链持续优化。",
@@ -895,19 +945,135 @@ def test_document_section_context_marks_partial_missing_heading_path(session):
     from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
     result = make_search_chunks_executor(_Adapter())(
         session=session,
-        arguments={"query": "跨境电商供应链趋势", "kb": "industry_research_kb"},
+        arguments={"query": "跨境电商供应链趋势是什么", "kb": "industry_research_kb"},
         tool_call_id="tc",
         chart_registry=ChartRegistry(),
     )
 
     context = result["answer_contexts"][0]
     assert context["kind"] == "document_section_context"
+    assert context["query_intent"] == "section_summary"
     assert context["title"] == "供应链趋势"
     assert context["partial"] is True
     assert "missing_heading_path" in context["quality_flags"]
     assert [item["chunk_id"] for item in context["chunks"]] == [
         headed.id, missing.id,
     ]
+
+
+def test_document_section_context_not_returned_for_exact_fact_query(session):
+    metric = _industry_chunk(
+        "report-metric", "ref-exact", 1, "2024年网络零售额为15.5万亿元。",
+        heading_path=[{"level": 1, "title": "一、网络零售规模"}],
+    )
+    sibling = _industry_chunk(
+        "report-metric-sibling", "ref-exact", 2, "实物商品网上零售额保持增长。",
+        heading_path=[{"level": 1, "title": "一、网络零售规模"}],
+    )
+    session.add_all([metric, sibling])
+    session.flush()
+
+    class _Adapter:
+        def search(self, *_args, **_kwargs):
+            return [{
+                "nexus_chunk_id": metric.id,
+                "normalized_ref_id": metric.normalized_ref_id,
+                "score": 0.91,
+            }]
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    result = make_search_chunks_executor(_Adapter())(
+        session=session,
+        arguments={"query": "2024年网络零售额是多少", "kb": "industry_research_kb"},
+        tool_call_id="tc",
+        chart_registry=ChartRegistry(),
+    )
+
+    assert [
+        context for context in result["answer_contexts"]
+        if context["kind"] == "document_section_context"
+    ] == []
+
+
+def test_document_section_context_not_returned_for_existence_locator_query(session):
+    chunk = _industry_chunk(
+        "report-locator", "ref-locator", 1, "报告提到海外仓能够改善跨境履约效率。",
+        heading_path=[{"level": 1, "title": "一、海外仓建设"}],
+    )
+    session.add(chunk)
+    session.flush()
+
+    class _Adapter:
+        def search(self, *_args, **_kwargs):
+            return [{
+                "nexus_chunk_id": chunk.id,
+                "normalized_ref_id": chunk.normalized_ref_id,
+                "score": 0.88,
+            }]
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    result = make_search_chunks_executor(_Adapter())(
+        session=session,
+        arguments={"query": "报告是否提到海外仓", "kb": "industry_research_kb"},
+        tool_call_id="tc",
+        chart_registry=ChartRegistry(),
+    )
+
+    assert result["answer_contexts"] == []
+
+
+def test_document_section_context_not_returned_for_asset_discovery_query(session):
+    chunk = _industry_chunk(
+        "report-discovery", "ref-discovery", 1, "跨境电商报告分析了海外仓趋势。",
+        heading_path=[{"level": 1, "title": "一、报告概况"}],
+    )
+    session.add(chunk)
+    session.flush()
+
+    class _Adapter:
+        def search(self, *_args, **_kwargs):
+            return [{
+                "nexus_chunk_id": chunk.id,
+                "normalized_ref_id": chunk.normalized_ref_id,
+                "score": 0.86,
+            }]
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    result = make_search_chunks_executor(_Adapter())(
+        session=session,
+        arguments={"query": "找一下跨境电商相关报告", "kb": "industry_research_kb"},
+        tool_call_id="tc",
+        chart_registry=ChartRegistry(),
+    )
+
+    assert result["answer_contexts"] == []
+
+
+def test_document_section_context_not_returned_for_comparison_query(session):
+    chunk = _industry_chunk(
+        "report-comparison", "ref-comparison", 1, "2024年报告认为跨境电商更加重视品牌化。",
+        heading_path=[{"level": 1, "title": "一、跨境电商发展判断"}],
+    )
+    session.add(chunk)
+    session.flush()
+
+    class _Adapter:
+        def search(self, *_args, **_kwargs):
+            return [{
+                "nexus_chunk_id": chunk.id,
+                "normalized_ref_id": chunk.normalized_ref_id,
+                "score": 0.89,
+            }]
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    result = make_search_chunks_executor(_Adapter())(
+        session=session,
+        arguments={"query": "2022和2024跨境电商判断有什么不同", "kb": "industry_research_kb"},
+        tool_call_id="tc",
+        chart_registry=ChartRegistry(),
+    )
+
+    assert result["answer_contexts"] == []
 
 
 def _chunk(

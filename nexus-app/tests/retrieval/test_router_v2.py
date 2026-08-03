@@ -66,9 +66,18 @@ def test_section_context_projection_includes_document_section_context():
                 result={"answer_contexts": [
                     {
                         "kind": "document_section_context",
+                        "section_id": "derived:ref-report:2",
+                        "normalized_ref_id": "ref-report",
+                        "title": "第二节",
+                        "order_index": 2,
+                        "chunks": [],
+                    },
+                    {
+                        "kind": "document_section_context",
                         "section_id": "derived:ref-report:1",
                         "normalized_ref_id": "ref-report",
-                        "title": "行业趋势",
+                        "title": "第一节",
+                        "order_index": 1,
                         "chunks": [],
                     }
                 ]},
@@ -77,9 +86,10 @@ def test_section_context_projection_includes_document_section_context():
         )
     )
 
-    assert len(contexts) == 1
+    assert len(contexts) == 2
     assert contexts[0]["kind"] == "document_section_context"
     assert contexts[0]["section_id"] == "derived:ref-report:1"
+    assert contexts[1]["section_id"] == "derived:ref-report:2"
 
 
 def _summary() -> LiteLLMCallSummary:
