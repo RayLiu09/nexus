@@ -138,8 +138,11 @@ Root documents are distilled implementation contracts:
 - Query Router v2 automatically expands up to three complete theory-textbook
   chapters selected by section-level query relevance from semantic hits and returns them as
   `section_contexts` from `/open/v1/query` and `/internal/v1/query`.
-  `/open/v1/search` remains compact chunk evidence; policy and report assets
-  remain chunk-only until NEXUS introduces a general document-section model.
+  For `industry_research_kb` policy/report assets, the same query endpoints can
+  return bounded runtime `document_section_context` values derived from
+  `knowledge_chunk.locator.heading_path` and chunk order. `/open/v1/search`
+  remains compact chunk evidence; the runtime section context is not persisted
+  and does not replace chunks.
 - Audit logs for access, governance, rules, Prompt changes, permissions, API keys, and AI adoption.
 
 ## Main Roles

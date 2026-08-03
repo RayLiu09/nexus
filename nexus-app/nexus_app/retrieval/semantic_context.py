@@ -23,6 +23,10 @@ from nexus_app.retrieval.textbook_answer_context import (
 
 MAX_CONTEXT_REFS = 3
 MAX_TASK_STEPS = 24
+MAX_DOCUMENT_SECTION_CONTEXTS = 3
+MAX_DOCUMENT_SECTION_CHUNKS = 24
+MAX_DOCUMENT_SECTION_CHARS = 12_000
+DOCUMENT_SECTION_KNOWLEDGE_TYPE = "industry_research_kb"
 
 _QUERY_NOISE_RE = re.compile(
     r"[？?，,。.！!：:；;、\\s]|是什么|有哪些|有哪几种|什么是|怎么|如何|流程|步骤|介绍|请问"
@@ -57,6 +61,21 @@ class SemanticScope:
             "match_reason": self.match_reason,
             "fallback_to_unscoped": fallback_to_unscoped,
         }
+
+
+class DerivedDocumentSectionBuilder:
+    """Runtime-only section builder for policy/report retrieval contexts."""
+
+    def build(
+        self,
+        session: Session,
+        *,
+        query: str,
+        hits: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        return _document_section_contexts_for_hits(
+            session, query=query, hits=hits,
+        )
 
 
 def resolve_semantic_scope(
@@ -175,6 +194,12 @@ def assemble_semantic_context(
         )
         return ([answer_context] if answer_context else []) + hit_contexts
 
+    document_contexts = DerivedDocumentSectionBuilder().build(
+        session, query=query, hits=hits,
+    )
+    if document_contexts:
+        return document_contexts
+
     # Compatibility fallback for title-led questions and legacy chunk links.
     ref_ids = _distinct_ref_ids(hits)[:MAX_CONTEXT_REFS]
     contexts: list[dict[str, Any]] = []
@@ -278,6 +303,305 @@ def _section_candidate_sort_key(query: str, candidate: dict[str, Any]) -> tuple[
     # bonus inside the existing vector-ranking order.
     title_bucket = 1 if title_relevance >= 0.45 else 0
     return (-title_bucket, -score, first_rank)
+
+
+def _document_section_contexts_for_hits(
+    session: Session,
+    *,
+    query: str,
+    hits: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Build runtime-only report/policy section contexts around hit chunks.
+
+    This deliberately does not persist a section model.  It derives contiguous
+    document sections from ``KnowledgeChunk.locator.heading_path`` and ranks
+    only sections that contain first-stage vector hits from
+    ``industry_research_kb``.
+    """
+    chunk_ids = [
+        str(hit.get("nexus_chunk_id") or "")
+        for hit in hits
+        if hit.get("nexus_chunk_id")
+    ]
+    if not chunk_ids:
+        return []
+
+    hit_chunks_by_id = {
+        chunk.id: chunk
+        for chunk in session.scalars(
+            select(models.KnowledgeChunk).where(
+                models.KnowledgeChunk.id.in_(chunk_ids)
+            )
+        ).all()
+    }
+    industry_hit_rows: list[tuple[int, dict[str, Any], models.KnowledgeChunk]] = []
+    seen_ref_ids: set[str] = set()
+    ref_ids: list[str] = []
+    for rank, hit in enumerate(hits):
+        chunk_id = str(hit.get("nexus_chunk_id") or "")
+        chunk = hit_chunks_by_id.get(chunk_id)
+        if chunk is None or chunk.knowledge_type_code != DOCUMENT_SECTION_KNOWLEDGE_TYPE:
+            continue
+        if _is_prompt_like_hit(chunk):
+            continue
+        if (
+            chunk.normalized_ref_id not in seen_ref_ids
+            and len(ref_ids) >= MAX_CONTEXT_REFS
+        ):
+            continue
+        industry_hit_rows.append((rank, hit, chunk))
+        if chunk.normalized_ref_id not in seen_ref_ids:
+            seen_ref_ids.add(chunk.normalized_ref_id)
+            ref_ids.append(chunk.normalized_ref_id)
+    if not industry_hit_rows:
+        return []
+
+    sections_by_id: dict[str, dict[str, Any]] = {}
+    chunk_to_section_id: dict[str, str] = {}
+    for ref_id in ref_ids:
+        chunks = list(session.scalars(
+            select(models.KnowledgeChunk).where(
+                models.KnowledgeChunk.normalized_ref_id == ref_id,
+                models.KnowledgeChunk.knowledge_type_code == DOCUMENT_SECTION_KNOWLEDGE_TYPE,
+            ).order_by(models.KnowledgeChunk.chunk_index, models.KnowledgeChunk.id)
+        ))
+        ref_sections = _derive_document_sections(ref_id=ref_id, chunks=chunks)
+        for section in ref_sections:
+            sections_by_id[section["section_id"]] = section
+            for chunk in section["_chunks"]:
+                chunk_to_section_id[chunk.id] = section["section_id"]
+
+    candidates: dict[str, dict[str, Any]] = {}
+    for rank, hit, chunk in industry_hit_rows:
+        section_id = chunk_to_section_id.get(chunk.id)
+        if not section_id:
+            continue
+        section = sections_by_id.get(section_id)
+        if section is None:
+            continue
+        candidate = candidates.setdefault(section_id, {"section": section, "hits": []})
+        candidate["hits"].append((rank, hit, chunk))
+
+    ranked = sorted(
+        candidates.values(),
+        key=lambda candidate: _document_section_candidate_sort_key(query, candidate),
+    )[:MAX_DOCUMENT_SECTION_CONTEXTS]
+    contexts: list[dict[str, Any]] = []
+    for candidate in ranked:
+        context = _document_section_context(candidate["section"])
+        if context is not None:
+            contexts.append(context)
+    return contexts
+
+
+def _derive_document_sections(
+    *,
+    ref_id: str,
+    chunks: list[models.KnowledgeChunk],
+) -> list[dict[str, Any]]:
+    sections: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+    current_key: tuple[str, ...] | None = None
+    missing_heading_count = 0
+
+    for chunk in chunks:
+        heading_path = _chunk_heading_path(chunk)
+        if heading_path:
+            section_key = tuple(
+                _outline_title_key(str(item.get("title") or ""))
+                for item in heading_path
+                if isinstance(item, dict) and str(item.get("title") or "").strip()
+            )
+            section_key = tuple(item for item in section_key if item)
+            if not section_key:
+                section_key = ("unknown",)
+        else:
+            section_key = current_key or ("unknown",)
+            missing_heading_count += 1
+
+        if current is None or section_key != current_key:
+            current_key = section_key
+            title, level = _section_title_and_level(heading_path)
+            if not title and current is not None and not heading_path:
+                # A heading-less table row or paragraph belongs to the nearest
+                # prior section, so reaching this branch only creates the first
+                # unknown section in a ref.
+                title = str(current.get("title") or "")
+                level = int(current.get("level") or 0)
+            current = {
+                "section_id": f"derived:{ref_id}:{len(sections) + 1}",
+                "normalized_ref_id": ref_id,
+                "level": level,
+                "title": title or "未识别章节",
+                "heading_path": heading_path,
+                "order_index": len(sections) + 1,
+                "_chunks": [],
+                "quality_flags": [],
+            }
+            sections.append(current)
+
+        current["_chunks"].append(chunk)
+        if not heading_path and "missing_heading_path" not in current["quality_flags"]:
+            current["quality_flags"].append("missing_heading_path")
+
+    if chunks and missing_heading_count:
+        missing_ratio = missing_heading_count / len(chunks)
+        if missing_ratio >= 0.2:
+            for section in sections:
+                flags = section["quality_flags"]
+                if "partial_heading_coverage" not in flags:
+                    flags.append("partial_heading_coverage")
+    return sections
+
+
+def _document_section_candidate_sort_key(
+    query: str,
+    candidate: dict[str, Any],
+) -> tuple[float, int, int]:
+    section = candidate["section"]
+    hit_rows: list[tuple[int, dict[str, Any], models.KnowledgeChunk]] = candidate["hits"]
+    vector_score = max(float(hit.get("score") or 0.0) for _, hit, _ in hit_rows)
+    first_rank = min(rank for rank, _, _ in hit_rows)
+    title = str(section.get("title") or "")
+    title_relevance = _section_title_relevance(query, title)
+    path_text = " ".join(
+        str(item.get("title") or "")
+        for item in section.get("heading_path") or []
+        if isinstance(item, dict)
+    )
+    path_relevance = _section_title_relevance(query, path_text)
+    support_bonus = min(len(hit_rows) - 1, 3) * 0.015
+    heading_penalty = 0.08 if "missing_heading_path" in section.get("quality_flags", []) else 0.0
+    score = (
+        vector_score
+        + (0.35 * max(title_relevance, path_relevance))
+        + support_bonus
+        - heading_penalty
+    )
+    title_bucket = 1 if max(title_relevance, path_relevance) >= 0.45 else 0
+    return (-title_bucket, -score, first_rank)
+
+
+def _document_section_context(section: dict[str, Any]) -> dict[str, Any] | None:
+    chunks: list[models.KnowledgeChunk] = section.get("_chunks") or []
+    if not chunks:
+        return None
+    total_char_count = sum(len(chunk.content or "") for chunk in chunks)
+    selected_chunks: list[models.KnowledgeChunk] = []
+    selected_chars = 0
+    truncated = False
+    for chunk in chunks:
+        content_len = len(chunk.content or "")
+        if (
+            len(selected_chunks) >= MAX_DOCUMENT_SECTION_CHUNKS
+            or (
+                selected_chunks
+                and selected_chars + content_len > MAX_DOCUMENT_SECTION_CHARS
+            )
+        ):
+            truncated = True
+            break
+        selected_chunks.append(chunk)
+        selected_chars += content_len
+
+    flags = list(section.get("quality_flags") or [])
+    if truncated and "context_truncated" not in flags:
+        flags.append("context_truncated")
+
+    return {
+        "kind": "document_section_context",
+        "selection_reason": "document_section_relevance_rerank",
+        "normalized_ref_id": section["normalized_ref_id"],
+        "section_id": section["section_id"],
+        "level": section.get("level") or 0,
+        "title": section.get("title") or "未识别章节",
+        "heading_path": section.get("heading_path") or [],
+        "section_type": _document_section_type(section.get("level") or 0),
+        "order_index": section.get("order_index") or 0,
+        "source_block_ids": _merged_source_block_ids(chunks),
+        "locator": _section_locator(chunks, section.get("heading_path") or []),
+        "chunk_count": len(selected_chunks),
+        "total_chunk_count": len(chunks),
+        "total_char_count": total_char_count,
+        "complete": not truncated and "missing_heading_path" not in flags,
+        "partial": bool(flags),
+        "truncated": truncated,
+        "quality_flags": flags,
+        "chunks": [_chunk_item(chunk) for chunk in selected_chunks],
+    }
+
+
+def _chunk_heading_path(chunk: models.KnowledgeChunk) -> list[dict[str, Any]]:
+    path = (chunk.locator or {}).get("heading_path")
+    if not isinstance(path, list):
+        path = (chunk.chunk_metadata or {}).get("heading_path")
+    if not isinstance(path, list):
+        return []
+    result: list[dict[str, Any]] = []
+    for item in path:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or "").strip()
+        if not title:
+            continue
+        result.append({
+            "level": _structural_heading_level(item),
+            "title": title,
+        })
+    return result
+
+
+def _section_title_and_level(path: list[dict[str, Any]]) -> tuple[str | None, int]:
+    if not path:
+        return None, 0
+    deepest = path[-1]
+    return str(deepest.get("title") or "").strip() or None, int(deepest.get("level") or 0)
+
+
+def _document_section_type(level: int) -> str:
+    if level <= 1:
+        return "chapter"
+    if level == 2:
+        return "section"
+    if level >= 3:
+        return "subsection"
+    return "unknown"
+
+
+def _merged_source_block_ids(chunks: list[models.KnowledgeChunk]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for chunk in chunks:
+        for block_id in chunk.source_block_ids or []:
+            value = str(block_id)
+            if value and value not in seen:
+                seen.add(value)
+                result.append(value)
+    return result
+
+
+def _section_locator(
+    chunks: list[models.KnowledgeChunk],
+    heading_path: list[dict[str, Any]],
+) -> dict[str, Any]:
+    pages: list[int] = []
+    blocks: list[Any] = []
+    for chunk in chunks:
+        locator = chunk.locator or {}
+        for key in ("page_start", "page_end", "page"):
+            page = locator.get(key)
+            if isinstance(page, int):
+                pages.append(page)
+        raw_blocks = locator.get("blocks")
+        if isinstance(raw_blocks, list):
+            blocks.extend(raw_blocks[:8])
+    result: dict[str, Any] = {"heading_path": heading_path}
+    if pages:
+        result["page_start"] = min(pages)
+        result["page_end"] = max(pages)
+    if blocks:
+        result["blocks"] = blocks[:16]
+    return result
 
 
 def _section_title_relevance(query: str, title: str | None) -> float:

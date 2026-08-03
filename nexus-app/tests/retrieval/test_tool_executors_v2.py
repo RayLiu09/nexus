@@ -822,6 +822,94 @@ def test_search_chunks_scopes_compact_query_to_decorated_outline_title(session):
     ]
 
 
+def test_search_chunks_builds_document_section_context_for_industry_report(session):
+    intro = _industry_chunk(
+        "report-intro", "ref-report", 1, "直播电商市场规模持续增长。",
+        heading_path=[{"level": 1, "title": "一、行业概况"}],
+    )
+    policy = _industry_chunk(
+        "report-policy", "ref-report", 2, "监管政策要求平台强化主体责任。",
+        heading_path=[{"level": 1, "title": "二、监管政策演进"}],
+    )
+    policy_table = _industry_chunk(
+        "report-policy-table", "ref-report", 3, "政策名称：网络交易监督管理办法。",
+        heading_path=[{"level": 1, "title": "二、监管政策演进"}],
+    )
+    trend = _industry_chunk(
+        "report-trend", "ref-report", 4, "直播电商进入精细化运营阶段。",
+        heading_path=[{"level": 1, "title": "三、发展趋势"}],
+    )
+    session.add_all([intro, policy, policy_table, trend])
+    session.flush()
+
+    class _Adapter:
+        def search(self, *_args, **_kwargs):
+            return [
+                {
+                    "nexus_chunk_id": policy.id,
+                    "normalized_ref_id": policy.normalized_ref_id,
+                    "score": 0.82,
+                }
+            ]
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    result = make_search_chunks_executor(_Adapter())(
+        session=session,
+        arguments={"query": "直播电商监管政策演进", "kb": "industry_research_kb"},
+        tool_call_id="tc",
+        chart_registry=ChartRegistry(),
+    )
+
+    context = result["answer_contexts"][0]
+    assert context["kind"] == "document_section_context"
+    assert context["selection_reason"] == "document_section_relevance_rerank"
+    assert context["title"] == "二、监管政策演进"
+    assert context["section_type"] == "chapter"
+    assert context["complete"] is True
+    assert context["partial"] is False
+    assert [item["chunk_id"] for item in context["chunks"]] == [
+        policy.id, policy_table.id,
+    ]
+
+
+def test_document_section_context_marks_partial_missing_heading_path(session):
+    headed = _industry_chunk(
+        "report-headed", "ref-partial", 1, "跨境电商供应链持续优化。",
+        heading_path=[{"level": 2, "title": "供应链趋势"}],
+    )
+    missing = _industry_chunk(
+        "report-missing", "ref-partial", 2, "海外仓履约效率提升。",
+        heading_path=[],
+    )
+    session.add_all([headed, missing])
+    session.flush()
+
+    class _Adapter:
+        def search(self, *_args, **_kwargs):
+            return [{
+                "nexus_chunk_id": headed.id,
+                "normalized_ref_id": headed.normalized_ref_id,
+                "score": 0.8,
+            }]
+
+    from nexus_app.retrieval.tool_executors_v2 import make_search_chunks_executor
+    result = make_search_chunks_executor(_Adapter())(
+        session=session,
+        arguments={"query": "跨境电商供应链趋势", "kb": "industry_research_kb"},
+        tool_call_id="tc",
+        chart_registry=ChartRegistry(),
+    )
+
+    context = result["answer_contexts"][0]
+    assert context["kind"] == "document_section_context"
+    assert context["title"] == "供应链趋势"
+    assert context["partial"] is True
+    assert "missing_heading_path" in context["quality_flags"]
+    assert [item["chunk_id"] for item in context["chunks"]] == [
+        headed.id, missing.id,
+    ]
+
+
 def _chunk(
     chunk_id, ref_id, index, content, *, outline_id=None, task_node_id=None, heading_path=None,
 ):
@@ -834,6 +922,24 @@ def _chunk(
         source_kind=SourceKind.EXTRACTED_FROM_NORMALIZED, chunk_index=index, content=content,
         chunk_metadata=metadata, embedding_status=EmbeddingStatus.EMBEDDED,
         source_block_ids=[], locator={}, knowledge_outline_node_id=outline_id,
+    )
+
+
+def _industry_chunk(chunk_id, ref_id, index, content, *, heading_path):
+    return models.KnowledgeChunk(
+        id=chunk_id,
+        normalized_ref_id=ref_id,
+        knowledge_type_code="industry_research_kb",
+        chunk_type=ChunkType.SEMANTIC_BLOCK,
+        chunking_strategy=ChunkingStrategy.SEMANTIC_REPACK,
+        source_kind=SourceKind.EXTRACTED_FROM_NORMALIZED,
+        chunk_index=index,
+        content=content,
+        chunk_metadata={},
+        embedding_status=EmbeddingStatus.EMBEDDED,
+        source_block_ids=[f"block-{chunk_id}"],
+        locator={"heading_path": heading_path, "page_start": index, "page_end": index},
+        knowledge_outline_node_id=None,
     )
 
 

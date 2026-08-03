@@ -584,6 +584,52 @@ def test_section_context_restores_locator_subheadings_without_llm(seeded_session
     assert "账号定位能够使目标受众更加精准" in result.markdown
 
 
+def test_document_section_context_renders_without_llm(seeded_session):
+    llm = _ScriptedLLM("This response must not be used")
+    result = MDComposerV2(llm_client=llm).compose(
+        seeded_session,
+        query="跨境电商行业趋势",
+        dispatch_result=_dispatch(
+            tool_results=(ToolResult(
+                tool_call_id="document-section",
+                name="internal.search_chunks_by_semantic",
+                arguments={"query": "跨境电商行业趋势", "kb": "industry_research_kb"},
+                ok=True,
+                result={"answer_contexts": [{
+                    "kind": "document_section_context",
+                    "normalized_ref_id": "ref-report",
+                    "section_id": "derived:ref-report:2",
+                    "title": "二、行业趋势",
+                    "order_index": 2,
+                    "complete": True,
+                    "chunks": [
+                        {
+                            "chunk_id": "r1",
+                            "locator": {"heading_path": [{"title": "二、行业趋势"}], "page_start": 8},
+                            "content": "跨境电商平台继续向精细化运营升级。",
+                        },
+                        {
+                            "chunk_id": "r2",
+                            "locator": {
+                                "heading_path": [{"title": "二、行业趋势"}, {"title": "海外仓"}],
+                                "page_start": 9,
+                            },
+                            "content": "海外仓成为提升履约效率的重要基础设施。",
+                        },
+                    ],
+                }]},
+            ),),
+        ),
+    )
+
+    assert llm.calls == []
+    assert "## 二、行业趋势" in result.markdown
+    assert "### 海外仓" in result.markdown
+    assert "精细化运营升级" in result.markdown
+    assert "提升履约效率" in result.markdown
+    assert "`ref-report` / `r2`" in result.markdown
+
+
 def test_multiple_section_contexts_render_completely_without_llm(seeded_session):
     llm = _ScriptedLLM("This response must not be used")
     result = MDComposerV2(llm_client=llm).compose(

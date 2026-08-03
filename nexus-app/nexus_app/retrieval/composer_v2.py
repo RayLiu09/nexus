@@ -129,8 +129,9 @@ _ANSWER_CONTEXT_POLICY = """
 若某个 `internal.search_chunks_by_semantic` 结果包含 `answer_contexts`：
 
 1. 对“分类 / 类型 / 有哪些”和“流程 / 步骤 / 如何”问题，必须优先使用其中
-   的 `section_context` 或 `task_context.chunks` 作答；不得因为原始 `hits`
-   中的单个学习目标、目录或任务标题未列出答案，就声称“暂无数据”。
+   的 `section_context`、`document_section_context` 或 `task_context.chunks`
+   作答；不得因为原始 `hits` 中的单个学习目标、目录或任务标题未列出答案，
+   就声称“暂无数据”。
 2. `task_context` 的 `step_no` 和可选 `task_title` 是顺序证据；编号重启时按
    `task_title` 分组呈现。
 3. 每项结论都要使用该上下文 chunk 的 `chunk_id`、`normalized_ref_id` 和
@@ -883,7 +884,7 @@ def _render_grounded_section_context(
     query: str,
     dispatch_result: DispatchResult,
 ) -> str | None:
-    """Render all chunks from the selected complete textbook sections.
+    """Render all chunks from the selected complete document/textbook sections.
 
     A section context is only assembled after a high-confidence title match
     and is structurally expanded in document order. It is more reliable than
@@ -896,7 +897,10 @@ def _render_grounded_section_context(
         if not tool_result.ok or not isinstance(tool_result.result, dict):
             continue
         for context in tool_result.result.get("answer_contexts") or []:
-            if not isinstance(context, dict) or context.get("kind") != "section_context":
+            if not isinstance(context, dict):
+                continue
+            kind = context.get("kind")
+            if kind not in {"section_context", "document_section_context"}:
                 continue
             # Runtime textbook heuristics can keep a section context available
             # for traceability while selecting a compact answer context for
@@ -904,12 +908,18 @@ def _render_grounded_section_context(
             # mode should force full deterministic rendering. Legacy tests and
             # payloads without a mode retain the prior complete render behavior.
             mode = context.get("mode")
-            if mode is not None and mode != "complete_section":
+            if kind == "section_context" and mode is not None and mode != "complete_section":
                 continue
-            node_id = str(context.get("outline_node_id") or "")
-            context_key = node_id or "|".join((
+            context_id = str(
+                context.get("outline_node_id")
+                or context.get("section_id")
+                or ""
+            )
+            context_key = context_id or "|".join((
+                str(context.get("kind") or ""),
                 str(context.get("normalized_ref_id") or ""),
                 str(context.get("title") or ""),
+                str(context.get("order_index") or ""),
             ))
             if not context_key or context_key in seen_outline_nodes:
                 continue

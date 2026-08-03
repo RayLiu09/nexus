@@ -202,19 +202,33 @@ _TOOL_RESULT_PREVIEW_CHARS = 2000
 def _section_contexts_from_dispatch(
     dispatch_result: DispatchResult,
 ) -> tuple[dict[str, Any], ...]:
-    """Expose the complete, hit-selected theory sections in the v2 response."""
+    """Expose bounded hit-selected section contexts in the v2 response."""
     contexts: list[dict[str, Any]] = []
-    seen_nodes: set[str] = set()
+    seen_keys: set[str] = set()
     for tool_result in dispatch_result.tool_results:
         if not tool_result.ok or not isinstance(tool_result.result, dict):
             continue
         for context in tool_result.result.get("answer_contexts") or []:
-            if not isinstance(context, dict) or context.get("kind") != "section_context":
+            if not isinstance(context, dict):
                 continue
-            node_id = str(context.get("outline_node_id") or "")
-            if not node_id or node_id in seen_nodes:
+            kind = context.get("kind")
+            if kind not in {"section_context", "document_section_context"}:
                 continue
-            seen_nodes.add(node_id)
+            context_id = str(
+                context.get("outline_node_id")
+                or context.get("section_id")
+                or ""
+            )
+            if not context_id:
+                context_id = "|".join((
+                    str(context.get("kind") or ""),
+                    str(context.get("normalized_ref_id") or ""),
+                    str(context.get("title") or ""),
+                    str(context.get("order_index") or ""),
+                ))
+            if not context_id or context_id in seen_keys:
+                continue
+            seen_keys.add(context_id)
             contexts.append(context)
             if len(contexts) == 3:
                 return tuple(contexts)
@@ -1205,7 +1219,7 @@ class QueryRouterV2:
             external_web_results=tuple(
                 item.to_api_dict() for item in web_search_outcome.results
             ) if web_search_outcome else (),
-            section_contexts=_section_contexts_from_dispatch(semantic_result),
+            section_contexts=_section_contexts_from_dispatch(synthetic_result),
         )
 
     def _semantic_tool_fallback_path(

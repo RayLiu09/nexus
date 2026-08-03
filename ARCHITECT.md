@@ -75,9 +75,12 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
   through `knowledge_outline_node_id`, never from a caller-supplied internal
   node id.
   The returned `section_contexts` carry ordered chunks and explicit complete
-  counts; `/open/v1/search` remains a compact hit-chunk API and never expands
-  chapters automatically. Policy and report documents retain chunk-only
-  retrieval until a general document-section model exists.
+  counts. For `industry_research_kb` policy/report assets, Query Router v2 may
+  also return at most three runtime-derived `document_section_context` entries
+  built from `knowledge_chunk.locator.heading_path` and chunk order. These
+  runtime sections are a bounded query context layer, not persisted master data
+  and not a replacement for chunks. `/open/v1/search` remains a compact
+  hit-chunk API and never expands chapters or document sections automatically.
 
 ## Logical Layers
 

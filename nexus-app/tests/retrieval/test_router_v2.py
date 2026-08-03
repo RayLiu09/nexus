@@ -33,10 +33,15 @@ from nexus_app.ai_governance.litellm_client import (
     ToolCallingResult,
 )
 from nexus_app.retrieval.chart_adapter import ChartRegistry
-from nexus_app.retrieval.dispatcher_v2 import ToolExecutorRegistry
+from nexus_app.retrieval.dispatcher_v2 import DispatchResult, ToolExecutorRegistry, ToolResult
 from nexus_app.retrieval.web_search import ExternalWebResult, WebSearchOutcome
 from nexus_app.retrieval.prompt_profiles_v2 import seed_retrieval_v2_prompts
-from nexus_app.retrieval.router_v2 import QueryRouterV2, RouterResult, _scenario_2_planner_arguments
+from nexus_app.retrieval.router_v2 import (
+    QueryRouterV2,
+    RouterResult,
+    _scenario_2_planner_arguments,
+    _section_contexts_from_dispatch,
+)
 from nexus_app.retrieval.subject_routing import (
     QuerySubject,
     apply_subject_route_guard,
@@ -47,6 +52,34 @@ from nexus_app.retrieval.subject_routing import (
 # ---------------------------------------------------------------------------
 # Test doubles
 # ---------------------------------------------------------------------------
+
+
+def test_section_context_projection_includes_document_section_context():
+    contexts = _section_contexts_from_dispatch(
+        DispatchResult(
+            intent="scenario_1",
+            tool_results=(ToolResult(
+                tool_call_id="tc",
+                name="internal.search_chunks_by_semantic",
+                arguments={"query": "行业趋势", "kb": "industry_research_kb"},
+                ok=True,
+                result={"answer_contexts": [
+                    {
+                        "kind": "document_section_context",
+                        "section_id": "derived:ref-report:1",
+                        "normalized_ref_id": "ref-report",
+                        "title": "行业趋势",
+                        "chunks": [],
+                    }
+                ]},
+            ),),
+            chart_registry=ChartRegistry(),
+        )
+    )
+
+    assert len(contexts) == 1
+    assert contexts[0]["kind"] == "document_section_context"
+    assert contexts[0]["section_id"] == "derived:ref-report:1"
 
 
 def _summary() -> LiteLLMCallSummary:
