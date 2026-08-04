@@ -79,6 +79,16 @@ class TestLegacyRoutingUnaffectedByFlags:
         result = _pipeline_type_for(source_type, "application/octet-stream", settings=_settings(**flags))
         assert result == PipelineType.RECORD
 
+    @pytest.mark.parametrize("mime", [
+        "text/html",
+        "text/markdown",
+        "application/pdf",
+        "application/vnd.nexus.firecrawl-html-snapshot+json",
+    ])
+    def test_crawler_firecrawl_document_mimes_route_to_document(self, mime) -> None:
+        result = _pipeline_type_for(DataSourceType.CRAWLER, mime, settings=_settings())
+        assert result == PipelineType.DOCUMENT
+
     @pytest.mark.parametrize("flags", [
         {"xlsx": False, "csv": False},
         {"xlsx": True, "csv": True},

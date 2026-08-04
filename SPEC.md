@@ -31,7 +31,7 @@ Role constraints:
 ## P0 Scope
 
 - Local org/user/API caller management.
-- Data source registration and file/NAS/crawler ingestion, plus Mode B scan-task orchestration for configured NAS/Webhook/crawler/database sources. Crawler supports low-frequency Firecrawl document acquisition through generic plans or the built-in quick-start plan; Firecrawl HTML/PDF/Markdown is routed to Pipeline A, while existing crawler JSON packages remain Pipeline B.
+- Data source registration and file/NAS/crawler ingestion, plus Mode B scan-task orchestration for configured NAS/Webhook/crawler/database sources. Crawler supports low-frequency Firecrawl document acquisition through generic plans or the built-in quick-start plan; Firecrawl HTML/PDF/Markdown is routed to Pipeline A.
 - Raw object retention and ingest ledger.
 - `ingest_validate` job stage: format validation, virus scan, hash calculation, deduplication; writes `INGEST_VALIDATE_COMPLETED` / `INGEST_VALIDATE_FAILED` audit events.
 - `assetize` job stage: create/re-version `asset`/`asset_version` by `(data_source_id, source_object_key)` idempotency anchor.
@@ -258,7 +258,7 @@ P0 end-to-end cases:
 - Static D4 PDF ingestion: `ingest_validate` passes → `assetize` creates asset/version → MinerU parse with auto-selected `model_version` produces `parse_artifact` with image URIs stored in `parsed/…/images/` → normalize produces `normalized_document` with full governance/quality/lineage fields in `normalized_asset_ref` → AI governance run → `governance_result.quality_summary` → governance result → chunks (with `normalized_ref_id`) → index manifest.
 - HTML file ingestion: `model_version = MinerU-HTML` auto-selected; parse succeeds and images stored alongside JSON.
 - Image/scanned PDF ingestion: `ocr_enable = true` auto-set; parse succeeds.
-- D1 crawler JSON batch: `ingest_validate` passes → `assetize` (Pipeline B, no MinerU) → `normalized_record` with full `normalized_asset_ref` fields → queryable and searchable.
+- Crawler Firecrawl document batch: `ingest_validate` passes → `assetize` (Pipeline A) → parse/normalize into `normalized_document` with full `normalized_asset_ref` fields → queryable and searchable after governance/index admission.
 - Professional major-distribution XLSX: `ingest_validate` passes → Pipeline B structured parse/profile detect (`major_distribution.v1`) → `normalized_record` → domain tables; summary rows such as `全部` are ignored, `新疆生产建设兵团` is stored as `province`, and missing education level stays empty unless explicit source/file/context evidence exists.
 - Course textbook training-operation PDF: normalized document payload is
   detected as `training_operation` → `task_outline_profile` stores

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import urlparse
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from nexus_app import models, schemas
 from nexus_app.audit import write_audit
+from nexus_app.config import Settings, get_settings
 from nexus_app.crawler.config_loader import (
     CrawlerConfigError,
     get_region,
@@ -15,10 +18,12 @@ from nexus_app.crawler.config_loader import (
     load_region_sites,
     load_template,
 )
-from nexus_app.crawler.firecrawl_client import FirecrawlDocumentClient
+from nexus_app.crawler.firecrawl_client import FirecrawlDocumentClient, FirecrawlDocumentSnapshot
 from nexus_app.crawler.runner import run_firecrawl_plan
 from nexus_app.crawler.url_safety import UnsafeCrawlerUrlError, validate_target_sites
-from nexus_app.enums import AuditEventType
+from nexus_app.enums import AuditEventType, PipelineType
+from nexus_app.ingest import batch as ingest_batch
+from nexus_app.storage import ObjectStorage, get_object_storage
 
 
 class CrawlerPlanError(ValueError):
@@ -200,7 +205,11 @@ def run_plan(
     actor_type: str | None = None,
     actor_id: str | None = None,
     client: FirecrawlDocumentClient | None = None,
+    storage: ObjectStorage | None = None,
+    settings: Settings | None = None,
 ) -> models.CrawlerRun:
+    settings = settings or get_settings()
+    storage = storage or get_object_storage(settings)
     plan = session.get(models.CrawlerPlan, plan_id)
     if plan is None:
         raise CrawlerPlanError(f"crawler_plan '{plan_id}' not found")
@@ -228,6 +237,29 @@ def run_plan(
     )
     session.add(row)
     session.flush()
+    ingest_summary = _ingest_firecrawl_snapshots(
+        session,
+        plan=plan,
+        run=row,
+        snapshots=outcome.accepted_snapshots,
+        template_hash=template_hash,
+        region_sites_hash=sites_hash,
+        storage=storage,
+        settings=settings,
+        trace_id=trace_id,
+    )
+    summary = dict(outcome.summary)
+    summary.update(ingest_summary)
+    summary["failed_count"] = int(outcome.summary.get("failed_count", 0)) + int(
+        ingest_summary.get("ingest_failed_count", 0)
+    )
+    row.summary = summary
+    if outcome.accepted_snapshots and ingest_summary["submitted_count"] == 0:
+        row.status = "failed"
+    elif ingest_summary["ingest_failed_count"] or outcome.summary.get("failed_count", 0):
+        row.status = "partial_failed" if ingest_summary["submitted_count"] else "failed"
+    else:
+        row.status = outcome.status
     write_audit(
         session,
         AuditEventType.CRAWLER_RUN_COMPLETED,
@@ -237,9 +269,11 @@ def run_plan(
         {
             "plan_id": plan.id,
             "status": row.status,
-            "runner": outcome.summary.get("runner"),
-            "submitted_count": outcome.summary.get("submitted_count", 0),
-            "failed_count": outcome.summary.get("failed_count", 0),
+            "runner": summary.get("runner"),
+            "accepted_count": summary.get("accepted_count", 0),
+            "submitted_count": summary.get("submitted_count", 0),
+            "duplicate_count": summary.get("duplicate_count", 0),
+            "failed_count": summary.get("failed_count", 0),
         },
         actor_type=actor_type,
         actor_id=actor_id,
@@ -247,6 +281,150 @@ def run_plan(
     session.commit()
     session.refresh(row)
     return row
+
+
+def _ingest_firecrawl_snapshots(
+    session: Session,
+    *,
+    plan: models.CrawlerPlan,
+    run: models.CrawlerRun,
+    snapshots: list[FirecrawlDocumentSnapshot],
+    template_hash: str,
+    region_sites_hash: str,
+    storage: ObjectStorage,
+    settings: Settings,
+    trace_id: str | None,
+) -> dict[str, Any]:
+    if not snapshots:
+        return {
+            "submitted_count": 0,
+            "raw_persisted_count": 0,
+            "duplicate_count": 0,
+            "submitted": [],
+            "ingest_failures": [],
+            "ingest_failed_count": 0,
+        }
+    if not plan.data_source_id:
+        return {
+            "submitted_count": 0,
+            "raw_persisted_count": 0,
+            "duplicate_count": 0,
+            "submitted": [],
+            "ingest_failures": [
+                {"reason": "ingest_missing_data_source", "accepted_count": len(snapshots)}
+            ],
+            "ingest_failed_count": len(snapshots),
+        }
+
+    try:
+        batch = ingest_batch.create_batch(
+            session,
+            data_source_id=plan.data_source_id,
+            batch_idempotency_key=f"crawler-run-{run.id}",
+            summary={
+                "connector_type": "firecrawl_document",
+                "crawler_plan_id": plan.id,
+                "crawler_run_id": run.id,
+                "accepted_count": len(snapshots),
+            },
+            trace_id=trace_id,
+        )
+    except ingest_batch.BatchError as exc:
+        return {
+            "submitted_count": 0,
+            "raw_persisted_count": 0,
+            "duplicate_count": 0,
+            "submitted": [],
+            "ingest_failures": [
+                {"reason": str(exc), "accepted_count": len(snapshots)}
+            ],
+            "ingest_failed_count": len(snapshots),
+        }
+    submitted: list[dict[str, Any]] = []
+    failures: list[dict[str, Any]] = []
+    for index, snapshot in enumerate(snapshots, start=1):
+        raw_text = snapshot.html or snapshot.markdown or ""
+        if not raw_text:
+            failures.append({
+                "url": snapshot.final_url or snapshot.source_url,
+                "reason": "empty_raw_content",
+            })
+            continue
+        content = raw_text.encode("utf-8")
+        content_hash = "sha256:" + hashlib.sha256(content).hexdigest()
+        source_url = snapshot.final_url or snapshot.source_url
+        mime_type = "text/html" if snapshot.html else "text/markdown"
+        filename = _firecrawl_filename(snapshot, content_hash, mime_type)
+        try:
+            result = ingest_batch.append_file_to_batch(
+                session,
+                batch.id,
+                file_idempotency_key=f"{run.id}-{index:04d}",
+                filename=filename,
+                content=content,
+                mime_type=mime_type,
+                source_uri=source_url,
+                source_object_key=f"firecrawl_document:{content_hash}",
+                pipeline_type_override=PipelineType.DOCUMENT,
+                raw_metadata={
+                    "connector_type": "firecrawl_document",
+                    "content_kind": "web_document",
+                    "pipeline_type": PipelineType.DOCUMENT.value,
+                    "source_url": snapshot.source_url,
+                    "final_url": snapshot.final_url,
+                    "canonical_url": snapshot.metadata.get("url") or snapshot.final_url,
+                    "title": snapshot.title,
+                    "content_hash": content_hash,
+                    "raw_representation": "html" if snapshot.html else "markdown",
+                    "crawler_plan_id": plan.id,
+                    "crawler_run_id": run.id,
+                    "template_code": plan.template_code,
+                    "template_config_hash": template_hash,
+                    "region_code": plan.region_code,
+                    "region_sites_config_hash": region_sites_hash,
+                },
+                storage=storage,
+                settings=settings,
+                trace_id=trace_id,
+            )
+        except ingest_batch.BatchError as exc:
+            failures.append({
+                "url": source_url,
+                "reason": str(exc),
+                "content_hash": content_hash,
+            })
+            continue
+        submitted.append({
+            "url": source_url,
+            "raw_object_id": result.raw_object.id,
+            "job_id": result.job.id,
+            "content_hash": content_hash,
+            "duplicate": result.duplicate,
+            "job_stage": result.job.current_stage,
+            "pipeline_type": result.job.payload.get("pipeline_type"),
+        })
+
+    return {
+        "submitted_count": len(submitted),
+        "raw_persisted_count": sum(1 for item in submitted if not item["duplicate"]),
+        "duplicate_count": sum(1 for item in submitted if item["duplicate"]),
+        "ingest_failed_count": len(failures),
+        "submitted": submitted,
+        "ingest_failures": failures,
+    }
+
+
+def _firecrawl_filename(
+    snapshot: FirecrawlDocumentSnapshot,
+    content_hash: str,
+    mime_type: str,
+) -> str:
+    suffix = ".html" if mime_type == "text/html" else ".md"
+    parsed = urlparse(snapshot.final_url or snapshot.source_url)
+    title = (snapshot.title or parsed.path.rsplit("/", 1)[-1] or "firecrawl-document").strip()
+    safe_title = "".join(char if char.isalnum() or char in {"-", "_", "."} else "-" for char in title)
+    safe_title = safe_title.strip(".-")[:80] or "firecrawl-document"
+    return f"{safe_title}-{content_hash.replace('sha256:', '')[:12]}{suffix}"
 
 
 def list_plans(session: Session, *, include_archived: bool = False) -> list[models.CrawlerPlan]:

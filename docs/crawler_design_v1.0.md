@@ -22,7 +22,7 @@
 - 官方权威站点通过 JSON 配置定义；Console 不提供模板或站点配置维护界面。
 - 区域选择默认全国，可选择省份；不同区域对应不同官方权威站点列表。
 - 官方权威站点列表是来源种子和权威性证据，不表示 Crawler 只能从这些站点搜索信息。
-- Crawler 是低频同步运行任务；实施分两段落地。`firecrawl_sync_runner` 切片的同步边界到 Firecrawl 抓取完成、自动过滤和 `crawler_run.summary`；`crawler_pipeline_a_ingest` 切片再补充 `raw_object` 持久化和 Pipeline Job 提交，且不等待 Pipeline A 全链路完成。
+- Crawler 是低频同步运行任务；同步边界到 Firecrawl 抓取完成、自动过滤、`raw_object` 持久化和 Pipeline Job 提交，不等待 Pipeline A 全链路完成。
 - 不做候选 URL 人工审核；自动过滤和失败只进入运行摘要诊断。
 - 爬取内容必须在 `raw_object` 入库阶段去重：同一次 run 中多个 URL 返回同一份内容、多次 run 抓到同一份内容，均不得重复创建有效原始对象、资产版本或索引内容。
 - `pipeline_type` 在 ingest gateway 创建 Job 时冻结；Worker 只读取 `Job.payload.pipeline_type`，不做运行时推断。
@@ -50,8 +50,8 @@ internal crawler API
   -> Firecrawl Search / Scrape / Batch Scrape / controlled Crawl
   -> URL safety + 官方权威站点证据/path 校验 + 自动质量门 + URL 去重
   -> accepted_snapshot summary
-  -> raw_object                       # crawler_pipeline_a_ingest
-  -> Job(payload.pipeline_type="document")  # crawler_pipeline_a_ingest
+  -> raw_object
+  -> Job(payload.pipeline_type="document")
         |
         v
 Pipeline A
@@ -182,7 +182,7 @@ nexus-app/config/policy_report_regional_v1.json
 }
 ```
 
-实现必须记录模板配置 hash：`crawler_run.summary.template_config_hash`；后续 `crawler_pipeline_a_ingest` 切片还必须写入 `raw_object.metadata_summary`。
+实现必须记录模板配置 hash：`crawler_run.summary.template_config_hash`，并写入 `raw_object.metadata_summary`。
 
 ### 4.2 区域官方权威站点配置
 
@@ -288,7 +288,7 @@ nexus-app/config/crawler_region_sites.json
 }
 ```
 
-实现必须记录站点配置 hash：`crawler_run.summary.region_sites_config_hash`；后续 `crawler_pipeline_a_ingest` 切片还必须写入 `raw_object.metadata_summary`。
+实现必须记录站点配置 hash：`crawler_run.summary.region_sites_config_hash`，并写入 `raw_object.metadata_summary`。
 
 ### 4.3 URL 安全与官方站点规则
 
@@ -307,12 +307,12 @@ nexus-app/config/crawler_region_sites.json
 
 Crawler 内容去重必须在 `raw_object` 入库阶段执行，不通过扫描历史 `crawler_run.summary` 完成。原因是 `crawler_run` 是执行台账，不是去重索引；历史运行过多时扫描 summary 不具备可扩展性，也容易把诊断字段误当事实来源。
 
-当前 `firecrawl_sync_runner` 只做两件事：
+当前同步 runner 在采集阶段做两件事：
 
 1. Search 返回 URL 的本次 run 内去重，避免对完全相同 URL 重复 scrape；重复 URL 记入 `filter_reasons.duplicate_url`。
-2. 对通过质量门的内容计算 `content_hash=sha256:<hash>` 并写入 `accepted_snapshots`，作为后续 `raw_object.checksum` 的输入证据。
+2. 对通过质量门的内容计算 `content_hash=sha256:<hash>` 并写入 `accepted_snapshots`，作为 `raw_object.checksum` 的输入证据。
 
-后续 `crawler_pipeline_a_ingest` 必须基于 `raw_object.checksum`、`source_object_key` 和 assetize 幂等规则执行内容级去重。同一份文件从多个来源获取时，允许保留多个来源证据到 lineage，但不得重复创建有效原始对象、可用资产版本或重复提交同内容索引。去重只保存 hash、URL 和原因码，不在 run summary 或审计中保存大段正文。
+入库阶段必须基于 `raw_object.checksum`、`source_object_key` 和 assetize 幂等规则执行内容级去重。同一份文件从多个来源获取时，允许保留多个来源证据到 lineage，但不得重复创建有效原始对象、可用资产版本或重复提交同内容索引。去重只保存 hash、URL 和原因码，不在 run summary 或审计中保存大段正文。
 
 ---
 
@@ -348,16 +348,16 @@ Console 提供两种创建方式：
 
 ## 6. 同步运行与最小状态
 
-Crawler 是低频任务。当前 `firecrawl_sync_runner` 阶段采用同步执行：后端接到运行请求后完成 Firecrawl 调用、自动过滤和 `crawler_run.summary` 写入后返回。下一阶段 `crawler_pipeline_a_ingest` 在同一同步 runner 后半段补齐 `raw_object` 持久化和 Pipeline Job 提交，但仍不等待 Pipeline A 的 parse/normalize/governance/index 完成。
+Crawler 是低频任务，采用同步执行：后端接到运行请求后完成 Firecrawl 调用、自动过滤、`raw_object` 持久化、Pipeline Job 提交和 `crawler_run.summary` 写入后返回；不等待 Pipeline A 的 parse/normalize/governance/index 完成。
 
 `crawler_run.status` 只保留：
 
 | 状态 | 含义 |
 | --- | --- |
 | `running` | 本次采集正在同步执行 |
-| `succeeded` | Firecrawl 调用完成，符合条件内容已通过自动质量门，没有阻断性失败；后续入库切片中表示符合条件内容已提交 Pipeline |
-| `partial_failed` | 至少一个内容通过自动质量门，但存在抓取或过滤失败；后续入库切片还包括部分入库/提交失败 |
-| `failed` | 配置校验、Firecrawl 调用失败，或没有内容通过自动质量门；后续入库切片还包括全部入库失败 |
+| `succeeded` | Firecrawl 调用完成，符合条件内容已提交 Pipeline，没有阻断性失败 |
+| `partial_failed` | 至少一个内容已提交 Pipeline，但存在抓取、过滤或入库失败 |
+| `failed` | 配置校验、Firecrawl 调用失败，或没有内容成功提交 Pipeline |
 
 第一阶段不需要 `crawler_run_item` 表。运行详情保存在 `crawler_run.summary`：
 
@@ -367,6 +367,9 @@ Crawler 是低频任务。当前 `firecrawl_sync_runner` 阶段采用同步执�
   "accepted_count": 21,
   "filtered_count": 19,
   "submitted_count": 21,
+  "raw_persisted_count": 20,
+  "duplicate_count": 1,
+  "ingest_failed_count": 0,
   "failed_count": 2,
   "filter_reasons": {
     "outside_allowed_domain": 6,
@@ -385,7 +388,16 @@ Crawler 是低频任务。当前 `firecrawl_sync_runner` 阶段采用同步执�
       "raw_representation": "html"
     }
   ],
-  "submitted": [],
+  "submitted": [
+    {
+      "url": "https://...",
+      "raw_object_id": "raw_...",
+      "job_id": "job_...",
+      "content_hash": "sha256:...",
+      "duplicate": false,
+      "pipeline_type": "document"
+    }
+  ],
   "failures": [
     {
       "url": "https://...",
@@ -430,7 +442,7 @@ POST/PATCH source registries
 candidate approve/reject
 ```
 
-当前 `firecrawl_sync_runner` 阶段，`submitted_count` 为兼容字段，含义等同 `accepted_count`，不代表已经创建 `raw_object` 或 Pipeline Job。`crawler_pipeline_a_ingest` 切片完成后，`submitted` 再记录 `raw_object_id` / `job_id`。
+`accepted_count` 表示通过质量门的文档快照数；`submitted_count` 表示已完成 raw/job 提交的记录数，其中 duplicate 项可能复用已有 `raw_object` 并创建 `duplicate_skipped` job。
 
 `POST /run` 同步返回：
 
@@ -443,6 +455,9 @@ candidate approve/reject
     "accepted_count": 20,
     "filtered_count": 8,
     "submitted_count": 20,
+    "raw_persisted_count": 19,
+    "duplicate_count": 1,
+    "ingest_failed_count": 0,
     "failed_count": 2,
     "accepted_snapshots": [
       {
@@ -450,7 +465,15 @@ candidate approve/reject
         "content_hash": "sha256:..."
       }
     ],
-    "submitted": [],
+    "submitted": [
+      {
+        "url": "https://...",
+        "raw_object_id": "raw_...",
+        "job_id": "job_...",
+        "duplicate": false,
+        "pipeline_type": "document"
+      }
+    ],
     "filter_reasons": {
       "topic_mismatch": 5,
       "outside_allowed_domain": 3
@@ -506,7 +529,7 @@ Firecrawl API key 只存在后端配置或密钥管理中，不进入 Console、
 
 ## 9. Pipeline A 路由与 HTML/Markdown 处理
 
-当前基线中普通 `crawler` JSON package 仍进入 Pipeline B。Firecrawl 文档采集必须新增显式 Connector 路由：
+当前 Crawler 不包含 JSON package 场景。Firecrawl 文档采集使用显式 Connector 路由：
 
 | `DataSource.source_type` | `connector_type` | `raw_object.mime_type` | `pipeline_type` |
 | --- | --- | --- | --- |
@@ -514,7 +537,6 @@ Firecrawl API key 只存在后端配置或密钥管理中，不进入 Console、
 | `crawler` | `firecrawl_document` | `text/markdown` | `document` |
 | `crawler` | `firecrawl_document` | `application/pdf` | `document` |
 | `crawler` | `firecrawl_document` | `application/vnd.nexus.firecrawl-html-snapshot+json` | `document` |
-| `crawler` | `crawler_json_package` | `application/json` | `record` |
 | `database` / `webhook` | any | JSON/record | `record` |
 
 `pipeline_type` 不能由前端或调用方任意指定。ingest gateway 必须基于已批准 Connector 配置、`content_kind` 和 MIME 白名单推导一次，写入 `Job.payload.pipeline_type`。
@@ -613,7 +635,7 @@ HTML section builder 优先级：
 1. `crawler_contract_sync`：同步本文档、根契约和任务包。
 2. `crawler_config_and_plan_api`：读取 JSON 模板和区域站点配置；新增 `crawler_plan` / `crawler_run`；实现只读配置、计划 CRUD 和同步 run API 的 fake runner。
 3. `firecrawl_sync_runner`：实现 Firecrawl client、同步 runner、URL safety、自动质量门和 run summary。
-4. `crawler_pipeline_a_ingest`：Firecrawl HTML/PDF/Markdown 写 `raw_object`，创建 Pipeline A Job；既有 crawler JSON 仍走 Pipeline B。
+4. `crawler_pipeline_a_ingest`：Firecrawl HTML/PDF/Markdown 写 `raw_object`，创建 Pipeline A Job。
 5. `console_crawler_plan_ux`：Console 快速启动、自定义配置、区域下拉、站点预览和运行结果。
 6. `policy_report_section_context`：HTML/Markdown heading path、chunk locator 和 Query Router v2 runtime section context 回归。
 
@@ -626,7 +648,6 @@ HTML section builder 优先级：
 - Crawler run 同步返回 `running` / `succeeded` / `partial_failed` / `failed` 中的最终状态和 summary。
 - 无候选 URL 审核任务；过滤 URL 仅进入运行诊断。
 - Firecrawl 抓取 HTML/PDF/Markdown 后以 `pipeline_type=document` 进入 Pipeline A。
-- 既有 `/ingest/crawler-packages` JSON package 仍以 `pipeline_type=record` 进入 Pipeline B。
 - AI 治理只基于 `normalized_asset_ref`。
 - 政策/报告/区域数据资产的 chunk locator 具备 `heading_path`、block order 和 source URL，Query Router v2 可返回 bounded `document_section_context`。
 - 无敏感日志、无密钥泄露、无反向指针、无 RabbitMQ/Celery 前置依赖。
@@ -635,7 +656,7 @@ HTML section builder 优先级：
 
 ## 13. 必须通过的 Review Gates
 
-- **Architecture Review**：确认 `crawler + firecrawl_document -> document` 的 ingest-time frozen 路由，普通 crawler JSON package 仍为 record。
+- **Architecture Review**：确认 `crawler + firecrawl_document -> document` 的 ingest-time frozen 路由。
 - **Data Model Gate**：确认 `crawler_plan` / `crawler_run` 为执行台账，不引入资产反向指针或当前版本指针。
 - **API Contract Gate**：确认 config、regions、plans、run API、状态枚举和错误码。
 - **Permission And Audit Gate**：确认 URL safety、密钥保护、敏感内容外发阻断、审计字段和日志边界。

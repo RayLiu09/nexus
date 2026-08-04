@@ -79,6 +79,13 @@ XLSX_MIME_TYPES: frozenset[str] = frozenset({
 CSV_MIME_TYPES: frozenset[str] = frozenset({
     "text/csv",
 })
+FIRECRAWL_DOCUMENT_MIME_TYPES: frozenset[str] = frozenset({
+    "text/html",
+    "application/xhtml+xml",
+    "text/markdown",
+    "application/pdf",
+    "application/vnd.nexus.firecrawl-html-snapshot+json",
+})
 
 
 def _pipeline_type_for(
@@ -90,21 +97,25 @@ def _pipeline_type_for(
     """Determine pipeline routing from source type and MIME type.
 
     Routing rules (in order):
-    1. CRAWLER / DATABASE / WEBHOOK sources → RECORD (always; predates B1)
-    2. FILE_UPLOAD / NAS with JSON MIME → RECORD (predates B1)
-    3. FILE_UPLOAD / NAS with xlsx MIME → RECORD when ``pipeline_b_xlsx_enabled`` flag is on (B1.1)
-    4. FILE_UPLOAD / NAS with csv MIME → RECORD when ``pipeline_b_csv_enabled`` flag is on (B1.1)
-    5. Everything else → DOCUMENT (default; preserves Pipeline A behavior)
+    1. CRAWLER Firecrawl document MIME types → DOCUMENT.
+    2. DATABASE / WEBHOOK sources → RECORD.
+    3. FILE_UPLOAD / NAS with JSON MIME → RECORD (predates B1)
+    4. FILE_UPLOAD / NAS with xlsx MIME → RECORD when ``pipeline_b_xlsx_enabled`` flag is on (B1.1)
+    5. FILE_UPLOAD / NAS with csv MIME → RECORD when ``pipeline_b_csv_enabled`` flag is on (B1.1)
+    6. Everything else → DOCUMENT (default; preserves Pipeline A behavior)
 
     The xlsx / csv flags exist because B1.1 only ships the routing decision;
     structured_parse (B1.2) and worker integration (B1.3) land later. Flipping
     the flags before the full chain is deployed would queue jobs that the worker
     cannot execute, so flags default to ``False`` and are toggled only at B1.5.
     """
+    normalized_mime = (mime_type or "").lower()
+    if source_type == DataSourceType.CRAWLER and normalized_mime in FIRECRAWL_DOCUMENT_MIME_TYPES:
+        return PipelineType.DOCUMENT
+
     if source_type in {DataSourceType.CRAWLER, DataSourceType.DATABASE, DataSourceType.WEBHOOK}:
         return PipelineType.RECORD
 
-    normalized_mime = (mime_type or "").lower()
     if "json" in normalized_mime:
         return PipelineType.RECORD
 

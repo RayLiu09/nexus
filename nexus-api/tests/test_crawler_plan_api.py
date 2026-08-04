@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from nexus_app import schemas as domain_schemas
+from nexus_app import models, schemas as domain_schemas, services
 from nexus_app.crawler import service as crawler_service
 from nexus_app.crawler.firecrawl_client import (
     DisabledFirecrawlDocumentClient,
@@ -8,6 +8,8 @@ from nexus_app.crawler.firecrawl_client import (
     FirecrawlSearchResult,
 )
 from nexus_app.crawler import runner as crawler_runner
+from nexus_app.enums import JobStatus
+from nexus_app.storage import InMemoryObjectStorage
 
 
 class FakeFirecrawlClient:
@@ -188,11 +190,20 @@ def test_archive_plan_blocks_runs(app):
 
 
 def test_firecrawl_runner_with_fake_client_accepts_and_filters(session):
+    source = services.create_data_source(
+        session,
+        domain_schemas.DataSourceCreate(
+            code="crawler-firecrawl-doc",
+            name="Crawler Firecrawl Document",
+            source_type="crawler",
+        ),
+    )
     plan = crawler_service.create_plan(
         session,
         domain_schemas.CrawlerPlanCreate(
             name="浙江省政策报告采集",
             mode="quick_start",
+            data_source_id=source.id,
             region_code="zhejiang",
             execution_mode="run_once",
         ),
@@ -200,7 +211,14 @@ def test_firecrawl_runner_with_fake_client_accepts_and_filters(session):
     )
 
     fake = FakeFirecrawlClient()
-    run = crawler_service.run_plan(session, plan.id, trace_id="trace-test", client=fake)
+    storage = InMemoryObjectStorage()
+    run = crawler_service.run_plan(
+        session,
+        plan.id,
+        trace_id="trace-test",
+        client=fake,
+        storage=storage,
+    )
 
     assert run.status == "partial_failed"
     assert run.summary["runner"] == "firecrawl_sync"
@@ -215,5 +233,38 @@ def test_firecrawl_runner_with_fake_client_accepts_and_filters(session):
     )
     assert run.summary["filtered_count"] == 2
     assert run.summary["filter_reasons"] == {"duplicate_url": 1, "topic_mismatch": 1}
+    assert run.summary["raw_persisted_count"] == 1
+    assert run.summary["duplicate_count"] == 1
+    assert run.summary["submitted"][0]["pipeline_type"] == "document"
+    assert run.summary["submitted"][0]["duplicate"] is False
+    assert run.summary["submitted"][1]["duplicate"] is True
     assert "zcom.zj.gov.cn" in fake.include_domains
     assert "www.zj.gov.cn" in fake.include_domains
+
+    raw_objects = session.query(models.RawObject).all()
+    jobs = session.query(models.Job).order_by(models.Job.created_at.asc()).all()
+
+    assert len(raw_objects) == 1
+    assert raw_objects[0].mime_type == "text/markdown"
+    assert raw_objects[0].metadata_summary["connector_type"] == "firecrawl_document"
+    assert raw_objects[0].metadata_summary["crawler_plan_id"] == plan.id
+    assert raw_objects[0].metadata_summary["crawler_run_id"] == run.id
+    assert len(jobs) == 2
+    assert {job.payload["pipeline_type"] for job in jobs} == {"document"}
+    assert any(job.status == JobStatus.QUEUED for job in jobs)
+    assert any(job.current_stage == "duplicate_skipped" for job in jobs)
+
+    second = crawler_service.run_plan(
+        session,
+        plan.id,
+        trace_id="trace-test-2",
+        client=FakeFirecrawlClient(),
+        storage=storage,
+    )
+
+    assert second.summary["accepted_count"] == 2
+    assert second.summary["submitted_count"] == 2
+    assert second.summary["raw_persisted_count"] == 0
+    assert second.summary["duplicate_count"] == 2
+    assert {item["raw_object_id"] for item in second.summary["submitted"]} == {raw_objects[0].id}
+    assert len(session.query(models.RawObject).all()) == 1

@@ -266,6 +266,19 @@ def _find_same_batch_checksum_dup(
     )
 
 
+def _find_same_source_checksum_dup(
+    session: Session,
+    data_source_id: str,
+    checksum: str,
+) -> models.RawObject | None:
+    return session.scalar(
+        select(models.RawObject).where(
+            models.RawObject.data_source_id == data_source_id,
+            models.RawObject.checksum == checksum,
+        )
+    )
+
+
 def _audit_cross_source_duplicate(
     session: Session,
     data_source_id: str,
@@ -309,6 +322,7 @@ def _store_and_create_raw(
     mime_type: str,
     source_uri: str | None,
     checksum: str,
+    raw_metadata: dict[str, Any] | None = None,
 ) -> models.RawObject:
     key = raw_key(
         settings,
@@ -341,7 +355,7 @@ def _store_and_create_raw(
         size_bytes=stored.size_bytes,
         status=RawObjectStatus.RAW_PERSISTED,
         file_idempotency_key=file_idempotency_key,
-        metadata_summary={"filename": filename},
+        metadata_summary={"filename": filename, **dict(raw_metadata or {})},
     )
     session.add(raw)
     session.flush()
@@ -358,6 +372,8 @@ def append_file_to_batch(
     mime_type: str,
     source_uri: str | None = None,
     source_object_key: str | None = None,
+    pipeline_type_override: PipelineType | str | None = None,
+    raw_metadata: dict[str, Any] | None = None,
     storage: ObjectStorage | None = None,
     settings: Settings | None = None,
     trace_id: str | None = None,
@@ -405,7 +421,9 @@ def append_file_to_batch(
             same_batch_dup,
             file_idempotency_key,
             trace_id,
-            pipeline_type=_pipeline_type_for(
+            pipeline_type=_coerce_pipeline_type(
+                pipeline_type_override,
+            ) or _pipeline_type_for(
                 data_source.source_type, same_batch_dup.mime_type, settings=settings
             ).value,
             source_object_key=source_object_key or source_uri or file_idempotency_key,
@@ -419,12 +437,41 @@ def append_file_to_batch(
         session.commit()
         return BatchAppendResult(same_batch_dup, job, duplicate=True)
 
-    # 3. cross-source duplicate → audit only, continue
+    # 3. same-source checksum dedup across batches/runs → reuse raw_object.
+    same_source_dup = _find_same_source_checksum_dup(session, data_source.id, content_checksum)
+    if same_source_dup is not None:
+        job = _create_queued_job(
+            session,
+            batch,
+            same_source_dup,
+            file_idempotency_key,
+            trace_id,
+            pipeline_type=_coerce_pipeline_type(
+                pipeline_type_override,
+            ) or _pipeline_type_for(
+                data_source.source_type, same_source_dup.mime_type, settings=settings
+            ).value,
+            source_object_key=source_object_key or source_uri or file_idempotency_key,
+        )
+        job.status = JobStatus.SUCCEEDED
+        job.current_stage = "duplicate_skipped"
+        _update_status_detail_entry(batch, same_source_dup.id, job.status)
+        if batch.status == IngestBatchStatus.OPEN:
+            batch.status = IngestBatchStatus.SUBMITTED
+        batch.summary = {
+            **dict(batch.summary or {}),
+            "duplicate_raw_object_id": same_source_dup.id,
+            "duplicate_checksum": content_checksum,
+        }
+        session.commit()
+        return BatchAppendResult(same_source_dup, job, duplicate=True)
+
+    # 4. cross-source duplicate → audit only, continue
     _audit_cross_source_duplicate(
         session, data_source.id, content_checksum, file_idempotency_key, trace_id
     )
 
-    # 4. persist raw + queue job
+    # 5. persist raw + queue job
     raw = _store_and_create_raw(
         session=session,
         storage=storage,
@@ -437,21 +484,22 @@ def append_file_to_batch(
         mime_type=mime_type,
         source_uri=source_uri,
         checksum=content_checksum,
+        raw_metadata=raw_metadata,
     )
-    pipeline_type = _pipeline_type_for(
+    pipeline_type = _coerce_pipeline_type(pipeline_type_override) or _pipeline_type_for(
         data_source.source_type, mime_type, settings=settings
-    )
+    ).value
     job = _create_queued_job(
         session,
         batch,
         raw,
         file_idempotency_key,
         trace_id,
-        pipeline_type=pipeline_type.value,
+        pipeline_type=pipeline_type,
         source_object_key=source_object_key or source_uri or file_idempotency_key,
     )
 
-    # 5. batch status transition: first file flips open → submitted
+    # 6. batch status transition: first file flips open → submitted
     if batch.status == IngestBatchStatus.OPEN:
         batch.status = IngestBatchStatus.SUBMITTED
     if batch.status == IngestBatchStatus.SUBMITTED:
@@ -476,6 +524,16 @@ def append_file_to_batch(
     notify_job_ready(session)
     session.commit()
     return BatchAppendResult(raw, job, duplicate=False)
+
+
+def _coerce_pipeline_type(value: PipelineType | str | None) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, PipelineType):
+        return value.value
+    if value not in {item.value for item in PipelineType}:
+        raise BatchError(f"invalid pipeline_type_override: {value}")
+    return value
 
 
 # --------------------------------------------------------------------------- #

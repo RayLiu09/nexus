@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -19,6 +18,7 @@ from nexus_app.crawler.quality_gate import domain_of, evaluate_snapshot
 class CrawlerRunOutcome:
     status: str
     summary: dict[str, Any]
+    accepted_snapshots: list[FirecrawlDocumentSnapshot]
 
 
 def run_firecrawl_plan(
@@ -56,6 +56,7 @@ def run_firecrawl_plan(
     except FirecrawlClientError as exc:
         return CrawlerRunOutcome(
             status="failed",
+            accepted_snapshots=[],
             summary=_base_summary(
                 plan=plan,
                 template_hash=template_hash,
@@ -67,6 +68,7 @@ def run_firecrawl_plan(
         )
 
     accepted: list[dict[str, Any]] = []
+    accepted_snapshot_objects: list[FirecrawlDocumentSnapshot] = []
     failures: list[dict[str, Any]] = []
     filter_reasons: dict[str, int] = {}
     if duplicate_url_count:
@@ -83,6 +85,7 @@ def run_firecrawl_plan(
             continue
 
         accepted.append(_accepted_snapshot_summary(snapshot))
+        accepted_snapshot_objects.append(snapshot)
 
     provider_missing = max(len(scrape_urls) - len(snapshots), 0)
     if provider_missing:
@@ -110,7 +113,7 @@ def run_firecrawl_plan(
         "submitted": [],
         "failures": failures,
     })
-    return CrawlerRunOutcome(status=status, summary=summary)
+    return CrawlerRunOutcome(status=status, summary=summary, accepted_snapshots=accepted_snapshot_objects)
 
 
 def _base_summary(
@@ -176,18 +179,13 @@ def _build_query(plan: models.CrawlerPlan, template: dict[str, Any]) -> str:
 
 
 def _accepted_snapshot_summary(snapshot: FirecrawlDocumentSnapshot) -> dict[str, Any]:
-    text = snapshot.text_for_quality
-    fingerprint_text = _content_fingerprint_text(text)
-    digest = "sha256:" + hashlib.sha256(fingerprint_text.encode("utf-8")).hexdigest()
+    raw_text = snapshot.html or snapshot.markdown or ""
+    digest = "sha256:" + hashlib.sha256(raw_text.encode("utf-8")).hexdigest()
     return {
         "url": snapshot.final_url or snapshot.source_url,
         "source_url": snapshot.source_url,
         "title": snapshot.title,
         "content_hash": digest,
-        "content_chars": len(text),
+        "content_chars": len(raw_text),
         "raw_representation": "html" if snapshot.html else "markdown",
     }
-
-
-def _content_fingerprint_text(text: str) -> str:
-    return re.sub(r"\s+", " ", text).strip()

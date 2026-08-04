@@ -36,7 +36,7 @@
 - 不把搜索摘要、Firecrawl HTML/Markdown 直接写治理、chunk 或索引。
 - 不把官方权威站点配置当作只能搜索这些站点的全局限制。
 - 不记录 Firecrawl API key、大段正文或敏感内容到 audit/run summary。
-- 不改变既有 crawler JSON Pipeline B 路由。
+- 不引入 crawler JSON package 场景；Crawler 当前只面向 Firecrawl document 采集。
 
 ## Acceptance
 

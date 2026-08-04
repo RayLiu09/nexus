@@ -105,13 +105,12 @@ Pipeline routing stored in `Job.payload.pipeline_type` at job creation. Workers 
 | `file_upload`, `nas` | file object | non-`application/json` | `"document"` |
 | `file_upload`, `nas` | JSON package | `application/json` | `"record"` |
 | `crawler` | `firecrawl_document` web document | `text/html`, `text/markdown`, `application/pdf`, `application/vnd.nexus.firecrawl-html-snapshot+json` | `"document"` |
-| `crawler` | existing crawler JSON package | `application/json` | `"record"` |
 | `database`, `webhook` | structured record | any | `"record"` |
 
 Crawler is not inferred at Worker runtime. The ingest gateway freezes
 `pipeline_type` from the approved Connector configuration, content kind, and
 MIME whitelist. Firecrawl HTML/PDF/Markdown is document input for Pipeline A;
-existing crawler JSON packages remain Pipeline B record input.
+Crawler has no JSON package ingestion scenario in the current contract.
 
 **Pipeline A — Document Processing:**
 
@@ -498,7 +497,7 @@ Asset Pipeline → normalized_asset_ref (stable contract)
 `upload / firecrawl_document crawler → raw_object (binary, HTML, Markdown, PDF, or approved document snapshot) → ingest_validate → Job(pipeline_type="document") → assetize (asset/asset_version) → MinerU parse for HTML/PDF/Office/image or markdown document adapter → normalize (normalized_document) → normalized_asset_ref → AI governance → rules → governance_result → available/review_required → knowledge_chunking → eligible textbook knowledge_outline_build / policy-report section locator preservation → semantic retrieval index`
 
 **Pipeline B (Record):**
-`existing crawler JSON package / webhook / batch / file upload → raw_object (JSON/XLSX structured data) → ingest_validate → Job(pipeline_type="record") → assetize (asset/asset_version) → structured_parse/profile_detect when applicable → normalize (normalized_record) → normalized_asset_ref → AI governance → rules → governance_result → index`
+`webhook / batch / file upload → raw_object (JSON/XLSX structured data) → ingest_validate → Job(pipeline_type="record") → assetize (asset/asset_version) → structured_parse/profile_detect when applicable → normalize (normalized_record) → normalized_asset_ref → AI governance → rules → governance_result → index`
 
 When an expert finalizes a `review_required` result, the review writes structured
 taxonomy tags with `tag_asset_index.source=expert_manual`, reevaluates the
