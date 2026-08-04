@@ -1,0 +1,91 @@
+{
+  "schema_version": "crawler_region_sites.v1",
+  "discovery_policy": "authority_seed_not_exclusive",
+  "description": "站点列表用于配置全国/省级官方权威机构种子站点和来源证据，不表示 Crawler 只能从这些站点搜索信息；运行时仍需对最终 URL 执行安全、来源和质量门校验。",
+  "regions": [
+    {
+      "region_code": "national",
+      "region_name": "全国",
+      "scope_type": "national",
+      "sites": [
+        {
+          "site_name": "中华人民共和国教育部",
+          "base_url": "http://www.moe.gov.cn/",
+          "source_kind": "education_authority",
+          "include_paths": [],
+          "exclude_paths": []
+        },
+        {
+          "site_name": "中华人民共和国商务部",
+          "base_url": "https://dzswgf.mofcom.gov.cn/zcfb/page1.html",
+          "source_kind": "commerce_authority",
+          "include_paths": [],
+          "exclude_paths": []
+        },
+        {
+          "site_name": "中华人民共和国商务部电子商务与信息化司",
+          "base_url": "https://dzsws.mofcom.gov.cn/",
+          "source_kind": "commerce_authority",
+          "include_paths": [],
+          "exclude_paths": []
+        },
+        {
+          "site_name": "中华人民共和国工业和信息化部",
+          "base_url": "https://www.miit.gov.cn/gxsj/index.html",
+          "source_kind": "industry_authority",
+          "include_paths": [],
+          "exclude_paths": []
+        },
+        {
+          "site_name": "中华人民共和国国家发展和改革委员会",
+          "base_url": "https://www.ndrc.gov.cn/",
+          "source_kind": "development_reform_authority",
+          "include_paths": [],
+          "exclude_paths": []
+        }
+      ]
+    },
+    {
+      "region_code": "zhejiang",
+      "region_name": "浙江省",
+      "scope_type": "province",
+      "sites": [
+        {
+          "site_name": "浙江省商务厅",
+          "base_url": "https://zcom.zj.gov.cn/",
+          "source_kind": "commerce_authority",
+          "include_paths": [],
+          "exclude_paths": []
+        },
+        {
+          "site_name": "浙江省人民政府",
+          "base_url": "https://www.zj.gov.cn/",
+          "source_kind": "official_site",
+          "include_paths": [],
+          "exclude_paths": []
+        }
+      ]
+    },
+    {
+      "region_code": "yunnan",
+      "region_name": "云南省",
+      "scope_type": "province",
+      "sites": [
+        {
+          "site_name": "云南省商务厅",
+          "base_url": "https://swt.yn.gov.cn/",
+          "source_kind": "commerce_authority",
+          "include_paths": [],
+          "exclude_paths": []
+        },
+        {
+          "site_name": "云南省人民政府",
+          "base_url": "https://www.yn.gov.cn/",
+          "source_kind": "official_site",
+          "include_paths": [],
+          "exclude_paths": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -221,6 +221,87 @@ class DataSourceRead(ORMModel):
     description: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class CrawlerTargetSite(BaseModel):
+    site_name: str | None = Field(default=None, max_length=128)
+    base_url: str = Field(min_length=1, max_length=1024)
+    source_kind: str | None = Field(default=None, max_length=64)
+    include_paths: list[str] = Field(default_factory=list)
+    exclude_paths: list[str] = Field(default_factory=list)
+    from_region_profile: bool = False
+
+
+class CrawlerPlanCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    mode: Literal["quick_start", "custom"] = "quick_start"
+    data_source_id: str | None = None
+    region_code: str | None = Field(default="national", max_length=64)
+    topic_keywords: list[str] = Field(default_factory=list)
+    content_goals: list[str] = Field(default_factory=list)
+    classification_hints: list[str] = Field(default_factory=list)
+    target_sites: list[CrawlerTargetSite] = Field(default_factory=list)
+    execution_mode: Literal["run_once", "scheduled"] = "run_once"
+    schedule_cron: str | None = Field(default=None, max_length=128)
+    crawl_policy: dict[str, Any] = Field(default_factory=dict)
+    status: Literal["active", "disabled", "archived"] = "active"
+
+
+class CrawlerPlanRead(ORMModel):
+    id: str
+    name: str
+    mode: str
+    data_source_id: str | None
+    template_code: str | None
+    template_version: str | None
+    region_code: str | None
+    region_name: str | None
+    topic_keywords: list[str]
+    content_goals: list[str]
+    classification_hints: list[str]
+    target_sites: list[dict[str, Any]]
+    execution_mode: str
+    schedule_cron: str | None
+    crawl_policy: dict[str, Any]
+    pipeline_policy: dict[str, Any]
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class CrawlerRunRead(ORMModel):
+    id: str
+    plan_id: str
+    status: str
+    started_at: datetime
+    finished_at: datetime | None
+    template_code: str | None
+    template_config_hash: str | None
+    region_sites_config_hash: str | None
+    summary: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
+class CrawlerRegionRead(BaseModel):
+    region_code: str
+    region_name: str
+    scope_type: str
+    site_count: int
+
+
+class CrawlerSitesRead(BaseModel):
+    region_code: str
+    region_name: str
+    scope_type: str
+    sites: list[dict[str, Any]]
+
+
+class CrawlerConfigRead(BaseModel):
+    template: dict[str, Any]
+    template_config_hash: str
+    region_sites_config_hash: str
+    default_region_code: str
 
 
 class IngestBatchCreate(BaseModel):

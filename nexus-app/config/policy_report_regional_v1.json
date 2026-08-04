@@ -1,0 +1,65 @@
+{
+  "schema_version": "crawler_template.v1",
+  "template_code": "policy_report_regional_v1",
+  "template_name": "全国/省级政策、报告与区域电子商务数字经济数据采集",
+  "description": "用于低频爬取全国/省级职业教育政策、产教融合政策、电子商务、数字经济相关政策、报告和区域数据。",
+  "default_region_code": "national",
+  "supported_region_scope": ["national", "province"],
+  "content_goals": [
+    "vocational_education_policy",
+    "industry_education_integration_policy",
+    "ecommerce_policy",
+    "cross_border_ecommerce",
+    "rural_ecommerce",
+    "live_ecommerce",
+    "tourism_ecommerce",
+    "digital_economy_policy",
+    "industry_report",
+    "regional_ecommerce_data",
+    "regional_digital_economy_data"
+  ],
+  "allowed_classification_codes": [
+    "industry_policy",
+    "industry_report",
+    "talent_demand_report"
+  ],
+  "default_keywords": [
+    "职业教育",
+    "产教融合",
+    "电子商务",
+    "跨境电商",
+    "农村电商",
+    "直播电商",
+    "旅游电商",
+    "数字经济",
+    "区域经济",
+    "发展报告"
+  ],
+  "query_templates": [
+    "{region} ({keywords}) (职业教育 OR 产教融合 OR 校企合作 OR 产业学院)",
+    "{region} ({keywords}) (电子商务 OR 跨境电商 OR 农村电商 OR 直播电商 OR 旅游电商)",
+    "{region} ({keywords}) (数字经济 OR 区域经济 OR 产业集群 OR 产业群)",
+    "{region} ({keywords}) (发展报告 OR 白皮书 OR 统计公报 OR 运行情况 OR 数据)"
+  ],
+  "time_effectiveness": {
+    "industry_policy": { "preferred_within_years": 5 },
+    "industry_report": { "preferred_within_years": 2 },
+    "talent_demand_report": { "preferred_within_years": 2 }
+  },
+  "firecrawl": {
+    "country": "CN",
+    "languages": ["zh-CN"],
+    "only_main_content": true,
+    "formats": ["markdown", "html"],
+    "max_discovery_depth": 1,
+    "allow_external_links": false,
+    "allow_subdomains": false,
+    "max_pages_per_run": 50,
+    "timeout_seconds": 120
+  },
+  "pipeline_policy": {
+    "connector_type": "firecrawl_document",
+    "content_kind": "web_document",
+    "pipeline_type": "document"
+  }
+}

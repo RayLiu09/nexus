@@ -251,6 +251,10 @@ class AuditEventType(StrEnum):
     DATA_SOURCE_CREATED             = "DataSourceCreated"
     DATA_SOURCE_STATUS_CHANGED      = "DataSourceStatusChanged"
     DATA_SOURCE_DELETED             = "DataSourceDeleted"
+    # Crawler plan control plane
+    CRAWLER_PLAN_CREATED            = "CrawlerPlanCreated"
+    CRAWLER_PLAN_ARCHIVED           = "CrawlerPlanArchived"
+    CRAWLER_RUN_COMPLETED           = "CrawlerRunCompleted"
     # API caller management
     API_CALLER_CREATED              = "ApiCallerCreated"
     API_CALLER_UPDATED              = "ApiCallerUpdated"

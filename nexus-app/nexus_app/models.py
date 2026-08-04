@@ -7,6 +7,7 @@ from decimal import Decimal
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     DateTime,
     Enum,
     ForeignKey,
@@ -266,6 +267,76 @@ class DataSource(TimestampMixin, Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     owner_user: Mapped[UserAccount | None] = relationship()
+
+
+class CrawlerPlan(TimestampMixin, Base):
+    __tablename__ = "crawler_plan"
+    __table_args__ = (
+        CheckConstraint("mode IN ('quick_start', 'custom')", name="ck_crawler_plan_mode"),
+        CheckConstraint(
+            "execution_mode IN ('run_once', 'scheduled')",
+            name="ck_crawler_plan_execution_mode",
+        ),
+        CheckConstraint(
+            "status IN ('active', 'disabled', 'archived')",
+            name="ck_crawler_plan_status",
+        ),
+        Index("ix_crawler_plan_status", "status"),
+        Index("ix_crawler_plan_region", "region_code"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    mode: Mapped[str] = mapped_column(String(32), nullable=False)
+    data_source_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("data_source.id"), nullable=True
+    )
+    template_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    template_version: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    region_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    region_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    topic_keywords: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    content_goals: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    classification_hints: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    target_sites: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON, default=list, nullable=False
+    )
+    execution_mode: Mapped[str] = mapped_column(String(32), nullable=False)
+    schedule_cron: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    crawl_policy: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    pipeline_policy: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="active", nullable=False)
+
+    data_source: Mapped[DataSource | None] = relationship()
+
+
+class CrawlerRun(TimestampMixin, Base):
+    __tablename__ = "crawler_run"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('running', 'succeeded', 'partial_failed', 'failed')",
+            name="ck_crawler_run_status",
+        ),
+        Index("ix_crawler_run_plan", "plan_id"),
+        Index("ix_crawler_run_status", "status"),
+        Index("ix_crawler_run_started_at", "started_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    plan_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("crawler_plan.id"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(32), default="running", nullable=False)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    template_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    template_config_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    region_sites_config_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+    plan: Mapped[CrawlerPlan] = relationship()
 
 
 class IngestBatch(TimestampMixin, Base):

@@ -31,7 +31,7 @@ Role constraints:
 ## P0 Scope
 
 - Local org/user/API caller management.
-- Data source registration and file/NAS/crawler ingestion, plus Mode B scan-task orchestration for configured NAS/Webhook/crawler/database sources.
+- Data source registration and file/NAS/crawler ingestion, plus Mode B scan-task orchestration for configured NAS/Webhook/crawler/database sources. Crawler supports low-frequency Firecrawl document acquisition through generic plans or the built-in quick-start plan; Firecrawl HTML/PDF/Markdown is routed to Pipeline A, while existing crawler JSON packages remain Pipeline B.
 - Raw object retention and ingest ledger.
 - `ingest_validate` job stage: format validation, virus scan, hash calculation, deduplication; writes `INGEST_VALIDATE_COMPLETED` / `INGEST_VALIDATE_FAILED` audit events.
 - `assetize` job stage: create/re-version `asset`/`asset_version` by `(data_source_id, source_object_key)` idempotency anchor.
@@ -103,7 +103,7 @@ Role constraints:
 P0 pages:
 
 - **工作台**: ingestion/job/review/AI adoption/rule overview/basic runtime state.
-- **数据源管理**: source registration, upload entry, NAS sync, crawler push config.
+- **数据源管理**: source registration, upload entry, NAS sync, crawler push config, and Crawler plans. Crawler plans support generic configuration (topic, target site URLs, execution plan) and one built-in quick-start plan backed by JSON configuration for national/provincial vocational-education policy, industry-education integration policy, ecommerce, digital-economy policy/report, and regional ecommerce/digital-economy data acquisition. Template and region whitelist sites are file-configured and are not maintained through Console.
 - **数据接入**: single file, batch upload, directory import, ingestion policy.
 - **原始数据台账**: batch query, raw object query, checksum, replay entry.
 - **作业中心**: job list, stage progress (including ingest_validate / assetize / parse / normalize), failure reason, retry, reprocess, re-governance.

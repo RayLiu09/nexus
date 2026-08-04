@@ -43,6 +43,7 @@ from nexus_api.api.internal.knowledge_outline_review import (
 )
 from nexus_api.api.internal.knowledge_retrieval import router as _knowledge_retrieval_router
 from nexus_api.api.internal.query_router import router as _query_router_v2_router
+from nexus_api.api.internal.crawler import router as _crawler_router
 
 # Auth router — separate top-level mount, no shared deps.
 from nexus_api.api.internal.auth import router as auth_router
@@ -137,6 +138,18 @@ from nexus_api.api.internal.knowledge_retrieval import (  # noqa: F401
     preview_knowledge_retrieval_plan,
     run_knowledge_retrieval_query,
 )
+from nexus_api.api.internal.crawler import (  # noqa: F401
+    get_crawler_config,
+    list_crawler_regions,
+    get_crawler_region_sites,
+    create_crawler_plan,
+    list_crawler_plans,
+    get_crawler_plan,
+    archive_crawler_plan,
+    run_crawler_plan,
+    list_crawler_runs,
+    get_crawler_run,
+)
 
 
 # Main router — prefix + JWT dependency applied here once.
@@ -169,6 +182,7 @@ router.include_router(_knowledge_outline_router)
 router.include_router(_knowledge_outline_review_router)
 router.include_router(_knowledge_retrieval_router)
 router.include_router(_query_router_v2_router)
+router.include_router(_crawler_router)
 
 
 __all__ = ["router", "auth_router"]
