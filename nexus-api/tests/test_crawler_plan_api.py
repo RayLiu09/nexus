@@ -1,5 +1,55 @@
 from fastapi.testclient import TestClient
 
+from nexus_app import schemas as domain_schemas
+from nexus_app.crawler import service as crawler_service
+from nexus_app.crawler.firecrawl_client import (
+    DisabledFirecrawlDocumentClient,
+    FirecrawlDocumentSnapshot,
+    FirecrawlSearchResult,
+)
+from nexus_app.crawler import runner as crawler_runner
+
+
+class FakeFirecrawlClient:
+    def search(self, *, query, limit, include_domains, country, languages):
+        del query, limit, country, languages
+        self.include_domains = include_domains
+        return [
+            FirecrawlSearchResult(url="https://www.zj.gov.cn/policy/1.html", title="数字经济政策"),
+            FirecrawlSearchResult(url="https://www.zj.gov.cn/policy/1.html", title="重复 URL"),
+            FirecrawlSearchResult(url="https://zcom.zj.gov.cn/policy/1-copy.html", title="数字经济政策转载"),
+            FirecrawlSearchResult(url="https://www.zj.gov.cn/policy/2.html", title="无关页面"),
+        ]
+
+    def batch_scrape(self, *, urls, only_main_content, formats):
+        del only_main_content, formats
+        return [
+            FirecrawlDocumentSnapshot(
+                source_url=urls[0],
+                final_url=urls[0],
+                title="浙江省数字经济政策",
+                markdown="数字经济 " * 80,
+                html=None,
+                metadata={},
+            ),
+            FirecrawlDocumentSnapshot(
+                source_url=urls[1],
+                final_url=urls[1],
+                title="浙江省数字经济政策转载",
+                markdown="数字经济 " * 80,
+                html=None,
+                metadata={},
+            ),
+            FirecrawlDocumentSnapshot(
+                source_url=urls[2],
+                final_url=urls[2],
+                title="无关页面",
+                markdown="其他内容 " * 80,
+                html=None,
+                metadata={},
+            ),
+        ]
+
 
 def test_crawler_config_and_regions(app):
     client = TestClient(app)
@@ -27,7 +77,12 @@ def test_crawler_config_and_regions(app):
     assert any(site["base_url"] == "http://www.moe.gov.cn/" for site in national_sites)
 
 
-def test_create_quick_start_plan_defaults_and_fake_run(app):
+def test_create_quick_start_plan_defaults_and_unconfigured_run_fails(app, monkeypatch):
+    monkeypatch.setattr(
+        crawler_runner,
+        "create_default_firecrawl_document_client",
+        lambda: DisabledFirecrawlDocumentClient(),
+    )
     client = TestClient(app)
 
     create_resp = client.post(
@@ -55,8 +110,10 @@ def test_create_quick_start_plan_defaults_and_fake_run(app):
     assert run_resp.status_code == 200
     run = run_resp.json()["data"]
     assert run["plan_id"] == plan["id"]
-    assert run["status"] == "succeeded"
-    assert run["summary"]["runner"] == "fake"
+    assert run["status"] == "failed"
+    assert run["summary"]["runner"] == "firecrawl_sync"
+    assert run["summary"]["error_type"] == "firecrawl document client is not configured"
+    assert run["summary"]["accepted_count"] == 0
     assert run["summary"]["submitted_count"] == 0
     assert run["template_config_hash"].startswith("sha256:")
 
@@ -128,3 +185,35 @@ def test_archive_plan_blocks_runs(app):
     )
     assert run_resp.status_code == 409
     assert "not active" in run_resp.json()["error"]["message"]
+
+
+def test_firecrawl_runner_with_fake_client_accepts_and_filters(session):
+    plan = crawler_service.create_plan(
+        session,
+        domain_schemas.CrawlerPlanCreate(
+            name="浙江省政策报告采集",
+            mode="quick_start",
+            region_code="zhejiang",
+            execution_mode="run_once",
+        ),
+        trace_id="trace-test",
+    )
+
+    fake = FakeFirecrawlClient()
+    run = crawler_service.run_plan(session, plan.id, trace_id="trace-test", client=fake)
+
+    assert run.status == "partial_failed"
+    assert run.summary["runner"] == "firecrawl_sync"
+    assert run.summary["discovered_count"] == 4
+    assert run.summary["accepted_count"] == 2
+    assert run.summary["submitted_count"] == 2
+    assert run.summary["accepted_snapshots"][0]["url"] == "https://www.zj.gov.cn/policy/1.html"
+    assert run.summary["accepted_snapshots"][1]["url"] == "https://zcom.zj.gov.cn/policy/1-copy.html"
+    assert (
+        run.summary["accepted_snapshots"][0]["content_hash"]
+        == run.summary["accepted_snapshots"][1]["content_hash"]
+    )
+    assert run.summary["filtered_count"] == 2
+    assert run.summary["filter_reasons"] == {"duplicate_url": 1, "topic_mismatch": 1}
+    assert "zcom.zj.gov.cn" in fake.include_domains
+    assert "www.zj.gov.cn" in fake.include_domains

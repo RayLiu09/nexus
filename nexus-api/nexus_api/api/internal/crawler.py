@@ -129,7 +129,7 @@ def run_crawler_plan(
     session: Session = Depends(get_db),
 ):
     try:
-        row = crawler_service.run_plan_fake(
+        row = crawler_service.run_plan(
             session,
             plan_id,
             trace_id=str(getattr(request.state, "trace_id", "")),

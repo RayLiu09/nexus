@@ -15,6 +15,8 @@ from nexus_app.crawler.config_loader import (
     load_region_sites,
     load_template,
 )
+from nexus_app.crawler.firecrawl_client import FirecrawlDocumentClient
+from nexus_app.crawler.runner import run_firecrawl_plan
 from nexus_app.crawler.url_safety import UnsafeCrawlerUrlError, validate_target_sites
 from nexus_app.enums import AuditEventType
 
@@ -190,13 +192,14 @@ def archive_plan(
     return row
 
 
-def run_plan_fake(
+def run_plan(
     session: Session,
     plan_id: str,
     *,
     trace_id: str | None = None,
     actor_type: str | None = None,
     actor_id: str | None = None,
+    client: FirecrawlDocumentClient | None = None,
 ) -> models.CrawlerRun:
     plan = session.get(models.CrawlerPlan, plan_id)
     if plan is None:
@@ -206,28 +209,22 @@ def run_plan_fake(
     template, template_hash = load_template()
     _, sites_hash = load_region_sites()
     now = datetime.now(timezone.utc)
-    summary = {
-        "runner": "fake",
-        "discovered_count": 0,
-        "filtered_count": 0,
-        "submitted_count": 0,
-        "failed_count": 0,
-        "filter_reasons": {},
-        "submitted": [],
-        "failures": [],
-        "target_site_count": len(plan.target_sites),
-        "template_config_hash": template_hash,
-        "region_sites_config_hash": sites_hash,
-    }
+    outcome = run_firecrawl_plan(
+        plan,
+        template=template,
+        template_hash=template_hash,
+        region_sites_hash=sites_hash,
+        client=client,
+    )
     row = models.CrawlerRun(
         plan_id=plan.id,
-        status="succeeded",
+        status=outcome.status,
         started_at=now,
-        finished_at=now,
+        finished_at=datetime.now(timezone.utc),
         template_code=plan.template_code or template.get("template_code"),
         template_config_hash=template_hash,
         region_sites_config_hash=sites_hash,
-        summary=summary,
+        summary=outcome.summary,
     )
     session.add(row)
     session.flush()
@@ -240,9 +237,9 @@ def run_plan_fake(
         {
             "plan_id": plan.id,
             "status": row.status,
-            "runner": "fake",
-            "submitted_count": 0,
-            "failed_count": 0,
+            "runner": outcome.summary.get("runner"),
+            "submitted_count": outcome.summary.get("submitted_count", 0),
+            "failed_count": outcome.summary.get("failed_count", 0),
         },
         actor_type=actor_type,
         actor_id=actor_id,

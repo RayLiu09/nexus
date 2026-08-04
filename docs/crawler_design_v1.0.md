@@ -22,8 +22,9 @@
 - 官方权威站点通过 JSON 配置定义；Console 不提供模板或站点配置维护界面。
 - 区域选择默认全国，可选择省份；不同区域对应不同官方权威站点列表。
 - 官方权威站点列表是来源种子和权威性证据，不表示 Crawler 只能从这些站点搜索信息。
-- Crawler 是低频同步运行任务；同步边界到 Firecrawl 抓取完成、`raw_object` 持久化和 Pipeline Job 提交，不等待 Pipeline A 全链路完成。
+- Crawler 是低频同步运行任务；实施分两段落地。`firecrawl_sync_runner` 切片的同步边界到 Firecrawl 抓取完成、自动过滤和 `crawler_run.summary`；`crawler_pipeline_a_ingest` 切片再补充 `raw_object` 持久化和 Pipeline Job 提交，且不等待 Pipeline A 全链路完成。
 - 不做候选 URL 人工审核；自动过滤和失败只进入运行摘要诊断。
+- 爬取内容必须在 `raw_object` 入库阶段去重：同一次 run 中多个 URL 返回同一份内容、多次 run 抓到同一份内容，均不得重复创建有效原始对象、资产版本或索引内容。
 - `pipeline_type` 在 ingest gateway 创建 Job 时冻结；Worker 只读取 `Job.payload.pipeline_type`，不做运行时推断。
 - AI 治理输入只能是 `normalized_document` 或 `normalized_record`（经 `normalized_asset_ref`），不能是 Firecrawl 原始输出、raw snapshot 或搜索摘要。
 
@@ -47,9 +48,10 @@ internal crawler API
         v
 同步 run_plan
   -> Firecrawl Search / Scrape / Batch Scrape / controlled Crawl
-  -> URL safety + 官方权威站点证据/path 校验 + 自动质量门
-  -> raw_object
-  -> Job(payload.pipeline_type="document")
+  -> URL safety + 官方权威站点证据/path 校验 + 自动质量门 + URL 去重
+  -> accepted_snapshot summary
+  -> raw_object                       # crawler_pipeline_a_ingest
+  -> Job(payload.pipeline_type="document")  # crawler_pipeline_a_ingest
         |
         v
 Pipeline A
@@ -180,7 +182,7 @@ nexus-app/config/policy_report_regional_v1.json
 }
 ```
 
-实现必须记录模板配置 hash：`crawler_run.summary.template_config_hash`，并写入 `raw_object.metadata_summary`。
+实现必须记录模板配置 hash：`crawler_run.summary.template_config_hash`；后续 `crawler_pipeline_a_ingest` 切片还必须写入 `raw_object.metadata_summary`。
 
 ### 4.2 区域官方权威站点配置
 
@@ -286,7 +288,7 @@ nexus-app/config/crawler_region_sites.json
 }
 ```
 
-实现必须记录站点配置 hash：`crawler_run.summary.region_sites_config_hash`，并写入 `raw_object.metadata_summary`。
+实现必须记录站点配置 hash：`crawler_run.summary.region_sites_config_hash`；后续 `crawler_pipeline_a_ingest` 切片还必须写入 `raw_object.metadata_summary`。
 
 ### 4.3 URL 安全与官方站点规则
 
@@ -300,6 +302,17 @@ nexus-app/config/crawler_region_sites.json
 - 默认 `max_discovery_depth<=1`，系统级上限不得被用户扩大。
 - 禁止无边界 `crawlEntireDomain`。
 - Search 可优先使用官方权威站点 host 作为 `includeDomains` 或权威性信号；用户未提供目标站点时执行受控全网搜索，最终 URL 仍必须通过安全、来源和质量门校验，且不能把官方站点配置误用成“只能搜索这些站点”的全局限制。
+
+### 4.4 去重规则
+
+Crawler 内容去重必须在 `raw_object` 入库阶段执行，不通过扫描历史 `crawler_run.summary` 完成。原因是 `crawler_run` 是执行台账，不是去重索引；历史运行过多时扫描 summary 不具备可扩展性，也容易把诊断字段误当事实来源。
+
+当前 `firecrawl_sync_runner` 只做两件事：
+
+1. Search 返回 URL 的本次 run 内去重，避免对完全相同 URL 重复 scrape；重复 URL 记入 `filter_reasons.duplicate_url`。
+2. 对通过质量门的内容计算 `content_hash=sha256:<hash>` 并写入 `accepted_snapshots`，作为后续 `raw_object.checksum` 的输入证据。
+
+后续 `crawler_pipeline_a_ingest` 必须基于 `raw_object.checksum`、`source_object_key` 和 assetize 幂等规则执行内容级去重。同一份文件从多个来源获取时，允许保留多个来源证据到 lineage，但不得重复创建有效原始对象、可用资产版本或重复提交同内容索引。去重只保存 hash、URL 和原因码，不在 run summary 或审计中保存大段正文。
 
 ---
 
@@ -335,22 +348,23 @@ Console 提供两种创建方式：
 
 ## 6. 同步运行与最小状态
 
-Crawler 是低频任务。第一阶段采用同步执行：后端接到运行请求后完成 Firecrawl 调用、自动过滤、`raw_object` 持久化和 Pipeline Job 提交后返回；不等待 Pipeline A 的 parse/normalize/governance/index 完成。
+Crawler 是低频任务。当前 `firecrawl_sync_runner` 阶段采用同步执行：后端接到运行请求后完成 Firecrawl 调用、自动过滤和 `crawler_run.summary` 写入后返回。下一阶段 `crawler_pipeline_a_ingest` 在同一同步 runner 后半段补齐 `raw_object` 持久化和 Pipeline Job 提交，但仍不等待 Pipeline A 的 parse/normalize/governance/index 完成。
 
 `crawler_run.status` 只保留：
 
 | 状态 | 含义 |
 | --- | --- |
 | `running` | 本次采集正在同步执行 |
-| `succeeded` | Firecrawl 调用完成，符合条件内容已提交 Pipeline，没有阻断性失败 |
-| `partial_failed` | 至少一个内容提交 Pipeline，但存在抓取、过滤或入库失败 |
-| `failed` | 配置校验、Firecrawl 调用或入库全部失败 |
+| `succeeded` | Firecrawl 调用完成，符合条件内容已通过自动质量门，没有阻断性失败；后续入库切片中表示符合条件内容已提交 Pipeline |
+| `partial_failed` | 至少一个内容通过自动质量门，但存在抓取或过滤失败；后续入库切片还包括部分入库/提交失败 |
+| `failed` | 配置校验、Firecrawl 调用失败，或没有内容通过自动质量门；后续入库切片还包括全部入库失败 |
 
 第一阶段不需要 `crawler_run_item` 表。运行详情保存在 `crawler_run.summary`：
 
 ```json
 {
   "discovered_count": 42,
+  "accepted_count": 21,
   "filtered_count": 19,
   "submitted_count": 21,
   "failed_count": 2,
@@ -358,15 +372,20 @@ Crawler 是低频任务。第一阶段采用同步执行：后端接到运行请
     "outside_allowed_domain": 6,
     "topic_mismatch": 8,
     "empty_content": 3,
-    "unsafe_url": 2
+    "unsafe_url": 2,
+    "duplicate_url": 1
   },
-  "submitted": [
+  "accepted_snapshots": [
     {
       "url": "https://...",
-      "raw_object_id": "raw_...",
-      "job_id": "job_..."
+      "source_url": "https://...",
+      "title": "政策标题",
+      "content_hash": "sha256:...",
+      "content_chars": 12000,
+      "raw_representation": "html"
     }
   ],
+  "submitted": [],
   "failures": [
     {
       "url": "https://...",
@@ -411,6 +430,8 @@ POST/PATCH source registries
 candidate approve/reject
 ```
 
+当前 `firecrawl_sync_runner` 阶段，`submitted_count` 为兼容字段，含义等同 `accepted_count`，不代表已经创建 `raw_object` 或 Pipeline Job。`crawler_pipeline_a_ingest` 切片完成后，`submitted` 再记录 `raw_object_id` / `job_id`。
+
 `POST /run` 同步返回：
 
 ```json
@@ -419,16 +440,17 @@ candidate approve/reject
   "status": "succeeded",
   "summary": {
     "discovered_count": 30,
+    "accepted_count": 20,
     "filtered_count": 8,
     "submitted_count": 20,
     "failed_count": 2,
-    "submitted": [
+    "accepted_snapshots": [
       {
         "url": "https://...",
-        "raw_object_id": "raw_...",
-        "job_id": "job_..."
+        "content_hash": "sha256:..."
       }
     ],
+    "submitted": [],
     "filter_reasons": {
       "topic_mismatch": 5,
       "outside_allowed_domain": 3
