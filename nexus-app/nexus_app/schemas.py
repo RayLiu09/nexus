@@ -126,9 +126,7 @@ class NasConnectionConfig(BaseModel):
 
 class CrawlerConnectionConfig(BaseModel):
     """Crawler source connection configuration."""
-    target_url: str = Field(min_length=1, max_length=1024)
-    schedule_cron: str | None = Field(default=None, max_length=128)
-    auth_token: str | None = Field(default=None, max_length=512)
+    provider: Literal["firecrawl"] = "firecrawl"
 
 
 class DatabaseConnectionConfig(BaseModel):

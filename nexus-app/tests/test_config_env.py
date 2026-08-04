@@ -24,6 +24,16 @@ def test_env_dev_middleware_values_are_loaded():
     assert settings.ragflow_endpoint is None
 
 
+def test_env_dev_firecrawl_crawler_credit_guard_values_are_loaded():
+    settings = Settings()
+
+    assert settings.crawler_firecrawl_scrape_limit_enabled is True
+    assert settings.crawler_firecrawl_max_scrape_urls_per_run == 3
+    assert settings.crawler_firecrawl_proxy == "basic"
+    assert settings.crawler_firecrawl_max_concurrency == 1
+    assert settings.crawler_firecrawl_cache_max_age_ms == 172800000
+
+
 def test_env_dev_embedding_values_are_loaded():
     settings = Settings()
 
@@ -31,7 +41,7 @@ def test_env_dev_embedding_values_are_loaded():
     assert settings.default_embedding_dimension == 1024
     assert settings.default_embedding_distance_metric == "cosine"
     assert settings.embedding_batch_size == 32
-    assert settings.embedding_timeout == 60.0
+    assert settings.embedding_timeout == 180.0
     assert settings.effective_embedding_model_alias == "bge-m3:latest"
     assert settings.tag_embedding_model == "quentinz/bge-small-zh-v1.5"
     assert settings.tag_embedding_dimension == 512

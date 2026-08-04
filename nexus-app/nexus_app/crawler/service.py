@@ -21,13 +21,44 @@ from nexus_app.crawler.config_loader import (
 from nexus_app.crawler.firecrawl_client import FirecrawlDocumentClient, FirecrawlDocumentSnapshot
 from nexus_app.crawler.runner import run_firecrawl_plan
 from nexus_app.crawler.url_safety import UnsafeCrawlerUrlError, validate_target_sites
-from nexus_app.enums import AuditEventType, PipelineType
+from nexus_app.enums import AuditEventType, DataSourceStatus, DataSourceType, PipelineType
 from nexus_app.ingest import batch as ingest_batch
 from nexus_app.storage import ObjectStorage, get_object_storage
 
 
 class CrawlerPlanError(ValueError):
     pass
+
+
+BUILTIN_FIRECRAWL_SOURCE_ID = "__builtin_firecrawl__"
+BUILTIN_FIRECRAWL_SOURCE_CODE = "ds_crawler_firecrawl_builtin"
+
+
+def _ensure_builtin_firecrawl_data_source(session: Session) -> models.DataSource:
+    row = session.scalar(
+        select(models.DataSource).where(models.DataSource.code == BUILTIN_FIRECRAWL_SOURCE_CODE)
+    )
+    if row is not None:
+        return row
+    row = models.DataSource(
+        code=BUILTIN_FIRECRAWL_SOURCE_CODE,
+        name="Firecrawl 内置源",
+        source_type=DataSourceType.CRAWLER,
+        status=DataSourceStatus.ENABLED,
+        org_scope_hint=[],
+        default_governance_hints={},
+        connection_config={"provider": "firecrawl", "managed_by": "environment"},
+        description="Firecrawl crawler source configured by server environment variables.",
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
+def _resolve_plan_data_source_id(session: Session, data_source_id: str | None) -> str | None:
+    if data_source_id == BUILTIN_FIRECRAWL_SOURCE_ID:
+        return _ensure_builtin_firecrawl_data_source(session).id
+    return data_source_id
 
 
 def _site_to_dict(site: schemas.CrawlerTargetSite | dict[str, Any]) -> dict[str, Any]:
@@ -88,6 +119,7 @@ def create_plan(
     template, template_hash = load_template()
     _, sites_hash = load_region_sites()
     region_code = payload.region_code or template.get("default_region_code", "national")
+    data_source_id = _resolve_plan_data_source_id(session, payload.data_source_id)
 
     if payload.mode == "quick_start":
         region = read_region_sites(region_code)
@@ -130,7 +162,7 @@ def create_plan(
     row = models.CrawlerPlan(
         name=payload.name,
         mode=payload.mode,
-        data_source_id=payload.data_source_id,
+        data_source_id=data_source_id,
         template_code=template_code,
         template_version=template_version,
         region_code=region_code if payload.mode == "quick_start" else payload.region_code,

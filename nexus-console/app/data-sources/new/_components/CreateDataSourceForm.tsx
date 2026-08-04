@@ -9,7 +9,7 @@ import { CronPicker } from "./CronPicker";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
-type SourceTypeValue = "file_upload" | "nas" | "crawler" | "database" | "webhook";
+type SourceTypeValue = "file_upload" | "nas" | "database" | "webhook";
 
 interface SourceTypeOption {
   value: SourceTypeValue;
@@ -35,13 +35,6 @@ const SOURCE_TYPES: SourceTypeOption[] = [
     scenario: "适合教务、行政等组织内固定共享盘",
   },
   {
-    value: "crawler",
-    label: "Crawler 爬虫",
-    icon: "🕷",
-    desc: "按规则抓取 Web 页面",
-    scenario: "适合定期抓取公告、政策、外部知识库",
-  },
-  {
     value: "database",
     label: "数据库对接",
     icon: "🗄",
@@ -65,7 +58,6 @@ interface WizardState {
   orgScopeHint: string;
   cfgMountPath: string;
   cfgScanPattern: string;
-  cfgTargetUrl: string;
   cfgScheduleCron: string;
   cfgAuthToken: string;
   cfgConnectionString: string;
@@ -82,7 +74,6 @@ const INITIAL_STATE: WizardState = {
   orgScopeHint: "",
   cfgMountPath: "",
   cfgScanPattern: "",
-  cfgTargetUrl: "",
   cfgScheduleCron: "",
   cfgAuthToken: "",
   cfgConnectionString: "",
@@ -109,14 +100,6 @@ function validateConnection(state: WizardState): string | null {
       return null;
     case "nas":
       if (!state.cfgMountPath.trim()) return "挂载路径必填";
-      return null;
-    case "crawler":
-      if (!state.cfgTargetUrl.trim()) return "目标 URL 必填";
-      try {
-        new URL(state.cfgTargetUrl);
-      } catch {
-        return "目标 URL 格式不合法";
-      }
       return null;
     case "database":
       if (!state.cfgConnectionString.trim()) return "连接字符串必填";
@@ -148,7 +131,6 @@ export function CreateDataSourceForm({ action, preselectedType }: CreateDataSour
   const [step, setStep] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
 
-  // file_upload 类型跳过 "连接配置" 步骤
   const totalSteps = hasConnectionConfig(state.sourceType) ? 4 : 3;
   const stepTitles = hasConnectionConfig(state.sourceType)
     ? ["选类型", "基础信息", "连接配置", "确认"]
@@ -196,13 +178,6 @@ export function CreateDataSourceForm({ action, preselectedType }: CreateDataSour
         <>
           <input type="hidden" name="cfg_mount_path" value={state.cfgMountPath} />
           <input type="hidden" name="cfg_scan_pattern" value={state.cfgScanPattern} />
-        </>
-      )}
-      {state.sourceType === "crawler" && (
-        <>
-          <input type="hidden" name="cfg_target_url" value={state.cfgTargetUrl} />
-          <input type="hidden" name="cfg_schedule_cron" value={state.cfgScheduleCron} />
-          <input type="hidden" name="cfg_auth_token" value={state.cfgAuthToken} />
         </>
       )}
       {state.sourceType === "database" && (
@@ -312,30 +287,6 @@ export function CreateDataSourceForm({ action, preselectedType }: CreateDataSour
               </Form.Item>
             </>
           )}
-          {state.sourceType === "crawler" && (
-            <>
-              <Form.Item label="目标 URL" required>
-                <Input
-                  value={state.cfgTargetUrl}
-                  onChange={(e) => update("cfgTargetUrl", e.target.value)}
-                  placeholder="https://example.edu.cn/resources"
-                />
-              </Form.Item>
-              <Form.Item label="调度计划">
-                <CronPicker
-                  value={state.cfgScheduleCron}
-                  onChange={(c) => update("cfgScheduleCron", c)}
-                />
-              </Form.Item>
-              <Form.Item label="认证 Token" extra="如目标需认证则填写">
-                <Input.Password
-                  value={state.cfgAuthToken}
-                  onChange={(e) => update("cfgAuthToken", e.target.value)}
-                  placeholder="Bearer xxx"
-                />
-              </Form.Item>
-            </>
-          )}
           {state.sourceType === "database" && (
             <>
               <Form.Item label="连接字符串" required>
@@ -416,25 +367,6 @@ export function CreateDataSourceForm({ action, preselectedType }: CreateDataSour
                 {state.cfgScanPattern && (
                   <Descriptions.Item label="扫描模式">
                     <code className="font-mono text-xs">{state.cfgScanPattern}</code>
-                  </Descriptions.Item>
-                )}
-              </>
-            )}
-            {state.sourceType === "crawler" && (
-              <>
-                <Descriptions.Item label="目标 URL">
-                  <code className="font-mono text-xs">{state.cfgTargetUrl}</code>
-                </Descriptions.Item>
-                <Descriptions.Item label="调度计划">
-                  {state.cfgScheduleCron ? (
-                    <code className="font-mono text-xs">{state.cfgScheduleCron}</code>
-                  ) : (
-                    <span className="text-text-muted text-xs">不定时（仅手动触发）</span>
-                  )}
-                </Descriptions.Item>
-                {state.cfgAuthToken && (
-                  <Descriptions.Item label="认证 Token">
-                    <Tag color="orange">已设置</Tag>
                   </Descriptions.Item>
                 )}
               </>

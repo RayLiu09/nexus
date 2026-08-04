@@ -75,6 +75,72 @@ export type DataSource = {
   updated_at: string;
 };
 
+export type CrawlerTargetSite = {
+  site_name?: string;
+  base_url: string;
+  source_kind?: string;
+  include_paths?: string[];
+  exclude_paths?: string[];
+  from_region_profile?: boolean;
+};
+
+export type CrawlerConfig = {
+  template: Record<string, unknown>;
+  template_config_hash: string;
+  region_sites_config_hash: string;
+  default_region_code: string;
+};
+
+export type CrawlerRegion = {
+  region_code: string;
+  region_name: string;
+  scope_type: string;
+  site_count: number;
+};
+
+export type CrawlerSites = {
+  region_code: string;
+  region_name: string;
+  scope_type: string;
+  sites: CrawlerTargetSite[];
+};
+
+export type CrawlerPlan = {
+  id: string;
+  name: string;
+  mode: "quick_start" | "custom";
+  data_source_id: string | null;
+  template_code: string | null;
+  template_version: string | null;
+  region_code: string | null;
+  region_name: string | null;
+  topic_keywords: string[];
+  content_goals: string[];
+  classification_hints: string[];
+  target_sites: CrawlerTargetSite[];
+  execution_mode: "run_once" | "scheduled";
+  schedule_cron: string | null;
+  crawl_policy: Record<string, unknown>;
+  pipeline_policy: Record<string, unknown>;
+  status: "active" | "disabled" | "archived";
+  created_at: string;
+  updated_at: string;
+};
+
+export type CrawlerRun = {
+  id: string;
+  plan_id: string;
+  status: "running" | "succeeded" | "partial_failed" | "failed";
+  started_at: string;
+  finished_at: string | null;
+  template_code: string | null;
+  template_config_hash: string | null;
+  region_sites_config_hash: string | null;
+  summary: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
 export type IngestBatch = {
   id: string;
   data_source_id: string;

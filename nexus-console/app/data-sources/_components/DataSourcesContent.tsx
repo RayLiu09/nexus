@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Button, Card, Statistic, Tag, Tooltip } from "antd";
+import { Button, Card, Space, Statistic, Tag, Tooltip } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { Card as SharedCard } from "@/components/shared/Card";
 import { StatusLabel } from "@/components/StatusLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { formatTime } from "@/lib/format-time";
 import { type DataSource } from "@/lib/api";
+import { CrawlerPlansPanel } from "./CrawlerPlansPanel";
 
 export interface SyncInfo {
   /** 最近一个相关 ingest_batch 的 updated_at（ISO） */
@@ -29,11 +30,23 @@ const SOURCE_TYPE_META: Record<string, { icon: string; name: string; desc: strin
 interface DataSourcesContentProps {
   dataSources: DataSource[];
   syncInfoByDsId: Record<string, SyncInfo>;
+  selectedType: string | null;
 }
 
-export function DataSourcesContent({ dataSources, syncInfoByDsId }: DataSourcesContentProps) {
+export function DataSourcesContent({
+  dataSources,
+  syncInfoByDsId,
+  selectedType,
+}: DataSourcesContentProps) {
+  const validSelectedType = selectedType && SOURCE_TYPE_META[selectedType] ? selectedType : null;
+  const filteredDataSources = validSelectedType
+    ? dataSources.filter((source) => source.source_type === validSelectedType)
+    : dataSources;
   const activeCount = dataSources.filter((s) => s.status === "active").length;
   const typeCount = new Set(dataSources.map((s) => s.source_type)).size;
+  const filteredActiveCount = filteredDataSources.filter((s) => s.status === "active").length;
+  const selectedMeta = validSelectedType ? SOURCE_TYPE_META[validSelectedType] : null;
+  const showCrawlerPlans = validSelectedType === "crawler";
 
   return (
     <>
@@ -55,10 +68,6 @@ export function DataSourcesContent({ dataSources, syncInfoByDsId }: DataSourcesC
           <Statistic title="数据源类型" value={Object.keys(SOURCE_TYPE_META).length} />
           <div className="text-text-muted mt-1 text-xs">支持的连接器类型</div>
         </Card>
-        <Card size="small" className="metric-secondary">
-          <Statistic title="默认治理策略" value="自动" />
-          <div className="text-text-muted mt-1 text-xs">高置信自动采纳</div>
-        </Card>
       </div>
 
       {/* ── Source Card Grid ── */}
@@ -71,10 +80,19 @@ export function DataSourcesContent({ dataSources, syncInfoByDsId }: DataSourcesC
             marginBottom: 12,
           }}
         >
-          <h3 style={{ fontSize: 15, fontWeight: 600 }}>数据源连接器</h3>
-          <Button type="primary" icon={<PlusOutlined />} href="/data-sources/new">
-            新建数据源
-          </Button>
+          <Space>
+            <h3 style={{ fontSize: 15, fontWeight: 600 }}>数据源连接器</h3>
+            {validSelectedType && (
+              <Link href="/data-sources" className="text-xs">
+                查看全部
+              </Link>
+            )}
+          </Space>
+          {!showCrawlerPlans && (
+            <Button type="primary" icon={<PlusOutlined />} href="/data-sources/new">
+              新建数据源
+            </Button>
+          )}
         </div>
         <div
           style={{
@@ -85,8 +103,18 @@ export function DataSourcesContent({ dataSources, syncInfoByDsId }: DataSourcesC
         >
           {Object.entries(SOURCE_TYPE_META).map(([type, meta]) => {
             const count = dataSources.filter((s) => s.source_type === type).length;
+            const selected = validSelectedType === type;
             return (
-              <SharedCard key={type} variant="interactive" weight="tertiary" className="card-hover">
+              <SharedCard
+                key={type}
+                variant="interactive"
+                weight="tertiary"
+                className="card-hover"
+                style={{
+                  borderColor: selected ? "var(--brand)" : undefined,
+                  background: selected ? "var(--brand-50)" : undefined,
+                }}
+              >
                 <Link
                   href={`/data-sources?type=${type}`}
                   style={{ display: "block", textDecoration: "none", color: "inherit" }}
@@ -97,7 +125,7 @@ export function DataSourcesContent({ dataSources, syncInfoByDsId }: DataSourcesC
                     {meta.desc}
                   </div>
                   {count > 0 && (
-                    <Tag color="blue" style={{ fontSize: 11 }}>
+                    <Tag color={selected ? "green" : "blue"} style={{ fontSize: 11 }}>
                       {count} 个已注册
                     </Tag>
                   )}
@@ -108,9 +136,26 @@ export function DataSourcesContent({ dataSources, syncInfoByDsId }: DataSourcesC
         </div>
       </div>
 
-      {/* ── Registered Sources List —— 窄屏横向滚动避免列挤压 ── */}
-      {dataSources.length === 0 ? (
-        <EmptyState title="暂无已注册数据源" hint="新建一个数据源连接器来开始接入数据" />
+      {showCrawlerPlans ? (
+        <CrawlerPlansPanel />
+      ) : filteredDataSources.length === 0 ? (
+        <EmptyState
+          title={selectedMeta ? `暂无${selectedMeta.name}数据源` : "暂无已注册数据源"}
+          hint={
+            selectedMeta ? "新建该类型数据源后会显示在这里" : "新建一个数据源连接器来开始接入数据"
+          }
+          actions={
+            selectedMeta
+              ? [
+                  {
+                    label: `新建${selectedMeta.name}`,
+                    href: `/data-sources/new?type=${validSelectedType}`,
+                  },
+                  { label: "查看全部", href: "/data-sources", type: "default" },
+                ]
+              : undefined
+          }
+        />
       ) : (
         <div
           style={{
@@ -130,9 +175,11 @@ export function DataSourcesContent({ dataSources, syncInfoByDsId }: DataSourcesC
             }}
           >
             <div>
-              <div style={{ fontSize: 15, fontWeight: 600 }}>已注册数据源</div>
+              <div style={{ fontSize: 15, fontWeight: 600 }}>
+                {selectedMeta ? `${selectedMeta.name}数据源` : "已注册数据源"}
+              </div>
               <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
-                {dataSources.length} 个数据源 · {activeCount} 个活跃
+                {filteredDataSources.length} 个数据源 · {filteredActiveCount} 个活跃
               </div>
             </div>
           </div>
@@ -153,7 +200,7 @@ export function DataSourcesContent({ dataSources, syncInfoByDsId }: DataSourcesC
               <span>状态</span>
             </div>
             <div style={{ display: "grid", gap: 0, minWidth: "680px" }}>
-              {dataSources.map((source) => {
+              {filteredDataSources.map((source) => {
                 const meta = SOURCE_TYPE_META[source.source_type];
                 const info = syncInfoByDsId[source.id];
                 const isFileUpload = source.source_type === "file_upload";
@@ -235,25 +282,6 @@ export function DataSourcesContent({ dataSources, syncInfoByDsId }: DataSourcesC
               })}
             </div>
           </div>
-        </div>
-      )}
-
-      {/* ── 治理前置提醒 ── */}
-      {dataSources.length > 0 && (
-        <div
-          style={{
-            marginTop: 20,
-            padding: "14px 18px",
-            borderRadius: "var(--radius-lg)",
-            background: "var(--brand-50)",
-            border: "1px solid var(--brand-200)",
-            fontSize: 13,
-          }}
-        >
-          <strong style={{ display: "block", marginBottom: 4 }}>默认治理策略</strong>
-          新注册数据源默认启用「高置信自动采纳」策略。接入的数据将自动进入 AI
-          治理流水线，高置信结果直接落库，低置信进入人工审核队列。
-          如需调整，请在数据源详情中修改治理策略。
         </div>
       )}
     </>

@@ -23,16 +23,6 @@ const CONNECTOR_FIELDS: Record<string, ConnectorField[]> = {
     },
     { key: "scan_pattern", label: "扫描模式", placeholder: "**/*.pdf,**/*.docx" },
   ],
-  crawler: [
-    {
-      key: "target_url",
-      label: "目标 URL",
-      placeholder: "https://example.edu.cn/resources",
-      required: true,
-    },
-    { key: "schedule_cron", label: "调度 Cron", placeholder: "0 2 * * *" },
-    { key: "auth_token", label: "认证 Token", placeholder: "Bearer xxx", sensitive: true },
-  ],
   database: [
     {
       key: "connection_string",
@@ -86,6 +76,30 @@ export function ConnectorConfig({ dataSource }: { dataSource: DataSource }) {
   const fields = CONNECTOR_FIELDS[dataSource.source_type] ?? [];
   const config = dataSource.connection_config ?? {};
 
+  if (dataSource.source_type === "crawler") {
+    return (
+      <div
+        style={{
+          background: "var(--surface)",
+          border: "1px solid var(--line)",
+          borderRadius: "var(--radius-xl)",
+          padding: 20,
+          marginBottom: 20,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>连接器配置</div>
+            <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>
+              Crawler 使用系统内置 Firecrawl，连接地址和 Token 由服务器环境变量管理。
+            </div>
+          </div>
+          <Tag color="green">Firecrawl</Tag>
+        </div>
+      </div>
+    );
+  }
+
   const openEdit = () => {
     const initial: Record<string, string> = {};
     for (const f of fields) {
@@ -107,10 +121,7 @@ export function ConnectorConfig({ dataSource }: { dataSource: DataSource }) {
           payload[f.key] = val;
         }
       }
-      await patchApiData(
-        `/api/data-sources/${dataSource.id}`,
-        { connection_config: payload },
-      );
+      await patchApiData(`/api/data-sources/${dataSource.id}`, { connection_config: payload });
       message.success("连接器配置已保存");
       setDrawerOpen(false);
       window.location.reload();

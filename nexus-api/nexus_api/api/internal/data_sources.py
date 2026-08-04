@@ -14,7 +14,7 @@ from nexus_api.responses import list_response, response
 from nexus_app import models, schemas as domain_schemas, services
 from nexus_app.audit import write_audit
 from nexus_app.database import get_db
-from nexus_app.enums import AuditEventType, DataSourceStatus
+from nexus_app.enums import AuditEventType, DataSourceStatus, DataSourceType
 from nexus_app.ingest import batch as ingest_batch
 from nexus_app.ingest import scan as ingest_scan
 
@@ -31,6 +31,14 @@ def create_data_source(
     request: Request,
     session: Session = Depends(get_db),
 ):
+    if payload.source_type == DataSourceType.CRAWLER:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "crawler data source is managed by the built-in Firecrawl connector; "
+                "create crawler plans instead"
+            ),
+        )
     if payload.connection_config is not None:
         validate_connection_config(payload.source_type, payload.connection_config)
     return response(

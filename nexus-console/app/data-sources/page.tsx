@@ -12,7 +12,15 @@ function readScheduleCron(ds: DataSource): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
-export default async function DataSourcesPage() {
+interface DataSourcesPageProps {
+  searchParams?: Promise<{ type?: string | string[] }>;
+}
+
+export default async function DataSourcesPage({ searchParams }: DataSourcesPageProps) {
+  const rawSelectedType = (await searchParams)?.type ?? null;
+  const selectedType = Array.isArray(rawSelectedType)
+    ? (rawSelectedType[0] ?? null)
+    : rawSelectedType;
   const [sourcesResult, batchesResult] = await Promise.all([
     getApiData<DataSource[]>("/internal/v1/data-sources", []),
     getApiData<IngestBatch[]>("/internal/v1/ingest/batches", []),
@@ -54,7 +62,11 @@ export default async function DataSourcesPage() {
         traceId={sourcesResult.traceId ?? batchesResult.traceId}
       />
 
-      <DataSourcesContent dataSources={sourcesResult.data} syncInfoByDsId={syncInfoByDsId} />
+      <DataSourcesContent
+        dataSources={sourcesResult.data}
+        syncInfoByDsId={syncInfoByDsId}
+        selectedType={selectedType}
+      />
     </>
   );
 }

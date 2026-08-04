@@ -50,7 +50,20 @@ class FirecrawlDocumentClient(Protocol):
         urls: list[str],
         only_main_content: bool,
         formats: list[str],
+        proxy: str | None,
+        max_concurrency: int | None,
+        max_age_ms: int | None,
     ) -> list[FirecrawlDocumentSnapshot]: ...
+
+    def scrape(
+        self,
+        *,
+        url: str,
+        only_main_content: bool,
+        formats: list[str],
+        proxy: str | None,
+        max_age_ms: int | None,
+    ) -> FirecrawlDocumentSnapshot | None: ...
 
 
 class DisabledFirecrawlDocumentClient:
@@ -72,8 +85,23 @@ class DisabledFirecrawlDocumentClient:
         urls: list[str],
         only_main_content: bool,
         formats: list[str],
+        proxy: str | None,
+        max_concurrency: int | None,
+        max_age_ms: int | None,
     ) -> list[FirecrawlDocumentSnapshot]:
-        del urls, only_main_content, formats
+        del urls, only_main_content, formats, proxy, max_concurrency, max_age_ms
+        raise FirecrawlClientError("firecrawl document client is not configured")
+
+    def scrape(
+        self,
+        *,
+        url: str,
+        only_main_content: bool,
+        formats: list[str],
+        proxy: str | None,
+        max_age_ms: int | None,
+    ) -> FirecrawlDocumentSnapshot | None:
+        del url, only_main_content, formats, proxy, max_age_ms
         raise FirecrawlClientError("firecrawl document client is not configured")
 
 
@@ -121,18 +149,48 @@ class HttpFirecrawlDocumentClient:
         urls: list[str],
         only_main_content: bool,
         formats: list[str],
+        proxy: str | None,
+        max_concurrency: int | None,
+        max_age_ms: int | None,
     ) -> list[FirecrawlDocumentSnapshot]:
         if not urls:
             return []
+        payload: dict[str, Any] = {
+            "urls": urls,
+            "formats": formats,
+            "onlyMainContent": only_main_content,
+        }
+        scrape_options = _scrape_options(
+            proxy=proxy,
+            max_age_ms=max_age_ms,
+        )
+        if scrape_options:
+            payload["scrapeOptions"] = scrape_options
+        if max_concurrency is not None:
+            payload["maxConcurrency"] = max_concurrency
         data = self._post_json(
             "/v2/batch/scrape",
-            {
-                "urls": urls,
-                "formats": formats,
-                "onlyMainContent": only_main_content,
-            },
+            payload,
         )
         return _parse_batch_scrape_results(data, urls)
+
+    def scrape(
+        self,
+        *,
+        url: str,
+        only_main_content: bool,
+        formats: list[str],
+        proxy: str | None,
+        max_age_ms: int | None,
+    ) -> FirecrawlDocumentSnapshot | None:
+        payload: dict[str, Any] = {
+            "url": url,
+            "formats": formats,
+            "onlyMainContent": only_main_content,
+        }
+        payload.update(_scrape_options(proxy=proxy, max_age_ms=max_age_ms))
+        data = self._post_json("/v2/scrape", payload)
+        return _parse_scrape_result(data, url)
 
     def _post_json(self, path: str, payload: dict[str, Any]) -> Any:
         try:
@@ -187,37 +245,41 @@ def _parse_search_results(payload: Any) -> list[FirecrawlSearchResult]:
     return results
 
 
+def _scrape_options(
+    *,
+    proxy: str | None,
+    max_age_ms: int | None,
+) -> dict[str, Any]:
+    options: dict[str, Any] = {}
+    if proxy:
+        options["proxy"] = proxy
+    if max_age_ms is not None:
+        options["maxAge"] = max_age_ms
+    return options
+
+
 def _parse_batch_scrape_results(payload: Any, requested_urls: list[str]) -> list[FirecrawlDocumentSnapshot]:
     candidates = _extract_data_list(payload)
     snapshots: list[FirecrawlDocumentSnapshot] = []
     for index, item in enumerate(candidates):
         if not isinstance(item, dict):
             continue
-        metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
-        source_url = str(
-            item.get("url")
-            or item.get("sourceURL")
-            or metadata.get("sourceURL")
-            or (requested_urls[index] if index < len(requested_urls) else "")
-        )
-        final_url = str(
-            item.get("finalUrl")
-            or item.get("finalURL")
-            or metadata.get("url")
-            or metadata.get("sourceURL")
-            or source_url
-        )
         snapshots.append(
-            FirecrawlDocumentSnapshot(
-                source_url=source_url,
-                final_url=final_url,
-                title=_optional_text(item.get("title") or metadata.get("title")),
-                markdown=_optional_text(item.get("markdown")),
-                html=_optional_text(item.get("html")),
-                metadata=dict(metadata),
+            _snapshot_from_item(
+                item,
+                requested_urls[index] if index < len(requested_urls) else "",
             )
         )
     return snapshots
+
+
+def _parse_scrape_result(payload: Any, requested_url: str) -> FirecrawlDocumentSnapshot | None:
+    if not isinstance(payload, dict):
+        return None
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        return None
+    return _snapshot_from_item(data, requested_url)
 
 
 def _extract_data_list(payload: Any) -> list[Any]:
@@ -233,6 +295,31 @@ def _extract_data_list(payload: Any) -> list[Any]:
     if isinstance(data, list):
         return data
     return []
+
+
+def _snapshot_from_item(item: dict[str, Any], requested_url: str) -> FirecrawlDocumentSnapshot:
+    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+    source_url = str(
+        item.get("url")
+        or item.get("sourceURL")
+        or metadata.get("sourceURL")
+        or requested_url
+    )
+    final_url = str(
+        item.get("finalUrl")
+        or item.get("finalURL")
+        or metadata.get("url")
+        or metadata.get("sourceURL")
+        or source_url
+    )
+    return FirecrawlDocumentSnapshot(
+        source_url=source_url,
+        final_url=final_url,
+        title=_optional_text(item.get("title") or metadata.get("title")),
+        markdown=_optional_text(item.get("markdown")),
+        html=_optional_text(item.get("html")),
+        metadata=dict(metadata),
+    )
 
 
 def _optional_text(value: Any) -> str | None:

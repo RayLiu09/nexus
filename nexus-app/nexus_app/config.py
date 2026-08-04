@@ -110,6 +110,21 @@ class Settings(BaseSettings):
     firecrawl_api_key: str | None = Field(
         default=None, alias="FIRECRAWL_API_KEY",
     )
+    crawler_firecrawl_scrape_limit_enabled: bool = Field(
+        default=False, alias="CRAWLER_FIRECRAWL_SCRAPE_LIMIT_ENABLED",
+    )
+    crawler_firecrawl_max_scrape_urls_per_run: int = Field(
+        default=3, ge=1, alias="CRAWLER_FIRECRAWL_MAX_SCRAPE_URLS_PER_RUN",
+    )
+    crawler_firecrawl_proxy: str = Field(
+        default="basic", alias="CRAWLER_FIRECRAWL_PROXY",
+    )
+    crawler_firecrawl_max_concurrency: int = Field(
+        default=1, ge=1, alias="CRAWLER_FIRECRAWL_MAX_CONCURRENCY",
+    )
+    crawler_firecrawl_cache_max_age_ms: int = Field(
+        default=172800000, ge=0, alias="CRAWLER_FIRECRAWL_CACHE_MAX_AGE_MS",
+    )
     default_governance_model: str = Field(
         default="gpt-4o-mini",
         alias="DEFAULT_GOVERNANCE_MODEL",

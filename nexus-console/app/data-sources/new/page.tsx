@@ -15,13 +15,6 @@ function buildConnectionConfig(formData: FormData): Record<string, unknown> | nu
     const scanPattern = String(formData.get("cfg_scan_pattern") ?? "").trim();
     if (mountPath) config.mount_path = mountPath;
     if (scanPattern) config.scan_pattern = scanPattern;
-  } else if (sourceType === "crawler") {
-    const targetUrl = String(formData.get("cfg_target_url") ?? "").trim();
-    const cron = String(formData.get("cfg_schedule_cron") ?? "").trim();
-    const token = String(formData.get("cfg_auth_token") ?? "").trim();
-    if (targetUrl) config.target_url = targetUrl;
-    if (cron) config.schedule_cron = cron;
-    if (token) config.auth_token = token;
   } else if (sourceType === "database") {
     const connStr = String(formData.get("cfg_connection_string") ?? "").trim();
     const query = String(formData.get("cfg_query") ?? "").trim();
@@ -79,6 +72,34 @@ export default async function NewDataSourcePage({ searchParams }: Props) {
   const params = await searchParams;
   const error = typeof params.error === "string" ? params.error : null;
   const preselectedType = typeof params.type === "string" ? params.type : "";
+
+  if (preselectedType === "crawler") {
+    return (
+      <>
+        <PageHeader
+          eyebrow="数据源 — Crawler"
+          title="Crawler 使用内置 Firecrawl"
+          description="系统仅支持 Firecrawl 作为 Crawler 连接器，连接配置由服务器环境变量管理；无需新建 Crawler 数据源。"
+          actions={
+            <Link href="/data-sources?type=crawler" style={{ fontSize: 13, color: "var(--brand)" }}>
+              ← 返回 Crawler 计划
+            </Link>
+          }
+        />
+        <div
+          style={{
+            padding: "16px 20px",
+            borderRadius: "var(--radius-lg)",
+            background: "var(--surface)",
+            border: "1px solid var(--line)",
+            fontSize: 13,
+          }}
+        >
+          请在 Crawler 计划列表中创建爬虫计划，计划会自动使用系统内置的 Firecrawl 源。
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
