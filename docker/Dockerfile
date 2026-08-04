@@ -4,6 +4,8 @@ ARG PYTHON_VERSION=3.11-slim
 ARG NODE_VERSION=24-bookworm-slim
 ARG DOCKERHUB_MIRROR=docker.m.daocloud.io/library
 ARG PYPI_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ARG PYPI_PACKAGE_BASE_URL=https://pypi.tuna.tsinghua.edu.cn/packages/
+ARG UV_HTTP_TIMEOUT=300
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 
 # ---------------------------------------------------------------------------
@@ -15,11 +17,14 @@ ARG NPM_REGISTRY=https://registry.npmmirror.com
 FROM ${DOCKERHUB_MIRROR}/python:${PYTHON_VERSION} AS nexus-api
 
 ARG PYPI_INDEX_URL
+ARG PYPI_PACKAGE_BASE_URL
+ARG UV_HTTP_TIMEOUT
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     UV_LINK_MODE=copy \
     UV_INDEX_URL=${PYPI_INDEX_URL} \
+    UV_HTTP_TIMEOUT=${UV_HTTP_TIMEOUT} \
     PATH="/root/.local/bin:/app/nexus-api/.venv/bin:${PATH}"
 
 WORKDIR /app
@@ -32,8 +37,8 @@ COPY nexus-api/pyproject.toml nexus-api/uv.lock ./nexus-api/
 # build inputs so frozen installs cannot bypass the domestic index via those
 # historical upstream URLs; package versions and integrity hashes stay intact.
 RUN sed -i \
-      -e 's#https://pypi.org/simple#https://pypi.tuna.tsinghua.edu.cn/simple#g' \
-      -e 's#https://files.pythonhosted.org/packages/#https://pypi.tuna.tsinghua.edu.cn/packages/#g' \
+      -e "s#https://pypi.org/simple#${PYPI_INDEX_URL}#g" \
+      -e "s#https://files.pythonhosted.org/packages/#${PYPI_PACKAGE_BASE_URL}#g" \
       ./nexus-app/uv.lock ./nexus-api/uv.lock
 COPY nexus-app ./nexus-app
 COPY nexus-api ./nexus-api
