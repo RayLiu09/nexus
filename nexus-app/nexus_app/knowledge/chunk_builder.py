@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
 from nexus_app.enums import ChunkType, ChunkingStrategy, EmbeddingStatus, SourceKind
@@ -62,6 +64,7 @@ def build_chunk(
         ] or None
         locator = _aggregate_locator(
             source_blocks,
+            normalized_ref_id=normalized_ref_id,
             heading_path=heading_path,
             md_spans=md_spans,
         )
@@ -88,6 +91,7 @@ def build_chunk(
 def _aggregate_locator(
     blocks: list[dict[str, Any]],
     *,
+    normalized_ref_id: str | None = None,
     heading_path: list[dict[str, Any]] | None = None,
     md_spans: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
@@ -125,6 +129,7 @@ def _aggregate_locator(
             "dom_index": b.get("dom_index") or (b.get("source_locator") or {}).get("dom_index"),
             "locator_type": b.get("locator_type") or (b.get("source_locator") or {}).get("locator_type"),
             "section_id": b.get("section_id") or (b.get("source_locator") or {}).get("section_id"),
+            "block_order": _block_order_of(b),
         }
         for b in blocks
     ]
@@ -154,16 +159,63 @@ def _aggregate_locator(
             min(r[0] for r in ranges),
             max(r[1] for r in ranges),
         ]
+    block_orders = [b["block_order"] for b in normalized if isinstance(b.get("block_order"), int)]
+    source_url = next((b["source_url"] for b in normalized if b.get("source_url")), None)
+    section_ids = [b["section_id"] for b in normalized if b.get("section_id")]
+    section_id = section_ids[0] if section_ids else None
+    heading_path = heading_path or []
 
     return {
         "page_start": page_start,
         "page_end": page_end,
         "bbox_union": bbox_union,
+        "block_start_order": min(block_orders) if block_orders else None,
+        "block_end_order": max(block_orders) if block_orders else None,
+        "source_url": source_url,
+        "section_id": section_id,
+        "section_key": _section_key(
+            normalized_ref_id=normalized_ref_id,
+            heading_path=heading_path,
+            section_id=section_id,
+            source_block_ids=[b["block_id"] for b in normalized if b.get("block_id")],
+        ),
         "blocks": normalized,
         "md_char_range": md_char_range,
         "md_spans": md_spans,
-        "heading_path": heading_path or [],
+        "heading_path": heading_path,
     }
+
+
+def _block_order_of(block: dict[str, Any]) -> int | None:
+    for key in ("seq_no", "order", "order_index", "block_order"):
+        value = block.get(key)
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+    return None
+
+
+def _section_key(
+    *,
+    normalized_ref_id: str | None,
+    heading_path: list[dict[str, Any]],
+    section_id: str | None,
+    source_block_ids: list[str],
+) -> str | None:
+    if not heading_path and not section_id and not source_block_ids:
+        return None
+    payload = {
+        "normalized_ref_id": normalized_ref_id,
+        "heading_path": [
+            {"level": item.get("level"), "title": item.get("title")}
+            for item in heading_path
+        ],
+        "section_id": section_id,
+        "source_block_ids": source_block_ids,
+    }
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
 
 def _is_bbox(value: Any) -> bool:

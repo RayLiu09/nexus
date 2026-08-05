@@ -53,6 +53,9 @@ def extract_html_main_content(
     markdown = _normalize_markdown(extracted)
     if not markdown:
         raise HtmlMainContentExtractionError("crawler HTML extractor produced empty markdown")
+    markdown, promoted_headings = _promote_policy_headings(markdown)
+    if promoted_headings:
+        quality_flags.append("policy_heading_promoted")
 
     title = _pick_title(
         title_hint=title_hint,
@@ -375,6 +378,43 @@ def _ensure_markdown_title(title: str, markdown: str) -> tuple[str, bool]:
     if not title or re.search(r"^#\s+", markdown, flags=re.MULTILINE):
         return markdown, False
     return f"# {title}\n\n{markdown}" if markdown else f"# {title}", True
+
+
+_POLICY_INLINE_HEADING_RE = re.compile(
+    r"^("
+    r"(?:[一二三四五六七八九十]+[、.．]|[（(][一二三四五六七八九十\d]+[）)])"
+    r"[^。；;：:\n]{2,48}"
+    r")(?=(?:一是|二是|三是|四是|五是|首先|其次|另外|再次|下一步|目前|截至|根据|按照|为|在|对|将))"
+)
+
+
+def _promote_policy_headings(markdown: str) -> tuple[str, list[str]]:
+    """Split policy-style inline headings into Markdown heading blocks.
+
+    Some government pages flatten section headings and the following paragraph
+    into one text node, e.g. ``一、重点任务一是...``.  Splitting before block
+    construction gives retrieval a stable section boundary without depending
+    on the source DOM.
+    """
+    parts = [part.strip() for part in re.split(r"\n\s*\n", markdown) if part.strip()]
+    out: list[str] = []
+    promoted: list[str] = []
+    for part in parts:
+        match = _POLICY_INLINE_HEADING_RE.match(_plain_text(part))
+        if match:
+            heading = match.group(1).strip()
+            rest = part[len(match.group(1)):].strip()
+            if heading and rest:
+                level = 3 if re.match(r"^[（(]", heading) else 2
+                out.append(f"{'#' * level} {heading}")
+                out.append(rest)
+                promoted.append(heading)
+                continue
+        if _heading_match(part) or _block_type(part) in {"list", "table", "code"}:
+            out.append(part)
+            continue
+        out.append(part)
+    return "\n\n".join(out), promoted
 
 
 def _heading_match(part: str) -> tuple[int, str] | None:

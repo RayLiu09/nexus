@@ -19,7 +19,13 @@ def _block(bid: str, page: int, bbox, md_range=None) -> dict:
 
 def test_single_block_full_locator():
     loc = _aggregate_locator(
-        [_block("p-1", 5, [10, 20, 110, 60], md_range=[100, 220])],
+        [{
+            **_block("p-1", 5, [10, 20, 110, 60], md_range=[100, 220]),
+            "seq_no": 7,
+            "source_url": "https://example.gov.cn/policy",
+            "section_id": "sec-0002",
+        }],
+        normalized_ref_id="ref-1",
         heading_path=[{"level": 1, "title": "Ch 1"}],
     )
     assert loc["page_start"] == 5
@@ -28,7 +34,13 @@ def test_single_block_full_locator():
     assert loc["md_char_range"] == [100, 220]
     assert loc["md_spans"] is None
     assert loc["heading_path"] == [{"level": 1, "title": "Ch 1"}]
+    assert loc["block_start_order"] == 7
+    assert loc["block_end_order"] == 7
+    assert loc["source_url"] == "https://example.gov.cn/policy"
+    assert loc["section_id"] == "sec-0002"
+    assert loc["section_key"]
     assert loc["blocks"][0]["md_char_range"] == [100, 220]
+    assert loc["blocks"][0]["block_order"] == 7
 
 
 def test_multi_block_same_page_merges_bbox_and_md_envelope():

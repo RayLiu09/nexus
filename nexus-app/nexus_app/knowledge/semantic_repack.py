@@ -171,6 +171,14 @@ _METRIC_VALUE_RE = re.compile(
 )
 _METRIC_GROUP_RE = re.compile(r"(^\s*\d+[、.．]\s*|主要.*数据|核心.*指标|关键.*指标|电商数据|指标)")
 _SECTION_HEADING_RE = re.compile(r"^\s*([（(][一二三四五六七八九十]+[）)]|第[一二三四五六七八九十\d]+[章节篇])")
+_POLICY_SECTION_HEADING_RE = re.compile(
+    r"^\s*("
+    r"[一二三四五六七八九十]+[、.．]"
+    r"|[（(][一二三四五六七八九十\d]+[）)]"
+    r"|\d+\s*[.．、]"
+    r"|第[一二三四五六七八九十\d]+[章节篇]"
+    r")\s*[^。！？!?；;\n]{2,60}\s*[。.]?\s*$"
+)
 _SHORT_SECTION_TITLE_RE = re.compile(
     r"^\s*(编写说明|前\s*言|序\s*言|绪\s*论|导\s*言|内容提要|出版说明|"
     r"项目[一二三四五六七八九十\d]+|任务[一二三四五六七八九十\d]+)\s*$"
@@ -613,6 +621,56 @@ def _is_short_section_title(block: dict[str, Any]) -> bool:
     if not text or len(re.sub(r"\s+", "", text)) > 20:
         return False
     return bool(_SHORT_SECTION_TITLE_RE.match(text))
+
+
+def promote_policy_heading_blocks(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Treat short policy-outline paragraphs as heading context.
+
+    MinerU and some HTML adapters occasionally emit headings such as
+    ``（三）建设产教融合实训基地`` or ``7. 加大实训基地支持力度`` as paragraph
+    blocks.  Promoting only short outline-shaped blocks improves section
+    context while keeping long factual paragraphs chunkable.
+    """
+    promoted: list[dict[str, Any]] = []
+    for block in blocks:
+        if block.get("block_type") in _HEADING_TYPES:
+            promoted.append(block)
+            continue
+        if block.get("block_type") not in {"paragraph", "list"}:
+            promoted.append(block)
+            continue
+        text = _text_of(block).strip()
+        if not _is_policy_section_heading_text(text):
+            promoted.append(block)
+            continue
+        copy = dict(block)
+        copy["block_type"] = "heading"
+        copy["heading_level"] = _policy_heading_level(text)
+        metadata = dict(copy.get("metadata") or {})
+        metadata["semantic_role"] = "promoted_policy_heading"
+        copy["metadata"] = metadata
+        promoted.append(copy)
+    return promoted
+
+
+def _is_policy_section_heading_text(text: str) -> bool:
+    compact = re.sub(r"\s+", "", text)
+    if len(compact) < 4 or len(compact) > 80:
+        return False
+    if _METRIC_VALUE_RE.search(compact):
+        return False
+    return bool(_POLICY_SECTION_HEADING_RE.match(text))
+
+
+def _policy_heading_level(text: str) -> int:
+    stripped = text.strip()
+    if re.match(r"^[一二三四五六七八九十]+[、.．]|^第[一二三四五六七八九十\d]+[章节篇]", stripped):
+        return 2
+    if re.match(r"^[（(][一二三四五六七八九十]+[）)]", stripped):
+        return 3
+    if re.match(r"^[（(]\d+[）)]|^\d+\s*[.．、]", stripped):
+        return 4
+    return 3
 
 
 # ---------------------------------------------------------------------------
@@ -1140,6 +1198,9 @@ def _descriptor(block: dict[str, Any]) -> dict[str, Any]:
     return {
         "block_id": block.get("block_id"),
         "block_type": block.get("block_type"),
+        "seq_no": block.get("seq_no"),
+        "order": block.get("order"),
+        "order_index": block.get("order_index"),
         "page": block.get("page"),
         "bbox": block.get("bbox"),
         "md_char_range": block.get("md_char_range"),
@@ -1173,6 +1234,27 @@ def _anchor_role_of(cand: dict[str, Any]) -> str:
     if btype == "equation":
         return "equation"
     return "body"
+
+
+def dedupe_units_by_content(units: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop repeated long exact-text units within one normalized document."""
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for unit in units:
+        key = _dedupe_key(unit.get("content") or "")
+        if key and key in seen:
+            continue
+        if key:
+            seen.add(key)
+        out.append(unit)
+    return out
+
+
+def _dedupe_key(content: str) -> str | None:
+    compact = re.sub(r"\s+", "", content)
+    if len(compact) < 40:
+        return None
+    return compact
 
 
 # ---------------------------------------------------------------------------
@@ -1266,6 +1348,7 @@ def repack(
     """
     if not blocks:
         return []
+    blocks = promote_policy_heading_blocks(blocks)
     n0 = len(blocks)
     metric_blocks, metric_heading_ids = extract_metric_image_blocks(blocks)
     step1 = drop_navigational(blocks)
@@ -1275,7 +1358,9 @@ def repack(
     step4b = drop_post_merge_noise(step4)
     step5 = decompose_atomic_tables(step4b, body_markdown=body_markdown)
     candidates = sorted([*metric_blocks, *step5], key=lambda b: (b.get("seq_no") is None, b.get("seq_no") or 0))
-    units = enrich_context(candidates, original_blocks=blocks, heading_exclude_ids=metric_heading_ids)
+    units = dedupe_units_by_content(
+        enrich_context(candidates, original_blocks=blocks, heading_exclude_ids=metric_heading_ids)
+    )
     logger.info(
         "semantic_repack: in=%d nav-drop→%d meaningless-drop→%d "
         "attribution-fold→%d merge→%d post-merge-drop→%d table-decompose→%d units=%d body_md_len=%d",

@@ -329,3 +329,37 @@ def test_firecrawl_html_extracts_main_content_from_government_page_shell(session
     assert units
     assert units[0]["heading_path"][0]["title"] == "教育部：加强职业教育数字教学资源建设和应用"
     assert units[0]["source_blocks"][0]["source_url"] == "https://example.gov.cn/policy"
+
+
+def test_firecrawl_html_promotes_inline_policy_headings_for_section_context(session) -> None:
+    ctx, version = _seed_firecrawl_web_job(session)
+    raw_key = ctx.raw_object.object_uri.split("/", 3)[-1]
+    html = """
+    <html><body><article>
+      <h1>教育部：加强职业教育数字教学资源建设和应用</h1>
+      <p>一、不断深化产教融合、校企合作一是2022年12月，教育部启动职业教育数字资源建设。</p>
+      <p>二、不断完善政校村协同机制一是围绕区域产业发展需求开展资源共享。</p>
+    </article></body></html>
+    """
+    ctx.storage.put_bytes(raw_key, html.encode("utf-8"), "text/html")
+    ctx.raw_object.checksum = checksum_value(ctx.storage.get_bytes(raw_key))
+    ctx.raw_object.metadata_summary["title"] = "教育部：加强职业教育数字教学资源建设和应用"
+    session.commit()
+
+    artifact = run_parse(ctx, version)
+    artifact_key = artifact.artifact_uri.split("/", 3)[-1]
+    payload = json.loads(ctx.storage.get_bytes(artifact_key).decode("utf-8"))
+
+    heading_texts = [
+        block["text"] for block in payload["blocks"]
+        if block["block_type"] == "heading"
+    ]
+    assert "一、不断深化产教融合、校企合作" in heading_texts
+    assert "二、不断完善政校村协同机制" in heading_texts
+    assert "policy_heading_promoted" in payload["quality"]["quality_flags"]
+
+    units = semantic_repack(payload["blocks"], body_markdown=payload["markdown"])
+    assert [unit["heading_path"][-1]["title"] for unit in units] == [
+        "一、不断深化产教融合、校企合作",
+        "二、不断完善政校村协同机制",
+    ]

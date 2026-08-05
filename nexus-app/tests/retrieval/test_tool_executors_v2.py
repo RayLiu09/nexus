@@ -20,6 +20,10 @@ from nexus_app import models
 from nexus_app.enums import ChunkType, ChunkingStrategy, EmbeddingStatus, SourceKind
 from nexus_app.evidence_graph.service import KnowledgeGraphBuildStatus
 from nexus_app.retrieval.chart_adapter import ChartRegistry
+from nexus_app.retrieval.semantic_context import (
+    PolicyReportQueryIntent,
+    classify_policy_report_query_intent,
+)
 from nexus_app.retrieval.tool_executors_v2 import (
     default_v2_executor_registry,
     get_evidence_graph_by_ref,
@@ -1074,6 +1078,15 @@ def test_document_section_context_not_returned_for_comparison_query(session):
     )
 
     assert result["answer_contexts"] == []
+
+
+def test_policy_report_intent_treats_work_content_queries_as_section_summary():
+    assert classify_policy_report_query_intent(
+        "下一步加强职业教育数字教学资源建设和应用有哪些工作考虑？"
+    ) == PolicyReportQueryIntent.SECTION_SUMMARY
+    assert classify_policy_report_query_intent(
+        "国家职业教育智慧教育平台建设有哪些内容和应用场景？"
+    ) == PolicyReportQueryIntent.SECTION_SUMMARY
 
 
 def _chunk(

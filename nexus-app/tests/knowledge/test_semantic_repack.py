@@ -17,6 +17,7 @@ from nexus_app.knowledge.semantic_repack import (
     extract_metric_image_blocks,
     drop_post_merge_noise,
     merge_continuation,
+    promote_policy_heading_blocks,
     repack,
 )
 
@@ -608,6 +609,30 @@ class TestEnrichContext:
         titles = [h["title"] for h in units[0]["heading_path"]]
         assert titles == ["章 B"]
 
+    def test_promotes_policy_paragraph_headings_before_context_enrichment(self):
+        blocks = [
+            _h(1, "# 职业教育产教融合赋能提升行动实施方案", level=1),
+            _p(2, "二、重点任务"),
+            _p(3, "（三）建设产教融合实训基地"),
+            _p(4, "7. 加大实训基地支持力度"),
+            _p(5, "支持职业学校联合企业建设开放型区域产教融合实践中心。"),
+        ]
+        promoted = promote_policy_heading_blocks(blocks)
+        assert [b["block_type"] for b in promoted[:4]] == [
+            "heading", "heading", "heading", "heading",
+        ]
+        assert promoted[1]["heading_level"] == 2
+        assert promoted[2]["heading_level"] == 3
+        assert promoted[3]["heading_level"] == 4
+
+        units = repack(blocks)
+        assert len(units) == 1
+        assert [h["title"] for h in units[0]["heading_path"]] == [
+            "职业教育产教融合赋能提升行动实施方案",
+            "二、重点任务",
+            "7. 加大实训基地支持力度",
+        ]
+
     def test_anchor_role_per_block_type(self):
         originals = [
             _p(1, "x"), _t(2, "x"), _img(3, caption="图 1"), _h(4, "# h"),
@@ -774,6 +799,21 @@ class TestRepackPipeline:
         assert [b["block_id"] for b in units[0]["source_blocks"]] == ["h-2", "h-3"]
         assert units[1]["content"] == "2025年上半年，中国外贸延续增长态势。"
         assert [b["block_id"] for b in units[1]["source_blocks"]] == ["p-4"]
+
+    def test_repack_dedupes_repeated_long_html_paragraphs(self):
+        repeated = "国家职业教育智慧教育平台持续汇聚优质资源，支撑专业教学资源库和虚拟仿真实训基地共建共享。"
+        blocks = [
+            _h(1, "# 数字教学资源建设", level=1),
+            _p(2, repeated),
+            _p(3, repeated),
+            _p(4, "短句重复。"),
+            _p(5, "短句重复。"),
+        ]
+
+        units = repack(blocks)
+
+        assert [u["content"] for u in units].count(repeated) == 1
+        assert [u["content"] for u in units].count("短句重复。") == 2
 
     def test_drops_empty_media_without_caption_or_text(self):
         units = repack([_img(1, caption="")])
