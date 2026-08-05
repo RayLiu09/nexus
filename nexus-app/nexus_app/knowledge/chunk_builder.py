@@ -116,9 +116,15 @@ def _aggregate_locator(
     normalized = [
         {
             "block_id": b.get("block_id"),
+            "block_type": b.get("block_type"),
             "page": b.get("page"),
             "bbox": b.get("bbox"),
             "md_char_range": b.get("md_char_range"),
+            "source_url": b.get("source_url") or (b.get("source_locator") or {}).get("source_url"),
+            "dom_path": b.get("dom_path") or (b.get("source_locator") or {}).get("dom_path"),
+            "dom_index": b.get("dom_index") or (b.get("source_locator") or {}).get("dom_index"),
+            "locator_type": b.get("locator_type") or (b.get("source_locator") or {}).get("locator_type"),
+            "section_id": b.get("section_id") or (b.get("source_locator") or {}).get("section_id"),
         }
         for b in blocks
     ]

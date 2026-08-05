@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Protocol
 from urllib.parse import urlparse
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -19,8 +20,13 @@ from nexus_app.crawler.config_loader import (
     load_template,
 )
 from nexus_app.crawler.firecrawl_client import FirecrawlDocumentClient, FirecrawlDocumentSnapshot
+from nexus_app.crawler.quality_gate import is_pdf_candidate
 from nexus_app.crawler.runner import run_firecrawl_plan
-from nexus_app.crawler.url_safety import UnsafeCrawlerUrlError, validate_target_sites
+from nexus_app.crawler.url_safety import (
+    UnsafeCrawlerUrlError,
+    validate_target_sites,
+    validate_target_url,
+)
 from nexus_app.enums import AuditEventType, DataSourceStatus, DataSourceType, PipelineType
 from nexus_app.ingest import batch as ingest_batch
 from nexus_app.storage import ObjectStorage, get_object_storage
@@ -28,6 +34,39 @@ from nexus_app.storage import ObjectStorage, get_object_storage
 
 class CrawlerPlanError(ValueError):
     pass
+
+
+class PdfDownloadError(RuntimeError):
+    pass
+
+
+class PdfDownloader(Protocol):
+    def download(self, url: str) -> bytes: ...
+
+
+class HttpPdfDownloader:
+    def __init__(self, *, timeout_seconds: float) -> None:
+        self._timeout_seconds = timeout_seconds
+
+    def download(self, url: str) -> bytes:
+        try:
+            validate_target_url(url)
+            with httpx.Client(timeout=self._timeout_seconds, follow_redirects=True) as client:
+                response = client.get(url, headers={"accept": "application/pdf,*/*;q=0.8"})
+                response.raise_for_status()
+        except UnsafeCrawlerUrlError as exc:
+            raise PdfDownloadError("unsafe_pdf_url") from exc
+        except httpx.TimeoutException as exc:
+            raise PdfDownloadError("pdf_download_timeout") from exc
+        except httpx.HTTPStatusError as exc:
+            raise PdfDownloadError(f"pdf_download_http_{exc.response.status_code}") from exc
+        except httpx.HTTPError as exc:
+            raise PdfDownloadError("pdf_download_error") from exc
+        content = response.content
+        if not _looks_like_pdf(content):
+            content_type = response.headers.get("content-type", "")
+            raise PdfDownloadError(f"pdf_content_type_mismatch:{content_type or 'unknown'}")
+        return content
 
 
 BUILTIN_FIRECRAWL_SOURCE_ID = "__builtin_firecrawl__"
@@ -237,11 +276,15 @@ def run_plan(
     actor_type: str | None = None,
     actor_id: str | None = None,
     client: FirecrawlDocumentClient | None = None,
+    pdf_downloader: PdfDownloader | None = None,
     storage: ObjectStorage | None = None,
     settings: Settings | None = None,
 ) -> models.CrawlerRun:
     settings = settings or get_settings()
     storage = storage or get_object_storage(settings)
+    pdf_downloader = pdf_downloader or HttpPdfDownloader(
+        timeout_seconds=settings.ai_web_search_timeout_seconds
+    )
     plan = session.get(models.CrawlerPlan, plan_id)
     if plan is None:
         raise CrawlerPlanError(f"crawler_plan '{plan_id}' not found")
@@ -279,6 +322,7 @@ def run_plan(
         storage=storage,
         settings=settings,
         trace_id=trace_id,
+        pdf_downloader=pdf_downloader,
     )
     summary = dict(outcome.summary)
     summary.update(ingest_summary)
@@ -326,6 +370,7 @@ def _ingest_firecrawl_snapshots(
     storage: ObjectStorage,
     settings: Settings,
     trace_id: str | None,
+    pdf_downloader: PdfDownloader,
 ) -> dict[str, Any]:
     if not snapshots:
         return {
@@ -375,17 +420,26 @@ def _ingest_firecrawl_snapshots(
     submitted: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []
     for index, snapshot in enumerate(snapshots, start=1):
-        raw_text = snapshot.html or snapshot.markdown or ""
-        if not raw_text:
+        source_url = snapshot.final_url or snapshot.source_url
+        try:
+            content, mime_type, raw_representation = _snapshot_raw_content(
+                snapshot,
+                pdf_downloader=pdf_downloader,
+            )
+        except PdfDownloadError as exc:
             failures.append({
-                "url": snapshot.final_url or snapshot.source_url,
+                "url": source_url,
+                "reason": str(exc),
+                "raw_representation": "pdf_candidate",
+            })
+            continue
+        if not content:
+            failures.append({
+                "url": source_url,
                 "reason": "empty_raw_content",
             })
             continue
-        content = raw_text.encode("utf-8")
         content_hash = "sha256:" + hashlib.sha256(content).hexdigest()
-        source_url = snapshot.final_url or snapshot.source_url
-        mime_type = "text/html" if snapshot.html else "text/markdown"
         filename = _firecrawl_filename(snapshot, content_hash, mime_type)
         try:
             result = ingest_batch.append_file_to_batch(
@@ -407,7 +461,12 @@ def _ingest_firecrawl_snapshots(
                     "canonical_url": snapshot.metadata.get("url") or snapshot.final_url,
                     "title": snapshot.title,
                     "content_hash": content_hash,
-                    "raw_representation": "html" if snapshot.html else "markdown",
+                    "raw_representation": raw_representation,
+                    "firecrawl_only_main_content": (
+                        bool(plan.crawl_policy.get("only_main_content", True))
+                        if raw_representation in {"html", "markdown"}
+                        else False
+                    ),
                     "crawler_plan_id": plan.id,
                     "crawler_run_id": run.id,
                     "template_code": plan.template_code,
@@ -431,6 +490,8 @@ def _ingest_firecrawl_snapshots(
             "raw_object_id": result.raw_object.id,
             "job_id": result.job.id,
             "content_hash": content_hash,
+            "mime_type": mime_type,
+            "raw_representation": raw_representation,
             "duplicate": result.duplicate,
             "job_stage": result.job.current_stage,
             "pipeline_type": result.job.payload.get("pipeline_type"),
@@ -451,12 +512,38 @@ def _firecrawl_filename(
     content_hash: str,
     mime_type: str,
 ) -> str:
-    suffix = ".html" if mime_type == "text/html" else ".md"
+    if mime_type == "application/pdf":
+        suffix = ".pdf"
+    else:
+        suffix = ".html" if mime_type == "text/html" else ".md"
     parsed = urlparse(snapshot.final_url or snapshot.source_url)
     title = (snapshot.title or parsed.path.rsplit("/", 1)[-1] or "firecrawl-document").strip()
+    if suffix == ".pdf" and title.lower().endswith(".pdf"):
+        title = title[:-4]
     safe_title = "".join(char if char.isalnum() or char in {"-", "_", "."} else "-" for char in title)
     safe_title = safe_title.strip(".-")[:80] or "firecrawl-document"
     return f"{safe_title}-{content_hash.replace('sha256:', '')[:12]}{suffix}"
+
+
+def _snapshot_raw_content(
+    snapshot: FirecrawlDocumentSnapshot,
+    *,
+    pdf_downloader: PdfDownloader,
+) -> tuple[bytes, str, str]:
+    source_url = snapshot.final_url or snapshot.source_url
+    if is_pdf_candidate(source_url, snapshot.metadata):
+        content = pdf_downloader.download(source_url)
+        if not _looks_like_pdf(content):
+            raise PdfDownloadError("pdf_magic_mismatch")
+        return content, "application/pdf", "original_binary"
+    raw_text = snapshot.html or snapshot.markdown or ""
+    mime_type = "text/html" if snapshot.html else "text/markdown"
+    raw_representation = "html" if snapshot.html else "markdown"
+    return raw_text.encode("utf-8"), mime_type, raw_representation
+
+
+def _looks_like_pdf(content: bytes) -> bool:
+    return content[:1024].lstrip().startswith(b"%PDF")
 
 
 def list_plans(session: Session, *, include_archived: bool = False) -> list[models.CrawlerPlan]:

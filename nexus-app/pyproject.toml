@@ -23,6 +23,7 @@ dependencies = [
   # Required by pypdfium2.PdfBitmap.to_pil for JPEG encoding the rendered
   # pages before they are sent to the VLM.
   "pillow>=10.0.0",
+  "trafilatura>=2.0,<3.0",
 ]
 
 [dependency-groups]

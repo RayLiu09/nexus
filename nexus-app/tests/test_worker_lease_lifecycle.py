@@ -101,6 +101,31 @@ def test_knowledge_continuation_does_not_initialize_mineru(session, monkeypatch)
     assert loop.run_once() == 1
 
 
+def test_worker_loop_claims_one_job_per_serial_executor(session, monkeypatch):
+    _queued_job(session)
+    seen: dict[str, int] = {}
+    loop = WorkerLoop(
+        worker_id="serial-claim",
+        session_factory=_session_factory(session),
+        settings=Settings(worker_pool_enabled=False),
+        max_concurrent=8,
+        lease_seconds=30,
+    )
+    monkeypatch.setattr(worker_loop_module, "_LeaseHeartbeat", _RecordingHeartbeat)
+    monkeypatch.setattr(loop, "_get_storage", lambda: InMemoryObjectStorage())
+    monkeypatch.setattr(worker_loop_module, "execute_job", lambda *_args, **_kwargs: None)
+    real_claim_jobs = worker_loop_module.claim_jobs
+
+    def recording_claim_jobs(*args, **kwargs):
+        seen["batch_size"] = kwargs["batch_size"]
+        return real_claim_jobs(*args, **kwargs)
+
+    monkeypatch.setattr(worker_loop_module, "claim_jobs", recording_claim_jobs)
+
+    assert loop.run_once() == 1
+    assert seen["batch_size"] == 1
+
+
 def test_dependency_initialization_failure_releases_running_job(session, monkeypatch):
     job = _queued_job(session)
     loop = WorkerLoop(

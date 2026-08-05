@@ -27,4 +27,5 @@ class PipelineContext:
     pipeline_type: PipelineType = PipelineType.DOCUMENT
     image_analyzer: ImageAnalyzer | None = None  # None disables VLM image analysis
     normalize_service: NormalizeService | None = None  # None disables LLM+rule normalize layer
+    llm_client: LiteLLMClientProtocol | None = None
     teaching_standard_llm_client: LiteLLMClientProtocol | None = None

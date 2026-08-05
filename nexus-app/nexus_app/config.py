@@ -136,7 +136,6 @@ class Settings(BaseSettings):
         default=None,
         alias="DEFAULT_NORMALIZE_MODEL",
     )
-
     # Pipeline B B5 LLM aliases — env-level overrides for prompt profiles
     # whose seeded `litellm_model_alias` (e.g. `internal/job-extract-v1`)
     # may not be accessible under the deployed LiteLLM key. When set, the

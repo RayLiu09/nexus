@@ -33,32 +33,27 @@ class FakeFirecrawlClient:
         ]
 
     def batch_scrape(self, *, urls, only_main_content, formats, proxy, max_concurrency, max_age_ms):
-        del only_main_content, formats
-        self.batch_urls = urls
-        self.proxy = proxy
-        self.max_concurrency = max_concurrency
-        self.max_age_ms = max_age_ms
-        snapshots = []
-        for url in urls:
-            is_irrelevant = url.endswith("/2.html")
-            snapshots.append(
-                FirecrawlDocumentSnapshot(
-                    source_url=url,
-                    final_url=url,
-                    title="无关页面" if is_irrelevant else "浙江省数字经济政策",
-                    markdown=("其他内容 " if is_irrelevant else "数字经济 ") * 80,
-                    html=None,
-                    metadata={},
-                )
-            )
-        return snapshots
+        del urls, only_main_content, formats, proxy, max_concurrency, max_age_ms
+        raise AssertionError("sync crawler runner must not use firecrawl batch_scrape")
 
     def scrape(self, *, url, only_main_content, formats, proxy, max_age_ms):
-        del url, only_main_content, formats, proxy, max_age_ms
-        return None
+        del only_main_content, formats
+        self.scrape_urls = getattr(self, "scrape_urls", [])
+        self.scrape_urls.append(url)
+        self.proxy = proxy
+        self.max_age_ms = max_age_ms
+        is_irrelevant = url.endswith("/2.html")
+        return FirecrawlDocumentSnapshot(
+            source_url=url,
+            final_url=url,
+            title="无关页面" if is_irrelevant else "浙江省数字经济政策",
+            markdown=("其他内容 " if is_irrelevant else "数字经济 ") * 80,
+            html=None,
+            metadata={},
+        )
 
 
-class BatchMissingFirecrawlClient:
+class MissingScrapeFirecrawlClient:
     def search(self, *, query, limit, include_domains, country, languages):
         del query, limit, include_domains, country, languages
         return [
@@ -67,10 +62,33 @@ class BatchMissingFirecrawlClient:
 
     def batch_scrape(self, *, urls, only_main_content, formats, proxy, max_concurrency, max_age_ms):
         del urls, only_main_content, formats, proxy, max_concurrency, max_age_ms
-        return []
+        raise AssertionError("sync crawler runner must not use firecrawl batch_scrape")
+
+    def scrape(self, *, url, only_main_content, formats, proxy, max_age_ms):
+        del url, only_main_content, formats, proxy, max_age_ms
+        return None
+
+
+class MixedPdfFirecrawlClient:
+    def search(self, *, query, limit, include_domains, country, languages):
+        del query, limit, include_domains, country, languages
+        return [
+            FirecrawlSearchResult(url="https://www.zj.gov.cn/policy/1.html", title="数字经济政策"),
+            FirecrawlSearchResult(
+                url="https://www.ndrc.gov.cn/report/P020230613309060086035.pdf",
+                title="职业教育产教融合赋能提升行动实施方案",
+                description="职业教育 产教融合 政策 PDF",
+            ),
+        ]
+
+    def batch_scrape(self, *, urls, only_main_content, formats, proxy, max_concurrency, max_age_ms):
+        del urls, only_main_content, formats, proxy, max_concurrency, max_age_ms
+        raise AssertionError("sync crawler runner must not use firecrawl batch_scrape")
 
     def scrape(self, *, url, only_main_content, formats, proxy, max_age_ms):
         del only_main_content, formats, proxy, max_age_ms
+        self.scrape_urls = getattr(self, "scrape_urls", [])
+        self.scrape_urls.append(url)
         return FirecrawlDocumentSnapshot(
             source_url=url,
             final_url=url,
@@ -79,6 +97,43 @@ class BatchMissingFirecrawlClient:
             html=None,
             metadata={},
         )
+
+
+class HtmlSnapshotForPdfUrlFirecrawlClient:
+    def search(self, *, query, limit, include_domains, country, languages):
+        del query, limit, include_domains, country, languages
+        return [
+            FirecrawlSearchResult(
+                url="https://www.ndrc.gov.cn/report/P020230613309060086035.pdf",
+                title="职业教育产教融合赋能提升行动实施方案",
+                description="职业教育 产教融合 政策 PDF",
+            ),
+        ]
+
+    def batch_scrape(self, *, urls, only_main_content, formats, proxy, max_concurrency, max_age_ms):
+        del urls, only_main_content, formats, proxy, max_concurrency, max_age_ms
+        raise AssertionError("sync crawler runner must not use firecrawl batch_scrape")
+
+    def scrape(self, *, url, only_main_content, formats, proxy, max_age_ms):
+        del url, only_main_content, formats, proxy, max_age_ms
+        raise AssertionError("PDF URLs must be downloaded directly, not scraped through Firecrawl")
+
+
+class FakePdfDownloader:
+    pdf_bytes = b"%PDF-1.7\n% nexus crawler pdf fixture\n"
+
+    def __init__(self) -> None:
+        self.urls: list[str] = []
+
+    def download(self, url: str) -> bytes:
+        self.urls.append(url)
+        return self.pdf_bytes
+
+
+class FailingPdfDownloader:
+    def download(self, url: str) -> bytes:
+        del url
+        raise crawler_service.PdfDownloadError("pdf_download_failed")
 
 
 def test_crawler_config_and_regions(app):
@@ -315,13 +370,12 @@ def test_firecrawl_runner_with_fake_client_accepts_and_filters(session, monkeypa
     assert run.summary["submitted"][1]["duplicate"] is True
     assert "zcom.zj.gov.cn" in fake.include_domains
     assert "www.zj.gov.cn" in fake.include_domains
-    assert fake.batch_urls == [
+    assert fake.scrape_urls == [
         "https://www.zj.gov.cn/policy/1.html",
         "https://zcom.zj.gov.cn/policy/1-copy.html",
         "https://www.zj.gov.cn/policy/2.html",
     ]
     assert fake.proxy == "basic"
-    assert fake.max_concurrency == 1
     assert fake.max_age_ms == 172800000
 
     raw_objects = session.query(models.RawObject).all()
@@ -332,6 +386,7 @@ def test_firecrawl_runner_with_fake_client_accepts_and_filters(session, monkeypa
     assert raw_objects[0].metadata_summary["connector_type"] == "firecrawl_document"
     assert raw_objects[0].metadata_summary["crawler_plan_id"] == plan.id
     assert raw_objects[0].metadata_summary["crawler_run_id"] == run.id
+    assert raw_objects[0].metadata_summary["firecrawl_only_main_content"] is True
     assert len(jobs) == 2
     assert {job.payload["pipeline_type"] for job in jobs} == {"document"}
     assert any(job.status == JobStatus.QUEUED for job in jobs)
@@ -354,19 +409,124 @@ def test_firecrawl_runner_with_fake_client_accepts_and_filters(session, monkeypa
     assert len(session.query(models.RawObject).all()) == 1
 
 
-def test_firecrawl_runner_falls_back_to_single_scrape_when_batch_missing(session):
+def test_firecrawl_runner_downloads_pdf_urls_as_pdf_raw_objects(session, monkeypatch):
+    monkeypatch.setenv("CRAWLER_FIRECRAWL_SCRAPE_LIMIT_ENABLED", "false")
+    get_settings.cache_clear()
     source = services.create_data_source(
         session,
         domain_schemas.DataSourceCreate(
-            code="crawler-firecrawl-fallback",
-            name="Crawler Firecrawl Fallback",
+            code="crawler-firecrawl-pdf",
+            name="Crawler Firecrawl PDF",
             source_type="crawler",
         ),
     )
     plan = crawler_service.create_plan(
         session,
         domain_schemas.CrawlerPlanCreate(
-            name="浙江省政策报告采集 fallback",
+            name="全国政策报告采集 pdf",
+            mode="quick_start",
+            data_source_id=source.id,
+            execution_mode="run_once",
+        ),
+        trace_id="trace-test",
+    )
+
+    fake_client = MixedPdfFirecrawlClient()
+    fake_downloader = FakePdfDownloader()
+    storage = InMemoryObjectStorage()
+    run = crawler_service.run_plan(
+        session,
+        plan.id,
+        trace_id="trace-test",
+        client=fake_client,
+        pdf_downloader=fake_downloader,
+        storage=storage,
+    )
+
+    assert run.status == "succeeded"
+    assert run.summary["accepted_count"] == 2
+    assert run.summary["submitted_count"] == 2
+    assert run.summary["accepted_snapshots"][1]["raw_representation"] == "pdf_candidate"
+    assert fake_client.scrape_urls == ["https://www.zj.gov.cn/policy/1.html"]
+    assert fake_downloader.urls == [
+        "https://www.ndrc.gov.cn/report/P020230613309060086035.pdf"
+    ]
+
+    raw_objects = session.query(models.RawObject).order_by(models.RawObject.created_at.asc()).all()
+    assert {raw.mime_type for raw in raw_objects} == {"text/markdown", "application/pdf"}
+    pdf_raw = next(raw for raw in raw_objects if raw.mime_type == "application/pdf")
+    pdf_key = pdf_raw.object_uri.split("/", 3)[-1]
+    assert storage.get_bytes(pdf_key).startswith(b"%PDF")
+    assert pdf_raw.metadata_summary["raw_representation"] == "original_binary"
+    assert pdf_raw.metadata_summary["firecrawl_only_main_content"] is False
+    assert pdf_raw.metadata_summary["final_url"].endswith(".pdf")
+    submitted_pdf = next(
+        item for item in run.summary["submitted"]
+        if item["mime_type"] == "application/pdf"
+    )
+    assert submitted_pdf["raw_object_id"] == pdf_raw.id
+    assert submitted_pdf["raw_representation"] == "original_binary"
+
+
+def test_firecrawl_runner_does_not_fallback_to_html_when_pdf_download_fails(session, monkeypatch):
+    monkeypatch.setenv("CRAWLER_FIRECRAWL_SCRAPE_LIMIT_ENABLED", "false")
+    get_settings.cache_clear()
+    source = services.create_data_source(
+        session,
+        domain_schemas.DataSourceCreate(
+            code="crawler-firecrawl-pdf-fail",
+            name="Crawler Firecrawl PDF Fail",
+            source_type="crawler",
+        ),
+    )
+    plan = crawler_service.create_plan(
+        session,
+        domain_schemas.CrawlerPlanCreate(
+            name="全国政策报告采集 pdf fail",
+            mode="quick_start",
+            data_source_id=source.id,
+            execution_mode="run_once",
+        ),
+        trace_id="trace-test",
+    )
+
+    run = crawler_service.run_plan(
+        session,
+        plan.id,
+        trace_id="trace-test",
+        client=HtmlSnapshotForPdfUrlFirecrawlClient(),
+        pdf_downloader=FailingPdfDownloader(),
+        storage=InMemoryObjectStorage(),
+    )
+
+    assert run.status == "failed"
+    assert run.summary["accepted_count"] == 1
+    assert run.summary["submitted_count"] == 0
+    assert run.summary["ingest_failed_count"] == 1
+    assert run.summary["ingest_failures"] == [
+        {
+            "url": "https://www.ndrc.gov.cn/report/P020230613309060086035.pdf",
+            "reason": "pdf_download_failed",
+            "raw_representation": "pdf_candidate",
+        }
+    ]
+    assert session.query(models.RawObject).count() == 0
+    assert session.query(models.Job).count() == 0
+
+
+def test_firecrawl_runner_records_missing_single_scrape(session):
+    source = services.create_data_source(
+        session,
+        domain_schemas.DataSourceCreate(
+            code="crawler-firecrawl-missing",
+            name="Crawler Firecrawl Missing",
+            source_type="crawler",
+        ),
+    )
+    plan = crawler_service.create_plan(
+        session,
+        domain_schemas.CrawlerPlanCreate(
+            name="浙江省政策报告采集 missing",
             mode="quick_start",
             data_source_id=source.id,
             region_code="zhejiang",
@@ -379,15 +539,15 @@ def test_firecrawl_runner_falls_back_to_single_scrape_when_batch_missing(session
         session,
         plan.id,
         trace_id="trace-test",
-        client=BatchMissingFirecrawlClient(),
+        client=MissingScrapeFirecrawlClient(),
         storage=InMemoryObjectStorage(),
     )
 
-    assert run.status == "succeeded"
+    assert run.status == "failed"
     assert run.summary["discovered_count"] == 1
-    assert run.summary["accepted_count"] == 1
-    assert run.summary["fallback_scrape_count"] == 1
-    assert run.summary["filter_reasons"] == {}
+    assert run.summary["accepted_count"] == 0
+    assert run.summary["scrape_failed_count"] == 1
+    assert run.summary["filter_reasons"] == {"scrape_missing": 1}
 
 
 def test_firecrawl_runner_limits_scrape_urls_when_dev_guard_enabled(session, monkeypatch):
@@ -427,7 +587,7 @@ def test_firecrawl_runner_limits_scrape_urls_when_dev_guard_enabled(session, mon
     assert run.summary["configured_max_pages"] == 50
     assert run.summary["effective_max_pages"] == 2
     assert run.summary["discovered_count"] == 4
-    assert fake.batch_urls == [
+    assert fake.scrape_urls == [
         "https://www.zj.gov.cn/policy/1.html",
         "https://zcom.zj.gov.cn/policy/1-copy.html",
     ]

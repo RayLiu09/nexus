@@ -159,13 +159,9 @@ class HttpFirecrawlDocumentClient:
             "urls": urls,
             "formats": formats,
             "onlyMainContent": only_main_content,
+            "ignoreInvalidURLs": True,
         }
-        scrape_options = _scrape_options(
-            proxy=proxy,
-            max_age_ms=max_age_ms,
-        )
-        if scrape_options:
-            payload["scrapeOptions"] = scrape_options
+        payload.update(_scrape_options(proxy=proxy, max_age_ms=max_age_ms))
         if max_concurrency is not None:
             payload["maxConcurrency"] = max_concurrency
         data = self._post_json(

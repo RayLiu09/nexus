@@ -36,7 +36,7 @@ Role constraints:
 - `ingest_validate` job stage: format validation, virus scan, hash calculation, deduplication; writes `INGEST_VALIDATE_COMPLETED` / `INGEST_VALIDATE_FAILED` audit events.
 - `assetize` job stage: create/re-version `asset`/`asset_version` by `(data_source_id, source_object_key)` idempotency anchor.
 - Persistent job center backed by PostgreSQL job table + Worker polling, state machine, failure lookup, retry, lock lease, and dead-letter handling.
-- MinerU parsing (Pipeline A): auto-selected `model_version` (HTML→MinerU-HTML, default→pipeline, complex→vlm); OCR auto-enabled for image/pdf/tiff; images stored at `parsed/<version_id>/<artifact_id>/images/`.
+- MinerU parsing (Pipeline A): auto-selected `model_version` (general HTML upload→MinerU-HTML, default→pipeline, complex→vlm); OCR auto-enabled for image/pdf/tiff; images stored at `parsed/<version_id>/<artifact_id>/images/`. Crawler Firecrawl HTML is parsed by the crawler `trafilatura` main-content extractor plus NEXUS deterministic Markdown block/section/locator builder because downstream retrieval needs stable Markdown section ranges without parse-time LLM latency.
 - Standardization via normalize-service: LLM semantic extraction + rule-engine fallback validation; produces `normalized_document` / `normalized_record` with full `normalized_asset_ref` fields (governance, quality, lineage, source_type, content_type, title, language).
 - AI governance and quality scoring from normalized objects via `metadata-service.ai-governance`. Governance target is `normalized_asset_ref`.
 - Configurable governance rules for classification, level, tags, org scope, quality admission, review triggers, and index admission.
@@ -258,7 +258,7 @@ P0 end-to-end cases:
 - Static D4 PDF ingestion: `ingest_validate` passes → `assetize` creates asset/version → MinerU parse with auto-selected `model_version` produces `parse_artifact` with image URIs stored in `parsed/…/images/` → normalize produces `normalized_document` with full governance/quality/lineage fields in `normalized_asset_ref` → AI governance run → `governance_result.quality_summary` → governance result → chunks (with `normalized_ref_id`) → index manifest.
 - HTML file ingestion: `model_version = MinerU-HTML` auto-selected; parse succeeds and images stored alongside JSON.
 - Image/scanned PDF ingestion: `ocr_enable = true` auto-set; parse succeeds.
-- Crawler Firecrawl document batch: `ingest_validate` passes → `assetize` (Pipeline A) → parse/normalize into `normalized_document` with full `normalized_asset_ref` fields → queryable and searchable after governance/index admission.
+- Crawler Firecrawl document batch: `ingest_validate` passes → `assetize` (Pipeline A) → HTML uses the crawler `trafilatura` Markdown extractor with deterministic `markdown_range` locators, Markdown uses the markdown adapter, PDF stays on MinerU → normalize into `normalized_document` with full `normalized_asset_ref` fields → queryable and searchable after governance/index admission.
 - Professional major-distribution XLSX: `ingest_validate` passes → Pipeline B structured parse/profile detect (`major_distribution.v1`) → `normalized_record` → domain tables; summary rows such as `全部` are ignored, `新疆生产建设兵团` is stored as `province`, and missing education level stays empty unless explicit source/file/context evidence exists.
 - Course textbook training-operation PDF: normalized document payload is
   detected as `training_operation` → `task_outline_profile` stores

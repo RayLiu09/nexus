@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime
 from decimal import Decimal
 from types import SimpleNamespace
@@ -12,11 +13,17 @@ from sqlalchemy import func, select
 
 from nexus_app import models
 from nexus_app.audit import write_audit
+from nexus_app.crawler.html_content_extractor import (
+    PARSER_BACKEND as HTML_CONTENT_PARSER_BACKEND,
+    build_markdown_sections,
+    extract_html_main_content,
+)
 from nexus_app.enums import (
     AIGovernanceRunValidationStatus,
     AssetKind,
     AssetVersionStatus,
     AuditEventType,
+    DataSourceType,
     GovernanceResultStatus,
     NormalizedAssetRefStatus,
     NormalizedType,
@@ -153,6 +160,300 @@ def _cleanup_storage_keys(ctx: PipelineContext, keys: list[str]) -> None:
             ctx.storage.delete_object(key)
         except Exception:
             logger.warning("failed to cleanup parse artifact object %s", key, exc_info=True)
+
+
+def _extract_markdown_blocks(content: str) -> list[dict[str, Any]]:
+    blocks: list[dict[str, Any]] = []
+    parts = [part.strip() for part in re.split(r"\n\s*\n", content) if part.strip()]
+    for part in parts:
+        heading = re.match(r"^(#{1,6})\s+(.+)$", part)
+        if heading:
+            level = len(heading.group(1))
+            text = heading.group(2).strip()
+            blocks.append({
+                "tag": f"h{level}",
+                "block_type": "heading",
+                "heading_level": level,
+                "text": text,
+                "markdown": f"{'#' * level} {text}",
+                "dom_path": None,
+            })
+        else:
+            block_type = "list" if part.lstrip().startswith(("- ", "* ")) else "paragraph"
+            blocks.append({
+                "tag": "markdown",
+                "block_type": block_type,
+                "heading_level": None,
+                "text": part,
+                "markdown": part,
+                "dom_path": None,
+            })
+    return blocks
+
+
+def _materialize_web_blocks(
+    extracted_blocks: list[dict[str, Any]],
+    *,
+    source_url: str | None,
+    representation: str,
+) -> tuple[str, list[dict[str, Any]]]:
+    md_parts = [str(block.get("markdown") or block.get("text") or "").strip() for block in extracted_blocks]
+    md_parts = [part for part in md_parts if part]
+    body_markdown = "\n\n".join(md_parts)
+    blocks: list[dict[str, Any]] = []
+    cursor = 0
+    for seq, (raw_block, md_part) in enumerate(zip(extracted_blocks, md_parts, strict=False), start=1):
+        start = body_markdown.find(md_part, cursor)
+        if start < 0:
+            start = cursor
+        end = start + len(md_part)
+        cursor = end
+        block_id = f"web-block-{seq:04d}"
+        block = {
+            "block_id": block_id,
+            "block_type": raw_block.get("block_type") or "paragraph",
+            "seq_no": seq,
+            "text": raw_block.get("text") or md_part,
+            "md_char_range": [start, end],
+            "source_locator": {
+                "locator_type": "markdown_range",
+                "source_url": source_url,
+                "raw_representation": representation,
+                "dom_path": raw_block.get("dom_path"),
+                "dom_index": seq,
+                "md_char_range": [start, end],
+            },
+            "source_url": source_url,
+            "dom_path": raw_block.get("dom_path"),
+            "dom_index": seq,
+            "locator_type": "markdown_range",
+            "metadata": {
+                "source": "firecrawl",
+                "raw_representation": representation,
+                "html_tag": raw_block.get("tag"),
+            },
+        }
+        if raw_block.get("heading_level"):
+            block["heading_level"] = raw_block["heading_level"]
+        blocks.append(block)
+    return body_markdown, blocks
+
+
+def _is_firecrawl_web_document(raw_object: models.RawObject) -> bool:
+    metadata = raw_object.metadata_summary or {}
+    mime_type = (raw_object.mime_type or "").lower()
+    return (
+        raw_object.source_type == DataSourceType.CRAWLER
+        and metadata.get("connector_type") == "firecrawl_document"
+        and metadata.get("content_kind") == "web_document"
+        and mime_type in {"text/html", "text/markdown"}
+    )
+
+
+def _ensure_document_heading(
+    *,
+    title: str,
+    body_markdown: str,
+    blocks: list[dict[str, Any]],
+    source_url: str | None,
+    representation: str,
+    parser_backend: str,
+) -> tuple[str, list[dict[str, Any]]]:
+    if not title or any(
+        block.get("block_type") == "heading" and block.get("heading_level") == 1
+        for block in blocks
+    ):
+        return body_markdown, blocks
+
+    heading_markdown = f"# {title[:256]}"
+    prefix = f"{heading_markdown}\n\n" if body_markdown else heading_markdown
+    shift = len(prefix)
+    shifted: list[dict[str, Any]] = []
+    for block in blocks:
+        copy_block = dict(block)
+        if isinstance(copy_block.get("seq_no"), int):
+            copy_block["seq_no"] = int(copy_block["seq_no"]) + 1
+        if _is_md_range(copy_block.get("md_char_range")):
+            copy_block["md_char_range"] = [
+                copy_block["md_char_range"][0] + shift,
+                copy_block["md_char_range"][1] + shift,
+            ]
+        locator = dict(copy_block.get("source_locator") or {})
+        if _is_md_range(locator.get("md_char_range")):
+            locator["md_char_range"] = [
+                locator["md_char_range"][0] + shift,
+                locator["md_char_range"][1] + shift,
+            ]
+        copy_block["source_locator"] = locator
+        shifted.append(copy_block)
+
+    heading_block = {
+        "block_id": "web-block-0000",
+        "block_type": "heading",
+        "seq_no": 1,
+        "text": title[:256],
+        "heading_level": 1,
+        "md_char_range": [0, len(heading_markdown)],
+        "source_locator": {
+            "locator_type": "markdown_range",
+            "source_url": source_url,
+            "raw_representation": representation,
+            "md_char_range": [0, len(heading_markdown)],
+            "block_id": "web-block-0000",
+            "section_id": shifted[0].get("section_id") if shifted else None,
+        },
+        "source_url": source_url,
+        "dom_path": "synthetic/title",
+        "dom_index": None,
+        "locator_type": "markdown_range",
+        "section_id": shifted[0].get("section_id") if shifted else None,
+        "metadata": {
+            "source": "firecrawl",
+            "raw_representation": representation,
+            "parser_backend": parser_backend,
+            "locator_type": "markdown_range",
+        },
+    }
+    return f"{prefix}{body_markdown}", [heading_block, *shifted]
+
+
+def _is_md_range(value: Any) -> bool:
+    return (
+        isinstance(value, list)
+        and len(value) == 2
+        and all(isinstance(item, int) for item in value)
+    )
+
+
+def _build_firecrawl_parse_payload(
+    raw_object: models.RawObject,
+    raw_content: bytes,
+) -> dict[str, Any]:
+    metadata = raw_object.metadata_summary or {}
+    mime_type = (raw_object.mime_type or "").lower()
+    source_text = raw_content.decode("utf-8", errors="replace")
+    representation = "html" if mime_type == "text/html" else "markdown"
+    source_url = metadata.get("canonical_url") or metadata.get("final_url") or metadata.get("source_url") or raw_object.source_uri
+    title = str(metadata.get("title") or metadata.get("filename") or raw_object.id).strip()
+    parser_backend = "firecrawl-markdown-document-v1"
+    sections: list[dict[str, Any]] = []
+    retrieval_hints: dict[str, Any] = {}
+    removed_noise: list[str] = []
+    quality: dict[str, Any] = {"locator_quality": "markdown_range", "quality_flags": []}
+
+    if representation == "html":
+        parsed = extract_html_main_content(
+            html=source_text,
+            source_url=source_url,
+            title_hint=title,
+            metadata_hint=metadata,
+        )
+        title = parsed.title or title
+        body_markdown = parsed.markdown
+        blocks = parsed.blocks
+        sections = parsed.sections
+        retrieval_hints = parsed.retrieval_hints
+        removed_noise = parsed.removed_noise
+        quality = parsed.quality
+        parser_backend = HTML_CONTENT_PARSER_BACKEND
+    else:
+        extracted_blocks = _extract_markdown_blocks(source_text)
+        if title and not any(
+            block.get("block_type") == "heading" and block.get("heading_level") == 1
+            for block in extracted_blocks
+        ):
+            extracted_blocks.insert(0, {
+                "tag": "h1",
+                "block_type": "heading",
+                "heading_level": 1,
+                "text": title[:256],
+                "markdown": f"# {title[:256]}",
+                "dom_path": "synthetic/title",
+            })
+        body_markdown, blocks = _materialize_web_blocks(
+            extracted_blocks,
+            source_url=source_url,
+            representation=representation,
+        )
+        sections = build_markdown_sections(blocks)
+        for section in sections:
+            for block in blocks:
+                if section["start_seq_no"] <= block["seq_no"] <= section["end_seq_no"]:
+                    block["section_id"] = section["section_id"]
+                    block["source_locator"]["section_id"] = section["section_id"]
+            section.pop("start_seq_no", None)
+            section.pop("end_seq_no", None)
+    heading_missing = bool(title) and not any(
+        block.get("block_type") == "heading" and block.get("heading_level") == 1
+        for block in blocks
+    )
+    heading_prefix = ""
+    if heading_missing:
+        heading_markdown = f"# {title[:256]}"
+        heading_prefix = f"{heading_markdown}\n\n" if body_markdown else heading_markdown
+    heading_shift = len(heading_prefix)
+    body_markdown, blocks = _ensure_document_heading(
+        title=title,
+        body_markdown=body_markdown,
+        blocks=blocks,
+        source_url=source_url,
+        representation=representation,
+        parser_backend=parser_backend,
+    )
+    if heading_shift:
+        for section in sections:
+            md_range = section.get("md_char_range")
+            if _is_md_range(md_range):
+                section["md_char_range"] = [md_range[0] + heading_shift, md_range[1] + heading_shift]
+    if not body_markdown:
+        body_markdown = source_text.strip()
+        blocks = []
+
+    return {
+        "schema_version": "firecrawl-web-document-v1",
+        "parser_backend": parser_backend,
+        "title": title[:256],
+        "markdown": body_markdown,
+        "content": body_markdown,
+        "blocks": blocks or [{
+            "block_id": "web-block-0001",
+            "block_type": "paragraph",
+            "seq_no": 1,
+            "text": body_markdown[:4000],
+            "md_char_range": [0, min(len(body_markdown), 4000)],
+            "source_locator": {
+                "locator_type": "markdown_range",
+                "source_url": source_url,
+                "raw_representation": representation,
+                "dom_path": None,
+                "dom_index": 1,
+                "md_char_range": [0, min(len(body_markdown), 4000)],
+            },
+            "source_url": source_url,
+            "dom_path": None,
+            "dom_index": 1,
+            "locator_type": "markdown_range",
+            "metadata": {
+                "source": "firecrawl",
+                "raw_representation": representation,
+                "parser_backend": parser_backend,
+                "locator_type": "markdown_range",
+            },
+        }],
+        "sections": sections,
+        "retrieval_hints": retrieval_hints,
+        "removed_noise": removed_noise,
+        "quality": quality,
+        "source": {
+            "connector_type": "firecrawl_document",
+            "content_kind": "web_document",
+            "source_url": metadata.get("source_url"),
+            "final_url": metadata.get("final_url"),
+            "canonical_url": metadata.get("canonical_url"),
+            "crawler_plan_id": metadata.get("crawler_plan_id"),
+            "crawler_run_id": metadata.get("crawler_run_id"),
+        },
+    }
 
 
 def run_assetize(
@@ -302,9 +603,6 @@ def run_parse(
     open DB transaction. Only short DB state transitions are committed before
     and after the external work.
     """
-    if ctx.mineru is None:
-        raise RuntimeError("run_parse called on a context without a MinerU adapter (record pipeline?)")
-
     existing_artifact = ctx.session.scalar(
         select(models.ParseArtifact)
         .where(
@@ -359,21 +657,47 @@ def run_parse(
         raw_key = raw_uri.split("/", 3)[-1] if raw_uri.startswith("s3://") else raw_uri
         raw_content = ctx.storage.get_bytes(raw_key)
 
-        parsed = ctx.mineru.parse(
-            filename, raw_content, mime_type, model_version=model_version_override
-        )
+        if _is_firecrawl_web_document(raw_object):
+            parse_payload = _build_firecrawl_parse_payload(
+                raw_object,
+                raw_content,
+            )
+            parsed_content = _json_bytes(parse_payload)
+            parse_mode = "firecrawl_web_document"
+            parsed_metadata = {
+                "backend": "firecrawl-web-document",
+                "model_version": "firecrawl-web-document-v1",
+                "parser_backend": parse_payload.get("parser_backend"),
+                "ocr_enabled": False,
+                "source_format": (raw_object.metadata_summary or {}).get("raw_representation")
+                or ("html" if (mime_type or "").lower() == "text/html" else "markdown"),
+                "source_url": (raw_object.metadata_summary or {}).get("source_url"),
+                "final_url": (raw_object.metadata_summary or {}).get("final_url"),
+                "canonical_url": (raw_object.metadata_summary or {}).get("canonical_url"),
+            }
+            parsed_images: dict[str, bytes] = {}
+        else:
+            if ctx.mineru is None:
+                raise RuntimeError("run_parse called on a context without a MinerU adapter (record pipeline?)")
+            parsed = ctx.mineru.parse(
+                filename, raw_content, mime_type, model_version=model_version_override
+            )
+            parsed_content = parsed.content
+            parse_mode = parsed.parse_mode
+            parsed_metadata = parsed.metadata
+            parsed_images = parsed.images
 
         artifact_storage_key = artifact_key(ctx.settings, version_id, artifact_id)
         stored = ctx.storage.put_bytes(
             artifact_storage_key,
-            parsed.content,
+            parsed_content,
             "application/json",
             {"nexus-raw-object-id": raw_object_id, "nexus-version-id": version_id},
         )
         stored_keys.append(artifact_storage_key)
 
         image_uris: dict[str, str] = {}
-        for img_name, img_bytes in parsed.images.items():
+        for img_name, img_bytes in parsed_images.items():
             img_key = artifact_image_key(ctx.settings, version_id, artifact_id, img_name)
             ext = img_name.rsplit(".", 1)[-1].lower() if "." in img_name else "bin"
             img_content_type = f"image/{ext}" if ext in {"png", "jpg", "jpeg", "webp", "gif", "tiff", "bmp"} else "application/octet-stream"
@@ -405,12 +729,12 @@ def run_parse(
         raw_object_id=raw_object_id,
         asset_version_id=version_id,
         artifact_uri=stored.object_uri,
-        parse_mode=parsed.parse_mode,
-        checksum=checksum_value(parsed.content),
+        parse_mode=parse_mode,
+        checksum=checksum_value(parsed_content),
         status=ParseArtifactStatus.GENERATED,
         metadata_summary={
-            **parsed.metadata,
-            "image_count": len(parsed.images),
+            **parsed_metadata,
+            "image_count": len(parsed_images),
             **({"image_uris": image_uris} if image_uris else {}),
         },
     )
@@ -690,6 +1014,20 @@ def _build_normalized_document(
             "text": body_markdown[:4000],
             "source_locator": {},
         }]
+        raw_sections = parse_payload.get("sections")
+        if isinstance(raw_sections, list):
+            toc = [
+                {
+                    "section_id": section.get("section_id"),
+                    "title": section.get("heading"),
+                    "level": section.get("level"),
+                    "md_char_range": section.get("md_char_range"),
+                    "start_block_id": section.get("start_block_id"),
+                    "end_block_id": section.get("end_block_id"),
+                }
+                for section in raw_sections
+                if isinstance(section, dict) and section.get("heading")
+            ]
 
     # Slice 0+1: extract document-level metadata (title / authors / publish_date
     # / keywords / abstract / outline) so it lives ONCE on the ref and never
@@ -712,6 +1050,14 @@ def _build_normalized_document(
         "backend": artifact.metadata_summary.get("backend") or artifact.metadata_summary.get("model_version"),
         "ocr_enabled": artifact.metadata_summary.get("ocr_enabled", False),
     }
+    if parse_payload.get("parser_backend"):
+        metadata["parser_backend"] = parse_payload.get("parser_backend")
+    if parse_payload.get("sections"):
+        metadata["sections"] = parse_payload.get("sections")
+    if parse_payload.get("retrieval_hints"):
+        metadata["retrieval_hints"] = parse_payload.get("retrieval_hints")
+    if parse_payload.get("quality"):
+        metadata["main_content_quality"] = parse_payload.get("quality")
 
     major_profile_payload: dict[str, Any] | None = None
     try:

@@ -90,7 +90,7 @@ Root documents are distilled implementation contracts:
 ## Core P0 Capabilities
 
 - Local organization, user, role, API caller, and API key management.
-- Data source registration and file/NAS/crawler ingestion, including scan-task orchestration for NAS/Webhook/record sources. Crawler includes a low-frequency Firecrawl document acquisition path with generic plans and one JSON-configured quick-start plan for national/provincial policy, report, ecommerce, and digital-economy data; Firecrawl HTML/PDF/Markdown enters Pipeline A.
+- Data source registration and file/NAS/crawler ingestion, including scan-task orchestration for NAS/Webhook/record sources. Crawler includes a low-frequency Firecrawl document acquisition path with generic plans and one JSON-configured quick-start plan for national/provincial policy, report, ecommerce, and digital-economy data; Firecrawl HTML/PDF/Markdown enters Pipeline A, where HTML is converted from Firecrawl `onlyMainContent` output into Markdown plus deterministic block/section locators by the crawler `trafilatura` parser, PDF stays on MinerU, and Markdown uses the lightweight document adapter.
 - Raw object and original JSON package retention.
 - Persistent job center with stage, failure reason, retry, reprocess, and re-governance.
 - MinerU parsing (auto model_version, OCR, image extraction) and standardization into `normalized_document` / `normalized_record` with full `normalized_asset_ref` fields.

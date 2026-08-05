@@ -57,7 +57,7 @@ internal crawler API
 Pipeline A
   -> ingest_validate
   -> assetize
-  -> parse (HTML -> MinerU-HTML, PDF -> pipeline, Markdown -> markdown adapter)
+  -> parse (HTML -> trafilatura Markdown extractor + deterministic block/section/locator builder, PDF -> MinerU pipeline, Markdown -> markdown adapter)
   -> normalize -> normalized_document / normalized_asset_ref
   -> AI governance + rules
   -> available / review_required
@@ -551,11 +551,13 @@ Firecrawl API key 只存在后端配置或密钥管理中，不进入 Console、
 Parse 规则：
 
 ```text
-text/html -> MinerU-HTML
+text/html -> crawler trafilatura Markdown extractor + deterministic block/section/locator builder (input should be Firecrawl onlyMainContent output)
 application/pdf -> MinerU pipeline，OCR 自动策略照旧
 text/markdown -> markdown document adapter
 firecrawl snapshot json -> 解包后按 HTML/Markdown 处理
 ```
+
+Firecrawl HTML 的解析目标是服务政策/报告/区域数据资产的语义召回，而不是复原原始 DOM layout。解析器必须输出完整正文 Markdown、结构化 blocks、sections、retrieval_hints、removed_noise 和 quality；block/source locator 使用 `locator_type=markdown_range` 与 `md_char_range` 指向解析后的 Markdown。LLM 解析不可直接写治理结果、chunk 或索引，仍必须先生成 `parse_artifact` 并进入 normalize/governance/index 准入链路。PDF 原件不走该 HTML LLM 解析器，继续下载为 PDF 后进入 MinerU Pipeline。
 
 `raw_object.metadata_summary` 和 `normalized_asset_ref.lineage` 必须携带 `source_url`、`final_url`、`canonical_url`、`firecrawl_job_id`、`crawler_plan_id`、`crawler_run_id`、模板配置 hash、区域站点配置 hash 和内容 hash。`normalized_asset_ref` 仍必须包含 v3.0 要求的 `source_type`、`content_type`、`title`、`language`、`governance`、`quality`、`lineage` 字段。
 
@@ -595,12 +597,7 @@ Pipeline A 标准化必须尽量保留结构：
 }
 ```
 
-HTML section builder 优先级：
-
-1. HTML `h1`/`h2`/`h3`/`h4`。
-2. Markdown heading。
-3. 中文编号标题，如 `一、`、`二、`、`（一）`、`1.`。
-4. 段落长度和结构兜底。
+Firecrawl HTML section builder 优先由 LLM 基于正文语义与 Markdown 标题层级生成 sections；当 LLM 输出没有一级标题时，parse stage 使用文档标题插入合成 H1，并把后续 block/section 的 `md_char_range` 平移到新的 Markdown 文本。Markdown 输入继续依赖 Markdown heading 和中文编号标题等轻量规则生成 heading path。
 
 低质量结构必须打 `quality_flags`，例如 `weak_heading_structure`。Query Router v2 仅在命中资产属于 `industry_policy` / `industry_report` / `talent_demand_report`，且查询意图是总结、措施、趋势、阶段、任务、政策条款或区域发展时展开 section context；精确事实、下载、关键词存在性和跨资产比较保持 compact chunk evidence。
 

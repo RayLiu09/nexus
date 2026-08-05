@@ -1143,6 +1143,11 @@ def _descriptor(block: dict[str, Any]) -> dict[str, Any]:
         "page": block.get("page"),
         "bbox": block.get("bbox"),
         "md_char_range": block.get("md_char_range"),
+        "source_url": block.get("source_url") or (block.get("source_locator") or {}).get("source_url"),
+        "dom_path": block.get("dom_path") or (block.get("source_locator") or {}).get("dom_path"),
+        "dom_index": block.get("dom_index") or (block.get("source_locator") or {}).get("dom_index"),
+        "locator_type": block.get("locator_type") or (block.get("source_locator") or {}).get("locator_type"),
+        "section_id": block.get("section_id") or (block.get("source_locator") or {}).get("section_id"),
     }
 
 

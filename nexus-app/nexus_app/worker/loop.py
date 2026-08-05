@@ -170,7 +170,12 @@ class WorkerLoop:
             jobs = claim_jobs(
                 session,
                 self.worker_id,
-                batch_size=min(4, self.max_concurrent),
+                # This loop executes claimed jobs serially. Claiming more than
+                # one row here starts leases for jobs that do not yet have a
+                # heartbeat thread, so slow LiteLLM/MinerU calls in the first
+                # job can make later claimed rows expire before execution.
+                # Process-level concurrency is provided by WorkerPool threads.
+                batch_size=1,
                 lease_seconds=self.lease_seconds,
             )
 

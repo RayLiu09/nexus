@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 
 from nexus_app import models
 from nexus_app.config import get_settings
@@ -12,7 +13,7 @@ from nexus_app.crawler.firecrawl_client import (
     FirecrawlDocumentSnapshot,
     create_default_firecrawl_document_client,
 )
-from nexus_app.crawler.quality_gate import domain_of, evaluate_snapshot
+from nexus_app.crawler.quality_gate import domain_of, evaluate_snapshot, is_pdf_candidate
 
 
 @dataclass(frozen=True)
@@ -60,42 +61,36 @@ def run_firecrawl_plan(
             }
             for item in search_results[:max_pages]
         ]
-        discovered_urls = [item.url for item in search_results][:max_pages]
+        discovered_results = search_results[:max_pages]
+        discovered_urls = [item.url for item in discovered_results]
         scrape_urls, duplicate_url_count = _dedupe_urls(discovered_urls)
         scrape_limit_filtered_count = 0
         if scrape_limit_enabled and len(scrape_urls) > scrape_limit:
             scrape_limit_filtered_count = len(scrape_urls) - scrape_limit
             scrape_urls = scrape_urls[:scrape_limit]
-        snapshots = client.batch_scrape(
-            urls=scrape_urls,
-            only_main_content=only_main_content,
-            formats=formats,
-            proxy=settings.crawler_firecrawl_proxy,
-            max_concurrency=settings.crawler_firecrawl_max_concurrency,
-            max_age_ms=settings.crawler_firecrawl_cache_max_age_ms,
-        )
-        fallback_scrape_count = 0
-        if len(snapshots) < len(scrape_urls):
-            scraped_urls = {snapshot.source_url for snapshot in snapshots}
-            scraped_urls.update(snapshot.final_url for snapshot in snapshots)
-            for url in scrape_urls:
-                if url in scraped_urls:
-                    continue
-                fallback_scrape_count += 1
-                try:
-                    snapshot = client.scrape(
-                        url=url,
-                        only_main_content=only_main_content,
-                        formats=formats,
-                        proxy=settings.crawler_firecrawl_proxy,
-                        max_age_ms=settings.crawler_firecrawl_cache_max_age_ms,
-                    )
-                except FirecrawlClientError:
-                    continue
-                if snapshot is not None:
-                    snapshots.append(snapshot)
-                    scraped_urls.add(snapshot.source_url)
-                    scraped_urls.add(snapshot.final_url)
+        snapshots = []
+        scrape_failed_count = 0
+        by_url = {item.url: item for item in discovered_results}
+        for url in scrape_urls:
+            if is_pdf_candidate(url, {}):
+                result = by_url.get(url)
+                snapshots.append(_pdf_candidate_snapshot(url, result))
+                continue
+            try:
+                snapshot = client.scrape(
+                    url=url,
+                    only_main_content=only_main_content,
+                    formats=formats,
+                    proxy=settings.crawler_firecrawl_proxy,
+                    max_age_ms=settings.crawler_firecrawl_cache_max_age_ms,
+                )
+            except FirecrawlClientError:
+                scrape_failed_count += 1
+                continue
+            if snapshot is None:
+                scrape_failed_count += 1
+                continue
+            snapshots.append(snapshot)
     except FirecrawlClientError as exc:
         return CrawlerRunOutcome(
             status="failed",
@@ -138,7 +133,7 @@ def run_firecrawl_plan(
         accepted.append(_accepted_snapshot_summary(snapshot))
         accepted_snapshot_objects.append(snapshot)
 
-    provider_missing = max(len(scrape_urls) - len(snapshots), 0)
+    provider_missing = scrape_failed_count
     if provider_missing:
         filter_reasons["scrape_missing"] = filter_reasons.get("scrape_missing", 0) + provider_missing
 
@@ -170,7 +165,8 @@ def run_firecrawl_plan(
         "accepted_snapshots": accepted,
         "submitted": [],
         "failures": failures,
-        "fallback_scrape_count": fallback_scrape_count,
+        "scrape_mode": "single_scrape_sync",
+        "scrape_failed_count": scrape_failed_count,
     })
     return CrawlerRunOutcome(status=status, summary=summary, accepted_snapshots=accepted_snapshot_objects)
 
@@ -258,5 +254,29 @@ def _accepted_snapshot_summary(snapshot: FirecrawlDocumentSnapshot) -> dict[str,
         "title": snapshot.title,
         "content_hash": digest,
         "content_chars": len(raw_text),
-        "raw_representation": "html" if snapshot.html else "markdown",
+        "raw_representation": (
+            "pdf_candidate" if is_pdf_candidate(snapshot.final_url or snapshot.source_url, snapshot.metadata)
+            else "html" if snapshot.html else "markdown"
+        ),
     }
+
+
+def _pdf_candidate_snapshot(
+    url: str,
+    result: FirecrawlSearchResult | None,
+) -> FirecrawlDocumentSnapshot:
+    title = result.title if result else None
+    description = result.description if result else None
+    quality_text = "\n".join(part for part in [title, description, urlparse(url).path] if part)
+    return FirecrawlDocumentSnapshot(
+        source_url=url,
+        final_url=url,
+        title=title,
+        markdown=quality_text,
+        html=None,
+        metadata={
+            "content_type": "application/pdf",
+            "raw_representation": "pdf_candidate",
+            **({"search_description": description} if description else {}),
+        },
+    )

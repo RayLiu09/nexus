@@ -8,7 +8,7 @@ This document is the concise architecture baseline for implementation. It is dis
 | ----------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ingest_validate` job type    | Not defined; validation implicit in gateway            | Explicit `ingest_validate` job stage; writes `INGEST_VALIDATE_COMPLETED` / `INGEST_VALIDATE_FAILED` audit events                                                                                              |
 | assetize vs normalize         | Both labeled "normalize" loosely                       | **assetize** = create asset/asset_version anchor (job-orchestrator + metadata-service); **normalize** = content standardization contract (normalize-service). Distinct stages with distinct responsibilities. |
-| MinerU model_version          | Hardcoded `hybrid-auto-engine`                         | Auto-selected by mime_type: HTML → `MinerU-HTML`; default → `pipeline`; complex layout → `vlm` (opt-in). Caller can override via `Job.payload.model_version_override`.                                        |
+| MinerU model_version          | Hardcoded `hybrid-auto-engine`                         | Auto-selected by mime_type: general HTML upload → `MinerU-HTML`; crawler Firecrawl HTML → `trafilatura` main-content extractor plus deterministic Markdown block/section/locator builder; default → `pipeline`; complex layout → `vlm` (opt-in). Caller can override via `Job.payload.model_version_override`.                                  |
 | MinerU OCR                    | No explicit control                                    | Auto-enabled for `image/*`, `application/pdf`, `tiff` mime types                                                                                                                                              |
 | MinerU image output           | Not stored                                             | Images extracted from ZIP response, stored at `parsed/<version_id>/<artifact_id>/images/<name>`; URIs recorded in `parse_artifact.metadata_summary.image_uris` and `normalized_asset_ref.lineage.image_uris`  |
 | MinerU cluster                | Single node only                                       | CPU Worker group (pipeline model) + GPU Worker group (vlm/MinerU-HTML) + MinerU Router; cluster scale-up triggers documented                                                                                  |
@@ -149,7 +149,7 @@ P0 record profiles include job demand, occupational ability analysis, and major 
 
 | mime_type                                | model_version | Notes                                                             |
 | ---------------------------------------- | ------------- | ----------------------------------------------------------------- |
-| `text/html`, `application/xhtml+xml`     | `MinerU-HTML` | Must be explicit                                                  |
+| `text/html`, `application/xhtml+xml`     | `MinerU-HTML` | General uploaded HTML only. Firecrawl crawler HTML uses the crawler `trafilatura` Markdown extractor instead. |
 | default (PDF, Word, PPT, images)         | `pipeline`    | Low cost, high throughput                                         |
 | complex layout / mixed graphics (opt-in) | `vlm`         | Higher GPU cost; trigger via `Job.payload.model_version_override` |
 
@@ -494,7 +494,7 @@ Asset Pipeline → normalized_asset_ref (stable contract)
 ## Core Flows
 
 **Pipeline A (Document):**
-`upload / firecrawl_document crawler → raw_object (binary, HTML, Markdown, PDF, or approved document snapshot) → ingest_validate → Job(pipeline_type="document") → assetize (asset/asset_version) → MinerU parse for HTML/PDF/Office/image or markdown document adapter → normalize (normalized_document) → normalized_asset_ref → AI governance → rules → governance_result → available/review_required → knowledge_chunking → eligible textbook knowledge_outline_build / policy-report section locator preservation → semantic retrieval index`
+`upload / firecrawl_document crawler → raw_object (binary, HTML, Markdown, PDF, or approved document snapshot) → ingest_validate → Job(pipeline_type="document") → assetize (asset/asset_version) → MinerU parse for PDF/Office/image/general HTML upload, Firecrawl HTML trafilatura Markdown extractor, or markdown document adapter → normalize (normalized_document) → normalized_asset_ref → AI governance → rules → governance_result → available/review_required → knowledge_chunking → eligible textbook knowledge_outline_build / policy-report section locator preservation → semantic retrieval index`
 
 **Pipeline B (Record):**
 `webhook / batch / file upload → raw_object (JSON/XLSX structured data) → ingest_validate → Job(pipeline_type="record") → assetize (asset/asset_version) → structured_parse/profile_detect when applicable → normalize (normalized_record) → normalized_asset_ref → AI governance → rules → governance_result → index`
@@ -582,7 +582,7 @@ Single-node capacity (16 Core / 64 GB / 48 GB GPU):
 | Async jobs        | PostgreSQL job table + Worker poller                 | RabbitMQ + Celery                        |
 | Frontend          | React 19, Next.js 16 App Router, TypeScript          | —                                        |
 | Charts            | ECharts 5.x                                          | —                                        |
-| Parsing           | MinerU (pipeline / vlm / MinerU-HTML, auto-selected) | MinerU cluster (CPU + GPU Worker groups) |
+| Parsing           | MinerU (pipeline / vlm / MinerU-HTML, auto-selected) plus Firecrawl HTML `trafilatura` extractor and deterministic Markdown locator builder | MinerU cluster (CPU + GPU Worker groups) |
 | AI gateway        | Existing LiteLLM                                     | —                                        |
 | Search/index      | Adapter-based semantic retrieval backend; P0 default = PostgreSQL pgvector for text chunk embeddings; RAGFlow is not the semantic retrieval baseline | Dedicated vector/retrieval engine when capacity, concurrency, filtered ANN, or multimodal requirements exceed pgvector |
 | Embedding/rerank  | `bge-large-zh-v1.5`, `bge-reranker-large`            | —                                        |
