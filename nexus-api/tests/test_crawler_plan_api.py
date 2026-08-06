@@ -9,6 +9,7 @@ from nexus_app.crawler.firecrawl_client import (
     FirecrawlDocumentSnapshot,
     FirecrawlSearchResult,
 )
+from nexus_app.crawler.quality_gate import is_pdf_candidate
 from nexus_app.crawler import runner as crawler_runner
 from nexus_app.enums import JobStatus
 from nexus_app.storage import InMemoryObjectStorage
@@ -134,6 +135,56 @@ class FailingPdfDownloader:
     def download(self, url: str) -> bytes:
         del url
         raise crawler_service.PdfDownloadError("pdf_download_failed")
+
+
+def test_http_pdf_downloader_allows_public_http_pdf_urls(monkeypatch):
+    calls: list[dict] = []
+
+    class FakeResponse:
+        content = b"%PDF-1.7\npublic http pdf\n"
+        headers = {"content-type": "application/pdf"}
+
+        def raise_for_status(self):
+            return None
+
+    class FakeClient:
+        def __init__(self, *, timeout, follow_redirects):
+            self.timeout = timeout
+            self.follow_redirects = follow_redirects
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def get(self, url, headers):
+            calls.append({"url": url, "headers": headers})
+            return FakeResponse()
+
+    monkeypatch.setattr(crawler_service.httpx, "Client", FakeClient)
+
+    content = crawler_service.HttpPdfDownloader(timeout_seconds=3).download(
+        "http://www.zcsvillages.com/upload/report.pdf"
+    )
+
+    assert content.startswith(b"%PDF")
+    assert calls == [{
+        "url": "http://www.zcsvillages.com/upload/report.pdf",
+        "headers": crawler_service.HttpPdfDownloader._HEADERS,
+    }]
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://example.gov.cn/download?file=policy-report.pdf",
+        "https://example.gov.cn/download?file=policy-report.PDF",
+        "https://example.gov.cn/download?file=policy-report%2Epdf",
+    ],
+)
+def test_pdf_candidate_detects_query_pdf_urls(url):
+    assert is_pdf_candidate(url, {}) is True
 
 
 def test_crawler_config_and_regions(app):
@@ -468,7 +519,7 @@ def test_firecrawl_runner_downloads_pdf_urls_as_pdf_raw_objects(session, monkeyp
     assert submitted_pdf["raw_representation"] == "original_binary"
 
 
-def test_firecrawl_runner_does_not_fallback_to_html_when_pdf_download_fails(session, monkeypatch):
+def test_firecrawl_runner_falls_back_to_firecrawl_snapshot_when_pdf_download_fails(session, monkeypatch):
     monkeypatch.setenv("CRAWLER_FIRECRAWL_SCRAPE_LIMIT_ENABLED", "false")
     get_settings.cache_clear()
     source = services.create_data_source(
@@ -499,19 +550,23 @@ def test_firecrawl_runner_does_not_fallback_to_html_when_pdf_download_fails(sess
         storage=InMemoryObjectStorage(),
     )
 
-    assert run.status == "failed"
+    assert run.status == "succeeded"
     assert run.summary["accepted_count"] == 1
-    assert run.summary["submitted_count"] == 0
-    assert run.summary["ingest_failed_count"] == 1
-    assert run.summary["ingest_failures"] == [
-        {
-            "url": "https://www.ndrc.gov.cn/report/P020230613309060086035.pdf",
-            "reason": "pdf_download_failed",
-            "raw_representation": "pdf_candidate",
-        }
-    ]
-    assert session.query(models.RawObject).count() == 0
-    assert session.query(models.Job).count() == 0
+    assert run.summary["submitted_count"] == 1
+    assert run.summary["ingest_failed_count"] == 0
+    assert run.summary["ingest_failures"] == []
+    submitted = run.summary["submitted"][0]
+    assert submitted["mime_type"] == "text/markdown"
+    assert submitted["raw_representation"] == "pdf_snapshot_markdown_fallback"
+    assert submitted["pdf_ingest_fallback"] is True
+    assert submitted["pdf_download_failed_reason"] == "pdf_download_failed"
+    raw = session.query(models.RawObject).one()
+    assert raw.mime_type == "text/markdown"
+    assert raw.metadata_summary["content_kind"] == "web_document"
+    assert raw.metadata_summary["raw_representation"] == "pdf_snapshot_markdown_fallback"
+    assert raw.metadata_summary["pdf_candidate_url"].endswith(".pdf")
+    assert raw.metadata_summary["pdf_ingest_fallback"] is True
+    assert session.query(models.Job).count() == 1
 
 
 def test_firecrawl_runner_records_missing_single_scrape(session):

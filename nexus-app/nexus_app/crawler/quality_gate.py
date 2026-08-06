@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 from typing import Any
 
 from nexus_app.crawler.firecrawl_client import FirecrawlDocumentSnapshot
@@ -63,7 +63,9 @@ def evaluate_snapshot(
 
 def is_pdf_candidate(url: str, metadata: dict[str, Any] | None = None) -> bool:
     parsed = urlparse(url)
-    if parsed.path.lower().endswith(".pdf"):
+    path = unquote(parsed.path or "").lower()
+    query = unquote(parsed.query or "").lower()
+    if path.endswith(".pdf") or ".pdf" in query:
         return True
     metadata = metadata or {}
     for key in (

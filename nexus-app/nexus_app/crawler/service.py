@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timezone
+from dataclasses import dataclass
 from typing import Any, Protocol
 from urllib.parse import urlparse
 
@@ -44,15 +45,33 @@ class PdfDownloader(Protocol):
     def download(self, url: str) -> bytes: ...
 
 
+@dataclass(frozen=True)
+class CrawlerRawContent:
+    content: bytes
+    mime_type: str
+    raw_representation: str
+    metadata: dict[str, Any]
+
+
 class HttpPdfDownloader:
+    _HEADERS = {
+        "accept": "application/pdf,application/octet-stream,*/*;q=0.8",
+        "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "user-agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/126.0 Safari/537.36"
+        ),
+    }
+
     def __init__(self, *, timeout_seconds: float) -> None:
         self._timeout_seconds = timeout_seconds
 
     def download(self, url: str) -> bytes:
         try:
-            validate_target_url(url)
+            validate_target_url(url, allow_http_authority_seed=True)
             with httpx.Client(timeout=self._timeout_seconds, follow_redirects=True) as client:
-                response = client.get(url, headers={"accept": "application/pdf,*/*;q=0.8"})
+                response = client.get(url, headers=self._HEADERS)
                 response.raise_for_status()
         except UnsafeCrawlerUrlError as exc:
             raise PdfDownloadError("unsafe_pdf_url") from exc
@@ -422,7 +441,7 @@ def _ingest_firecrawl_snapshots(
     for index, snapshot in enumerate(snapshots, start=1):
         source_url = snapshot.final_url or snapshot.source_url
         try:
-            content, mime_type, raw_representation = _snapshot_raw_content(
+            raw_content = _snapshot_raw_content(
                 snapshot,
                 pdf_downloader=pdf_downloader,
             )
@@ -433,6 +452,9 @@ def _ingest_firecrawl_snapshots(
                 "raw_representation": "pdf_candidate",
             })
             continue
+        content = raw_content.content
+        mime_type = raw_content.mime_type
+        raw_representation = raw_content.raw_representation
         if not content:
             failures.append({
                 "url": source_url,
@@ -462,9 +484,15 @@ def _ingest_firecrawl_snapshots(
                     "title": snapshot.title,
                     "content_hash": content_hash,
                     "raw_representation": raw_representation,
+                    **raw_content.metadata,
                     "firecrawl_only_main_content": (
                         bool(plan.crawl_policy.get("only_main_content", True))
-                        if raw_representation in {"html", "markdown"}
+                        if raw_representation in {
+                            "html",
+                            "markdown",
+                            "pdf_snapshot_html_fallback",
+                            "pdf_snapshot_markdown_fallback",
+                        }
                         else False
                     ),
                     "crawler_plan_id": plan.id,
@@ -492,6 +520,7 @@ def _ingest_firecrawl_snapshots(
             "content_hash": content_hash,
             "mime_type": mime_type,
             "raw_representation": raw_representation,
+            **raw_content.metadata,
             "duplicate": result.duplicate,
             "job_stage": result.job.current_stage,
             "pipeline_type": result.job.payload.get("pipeline_type"),
@@ -529,17 +558,47 @@ def _snapshot_raw_content(
     snapshot: FirecrawlDocumentSnapshot,
     *,
     pdf_downloader: PdfDownloader,
-) -> tuple[bytes, str, str]:
+) -> CrawlerRawContent:
     source_url = snapshot.final_url or snapshot.source_url
     if is_pdf_candidate(source_url, snapshot.metadata):
-        content = pdf_downloader.download(source_url)
-        if not _looks_like_pdf(content):
-            raise PdfDownloadError("pdf_magic_mismatch")
-        return content, "application/pdf", "original_binary"
+        try:
+            content = pdf_downloader.download(source_url)
+            if not _looks_like_pdf(content):
+                raise PdfDownloadError("pdf_magic_mismatch")
+            return CrawlerRawContent(
+                content=content,
+                mime_type="application/pdf",
+                raw_representation="original_binary",
+                metadata={},
+            )
+        except PdfDownloadError as exc:
+            fallback_text = snapshot.html or snapshot.markdown or ""
+            if not fallback_text.strip():
+                raise
+            mime_type = "text/html" if snapshot.html else "text/markdown"
+            raw_representation = (
+                "pdf_snapshot_html_fallback" if snapshot.html
+                else "pdf_snapshot_markdown_fallback"
+            )
+            return CrawlerRawContent(
+                content=fallback_text.encode("utf-8"),
+                mime_type=mime_type,
+                raw_representation=raw_representation,
+                metadata={
+                    "pdf_download_failed_reason": str(exc),
+                    "pdf_candidate_url": source_url,
+                    "pdf_ingest_fallback": True,
+                },
+            )
     raw_text = snapshot.html or snapshot.markdown or ""
     mime_type = "text/html" if snapshot.html else "text/markdown"
     raw_representation = "html" if snapshot.html else "markdown"
-    return raw_text.encode("utf-8"), mime_type, raw_representation
+    return CrawlerRawContent(
+        content=raw_text.encode("utf-8"),
+        mime_type=mime_type,
+        raw_representation=raw_representation,
+        metadata={},
+    )
 
 
 def _looks_like_pdf(content: bytes) -> bool:

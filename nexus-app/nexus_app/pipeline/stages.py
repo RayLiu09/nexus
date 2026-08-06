@@ -630,6 +630,7 @@ def run_parse(
     raw_uri = raw_object.object_uri
     filename = str(raw_object.metadata_summary.get("filename", raw_object.id))
     mime_type = raw_object.mime_type
+    is_firecrawl_web_document = _is_firecrawl_web_document(raw_object)
     model_version_override = (ctx.job.payload or {}).get("model_version_override")
     version_id = version.id
 
@@ -657,7 +658,7 @@ def run_parse(
         raw_key = raw_uri.split("/", 3)[-1] if raw_uri.startswith("s3://") else raw_uri
         raw_content = ctx.storage.get_bytes(raw_key)
 
-        if _is_firecrawl_web_document(raw_object):
+        if is_firecrawl_web_document:
             parse_payload = _build_firecrawl_parse_payload(
                 raw_object,
                 raw_content,

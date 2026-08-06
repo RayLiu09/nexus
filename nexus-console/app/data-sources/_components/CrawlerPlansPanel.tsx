@@ -18,7 +18,6 @@ import {
   Typography,
 } from "antd";
 import {
-  CloudDownloadOutlined,
   DeleteOutlined,
   HistoryOutlined,
   LinkOutlined,
@@ -132,18 +131,6 @@ function objectArrayFrom(summary: Record<string, unknown>, key: string): Crawler
     .filter((item) => item.url);
 }
 
-function runSummary(run: CrawlerRun | null): { label: string; value: number }[] {
-  if (!run) return [];
-  return [
-    { label: "发现", value: numberFrom(run.summary, "discovered_count") },
-    { label: "通过", value: numberFrom(run.summary, "accepted_count") },
-    { label: "提交", value: numberFrom(run.summary, "submitted_count") },
-    { label: "新增原始对象", value: numberFrom(run.summary, "raw_persisted_count") },
-    { label: "去重", value: numberFrom(run.summary, "duplicate_count") },
-    { label: "失败", value: numberFrom(run.summary, "failed_count") },
-  ];
-}
-
 function compactHash(value: string | null | undefined): string {
   if (!value) return "";
   return value.length > 18 ? value.slice(0, 18) : value;
@@ -220,7 +207,6 @@ export function CrawlerPlansPanel() {
   const [historyLoading, setHistoryLoading] = useState(false);
 
   const activePlans = plans.filter((plan) => plan.status !== "archived");
-  const latestRun = runs[0] ?? null;
   const crawlerSourceOptions = [
     {
       value: BUILTIN_FIRECRAWL_SOURCE_ID,
@@ -527,16 +513,7 @@ export function CrawlerPlansPanel() {
           </div>
         )}
 
-        <div className="grid content-start gap-4 px-5 py-5">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            {runSummary(latestRun).map((item) => (
-              <div key={item.label} className="border-line-light rounded-md border px-3 py-2">
-                <div className="text-text-muted text-xs">{item.label}</div>
-                <div className="mt-1 text-lg font-semibold">{item.value}</div>
-              </div>
-            ))}
-          </div>
-
+        <div className="px-5 py-5">
           <Table<CrawlerPlan>
             size="small"
             loading={loading}
@@ -618,34 +595,6 @@ export function CrawlerPlansPanel() {
               },
             ]}
           />
-
-          {latestRun ? (
-            <Descriptions size="small" bordered column={2}>
-              <Descriptions.Item label="最近 Run">
-                <code className="font-mono text-xs">{latestRun.id}</code>
-              </Descriptions.Item>
-              <Descriptions.Item label="状态">
-                <StatusLabel value={latestRun.status} />
-              </Descriptions.Item>
-              <Descriptions.Item label="配置 Hash">
-                <code className="font-mono text-xs">
-                  {latestRun.template_config_hash?.slice(0, 18)}
-                </code>
-              </Descriptions.Item>
-              <Descriptions.Item label="站点 Hash">
-                <code className="font-mono text-xs">
-                  {latestRun.region_sites_config_hash?.slice(0, 18)}
-                </code>
-              </Descriptions.Item>
-            </Descriptions>
-          ) : (
-            <Alert
-              type="info"
-              showIcon
-              icon={<CloudDownloadOutlined />}
-              title="暂无 Crawler run"
-            />
-          )}
         </div>
       </div>
 
