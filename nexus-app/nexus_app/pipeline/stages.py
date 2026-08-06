@@ -243,11 +243,23 @@ def _is_firecrawl_web_document(raw_object: models.RawObject) -> bool:
     metadata = raw_object.metadata_summary or {}
     mime_type = (raw_object.mime_type or "").lower()
     return (
-        raw_object.source_type == DataSourceType.CRAWLER
-        and metadata.get("connector_type") == "firecrawl_document"
+        metadata.get("connector_type") == "firecrawl_document"
         and metadata.get("content_kind") == "web_document"
         and mime_type in {"text/html", "text/markdown"}
     )
+
+
+def _parse_route_detail(raw_object: models.RawObject, is_firecrawl_web_document: bool) -> dict[str, Any]:
+    metadata = raw_object.metadata_summary or {}
+    source_type = raw_object.source_type
+    source_type_value = source_type.value if hasattr(source_type, "value") else str(source_type)
+    return {
+        "parse_route": "firecrawl_web_document" if is_firecrawl_web_document else "mineru",
+        "source_type": source_type_value,
+        "connector_type": metadata.get("connector_type"),
+        "content_kind": metadata.get("content_kind"),
+        "raw_representation": metadata.get("raw_representation"),
+    }
 
 
 def _ensure_document_heading(
@@ -631,6 +643,7 @@ def run_parse(
     filename = str(raw_object.metadata_summary.get("filename", raw_object.id))
     mime_type = raw_object.mime_type
     is_firecrawl_web_document = _is_firecrawl_web_document(raw_object)
+    parse_route_detail = _parse_route_detail(raw_object, is_firecrawl_web_document)
     model_version_override = (ctx.job.payload or {}).get("model_version_override")
     version_id = version.id
 
@@ -641,6 +654,7 @@ def run_parse(
             "filename": filename,
             "mime_type": mime_type,
             "raw_object_id": raw_object_id,
+            **parse_route_detail,
         },
     )
     parse_stage_id = parse_stage.id
@@ -721,6 +735,7 @@ def run_parse(
                 ctx,
                 parse_stage,
                 StageStatus.FAILED,
+                detail=parse_route_detail,
                 failure_reason=f"{type(exc).__name__}: {exc}",
             )
         raise
@@ -753,6 +768,7 @@ def run_parse(
                 "parse_artifact_id": artifact.id,
                 "artifact_uri": artifact.artifact_uri,
                 "image_count": len(image_uris),
+                **parse_route_detail,
             },
         )
         ctx.session.flush()

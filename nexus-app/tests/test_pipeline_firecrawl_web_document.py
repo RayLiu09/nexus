@@ -21,7 +21,11 @@ from nexus_app.enums import (
 )
 from nexus_app.knowledge.chunk_builder import build_chunk
 from nexus_app.pipeline.context import PipelineContext
-from nexus_app.pipeline.stages import run_normalize_document, run_parse
+from nexus_app.pipeline.stages import (
+    _is_firecrawl_web_document,
+    run_normalize_document,
+    run_parse,
+)
 from nexus_app.knowledge.semantic_repack import repack as semantic_repack
 from nexus_app.storage import InMemoryObjectStorage, checksum_value
 
@@ -160,6 +164,15 @@ def test_firecrawl_html_parse_bypasses_mineru_and_creates_document_artifact(sess
 
     stage = session.query(models.JobStage).filter_by(job_id=ctx.job.id, stage_name="parse").one()
     assert stage.status == StageStatus.SUCCEEDED
+    assert stage.detail["parse_route"] == "firecrawl_web_document"
+    assert stage.detail["connector_type"] == "firecrawl_document"
+
+
+def test_firecrawl_html_route_uses_connector_metadata_not_source_type(session) -> None:
+    ctx, _version = _seed_firecrawl_web_job(session)
+    ctx.raw_object.source_type = DataSourceType.FILE_UPLOAD
+
+    assert _is_firecrawl_web_document(ctx.raw_object) is True
 
 
 def test_firecrawl_html_artifact_flows_into_normalized_document(session) -> None:
