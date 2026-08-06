@@ -10,6 +10,7 @@ from typing import Any
 CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
 TEMPLATE_PATH = CONFIG_DIR / "policy_report_regional_v1.json"
 REGION_SITES_PATH = CONFIG_DIR / "crawler_region_sites.json"
+WEBSEARCH_TEMPLATE_PATH = CONFIG_DIR / "websearch_custom_quick_start_v1.json"
 
 
 class CrawlerConfigError(ValueError):
@@ -34,6 +35,13 @@ def load_template() -> tuple[dict[str, Any], str]:
     data, digest = _read_json_with_hash(TEMPLATE_PATH)
     if data.get("template_code") != "policy_report_regional_v1":
         raise CrawlerConfigError("crawler template_code must be policy_report_regional_v1")
+    return data, digest
+
+@lru_cache(maxsize=1)
+def load_websearch_template() -> tuple[dict[str, Any], str]:
+    data, digest = _read_json_with_hash(WEBSEARCH_TEMPLATE_PATH)
+    if data.get("connector_type") != "websearch" or data.get("connector_version") != "custom":
+        raise CrawlerConfigError("invalid websearch custom template")
     return data, digest
 
 

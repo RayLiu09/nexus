@@ -232,6 +232,8 @@ class CrawlerTargetSite(BaseModel):
 
 class CrawlerPlanCreate(BaseModel):
     name: str = Field(min_length=1, max_length=128)
+    connector_type: Literal["firecrawl", "websearch"] = "firecrawl"
+    connector_version: str = "v2"
     mode: Literal["quick_start", "custom"] = "quick_start"
     data_source_id: str | None = None
     region_code: str | None = Field(default="national", max_length=64)
@@ -242,12 +244,15 @@ class CrawlerPlanCreate(BaseModel):
     execution_mode: Literal["run_once", "scheduled"] = "run_once"
     schedule_cron: str | None = Field(default=None, max_length=128)
     crawl_policy: dict[str, Any] = Field(default_factory=dict)
+    search_policy: dict[str, Any] = Field(default_factory=dict)
     status: Literal["active", "disabled", "archived"] = "active"
 
 
 class CrawlerPlanRead(ORMModel):
     id: str
     name: str
+    connector_type: str
+    connector_version: str
     mode: str
     data_source_id: str | None
     template_code: str | None
@@ -261,6 +266,7 @@ class CrawlerPlanRead(ORMModel):
     execution_mode: str
     schedule_cron: str | None
     crawl_policy: dict[str, Any]
+    search_policy: dict[str, Any]
     pipeline_policy: dict[str, Any]
     status: str
     created_at: datetime
@@ -271,6 +277,8 @@ class CrawlerRunRead(ORMModel):
     id: str
     plan_id: str
     status: str
+    connector_type: str
+    connector_version: str
     started_at: datetime
     finished_at: datetime | None
     template_code: str | None

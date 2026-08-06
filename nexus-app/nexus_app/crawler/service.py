@@ -19,6 +19,7 @@ from nexus_app.crawler.config_loader import (
     list_regions,
     load_region_sites,
     load_template,
+    load_websearch_template,
 )
 from nexus_app.crawler.firecrawl_client import FirecrawlDocumentClient, FirecrawlDocumentSnapshot
 from nexus_app.crawler.quality_gate import is_pdf_candidate
@@ -90,6 +91,16 @@ class HttpPdfDownloader:
 
 BUILTIN_FIRECRAWL_SOURCE_ID = "__builtin_firecrawl__"
 BUILTIN_FIRECRAWL_SOURCE_CODE = "ds_crawler_firecrawl_builtin"
+BUILTIN_WEBSEARCH_SOURCE_CODE = "ds_crawler_websearch_custom_builtin"
+
+
+def _validate_websearch_query(query: str) -> str:
+    value = query.strip()
+    if not value or len(value) > 100:
+        raise CrawlerPlanError("websearch query must contain 1 to 100 characters")
+    if any(marker in value for marker in (" ", "\u3000", ",", "，", ";", "；", "\t", "\n", "\r")):
+        raise CrawlerPlanError("websearch query must be a single term without spaces, commas, or semicolons")
+    return value
 
 
 def _ensure_builtin_firecrawl_data_source(session: Session) -> models.DataSource:
@@ -174,10 +185,26 @@ def create_plan(
     actor_type: str | None = None,
     actor_id: str | None = None,
 ) -> models.CrawlerPlan:
+    data_source_id = _resolve_plan_data_source_id(session, payload.data_source_id)
+    if payload.connector_type == "websearch":
+        if payload.connector_version != "custom":
+            raise CrawlerPlanError("websearch only supports custom version")
+        template, template_hash = load_websearch_template()
+        query = _validate_websearch_query((payload.search_policy or {}).get("query") or template["query"])
+        count = int((payload.search_policy or {}).get("result_count", template["default_result_count"]))
+        if not 10 <= count <= 50:
+            raise CrawlerPlanError("websearch result_count must be between 10 and 50")
+        policy = {"query": query, "result_count": count, "time_range_preset": (payload.search_policy or {}).get("time_range_preset", "one_year"), "content_formats": "markdown"}
+        row = models.CrawlerPlan(name=payload.name, connector_type="websearch", connector_version="custom", mode=payload.mode,
+            data_source_id=data_source_id, template_code=template["template_code"], template_version=template["schema_version"],
+            region_code=None, region_name=None, topic_keywords=[], content_goals=[], classification_hints=[], target_sites=[],
+            execution_mode=payload.execution_mode, schedule_cron=payload.schedule_cron, crawl_policy={}, search_policy=policy,
+            pipeline_policy=template["pipeline_policy"], status=payload.status)
+        session.add(row); session.flush(); session.commit(); session.refresh(row)
+        return row
     template, template_hash = load_template()
     _, sites_hash = load_region_sites()
     region_code = payload.region_code or template.get("default_region_code", "national")
-    data_source_id = _resolve_plan_data_source_id(session, payload.data_source_id)
 
     if payload.mode == "quick_start":
         region = read_region_sites(region_code)
@@ -219,6 +246,8 @@ def create_plan(
         raise CrawlerPlanError("crawler template pipeline_policy must route to document")
     row = models.CrawlerPlan(
         name=payload.name,
+        connector_type="firecrawl",
+        connector_version="v2",
         mode=payload.mode,
         data_source_id=data_source_id,
         template_code=template_code,
@@ -232,6 +261,7 @@ def create_plan(
         execution_mode=payload.execution_mode,
         schedule_cron=payload.schedule_cron,
         crawl_policy=_default_crawl_policy(template, payload.crawl_policy),
+        search_policy={},
         pipeline_policy=pipeline_policy,
         status=payload.status,
     )

@@ -130,6 +130,8 @@ class OrgUnit(TimestampMixin, Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     code: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
+    connector_type: Mapped[str] = mapped_column(String(32), default="firecrawl", nullable=False)
+    connector_version: Mapped[str] = mapped_column(String(32), default="v2", nullable=False)
     parent_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("org_unit.id"), nullable=True
     )
@@ -304,6 +306,7 @@ class CrawlerPlan(TimestampMixin, Base):
     execution_mode: Mapped[str] = mapped_column(String(32), nullable=False)
     schedule_cron: Mapped[str | None] = mapped_column(String(128), nullable=True)
     crawl_policy: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    search_policy: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     pipeline_policy: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="active", nullable=False)
 
@@ -327,6 +330,8 @@ class CrawlerRun(TimestampMixin, Base):
         String(36), ForeignKey("crawler_plan.id"), nullable=False
     )
     status: Mapped[str] = mapped_column(String(32), default="running", nullable=False)
+    connector_type: Mapped[str] = mapped_column(String(32), default="firecrawl", nullable=False)
+    connector_version: Mapped[str] = mapped_column(String(32), default="v2", nullable=False)
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )

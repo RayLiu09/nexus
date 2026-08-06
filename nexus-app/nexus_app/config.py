@@ -125,6 +125,16 @@ class Settings(BaseSettings):
     crawler_firecrawl_cache_max_age_ms: int = Field(
         default=172800000, ge=0, alias="CRAWLER_FIRECRAWL_CACHE_MAX_AGE_MS",
     )
+    crawler_websearch_custom_api_endpoint: str = Field(
+        default="https://open.feedcoopapi.com/search_api/web_search",
+        alias="CRAWLER_WEBSEARCH_CUSTOM_API_ENDPOINT",
+    )
+    crawler_websearch_custom_api_key: str | None = Field(
+        default=None, alias="CRAWLER_WEBSEARCH_CUSTOM_API_KEY",
+    )
+    crawler_websearch_custom_timeout_seconds: float = Field(
+        default=30.0, gt=0, alias="CRAWLER_WEBSEARCH_CUSTOM_TIMEOUT_SECONDS",
+    )
     default_governance_model: str = Field(
         default="gpt-4o-mini",
         alias="DEFAULT_GOVERNANCE_MODEL",

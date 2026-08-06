@@ -1,0 +1,13 @@
+{
+  "schema_version": "websearch_custom_quick_start.v1",
+  "template_code": "websearch_custom_quick_start_v1",
+  "template_name": "电子商务产业政策与市场概况",
+  "connector_type": "websearch",
+  "connector_version": "custom",
+  "query": "电子商务产业(跨境电商和直播电商)政策和市场概况",
+  "search_type": "web",
+  "content_formats": "markdown",
+  "default_result_count": 10,
+  "allowed_time_range_presets": ["three_months", "six_months", "one_year", "two_years", "three_years", "five_years"],
+  "pipeline_policy": {"connector_type": "websearch_custom_document", "content_kind": "web_document", "pipeline_type": "document"}
+}
