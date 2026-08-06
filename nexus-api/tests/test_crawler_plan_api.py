@@ -233,6 +233,8 @@ def test_create_quick_start_plan_defaults_and_unconfigured_run_fails(app, monkey
     )
     assert create_resp.status_code == 201
     plan = create_resp.json()["data"]
+    assert plan["connector_type"] == "firecrawl"
+    assert plan["connector_version"] == "v2"
     assert plan["template_code"] == "policy_report_regional_v1"
     assert plan["region_code"] == "zhejiang"
     assert plan["pipeline_policy"]["pipeline_type"] == "document"
@@ -252,6 +254,11 @@ def test_create_quick_start_plan_defaults_and_unconfigured_run_fails(app, monkey
     assert run["summary"]["accepted_count"] == 0
     assert run["summary"]["submitted_count"] == 0
     assert run["template_config_hash"].startswith("sha256:")
+
+    plans_resp = client.get("/internal/v1/crawler/plans")
+    assert plans_resp.status_code == 200
+    assert plans_resp.json()["data"][0]["connector_type"] == "firecrawl"
+    assert plans_resp.json()["data"][0]["connector_version"] == "v2"
 
 
 def test_custom_plan_rejects_unsafe_urls(app):

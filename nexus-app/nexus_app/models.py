@@ -130,8 +130,6 @@ class OrgUnit(TimestampMixin, Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     code: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
-    connector_type: Mapped[str] = mapped_column(String(32), default="firecrawl", nullable=False)
-    connector_version: Mapped[str] = mapped_column(String(32), default="v2", nullable=False)
     parent_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("org_unit.id"), nullable=True
     )
@@ -289,6 +287,8 @@ class CrawlerPlan(TimestampMixin, Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
+    connector_type: Mapped[str] = mapped_column(String(32), default="firecrawl", nullable=False)
+    connector_version: Mapped[str] = mapped_column(String(32), default="v2", nullable=False)
     mode: Mapped[str] = mapped_column(String(32), nullable=False)
     data_source_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("data_source.id"), nullable=True

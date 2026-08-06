@@ -25,7 +25,11 @@ def registry(tmp_path):
     cfg = tmp_path / "ingest_validate.json"
     cfg.write_text(json.dumps({
         "schema_version": "1.0",
-        "mime_whitelist": ["application/pdf", "application/json"],
+        "mime_whitelist": [
+            "application/pdf",
+            "application/json",
+            "application/vnd.nexus.websearch-custom-document+json",
+        ],
         "extension_whitelist": [".pdf", ".json"],
         "file_size_max_bytes": 1024,
     }))
@@ -103,6 +107,17 @@ class TestIngestValidateStage:
         violations = failed[-1].summary["violations"]
         assert any(v["check"] == "mime_whitelist" for v in violations)
         assert any(v["check"] == "extension_whitelist" for v in violations)
+
+    def test_websearch_custom_document_mime_is_allowed(self, session, registry):
+        job, raw = _seed(
+            session,
+            mime="application/vnd.nexus.websearch-custom-document+json",
+            size=100,
+            filename="",
+        )
+        _run_ingest_validate(job, raw, session, "trace-websearch", PipelineType.DOCUMENT, registry=registry)
+        assert job.status == JobStatus.RUNNING
+        assert _audits(session, AuditEventType.INGEST_VALIDATE_COMPLETED)
 
     def test_size_exceeds_limit(self, session, registry):
         job, raw = _seed(session, mime="application/pdf", size=10_000, filename="big.pdf")
