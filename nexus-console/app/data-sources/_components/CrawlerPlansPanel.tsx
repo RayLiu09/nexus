@@ -43,6 +43,7 @@ type ApiProxyResult<T> =
   | { ok: false; status: number; message: string };
 
 type PlanFormState = {
+  connectorType: "firecrawl" | "websearch";
   mode: "quick_start" | "custom";
   name: string;
   dataSourceId: string;
@@ -51,6 +52,9 @@ type PlanFormState = {
   scheduleCron: string;
   topicKeywords: string;
   targetUrls: string;
+  query: string;
+  resultCount: number;
+  timeRangePreset: string;
 };
 
 type CrawlerRunSummaryItem = {
@@ -68,6 +72,7 @@ type CrawlerRunSummaryItem = {
 };
 
 const INITIAL_FORM: PlanFormState = {
+  connectorType: "firecrawl",
   mode: "quick_start",
   name: "",
   dataSourceId: "",
@@ -76,6 +81,9 @@ const INITIAL_FORM: PlanFormState = {
   scheduleCron: "",
   topicKeywords: "",
   targetUrls: "",
+  query: "电子商务产业(跨境电商和直播电商)政策和市场概况",
+  resultCount: 10,
+  timeRangePreset: "one_year",
 };
 
 const BUILTIN_FIRECRAWL_SOURCE_ID = "__builtin_firecrawl__";
@@ -170,12 +178,21 @@ function buildPayload(
   const topicKeywords = splitLines(topicKeywordText);
   const base = {
     name: form.name.trim(),
+    connector_type: form.connectorType,
+    connector_version: form.connectorType === "websearch" ? "custom" : "v2",
     mode: form.mode,
     data_source_id: dataSourceId || null,
     execution_mode: form.executionMode,
     schedule_cron: form.executionMode === "scheduled" ? form.scheduleCron.trim() : null,
     topic_keywords: topicKeywords,
   };
+  if (form.connectorType === "websearch") {
+    return {
+      ...base,
+      data_source_id: null,
+      search_policy: { query: form.query.trim(), result_count: form.resultCount, time_range_preset: form.timeRangePreset },
+    };
+  }
   if (form.mode === "quick_start") {
     return {
       ...base,
@@ -272,6 +289,10 @@ export function CrawlerPlansPanel() {
   const createPlan = async () => {
     if (!form.name.trim()) {
       message.error("请填写计划名称");
+      return;
+    }
+    if (form.connectorType === "websearch" && /[\s,，;；]/.test(form.query.trim())) {
+      message.error("WebSearch 仅支持单个查询词，不能包含空格、逗号或分号");
       return;
     }
     if (!effectiveDataSourceId) {
@@ -623,6 +644,19 @@ export function CrawlerPlansPanel() {
             ]}
           />
           <Form layout="vertical" component="div">
+            <Form.Item label="数据源类型" required>
+              <Select value={form.connectorType} onChange={(value) => update("connectorType", value)} options={[{ value: "firecrawl", label: "Firecrawl" }, { value: "websearch", label: "WebSearch" }]} />
+            </Form.Item>
+            {form.connectorType === "websearch" ? (
+              <>
+                <Form.Item label="计划名称" required><Input value={form.name} onChange={(event) => update("name", event.target.value)} placeholder="例：电商产业政策搜索" /></Form.Item>
+                <Form.Item label="版本"><Input value="Custom" disabled /></Form.Item>
+                <Form.Item label="查询" required extra="仅支持单个查询词，不能包含空格、逗号或分号。"><Input value={form.query} onChange={(event) => update("query", event.target.value)} /></Form.Item>
+                <Form.Item label="返回结果数量"><Input type="number" min={10} max={50} value={form.resultCount} onChange={(event) => update("resultCount", Number(event.target.value))} /></Form.Item>
+                <Form.Item label="时间范围"><Select value={form.timeRangePreset} onChange={(value) => update("timeRangePreset", value)} options={[{value:"three_months",label:"3月"},{value:"six_months",label:"6月"},{value:"one_year",label:"1年"},{value:"two_years",label:"2年"},{value:"three_years",label:"3年"},{value:"five_years",label:"5年"}]} /></Form.Item>
+              </>
+            ) : (
+              <>
             <Form.Item label="计划名称" required>
               <Input
                 value={form.name}
@@ -696,6 +730,8 @@ export function CrawlerPlansPanel() {
                   placeholder="0 2 * * 1"
                 />
               </Form.Item>
+            )}
+              </>
             )}
           </Form>
         </div>

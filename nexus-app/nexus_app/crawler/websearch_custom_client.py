@@ -41,7 +41,9 @@ class HttpWebSearchCustomClient:
             with httpx.Client(timeout=settings.crawler_websearch_custom_timeout_seconds) as client:
                 response = client.post(settings.crawler_websearch_custom_api_endpoint,
                     headers={"Authorization": f"Bearer {settings.crawler_websearch_custom_api_key}"}, json=payload)
-                response.raise_for_status(); data = response.json()
+                if response.status_code >= 400:
+                    response.raise_for_status()
+                data = response.json()
         except httpx.HTTPStatusError as exc:
             raise WebSearchCustomError("provider_rate_limited" if exc.response.status_code == 429 else "provider_http_error") from exc
         except (httpx.HTTPError, ValueError, TypeError) as exc:

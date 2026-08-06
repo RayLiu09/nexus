@@ -108,6 +108,8 @@ export type CrawlerSites = {
 export type CrawlerPlan = {
   id: string;
   name: string;
+  connector_type: string;
+  connector_version: string;
   mode: "quick_start" | "custom";
   data_source_id: string | null;
   template_code: string | null;
@@ -121,6 +123,7 @@ export type CrawlerPlan = {
   execution_mode: "run_once" | "scheduled";
   schedule_cron: string | null;
   crawl_policy: Record<string, unknown>;
+  search_policy: Record<string, unknown>;
   pipeline_policy: Record<string, unknown>;
   status: "active" | "disabled" | "archived";
   created_at: string;
@@ -131,6 +134,8 @@ export type CrawlerRun = {
   id: string;
   plan_id: string;
   status: "running" | "succeeded" | "partial_failed" | "failed";
+  connector_type: string;
+  connector_version: string;
   started_at: string;
   finished_at: string | null;
   template_code: string | null;
@@ -147,6 +152,8 @@ export type IngestBatch = {
   idempotency_key: string;
   source_type: string;
   status: string;
+  connector_type: string;
+  connector_version: string;
   submitted_by_user_id: string | null;
   summary: Record<string, unknown>;
   created_at: string;
