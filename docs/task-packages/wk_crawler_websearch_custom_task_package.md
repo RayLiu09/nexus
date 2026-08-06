@@ -44,6 +44,31 @@ only after full response documents are stored as `raw_object` payloads in MinIO.
   provider-side result throttling, or new scheduler/MQ dependencies.
 - No content display in Crawler run history.
 
+## Reliability Follow-up: WebSearch Admission
+
+Source context: the crawler design requires a quality gate before a result
+becomes a `raw_object`; run success must not conceal semantically unusable
+results.
+
+Scope:
+
+- Apply a WebSearch-only admission gate before batch/raw creation.
+- Record count-only `accepted`, `filtered`, and per-reason diagnostics in the
+  run summary. Do not retain result content in the run summary.
+- Use the upstream page title for WebSearch assetization.
+- Keep WebSearch complete content in MinIO only; metadata may retain a bounded
+  non-body summary but not a derived `content_snippet`.
+- Provide an operator cleanup/replay procedure for results admitted before the
+  quality gate existed.
+
+Acceptance:
+
+- Low-rank, home/category, too-short, and insufficient-query-coverage results
+  create neither raw objects nor jobs and are visible through `filter_reasons`.
+- A run with filtered results is `partial_failed` when it also submitted work,
+  and `failed` when no result passed admission.
+- WebSearch asset titles equal the upstream `title` metadata.
+
 ## Required Review Gates
 
 - Data Model Gate

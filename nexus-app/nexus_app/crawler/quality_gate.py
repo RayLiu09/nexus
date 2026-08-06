@@ -20,6 +20,49 @@ class QualityDecision:
     reason: str | None = None
 
 
+def evaluate_websearch_item(
+    *,
+    query: str,
+    title: str,
+    url: str,
+    content: str,
+    rank_score: Any,
+    min_text_chars: int = 200,
+    min_rank_score: float = 0.15,
+) -> QualityDecision:
+    """Apply deterministic pre-ingest quality checks to one Custom result."""
+    try:
+        validate_target_url(url, allow_http_authority_seed=True)
+    except UnsafeCrawlerUrlError:
+        return QualityDecision(False, "unsafe_url")
+
+    parsed = urlparse(url)
+    path = (parsed.path or "/").rstrip("/")
+    normalized_title = title.strip().lower()
+    if not path or normalized_title in {"首页", "主页", "网站首页", "home", "index"}:
+        return QualityDecision(False, "homepage_or_channel")
+    if len(content.strip()) < min_text_chars:
+        return QualityDecision(False, "too_short")
+    try:
+        if float(rank_score) < min_rank_score:
+            return QualityDecision(False, "low_relevance")
+    except (TypeError, ValueError):
+        return QualityDecision(False, "missing_rank_score")
+
+    query_terms = _websearch_query_terms(query)
+    haystack = f"{title}\n{content[:4000]}".lower()
+    if query_terms and not any(term.lower() in haystack for term in query_terms):
+        return QualityDecision(False, "topic_coverage_insufficient")
+    return QualityDecision(True)
+
+
+def _websearch_query_terms(query: str) -> list[str]:
+    # The provider accepts one query string, which may still contain a compact
+    # thematic expression such as "电子商务产业(跨境电商和直播电商)政策和市场概况".
+    terms = [item.strip() for item in re.split(r"[()（）/、]+|和", query) if len(item.strip()) >= 2]
+    return terms or ([query.strip()] if query.strip() else [])
+
+
 def evaluate_snapshot(
     snapshot: FirecrawlDocumentSnapshot,
     *,

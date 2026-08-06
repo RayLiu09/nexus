@@ -139,7 +139,12 @@ def title_from(raw_object: models.RawObject, payload: dict[str, Any] | None = No
             value = payload.get(key)
             if isinstance(value, str) and value.strip():
                 return value.strip()[:256]
-    filename = raw_object.metadata_summary.get("filename")
+    metadata = raw_object.metadata_summary or {}
+    if metadata.get("connector_type") == "websearch_custom_document":
+        title = metadata.get("title")
+        if isinstance(title, str) and title.strip():
+            return title.strip()[:256]
+    filename = metadata.get("filename")
     if isinstance(filename, str) and filename:
         return filename[:256]
     return raw_object.id
@@ -467,7 +472,7 @@ def _build_firecrawl_parse_payload(
         "removed_noise": removed_noise,
         "quality": quality,
         "source": {
-            "connector_type": "firecrawl_document",
+            "connector_type": metadata.get("connector_type") or "firecrawl_document",
             "content_kind": "web_document",
             "source_url": metadata.get("source_url"),
             "final_url": metadata.get("final_url"),

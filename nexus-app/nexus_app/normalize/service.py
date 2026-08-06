@@ -202,11 +202,16 @@ class NormalizeService:
         body_text = self._derive_body_text(enhanced)
         snippet = self._derive_snippet(body_text)
 
-        if snippet and not metadata.get("content_snippet"):
+        source = enhanced.get("source") if isinstance(enhanced.get("source"), dict) else {}
+        is_websearch_document = source.get("connector_type") == "websearch_custom_document"
+        if snippet and not metadata.get("content_snippet") and not is_websearch_document:
             metadata["content_snippet"] = snippet
 
         if not metadata.get("summary"):
-            summary = self._derive_summary(body_text, fallback=snippet)
+            # WebSearch bodies are retained only as raw/normalized MinIO objects.
+            # Keep a bounded title-like fallback instead of copying source prose
+            # into database metadata.
+            summary = self._derive_summary(body_text, fallback=(str(enhanced.get("title") or "")[:240] if is_websearch_document else snippet))
             if summary:
                 metadata["summary"] = summary
 
