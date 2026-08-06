@@ -243,9 +243,9 @@ def _is_firecrawl_web_document(raw_object: models.RawObject) -> bool:
     metadata = raw_object.metadata_summary or {}
     mime_type = (raw_object.mime_type or "").lower()
     return (
-        metadata.get("connector_type") == "firecrawl_document"
+        metadata.get("connector_type") in {"firecrawl_document", "websearch_custom_document"}
         and metadata.get("content_kind") == "web_document"
-        and mime_type in {"text/html", "text/markdown"}
+        and mime_type in {"text/html", "text/markdown", "application/vnd.nexus.websearch-custom-document+json"}
     )
 
 
@@ -254,7 +254,11 @@ def _parse_route_detail(raw_object: models.RawObject, is_firecrawl_web_document:
     source_type = raw_object.source_type
     source_type_value = source_type.value if hasattr(source_type, "value") else str(source_type)
     return {
-        "parse_route": "firecrawl_web_document" if is_firecrawl_web_document else "mineru",
+        "parse_route": (
+            "websearch_custom_document"
+            if metadata.get("connector_type") == "websearch_custom_document"
+            else "firecrawl_web_document"
+        ) if is_firecrawl_web_document else "mineru",
         "source_type": source_type_value,
         "connector_type": metadata.get("connector_type"),
         "content_kind": metadata.get("content_kind"),
@@ -344,10 +348,16 @@ def _build_firecrawl_parse_payload(
     metadata = raw_object.metadata_summary or {}
     mime_type = (raw_object.mime_type or "").lower()
     source_text = raw_content.decode("utf-8", errors="replace")
+    if mime_type == "application/vnd.nexus.websearch-custom-document+json":
+        try:
+            package = json.loads(source_text)
+            source_text = str(package.get("content") or "")
+        except (ValueError, TypeError):
+            source_text = ""
     representation = "html" if mime_type == "text/html" else "markdown"
     source_url = metadata.get("canonical_url") or metadata.get("final_url") or metadata.get("source_url") or raw_object.source_uri
     title = str(metadata.get("title") or metadata.get("filename") or raw_object.id).strip()
-    parser_backend = "firecrawl-markdown-document-v1"
+    parser_backend = "websearch-custom-markdown-document-v1" if metadata.get("connector_type") == "websearch_custom_document" else "firecrawl-markdown-document-v1"
     sections: list[dict[str, Any]] = []
     retrieval_hints: dict[str, Any] = {}
     removed_noise: list[str] = []
