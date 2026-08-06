@@ -250,7 +250,7 @@ def _is_firecrawl_web_document(raw_object: models.RawObject) -> bool:
     return (
         metadata.get("connector_type") in {"firecrawl_document", "websearch_custom_document"}
         and metadata.get("content_kind") == "web_document"
-        and mime_type in {"text/html", "text/markdown", "application/vnd.nexus.websearch-custom-document+json"}
+        and mime_type in {"text/html", "text/markdown", "application/json", "application/vnd.nexus.websearch-custom-document+json"}
     )
 
 
@@ -353,7 +353,9 @@ def _build_firecrawl_parse_payload(
     metadata = raw_object.metadata_summary or {}
     mime_type = (raw_object.mime_type or "").lower()
     source_text = raw_content.decode("utf-8", errors="replace")
-    if mime_type == "application/vnd.nexus.websearch-custom-document+json":
+    if metadata.get("connector_type") == "websearch_custom_document" and mime_type in {
+        "application/json", "application/vnd.nexus.websearch-custom-document+json",
+    }:
         try:
             package = json.loads(source_text)
             source_text = str(package.get("content") or "")

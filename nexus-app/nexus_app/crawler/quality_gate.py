@@ -39,8 +39,14 @@ def evaluate_websearch_item(
     parsed = urlparse(url)
     path = (parsed.path or "/").rstrip("/")
     normalized_title = title.strip().lower()
-    if not path or normalized_title in {"首页", "主页", "网站首页", "home", "index"}:
+    if (
+        not path
+        or normalized_title in {"首页", "主页", "网站首页", "home", "index"}
+        or _is_websearch_aggregation_path(path)
+    ):
         return QualityDecision(False, "homepage_or_channel")
+    if _is_websearch_news_item(path, title, content):
+        return QualityDecision(False, "news_report")
     if len(content.strip()) < min_text_chars:
         return QualityDecision(False, "too_short")
     try:
@@ -61,6 +67,29 @@ def _websearch_query_terms(query: str) -> list[str]:
     # thematic expression such as "电子商务产业(跨境电商和直播电商)政策和市场概况".
     terms = [item.strip() for item in re.split(r"[()（）/、]+|和", query) if len(item.strip()) >= 2]
     return terms or ([query.strip()] if query.strip() else [])
+
+
+def _is_websearch_aggregation_path(path: str) -> bool:
+    """Recognize search-result/page-navigation URLs, not article URLs."""
+    lowered = unquote(path).lower()
+    filename = lowered.rsplit("/", 1)[-1]
+    if re.fullmatch(r"(?:page|index|list)[-_]?\d*\.html?", filename):
+        return True
+    return "/col/" in lowered and filename in {"", "index.html", "index.htm"}
+
+
+def _is_websearch_news_item(path: str, title: str, content: str) -> bool:
+    """Exclude current-affairs/news coverage from the policy/report asset scope."""
+    lowered_path = unquote(path).lower()
+    if "/news/" in lowered_path or "/m_gnxw/" in lowered_path:
+        return True
+    # URL rules are authoritative. These terms only cover common pages whose
+    # CMS route does not disclose the news channel; policy/report titles still
+    # take precedence so policy interpretation is not accidentally rejected.
+    headline = f"{title}\n{content[:500]}"
+    if any(marker in headline for marker in ("记者", "通讯员", "消息（记者", "新闻报道")):
+        return not any(marker in title for marker in ("政策", "通知", "报告", "解读", "白皮书"))
+    return False
 
 
 def evaluate_snapshot(
