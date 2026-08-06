@@ -34,5 +34,12 @@ def test_websearch_quality_gate_accepts_relevant_document():
 def test_websearch_quality_gate_rejects_news_reports():
     assert _decision(
         url="https://dzswgf.mofcom.gov.cn/news/phone/182/2026/3/m-1773899343396.html",
+        title="某地举办电子商务交流活动",
+        content="记者报道活动现场情况。" * 20,
     ).reason == "news_report"
+    assert _decision(
+        url="http://www.tibet.cn/cn/instant/domestic/202603/t20260325_7951590.html",
+        title="前两月重点电商进口平台销售全球商品增长7.6%",
+        content="前两月重点电商进口平台销售全球商品增长7.6%，市场运行保持平稳。" * 20,
+    ).accepted is True
     assert _decision(title="行业动态", content="记者报道电子商务产业最新情况。" * 20).reason == "news_report"
