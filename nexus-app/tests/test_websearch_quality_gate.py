@@ -43,3 +43,27 @@ def test_websearch_quality_gate_rejects_news_reports():
         content="前两月重点电商进口平台销售全球商品增长7.6%，市场运行保持平稳。" * 20,
     ).accepted is True
     assert _decision(title="行业动态", content="记者报道电子商务产业最新情况。" * 20).reason == "news_report"
+
+
+def test_websearch_quality_gate_admits_policy_opinions_and_policy_news_for_compact_query():
+    query = "浙江省高等职业教育产教融合政策"
+    policy_content = "浙江省进一步深化产教融合，明确职业教育、高等教育和产业协同发展的实施路径。" * 12
+
+    assert _decision(
+        query=query,
+        title="浙江省人民政府办公厅关于进一步深化产教融合的实施意见",
+        url="https://example.gov.cn/policy/industry-education-opinion",
+        content=policy_content,
+    ).accepted is True
+    assert _decision(
+        query=query,
+        title="浙江出台进一步深化产教融合实施意见",
+        url="https://example.gov.cn/news/industry-education-opinion",
+        content=policy_content,
+    ).accepted is True
+    assert _decision(
+        query=query,
+        title="中国教育新闻网：浙江打出深化产教融合“组合拳”",
+        url="https://example.edu.cn/news/industry-education-policy",
+        content=policy_content,
+    ).accepted is True

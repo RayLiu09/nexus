@@ -67,6 +67,22 @@ class MinerUResponseError(RuntimeError):
     error_code = "mineru_invalid_response"
 
 
+def _close_http_error_response(exc: HTTPError) -> None:
+    """Drain a bounded error body and close the socket owned by ``HTTPError``.
+
+    ``urllib`` raises HTTPError for non-2xx responses instead of entering the
+    normal response context manager.  HTTPError is file-like and may retain a
+    live response socket until garbage collection, which is unacceptable for a
+    long-lived Worker repeatedly handling upstream failures.
+    """
+    try:
+        exc.read(64 * 1024)
+    except OSError:
+        pass
+    finally:
+        exc.close()
+
+
 class MinerUAdapter(Protocol):
     def parse(
         self,
@@ -131,8 +147,12 @@ class MinerUHttpAdapter:
             if timeout is not None
             else self.settings.mineru_health_timeout_seconds
         )
-        with urlopen(request, timeout=effective_timeout) as response:
-            body = response.read(4096)
+        try:
+            with urlopen(request, timeout=effective_timeout) as response:
+                body = response.read(4096)
+        except HTTPError as exc:
+            _close_http_error_response(exc)
+            raise
         try:
             return json.loads(body.decode("utf-8"))
         except json.JSONDecodeError:
@@ -199,9 +219,13 @@ class MinerUHttpAdapter:
                 "User-Agent": "nexus-mineru-adapter/1.0",
             },
         )
-        with urlopen(request, timeout=self.settings.mineru_timeout) as response:
-            body = response.read()
-            response_type = (response.headers.get("content-type") or "application/octet-stream").split(";", 1)[0]
+        try:
+            with urlopen(request, timeout=self.settings.mineru_timeout) as response:
+                body = response.read()
+                response_type = (response.headers.get("content-type") or "application/octet-stream").split(";", 1)[0]
+        except HTTPError as exc:
+            _close_http_error_response(exc)
+            raise
 
         return _unpack_mineru_response(
             body=body,

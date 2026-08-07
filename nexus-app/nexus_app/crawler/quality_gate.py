@@ -13,6 +13,22 @@ _LOGIN_OR_CAPTCHA_PATTERNS = (
     re.compile(r"登录|登陆|验证码|captcha|sign\s*in|login", re.IGNORECASE),
 )
 
+# WebSearch accepts a single compact query rather than a tokenized expression.
+# Retain only domain-bearing phrases here: generic policy/report words are not
+# sufficient to admit a result on their own.
+_COMPOUND_QUERY_TERMS = (
+    "高等职业教育",
+    "职业教育",
+    "产教融合",
+    "校企合作",
+    "电子商务",
+    "跨境电商",
+    "直播电商",
+    "农村电商",
+    "旅游电商",
+    "数字经济",
+)
+
 
 @dataclass(frozen=True)
 class QualityDecision:
@@ -67,9 +83,15 @@ def _websearch_query_terms(query: str) -> list[str]:
     # thematic expression such as "电子商务产业(跨境电商和直播电商)政策和市场概况".
     terms = [item.strip() for item in re.split(r"[()（）/、]+|和", query) if len(item.strip()) >= 2]
     expanded = list(terms)
+    compact_query = "".join(terms)
+    # A query such as "浙江省高等职业教育产教融合政策" cannot be
+    # matched as one literal string against a policy title. Add only the
+    # meaningful embedded subject phrases; generic words like "政策" are
+    # deliberately excluded to prevent unrelated policy news admission.
+    expanded.extend(term for term in _COMPOUND_QUERY_TERMS if term in compact_query)
     if any("电子商务" in item for item in terms):
         expanded.append("电商")
-    return expanded or ([query.strip()] if query.strip() else [])
+    return list(dict.fromkeys(expanded)) or ([query.strip()] if query.strip() else [])
 
 
 def _is_websearch_aggregation_path(path: str) -> bool:
@@ -93,7 +115,10 @@ def _is_websearch_news_item(path: str, title: str, content: str) -> bool:
     # take precedence so policy interpretation is not accidentally rejected.
     headline = f"{title}\n{content[:500]}"
     if is_news_route or any(marker in headline for marker in ("记者", "通讯员", "消息（记者", "新闻报道")):
-        return not any(marker in title for marker in ("政策", "通知", "报告", "解读", "白皮书"))
+        return not any(
+            marker in title
+            for marker in ("政策", "通知", "报告", "解读", "白皮书", "实施意见", "实施方案", "办法", "条例")
+        )
     return False
 
 

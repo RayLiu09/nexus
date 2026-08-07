@@ -44,6 +44,13 @@ from nexus_app.storage import checksum_value
 logger = logging.getLogger(__name__)
 
 
+# This marker is persisted with parse-stage diagnostics.  It lets operators
+# distinguish a Worker that has loaded the WebSearch package guard from a
+# stale process without logging raw content.
+WEB_DOCUMENT_ROUTE_RESOLVER_VERSION = "web-document-route-v2"
+WEBSEARCH_CUSTOM_DOCUMENT_SCHEMA_VERSION = "websearch-custom-document.v1"
+
+
 def _add_stage(
     ctx: PipelineContext,
     stage_name: str,
@@ -244,31 +251,81 @@ def _materialize_web_blocks(
     return body_markdown, blocks
 
 
-def _is_firecrawl_web_document(raw_object: models.RawObject) -> bool:
+def _websearch_package_header(raw_content: bytes | None) -> dict[str, Any] | None:
+    """Return the non-content identity fields of a WebSearch raw package.
+
+    Database metadata is convenient for routing, but it is not the immutable
+    source of truth: historical rows or a partial metadata update must not
+    cause a WebSearch JSON package to fall through to MinerU.  The package
+    schema is deliberately strict so unrelated JSON uploads keep their normal
+    pipeline behavior.
+    """
+    if raw_content is None:
+        return None
+    try:
+        package = json.loads(raw_content.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError, TypeError):
+        return None
+    if not isinstance(package, dict):
+        return None
+    if (
+        package.get("schema_version") != WEBSEARCH_CUSTOM_DOCUMENT_SCHEMA_VERSION
+        or package.get("connector_type") != "websearch"
+        or package.get("connector_version") != "custom"
+    ):
+        return None
+    return package
+
+
+def _web_document_route(
+    raw_object: models.RawObject,
+    raw_content: bytes | None = None,
+) -> tuple[str | None, str]:
+    """Resolve a document parser from current-object metadata and raw schema.
+
+    The return value contains the route and its evidence source.  It is called
+    for every job execution; no parser route is retained in the Worker or
+    MinerU adapter between jobs.
+    """
     metadata = raw_object.metadata_summary or {}
     mime_type = (raw_object.mime_type or "").lower()
     if (
         metadata.get("connector_type") == "websearch_custom_document"
         and mime_type in {"application/json", "application/vnd.nexus.websearch-custom-document+json"}
     ):
-        return True
-    return (
+        return "websearch_custom_document", "raw_metadata"
+    if (
+        mime_type in {"application/json", "application/vnd.nexus.websearch-custom-document+json"}
+        and _websearch_package_header(raw_content) is not None
+    ):
+        return "websearch_custom_document", "raw_package_schema"
+    if (
         metadata.get("connector_type") == "firecrawl_document"
         and metadata.get("content_kind") == "web_document"
         and mime_type in {"text/html", "text/markdown"}
-    )
+    ):
+        return "firecrawl_web_document", "raw_metadata"
+    return None, "none"
 
 
-def _parse_route_detail(raw_object: models.RawObject, is_firecrawl_web_document: bool) -> dict[str, Any]:
+def _is_firecrawl_web_document(raw_object: models.RawObject) -> bool:
+    """Compatibility predicate for callers that have metadata only."""
+    return _web_document_route(raw_object)[0] is not None
+
+
+def _parse_route_detail(
+    raw_object: models.RawObject,
+    route: str | None,
+    *,
+    route_evidence: str,
+) -> dict[str, Any]:
     metadata = raw_object.metadata_summary or {}
     source_type = raw_object.source_type
     source_type_value = source_type.value if hasattr(source_type, "value") else str(source_type)
     return {
-        "parse_route": (
-            "websearch_custom_document"
-            if metadata.get("connector_type") == "websearch_custom_document"
-            else "firecrawl_web_document"
-        ) if is_firecrawl_web_document else "mineru",
+        "parse_route": route or "mineru",
+        "route_evidence": route_evidence,
+        "route_resolver_version": WEB_DOCUMENT_ROUTE_RESOLVER_VERSION,
         "source_type": source_type_value,
         "connector_type": metadata.get("connector_type"),
         "content_kind": metadata.get("content_kind"),
@@ -354,22 +411,22 @@ def _is_md_range(value: Any) -> bool:
 def _build_firecrawl_parse_payload(
     raw_object: models.RawObject,
     raw_content: bytes,
+    *,
+    route: str,
 ) -> dict[str, Any]:
     metadata = raw_object.metadata_summary or {}
     mime_type = (raw_object.mime_type or "").lower()
     source_text = raw_content.decode("utf-8", errors="replace")
-    if metadata.get("connector_type") == "websearch_custom_document" and mime_type in {
-        "application/json", "application/vnd.nexus.websearch-custom-document+json",
-    }:
+    websearch_package = _websearch_package_header(raw_content) if route == "websearch_custom_document" else None
+    if websearch_package is not None:
         try:
-            package = json.loads(source_text)
-            source_text = str(package.get("content") or "")
+            source_text = str(websearch_package.get("content") or "")
         except (ValueError, TypeError):
             source_text = ""
     representation = "html" if mime_type == "text/html" else "markdown"
-    source_url = metadata.get("canonical_url") or metadata.get("final_url") or metadata.get("source_url") or raw_object.source_uri
-    title = str(metadata.get("title") or metadata.get("filename") or raw_object.id).strip()
-    parser_backend = "websearch-custom-markdown-document-v1" if metadata.get("connector_type") == "websearch_custom_document" else "firecrawl-markdown-document-v1"
+    source_url = metadata.get("canonical_url") or metadata.get("final_url") or metadata.get("source_url") or (websearch_package or {}).get("source_url") or raw_object.source_uri
+    title = str(metadata.get("title") or (websearch_package or {}).get("title") or metadata.get("filename") or raw_object.id).strip()
+    parser_backend = "websearch-custom-markdown-document-v1" if route == "websearch_custom_document" else "firecrawl-markdown-document-v1"
     sections: list[dict[str, Any]] = []
     retrieval_hints: dict[str, Any] = {}
     removed_noise: list[str] = []
@@ -707,8 +764,12 @@ def run_parse(
     raw_uri = raw_object.object_uri
     filename = str(raw_object.metadata_summary.get("filename", raw_object.id))
     mime_type = raw_object.mime_type
-    is_firecrawl_web_document = _is_firecrawl_web_document(raw_object)
-    parse_route_detail = _parse_route_detail(raw_object, is_firecrawl_web_document)
+    route, route_evidence = _web_document_route(raw_object)
+    parse_route_detail = _parse_route_detail(
+        raw_object,
+        route,
+        route_evidence=route_evidence,
+    )
     model_version_override = (ctx.job.payload or {}).get("model_version_override")
     version_id = version.id
 
@@ -737,16 +798,46 @@ def run_parse(
         raw_key = raw_uri.split("/", 3)[-1] if raw_uri.startswith("s3://") else raw_uri
         raw_content = ctx.storage.get_bytes(raw_key)
 
-        if is_firecrawl_web_document:
+        # Re-resolve after reading MinIO.  This is the final execution
+        # boundary: a valid WebSearch package must never be sent to MinerU,
+        # even if its persisted metadata was produced by an older writer or
+        # was subsequently reduced.
+        route, route_evidence = _web_document_route(raw_object, raw_content)
+        parse_route_detail = _parse_route_detail(
+            raw_object,
+            route,
+            route_evidence=route_evidence,
+        )
+        parse_stage = ctx.session.get(models.JobStage, parse_stage_id)
+        if parse_stage is None:
+            raise RuntimeError(f"parse stage disappeared: {parse_stage_id}")
+        parse_stage.detail = {
+            "filename": filename,
+            "mime_type": mime_type,
+            "raw_object_id": raw_object_id,
+            **parse_route_detail,
+        }
+        ctx.session.flush()
+        logger.info(
+            "parse route resolved job=%s raw_object=%s route=%s evidence=%s resolver=%s",
+            ctx.job.id,
+            raw_object_id,
+            route or "mineru",
+            route_evidence,
+            WEB_DOCUMENT_ROUTE_RESOLVER_VERSION,
+        )
+
+        if route is not None:
             parse_payload = _build_firecrawl_parse_payload(
                 raw_object,
                 raw_content,
+                route=route,
             )
             parsed_content = _json_bytes(parse_payload)
-            parse_mode = "firecrawl_web_document"
+            parse_mode = route
             parsed_metadata = {
-                "backend": "firecrawl-web-document",
-                "model_version": "firecrawl-web-document-v1",
+                "backend": "websearch-custom-document" if route == "websearch_custom_document" else "firecrawl-web-document",
+                "model_version": "websearch-custom-document-v1" if route == "websearch_custom_document" else "firecrawl-web-document-v1",
                 "parser_backend": parse_payload.get("parser_backend"),
                 "ocr_enabled": False,
                 "source_format": (raw_object.metadata_summary or {}).get("raw_representation")

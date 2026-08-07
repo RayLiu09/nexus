@@ -20,6 +20,8 @@ from nexus_app.enums import (
     ChunkingStrategy,
 )
 from nexus_app.knowledge.chunk_builder import build_chunk
+from nexus_app.ingest import batch as ingest_batch
+from nexus_app.mineru import FakeMinerUAdapter
 from nexus_app.pipeline.context import PipelineContext
 from nexus_app.pipeline.stages import (
     _is_firecrawl_web_document,
@@ -29,11 +31,24 @@ from nexus_app.pipeline.stages import (
 )
 from nexus_app.knowledge.semantic_repack import repack as semantic_repack
 from nexus_app.storage import InMemoryObjectStorage, checksum_value
+from nexus_app import services
+from nexus_app.schemas import DataSourceCreate
+from nexus_app.worker import runner as worker_runner
+from nexus_app.worker.runner import execute_job
 
 
 class _MinerUMustNotBeCalled:
     def parse(self, *args, **kwargs):  # pragma: no cover - assertion helper
         raise AssertionError("Firecrawl web documents must not be parsed through MinerU")
+
+
+class _RecordingMinerU(FakeMinerUAdapter):
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str | None]] = []
+
+    def parse(self, filename, content, content_type=None, model_version=None):
+        self.calls.append((filename, content_type))
+        return super().parse(filename, content, content_type, model_version)
 
 
 def _seed_firecrawl_web_job(
@@ -204,13 +219,119 @@ def test_websearch_json_route_bypasses_mineru_without_optional_content_kind(sess
 
     artifact = run_parse(ctx, version)
 
-    assert artifact.parse_mode == "firecrawl_web_document"
+    assert artifact.parse_mode == "websearch_custom_document"
     assert artifact.metadata_summary["parser_backend"] == "websearch-custom-markdown-document-v1"
     artifact_key = artifact.artifact_uri.split("/", 3)[-1]
     payload = json.loads(ctx.storage.get_bytes(artifact_key).decode("utf-8"))
     assert payload["title"] == "电子商务市场运行情况"
     assert "网络零售额保持增长" in payload["markdown"]
     stage = session.query(models.JobStage).filter_by(job_id=ctx.job.id, stage_name="parse").one()
+    assert stage.detail["parse_route"] == "websearch_custom_document"
+
+
+def test_websearch_package_schema_bypasses_mineru_when_raw_metadata_is_missing(session) -> None:
+    """The MinIO package schema is a second route guard for historical rows."""
+    ctx, version = _seed_firecrawl_web_job(session, mime_type="text/markdown")
+    raw_key = ctx.raw_object.object_uri.split("/", 3)[-1]
+    package = {
+        "schema_version": "websearch-custom-document.v1",
+        "connector_type": "websearch",
+        "connector_version": "custom",
+        "source_url": "https://example.gov.cn/policy-schema",
+        "title": "产教融合实施意见",
+        "content": "# 产教融合实施意见\n\n支持职业教育与产业协同发展。",
+    }
+    raw_bytes = json.dumps(package, ensure_ascii=False).encode("utf-8")
+    ctx.storage.put_bytes(raw_key, raw_bytes, "application/json")
+    ctx.raw_object.mime_type = "application/json"
+    ctx.raw_object.checksum = checksum_value(raw_bytes)
+    ctx.raw_object.metadata_summary = {"filename": "historical-websearch.json"}
+    session.commit()
+
+    artifact = run_parse(ctx, version)
+
+    assert artifact.parse_mode == "websearch_custom_document"
+    artifact_key = artifact.artifact_uri.split("/", 3)[-1]
+    payload = json.loads(ctx.storage.get_bytes(artifact_key).decode("utf-8"))
+    assert payload["title"] == "产教融合实施意见"
+    stage = session.query(models.JobStage).filter_by(job_id=ctx.job.id, stage_name="parse").one()
+    assert stage.detail["parse_route"] == "websearch_custom_document"
+    assert stage.detail["route_evidence"] == "raw_package_schema"
+    assert stage.detail["route_resolver_version"] == "web-document-route-v2"
+
+
+def test_worker_does_not_reuse_mineru_route_for_following_websearch_job(session, monkeypatch) -> None:
+    """A reused Worker adapter must not make a later WebSearch JSON call MinerU."""
+    settings = Settings(worker_pool_enabled=False)
+    storage = InMemoryObjectStorage()
+    source = services.create_data_source(
+        session,
+        DataSourceCreate(code="route-isolation", name="route isolation", source_type="crawler"),
+    )
+    batch = ingest_batch.create_batch(
+        session,
+        data_source_id=source.id,
+        batch_idempotency_key="route-isolation-batch",
+    )
+    pdf = ingest_batch.append_file_to_batch(
+        session,
+        batch.id,
+        file_idempotency_key="first-mineru",
+        filename="first.pdf",
+        content=b"first document through mineru",
+        mime_type="application/pdf",
+        storage=storage,
+        settings=settings,
+    )
+    package = {
+        "schema_version": "websearch-custom-document.v1",
+        "connector_type": "websearch",
+        "connector_version": "custom",
+        "source_url": "https://example.gov.cn/websearch-policy",
+        "title": "WebSearch 政策",
+        "content": "# WebSearch 政策\n\n这条记录不能进入 MinerU。",
+    }
+    websearch = ingest_batch.append_file_to_batch(
+        session,
+        batch.id,
+        file_idempotency_key="second-websearch",
+        filename="second-websearch.json",
+        content=json.dumps(package, ensure_ascii=False).encode("utf-8"),
+        mime_type="application/json",
+        source_uri=package["source_url"],
+        raw_metadata={
+            "connector_type": "websearch_custom_document",
+            "content_kind": "web_document",
+            "title": package["title"],
+            "source_url": package["source_url"],
+        },
+        pipeline_type_override=PipelineType.DOCUMENT,
+        storage=storage,
+        settings=settings,
+    )
+    session.commit()
+
+    # Keep the test focused on execution routing.  Assetization and parse run
+    # for real; downstream governance/index services are outside this contract.
+    monkeypatch.setattr(worker_runner, "run_normalize_document", lambda *_args: object())
+    monkeypatch.setattr(worker_runner, "_run_major_profile_normalize", lambda *_args: None)
+    monkeypatch.setattr(worker_runner, "_run_teaching_standard_graph", lambda *_args: None)
+    monkeypatch.setattr(worker_runner, "run_governance_decision", lambda *_args: None)
+    monkeypatch.setattr(worker_runner, "run_knowledge_chunking", lambda *_args: [])
+    monkeypatch.setattr(worker_runner, "run_knowledge_outline_build", lambda *_args: None)
+    monkeypatch.setattr(worker_runner, "run_index_submit", lambda *_args: None)
+
+    mineru = _RecordingMinerU()
+    pdf.job.status = JobStatus.RUNNING
+    websearch.job.status = JobStatus.RUNNING
+    session.commit()
+
+    execute_job(pdf.job, session, storage, mineru, settings)
+    execute_job(websearch.job, session, storage, mineru, settings)
+
+    assert mineru.calls == [("first.pdf", "application/pdf")]
+    stage = session.query(models.JobStage).filter_by(job_id=websearch.job.id, stage_name="parse").one()
+    assert stage.status == StageStatus.SUCCEEDED
     assert stage.detail["parse_route"] == "websearch_custom_document"
 
 
