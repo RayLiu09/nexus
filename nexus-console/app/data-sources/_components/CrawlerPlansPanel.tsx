@@ -70,6 +70,9 @@ type CrawlerRunSummaryItem = {
   duplicate?: boolean | null;
   raw_object_id?: string | null;
   pipeline_type?: string | null;
+  /** Stable per-array id, injected by `runContentItems` so `rowKey` never
+   * needs the deprecated Antd index arg. */
+  _k?: string;
 };
 
 const INITIAL_FORM: PlanFormState = {
@@ -152,12 +155,14 @@ function runContentItems(run: CrawlerRun): {
   filtered: CrawlerRunSummaryItem[];
   submitted: CrawlerRunSummaryItem[];
 } {
+  const withKey = (bucket: string, items: CrawlerRunSummaryItem[]) =>
+    items.map((item, idx) => ({ ...item, _k: `${bucket}:${idx}` }));
   return {
-    discovered: objectArrayFrom(run.summary, "discovered"),
-    accepted: objectArrayFrom(run.summary, "accepted_snapshots"),
-    failures: objectArrayFrom(run.summary, "failures"),
-    filtered: objectArrayFrom(run.summary, "filtered"),
-    submitted: objectArrayFrom(run.summary, "submitted"),
+    discovered: withKey("discovered", objectArrayFrom(run.summary, "discovered")),
+    accepted: withKey("accepted", objectArrayFrom(run.summary, "accepted_snapshots")),
+    failures: withKey("failures", objectArrayFrom(run.summary, "failures")),
+    filtered: withKey("filtered", objectArrayFrom(run.summary, "filtered")),
+    submitted: withKey("submitted", objectArrayFrom(run.summary, "submitted")),
   };
 }
 
@@ -403,7 +408,7 @@ export function CrawlerPlansPanel() {
       </div>
       <Table<CrawlerRunSummaryItem>
         size="small"
-        rowKey={(item, index) => `${item.url}-${index}`}
+        rowKey={(item) => item._k ?? item.url}
         dataSource={items}
         pagination={items.length > 5 ? { pageSize: 5, size: "small" } : false}
         locale={{ emptyText: "暂无记录" }}
@@ -656,7 +661,7 @@ export function CrawlerPlansPanel() {
 
       <Drawer
         title="新增 Crawler 计划"
-        width={504}
+        styles={{ wrapper: { width: 504 } }}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         destroyOnClose
