@@ -569,7 +569,7 @@ export function CrawlerPlansPanel() {
                   plan.execution_mode === "scheduled" ? (
                     <Tag color="blue">{plan.schedule_cron}</Tag>
                   ) : (
-                    <Tag>运行一次</Tag>
+                    <Tag>手动执行</Tag>
                   ),
               },
               {
@@ -763,26 +763,26 @@ export function CrawlerPlansPanel() {
                     onChange={(event) => update("topicKeywords", event.target.value)}
                   />
                 </Form.Item>
-                <Form.Item label="执行计划">
-                  <Select
-                    value={form.executionMode}
-                    onChange={(value) => update("executionMode", value)}
-                    options={[
-                      { value: "run_once", label: "运行一次" },
-                      { value: "scheduled", label: "定期执行" },
-                    ]}
-                  />
-                </Form.Item>
-                {form.executionMode === "scheduled" && (
-                  <Form.Item label="Cron">
-                    <Input
-                      value={form.scheduleCron}
-                      onChange={(event) => update("scheduleCron", event.target.value)}
-                      placeholder="0 2 * * 1"
-                    />
-                  </Form.Item>
-                )}
               </>
+            )}
+            <Form.Item label="执行计划">
+              <Select
+                value={form.executionMode}
+                onChange={(value) => update("executionMode", value)}
+                options={[
+                  { value: "run_once", label: "手动执行" },
+                  { value: "scheduled", label: "定期执行" },
+                ]}
+              />
+            </Form.Item>
+            {form.executionMode === "scheduled" && (
+              <Form.Item label="Cron">
+                <Input
+                  value={form.scheduleCron}
+                  onChange={(event) => update("scheduleCron", event.target.value)}
+                  placeholder="0 2 * * 1"
+                />
+              </Form.Item>
             )}
           </Form>
         </div>

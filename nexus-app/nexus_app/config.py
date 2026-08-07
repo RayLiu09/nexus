@@ -73,6 +73,9 @@ class Settings(BaseSettings):
     worker_poll_interval_seconds: float = 5.0
     worker_lease_seconds: int = 120
     worker_max_concurrent: int = 4
+    crawler_scheduler_enabled: bool = True
+    crawler_scheduler_poll_interval_seconds: float = 30.0
+    crawler_scheduler_batch_limit: int = 20
 
     # Pipeline B feature flags (B1.1 - allow gradual rollout).
     # When disabled, xlsx/csv keep going to Pipeline A (DOCUMENT) — current behavior.

@@ -255,6 +255,8 @@ class AuditEventType(StrEnum):
     CRAWLER_PLAN_CREATED            = "CrawlerPlanCreated"
     CRAWLER_PLAN_ARCHIVED           = "CrawlerPlanArchived"
     CRAWLER_RUN_COMPLETED           = "CrawlerRunCompleted"
+    CRAWLER_RUN_STARTED_BY_SCHEDULE = "CrawlerRunStartedBySchedule"
+    CRAWLER_RUN_SKIPPED_BY_SCHEDULE = "CrawlerRunSkippedBySchedule"
     # API caller management
     API_CALLER_CREATED              = "ApiCallerCreated"
     API_CALLER_UPDATED              = "ApiCallerUpdated"

@@ -375,6 +375,72 @@ def test_archive_plan_blocks_runs(app):
     assert "not active" in run_resp.json()["error"]["message"]
 
 
+def test_scheduled_firecrawl_plan_sets_next_run_at(app):
+    client = TestClient(app)
+
+    resp = client.post(
+        "/internal/v1/crawler/plans",
+        headers={"Idempotency-Key": "crawler-plan-scheduled-fire-001"},
+        json={
+            "name": "定时全国政策",
+            "mode": "quick_start",
+            "execution_mode": "scheduled",
+            "schedule_cron": "*/5 * * * *",
+        },
+    )
+
+    assert resp.status_code == 201
+    plan = resp.json()["data"]
+    assert plan["execution_mode"] == "scheduled"
+    assert plan["schedule_cron"] == "*/5 * * * *"
+    assert plan["next_run_at"] is not None
+
+
+def test_scheduled_websearch_plan_requires_cron(app):
+    client = TestClient(app)
+
+    resp = client.post(
+        "/internal/v1/crawler/plans",
+        headers={"Idempotency-Key": "crawler-plan-ws-nocron-001"},
+        json={
+            "name": "WebSearch缺 cron",
+            "mode": "custom",
+            "connector_type": "websearch",
+            "connector_version": "custom",
+            "execution_mode": "scheduled",
+            "search_policy": {"query": "跨境电商", "result_count": 10, "time_range_preset": "one_year"},
+        },
+    )
+
+    assert resp.status_code == 422
+    assert "schedule_cron" in resp.json()["error"]["message"]
+
+
+def test_scheduled_websearch_plan_sets_next_run_at(app):
+    client = TestClient(app)
+
+    resp = client.post(
+        "/internal/v1/crawler/plans",
+        headers={"Idempotency-Key": "crawler-plan-ws-scheduled-001"},
+        json={
+            "name": "WebSearch定时",
+            "mode": "custom",
+            "connector_type": "websearch",
+            "connector_version": "custom",
+            "execution_mode": "scheduled",
+            "schedule_cron": "0 2 * * 1",
+            "search_policy": {"query": "跨境电商", "result_count": 10, "time_range_preset": "one_year"},
+        },
+    )
+
+    assert resp.status_code == 201
+    plan = resp.json()["data"]
+    assert plan["connector_type"] == "websearch"
+    assert plan["execution_mode"] == "scheduled"
+    assert plan["schedule_cron"] == "0 2 * * 1"
+    assert plan["next_run_at"] is not None
+
+
 def test_firecrawl_runner_with_fake_client_accepts_and_filters(session, monkeypatch):
     monkeypatch.setenv("CRAWLER_FIRECRAWL_SCRAPE_LIMIT_ENABLED", "false")
     get_settings.cache_clear()

@@ -5,6 +5,8 @@ import threading
 from dataclasses import dataclass
 
 from nexus_app.config import Settings, get_settings
+from nexus_app.crawler.scheduler import CrawlerScheduler
+from nexus_app.database import get_session_local
 from nexus_app.worker.loop import WorkerLoop
 
 logger = logging.getLogger(__name__)
@@ -25,6 +27,7 @@ class WorkerPool:
         self._stop_event = threading.Event()
         self._threads: list[threading.Thread] = []
         self._loops: list[WorkerLoop] = []
+        self._scheduler_thread: threading.Thread | None = None
         self._lock = threading.Lock()
 
     def start(self) -> None:
@@ -58,6 +61,21 @@ class WorkerPool:
                 self._threads.append(thread)
                 thread.start()
             logger.info("worker pool started size=%d", self.size)
+            self._start_crawler_scheduler()
+
+    def _start_crawler_scheduler(self) -> None:
+        if not self.settings.crawler_scheduler_enabled:
+            logger.info("crawler scheduler disabled by settings")
+            return
+        scheduler = CrawlerScheduler(get_session_local(), settings=self.settings)
+        thread = threading.Thread(
+            target=scheduler.run_until_stopped,
+            args=(self._stop_event,),
+            name="nexus-crawler-scheduler",
+            daemon=False,
+        )
+        self._scheduler_thread = thread
+        thread.start()
 
     def _run_loop(self, loop: WorkerLoop) -> None:
         try:
@@ -70,17 +88,29 @@ class WorkerPool:
     def stop(self, timeout: float | None = None) -> None:
         with self._lock:
             threads = list(self._threads)
+            scheduler_thread = self._scheduler_thread
             self._stop_event.set()
-        join_timeout = timeout if timeout is not None else max(1.0, self.settings.worker_poll_interval_seconds + 1.0)
+        join_timeout = timeout if timeout is not None else max(
+            1.0,
+            max(
+                self.settings.worker_poll_interval_seconds,
+                self.settings.crawler_scheduler_poll_interval_seconds,
+            )
+            + 1.0,
+        )
         for thread in threads:
             thread.join(timeout=join_timeout)
+        if scheduler_thread is not None:
+            scheduler_thread.join(timeout=join_timeout)
         with self._lock:
             alive = [thread for thread in self._threads if thread.is_alive()]
             if alive:
                 logger.warning("worker pool stop timed out for %d thread(s)", len(alive))
             self._threads = alive
             self._loops = [loop for loop, thread in zip(self._loops, threads, strict=False) if thread.is_alive()]
-            if not alive:
+            if self._scheduler_thread is not None and not self._scheduler_thread.is_alive():
+                self._scheduler_thread = None
+            if not alive and self._scheduler_thread is None:
                 logger.info("worker pool stopped")
 
     def state(self) -> WorkerPoolState:

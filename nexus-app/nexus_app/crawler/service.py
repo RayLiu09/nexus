@@ -27,6 +27,7 @@ from nexus_app.crawler.config_loader import (
 from nexus_app.crawler.firecrawl_client import FirecrawlDocumentClient, FirecrawlDocumentSnapshot
 from nexus_app.crawler.quality_gate import evaluate_websearch_item, is_pdf_candidate
 from nexus_app.crawler.runner import run_firecrawl_plan
+from nexus_app.crawler.scheduling import InvalidCronError, compute_next_run
 from nexus_app.crawler.websearch_custom_client import HttpWebSearchCustomClient, WebSearchCustomError
 from nexus_app.crawler.url_safety import (
     UnsafeCrawlerUrlError,
@@ -40,6 +41,18 @@ from nexus_app.storage import ObjectStorage, get_object_storage
 
 class CrawlerPlanError(ValueError):
     pass
+
+
+def _resolve_schedule_next_run(execution_mode: str, cron: str | None) -> datetime | None:
+    """Return the initial next_run_at for a plan or None if not scheduled."""
+    if execution_mode != "scheduled":
+        return None
+    if not cron:
+        raise CrawlerPlanError("schedule_cron is required for scheduled crawler plans")
+    try:
+        return compute_next_run(cron)
+    except InvalidCronError as exc:
+        raise CrawlerPlanError(str(exc)) from exc
 
 
 class PdfDownloadError(RuntimeError):
@@ -210,10 +223,12 @@ def create_plan(
         if not 10 <= count <= 50:
             raise CrawlerPlanError("websearch result_count must be between 10 and 50")
         policy = {"query": query, "result_count": count, "time_range_preset": (payload.search_policy or {}).get("time_range_preset", "one_year"), "content_formats": "markdown"}
+        next_run_at = _resolve_schedule_next_run(payload.execution_mode, payload.schedule_cron)
         row = models.CrawlerPlan(name=payload.name, connector_type="websearch", connector_version="custom", mode=payload.mode,
             data_source_id=data_source_id or _ensure_builtin_websearch_data_source(session).id, template_code=template["template_code"], template_version=template["schema_version"],
             region_code=None, region_name=None, topic_keywords=[], content_goals=[], classification_hints=[], target_sites=[],
-            execution_mode=payload.execution_mode, schedule_cron=payload.schedule_cron, crawl_policy={}, search_policy=policy,
+            execution_mode=payload.execution_mode, schedule_cron=payload.schedule_cron, next_run_at=next_run_at,
+            crawl_policy={}, search_policy=policy,
             pipeline_policy=template["pipeline_policy"], status=payload.status)
         session.add(row); session.flush(); session.commit(); session.refresh(row)
         return row
@@ -253,8 +268,7 @@ def create_plan(
         allow_http_authority_seed=payload.mode == "quick_start",
         require_sites=payload.mode == "quick_start",
     )
-    if payload.execution_mode == "scheduled" and not payload.schedule_cron:
-        raise CrawlerPlanError("schedule_cron is required for scheduled crawler plans")
+    next_run_at = _resolve_schedule_next_run(payload.execution_mode, payload.schedule_cron)
 
     pipeline_policy = dict(template.get("pipeline_policy") or {})
     if pipeline_policy.get("pipeline_type") != "document":
@@ -275,6 +289,7 @@ def create_plan(
         target_sites=target_sites,
         execution_mode=payload.execution_mode,
         schedule_cron=payload.schedule_cron,
+        next_run_at=next_run_at,
         crawl_policy=_default_crawl_policy(template, payload.crawl_policy),
         search_policy={},
         pipeline_policy=pipeline_policy,
@@ -317,6 +332,8 @@ def archive_plan(
         raise CrawlerPlanError(f"crawler_plan '{plan_id}' not found")
     if row.status != "archived":
         row.status = "archived"
+        # Archived plans must not keep firing.
+        row.next_run_at = None
         write_audit(
             session,
             AuditEventType.CRAWLER_PLAN_ARCHIVED,

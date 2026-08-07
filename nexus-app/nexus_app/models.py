@@ -305,6 +305,13 @@ class CrawlerPlan(TimestampMixin, Base):
     )
     execution_mode: Mapped[str] = mapped_column(String(32), nullable=False)
     schedule_cron: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    next_run_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_fire_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     crawl_policy: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     search_policy: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     pipeline_policy: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)

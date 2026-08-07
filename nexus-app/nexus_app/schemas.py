@@ -265,6 +265,9 @@ class CrawlerPlanRead(ORMModel):
     target_sites: list[dict[str, Any]]
     execution_mode: str
     schedule_cron: str | None
+    next_run_at: datetime | None = None
+    last_fire_at: datetime | None = None
+    last_run_id: str | None = None
     crawl_policy: dict[str, Any]
     search_policy: dict[str, Any]
     pipeline_policy: dict[str, Any]
