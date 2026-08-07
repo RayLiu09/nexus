@@ -512,10 +512,16 @@ function withTimeout(signal?: AbortSignal | null): AbortSignal {
 export async function getApiData<T>(
   path: string,
   fallback: T,
-  searchParams?: Record<string, string>,
+  searchParams?: Record<string, string | string[]>,
 ): Promise<ApiResult<T>> {
   try {
-    const qs = searchParams ? new URLSearchParams(searchParams).toString() : "";
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(searchParams ?? {})) {
+      for (const item of Array.isArray(value) ? value : [value]) {
+        query.append(key, item);
+      }
+    }
+    const qs = query.toString();
     const fullPath = qs ? `${path}?${qs}` : path;
     const envelope = await requestApi<T>(fullPath, { method: "GET" });
     return {

@@ -19,14 +19,16 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
   const domain = firstParam(params.domain);
   const level = firstParam(params.level);
   const status = firstParam(params.status) ?? "visible";
+  const tags = tagParams(params.tags);
 
-  const tableParams: Record<string, string> = {
+  const tableParams: Record<string, string | string[]> = {
     page: String(currentPage),
     pageSize: String(currentPageSize),
   };
   if (domain) tableParams.domain = domain;
   if (level) tableParams.level = level;
   if (status && status !== "all") tableParams.status = status;
+  if (tags.length) tableParams.tags = tags;
 
   // Aggregate + paginated list are independent — fetch in parallel.
   const [summaryResult, tableResult] = await Promise.all([
@@ -35,7 +37,7 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
   ]);
 
   const tableData = tableResult.data;
-  const totalCount = summaryResult.data?.total ?? tableData.length;
+  const totalCount = tableResult.total ?? summaryResult.data?.total ?? tableData.length;
 
   return (
     <>
@@ -50,7 +52,7 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
         totalCount={totalCount}
         currentPage={currentPage}
         pageSize={currentPageSize}
-        filters={{ domain, level, status }}
+        filters={{ domain, level, status, tags }}
         ok={tableResult.ok}
         error={tableResult.error}
         traceId={tableResult.traceId}
@@ -62,4 +64,16 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
 function firstParam(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
   return value;
+}
+
+function tagParams(value: string | string[] | undefined): string[] {
+  const rawValues = Array.isArray(value) ? value : value ? [value] : [];
+  return [
+    ...new Set(
+      rawValues
+        .flatMap((item) => item.split(/[，,;；、\n]+/))
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ];
 }

@@ -1,21 +1,15 @@
 import { PageHeader } from "@/components/PageHeader";
 import { ApiState } from "@/components/ApiState";
-import { getApiData, type AIGovernanceRun, type AuditLog } from "@/lib/api";
+import { getApiData, type AIGovernanceRun } from "@/lib/api";
 import { selectCurrentReviewRuns } from "@/lib/governance-runs";
 import { WorkspaceContent } from "./_components/WorkspaceContent";
 
 export const dynamic = "force-dynamic";
 
 export default async function MyWorkspacePage() {
-  const [grResult, auditResult] = await Promise.all([
-    getApiData<AIGovernanceRun[]>("/internal/v1/ai/governance-runs", []),
-    getApiData<AuditLog[]>("/internal/v1/audit-logs", []),
-  ]);
+  const grResult = await getApiData<AIGovernanceRun[]>("/internal/v1/ai/governance-runs", []);
 
   const pendingReview = selectCurrentReviewRuns(grResult.data);
-  const recentAudits = auditResult.data
-    .filter((a) => a.event_type !== "TokenRefreshed" && a.event_type !== "TokenRefreshFailed")
-    .slice(0, 5);
 
   return (
     <>
@@ -26,12 +20,12 @@ export default async function MyWorkspacePage() {
       />
 
       <ApiState
-        ok={grResult.ok && auditResult.ok}
-        error={grResult.error ?? auditResult.error}
-        traceId={grResult.traceId ?? auditResult.traceId}
+        ok={grResult.ok}
+        error={grResult.error}
+        traceId={grResult.traceId}
       />
 
-      <WorkspaceContent pendingReview={pendingReview} recentAudits={recentAudits} />
+      <WorkspaceContent pendingReview={pendingReview} />
     </>
   );
 }

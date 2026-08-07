@@ -4,6 +4,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from nexus_api.api.internal.assets import get_catalog_tag_embedding_client
 from nexus_app import models
 from nexus_app.enums import (
     AIGovernanceRunAdoptionStatus,
@@ -16,7 +17,26 @@ from nexus_app.enums import (
     NormalizedAssetRefStatus,
     NormalizedType,
     RawObjectStatus,
+    TagAssetIndexSource,
+    TagAssetIndexTargetType,
 )
+from nexus_app.index.embedding_client import EmbeddingResult
+
+
+_SEMANTIC_VECTOR = [1.0] + [0.0] * 511
+
+
+class _SemanticEmbeddingClient:
+    def embed_texts(self, texts, *, model_alias=None, expected_dimension=None):
+        assert expected_dimension == 512
+        return EmbeddingResult(
+            vectors=[_SEMANTIC_VECTOR for _ in texts],
+            model_alias="test-semantic",
+            dimension=512,
+            request_id="test-semantic-request",
+            latency_ms=0.0,
+            input_hashes=[],
+        )
 
 
 def _seed_review_required_asset(session: Session):
@@ -304,6 +324,56 @@ def test_asset_catalog_filters_by_domain_level_and_status(app, session):
     payload = resp.json()
     assert payload["meta"]["total"] == 0
     assert payload["data"] == []
+
+
+def test_asset_catalog_filters_by_normalized_asset_tags(app, session):
+    seeded = _seed_review_required_asset(session)
+    session.add(models.TagAssetIndex(
+        tag_type="topic",
+        tag_value="跨境电子商务",
+        tag_value_normalized="跨境电子商务",
+        target_type=TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
+        target_id=seeded["ref"].id,
+        asset_version_id=seeded["version"].id,
+        source=TagAssetIndexSource.GOVERNANCE_TAG,
+    ))
+    session.commit()
+    client = TestClient(app)
+
+    resp = client.get("/internal/v1/assets?status=visible&tags=跨境电子商务")
+
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["meta"]["total"] == 1
+    assert [row["id"] for row in payload["data"]] == [seeded["asset"].id]
+
+    resp = client.get("/internal/v1/assets?status=visible&tags=无关标签")
+
+    assert resp.status_code == 200
+    assert resp.json()["meta"]["total"] == 0
+
+
+def test_asset_catalog_filters_by_semantic_tags(app, session):
+    seeded = _seed_review_required_asset(session)
+    session.add(models.TagAssetIndex(
+        tag_type="topic",
+        tag_value="跨境电子商务",
+        tag_value_normalized="跨境电子商务",
+        target_type=TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
+        target_id=seeded["ref"].id,
+        asset_version_id=seeded["version"].id,
+        source=TagAssetIndexSource.GOVERNANCE_TAG,
+        tag_embedding=_SEMANTIC_VECTOR,
+    ))
+    session.commit()
+    app.dependency_overrides[get_catalog_tag_embedding_client] = lambda: _SemanticEmbeddingClient
+    client = TestClient(app)
+
+    response = client.get("/internal/v1/assets?status=visible&tags=跨境电商")
+
+    assert response.status_code == 200
+    assert response.json()["meta"]["total"] == 1
+    assert response.json()["data"][0]["id"] == seeded["asset"].id
 
 
 def test_asset_summary_counts_review_required_assets_with_latest_refs(app, session):

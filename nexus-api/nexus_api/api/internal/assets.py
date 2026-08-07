@@ -14,6 +14,7 @@ from nexus_api.dependencies import Pagination, pagination_params
 from nexus_api.responses import list_response, response
 from nexus_app import models, pipeline, schemas as domain_schemas, services
 from nexus_app.audit import write_audit
+from nexus_app.config import get_settings
 from nexus_app.database import get_db
 from nexus_app.enums import (
     AssetVersionStatus,
@@ -22,7 +23,10 @@ from nexus_app.enums import (
     IndexManifestStatus,
     NormalizedType,
     StageStatus,
+    TagAssetIndexTargetType,
 )
+from nexus_app.index.embedding_client import create_embedding_client
+from nexus_app.retrieval.tag_resolver import BUCKET_TO_TAG_TYPE, TagAssetIndexResolver
 
 router = APIRouter()
 
@@ -49,6 +53,65 @@ _VISIBLE_ASSET_STATUSES = {
     AssetVersionStatus.AVAILABLE.value,
     AssetVersionStatus.REVIEW_REQUIRED.value,
 }
+
+# Catalog tags use the same L1/L2/L4 resolver as public asset discovery.  A
+# console user commonly enters a useful short form (for example, \"跨境电商\")
+# while governance stores its formal tag (\"跨境电子商务\"), so exact matching
+# alone does not provide usable catalog discovery.
+_TAG_SEARCH_TYPES: tuple[str, ...] = (
+    "region",
+    "industry",
+    "occupation",
+    "major",
+    "ability",
+    "topic",
+    "time_range",
+)
+_TAG_SEARCH_BUCKETS: dict[str, str] = {
+    tag_type: bucket_name for bucket_name, tag_type in BUCKET_TO_TAG_TYPE.items()
+}
+
+
+def get_catalog_tag_embedding_client():
+    """Provide the tag-space embedding client lazily for catalog search."""
+    return create_embedding_client
+
+
+def _matched_catalog_ref_ids(
+    session: Session,
+    *,
+    tags: list[str],
+    embedding_client,
+) -> set[str]:
+    """Resolve tag queries with ANY semantics against normalized asset refs."""
+    settings = get_settings()
+    resolver = TagAssetIndexResolver(
+        session,
+        embedding_client=embedding_client,
+        embedding_model_alias=settings.tag_embedding_model,
+        embedding_dimension=settings.tag_embedding_dimension,
+        # Catalog visibility is already governed by its version/state filter;
+        # do not discard expert-reviewed tags solely because their source AI
+        # run was not auto-adopted.
+        enforce_adoption_guardrail=False,
+    )
+    ref_ids: set[str] = set()
+    embedding_failed = False
+    for tag_type in _TAG_SEARCH_TYPES:
+        result = resolver.resolve(
+            bucket_name=_TAG_SEARCH_BUCKETS[tag_type],
+            candidates=tags,
+            target_type_filter=TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
+            match_strategy="l1|l1.5|l2|l4",
+        )
+        ref_ids.update(hit.target_id for hit in result.hits)
+        embedding_failed = embedding_failed or "l4_embedding_call_failed" in result.warnings
+    if embedding_failed and not ref_ids:
+        raise HTTPException(
+            status_code=503,
+            detail="semantic tag retrieval is temporarily unavailable",
+        )
+    return ref_ids
 
 
 def _canonical_classification(code: str | None) -> str | None:
@@ -245,8 +308,20 @@ def _filtered_catalog_rows(
     domain: str | None,
     level: str | None,
     status: str | None,
+    tags: list[str] | None = None,
+    embedding_client=None,
 ) -> list[domain_schemas.AssetCatalogRead]:
     rows = [_catalog_row(session, row) for row in pipeline.list_assets(session)]
+    if tags:
+        matching_ref_ids = _matched_catalog_ref_ids(
+            session,
+            tags=tags,
+            embedding_client=embedding_client,
+        )
+        rows = [
+            row for row in rows
+            if row.current_normalized_ref_id in matching_ref_ids
+        ]
     if domain:
         rows = [row for row in rows if row.domain == domain]
     if level:
@@ -284,13 +359,26 @@ def list_assets(
     domain: str | None = Query(default=None),
     level: str | None = Query(default=None),
     status: str | None = Query(default=None),
+    tags: list[str] | None = Query(default=None),
+    embedding_client_factory=Depends(get_catalog_tag_embedding_client),
 ):
-    if domain or level or status:
+    if tags is not None and (
+        not tags
+        or len(tags) > 10
+        or any(not tag.strip() or len(tag) > 256 for tag in tags)
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="tags must contain 1 to 10 non-blank values of at most 256 characters",
+        )
+    if domain or level or status or tags:
         rows = _filtered_catalog_rows(
             session,
             domain=domain,
             level=level,
             status=status,
+            tags=tags,
+            embedding_client=embedding_client_factory() if tags else None,
         )
         total = len(rows)
         rows = rows[pagination.offset: pagination.offset + pagination.limit]

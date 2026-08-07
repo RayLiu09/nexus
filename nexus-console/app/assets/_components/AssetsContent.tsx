@@ -3,10 +3,8 @@
 import { useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { Table, Tag, Select, Button, Card } from "antd";
-import { SaveOutlined } from "@ant-design/icons";
+import { Table, Tag, Select, Input, Card } from "antd";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
-import type { FilterValue, SorterResult } from "antd/es/table/interface";
 import { ApiState } from "@/components/ApiState";
 import { StatusLabel } from "@/components/StatusLabel";
 import { CopyableShortId } from "@/components/shared/CopyableShortId";
@@ -25,6 +23,7 @@ type AssetCatalogFilters = {
   domain?: string;
   level?: string;
   status?: string;
+  tags?: string[];
 };
 
 const FILTER_UNCHANGED = Symbol("filter-unchanged");
@@ -33,6 +32,7 @@ type AssetCatalogFilterPatch = {
   domain?: string | typeof FILTER_UNCHANGED;
   level?: string | typeof FILTER_UNCHANGED;
   status?: string | typeof FILTER_UNCHANGED;
+  tags?: string[] | typeof FILTER_UNCHANGED;
 };
 
 const DOMAIN_COLORS = [
@@ -102,11 +102,7 @@ export function AssetsContent({
   const stats = summary ? toAssetStats(summary) : EMPTY_STATS;
 
   const handleTableChange = useCallback(
-    (
-      pagination: TablePaginationConfig,
-      _filters: Record<string, FilterValue | null>,
-      _sorter: SorterResult<AssetWithMeta> | SorterResult<AssetWithMeta>[],
-    ) => {
+    (pagination: TablePaginationConfig) => {
       const params = new URLSearchParams();
       if (pagination.current && pagination.current > 1) {
         params.set("page", String(pagination.current));
@@ -117,10 +113,11 @@ export function AssetsContent({
       if (filters.domain) params.set("domain", filters.domain);
       if (filters.level) params.set("level", filters.level);
       if (filters.status) params.set("status", filters.status);
+      filters.tags?.forEach((tag) => params.append("tags", tag));
       const qs = params.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname);
     },
-    [filters.domain, filters.level, filters.status, router, pathname],
+    [filters.domain, filters.level, filters.status, filters.tags, router, pathname],
   );
 
   const updateFilters = useCallback(
@@ -129,16 +126,18 @@ export function AssetsContent({
       const nextDomain = next.domain === FILTER_UNCHANGED ? filters.domain : next.domain;
       const nextLevel = next.level === FILTER_UNCHANGED ? filters.level : next.level;
       const nextStatus = next.status === FILTER_UNCHANGED ? filters.status : next.status;
+      const nextTags = next.tags === FILTER_UNCHANGED ? filters.tags : next.tags;
       if (nextDomain) params.set("domain", nextDomain);
       if (nextLevel) params.set("level", nextLevel);
       if (nextStatus) params.set("status", nextStatus);
+      nextTags?.forEach((tag) => params.append("tags", tag));
       if (pageSize !== DEFAULT_PAGE_SIZE) {
         params.set("pageSize", String(pageSize));
       }
       const qs = params.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname);
     },
-    [filters.domain, filters.level, filters.status, pageSize, pathname, router],
+    [filters.domain, filters.level, filters.status, filters.tags, pageSize, pathname, router],
   );
 
   const columns: ColumnsType<AssetWithMeta> = [
@@ -283,6 +282,7 @@ export function AssetsContent({
             domain: value === "all-domain" ? undefined : value,
             level: FILTER_UNCHANGED,
             status: FILTER_UNCHANGED,
+            tags: FILTER_UNCHANGED,
           })}
           style={{ width: 180 }}
         />
@@ -299,6 +299,7 @@ export function AssetsContent({
             domain: FILTER_UNCHANGED,
             level: value === "all-level" ? undefined : value,
             status: FILTER_UNCHANGED,
+            tags: FILTER_UNCHANGED,
           })}
           style={{ width: 130 }}
         />
@@ -313,10 +314,24 @@ export function AssetsContent({
             domain: FILTER_UNCHANGED,
             level: FILTER_UNCHANGED,
             status: value === "all" ? undefined : value,
+            tags: FILTER_UNCHANGED,
           })}
           style={{ width: 240 }}
         />
-        <Button icon={<SaveOutlined />}>保存视图</Button>
+        <Input.Search
+          aria-label="按标签搜索资产"
+          defaultValue={filters.tags?.join("，")}
+          placeholder="搜索标签，多个标签用逗号分隔"
+          allowClear
+          enterButton="搜索"
+          onSearch={(value) => updateFilters({
+            domain: FILTER_UNCHANGED,
+            level: FILTER_UNCHANGED,
+            status: FILTER_UNCHANGED,
+            tags: parseTagSearch(value),
+          })}
+          style={{ width: 360, marginInlineStart: "auto" }}
+        />
       </div>
 
       <Card variant="borderless" style={{ minWidth: 0 }}>
@@ -340,4 +355,14 @@ export function AssetsContent({
       </Card>
     </>
   );
+}
+
+function parseTagSearch(value: string): string[] | undefined {
+  const tags = [...new Set(
+    value
+      .split(/[，,;；、\n]+/)
+      .map((item) => item.trim())
+      .filter(Boolean),
+  )];
+  return tags.length ? tags : undefined;
 }
