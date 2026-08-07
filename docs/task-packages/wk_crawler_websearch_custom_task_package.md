@@ -58,6 +58,13 @@ Scope:
 - Use the upstream page title for WebSearch assetization.
 - Keep WebSearch complete content in MinIO only; metadata may retain a bounded
   non-body summary but not a derived `content_snippet`.
+- Use a stable, asset-level identity derived from the normalized source URL and
+  a separate content fingerprint derived from normalized title + Markdown body.
+  Batch/run/request identifiers, raw JSON serialization, MIME type, and other
+  transport metadata must not affect either identity. An unchanged fingerprint
+  reuses the existing asset version and skips parse, normalize, governance, and
+  indexing; changed content at the same URL creates a new version of the same
+  asset.
 - Provide an operator cleanup/replay procedure for results admitted before the
   quality gate existed.
 
@@ -68,6 +75,9 @@ Acceptance:
 - A run with filtered results is `partial_failed` when it also submitted work,
   and `failed` when no result passed admission.
 - WebSearch asset titles equal the upstream `title` metadata.
+- Re-running the same upstream URL and Markdown body creates no additional
+  asset version or downstream processing chain, even if the Crawler run and
+  provider request identifiers differ.
 
 ## Required Review Gates
 

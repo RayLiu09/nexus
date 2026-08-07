@@ -1769,6 +1769,26 @@ def execute_job(
         session.commit()
         raise
 
+    # A WebSearch result can arrive in a different raw package or batch while
+    # representing an already processed Asset version. Assetize records this
+    # against the stable content fingerprint; do not re-run parse/governance/
+    # indexing merely because transport-level raw metadata changed.
+    incoming_fingerprint = (raw_object.metadata_summary or {}).get(
+        "asset_content_fingerprint"
+    )
+    if (
+        isinstance(incoming_fingerprint, str)
+        and incoming_fingerprint
+        and version.raw_object_id != raw_object.id
+        and (version.metadata_summary or {}).get("asset_content_fingerprint")
+        == incoming_fingerprint
+    ):
+        job.status = JobStatus.SUCCEEDED
+        job.current_stage = "asset_duplicate_skipped"
+        _maybe_aggregate_batch(session, job)
+        session.commit()
+        return
+
     # Stages 2+: pipeline-specific — failures are committed as failed state (no rollback)
     try:
         if pipeline_type == PipelineType.DOCUMENT:

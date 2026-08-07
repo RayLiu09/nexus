@@ -247,10 +247,15 @@ def _materialize_web_blocks(
 def _is_firecrawl_web_document(raw_object: models.RawObject) -> bool:
     metadata = raw_object.metadata_summary or {}
     mime_type = (raw_object.mime_type or "").lower()
+    if (
+        metadata.get("connector_type") == "websearch_custom_document"
+        and mime_type in {"application/json", "application/vnd.nexus.websearch-custom-document+json"}
+    ):
+        return True
     return (
-        metadata.get("connector_type") in {"firecrawl_document", "websearch_custom_document"}
+        metadata.get("connector_type") == "firecrawl_document"
         and metadata.get("content_kind") == "web_document"
-        and mime_type in {"text/html", "text/markdown", "application/json", "application/vnd.nexus.websearch-custom-document+json"}
+        and mime_type in {"text/html", "text/markdown"}
     )
 
 
@@ -512,6 +517,44 @@ def run_assetize(
     )
 
     if existing_asset is not None:
+        asset_content_fingerprint = (raw_object.metadata_summary or {}).get(
+            "asset_content_fingerprint"
+        )
+        if isinstance(asset_content_fingerprint, str) and asset_content_fingerprint:
+            matching_version = next(
+                (
+                    candidate
+                    for candidate in ctx.session.scalars(
+                        select(models.AssetVersion)
+                        .where(models.AssetVersion.asset_id == existing_asset.id)
+                        .order_by(models.AssetVersion.version_no.desc())
+                    ).all()
+                    if (candidate.metadata_summary or {}).get("asset_content_fingerprint")
+                    == asset_content_fingerprint
+                    and candidate.version_status in {
+                        AssetVersionStatus.AVAILABLE,
+                        AssetVersionStatus.REVIEW_REQUIRED,
+                        AssetVersionStatus.PROCESSING,
+                    }
+                ),
+                None,
+            )
+            if matching_version is not None:
+                _add_stage(
+                    ctx,
+                    "assetize",
+                    StageStatus.SKIPPED,
+                    {
+                        "reason": "asset content fingerprint already processed",
+                        "asset_id": existing_asset.id,
+                        "version_id": matching_version.id,
+                        "version_no": matching_version.version_no,
+                        "asset_duplicate": True,
+                        "asset_content_fingerprint": asset_content_fingerprint,
+                    },
+                )
+                return existing_asset, matching_version
+
         retry_version = ctx.session.scalar(
             select(models.AssetVersion)
             .where(
@@ -608,6 +651,11 @@ def run_assetize(
         source_checksum=raw_object.checksum,
         metadata_summary={
             "m1_ready_for_governance": False,
+            **(
+                {"asset_content_fingerprint": raw_object.metadata_summary["asset_content_fingerprint"]}
+                if (raw_object.metadata_summary or {}).get("asset_content_fingerprint")
+                else {}
+            ),
         },
     )
     ctx.session.add(version)

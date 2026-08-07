@@ -23,6 +23,7 @@ from nexus_app.knowledge.chunk_builder import build_chunk
 from nexus_app.pipeline.context import PipelineContext
 from nexus_app.pipeline.stages import (
     _is_firecrawl_web_document,
+    run_assetize,
     run_normalize_document,
     run_parse,
 )
@@ -173,6 +174,111 @@ def test_firecrawl_html_route_uses_connector_metadata_not_source_type(session) -
     ctx.raw_object.source_type = DataSourceType.FILE_UPLOAD
 
     assert _is_firecrawl_web_document(ctx.raw_object) is True
+
+
+def test_websearch_json_route_bypasses_mineru_without_optional_content_kind(session) -> None:
+    """WebSearch packages are identified by their immutable connector type.
+
+    Older persisted raw objects may not carry the presentation-oriented
+    ``content_kind`` field.  They must still be parsed as the Markdown package
+    supplied by the WebSearch connector, never submitted to MinerU as JSON.
+    """
+    ctx, version = _seed_firecrawl_web_job(session, mime_type="text/markdown")
+    raw_key = ctx.raw_object.object_uri.split("/", 3)[-1]
+    package = {
+        "content": "# 电子商务市场运行情况\n\n2026年一季度网络零售额保持增长。",
+    }
+    raw_bytes = json.dumps(package, ensure_ascii=False).encode("utf-8")
+    ctx.storage.put_bytes(raw_key, raw_bytes, "application/json")
+    ctx.raw_object.mime_type = "application/json"
+    ctx.raw_object.checksum = checksum_value(raw_bytes)
+    ctx.raw_object.metadata_summary = {
+        "filename": "websearch-result.json",
+        "connector_type": "websearch_custom_document",
+        "title": "电子商务市场运行情况",
+        "source_url": "https://example.gov.cn/market-report",
+    }
+    session.commit()
+
+    assert _is_firecrawl_web_document(ctx.raw_object) is True
+
+    artifact = run_parse(ctx, version)
+
+    assert artifact.parse_mode == "firecrawl_web_document"
+    assert artifact.metadata_summary["parser_backend"] == "websearch-custom-markdown-document-v1"
+    artifact_key = artifact.artifact_uri.split("/", 3)[-1]
+    payload = json.loads(ctx.storage.get_bytes(artifact_key).decode("utf-8"))
+    assert payload["title"] == "电子商务市场运行情况"
+    assert "网络零售额保持增长" in payload["markdown"]
+    stage = session.query(models.JobStage).filter_by(job_id=ctx.job.id, stage_name="parse").one()
+    assert stage.detail["parse_route"] == "websearch_custom_document"
+
+
+def test_assetize_reuses_websearch_version_by_content_fingerprint(session) -> None:
+    """Transport-level raw differences cannot create another Asset version."""
+    ctx, existing_version = _seed_firecrawl_web_job(session, mime_type="text/markdown")
+    fingerprint = "sha256:websearch-stable-content"
+    existing_asset = session.get(models.Asset, existing_version.asset_id)
+    assert existing_asset is not None
+    existing_asset.source_object_key = "websearch_url:sha256:stable-source"
+    existing_version.metadata_summary = {"asset_content_fingerprint": fingerprint}
+
+    duplicate_bytes = b'{"content":"same markdown", "RankScore":0.8}'
+    stored = ctx.storage.put_bytes(
+        "raw/crawler/websearch-duplicate.json", duplicate_bytes, "application/json",
+    )
+    duplicate_raw = models.RawObject(
+        id="raw-websearch-duplicate",
+        batch_id=ctx.batch.id,
+        data_source_id=ctx.raw_object.data_source_id,
+        source_type=DataSourceType.CRAWLER,
+        source_uri="https://example.gov.cn/policy",
+        object_uri=stored.object_uri,
+        checksum=checksum_value(duplicate_bytes),
+        mime_type="application/json",
+        size_bytes=len(duplicate_bytes),
+        status=RawObjectStatus.RAW_PERSISTED,
+        metadata_summary={
+            "filename": "websearch-duplicate.json",
+            "connector_type": "websearch_custom_document",
+            "asset_content_fingerprint": fingerprint,
+        },
+    )
+    duplicate_job = models.Job(
+        id="job-websearch-duplicate",
+        job_type=JobType.INGEST_PROCESS,
+        status=JobStatus.RUNNING,
+        ingest_batch_id=ctx.batch.id,
+        raw_object_id=duplicate_raw.id,
+        idempotency_key="websearch-duplicate",
+        payload={
+            "pipeline_type": PipelineType.DOCUMENT.value,
+            "source_object_key": existing_asset.source_object_key,
+        },
+    )
+    session.add_all([duplicate_raw, duplicate_job])
+    session.commit()
+
+    duplicate_ctx = PipelineContext(
+        session=session,
+        storage=ctx.storage,
+        settings=ctx.settings,
+        mineru=_MinerUMustNotBeCalled(),  # type: ignore[arg-type]
+        job=duplicate_job,
+        raw_object=duplicate_raw,
+        batch=ctx.batch,
+        trace_id="trace-websearch-duplicate",
+        pipeline_type=PipelineType.DOCUMENT,
+    )
+
+    asset, version = run_assetize(duplicate_ctx)
+
+    assert asset.id == existing_asset.id
+    assert version.id == existing_version.id
+    assert session.query(models.AssetVersion).filter_by(asset_id=asset.id).count() == 1
+    stage = session.query(models.JobStage).filter_by(job_id=duplicate_job.id).one()
+    assert stage.status == StageStatus.SKIPPED
+    assert stage.detail["asset_duplicate"] is True
 
 
 def test_firecrawl_html_artifact_flows_into_normalized_document(session) -> None:

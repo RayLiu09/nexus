@@ -148,12 +148,14 @@ function runContentItems(run: CrawlerRun): {
   discovered: CrawlerRunSummaryItem[];
   accepted: CrawlerRunSummaryItem[];
   failures: CrawlerRunSummaryItem[];
+  filtered: CrawlerRunSummaryItem[];
   submitted: CrawlerRunSummaryItem[];
 } {
   return {
     discovered: objectArrayFrom(run.summary, "discovered"),
     accepted: objectArrayFrom(run.summary, "accepted_snapshots"),
     failures: objectArrayFrom(run.summary, "failures"),
+    filtered: objectArrayFrom(run.summary, "filtered"),
     submitted: objectArrayFrom(run.summary, "submitted"),
   };
 }
@@ -190,7 +192,11 @@ function buildPayload(
     return {
       ...base,
       data_source_id: null,
-      search_policy: { query: form.query.trim(), result_count: form.resultCount, time_range_preset: form.timeRangePreset },
+      search_policy: {
+        query: form.query.trim(),
+        result_count: form.resultCount,
+        time_range_preset: form.timeRangePreset,
+      },
     };
   }
   if (form.mode === "quick_start") {
@@ -352,9 +358,7 @@ export function CrawlerPlansPanel() {
     setHistoryPlan(plan);
     setHistoryDrawerOpen(true);
     setHistoryLoading(true);
-    const result = await crawlerGet<CrawlerRun[]>(
-      `/runs?plan_id=${encodeURIComponent(plan.id)}`,
-    );
+    const result = await crawlerGet<CrawlerRun[]>(`/runs?plan_id=${encodeURIComponent(plan.id)}`);
     setHistoryLoading(false);
     if (!result.ok) {
       message.error(result.message);
@@ -483,7 +487,7 @@ export function CrawlerPlansPanel() {
         : "";
 
     return (
-      <div className="grid gap-3 bg-bg-alt p-3">
+      <div className="bg-bg-alt grid gap-3 p-3">
         <Descriptions size="small" column={2}>
           <Descriptions.Item label="Run ID">
             <code className="font-mono text-xs">{run.id}</code>
@@ -503,7 +507,9 @@ export function CrawlerPlansPanel() {
         {renderContentTable("搜索候选", items.discovered)}
         {renderContentTable("通过抓取", items.accepted)}
         {renderContentTable("提交 Pipeline", items.submitted, { showSubmitted: true })}
-        {renderContentTable("失败/过滤", items.failures, { showReason: true })}
+        {renderContentTable("失败/过滤", [...items.failures, ...items.filtered], {
+          showReason: true,
+        })}
       </div>
     );
   };
@@ -645,92 +651,137 @@ export function CrawlerPlansPanel() {
           />
           <Form layout="vertical" component="div">
             <Form.Item label="数据源类型" required>
-              <Select value={form.connectorType} onChange={(value) => update("connectorType", value)} options={[{ value: "firecrawl", label: "Firecrawl" }, { value: "websearch", label: "WebSearch" }]} />
-            </Form.Item>
-            {form.connectorType === "websearch" ? (
-              <>
-                <Form.Item label="计划名称" required><Input value={form.name} onChange={(event) => update("name", event.target.value)} placeholder="例：电商产业政策搜索" /></Form.Item>
-                <Form.Item label="版本"><Input value="Custom" disabled /></Form.Item>
-                <Form.Item label="查询" required extra="仅支持单个查询词，不能包含空格、逗号或分号。"><Input value={form.query} onChange={(event) => update("query", event.target.value)} /></Form.Item>
-                <Form.Item label="返回结果数量"><Input type="number" min={10} max={50} value={form.resultCount} onChange={(event) => update("resultCount", Number(event.target.value))} /></Form.Item>
-                <Form.Item label="时间范围"><Select value={form.timeRangePreset} onChange={(value) => update("timeRangePreset", value)} options={[{value:"three_months",label:"3月"},{value:"six_months",label:"6月"},{value:"one_year",label:"1年"},{value:"two_years",label:"2年"},{value:"three_years",label:"3年"},{value:"five_years",label:"5年"}]} /></Form.Item>
-              </>
-            ) : (
-              <>
-            <Form.Item label="计划名称" required>
-              <Input
-                value={form.name}
-                onChange={(event) => update("name", event.target.value)}
-                placeholder="例：浙江省政策报告采集"
-              />
-            </Form.Item>
-            <Form.Item label="归属数据源" required>
               <Select
-                value={effectiveDataSourceId || undefined}
-                onChange={(value) => update("dataSourceId", value)}
-                options={crawlerSourceOptions}
-                disabled
-              />
-            </Form.Item>
-            {form.mode === "quick_start" ? (
-              <>
-                <Form.Item label="区域">
-                  <Select
-                    value={form.regionCode}
-                    onChange={(value) => update("regionCode", value)}
-                    options={regions.map((region) => ({
-                      value: region.region_code,
-                      label: `${region.region_name} · ${region.site_count} 站点`,
-                    }))}
-                  />
-                </Form.Item>
-                <div className="border-line-light bg-bg-alt mb-4 rounded-md border p-3">
-                  <div className="mb-2 text-xs font-semibold">权威站点</div>
-                  <div className="flex flex-wrap gap-2">
-                    {siteOptions.map((site: CrawlerTargetSite) => (
-                      <Tooltip key={site.base_url} title={site.base_url}>
-                        <Tag>{site.site_name ?? site.base_url}</Tag>
-                      </Tooltip>
-                    ))}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <Form.Item label="目标站点 URL">
-                <Input.TextArea
-                  rows={4}
-                  value={form.targetUrls}
-                  onChange={(event) => update("targetUrls", event.target.value)}
-                  placeholder="留空表示按主题进行全网搜索；也可填写多个 URL，逗号或换行分隔"
-                />
-              </Form.Item>
-            )}
-            <Form.Item label="主题关键词">
-              <Input.TextArea
-                rows={3}
-                value={effectiveTopicKeywords}
-                onChange={(event) => update("topicKeywords", event.target.value)}
-              />
-            </Form.Item>
-            <Form.Item label="执行计划">
-              <Select
-                value={form.executionMode}
-                onChange={(value) => update("executionMode", value)}
+                value={form.connectorType}
+                onChange={(value) => update("connectorType", value)}
                 options={[
-                  { value: "run_once", label: "运行一次" },
-                  { value: "scheduled", label: "定期执行" },
+                  { value: "firecrawl", label: "Firecrawl" },
+                  { value: "websearch", label: "WebSearch" },
                 ]}
               />
             </Form.Item>
-            {form.executionMode === "scheduled" && (
-              <Form.Item label="Cron">
-                <Input
-                  value={form.scheduleCron}
-                  onChange={(event) => update("scheduleCron", event.target.value)}
-                  placeholder="0 2 * * 1"
-                />
-              </Form.Item>
-            )}
+            {form.connectorType === "websearch" ? (
+              <>
+                <Form.Item label="计划名称" required>
+                  <Input
+                    value={form.name}
+                    onChange={(event) => update("name", event.target.value)}
+                    placeholder="例：电商产业政策搜索"
+                  />
+                </Form.Item>
+                <Form.Item label="版本">
+                  <Input value="Custom" disabled />
+                </Form.Item>
+                <Form.Item
+                  label="查询"
+                  required
+                  extra="仅支持单个查询词，不能包含空格、逗号或分号。"
+                >
+                  <Input
+                    value={form.query}
+                    onChange={(event) => update("query", event.target.value)}
+                  />
+                </Form.Item>
+                <Form.Item label="返回结果数量">
+                  <Input
+                    type="number"
+                    min={10}
+                    max={50}
+                    value={form.resultCount}
+                    onChange={(event) => update("resultCount", Number(event.target.value))}
+                  />
+                </Form.Item>
+                <Form.Item label="时间范围">
+                  <Select
+                    value={form.timeRangePreset}
+                    onChange={(value) => update("timeRangePreset", value)}
+                    options={[
+                      { value: "three_months", label: "3月" },
+                      { value: "six_months", label: "6月" },
+                      { value: "one_year", label: "1年" },
+                      { value: "two_years", label: "2年" },
+                      { value: "three_years", label: "3年" },
+                      { value: "five_years", label: "5年" },
+                    ]}
+                  />
+                </Form.Item>
+              </>
+            ) : (
+              <>
+                <Form.Item label="计划名称" required>
+                  <Input
+                    value={form.name}
+                    onChange={(event) => update("name", event.target.value)}
+                    placeholder="例：浙江省政策报告采集"
+                  />
+                </Form.Item>
+                <Form.Item label="归属数据源" required>
+                  <Select
+                    value={effectiveDataSourceId || undefined}
+                    onChange={(value) => update("dataSourceId", value)}
+                    options={crawlerSourceOptions}
+                    disabled
+                  />
+                </Form.Item>
+                {form.mode === "quick_start" ? (
+                  <>
+                    <Form.Item label="区域">
+                      <Select
+                        value={form.regionCode}
+                        onChange={(value) => update("regionCode", value)}
+                        options={regions.map((region) => ({
+                          value: region.region_code,
+                          label: `${region.region_name} · ${region.site_count} 站点`,
+                        }))}
+                      />
+                    </Form.Item>
+                    <div className="border-line-light bg-bg-alt mb-4 rounded-md border p-3">
+                      <div className="mb-2 text-xs font-semibold">权威站点</div>
+                      <div className="flex flex-wrap gap-2">
+                        {siteOptions.map((site: CrawlerTargetSite) => (
+                          <Tooltip key={site.base_url} title={site.base_url}>
+                            <Tag>{site.site_name ?? site.base_url}</Tag>
+                          </Tooltip>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <Form.Item label="目标站点 URL">
+                    <Input.TextArea
+                      rows={4}
+                      value={form.targetUrls}
+                      onChange={(event) => update("targetUrls", event.target.value)}
+                      placeholder="留空表示按主题进行全网搜索；也可填写多个 URL，逗号或换行分隔"
+                    />
+                  </Form.Item>
+                )}
+                <Form.Item label="主题关键词">
+                  <Input.TextArea
+                    rows={3}
+                    value={effectiveTopicKeywords}
+                    onChange={(event) => update("topicKeywords", event.target.value)}
+                  />
+                </Form.Item>
+                <Form.Item label="执行计划">
+                  <Select
+                    value={form.executionMode}
+                    onChange={(value) => update("executionMode", value)}
+                    options={[
+                      { value: "run_once", label: "运行一次" },
+                      { value: "scheduled", label: "定期执行" },
+                    ]}
+                  />
+                </Form.Item>
+                {form.executionMode === "scheduled" && (
+                  <Form.Item label="Cron">
+                    <Input
+                      value={form.scheduleCron}
+                      onChange={(event) => update("scheduleCron", event.target.value)}
+                      placeholder="0 2 * * 1"
+                    />
+                  </Form.Item>
+                )}
               </>
             )}
           </Form>
@@ -758,7 +809,8 @@ export function CrawlerPlansPanel() {
                 items.discovered.length > 0 ||
                 items.accepted.length > 0 ||
                 items.submitted.length > 0 ||
-                items.failures.length > 0
+                items.failures.length > 0 ||
+                items.filtered.length > 0
               );
             },
           }}
