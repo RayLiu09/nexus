@@ -9,6 +9,7 @@ import {
   Drawer,
   Form,
   Input,
+  Popconfirm,
   Select,
   Space,
   Table,
@@ -643,14 +644,23 @@ export function CrawlerPlansPanel() {
                         />
                       </Tooltip>
                     )}
-                    <Tooltip title="废弃">
-                      <Button
-                        size="small"
-                        danger
-                        icon={<DeleteOutlined />}
-                        onClick={() => archivePlan(plan.id)}
-                      />
-                    </Tooltip>
+                    <Popconfirm
+                      title="废弃该 Crawler 计划？"
+                      description={
+                        <span>
+                          将归档 <strong>{plan.name}</strong>，之后不可再执行。此操作不可撤销。
+                        </span>
+                      }
+                      okText="确认废弃"
+                      okButtonProps={{ danger: true }}
+                      cancelText="取消"
+                      placement="topRight"
+                      onConfirm={() => archivePlan(plan.id)}
+                    >
+                      <Tooltip title="废弃">
+                        <Button size="small" danger icon={<DeleteOutlined />} />
+                      </Tooltip>
+                    </Popconfirm>
                   </Space>
                 ),
               },
