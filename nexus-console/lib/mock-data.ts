@@ -195,6 +195,8 @@ export const MOCK_BATCHES: IngestBatch[] = [
     idempotency_key: "idem-nas-20260601-001",
     source_type: "nas",
     status: "completed",
+    connector_type: "nas",
+    connector_version: "v1",
     submitted_by_user_id: "u-001",
     summary: {
       filename: "高等数学教学大纲-v3.2.pdf",
@@ -211,6 +213,8 @@ export const MOCK_BATCHES: IngestBatch[] = [
     idempotency_key: "idem-crawler-20260601-001",
     source_type: "crawler",
     status: "completed",
+    connector_type: "firecrawl",
+    connector_version: "v2",
     submitted_by_user_id: "u-001",
     summary: {
       filename: "教育部2026年工作要点.pdf",
@@ -227,6 +231,8 @@ export const MOCK_BATCHES: IngestBatch[] = [
     idempotency_key: "idem-db-20260601-001",
     source_type: "database",
     status: "processing",
+    connector_type: "database",
+    connector_version: "v1",
     submitted_by_user_id: "u-003",
     summary: {
       filename: "员工培训记录-2026Q2.xlsx",
@@ -243,6 +249,8 @@ export const MOCK_BATCHES: IngestBatch[] = [
     idempotency_key: "idem-upload-20260601-001",
     source_type: "file_upload",
     status: "completed",
+    connector_type: "file_upload",
+    connector_version: "v1",
     submitted_by_user_id: "u-001",
     summary: {
       filename: "线性代数讲义-第六章.pdf",
@@ -259,6 +267,8 @@ export const MOCK_BATCHES: IngestBatch[] = [
     idempotency_key: "idem-webhook-20260530-001",
     source_type: "webhook",
     status: "failed",
+    connector_type: "webhook",
+    connector_version: "v1",
     submitted_by_user_id: "u-002",
     summary: {
       filename: "合作院校共享资源包.zip",
