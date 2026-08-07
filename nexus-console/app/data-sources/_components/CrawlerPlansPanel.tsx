@@ -413,29 +413,32 @@ export function CrawlerPlansPanel() {
         dataSource={items}
         pagination={items.length > 5 ? { pageSize: 5, size: "small" } : false}
         locale={{ emptyText: "暂无记录" }}
+        tableLayout="fixed"
         columns={[
           {
             title: "内容",
             dataIndex: "url",
+            // No fixed width: let the column absorb remaining space so
+            // ellipsis is bounded by the drawer, not a hard-coded pixel cap.
             render: (_, item) => (
-              <Space orientation="vertical" size={0} className="min-w-0">
+              <Space orientation="vertical" size={0} className="w-full min-w-0">
                 <Typography.Link
                   href={item.url}
                   target="_blank"
                   rel="noreferrer"
                   ellipsis
-                  className="max-w-[520px]"
+                  className="block w-full max-w-full"
                 >
                   <LinkOutlined className="mr-1" />
                   {item.title || item.url}
                 </Typography.Link>
                 {item.description ? (
-                  <Typography.Text type="secondary" ellipsis className="max-w-[520px] text-xs">
+                  <Typography.Text type="secondary" ellipsis className="block w-full max-w-full text-xs">
                     {item.description}
                   </Typography.Text>
                 ) : null}
                 {item.source_url && item.source_url !== item.url ? (
-                  <Typography.Text type="secondary" ellipsis className="max-w-[520px] text-xs">
+                  <Typography.Text type="secondary" ellipsis className="block w-full max-w-full text-xs">
                     来源：{item.source_url}
                   </Typography.Text>
                 ) : null}
@@ -508,7 +511,7 @@ export function CrawlerPlansPanel() {
         : "";
 
     return (
-      <div className="bg-bg-alt grid gap-3 p-3">
+      <div className="bg-bg-alt grid min-w-0 gap-3 overflow-hidden p-3">
         <Descriptions size="small" column={2}>
           <Descriptions.Item label="Run ID">
             <code className="font-mono text-xs">{run.id}</code>
@@ -517,9 +520,11 @@ export function CrawlerPlansPanel() {
             {filterReasonText || <span className="text-text-muted">无</span>}
           </Descriptions.Item>
           <Descriptions.Item label="查询">
-            <Typography.Text ellipsis className="max-w-[520px]">
-              {String(run.summary.query || "")}
-            </Typography.Text>
+            <Tooltip title={String(run.summary.query || "")}>
+              <Typography.Text ellipsis className="block w-full max-w-full">
+                {String(run.summary.query || "")}
+              </Typography.Text>
+            </Tooltip>
           </Descriptions.Item>
           <Descriptions.Item label="搜索范围">
             {run.summary.web_wide_search ? "全网搜索" : "目标站点"}
