@@ -305,6 +305,9 @@ class CrawlerPlan(TimestampMixin, Base):
     )
     execution_mode: Mapped[str] = mapped_column(String(32), nullable=False)
     schedule_cron: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    schedule_paused: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     next_run_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

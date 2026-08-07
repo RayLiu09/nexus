@@ -119,6 +119,50 @@ def archive_crawler_plan(
 
 
 @router.post(
+    "/plans/{plan_id}/pause",
+    response_model=api_schemas.ApiResponse[domain_schemas.CrawlerPlanRead],
+    dependencies=[Depends(require_idempotency_key)],
+)
+def pause_crawler_schedule(
+    plan_id: str,
+    request: Request,
+    session: Session = Depends(get_db),
+):
+    try:
+        row = crawler_service.pause_schedule(
+            session,
+            plan_id,
+            trace_id=str(getattr(request.state, "trace_id", "")),
+        )
+    except crawler_service.CrawlerPlanError as exc:
+        status = 404 if "not found" in str(exc) else 422
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    return response(domain_schemas.CrawlerPlanRead.model_validate(row), request)
+
+
+@router.post(
+    "/plans/{plan_id}/resume",
+    response_model=api_schemas.ApiResponse[domain_schemas.CrawlerPlanRead],
+    dependencies=[Depends(require_idempotency_key)],
+)
+def resume_crawler_schedule(
+    plan_id: str,
+    request: Request,
+    session: Session = Depends(get_db),
+):
+    try:
+        row = crawler_service.resume_schedule(
+            session,
+            plan_id,
+            trace_id=str(getattr(request.state, "trace_id", "")),
+        )
+    except crawler_service.CrawlerPlanError as exc:
+        status = 404 if "not found" in str(exc) else 422
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    return response(domain_schemas.CrawlerPlanRead.model_validate(row), request)
+
+
+@router.post(
     "/plans/{plan_id}/run",
     response_model=api_schemas.ApiResponse[domain_schemas.CrawlerRunRead],
     dependencies=[Depends(require_idempotency_key)],

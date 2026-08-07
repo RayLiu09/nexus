@@ -122,6 +122,8 @@ export type CrawlerPlan = {
   target_sites: CrawlerTargetSite[];
   execution_mode: "run_once" | "scheduled";
   schedule_cron: string | null;
+  schedule_paused: boolean;
+  next_run_at: string | null;
   crawl_policy: Record<string, unknown>;
   search_policy: Record<string, unknown>;
   pipeline_policy: Record<string, unknown>;

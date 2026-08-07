@@ -76,6 +76,10 @@ class Settings(BaseSettings):
     crawler_scheduler_enabled: bool = True
     crawler_scheduler_poll_interval_seconds: float = 30.0
     crawler_scheduler_batch_limit: int = 20
+    # Cron expressions on CrawlerPlan.schedule_cron are interpreted in this
+    # timezone. Defaults to Beijing time to match the primary deployment;
+    # override with CRAWLER_SCHEDULER_TZ (any IANA zone name).
+    crawler_scheduler_tz: str = "Asia/Shanghai"
 
     # Pipeline B feature flags (B1.1 - allow gradual rollout).
     # When disabled, xlsx/csv keep going to Pipeline A (DOCUMENT) — current behavior.

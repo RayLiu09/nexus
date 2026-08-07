@@ -94,6 +94,20 @@ def test_compute_next_run_returns_future_time():
     assert nxt > now
 
 
+def test_compute_next_run_interprets_cron_in_provided_tz():
+    # "0 16 * * *" in Asia/Shanghai == 08:00 UTC.
+    base = datetime(2026, 8, 7, 6, 0, tzinfo=UTC)  # 14:00 CST
+    nxt = compute_next_run("0 16 * * *", base=base, tz="Asia/Shanghai")
+    assert nxt.tzinfo == UTC
+    assert nxt == datetime(2026, 8, 7, 8, 0, tzinfo=UTC)
+
+
+def test_compute_next_run_defaults_to_utc():
+    base = datetime(2026, 8, 7, 6, 0, tzinfo=UTC)
+    nxt = compute_next_run("0 16 * * *", base=base)  # default tz=UTC
+    assert nxt == datetime(2026, 8, 7, 16, 0, tzinfo=UTC)
+
+
 def test_tick_fires_due_plan_and_advances_next_run(db_factory):
     now_seed = datetime.now(UTC) - timedelta(minutes=1)
     plan_id = _seed_plan(db_factory, next_run_at=now_seed)
@@ -178,6 +192,44 @@ def test_tick_skips_when_previous_run_still_active(db_factory):
         ).all()
         assert len(skipped) == 1
         assert skipped[0].summary["reason"] == "previous_still_running"
+
+
+def test_tick_ignores_paused_schedule(db_factory):
+    now_seed = datetime.now(UTC) - timedelta(minutes=1)
+    with db_factory() as session:
+        plan = models.CrawlerPlan(
+            name="paused-plan",
+            connector_type="websearch",
+            connector_version="custom",
+            mode="custom",
+            topic_keywords=[],
+            content_goals=[],
+            classification_hints=[],
+            target_sites=[],
+            execution_mode="scheduled",
+            schedule_cron="*/5 * * * *",
+            schedule_paused=True,
+            next_run_at=now_seed,
+            crawl_policy={},
+            search_policy={},
+            pipeline_policy={},
+            status="active",
+        )
+        session.add(plan)
+        session.commit()
+
+    started = 0
+
+    def fake_run_plan(session: Session, plan_id: str):
+        nonlocal started
+        started += 1
+        return _StubRun("should-not-happen")
+
+    scheduler = CrawlerScheduler(db_factory, run_plan=fake_run_plan)
+    fired = scheduler.tick()
+
+    assert fired == 0
+    assert started == 0
 
 
 def test_tick_clears_next_run_at_for_invalid_cron(db_factory):

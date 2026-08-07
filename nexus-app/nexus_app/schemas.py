@@ -265,6 +265,7 @@ class CrawlerPlanRead(ORMModel):
     target_sites: list[dict[str, Any]]
     execution_mode: str
     schedule_cron: str | None
+    schedule_paused: bool = False
     next_run_at: datetime | None = None
     last_fire_at: datetime | None = None
     last_run_id: str | None = None

@@ -21,6 +21,7 @@ import {
   DeleteOutlined,
   HistoryOutlined,
   LinkOutlined,
+  PauseCircleOutlined,
   PlayCircleOutlined,
   PlusOutlined,
   ReloadOutlined,
@@ -341,6 +342,20 @@ export function CrawlerPlansPanel() {
     setPlans((prev) => [...prev]);
   };
 
+  const toggleSchedule = async (plan: CrawlerPlan) => {
+    const action = plan.schedule_paused ? "resume" : "pause";
+    const result = await crawlerPost<CrawlerPlan>(
+      `/plans/${encodeURIComponent(plan.id)}/${action}`,
+      {},
+    );
+    if (!result.ok) {
+      message.error(result.message);
+      return;
+    }
+    message.success(action === "pause" ? "定时任务已暂停" : "定时任务已恢复");
+    setPlans((prev) => prev.map((item) => (item.id === plan.id ? result.data : item)));
+  };
+
   const archivePlan = async (planId: string) => {
     const result = await crawlerPost<CrawlerPlan>(
       `/plans/${encodeURIComponent(planId)}/archive`,
@@ -564,10 +579,13 @@ export function CrawlerPlansPanel() {
               {
                 title: "执行",
                 dataIndex: "execution_mode",
-                width: 120,
+                width: 160,
                 render: (_, plan) =>
                   plan.execution_mode === "scheduled" ? (
-                    <Tag color="blue">{plan.schedule_cron}</Tag>
+                    <Space size={4} wrap>
+                      <Tag color="blue">{plan.schedule_cron}</Tag>
+                      {plan.schedule_paused && <Tag color="orange">已暂停</Tag>}
+                    </Space>
                   ) : (
                     <Tag>手动执行</Tag>
                   ),
@@ -591,7 +609,7 @@ export function CrawlerPlansPanel() {
               },
               {
                 title: "操作",
-                width: 190,
+                width: 220,
                 render: (_, plan) => (
                   <Space size={6}>
                     <Tooltip title="执行历史">
@@ -609,6 +627,17 @@ export function CrawlerPlansPanel() {
                         onClick={() => runPlan(plan.id)}
                       />
                     </Tooltip>
+                    {plan.execution_mode === "scheduled" && (
+                      <Tooltip title={plan.schedule_paused ? "恢复定时" : "暂停定时"}>
+                        <Button
+                          size="small"
+                          icon={
+                            plan.schedule_paused ? <PlayCircleOutlined /> : <PauseCircleOutlined />
+                          }
+                          onClick={() => toggleSchedule(plan)}
+                        />
+                      </Tooltip>
+                    )}
                     <Tooltip title="废弃">
                       <Button
                         size="small"
@@ -627,7 +656,7 @@ export function CrawlerPlansPanel() {
 
       <Drawer
         title="新增 Crawler 计划"
-        size="default"
+        width={504}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         destroyOnClose

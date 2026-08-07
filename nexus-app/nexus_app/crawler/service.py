@@ -50,7 +50,7 @@ def _resolve_schedule_next_run(execution_mode: str, cron: str | None) -> datetim
     if not cron:
         raise CrawlerPlanError("schedule_cron is required for scheduled crawler plans")
     try:
-        return compute_next_run(cron)
+        return compute_next_run(cron, tz=get_settings().crawler_scheduler_tz)
     except InvalidCronError as exc:
         raise CrawlerPlanError(str(exc)) from exc
 
@@ -341,6 +341,76 @@ def archive_plan(
             row.id,
             trace_id,
             {"mode": row.mode, "region_code": row.region_code},
+            actor_type=actor_type,
+            actor_id=actor_id,
+        )
+        session.commit()
+        session.refresh(row)
+    return row
+
+
+def pause_schedule(
+    session: Session,
+    plan_id: str,
+    *,
+    trace_id: str | None = None,
+    actor_type: str | None = None,
+    actor_id: str | None = None,
+) -> models.CrawlerPlan:
+    row = session.get(models.CrawlerPlan, plan_id)
+    if row is None:
+        raise CrawlerPlanError(f"crawler_plan '{plan_id}' not found")
+    if row.execution_mode != "scheduled":
+        raise CrawlerPlanError("pause is only supported for scheduled crawler plans")
+    if not row.schedule_paused:
+        row.schedule_paused = True
+        row.next_run_at = None
+        write_audit(
+            session,
+            AuditEventType.CRAWLER_SCHEDULE_PAUSED,
+            "crawler_plan",
+            row.id,
+            trace_id,
+            {"schedule_cron": row.schedule_cron},
+            actor_type=actor_type,
+            actor_id=actor_id,
+        )
+        session.commit()
+        session.refresh(row)
+    return row
+
+
+def resume_schedule(
+    session: Session,
+    plan_id: str,
+    *,
+    trace_id: str | None = None,
+    actor_type: str | None = None,
+    actor_id: str | None = None,
+) -> models.CrawlerPlan:
+    row = session.get(models.CrawlerPlan, plan_id)
+    if row is None:
+        raise CrawlerPlanError(f"crawler_plan '{plan_id}' not found")
+    if row.execution_mode != "scheduled":
+        raise CrawlerPlanError("resume is only supported for scheduled crawler plans")
+    if not row.schedule_cron:
+        raise CrawlerPlanError("schedule_cron is missing; cannot resume")
+    if row.schedule_paused or row.next_run_at is None:
+        try:
+            next_run_at = compute_next_run(
+                row.schedule_cron, tz=get_settings().crawler_scheduler_tz
+            )
+        except InvalidCronError as exc:
+            raise CrawlerPlanError(str(exc)) from exc
+        row.schedule_paused = False
+        row.next_run_at = next_run_at
+        write_audit(
+            session,
+            AuditEventType.CRAWLER_SCHEDULE_RESUMED,
+            "crawler_plan",
+            row.id,
+            trace_id,
+            {"schedule_cron": row.schedule_cron, "next_run_at": next_run_at.isoformat()},
             actor_type=actor_type,
             actor_id=actor_id,
         )

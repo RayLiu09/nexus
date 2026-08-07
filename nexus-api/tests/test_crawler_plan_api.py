@@ -375,6 +375,66 @@ def test_archive_plan_blocks_runs(app):
     assert "not active" in run_resp.json()["error"]["message"]
 
 
+def test_pause_and_resume_scheduled_plan(app):
+    client = TestClient(app)
+
+    create = client.post(
+        "/internal/v1/crawler/plans",
+        headers={"Idempotency-Key": "crawler-plan-pause-001"},
+        json={
+            "name": "定时暂停测试",
+            "mode": "quick_start",
+            "execution_mode": "scheduled",
+            "schedule_cron": "*/10 * * * *",
+        },
+    )
+    assert create.status_code == 201
+    plan_id = create.json()["data"]["id"]
+    assert create.json()["data"]["schedule_paused"] is False
+    assert create.json()["data"]["next_run_at"] is not None
+
+    pause = client.post(
+        f"/internal/v1/crawler/plans/{plan_id}/pause",
+        headers={"Idempotency-Key": "crawler-plan-pause-002"},
+    )
+    assert pause.status_code == 200
+    body = pause.json()["data"]
+    assert body["schedule_paused"] is True
+    assert body["next_run_at"] is None
+
+    resume = client.post(
+        f"/internal/v1/crawler/plans/{plan_id}/resume",
+        headers={"Idempotency-Key": "crawler-plan-pause-003"},
+    )
+    assert resume.status_code == 200
+    body = resume.json()["data"]
+    assert body["schedule_paused"] is False
+    assert body["next_run_at"] is not None
+
+
+def test_pause_rejects_run_once_plan(app):
+    client = TestClient(app)
+
+    create = client.post(
+        "/internal/v1/crawler/plans",
+        headers={"Idempotency-Key": "crawler-plan-pause-once-001"},
+        json={
+            "name": "手动执行不可暂停",
+            "mode": "quick_start",
+            "execution_mode": "run_once",
+        },
+    )
+    assert create.status_code == 201
+    plan_id = create.json()["data"]["id"]
+
+    resp = client.post(
+        f"/internal/v1/crawler/plans/{plan_id}/pause",
+        headers={"Idempotency-Key": "crawler-plan-pause-once-002"},
+    )
+    assert resp.status_code == 422
+    assert "scheduled" in resp.json()["error"]["message"]
+
+
 def test_scheduled_firecrawl_plan_sets_next_run_at(app):
     client = TestClient(app)
 

@@ -110,6 +110,7 @@ class CrawlerScheduler:
             .where(
                 models.CrawlerPlan.execution_mode == "scheduled",
                 models.CrawlerPlan.status == "active",
+                models.CrawlerPlan.schedule_paused.is_(False),
                 models.CrawlerPlan.next_run_at.is_not(None),
                 models.CrawlerPlan.next_run_at <= now,
             )
@@ -129,7 +130,7 @@ class CrawlerScheduler:
         now: datetime,
     ) -> bool:
         try:
-            new_next = compute_next_run(cron, base=now)
+            new_next = compute_next_run(cron, base=now, tz=self._settings.crawler_scheduler_tz)
         except InvalidCronError:
             logger.exception("plan %s has invalid cron %r; clearing next_run_at", plan_id, cron)
             with self._session_factory() as session:
