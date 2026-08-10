@@ -115,8 +115,8 @@ def group_graph_extraction_units(
         if _is_body_llm_candidate(candidate):
             heading = _heading_path(candidate)
             if body_buffer and (
-                heading != body_heading
-                or candidate.chunk_index != body_buffer[-1].chunk_index + 1
+                candidate.chunk_index != body_buffer[-1].chunk_index + 1
+                or (graph_profile != "policy_document" and heading != body_heading)
             ):
                 flush_body()
             body_buffer.append(candidate)
@@ -181,7 +181,7 @@ def _split_body_windows(
             units.append(_unit_from_chunks(
                 current,
                 graph_profile=graph_profile,
-                unit_type="section" if len(units) == 0 else "sliding_window",
+                unit_type=_body_unit_type(graph_profile, len(units)),
                 heading_path=heading_path,
             ))
             carry = current[-overlap_chunks:] if overlap_chunks else []
@@ -194,10 +194,17 @@ def _split_body_windows(
         units.append(_unit_from_chunks(
             current,
             graph_profile=graph_profile,
-            unit_type="section" if len(units) == 0 else "sliding_window",
+            unit_type=_body_unit_type(graph_profile, len(units)),
             heading_path=heading_path,
         ))
     return units
+
+
+def _body_unit_type(graph_profile: str, existing_unit_count: int) -> str:
+    """Name body units by the grouping semantics used for the profile."""
+    if graph_profile == "policy_document":
+        return "policy_document" if existing_unit_count == 0 else "policy_window"
+    return "section" if existing_unit_count == 0 else "sliding_window"
 
 
 def _single_chunk_unit(

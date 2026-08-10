@@ -432,6 +432,8 @@ def test_extract_graph_units_runs_section_as_single_llm_call():
     assert user_payload["unit_id"] == units[0].unit_id
     assert [chunk["chunk_id"] for chunk in user_payload["chunks"]] == ["chunk-1", "chunk-2"]
     assert user_payload["primary_chunk_id"] == "chunk-1"
+    assert "Return no more than 6 candidates." in user_payload["rules"]
+    assert "Return at most 6 candidates." in llm.calls[0]["messages"][0]["content"]
 
 
 def test_extract_graph_units_keeps_valid_unit_source_chunk_id():
@@ -752,7 +754,35 @@ def test_body_llm_extractor_rejects_invalid_json_without_rule_fallback():
     assert result.reject_reasons == {
         GraphExtractionRejectReason.SCHEMA_INVALID: 1,
     }
+    assert result.reject_samples == [{
+        "reason": GraphExtractionRejectReason.SCHEMA_INVALID,
+        "response_chars": len("not-json"),
+        "model_alias": get_settings().default_governance_model,
+        "request_id": "req-0",
+        "input_hash": "hash",
+        "response_shape": "invalid_json",
+    }]
     assert len(llm.calls) == 1
+
+
+def test_body_llm_extractor_records_only_structure_for_missing_candidate_array():
+    response = json.dumps({"answer": "not a graph candidate envelope", "status": "ok"})
+    llm = _ScriptedLLM([response])
+
+    result = BodyLLMExtractor(llm_client=llm).extract(
+        _candidate(content="不得写入这个原文内容"),
+        graph_profile="policy_document",
+    )
+
+    assert result.reject_reasons == {
+        GraphExtractionRejectReason.SCHEMA_INVALID: 1,
+    }
+    diagnostic = result.reject_samples[0]
+    assert diagnostic["response_shape"] == "dict"
+    assert diagnostic["top_level_keys"] == ["answer", "status"]
+    assert diagnostic["response_chars"] == len(response)
+    assert "不得写入这个原文内容" not in json.dumps(diagnostic, ensure_ascii=False)
+    assert "not a graph candidate envelope" not in json.dumps(diagnostic)
 
 
 def test_body_llm_extractor_rejects_schema_invalid_item():

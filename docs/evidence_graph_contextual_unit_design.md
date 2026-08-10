@@ -138,6 +138,12 @@ section chunks 10-40
   -> window 2: chunks 33-40
 ```
 
+政策类使用受治理分类选择的 `policy_document` profile。政策正文常为短篇
+连续条款，不要求具有可靠的章节路径：连续 body chunks 可在整份政策上下文内
+聚合，仍受相同字符数和 chunk 数上限约束，超过上限后使用带 overlap 的
+`policy_window`。报告类继续使用 `report_document`，按实际 `heading_path` 和
+连续性切分；缺失结构信息不会被虚构为章节。
+
 ### 6.2 table_row chunks
 
 阶段 1 保持 `table_row` 单 chunk 规则抽取，不进行跨行聚合。原因是现有
@@ -287,8 +293,9 @@ priority = graph_salience + multi-chunk / context-for 加权
   `per_chunk_overrun_candidates` 等粒度指标。
 - `quality_summary.graph_quality_gate` 对构建结果做 RAG context suitability
   判断。若已有 graph rows 但 `context_link_count` 过低、单 chunk 局部事实
-  比例过高、泛化实体比例过高或多 chunk 上下文不足，build 可进入
-  `review_required`，保留 graph rows 供审查，不直接视为可用 context graph。
+  比例过高、泛化实体比例过高或多 chunk 上下文不足，记录告警供运营检查；
+  Evidence Graph 不使用 `review_required` 状态，成功持久化的构建保持
+  `succeeded`。
 
 后续保留 Console overview/focused graph 交互增强。Evidence Graph 与
 检索/QA 的 runtime context expansion 暂不在本阶段实现，等待检索方案设计

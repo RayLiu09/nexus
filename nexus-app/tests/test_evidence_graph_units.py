@@ -63,6 +63,35 @@ def test_groups_body_llm_chunks_by_heading_path_from_metadata():
     assert "[chunk_id=chunk-1; chunk_index=1; anchor_role=body]" in unit.content
 
 
+def test_policy_groups_contiguous_body_chunks_without_requiring_headings():
+    units = group_graph_extraction_units(
+        [
+            _candidate(chunk_id="policy-1", chunk_index=1, heading_path=["总体要求"]),
+            _candidate(chunk_id="policy-2", chunk_index=2),
+            _candidate(chunk_id="policy-3", chunk_index=3, heading_path=["保障措施"]),
+        ],
+        graph_profile="policy_document",
+    )
+
+    assert len(units) == 1
+    assert units[0].unit_type == "policy_document"
+    assert units[0].chunk_ids == ("policy-1", "policy-2", "policy-3")
+
+
+def test_report_keeps_heading_boundaries():
+    units = group_graph_extraction_units(
+        [
+            _candidate(chunk_id="report-1", chunk_index=1, heading_path=["第一章"]),
+            _candidate(chunk_id="report-2", chunk_index=2, heading_path=["第二章"]),
+        ],
+        graph_profile="report_document",
+    )
+
+    assert len(units) == 2
+    assert [unit.unit_type for unit in units] == ["section", "section"]
+    assert [unit.chunk_ids for unit in units] == [("report-1",), ("report-2",)]
+
+
 def test_splits_long_body_sections_with_overlap():
     units = group_graph_extraction_units(
         [

@@ -41,8 +41,9 @@ def infer_knowledge_emissions(
       2. Look up the classification in the **active** governance rules; the
          classification's ``primary_knowledge_type`` is the canonical primary
          emission. No model inference, no string heuristics.
-      3. Copy declared graph metadata from the primary knowledge type when
-         present. This does not create another emission.
+      3. Use graph metadata declared on the classification when present;
+         otherwise copy it from the primary knowledge type. This does not
+         create another emission.
 
     Returns ``[]`` when:
       - the AI output carries no classification, or
@@ -119,7 +120,7 @@ def infer_knowledge_emissions_for_classification(
         ],
         "co_emission_origin": None,
     }
-    graph_profile = primary_kt_config.get("graph_profile")
+    graph_profile = cls_def.graph_profile or primary_kt_config.get("graph_profile")
     if isinstance(graph_profile, str) and graph_profile.strip():
         emission["graph_profile"] = graph_profile.strip()
     return [emission]

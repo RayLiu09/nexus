@@ -87,6 +87,40 @@ class TestKnowledgeEmissions:
         assert primary["source"] == "rule_lookup"
         assert primary["confidence"] == pytest.approx(0.91)
 
+    def test_classification_graph_profile_overrides_shared_knowledge_type(self, registry_with_textbook):
+        rules = registry_with_textbook.get_rules_content()
+        rules["classifications"][0]["graph_profile"] = "policy_document"
+        rules["knowledge_types"][0]["graph_profile"] = "report_document"
+        registry_with_textbook.load_dict(rules)
+
+        emissions = infer_knowledge_emissions(
+            {"classification": "D4", "confidence": 0.91},
+            {},
+            registry_with_textbook,
+        )
+
+        assert emissions[0]["graph_profile"] == "policy_document"
+
+    def test_production_policy_and_report_profiles_are_explicit(self):
+        rules_path = Path(__file__).resolve().parents[3] / "config" / "governance_rules_v2.json"
+        registry = GovernanceRulesRegistry()
+        registry.load(rules_path)
+
+        expected_emissions = {
+            "industry_policy": ("industry_research_kb", "policy_document"),
+            "industry_report": ("industry_research_kb", "report_document"),
+            "sector_report": ("industry_research_kb", "report_document"),
+            "talent_demand_report": ("talent_demand_report", "report_document"),
+        }
+        for classification, (expected_code, expected_profile) in expected_emissions.items():
+            emissions = infer_knowledge_emissions(
+                {"classification": classification}, {}, registry,
+            )
+            assert emissions[0]["code"] == expected_code
+            assert emissions[0]["graph_profile"] == expected_profile
+
+        assert all("ragflow" not in item for item in registry.get_knowledge_types())
+
     def test_ai_knowledge_type_field_is_ignored(self, registry_with_textbook):
         """Even when AI volunteers a knowledge_type, the rule lookup wins.
         Single source of truth = active rules (§12 deterministic contract)."""

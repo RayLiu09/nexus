@@ -427,16 +427,16 @@ def test_zero_row_succeeded_build_is_not_reused_or_returned_as_latest(
     assert submitted.json()["data"]["build"]["id"] != build.id
 
 
-def test_review_required_build_with_graph_rows_is_returned_as_latest(
+def test_succeeded_build_with_quality_warnings_is_returned_as_latest(
     app,
     session,
     graph_fixture,
 ):
     ref, build, _pending, _chunk, _chunk_2 = graph_fixture
-    build.status = "review_required"
+    build.status = "succeeded"
     build.quality_summary = {
         **(build.quality_summary or {}),
-        "graph_quality_gate": {"decision": "review_required"},
+        "graph_quality_gate": {"decision": "succeeded", "warnings": ["multi_chunk_context_low"]},
     }
     session.commit()
 
@@ -446,7 +446,7 @@ def test_review_required_build_with_graph_rows_is_returned_as_latest(
     assert latest.status_code == 200
     data = latest.json()["data"]
     assert data["build"]["id"] == build.id
-    assert data["build"]["status"] == "review_required"
+    assert data["build"]["status"] == "succeeded"
     assert data["nodes"] == 2
     assert data["facts"] == 1
 

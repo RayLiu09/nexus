@@ -24,7 +24,6 @@ class KnowledgeGraphBuildStatus(StrEnum):
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
-    REVIEW_REQUIRED = "review_required"
     DEPRECATED = "deprecated"
 
 
@@ -96,7 +95,6 @@ def get_existing_graph_build(
                 models.KnowledgeGraphBuild.status.in_(
                     (
                         KnowledgeGraphBuildStatus.SUCCEEDED,
-                        KnowledgeGraphBuildStatus.REVIEW_REQUIRED,
                     )
                 )
                 & (
@@ -120,12 +118,7 @@ def get_latest_succeeded_build(
     graph_profile: str | None = None,
     strategy_version: str | None = None,
 ) -> models.KnowledgeGraphBuild | None:
-    """Return the newest displayable terminal build with formal graph rows.
-
-    ``review_required`` builds can still contain persisted graph rows and
-    diagnostics. Console must show them for review instead of treating the ref
-    as having no Evidence Graph build.
-    """
+    """Return the newest successful build with formal graph rows."""
     stmt = (
         select(models.KnowledgeGraphBuild)
         .where(
@@ -134,7 +127,6 @@ def get_latest_succeeded_build(
             models.KnowledgeGraphBuild.status.in_(
                 (
                     KnowledgeGraphBuildStatus.SUCCEEDED,
-                    KnowledgeGraphBuildStatus.REVIEW_REQUIRED,
                 )
             ),
             (

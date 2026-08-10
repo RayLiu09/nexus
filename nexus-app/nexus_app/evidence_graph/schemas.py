@@ -129,6 +129,7 @@ def rejected_result(
     extraction_method: str,
     reason: str,
     count: int = 1,
+    reject_samples: list[dict[str, Any]] | None = None,
 ) -> GraphExtractionResult:
     return GraphExtractionResult(
         source_chunk_id=source_chunk_id,
@@ -136,6 +137,7 @@ def rejected_result(
         extraction_method=extraction_method,
         rejected_count=count,
         reject_reasons={reason: count},
+        reject_samples=reject_samples or [],
     )
 
 

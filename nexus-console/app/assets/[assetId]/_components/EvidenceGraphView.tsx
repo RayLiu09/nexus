@@ -126,7 +126,8 @@ type BuildProcessState = {
   updatedAt: string | null;
 };
 
-const STRATEGY_VERSION = "evidence_kg.v1";
+const DEFAULT_STRATEGY_VERSION = "evidence_kg.v1";
+const POLICY_DOCUMENT_STRATEGY_VERSION = "evidence_kg.v1.policy-cap6";
 const PAGE_SIZE = 200;
 const MAX_GRAPH_ROWS = 1600;
 const BUILD_POLL_INTERVAL_MS = 10000;
@@ -259,13 +260,12 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
     let summary = await getApiData<KnowledgeGraphLatestSummary>(
       `/api/evidence-graphs/normalized-refs/${normalizedRefId}`,
       { build: null },
-      { graph_profile: graphProfile, strategy_version: STRATEGY_VERSION },
+      { graph_profile: graphProfile },
     );
     if (summary.ok && !summary.data.build) {
       summary = await getApiData<KnowledgeGraphLatestSummary>(
         `/api/evidence-graphs/normalized-refs/${normalizedRefId}`,
         { build: null },
-        { strategy_version: STRATEGY_VERSION },
       );
     }
     if (!summary.ok) {
@@ -481,7 +481,7 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
         candidateSelection: buildProcess.candidateSelection,
       });
       setBuildProcess(nextProcess);
-      if (build.status === "succeeded" || build.status === "review_required" || build.status === "failed") {
+      if (build.status === "succeeded" || build.status === "failed") {
         await load();
         return;
       }
@@ -526,7 +526,7 @@ export function EvidenceGraphView({ normalizedRef }: Props) {
       const basePayload = {
         normalized_ref_id: refId,
         graph_profile: graphProfile,
-        strategy_version: STRATEGY_VERSION,
+        strategy_version: strategyVersionForProfile(graphProfile),
       };
       const buildEndpoint = force ? "/api/evidence-graphs/rebuild" : "/api/evidence-graphs/builds";
       const dryRun = await postApiData<CandidateSelectionSummary>(buildEndpoint, {
@@ -1472,13 +1472,11 @@ async function fetchLatestActiveBuild(
   let builds = await getApiData<KnowledgeGraphBuild[]>("/api/evidence-graphs/builds", [], {
     normalized_ref_id: normalizedRefId,
     graph_profile: graphProfile,
-    strategy_version: STRATEGY_VERSION,
     pageSize: "50",
   });
   if (builds.ok && builds.data.length === 0) {
     builds = await getApiData<KnowledgeGraphBuild[]>("/api/evidence-graphs/builds", [], {
       normalized_ref_id: normalizedRefId,
-      strategy_version: STRATEGY_VERSION,
       pageSize: "50",
     });
   }
@@ -1504,7 +1502,7 @@ function isBuildInProgress(build: KnowledgeGraphBuild): boolean {
 }
 
 function canDisplayGraphData(build: KnowledgeGraphBuild): boolean {
-  return (build.status === "succeeded" || build.status === "review_required") && !isZeroRowSucceededBuild(build);
+  return build.status === "succeeded" && !isZeroRowSucceededBuild(build);
 }
 
 function isZeroRowSucceededBuild(build: KnowledgeGraphBuild): boolean {
@@ -1531,7 +1529,7 @@ function buildProcessFromBuild(
   const phase: BuildProcessPhase =
     build.status === "failed"
       ? "failed"
-      : build.status === "succeeded" || build.status === "review_required"
+      : build.status === "succeeded"
         ? "succeeded"
         : "waiting";
   return {
@@ -1554,7 +1552,6 @@ function buildProcessMessage(build: KnowledgeGraphBuild, pollCount: number): str
       : "后台正在抽取并写入图谱。";
   }
   if (build.status === "succeeded") return "图谱构建完成，正在加载图谱数据。";
-  if (build.status === "review_required") return "图谱已生成，但存在低置信度或需复核内容。";
   if (build.status === "failed") return "图谱构建失败，请查看构建错误。";
   return "已存在 Evidence Graph build。";
 }
@@ -1563,7 +1560,6 @@ function skippedBuildMessage(build?: KnowledgeGraphBuild | null): string {
   if (!build) return "已存在 Evidence Graph build，已加载当前状态。";
   if (isBuildInProgress(build)) return "已存在正在执行的构建，已切换到构建过程视图。";
   if (build.status === "succeeded") return "已存在成功构建，直接加载当前图谱。";
-  if (build.status === "review_required") return "已存在需复核的图谱构建，直接加载当前图谱。";
   if (build.status === "failed") return "已存在失败的构建记录，请查看错误或执行重建。";
   return "已存在 Evidence Graph build，已加载当前状态。";
 }
@@ -1776,6 +1772,12 @@ function resolveGraphProfile(ref: NormalizedAssetRef | null): string {
   if (classification === "sop_document") return "sop_document";
   if (classification === "course_textbook" || classification === "textbook") return "textbook";
   return "report_document";
+}
+
+function strategyVersionForProfile(graphProfile: string): string {
+  return graphProfile === "policy_document"
+    ? POLICY_DOCUMENT_STRATEGY_VERSION
+    : DEFAULT_STRATEGY_VERSION;
 }
 
 function stringValue(value: unknown): string | null {

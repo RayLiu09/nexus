@@ -19,7 +19,6 @@ from nexus_app.evidence_graph.persist import GraphPersistResult, persist_graph_c
 from nexus_app.evidence_graph.service import (
     GRAPH_TYPE,
     KnowledgeGraphBuildStatus,
-    utcnow,
     mark_graph_build_failed,
     mark_graph_build_running,
 )
@@ -195,13 +194,6 @@ def process_graph_build(
             persist_summary=persisted.quality_summary,
         )
         summary["graph_quality_gate"] = quality_gate
-        if (
-            persisted.status == KnowledgeGraphBuildStatus.SUCCEEDED
-            and quality_gate["decision"] == KnowledgeGraphBuildStatus.REVIEW_REQUIRED
-        ):
-            build.status = KnowledgeGraphBuildStatus.REVIEW_REQUIRED
-            build.completed_at = utcnow()
-            build.error_message = None
         build.quality_summary = summary
         session.flush()
         return GraphBuildProcessResult(
@@ -298,9 +290,9 @@ def _graph_quality_gate(
 ) -> dict[str, Any]:
     """Evaluate whether the persisted graph is suitable as RAG context graph.
 
-    This is a build diagnostic gate only; it does not remove persisted rows.
-    Rows remain evidence-bound and inspectable, while low-context builds enter
-    review_required instead of being treated as ready graph context.
+    This is a build diagnostic gate only; it does not remove persisted rows or
+    change a successful graph build into a review state. Warnings remain in the
+    quality summary for operators to inspect.
     """
     retained = int(build_scope_governance.get("retained_candidates") or 0)
     facts_written = int(persist_summary.get("facts_written") or 0)
@@ -326,8 +318,6 @@ def _graph_quality_gate(
     decision = (
         KnowledgeGraphBuildStatus.FAILED
         if blockers
-        else KnowledgeGraphBuildStatus.REVIEW_REQUIRED
-        if warnings
         else KnowledgeGraphBuildStatus.SUCCEEDED
     )
     return {

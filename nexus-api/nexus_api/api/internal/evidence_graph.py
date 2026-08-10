@@ -411,7 +411,6 @@ def _deprecate_nonreusable_builds(
                 models.KnowledgeGraphBuild.status.in_(
                     (
                         KnowledgeGraphBuildStatus.SUCCEEDED,
-                        KnowledgeGraphBuildStatus.REVIEW_REQUIRED,
                     )
                 )
                 & (models.KnowledgeGraphBuild.node_count == 0)

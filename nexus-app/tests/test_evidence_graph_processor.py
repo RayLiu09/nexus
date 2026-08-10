@@ -425,7 +425,7 @@ def test_process_textbook_graph_build_persists_evidence_bound_rows(session):
                for row in evidence_rows)
 
 
-def test_process_graph_build_marks_over_localized_graph_review_required(session):
+def test_process_graph_build_keeps_over_localized_graph_succeeded_with_warning(session):
     ref = _seed_ref(session)
     build = create_graph_build(
         session,
@@ -443,12 +443,12 @@ def test_process_graph_build_marks_over_localized_graph_review_required(session)
     )
 
     assert result is not None
-    assert result.status == KnowledgeGraphBuildStatus.REVIEW_REQUIRED
+    assert result.status == KnowledgeGraphBuildStatus.SUCCEEDED
     refreshed = session.get(models.KnowledgeGraphBuild, build.id)
     assert refreshed is not None
-    assert refreshed.status == KnowledgeGraphBuildStatus.REVIEW_REQUIRED
+    assert refreshed.status == KnowledgeGraphBuildStatus.SUCCEEDED
     assert refreshed.fact_count == 5
-    assert refreshed.quality_summary["graph_quality_gate"]["decision"] == "review_required"
+    assert refreshed.quality_summary["graph_quality_gate"]["decision"] == "succeeded"
     assert "no_chunk_context_links" in refreshed.quality_summary["graph_quality_gate"]["warnings"]
     assert "over_localized_single_chunk_graph" in (
         refreshed.quality_summary["graph_quality_gate"]["warnings"]

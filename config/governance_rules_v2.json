@@ -132,6 +132,7 @@
       "decomposition_note": "",
       "structure_description": "",
       "primary_knowledge_type": "industry_research_kb",
+      "graph_profile": "policy_document",
       "default_level": "L1",
       "co_emission_rules": []
     },
@@ -274,6 +275,7 @@
       "decomposition_note": "",
       "structure_description": "",
       "primary_knowledge_type": "industry_research_kb",
+      "graph_profile": "report_document",
       "default_level": "L1",
       "co_emission_rules": []
     },
@@ -417,6 +419,7 @@
       "decomposition_note": "",
       "structure_description": "",
       "primary_knowledge_type": "industry_research_kb",
+      "graph_profile": "report_document",
       "default_level": "L1",
       "co_emission_rules": []
     },
@@ -983,7 +986,8 @@
       ],
       "decomposition_note": "相对固定的文档结构",
       "structure_description": "调研目的与意义，专业调研背景，专业调研的基本情况，调研情况分析；\n\n调研目的，调研方法，调研对象及内容，调研结果分析，调研结论及建议；",
-      "primary_knowledge_type": "industry_research_kb",
+      "primary_knowledge_type": "talent_demand_report",
+      "graph_profile": "report_document",
       "default_level": "L2",
       "co_emission_rules": []
     },
@@ -1427,14 +1431,6 @@
         "max_chunk_size": 1024,
         "split_by": "sentence"
       },
-      "ragflow": {
-        "chunk_method": "book",
-        "parser_config": {
-          "chunk_token_num": 512,
-          "delimiter": "\n",
-          "layout_recognize": "DeepDOC"
-        }
-      },
       "chunk_type": "semantic",
       "co_emission_rules": [
         {
@@ -1480,13 +1476,6 @@
         "field_chunk_size": 256,
         "field_overlap": 32
       },
-      "ragflow": {
-        "chunk_method": "naive",
-        "parser_config": {
-          "chunk_token_num": 256,
-          "delimiter": "\n"
-        }
-      },
       "chunk_type": "structured_field",
       "co_emission_rules": [
         {
@@ -1530,7 +1519,6 @@
           "continuation_majors"
         ]
       },
-      "ragflow": {},
       "chunk_type": "semantic_block",
       "co_emission_rules": [],
       "implementation_tier": "A",
@@ -1556,13 +1544,6 @@
         "min_question_length": 5,
         "min_answer_length": 10,
         "merge_short_answers": true
-      },
-      "ragflow": {
-        "chunk_method": "qa",
-        "parser_config": {
-          "chunk_token_num": 256,
-          "delimiter": "\n"
-        }
       },
       "chunk_type": "qa_pair",
       "co_emission_rules": [],
@@ -1594,13 +1575,6 @@
         "extract_inputs_outputs": true,
         "extract_role": true
       },
-      "ragflow": {
-        "chunk_method": "manual",
-        "parser_config": {
-          "chunk_token_num": 384,
-          "delimiter": "\n"
-        }
-      },
       "chunk_type": "process_step",
       "co_emission_rules": [],
       "implementation_tier": "B",
@@ -1628,13 +1602,6 @@
         ],
         "extract_inputs_outputs": true,
         "extract_role": true
-      },
-      "ragflow": {
-        "chunk_method": "manual",
-        "parser_config": {
-          "chunk_token_num": 384,
-          "delimiter": "\n"
-        }
       },
       "chunk_type": "process_step",
       "co_emission_rules": [
@@ -1664,13 +1631,6 @@
       ],
       "chunking_strategy": "semantic_repack",
       "chunking_config": {},
-      "ragflow": {
-        "chunk_method": "manual",
-        "parser_config": {
-          "chunk_token_num": 384,
-          "delimiter": "\n"
-        }
-      },
       "chunk_type": "process_step",
       "co_emission_rules": [],
       "graph_profile": "standard_spec",
@@ -1699,13 +1659,6 @@
         ],
         "extract_inputs_outputs": true,
         "extract_role": true
-      },
-      "ragflow": {
-        "chunk_method": "manual",
-        "parser_config": {
-          "chunk_token_num": 384,
-          "delimiter": "\n"
-        }
       },
       "chunk_type": "process_step",
       "co_emission_rules": [],
@@ -1737,12 +1690,6 @@
         "extract_weight": true,
         "extract_scale": true
       },
-      "ragflow": {
-        "chunk_method": "table",
-        "parser_config": {
-          "chunk_token_num": 256
-        }
-      },
       "chunk_type": "indicator",
       "co_emission_rules": [],
       "implementation_tier": "B",
@@ -1772,12 +1719,6 @@
         ],
         "extract_weight": true,
         "extract_scale": true
-      },
-      "ragflow": {
-        "chunk_method": "table",
-        "parser_config": {
-          "chunk_token_num": 256
-        }
       },
       "chunk_type": "indicator",
       "co_emission_rules": [],
@@ -1809,13 +1750,6 @@
         "section_chunk_size": 384,
         "section_overlap": 32
       },
-      "ragflow": {
-        "chunk_method": "paper",
-        "parser_config": {
-          "chunk_token_num": 384,
-          "delimiter": "\n"
-        }
-      },
       "chunk_type": "case_section",
       "co_emission_rules": [],
       "implementation_tier": "C",
@@ -1845,13 +1779,6 @@
         ],
         "section_chunk_size": 384,
         "section_overlap": 32
-      },
-      "ragflow": {
-        "chunk_method": "paper",
-        "parser_config": {
-          "chunk_token_num": 384,
-          "delimiter": "\n"
-        }
       },
       "chunk_type": "case_section",
       "co_emission_rules": [],
@@ -1889,18 +1816,6 @@
         ],
         "extract_attributes": true
       },
-      "ragflow": {
-        "chunk_method": "knowledge_graph",
-        "parser_config": {
-          "chunk_token_num": 256,
-          "entity_types": [
-            "概念",
-            "知识点",
-            "技能",
-            "案例"
-          ]
-        }
-      },
       "chunk_type": "graph_node",
       "co_emission_rules": [],
       "implementation_tier": "C",
@@ -1935,18 +1850,6 @@
           "对应"
         ],
         "extract_attributes": true
-      },
-      "ragflow": {
-        "chunk_method": "knowledge_graph",
-        "parser_config": {
-          "chunk_token_num": 256,
-          "entity_types": [
-            "能力",
-            "子能力",
-            "岗位",
-            "技能"
-          ]
-        }
       },
       "chunk_type": "graph_node",
       "co_emission_rules": [
@@ -1986,12 +1889,6 @@
         "extract_aliases": true,
         "extract_hierarchy": true
       },
-      "ragflow": {
-        "chunk_method": "tag",
-        "parser_config": {
-          "chunk_token_num": 128
-        }
-      },
       "chunk_type": "tag",
       "co_emission_rules": [],
       "implementation_tier": "C",
@@ -2000,12 +1897,11 @@
     {
       "code": "industry_research_kb",
       "name": "行业研究知识库",
-      "description": "产业政策、产业报告、行业报告、人才需求报告等研究性文档；由 NEXUS semantic_repack 进行本地语义切块。",
+      "description": "产业政策、产业报告、行业报告等研究性文档；由 NEXUS semantic_repack 进行本地语义切块。",
       "applicable_classifications": [
         "industry_policy",
         "industry_report",
-        "sector_report",
-        "talent_demand_report"
+        "sector_report"
       ],
       "default_level": "L1",
       "source_kind": "extracted_from_normalized",
@@ -2024,18 +1920,39 @@
         "max_chunk_size": 1024,
         "split_by": "sentence"
       },
-      "ragflow": {
-        "chunk_method": "paper",
-        "parser_config": {
-          "chunk_token_num": 512,
-          "delimiter": "\n",
-          "layout_recognize": "DeepDOC"
-        }
-      },
       "chunk_type": "semantic",
       "co_emission_rules": [],
       "implementation_tier": "A",
       "kb_name": "nexus-kb-industry-research"
+    },
+    {
+      "code": "talent_demand_report",
+      "name": "专业人才需求报告知识库",
+      "description": "专业人才需求、岗位缺口、能力趋势与调研结论类文档；由 NEXUS semantic_repack 进行本地语义切块。",
+      "applicable_classifications": [
+        "talent_demand_report"
+      ],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_semantic",
+      "rag_pipeline": "pipeline_1",
+      "source_criteria": [
+        "包含调研对象、样本、岗位需求或人才缺口证据",
+        "包含能力要求、培养建议、趋势或结论",
+        "适合专业建设中的人才需求检索与可追溯引用"
+      ],
+      "chunking_strategy": "semantic_repack",
+      "chunking_config": {
+        "chunk_size": 512,
+        "overlap": 64,
+        "min_chunk_size": 100,
+        "max_chunk_size": 1024,
+        "split_by": "sentence"
+      },
+      "chunk_type": "semantic",
+      "co_emission_rules": [],
+      "implementation_tier": "A",
+      "kb_name": "nexus-kb-talent-demand-report"
     },
     {
       "code": "structured_record_table",
@@ -2058,13 +1975,6 @@
       "chunking_config": {
         "row_size_target": 1,
         "include_header_in_chunk": true
-      },
-      "ragflow": {
-        "chunk_method": "table",
-        "parser_config": {
-          "chunk_token_num": 256,
-          "delimiter": "\n"
-        }
       },
       "chunk_type": "structured",
       "co_emission_rules": [],

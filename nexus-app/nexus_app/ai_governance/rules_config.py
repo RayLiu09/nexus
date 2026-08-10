@@ -25,6 +25,7 @@ class ClassificationDef(BaseModel):
     examples: list[str] = []
     # v3.0+ business-rules fields (governance_rules_v2.json §12):
     primary_knowledge_type: str | None = None
+    graph_profile: str | None = None
     default_level: str | None = None
     co_emission_rules: list[ClassificationCoEmissionRule] = Field(default_factory=list)
 

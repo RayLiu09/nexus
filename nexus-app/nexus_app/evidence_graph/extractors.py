@@ -30,6 +30,7 @@ from nexus_app.evidence_graph.units import GraphExtractionUnit
 
 DEFAULT_MODEL_ALIAS_FALLBACK = "internal/evidence-kg-extractor-v1"
 BODY_LLM_MAX_PARALLEL_CALLS = 20
+MAX_CONTEXTUAL_FACTS_PER_UNIT = 6
 GRAPH_FACT_CANDIDATE_FIELDS = set(GraphFactCandidate.model_fields)
 DEFAULT_ENTITY_TYPE = "Entity"
 
@@ -174,7 +175,7 @@ class BodyLLMExtractor:
 
         messages = _build_body_messages(candidate, graph_profile)
         try:
-            content, _summary = self._llm_client.call(
+            content, summary = self._llm_client.call(
                 self._model_alias,
                 messages,
                 temperature=self._temperature,
@@ -196,6 +197,7 @@ class BodyLLMExtractor:
                 extractor_name=self.extractor_name,
                 extraction_method=self.extraction_method,
                 reason=GraphExtractionRejectReason.SCHEMA_INVALID,
+                reject_samples=[_response_structure_diagnostic(content, summary)],
             )
         return _validate_items(
             raw_items,
@@ -230,7 +232,7 @@ class BodyLLMExtractor:
 
         messages = _build_body_unit_messages(unit, graph_profile)
         try:
-            content, _summary = self._llm_client.call(
+            content, summary = self._llm_client.call(
                 self._model_alias,
                 messages,
                 temperature=self._temperature,
@@ -252,6 +254,7 @@ class BodyLLMExtractor:
                 extractor_name=self.extractor_name,
                 extraction_method=self.extraction_method,
                 reason=GraphExtractionRejectReason.SCHEMA_INVALID,
+                reject_samples=[_response_structure_diagnostic(content, summary)],
             )
         return _validate_items(
             raw_items,
@@ -645,6 +648,7 @@ def _build_body_messages(
     system = (
         "You extract evidence-grounded knowledge graph fact candidates. "
         "Return JSON only: {\"candidates\": [...]}. "
+        f"Return at most {MAX_CONTEXTUAL_FACTS_PER_UNIT} candidates. "
         "Extract only high-value context facts that help complete the semantic "
         "context of RAG chunks; do not enumerate every local sentence as a triple. "
         "Keep subject.name, object.name, object_literal, qualifiers, and evidence_text "
@@ -705,6 +709,7 @@ def _build_body_messages(
         "rules": [
             "Prefer core definitions, requirements, metrics, findings, trends, policy context, dependencies, methods, and section topics.",
             "Do not exhaustively convert every sentence, example, repeated phrase, or generic mention into a fact.",
+            f"Return no more than {MAX_CONTEXTUAL_FACTS_PER_UNIT} candidates.",
             "Skip ordinary local mentions unless they provide useful context for other chunks.",
             "subject.type is required and must never be null.",
             "subject.name is required and must never be null.",
@@ -730,6 +735,7 @@ def _build_body_unit_messages(
     system = (
         "You extract evidence-grounded knowledge graph fact candidates from a "
         "contextual document unit. Return JSON only: {\"candidates\": [...]}. "
+        f"Return at most {MAX_CONTEXTUAL_FACTS_PER_UNIT} candidates. "
         "Extract only core context facts that help complete the semantic context "
         "of RAG chunks in this unit; do not enumerate every local sentence as a triple. "
         "Keep subject.name, object.name, object_literal, qualifiers, and evidence_text "
@@ -813,6 +819,7 @@ def _build_body_unit_messages(
             "Prefer facts that explain, qualify, summarize, or connect multiple chunks in the unit.",
             "Do not exhaustively convert every sentence, example, repeated phrase, or generic mention into a fact.",
             "Keep at most the core context facts; skip facts that are only useful inside one self-contained sentence.",
+            f"Return no more than {MAX_CONTEXTUAL_FACTS_PER_UNIT} candidates.",
             "Every fact must cite an exact evidence_text quote from this unit.",
             "Use only chunk IDs listed in chunks; do not invent source IDs.",
             "Prefer the most specific supporting chunk as source_chunk_id.",
@@ -848,6 +855,26 @@ def _parse_candidate_items(content: str) -> list[Any] | None:
             if isinstance(items, list):
                 return items
     return None
+
+
+def _response_structure_diagnostic(content: str, summary: Any) -> dict[str, Any]:
+    """Expose malformed-response shape without retaining model or source text."""
+    diagnostic: dict[str, Any] = {
+        "reason": GraphExtractionRejectReason.SCHEMA_INVALID,
+        "response_chars": len(content or ""),
+        "model_alias": getattr(summary, "model_alias", None),
+        "request_id": getattr(summary, "request_id", None),
+        "input_hash": getattr(summary, "input_hash", None),
+    }
+    try:
+        parsed = json.loads(content)
+    except (TypeError, ValueError):
+        diagnostic["response_shape"] = "invalid_json"
+        return diagnostic
+    diagnostic["response_shape"] = type(parsed).__name__
+    if isinstance(parsed, dict):
+        diagnostic["top_level_keys"] = sorted(str(key) for key in parsed)[:20]
+    return diagnostic
 
 
 def _validate_items(
