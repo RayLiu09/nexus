@@ -375,6 +375,11 @@ def test_process_graph_build_with_all_rejected_candidates_fails_without_graph_ro
     assert refreshed.error_message is not None
     assert refreshed.quality_summary["extraction"]["accepted"] == 0
     assert refreshed.quality_summary["extraction"]["rejected"] == 1
+    assert len(refreshed.quality_summary["extraction"]["llm_calls"]) == 2
+    assert all(
+        "response_preview" not in item
+        for item in refreshed.quality_summary["extraction"]["llm_calls"]
+    )
     assert refreshed.quality_summary["persist"]["source_candidate_count"] == 2
     assert refreshed.quality_summary["unit_grouping"]["extraction_unit_count"] == 1
 

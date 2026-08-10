@@ -116,6 +116,8 @@ class GraphExtractionResult(BaseModel):
     rejected_count: int = 0
     reject_reasons: dict[str, int] = Field(default_factory=dict)
     reject_samples: list[dict[str, Any]] = Field(default_factory=list)
+    # Safe call-level metadata only. Model/source bodies are deliberately absent.
+    llm_call_diagnostics: list[dict[str, Any]] = Field(default_factory=list)
 
     @property
     def accepted_count(self) -> int:

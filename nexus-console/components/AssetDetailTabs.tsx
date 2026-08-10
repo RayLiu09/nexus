@@ -284,6 +284,7 @@ function KnowledgeChunksTab({
       taskOutlineOk={taskOutlineOk}
       taskOutlineError={taskOutlineError}
       taskOutlineTraceId={taskOutlineTraceId}
+      classification={latestGovernanceResult?.classification}
       onJumpToBlock={onJumpToBlock}
     />
   );

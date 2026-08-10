@@ -6,7 +6,11 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from nexus_app.ai_governance.litellm_client import LiteLLMCallSummary
+from nexus_app.ai_governance.litellm_client import (
+    LiteLLMCallError,
+    LiteLLMCallSummary,
+    LiteLLMErrorType,
+)
 from nexus_app.evidence_graph import (
     BodyLLMExtractor,
     ChartFactExtractor,
@@ -72,6 +76,35 @@ class _SlowScriptedLLM(_ScriptedLLM):
     ):
         if self.delay_seconds:
             time.sleep(self.delay_seconds)
+        return super().call(
+            model_alias,
+            messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+        )
+
+
+class _SchemaRejectingLLM(_ScriptedLLM):
+    def call(
+        self,
+        model_alias,
+        messages,
+        *,
+        temperature=0.2,
+        max_tokens=2048,
+        response_format=None,
+    ):
+        if response_format and response_format.get("type") == "json_schema":
+            self.calls.append({
+                "model_alias": model_alias,
+                "messages": messages,
+                "response_format": response_format,
+            })
+            raise LiteLLMCallError(
+                "response_format json_schema is unsupported",
+                LiteLLMErrorType.INVALID_REQUEST,
+            )
         return super().call(
             model_alias,
             messages,
@@ -151,7 +184,11 @@ def test_body_llm_extractor_accepts_valid_schema_candidate():
     assert accepted.anchor_role == "body"
     assert accepted.extraction_method == "llm"
     assert accepted.subject.name == "直播电商市场"
-    assert llm.calls[0]["response_format"] == {"type": "json_object"}
+    assert llm.calls[0]["response_format"]["type"] == "json_schema"
+    assert llm.calls[0]["response_format"]["json_schema"]["strict"] is True
+    assert llm.calls[0]["response_format"]["json_schema"]["schema"]["required"] == [
+        "candidates",
+    ]
     system_message = llm.calls[0]["messages"][0]["content"]
     user_payload = json.loads(llm.calls[0]["messages"][1]["content"])
     assert "subject.type and object.type must be non-empty strings" in system_message
@@ -167,6 +204,94 @@ def test_body_llm_extractor_accepts_valid_schema_candidate():
         "fact_type must be exactly one of: metric_fact, trend_fact, policy_fact, event_fact, "
         "finding_fact, entity_mention."
     ) in user_payload["rules"]
+
+
+def test_body_llm_extractor_repairs_invalid_top_level_response_once():
+    item = {
+        "fact_type": "trend_fact",
+        "subject": {"type": "Trend", "name": "直播电商市场"},
+        "predicate": "HAS_GROWTH_RATE",
+        "object_literal": "12%",
+        "evidence_text": "直播电商市场同比增长 12%。",
+        "confidence": 0.86,
+    }
+    llm = _ScriptedLLM([
+        json.dumps({"result": "not a candidate list"}),
+        _llm_payload(item),
+    ])
+
+    result = BodyLLMExtractor(llm_client=llm).extract(
+        _candidate(), graph_profile="report_document"
+    )
+
+    assert result.accepted_count == 1
+    assert result.rejected_count == 0
+    assert len(llm.calls) == 2
+    assert len(result.llm_call_diagnostics) == 2
+    assert result.llm_call_diagnostics[0]["phase"] == "extract"
+    assert result.llm_call_diagnostics[0]["response_shape"] == "dict"
+    assert result.llm_call_diagnostics[1]["phase"] == "format_repair"
+    assert llm.calls[1]["messages"][-1]["content"].startswith(
+        "Your previous response did not satisfy",
+    )
+
+
+def test_body_llm_extractor_falls_back_when_provider_rejects_json_schema():
+    item = {
+        "fact_type": "trend_fact",
+        "subject": {"type": "Trend", "name": "直播电商市场"},
+        "predicate": "HAS_GROWTH_RATE",
+        "object_literal": "12%",
+        "evidence_text": "直播电商市场同比增长 12%。",
+        "confidence": 0.86,
+    }
+    llm = _SchemaRejectingLLM([_llm_payload(), _llm_payload(item)])
+
+    result = BodyLLMExtractor(llm_client=llm).extract(
+        _candidate(), graph_profile="report_document"
+    )
+
+    assert result.accepted_count == 1
+    assert len(llm.calls) == 2
+    assert llm.calls[0]["response_format"]["type"] == "json_schema"
+    assert llm.calls[1]["response_format"] == {"type": "json_object"}
+    assert result.llm_call_diagnostics[0]["response_format"] == "json_object_fallback"
+
+
+def test_body_llm_extractor_repairs_wholly_invalid_candidate_fields_once():
+    valid_item = {
+        "fact_type": "trend_fact",
+        "subject": {"type": "Trend", "name": "直播电商市场"},
+        "predicate": "HAS_GROWTH_RATE",
+        "object_literal": "12%",
+        "evidence_text": "直播电商市场同比增长 12%。",
+        "confidence": 0.86,
+    }
+    llm = _ScriptedLLM([_llm_payload({"subject": {}}), _llm_payload(valid_item)])
+
+    result = BodyLLMExtractor(llm_client=llm).extract(
+        _candidate(), graph_profile="report_document"
+    )
+
+    assert result.accepted_count == 1
+    assert len(llm.calls) == 2
+
+
+def test_body_llm_extractor_keeps_safe_diagnostics_when_repair_fails():
+    llm = _ScriptedLLM([
+        json.dumps({"result": "not a candidate list"}),
+        json.dumps({"still_wrong": True}),
+    ])
+
+    result = BodyLLMExtractor(llm_client=llm).extract(
+        _candidate(), graph_profile="report_document"
+    )
+
+    assert result.accepted_count == 0
+    assert result.reject_reasons == {GraphExtractionRejectReason.SCHEMA_INVALID: 1}
+    assert len(result.llm_call_diagnostics) == 2
+    assert result.reject_samples[0]["response_shape"] == "dict"
+    assert "response_preview" not in result.reject_samples[0]
 
 
 def test_body_llm_extractor_defaults_null_entity_type_to_entity():
@@ -744,7 +869,7 @@ def test_body_llm_extractor_explicit_model_alias_overrides_env(monkeypatch):
 
 
 def test_body_llm_extractor_rejects_invalid_json_without_rule_fallback():
-    llm = _ScriptedLLM(["not-json"])
+    llm = _ScriptedLLM(["not-json", "still-not-json"])
     extractor = BodyLLMExtractor(llm_client=llm)
 
     result = extractor.extract(_candidate(), graph_profile="report_document")
@@ -756,18 +881,22 @@ def test_body_llm_extractor_rejects_invalid_json_without_rule_fallback():
     }
     assert result.reject_samples == [{
         "reason": GraphExtractionRejectReason.SCHEMA_INVALID,
-        "response_chars": len("not-json"),
+        "response_chars": len("still-not-json"),
         "model_alias": get_settings().default_governance_model,
-        "request_id": "req-0",
+        "request_id": "req-1",
         "input_hash": "hash",
         "response_shape": "invalid_json",
+        "attempt": 2,
+        "phase": "format_repair",
+        "response_format": "json_schema",
     }]
-    assert len(llm.calls) == 1
+    assert len(llm.calls) == 2
+    assert len(result.llm_call_diagnostics) == 2
 
 
 def test_body_llm_extractor_records_only_structure_for_missing_candidate_array():
     response = json.dumps({"answer": "not a graph candidate envelope", "status": "ok"})
-    llm = _ScriptedLLM([response])
+    llm = _ScriptedLLM([response, response])
 
     result = BodyLLMExtractor(llm_client=llm).extract(
         _candidate(content="不得写入这个原文内容"),
@@ -786,14 +915,15 @@ def test_body_llm_extractor_records_only_structure_for_missing_candidate_array()
 
 
 def test_body_llm_extractor_rejects_schema_invalid_item():
-    llm = _ScriptedLLM([_llm_payload({
+    invalid_response = _llm_payload({
         "fact_type": "trend_fact",
         "subject": {"type": "Market", "name": "直播电商市场"},
         "predicate": "HAS_GROWTH_RATE",
         "object_literal": "12%",
         "evidence_text": "",
         "confidence": 0.86,
-    })])
+    })
+    llm = _ScriptedLLM([invalid_response, invalid_response])
     extractor = BodyLLMExtractor(llm_client=llm)
 
     result = extractor.extract(_candidate(), graph_profile="report_document")

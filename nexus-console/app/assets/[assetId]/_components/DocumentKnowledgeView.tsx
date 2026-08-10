@@ -8,6 +8,7 @@ import { EvidenceGraphView } from "./EvidenceGraphView";
 import { KnowledgeOutlineView } from "./KnowledgeOutlineView";
 import { TaskOutlineView } from "./TaskOutlineView";
 import type { NormalizedAssetRef, TaskOutlineEnvelope } from "@/lib/api";
+import { shouldShowEvidenceGraph } from "@/lib/evidenceGraphAdmission";
 
 type Props = {
   normalizedRef: NormalizedAssetRef | null;
@@ -15,6 +16,7 @@ type Props = {
   taskOutlineOk?: boolean;
   taskOutlineError?: string | null;
   taskOutlineTraceId?: string | null;
+  classification?: string | null;
   // Forwarded from AssetDetailTabs — invoked by KnowledgeOutlineView
   // to jump the "原文预览" tab to a specific block.
   onJumpToBlock?: (blockId: string) => void;
@@ -37,6 +39,7 @@ export function DocumentKnowledgeView({
   taskOutlineOk = true,
   taskOutlineError = null,
   taskOutlineTraceId = null,
+  classification = null,
   onJumpToBlock,
 }: Props) {
   const [view, setView] = useState<ViewKey>("chunks");
@@ -54,7 +57,7 @@ export function DocumentKnowledgeView({
     taskOutlineOk &&
     taskProfile?.processing_profile === "task_outline" &&
     taskProfile?.textbook_subtype === "training_operation";
-  const showEvidenceGraph = graphAdmission !== "not_recommended";
+  const showEvidenceGraph = shouldShowEvidenceGraph(graphAdmission, classification);
 
   const viewOptions: Array<{ label: string; value: ViewKey }> = [
     CHUNK_VIEW_OPTION,

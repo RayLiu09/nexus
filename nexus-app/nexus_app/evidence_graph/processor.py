@@ -154,6 +154,7 @@ def process_graph_build(
         rejected_count = sum(result.rejected_count for result in results)
         rejected_by_reason: dict[str, int] = {}
         reject_samples: list[dict[str, Any]] = []
+        llm_call_diagnostics: list[dict[str, Any]] = []
         for result in results:
             for reason, count in result.reject_reasons.items():
                 rejected_by_reason[reason] = rejected_by_reason.get(reason, 0) + count
@@ -163,6 +164,14 @@ def process_graph_build(
                 reject_samples.append({
                     **sample,
                     "source_chunk_id": sample.get("source_chunk_id") or result.source_chunk_id,
+                })
+            for diagnostic in result.llm_call_diagnostics:
+                if len(llm_call_diagnostics) >= 20:
+                    break
+                llm_call_diagnostics.append({
+                    key: value
+                    for key, value in diagnostic.items()
+                    if key != "response_preview"
                 })
         governed = govern_graph_candidates(
             accepted,
@@ -185,6 +194,7 @@ def process_graph_build(
                 "rejected": rejected_count,
                 "rejected_by_reason": rejected_by_reason,
                 "reject_samples": reject_samples,
+                "llm_calls": llm_call_diagnostics,
             },
             "build_scope_governance": governed.quality_summary,
             "persist": persisted.quality_summary,

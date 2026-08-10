@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from nexus_app.ai_governance.litellm_client import (
     LiteLLMCallError,
     LiteLLMClientProtocol,
+    LiteLLMErrorType,
 )
 from nexus_app.config import get_settings
 from nexus_app.evidence_graph.candidates import GraphChunkCandidate
@@ -31,8 +32,29 @@ from nexus_app.evidence_graph.units import GraphExtractionUnit
 DEFAULT_MODEL_ALIAS_FALLBACK = "internal/evidence-kg-extractor-v1"
 BODY_LLM_MAX_PARALLEL_CALLS = 20
 MAX_CONTEXTUAL_FACTS_PER_UNIT = 6
+MAX_REPAIR_RESPONSE_CHARS = 12_000
 GRAPH_FACT_CANDIDATE_FIELDS = set(GraphFactCandidate.model_fields)
 DEFAULT_ENTITY_TYPE = "Entity"
+
+GRAPH_CANDIDATES_RESPONSE_FORMAT: dict[str, Any] = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "evidence_graph_candidates",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["candidates"],
+            "properties": {
+                "candidates": {
+                    "type": "array",
+                    "maxItems": MAX_CONTEXTUAL_FACTS_PER_UNIT,
+                    "items": {"type": "object"},
+                },
+            },
+        },
+    },
+}
 
 FACT_TYPE_ALIASES = {
     "attribute": "finding_fact",
@@ -173,39 +195,11 @@ class BodyLLMExtractor:
                 reason=GraphExtractionRejectReason.LLM_CLIENT_UNAVAILABLE,
             )
 
-        messages = _build_body_messages(candidate, graph_profile)
-        try:
-            content, summary = self._llm_client.call(
-                self._model_alias,
-                messages,
-                temperature=self._temperature,
-                max_tokens=self._max_tokens,
-                response_format={"type": "json_object"},
-            )
-        except LiteLLMCallError:
-            return rejected_result(
-                source_chunk_id=candidate.chunk_id,
-                extractor_name=self.extractor_name,
-                extraction_method=self.extraction_method,
-                reason=GraphExtractionRejectReason.LLM_CALL_FAILED,
-            )
-
-        raw_items = _parse_candidate_items(content)
-        if raw_items is None:
-            return rejected_result(
-                source_chunk_id=candidate.chunk_id,
-                extractor_name=self.extractor_name,
-                extraction_method=self.extraction_method,
-                reason=GraphExtractionRejectReason.SCHEMA_INVALID,
-                reject_samples=[_response_structure_diagnostic(content, summary)],
-            )
-        return _validate_items(
-            raw_items,
+        return self._extract_with_format_repair(
+            messages=_build_body_messages(candidate, graph_profile),
             source_chunk_id=candidate.chunk_id,
             graph_profile=graph_profile,
             anchor_role=candidate.anchor_role,
-            extractor_name=self.extractor_name,
-            extraction_method=self.extraction_method,
             evidence_fallback=candidate.content,
         )
 
@@ -230,39 +224,11 @@ class BodyLLMExtractor:
                 reason=GraphExtractionRejectReason.LLM_CLIENT_UNAVAILABLE,
             )
 
-        messages = _build_body_unit_messages(unit, graph_profile)
-        try:
-            content, summary = self._llm_client.call(
-                self._model_alias,
-                messages,
-                temperature=self._temperature,
-                max_tokens=self._max_tokens,
-                response_format={"type": "json_object"},
-            )
-        except LiteLLMCallError:
-            return rejected_result(
-                source_chunk_id=unit.primary_chunk_id,
-                extractor_name=self.extractor_name,
-                extraction_method=self.extraction_method,
-                reason=GraphExtractionRejectReason.LLM_CALL_FAILED,
-            )
-
-        raw_items = _parse_candidate_items(content)
-        if raw_items is None:
-            return rejected_result(
-                source_chunk_id=unit.primary_chunk_id,
-                extractor_name=self.extractor_name,
-                extraction_method=self.extraction_method,
-                reason=GraphExtractionRejectReason.SCHEMA_INVALID,
-                reject_samples=[_response_structure_diagnostic(content, summary)],
-            )
-        return _validate_items(
-            raw_items,
+        return self._extract_with_format_repair(
+            messages=_build_body_unit_messages(unit, graph_profile),
             source_chunk_id=unit.primary_chunk_id,
             graph_profile=graph_profile,
             anchor_role=unit.anchor_role,
-            extractor_name=self.extractor_name,
-            extraction_method=self.extraction_method,
             evidence_fallback=unit.content,
             default_qualifiers={
                 "extraction_unit_chunk_ids": list(unit.chunk_ids),
@@ -272,6 +238,136 @@ class BodyLLMExtractor:
             },
             allowed_source_chunk_ids=set(unit.chunk_ids),
         )
+
+    def _extract_with_format_repair(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        source_chunk_id: str,
+        graph_profile: str,
+        anchor_role: str,
+        evidence_fallback: str,
+        default_qualifiers: dict[str, Any] | None = None,
+        allowed_source_chunk_ids: set[str] | None = None,
+    ) -> GraphExtractionResult:
+        diagnostics: list[dict[str, Any]] = []
+        first = self._extract_response(
+            messages=messages,
+            source_chunk_id=source_chunk_id,
+            graph_profile=graph_profile,
+            anchor_role=anchor_role,
+            evidence_fallback=evidence_fallback,
+            default_qualifiers=default_qualifiers,
+            allowed_source_chunk_ids=allowed_source_chunk_ids,
+            attempt=1,
+            phase="extract",
+            diagnostics=diagnostics,
+        )
+        if not _requires_format_repair(first):
+            first.llm_call_diagnostics = diagnostics
+            return first
+
+        repair_messages = _build_format_repair_messages(messages, diagnostics[-1].get("response_preview"))
+        repaired = self._extract_response(
+            messages=repair_messages,
+            source_chunk_id=source_chunk_id,
+            graph_profile=graph_profile,
+            anchor_role=anchor_role,
+            evidence_fallback=evidence_fallback,
+            default_qualifiers=default_qualifiers,
+            allowed_source_chunk_ids=allowed_source_chunk_ids,
+            attempt=2,
+            phase="format_repair",
+            diagnostics=diagnostics,
+        )
+        repaired.llm_call_diagnostics = diagnostics
+        return repaired
+
+    def _extract_response(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        source_chunk_id: str,
+        graph_profile: str,
+        anchor_role: str,
+        evidence_fallback: str,
+        default_qualifiers: dict[str, Any] | None,
+        allowed_source_chunk_ids: set[str] | None,
+        attempt: int,
+        phase: str,
+        diagnostics: list[dict[str, Any]],
+    ) -> GraphExtractionResult:
+        try:
+            content, summary, format_name = self._call_structured(messages)
+        except LiteLLMCallError as exc:
+            diagnostics.append({
+                "attempt": attempt,
+                "phase": phase,
+                "outcome": "call_failed",
+                "error_type": str(exc.error_type),
+            })
+            return rejected_result(
+                source_chunk_id=source_chunk_id,
+                extractor_name=self.extractor_name,
+                extraction_method=self.extraction_method,
+                reason=GraphExtractionRejectReason.LLM_CALL_FAILED,
+            )
+
+        diagnostic = _response_structure_diagnostic(content, summary)
+        diagnostic.update({"attempt": attempt, "phase": phase, "response_format": format_name})
+        # Do not persist model output. The preview exists only long enough to compose
+        # the repair request and is removed before build diagnostics are written.
+        diagnostic["response_preview"] = content[:MAX_REPAIR_RESPONSE_CHARS]
+        diagnostics.append(diagnostic)
+        raw_items = _parse_candidate_items(content)
+        if raw_items is None:
+            result = rejected_result(
+                source_chunk_id=source_chunk_id,
+                extractor_name=self.extractor_name,
+                extraction_method=self.extraction_method,
+                reason=GraphExtractionRejectReason.SCHEMA_INVALID,
+                reject_samples=[_safe_diagnostic(diagnostic)],
+            )
+        else:
+            result = _validate_items(
+                raw_items,
+                source_chunk_id=source_chunk_id,
+                graph_profile=graph_profile,
+                anchor_role=anchor_role,
+                extractor_name=self.extractor_name,
+                extraction_method=self.extraction_method,
+                evidence_fallback=evidence_fallback,
+                default_qualifiers=default_qualifiers,
+                allowed_source_chunk_ids=allowed_source_chunk_ids,
+            )
+        diagnostic["outcome"] = "accepted" if result.accepted_count else "schema_rejected"
+        return result
+
+    def _call_structured(
+        self,
+        messages: list[dict[str, str]],
+    ) -> tuple[str, Any, str]:
+        assert self._llm_client is not None
+        try:
+            content, summary = self._llm_client.call(
+                self._model_alias,
+                messages,
+                temperature=self._temperature,
+                max_tokens=self._max_tokens,
+                response_format=GRAPH_CANDIDATES_RESPONSE_FORMAT,
+            )
+            return content, summary, "json_schema"
+        except LiteLLMCallError as exc:
+            if exc.error_type != LiteLLMErrorType.INVALID_REQUEST:
+                raise
+        content, summary = self._llm_client.call(
+            self._model_alias,
+            messages,
+            temperature=self._temperature,
+            max_tokens=self._max_tokens,
+            response_format={"type": "json_object"},
+        )
+        return content, summary, "json_object_fallback"
 
 
 class DefinitionBodyExtractor(BodyLLMExtractor):
@@ -875,6 +971,37 @@ def _response_structure_diagnostic(content: str, summary: Any) -> dict[str, Any]
     if isinstance(parsed, dict):
         diagnostic["top_level_keys"] = sorted(str(key) for key in parsed)[:20]
     return diagnostic
+
+
+def _safe_diagnostic(diagnostic: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in diagnostic.items() if key != "response_preview"}
+
+
+def _requires_format_repair(result: GraphExtractionResult) -> bool:
+    return (
+        result.accepted_count == 0
+        and result.reject_reasons.get(GraphExtractionRejectReason.SCHEMA_INVALID, 0) > 0
+    )
+
+
+def _build_format_repair_messages(
+    messages: list[dict[str, str]],
+    response_preview: Any,
+) -> list[dict[str, str]]:
+    previous = str(response_preview or "")[:MAX_REPAIR_RESPONSE_CHARS]
+    return [
+        *messages,
+        {"role": "assistant", "content": previous},
+        {
+            "role": "user",
+            "content": (
+                "Your previous response did not satisfy the required JSON schema. "
+                "Return a corrected JSON object only, exactly in the form "
+                '{"candidates": [...]}. Do not add Markdown, explanation, or other top-level keys. '
+                "Every candidate must satisfy the output_contract already supplied."
+            ),
+        },
+    ]
 
 
 def _validate_items(
