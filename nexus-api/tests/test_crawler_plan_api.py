@@ -54,6 +54,27 @@ class FakeFirecrawlClient:
         )
 
 
+class DistinctContentFirecrawlClient(FakeFirecrawlClient):
+    def scrape(self, *, url, only_main_content, formats, proxy, max_age_ms):
+        snapshot = super().scrape(
+            url=url,
+            only_main_content=only_main_content,
+            formats=formats,
+            proxy=proxy,
+            max_age_ms=max_age_ms,
+        )
+        if url.endswith("1-copy.html"):
+            return FirecrawlDocumentSnapshot(
+                source_url=snapshot.source_url,
+                final_url=snapshot.final_url,
+                title="浙江省数字经济市场报告",
+                markdown="数字经济市场运行数据和产业规模分析。" * 80,
+                html=None,
+                metadata=snapshot.metadata,
+            )
+        return snapshot
+
+
 class MissingScrapeFirecrawlClient:
     def search(self, *, query, limit, include_domains, country, languages):
         del query, limit, include_domains, country, languages
@@ -540,18 +561,15 @@ def test_firecrawl_runner_with_fake_client_accepts_and_filters(session, monkeypa
     assert run.summary["accepted_count"] == 2
     assert run.summary["submitted_count"] == 2
     assert run.summary["accepted_snapshots"][0]["url"] == "https://www.zj.gov.cn/policy/1.html"
-    assert run.summary["accepted_snapshots"][1]["url"] == "https://zcom.zj.gov.cn/policy/1-copy.html"
-    assert (
-        run.summary["accepted_snapshots"][0]["content_hash"]
-        == run.summary["accepted_snapshots"][1]["content_hash"]
-    )
     assert run.summary["filtered_count"] == 2
-    assert run.summary["filter_reasons"] == {"duplicate_url": 1, "topic_mismatch": 1}
-    assert run.summary["raw_persisted_count"] == 1
-    assert run.summary["duplicate_count"] == 1
+    assert run.summary["filter_reasons"] == {
+        "duplicate_url": 1,
+        "duplicate_content": 1,
+    }
+    assert run.summary["raw_persisted_count"] == 2
+    assert run.summary["duplicate_count"] == 0
     assert run.summary["submitted"][0]["pipeline_type"] == "document"
     assert run.summary["submitted"][0]["duplicate"] is False
-    assert run.summary["submitted"][1]["duplicate"] is True
     assert "zcom.zj.gov.cn" in fake.include_domains
     assert "www.zj.gov.cn" in fake.include_domains
     assert fake.scrape_urls == [
@@ -565,16 +583,16 @@ def test_firecrawl_runner_with_fake_client_accepts_and_filters(session, monkeypa
     raw_objects = session.query(models.RawObject).all()
     jobs = session.query(models.Job).order_by(models.Job.created_at.asc()).all()
 
-    assert len(raw_objects) == 1
-    assert raw_objects[0].mime_type == "text/markdown"
-    assert raw_objects[0].metadata_summary["connector_type"] == "firecrawl_document"
-    assert raw_objects[0].metadata_summary["crawler_plan_id"] == plan.id
-    assert raw_objects[0].metadata_summary["crawler_run_id"] == run.id
-    assert raw_objects[0].metadata_summary["firecrawl_only_main_content"] is True
+    assert len(raw_objects) == 2
+    assert {raw.mime_type for raw in raw_objects} == {"text/markdown"}
+    assert all(raw.metadata_summary["connector_type"] == "firecrawl_document" for raw in raw_objects)
+    assert all(raw.metadata_summary["crawler_plan_id"] == plan.id for raw in raw_objects)
+    assert all(raw.metadata_summary["crawler_run_id"] == run.id for raw in raw_objects)
+    assert all(raw.metadata_summary["firecrawl_only_main_content"] is True for raw in raw_objects)
     assert len(jobs) == 2
     assert {job.payload["pipeline_type"] for job in jobs} == {"document"}
     assert any(job.status == JobStatus.QUEUED for job in jobs)
-    assert any(job.current_stage == "duplicate_skipped" for job in jobs)
+    assert "duplicate_content" in {item["reason"] for item in run.summary["failures"]}
 
     get_settings.cache_clear()
     second = crawler_service.run_plan(
@@ -589,8 +607,51 @@ def test_firecrawl_runner_with_fake_client_accepts_and_filters(session, monkeypa
     assert second.summary["submitted_count"] == 2
     assert second.summary["raw_persisted_count"] == 0
     assert second.summary["duplicate_count"] == 2
-    assert {item["raw_object_id"] for item in second.summary["submitted"]} == {raw_objects[0].id}
-    assert len(session.query(models.RawObject).all()) == 1
+    assert {item["raw_object_id"] for item in second.summary["submitted"]} == {raw.id for raw in raw_objects}
+    assert len(session.query(models.RawObject).all()) == 2
+
+
+def test_firecrawl_runner_wakes_workers_only_after_all_snapshots_are_appended(session, monkeypatch):
+    monkeypatch.setenv("CRAWLER_FIRECRAWL_SCRAPE_LIMIT_ENABLED", "false")
+    get_settings.cache_clear()
+    source = services.create_data_source(
+        session,
+        domain_schemas.DataSourceCreate(
+            code="crawler-firecrawl-atomic-ingest",
+            name="Crawler Firecrawl Atomic Ingest",
+            source_type="crawler",
+        ),
+    )
+    plan = crawler_service.create_plan(
+        session,
+        domain_schemas.CrawlerPlanCreate(
+            name="Firecrawl atomic ingest",
+            mode="quick_start",
+            data_source_id=source.id,
+            region_code="zhejiang",
+            execution_mode="run_once",
+        ),
+    )
+    observed: list[tuple[int, int]] = []
+
+    def record_wakeup(db):
+        job_count = db.query(models.Job).count()
+        queued_count = db.query(models.Job).filter(models.Job.status == JobStatus.QUEUED).count()
+        observed.append((job_count, queued_count))
+
+    monkeypatch.setattr(crawler_service, "notify_job_ready", record_wakeup)
+
+    run = crawler_service.run_plan(
+        session,
+        plan.id,
+        client=DistinctContentFirecrawlClient(),
+        storage=InMemoryObjectStorage(),
+    )
+
+    assert run.summary["submitted_count"] == 3
+    assert run.summary["ingest_failures"] == []
+    assert observed == [(3, 3)]
+    get_settings.cache_clear()
 
 
 def test_firecrawl_runner_downloads_pdf_urls_as_pdf_raw_objects(session, monkeypatch):

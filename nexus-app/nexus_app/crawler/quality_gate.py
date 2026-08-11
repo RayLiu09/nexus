@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import re
+import unicodedata
 from dataclasses import dataclass
 from urllib.parse import unquote, urlparse
 from typing import Any
@@ -13,22 +15,16 @@ _LOGIN_OR_CAPTCHA_PATTERNS = (
     re.compile(r"登录|登陆|验证码|captcha|sign\s*in|login", re.IGNORECASE),
 )
 
-# WebSearch accepts a single compact query rather than a tokenized expression.
-# Retain only domain-bearing phrases here: generic policy/report words are not
-# sufficient to admit a result on their own.
-_COMPOUND_QUERY_TERMS = (
-    "高等职业教育",
-    "职业教育",
-    "产教融合",
-    "校企合作",
-    "电子商务",
-    "跨境电商",
-    "直播电商",
-    "农村电商",
-    "旅游电商",
-    "数字经济",
+_ACTIVITY_CONTENT_MARKERS = (
+    "活动预告", "活动通知", "会议通知", "报名通知", "培训通知", "赛事通知",
+    "讲座通知", "报名参加", "活动现场", "成功举办", "圆满举行", "开幕式",
+    "闭幕式", "签约仪式", "领导调研", "参观考察",
 )
 
+_FORMAL_POLICY_MARKERS = (
+    "实施意见", "实施方案", "管理办法", "暂行办法", "条例", "规划", "指南",
+    "政策解读", "政策文件", "发文机关", "文号", "第一条", "第二条", "施行",
+)
 
 @dataclass(frozen=True)
 class QualityDecision:
@@ -38,7 +34,6 @@ class QualityDecision:
 
 def evaluate_websearch_item(
     *,
-    query: str,
     title: str,
     url: str,
     content: str,
@@ -46,7 +41,7 @@ def evaluate_websearch_item(
     min_text_chars: int = 200,
     min_rank_score: float = 0.15,
 ) -> QualityDecision:
-    """Apply deterministic pre-ingest quality checks to one Custom result."""
+    """Clean WebSearch candidates without re-evaluating provider topic recall."""
     try:
         validate_target_url(url, allow_http_authority_seed=True)
     except UnsafeCrawlerUrlError:
@@ -71,27 +66,7 @@ def evaluate_websearch_item(
     except (TypeError, ValueError):
         return QualityDecision(False, "missing_rank_score")
 
-    query_terms = _websearch_query_terms(query)
-    haystack = f"{title}\n{content[:4000]}".lower()
-    if query_terms and not any(term.lower() in haystack for term in query_terms):
-        return QualityDecision(False, "topic_coverage_insufficient")
     return QualityDecision(True)
-
-
-def _websearch_query_terms(query: str) -> list[str]:
-    # The provider accepts one query string, which may still contain a compact
-    # thematic expression such as "电子商务产业(跨境电商和直播电商)政策和市场概况".
-    terms = [item.strip() for item in re.split(r"[()（）/、]+|和", query) if len(item.strip()) >= 2]
-    expanded = list(terms)
-    compact_query = "".join(terms)
-    # A query such as "浙江省高等职业教育产教融合政策" cannot be
-    # matched as one literal string against a policy title. Add only the
-    # meaningful embedded subject phrases; generic words like "政策" are
-    # deliberately excluded to prevent unrelated policy news admission.
-    expanded.extend(term for term in _COMPOUND_QUERY_TERMS if term in compact_query)
-    if any("电子商务" in item for item in terms):
-        expanded.append("电商")
-    return list(dict.fromkeys(expanded)) or ([query.strip()] if query.strip() else [])
 
 
 def _is_websearch_aggregation_path(path: str) -> bool:
@@ -132,7 +107,6 @@ def _has_market_or_report_evidence(text: str) -> bool:
 def evaluate_snapshot(
     snapshot: FirecrawlDocumentSnapshot,
     *,
-    topic_keywords: list[str],
     min_text_chars: int = 80,
 ) -> QualityDecision:
     try:
@@ -141,19 +115,6 @@ def evaluate_snapshot(
         return QualityDecision(False, "unsafe_url")
 
     if is_pdf_candidate(snapshot.final_url or snapshot.source_url, snapshot.metadata):
-        haystack = "\n".join(
-            str(part)
-            for part in [
-                snapshot.title or "",
-                snapshot.markdown or "",
-                snapshot.metadata.get("search_description", ""),
-                snapshot.final_url or snapshot.source_url,
-            ]
-            if part
-        )
-        keywords = [item.strip() for item in topic_keywords if item.strip()]
-        if keywords and not any(keyword in haystack for keyword in keywords):
-            return QualityDecision(False, "topic_mismatch")
         return QualityDecision(True)
 
     text = snapshot.text_for_quality.strip()
@@ -162,12 +123,41 @@ def evaluate_snapshot(
     if any(pattern.search(text[:2000]) for pattern in _LOGIN_OR_CAPTCHA_PATTERNS):
         return QualityDecision(False, "login_or_captcha")
 
-    haystack = f"{snapshot.title or ''}\n{text[:4000]}"
-    keywords = [item.strip() for item in topic_keywords if item.strip()]
-    if keywords and not any(keyword in haystack for keyword in keywords):
-        return QualityDecision(False, "topic_mismatch")
+    if is_low_value_activity_content(snapshot.title or "", text):
+        return QualityDecision(False, "low_value_activity")
 
     return QualityDecision(True)
+
+
+def normalized_content_fingerprint(snapshot: FirecrawlDocumentSnapshot) -> str | None:
+    """Fingerprint Firecrawl HTML/Markdown by readable body, not transport bytes."""
+    if is_pdf_candidate(snapshot.final_url or snapshot.source_url, snapshot.metadata):
+        return None
+    body = snapshot.markdown or _html_to_text(snapshot.html or "")
+    normalized = _normalize_readable_text(body)
+    if not normalized:
+        return None
+    return "sha256:" + hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def is_low_value_activity_content(title: str, content: str) -> bool:
+    """Reject activity-only news without suppressing reusable formal evidence."""
+    evidence = f"{title}\n{content[:4000]}"
+    if any(marker in evidence for marker in _FORMAL_POLICY_MARKERS):
+        return False
+    if _has_market_or_report_evidence(evidence):
+        return False
+    return any(marker in evidence for marker in _ACTIVITY_CONTENT_MARKERS)
+
+
+def _html_to_text(value: str) -> str:
+    without_non_content = re.sub(r"<(script|style)[^>]*>.*?</\\1>", " ", value, flags=re.I | re.S)
+    return re.sub(r"<[^>]+>", " ", without_non_content)
+
+
+def _normalize_readable_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value).replace("\u00a0", " ")
+    return re.sub(r"\s+", " ", normalized).strip()
 
 
 def is_pdf_candidate(url: str, metadata: dict[str, Any] | None = None) -> bool:

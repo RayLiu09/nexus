@@ -37,6 +37,7 @@ from nexus_app.crawler.url_safety import (
 from nexus_app.enums import AuditEventType, DataSourceStatus, DataSourceType, PipelineType
 from nexus_app.ingest import batch as ingest_batch
 from nexus_app.storage import ObjectStorage, get_object_storage
+from nexus_app.worker.notify import notify_job_ready
 
 
 class CrawlerPlanError(ValueError):
@@ -568,7 +569,7 @@ def _run_websearch_custom_plan(session: Session, plan: models.CrawlerPlan, *, tr
     filter_reasons: dict[str, int] = {}
     for item in outcome.items:
         decision = evaluate_websearch_item(
-            query=query, title=item.title, url=item.url, content=item.content,
+            title=item.title, url=item.url, content=item.content,
             rank_score=item.metadata.get("RankScore"),
         )
         if not decision.accepted:
@@ -706,6 +707,9 @@ def _ingest_firecrawl_snapshots(
                     "canonical_url": snapshot.metadata.get("url") or snapshot.final_url,
                     "title": snapshot.title,
                     "content_hash": content_hash,
+                    "asset_content_fingerprint": snapshot.metadata.get(
+                        "asset_content_fingerprint"
+                    ) or content_hash,
                     "raw_representation": raw_representation,
                     **raw_content.metadata,
                     "firecrawl_only_main_content": (
@@ -728,6 +732,7 @@ def _ingest_firecrawl_snapshots(
                 storage=storage,
                 settings=settings,
                 trace_id=trace_id,
+                defer_commit=True,
             )
         except ingest_batch.BatchError as exc:
             failures.append({
@@ -741,6 +746,9 @@ def _ingest_firecrawl_snapshots(
             "raw_object_id": result.raw_object.id,
             "job_id": result.job.id,
             "content_hash": content_hash,
+            "asset_content_fingerprint": snapshot.metadata.get(
+                "asset_content_fingerprint"
+            ) or content_hash,
             "mime_type": mime_type,
             "raw_representation": raw_representation,
             **raw_content.metadata,
@@ -748,6 +756,12 @@ def _ingest_firecrawl_snapshots(
             "job_stage": result.job.current_stage,
             "pipeline_type": result.job.payload.get("pipeline_type"),
         })
+
+    # The batch stays uncommitted while snapshots are appended.  This prevents
+    # a Worker from claiming the first queued job and closing the batch before
+    # later snapshots in this same Firecrawl run have been appended.
+    if submitted:
+        notify_job_ready(session)
 
     return {
         "submitted_count": len(submitted),

@@ -13,7 +13,12 @@ from nexus_app.crawler.firecrawl_client import (
     FirecrawlDocumentSnapshot,
     create_default_firecrawl_document_client,
 )
-from nexus_app.crawler.quality_gate import domain_of, evaluate_snapshot, is_pdf_candidate
+from nexus_app.crawler.quality_gate import (
+    domain_of,
+    evaluate_snapshot,
+    is_pdf_candidate,
+    normalized_content_fingerprint,
+)
 
 
 @dataclass(frozen=True)
@@ -41,7 +46,6 @@ def run_firecrawl_plan(
     effective_max_pages = min(max_pages, scrape_limit) if scrape_limit_enabled else max_pages
     formats = list(firecrawl.get("formats") or ["markdown", "html"])
     only_main_content = bool(plan.crawl_policy.get("only_main_content", True))
-    keywords = list(plan.topic_keywords or [])
     include_domains = _include_domains(plan)
     query = _build_query(plan, template)
 
@@ -115,12 +119,13 @@ def run_firecrawl_plan(
     accepted_snapshot_objects: list[FirecrawlDocumentSnapshot] = []
     failures: list[dict[str, Any]] = []
     filter_reasons: dict[str, int] = {}
+    seen_content_fingerprints: set[str] = set()
     if duplicate_url_count:
         filter_reasons["duplicate_url"] = duplicate_url_count
     if scrape_limit_filtered_count:
         filter_reasons["scrape_limit"] = scrape_limit_filtered_count
     for snapshot in snapshots:
-        decision = evaluate_snapshot(snapshot, topic_keywords=keywords)
+        decision = evaluate_snapshot(snapshot)
         if not decision.accepted:
             reason = decision.reason or "filtered"
             filter_reasons[reason] = filter_reasons.get(reason, 0) + 1
@@ -130,7 +135,20 @@ def run_firecrawl_plan(
             })
             continue
 
-        accepted.append(_accepted_snapshot_summary(snapshot))
+        content_fingerprint = normalized_content_fingerprint(snapshot)
+        if content_fingerprint and content_fingerprint in seen_content_fingerprints:
+            filter_reasons["duplicate_content"] = filter_reasons.get("duplicate_content", 0) + 1
+            failures.append({
+                "url": snapshot.final_url or snapshot.source_url,
+                "reason": "duplicate_content",
+                "content_fingerprint": content_fingerprint,
+            })
+            continue
+        if content_fingerprint:
+            seen_content_fingerprints.add(content_fingerprint)
+            snapshot = _with_content_fingerprint(snapshot, content_fingerprint)
+
+        accepted.append(_accepted_snapshot_summary(snapshot, content_fingerprint=content_fingerprint))
         accepted_snapshot_objects.append(snapshot)
 
     provider_missing = scrape_failed_count
@@ -245,7 +263,11 @@ def _build_query(plan: models.CrawlerPlan, template: dict[str, Any]) -> str:
     return f"{region} ({keywords})"
 
 
-def _accepted_snapshot_summary(snapshot: FirecrawlDocumentSnapshot) -> dict[str, Any]:
+def _accepted_snapshot_summary(
+    snapshot: FirecrawlDocumentSnapshot,
+    *,
+    content_fingerprint: str | None,
+) -> dict[str, Any]:
     raw_text = snapshot.html or snapshot.markdown or ""
     digest = "sha256:" + hashlib.sha256(raw_text.encode("utf-8")).hexdigest()
     return {
@@ -253,12 +275,27 @@ def _accepted_snapshot_summary(snapshot: FirecrawlDocumentSnapshot) -> dict[str,
         "source_url": snapshot.source_url,
         "title": snapshot.title,
         "content_hash": digest,
+        "content_fingerprint": content_fingerprint,
         "content_chars": len(raw_text),
         "raw_representation": (
             "pdf_candidate" if is_pdf_candidate(snapshot.final_url or snapshot.source_url, snapshot.metadata)
             else "html" if snapshot.html else "markdown"
         ),
     }
+
+
+def _with_content_fingerprint(
+    snapshot: FirecrawlDocumentSnapshot,
+    content_fingerprint: str,
+) -> FirecrawlDocumentSnapshot:
+    return FirecrawlDocumentSnapshot(
+        source_url=snapshot.source_url,
+        final_url=snapshot.final_url,
+        title=snapshot.title,
+        markdown=snapshot.markdown,
+        html=snapshot.html,
+        metadata={**snapshot.metadata, "asset_content_fingerprint": content_fingerprint},
+    )
 
 
 def _pdf_candidate_snapshot(

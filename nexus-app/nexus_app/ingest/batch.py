@@ -377,12 +377,14 @@ def append_file_to_batch(
     storage: ObjectStorage | None = None,
     settings: Settings | None = None,
     trace_id: str | None = None,
+    defer_commit: bool = False,
 ) -> BatchAppendResult:
     """Append a single file (raw object + job) to an open batch.
 
     Idempotent on `(batch_id, file_idempotency_key)`. Same-checksum duplicates
     within the batch reuse the existing raw_object and emit a SUCCEEDED job
-    flagged as `duplicate_skipped`.
+    flagged as `duplicate_skipped`. ``defer_commit`` is for a bounded producer
+    transaction that must make all of its jobs visible before waking Workers.
     """
     settings = settings or get_settings()
     storage = storage or get_object_storage(settings)
@@ -434,7 +436,7 @@ def append_file_to_batch(
         # batch may have only the dup so far → keep status as submitted
         if batch.status == IngestBatchStatus.OPEN:
             batch.status = IngestBatchStatus.SUBMITTED
-        session.commit()
+        _commit_or_flush(session, defer_commit=defer_commit)
         return BatchAppendResult(same_batch_dup, job, duplicate=True)
 
     # 3. same-source checksum dedup across batches/runs → reuse raw_object.
@@ -463,7 +465,7 @@ def append_file_to_batch(
             "duplicate_raw_object_id": same_source_dup.id,
             "duplicate_checksum": content_checksum,
         }
-        session.commit()
+        _commit_or_flush(session, defer_commit=defer_commit)
         return BatchAppendResult(same_source_dup, job, duplicate=True)
 
     # 4. cross-source duplicate → audit only, continue
@@ -521,8 +523,9 @@ def append_file_to_batch(
         },
     )
 
-    notify_job_ready(session)
-    session.commit()
+    if not defer_commit:
+        notify_job_ready(session)
+    _commit_or_flush(session, defer_commit=defer_commit)
     return BatchAppendResult(raw, job, duplicate=False)
 
 
@@ -534,6 +537,13 @@ def _coerce_pipeline_type(value: PipelineType | str | None) -> str | None:
     if value not in {item.value for item in PipelineType}:
         raise BatchError(f"invalid pipeline_type_override: {value}")
     return value
+
+
+def _commit_or_flush(session: Session, *, defer_commit: bool) -> None:
+    if defer_commit:
+        session.flush()
+        return
+    session.commit()
 
 
 # --------------------------------------------------------------------------- #
