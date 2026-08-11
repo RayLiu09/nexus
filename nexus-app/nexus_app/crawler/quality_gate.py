@@ -11,8 +11,18 @@ from nexus_app.crawler.firecrawl_client import FirecrawlDocumentSnapshot
 from nexus_app.crawler.url_safety import UnsafeCrawlerUrlError, validate_target_url
 
 
-_LOGIN_OR_CAPTCHA_PATTERNS = (
-    re.compile(r"登录|登陆|验证码|captcha|sign\s*in|login", re.IGNORECASE),
+_ACCESS_BLOCK_PATTERNS = (
+    re.compile(r"(?:请|需|需要|必须|先)?(?:登录|登陆)(?:后)?(?:查看|访问|继续|才能|以继续|以查看)"),
+    re.compile(r"(?:无权|没有权限|访问受限|权限不足)(?:访问|查看|阅读)?"),
+    re.compile(r"(?:sign\s*in|log\s*in)\s+(?:to|for)\s+(?:view|access|continue)", re.IGNORECASE),
+)
+
+_AUTH_CHALLENGE_PATTERNS = (
+    re.compile(r"(?:请输入|填写|输入).{0,12}(?:验证码|校验码)"),
+    re.compile(r"(?:验证码|校验码).{0,16}(?:验证|登录|提交|刷新)"),
+    re.compile(r"(?:人机|安全|身份)(?:验证|校验)"),
+    re.compile(r"(?:captcha|recaptcha|hcaptcha|verify\s+you(?:r)?\s*(?:identity|human))", re.IGNORECASE),
+    re.compile(r"(?:用户名|账号|账户).{0,30}(?:密码|password)|(?:密码|password).{0,30}(?:登录|login|sign\s*in)", re.IGNORECASE),
 )
 
 _ACTIVITY_CONTENT_MARKERS = (
@@ -120,13 +130,27 @@ def evaluate_snapshot(
     text = snapshot.text_for_quality.strip()
     if len(text) < min_text_chars:
         return QualityDecision(False, "too_short")
-    if any(pattern.search(text[:2000]) for pattern in _LOGIN_OR_CAPTCHA_PATTERNS):
+    if _is_login_or_captcha_blocked(text):
         return QualityDecision(False, "login_or_captcha")
 
     if is_low_value_activity_content(snapshot.title or "", text):
         return QualityDecision(False, "low_value_activity")
 
     return QualityDecision(True)
+
+
+def _is_login_or_captcha_blocked(text: str) -> bool:
+    """Detect an access wall without treating site navigation as a login page.
+
+    Firecrawl can retain global navigation even with ``onlyMainContent``.  A
+    standalone "用户登录" link, or a ``login`` substring inside its URL, is not
+    evidence that the fetched article itself requires authentication.
+    """
+    candidate = text[:2000]
+    return any(pattern.search(candidate) for pattern in (
+        *_ACCESS_BLOCK_PATTERNS,
+        *_AUTH_CHALLENGE_PATTERNS,
+    ))
 
 
 def normalized_content_fingerprint(snapshot: FirecrawlDocumentSnapshot) -> str | None:

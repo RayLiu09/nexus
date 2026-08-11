@@ -104,6 +104,45 @@ def test_firecrawl_quality_gate_does_not_repeat_search_topic_matching():
     assert evaluate_snapshot(snapshot).accepted is True
 
 
+def test_firecrawl_quality_gate_keeps_public_document_with_login_navigation():
+    snapshot = FirecrawlDocumentSnapshot(
+        source_url="https://www.hengyang.gov.cn/xxgk/dtxx/tzgg/gsgg/20211103/i2528111.html",
+        final_url="https://www.hengyang.gov.cn/xxgk/dtxx/tzgg/gsgg/20211103/i2528111.html",
+        title="衡阳市推进职业教育现代化实施方案",
+        markdown=(
+            "[中国政府网](http://www.gov.cn/) [用户登录](https://auth.example.gov.cn/user/login)\n\n"
+            "《衡阳市推进职业教育现代化服务“三高四新”实施方案》\n"
+            "为推进现代职业教育高质量发展，现制定本实施方案。第一条明确工作目标和任务。"
+        ) * 4,
+        html=None,
+        metadata={},
+    )
+
+    assert evaluate_snapshot(snapshot).accepted is True
+
+
+def test_firecrawl_quality_gate_rejects_access_wall_and_captcha_challenge():
+    login_wall = FirecrawlDocumentSnapshot(
+        source_url="https://example.gov.cn/restricted",
+        final_url="https://example.gov.cn/restricted",
+        title="受限页面",
+        markdown="请登录后查看完整内容。请输入账号和密码登录。" * 4,
+        html=None,
+        metadata={},
+    )
+    captcha_wall = FirecrawlDocumentSnapshot(
+        source_url="https://example.gov.cn/challenge",
+        final_url="https://example.gov.cn/challenge",
+        title="安全验证",
+        markdown="安全验证：请输入验证码后继续访问。" * 5,
+        html=None,
+        metadata={},
+    )
+
+    assert evaluate_snapshot(login_wall).reason == "login_or_captcha"
+    assert evaluate_snapshot(captcha_wall).reason == "login_or_captcha"
+
+
 def test_firecrawl_content_fingerprint_ignores_html_markup_and_whitespace():
     html = FirecrawlDocumentSnapshot(
         source_url="https://example.gov.cn/a",
