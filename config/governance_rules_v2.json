@@ -1464,19 +1464,29 @@
         "包含岗位映射、能力矩阵",
         "数据具有结构化特征"
       ],
-      "chunking_strategy": "structured_decompose",
+      "chunking_strategy": "talent_training_plan_decompose",
       "chunking_config": {
-        "decompose_fields": [
-          "培养目标",
-          "课程体系",
-          "毕业要求",
-          "岗位映射",
-          "能力矩阵"
+        "include_semantic_units": [
+          "training_goal",
+          "training_specification",
+          "position_capability",
+          "course",
+          "supplementary_section"
         ],
-        "field_chunk_size": 256,
-        "field_overlap": 32
+        "narrative_chunk_size": 1200,
+        "narrative_chunk_overlap": 80,
+        "course_content_chunk_size": 900,
+        "course_content_overlap": 64,
+        "supplementary_headings": [
+          "入学要求",
+          "实践要求",
+          "实训要求",
+          "教学进程",
+          "实施保障",
+          "毕业要求"
+        ]
       },
-      "chunk_type": "structured_field",
+      "chunk_type": "semantic_block",
       "co_emission_rules": [
         {
           "target_code": "competency_graph",

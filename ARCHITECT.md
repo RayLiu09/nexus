@@ -130,7 +130,11 @@ plan-owned courses are relational rows for structured retrieval and graph
 projection. Talent-training-plan assets do not enter the generic Evidence
 Graph (`knowledge_graph_*`) pipeline: they expose deterministic course
 knowledge graph views from plan/course facts, and optional position-capability
-views only when evidenced position-to-skill facts exist.
+views only when evidenced position-to-skill facts exist. Their RAG projection
+is supplementary rather than a second structured index: it contains only
+training goal/specification, evidenced position-capability narratives,
+plan-owned course objective/content, and unmodelled supplementary sections,
+all linked back to normalized-document block locators.
 
 **Pipeline B — Record Processing:**
 

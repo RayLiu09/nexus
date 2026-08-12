@@ -2362,6 +2362,18 @@ def run_knowledge_chunking(
             }
             for emission in emissions
         ]
+    if domain_payloads.get("talent_training_plan"):
+        emissions = [
+            {
+                **emission,
+                **(
+                    {"talent_training_plan": domain_payloads["talent_training_plan"]}
+                    if emission.get("code") == "talent_training_dataset"
+                    else {}
+                ),
+            }
+            for emission in emissions
+        ]
     chunks = run_knowledge_pipeline(
         content, emissions, normalized_ref.id,
         content_blocks=content_blocks,
@@ -2701,6 +2713,8 @@ def _load_normalized_payload(
     domain_payloads: dict[str, Any] = {}
     if isinstance(payload.get("major_profile"), dict):
         domain_payloads["major_profile"] = payload["major_profile"]
+    if isinstance(payload.get("talent_training_plan"), dict):
+        domain_payloads["talent_training_plan"] = payload["talent_training_plan"]
     if isinstance(blocks, list) and blocks:
         return content, blocks, record_body, domain_payloads
     return content, None, record_body, domain_payloads

@@ -392,6 +392,9 @@ class ChunkingStrategy(StrEnum):
     ROW_DECOMPOSE          = "row_decompose"
     # Pipeline A major_profile — one semantic chunk per business section.
     MAJOR_PROFILE_DECOMPOSE = "major_profile_decompose"
+    # Pipeline A talent-training plan — bounded semantic supplement to its
+    # structured retrieval and deterministic graph projections.
+    TALENT_TRAINING_PLAN_DECOMPOSE = "talent_training_plan_decompose"
 
 
 class SourceKind(StrEnum):
