@@ -11,6 +11,7 @@ from nexus_api.api.internal import auth_router as internal_auth_router, router a
 from nexus_api.api.open import router as open_router
 from nexus_api.api.open_record_assets import router as open_record_assets_router
 from nexus_api.api.major_profiles import open_router as open_major_profiles_router
+from nexus_api.api.talent_training_plans import open_router as open_talent_training_plans_router
 from nexus_api.errors import (
     http_exception_handler,
     integrity_exception_handler,
@@ -220,6 +221,7 @@ def create_app() -> FastAPI:
     # so B4 / B6 worktrees evolve them independently without conflict.
     app.include_router(open_record_assets_router)
     app.include_router(open_major_profiles_router)
+    app.include_router(open_talent_training_plans_router)
     return app
 
 

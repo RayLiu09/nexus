@@ -1223,6 +1223,9 @@ def _build_normalized_document(
         "backend": artifact.metadata_summary.get("backend") or artifact.metadata_summary.get("model_version"),
         "ocr_enabled": artifact.metadata_summary.get("ocr_enabled", False),
     }
+    recovery_summary = mineru_converter.talent_training_plan_structure_recovery_summary(blocks)
+    if recovery_summary["table_count"]:
+        metadata["talent_training_plan_structure_recovery"] = recovery_summary
     if parse_payload.get("parser_backend"):
         metadata["parser_backend"] = parse_payload.get("parser_backend")
     if parse_payload.get("sections"):
@@ -1314,6 +1317,30 @@ def _build_normalized_document(
             "evidence": ["major_profile.v1 section signatures detected"],
             "co_emission_origin": None,
         }]
+
+    talent_training_plan_payload: dict[str, Any] | None = None
+    try:
+        from nexus_app.talent_training_plan.extractor import extract as _extract_talent_training_plan
+
+        talent_training_plan_payload = _extract_talent_training_plan({
+            "content_type": "document",
+            "title": title_from(raw_object, parse_payload),
+            "blocks": blocks,
+            "body_markdown": body_markdown,
+        })
+    except Exception:
+        logger.warning("talent_training_plan extraction failed during normalize", exc_info=True)
+    if talent_training_plan_payload is not None:
+        metadata["talent_training_plan"] = {
+            "domain_profile": "talent_training_plan.v1",
+            "extractor": talent_training_plan_payload.get("extractor_version"),
+            "confidence": talent_training_plan_payload.get("confidence"),
+            "institution_name": talent_training_plan_payload.get("institution_name"),
+            "major_code": talent_training_plan_payload.get("major_code"),
+            "major_name": talent_training_plan_payload.get("major_name"),
+            "course_count": len(talent_training_plan_payload.get("courses") or []),
+            "domain_table_status": "pending",
+        }
 
     teaching_standard_payload: dict[str, Any] | None = None
     teaching_standard_extraction: dict[str, Any] | None = None
@@ -1413,6 +1440,7 @@ def _build_normalized_document(
         "attachments": _extract_attachments(artifact),
         "metadata": metadata,
         **({"major_profile": major_profile_payload} if major_profile_payload else {}),
+        **({"talent_training_plan": talent_training_plan_payload} if talent_training_plan_payload else {}),
         **({"teaching_standard": teaching_standard_payload} if teaching_standard_payload else {}),
         **({"course_standard": course_standard_payload} if course_standard_payload else {}),
         "governance": {
@@ -1711,6 +1739,22 @@ def _persist_normalized_ref(
         raise RuntimeError(f"normalized persistence anchors disappeared ref={ref_id}")
     ref.object_uri = stored.object_uri
     ctx.session.flush()
+
+    if normalized_type == NormalizedType.DOCUMENT:
+        plan_payload = normalized_payload.get("talent_training_plan")
+        if isinstance(plan_payload, dict):
+            from nexus_app.talent_training_plan.writer import write as _write_talent_training_plan
+
+            plan = _write_talent_training_plan(ctx.session, ref, plan_payload)
+            if plan is not None:
+                ref.metadata_summary = {
+                    **dict(ref.metadata_summary or {}),
+                    "talent_training_plan": {
+                        **dict((ref.metadata_summary or {}).get("talent_training_plan") or {}),
+                        "domain_table_status": "generated",
+                        "plan_id": plan.id,
+                    },
+                }
 
     version.metadata_summary = {
         **version.metadata_summary,

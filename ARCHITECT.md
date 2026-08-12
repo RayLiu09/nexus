@@ -120,6 +120,18 @@ Key rule: `run_parse()` auto-selects `model_version` from `raw_object.mime_type`
 
 Produces: `parse_artifact`, `normalized_asset_ref(type=document)`.
 
+Pipeline A document projections may additionally materialize evidence-bound
+domain read models from `normalized_document`. `major_profile.v1` remains the
+lightweight professional-introduction projection. `talent_training_plan.v1`
+represents an institution-specific professional talent-training plan: its
+industry, occupation, position, skill, and certificate declarations are
+controlled JSON attributes with source evidence, not platform master data;
+plan-owned courses are relational rows for structured retrieval and graph
+projection. Talent-training-plan assets do not enter the generic Evidence
+Graph (`knowledge_graph_*`) pipeline: they expose deterministic course
+knowledge graph views from plan/course facts, and optional position-capability
+views only when evidenced position-to-skill facts exist.
+
 **Pipeline B — Record Processing:**
 
 Stages: ingest → `ingest_validate` → `assetize` → structured parse/profile detect when the source is tabular → **normalize** (`normalized_record`) → govern → index. **No MinerU, no `parse_artifact`.**

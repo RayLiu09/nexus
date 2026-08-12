@@ -29,9 +29,11 @@ Public API
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
+from io import BytesIO
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
@@ -180,6 +182,16 @@ def _composite_caption(block: dict[str, Any]) -> str:
     return _join_lines(line_texts)
 
 
+def _resolve_image_uri(image_path: str, image_uris: dict[str, str]) -> str:
+    """Resolve MinerU's full or basename-only image path without ambiguity."""
+    direct = image_uris.get(image_path)
+    if direct:
+        return direct
+    basename = image_path.rsplit("/", 1)[-1]
+    matches = [uri for path, uri in image_uris.items() if path.rsplit("/", 1)[-1] == basename and uri]
+    return matches[0] if len(matches) == 1 else ""
+
+
 # Regex contracts (see docs/document_normalize_defects.md §9.3):
 #   - MinerU pipeline tables always carry ``colspan`` / ``rowspan`` even when
 #     the value is 1, so ``<tr>`` / ``<td>`` must accept arbitrary attributes.
@@ -216,9 +228,13 @@ def _normalise_cell_text(inner: str) -> str:
     typed) is not destroyed by the tag stripper. Pipe / backslash inside
     cell text are escaped so they do not break the markdown table grammar.
     """
-    text = re.sub(r"<\s*br\s*/?\s*>", " ", inner, flags=re.IGNORECASE)
-    text = re.sub(r"</?\s*(p|div|span)\b[^>]*>", " ", text, flags=re.IGNORECASE)
-    text = re.sub(r"<[^>]+>", "", text)  # drop any other inline HTML tag
+    # Preserve source-provided cell boundaries in the Markdown representation.
+    # GFM cells cannot contain literal newlines, so use <br> rather than
+    # flattening boundaries into ordinary spaces.
+    text = re.sub(r"<\s*br\b[^>]*>", "<br>", inner, flags=re.IGNORECASE)
+    text = re.sub(r"</?\s*(p|div|li)\b[^>]*>", "<br>", text, flags=re.IGNORECASE)
+    text = re.sub(r"</?\s*span\b[^>]*>", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"<(?!br>)[^>]+>", "", text)  # drop any other inline HTML tag
     # Now safe to decode entities — what's left of "<" or ">" must come from
     # &lt;/&gt; that the author typed.
     text = (
@@ -230,8 +246,250 @@ def _normalise_cell_text(inner: str) -> str:
     )
     text = text.replace("\n", " ").replace("\r", " ")
     text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"(?:<br>\s*){2,}", "<br>", text)
+    text = re.sub(r"^(?:<br>\s*)+|(?:\s*<br>)+$", "", text)
     text = text.replace("\\", "\\\\").replace("|", "\\|")
     return text
+
+
+_TTP_EXPLICIT_BOUNDARY_RE = re.compile(r"<\s*(?:br|p|div|li)\b|[；;、\n\r]", re.IGNORECASE)
+_TTP_COMPACT_SPACE_RE = re.compile(r"[\s\u00a0（）()\[\]【】]+")
+
+
+def _compact_ttp_value(value: Any) -> str:
+    return _TTP_COMPACT_SPACE_RE.sub("", str(value or "")).lower()
+
+
+def _raw_table_cells(html: str) -> list[list[tuple[str, str]]]:
+    """Return table cells as (normalized text, original inner HTML)."""
+    rows: list[list[tuple[str, str]]] = []
+    for row_html in _TABLE_TR_RE.findall(html):
+        cells = [
+            (_normalise_cell_text(match.group("inner")), match.group("inner"))
+            for match in _TABLE_CELL_RE.finditer(row_html)
+        ]
+        if cells:
+            rows.append(cells)
+    return rows
+
+
+def _detect_ttp_structure_loss(table_html: str) -> dict[str, Any] | None:
+    """Detect flattened capability cells without treating lexical suffixes as facts.
+
+    The suffix count is only a narrow *detection* signal. Actual item boundaries
+    are recovered from the table image and are never inferred from this text.
+    """
+    rows = _raw_table_cells(table_html)
+    if len(rows) < 2:
+        return None
+    headers = [cell[0] for cell in rows[0]]
+    position_i = next((i for i, value in enumerate(headers) if "岗位" in value and "能力" not in value), None)
+    skill_i = next((i for i, value in enumerate(headers) if "岗位核心能力" in value or "岗位能力" in value), None)
+    domain_i = next((i for i, value in enumerate(headers) if "学习领域" in value or "学习内容" in value), None)
+    if position_i is None or skill_i is None:
+        return None
+
+    affected: list[int] = []
+    expected_rows: list[dict[str, Any]] = []
+    for row_index, row in enumerate(rows[1:], start=1):
+        if max(position_i, skill_i) >= len(row):
+            continue
+        position_name, _ = row[position_i]
+        skill_text, skill_html = row[skill_i]
+        if not position_name or len(re.sub(r"\s+", "", skill_text)) < 20:
+            continue
+        # A repeated capability-related token confirms this is likely a list,
+        # while the absence of source delimiters proves its list boundaries are lost.
+        item_signal_count = len(re.findall(r"(?:能力|技能|素养)", skill_text))
+        if item_signal_count < 2 or _TTP_EXPLICIT_BOUNDARY_RE.search(skill_html):
+            continue
+        affected.append(row_index)
+        expected_rows.append({"row_index": row_index, "position_name": position_name})
+    if not affected:
+        return None
+    return {
+        "status": "structure_lost",
+        "reason": "capability_cell_missing_item_boundaries",
+        "affected_row_indexes": affected,
+        "expected_rows": expected_rows,
+        "position_column": headers[position_i],
+        "capability_column": headers[skill_i],
+        **({"learning_domain_column": headers[domain_i]} if domain_i is not None else {}),
+    }
+
+
+def _parse_ttp_structure_recovery(
+    response: str | None, detection: dict[str, Any], *, allow_subset: bool = False,
+) -> dict[str, Any] | None:
+    """Validate a vision response before it becomes normalized-domain evidence."""
+    if not isinstance(response, str) or not response or response != response.strip():
+        return None
+    # The prompt contract is JSON only. Refuse fenced JSON, prose prefixes and
+    # suffixes rather than attempting to salvage a fragment from model chatter.
+    if len(response) > 24000 or not response.startswith("{") or not response.endswith("}"):
+        return None
+    try:
+        payload = json.loads(response)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict) or set(payload) != {"rows"} or not isinstance(payload["rows"], list):
+        return None
+    expected = {
+        int(item["row_index"]): str(item["position_name"])
+        for item in detection.get("expected_rows", [])
+        if isinstance(item, dict) and isinstance(item.get("row_index"), int)
+    }
+    if not expected or not payload["rows"] or len(payload["rows"]) > len(expected):
+        return None
+    recovered: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    for item in payload["rows"]:
+        if not isinstance(item, dict) or set(item) != {"row_index", "position_name", "skills", "learning_domains"}:
+            return None
+        row_index = item.get("row_index")
+        position_name = item.get("position_name")
+        skills, domains = item.get("skills"), item.get("learning_domains")
+        if not isinstance(row_index, int) or row_index not in expected or row_index in seen:
+            return None
+        if not isinstance(position_name, str) or _compact_ttp_value(position_name) != _compact_ttp_value(expected[row_index]):
+            return None
+        if not isinstance(skills, list) or not isinstance(domains, list):
+            return None
+        def clean(values: list[Any], maximum: int) -> list[str] | None:
+            if len(values) > maximum:
+                return None
+            output: list[str] = []
+            for value in values:
+                if not isinstance(value, str):
+                    return None
+                text = re.sub(r"\s+", " ", value).strip()
+                if not text or len(text) > 160 or text in output:
+                    return None
+                output.append(text)
+            return output
+        clean_skills, clean_domains = clean(skills, 30), clean(domains, 30)
+        if clean_skills is None or clean_domains is None or len(clean_skills) < 2:
+            return None
+        seen.add(row_index)
+        recovered.append({
+            "row_index": row_index,
+            "position_name": position_name.strip(),
+            "skills": [{"text": value, "segment_index": index} for index, value in enumerate(clean_skills, start=1)],
+            "learning_domains": [{"text": value, "segment_index": index} for index, value in enumerate(clean_domains, start=1)],
+        })
+    if not allow_subset and seen != set(expected):
+        return None
+    return {
+        "status": "recovered" if seen == set(expected) else "fragment_recovered",
+        "source": "litellm_default_governance_model",
+        "profile": "talent_training_plan_table_structure.v1",
+        "affected_row_indexes": sorted(expected),
+        "recovered_rows": recovered,
+    }
+
+
+def talent_training_plan_structure_recovery_summary(blocks: list[dict[str, Any]]) -> dict[str, int]:
+    """Return bounded recovery telemetry suitable for normalized metadata/audit."""
+    statuses = [
+        str((block.get("table_structure_recovery") or {}).get("status") or "")
+        for block in blocks
+        if isinstance(block, dict) and isinstance(block.get("table_structure_recovery"), dict)
+    ]
+    return {
+        "table_count": len(statuses),
+        "recovered_table_count": statuses.count("recovered"),
+        "failed_table_count": statuses.count("failed"),
+        "structure_lost_table_count": statuses.count("structure_lost"),
+    }
+
+
+def _recover_ttp_structure_from_page_slices(
+    blocks: list[dict[str, Any]], image_analyzer: Any | None, storage: Any | None,
+    pdf_renderer: PdfPageRenderer | None,
+) -> None:
+    """Recover cross-page capability tables only after all source rows are covered."""
+    if image_analyzer is None or storage is None:
+        return
+    for block in blocks:
+        table_html = block.get("table_html") if isinstance(block, dict) else None
+        if block.get("block_type") != "table" or not isinstance(table_html, str):
+            continue
+        detection = _detect_ttp_structure_loss(table_html)
+        if detection is None:
+            continue
+        expected_indexes = {item["row_index"] for item in detection["expected_rows"]}
+        candidates: list[tuple[bytes, str]] = []
+        for uri in (block.get("image_uris") or {}).values():
+            if not uri:
+                continue
+            try:
+                key = uri.split("/", 3)[-1] if uri.startswith("s3://") else uri
+                candidates.append((storage.get_bytes(key), "anchor"))
+            except Exception as exc:
+                logger.warning("talent-plan anchor image unavailable: %s", exc)
+            break
+        page_range = block.get("page_range") or []
+        page_bboxes = block.get("per_page_bboxes") or {}
+        if pdf_renderer is not None and len(page_range) >= 2:
+            for page in range(page_range[0] + 1, page_range[-1] + 1):
+                try:
+                    candidates.append((pdf_renderer(page, bbox=page_bboxes.get(page)), f"continuation_page_{page}"))
+                except Exception as exc:
+                    logger.warning("talent-plan continuation render failed p%s: %s", page, exc)
+        complete_table_image = _stack_table_image_slices(candidates)
+        rows: dict[int, dict[str, Any]] = {}
+        if complete_table_image:
+            try:
+                response = image_analyzer.analyze(
+                    complete_table_image, "talent_training_plan_table_structure", block.get("caption") or "岗位能力表",
+                )
+                parsed = _parse_ttp_structure_recovery(response, detection)
+            except Exception as exc:
+                logger.warning("talent-plan complete-table recovery failed: %s", exc)
+                parsed = None
+            if parsed:
+                rows = {row["row_index"]: row for row in parsed["recovered_rows"]}
+        if set(rows) == expected_indexes:
+            block["table_structure_recovery"] = {
+                "status": "recovered", "source": "litellm_default_governance_model",
+                "profile": "talent_training_plan_table_structure.v1",
+                "affected_row_indexes": sorted(expected_indexes),
+                "recovered_rows": [rows[index] for index in sorted(expected_indexes)],
+            }
+        else:
+            block["table_structure_recovery"] = {
+                **{key: value for key, value in detection.items() if key != "expected_rows"},
+                "status": "failed", "reason": "incomplete_page_slice_recovery",
+                "recovered_row_indexes": sorted(rows),
+            }
+
+
+def _stack_table_image_slices(candidates: list[tuple[bytes, str]]) -> bytes | None:
+    """Vertically compose actual table page slices for one complete-table VLM input."""
+    if not candidates:
+        return None
+    try:
+        from PIL import Image
+    except ImportError:
+        return None
+    images: list[Any] = []
+    try:
+        for content, _source in candidates:
+            with Image.open(BytesIO(content)) as opened:
+                images.append(opened.convert("RGB"))
+        width = max(image.width for image in images)
+        height = sum(image.height for image in images)
+        combined = Image.new("RGB", (width, height), "white")
+        offset = 0
+        for image in images:
+            combined.paste(image, (0, offset))
+            offset += image.height
+        output = BytesIO()
+        combined.save(output, format="JPEG", quality=90)
+        return output.getvalue()
+    except Exception as exc:
+        logger.warning("talent-plan table image composition failed: %s", exc)
+        return None
 
 
 def _table_html_to_markdown(html: str) -> str:
@@ -1458,6 +1716,9 @@ def convert(
     blocks, md_parts = _rescue_multipage_tables_via_pdf(
         blocks, md_parts, pdf_renderer, image_analyzer,
     )
+    _recover_ttp_structure_from_page_slices(
+        blocks, image_analyzer, storage, pdf_renderer,
+    )
 
     body_markdown = "\n\n".join(md_parts)
     _annotate_md_ranges(blocks, md_parts)
@@ -1535,7 +1796,7 @@ def _handle_visual(
 ) -> tuple[list[dict[str, Any]], list[str]]:
     img_paths = _composite_image_paths(raw_block)
     caption = _composite_caption(raw_block)
-    resolved_uris = {p: image_uris.get(p, "") for p in img_paths}
+    resolved_uris = {p: _resolve_image_uri(p, image_uris) for p in img_paths}
     preserve_empty_table_rows = _should_preserve_empty_table_rows(caption)
 
     # Tables: prefer MinerU HTML, then fall back to VLM when HTML is missing
@@ -1543,13 +1804,22 @@ def _handle_visual(
     # header row + 25 empty pipe rows for cross-page tables; that's a False
     # signal of "we extracted the table").
     table_md: str | None = None
+    # Keep the table-level source structure in the normalized block.  This is
+    # deliberately not the MinerU payload: it is the single HTML table that
+    # produced this normalized table block, alongside the existing locator
+    # and normalized markdown representation.
+    table_html: str | None = None
     if btype == "table":
         for sub in raw_block.get("blocks", []):
             if sub.get("type") == "table_body":
                 for line in sub.get("lines", []):
                     for span in line.get("spans", []):
                         if span.get("type") == "table" and span.get("html"):
-                            table_md = _table_html_to_markdown(span["html"])
+                            candidate_html = str(span["html"]).strip()
+                            candidate_md = _table_html_to_markdown(candidate_html)
+                            if candidate_md:
+                                table_html = candidate_html
+                                table_md = candidate_md
         if table_md:
             table_md = _strip_empty_table_rows(
                 table_md,
@@ -1575,6 +1845,7 @@ def _handle_visual(
     decorative_reason: str | None = None
     table_rescued = False
     chart_to_table = False
+    table_structure_recovery: dict[str, Any] | None = None
     if needs_vlm:
         # Defect #4: differentiate VLM calls — skip decorative images
         # (QR / logo / icon / barcode) at the source instead of letting them
@@ -1587,7 +1858,7 @@ def _handle_visual(
                 btype, img_paths[0], decorative_reason,
             )
         else:
-            primary_uri = image_uris.get(img_paths[0], "")
+            primary_uri = _resolve_image_uri(img_paths[0], image_uris)
             if primary_uri and storage is not None:
                 try:
                     key = primary_uri.split("/", 3)[-1] if primary_uri.startswith("s3://") else primary_uri
@@ -1635,7 +1906,7 @@ def _handle_visual(
             and storage is not None
             and _looks_tabular(vlm_content)
         ):
-            primary_uri = image_uris.get(img_paths[0], "")
+            primary_uri = _resolve_image_uri(img_paths[0], image_uris)
             if primary_uri:
                 try:
                     key = primary_uri.split("/", 3)[-1] if primary_uri.startswith("s3://") else primary_uri
@@ -1694,7 +1965,9 @@ def _handle_visual(
         block["parse_quality"] = "chart_to_table_recovered"
     if table_md:
         block["content"] = table_md
-    elif vlm_content:
+    if table_html:
+        block["table_html"] = table_html
+    if not table_html and vlm_content:
         block["content"] = vlm_content
     blocks.append(block)
 

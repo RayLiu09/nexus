@@ -41,6 +41,17 @@ def submit_knowledge_graph_build(
     normalized_ref = session.get(models.NormalizedAssetRef, payload.normalized_ref_id)
     if normalized_ref is None:
         raise HTTPException(status_code=404, detail="normalized_ref not found")
+    if _is_talent_training_plan_ref(session, normalized_ref.id):
+        return error_response(
+            request,
+            status_code=409,
+            code="TALENT_TRAINING_PLAN_USES_DETERMINISTIC_GRAPHS",
+            message=(
+                "talent_training_plan.v1 does not use the generic Evidence Graph. "
+                "Use its course knowledge graph and, when available, position-capability graph views."
+            ),
+            details=[{"normalized_ref_id": normalized_ref.id}],
+        )
 
     selection = select_graph_candidate_chunks(
         session,
@@ -387,6 +398,14 @@ def _require_build(session: Session, build_id: str) -> models.KnowledgeGraphBuil
     if build is None:
         raise HTTPException(status_code=404, detail="knowledge graph build not found")
     return build
+
+
+def _is_talent_training_plan_ref(session: Session, normalized_ref_id: str) -> bool:
+    return session.scalar(
+        select(models.TalentTrainingPlan.id).where(
+            models.TalentTrainingPlan.normalized_ref_id == normalized_ref_id
+        ).limit(1)
+    ) is not None
 
 
 def _deprecate_nonreusable_builds(

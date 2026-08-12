@@ -32,6 +32,7 @@ from nexus_api.api.internal.governance_prompts import router as _governance_prom
 from nexus_api.api.internal.normalized_refs import router as _normalized_refs_router
 from nexus_api.api.internal.record_assets import router as _record_assets_router
 from nexus_api.api.major_profiles import internal_router as _major_profiles_router
+from nexus_api.api.talent_training_plans import internal_router as _talent_training_plans_router
 from nexus_api.api.internal.capability_graph_staging import (
     router as _capability_graph_staging_router,
 )
@@ -175,6 +176,7 @@ router.include_router(_governance_prompts_router)
 router.include_router(_normalized_refs_router)
 router.include_router(_record_assets_router)
 router.include_router(_major_profiles_router)
+router.include_router(_talent_training_plans_router)
 router.include_router(_capability_graph_staging_router)
 router.include_router(_evidence_graph_router)
 router.include_router(_task_outline_router)

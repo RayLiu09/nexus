@@ -1863,6 +1863,95 @@ class MajorProfileContinuation(TimestampMixin, MajorProfileItemMixin, Base):
 
     profile: Mapped[MajorProfile] = relationship(back_populates="continuations")
     normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+
+
+# ---------------------------------------------------------------------------
+# Pipeline A TTP — institution-specific talent training plan projections
+# ---------------------------------------------------------------------------
+
+
+class TalentTrainingPlan(TimestampMixin, Base):
+    """High-value structured facts declared by one talent-training plan.
+
+    Career orientation, specifications, and certificates are intentionally
+    plan-local JSON evidence. They are not substitutes for future platform
+    master data for industry, occupation, position, skill, or certificate.
+    """
+
+    __tablename__ = "talent_training_plan"
+    __table_args__ = (
+        UniqueConstraint("normalized_ref_id", name="uq_ttp_normalized_ref"),
+        Index("ix_ttp_asset_version_id", "asset_version_id"),
+        Index("ix_ttp_institution_name", "institution_name"),
+        Index("ix_ttp_major_code", "major_code"),
+        Index("ix_ttp_major_name", "major_name"),
+        Index("ix_ttp_education_level", "education_level"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("normalized_asset_ref.id"), nullable=False
+    )
+    asset_version_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("asset_version.id"), nullable=False
+    )
+    domain_profile: Mapped[str] = mapped_column(String(64), nullable=False)
+    institution_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    major_name: Mapped[str] = mapped_column(Text, nullable=False)
+    major_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    education_level: Mapped[str | None] = mapped_column(Text, nullable=True)
+    study_duration: Mapped[str | None] = mapped_column(Text, nullable=True)
+    training_goal: Mapped[str | None] = mapped_column(Text, nullable=True)
+    training_specification: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    career_orientation: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    certificates: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list, nullable=False)
+    source_title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    extractor_version: Mapped[str] = mapped_column(Text, nullable=False)
+    confidence: Mapped[float | None] = mapped_column(nullable=True)
+    evidence: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    quality_flags: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="generated")
+
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+    courses: Mapped[list["TalentTrainingPlanCourse"]] = relationship(
+        back_populates="plan", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class TalentTrainingPlanCourse(TimestampMixin, Base):
+    """A course defined inside one talent-training plan, never global course master data."""
+
+    __tablename__ = "talent_training_plan_course"
+    __table_args__ = (
+        UniqueConstraint("plan_id", "item_index", name="uq_ttpc_plan_item_index"),
+        Index("ix_ttpc_plan_id", "plan_id"),
+        Index("ix_ttpc_course_name", "course_name"),
+        Index("ix_ttpc_curriculum_group", "curriculum_group"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    plan_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("talent_training_plan.id", ondelete="CASCADE"), nullable=False
+    )
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("normalized_asset_ref.id"), nullable=False
+    )
+    item_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    course_name: Mapped[str] = mapped_column(Text, nullable=False)
+    course_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    curriculum_group: Mapped[str] = mapped_column(Text, nullable=False, default="unknown")
+    course_type: Mapped[str] = mapped_column(Text, nullable=False, default="course")
+    course_objective: Mapped[str | None] = mapped_column(Text, nullable=True)
+    course_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    skill_refs: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list, nullable=False)
+    knowledge_topics: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list, nullable=False)
+    source_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    evidence: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    confidence: Mapped[float | None] = mapped_column(nullable=True)
+    metadata_summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+    plan: Mapped[TalentTrainingPlan] = relationship(back_populates="courses")
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
 # ---------------------------------------------------------------------------
 # Pipeline B / B6 — Ability analysis domain tables.
 # Schema frozen by docs/pipeline_b_contract_freeze.md §5.5-§5.11 and the

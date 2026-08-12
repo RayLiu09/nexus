@@ -242,6 +242,32 @@ export type NormalizedAssetRef = {
   updated_at: string;
 };
 
+export type TalentTrainingPlanGraphNode = {
+  id: string;
+  node_type: string;
+  display_name: string;
+  evidence: Record<string, unknown>;
+  properties: Record<string, unknown>;
+};
+
+export type TalentTrainingPlanGraphEdge = {
+  source: string;
+  target: string;
+  relation_type: string;
+  evidence: Record<string, unknown>;
+};
+
+export type TalentTrainingPlanGraph = {
+  graph_type: "talent_training_plan_course_knowledge.v1" | "talent_training_plan_position_capability.v1";
+  deterministic: true;
+  normalized_ref_id: string;
+  plan_id: string;
+  available?: boolean;
+  reason?: string | null;
+  nodes: TalentTrainingPlanGraphNode[];
+  edges: TalentTrainingPlanGraphEdge[];
+};
+
 export type TaskOutlineProfile = {
   id: string;
   normalized_ref_id: string;

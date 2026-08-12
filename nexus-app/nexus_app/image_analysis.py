@@ -23,9 +23,6 @@ from nexus_app.config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
 
-# Vision model to use — must support image_url content parts via LiteLLM proxy
-_VISION_MODEL = "dashscope/qwen3-omni-flash"
-
 # Anti-chatter pre-amble shared by every prompt. Chinese LLMs default to
 # "helpful assistant" mode and append blurbs like "说明：...", "如需...",
 # "若需导出为 CSV、Markdown 或 Excel 格式...". This pre-amble plus the
@@ -96,6 +93,22 @@ _PROMPTS: dict[str, str] = {
         "If the visible content is empty, respond with the single character '-' only. "
         "Stop immediately after the final data row."
     ),
+    "talent_training_plan_table_structure": (
+        _STRICT_OCR_PREFIX
+        + "This is a talent-training-plan table with the columns 职业岗位（群）, "
+        "岗位核心能力, and 学习领域. MinerU flattened visual line boundaries "
+        "inside some cells. Recover only the visible row-level items. "
+        "Return exactly one JSON object, with no Markdown fence and no other text: "
+        '{{"rows":[{{"row_index":1,"position_name":"...","skills":["..."],'
+        '"learning_domains":["..."]}}]}}. '
+        "The response must start with {{ and end with }}; do not output a title, "
+        "explanation, confidence, note, or any text outside that JSON object. "
+        "row_index is the 1-based data-row index below the header. Recover every "
+        "visible data row in the supplied complete table image. Every skill "
+        "and learning-domain item must be a separately visible line or list item "
+        "in its cell. Do not infer missing values, merge items, or return prose. "
+        "Use empty arrays only when a cell visibly contains no item."
+    ),
     "default": (
         _STRICT_OCR_PREFIX
         + "Caption: {caption}. "
@@ -144,7 +157,9 @@ class LiteLLMImageAnalyzer:
 
         img_b64 = base64.b64encode(image_bytes).decode()
         payload = {
-            "model": _VISION_MODEL,
+            # All visual recovery is routed through the existing governance
+            # model alias. No separate image-model setting is introduced.
+            "model": self.settings.default_governance_model,
             "messages": [
                 {
                     "role": "user",
@@ -159,7 +174,7 @@ class LiteLLMImageAnalyzer:
             ],
             # Tables can easily exceed 1.5K tokens — bump generously so a
             # multi-row policy table is not truncated mid-cell.
-            "max_tokens": 4000 if block_type == "table" else 1500,
+            "max_tokens": 4000 if block_type in {"table", "talent_training_plan_table_structure"} else 1500,
         }
         endpoint = self.settings.litellm_endpoint.rstrip("/")
         req = Request(

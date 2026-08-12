@@ -156,3 +156,8 @@ def test_useful_table_does_not_trigger_vlm():
     table_blocks = [b for b in blocks if b.get("block_type") == "table"]
     assert table_blocks[0].get("parse_quality") is None  # no rescue tag
     assert "1" in table_blocks[0]["content"]
+    # The normalized table block retains the source table structure needed by
+    # evidence-bound table-aware projections. This is one table, not a raw
+    # MinerU parse payload.
+    assert "<table>" in table_blocks[0]["table_html"]
+    assert "<td>1</td>" in table_blocks[0]["table_html"]

@@ -353,6 +353,36 @@ def test_submit_build_without_candidate_chunks_is_rejected(app, session, graph_f
     assert session.query(models.KnowledgeGraphBuild).count() == before
 
 
+def test_submit_build_rejects_talent_training_plan_ref(app, session, graph_fixture):
+    ref, _build, _pending, _chunk, _chunk_2 = graph_fixture
+    plan = models.TalentTrainingPlan(
+        id="ttp-evidence-graph-api",
+        normalized_ref_id=ref.id,
+        asset_version_id=ref.version_id,
+        domain_profile="talent_training_plan.v1",
+        institution_name="示例职业学院",
+        major_name="跨境电子商务",
+        source_title=ref.title,
+        extractor_version="test",
+        evidence={},
+        quality_flags={},
+        status="generated",
+    )
+    session.add(plan)
+    session.commit()
+
+    with TestClient(app) as client:
+        resp = client.post("/internal/v1/knowledge-graphs/builds", json={
+            "normalized_ref_id": ref.id,
+            "graph_profile": "report_document",
+        })
+
+    assert resp.status_code == 409
+    error = resp.json()["error"]
+    assert error["code"] == "TALENT_TRAINING_PLAN_USES_DETERMINISTIC_GRAPHS"
+    assert error["details"] == [{"normalized_ref_id": ref.id}]
+
+
 def test_submit_build_creates_envelope_and_rebuild_deprecates_existing(app, session, graph_fixture):
     ref, _build, _pending, _chunk, _chunk_2 = graph_fixture
     with TestClient(app) as client:

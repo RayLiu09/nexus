@@ -37,15 +37,21 @@ def test_cell_attr_int_reads_quoted_and_unquoted():
     assert _cell_attr_int('colspan="abc"', "colspan") == 1
 
 
-def test_normalise_cell_text_flattens_inline_html_and_escapes_pipes():
+def test_normalise_cell_text_preserves_inline_structure_and_escapes_pipes():
     assert _normalise_cell_text("hello") == "hello"
-    assert _normalise_cell_text("line1<br>line2") == "line1 line2"
-    assert _normalise_cell_text("line1<br/>line2<br />line3") == "line1 line2 line3"
+    assert _normalise_cell_text("line1<br>line2") == "line1<br>line2"
+    assert _normalise_cell_text("line1<br/>line2<br />line3") == "line1<br>line2<br>line3"
     assert _normalise_cell_text("<p>wrapped</p>") == "wrapped"
+    assert _normalise_cell_text("<div>line1</div><div>line2</div>") == "line1<br>line2"
     assert _normalise_cell_text("a | b") == r"a \| b"
     assert _normalise_cell_text(r"path\sub") == r"path\\sub"
     # Whitespace collapsed.
     assert _normalise_cell_text("  a   b\n c\t") == "a b c"
+
+
+def test_table_markdown_retains_cell_boundaries_as_br():
+    html = "<table><tr><td>岗位能力</td></tr><tr><td>能力A<br/>能力B</td></tr></table>"
+    assert "能力A<br>能力B" in _table_html_to_markdown(html)
 
 
 # ---------------------------------------------------------------------------
