@@ -1,12 +1,14 @@
 # /open/v1 开放资产检索接口文档
 
-本文档描述 NEXUS 当前实际注册的 `/open/v1` 开放接口中，面向上游系统进行数据资产检索、知识检索、结构化记录查询和检索结果溯源的接口。
+本文档描述 NEXUS 当前实际注册的 `/open/v1` 开放接口中，面向上游系统进行数据资产检索、知识检索、结构化记录查询、检索结果溯源和请求级公网搜索的接口。
 
 依据源码：
 
 - `nexus-api/nexus_api/api/open.py`
 - `nexus-api/nexus_api/api/open_record_assets.py`
 - `nexus-api/nexus_api/api/major_profiles.py`
+- `nexus-api/nexus_api/api/talent_training_plans.py`
+- `nexus-api/nexus_api/api/external_search.py`
 - `nexus-api/nexus_api/main.py`
 
 ## 1. 通用约定
@@ -111,7 +113,7 @@ FastAPI 参数校验失败会返回 `422`。
 
 ### 1.6 可见性规则
 
-开放资产目录、规范化资产、知识 chunk、原文件下载、专业画像和专业分布记录默认只暴露已达到 `available` 版本的数据。
+开放资产目录、规范化资产、知识 chunk、原文件下载、专业画像、人才培养方案和专业分布记录默认只暴露已达到 `available` 版本的数据。
 
 例外：`/open/v1/record-assets/job-demand-records` 为 Pipeline B 结构化领域事实查询，当前实现按领域事实表跨数据集查询，不强制 `asset_version=available`。
 
@@ -132,8 +134,14 @@ FastAPI 参数校验失败会返回 `422`。
 | 问答检索 | GET | `/open/v1/qa` | 基于检索来源生成问答结果 |
 | 智能检索 | POST | `/open/v1/query` | Query Router v2 聚合检索与回答 |
 | 智能检索 | POST | `/open/v1/query/stream` | Query Router v2 SSE 流式检索与回答 |
+| 联网搜索 | POST | `/open/v1/external-search/firecrawl` | Firecrawl URL 发现搜索，返回标题、URL、摘要 |
+| 联网搜索 | POST | `/open/v1/external-search/web-search` | Web Search 内容搜索，返回正文/摘要和供应商元数据 |
 | 专业画像 | GET | `/open/v1/major-profiles` | 查询可用专业画像 |
 | 专业画像 | GET | `/open/v1/major-profiles/{profile_id}` | 获取专业画像详情 |
+| 人才培养方案 | GET | `/open/v1/talent-training-plans` | 按院校、专业、岗位、技能、证书、课程等结构化条件查询可用方案 |
+| 人才培养方案 | GET | `/open/v1/talent-training-plans/{plan_id}` | 获取方案、课程及来源证据详情 |
+| 人才培养方案 | GET | `/open/v1/talent-training-plans/{plan_id}/course-knowledge-graph` | 获取方案范围内的确定性课程知识图谱 |
+| 人才培养方案 | GET | `/open/v1/talent-training-plans/{plan_id}/position-capability-graph` | 获取方案范围内可选的岗位能力图谱 |
 | 职业能力分析 | GET | `/open/v1/record-assets/ability-analyses` | 查询职业能力分析资产 |
 | 职业能力分析 | GET | `/open/v1/record-assets/ability-analyses/{analysis_id}` | 获取职业能力分析详情 |
 | 职业能力分析 | GET | `/open/v1/record-assets/ability-analyses/{analysis_id}/tasks` | 获取职业任务树 |
@@ -702,9 +710,161 @@ Content-Type: text/event-stream
 
 SSE frame 由 `nexus_api.query_router_v2_sse.serialise_router_stream` 输出。消费端应按事件流处理，典型事件包含检索步骤、增量内容、最终结果或错误信息。最终结果的数据字段与 `POST /open/v1/query` 保持同源语义，至少包括 `markdown`、`intent`、`intent_confidence`、`invoked_tools`、`fallback_reason`、`warnings`、`audit_summary`、`external_web_results`、`section_contexts`。
 
-## 7. 专业画像接口
+## 7. 请求级联网搜索接口
 
-### 7.1 查询专业画像
+本组接口直接调用已配置的外部搜索提供方，供上游系统主动检索公开互联网内容。
+Firecrawl 与 Web Search 是两个独立接口：前者是 URL 发现结果，后者包含提供方返回的
+正文或摘要，二者不共享或强制归一化结果结构。
+
+所有结果仅存在于当前 HTTP 响应，标记 `ephemeral: true`；不会创建或更新
+`raw_object`、资产、`normalized_asset_ref`、治理结果、知识块、向量索引或 Crawler
+作业。外部搜索与 `/open/v1/search` 本地语义检索、`/open/v1/query` 的受控 fallback
+是不同能力，调用本组接口不会触发本地检索或自动入库。
+
+请求中的敏感内容会在调用外部提供方前被拒绝，返回 `422`。提供方未配置、限流、超时
+或错误时返回 `503`，错误消息为 `external_search_unavailable`；响应及审计均不返回
+供应商凭证或原始查询文本。每次成功调用写入 `SearchQueryExecuted` 审计记录，其中仅
+保留查询哈希、提供方、结果数量和请求级标识。
+
+两条接口均使用第 1.2 节 API Caller 鉴权，且具有以下附加错误语义：
+
+| HTTP 状态 | 错误场景 | 响应语义 |
+| --- | --- | --- |
+| `401` | 缺少或无效 API Key | 通用 API Caller 认证失败 |
+| `403` | API Key 过期、撤销，或请求执行期间被撤销 | 通用鉴权失败或 `API key revoked` |
+| `422` | 请求字段不合法、空白查询，或查询命中敏感内容出站拦截 | `VALIDATION_ERROR` |
+| `503` | 外部提供方未配置、限流、超时或调用失败 | `HTTP_ERROR`，消息为 `external_search_unavailable` |
+
+### 7.1 Firecrawl 公网发现搜索
+
+```http
+POST /open/v1/external-search/firecrawl
+Content-Type: application/json
+```
+
+Firecrawl 接口执行搜索发现，不会对结果 URL 执行 scrape 或 batch scrape。
+当前 Firecrawl 开放接口没有独立的发布时间/时间范围过滤字段；需要表达时效偏好时，
+可将其写入 `query`，但提供方结果不保证严格日期过滤。需要供应商级时间范围控制时应
+使用 7.2 的 Web Search 接口。
+
+#### 请求体
+
+| 字段 | 类型 | 必填 | 默认值 | 约束 | 说明 |
+| --- | --- | --- | --- | --- | --- |
+| `query` | string | 是 | - | `1..1024` | 搜索关键词；敏感内容不能出站 |
+| `limit` | integer | 否 | `10` | `1..20` | 最大 URL 结果数 |
+| `include_domains` | array[string] | 否 | `null` | 最多 20 项 | 可选站点域名白名单，仅搜索这些域名 |
+| `country` | string | 否 | `CN` | `2..8` 字符 | Firecrawl 国家/地区参数 |
+| `languages` | array[string] | 否 | `["zh-CN"]` | `1..10` 项 | Firecrawl 语言偏好 |
+
+示例：
+
+```json
+{
+  "query": "跨境电商 政策",
+  "limit": 10,
+  "include_domains": ["www.gov.cn", "www.mofcom.gov.cn"],
+  "country": "CN",
+  "languages": ["zh-CN"]
+}
+```
+
+#### 返回结构
+
+`results` 为 Firecrawl URL 发现结果，不含网页完整正文，也不代表内容已被 NEXUS 抓取
+或治理。
+
+```json
+{
+  "data": {
+    "provider": "firecrawl",
+    "query": "跨境电商 政策",
+    "request": {
+      "limit": 10,
+      "include_domains": ["www.gov.cn", "www.mofcom.gov.cn"],
+      "country": "CN",
+      "languages": ["zh-CN"]
+    },
+    "results": [
+      {
+        "url": "https://www.example.gov.cn/policy/1.html",
+        "title": "政策文件标题",
+        "description": "搜索结果摘要"
+      }
+    ],
+    "count": 1,
+    "ephemeral": true
+  },
+  "meta": { "trace_id": "trace_id" }
+}
+```
+
+### 7.2 Web Search 内容搜索
+
+```http
+POST /open/v1/external-search/web-search
+Content-Type: application/json
+```
+
+Web Search 由已配置的 Web Search 提供方执行。它返回结果内容，因此结果结构与
+Firecrawl 发现搜索不同；`content_source` 用于区分供应商给出的完整内容与摘要回退。
+
+#### 请求体
+
+| 字段 | 类型 | 必填 | 默认值 | 约束 | 说明 |
+| --- | --- | --- | --- | --- | --- |
+| `query` | string | 是 | - | `1..1024` | 搜索关键词；敏感内容不能出站 |
+| `count` | integer | 否 | `10` | `1..50` | 最大结果数 |
+| `time_range` | string | 否 | `OneYear` | `1..64` 字符 | 供应商时间范围参数，如 `OneMonth`、`OneYear` 或其支持的范围表达式 |
+
+示例：
+
+```json
+{
+  "query": "跨境电商 市场报告",
+  "count": 10,
+  "time_range": "OneYear"
+}
+```
+
+#### 返回结构
+
+`content` 为外部提供方在本次调用中返回的内容或摘要，不是 NEXUS 资产正文。`metadata`
+以及 `provider_*` 字段为供应商请求元数据，可能为 `null` 或空对象。
+
+```json
+{
+  "data": {
+    "provider": "web_search",
+    "query": "跨境电商 市场报告",
+    "request": { "count": 10, "time_range": "OneYear" },
+    "results": [
+      {
+        "result_id": "provider_result_id",
+        "title": "市场报告标题",
+        "url": "https://example.com/report",
+        "content": "供应商返回的 Markdown 正文或摘要",
+        "content_source": "content",
+        "metadata": {
+          "SiteName": "示例站点",
+          "PublishTime": "2026-08-01",
+          "RankScore": 0.95
+        }
+      }
+    ],
+    "count": 1,
+    "provider_request_id": "provider_request_id",
+    "provider_log_id": "provider_log_id",
+    "provider_time_cost_ms": 120,
+    "ephemeral": true
+  },
+  "meta": { "trace_id": "trace_id" }
+}
+```
+
+## 8. 专业画像接口
+
+### 8.1 查询专业画像
 
 ```http
 GET /open/v1/major-profiles
@@ -761,7 +921,7 @@ GET /open/v1/major-profiles
 }
 ```
 
-### 7.2 获取专业画像详情
+### 8.2 获取专业画像详情
 
 ```http
 GET /open/v1/major-profiles/{profile_id}
@@ -824,9 +984,279 @@ GET /open/v1/major-profiles/{profile_id}
 }
 ```
 
-## 8. 职业能力分析记录资产接口
+## 9. 人才培养方案接口
 
-### 8.1 查询职业能力分析
+人才培养方案资源对应从 `normalized_document` 提取并持久化的
+`talent_training_plan.v1` 方案级投影。它面向院校专业的培养方案查询，
+将专业、岗位/技能、证书和课程作为方案本地且带来源证据的事实；它们不是
+行业、职业、岗位、技能、证书或课程的全局主数据。
+
+结构化查询是此类资产的主路径。方案的培养目标/规格、课程目标/内容等可同时
+由通用知识块与语义检索接口补充获取，但本组接口不执行语义召回，也不返回
+通用 Evidence Graph。
+
+### 9.1 查询人才培养方案
+
+```http
+GET /open/v1/talent-training-plans
+```
+
+#### 参数
+
+所有业务过滤条件均为可选；同时传入多个条件时按 AND 组合。`position`、
+`skill`、`certificate` 查询方案本地 JSON 属性，`course` 同时匹配课程名称、
+课程目标和课程内容。
+
+| 参数 | 位置 | 类型 | 必填 | 匹配方式 | 说明 |
+| --- | --- | --- | --- | --- | --- |
+| `institution_name` | query | string | 否 | 包含 | 院校名称 |
+| `major_name` | query | string | 否 | 包含 | 专业名称 |
+| `major_code` | query | string | 否 | 精确 | 专业代码 |
+| `education_level` | query | string | 否 | 精确 | 教育层次 |
+| `study_duration` | query | string | 否 | 精确 | 修业年限，如 `三年` |
+| `position` | query | string | 否 | 包含 | 职业面向中的岗位名称或岗位描述 |
+| `skill` | query | string | 否 | 包含 | 职业面向岗位技能或培养规格中的能力/技能文本 |
+| `certificate` | query | string | 否 | 包含 | 方案声明的证书名称或描述 |
+| `course` | query | string | 否 | 包含 | 课程名称、课程目标或课程内容 |
+| `page` | query | integer | 否 | - | 页码，默认 `1`，范围 `1..10000` |
+| `pageSize` | query | integer | 否 | - | 每页条数，默认 `20`，范围 `1..200` |
+
+#### 返回结构
+
+列表仅返回方案摘要，不内嵌课程、岗位或证书明细。结果按方案创建时间倒序排列。
+
+```json
+{
+  "data": [
+    {
+      "id": "plan_id",
+      "normalized_ref_id": "normalized_ref_id",
+      "asset_version_id": "asset_version_id",
+      "institution_name": "杭州万向职业技术学院",
+      "major_name": "跨境电子商务",
+      "major_code": "630805",
+      "education_level": "高职",
+      "study_duration": "三年",
+      "training_goal": "培养跨境电商运营人才",
+      "confidence": 0.95,
+      "status": "generated",
+      "course_count": 24,
+      "created_at": "2026-08-12T10:00:00",
+      "updated_at": "2026-08-12T10:00:00"
+    }
+  ],
+  "meta": {
+    "trace_id": "trace_id",
+    "page": 1,
+    "page_size": 20,
+    "total": 1
+  },
+  "aggregations": null
+}
+```
+
+### 9.2 获取人才培养方案详情
+
+```http
+GET /open/v1/talent-training-plans/{plan_id}
+```
+
+#### 参数
+
+| 参数 | 位置 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- | --- |
+| `plan_id` | path | string | 是 | 人才培养方案投影 ID |
+
+#### 返回结构
+
+除列表摘要字段外，详情返回方案本地结构化属性和按源文档顺序排列的课程。`evidence`
+及课程 `evidence` 保留来源块/页码等可追溯定位信息；其具体字段随解析结果变化。
+
+```json
+{
+  "data": {
+    "id": "plan_id",
+    "normalized_ref_id": "normalized_ref_id",
+    "asset_version_id": "asset_version_id",
+    "institution_name": "杭州万向职业技术学院",
+    "major_name": "跨境电子商务",
+    "major_code": "630805",
+    "education_level": "高职",
+    "study_duration": "三年",
+    "training_goal": "培养跨境电商运营人才",
+    "training_specification": {
+      "ability_requirements": [
+        { "name": "跨境平台操作能力", "evidence": {} }
+      ]
+    },
+    "career_orientation": {
+      "industries": [],
+      "occupations": [],
+      "positions": [
+        {
+          "name": "跨境电商 B2C 运营岗",
+          "skills": [{ "name": "跨境平台操作能力", "evidence": {} }],
+          "evidence": {}
+        }
+      ]
+    },
+    "certificates": [
+      { "name": "1+X 跨境电商运营职业技能等级证书", "evidence": {} }
+    ],
+    "evidence": {},
+    "quality_flags": {},
+    "courses": [
+      {
+        "id": "course_id",
+        "item_index": 1,
+        "course_name": "跨境电子商务实务",
+        "course_code": null,
+        "curriculum_group": "professional_core",
+        "course_type": "course",
+        "course_objective": "培养跨境平台操作能力",
+        "course_content": "跨境平台规则与国际物流",
+        "skill_refs": [{ "name": "跨境平台操作能力", "evidence": {} }],
+        "knowledge_topics": [],
+        "evidence": {},
+        "confidence": 0.9
+      }
+    ]
+  },
+  "meta": { "trace_id": "trace_id" }
+}
+```
+
+当 `plan_id` 不存在，或关联资产版本不为 `available` 时，返回 `404`。
+
+### 9.3 获取课程知识图谱
+
+```http
+GET /open/v1/talent-training-plans/{plan_id}/course-knowledge-graph
+```
+
+该接口始终基于方案已持久化的课程行构建确定性、方案范围内的图谱，不写入或读取
+通用 Evidence Graph。图谱从方案根节点开始，通过课程关联到课程目标、课程内容和
+已提取的课程技能。节点与边的 `evidence` 提供对应的规范化文档来源证据。
+
+```json
+{
+  "data": {
+    "graph_type": "talent_training_plan_course_knowledge.v1",
+    "deterministic": true,
+    "normalized_ref_id": "normalized_ref_id",
+    "plan_id": "plan_id",
+    "nodes": [
+      {
+        "id": "plan:plan_id",
+        "node_type": "TalentTrainingPlan",
+        "display_name": "跨境电子商务",
+        "evidence": {},
+        "properties": {}
+      },
+      {
+        "id": "course:course_id",
+        "node_type": "Course",
+        "display_name": "跨境电子商务实务",
+        "evidence": {},
+        "properties": {
+          "course_code": null,
+          "curriculum_group": "professional_core",
+          "course_type": "course"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "source": "plan:plan_id",
+        "target": "course:course_id",
+        "relation_type": "PLAN_HAS_COURSE",
+        "evidence": {}
+      }
+    ]
+  },
+  "meta": { "trace_id": "trace_id" }
+}
+```
+
+节点类型包括 `TalentTrainingPlan`、`Course`、`CourseObjective`、`CourseContent`
+和 `Skill`；关系类型包括 `PLAN_HAS_COURSE`、`COURSE_HAS_OBJECTIVE`、
+`COURSE_HAS_CONTENT`、`COURSE_COVERS_SKILL`。课程目标或课程内容为空时，不产生
+相应节点和边。
+
+### 9.4 获取岗位能力图谱
+
+```http
+GET /open/v1/talent-training-plans/{plan_id}/position-capability-graph
+```
+
+该接口只在方案包含有效的“岗位 -> 技能/能力”事实时返回节点和边；岗位名称本身或
+未绑定技能的岗位不构成岗位能力图谱。节点和边会保留解析到的 `evidence`，但该
+字段可能为空。岗位和技能均为当前方案本地节点，不能被当作全局岗位或技能主数据使用。
+
+有有效事实时的响应：
+
+```json
+{
+  "data": {
+    "graph_type": "talent_training_plan_position_capability.v1",
+    "deterministic": true,
+    "available": true,
+    "reason": null,
+    "normalized_ref_id": "normalized_ref_id",
+    "plan_id": "plan_id",
+    "nodes": [
+      {
+        "id": "position:跨境电商 B2C 运营岗",
+        "node_type": "Position",
+        "display_name": "跨境电商 B2C 运营岗",
+        "evidence": {},
+        "properties": { "plan_local": true }
+      },
+      {
+        "id": "skill:跨境平台操作能力",
+        "node_type": "Skill",
+        "display_name": "跨境平台操作能力",
+        "evidence": {},
+        "properties": { "skill_type": "ability", "plan_local": true }
+      }
+    ],
+    "edges": [
+      {
+        "source": "position:跨境电商 B2C 运营岗",
+        "target": "skill:跨境平台操作能力",
+        "relation_type": "POSITION_REQUIRES_SKILL",
+        "evidence": {}
+      }
+    ]
+  },
+  "meta": { "trace_id": "trace_id" }
+}
+```
+
+没有可用岗位能力事实时仍返回 `200`，以空图明确表达该方案未提供岗位到技能的映射：
+
+```json
+{
+  "data": {
+    "graph_type": "talent_training_plan_position_capability.v1",
+    "deterministic": true,
+    "available": false,
+    "reason": "no_evidenced_position_skill_facts",
+    "normalized_ref_id": "normalized_ref_id",
+    "plan_id": "plan_id",
+    "nodes": [],
+    "edges": []
+  },
+  "meta": { "trace_id": "trace_id" }
+}
+```
+
+有效图谱还包含方案根节点 `TalentTrainingPlan`，并以 `PLAN_ORIENTS_TO_POSITION`
+连接到岗位节点；岗位到技能的关系为 `POSITION_REQUIRES_SKILL`。
+
+## 10. 职业能力分析记录资产接口
+
+### 10.1 查询职业能力分析
 
 ```http
 GET /open/v1/record-assets/ability-analyses
@@ -875,7 +1305,7 @@ GET /open/v1/record-assets/ability-analyses
 }
 ```
 
-### 8.2 获取职业能力分析详情
+### 10.2 获取职业能力分析详情
 
 ```http
 GET /open/v1/record-assets/ability-analyses/{analysis_id}
@@ -921,7 +1351,7 @@ GET /open/v1/record-assets/ability-analyses/{analysis_id}
 }
 ```
 
-### 8.3 获取职业任务树
+### 10.3 获取职业任务树
 
 ```http
 GET /open/v1/record-assets/ability-analyses/{analysis_id}/tasks
@@ -967,7 +1397,7 @@ GET /open/v1/record-assets/ability-analyses/{analysis_id}/tasks
 }
 ```
 
-### 8.4 查询能力项
+### 10.4 查询能力项
 
 ```http
 GET /open/v1/record-assets/ability-analyses/{analysis_id}/ability-items
@@ -1015,7 +1445,7 @@ GET /open/v1/record-assets/ability-analyses/{analysis_id}/ability-items
 }
 ```
 
-### 8.5 查询能力关系
+### 10.5 查询能力关系
 
 ```http
 GET /open/v1/record-assets/ability-analyses/{analysis_id}/relations
@@ -1058,9 +1488,9 @@ GET /open/v1/record-assets/ability-analyses/{analysis_id}/relations
 }
 ```
 
-## 9. 就业需求记录资产接口
+## 11. 就业需求记录资产接口
 
-### 9.1 跨数据集查询岗位需求记录
+### 11.1 跨数据集查询岗位需求记录
 
 ```http
 GET /open/v1/record-assets/job-demand-records
@@ -1126,7 +1556,7 @@ GET /open/v1/record-assets/job-demand-records
 }
 ```
 
-### 9.2 获取岗位需求记录详情
+### 11.2 获取岗位需求记录详情
 
 ```http
 GET /open/v1/record-assets/job-demand-records/{record_id}
@@ -1161,7 +1591,7 @@ GET /open/v1/record-assets/job-demand-records/{record_id}
 }
 ```
 
-### 9.3 获取岗位需求抽取项
+### 11.3 获取岗位需求抽取项
 
 ```http
 GET /open/v1/record-assets/job-demand-records/{record_id}/requirement-items
@@ -1203,9 +1633,9 @@ GET /open/v1/record-assets/job-demand-records/{record_id}/requirement-items
 }
 ```
 
-## 10. 专业分布记录资产接口
+## 12. 专业分布记录资产接口
 
-### 10.1 查询专业分布记录
+### 12.1 查询专业分布记录
 
 ```http
 GET /open/v1/record-assets/major-distribution-records
@@ -1256,7 +1686,7 @@ GET /open/v1/record-assets/major-distribution-records
 }
 ```
 
-### 10.2 聚合查询专业分布统计
+### 12.2 聚合查询专业分布统计
 
 ```http
 GET /open/v1/record-assets/major-distribution-records/aggregate
@@ -1300,9 +1730,9 @@ GET /open/v1/record-assets/major-distribution-records/aggregate
 
 返回项中会包含请求指定的 `group_by` 字段，以及固定统计字段 `distribution_total`、`record_count`。
 
-## 11. 图谱检索接口
+## 13. 图谱检索接口
 
-### 11.1 按岗位查询岗位能力图谱
+### 13.1 按岗位查询岗位能力图谱
 
 ```http
 GET /open/v1/record-assets/graphs/job-capability
@@ -1358,7 +1788,7 @@ GET /open/v1/record-assets/graphs/job-capability
 
 节点上限为 1000，边上限为 2000；超过时返回 `413`。
 
-### 11.2 按专业查询职业能力图谱
+### 13.2 按专业查询职业能力图谱
 
 ```http
 GET /open/v1/record-assets/graphs/occupational-capability
@@ -1394,7 +1824,7 @@ GET /open/v1/record-assets/graphs/occupational-capability
 }
 ```
 
-### 11.3 按专业查询教学标准知识图谱
+### 13.3 按专业查询教学标准知识图谱
 
 ```http
 GET /open/v1/record-assets/graphs/teaching-standard-knowledge
@@ -1430,9 +1860,9 @@ GET /open/v1/record-assets/graphs/teaching-standard-knowledge
 }
 ```
 
-## 12. 调用示例
+## 14. 调用示例
 
-### 12.1 智能检索
+### 14.1 智能检索
 
 ```bash
 curl --silent \
@@ -1442,7 +1872,7 @@ curl --silent \
   -d '{"query":"现代零售行业的关键特征是什么"}'
 ```
 
-### 12.2 资产目录按标签检索
+### 14.2 资产目录按标签检索
 
 ```bash
 curl --silent \
@@ -1450,7 +1880,7 @@ curl --silent \
   "http://127.0.0.1:8000/open/v1/assets?tag_type=major&tags=电子商务&is_exact_matched=true&page=1&pageSize=20"
 ```
 
-### 12.3 获取 chunk 引用详情
+### 14.3 获取 chunk 引用详情
 
 ```bash
 curl --silent \
