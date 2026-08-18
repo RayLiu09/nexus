@@ -134,8 +134,8 @@ FastAPI 参数校验失败会返回 `422`。
 | 问答检索 | GET | `/open/v1/qa` | 基于检索来源生成问答结果 |
 | 智能检索 | POST | `/open/v1/query` | Query Router v2 聚合检索与回答 |
 | 智能检索 | POST | `/open/v1/query/stream` | Query Router v2 SSE 流式检索与回答 |
-| 联网搜索 | POST | `/open/v1/external-search/firecrawl` | Firecrawl URL 发现搜索，返回标题、URL、摘要 |
-| 联网搜索 | POST | `/open/v1/external-search/web-search` | Web Search 内容搜索，返回正文/摘要和供应商元数据 |
+| 联网搜索 | POST | `/open/v1/external-search/firecrawl` | Firecrawl URL 发现、质量筛选及可控异步入库 |
+| 联网搜索 | POST | `/open/v1/external-search/web-search` | Web Search 内容搜索、质量筛选及可控异步入库 |
 | 专业画像 | GET | `/open/v1/major-profiles` | 查询可用专业画像 |
 | 专业画像 | GET | `/open/v1/major-profiles/{profile_id}` | 获取专业画像详情 |
 | 人才培养方案 | GET | `/open/v1/talent-training-plans` | 按院校、专业、岗位、技能、证书、课程等结构化条件查询可用方案 |
@@ -717,15 +717,28 @@ SSE frame 由 `nexus_api.query_router_v2_sse.serialise_router_stream` 输出。�
 Firecrawl 与 Web Search 是两个独立接口：前者是 URL 发现结果，后者包含提供方返回的
 正文或摘要，二者不共享或强制归一化结果结构。
 
-所有结果仅存在于当前 HTTP 响应，标记 `ephemeral: true`；不会创建或更新
-`raw_object`、资产、`normalized_asset_ref`、治理结果、知识块、向量索引或 Crawler
-作业。外部搜索与 `/open/v1/search` 本地语义检索、`/open/v1/query` 的受控 fallback
-是不同能力，调用本组接口不会触发本地检索或自动入库。
+搜索结果始终存在于当前 HTTP 响应，标记为 `ephemeral: true`。但两个接口的
+`auto_ingest` 默认均为 `true`：符合对应质量门槛的结果会异步提交至 NEXUS crawler
+文档管道，依次经过 `raw_object -> queued job -> assetize -> parse -> normalize ->
+governance/index`。接口不会同步创建资产、版本、`normalized_asset_ref`、治理结果、知识块
+或向量索引；这些记录仅由后续 Worker 按正常管道产生。
+
+调用方可传入 `"auto_ingest": false` 保持纯搜索模式。此时不创建数据源、批次、
+`raw_object` 或作业；Firecrawl 也只进行 URL 发现，不执行页面 scrape。外部搜索与
+`/open/v1/search` 本地语义检索、`/open/v1/query` 的受控 fallback 是不同能力。
+
+自动入库使用既有质量门槛。Firecrawl 会拦截不安全 URL、正文过短、登录/验证码墙和
+低价值活动内容；Web Search 会拦截不安全 URL、首页/频道页、低价值新闻、正文过短、
+低相关度及缺失排序分结果。未通过门槛的结果仅保留在本次响应中，不会持久化。
+
+同一数据源中内容相同的重复结果会复用已有 `raw_object` 并记为重复提交。Web Search
+原始数据台账的文件名使用安全化后的结果标题加内容哈希，例如
+`产业市场报告-3bfd0cafe04f.json`，而非无语义的 `websearch-*.json`。
 
 请求中的敏感内容会在调用外部提供方前被拒绝，返回 `422`。提供方未配置、限流、超时
 或错误时返回 `503`，错误消息为 `external_search_unavailable`；响应及审计均不返回
 供应商凭证或原始查询文本。每次成功调用写入 `SearchQueryExecuted` 审计记录，其中仅
-保留查询哈希、提供方、结果数量和请求级标识。
+保留查询哈希、提供方、结果数量、自动入库开关及入库聚合计数等非内容元数据。
 
 两条接口均使用第 1.2 节 API Caller 鉴权，且具有以下附加错误语义：
 
@@ -735,6 +748,23 @@ Firecrawl 与 Web Search 是两个独立接口：前者是 URL 发现结果，�
 | `403` | API Key 过期、撤销，或请求执行期间被撤销 | 通用鉴权失败或 `API key revoked` |
 | `422` | 请求字段不合法、空白查询，或查询命中敏感内容出站拦截 | `VALIDATION_ERROR` |
 | `503` | 外部提供方未配置、限流、超时或调用失败 | `HTTP_ERROR`，消息为 `external_search_unavailable` |
+
+#### 自动入库汇总字段
+
+`auto_ingest: true` 时，响应的 `ingestion` 字段提供本次异步提交的聚合情况：
+
+| 字段 | 说明 |
+| --- | --- |
+| `candidate_count` | 已进入质量筛选的候选数；Firecrawl 不含 scrape 失败项 |
+| `accepted_count` / `filtered_count` | 质量门槛通过数 / 拦截数 |
+| `filter_reasons` | 质量拦截原因及数量，例如 `homepage_or_channel`、`too_short` |
+| `submitted_count` | 已创建或复用任务的提交数 |
+| `raw_persisted_count` / `duplicate_count` | 新持久化原始对象数 / 复用既有原始对象的重复数 |
+| `ingest_failed_count` / `ingest_failures` | 入库阶段失败数量及不含正文的失败原因 |
+| `scrape_failed_count` | 仅 Firecrawl 返回，页面 scrape 失败数 |
+
+`auto_ingest: false` 时，`ingestion.enabled` 为 `false`，所有入库计数为 `0`；此时
+不进行质量筛选，`filter_reasons`、`ingest_failures` 和 `submitted` 等仅在开启入库时返回。
 
 ### 7.1 Firecrawl 公网发现搜索
 
@@ -757,6 +787,7 @@ Firecrawl 接口执行搜索发现，不会对结果 URL 执行 scrape 或 batch
 | `include_domains` | array[string] | 否 | `null` | 最多 20 项 | 可选站点域名白名单，仅搜索这些域名 |
 | `country` | string | 否 | `CN` | `2..8` 字符 | Firecrawl 国家/地区参数 |
 | `languages` | array[string] | 否 | `["zh-CN"]` | `1..10` 项 | Firecrawl 语言偏好 |
+| `auto_ingest` | boolean | 否 | `true` | - | `true` 时抓取、质量筛选并异步提交合格网页；`false` 时仅返回 URL 发现结果 |
 
 示例：
 
@@ -766,14 +797,16 @@ Firecrawl 接口执行搜索发现，不会对结果 URL 执行 scrape 或 batch
   "limit": 10,
   "include_domains": ["www.gov.cn", "www.mofcom.gov.cn"],
   "country": "CN",
-  "languages": ["zh-CN"]
+  "languages": ["zh-CN"],
+  "auto_ingest": true
 }
 ```
 
 #### 返回结构
 
-`results` 为 Firecrawl URL 发现结果，不含网页完整正文，也不代表内容已被 NEXUS 抓取
-或治理。
+`results` 为 Firecrawl URL 发现结果，不含网页完整正文。`auto_ingest: true` 时，服务端
+会在响应前抓取候选页面并提交通过质量门槛的内容；该响应并不表示后续资产治理或索引
+已经完成。
 
 ```json
 {
@@ -784,7 +817,8 @@ Firecrawl 接口执行搜索发现，不会对结果 URL 执行 scrape 或 batch
       "limit": 10,
       "include_domains": ["www.gov.cn", "www.mofcom.gov.cn"],
       "country": "CN",
-      "languages": ["zh-CN"]
+      "languages": ["zh-CN"],
+      "auto_ingest": true
     },
     "results": [
       {
@@ -794,7 +828,19 @@ Firecrawl 接口执行搜索发现，不会对结果 URL 执行 scrape 或 batch
       }
     ],
     "count": 1,
-    "ephemeral": true
+    "ephemeral": true,
+    "auto_ingest": true,
+    "ingestion": {
+      "candidate_count": 1,
+      "accepted_count": 1,
+      "filtered_count": 0,
+      "filter_reasons": {},
+      "submitted_count": 1,
+      "raw_persisted_count": 1,
+      "duplicate_count": 0,
+      "ingest_failed_count": 0,
+      "scrape_failed_count": 0
+    }
   },
   "meta": { "trace_id": "trace_id" }
 }
@@ -817,6 +863,7 @@ Firecrawl 发现搜索不同；`content_source` 用于区分供应商给出的�
 | `query` | string | 是 | - | `1..1024` | 搜索关键词；敏感内容不能出站 |
 | `count` | integer | 否 | `10` | `1..50` | 最大结果数 |
 | `time_range` | string | 否 | `OneYear` | `1..64` 字符 | 供应商时间范围参数，如 `OneMonth`、`OneYear` 或其支持的范围表达式 |
+| `auto_ingest` | boolean | 否 | `true` | - | `true` 时质量筛选并异步提交合格内容；`false` 时仅返回供应商搜索内容 |
 
 示例：
 
@@ -824,7 +871,8 @@ Firecrawl 发现搜索不同；`content_source` 用于区分供应商给出的�
 {
   "query": "跨境电商 市场报告",
   "count": 10,
-  "time_range": "OneYear"
+  "time_range": "OneYear",
+  "auto_ingest": true
 }
 ```
 
@@ -838,7 +886,11 @@ Firecrawl 发现搜索不同；`content_source` 用于区分供应商给出的�
   "data": {
     "provider": "web_search",
     "query": "跨境电商 市场报告",
-    "request": { "count": 10, "time_range": "OneYear" },
+    "request": {
+      "count": 10,
+      "time_range": "OneYear",
+      "auto_ingest": true
+    },
     "results": [
       {
         "result_id": "provider_result_id",
@@ -857,7 +909,18 @@ Firecrawl 发现搜索不同；`content_source` 用于区分供应商给出的�
     "provider_request_id": "provider_request_id",
     "provider_log_id": "provider_log_id",
     "provider_time_cost_ms": 120,
-    "ephemeral": true
+    "ephemeral": true,
+    "auto_ingest": true,
+    "ingestion": {
+      "candidate_count": 1,
+      "accepted_count": 1,
+      "filtered_count": 0,
+      "filter_reasons": {},
+      "submitted_count": 1,
+      "raw_persisted_count": 1,
+      "duplicate_count": 0,
+      "ingest_failed_count": 0
+    }
   },
   "meta": { "trace_id": "trace_id" }
 }

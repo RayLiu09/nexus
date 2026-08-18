@@ -1,8 +1,8 @@
 """Request-scoped public-web search endpoints for API callers.
 
 Firecrawl discovery and the configured Web Search provider deliberately expose
-separate contracts: the former returns discovery metadata while the latter
-returns provider content.  Neither path creates NEXUS assets or knowledge.
+separate contracts. Qualifying results are queued through the existing crawler
+ingest pipeline; neither endpoint writes governed assets synchronously.
 """
 from __future__ import annotations
 
@@ -27,9 +27,14 @@ from nexus_app.crawler.websearch_custom_client import (
     HttpWebSearchCustomClient,
     WebSearchCustomError,
 )
+from nexus_app.crawler.open_search_ingest import (
+    ingest_firecrawl_snapshots,
+    ingest_websearch_items,
+)
 from nexus_app.database import get_db
 from nexus_app.enums import AuditEventType
 from nexus_app.retrieval.web_search import _has_sensitive_outbound_content
+from nexus_app.storage import ObjectStorage, get_object_storage
 
 
 router = APIRouter(
@@ -40,6 +45,10 @@ router = APIRouter(
 
 class _ExternalSearchRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=1024)
+    auto_ingest: bool = Field(
+        default=True,
+        description="Queue qualifying results into the NEXUS crawler pipeline.",
+    )
 
     @field_validator("query")
     @classmethod
@@ -72,8 +81,25 @@ def get_web_search_custom_client() -> HttpWebSearchCustomClient:
     return HttpWebSearchCustomClient()
 
 
+def get_external_search_storage() -> ObjectStorage:
+    return get_object_storage()
+
+
 def _provider_unavailable() -> HTTPException:
     return HTTPException(status_code=503, detail="external_search_unavailable")
+
+
+def _disabled_ingestion_summary() -> dict[str, Any]:
+    return {
+        "enabled": False,
+        "candidate_count": 0,
+        "accepted_count": 0,
+        "filtered_count": 0,
+        "submitted_count": 0,
+        "raw_persisted_count": 0,
+        "duplicate_count": 0,
+        "scrape_failed_count": 0,
+    }
 
 
 def _assert_caller_still_active(session: Session, caller: models.ApiCaller) -> None:
@@ -123,8 +149,9 @@ def search_firecrawl(
     caller: models.ApiCaller = Depends(require_api_caller),
     session: Session = Depends(get_db),
     client: FirecrawlDocumentClient = Depends(get_firecrawl_document_client),
+    storage: ObjectStorage = Depends(get_external_search_storage),
 ):
-    """Discover public URLs through Firecrawl without scraping or ingesting them."""
+    """Discover, quality-check, and queue qualifying Firecrawl documents."""
     try:
         results = client.search(
             query=payload.query,
@@ -136,6 +163,33 @@ def search_firecrawl(
     except FirecrawlClientError as exc:
         raise _provider_unavailable() from exc
 
+    ingestion = _disabled_ingestion_summary()
+    scrape_failed_count = 0
+    if payload.auto_ingest:
+        snapshots = []
+        for item in results:
+            try:
+                snapshot = client.scrape(
+                    url=item.url,
+                    only_main_content=True,
+                    formats=["markdown", "html"],
+                    proxy=None,
+                    max_age_ms=None,
+                )
+            except FirecrawlClientError:
+                scrape_failed_count += 1
+                continue
+            if snapshot is not None:
+                snapshots.append(snapshot)
+            else:
+                scrape_failed_count += 1
+        ingestion = ingest_firecrawl_snapshots(
+            session,
+            snapshots,
+            trace_id=getattr(request.state, "trace_id", None),
+            storage=storage,
+        )
+        ingestion["scrape_failed_count"] = scrape_failed_count
     data = {
         "provider": "firecrawl",
         "query": payload.query,
@@ -144,6 +198,7 @@ def search_firecrawl(
             "include_domains": payload.include_domains,
             "country": payload.country,
             "languages": payload.languages,
+            "auto_ingest": payload.auto_ingest,
         },
         "results": [
             {"url": item.url, "title": item.title, "description": item.description}
@@ -151,11 +206,30 @@ def search_firecrawl(
         ],
         "count": len(results),
         "ephemeral": True,
+        "auto_ingest": payload.auto_ingest,
+        "ingestion": ingestion,
     }
     _assert_caller_still_active(session, caller)
     _write_external_search_audit(
-        session, caller=caller, query=payload.query, provider="firecrawl",
-        result_count=len(results), request=request,
+        session,
+        caller=caller,
+        query=payload.query,
+        provider="firecrawl",
+        result_count=len(results),
+        request=request,
+        provider_meta={
+            "auto_ingest": payload.auto_ingest,
+            "ingestion": {
+                key: ingestion[key]
+                for key in (
+                    "accepted_count",
+                    "filtered_count",
+                    "submitted_count",
+                    "duplicate_count",
+                    "scrape_failed_count",
+                )
+            }
+        },
     )
     return response(data, request)
 
@@ -167,8 +241,9 @@ def search_web_search(
     caller: models.ApiCaller = Depends(require_api_caller),
     session: Session = Depends(get_db),
     client: HttpWebSearchCustomClient = Depends(get_web_search_custom_client),
+    storage: ObjectStorage = Depends(get_external_search_storage),
 ):
-    """Retrieve provider content through Web Search without creating assets."""
+    """Retrieve, quality-check, and queue qualifying Web Search documents."""
     try:
         outcome = client.search(
             query=payload.query,
@@ -178,10 +253,22 @@ def search_web_search(
     except WebSearchCustomError as exc:
         raise _provider_unavailable() from exc
 
+    ingestion = _disabled_ingestion_summary()
+    if payload.auto_ingest:
+        ingestion = ingest_websearch_items(
+            session,
+            outcome.items,
+            trace_id=getattr(request.state, "trace_id", None),
+            storage=storage,
+        )
     data = {
         "provider": "web_search",
         "query": payload.query,
-        "request": {"count": payload.count, "time_range": payload.time_range},
+        "request": {
+            "count": payload.count,
+            "time_range": payload.time_range,
+            "auto_ingest": payload.auto_ingest,
+        },
         "results": [
             {
                 "result_id": item.result_id,
@@ -198,15 +285,31 @@ def search_web_search(
         "provider_log_id": outcome.log_id,
         "provider_time_cost_ms": outcome.time_cost_ms,
         "ephemeral": True,
+        "auto_ingest": payload.auto_ingest,
+        "ingestion": ingestion,
     }
     _assert_caller_still_active(session, caller)
     _write_external_search_audit(
-        session, caller=caller, query=payload.query, provider="web_search",
-        result_count=len(outcome.items), request=request,
+        session,
+        caller=caller,
+        query=payload.query,
+        provider="web_search",
+        result_count=len(outcome.items),
+        request=request,
         provider_meta={
+            "auto_ingest": payload.auto_ingest,
             "request_id": outcome.request_id,
             "log_id": outcome.log_id,
             "time_cost_ms": outcome.time_cost_ms,
+            "ingestion": {
+                key: ingestion[key]
+                for key in (
+                    "accepted_count",
+                    "filtered_count",
+                    "submitted_count",
+                    "duplicate_count",
+                )
+            },
         },
     )
     return response(data, request)
