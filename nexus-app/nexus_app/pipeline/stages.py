@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from sqlalchemy import func, select
 
@@ -49,6 +49,17 @@ logger = logging.getLogger(__name__)
 # stale process without logging raw content.
 WEB_DOCUMENT_ROUTE_RESOLVER_VERSION = "web-document-route-v2"
 WEBSEARCH_CUSTOM_DOCUMENT_SCHEMA_VERSION = "websearch-custom-document.v1"
+
+
+class WebDocumentNoiseError(RuntimeError):
+    """Permanent rejection for a crawler page shell with no usable document body."""
+
+    error_code = "crawler_web_shell_detected"
+    non_retryable = True
+
+    def __init__(self, evidence: dict[str, Any]) -> None:
+        super().__init__("crawler_web_shell_detected: github_blob_page_shell")
+        self.evidence = evidence
 
 
 def _add_stage(
@@ -547,6 +558,58 @@ def _build_firecrawl_parse_payload(
     }
 
 
+_GITHUB_SESSION_SHELL_MARKERS = (
+    "you signed in with another tab or window",
+    "you signed out in another tab or window",
+    "you switched accounts on another tab or window",
+)
+
+
+def _web_document_noise_evidence(
+    raw_object: models.RawObject,
+    parse_payload: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Identify GitHub file display shells before they can enter normalization.
+
+    This deliberately combines URL shape, rendered-shell markers, and document
+    structure.  GitHub documents with extracted substantive content are not
+    blocked merely for using a ``blob`` URL.
+    """
+    source = str(
+        (parse_payload.get("source") or {}).get("source_url")
+        or raw_object.source_uri
+        or ""
+    )
+    parsed_url = urlparse(source)
+    path_parts = [part for part in parsed_url.path.split("/") if part]
+    is_github_blob = (
+        parsed_url.hostname in {"github.com", "www.github.com"}
+        and len(path_parts) >= 4
+        and path_parts[2] == "blob"
+    )
+    if not is_github_blob:
+        return None
+
+    markdown = str(parse_payload.get("markdown") or parse_payload.get("content") or "")
+    markdown_lower = markdown.lower()
+    matched_markers = [
+        marker for marker in _GITHUB_SESSION_SHELL_MARKERS if marker in markdown_lower
+    ]
+    blocks = parse_payload.get("blocks")
+    block_count = len(blocks) if isinstance(blocks, list) else 0
+    if len(matched_markers) < 2 or block_count > 2:
+        return None
+
+    return {
+        "noise_code": "crawler_web_shell_detected",
+        "detector": "github_blob_shell.v1",
+        "source_host": parsed_url.hostname,
+        "source_path_kind": "github_blob",
+        "block_count": block_count,
+        "matched_markers": len(matched_markers),
+    }
+
+
 def run_assetize(
     ctx: PipelineContext,
     raw_payload: dict[str, Any] | None = None,
@@ -833,6 +896,9 @@ def run_parse(
                 raw_content,
                 route=route,
             )
+            noise_evidence = _web_document_noise_evidence(raw_object, parse_payload)
+            if noise_evidence is not None:
+                raise WebDocumentNoiseError(noise_evidence)
             parsed_content = _json_bytes(parse_payload)
             parse_mode = route
             parsed_metadata = {
@@ -887,11 +953,14 @@ def run_parse(
         _cleanup_storage_keys(ctx, stored_keys)
         parse_stage = ctx.session.get(models.JobStage, parse_stage_id)
         if parse_stage is not None:
+            failure_detail = dict(parse_route_detail)
+            if isinstance(exc, WebDocumentNoiseError):
+                failure_detail.update(exc.evidence)
             _finish_stage(
                 ctx,
                 parse_stage,
                 StageStatus.FAILED,
-                detail=parse_route_detail,
+                detail=failure_detail,
                 failure_reason=f"{type(exc).__name__}: {exc}",
             )
         raise

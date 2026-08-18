@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
+import pytest
+
 from nexus_app import models
 from nexus_app.config import Settings
 from nexus_app.enums import (
@@ -24,7 +26,9 @@ from nexus_app.ingest import batch as ingest_batch
 from nexus_app.mineru import FakeMinerUAdapter
 from nexus_app.pipeline.context import PipelineContext
 from nexus_app.pipeline.stages import (
+    WebDocumentNoiseError,
     _is_firecrawl_web_document,
+    _web_document_noise_evidence,
     run_assetize,
     run_normalize_document,
     run_parse,
@@ -189,6 +193,87 @@ def test_firecrawl_html_route_uses_connector_metadata_not_source_type(session) -
     ctx.raw_object.source_type = DataSourceType.FILE_UPLOAD
 
     assert _is_firecrawl_web_document(ctx.raw_object) is True
+
+
+def test_firecrawl_github_blob_page_shell_is_rejected_before_artifact_persistence(session) -> None:
+    ctx, version = _seed_firecrawl_web_job(session)
+    raw_key = ctx.raw_object.object_uri.split("/", 3)[-1]
+    github_shell = """<html><body>
+    <h1>words.txt</h1>
+    <p>You signed in with another tab or window. Reload to refresh your session.
+    You signed out in another tab or window. Reload to refresh your session.
+    You switched accounts on another tab or window. Reload to refresh your session.</p>
+    </body></html>"""
+    ctx.storage.put_bytes(raw_key, github_shell.encode("utf-8"), "text/html")
+    ctx.raw_object.source_uri = "https://github.com/example/project/blob/main/words.txt"
+    ctx.raw_object.metadata_summary = {
+        **ctx.raw_object.metadata_summary,
+        "source_url": ctx.raw_object.source_uri,
+        "final_url": ctx.raw_object.source_uri,
+        "canonical_url": ctx.raw_object.source_uri,
+    }
+    session.commit()
+
+    with pytest.raises(WebDocumentNoiseError) as exc_info:
+        run_parse(ctx, version)
+
+    assert exc_info.value.error_code == "crawler_web_shell_detected"
+    stage = session.query(models.JobStage).filter_by(job_id=ctx.job.id, stage_name="parse").one()
+    assert stage.status == StageStatus.FAILED
+    assert stage.detail["noise_code"] == "crawler_web_shell_detected"
+    assert stage.detail["source_path_kind"] == "github_blob"
+    assert session.query(models.ParseArtifact).filter_by(asset_version_id=version.id).count() == 0
+    assert not any(key.startswith(f"parsed/{version.id}/") for key in ctx.storage.objects)
+
+
+def test_github_blob_with_substantive_extracted_blocks_is_not_rejected(session) -> None:
+    ctx, _version = _seed_firecrawl_web_job(session)
+    ctx.raw_object.source_uri = "https://github.com/example/project/blob/main/readme.md"
+    payload = {
+        "source": {"source_url": ctx.raw_object.source_uri},
+        "markdown": (
+            "# README\n\n"
+            "You signed in with another tab or window.\n\n"
+            "项目安装说明和可验证的业务正文。\n\n"
+            "## Usage\n\n"
+            "运行命令并检查输出。"
+        ),
+        "blocks": [{}, {}, {}, {}],
+    }
+
+    assert _web_document_noise_evidence(ctx.raw_object, payload) is None
+
+
+def test_worker_marks_github_blob_page_shell_as_non_retryable_failure(session) -> None:
+    ctx, _version = _seed_firecrawl_web_job(session)
+    raw_key = ctx.raw_object.object_uri.split("/", 3)[-1]
+    github_shell = """<html><body>
+    <h1>missing.txt</h1>
+    <p>You signed in with another tab or window. You signed out in another tab or window.
+    You switched accounts on another tab or window.</p>
+    </body></html>"""
+    ctx.storage.put_bytes(raw_key, github_shell.encode("utf-8"), "text/html")
+    ctx.raw_object.source_uri = "https://github.com/example/project/blob/main/missing.txt"
+    ctx.raw_object.metadata_summary = {
+        **ctx.raw_object.metadata_summary,
+        "source_url": ctx.raw_object.source_uri,
+        "final_url": ctx.raw_object.source_uri,
+        "canonical_url": ctx.raw_object.source_uri,
+    }
+    session.commit()
+
+    with pytest.raises(WebDocumentNoiseError):
+        execute_job(ctx.job, session, ctx.storage, ctx.mineru, ctx.settings)
+
+    session.refresh(ctx.job)
+    failed_version = session.query(models.AssetVersion).filter_by(
+        raw_object_id=ctx.raw_object.id,
+        version_status=AssetVersionStatus.FAILED,
+    ).one()
+    assert ctx.job.status == JobStatus.FAILED
+    assert ctx.job.last_error_code == "crawler_web_shell_detected"
+    assert failed_version.version_status == AssetVersionStatus.FAILED
+    assert session.query(models.NormalizedAssetRef).filter_by(version_id=failed_version.id).count() == 0
 
 
 def test_websearch_json_route_bypasses_mineru_without_optional_content_kind(session) -> None:

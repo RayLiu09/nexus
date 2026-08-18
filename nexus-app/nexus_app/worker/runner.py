@@ -85,6 +85,8 @@ def _classify_error(exc: Exception) -> str:
         return "retryable"
     if isinstance(exc, NonRetryableError):
         return "non_retryable"
+    if getattr(exc, "non_retryable", False):
+        return "non_retryable"
     name = type(exc).__name__.lower()
     msg = str(exc).lower()
     if any(w in name or w in msg for w in ("timeout", "connection", "unavailable", "deadlock", "operationalerror")):
