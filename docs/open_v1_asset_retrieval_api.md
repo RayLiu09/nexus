@@ -148,6 +148,7 @@ FastAPI 参数校验失败会返回 `422`。
 | 职业能力分析 | GET | `/open/v1/record-assets/ability-analyses/{analysis_id}/ability-items` | 获取能力项列表 |
 | 职业能力分析 | GET | `/open/v1/record-assets/ability-analyses/{analysis_id}/relations` | 获取能力关系列表 |
 | 就业需求 | GET | `/open/v1/record-assets/job-demand-records` | 跨数据集查询岗位需求记录 |
+| 就业需求 | GET | `/open/v1/record-assets/job-demand-records/aggregate` | 聚合查询岗位需求统计（TOP / 学历 / 经验 / 薪资分布） |
 | 就业需求 | GET | `/open/v1/record-assets/job-demand-records/{record_id}` | 获取岗位需求记录详情 |
 | 就业需求 | GET | `/open/v1/record-assets/job-demand-records/{record_id}/requirement-items` | 获取岗位需求抽取项 |
 | 专业分布 | GET | `/open/v1/record-assets/major-distribution-records` | 查询专业分布记录 |
@@ -1556,7 +1557,108 @@ GET /open/v1/record-assets/job-demand-records
 }
 ```
 
-### 11.2 获取岗位需求记录详情
+### 11.2 聚合查询岗位需求统计
+
+```http
+GET /open/v1/record-assets/job-demand-records/aggregate
+```
+
+对跨数据集的岗位需求记录做服务端分组聚合，覆盖岗位需求 TOP、学历分布、经验分布、薪资分布等统计维度。`data` 为聚合行，`aggregations.salary_summary` 为过滤后的全量薪资概览。
+
+#### 参数
+
+| 参数 | 位置 | 类型 | 必填 | 默认值 | 约束 | 说明 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `group_by` | query | array[string] | 否 | `job_title` | 枚举见下；最多 3 个 | 分组维度，可重复传入 |
+| `metric` | query | string | 否 | `record_count` | 枚举见下 | 度量，作用于聚合行 `value` 字段 |
+| `order` | query | string | 否 | `desc` | `asc` / `desc` | 按度量列排序 |
+| `job_title` | query | string | 否 | - | `1..256` | 岗位名称，包含匹配 |
+| `company_name` | query | string | 否 | - | `1..256` | 公司名称，包含匹配 |
+| `city` | query | string | 否 | - | `1..128` | 城市，包含匹配 |
+| `education` | query | string | 否 | - | `1..128` | 学历要求，包含匹配 |
+| `industry` | query | string | 否 | - | `1..128` | 行业名称，包含匹配 |
+| `experience` | query | string | 否 | - | `1..128` | 经验要求，包含匹配 |
+| `employment_type` | query | string | 否 | - | `1..128` | 岗位类型，等值匹配 |
+| `enterprise_size` | query | string | 否 | - | `1..128` | 公司规模，等值匹配 |
+| `page` | query | integer | 否 | `1` | `1..10000` | 页码 |
+| `pageSize` | query | integer | 否 | `20` | `1..200` | 每页条数 |
+
+`group_by` 枚举：`job_title`、`company_name`、`city`、`region`、`education_requirement`、`experience_requirement`、`industry_name`、`employment_type`、`enterprise_size`、`job_function_category`、`source_platform`。
+
+`metric` 枚举：
+
+| 值 | 含义 |
+| --- | --- |
+| `record_count` | 岗位记录数（`count(id)`） |
+| `job_count` | 岗位需求量（`sum(job_count)`，NULL 忽略） |
+| `avg_salary_min` | 平均起薪（`avg(salary_min)`，NULL 忽略） |
+| `avg_salary_max` | 平均顶薪（`avg(salary_max)`，NULL 忽略） |
+
+#### 返回结构
+
+```json
+{
+  "data": [
+    {
+      "job_title": "跨境电商运营",
+      "value": 412,
+      "record_count": 128
+    },
+    {
+      "job_title": "外贸业务员",
+      "value": 260,
+      "record_count": 96
+    }
+  ],
+  "meta": {
+    "trace_id": "trace_id",
+    "page": 1,
+    "page_size": 20,
+    "total": 2
+  },
+  "aggregations": {
+    "salary_summary": {
+      "min_salary": 3.0,
+      "max_salary": 40.0,
+      "avg_salary_min": 7.8,
+      "avg_salary_max": 12.4
+    }
+  }
+}
+```
+
+返回说明：
+
+- `data` 中每个聚合行包含请求指定的 `group_by` 字段，以及固定字段 `value`（度量值）与 `record_count`（该分组的记录数，恒返回）。
+- `meta.total` 为分组总数（分页前的聚合行数）。
+- `aggregations.salary_summary` 为过滤后（忽略 `group_by`）的全量薪资统计，字段 `min_salary`、`max_salary`、`avg_salary_min`、`avg_salary_max`；无薪资数据时对应字段为 `null`。
+
+#### 请求示例
+
+```text
+# 岗位需求 TOP（按招聘人数降序取前 10）
+GET /open/v1/record-assets/job-demand-records/aggregate?group_by=job_title&metric=job_count&order=desc&pageSize=10
+
+# 学历分布
+GET /open/v1/record-assets/job-demand-records/aggregate?group_by=education_requirement
+
+# 经验分布
+GET /open/v1/record-assets/job-demand-records/aggregate?group_by=experience_requirement
+
+# 按城市平均起薪（叠加行业过滤）
+GET /open/v1/record-assets/job-demand-records/aggregate?group_by=city&metric=avg_salary_min&industry=电子商务
+```
+
+#### 错误码
+
+- `422` `unknown_group_by`：`group_by` 包含不在枚举内的维度。
+- `422` `unknown_metric`：`metric` 不在枚举内。
+- `422` `group_by_required`：`group_by` 为空。
+- `422` `duplicate_group_by`：`group_by` 含重复维度。
+- `422` `too_many_group_by`：`group_by` 维度数超过 3。
+- `422` `unknown_order`：`order` 不是 `asc`/`desc`。
+
+### 11.3 获取岗位需求记录详情
 
 ```http
 GET /open/v1/record-assets/job-demand-records/{record_id}
@@ -1591,7 +1693,7 @@ GET /open/v1/record-assets/job-demand-records/{record_id}
 }
 ```
 
-### 11.3 获取岗位需求抽取项
+### 11.4 获取岗位需求抽取项
 
 ```http
 GET /open/v1/record-assets/job-demand-records/{record_id}/requirement-items
