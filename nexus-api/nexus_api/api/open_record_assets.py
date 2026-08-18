@@ -614,6 +614,158 @@ def list_job_demand_records(
     )
 
 
+# ---------------------------------------------------------------------------
+# Job-demand aggregation — server-side grouped totals
+# ---------------------------------------------------------------------------
+
+# Group-by whitelist maps a dimension name to its SQLAlchemy column. Free-text
+# fields (job_description / responsibility_text / requirement_text /
+# job_skill_text) are deliberately excluded: they are near-unique and carry no
+# grouping signal. `job_skill_text` word frequency is a separate B5 concern.
+_JOB_DEMAND_GROUP_COLUMNS: dict[str, Any] = {
+    "job_title": models.JobDemandRecord.job_title,
+    "company_name": models.JobDemandRecord.company_name,
+    "city": models.JobDemandRecord.city,
+    "region": models.JobDemandRecord.region,
+    "education_requirement": models.JobDemandRecord.education_requirement,
+    "experience_requirement": models.JobDemandRecord.experience_requirement,
+    "industry_name": models.JobDemandRecord.industry_name,
+    "employment_type": models.JobDemandRecord.employment_type,
+    "enterprise_size": models.JobDemandRecord.enterprise_size,
+    "job_function_category": models.JobDemandRecord.job_function_category,
+    "source_platform": models.JobDemandRecord.source_platform,
+}
+
+# Metric whitelist: `record_count` counts rows; the others aggregate numeric
+# columns. `job_count`/`avg_salary_*` are coalesced/ignored-null respectively
+# so a group full of NULLs still yields a row.
+_JOB_DEMAND_METRIC_EXPRS: dict[str, Any] = {
+    "record_count": func.count(models.JobDemandRecord.id),
+    "job_count": func.coalesce(func.sum(models.JobDemandRecord.job_count), 0),
+    "avg_salary_min": func.avg(models.JobDemandRecord.salary_min),
+    "avg_salary_max": func.avg(models.JobDemandRecord.salary_max),
+}
+
+_JOB_DEMAND_MAX_GROUP_BY = 3
+
+
+def _round_metric(value: Any) -> int | float:
+    if value is None:
+        return 0
+    if isinstance(value, float):
+        return round(value, 2)
+    return int(value)
+
+
+def _salary_summary(session: Session, clauses: list) -> dict[str, Any]:
+    """Overall salary stats over the filtered set (ignores group_by)."""
+    row = session.execute(
+        select(
+            func.min(models.JobDemandRecord.salary_min),
+            func.max(models.JobDemandRecord.salary_max),
+            func.avg(models.JobDemandRecord.salary_min),
+            func.avg(models.JobDemandRecord.salary_max),
+        ).where(*clauses)
+    ).one()
+    return {
+        "min_salary": round(row[0], 2) if row[0] is not None else None,
+        "max_salary": round(row[1], 2) if row[1] is not None else None,
+        "avg_salary_min": round(row[2], 2) if row[2] is not None else None,
+        "avg_salary_max": round(row[3], 2) if row[3] is not None else None,
+    }
+
+
+@router.get("/job-demand-records/aggregate", response_model=schemas.ListResponse[dict])
+def aggregate_job_demand_records(
+    request: Request,
+    group_by: list[str] = Query(["job_title"]),
+    metric: str = Query("record_count"),
+    order: str = Query("desc"),
+    job_title: str | None = Query(None, min_length=1, max_length=256),
+    company_name: str | None = Query(None, min_length=1, max_length=256),
+    city: str | None = Query(None, min_length=1, max_length=128),
+    education: str | None = Query(None, min_length=1, max_length=128),
+    industry: str | None = Query(None, min_length=1, max_length=128),
+    experience: str | None = Query(None, min_length=1, max_length=128),
+    employment_type: str | None = Query(None, min_length=1, max_length=128),
+    enterprise_size: str | None = Query(None, min_length=1, max_length=128),
+    pagination: Pagination = Depends(pagination_params),
+    caller: models.ApiCaller = Depends(require_api_caller),
+    session: Session = Depends(get_db),
+):
+    """Server-side grouped totals over cross-dataset job-demand records.
+
+    Covers the 岗位需求 TOP / 学历分布 / 经验分布 / 薪资分布 dimensions: pick a
+    `group_by` dimension and a `metric`, ordered by that metric. Overall salary
+    stats ride in `aggregations.salary_summary`. 能力雷达 stays on
+    `graphs/job-capability`; 技能词云 defers to the B5-owned
+    `job_demand_requirement_item` table and is out of P0 scope here.
+    """
+    unknown_group = sorted(set(group_by) - set(_JOB_DEMAND_GROUP_COLUMNS))
+    if unknown_group:
+        raise HTTPException(status_code=422, detail={"error": "unknown_group_by", "unknown": unknown_group})
+    if not group_by:
+        raise HTTPException(status_code=422, detail={"error": "group_by_required"})
+    if len(group_by) != len(set(group_by)):
+        raise HTTPException(status_code=422, detail={"error": "duplicate_group_by"})
+    if len(group_by) > _JOB_DEMAND_MAX_GROUP_BY:
+        raise HTTPException(status_code=422, detail={"error": "too_many_group_by", "max": _JOB_DEMAND_MAX_GROUP_BY})
+    if metric not in _JOB_DEMAND_METRIC_EXPRS:
+        raise HTTPException(status_code=422, detail={"error": "unknown_metric", "known": sorted(_JOB_DEMAND_METRIC_EXPRS)})
+    if order not in ("asc", "desc"):
+        raise HTTPException(status_code=422, detail={"error": "unknown_order", "known": ["asc", "desc"]})
+
+    clauses = [
+        clause
+        for clause in (
+            _contains(models.JobDemandRecord.job_title, job_title),
+            _contains(models.JobDemandRecord.company_name, company_name),
+            _contains(models.JobDemandRecord.city, city),
+            _contains(models.JobDemandRecord.education_requirement, education),
+            _contains(models.JobDemandRecord.industry_name, industry),
+            _contains(models.JobDemandRecord.experience_requirement, experience),
+        )
+        if clause is not None
+    ]
+    if employment_type:
+        clauses.append(models.JobDemandRecord.employment_type == employment_type)
+    if enterprise_size:
+        clauses.append(models.JobDemandRecord.enterprise_size == enterprise_size)
+
+    columns = [_JOB_DEMAND_GROUP_COLUMNS[name] for name in group_by]
+    metric_expr = _JOB_DEMAND_METRIC_EXPRS[metric]
+    grouped = (
+        select(
+            *columns,
+            metric_expr.label("value"),
+            func.count(models.JobDemandRecord.id).label("record_count"),
+        )
+        .where(*clauses)
+        .group_by(*columns)
+    )
+    total = session.scalar(select(func.count()).select_from(grouped.subquery())) or 0
+    order_expr = metric_expr.desc() if order == "desc" else metric_expr.asc()
+    rows = session.execute(
+        grouped.order_by(order_expr, *columns)
+        .offset(pagination.offset)
+        .limit(pagination.limit)
+    ).all()
+    items = [
+        {
+            **{name: row[index] for index, name in enumerate(group_by)},
+            "value": _round_metric(row.value),
+            "record_count": int(row.record_count or 0),
+        }
+        for row in rows
+    ]
+    _audit_open_record_read(session, request=request, caller=caller, route="job_demand_aggregate", result_count=total)
+    return list_response(
+        items, request,
+        page=pagination.page, page_size=pagination.page_size, total=total,
+        aggregations={"salary_summary": _salary_summary(session, clauses)},
+    )
+
+
 def _major_distribution_filters(
     *, year: int | None, province_name: str | None, major_name: str | None,
     major_code: str | None,

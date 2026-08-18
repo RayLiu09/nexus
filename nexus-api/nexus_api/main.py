@@ -217,10 +217,13 @@ def create_app() -> FastAPI:
     # router so its public routes are matched first.
     app.include_router(internal_auth_router)
     app.include_router(internal_router)
-    app.include_router(open_router)
-    # Pipeline B record-asset read endpoints (B4 / B6) — separate file
-    # so B4 / B6 worktrees evolve them independently without conflict.
+    # Pipeline B record-asset read endpoints (B4 / B6) — separate file so B4 /
+    # B6 worktrees evolve them independently without conflict. Registered
+    # BEFORE `open_router` so literal paths like
+    # `/record-assets/job-demand-records/aggregate` are matched ahead of
+    # `open_router`'s `/record-assets/job-demand-records/{record_id}`.
     app.include_router(open_record_assets_router)
+    app.include_router(open_router)
     app.include_router(open_major_profiles_router)
     app.include_router(open_talent_training_plans_router)
     app.include_router(external_search_router)
