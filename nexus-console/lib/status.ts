@@ -23,6 +23,7 @@ export const statusDefinitions = {
   queued: { label: "排队中", tone: "info" },
   running: { label: "处理中", tone: "info" },
   succeeded: { label: "成功", tone: "success" },
+  no_results: { label: "无结果", tone: "neutral" },
   dead_lettered: { label: "死信", tone: "danger" },
   cancelled: { label: "已取消", tone: "muted" },
 
@@ -50,7 +51,7 @@ export const statusDefinitions = {
   inactive: { label: "未激活", tone: "muted" },
   open: { label: "已创建", tone: "neutral" },
   revoked: { label: "已吊销", tone: "muted" },
-  expired: { label: "已过期", tone: "muted" }
+  expired: { label: "已过期", tone: "muted" },
 } satisfies Record<string, StatusDefinition>;
 
 export type StatusValue = keyof typeof statusDefinitions;

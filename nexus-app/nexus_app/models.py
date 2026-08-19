@@ -327,7 +327,7 @@ class CrawlerRun(TimestampMixin, Base):
     __tablename__ = "crawler_run"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('running', 'succeeded', 'partial_failed', 'failed')",
+            "status IN ('running', 'succeeded', 'no_results', 'partial_failed', 'failed')",
             name="ck_crawler_run_status",
         ),
         Index("ix_crawler_run_plan", "plan_id"),

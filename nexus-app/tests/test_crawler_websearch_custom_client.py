@@ -137,3 +137,43 @@ def test_websearch_dedup_uses_stable_package_without_run_provenance(session, mon
     raw_package = json.loads(storage.get_bytes(raw_key).decode("utf-8"))
     assert "provenance" not in raw_package
     assert raw_objects[0].metadata_summary["crawler_run_id"] == first.id
+
+
+def test_websearch_successful_empty_response_is_no_results(session, monkeypatch):
+    plan = models.CrawlerPlan(
+        name="WebSearch empty response",
+        connector_type="websearch",
+        connector_version="custom",
+        mode="custom",
+        execution_mode="run_once",
+        search_policy={"query": "电子商务", "result_count": 10, "time_range_preset": "one_year"},
+        pipeline_policy={"pipeline_type": "document"},
+        status="active",
+    )
+    session.add(plan)
+    session.commit()
+
+    class EmptyClient:
+        def search(self, **_kwargs):
+            return WebSearchCustomResponse(
+                items=[],
+                request_id="request-empty",
+                log_id="log-empty",
+                time_cost_ms=10,
+            )
+
+    monkeypatch.setattr(crawler_service, "HttpWebSearchCustomClient", EmptyClient)
+    run = crawler_service._run_websearch_custom_plan(
+        session,
+        plan,
+        trace_id="trace-empty",
+        storage=InMemoryObjectStorage(),
+        settings=Settings(),
+    )
+
+    assert run.status == "no_results"
+    assert run.summary["result_count"] == 0
+    assert run.summary["accepted_count"] == 0
+    assert run.summary["filtered_count"] == 0
+    assert run.summary["submitted_count"] == 0
+    assert run.summary["failed_count"] == 0

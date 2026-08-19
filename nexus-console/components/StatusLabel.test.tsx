@@ -8,6 +8,11 @@ describe("StatusLabel", () => {
     expect(screen.getByText("当前可用")).toBeInTheDocument();
   });
 
+  it("renders normal zero-result status", () => {
+    render(<StatusLabel value="no_results" />);
+    expect(screen.getByText("无结果")).toBeInTheDocument();
+  });
+
   it("renders fallback for unknown status value", () => {
     render(<StatusLabel value="unknown_status_xyz" />);
     expect(screen.getByText("unknown_status_xyz")).toBeInTheDocument();

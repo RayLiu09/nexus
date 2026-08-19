@@ -91,6 +91,20 @@ class MissingScrapeFirecrawlClient:
         return None
 
 
+class EmptySearchFirecrawlClient:
+    def search(self, *, query, limit, include_domains, country, languages):
+        del query, limit, include_domains, country, languages
+        return []
+
+    def batch_scrape(self, *, urls, only_main_content, formats, proxy, max_concurrency, max_age_ms):
+        del urls, only_main_content, formats, proxy, max_concurrency, max_age_ms
+        raise AssertionError("a zero-result search must not start batch scraping")
+
+    def scrape(self, *, url, only_main_content, formats, proxy, max_age_ms):
+        del url, only_main_content, formats, proxy, max_age_ms
+        raise AssertionError("a zero-result search must not start scraping")
+
+
 class MixedPdfFirecrawlClient:
     def search(self, *, query, limit, include_domains, country, languages):
         del query, limit, include_domains, country, languages
@@ -609,6 +623,41 @@ def test_firecrawl_runner_with_fake_client_accepts_and_filters(session, monkeypa
     assert second.summary["duplicate_count"] == 2
     assert {item["raw_object_id"] for item in second.summary["submitted"]} == {raw.id for raw in raw_objects}
     assert len(session.query(models.RawObject).all()) == 2
+
+
+def test_firecrawl_successful_empty_search_is_no_results(session):
+    source = services.create_data_source(
+        session,
+        domain_schemas.DataSourceCreate(
+            code="crawler-firecrawl-empty-search",
+            name="Crawler Firecrawl Empty Search",
+            source_type="crawler",
+        ),
+    )
+    plan = crawler_service.create_plan(
+        session,
+        domain_schemas.CrawlerPlanCreate(
+            name="浙江省政策报告采集 empty",
+            mode="quick_start",
+            data_source_id=source.id,
+            region_code="zhejiang",
+            execution_mode="run_once",
+        ),
+        trace_id="trace-test",
+    )
+
+    run = crawler_service.run_plan(
+        session,
+        plan.id,
+        trace_id="trace-test",
+        client=EmptySearchFirecrawlClient(),
+        storage=InMemoryObjectStorage(),
+    )
+
+    assert run.status == "no_results"
+    assert run.summary["discovered_count"] == 0
+    assert run.summary["accepted_count"] == 0
+    assert run.summary["failed_count"] == 0
 
 
 def test_firecrawl_runner_wakes_workers_only_after_all_snapshots_are_appended(session, monkeypatch):

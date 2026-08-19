@@ -135,7 +135,7 @@ export type CrawlerPlan = {
 export type CrawlerRun = {
   id: string;
   plan_id: string;
-  status: "running" | "succeeded" | "partial_failed" | "failed";
+  status: "running" | "succeeded" | "no_results" | "partial_failed" | "failed";
   connector_type: string;
   connector_version: string;
   started_at: string;

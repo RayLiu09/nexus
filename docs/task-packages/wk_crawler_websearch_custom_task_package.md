@@ -74,6 +74,8 @@ Acceptance:
   create neither raw objects nor jobs and are visible through `filter_reasons`.
 - A run with filtered results is `partial_failed` when it also submitted work,
   and `failed` when no result passed admission.
+- A successful upstream response with no usable search results is `no_results`,
+  distinct from provider, admission, or ingest failures.
 - WebSearch asset titles equal the upstream `title` metadata.
 - Re-running the same upstream URL and Markdown body creates no additional
   asset version or downstream processing chain, even if the Crawler run and

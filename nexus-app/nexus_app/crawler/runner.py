@@ -155,7 +155,7 @@ def run_firecrawl_plan(
     if provider_missing:
         filter_reasons["scrape_missing"] = filter_reasons.get("scrape_missing", 0) + provider_missing
 
-    status = "succeeded"
+    status = "no_results" if not discovered_urls else "succeeded"
     if failures or provider_missing:
         status = "partial_failed" if accepted else "failed"
 
