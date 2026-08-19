@@ -62,6 +62,14 @@ class VersionStateManager:
             )
 
         self._lock_asset_row(session, version.asset_id)
+        asset = session.get(models.Asset, version.asset_id)
+        if asset is not None and asset.status in {
+            AssetVersionStatus.ARCHIVED,
+            AssetVersionStatus.DISABLED,
+        }:
+            raise StateTransitionError(
+                f"Asset {version.asset_id} is manually retired and cannot be published"
+            )
         self._archive_old_available(session, version.asset_id, exclude_version_id=version.id)
 
         version.version_status = AssetVersionStatus.AVAILABLE
@@ -99,6 +107,14 @@ class VersionStateManager:
         trace_id: str | None = None,
     ) -> models.AssetVersion:
         """Transition version to review_required."""
+        asset = session.get(models.Asset, version.asset_id)
+        if asset is not None and asset.status in {
+            AssetVersionStatus.ARCHIVED,
+            AssetVersionStatus.DISABLED,
+        }:
+            raise StateTransitionError(
+                f"Asset {version.asset_id} is manually retired and cannot be republished"
+            )
         version.version_status = AssetVersionStatus.REVIEW_REQUIRED
         self._sync_asset_status(session, version)
         session.flush()

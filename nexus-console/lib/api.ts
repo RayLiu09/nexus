@@ -258,7 +258,9 @@ export type TalentTrainingPlanGraphEdge = {
 };
 
 export type TalentTrainingPlanGraph = {
-  graph_type: "talent_training_plan_course_knowledge.v1" | "talent_training_plan_position_capability.v1";
+  graph_type:
+    | "talent_training_plan_course_knowledge.v1"
+    | "talent_training_plan_position_capability.v1";
   deterministic: true;
   normalized_ref_id: string;
   plan_id: string;
@@ -611,8 +613,14 @@ export async function patchApiData<T>(
   });
 }
 
-export async function deleteApiData<T = void>(path: string): Promise<ApiEnvelope<T>> {
-  return requestApi<T>(path, { method: "DELETE" });
+export async function deleteApiData<T = void>(
+  path: string,
+  options?: { idempotencyKey?: string },
+): Promise<ApiEnvelope<T>> {
+  return requestApi<T>(path, {
+    method: "DELETE",
+    headers: { "idempotency-key": options?.idempotencyKey ?? generateIdempotencyKey() },
+  });
 }
 
 async function requestApi<T>(path: string, init: RequestInit): Promise<ApiEnvelope<T>> {

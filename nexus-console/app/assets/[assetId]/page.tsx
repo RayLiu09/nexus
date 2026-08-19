@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { StatusLabel } from "@/components/StatusLabel";
 import { CopyableShortId } from "@/components/shared/CopyableShortId";
 import { AssetDetailTabs } from "@/components/AssetDetailTabs";
+import { AssetLifecycleActions } from "./_components/AssetLifecycleActions";
 import {
   getApiData,
   shortId,
@@ -47,8 +48,13 @@ export default async function AssetDetailPage({
 
   const asset = result.data?.asset;
   const versions = result.data?.versions ?? [];
-  const displayVersion = result.data?.current_version ?? result.data?.latest_version ?? versions[0] ?? null;
-  const displayRef = result.data?.current_normalized_ref ?? result.data?.latest_normalized_ref ?? result.data?.normalized_refs[0] ?? null;
+  const displayVersion =
+    result.data?.current_version ?? result.data?.latest_version ?? versions[0] ?? null;
+  const displayRef =
+    result.data?.current_normalized_ref ??
+    result.data?.latest_normalized_ref ??
+    result.data?.normalized_refs[0] ??
+    null;
   const relatedArtifact =
     parseArtifacts.data.find((a) => a.asset_version_id === displayVersion?.id) ??
     parseArtifacts.data.find((a) => a.raw_object_id === displayVersion?.raw_object_id);
@@ -59,8 +65,12 @@ export default async function AssetDetailPage({
     const rawIds = [...new Set(versions.map((v) => v.raw_object_id).filter(Boolean))] as string[];
 
     const [ds, ...rawResults] = await Promise.all([
-      dsId ? getApiData<DataSource>(`/internal/v1/data-sources/${dsId}`, null as unknown as DataSource) : null,
-      ...rawIds.map((id) => getApiData<RawObject>(`/internal/v1/raw-objects/${id}`, null as unknown as RawObject)),
+      dsId
+        ? getApiData<DataSource>(`/internal/v1/data-sources/${dsId}`, null as unknown as DataSource)
+        : null,
+      ...rawIds.map((id) =>
+        getApiData<RawObject>(`/internal/v1/raw-objects/${id}`, null as unknown as RawObject),
+      ),
     ]);
 
     const nameMap = new Map<string, string>();
@@ -71,7 +81,9 @@ export default async function AssetDetailPage({
     return [ds, nameMap] as const;
   })();
 
-  const dataSourceName = dataSourceResult?.ok ? dataSourceResult.data?.name ?? dataSourceResult.data?.code ?? null : null;
+  const dataSourceName = dataSourceResult?.ok
+    ? (dataSourceResult.data?.name ?? dataSourceResult.data?.code ?? null)
+    : null;
 
   // Fetch AI governance runs for the latest normalized ref
   const [governanceRuns, taskOutline, courseStandardBuilds] = await Promise.all([
@@ -113,6 +125,13 @@ export default async function AssetDetailPage({
         actions={
           <div className="flex gap-2">
             {asset && <StatusLabel value={asset.status} />}
+            {asset && (
+              <AssetLifecycleActions
+                assetId={asset.id}
+                assetTitle={asset.title}
+                assetStatus={asset.status}
+              />
+            )}
             <Link href="/assets">
               <Button type="text">← 返回目录</Button>
             </Link>
@@ -144,7 +163,9 @@ export default async function AssetDetailPage({
           <span>原始对象</span>
           {displayVersion?.raw_object_id ? (
             rawObjectNames.has(displayVersion.raw_object_id) ? (
-              <strong title={displayVersion.raw_object_id}>{rawObjectNames.get(displayVersion.raw_object_id)}</strong>
+              <strong title={displayVersion.raw_object_id}>
+                {rawObjectNames.get(displayVersion.raw_object_id)}
+              </strong>
             ) : (
               <CopyableShortId value={displayVersion.raw_object_id} className="mono-cell" />
             )
@@ -184,7 +205,9 @@ export default async function AssetDetailPage({
         dataSourceName={dataSourceName}
         tagDictionary={tagDictionary}
         teachingStandardGraphBuildType={teachingStandardGraphBuildType}
-        talentTrainingPlanId={typeof talentTrainingPlanId === "string" ? talentTrainingPlanId : null}
+        talentTrainingPlanId={
+          typeof talentTrainingPlanId === "string" ? talentTrainingPlanId : null
+        }
       />
     </>
   );

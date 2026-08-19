@@ -10,9 +10,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
-from nexus_api.dependencies import Pagination, pagination_params
+from nexus_api.dependencies import (
+    Pagination,
+    pagination_params,
+    require_idempotency_key,
+    require_user,
+)
 from nexus_api.responses import list_response, response
-from nexus_app import models, pipeline, schemas as domain_schemas, services
+from nexus_app import asset_lifecycle, models, pipeline, schemas as domain_schemas, services
 from nexus_app.audit import write_audit
 from nexus_app.config import get_settings
 from nexus_app.database import get_db
@@ -24,11 +29,22 @@ from nexus_app.enums import (
     NormalizedType,
     StageStatus,
     TagAssetIndexTargetType,
+    UserRole,
 )
 from nexus_app.index.embedding_client import create_embedding_client
 from nexus_app.retrieval.tag_resolver import BUCKET_TO_TAG_TYPE, TagAssetIndexResolver
 
 router = APIRouter()
+
+_ASSET_RETIREMENT_ROLES = {UserRole.BUSINESS_EXPERT, UserRole.PLATFORM_DATA_ADMIN}
+
+
+def _require_asset_retirement_role(user: models.UserAccount) -> None:
+    if user.role not in _ASSET_RETIREMENT_ROLES:
+        raise HTTPException(
+            status_code=403,
+            detail="business expert or platform data admin role required",
+        )
 
 _CLASSIFICATION_LABELS: dict[str, str] = {
     "industry_policy": "产业政策",
@@ -465,6 +481,56 @@ def get_asset(asset_id: str, request: Request, session: Session = Depends(get_db
         ),
     )
     return response(detail, request)
+
+
+@router.post(
+    "/assets/{asset_id}/archive",
+    response_model=schemas.ApiResponse[dict],
+    dependencies=[Depends(require_idempotency_key)],
+)
+def archive_asset(
+    asset_id: str,
+    request: Request,
+    user: models.UserAccount = Depends(require_user),
+    session: Session = Depends(get_db),
+):
+    """Manually archive an asset while retaining its data and lineage."""
+    _require_asset_retirement_role(user)
+    asset = services.get_row(session, models.Asset, asset_id, "asset")
+    result = asset_lifecycle.archive_asset(
+        session,
+        asset,
+        actor_id=user.id,
+        trace_id=str(getattr(request.state, "trace_id", "")) or None,
+    )
+    return response(result, request)
+
+
+@router.delete(
+    "/assets/{asset_id}",
+    response_model=schemas.ApiResponse[dict],
+    dependencies=[Depends(require_idempotency_key)],
+)
+def delete_asset(
+    asset_id: str,
+    request: Request,
+    user: models.UserAccount = Depends(require_user),
+    session: Session = Depends(get_db),
+):
+    """Irreversibly remove an asset and all of its derived data."""
+    _require_asset_retirement_role(user)
+    asset = services.get_row(session, models.Asset, asset_id, "asset")
+    try:
+        result = asset_lifecycle.delete_asset(
+            session,
+            asset,
+            actor_id=user.id,
+            trace_id=str(getattr(request.state, "trace_id", "")) or None,
+        )
+    except asset_lifecycle.AssetLifecycleError as exc:
+        session.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return response(result, request)
 
 
 @router.get(

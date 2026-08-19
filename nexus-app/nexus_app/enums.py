@@ -247,6 +247,8 @@ class AuditEventType(StrEnum):
     PIPELINE_FAILED                 = "PipelineFailed"
     # Asset lifecycle
     ASSET_VERSION_ARCHIVED          = "AssetVersionArchived"
+    ASSET_ARCHIVED                  = "AssetArchived"
+    ASSET_DELETED                   = "AssetDeleted"
     # Data source management
     DATA_SOURCE_CREATED             = "DataSourceCreated"
     DATA_SOURCE_STATUS_CHANGED      = "DataSourceStatusChanged"

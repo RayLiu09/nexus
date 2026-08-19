@@ -102,6 +102,8 @@ from nexus_api.api.internal.jobs import (  # noqa: F401
 from nexus_api.api.internal.assets import (  # noqa: F401
     list_assets,
     get_asset,
+    archive_asset,
+    delete_asset,
     list_asset_versions,
     restart_governance_for_version,
 )
