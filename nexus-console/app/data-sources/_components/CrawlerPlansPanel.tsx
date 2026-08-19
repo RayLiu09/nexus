@@ -171,6 +171,15 @@ function firstRunForPlan(runs: CrawlerRun[], planId: string): CrawlerRun | null 
   return runs.find((run) => run.plan_id === planId) ?? null;
 }
 
+function crawlerConnectorLabel(connectorType: string): {
+  color: "blue" | "cyan" | "default";
+  text: string;
+} {
+  if (connectorType === "firecrawl") return { color: "blue", text: "Firecrawl" };
+  if (connectorType === "websearch") return { color: "cyan", text: "WebSearch" };
+  return { color: "default", text: connectorType || "未知" };
+}
+
 function readableError(result: ApiProxyResult<unknown>): string {
   if (result.ok) return "";
   if (result.status === 404) {
@@ -588,18 +597,33 @@ export function CrawlerPlansPanel() {
                 ),
               },
               {
+                title: "类型",
+                dataIndex: "connector_type",
+                width: 112,
+                render: (connectorType: string) => {
+                  const connector = crawlerConnectorLabel(connectorType);
+                  return <Tag color={connector.color}>{connector.text}</Tag>;
+                },
+              },
+              {
                 title: "执行",
                 dataIndex: "execution_mode",
-                width: 160,
-                render: (_, plan) =>
-                  plan.execution_mode === "scheduled" ? (
-                    <Space size={4} wrap>
-                      <Tag color="blue">{plan.schedule_cron}</Tag>
-                      {plan.schedule_paused && <Tag color="orange">已暂停</Tag>}
+                width: 196,
+                render: (_, plan) => {
+                  if (plan.execution_mode !== "scheduled") return <Tag>手动执行</Tag>;
+                  const nextRun = formatTime(plan.next_run_at);
+                  return (
+                    <Space orientation="vertical" size={2}>
+                      <Space size={4} wrap>
+                        <Tag color="blue">{plan.schedule_cron}</Tag>
+                        {plan.schedule_paused && <Tag color="orange">已暂停</Tag>}
+                      </Space>
+                      <time className="text-text-muted text-xs" dateTime={nextRun.iso || undefined}>
+                        下次执行 · {nextRun.display}
+                      </time>
                     </Space>
-                  ) : (
-                    <Tag>手动执行</Tag>
-                  ),
+                  );
+                },
               },
               {
                 title: "最近运行",
