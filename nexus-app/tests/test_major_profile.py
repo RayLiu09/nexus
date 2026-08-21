@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from sqlalchemy import select
 
 from nexus_app import models
@@ -19,6 +21,11 @@ from nexus_app.major_profile.schema import blocking_reasons_from_flags, validate
 from nexus_app.major_profile.extractor import extract
 from nexus_app.major_profile.presentation import reconcile_presentation
 from nexus_app.major_profile.writer import write, write_many
+from nexus_app.major_profile.llm_fallback import (
+    _document_content,
+    extract as extract_institution_fallback,
+)
+from nexus_app.ai_governance.litellm_client import FakeLiteLLMClient
 
 
 def _blocks() -> list[dict]:
@@ -146,6 +153,244 @@ def test_extract_major_profile_sections_and_items() -> None:
         "continuation_majors",
     }
     assert profile["quality_flags"] == {}
+
+
+def test_institution_profile_llm_fallback_adopts_only_normalized_block_evidence() -> None:
+    blocks = [
+        _block("b1", "heading", "浙江商业职业技术学院电子商务专业介绍", 1),
+        _block("b2", "paragraph", "浙江商业职业技术学院位于浙江省杭州市，开设电子商务专业。", 1),
+        _block("b3", "heading", "就业方向", 2),
+        _block("b4", "paragraph", "毕业生可从事电商运营、直播运营和网络营销等岗位。", 2),
+        _block("b5", "heading", "主要课程", 2),
+        _block("b6", "paragraph", "开设电子商务基础、网店运营、直播电商等课程。", 2),
+        _block("b7", "heading", "校企合作", 3),
+        _block("b8", "paragraph", "专业与杭州数云信息技术有限公司共建直播电商实训基地。", 3),
+    ]
+    response = {
+        "schema_version": "major_profile.institution_extract.v1",
+        "institution_name": "浙江商业职业技术学院",
+        "major_name": "电子商务专业",
+        "region_tags": ["浙江省", "杭州市"],
+        "region_evidence_block_ids": ["b2"],
+        "occupation_oriented": [{"text": "电商运营、直播运营和网络营销等岗位", "source_text": "电商运营、直播运营和网络营销等岗位", "evidence_block_ids": ["b4"], "confidence": 0.9}],
+        "courses_and_training": {"foundation_courses": [{"name": "电子商务基础、网店运营、直播电商等课程", "text": "电子商务基础、网店运营、直播电商等课程", "source_text": "电子商务基础、网店运营、直播电商等课程", "evidence_block_ids": ["b6"], "confidence": 0.9}]},
+        "certificates": [],
+        "industry_partnerships": [{"text": "专业与杭州数云信息技术有限公司共建直播电商实训基地", "source_text": "专业与杭州数云信息技术有限公司共建直播电商实训基地", "partner_name": "杭州数云信息技术有限公司", "partnership_type": "industry_education", "evidence_block_ids": ["b8"], "confidence": 0.9}],
+        "confidence": 0.9,
+    }
+    result = extract_institution_fallback(
+        {"content_type": "document", "title": "电子商务专业介绍", "trusted_title_identity": True, "blocks": blocks},
+        llm_client=FakeLiteLLMClient(response_override=json.dumps(response, ensure_ascii=False)),
+        model_alias="extraction-test",
+    )
+
+    assert result.payload is not None
+    assert result.payload["profile_source"] == "institution_profile"
+    assert result.payload["institution_name"] == "浙江商业职业技术学院"
+    assert result.payload["major_code"] is None
+    assert result.payload["region_tags"] == ["浙江省", "杭州市"]
+    assert result.payload["industry_partnerships"][0]["partner_name"] == "杭州数云信息技术有限公司"
+    assert {section["section_key"] for section in result.payload["sections"]} == {
+        "occupation_oriented",
+        "courses_and_training",
+        "industry_partnerships",
+    }
+
+
+def test_institution_profile_llm_fallback_rejects_unknown_schema_field() -> None:
+    response = {
+        "schema_version": "major_profile.institution_extract.v1",
+        "institution_name": "浙江商业职业技术学院",
+        "region_tags": [],
+        "major_code": None,
+        "major_name": "电子商务专业",
+        "courses_and_training": {"foundation_courses": [], "core_courses": [], "practice_trainings": []},
+        "confidence": 0.9,
+        "hallucinated_field": "must be rejected",
+    }
+    result = extract_institution_fallback(
+        {"content_type": "document", "title": "电子商务专业介绍", "blocks": [_block("b1", "paragraph", "浙江商业职业技术学院电子商务专业", 1)]},
+        llm_client=FakeLiteLLMClient(response_override=json.dumps(response, ensure_ascii=False)),
+        model_alias="extraction-test",
+    )
+
+    assert result.payload is None
+    assert result.metadata["reason"] == "llm_schema_invalid"
+
+
+def test_institution_profile_repairs_only_exact_block_evidence() -> None:
+    blocks = [
+        _block("b1", "paragraph", "浙江商业职业技术学院开设电子商务专业。", 1),
+        _block("b2", "paragraph", "毕业生可从事电商运营岗位。", 2),
+        _block("b3", "paragraph", "开设网店运营课程。", 3),
+    ]
+    response = {
+        "schema_version": "major_profile.institution_extract.v1",
+        "institution_name": "浙江商业职业技术学院",
+        "region_tags": [],
+        "region_evidence_block_ids": [],
+        "major_code": None,
+        "major_name": "电子商务专业",
+        "education_level": None,
+        "occupation_oriented": [{"text": "电商运营岗位", "source_text": "电商运营岗位", "evidence_block_ids": ["b1", "b2"], "confidence": 0.9}],
+        "courses_and_training": {"foundation_courses": [{"name": "网店运营", "text": "网店运营", "source_text": "网店运营", "evidence_block_ids": ["b2"], "confidence": 0.9}]},
+        "certificates": [{"text": "不存在的证书", "source_text": "不存在的证书", "evidence_block_ids": ["b3"], "confidence": 0.9}],
+        "industry_partnerships": [],
+        "confidence": 0.9,
+    }
+
+    result = extract_institution_fallback(
+        {"content_type": "document", "title": "电子商务专业介绍", "blocks": blocks},
+        llm_client=FakeLiteLLMClient(response_override=json.dumps(response, ensure_ascii=False)),
+        model_alias="extraction-test",
+    )
+
+    assert result.payload is not None
+    assert result.payload["occupation_oriented"][0]["evidence_block_ids"] == ["b2"]
+    assert result.payload["courses_and_training"]["foundation_courses"][0]["evidence_block_ids"] == ["b3"]
+    assert result.payload["certificates"] == []
+    assert result.metadata["evidence_validation"] == {
+        "verified_items": 2,
+        "discarded_items": 1,
+        "rebound_items": 2,
+    }
+
+
+def test_institution_profile_expands_delimited_courses_into_aggregation_rows() -> None:
+    blocks = [
+        _block("b1", "paragraph", "浙江商业职业技术学院开设电子商务专业。", 1),
+        _block("b2", "paragraph", "开设电子商务基础、网店运营、直播电商等课程。", 2),
+    ]
+    response = {
+        "schema_version": "major_profile.institution_extract.v1",
+        "institution_name": "浙江商业职业技术学院", "region_tags": [], "region_evidence_block_ids": [],
+        "major_code": None, "major_name": "电子商务专业", "education_level": None,
+        "occupation_oriented": [],
+        "courses_and_training": {"foundation_courses": [{"name": "电子商务基础、网店运营、直播电商等课程", "text": "电子商务基础、网店运营、直播电商等课程", "source_text": "开设电子商务基础、网店运营、直播电商等课程", "evidence_block_ids": ["b2"], "confidence": 0.9}]},
+        "certificates": [], "industry_partnerships": [], "confidence": 0.9,
+    }
+    result = extract_institution_fallback(
+        {"content_type": "document", "title": "电子商务专业介绍", "blocks": blocks},
+        llm_client=FakeLiteLLMClient(response_override=json.dumps(response, ensure_ascii=False)),
+        model_alias="extraction-test",
+    )
+
+    assert result.payload is not None
+    courses = result.payload["courses_and_training"]["foundation_courses"]
+    assert [course["name"] for course in courses] == ["电子商务基础", "网店运营", "直播电商"]
+    assert all(course["source_text"] == "开设电子商务基础、网店运营、直播电商等课程" for course in courses)
+
+
+def test_institution_profile_rejects_when_no_professional_fact_is_verbatim() -> None:
+    response = {
+        "schema_version": "major_profile.institution_extract.v1",
+        "institution_name": "浙江商业职业技术学院",
+        "region_tags": [],
+        "region_evidence_block_ids": [],
+        "major_code": None,
+        "major_name": "电子商务专业",
+        "education_level": None,
+        "occupation_oriented": [{"text": "电商运营", "source_text": "模型概括的职业方向", "evidence_block_ids": ["b2"], "confidence": 0.9}],
+        "courses_and_training": {"foundation_courses": [], "core_courses": [], "practice_trainings": []},
+        "certificates": [],
+        "industry_partnerships": [],
+        "confidence": 0.9,
+    }
+    result = extract_institution_fallback(
+        {"content_type": "document", "title": "电子商务专业介绍", "blocks": [
+            _block("b1", "paragraph", "浙江商业职业技术学院开设电子商务专业。", 1),
+            _block("b2", "paragraph", "毕业生可从事电商运营岗位。", 2),
+        ]},
+        llm_client=FakeLiteLLMClient(response_override=json.dumps(response, ensure_ascii=False)),
+        model_alias="extraction-test",
+    )
+
+    assert result.payload is None
+    assert result.metadata["reason"] == "llm_evidence_or_confidence_invalid"
+
+
+def test_institution_profile_recovers_source_spelling_for_layout_only_differences() -> None:
+    blocks = [
+        _block("b1", "paragraph", "浙江商业职业技术学院开设电子商务专业。", 1),
+        _block("b2", "paragraph", "毕业生可从事电商运营、直播运营岗位。", 2),
+    ]
+    response = {
+        "schema_version": "major_profile.institution_extract.v1",
+        "institution_name": "浙江商业职业技术学院",
+        "region_tags": [], "region_evidence_block_ids": [], "major_code": None,
+        "major_name": "电子商务专业", "education_level": None,
+        "occupation_oriented": [{"text": "电商运营、直播运营岗位", "source_text": "电商运营, 直播运营岗位", "evidence_block_ids": ["b2"], "confidence": 0.9}],
+        "courses_and_training": {"foundation_courses": [], "core_courses": [], "practice_trainings": []},
+        "certificates": [], "industry_partnerships": [], "confidence": 0.9,
+    }
+    result = extract_institution_fallback(
+        {"content_type": "document", "title": "电子商务专业介绍", "blocks": blocks},
+        llm_client=FakeLiteLLMClient(response_override=json.dumps(response, ensure_ascii=False)),
+        model_alias="extraction-test",
+    )
+
+    assert result.payload is not None
+    assert result.payload["occupation_oriented"][0]["source_text"] == "电商运营、直播运营岗位"
+
+
+def test_institution_profile_accepts_institution_identity_from_normalized_title() -> None:
+    blocks = [
+        _block("b1", "heading", "跨境电子商务", 1),
+        _block("b2", "paragraph", "开设跨境电子商务基础、跨境电商运营管理课程。", 2),
+        _block("b3", "paragraph", "可从事跨境电商运营、海外推广等岗位。", 3),
+    ]
+    response = {
+        "schema_version": "major_profile.institution_extract.v1",
+        "institution_name": "浙江工贸职业技术学院", "region_tags": [], "region_evidence_block_ids": [],
+        "major_code": None, "major_name": "跨境电子商务", "education_level": None,
+        "occupation_oriented": [{"text": "跨境电商运营、海外推广等岗位", "source_text": "可从事跨境电商运营、海外推广等岗位。", "evidence_block_ids": ["b3"], "confidence": 0.9}],
+        "courses_and_training": {"foundation_courses": [{"name": "跨境电子商务基础", "text": "跨境电子商务基础", "source_text": "开设跨境电子商务基础、跨境电商运营管理课程。", "evidence_block_ids": ["b2"], "confidence": 0.9}]},
+        "certificates": [], "industry_partnerships": [], "confidence": 0.9,
+    }
+    result = extract_institution_fallback(
+        {"content_type": "document", "title": "浙江工贸职业技术学院 跨境电子商务专业简介.docx", "trusted_title_identity": True, "blocks": blocks},
+        llm_client=FakeLiteLLMClient(response_override=json.dumps(response, ensure_ascii=False)),
+        model_alias="extraction-test",
+    )
+
+    assert result.payload is not None
+    assert result.metadata["evidence_validation"]["identity_from_normalized_title"] == 1
+
+
+def test_institution_profile_accepts_major_identity_from_normalized_title() -> None:
+    blocks = [
+        _block("b1", "paragraph", "浙江工贸职业技术学院开设跨境电商基础课程。", 1),
+        _block("b2", "paragraph", "毕业生可从事跨境电商运营岗位。", 2),
+    ]
+    response = {
+        "schema_version": "major_profile.institution_extract.v1",
+        "institution_name": "浙江工贸职业技术学院", "region_tags": [], "region_evidence_block_ids": [],
+        "major_code": None, "major_name": "跨境电子商务专业", "education_level": None,
+        "occupation_oriented": [{"text": "跨境电商运营岗位", "source_text": "跨境电商运营岗位", "evidence_block_ids": ["b2"], "confidence": 0.9}],
+        "courses_and_training": {"foundation_courses": [], "core_courses": [], "practice_trainings": []},
+        "certificates": [], "industry_partnerships": [], "confidence": 0.9,
+    }
+    result = extract_institution_fallback(
+        {"content_type": "document", "title": "浙江工贸职业技术学院 跨境电子商务专业简介.docx", "trusted_title_identity": True, "blocks": blocks},
+        llm_client=FakeLiteLLMClient(response_override=json.dumps(response, ensure_ascii=False)),
+        model_alias="extraction-test",
+    )
+
+    assert result.payload is not None
+    assert result.metadata["evidence_validation"]["major_identity_from_normalized_title"] == 1
+
+
+def test_institution_llm_input_contains_every_normalized_block_once() -> None:
+    blocks = [
+        {"block_id": f"b-{index}", "block_type": "paragraph", "text": f"完整正文第 {index} 段"}
+        for index in range(1, 121)
+    ]
+
+    content = _document_content(blocks)
+
+    assert "[b-1] (paragraph)\n完整正文第 1 段" in content
+    assert "[b-120] (paragraph)\n完整正文第 120 段" in content
+    assert content.count("[b-") == 120
 
 
 def test_report_with_cip_number_and_professional_terms_is_not_major_profile() -> None:

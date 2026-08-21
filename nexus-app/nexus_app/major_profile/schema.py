@@ -11,8 +11,8 @@ DOMAIN_PROFILE = "major_profile.v1"
 
 BLOCKING_FLAGS = frozenset({
     "invalid_schema",
-    "invalid_major_code",
     "missing_major_name",
+    "missing_identity",
     "missing_occupation_oriented",
     "missing_training_goal",
     "missing_ability_requirements",
@@ -72,8 +72,11 @@ class MajorProfilePayload(BaseModel):
     domain_profile: Literal["major_profile.v1"] = "major_profile.v1"
     extractor_version: str | None = None
     confidence: float | None = Field(default=None, ge=0, le=1)
-    major_code: str
+    major_code: str | None = None
     major_name: str
+    profile_source: Literal["national_standard", "institution_profile"] = "national_standard"
+    institution_name: str | None = None
+    region_tags: list[str] = Field(default_factory=list)
     education_level: str | None = None
     basic_study_duration: str | None = None
     training_goal: MajorProfileTrainingGoal | None = None
@@ -84,11 +87,14 @@ class MajorProfilePayload(BaseModel):
     )
     certificates: list[MajorProfileEvidenceItem] = Field(default_factory=list)
     continuation_majors: list[MajorProfileEvidenceItem] = Field(default_factory=list)
+    industry_partnerships: list[MajorProfileEvidenceItem] = Field(default_factory=list)
     quality_flags: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("major_code")
     @classmethod
-    def _valid_major_code(cls, value: str) -> str:
+    def _valid_major_code(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         value = value.strip()
         if not re.fullmatch(r"\d{4,6}", value):
             raise ValueError("major_code must be 4 to 6 digits")
@@ -146,6 +152,13 @@ def validate_profile_payload(profile: dict[str, Any]) -> tuple[dict[str, Any], d
         flags["missing_certificates"] = True
     if not validated.get("continuation_majors"):
         flags["missing_continuation_majors"] = True
+    if validated["profile_source"] == "national_standard" and not validated.get("major_code"):
+        flags["missing_identity"] = True
+    if validated["profile_source"] == "institution_profile":
+        if not validated.get("institution_name"):
+            flags["missing_identity"] = True
+        if not any((validated.get("occupation_oriented"), foundation, core, practice, validated.get("industry_partnerships"))):
+            flags["missing_profile_content"] = True
 
     validated["quality_flags"] = flags
     return validated, flags

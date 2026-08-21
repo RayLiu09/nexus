@@ -43,6 +43,7 @@ def _profile_detail_options():
         selectinload(models.MajorProfile.courses),
         selectinload(models.MajorProfile.certificates),
         selectinload(models.MajorProfile.continuations),
+        selectinload(models.MajorProfile.industry_partnerships),
     )
 
 
@@ -158,6 +159,9 @@ def _serialize_profile_summary(profile: models.MajorProfile) -> dict:
         "domain_profile": profile.domain_profile,
         "major_code": profile.major_code,
         "major_name": profile.major_name,
+        "profile_source": profile.profile_source,
+        "institution_name": profile.institution_name,
+        "region_tags": profile.region_tags or [],
         "education_level": profile.education_level,
         "basic_study_duration": profile.basic_study_duration,
         "training_goal": profile.training_goal,
@@ -178,6 +182,7 @@ def _serialize_profile_detail(profile: models.MajorProfile) -> dict:
     courses = sorted(profile.courses, key=lambda item: (item.course_group, item.item_index))
     certificates = sorted(profile.certificates, key=lambda item: item.item_index)
     continuations = sorted(profile.continuations, key=lambda item: item.item_index)
+    industry_partnerships = sorted(profile.industry_partnerships, key=lambda item: item.item_index)
     data.update({
         "evidence": profile.evidence or {},
         "occupations": [_serialize_occupation(item) for item in occupations],
@@ -185,12 +190,17 @@ def _serialize_profile_detail(profile: models.MajorProfile) -> dict:
         "courses": [_serialize_course(item) for item in courses],
         "certificates": [_serialize_certificate(item) for item in certificates],
         "continuations": [_serialize_item(item) for item in continuations],
+        "industry_partnerships": [
+            {**_serialize_item(item), "partner_name": item.partner_name, "partnership_type": item.partnership_type}
+            for item in industry_partnerships
+        ],
         "counts": {
             "occupation_count": len(occupations),
             "ability_count": len(abilities),
             "course_count": len(courses),
             "certificate_count": len(certificates),
             "continuation_count": len(continuations),
+            "industry_partnership_count": len(industry_partnerships),
         },
     })
     return data

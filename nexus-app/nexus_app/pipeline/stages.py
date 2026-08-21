@@ -1307,13 +1307,27 @@ def _build_normalized_document(
     major_profile_payload: dict[str, Any] | None = None
     try:
         from nexus_app.major_profile.extractor import extract as _extract_major_profile
+        from nexus_app.major_profile.extractor import looks_like_institution_profile as _looks_like_institution_profile
         from nexus_app.major_profile.schema import validate_payload as _validate_major_profile_payload
-        major_profile_payload = _extract_major_profile({
+        major_profile_input = {
             "content_type": "document",
             "title": title_from(raw_object, parse_payload),
             "blocks": blocks,
             "body_markdown": body_markdown,
-        })
+        }
+        major_profile_payload = _extract_major_profile(major_profile_input)
+        # Institution web pages normally omit the national code/template.  The
+        # fallback is limited to normalized blocks and adopts only exact,
+        # evidence-bound output; crawler/WebSearch use this same Pipeline A path.
+        if major_profile_payload is None and _looks_like_institution_profile(major_profile_input):
+            from nexus_app.major_profile.llm_fallback import extract as _extract_institution_profile
+            fallback = _extract_institution_profile(
+                major_profile_input,
+                llm_client=ctx.teaching_standard_llm_client,
+                model_alias=ctx.settings.litellm_extraction_model_alias,
+            )
+            major_profile_payload = fallback.payload
+            metadata["major_profile_extraction"] = fallback.metadata
         if major_profile_payload is not None:
             major_profile_payload = _validate_major_profile_payload(major_profile_payload)
     except Exception:
@@ -1360,6 +1374,9 @@ def _build_normalized_document(
                 "confidence": profile.get("confidence"),
                 "major_code": profile.get("major_code"),
                 "major_name": profile.get("major_name"),
+                "profile_source": profile.get("profile_source", "national_standard"),
+                "institution_name": profile.get("institution_name"),
+                "region_tags": profile.get("region_tags") or [],
                 "education_level": profile.get("education_level"),
                 "evidence_block_ids": (
                     profile.get("evidence", {}).get("source_block_ids")

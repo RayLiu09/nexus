@@ -67,7 +67,7 @@ def _write_one(
 ) -> models.MajorProfile | None:
     major_code = _string_or_none(profile_payload.get("major_code"))
     major_name = _string_or_none(profile_payload.get("major_name"))
-    if major_code is None or major_name is None:
+    if major_name is None:
         return None
 
     training_goal_payload = profile_payload.get("training_goal")
@@ -83,6 +83,9 @@ def _write_one(
         domain_profile=DOMAIN_PROFILE,
         major_code=major_code,
         major_name=major_name,
+        profile_source=_string_or_none(profile_payload.get("profile_source")) or "national_standard",
+        institution_name=_string_or_none(profile_payload.get("institution_name")),
+        region_tags=_list_of_strings(profile_payload.get("region_tags")),
         education_level=_string_or_none(profile_payload.get("education_level")),
         basic_study_duration=_string_or_none(profile_payload.get("basic_study_duration")),
         training_goal=training_goal,
@@ -104,6 +107,7 @@ def _write_one(
     _write_courses(session, profile, normalized_ref, profile_payload.get("courses_and_training"))
     _write_certificates(session, profile, normalized_ref, profile_payload.get("certificates"))
     _write_continuations(session, profile, normalized_ref, profile_payload.get("continuation_majors"))
+    _write_industry_partnerships(session, profile, normalized_ref, profile_payload.get("industry_partnerships"))
     return profile
 
 
@@ -181,7 +185,9 @@ def _write_courses(
         ("practice_training", courses.get("practice_trainings") or courses.get("practice_training")),
     ):
         for idx, item in enumerate(_item_dicts(values), start=1):
-            text = _item_text(item)
+            # Course rows are atomic aggregation facts.  The LLM fallback
+            # preserves the fuller source sentence separately in source_text.
+            text = _string_or_none(item.get("name")) or _item_text(item)
             if not text:
                 continue
             session.add(models.MajorProfileCourse(
@@ -241,6 +247,30 @@ def _write_continuations(
             evidence_block_ids=_list_of_strings(item.get("evidence_block_ids")),
             locator=_dict_or_empty(item.get("locator")),
             confidence=_float_or_none(item.get("confidence")),
+        ))
+
+
+def _write_industry_partnerships(
+    session: "Session",
+    profile: models.MajorProfile,
+    normalized_ref: models.NormalizedAssetRef,
+    items: Any,
+) -> None:
+    for idx, item in enumerate(_item_dicts(items), start=1):
+        text = _item_text(item)
+        if not text:
+            continue
+        session.add(models.MajorProfileIndustryPartnership(
+            profile_id=profile.id,
+            normalized_ref_id=normalized_ref.id,
+            item_index=_item_index(item, idx),
+            text=text,
+            source_text=_string_or_none(item.get("source_text")) or text,
+            evidence_block_ids=_list_of_strings(item.get("evidence_block_ids")),
+            locator=_dict_or_empty(item.get("locator")),
+            confidence=_float_or_none(item.get("confidence")),
+            partner_name=_string_or_none(item.get("partner_name")),
+            partnership_type=_string_or_none(item.get("partnership_type")) or "industry_education",
         ))
 
 

@@ -11,6 +11,8 @@ from nexus_app.major_profile.schema import validate_payload, validate_profile_pa
 DOMAIN_PROFILE = "major_profile.v1"
 EXTRACTOR_VERSION = "major_profile_extractor.v1"
 
+INSTITUTION_SIGNALS = ("学校", "学院", "大学", "职业技术", "专业介绍", "招生专业")
+
 
 SECTION_DEFS: dict[str, dict[str, Any]] = {
     "occupation_oriented": {
@@ -109,6 +111,31 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
 
     profile = _profile_from_segment(title, None, None, blocks)
     return profile if profile is not None and _is_publishable_profile(profile) else None
+
+
+def looks_like_institution_profile(payload: dict[str, Any]) -> bool:
+    """Conservative candidate gate for the LLM fallback, using only normalized text."""
+    if payload.get("content_type") != "document":
+        return False
+    blocks = payload.get("blocks")
+    if not isinstance(blocks, list):
+        return False
+    text = "\n".join(_block_text(block) for block in blocks)
+    title = str(payload.get("title") or "")
+    haystack = f"{title}\n{text}"
+    identity_hits = sum(signal in haystack for signal in INSTITUTION_SIGNALS)
+    # School introductions use promotional/admissions headings instead of the
+    # national-template labels. Keep these as a candidate gate only; field
+    # adoption remains subject to the strict LLM evidence contract.
+    field_hits = sum(marker in haystack for marker in (
+        "专业名称", "就业方向", "职业面向", "主要课程", "核心课程", "校企合作", "产教融合",
+        "专业解读", "主干课程", "教学条件", "职业定位", "就业服务", "实训基地", "创新班",
+    ))
+    # A school profile is eligible with one explicit professional fact. Its
+    # remaining fields are still gated by closed-schema LLM output and exact
+    # normalized-document evidence, so requiring two title aliases here only
+    # creates false negatives for narrative pages.
+    return identity_hits >= 1 and field_hits >= 1
 
 
 def _profile_from_segment(

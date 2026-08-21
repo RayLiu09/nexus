@@ -1728,8 +1728,13 @@ class MajorProfile(TimestampMixin, Base):
         String(36), ForeignKey("asset_version.id"), nullable=False
     )
     domain_profile: Mapped[str] = mapped_column(Text, nullable=False)
-    major_code: Mapped[str] = mapped_column(Text, nullable=False)
+    # Institution/official-site introductions often do not publish the national
+    # major code. Identity is therefore code-or-institution+major-name.
+    major_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     major_name: Mapped[str] = mapped_column(Text, nullable=False)
+    profile_source: Mapped[str] = mapped_column(Text, nullable=False, default="national_standard")
+    institution_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    region_tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     education_level: Mapped[str | None] = mapped_column(Text, nullable=True)
     basic_study_duration: Mapped[str | None] = mapped_column(Text, nullable=True)
     training_goal: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -1754,6 +1759,9 @@ class MajorProfile(TimestampMixin, Base):
         back_populates="profile", cascade="all, delete-orphan", passive_deletes=True
     )
     continuations: Mapped[list["MajorProfileContinuation"]] = relationship(
+        back_populates="profile", cascade="all, delete-orphan", passive_deletes=True
+    )
+    industry_partnerships: Mapped[list["MajorProfileIndustryPartnership"]] = relationship(
         back_populates="profile", cascade="all, delete-orphan", passive_deletes=True
     )
 
@@ -1862,6 +1870,23 @@ class MajorProfileContinuation(TimestampMixin, MajorProfileItemMixin, Base):
     )
 
     profile: Mapped[MajorProfile] = relationship(back_populates="continuations")
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+
+
+class MajorProfileIndustryPartnership(TimestampMixin, MajorProfileItemMixin, Base):
+    """Evidence-bound school-enterprise / industry-education cooperation fact."""
+
+    __tablename__ = "major_profile_industry_partnership"
+    __table_args__ = (
+        Index("ix_mpip_profile_id", "profile_id"),
+        Index("ix_mpip_normalized_ref_id", "normalized_ref_id"),
+        Index("ix_mpip_partner_name", "partner_name"),
+    )
+
+    partner_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    partnership_type: Mapped[str] = mapped_column(Text, nullable=False, default="industry_education")
+
+    profile: Mapped[MajorProfile] = relationship(back_populates="industry_partnerships")
     normalized_ref: Mapped[NormalizedAssetRef] = relationship()
 
 

@@ -136,6 +136,15 @@ training goal/specification, evidenced position-capability narratives,
 plan-owned course objective/content, and unmodelled supplementary sections,
 all linked back to normalized-document block locators.
 
+`major_profile.v1` supports both national standard introductions and
+institution/official-site introductions. National profiles retain the
+code-centric standard shape; institution profiles can have no national code
+but must retain institution name, regional tags, major name, and evidence-bound
+occupation/course/certificate/cooperation facts. Institution-format extraction
+uses the configured LiteLLM only as a strict normalized-document fallback:
+closed JSON schema validation, verbatim block evidence validation, confidence
+thresholds, and governance admission apply before domain rows are written.
+
 **Pipeline B — Record Processing:**
 
 Stages: ingest → `ingest_validate` → `assetize` → structured parse/profile detect when the source is tabular → **normalize** (`normalized_record`) → govern → index. **No MinerU, no `parse_artifact`.**

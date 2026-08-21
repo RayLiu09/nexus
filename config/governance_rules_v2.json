@@ -1180,7 +1180,7 @@
       ],
       "decomposition_note": "相对固定的文档结构",
       "structure_description": "专业代码，专业名称，进修年限，职业面向，培养目标，专业能力要求，专业课程与实训实习，职业证书类型，持续教育专业方向",
-      "primary_knowledge_type": "talent_training_dataset",
+      "primary_knowledge_type": "major_profile_knowledge",
       "default_level": "L1",
       "co_emission_rules": []
     },
@@ -1452,8 +1452,7 @@
       "name": "人才培养方案数据集",
       "description": "人才培养方案、课程体系、毕业要求等结构化教育数据",
       "applicable_classifications": [
-        "talent_training_plan",
-        "major_profile"
+        "talent_training_plan"
       ],
       "default_level": "L2",
       "source_kind": "extracted_from_normalized",
@@ -1505,7 +1504,7 @@
     {
       "code": "major_profile_knowledge",
       "name": "专业介绍知识",
-      "description": "专业介绍/简介文档按职业面向、培养目标定位、主要专业能力要求、课程与实训、证书、接续专业等章节形成的语义块",
+      "description": "专业介绍/简介文档的来源绑定语义块。国家标准简介按职业面向、培养目标、能力、课程实训、证书、接续专业等章节组织；院校/官网简介按院校名称、区域、专业名称、职业定位/就业方向、主干课程/实践、证书、校企合作/产教融合等事实组织。",
       "applicable_classifications": [
         "major_profile"
       ],
@@ -1514,9 +1513,10 @@
       "chunking_mode": "nexus_extract",
       "rag_pipeline": "pipeline_1",
       "source_criteria": [
-        "包含专业代码、专业名称、基本修业年限",
-        "包含职业面向、培养目标定位、主要专业能力要求",
-        "包含主要专业课程与实习实训、证书、接续专业等章节"
+        "国家标准格式：包含专业代码、专业名称、基本修业年限，并包含职业面向/培养目标/能力/课程实训等核心章节；证书、接续专业为可选补充",
+        "院校/官网格式：包含院校名称、专业名称和区域标签或明确院校所在地；国家专业代码、修业年限、接续专业均可缺失",
+        "院校/官网格式至少有一类可追溯专业事实：职业定位/就业方向、主干课程/课程体系/实践实训、职业证书、合作企业/校企合作/产教融合/实训基地",
+        "所有语义块必须从 normalized_document 提取，并保留 block 级来源定位；不得依据常识补全学校、企业、课程或岗位"
       ],
       "chunking_strategy": "major_profile_decompose",
       "chunking_config": {
@@ -1526,7 +1526,8 @@
           "ability_requirements",
           "courses_and_training",
           "certificates",
-          "continuation_majors"
+          "continuation_majors",
+          "industry_partnerships"
         ]
       },
       "chunk_type": "semantic_block",

@@ -46,6 +46,8 @@ class MajorProfileDecomposeStrategy:
             major_code = one_profile.get("major_code")
             major_name = one_profile.get("major_name")
             education_level = one_profile.get("education_level")
+            institution_name = one_profile.get("institution_name")
+            region_tags = one_profile.get("region_tags") or []
             for section in sections:
                 if not isinstance(section, dict):
                     continue
@@ -75,6 +77,8 @@ class MajorProfileDecomposeStrategy:
                         "section_title": title,
                         "major_code": major_code,
                         "major_name": major_name,
+                        "institution_name": institution_name,
+                        "region_tags": region_tags,
                         "education_level": education_level,
                         "contains_structured_items": key in {
                             "occupation_oriented",
@@ -82,6 +86,7 @@ class MajorProfileDecomposeStrategy:
                             "courses_and_training",
                             "certificates",
                             "continuation_majors",
+                            "industry_partnerships",
                         },
                         "content_for_embedding": _embedding_text(
                             major_code, major_name, education_level, title, section_text
