@@ -39,7 +39,13 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
     if "人才培养方案" not in f"{title}\n{text}": return None
     major_name, major_code = _identity(text, title)
     if not major_name: return None
-    tables = [(block, _table_rows(block)) for block in blocks if _table_rows(block)]
+    tables = [
+        (block, rows)
+        for block in blocks
+        if isinstance(block, dict)
+        for rows in _table_row_groups(block)
+        if rows
+    ]
     career = _career_orientation(tables)
     courses = _courses(tables)
     _link_courses_to_position_skills(courses, career["positions"])
@@ -76,16 +82,71 @@ def _table_rows(block: dict[str, Any]) -> list[list[str]]:
     parser = _TableParser(); parser.feed(html); return parser.rows
 
 
+def _table_row_groups(block: dict[str, Any]) -> list[list[list[str]]]:
+    """Return source tables from HTML or standard Markdown table text.
+
+    Normalized DOCX documents may retain table structure as GitHub-flavoured
+    Markdown in a text block instead of ``table_html``.  Treat only rows with
+    a Markdown separator as tables, so prose containing pipe characters never
+    becomes a domain fact.
+    """
+    html_rows = _table_rows(block)
+    if html_rows:
+        return [html_rows]
+
+    lines = str(block.get("text") or block.get("content") or "").splitlines()
+    groups: list[list[list[str]]] = []
+    index = 0
+    while index + 1 < len(lines):
+        header = _markdown_cells(lines[index])
+        separator = _markdown_cells(lines[index + 1])
+        if not header or len(header) < 2 or len(header) != len(separator) or not _markdown_separator(separator):
+            index += 1
+            continue
+        rows = [header]
+        index += 2
+        while index < len(lines):
+            row = _markdown_cells(lines[index])
+            if not row or len(row) != len(header):
+                break
+            rows.append(row)
+            index += 1
+        if len(rows) > 1:
+            groups.append(rows)
+    return groups
+
+
+def _markdown_cells(line: str) -> list[str]:
+    value = line.strip()
+    if "|" not in value:
+        return []
+    if value.startswith("|"):
+        value = value[1:]
+    if value.endswith("|"):
+        value = value[:-1]
+    return [re.sub(r"<br\s*/?>", "\n", cell, flags=re.IGNORECASE).strip() for cell in value.split("|")]
+
+
+def _markdown_separator(cells: list[str]) -> bool:
+    return bool(cells) and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells)
+
+
 def _identity(text: str, title: str) -> tuple[str | None, str | None]:
     code = re.search(r"专业代码\s*[:：]\s*(\d{4,6})", text)
     name = re.search(r"专业名称\s*[:：]\s*([\u4e00-\u9fa5A-Za-z0-9（）()·\-]+)", text)
+    if not code:
+        code = re.search(r"\|\s*专业代码\s*\|\s*(\d{4,6})\s*\|", text)
+    if not name:
+        name = re.search(r"\|\s*专业名称\s*\|\s*([^|\n]+?)\s*\|", text)
     if name: return name.group(1).strip(), code.group(1) if code else None
-    cleaned = re.sub(r"[（(].*?[）)]", "", title).replace("人才培养方案", "").replace(".pdf", "").strip()
+    cleaned = re.sub(r"[（(].*?[）)]", "", title)
+    cleaned = re.sub(r"\.(?:pdf|docx?)$", "", cleaned, flags=re.IGNORECASE)
+    cleaned = cleaned.replace("人才培养方案", "").strip()
     return (cleaned or None, code.group(1) if code else None)
 
 
 def _institution(title: str, text: str) -> str | None:
-    match = re.search(r"([\u4e00-\u9fa5]{2,30}(?:职业技术学院|职业学院|学院|学校))", title + "\n" + text[:1200])
+    match = re.search(r"([\u4e00-\u9fa5]{2,30}(?:职业技术大学|职业技术学院|职业学院|学院|学校))", title + "\n" + text[:1200])
     return match.group(1) if match else None
 
 
@@ -124,18 +185,59 @@ def _career_orientation(tables: list[tuple[dict[str, Any], list[list[str]]]]) ->
             result["positions"].extend(mapping)
             continue
         indices = {kind: next((i for i, h in enumerate(headers) if marker in h), None) for kind, marker in (("industries", "行业"), ("occupations", "职业"), ("positions", "岗位"))}
-        if all(index is None for index in indices.values()): continue
-        for row in rows[1:]:
-            for kind, index in indices.items():
-                if index is None or index >= len(row) or not row[index].strip(): continue
-                for value in re.split(r"[；;、]\s*", row[index]):
-                    code_match = re.search(r"[（(]([0-9-]{2,14})[）)]", value)
-                    name = re.sub(r"[（(][0-9-]{2,14}[）)]", "", value).strip()
-                    if name: result[kind].append(_item(name, code_match.group(1) if code_match else None, block, headers[index]))
+        if any(index is not None for index in indices.values()):
+            for row in rows[1:]:
+                for kind, index in indices.items():
+                    if index is not None and index < len(row):
+                        _append_career_values(result, kind, row[index], block, headers[index])
+        else:
+            # Institution plans commonly render 职业面向 as a two-column
+            # key/value table ("对应行业 | ..."), without semantic headers.
+            # The left column is still normalized-document evidence, so use
+            # only explicit labels rather than inferring facts from values.
+            for row in rows[1:]:
+                if len(row) < 2:
+                    continue
+                label, value = row[0], row[1]
+                kind = (
+                    "industries" if "行业" in label
+                    else "occupations" if "职业类别" in label or "职业名称" in label
+                    else "positions" if "岗位" in label
+                    else None
+                )
+                if kind:
+                    _append_career_values(result, kind, value, block, label)
     result["industries"] = _unique(result["industries"], "name")
     result["occupations"] = _unique(result["occupations"], "name")
     result["positions"] = _merge_positions(result["positions"])
     return result
+
+
+def _append_career_values(
+    result: dict[str, list[dict[str, Any]]],
+    kind: str,
+    raw_value: str,
+    block: dict[str, Any],
+    column: str,
+) -> None:
+    if not raw_value.strip():
+        return
+    value = re.sub(r"<br\s*/?>", "\n", raw_value, flags=re.IGNORECASE)
+    for segment in _split_values(value):
+        # A common rendered form is `批发业（51）零售业（52）`, which has no
+        # punctuation boundary but does have explicit name/code evidence.
+        coded_items = list(re.finditer(
+            r"([^（()\n；;、]+?)\s*[（(]([0-9-]{2,14})[）)]", segment
+        ))
+        if coded_items:
+            for match in coded_items:
+                name = match.group(1).strip()
+                if name:
+                    result[kind].append(_item(name, match.group(2), block, column))
+            continue
+        name = segment.strip()
+        if name:
+            result[kind].append(_item(name, None, block, column))
 
 
 def _merge_positions(items: list[dict[str, Any]]) -> list[dict[str, Any]]:

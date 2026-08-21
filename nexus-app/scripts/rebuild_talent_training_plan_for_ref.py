@@ -29,7 +29,7 @@ from nexus_app import models
 from nexus_app.audit import write_audit
 from nexus_app.database import get_session_local
 from nexus_app.enums import AuditEventType
-from nexus_app.storage import get_object_storage
+from nexus_app.storage import checksum_value, get_object_storage
 from nexus_app.talent_training_plan.extractor import DOMAIN_PROFILE, EXTRACTOR_VERSION, extract
 from nexus_app.talent_training_plan.writer import write
 
@@ -95,8 +95,8 @@ def rebuild(ref_id: str, *, apply: bool) -> dict[str, Any]:
             "previous_course_count": previous_course_count,
             "projected_course_count": projected_course_count,
             "removed_course_count": max(0, previous_course_count - projected_course_count),
-            "mutation_scope": ["talent_training_plan", "talent_training_plan_course", "normalized_asset_ref.metadata_summary", "audit_log"],
-            "unchanged": ["raw_object", "asset_version", "governance_result", "normalized_document_object", "knowledge_graph_build"],
+            "mutation_scope": ["normalized_document.talent_training_plan", "talent_training_plan", "talent_training_plan_course", "normalized_asset_ref.metadata_summary", "audit_log"],
+            "unchanged": ["raw_object", "parse_artifact", "asset_version", "governance_result", "knowledge_graph_build"],
         }
         if not apply:
             return summary
@@ -106,6 +106,20 @@ def rebuild(ref_id: str, *, apply: bool) -> dict[str, Any]:
             session.rollback()
             return {**summary, "status": "skipped", "reason": "talent_training_plan_writer_rejected_projection"}
         course_count = _course_count(session, plan.id)
+        # Keep the normalized-document domain payload in sync with the normal
+        # normalize stage. The subsequent RAG rebuild consumes this persisted
+        # projection, not the raw document or an untracked in-memory result.
+        payload["talent_training_plan"] = projection
+        normalized_content = json.dumps(
+            payload, ensure_ascii=False, separators=(",", ":")
+        ).encode("utf-8")
+        get_object_storage().put_bytes(
+            _object_key(ref.object_uri),
+            normalized_content,
+            "application/json",
+            {"nexus-version-id": ref.version_id, "nexus-ref-id": ref.id},
+        )
+        ref.checksum = checksum_value(normalized_content)
         metadata_summary = dict(ref.metadata_summary or {})
         metadata_summary["talent_training_plan"] = {
             **dict(metadata_summary.get("talent_training_plan") or {}),
@@ -134,6 +148,7 @@ def rebuild(ref_id: str, *, apply: bool) -> dict[str, Any]:
                 "previous_course_count": previous_course_count,
                 "new_course_count": course_count,
                 "removed_course_count": max(0, previous_course_count - course_count),
+                "normalized_document_projection_synced": True,
                 "unchanged": summary["unchanged"],
             },
             actor_type="script", actor_id="rebuild_talent_training_plan_for_ref",

@@ -51,6 +51,47 @@ def test_extracts_plan_local_facts_and_courses() -> None:
     assert len(plan["certificates"]) == 2
 
 
+def test_extracts_plan_facts_from_normalized_markdown_tables() -> None:
+    payload = {
+        "content_type": "document",
+        "title": "浙江机电职业技术大学 跨境电子商务专业人才培养方案.docx",
+        "blocks": [
+            _block("b1", """# 跨境电子商务专业人才培养方案
+| 专业名称 | 跨境电子商务 |
+| --- | --- |
+| 专业代码 | 330702 |"""),
+            _block("b2", """四、职业面向
+| 对应行业（代码） | 主要职业类别（代码） | 主要岗位（群） |
+| --- | --- | --- |
+| 批发业（51） | 电子商务师（4-01-06-01） | 跨境电商运营经理；跨境电商客服经理 |"""),
+            _block("b2-key-value", """|  |  |
+| --- | --- |
+| 对应行业（代码） | 批发业（51）零售业（52） |
+| 主要职业类别（代码） | 国际商务专业人员（2-06-07-01）<br>电子商务师（4-01-06-01） |"""),
+            _block("b3", """八、课程体系
+| 序号 | 课程名称 | 典型工作任务描述 | 主要教学内容与要求 | 学时 |
+| --- | --- | --- | --- | --- |
+| 1 | 国际贸易实务（双语） | 进出口商务谈判 | 进出口合同与国际物流 | 64 |"""),
+        ],
+    }
+
+    plan = extract(payload)
+
+    assert plan is not None
+    assert plan["major_name"] == "跨境电子商务"
+    assert plan["major_code"] == "330702"
+    assert plan["institution_name"] == "浙江机电职业技术大学"
+    assert {item["name"] for item in plan["career_orientation"]["positions"]} == {
+        "跨境电商运营经理", "跨境电商客服经理",
+    }
+    assert {item["code"] for item in plan["career_orientation"]["industries"]} == {"51", "52"}
+    assert {item["code"] for item in plan["career_orientation"]["occupations"]} == {
+        "2-06-07-01", "4-01-06-01",
+    }
+    assert plan["courses"][0]["course_name"] == "国际贸易实务（双语）"
+    assert plan["courses"][0]["course_content"] == "进出口合同与国际物流"
+
+
 def test_course_extraction_drops_table_noise_and_requires_content() -> None:
     payload = _payload()
     payload["blocks"].append(_block("b8", html="""

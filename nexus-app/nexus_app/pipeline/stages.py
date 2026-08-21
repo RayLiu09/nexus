@@ -1599,6 +1599,19 @@ def _office_parse_quality(
     table_blocks = sum(
         1 for block in blocks if isinstance(block, dict) and block.get("block_type") == "table"
     )
+    visual_transcription_blocks = sum(
+        1
+        for block in blocks
+        if isinstance(block, dict) and block.get("block_type") in {"image", "chart"}
+        and isinstance(block.get("content") or block.get("text"), str)
+        and (block.get("content") or block.get("text")).strip()
+    )
+    markdown_table_blocks = sum(
+        1
+        for block in blocks
+        if isinstance(block, dict)
+        and _has_markdown_table(str(block.get("content") or block.get("text") or ""))
+    )
     title_blocks = sum(
         1 for block in blocks if isinstance(block, dict) and block.get("block_type") == "title"
     )
@@ -1610,6 +1623,14 @@ def _office_parse_quality(
         anomaly_items.append("office_parse_image_only")
     elif len(blocks) == 1 and markdown_char_count > 20_000:
         anomaly_items.append("office_parse_single_block_degraded")
+    # MinerU can rasterise an Office document into page images.  The visual
+    # transcriber preserves readable tables as Markdown, but does not have
+    # MinerU table HTML or original cell geometry to retain.  Surface this
+    # fidelity boundary explicitly; deterministic Markdown-table consumers
+    # can still use the normalized evidence without treating it as native
+    # Office table extraction.
+    if visual_transcription_blocks and visual_transcription_blocks == len(blocks) and not table_blocks:
+        anomaly_items.append("office_parse_visual_transcription_only")
 
     return {
         "is_office": True,
@@ -1623,11 +1644,44 @@ def _office_parse_quality(
         "text_block_count": text_blocks,
         "title_block_count": title_blocks,
         "table_block_count": table_blocks,
+        "markdown_table_block_count": markdown_table_blocks,
+        "visual_transcription_block_count": visual_transcription_blocks,
+        "structure_fidelity": (
+            "visual_markdown_transcription"
+            if visual_transcription_blocks and visual_transcription_blocks == len(blocks) and not table_blocks
+            else "native_blocks"
+        ),
         "image_count": len(image_uris),
         "markdown_char_count": markdown_char_count,
         "anomaly_items": anomaly_items,
         "manual_review_required": bool(anomaly_items),
     }
+
+
+def _has_markdown_table(value: str) -> bool:
+    """Recognise a GFM table without relying on its surrounding block type."""
+    lines = [line.strip() for line in value.splitlines()]
+    for index in range(len(lines) - 1):
+        header = _markdown_table_cells(lines[index])
+        separator = _markdown_table_cells(lines[index + 1])
+        if (
+            len(header) >= 2
+            and len(header) == len(separator)
+            and all(re.fullmatch(r":?-{3,}:?", cell) for cell in separator)
+        ):
+            return True
+    return False
+
+
+def _markdown_table_cells(line: str) -> list[str]:
+    value = line.strip()
+    if "|" not in value:
+        return []
+    if value.startswith("|"):
+        value = value[1:]
+    if value.endswith("|"):
+        value = value[:-1]
+    return [cell.strip() for cell in value.split("|")]
 
 
 def _extract_attachments(artifact: models.ParseArtifact) -> list[dict[str, Any]]:

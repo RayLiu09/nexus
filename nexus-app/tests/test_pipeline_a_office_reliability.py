@@ -166,3 +166,21 @@ def test_normalized_docx_preserves_full_markdown_and_quality_evidence() -> None:
     assert payload["quality"]["office_parse"]["markdown_char_count"] == len(body_markdown.strip())
     assert payload["quality"]["anomaly_items"] == ["office_parse_single_block_degraded"]
     assert payload["lineage"]["image_uris"] == {"images/slide-1/chart.png": "s3://nexus-test/chart.png"}
+
+
+def test_office_quality_identifies_visual_markdown_transcription() -> None:
+    quality = _office_parse_quality(
+        DOCX_MIME,
+        {"pdf_info": [{"page_idx": 0}]},
+        [{
+            "block_type": "image",
+            "content": "| 课程名称 | 学时 |\n| --- | --- |\n| 跨境电商运营 | 64 |",
+        }],
+        "| 课程名称 | 学时 |\n| --- | --- |\n| 跨境电商运营 | 64 |",
+        {"office/page-1.jpg": "s3://nexus-test/page-1.jpg"},
+    )
+
+    assert quality["structure_fidelity"] == "visual_markdown_transcription"
+    assert quality["markdown_table_block_count"] == 1
+    assert quality["visual_transcription_block_count"] == 1
+    assert "office_parse_visual_transcription_only" in quality["anomaly_items"]
