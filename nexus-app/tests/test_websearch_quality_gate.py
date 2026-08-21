@@ -143,6 +143,91 @@ def test_firecrawl_quality_gate_rejects_access_wall_and_captcha_challenge():
     assert evaluate_snapshot(captcha_wall).reason == "login_or_captcha"
 
 
+def test_firecrawl_quality_gate_rejects_github_blob_session_shell():
+    snapshot = FirecrawlDocumentSnapshot(
+        source_url="https://github.com/example/project/blob/main/words.txt",
+        final_url="https://github.com/example/project/blob/main/words.txt",
+        title="words.txt",
+        markdown=(
+            "You signed in with another tab or window. Reload to refresh your session.\n"
+            "You signed out in another tab or window. Reload to refresh your session.\n"
+            "You switched accounts on another tab or window. Reload to refresh your session."
+        ),
+        html=None,
+        metadata={},
+    )
+
+    assert evaluate_snapshot(snapshot).reason == "github_blob_page_shell"
+
+
+def test_firecrawl_quality_gate_rejects_github_blob_source_file():
+    snapshot = FirecrawlDocumentSnapshot(
+        source_url="https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/IME/cpp/SampleIME/Dictionary/SampleIMESimplifiedQuanPin.txt",
+        final_url="https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/IME/cpp/SampleIME/Dictionary/SampleIMESimplifiedQuanPin.txt",
+        title="SampleIMESimplifiedQuanPin.txt",
+        markdown=(
+            "# SampleIMESimplifiedQuanPin.txt\n\n"
+            "Copy path More file actions\n\n"
+            "54635 lines (54635 loc) · 1.5 MB\n\n"
+            "a 阿\n"
+            "ai 爱\n"
+        ),
+        html=None,
+        metadata={},
+    )
+
+    assert evaluate_snapshot(snapshot).reason == "github_blob_source_file"
+
+
+def test_firecrawl_quality_gate_keeps_substantive_github_document():
+    snapshot = FirecrawlDocumentSnapshot(
+        source_url="https://github.com/example/project/blob/main/readme.md",
+        final_url="https://github.com/example/project/blob/main/readme.md",
+        title="README",
+        markdown=(
+            "# 项目说明\n\n"
+            "本项目提供企业数据资产平台的建设方案与实施路径。"
+            "方案覆盖数据接入、标准化治理与检索服务等关键能力。"
+        ) * 4,
+        html=None,
+        metadata={},
+    )
+
+    assert evaluate_snapshot(snapshot).accepted is True
+
+
+def test_firecrawl_quality_gate_rejects_non_chinese_content():
+    snapshot = FirecrawlDocumentSnapshot(
+        source_url="https://nationaltoday.com/",
+        final_url="https://nationaltoday.com/",
+        title="National Today",
+        markdown=(
+            "National Today is the home of fun, unusual holidays. "
+            "We track thousands of national days, weeks and months."
+        ) * 4,
+        html=None,
+        metadata={},
+    )
+
+    assert evaluate_snapshot(snapshot).reason == "non_chinese_content"
+
+
+def test_firecrawl_quality_gate_keeps_chinese_document_with_latin_terms():
+    snapshot = FirecrawlDocumentSnapshot(
+        source_url="https://www.nda.gov.cn/sjj/swdt/dfdt/0624/20250624194955998636402_pc.html",
+        final_url="https://www.nda.gov.cn/sjj/swdt/dfdt/0624/20250624194955998636402_pc.html",
+        title="地方动态 | 云南省数据局关于印发《2025年数字云南建设工作要点》等四个工作要点的通知",
+        markdown=(
+            "云南省数据局印发2025年数字云南建设工作要点，围绕AI、5G、"
+            "大数据等新质生产力方向推进数字贸易与跨境数据流动。"
+        ) * 6,
+        html=None,
+        metadata={},
+    )
+
+    assert evaluate_snapshot(snapshot).accepted is True
+
+
 def test_firecrawl_content_fingerprint_ignores_html_markup_and_whitespace():
     html = FirecrawlDocumentSnapshot(
         source_url="https://example.gov.cn/a",

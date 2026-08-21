@@ -2,9 +2,16 @@
 
 ## Goal
 
-Prevent crawler-acquired GitHub file display pages from entering normalization,
-AI governance, or knowledge indexing when the extracted body is only the
-GitHub session/navigation shell rather than the requested file content.
+Prevent crawler-acquired GitHub file display pages from ever becoming raw
+objects or pipeline jobs. GitHub `/{owner}/{repo}/blob/` URLs can resolve to
+two kinds of noise instead of a readable document:
+
+- **session shell** — JavaScript not rendered, leaving only the login/session
+  notice (`github_blob_page_shell`);
+- **source-code file viewer** — raw code rather than a rendered document
+  (`github_blob_source_file`).
+
+Both are rejected at crawler admission, before any job is submitted.
 
 ## Source Context
 
@@ -15,9 +22,11 @@ GitHub session/navigation shell rather than the requested file content.
 
 ## Scope
 
-- Pipeline A Firecrawl HTML parse-stage quality gate.
-- Non-retryable Worker outcome and existing failure audit path.
-- Focused Firecrawl pipeline tests.
+- Crawler admission quality gate (`evaluate_snapshot` in
+  `crawler/quality_gate.py`), which runs before `_ingest_firecrawl_snapshots`
+  creates the batch, raw objects, and jobs.
+- Parse-stage backstop (`_web_document_noise_evidence` in `pipeline/stages.py`)
+  remains for the session-shell case as defense in depth.
 
 ## Out Of Scope
 
@@ -27,19 +36,18 @@ GitHub session/navigation shell rather than the requested file content.
 
 ## Guardrail
 
-Reject only the conjunction of a GitHub `/{owner}/{repo}/blob/` display URL,
-GitHub session-shell marker text, and an extracted two-block document. A
-normal GitHub document with substantive extracted content must remain allowed.
+Reject only a GitHub `/{owner}/{repo}/blob/` display URL whose body matches one
+of the two shell signatures above. A normal GitHub document with substantive
+extracted content must remain allowed.
 
 ## Acceptance
 
-- The rejected job is terminal `failed`, carries
-  `crawler_web_shell_detected`, and produces no parse artifact or normalized
-  reference.
+- The filtered snapshot is recorded in the run `filter_reasons` and `failures`
+  and never enters `accepted_snapshots`, so no raw object or job is created.
 - A normal Firecrawl HTML page continues through the existing parse path.
 - Run:
 
 ```bash
 cd nexus-app
-uv run pytest tests/test_pipeline_firecrawl_web_document.py
+uv run pytest tests/test_websearch_quality_gate.py tests/test_pipeline_firecrawl_web_document.py
 ```

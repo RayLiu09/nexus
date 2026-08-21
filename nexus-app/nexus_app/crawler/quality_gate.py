@@ -36,6 +36,28 @@ _FORMAL_POLICY_MARKERS = (
     "政策解读", "政策文件", "发文机关", "文号", "第一条", "第二条", "施行",
 )
 
+_GITHUB_BLOB_HOSTS = frozenset({"github.com", "www.github.com"})
+
+_GITHUB_SESSION_SHELL_MARKERS = (
+    "you signed in with another tab or window",
+    "you signed out in another tab or window",
+    "you switched accounts on another tab or window",
+)
+
+# GitHub source-file viewer line-count header, e.g. "54635 lines (54635 loc)".
+# Rendered documentation (README/wiki) is not emitted through this viewer.
+_GITHUB_LINE_COUNT_RE = re.compile(
+    r"\b\d{1,7}\s+lines?\s*\(\s*\d{1,7}\s+loc\s*\)",
+    re.IGNORECASE,
+)
+
+# CJK unified ideographs. Firecrawl web search can surface English-language
+# brand/dictionary/encyclopedia pages that match a Chinese keyword only through
+# its English translation (e.g. "nationaltoday.com", Merriam-Webster, Wikipedia).
+# NEXUS pilot domains are Chinese-language documents, so a crawled body with no
+# Han character is rejected as out-of-scope noise at admission.
+_HAN_CHAR_RE = re.compile(r"[\u4e00-\u9fff]")
+
 @dataclass(frozen=True)
 class QualityDecision:
     accepted: bool
@@ -127,9 +149,15 @@ def evaluate_snapshot(
     if is_pdf_candidate(snapshot.final_url or snapshot.source_url, snapshot.metadata):
         return QualityDecision(True)
 
+    noise_reason = _github_blob_noise_reason(snapshot)
+    if noise_reason is not None:
+        return QualityDecision(False, noise_reason)
+
     text = snapshot.text_for_quality.strip()
     if len(text) < min_text_chars:
         return QualityDecision(False, "too_short")
+    if not _HAN_CHAR_RE.search(text):
+        return QualityDecision(False, "non_chinese_content")
     if _is_login_or_captcha_blocked(text):
         return QualityDecision(False, "login_or_captcha")
 
@@ -137,6 +165,39 @@ def evaluate_snapshot(
         return QualityDecision(False, "low_value_activity")
 
     return QualityDecision(True)
+
+
+def _github_blob_noise_reason(snapshot: FirecrawlDocumentSnapshot) -> str | None:
+    """Return a rejection reason for GitHub blob pages that are display shells.
+
+    GitHub ``/{owner}/{repo}/blob/`` URLs can resolve to two kinds of noise that
+    must never become knowledge assets: a session shell (JavaScript not
+    rendered, leaving only the login/session notice) and a source-code file
+    viewer (raw code rather than a rendered document).  Both are detected from
+    the snapshot URL and body so they are rejected before any job is submitted.
+    """
+    url = snapshot.final_url or snapshot.source_url
+    parsed = urlparse(url)
+    path_parts = [part for part in parsed.path.split("/") if part]
+    if not (
+        parsed.hostname in _GITHUB_BLOB_HOSTS
+        and len(path_parts) >= 4
+        and path_parts[2] == "blob"
+    ):
+        return None
+
+    text = (snapshot.markdown or _html_to_text(snapshot.html or "")).lower()
+
+    matched_markers = [
+        marker for marker in _GITHUB_SESSION_SHELL_MARKERS if marker in text
+    ]
+    if len(matched_markers) >= 2:
+        return "github_blob_page_shell"
+
+    if _GITHUB_LINE_COUNT_RE.search(text):
+        return "github_blob_source_file"
+
+    return None
 
 
 def _is_login_or_captcha_blocked(text: str) -> bool:
