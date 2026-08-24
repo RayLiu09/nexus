@@ -142,6 +142,8 @@ FastAPI 参数校验失败会返回 `422`。
 | 人才培养方案 | GET | `/open/v1/talent-training-plans/{plan_id}` | 获取方案、课程及来源证据详情 |
 | 人才培养方案 | GET | `/open/v1/talent-training-plans/{plan_id}/course-knowledge-graph` | 获取方案范围内的确定性课程知识图谱 |
 | 人才培养方案 | GET | `/open/v1/talent-training-plans/{plan_id}/position-capability-graph` | 获取方案范围内可选的岗位能力图谱 |
+| 院校专业统计 | GET | `/open/v1/major-offerings/aggregate` | 按省级区域聚合院校专业布点 |
+| 院校课程统计 | GET | `/open/v1/major-courses/aggregate` | 按省级区域聚合课程开设覆盖率和频次 |
 | 职业能力分析 | GET | `/open/v1/record-assets/ability-analyses` | 查询职业能力分析资产 |
 | 职业能力分析 | GET | `/open/v1/record-assets/ability-analyses/{analysis_id}` | 获取职业能力分析详情 |
 | 职业能力分析 | GET | `/open/v1/record-assets/ability-analyses/{analysis_id}/tasks` | 获取职业任务树 |
@@ -1049,6 +1051,39 @@ GET /open/v1/major-profiles/{profile_id}
 ```
 
 ## 9. 人才培养方案接口
+
+## 9.4 院校专业与课程统计
+
+```http
+GET /open/v1/major-offerings/aggregate
+GET /open/v1/major-courses/aggregate
+```
+
+两个接口只统计当前 `available` 的院校专业简介和人才培养方案事实，区域仅按
+`province_name`（省级标准名称）分组。无省级归属的事实不进入统计分母，并在
+`aggregations.excluded_unresolved_province_count` 中返回。支持
+`province_name`、`major_name`、`major_code`、`education_level`、
+`institution_name`、`page`、`pageSize`；课程接口另支持 `course` 和
+`min_coverage_ratio`。
+
+课程统计使用格式归一后的 `course_stat_key`，仅统一 Unicode、空白和课时展示
+噪声，不做语义别名或低置信合并。同一院校专业同时具有培养方案和专业简介时，
+默认使用培养方案课程，专业简介只补足没有培养方案的院校专业。响应固定回显：
+
+```json
+{
+  "aggregations": {
+    "source_policy": "combined_prefer_plan",
+    "excluded_unresolved_province_count": 0
+  }
+}
+```
+
+`/major-offerings/aggregate` 返回 `province_name`、专业、教育层次、
+`offering_count` 和 `institution_count`。`/major-courses/aggregate` 返回课程、
+`institution_major_count`、`institution_count`、`eligible_institution_count`、
+`coverage_ratio` 和 `source_breakdown`。例如“大部分院校开设”的调用方传入
+`min_coverage_ratio=0.5`，响应中的分母始终是筛选范围内已解析省级归属的去重院校。
 
 人才培养方案资源对应从 `normalized_document` 提取并持久化的
 `talent_training_plan.v1` 方案级投影。它面向院校专业的培养方案查询，

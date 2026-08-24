@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from nexus_api.api import talent_training_plans
+from nexus_api.api import institutional_statistics
 from nexus_api.dependencies import Pagination
 from nexus_app import models
 from nexus_app.enums import AssetKind, AssetVersionStatus, DataSourceType, IngestBatchStatus, NormalizedAssetRefStatus, NormalizedType, RawObjectStatus
@@ -116,3 +117,52 @@ def test_graph_view_routes_return_plan_scoped_projections(app, session):
     assert open_course.json()["data"]["plan_id"] == plan.id
     assert open_position.status_code == 200
     assert open_position.json()["data"]["available"] is True
+
+
+def test_province_level_course_and_offering_aggregates(session, fake_request):
+    plan = _seed(session, suffix="statistics", status=AssetVersionStatus.AVAILABLE)
+    plan.province_name = "浙江省"
+    plan.courses[0].course_stat_key = "跨境电子商务实务"
+    profile = models.MajorProfile(
+        id="mp-statistics",
+        normalized_ref_id=plan.normalized_ref_id,
+        asset_version_id=plan.asset_version_id,
+        domain_profile="major_profile.v1",
+        profile_source="institution",
+        institution_name=plan.institution_name,
+        province_name="浙江省",
+        major_name=plan.major_name,
+        major_code=plan.major_code,
+        education_level=plan.education_level,
+        region_tags=["浙江省"],
+        source_title=plan.source_title,
+        extractor_version="test",
+        evidence={}, quality_flags={}, status="generated",
+    )
+    session.add(profile)
+    session.flush()
+    session.add(models.MajorProfileCourse(
+        id="mp-course-statistics", profile_id=profile.id,
+        normalized_ref_id=plan.normalized_ref_id, item_index=1,
+        text="不应计入的专业简介课程", source_text="不应计入的专业简介课程",
+        evidence_block_ids=[], locator={}, course_group="professional_core",
+        course_type="course", course_stat_key="不应计入的专业简介课程",
+    ))
+    session.commit()
+
+    offerings = institutional_statistics.aggregate_major_offerings(
+        fake_request, province_name="浙江省", major_name="跨境电子商务",
+        major_code=None, education_level=None, institution_name=None,
+        pagination=PAGE, session=session,
+    ).model_dump(mode="json")
+    courses = institutional_statistics.aggregate_major_courses(
+        fake_request, province_name="浙江省", major_name="跨境电子商务",
+        major_code=None, education_level=None, institution_name=None,
+        course=None, min_coverage_ratio=0.5, pagination=PAGE, session=session,
+    ).model_dump(mode="json")
+
+    assert offerings["data"][0]["institution_count"] == 1
+    assert courses["data"][0]["course_stat_key"] == "跨境电子商务实务"
+    assert courses["data"][0]["coverage_ratio"] == 1.0
+    assert all(item["course_stat_key"] != "不应计入的专业简介课程" for item in courses["data"])
+    assert courses["aggregations"]["source_policy"] == "combined_prefer_plan"

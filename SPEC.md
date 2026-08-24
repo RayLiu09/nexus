@@ -202,6 +202,14 @@ P0 API groups include:
   `GET /open/v1/record-assets/major-distribution-records`, and
   `GET /open/v1/record-assets/major-distribution-records/aggregate` (grouped
   server-side totals by year, province, major name, and major code).
+- Public institutional-statistics endpoints include
+  `GET /open/v1/major-offerings/aggregate` and
+  `GET /open/v1/major-courses/aggregate`. They aggregate only available
+  institution `major_profile.v1` and `talent_training_plan.v1` projections by
+  `province_name`; unresolved province facts are reported as exclusions.
+  Course equality is deterministic formatting-only, never an LLM or
+  low-confidence semantic merge, and a matching talent-training plan takes
+  precedence over a major-profile course source.
 - Read-only public graph adapters expose generated projections only:
   `GET /open/v1/record-assets/graphs/job-capability?job_title=`,
   `GET /open/v1/record-assets/graphs/occupational-capability?major_name|major_code=`,

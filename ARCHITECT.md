@@ -145,6 +145,16 @@ uses the configured LiteLLM only as a strict normalized-document fallback:
 closed JSON schema validation, verbatim block evidence validation, confidence
 thresholds, and governance admission apply before domain rows are written.
 
+For province-level institution statistics, `major_profile.v1` and
+`talent_training_plan.v1` retain an optional `province_name` derived only from
+their persisted evidence-bound projection fields. Their course rows retain a
+formatting-only `course_stat_key` (Unicode, whitespace, and displayed
+hours only). Statistics never use LLM alias resolution or create a global
+course master. For the same institution-major offering, plan-owned courses
+replace profile courses; a profile supplements only an offering without a
+plan. Facts without a resolvable province remain outside provincial aggregates
+and are exposed as a coverage exclusion.
+
 **Pipeline B — Record Processing:**
 
 Stages: ingest → `ingest_validate` → `assetize` → structured parse/profile detect when the source is tabular → **normalize** (`normalized_record`) → govern → index. **No MinerU, no `parse_artifact`.**

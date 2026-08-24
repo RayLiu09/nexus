@@ -9,6 +9,7 @@ from sqlalchemy import delete, select
 from nexus_app import models
 from nexus_app.major_profile.extractor import DOMAIN_PROFILE, EXTRACTOR_VERSION
 from nexus_app.major_profile.schema import profile_payloads, validate_profile_payload
+from nexus_app.institutional_statistics import course_stat_key, resolve_province_name
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -86,6 +87,7 @@ def _write_one(
         profile_source=_string_or_none(profile_payload.get("profile_source")) or "national_standard",
         institution_name=_string_or_none(profile_payload.get("institution_name")),
         region_tags=_list_of_strings(profile_payload.get("region_tags")),
+        province_name=resolve_province_name(_list_of_strings(profile_payload.get("region_tags")), profile_payload.get("institution_name"), normalized_ref.title),
         education_level=_string_or_none(profile_payload.get("education_level")),
         basic_study_duration=_string_or_none(profile_payload.get("basic_study_duration")),
         training_goal=training_goal,
@@ -202,6 +204,7 @@ def _write_courses(
                 course_group=group,
                 course_type=_string_or_none(item.get("course_type"))
                 or ("training" if group == "practice_training" else "course"),
+                course_stat_key=course_stat_key(text),
             ))
 
 

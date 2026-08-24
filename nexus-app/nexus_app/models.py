@@ -1735,6 +1735,7 @@ class MajorProfile(TimestampMixin, Base):
     profile_source: Mapped[str] = mapped_column(Text, nullable=False, default="national_standard")
     institution_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     region_tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    province_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     education_level: Mapped[str | None] = mapped_column(Text, nullable=True)
     basic_study_duration: Mapped[str | None] = mapped_column(Text, nullable=True)
     training_goal: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -1844,6 +1845,7 @@ class MajorProfileCourse(TimestampMixin, MajorProfileItemMixin, Base):
 
     course_group: Mapped[str] = mapped_column(Text, nullable=False)
     course_type: Mapped[str] = mapped_column(Text, nullable=False, default="course")
+    course_stat_key: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     profile: Mapped[MajorProfile] = relationship(back_populates="courses")
     normalized_ref: Mapped[NormalizedAssetRef] = relationship()
@@ -1922,6 +1924,7 @@ class TalentTrainingPlan(TimestampMixin, Base):
     )
     domain_profile: Mapped[str] = mapped_column(String(64), nullable=False)
     institution_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    province_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     major_name: Mapped[str] = mapped_column(Text, nullable=False)
     major_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     education_level: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -1963,6 +1966,7 @@ class TalentTrainingPlanCourse(TimestampMixin, Base):
     )
     item_index: Mapped[int] = mapped_column(Integer, nullable=False)
     course_name: Mapped[str] = mapped_column(Text, nullable=False)
+    course_stat_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     course_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     curriculum_group: Mapped[str] = mapped_column(Text, nullable=False, default="unknown")
     course_type: Mapped[str] = mapped_column(Text, nullable=False, default="course")

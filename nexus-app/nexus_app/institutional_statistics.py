@@ -1,0 +1,51 @@
+"""Deterministic fields used by institutional major/course statistics."""
+
+from __future__ import annotations
+
+import re
+import unicodedata
+from collections.abc import Iterable
+
+
+_PROVINCE_ALIASES = {
+    "北京": "北京市", "北京市": "北京市", "天津": "天津市", "天津市": "天津市",
+    "上海": "上海市", "上海市": "上海市", "重庆": "重庆市", "重庆市": "重庆市",
+    "河北": "河北省", "河北省": "河北省", "山西": "山西省", "山西省": "山西省",
+    "辽宁": "辽宁省", "辽宁省": "辽宁省", "吉林": "吉林省", "吉林省": "吉林省",
+    "黑龙江": "黑龙江省", "黑龙江省": "黑龙江省", "江苏": "江苏省", "江苏省": "江苏省",
+    "浙江": "浙江省", "浙江省": "浙江省", "安徽": "安徽省", "安徽省": "安徽省",
+    "福建": "福建省", "福建省": "福建省", "江西": "江西省", "江西省": "江西省",
+    "山东": "山东省", "山东省": "山东省", "河南": "河南省", "河南省": "河南省",
+    "湖北": "湖北省", "湖北省": "湖北省", "湖南": "湖南省", "湖南省": "湖南省",
+    "广东": "广东省", "广东省": "广东省", "海南": "海南省", "海南省": "海南省",
+    "四川": "四川省", "四川省": "四川省", "贵州": "贵州省", "贵州省": "贵州省",
+    "云南": "云南省", "云南省": "云南省", "陕西": "陕西省", "陕西省": "陕西省",
+    "甘肃": "甘肃省", "甘肃省": "甘肃省", "青海": "青海省", "青海省": "青海省",
+    "内蒙古": "内蒙古自治区", "内蒙古自治区": "内蒙古自治区",
+    "广西": "广西壮族自治区", "广西壮族自治区": "广西壮族自治区",
+    "西藏": "西藏自治区", "西藏自治区": "西藏自治区",
+    "宁夏": "宁夏回族自治区", "宁夏回族自治区": "宁夏回族自治区",
+    "新疆": "新疆维吾尔自治区", "新疆维吾尔自治区": "新疆维吾尔自治区",
+}
+
+
+def resolve_province_name(*values: str | None | Iterable[str]) -> str | None:
+    """Resolve an explicit province token from persisted, evidence-bound text."""
+    for value in values:
+        candidates = value if isinstance(value, Iterable) and not isinstance(value, str) else [value]
+        for candidate in candidates:
+            text = str(candidate or "")
+            for alias in sorted(_PROVINCE_ALIASES, key=len, reverse=True):
+                if alias in text:
+                    return _PROVINCE_ALIASES[alias]
+    return None
+
+
+def course_stat_key(value: str | None) -> str | None:
+    """Format-only course key; never performs semantic alias merging."""
+    if not value:
+        return None
+    text = unicodedata.normalize("NFKC", value)
+    text = re.sub(r"[（(]\s*\d+\s*(?:课时|学时)[）)]", "", text)
+    text = re.sub(r"\s+", "", text).strip()
+    return text or None

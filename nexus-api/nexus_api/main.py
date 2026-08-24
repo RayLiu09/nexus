@@ -12,6 +12,7 @@ from nexus_api.api.open import router as open_router
 from nexus_api.api.open_record_assets import router as open_record_assets_router
 from nexus_api.api.major_profiles import open_router as open_major_profiles_router
 from nexus_api.api.talent_training_plans import open_router as open_talent_training_plans_router
+from nexus_api.api.institutional_statistics import router as institutional_statistics_router
 from nexus_api.api.external_search import router as external_search_router
 from nexus_api.errors import (
     http_exception_handler,
@@ -226,6 +227,7 @@ def create_app() -> FastAPI:
     app.include_router(open_router)
     app.include_router(open_major_profiles_router)
     app.include_router(open_talent_training_plans_router)
+    app.include_router(institutional_statistics_router)
     app.include_router(external_search_router)
     return app
 
