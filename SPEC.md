@@ -6,7 +6,7 @@ This document is the concise product and requirement contract for implementation
 
 NEXUS一期 builds the minimum usable loop for enterprise data assets and knowledge assets:
 
-`data ingestion → ingest_validate → assetize → parse/normalize → normalized_asset_ref → AI governance and quality scoring → rule guardrails → available/review_required → NEXUS knowledge_chunk construction → pgvector P0 index/search adapter → permission/governance-filter-ready search/QA → traceable citation and audit`
+`data ingestion → ingest_validate → assetize → parse/normalize → normalized_asset_ref → AI governance and quality scoring → rule guardrails → available/review_required/disabled → NEXUS knowledge_chunk construction → pgvector P0 index/search adapter → permission/governance-filter-ready search/QA → traceable citation and audit`
 
 For document discovery, approved governance tags and business-expert reviewed
 tags are projected to `tag_asset_index`; textbook outline-node tags remain
@@ -139,9 +139,9 @@ Level inheritance: asset → asset_version → normalized_document → knowledge
 
 AI governance:
 - Input: `normalized_document` or `normalized_record` (via `normalized_asset_ref`).
-- Output pipeline: schema validation → field whitelist → redaction policy → `governance_rules.json` threshold checks (confidence_threshold_auto_adopt, quality pass/warning, level requires_approval) → state-machine decision (available / review_required).
+- Output pipeline: schema validation → field whitelist → redaction policy → `governance_rules.json` threshold checks (classification isolation `< 0.5`, confidence_threshold_auto_adopt, quality pass/warning, level requires_approval) → state-machine decision (available / review_required / disabled).
 - AI runs remain in `ai_governance_run`; official outcomes are immutable `governance_result` snapshots. Human review is persisted in immutable `governance_review_decision` and linked into the resulting `decision_trail`; the source AI run/result is unchanged.
-- High-confidence AI + quality pass → `available`. Low-confidence AI or quality below threshold → `review_required`.
+- High-confidence AI + quality pass → `available`. Classification confidence `< 0.5` → `disabled` and AI-run `rejected`; it is retained only for audit and explicit administrator queries. Classification confidence `[0.5, confidence_threshold_auto_adopt)` or an actionable quality/rule issue → `review_required`.
 - A human `pass` conclusion may transition through the existing version state machine and enqueue a knowledge-only continuation job. A `review_required` conclusion still persists expert tags for retrieval but does not queue indexing.
 
 Rules and decisions:
@@ -287,7 +287,7 @@ P0 end-to-end cases:
   existing `index_manifest(course_textbook)` stale when projected chunks are
   replaced or removed.
 - High-confidence AI + quality pass → `available`.
-- Low-confidence AI or quality below threshold → `review_required`, with reason recorded in `governance_result.decision_trail`.
+- Classification confidence below `0.5` → `disabled`: retain raw/normalized assets and audit evidence, but do not create a human-review item, knowledge chunks, index projections, or default-catalog entry. Classification confidence from `0.5` to the auto-adopt threshold, or other actionable governance/quality failures, → `review_required`, with reason recorded in `governance_result.decision_trail`.
 - Tag generation: high-confidence tags auto-committed with audit log; low-confidence tags appear in review queue.
 - Same `source_object_key` + different content re-ingested → new `asset_version`, old `available` archived; `AssetVersionArchived` audit event written.
 - Rule edit (`config/governance_rules.json`) and re-governance → updated `governance_result.decision_trail`, index marked stale if needed.

@@ -29,6 +29,10 @@ from nexus_app.governance.schemas import AdoptionStatus, DecisionTrailEntry
 
 logger = logging.getLogger(__name__)
 
+# Low-confidence classifications are retained for audit, but are sufficiently
+# unreliable that they must not consume human-review capacity.
+LOW_CONFIDENCE_ISOLATION_THRESHOLD = 0.5
+
 _TAG_DIMENSION_KEYS = frozenset({
     "professional_domain",
     "education_level",
@@ -269,6 +273,8 @@ class GovernanceDecisionService:
         - Otherwise any review_required entry (or overall review_required) → review_required.
         - Otherwise → auto_adopted.
         """
+        if overall_status == GovernanceResultStatus.DISABLED:
+            return AIGovernanceRunAdoptionStatus.REJECTED
         if overall_status == GovernanceResultStatus.REVIEW_REQUIRED:
             return AIGovernanceRunAdoptionStatus.REVIEW_REQUIRED
         return AIGovernanceRunAdoptionStatus.AUTO_ADOPTED
@@ -297,6 +303,20 @@ class GovernanceDecisionService:
             "actual_confidence": confidence,
             "valid_classifications": sorted(valid_codes),
         }
+
+        if confidence < LOW_CONFIDENCE_ISOLATION_THRESHOLD:
+            return DecisionTrailEntry(
+                field_name="classification",
+                ai_suggestion=suggestion,
+                ai_confidence=confidence,
+                threshold_check=checks,
+                final_value=suggestion,
+                adoption_status="rejected",
+                review_reason=(
+                    f"classification confidence {confidence:.2f} < "
+                    f"isolation threshold {LOW_CONFIDENCE_ISOLATION_THRESHOLD:.2f}"
+                ),
+            )
 
         if confidence < threshold:
             return DecisionTrailEntry(
@@ -485,6 +505,9 @@ class GovernanceDecisionService:
     def _determine_overall_status(
         trail: list[DecisionTrailEntry],
     ) -> GovernanceResultStatus:
+        for entry in trail:
+            if entry.adoption_status == "rejected":
+                return GovernanceResultStatus.DISABLED
         for entry in trail:
             if entry.adoption_status == "review_required":
                 return GovernanceResultStatus.REVIEW_REQUIRED

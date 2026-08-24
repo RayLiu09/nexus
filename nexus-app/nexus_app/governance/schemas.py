@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 AdoptionStatus = Literal[
     "auto_adopted",
     "review_required",
+    "rejected",
     "human_confirmed",
     "human_overridden",
 ]

@@ -401,9 +401,14 @@ def list_assets(
         data = rows
     else:
         asset_rows = pipeline.list_assets(
-            session, limit=pagination.limit, offset=pagination.offset
+            session,
+            limit=pagination.limit,
+            offset=pagination.offset,
+            exclude_statuses={AssetVersionStatus.DISABLED},
         )
-        total = pipeline.count_assets(session)
+        total = pipeline.count_assets(
+            session, exclude_statuses={AssetVersionStatus.DISABLED}
+        )
         data = [_catalog_row(session, row) for row in asset_rows]
     return list_response(
         data, request,
@@ -416,7 +421,11 @@ def list_assets(
     response_model=schemas.ApiResponse[domain_schemas.AssetSummaryRead],
 )
 def assets_summary(request: Request, session: Session = Depends(get_db)):
-    rows = [_catalog_row(session, row) for row in pipeline.list_assets(session)]
+    rows = [
+        _catalog_row(session, row)
+        for row in pipeline.list_assets(session)
+        if row.status != AssetVersionStatus.DISABLED
+    ]
     return response(_asset_summary(rows), request)
 
 

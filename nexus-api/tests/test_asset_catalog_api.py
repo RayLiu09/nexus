@@ -326,6 +326,24 @@ def test_asset_catalog_filters_by_domain_level_and_status(app, session):
     assert payload["data"] == []
 
 
+def test_disabled_asset_is_hidden_by_default_but_available_to_explicit_audit_filter(app, session):
+    seeded = _seed_review_required_asset(session)
+    seeded["asset"].status = AssetVersionStatus.DISABLED
+    seeded["version"].version_status = AssetVersionStatus.DISABLED
+    seeded["result"].status = GovernanceResultStatus.DISABLED
+    session.commit()
+    client = TestClient(app)
+
+    default_response = client.get("/internal/v1/assets")
+    assert default_response.status_code == 200
+    assert default_response.json()["meta"]["total"] == 0
+
+    audit_response = client.get("/internal/v1/assets?status=disabled")
+    assert audit_response.status_code == 200
+    assert audit_response.json()["meta"]["total"] == 1
+    assert audit_response.json()["data"][0]["id"] == seeded["asset"].id
+
+
 def test_asset_catalog_filters_by_normalized_asset_tags(app, session):
     seeded = _seed_review_required_asset(session)
     session.add(models.TagAssetIndex(

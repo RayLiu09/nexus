@@ -2066,6 +2066,8 @@ def run_governance_decision(
 
     if target_status == AssetVersionStatus.AVAILABLE:
         state_mgr.transition_to_available(ctx.session, version, result)
+    elif target_status == AssetVersionStatus.DISABLED:
+        state_mgr.transition_to_disabled(ctx.session, version, result)
     else:
         state_mgr.transition_to_review_required(ctx.session, version, result)
 

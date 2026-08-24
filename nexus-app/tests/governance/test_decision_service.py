@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
-from nexus_app.enums import GovernanceResultStatus
+from nexus_app.enums import AIGovernanceRunAdoptionStatus, GovernanceResultStatus
 from nexus_app.governance.decision_service import (
     GovernanceDecisionError,
     GovernanceDecisionService,
@@ -97,7 +97,7 @@ class TestHighConfidenceAutoAdopt:
 
 
 class TestLowConfidenceReviewRequired:
-    """Low confidence → review_required."""
+    """Actionable uncertainty remains in the review queue."""
 
     def test_low_confidence_triggers_review(self, rules_registry):
         svc = GovernanceDecisionService(rules_registry)
@@ -123,6 +123,30 @@ class TestLowConfidenceReviewRequired:
         review_entries = [e for e in trail if e["adoption_status"] == "review_required"]
         assert len(review_entries) >= 1
         assert "confidence" in review_entries[0]["review_reason"]
+
+    def test_sub_half_classification_confidence_is_isolated(self, rules_registry):
+        svc = GovernanceDecisionService(rules_registry)
+        run = _make_ai_run(
+            {
+                "classification": "D1",
+                "level": "L1",
+                "tags": ["pii"],
+                "org_scope": "all",
+                "confidence": 0.49,
+            },
+            {"quality_score": 85.0, "quality_level": "pass", "confidence": 0.49},
+        )
+
+        result = svc.execute_governance(_make_session(), run)
+
+        assert result.status == GovernanceResultStatus.DISABLED
+        assert result.index_admission is False
+        classification = next(
+            entry for entry in result.decision_trail if entry["field_name"] == "classification"
+        )
+        assert classification["adoption_status"] == "rejected"
+        assert "isolation threshold 0.50" in classification["review_reason"]
+        assert run.adoption_status == AIGovernanceRunAdoptionStatus.REJECTED
 
 
 class TestQualityFailReviewRequired:

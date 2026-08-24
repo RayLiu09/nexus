@@ -40,8 +40,11 @@ def list_assets(
     *,
     limit: int | None = None,
     offset: int | None = None,
+    exclude_statuses: set[AssetVersionStatus] | None = None,
 ) -> list[models.Asset]:
     stmt = select(models.Asset).order_by(models.Asset.created_at.desc())
+    if exclude_statuses:
+        stmt = stmt.where(models.Asset.status.notin_(exclude_statuses))
     if offset is not None:
         stmt = stmt.offset(offset)
     if limit is not None:
@@ -49,8 +52,15 @@ def list_assets(
     return list(session.scalars(stmt).all())
 
 
-def count_assets(session: Session) -> int:
-    return int(session.scalar(select(func.count()).select_from(models.Asset)) or 0)
+def count_assets(
+    session: Session,
+    *,
+    exclude_statuses: set[AssetVersionStatus] | None = None,
+) -> int:
+    stmt = select(func.count()).select_from(models.Asset)
+    if exclude_statuses:
+        stmt = stmt.where(models.Asset.status.notin_(exclude_statuses))
+    return int(session.scalar(stmt) or 0)
 
 
 def list_asset_versions(session: Session, asset_id: str) -> list[models.AssetVersion]:

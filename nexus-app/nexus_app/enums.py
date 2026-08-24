@@ -131,6 +131,7 @@ class AIAdoptionStatus(StrEnum):
 class GovernanceResultStatus(StrEnum):
     AVAILABLE       = "available"
     REVIEW_REQUIRED = "review_required"
+    DISABLED        = "disabled"
 
 
 class GovernanceRulesVersionStatus(StrEnum):
@@ -176,6 +177,7 @@ class AIGovernanceRunAdoptionStatus(StrEnum):
     REVIEW_REQUIRED        = "review_required"
     PENDING_RULE_GUARDRAIL = "pending_rule_guardrail"
     AUTO_ADOPTED           = "auto_adopted"
+    REJECTED               = "rejected"
 
 
 class AuditEventType(StrEnum):

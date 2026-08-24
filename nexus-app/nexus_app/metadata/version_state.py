@@ -39,6 +39,8 @@ class VersionStateManager:
         """Determine target status using the same admission gate as the transition."""
         if self._check_admission_criteria(governance_result):
             return AssetVersionStatus.AVAILABLE
+        if governance_result.status == GovernanceResultStatus.DISABLED:
+            return AssetVersionStatus.DISABLED
         return AssetVersionStatus.REVIEW_REQUIRED
 
     def transition_to_available(
@@ -130,6 +132,38 @@ class VersionStateManager:
                 "asset_id": version.asset_id,
                 "new_status": "review_required",
                 "governance_result_id": governance_result.id,
+                "review_reasons": self._extract_review_reasons(governance_result),
+            },
+            actor_id=user_id,
+        )
+        return version
+
+    def transition_to_disabled(
+        self,
+        session: Session,
+        version: models.AssetVersion,
+        governance_result: models.GovernanceResult,
+        *,
+        user_id: str | None = None,
+        trace_id: str | None = None,
+    ) -> models.AssetVersion:
+        """Isolate an unreliable governance result without deleting its audit trail."""
+        version.version_status = AssetVersionStatus.DISABLED
+        self._sync_asset_status(session, version)
+        session.flush()
+
+        audit_trace_id = trace_id or str(uuid.uuid4())
+        write_audit(
+            session,
+            AuditEventType.VERSION_STATUS_CHANGED,
+            target_type="asset_version",
+            target_id=version.id,
+            trace_id=audit_trace_id,
+            summary={
+                "asset_id": version.asset_id,
+                "new_status": "disabled",
+                "governance_result_id": governance_result.id,
+                "reason": "classification_confidence_below_isolation_threshold",
                 "review_reasons": self._extract_review_reasons(governance_result),
             },
             actor_id=user_id,

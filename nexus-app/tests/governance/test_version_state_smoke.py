@@ -125,3 +125,25 @@ def test_determine_status_uses_full_admission_gate(session):
         VersionStateManager().determine_version_status(session, result)
         == AssetVersionStatus.REVIEW_REQUIRED
     )
+
+
+def test_low_confidence_disabled_result_isolated_from_version_state(session):
+    asset, [version] = _seed_asset_with_versions(session, 1)
+    version.version_status = AssetVersionStatus.PROCESSING
+    result = _passing_result(version)
+    result.status = GovernanceResultStatus.DISABLED
+    result.index_admission = False
+    result.decision_trail[0]["adoption_status"] = "rejected"
+    session.add(result)
+    session.commit()
+
+    manager = VersionStateManager()
+    assert manager.determine_version_status(session, result) == AssetVersionStatus.DISABLED
+    manager.transition_to_disabled(session, version, result, trace_id="trace-isolated")
+    session.refresh(asset)
+    session.refresh(version)
+
+    assert asset.status == AssetVersionStatus.DISABLED
+    assert version.version_status == AssetVersionStatus.DISABLED
+    audit = session.query(models.AuditLog).order_by(models.AuditLog.created_at.desc()).first()
+    assert audit.summary["reason"] == "classification_confidence_below_isolation_threshold"

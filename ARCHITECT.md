@@ -481,7 +481,7 @@ These three events are the foundation for Phase 2 consumption-side data lineage 
 
 - `metadata_enrich` targets **normalized assets** (`normalized_document` / `normalized_record`). Chunks do not exist yet at tag generation time.
 - High-confidence tags (≥ threshold): auto-committed to `metadata-service`, audit log written. Admins can retrospectively review and revoke.
-- Low-confidence tags (< threshold): queued for human review (confirm / revise / reject).
+- Low-confidence tags (< threshold): queued for human review (confirm / revise / reject). This tag policy is separate from classification admission: classification confidence `< 0.5` is isolated as `disabled` and does not enter human governance review.
 - All tag commit and override actions write audit logs.
 
 ## Knowledge Pipeline Boundary
@@ -529,7 +529,7 @@ Asset Pipeline → normalized_asset_ref (stable contract)
 ## Core Flows
 
 **Pipeline A (Document):**
-`upload / firecrawl_document crawler → raw_object (binary, HTML, Markdown, PDF, or approved document snapshot) → ingest_validate → Job(pipeline_type="document") → assetize (asset/asset_version) → MinerU parse for PDF/Office/image/general HTML upload, Firecrawl HTML trafilatura Markdown extractor, or markdown document adapter → normalize (normalized_document) → normalized_asset_ref → AI governance → rules → governance_result → available/review_required → knowledge_chunking → eligible textbook knowledge_outline_build / policy-report section locator preservation → semantic retrieval index`
+`upload / firecrawl_document crawler → raw_object (binary, HTML, Markdown, PDF, or approved document snapshot) → ingest_validate → Job(pipeline_type="document") → assetize (asset/asset_version) → MinerU parse for PDF/Office/image/general HTML upload, Firecrawl HTML trafilatura Markdown extractor, or markdown document adapter → normalize (normalized_document) → normalized_asset_ref → AI governance → rules → governance_result → available/review_required/disabled → knowledge_chunking → eligible textbook knowledge_outline_build / policy-report section locator preservation → semantic retrieval index`
 
 **Pipeline B (Record):**
 `webhook / batch / file upload → raw_object (JSON/XLSX structured data) → ingest_validate → Job(pipeline_type="record") → assetize (asset/asset_version) → structured_parse/profile_detect when applicable → normalize (normalized_record) → normalized_asset_ref → AI governance → rules → governance_result → index`
