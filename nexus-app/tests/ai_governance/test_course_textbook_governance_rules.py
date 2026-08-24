@@ -66,6 +66,31 @@ def test_default_governance_prompts_stay_rule_driven_for_course_textbook():
     assert "course_textbook_classification_prompt" not in joined
 
 
+def test_job_demand_classification_requires_actual_vacancy_evidence():
+    body = DEFAULT_PROMPTS["classification"]["prompt_template"]
+
+    assert "job_demand" in body
+    assert "岗位名称" in body
+    assert "就业网站域名" in body
+    assert "不得归类为 `job_demand`" in body
+
+
+def test_major_profile_classification_has_priority_over_course_material_terms():
+    body = DEFAULT_PROMPTS["classification"]["prompt_template"]
+
+    assert "优先归类为 `major_profile`" in body
+    assert "不构成 `course_textbook`" in body
+    assert DEFAULT_PROMPTS["classification"]["redaction_policy"] == "masked_content"
+
+
+def test_major_profile_classification_covers_institution_micro_programs_with_policy_background():
+    body = DEFAULT_PROMPTS["classification"]["prompt_template"]
+
+    assert "专业、微专业或专业方向介绍" in body
+    assert "引用政策、行动计划或产业背景仅是办学背景" in body
+    assert "必须是该政策文件本身" in body
+
+
 def test_knowledge_type_inference_prompt_v2_excludes_retired_textbook_code():
     from nexus_app.ai_governance.default_prompts import (
         KNOWLEDGE_TYPE_INFERENCE_PROMPT_V2,

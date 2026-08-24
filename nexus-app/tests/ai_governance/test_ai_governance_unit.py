@@ -398,6 +398,21 @@ class TestQualityScoringService:
 
 
 class TestMultiStageGovernanceAggregation:
+    def test_aggregate_confidence_uses_classification_stage_only(self):
+        from nexus_app.ai_governance.services import AIGovernanceService
+
+        output = AIGovernanceService._aggregate_stage_outputs({
+            "classification": {
+                "classification_code": "major_profile",
+                "confidence": 0.6,
+            },
+            "level_assessment": {"level_code": "L1", "confidence": 0.99},
+            "tagging": {"tags": {}, "confidence": 0.95},
+            "knowledge_type_inference": {"confidence": 0.9},
+        })
+
+        assert output["confidence"] == 0.6
+
     def test_aggregate_extracts_fixed_dimension_free_form_tag_values(self):
         from nexus_app.ai_governance.services import AIGovernanceService
 

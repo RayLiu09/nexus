@@ -1256,16 +1256,12 @@ class AIGovernanceService:
         if not isinstance(kt, dict):
             kt = {}
 
-        # Overall confidence: average across non-error stages
-        confidences = []
-        for s in (cls, lvl, tag, kt):
-            if isinstance(s, dict) and "_error" not in s:
-                c = s.get("confidence")
-                if isinstance(c, (int, float)):
-                    confidences.append(float(c))
-        avg_confidence = (
-            sum(confidences) / len(confidences) if confidences else 0.0
-        )
+        # Governance admission acts on the selected classification. Level,
+        # tagging, and knowledge-type confidence must not make an uncertain
+        # classification appear sufficiently evidenced.
+        classification_confidence = cls.get("confidence")
+        if not isinstance(classification_confidence, (int, float)):
+            classification_confidence = 0.0
 
         quality_scores = cls.get("quality_scores")
         if not isinstance(quality_scores, dict):
@@ -1304,7 +1300,7 @@ class AIGovernanceService:
             "quality_scores": quality_scores,
             "overall_score": float(overall_score) if isinstance(overall_score, (int, float)) else 0.0,
             "evidence_refs": cls.get("evidence_refs") or lvl.get("evidence_refs") or [],
-            "confidence": avg_confidence,
+            "confidence": float(classification_confidence),
             **({"quality_summary": qual} if qual and "error" not in qual else {}),
             "_stages": stage_outputs,
             "_mode": "multi_stage",
