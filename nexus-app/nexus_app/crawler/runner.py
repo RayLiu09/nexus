@@ -20,6 +20,21 @@ from nexus_app.crawler.quality_gate import (
     normalized_content_fingerprint,
 )
 
+_PROVINCE_SCOPES: tuple[tuple[str, str], ...] = (
+    ("内蒙古自治区", "内蒙古"), ("广西壮族自治区", "广西"),
+    ("西藏自治区", "西藏"), ("宁夏回族自治区", "宁夏"),
+    ("新疆维吾尔自治区", "新疆"), ("黑龙江省", "黑龙江"),
+    ("北京市", "北京"), ("天津市", "天津"), ("上海市", "上海"),
+    ("重庆市", "重庆"), ("河北省", "河北"), ("山西省", "山西"),
+    ("辽宁省", "辽宁"), ("吉林省", "吉林"), ("江苏省", "江苏"),
+    ("浙江省", "浙江"), ("安徽省", "安徽"), ("福建省", "福建"),
+    ("江西省", "江西"), ("山东省", "山东"), ("河南省", "河南"),
+    ("湖北省", "湖北"), ("湖南省", "湖南"), ("广东省", "广东"),
+    ("海南省", "海南"), ("四川省", "四川"), ("贵州省", "贵州"),
+    ("云南省", "云南"), ("陕西省", "陕西"), ("甘肃省", "甘肃"),
+    ("青海省", "青海"),
+)
+
 
 @dataclass(frozen=True)
 class CrawlerRunOutcome:
@@ -207,6 +222,7 @@ def _base_summary(
     summary = {
         "runner": "firecrawl_sync",
         "query": query,
+        "search_scope": _query_scope(query),
         "web_wide_search": not bool(include_domains),
         "include_domains": include_domains,
         "configured_max_pages": configured_max_pages,
@@ -255,12 +271,24 @@ def _dedupe_urls(urls: list[str]) -> tuple[list[str], int]:
 
 
 def _build_query(plan: models.CrawlerPlan, template: dict[str, Any]) -> str:
-    region = plan.region_name or plan.region_code or ""
-    keywords = " OR ".join(plan.topic_keywords or template.get("default_keywords") or [])
-    query_templates = list(template.get("query_templates") or [])
-    if query_templates:
-        return str(query_templates[0]).replace("{region}", region).replace("{keywords}", keywords)
-    return f"{region} ({keywords})"
+    """Return the user's terms without template-driven topic expansion."""
+    terms = [str(item).strip() for item in plan.topic_keywords if str(item).strip()]
+    if not terms:
+        terms = [
+            str(item).strip()
+            for item in template.get("default_keywords") or []
+            if str(item).strip()
+        ]
+    return " ".join(terms)
+
+
+def _query_scope(query: str) -> dict[str, str]:
+    """Record scope expressed in the query; do not alter the query itself."""
+    normalized = query.replace(" ", "")
+    for province_name, short_name in _PROVINCE_SCOPES:
+        if province_name in normalized or short_name in normalized:
+            return {"scope_type": "province", "province_name": province_name}
+    return {"scope_type": "national", "scope_name": "全国"}
 
 
 def _accepted_snapshot_summary(

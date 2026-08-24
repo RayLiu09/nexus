@@ -83,13 +83,25 @@ class HttpPdfDownloader:
         ),
     }
 
-    def __init__(self, *, timeout_seconds: float) -> None:
+    def __init__(
+        self,
+        *,
+        timeout_seconds: float,
+        ca_bundle: str | None = None,
+    ) -> None:
         self._timeout_seconds = timeout_seconds
+        self._ca_bundle = ca_bundle
 
     def download(self, url: str) -> bytes:
         try:
             validate_target_url(url, allow_http_authority_seed=True)
-            with httpx.Client(timeout=self._timeout_seconds, follow_redirects=True) as client:
+            client_options: dict[str, Any] = {
+                "timeout": self._timeout_seconds,
+                "follow_redirects": True,
+            }
+            if self._ca_bundle:
+                client_options["verify"] = self._ca_bundle
+            with httpx.Client(**client_options) as client:
                 response = client.get(url, headers=self._HEADERS)
                 response.raise_for_status()
         except UnsafeCrawlerUrlError as exc:
@@ -99,7 +111,11 @@ class HttpPdfDownloader:
         except httpx.HTTPStatusError as exc:
             raise PdfDownloadError(f"pdf_download_http_{exc.response.status_code}") from exc
         except httpx.HTTPError as exc:
-            raise PdfDownloadError("pdf_download_error") from exc
+            # Keep a bounded transport category for crawler-run diagnostics.
+            # The response body and connection details must not enter metadata.
+            raise PdfDownloadError(
+                f"pdf_download_transport_{type(exc).__name__.lower()}"
+            ) from exc
         content = response.content
         if not _looks_like_pdf(content):
             content_type = response.headers.get("content-type", "")
@@ -435,7 +451,8 @@ def run_plan(
     settings = settings or get_settings()
     storage = storage or get_object_storage(settings)
     pdf_downloader = pdf_downloader or HttpPdfDownloader(
-        timeout_seconds=settings.ai_web_search_timeout_seconds
+        timeout_seconds=settings.ai_web_search_timeout_seconds,
+        ca_bundle=settings.crawler_pdf_ca_bundle,
     )
     plan = session.get(models.CrawlerPlan, plan_id)
     if plan is None:
@@ -570,7 +587,6 @@ def _run_websearch_custom_plan(session: Session, plan: models.CrawlerPlan, *, tr
     for item in outcome.items:
         decision = evaluate_websearch_item(
             title=item.title, url=item.url, content=item.content,
-            rank_score=item.metadata.get("RankScore"),
         )
         if not decision.accepted:
             reason = decision.reason or "filtered"
@@ -679,6 +695,7 @@ def _ingest_firecrawl_snapshots(
                 "url": source_url,
                 "reason": str(exc),
                 "raw_representation": "pdf_candidate",
+                "pdf_candidate_url": source_url,
             })
             continue
         content = raw_content.content
@@ -814,24 +831,10 @@ def _snapshot_raw_content(
                 metadata={},
             )
         except PdfDownloadError as exc:
-            fallback_text = snapshot.html or snapshot.markdown or ""
-            if not fallback_text.strip():
-                raise
-            mime_type = "text/html" if snapshot.html else "text/markdown"
-            raw_representation = (
-                "pdf_snapshot_html_fallback" if snapshot.html
-                else "pdf_snapshot_markdown_fallback"
-            )
-            return CrawlerRawContent(
-                content=fallback_text.encode("utf-8"),
-                mime_type=mime_type,
-                raw_representation=raw_representation,
-                metadata={
-                    "pdf_download_failed_reason": str(exc),
-                    "pdf_candidate_url": source_url,
-                    "pdf_ingest_fallback": True,
-                },
-            )
+            # A Firecrawl snapshot is evidence of a web page, not a substitute
+            # for the original PDF. Let the caller record a per-candidate
+            # failure instead of admitting incomplete text to the asset pipeline.
+            raise PdfDownloadError(str(exc)) from exc
     raw_text = snapshot.html or snapshot.markdown or ""
     mime_type = "text/html" if snapshot.html else "text/markdown"
     raw_representation = "html" if snapshot.html else "markdown"

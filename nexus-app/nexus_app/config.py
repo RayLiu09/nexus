@@ -132,6 +132,13 @@ class Settings(BaseSettings):
     crawler_firecrawl_cache_max_age_ms: int = Field(
         default=172800000, ge=0, alias="CRAWLER_FIRECRAWL_CACHE_MAX_AGE_MS",
     )
+    # Optional PEM bundle for a trusted outbound proxy or enterprise CA used
+    # only by direct PDF binary downloads. When unset, httpx keeps its normal
+    # system/certifi verification behaviour; TLS verification is never disabled.
+    crawler_pdf_ca_bundle: str | None = Field(
+        default=None,
+        alias="CRAWLER_PDF_CA_BUNDLE",
+    )
     crawler_websearch_custom_api_endpoint: str = Field(
         default="https://open.feedcoopapi.com/search_api/web_search",
         alias="CRAWLER_WEBSEARCH_CUSTOM_API_ENDPOINT",

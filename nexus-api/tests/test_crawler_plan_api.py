@@ -24,7 +24,8 @@ def clear_settings_cache():
 
 class FakeFirecrawlClient:
     def search(self, *, query, limit, include_domains, country, languages):
-        del query, limit, country, languages
+        del limit, country, languages
+        self.query = query
         self.include_domains = include_domains
         return [
             FirecrawlSearchResult(url="https://www.zj.gov.cn/policy/1.html", title="数字经济政策"),
@@ -93,7 +94,8 @@ class MissingScrapeFirecrawlClient:
 
 class EmptySearchFirecrawlClient:
     def search(self, *, query, limit, include_domains, country, languages):
-        del query, limit, include_domains, country, languages
+        del limit, include_domains, country, languages
+        self.query = query
         return []
 
     def batch_scrape(self, *, urls, only_main_content, formats, proxy, max_concurrency, max_age_ms):
@@ -183,9 +185,10 @@ def test_http_pdf_downloader_allows_public_http_pdf_urls(monkeypatch):
             return None
 
     class FakeClient:
-        def __init__(self, *, timeout, follow_redirects):
+        def __init__(self, *, timeout, follow_redirects, verify=True):
             self.timeout = timeout
             self.follow_redirects = follow_redirects
+            self.verify = verify
 
         def __enter__(self):
             return self
@@ -194,7 +197,7 @@ def test_http_pdf_downloader_allows_public_http_pdf_urls(monkeypatch):
             return False
 
         def get(self, url, headers):
-            calls.append({"url": url, "headers": headers})
+            calls.append({"url": url, "headers": headers, "verify": self.verify})
             return FakeResponse()
 
     monkeypatch.setattr(crawler_service.httpx, "Client", FakeClient)
@@ -207,7 +210,15 @@ def test_http_pdf_downloader_allows_public_http_pdf_urls(monkeypatch):
     assert calls == [{
         "url": "http://www.zcsvillages.com/upload/report.pdf",
         "headers": crawler_service.HttpPdfDownloader._HEADERS,
+        "verify": True,
     }]
+
+    crawler_service.HttpPdfDownloader(
+        timeout_seconds=3,
+        ca_bundle="/etc/ssl/certs/trusted-proxy-ca.pem",
+    ).download("http://www.zcsvillages.com/upload/report.pdf")
+
+    assert calls[-1]["verify"] == "/etc/ssl/certs/trusted-proxy-ca.pem"
 
 
 @pytest.mark.parametrize(
@@ -571,6 +582,8 @@ def test_firecrawl_runner_with_fake_client_accepts_and_filters(session, monkeypa
 
     assert run.status == "partial_failed"
     assert run.summary["runner"] == "firecrawl_sync"
+    assert run.summary["query"] == "职业教育 产教融合 电子商务 跨境电商 农村电商 直播电商 旅游电商 数字经济 区域经济 发展报告"
+    assert run.summary["search_scope"] == {"scope_type": "national", "scope_name": "全国"}
     assert run.summary["discovered_count"] == 4
     assert run.summary["accepted_count"] == 2
     assert run.summary["submitted_count"] == 2
@@ -623,6 +636,37 @@ def test_firecrawl_runner_with_fake_client_accepts_and_filters(session, monkeypa
     assert second.summary["duplicate_count"] == 2
     assert {item["raw_object_id"] for item in second.summary["submitted"]} == {raw.id for raw in raw_objects}
     assert len(session.query(models.RawObject).all()) == 2
+
+
+def test_firecrawl_query_preserves_user_terms_and_records_province_scope(session, monkeypatch):
+    monkeypatch.setenv("CRAWLER_FIRECRAWL_SCRAPE_LIMIT_ENABLED", "false")
+    get_settings.cache_clear()
+    source = services.create_data_source(
+        session,
+        domain_schemas.DataSourceCreate(
+            code="crawler-query-integrity", name="query integrity", source_type="crawler",
+        ),
+    )
+    plan = crawler_service.create_plan(
+        session,
+        domain_schemas.CrawlerPlanCreate(
+            name="江苏专业简介", mode="custom", data_source_id=source.id,
+            topic_keywords=["江苏省职业院校电子商务，跨境电商的专业简介"],
+            execution_mode="run_once",
+        ),
+        trace_id="trace-test",
+    )
+    fake = EmptySearchFirecrawlClient()
+    run = crawler_service.run_plan(
+        session, plan.id, trace_id="trace-test", client=fake,
+        storage=InMemoryObjectStorage(),
+    )
+
+    assert fake.query == "江苏省职业院校电子商务，跨境电商的专业简介"
+    assert run.summary["query"] == fake.query
+    assert run.summary["search_scope"] == {
+        "scope_type": "province", "province_name": "江苏省",
+    }
 
 
 def test_firecrawl_successful_empty_search_is_no_results(session):
@@ -762,7 +806,7 @@ def test_firecrawl_runner_downloads_pdf_urls_as_pdf_raw_objects(session, monkeyp
     assert submitted_pdf["raw_representation"] == "original_binary"
 
 
-def test_firecrawl_runner_falls_back_to_firecrawl_snapshot_when_pdf_download_fails(session, monkeypatch):
+def test_firecrawl_pdf_download_failure_is_not_admitted_as_snapshot_asset(session, monkeypatch):
     monkeypatch.setenv("CRAWLER_FIRECRAWL_SCRAPE_LIMIT_ENABLED", "false")
     get_settings.cache_clear()
     source = services.create_data_source(
@@ -793,23 +837,18 @@ def test_firecrawl_runner_falls_back_to_firecrawl_snapshot_when_pdf_download_fai
         storage=InMemoryObjectStorage(),
     )
 
-    assert run.status == "succeeded"
+    assert run.status == "failed"
     assert run.summary["accepted_count"] == 1
-    assert run.summary["submitted_count"] == 1
-    assert run.summary["ingest_failed_count"] == 0
-    assert run.summary["ingest_failures"] == []
-    submitted = run.summary["submitted"][0]
-    assert submitted["mime_type"] == "text/markdown"
-    assert submitted["raw_representation"] == "pdf_snapshot_markdown_fallback"
-    assert submitted["pdf_ingest_fallback"] is True
-    assert submitted["pdf_download_failed_reason"] == "pdf_download_failed"
-    raw = session.query(models.RawObject).one()
-    assert raw.mime_type == "text/markdown"
-    assert raw.metadata_summary["content_kind"] == "web_document"
-    assert raw.metadata_summary["raw_representation"] == "pdf_snapshot_markdown_fallback"
-    assert raw.metadata_summary["pdf_candidate_url"].endswith(".pdf")
-    assert raw.metadata_summary["pdf_ingest_fallback"] is True
-    assert session.query(models.Job).count() == 1
+    assert run.summary["submitted_count"] == 0
+    assert run.summary["ingest_failed_count"] == 1
+    assert run.summary["ingest_failures"] == [{
+        "url": "https://www.ndrc.gov.cn/report/P020230613309060086035.pdf",
+        "reason": "pdf_download_failed",
+        "raw_representation": "pdf_candidate",
+        "pdf_candidate_url": "https://www.ndrc.gov.cn/report/P020230613309060086035.pdf",
+    }]
+    assert session.query(models.RawObject).count() == 0
+    assert session.query(models.Job).count() == 0
 
 
 def test_firecrawl_runner_records_missing_single_scrape(session):

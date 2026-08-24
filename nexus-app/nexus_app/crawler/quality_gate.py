@@ -5,7 +5,6 @@ import re
 import unicodedata
 from dataclasses import dataclass
 from urllib.parse import unquote, urlparse
-from typing import Any
 
 from nexus_app.crawler.firecrawl_client import FirecrawlDocumentSnapshot
 from nexus_app.crawler.url_safety import UnsafeCrawlerUrlError, validate_target_url
@@ -28,12 +27,22 @@ _AUTH_CHALLENGE_PATTERNS = (
 _ACTIVITY_CONTENT_MARKERS = (
     "活动预告", "活动通知", "会议通知", "报名通知", "培训通知", "赛事通知",
     "讲座通知", "报名参加", "活动现场", "成功举办", "圆满举行", "开幕式",
-    "闭幕式", "签约仪式", "领导调研", "参观考察",
+    "闭幕式", "签约仪式", "领导调研", "参观考察", "开班", "培训班",
+    "联合主办", "参培学员", "结业后", "揭牌", "签约", "出席", "致辞",
+    "共同见证",
+)
+
+_PERSON_PROFILE_TITLE_MARKERS = (
+    "追梦人", "人物故事", "创业故事", "人物风采", "先进个人", "奋斗者", "榜样",
+)
+
+_PERSON_PROFILE_CONTENT_MARKERS = (
+    "（完）", "(完)", "资料图", "记者", "通讯员",
 )
 
 _FORMAL_POLICY_MARKERS = (
     "实施意见", "实施方案", "管理办法", "暂行办法", "条例", "规划", "指南",
-    "政策解读", "政策文件", "发文机关", "文号", "第一条", "第二条", "施行",
+    "政策解读", "政策文件", "发文机关", "文号", "第一条", "第二条", "施行", "实施路径",
 )
 
 _GITHUB_BLOB_HOSTS = frozenset({"github.com", "www.github.com"})
@@ -69,11 +78,9 @@ def evaluate_websearch_item(
     title: str,
     url: str,
     content: str,
-    rank_score: Any,
     min_text_chars: int = 200,
-    min_rank_score: float = 0.15,
 ) -> QualityDecision:
-    """Clean WebSearch candidates without re-evaluating provider topic recall."""
+    """Validate result usability without re-evaluating provider relevance."""
     try:
         validate_target_url(url, allow_http_authority_seed=True)
     except UnsafeCrawlerUrlError:
@@ -92,12 +99,6 @@ def evaluate_websearch_item(
         return QualityDecision(False, "news_report")
     if len(content.strip()) < min_text_chars:
         return QualityDecision(False, "too_short")
-    try:
-        if float(rank_score) < min_rank_score:
-            return QualityDecision(False, "low_relevance")
-    except (TypeError, ValueError):
-        return QualityDecision(False, "missing_rank_score")
-
     return QualityDecision(True)
 
 
@@ -115,7 +116,10 @@ def _is_websearch_news_item(path: str, title: str, content: str) -> bool:
     lowered_path = unquote(path).lower()
     is_news_route = any(marker in lowered_path for marker in ("/news/", "/m_gnxw/", "/instant/"))
     evidence_text = f"{title}\n{content[:2000]}"
-    if is_news_route and _has_market_or_report_evidence(evidence_text):
+    if is_news_route and (
+        _has_market_or_report_evidence(evidence_text)
+        or any(marker in evidence_text for marker in _FORMAL_POLICY_MARKERS)
+    ):
         return False
     # URL rules are authoritative. These terms only cover common pages whose
     # CMS route does not disclose the news channel; policy/report titles still
@@ -130,16 +134,25 @@ def _is_websearch_news_item(path: str, title: str, content: str) -> bool:
 
 
 def _has_market_or_report_evidence(text: str) -> bool:
+    """Detect reusable report/statistical evidence, not a domain word alone.
+
+    A single mention such as ``电子商务产业发展`` is common in activity
+    recaps and curriculum descriptions. It is not evidence that a news page
+    carries reusable market research or policy-report knowledge.
+    """
+    if re.search(r"\d+(?:\.\d+)?\s*[%％]", text):
+        return True
     return any(marker in text for marker in (
-        "市场", "产业", "规模", "增长", "统计", "数据", "同比", "环比", "进出口",
-        "零售额", "运行情况", "监测", "分析", "指数", "报告", "白皮书", "政策",
+        "市场规模", "统计数据", "统计口径", "数据来源", "数据表明", "数据显",
+        "同比", "环比", "进出口", "零售额", "运行情况", "监测", "指数", "报告",
+        "白皮书", "研究结论", "调研结果", "样本数据", "政策文件", "政策解读",
     ))
 
 
 def evaluate_snapshot(
     snapshot: FirecrawlDocumentSnapshot,
     *,
-    min_text_chars: int = 80,
+    min_text_chars: int = 300,
 ) -> QualityDecision:
     try:
         validate_target_url(snapshot.final_url, allow_http_authority_seed=True)
@@ -154,15 +167,16 @@ def evaluate_snapshot(
         return QualityDecision(False, noise_reason)
 
     text = snapshot.text_for_quality.strip()
+    if _is_login_or_captcha_blocked(text):
+        return QualityDecision(False, "login_or_captcha")
+    if is_low_value_activity_content(snapshot.title or "", text):
+        return QualityDecision(False, "low_value_activity")
+    if is_low_value_person_profile(snapshot.title or "", text):
+        return QualityDecision(False, "low_value_person_profile")
     if len(text) < min_text_chars:
         return QualityDecision(False, "too_short")
     if not _HAN_CHAR_RE.search(text):
         return QualityDecision(False, "non_chinese_content")
-    if _is_login_or_captcha_blocked(text):
-        return QualityDecision(False, "login_or_captcha")
-
-    if is_low_value_activity_content(snapshot.title or "", text):
-        return QualityDecision(False, "low_value_activity")
 
     return QualityDecision(True)
 
@@ -232,7 +246,30 @@ def is_low_value_activity_content(title: str, content: str) -> bool:
         return False
     if _has_market_or_report_evidence(evidence):
         return False
-    return any(marker in evidence for marker in _ACTIVITY_CONTENT_MARKERS)
+    # One generic activity word is insufficient: it can occur in a substantive
+    # policy or report. Multiple event markers identify event recaps without
+    # consulting the originating search query or its topic.
+    marker_hits = sum(marker in evidence for marker in _ACTIVITY_CONTENT_MARKERS)
+    return marker_hits >= 2
+
+
+def is_low_value_person_profile(title: str, content: str) -> bool:
+    """Reject human-interest news that lacks reusable document evidence.
+
+    The gate is intentionally narrow: a title must explicitly frame a person
+    as an inspirational/profile story and the body must carry a news-story
+    closing signal. This avoids using the crawler query or rejecting ordinary
+    enterprise case studies solely because they mention a person.
+    """
+    evidence = f"{title}\n{content[:4000]}"
+    if any(marker in evidence for marker in _FORMAL_POLICY_MARKERS):
+        return False
+    if _has_market_or_report_evidence(evidence):
+        return False
+    return (
+        any(marker in title for marker in _PERSON_PROFILE_TITLE_MARKERS)
+        and any(marker in evidence for marker in _PERSON_PROFILE_CONTENT_MARKERS)
+    )
 
 
 def _html_to_text(value: str) -> str:

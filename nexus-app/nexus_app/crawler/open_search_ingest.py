@@ -77,7 +77,6 @@ def ingest_websearch_items(
             title=item.title,
             url=item.url,
             content=item.content,
-            rank_score=item.metadata.get("RankScore"),
         )
         if decision.accepted:
             accepted.append(item)

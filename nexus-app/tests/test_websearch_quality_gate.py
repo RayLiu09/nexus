@@ -11,16 +11,13 @@ def _decision(**overrides):
         "title": "跨境电商产业政策解读",
         "url": "https://example.gov.cn/policy/1",
         "content": "跨境电商产业政策和市场概况。" * 20,
-        "rank_score": 0.9,
     }
     values.update(overrides)
     return evaluate_websearch_item(**values)
 
 
-def test_websearch_quality_gate_rejects_low_rank_and_does_not_admit():
-    decision = _decision(rank_score=0.01)
-    assert decision.accepted is False
-    assert decision.reason == "low_relevance"
+def test_websearch_quality_gate_does_not_repeat_provider_relevance_ranking():
+    assert _decision().accepted is True
 
 
 def test_websearch_quality_gate_rejects_homepage_and_short_content():
@@ -31,7 +28,7 @@ def test_websearch_quality_gate_rejects_homepage_and_short_content():
     assert _decision(title="财政预算", content="财政预算公开信息。" * 30).accepted is True
 
 
-def test_websearch_quality_gate_accepts_relevant_document():
+def test_websearch_quality_gate_accepts_usable_document():
     assert _decision().accepted is True
 
 
@@ -82,7 +79,7 @@ def test_firecrawl_quality_gate_rejects_low_value_activities_but_keeps_policy_no
         source_url="https://example.gov.cn/policy/opinion",
         final_url="https://example.gov.cn/policy/opinion",
         title="关于开展电子商务人才培训工作的通知",
-        markdown="为贯彻落实相关政策，现制定实施方案。第一条明确培训工作要求和实施范围。" * 4,
+        markdown="为贯彻落实相关政策，现制定实施方案。第一条明确培训工作要求和实施范围。" * 10,
         html=None,
         metadata={},
     )
@@ -91,17 +88,99 @@ def test_firecrawl_quality_gate_rejects_low_value_activities_but_keeps_policy_no
     assert evaluate_snapshot(policy).accepted is True
 
 
-def test_firecrawl_quality_gate_does_not_repeat_search_topic_matching():
+def test_firecrawl_quality_gate_rejects_training_event_recap_despite_generic_industry_terms():
     snapshot = FirecrawlDocumentSnapshot(
-        source_url="https://example.gov.cn/policy/overview",
-        final_url="https://example.gov.cn/policy/overview",
-        title="现代职业教育体系建设综述",
-        markdown="该文讨论职业教育体系改革、产教融合与人才培养工作。" * 4,
+        source_url="https://www.example.com/information/id/250",
+        final_url="https://www.example.com/information/id/250",
+        title="新闻资讯",
+        markdown=(
+            "2023年中泰合作电子商务项目精英培训班在当地开班。"
+            "本次培训由多家机构联合主办，参培学员65人，课程包含电子商务产业发展、"
+            "电商平台运营和网络营销等内容，结业后颁发结业证书。"
+        ) * 4,
+        html=None,
+        metadata={},
+    )
+
+    assert evaluate_snapshot(snapshot).reason == "low_value_activity"
+
+
+def test_firecrawl_quality_gate_keeps_activity_report_with_statistical_evidence():
+    snapshot = FirecrawlDocumentSnapshot(
+        source_url="https://example.gov.cn/news/market-report",
+        final_url="https://example.gov.cn/news/market-report",
+        title="电子商务市场运行报告发布",
+        markdown=(
+            "发布会上公布统计数据：本季度网络零售额同比增长12%，"
+            "并说明了数据来源、统计口径和市场运行情况。"
+        ) * 10,
         html=None,
         metadata={},
     )
 
     assert evaluate_snapshot(snapshot).accepted is True
+
+
+def test_firecrawl_quality_gate_rejects_signing_and_unveiling_event_recap():
+    snapshot = FirecrawlDocumentSnapshot(
+        source_url="https://example.com/information/academy-unveiling",
+        final_url="https://example.com/information/academy-unveiling",
+        title="某职业学院数字商务产业学院揭牌成立",
+        markdown=(
+            "学院与企业举行签约揭牌仪式，多位嘉宾出席并分别致辞。"
+            "双方将共同探索产教融合新路径，为行业培养高素质技术技能人才。"
+        ) * 5,
+        html=None,
+        metadata={},
+    )
+
+    assert evaluate_snapshot(snapshot).reason == "low_value_activity"
+
+
+def test_firecrawl_quality_gate_rejects_human_interest_person_profile():
+    snapshot = FirecrawlDocumentSnapshot(
+        source_url="https://www.news.example.cn/person/1",
+        final_url="https://www.news.example.cn/person/1",
+        title="胡菊玲：奋力向前的农产品电商追梦人",
+        markdown=(
+            "胡菊玲经营当地农产品电商企业，带领团队开展选品和直播运营。"
+            "她计划继续拓展产品品类并提升用户体验。（完）"
+        ) * 5,
+        html=None,
+        metadata={},
+    )
+
+    assert evaluate_snapshot(snapshot).reason == "low_value_person_profile"
+
+
+def test_firecrawl_quality_gate_does_not_repeat_search_topic_matching():
+    snapshot = FirecrawlDocumentSnapshot(
+        source_url="https://example.gov.cn/policy/overview",
+        final_url="https://example.gov.cn/policy/overview",
+        title="现代职业教育体系建设综述",
+        markdown="该文讨论职业教育体系改革、产教融合与人才培养工作。" * 15,
+        html=None,
+        metadata={},
+    )
+
+    assert evaluate_snapshot(snapshot).accepted is True
+
+
+def test_firecrawl_quality_gate_rejects_low_content_page_without_topic_matching():
+    snapshot = FirecrawlDocumentSnapshot(
+        source_url="https://career.example.edu.cn/company/123",
+        final_url="https://career.example.edu.cn/company/123",
+        title="高校就业资讯网",
+        markdown=(
+            "某中学为公办完全中学，位于北京市海淀区。学校推进课程改革，"
+            "探索选课走班育人模式，创造适合每位学生发展的教育。"
+        ) * 2,
+        html=None,
+        metadata={},
+    )
+
+    assert len(snapshot.text_for_quality.strip()) < 300
+    assert evaluate_snapshot(snapshot).reason == "too_short"
 
 
 def test_firecrawl_quality_gate_keeps_public_document_with_login_navigation():
@@ -113,7 +192,7 @@ def test_firecrawl_quality_gate_keeps_public_document_with_login_navigation():
             "[中国政府网](http://www.gov.cn/) [用户登录](https://auth.example.gov.cn/user/login)\n\n"
             "《衡阳市推进职业教育现代化服务“三高四新”实施方案》\n"
             "为推进现代职业教育高质量发展，现制定本实施方案。第一条明确工作目标和任务。"
-        ) * 4,
+        ) * 6,
         html=None,
         metadata={},
     )
@@ -188,7 +267,7 @@ def test_firecrawl_quality_gate_keeps_substantive_github_document():
             "# 项目说明\n\n"
             "本项目提供企业数据资产平台的建设方案与实施路径。"
             "方案覆盖数据接入、标准化治理与检索服务等关键能力。"
-        ) * 4,
+        ) * 6,
         html=None,
         metadata={},
     )
