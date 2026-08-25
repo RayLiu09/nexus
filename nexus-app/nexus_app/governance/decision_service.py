@@ -210,7 +210,10 @@ class GovernanceDecisionService:
         trail: list[DecisionTrailEntry] = []
         threshold = config.quality_scoring.confidence_threshold_auto_adopt
 
-        trail.append(self._check_classification(ai_output, config, threshold))
+        classification_decision = self._check_classification(
+            session, ai_run.normalized_ref_id, ai_output, config, threshold
+        )
+        trail.append(classification_decision)
         trail.append(self._check_level(ai_output, config, threshold))
         trail.append(self._check_tags(ai_output, config, threshold))
         trail.append(self._check_quality(quality_summary, config))
@@ -222,7 +225,7 @@ class GovernanceDecisionService:
         result = models.GovernanceResult(
             normalized_ref_id=ai_run.normalized_ref_id,
             ai_run_id=ai_run.id,
-            classification=ai_output.get("classification"),
+            classification=classification_decision.final_value,
             level=ai_output.get("level"),
             tags=_extract_governance_tags(ai_output),
             org_scope=ai_output.get("org_scope"),
@@ -292,7 +295,12 @@ class GovernanceDecisionService:
         }
 
     def _check_classification(
-        self, ai_output: dict[str, Any], config: GovernanceRulesConfig, threshold: float
+        self,
+        session: Session,
+        normalized_ref_id: str,
+        ai_output: dict[str, Any],
+        config: GovernanceRulesConfig,
+        threshold: float,
     ) -> DecisionTrailEntry:
         confidence = float(ai_output.get("confidence", 0))
         suggestion = ai_output.get("classification", "")
@@ -303,6 +311,12 @@ class GovernanceDecisionService:
             "actual_confidence": confidence,
             "valid_classifications": sorted(valid_codes),
         }
+        major_distribution_structure: dict[str, Any] | None = None
+        if suggestion == "major_distribution":
+            major_distribution_structure = self._major_distribution_structure_check(
+                session, normalized_ref_id
+            )
+            checks["major_distribution_structure"] = major_distribution_structure
 
         if confidence < LOW_CONFIDENCE_ISOLATION_THRESHOLD:
             return DecisionTrailEntry(
@@ -310,11 +324,37 @@ class GovernanceDecisionService:
                 ai_suggestion=suggestion,
                 ai_confidence=confidence,
                 threshold_check=checks,
-                final_value=suggestion,
+                final_value=(
+                    None
+                    if major_distribution_structure
+                    and not major_distribution_structure["admitted"]
+                    else suggestion
+                ),
                 adoption_status="rejected",
                 review_reason=(
                     f"classification confidence {confidence:.2f} < "
                     f"isolation threshold {LOW_CONFIDENCE_ISOLATION_THRESHOLD:.2f}"
+                    + (
+                        "; major_distribution_structure_missing: "
+                        f"{major_distribution_structure['reason']}"
+                        if major_distribution_structure
+                        and not major_distribution_structure["admitted"]
+                        else ""
+                    )
+                ),
+            )
+
+        if major_distribution_structure and not major_distribution_structure["admitted"]:
+            return DecisionTrailEntry(
+                field_name="classification",
+                ai_suggestion=suggestion,
+                ai_confidence=confidence,
+                threshold_check=checks,
+                final_value=None,
+                adoption_status="review_required",
+                review_reason=(
+                    "major_distribution_structure_missing: "
+                    f"{major_distribution_structure['reason']}"
                 ),
             )
 
@@ -348,6 +388,59 @@ class GovernanceDecisionService:
             final_value=suggestion,
             adoption_status="auto_adopted",
         )
+
+    @staticmethod
+    def _major_distribution_structure_check(
+        session: Session, normalized_ref_id: str
+    ) -> dict[str, Any]:
+        """Verify that a major-distribution classification has Pipeline B evidence.
+
+        AI may recognize province names, major names, and incidental numbers in
+        prose.  Those signals are insufficient: the official classification
+        requires an already normalized `major_distribution.v1` table and at
+        least one complete, non-negative detail record.
+        """
+        normalized_ref = session.get(models.NormalizedAssetRef, normalized_ref_id)
+        if normalized_ref is None:
+            return {"admitted": False, "reason": "normalized_ref_missing"}
+        if normalized_ref.normalized_type != "record":
+            return {
+                "admitted": False,
+                "reason": "normalized_type_must_be_record",
+                "actual_normalized_type": str(normalized_ref.normalized_type),
+            }
+
+        metadata = normalized_ref.metadata_summary or {}
+        if metadata.get("domain_profile") != "major_distribution.v1":
+            return {
+                "admitted": False,
+                "reason": "domain_profile_must_be_major_distribution_v1",
+                "actual_domain_profile": metadata.get("domain_profile"),
+            }
+
+        dataset = session.scalar(
+            select(models.MajorDistributionDataset.id)
+            .where(models.MajorDistributionDataset.normalized_ref_id == normalized_ref_id)
+            .limit(1)
+        )
+        if dataset is None:
+            return {"admitted": False, "reason": "major_distribution_dataset_missing"}
+
+        valid_record = session.scalar(
+            select(models.MajorDistributionRecord.id)
+            .where(
+                models.MajorDistributionRecord.normalized_ref_id == normalized_ref_id,
+                models.MajorDistributionRecord.year.is_not(None),
+                models.MajorDistributionRecord.province_name != "",
+                models.MajorDistributionRecord.major_name != "",
+                models.MajorDistributionRecord.major_code != "",
+                models.MajorDistributionRecord.distribution_count >= 0,
+            )
+            .limit(1)
+        )
+        if valid_record is None:
+            return {"admitted": False, "reason": "complete_detail_record_missing"}
+        return {"admitted": True, "dataset_id": dataset, "record_id": valid_record}
 
     def _check_level(
         self, ai_output: dict[str, Any], config: GovernanceRulesConfig, threshold: float

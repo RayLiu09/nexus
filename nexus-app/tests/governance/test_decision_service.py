@@ -1,6 +1,7 @@
 """Tests for GovernanceDecisionService — decision trail and status determination."""
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -20,6 +21,7 @@ def rules_registry() -> GovernanceRulesRegistry:
         "classifications": [
             {"code": "D1", "name": "Domain 1", "description": "d", "criteria": ["c"]},
             {"code": "D2", "name": "Domain 2", "description": "d", "criteria": ["c"]},
+            {"code": "major_distribution", "name": "Major distribution", "description": "d", "criteria": ["c"]},
         ],
         "levels": [
             {"code": "L1", "name": "Public", "description": "d", "criteria": ["c"]},
@@ -204,6 +206,86 @@ class TestQualityFailReviewRequired:
         )
         assert quality_entry["adoption_status"] == "review_required"
         assert "quality_level=warning" in quality_entry["review_reason"]
+
+
+class TestMajorDistributionStructureAdmission:
+    def _high_confidence_output(self) -> dict:
+        return {
+            "classification": "major_distribution",
+            "level": "L1",
+            "tags": [],
+            "org_scope": "all",
+            "confidence": 0.95,
+        }
+
+    def _passing_quality(self) -> dict:
+        return {"quality_score": 85.0, "quality_level": "pass", "confidence": 0.95}
+
+    def test_document_cannot_be_adopted_as_major_distribution(self, rules_registry):
+        session = _make_session()
+        session.get.return_value = SimpleNamespace(
+            normalized_type="document", metadata_summary={}
+        )
+
+        result = GovernanceDecisionService(rules_registry).execute_governance(
+            session, _make_ai_run(self._high_confidence_output(), self._passing_quality())
+        )
+
+        classification = next(
+            entry for entry in result.decision_trail if entry["field_name"] == "classification"
+        )
+        assert result.classification is None
+        assert result.status == GovernanceResultStatus.REVIEW_REQUIRED
+        assert result.index_admission is False
+        assert classification["adoption_status"] == "review_required"
+        assert "major_distribution_structure_missing" in classification["review_reason"]
+        assert classification["threshold_check"]["major_distribution_structure"] == {
+            "admitted": False,
+            "reason": "normalized_type_must_be_record",
+            "actual_normalized_type": "document",
+        }
+
+    def test_subthreshold_document_still_clears_major_distribution(self, rules_registry):
+        session = _make_session()
+        session.get.return_value = SimpleNamespace(
+            normalized_type="document", metadata_summary={}
+        )
+        ai_output = self._high_confidence_output() | {"confidence": 0.75}
+
+        result = GovernanceDecisionService(rules_registry).execute_governance(
+            session, _make_ai_run(ai_output, self._passing_quality())
+        )
+
+        classification = next(
+            entry for entry in result.decision_trail if entry["field_name"] == "classification"
+        )
+        assert result.classification is None
+        assert result.status == GovernanceResultStatus.REVIEW_REQUIRED
+        assert "major_distribution_structure_missing" in classification["review_reason"]
+
+    def test_complete_record_projection_can_retain_major_distribution(self, rules_registry):
+        session = _make_session()
+        session.get.return_value = SimpleNamespace(
+            normalized_type="record",
+            metadata_summary={"domain_profile": "major_distribution.v1"},
+        )
+        session.scalar.side_effect = ["dataset-001", "record-001"]
+
+        result = GovernanceDecisionService(rules_registry).execute_governance(
+            session, _make_ai_run(self._high_confidence_output(), self._passing_quality())
+        )
+
+        classification = next(
+            entry for entry in result.decision_trail if entry["field_name"] == "classification"
+        )
+        assert result.classification == "major_distribution"
+        assert result.status == GovernanceResultStatus.AVAILABLE
+        assert classification["adoption_status"] == "auto_adopted"
+        assert classification["threshold_check"]["major_distribution_structure"] == {
+            "admitted": True,
+            "dataset_id": "dataset-001",
+            "record_id": "record-001",
+        }
 
 
 class TestFreeFormTags:

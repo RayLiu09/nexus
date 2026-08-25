@@ -282,6 +282,24 @@ header 别名必须配置化，禁止在 detector 中硬编码单一列名。建
 - `profile.record_type = major_distribution_dataset` 时，治理分类应为 `major_distribution`。
 - 若治理分类不是 `major_distribution`，加入质量标记 `profile_classification_mismatch`，进入 `review_required`。
 
+### 3.5 专业布点分类结构准入
+
+`major_distribution` 不是可由文档语义单独判定的分类。AI 从院校简介中
+识别到省份、专业名称或“开设 32 个专业”等数字时，不得将该文档采纳为专业
+布点数。
+
+正式治理结果采纳 `classification = major_distribution` 前，必须同时满足：
+
+1. `normalized_asset_ref.normalized_type = record`；
+2. `metadata_summary.domain_profile = major_distribution.v1`；
+3. 已生成关联的 `major_distribution_dataset`；
+4. 至少一条 `major_distribution_record` 同时具有非空的 `year`、
+   `province_name`、`major_name`、`major_code`，且 `distribution_count >= 0`。
+
+任一条件不满足时，分类建议保留在 AI 运行和决策轨迹中供审计，但正式
+`governance_result.classification` 为空、状态为 `review_required`、并禁止索引。
+该门禁不放宽 `year` 与 `major_code` 的必填约束。
+
 ## 四、标准化输出设计
 
 ### 4.1 `normalized_record.payload`

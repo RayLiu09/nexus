@@ -1386,8 +1386,7 @@ class AIGovernanceService:
         ai_run: models.AIGovernanceRun,
         registry: GovernanceRulesRegistry,
     ) -> list[dict[str, Any]]:
-        """Infer knowledge_emissions from an AI run and persist them on the
-        bound NormalizedAssetRef.
+        """Persist knowledge emissions from the official governance conclusion.
 
         Idempotent for retries: keeps existing emissions when they already
         match the current AI output + active rules, but replaces stale
@@ -1403,9 +1402,30 @@ class AIGovernanceService:
         if ref is None:
             return []
         try:
+            result = session.scalars(
+                select(models.GovernanceResult)
+                .where(models.GovernanceResult.ai_run_id == ai_run.id)
+                .limit(1)
+            ).first()
+            # This method is called immediately after GovernanceDecisionService
+            # in the pipeline.  A rule guardrail can reject or correct the AI
+            # classification, so raw AI output must not by itself activate a
+            # knowledge pipeline.  Keep the no-result fallback for legacy
+            # callers that only materialize a preview.
+            if result is not None and not result.classification:
+                summary = dict(ref.metadata_summary or {})
+                if "knowledge_emissions" in summary:
+                    summary.pop("knowledge_emissions")
+                    ref.metadata_summary = summary
+                    session.flush()
+                return []
+
+            governance_output = dict(ai_run.ai_output or {})
+            if result is not None:
+                governance_output["classification"] = result.classification
             ref_dict = self._build_ref_dict(ref)
             emissions = infer_knowledge_emissions(
-                ai_run.ai_output or {}, ref_dict, registry
+                governance_output, ref_dict, registry
             )
             if not emissions:
                 return []

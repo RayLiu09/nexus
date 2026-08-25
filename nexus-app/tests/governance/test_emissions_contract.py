@@ -18,6 +18,7 @@ from nexus_app.enums import (
     AIGovernanceRunValidationStatus,
     AssetKind,
     AssetVersionStatus,
+    GovernanceResultStatus,
 )
 
 
@@ -194,6 +195,38 @@ class TestExplicitWrite:
         _, run = _make_ref_and_run(session, ai_output=None)
         svc = AIGovernanceService()
         assert svc.write_knowledge_emissions(session, run, registry) == []
+
+    def test_officially_rejected_classification_clears_stale_emissions(self, session, registry):
+        ref, run = _make_ref_and_run(
+            session,
+            ai_output={"classification": "D4", "level": "L1", "tags": [],
+                       "org_scope": "all", "confidence": 0.9},
+        )
+        ref.metadata_summary = {
+            "knowledge_emissions": [
+                {"code": "course_textbook", "primary": True, "confidence": 0.9}
+            ]
+        }
+        session.add(models.GovernanceResult(
+            normalized_ref_id=ref.id,
+            ai_run_id=run.id,
+            classification=None,
+            level="L1",
+            tags=[],
+            org_scope="all",
+            index_admission=False,
+            decision_trail=[],
+            status=GovernanceResultStatus.REVIEW_REQUIRED,
+        ))
+        session.flush()
+
+        with patch("nexus_app.ai_governance.services.infer_knowledge_emissions") as inferred:
+            emissions = AIGovernanceService().write_knowledge_emissions(session, run, registry)
+
+        assert emissions == []
+        inferred.assert_not_called()
+        session.refresh(ref)
+        assert "knowledge_emissions" not in ref.metadata_summary
 
     def test_inference_exception_is_swallowed(self, session, registry):
         ref, run = _make_ref_and_run(
