@@ -3,7 +3,6 @@ import type { Asset } from "@/lib/api";
 export type AssetWithMeta = Asset & {
   domain?: string | null;
   domain_name?: string | null;
-  institution_name?: string | null;
   level?: string;
   current_version_no?: number | null;
   current_normalized_ref_id?: string | null;
@@ -13,17 +12,6 @@ export type AssetWithMeta = Asset & {
   quality_score?: number | null;
   governance_status?: string | null;
   index_status?: string | null;
-};
-
-// ── Stats (derived client-side, pre-aggregate-endpoint fallback) ──────────
-
-export type AssetStats = {
-  available: number;
-  reviewRequired: number;
-  currentNormalizedRefs: number;
-  staleIndex: number;
-  l3l4: number;
-  autoAdoptionRate: number;
 };
 
 export const DOMAIN_LABELS: Record<string, string> = {
@@ -61,58 +49,4 @@ export function domainLabel(code: string | null | undefined, name?: string | nul
   if (name && name !== "program_profile") return name;
   if (!canonical) return "-";
   return canonical;
-}
-
-// ── Aggregate endpoint contract: GET /v1/assets/summary ──────────────────
-
-/** Response from GET /v1/assets/summary — pre-computed aggregate stats. */
-export interface AssetSummary {
-  total: number;
-  available: number;
-  review_required: number;
-  current_normalized_refs: number;
-  stale_index: number;
-  l3l4: number;
-  auto_adoption_rate: number;
-  domain_distribution: { domain: string; name?: string | null; count: number }[];
-}
-
-/** Map AssetSummary to the shape AssetsSummary component expects. */
-export function toAssetStats(s: AssetSummary): AssetStats {
-  return {
-    available: s.available,
-    reviewRequired: s.review_required,
-    currentNormalizedRefs: s.current_normalized_refs,
-    staleIndex: s.stale_index,
-    l3l4: s.l3l4,
-    autoAdoptionRate: s.auto_adoption_rate,
-  };
-}
-
-export function deriveStats(assets: AssetWithMeta[]): AssetStats {
-  let available = 0;
-  let reviewRequired = 0;
-  let currentNormalizedRefs = 0;
-  let staleIndex = 0;
-  let l3l4 = 0;
-  let autoAdopted = 0;
-  let totalDecisions = 0;
-
-  for (const a of assets) {
-    if (a.status === "available") available++;
-    if (a.status === "review_required") reviewRequired++;
-    if (a.current_normalized_ref_id) currentNormalizedRefs++;
-    if (a.index_status === "stale") staleIndex++;
-    if (a.level === "L3" || a.level === "L4") l3l4++;
-    if (a.governance_status) {
-      totalDecisions++;
-      if (a.governance_status === "auto_passed" || a.governance_status === "auto_adopted")
-        autoAdopted++;
-    }
-  }
-
-  const autoAdoptionRate =
-    totalDecisions > 0 ? Math.round((autoAdopted / totalDecisions) * 100) : 0;
-
-  return { available, reviewRequired, currentNormalizedRefs, staleIndex, l3l4, autoAdoptionRate };
 }

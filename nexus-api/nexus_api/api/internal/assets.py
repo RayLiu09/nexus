@@ -241,14 +241,6 @@ def _catalog_row(session: Session, asset: models.Asset) -> domain_schemas.AssetC
     quality_summary = result.quality_summary if result is not None else None
     domain = _canonical_classification(result.classification) if result is not None else None
     domain_name = _classification_label(domain)
-    institution_identity = (
-        (ref_for_catalog.metadata_summary or {}).get("institution_identity")
-        if ref_for_catalog is not None else None
-    )
-    institution_name = (
-        institution_identity.get("institution_name")
-        if isinstance(institution_identity, dict) else None
-    )
     base = domain_schemas.AssetRead.model_validate(asset).model_dump()
     # `asset.status` is a cached projection.  Prefer the effective version
     # state for catalog reads so historical rows cannot display a stale review
@@ -276,7 +268,6 @@ def _catalog_row(session: Session, asset: models.Asset) -> domain_schemas.AssetC
         latest_normalized_ref_id=latest_ref.id if latest_ref is not None else None,
         domain=domain,
         domain_name=domain_name,
-        institution_name=institution_name,
         level=result.level if result is not None else None,
         quality_score=(
             (quality_summary or {}).get("quality_score")

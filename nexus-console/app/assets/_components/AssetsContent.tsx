@@ -9,14 +9,12 @@ import { ApiState } from "@/components/ApiState";
 import { StatusLabel } from "@/components/StatusLabel";
 import { CopyableShortId } from "@/components/shared/CopyableShortId";
 import { formatTime } from "@/lib/format-time";
-import type { AssetWithMeta, AssetSummary, AssetStats } from "../_lib/types";
+import type { AssetWithMeta } from "../_lib/types";
 import {
   DOMAIN_OPTIONS,
   canonicalDomain,
   domainLabel,
-  toAssetStats,
 } from "../_lib/types";
-import { AssetsSummary } from "./AssetsSummary";
 import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 
 type AssetCatalogFilters = {
@@ -63,19 +61,8 @@ const LEVEL_COLOR_KEY: Record<string, string> = {
   L4: "error",
 };
 
-const EMPTY_STATS: AssetStats = {
-  available: 0,
-  reviewRequired: 0,
-  currentNormalizedRefs: 0,
-  staleIndex: 0,
-  l3l4: 0,
-  autoAdoptionRate: 0,
-};
-
 interface AssetsContentProps {
   assets: AssetWithMeta[];
-  /** Pre-computed aggregate from /v1/assets/summary. */
-  summary: AssetSummary | null;
   totalCount: number;
   currentPage: number;
   pageSize: number;
@@ -87,7 +74,6 @@ interface AssetsContentProps {
 
 export function AssetsContent({
   assets,
-  summary,
   totalCount,
   currentPage,
   pageSize,
@@ -98,8 +84,6 @@ export function AssetsContent({
 }: AssetsContentProps) {
   const router = useRouter();
   const pathname = usePathname();
-
-  const stats = summary ? toAssetStats(summary) : EMPTY_STATS;
 
   const handleTableChange = useCallback(
     (pagination: TablePaginationConfig) => {
@@ -160,13 +144,6 @@ export function AssetsContent({
           </div>
         </div>
       ),
-    },
-    {
-      title: "院校",
-      dataIndex: "institution_name",
-      width: 180,
-      render: (value?: string | null) =>
-        value || <span style={{ color: "var(--text-muted)" }}>-</span>,
     },
     {
       title: "当前版本",
@@ -278,8 +255,6 @@ export function AssetsContent({
   return (
     <>
       <ApiState ok={ok} error={error} traceId={traceId} />
-
-      <AssetsSummary stats={stats} />
 
       <div className="assets-toolbar">
         <Select

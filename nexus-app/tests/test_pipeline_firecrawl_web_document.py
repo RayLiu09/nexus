@@ -39,6 +39,10 @@ from nexus_app import services
 from nexus_app.schemas import DataSourceCreate
 from nexus_app.worker import runner as worker_runner
 from nexus_app.worker.runner import execute_job
+from nexus_app.crawler.html_content_extractor import (
+    _repair_gfm_table_separators,
+    extract_html_main_content,
+)
 
 
 class _MinerUMustNotBeCalled:
@@ -186,6 +190,42 @@ def test_firecrawl_html_parse_bypasses_mineru_and_creates_document_artifact(sess
     assert stage.status == StageStatus.SUCCEEDED
     assert stage.detail["parse_route"] == "firecrawl_web_document"
     assert stage.detail["connector_type"] == "firecrawl_document"
+
+
+def test_firecrawl_html_repairs_missing_gfm_table_separator() -> None:
+    repaired, count = _repair_gfm_table_separators(
+        "| 序号 | 学校名称 | 省份 |\n"
+        "| 1 | 示例职业学院 | 北京 |\n"
+        "| 2 | 示例技术学院 | 上海 |"
+    )
+
+    assert count == 1
+    assert "| 序号 | 学校名称 | 省份 |\n| --- | --- | --- |\n| 1 |" in repaired
+    assert repaired.count("| --- | --- | --- |") == 1
+
+
+def test_firecrawl_html_keeps_existing_gfm_table_separator() -> None:
+    markdown = (
+        "| 序号 | 学校名称 | 省份 |\n"
+        "| --- | --- | --- |\n"
+        "| 1 | 示例职业学院 | 北京 |"
+    )
+
+    repaired, count = _repair_gfm_table_separators(markdown)
+
+    assert count == 0
+    assert repaired == markdown
+
+
+def test_firecrawl_html_preserves_institution_from_source_title_hint() -> None:
+    result = extract_html_main_content(
+        html="<html><head><title>电子商务专业</title></head><body><h1>电子商务专业</h1><p>专业介绍正文。</p></body></html>",
+        source_url="https://example.edu/major",
+        title_hint="电子商务专业 - 贵州航空工业技师学院",
+    )
+
+    assert result.title == "电子商务专业 - 贵州航空工业技师学院"
+    assert result.markdown.startswith("# 电子商务专业 - 贵州航空工业技师学院")
 
 
 def test_firecrawl_html_route_uses_connector_metadata_not_source_type(session) -> None:

@@ -2491,6 +2491,20 @@ def run_knowledge_chunking(
         return []
 
     emissions = (normalized_ref.metadata_summary or {}).get("knowledge_emissions", [])
+    emissions, domain_model_detail = _filter_domain_model_required_emissions(
+        normalized_ref, emissions
+    )
+    if not emissions and domain_model_detail.get("domain_model_gate") == "major_profile_model_required":
+        reason = str(domain_model_detail["reason"])
+        _add_stage(
+            ctx,
+            "knowledge_chunking",
+            StageStatus.SKIPPED,
+            {"reason": reason, **domain_model_detail, **admission_detail},
+            started_at=started_at,
+        )
+        _audit_chunking_skipped(ctx, normalized_ref, reason, domain_model_detail)
+        return []
     invalid_codes = _invalid_knowledge_emission_codes(emissions)
     if not emissions or invalid_codes:
         emissions, recovery_detail = _recover_knowledge_emissions(ctx, normalized_ref)
@@ -2499,9 +2513,15 @@ def run_knowledge_chunking(
     else:
         recovery_detail = {"recovery": "not_needed"}
     if not emissions:
-        reason = "no knowledge_emissions on normalized_ref"
+        reason = domain_model_detail.get(
+            "reason", "no knowledge_emissions on normalized_ref"
+        )
         _add_stage(ctx, "knowledge_chunking", StageStatus.SKIPPED,
-                   {"reason": reason, **recovery_detail}, started_at=started_at)
+                   {
+                       "reason": reason,
+                       **domain_model_detail,
+                       **recovery_detail,
+                   }, started_at=started_at)
         _audit_chunking_skipped(ctx, normalized_ref, reason, recovery_detail)
         return []
 
@@ -2590,6 +2610,7 @@ def run_knowledge_chunking(
             "normalized_ref_id": normalized_ref.id,
             "emission_count": len(emissions),
             "chunk_count": len(chunks),
+            **domain_model_detail,
             **recovery_detail,
             **admission_detail,
         },
@@ -2611,6 +2632,37 @@ def run_knowledge_chunking(
             started_at=started_at,
         )
     return chunks
+
+
+def _filter_domain_model_required_emissions(
+    normalized_ref: models.NormalizedAssetRef,
+    emissions: object,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Prevent unstructured major-profile pages from entering Pipeline 1.
+
+    ``major_profile_knowledge`` is a domain-model projection, not a generic
+    full-text index.  Assets that lack a publishable ``major_profile.v1`` stay
+    available for catalog/detail and later full-text reference, but must not
+    create empty chunks or an empty index manifest.
+    """
+    items = [item for item in emissions if isinstance(item, dict)] if isinstance(emissions, list) else []
+    has_major_profile_model = any(
+        isinstance(profile, dict)
+        and profile.get("domain_profile") == "major_profile.v1"
+        for profile in ((normalized_ref.metadata_summary or {}).get("domain_profiles") or [])
+    )
+    filtered = [
+        item
+        for item in items
+        if item.get("code") != "major_profile_knowledge" or has_major_profile_model
+    ]
+    if len(filtered) == len(items):
+        return filtered, {"domain_model_gate": "not_applicable"}
+    return filtered, {
+        "domain_model_gate": "major_profile_model_required",
+        "excluded_emission_codes": ["major_profile_knowledge"],
+        "reason": "major_profile domain model unavailable; retained for asset full-text reference",
+    }
 
 
 def run_knowledge_outline_build(

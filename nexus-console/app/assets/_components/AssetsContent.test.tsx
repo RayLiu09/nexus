@@ -24,7 +24,6 @@ describe("AssetsContent", () => {
     const { user } = renderWithProviders(
       <AssetsContent
         assets={[]}
-        summary={null}
         totalCount={0}
         currentPage={2}
         pageSize={20}
@@ -48,7 +47,6 @@ describe("AssetsContent", () => {
     renderWithProviders(
       <AssetsContent
         assets={[]}
-        summary={null}
         totalCount={0}
         currentPage={1}
         pageSize={20}
@@ -66,7 +64,6 @@ describe("AssetsContent", () => {
     const { user } = renderWithProviders(
       <AssetsContent
         assets={[]}
-        summary={null}
         totalCount={0}
         currentPage={1}
         pageSize={20}

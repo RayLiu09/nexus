@@ -2,7 +2,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { AssetsContent } from "./_components/AssetsContent";
 import { getApiData } from "@/lib/api";
 import { parsePaginationParams, DEFAULT_PAGE_SIZE } from "@/lib/pagination";
-import type { AssetWithMeta, AssetSummary } from "./_lib/types";
+import type { AssetWithMeta } from "./_lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -30,14 +30,14 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
   if (status && status !== "all") tableParams.status = status;
   if (tags.length) tableParams.tags = tags;
 
-  // Aggregate + paginated list are independent — fetch in parallel.
-  const [summaryResult, tableResult] = await Promise.all([
-    getApiData<AssetSummary | null>("/internal/v1/assets/summary", null),
-    getApiData<AssetWithMeta[]>("/internal/v1/assets", [], tableParams),
-  ]);
+  const tableResult = await getApiData<AssetWithMeta[]>(
+    "/internal/v1/assets",
+    [],
+    tableParams,
+  );
 
   const tableData = tableResult.data;
-  const totalCount = tableResult.total ?? summaryResult.data?.total ?? tableData.length;
+  const totalCount = tableResult.total ?? tableData.length;
 
   return (
     <>
@@ -48,7 +48,6 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
       />
       <AssetsContent
         assets={tableData}
-        summary={summaryResult.data}
         totalCount={totalCount}
         currentPage={currentPage}
         pageSize={currentPageSize}

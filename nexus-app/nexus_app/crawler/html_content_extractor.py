@@ -51,6 +51,9 @@ def extract_html_main_content(
         extractor_backend = "html_text_fallback"
         quality_flags.append("html_text_fallback_used")
     markdown = _normalize_markdown(extracted)
+    markdown, repaired_tables = _repair_gfm_table_separators(markdown)
+    if repaired_tables:
+        quality_flags.append("gfm_table_separator_repaired")
     if not markdown:
         raise HtmlMainContentExtractionError("crawler HTML extractor produced empty markdown")
     markdown, promoted_headings = _promote_policy_headings(markdown)
@@ -351,10 +354,76 @@ def _normalize_markdown(markdown: str) -> str:
     return text
 
 
+def _repair_gfm_table_separators(markdown: str) -> tuple[str, int]:
+    """Add missing GFM header separators emitted by some HTML extractors.
+
+    Trafilatura occasionally emits a pipe-delimited HTML table as a header
+    directly followed by data rows.  That is readable source text but invalid
+    GFM, so `react-markdown` renders it as a paragraph.  Repair only adjacent
+    table rows with equal column counts and leave valid tables and fenced code
+    blocks untouched.
+    """
+    lines = markdown.split("\n")
+    output: list[str] = []
+    repaired = 0
+    in_fence = False
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if line.lstrip().startswith(("```", "~~~")):
+            in_fence = not in_fence
+        output.append(line)
+        if (
+            not in_fence
+            and (index == 0 or not _is_pipe_table_row(lines[index - 1]))
+            and index + 1 < len(lines)
+            and _is_pipe_table_row(line)
+            and _is_pipe_table_row(lines[index + 1])
+        ):
+            header = _pipe_table_cells(line)
+            next_row = _pipe_table_cells(lines[index + 1])
+            if (
+                len(header) >= 2
+                and len(header) == len(next_row)
+                and all(cell for cell in header)
+                and not (
+                    len(output) >= 2
+                    and _is_gfm_separator_row(_pipe_table_cells(output[-2]))
+                )
+                and not _is_gfm_separator_row(header)
+                and not _is_gfm_separator_row(next_row)
+            ):
+                output.append("| " + " | ".join("---" for _ in header) + " |")
+                repaired += 1
+        index += 1
+    return "\n".join(output), repaired
+
+
+def _is_pipe_table_row(line: str) -> bool:
+    stripped = line.strip()
+    return stripped.startswith("|") and stripped.endswith("|") and stripped.count("|") >= 3
+
+
+def _pipe_table_cells(line: str) -> list[str]:
+    return [cell.strip() for cell in line.strip()[1:-1].split("|")]
+
+
+def _is_gfm_separator_row(cells: list[str]) -> bool:
+    return bool(cells) and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells)
+
+
 def _pick_title(*, title_hint: str | None, extractor_metadata: dict[str, Any], markdown: str) -> str:
+    hinted_title = str(title_hint or "").strip()
+    extracted_title = str(extractor_metadata.get("title") or "").strip()
+    # The crawler's retained title is source metadata.  Prefer it only when it
+    # contains an explicit school identity that the extractor's generic page
+    # title lost; this keeps institution-profile identity tied to a reliable
+    # source field instead of a recommendation/footer block.
+    if _contains_institution_name(hinted_title) and not _contains_institution_name(extracted_title):
+        return _strip_site_suffix(hinted_title)[:256]
     candidates = [
-        str(extractor_metadata.get("title") or "").strip(),
-        str(title_hint or "").strip(),
+        extracted_title,
+        hinted_title,
     ]
     heading = re.search(r"^#\s+(.+)$", markdown, flags=re.MULTILINE)
     if heading:
@@ -364,6 +433,13 @@ def _pick_title(*, title_hint: str | None, extractor_metadata: dict[str, Any], m
             return _strip_site_suffix(value)[:256]
     first_line = next((line.strip("# ").strip() for line in markdown.splitlines() if line.strip()), "")
     return first_line[:120] or "未命名网页文档"
+
+
+def _contains_institution_name(value: str) -> bool:
+    return bool(re.search(
+        r"[\u4e00-\u9fa5]{2,28}(?:职业技术大学|职业技术学院|职业学院|技师学院|技工学校|大学|学院|学校)",
+        value,
+    ))
 
 
 def _strip_site_suffix(value: str) -> str:

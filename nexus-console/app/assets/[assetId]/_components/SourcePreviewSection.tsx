@@ -14,7 +14,7 @@
  * Deep-link: a `#block-XXX` URL hash scrolls to and briefly highlights the
  * matching block on mount and on hashchange.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { Alert, Card, Empty, Skeleton } from "antd";
 import remarkGfm from "remark-gfm";
@@ -173,7 +173,9 @@ function MarkdownViewer({ body, blocks }: MarkdownViewerProps) {
   if (segments.length === 0) {
     return (
       <div className="md-preview max-h-[70vh] overflow-y-auto">
-        <Markdown remarkPlugins={[remarkGfm]}>{body}</Markdown>
+        <MarkdownTableContainer>
+          <Markdown remarkPlugins={[remarkGfm]}>{body}</Markdown>
+        </MarkdownTableContainer>
       </div>
     );
   }
@@ -191,11 +193,17 @@ function MarkdownViewer({ body, blocks }: MarkdownViewerProps) {
               : ""
           }
         >
-          <Markdown remarkPlugins={[remarkGfm]}>{text}</Markdown>
+          <MarkdownTableContainer>
+            <Markdown remarkPlugins={[remarkGfm]}>{text}</Markdown>
+          </MarkdownTableContainer>
         </div>
       ))}
     </div>
   );
+}
+
+function MarkdownTableContainer({ children }: { children: ReactNode }) {
+  return <div className="md-preview-table-wrap">{children}</div>;
 }
 
 // ---- segment builder -----------------------------------------------------

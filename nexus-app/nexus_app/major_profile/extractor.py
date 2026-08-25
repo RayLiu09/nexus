@@ -14,22 +14,22 @@ EXTRACTOR_VERSION = "major_profile_extractor.v1"
 INSTITUTION_SIGNALS = ("学校", "学院", "大学", "职业技术", "专业介绍", "招生专业")
 
 _INSTITUTION_NAME_PATTERN = re.compile(
-    r"[\u4e00-\u9fa5]{2,28}(?:职业技术大学|职业技术学院|职业学院|大学|学院|学校)"
+    r"[\u4e00-\u9fa5]{2,28}(?:职业技术大学|职业技术学院|职业学院|技师学院|技工学校|大学|学院|学校)"
 )
 _GENERIC_INSTITUTION_NAMES = frozenset({
     "全国本科院校", "全国高等院校", "国内外知名财经院校", "职业院校",
-    "中等职业学校", "高等学校", "院校", "学校",
+    "中等职业学校", "高等学校", "各级学校", "院校", "学校",
 })
 _INSTITUTION_PREFIXES = (
     "该专业作为", "该校作为", "作为", "我校", "本校", "全校", "全国",
 )
-_INSTITUTION_CONTEXT_BOUNDARIES = ("作为", "是", "为", "到", "与", "在", "从", "由")
+_INSTITUTION_CONTEXT_BOUNDARIES = ("作为", "面向", "是", "为", "到", "与", "在", "从", "由")
 
 
 SECTION_DEFS: dict[str, dict[str, Any]] = {
     "occupation_oriented": {
         "title": "职业面向",
-        "aliases": ["职业面向", "面向职业", "就业面向", "岗位面向"],
+        "aliases": ["职业面向", "面向职业", "就业面向", "岗位面向", "就业方向"],
     },
     "training_goal": {
         "title": "培养目标定位",
@@ -41,7 +41,7 @@ SECTION_DEFS: dict[str, dict[str, Any]] = {
     },
     "courses_and_training": {
         "title": "主要专业课程与实习实训",
-        "aliases": ["主要专业课程与实习实训", "课程与实训", "课程设置"],
+        "aliases": ["主要专业课程与实习实训", "课程与实训", "课程设置", "主要课程", "主干课程"],
     },
     "certificates": {
         "title": "职业类证书举例",
@@ -219,7 +219,14 @@ def _profile_from_segment(
         if explicit_code and explicit_name
         else _extract_identity(title, text)
     )
-    if not major_code or not major_name:
+    institution_identity = extract_institution_identity({
+        "content_type": "document",
+        "title": title,
+        "blocks": blocks,
+    })
+    if not major_name:
+        major_name = _extract_major_name_from_title(title)
+    if not major_name:
         return None
 
     education_level = _extract_education_level(title, text)
@@ -234,6 +241,12 @@ def _profile_from_segment(
         "confidence": _confidence(sections),
         "major_code": major_code,
         "major_name": major_name,
+        "profile_source": (
+            "national_standard" if major_code else "institution_profile"
+        ),
+        "institution_name": (
+            institution_identity["institution_name"] if institution_identity else None
+        ),
         "education_level": education_level,
         "basic_study_duration": duration,
         "training_goal": _field_value(
@@ -261,9 +274,9 @@ def _profile_from_segment(
     }
     if not sections:
         profile["quality_flags"]["missing_profile_sections"] = True
-    if not profile["ability_requirements"]:
+    if major_code and not profile["ability_requirements"]:
         profile["quality_flags"]["missing_ability_requirements"] = True
-    if not any(profile["courses_and_training"].values()):
+    if major_code and not any(profile["courses_and_training"].values()):
         profile["quality_flags"]["missing_courses_and_training"] = True
     return validate_profile_payload(profile)[0]
 
@@ -299,7 +312,15 @@ def _looks_like_major_profile(title: str, text: str) -> bool:
         for config in SECTION_DEFS.values()
         if any(alias in haystack for alias in config["aliases"])
     )
-    return hits >= 2 and bool(re.search(r"\b\d{4,6}\b", haystack))
+    if hits < 2:
+        return False
+    if re.search(r"\b\d{4,6}\b", haystack):
+        return True
+    return extract_institution_identity({
+        "content_type": "document",
+        "title": title,
+        "blocks": [{"text": text}],
+    }) is not None
 
 
 def _is_publishable_profile(profile: dict[str, Any]) -> bool:
@@ -313,8 +334,6 @@ def _is_publishable_profile(profile: dict[str, Any]) -> bool:
     """
     major_code = str(profile.get("major_code") or "").strip()
     major_name = str(profile.get("major_name") or "").strip()
-    if not re.fullmatch(r"\d{4,6}", major_code):
-        return False
     chinese_name_chars = re.findall(r"[\u4e00-\u9fa5]", major_name)
     if len(chinese_name_chars) < 2:
         return False
@@ -326,7 +345,29 @@ def _is_publishable_profile(profile: dict[str, Any]) -> bool:
         for section in sections
         if isinstance(section, dict) and str(section.get("text") or "").strip()
     }
-    return _REQUIRED_PROFILE_SECTION_KEYS.issubset(section_keys)
+    if re.fullmatch(r"\d{4,6}", major_code):
+        return _REQUIRED_PROFILE_SECTION_KEYS.issubset(section_keys)
+
+    # Institution pages often omit the national major code. They remain
+    # indexable only when identity plus a compact, evidence-bound domain model
+    # can be formed; otherwise the document stays an asset-only full-text
+    # reference instead of producing empty major-profile knowledge flows.
+    if not str(profile.get("institution_name") or "").strip():
+        return False
+    core_sections = {
+        "occupation_oriented",
+        "training_goal",
+        "ability_requirements",
+        "courses_and_training",
+        "certificates",
+        "industry_partnerships",
+    }
+    return len(section_keys & core_sections) >= 2
+
+
+def _extract_major_name_from_title(title: str) -> str | None:
+    match = re.search(r"(?P<name>[\u4e00-\u9fa5]{2,24}(?:专业|专业类|类))", title)
+    return _clean_name(match.group("name")) if match else None
 
 
 def _extract_identity(title: str, text: str) -> tuple[str | None, str | None]:
@@ -458,9 +499,7 @@ def _extract_sections(blocks: list[dict[str, Any]]) -> dict[str, Section]:
 
 
 def _match_section_heading(text: str) -> tuple[str, str] | None:
-    stripped = text.strip().lstrip("#").strip()
-    stripped = re.sub(r"^[一二三四五六七八九十]+[、.．]\s*", "", stripped)
-    stripped = re.sub(r"^\d+[、.．]\s*", "", stripped)
+    stripped = _normalized_heading_text(text)
     for key, config in SECTION_DEFS.items():
         for alias in config["aliases"]:
             if stripped == alias or stripped.startswith(f"{alias}\n") or stripped.startswith(f"{alias}：") or stripped.startswith(f"{alias}:"):
@@ -469,18 +508,24 @@ def _match_section_heading(text: str) -> tuple[str, str] | None:
 
 
 def _strip_heading(text: str, heading: str) -> str:
-    stripped = text.strip().lstrip("#").strip()
-    stripped = re.sub(r"^[一二三四五六七八九十]+[、.．]\s*", "", stripped)
-    stripped = re.sub(r"^\d+[、.．]\s*", "", stripped)
+    stripped = _normalized_heading_text(text)
     if stripped.startswith(heading):
         return stripped[len(heading):].lstrip(" ：:\n\t")
     return ""
 
 
 def _strip_markdown_heading(text: str) -> str:
+    stripped = _normalized_heading_text(text)
+    return stripped
+
+
+def _normalized_heading_text(text: str) -> str:
     stripped = text.strip().lstrip("#").strip()
     stripped = re.sub(r"^[一二三四五六七八九十]+[、.．]\s*", "", stripped)
     stripped = re.sub(r"^\d+[、.．]\s*", "", stripped)
+    stripped = stripped.rstrip("：: \t")
+    if len(stripped) >= 2 and stripped[0] in "【[（(" and stripped[-1] in "】]）)":
+        stripped = stripped[1:-1].strip()
     return stripped
 
 

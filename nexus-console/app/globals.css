@@ -2966,13 +2966,17 @@ nextjs-portal:empty {
 
 /* -- tables (GFM) ----------------------------------------------- */
 
+.md-preview-table-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
 .md-preview table {
   width: 100%;
+  min-width: max-content;
   margin: 0.75em 0;
   border-collapse: collapse;
   font-size: 13px;
-  overflow-x: auto;
-  display: block;
 }
 
 .md-preview thead {

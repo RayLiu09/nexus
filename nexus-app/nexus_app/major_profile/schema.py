@@ -19,6 +19,7 @@ BLOCKING_FLAGS = frozenset({
     "missing_courses_and_training",
     "missing_foundation_courses",
     "missing_core_courses",
+    "missing_profile_content",
 })
 
 
@@ -131,33 +132,41 @@ def validate_profile_payload(profile: dict[str, Any]) -> tuple[dict[str, Any], d
         output["quality_flags"] = flags
         return output, flags
 
-    if not validated.get("occupation_oriented"):
-        flags["missing_occupation_oriented"] = True
-    if not validated.get("training_goal"):
-        flags["missing_training_goal"] = True
-    if not validated.get("ability_requirements"):
-        flags["missing_ability_requirements"] = True
-
     courses = validated.get("courses_and_training") or {}
     foundation = courses.get("foundation_courses") or []
     core = courses.get("core_courses") or []
     practice = courses.get("practice_trainings") or []
-    if not foundation and not core and not practice:
-        flags["missing_courses_and_training"] = True
-    if not foundation:
-        flags["missing_foundation_courses"] = True
-    if not core:
-        flags["missing_core_courses"] = True
     if not validated.get("certificates"):
         flags["missing_certificates"] = True
     if not validated.get("continuation_majors"):
         flags["missing_continuation_majors"] = True
-    if validated["profile_source"] == "national_standard" and not validated.get("major_code"):
-        flags["missing_identity"] = True
+    if validated["profile_source"] == "national_standard":
+        if not validated.get("major_code"):
+            flags["missing_identity"] = True
+        if not validated.get("occupation_oriented"):
+            flags["missing_occupation_oriented"] = True
+        if not validated.get("training_goal"):
+            flags["missing_training_goal"] = True
+        if not validated.get("ability_requirements"):
+            flags["missing_ability_requirements"] = True
+        if not foundation and not core and not practice:
+            flags["missing_courses_and_training"] = True
+        if not foundation:
+            flags["missing_foundation_courses"] = True
+        if not core:
+            flags["missing_core_courses"] = True
     if validated["profile_source"] == "institution_profile":
         if not validated.get("institution_name"):
             flags["missing_identity"] = True
-        if not any((validated.get("occupation_oriented"), foundation, core, practice, validated.get("industry_partnerships"))):
+        core_fact_groups = (
+            bool(validated.get("occupation_oriented")),
+            bool(validated.get("training_goal")),
+            bool(validated.get("ability_requirements")),
+            bool(foundation or core or practice),
+            bool(validated.get("certificates")),
+            bool(validated.get("industry_partnerships")),
+        )
+        if sum(core_fact_groups) < 2:
             flags["missing_profile_content"] = True
 
     validated["quality_flags"] = flags

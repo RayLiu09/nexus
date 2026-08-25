@@ -207,15 +207,6 @@ export async function mockApi(page: Page) {
     });
   });
 
-  await page.route(`${API}/v1/assets/summary`, async (route) => {
-    await route.fulfill({
-      json: {
-        data: { total: 120, validated: 98, pending: 15, failed: 7 },
-        meta: { trace_id: "e2e-005" },
-      },
-    });
-  });
-
   await page.route(`${API}/v1/raw-objects/summary`, async (route) => {
     await route.fulfill({
       json: {

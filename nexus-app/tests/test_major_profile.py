@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 from sqlalchemy import select
 
@@ -21,6 +22,7 @@ from nexus_app.major_profile.schema import blocking_reasons_from_flags, validate
 from nexus_app.major_profile.extractor import extract, extract_institution_identity
 from nexus_app.major_profile.presentation import reconcile_presentation
 from nexus_app.major_profile.writer import write, write_many
+from nexus_app.pipeline.stages import _filter_domain_model_required_emissions
 from nexus_app.major_profile.llm_fallback import (
     _document_content,
     extract as extract_institution_fallback,
@@ -152,7 +154,7 @@ def test_extract_major_profile_sections_and_items() -> None:
         "certificates",
         "continuation_majors",
     }
-    assert profile["quality_flags"] == {}
+    assert blocking_reasons_from_flags(profile["quality_flags"]) == []
 
 
 def test_institution_profile_llm_fallback_adopts_only_normalized_block_evidence() -> None:
@@ -234,6 +236,93 @@ def test_institution_identity_is_recovered_from_generic_title_body_evidence() ->
         "evidence_block_ids": ["b1"],
         "source_url": "https://jgxy.mju.edu.cn/zyjs/list.htm",
     }
+
+
+def test_institution_profile_without_major_code_builds_core_domain_model() -> None:
+    blocks = [
+        _block("b1", "heading", "电子商务专业", 1),
+        _block("b2", "paragraph", "贵州航空工业技师学院开设电子商务专业。", 1),
+        _block("b3", "heading", "培养目标", 2),
+        _block("b4", "paragraph", "培养掌握网络营销与电商运营技能的专业人才。", 2),
+        _block("b5", "heading", "主要课程", 3),
+        _block("b6", "paragraph", "开设电子商务概论、网络营销和网页设计等课程。", 3),
+        _block("b7", "heading", "就业方向", 4),
+        _block("b8", "paragraph", "毕业生可从事电商运营、网络营销和客户服务工作。", 4),
+    ]
+
+    profile = extract({
+        "content_type": "document",
+        "title": "电子商务专业",
+        "blocks": blocks,
+        "body_markdown": "\n".join(block["text"] for block in blocks),
+    })
+
+    assert profile is not None
+    assert profile["major_code"] is None
+    assert profile["major_name"] == "电子商务专业"
+    assert profile["profile_source"] == "institution_profile"
+    assert profile["institution_name"] == "贵州航空工业技师学院"
+    assert {section["section_key"] for section in profile["sections"]} >= {
+        "occupation_oriented", "training_goal", "courses_and_training"
+    }
+    assert blocking_reasons_from_flags(profile["quality_flags"]) == []
+
+
+def test_institution_profile_accepts_bracketed_source_headings() -> None:
+    blocks = [
+        _block("b1", "heading", "电子商务专业", 1),
+        _block("b2", "paragraph", "贵州航空工业技师学院开设电子商务专业。", 1),
+        _block("b3", "heading", "【培养目标】：", 2),
+        _block("b4", "paragraph", "培养掌握网络营销与电商运营技能的专业人才。", 2),
+        _block("b5", "heading", "【主要课程】", 2),
+        _block("b6", "paragraph", "开设电子商务概论、网络营销和网页设计等课程。", 2),
+        _block("b7", "heading", "【就业方向】", 2),
+        _block("b8", "paragraph", "毕业生可从事电商运营、网络营销和客户服务工作。", 2),
+    ]
+
+    profile = extract({
+        "content_type": "document",
+        "title": "电子商务专业",
+        "blocks": blocks,
+        "body_markdown": "\n".join(block["text"] for block in blocks),
+    })
+
+    assert profile is not None
+    assert {section["section_key"] for section in profile["sections"]} >= {
+        "occupation_oriented", "training_goal", "courses_and_training"
+    }
+
+
+def test_institution_identity_rejects_generic_school_phrase() -> None:
+    identity = extract_institution_identity({
+        "content_type": "document",
+        "title": "电子商务专业",
+        "blocks": [
+            _block("b1", "paragraph", "面向各级学校开展电子商务人才培养。", 1),
+            _block("b2", "paragraph", "贵州航空工业技师学院开设电子商务专业。", 1),
+        ],
+    })
+
+    assert identity is not None
+    assert identity["institution_name"] == "贵州航空工业技师学院"
+    assert identity["evidence_block_ids"] == ["b2"]
+
+
+def test_major_profile_knowledge_requires_domain_model() -> None:
+    emissions = [{"code": "major_profile_knowledge", "name": "专业介绍知识"}]
+    no_model, detail = _filter_domain_model_required_emissions(
+        SimpleNamespace(metadata_summary={}), emissions
+    )
+    assert no_model == []
+    assert detail["domain_model_gate"] == "major_profile_model_required"
+
+    with_model, detail = _filter_domain_model_required_emissions(
+        SimpleNamespace(metadata_summary={
+            "domain_profiles": [{"domain_profile": "major_profile.v1"}],
+        }), emissions
+    )
+    assert with_model == emissions
+    assert detail["domain_model_gate"] == "not_applicable"
 
 
 def test_institution_profile_repairs_only_exact_block_evidence() -> None:
