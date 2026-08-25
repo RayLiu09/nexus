@@ -24,6 +24,7 @@ _PROTECTED_ENDPOINTS = [
     ("POST", "/internal/v1/ingest/crawler-packages", "json"),
     ("POST", "/internal/v1/ai/prompt-profiles", "json"),
     ("POST", "/internal/v1/ai/governance-runs", "json"),
+    ("POST", "/internal/v1/jobs/reprocess", "json"),
 ]
 
 

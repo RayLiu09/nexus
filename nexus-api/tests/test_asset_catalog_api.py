@@ -238,6 +238,11 @@ def test_review_required_asset_detail_exposes_latest_read_models(app, session):
 
 def test_asset_catalog_uses_latest_review_required_ref_for_ui_metadata(app, session):
     seeded = _seed_review_required_asset(session)
+    seeded["ref"].metadata_summary["institution_identity"] = {
+        "institution_name": "闽江学院",
+        "evidence_source": "normalized_block",
+    }
+    session.commit()
     client = TestClient(app)
 
     resp = client.get("/internal/v1/assets")
@@ -252,6 +257,7 @@ def test_asset_catalog_uses_latest_review_required_ref_for_ui_metadata(app, sess
     assert row["latest_normalized_ref_id"] == seeded["ref"].id
     assert row["domain"] == "industry_report"
     assert row["domain_name"] == "产业报告"
+    assert row["institution_name"] == "闽江学院"
     assert row["level"] == "L1"
     assert row["quality_score"] == 69.83
     assert row["governance_status"] == "review_required"

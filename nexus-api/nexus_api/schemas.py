@@ -97,6 +97,16 @@ class JobActionResult(BaseModel):
     attempt_count: int | None = None
 
 
+class JobReprocessRequest(BaseModel):
+    asset_version_id: str = Field(min_length=1, max_length=36)
+
+
+class JobReprocessResult(JobActionResult):
+    asset_version_id: str
+    reprocess_of_version_id: str
+    idempotent: bool = False
+
+
 class DataSourceDeleteResult(BaseModel):
     data_source_id: str
     deleted_at: str

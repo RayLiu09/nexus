@@ -162,6 +162,13 @@ export function AssetsContent({
       ),
     },
     {
+      title: "院校",
+      dataIndex: "institution_name",
+      width: 180,
+      render: (value?: string | null) =>
+        value || <span style={{ color: "var(--text-muted)" }}>-</span>,
+    },
+    {
       title: "当前版本",
       width: 160,
       render: (_, r) => (

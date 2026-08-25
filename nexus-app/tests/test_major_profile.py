@@ -18,7 +18,7 @@ from nexus_app.enums import (
 )
 from nexus_app.knowledge.services import run_knowledge_pipeline
 from nexus_app.major_profile.schema import blocking_reasons_from_flags, validate_profile_payload
-from nexus_app.major_profile.extractor import extract
+from nexus_app.major_profile.extractor import extract, extract_institution_identity
 from nexus_app.major_profile.presentation import reconcile_presentation
 from nexus_app.major_profile.writer import write, write_many
 from nexus_app.major_profile.llm_fallback import (
@@ -216,6 +216,24 @@ def test_institution_profile_llm_fallback_rejects_unknown_schema_field() -> None
 
     assert result.payload is None
     assert result.metadata["reason"] == "llm_schema_invalid"
+
+
+def test_institution_identity_is_recovered_from_generic_title_body_evidence() -> None:
+    identity = extract_institution_identity({
+        "content_type": "document",
+        "title": "专业介绍",
+        "source_url": "https://jgxy.mju.edu.cn/zyjs/list.htm",
+        "blocks": [
+            _block("b1", "paragraph", "旅游管理专业作为闽江学院首批6个本科专业之一。", 1),
+        ],
+    })
+
+    assert identity == {
+        "institution_name": "闽江学院",
+        "evidence_source": "normalized_block",
+        "evidence_block_ids": ["b1"],
+        "source_url": "https://jgxy.mju.edu.cn/zyjs/list.htm",
+    }
 
 
 def test_institution_profile_repairs_only_exact_block_evidence() -> None:

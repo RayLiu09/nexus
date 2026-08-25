@@ -1507,7 +1507,7 @@ class AIGovernanceService:
             "domain_quality": (
                 metadata_summary.get("major_profile_quality")
                 if metadata_summary.get("domain_profile") == "major_profile.v1"
-                else None
+                else metadata_summary.get("major_profile_candidate_quality")
             ),
             "sensitivity_summary": (ref.governance or {}).get("sensitivity_summary", ""),
             "org_context": (ref.governance or {}).get("org_scope", ""),

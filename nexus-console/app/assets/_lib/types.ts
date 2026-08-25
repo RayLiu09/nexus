@@ -3,6 +3,7 @@ import type { Asset } from "@/lib/api";
 export type AssetWithMeta = Asset & {
   domain?: string | null;
   domain_name?: string | null;
+  institution_name?: string | null;
   level?: string;
   current_version_no?: number | null;
   current_normalized_ref_id?: string | null;

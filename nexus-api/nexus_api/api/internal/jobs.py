@@ -10,16 +10,17 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
-from nexus_api.dependencies import Pagination, pagination_params
+from nexus_api.dependencies import Pagination, pagination_params, require_idempotency_key
 from nexus_api.responses import list_response, response
 from nexus_app import models, pipeline, schemas as domain_schemas, services
 from nexus_app.audit import write_audit
 from nexus_app.database import get_db
-from nexus_app.enums import AssetVersionStatus, AuditEventType, JobStatus
+from nexus_app.enums import AssetVersionStatus, AuditEventType, JobStatus, JobType
+from nexus_app.pipeline.payload_schema import JOB_PAYLOAD_SCHEMA_VERSION
 
 router = APIRouter()
 
@@ -144,6 +145,161 @@ def retry_job(job_id: str, request: Request, session: Session = Depends(get_db))
             job_id=job.id,
             status=job.status.value,
             attempt_count=job.attempt_count,
+        ),
+        request,
+    )
+
+
+@router.post(
+    "/jobs/reprocess",
+    response_model=schemas.ApiResponse[schemas.JobReprocessResult],
+    status_code=202,
+    dependencies=[Depends(require_idempotency_key)],
+)
+def reprocess_asset_version(
+    payload: schemas.JobReprocessRequest,
+    request: Request,
+    idempotency_key: str = Depends(require_idempotency_key),
+    session: Session = Depends(get_db),
+):
+    """Queue a full replay from retained raw data as a new asset version.
+
+    The source version and its governance evidence remain immutable. The
+    normal ingest executor creates the replacement version and applies the
+    current parsing, normalization and governance rules.
+    """
+    source_version = session.get(models.AssetVersion, payload.asset_version_id)
+    if source_version is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"asset version '{payload.asset_version_id}' not found",
+        )
+    raw_object = source_version.raw_object
+    if raw_object is None or raw_object.batch is None:
+        raise HTTPException(
+            status_code=409,
+            detail="asset version cannot be reprocessed because retained raw data is missing",
+        )
+
+    existing_job = session.scalar(
+        select(models.Job)
+        .where(
+            models.Job.job_type == JobType.INGEST_PROCESS,
+            models.Job.idempotency_key == idempotency_key,
+        )
+        .order_by(models.Job.created_at.desc())
+        .limit(1)
+    )
+    if existing_job is not None:
+        if (existing_job.metadata_summary or {}).get("reprocess_of_version_id") != source_version.id:
+            raise HTTPException(
+                status_code=409,
+                detail="Idempotency-Key was already used for a different reprocess request",
+            )
+        return response(
+            schemas.JobReprocessResult(
+                job_id=existing_job.id,
+                status=existing_job.status.value,
+                attempt_count=existing_job.attempt_count,
+                asset_version_id=source_version.id,
+                reprocess_of_version_id=source_version.id,
+                idempotent=True,
+            ),
+            request,
+        )
+
+    source_job = session.scalar(
+        select(models.Job)
+        .where(
+            models.Job.raw_object_id == raw_object.id,
+            models.Job.job_type == JobType.INGEST_PROCESS,
+        )
+        .order_by(models.Job.created_at.desc())
+        .limit(1)
+    )
+    if source_job is None:
+        raise HTTPException(
+            status_code=409,
+            detail="asset version cannot be reprocessed because its pipeline routing payload is missing",
+        )
+    pipeline_type = (source_job.payload or {}).get("pipeline_type")
+    if not isinstance(pipeline_type, str) or not pipeline_type:
+        raise HTTPException(status_code=409, detail="source job has no pipeline_type payload")
+
+    next_version_no = (
+        session.scalar(
+            select(func.max(models.AssetVersion.version_no)).where(
+                models.AssetVersion.asset_id == source_version.asset_id,
+            )
+        )
+        or 0
+    ) + 1
+    replacement_version = models.AssetVersion(
+        asset_id=source_version.asset_id,
+        raw_object_id=raw_object.id,
+        version_no=next_version_no,
+        version_status=AssetVersionStatus.PROCESSING,
+        source_checksum=raw_object.checksum,
+        metadata_summary={
+            **(source_version.metadata_summary or {}),
+            "m1_ready_for_governance": False,
+            "reprocess_of_version_id": source_version.id,
+        },
+    )
+    session.add(replacement_version)
+    session.flush()
+
+    trace_id = str(getattr(request.state, "trace_id", "")) or None
+    job = models.Job(
+        job_type=JobType.INGEST_PROCESS,
+        status=JobStatus.QUEUED,
+        ingest_batch_id=raw_object.batch_id,
+        raw_object_id=raw_object.id,
+        idempotency_key=idempotency_key,
+        current_stage="queued",
+        trace_id=trace_id,
+        payload={
+            "raw_object_id": raw_object.id,
+            "batch_id": raw_object.batch_id,
+            "pipeline_type": pipeline_type,
+            "source_object_key": (source_job.payload or {}).get("source_object_key"),
+            "operation": "reprocess",
+            "reprocess_target_version_id": replacement_version.id,
+        },
+        payload_schema_version=JOB_PAYLOAD_SCHEMA_VERSION,
+        metadata_summary={
+            "pipeline": "ingest_to_asset",
+            "operation": "reprocess",
+            "reprocess_of_version_id": source_version.id,
+            "reprocess_target_version_id": replacement_version.id,
+            "reprocess_of_job_id": source_job.id,
+        },
+    )
+    session.add(job)
+    session.flush()
+    write_audit(
+        session,
+        AuditEventType.JOB_RETRIED,
+        target_type="job",
+        target_id=job.id,
+        trace_id=trace_id,
+        summary={
+            "operation": "reprocess",
+            "source_asset_version_id": source_version.id,
+            "replacement_asset_version_id": replacement_version.id,
+            "source_job_id": source_job.id,
+            "pipeline_type": pipeline_type,
+        },
+    )
+    session.commit()
+    session.refresh(job)
+    return response(
+        schemas.JobReprocessResult(
+            job_id=job.id,
+            status=job.status.value,
+            attempt_count=job.attempt_count,
+            asset_version_id=source_version.id,
+            reprocess_of_version_id=source_version.id,
         ),
         request,
     )

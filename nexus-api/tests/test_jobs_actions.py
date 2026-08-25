@@ -10,6 +10,8 @@ from sqlalchemy import select
 from nexus_app import models
 from nexus_app.enums import (
     AuditEventType,
+    AssetKind,
+    AssetVersionStatus,
     DataSourceType,
     IngestBatchStatus,
     JobStatus,
@@ -105,6 +107,66 @@ def test_retry_rejects_succeeded_or_running(app, session):
         job = _seed_job(session, status)
         resp = client.post(f"/internal/v1/jobs/{job.id}/retry")
         assert resp.status_code == 409, f"{status} should not be retriable"
+
+
+def test_reprocess_succeeded_version_queues_idempotent_replay(app, session):
+    source_job = _seed_job(session, JobStatus.SUCCEEDED)
+    asset = models.Asset(
+        data_source_id=source_job.raw_object.data_source_id,
+        source_object_key="reprocess-source",
+        title="Reprocess source",
+        asset_kind=AssetKind.DOCUMENT,
+        status=AssetVersionStatus.AVAILABLE,
+    )
+    session.add(asset)
+    session.flush()
+    source_version = models.AssetVersion(
+        asset_id=asset.id,
+        raw_object_id=source_job.raw_object_id,
+        version_no=1,
+        source_checksum=source_job.raw_object.checksum,
+        version_status=AssetVersionStatus.AVAILABLE,
+    )
+    session.add(source_version)
+    source_job.payload = {
+        "pipeline_type": "document",
+        "source_object_key": "reprocess-source",
+    }
+    session.commit()
+
+    client = TestClient(app)
+    headers = {"Idempotency-Key": "reprocess-test-001"}
+    response_one = client.post(
+        "/internal/v1/jobs/reprocess",
+        headers=headers,
+        json={"asset_version_id": source_version.id},
+    )
+    assert response_one.status_code == 202, response_one.text
+    body = response_one.json()["data"]
+    assert body["status"] == JobStatus.QUEUED.value
+    assert body["reprocess_of_version_id"] == source_version.id
+    queued = session.get(models.Job, body["job_id"])
+    assert queued is not None
+    assert queued.payload["pipeline_type"] == "document"
+    assert queued.payload["operation"] == "reprocess"
+    assert queued.metadata_summary["operation"] == "reprocess"
+    assert queued.metadata_summary["reprocess_of_version_id"] == source_version.id
+    replacement = session.get(
+        models.AssetVersion,
+        queued.metadata_summary["reprocess_target_version_id"],
+    )
+    assert replacement is not None
+    assert replacement.version_no == 2
+    assert replacement.version_status == AssetVersionStatus.PROCESSING
+
+    response_two = client.post(
+        "/internal/v1/jobs/reprocess",
+        headers=headers,
+        json={"asset_version_id": source_version.id},
+    )
+    assert response_two.status_code == 202
+    assert response_two.json()["data"]["job_id"] == queued.id
+    assert response_two.json()["data"]["idempotent"] is True
 
 
 def test_cancel_queued_flips_to_cancelled_immediately(app, session):

@@ -376,6 +376,27 @@ class TestQualityScoringService:
         assert "major_profile.missing_training_goal" in summary.blocking_reasons
         assert "major_profile.missing_core_courses" in summary.blocking_reasons
 
+    def test_unresolved_institution_candidate_blocks_quality_admission(
+        self, registry, valid_ai_output
+    ):
+        summary = QualityScoringService(registry).generate_quality_summary(
+            valid_ai_output,
+            {
+                "title": "专业介绍",
+                "content_snippet": "某校电子商务专业介绍",
+                "domain_quality": {
+                    "blocking_reasons": [
+                        "major_profile.institution_identity_unresolved"
+                    ],
+                },
+            },
+        )
+
+        assert (
+            "major_profile.institution_identity_unresolved"
+            in summary.blocking_reasons
+        )
+
     def test_weights_from_registry_not_hardcoded(self, registry):
         svc = QualityScoringService(registry)
         qs = registry.get_quality_scoring()

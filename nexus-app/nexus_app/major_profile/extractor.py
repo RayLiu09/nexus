@@ -13,6 +13,18 @@ EXTRACTOR_VERSION = "major_profile_extractor.v1"
 
 INSTITUTION_SIGNALS = ("学校", "学院", "大学", "职业技术", "专业介绍", "招生专业")
 
+_INSTITUTION_NAME_PATTERN = re.compile(
+    r"[\u4e00-\u9fa5]{2,28}(?:职业技术大学|职业技术学院|职业学院|大学|学院|学校)"
+)
+_GENERIC_INSTITUTION_NAMES = frozenset({
+    "全国本科院校", "全国高等院校", "国内外知名财经院校", "职业院校",
+    "中等职业学校", "高等学校", "院校", "学校",
+})
+_INSTITUTION_PREFIXES = (
+    "该专业作为", "该校作为", "作为", "我校", "本校", "全校", "全国",
+)
+_INSTITUTION_CONTEXT_BOUNDARIES = ("作为", "是", "为", "到", "与", "在", "从", "由")
+
 
 SECTION_DEFS: dict[str, dict[str, Any]] = {
     "occupation_oriented": {
@@ -136,6 +148,62 @@ def looks_like_institution_profile(payload: dict[str, Any]) -> bool:
     # normalized-document evidence, so requiring two title aliases here only
     # creates false negatives for narrative pages.
     return identity_hits >= 1 and field_hits >= 1
+
+
+def extract_institution_identity(payload: dict[str, Any]) -> dict[str, Any] | None:
+    """Return a school identity only when it occurs in normalized evidence.
+
+    A source URL is carried as provenance, but a hostname is never translated
+    into a Chinese school name. This prevents a crawler URL or an LLM guess
+    from becoming an unsupported official identity.
+    """
+    if payload.get("content_type") != "document":
+        return None
+    title = str(payload.get("title") or "")
+    blocks = payload.get("blocks")
+    evidence_sources = [("title", title, [])]
+    if isinstance(blocks, list):
+        evidence_sources.extend(
+            (
+                "normalized_block",
+                _block_text(block),
+                [str(block.get("block_id"))],
+            )
+            for block in blocks
+            if isinstance(block, dict) and _block_text(block)
+        )
+
+    matches: list[tuple[str, str, list[str]]] = []
+    for source_type, text, block_ids in evidence_sources:
+        for match in _INSTITUTION_NAME_PATTERN.finditer(text):
+            candidate = _clean_institution_name(match.group(0))
+            if candidate:
+                matches.append((candidate, source_type, block_ids))
+    if not matches:
+        return None
+
+    # Prefer the shortest non-generic matching phrase: it removes surrounding
+    # prose such as "该专业作为" while preserving the exact school spelling.
+    name, source_type, block_ids = min(matches, key=lambda item: len(item[0]))
+    return {
+        "institution_name": name,
+        "evidence_source": source_type,
+        "evidence_block_ids": block_ids,
+        "source_url": payload.get("source_url"),
+    }
+
+
+def _clean_institution_name(value: str) -> str | None:
+    candidate = value.strip()
+    for boundary in _INSTITUTION_CONTEXT_BOUNDARIES:
+        if boundary in candidate:
+            candidate = candidate.rsplit(boundary, 1)[-1]
+    for prefix in _INSTITUTION_PREFIXES:
+        if candidate.startswith(prefix):
+            candidate = candidate[len(prefix):]
+    if candidate in _GENERIC_INSTITUTION_NAMES or len(candidate) < 3:
+        return None
+    return candidate
 
 
 def _profile_from_segment(

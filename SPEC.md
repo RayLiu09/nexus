@@ -219,7 +219,10 @@ P0 API groups include:
 - Data sources, including scan-task creation for NAS/Webhook/crawler/database Mode B orchestration.
 - Ingest submit and batch query.
 - Raw object query.
-- Job query, retry, reprocess.
+- Job query, retry, and idempotent reprocess (`POST /internal/v1/jobs/reprocess`)
+  from a retained asset-version raw object. Reprocessing creates a new version,
+  preserves the source version and its governance evidence, and records the
+  source-version/job lineage in the new job audit trail.
 - Asset list/detail/version/current read model.
 - Search and QA.
 - Governance rules read/edit (`config/governance_rules.json` via `/v1/admin/governance-rules`, ETag-protected).
@@ -288,6 +291,7 @@ P0 end-to-end cases:
   replaced or removed.
 - High-confidence AI + quality pass → `available`.
 - Classification confidence below `0.5` → `disabled`: retain raw/normalized assets and audit evidence, but do not create a human-review item, knowledge chunks, index projections, or default-catalog entry. Classification confidence from `0.5` to the auto-adopt threshold, or other actionable governance/quality failures, → `review_required`, with reason recorded in `governance_result.decision_trail`.
+- Candidate institution-specific `major_profile` documents require an evidence-bound school identity. Normalize it from the page title, normalized body, or verified source-page metadata and retain the source URL for traceability; do not translate a hostname into a school name without supporting evidence. If `institution_name` cannot be established, `major_profile.institution_identity_unresolved` is a blocking quality reason and the document cannot become `available`.
 - Tag generation: high-confidence tags auto-committed with audit log; low-confidence tags appear in review queue.
 - Same `source_object_key` + different content re-ingested → new `asset_version`, old `available` archived; `AssetVersionArchived` audit event written.
 - Rule edit (`config/governance_rules.json`) and re-governance → updated `governance_result.decision_trail`, index marked stale if needed.

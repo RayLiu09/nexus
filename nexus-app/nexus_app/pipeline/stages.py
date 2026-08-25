@@ -621,6 +621,11 @@ def run_assetize(
     - Same source_object_key, different checksum → archive old available, create version_no+1.
     - New source_object_key → create fresh asset at version_no=1.
     """
+    # Job claims occur in a separate worker transaction. Refresh the row so a
+    # newly submitted replay observes its persisted reprocess marker.
+    ctx.session.refresh(ctx.job)
+    reprocess_requested = (ctx.job.payload or {}).get("operation") == "reprocess"
+
     raw_object = ctx.raw_object
     kind = AssetKind.RECORD if ctx.pipeline_type == PipelineType.RECORD else AssetKind.DOCUMENT
     source_key = (
@@ -640,7 +645,11 @@ def run_assetize(
         asset_content_fingerprint = (raw_object.metadata_summary or {}).get(
             "asset_content_fingerprint"
         )
-        if isinstance(asset_content_fingerprint, str) and asset_content_fingerprint:
+        if (
+            isinstance(asset_content_fingerprint, str)
+            and asset_content_fingerprint
+            and not reprocess_requested
+        ):
             matching_version = next(
                 (
                     candidate
@@ -1314,6 +1323,10 @@ def _build_normalized_document(
             "title": title_from(raw_object, parse_payload),
             "blocks": blocks,
             "body_markdown": body_markdown,
+            "source_url": (
+                (parse_payload.get("source") or {}).get("source_url")
+                or raw_object.source_uri
+            ),
         }
         major_profile_payload = _extract_major_profile(major_profile_input)
         # Institution web pages normally omit the national code/template.  The
@@ -1328,6 +1341,26 @@ def _build_normalized_document(
             )
             major_profile_payload = fallback.payload
             metadata["major_profile_extraction"] = fallback.metadata
+            if major_profile_payload is None:
+                from nexus_app.major_profile.extractor import (
+                    extract_institution_identity as _extract_institution_identity,
+                )
+
+                identity = _extract_institution_identity(major_profile_input)
+                if identity is not None:
+                    metadata["institution_identity"] = identity
+                else:
+                    # Candidate detection found an institution-specific profile,
+                    # while strict extraction could not establish a usable school
+                    # identity. Preserve the source but block publication.
+                    metadata["major_profile_candidate_quality"] = {
+                        "schema_version": "major_profile_candidate_quality.v1",
+                        "blocking_reasons": [
+                            "major_profile.institution_identity_unresolved"
+                        ],
+                        "validation_status": "review_required",
+                        "extraction_reason": fallback.metadata.get("reason"),
+                    }
         if major_profile_payload is not None:
             major_profile_payload = _validate_major_profile_payload(major_profile_payload)
     except Exception:
@@ -1392,6 +1425,19 @@ def _build_normalized_document(
             }
             for profile in major_profile_summaries
         ]
+        institution_names = [
+            profile.get("institution_name")
+            for profile in major_profile_summaries
+            if isinstance(profile.get("institution_name"), str)
+            and profile.get("institution_name").strip()
+        ]
+        if institution_names:
+            metadata["institution_identity"] = {
+                "institution_name": institution_names[0].strip(),
+                "evidence_source": "major_profile",
+                "evidence_block_ids": [],
+                "source_url": major_profile_input.get("source_url"),
+            }
         metadata["major_profile_count"] = len(major_profile_summaries)
         metadata["major_profile_quality"] = major_profile_quality_summary
         metadata["knowledge_emissions"] = [{
@@ -1499,10 +1545,13 @@ def _build_normalized_document(
         body_markdown,
         image_uris,
     )
+    candidate_major_profile_quality = metadata.get("major_profile_candidate_quality")
     anomaly_items = list(
         major_profile_quality_summary.get("blocking_reasons", [])
         if major_profile_quality_summary else []
     )
+    if isinstance(candidate_major_profile_quality, dict):
+        anomaly_items.extend(candidate_major_profile_quality.get("blocking_reasons", []))
     anomaly_items.extend(office_quality["anomaly_items"])
 
     return {
@@ -1543,6 +1592,10 @@ def _build_normalized_document(
                 if (
                     major_profile_quality_summary
                     and major_profile_quality_summary.get("blocking_reasons")
+                )
+                or (
+                    isinstance(candidate_major_profile_quality, dict)
+                    and candidate_major_profile_quality.get("blocking_reasons")
                 ) or office_quality["manual_review_required"]
                 else "not_required"
             ),
@@ -1550,6 +1603,10 @@ def _build_normalized_document(
             **(
                 {"major_profile": major_profile_quality_summary}
                 if major_profile_quality_summary else {}
+            ),
+            **(
+                {"major_profile_candidate": candidate_major_profile_quality}
+                if isinstance(candidate_major_profile_quality, dict) else {}
             ),
         },
         "lineage": {

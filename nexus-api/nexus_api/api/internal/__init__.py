@@ -94,6 +94,7 @@ from nexus_api.api.internal.jobs import (  # noqa: F401
     get_job,
     list_job_stages,
     retry_job,
+    reprocess_asset_version,
     cancel_job,
     list_parse_artifacts,
     list_normalized_refs,
