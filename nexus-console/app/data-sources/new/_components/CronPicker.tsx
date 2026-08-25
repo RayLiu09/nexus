@@ -11,7 +11,7 @@ export type CronMode = "off" | "hourly" | "daily" | "weekly" | "custom";
 interface CronPickerProps {
   value: string;
   onChange: (cron: string) => void;
-  /** 当模式为 off 时是否允许 —— 默认允许，nas/crawler/database 都可以"无定时" */
+  /** 当模式为 off 时是否允许；默认允许。 */
   allowOff?: boolean;
 }
 

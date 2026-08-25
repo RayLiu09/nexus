@@ -21,7 +21,7 @@ user_role = sa.Enum(
     "platform_data_admin", "business_expert", "ops", "api_caller", name="userrole"
 )
 data_source_type = sa.Enum(
-    "file_upload", "nas", "crawler", "database", "webhook", name="datasourcetype"
+    "file_upload", "nas", "crawler", "webhook", name="datasourcetype"
 )
 data_source_status = sa.Enum("enabled", "disabled", "error", name="datasourcestatus")
 ingest_batch_status = sa.Enum(

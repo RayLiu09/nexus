@@ -12,7 +12,6 @@ const SOURCE_TYPE_LABELS: Record<string, string> = {
   file_upload: "本地文件上传",
   nas: "NAS 同步",
   crawler: "Crawler 爬虫",
-  database: "数据库对接",
   webhook: "API 推送",
 };
 

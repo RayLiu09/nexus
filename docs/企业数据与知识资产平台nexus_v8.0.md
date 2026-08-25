@@ -357,7 +357,7 @@ MinerU 解析时开启 `return_images=true`，响应以 ZIP 格式返回，平�
 | 管道 | 名称 | 适用来源 | 处理链路 |
 |------|------|---------|---------|
 | Pipeline A | 文档处理管道 | `file_upload`、`nas`，以及 mime_type 为非 JSON 文档格式的接入对象 | raw_object → **ingest_validate** → **assetize** → MinerU 解析 → `parse_artifact` → normalize → `normalized_document` → `normalized_asset_ref(type=document)` |
-| Pipeline B | 记录处理管道 | `crawler`、`database`、`webhook`，以及 mime_type=application/json 的接入对象 | raw_object → **ingest_validate** → **assetize** → normalize（无 MinerU）→ `normalized_record` → `normalized_asset_ref(type=record)` |
+| Pipeline B | 记录处理管道 | `crawler`、`webhook`，以及 mime_type=application/json 的接入对象 | raw_object → **ingest_validate** → **assetize** → normalize（无 MinerU）→ `normalized_record` → `normalized_asset_ref(type=record)` |
 
 **管道路由规则**：在 Job 创建时由 `DataSource.source_type` 和 `raw_object.mime_type` 共同确定，写入 `Job.payload.pipeline_type`（值为 `"document"` 或 `"record"`），Worker 执行时不再隐式推断。
 
@@ -365,7 +365,7 @@ MinerU 解析时开启 `return_images=true`，响应以 ZIP 格式返回，平�
 |------------------------|---------------------|---------------|
 | `file_upload`, `nas` | 非 `application/json` | `document` |
 | `file_upload`, `nas` | `application/json` | `record` |
-| `crawler`, `database`, `webhook` | 任意 | `record` |
+| `crawler`, `webhook` | 任意 | `record` |
 
 **〇.5 assetize 阶段职责**
 
@@ -1299,4 +1299,3 @@ NEXUS 检索服务可查询知识库（支持混合检索 + 权限过滤）
 ### 三、B 类：SFT 训练语料生成（管道二）
 
 基于管道二（问答语料 SFT 生成），对底座沉淀的知识内容进行 LLM 辅助问答对生成，构建面向模型精调的 SFT 语料集。依赖底座数据质量和 LLM 服务均达到稳定状态后推进。
-

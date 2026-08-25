@@ -129,13 +129,6 @@ class CrawlerConnectionConfig(BaseModel):
     provider: Literal["firecrawl"] = "firecrawl"
 
 
-class DatabaseConnectionConfig(BaseModel):
-    """Database source connection configuration."""
-    connection_string: str = Field(min_length=1, max_length=1024)
-    query: str | None = Field(default=None)
-    schedule_cron: str | None = Field(default=None, max_length=128)
-
-
 class WebhookConnectionConfig(BaseModel):
     """Webhook source connection configuration."""
     webhook_secret: str = Field(min_length=1, max_length=256)
@@ -159,12 +152,6 @@ class RawObjectMetadataCrawler(BaseModel):
     """Metadata for crawler raw objects."""
     package_id: str
     source_url: str | None = None
-
-
-class RawObjectMetadataDatabase(BaseModel):
-    """Metadata for database raw objects."""
-    table_name: str | None = None
-    record_count: int | None = None
 
 
 class DataSourceCreate(BaseModel):

@@ -60,7 +60,7 @@ Pipeline A（document）和 Pipeline B（record）都必须经过统一的数据
 
 | 对象                   | Pipeline A document | Pipeline B record | 说明                                                                |
 | ---------------------- | ------------------- | ----------------- | ------------------------------------------------------------------- |
-| `raw_object`           | 必须使用            | 必须使用          | 原始文件、爬虫包、数据库导出包、JSON payload 都先落原始台账         |
+| `raw_object`           | 必须使用            | 必须使用          | 原始文件、爬虫包、JSON payload 都先落原始台账                       |
 | `asset`                | 必须使用            | 必须使用          | 统一资产主数据，不因数据形态拆出第二套资产体系                      |
 | `asset_version`        | 必须使用            | 必须使用          | 统一版本锚点；重传、重跑、归档、available 约束共用                  |
 | `normalized_asset_ref` | 必须使用            | 必须使用          | 治理输入统一锚点；`governance_result.target = normalized_asset_ref` |
@@ -281,7 +281,7 @@ parse → 通用 normalize → governance（出 classification）→ 二次 norm
 
 ### 4.2 标准字段
 
-岗位需求记录表需兼容人工上传 Excel、数据库导出、互联网爬虫数据。标准字段不能只围绕当前样本，要面向通用招聘记录。
+岗位需求记录表需兼容人工上传 Excel、互联网爬虫数据。标准字段不能只围绕当前样本，要面向通用招聘记录。
 
 #### 4.2.1 数据集字段
 
@@ -294,7 +294,7 @@ parse → 通用 normalize → governance（出 classification）→ 二次 norm
 | `asset_version_id`          | UUID        | 冗余读优化，来自 normalized ref                           |
 | `major_name`                | text        | 专业或专业方向，例如电子商务                              |
 | `industry_name`             | text        | 默认所属产业/行业，可被记录级字段覆盖                     |
-| `source_channel`            | text        | `excel_upload` / `crawler` / `database` / `manual_import` |
+| `source_channel`            | text        | `excel_upload` / `crawler` / `manual_import`              |
 | `record_count`              | int         | 有效记录数                                                |
 | `invalid_count`             | int         | 无效或占位记录数                                          |
 | `duplicate_count`           | int         | 去重命中数                                                |

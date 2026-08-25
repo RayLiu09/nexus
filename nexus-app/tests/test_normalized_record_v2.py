@@ -178,7 +178,7 @@ class TestBuildNormalizedRecordWithProfile:
 
 
 class TestBuildNormalizedRecordWithoutProfile:
-    """Backward-compatible path: JSON ingestion (crawler / database / webhook)
+    """Backward-compatible path: JSON ingestion (crawler / webhook)
     that doesn't run profile_detect must still produce a valid v2 payload.
     """
 

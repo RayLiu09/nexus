@@ -5,11 +5,9 @@ import Link from "next/link";
 import { Alert, Button, Descriptions, Form, Input, Space, Steps, Tag } from "antd";
 import { CheckCircleOutlined, LeftOutlined, RightOutlined } from "@ant-design/icons";
 
-import { CronPicker } from "./CronPicker";
-
 // ── Types ─────────────────────────────────────────────────────────────────
 
-type SourceTypeValue = "file_upload" | "nas" | "database" | "webhook";
+type SourceTypeValue = "file_upload" | "nas" | "webhook";
 
 interface SourceTypeOption {
   value: SourceTypeValue;
@@ -35,13 +33,6 @@ const SOURCE_TYPES: SourceTypeOption[] = [
     scenario: "适合教务、行政等组织内固定共享盘",
   },
   {
-    value: "database",
-    label: "数据库对接",
-    icon: "🗄",
-    desc: "直连数据库按查询同步",
-    scenario: "适合从结构化业务系统增量同步记录",
-  },
-  {
     value: "webhook",
     label: "API 推送",
     icon: "⚡",
@@ -58,10 +49,7 @@ interface WizardState {
   orgScopeHint: string;
   cfgMountPath: string;
   cfgScanPattern: string;
-  cfgScheduleCron: string;
   cfgAuthToken: string;
-  cfgConnectionString: string;
-  cfgQuery: string;
   cfgWebhookSecret: string;
   cfgAllowedIps: string;
 }
@@ -74,10 +62,7 @@ const INITIAL_STATE: WizardState = {
   orgScopeHint: "",
   cfgMountPath: "",
   cfgScanPattern: "",
-  cfgScheduleCron: "",
   cfgAuthToken: "",
-  cfgConnectionString: "",
-  cfgQuery: "",
   cfgWebhookSecret: "",
   cfgAllowedIps: "",
 };
@@ -100,9 +85,6 @@ function validateConnection(state: WizardState): string | null {
       return null;
     case "nas":
       if (!state.cfgMountPath.trim()) return "挂载路径必填";
-      return null;
-    case "database":
-      if (!state.cfgConnectionString.trim()) return "连接字符串必填";
       return null;
     case "webhook":
       if (!state.cfgWebhookSecret.trim()) return "Webhook Secret 必填";
@@ -178,13 +160,6 @@ export function CreateDataSourceForm({ action, preselectedType }: CreateDataSour
         <>
           <input type="hidden" name="cfg_mount_path" value={state.cfgMountPath} />
           <input type="hidden" name="cfg_scan_pattern" value={state.cfgScanPattern} />
-        </>
-      )}
-      {state.sourceType === "database" && (
-        <>
-          <input type="hidden" name="cfg_connection_string" value={state.cfgConnectionString} />
-          <input type="hidden" name="cfg_query" value={state.cfgQuery} />
-          <input type="hidden" name="cfg_schedule_cron" value={state.cfgScheduleCron} />
         </>
       )}
       {state.sourceType === "webhook" && (
@@ -287,31 +262,6 @@ export function CreateDataSourceForm({ action, preselectedType }: CreateDataSour
               </Form.Item>
             </>
           )}
-          {state.sourceType === "database" && (
-            <>
-              <Form.Item label="连接字符串" required>
-                <Input.Password
-                  value={state.cfgConnectionString}
-                  onChange={(e) => update("cfgConnectionString", e.target.value)}
-                  placeholder="postgresql://user:pass@host:5432/db"
-                />
-              </Form.Item>
-              <Form.Item label="查询语句">
-                <Input.TextArea
-                  rows={3}
-                  value={state.cfgQuery}
-                  onChange={(e) => update("cfgQuery", e.target.value)}
-                  placeholder="SELECT * FROM resources WHERE updated_at > :last_sync"
-                />
-              </Form.Item>
-              <Form.Item label="调度计划">
-                <CronPicker
-                  value={state.cfgScheduleCron}
-                  onChange={(c) => update("cfgScheduleCron", c)}
-                />
-              </Form.Item>
-            </>
-          )}
           {state.sourceType === "webhook" && (
             <>
               <Form.Item label="Webhook Secret" required>
@@ -369,25 +319,6 @@ export function CreateDataSourceForm({ action, preselectedType }: CreateDataSour
                     <code className="font-mono text-xs">{state.cfgScanPattern}</code>
                   </Descriptions.Item>
                 )}
-              </>
-            )}
-            {state.sourceType === "database" && (
-              <>
-                <Descriptions.Item label="连接字符串">
-                  <Tag color="orange">已设置</Tag>
-                </Descriptions.Item>
-                {state.cfgQuery && (
-                  <Descriptions.Item label="查询">
-                    <code className="font-mono text-xs">{state.cfgQuery}</code>
-                  </Descriptions.Item>
-                )}
-                <Descriptions.Item label="调度计划">
-                  {state.cfgScheduleCron ? (
-                    <code className="font-mono text-xs">{state.cfgScheduleCron}</code>
-                  ) : (
-                    <span className="text-text-muted text-xs">不定时（仅手动触发）</span>
-                  )}
-                </Descriptions.Item>
               </>
             )}
             {state.sourceType === "webhook" && (

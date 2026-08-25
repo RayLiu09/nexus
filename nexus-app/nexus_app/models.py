@@ -1431,7 +1431,7 @@ class JobDemandDataset(TimestampMixin, Base):
     industry_name: Mapped[str | None] = mapped_column(Text, nullable=True,
         comment="Default industry; can be overridden at record level")
     source_channel: Mapped[str] = mapped_column(Text, nullable=False,
-        comment="excel_upload / crawler / database / manual_import; "
+        comment="excel_upload / crawler / manual_import; "
                 "values outside the whitelist write unknown_source_channel "
                 "flag to quality_summary")
     record_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

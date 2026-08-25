@@ -537,7 +537,7 @@ Firecrawl API key 只存在后端配置或密钥管理中，不进入 Console、
 | `crawler` | `firecrawl_document` | `text/markdown` | `document` |
 | `crawler` | `firecrawl_document` | `application/pdf` | `document` |
 | `crawler` | `firecrawl_document` | `application/vnd.nexus.firecrawl-html-snapshot+json` | `document` |
-| `database` / `webhook` | any | JSON/record | `record` |
+| `webhook` | any | JSON/record | `record` |
 
 `pipeline_type` 不能由前端或调用方任意指定。ingest gateway 必须基于已批准 Connector 配置、`content_kind` 和 MIME 白名单推导一次，写入 `Job.payload.pipeline_type`。
 

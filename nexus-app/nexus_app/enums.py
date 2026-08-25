@@ -28,7 +28,6 @@ class DataSourceType(StrEnum):
     FILE_UPLOAD = "file_upload"
     NAS         = "nas"
     CRAWLER     = "crawler"
-    DATABASE    = "database"
     WEBHOOK     = "webhook"
 
 

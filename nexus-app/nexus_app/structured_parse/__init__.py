@@ -6,7 +6,7 @@ Scope:
   - B1.2 — xlsx parser
   - B1.4 — csv parser (worker-integrated), json parser (helper only;
     worker integration deferred to keep the existing `_load_record_payload`
-    JSON path stable for crawler / database / webhook ingestion contracts)
+    JSON path stable for crawler / webhook ingestion contracts)
   - B1.4+ — crawler-payload-specific shapes land per-source on demand
 
 Public surface intentionally narrow — callers should import from this package,

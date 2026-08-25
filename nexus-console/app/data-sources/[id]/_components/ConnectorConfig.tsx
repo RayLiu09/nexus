@@ -23,21 +23,6 @@ const CONNECTOR_FIELDS: Record<string, ConnectorField[]> = {
     },
     { key: "scan_pattern", label: "扫描模式", placeholder: "**/*.pdf,**/*.docx" },
   ],
-  database: [
-    {
-      key: "connection_string",
-      label: "连接字符串",
-      placeholder: "postgresql://user:pass@host:5432/db",
-      required: true,
-      sensitive: true,
-    },
-    {
-      key: "query",
-      label: "查询语句",
-      placeholder: "SELECT * FROM resources WHERE updated_at > :last_sync",
-    },
-    { key: "schedule_cron", label: "调度 Cron", placeholder: "0 */6 * * *" },
-  ],
   webhook: [
     {
       key: "webhook_secret",
@@ -57,7 +42,6 @@ const SOURCE_TYPE_LABELS: Record<string, string> = {
   file_upload: "本地文件上传",
   nas: "NAS 同步",
   crawler: "Crawler 爬虫",
-  database: "数据库对接",
   webhook: "API 推送",
 };
 

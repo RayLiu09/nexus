@@ -23,7 +23,6 @@ const SOURCE_TYPE_META: Record<string, { icon: string; name: string; desc: strin
   file_upload: { icon: "📤", name: "本地文件上传", desc: "通过界面上传文件，即时校验" },
   nas: { icon: "📡", name: "NAS 同步", desc: "挂载共享目录，批量同步" },
   crawler: { icon: "🕷", name: "Crawler 爬虫", desc: "配置规则，自动抓取 Web 页面" },
-  database: { icon: "🗄", name: "数据库对接", desc: "直连数据库，按表/视图同步" },
   webhook: { icon: "⚡", name: "API 推送", desc: "通过 Webhook/API 批量提交" },
 };
 

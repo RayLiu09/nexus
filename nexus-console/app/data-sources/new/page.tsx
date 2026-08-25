@@ -15,13 +15,6 @@ function buildConnectionConfig(formData: FormData): Record<string, unknown> | nu
     const scanPattern = String(formData.get("cfg_scan_pattern") ?? "").trim();
     if (mountPath) config.mount_path = mountPath;
     if (scanPattern) config.scan_pattern = scanPattern;
-  } else if (sourceType === "database") {
-    const connStr = String(formData.get("cfg_connection_string") ?? "").trim();
-    const query = String(formData.get("cfg_query") ?? "").trim();
-    const cron = String(formData.get("cfg_schedule_cron") ?? "").trim();
-    if (connStr) config.connection_string = connStr;
-    if (query) config.query = query;
-    if (cron) config.schedule_cron = cron;
   } else if (sourceType === "webhook") {
     const secret = String(formData.get("cfg_webhook_secret") ?? "").trim();
     const ips = String(formData.get("cfg_allowed_ips") ?? "").trim();

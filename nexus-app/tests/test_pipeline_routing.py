@@ -70,10 +70,9 @@ class TestLegacyRoutingUnaffectedByFlags:
     ])
     @pytest.mark.parametrize("source_type", [
         DataSourceType.CRAWLER,
-        DataSourceType.DATABASE,
         DataSourceType.WEBHOOK,
     ])
-    def test_crawler_database_webhook_always_record(self, flags, source_type) -> None:
+    def test_crawler_webhook_always_record(self, flags, source_type) -> None:
         # These sources are record-shaped by definition (per design §2.2); the
         # flags must never reroute them.
         result = _pipeline_type_for(source_type, "application/octet-stream", settings=_settings(**flags))

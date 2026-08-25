@@ -12,7 +12,6 @@ const SOURCE_TYPE_ICON: Record<string, string> = {
   file_upload: "📤",
   nas: "📡",
   crawler: "🕷",
-  database: "🗄",
   webhook: "⚡",
 };
 

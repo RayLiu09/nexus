@@ -53,7 +53,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
       <PageHeader
         eyebrow="数据工程 — 连接器注册与管理"
         title="数据源"
-        description="注册不同类型的多源数据接入方式。系统支持本地文件上传、NAS 同步、Crawler 爬虫、数据库对接和 API 推送五种数据源类型。"
+        description="注册不同类型的多源数据接入方式。系统支持本地文件上传、NAS 同步、Crawler 爬虫和 API 推送四种数据源类型。"
       />
 
       <ApiState

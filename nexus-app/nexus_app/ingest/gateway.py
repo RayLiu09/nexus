@@ -98,7 +98,7 @@ def _pipeline_type_for(
 
     Routing rules (in order):
     1. CRAWLER Firecrawl document MIME types → DOCUMENT.
-    2. DATABASE / WEBHOOK sources → RECORD.
+    2. CRAWLER / WEBHOOK sources → RECORD.
     3. FILE_UPLOAD / NAS with JSON MIME → RECORD (predates B1)
     4. FILE_UPLOAD / NAS with xlsx MIME → RECORD when ``pipeline_b_xlsx_enabled`` flag is on (B1.1)
     5. FILE_UPLOAD / NAS with csv MIME → RECORD when ``pipeline_b_csv_enabled`` flag is on (B1.1)
@@ -113,7 +113,7 @@ def _pipeline_type_for(
     if source_type == DataSourceType.CRAWLER and normalized_mime in FIRECRAWL_DOCUMENT_MIME_TYPES:
         return PipelineType.DOCUMENT
 
-    if source_type in {DataSourceType.CRAWLER, DataSourceType.DATABASE, DataSourceType.WEBHOOK}:
+    if source_type in {DataSourceType.CRAWLER, DataSourceType.WEBHOOK}:
         return PipelineType.RECORD
 
     if "json" in normalized_mime:

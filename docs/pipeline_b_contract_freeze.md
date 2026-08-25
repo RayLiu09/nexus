@@ -32,7 +32,7 @@
 | `GovernanceRulesVersion`                           | 已是 PG 表（`models.py:665`，单一真源已从文件迁入）            | 与 `ai_analysis_rules` 严格区分；本期不修改其结构与数据                                         |
 | `config/governance_rules.json`                     | 已标注 deprecated（`ai_governance/seed_data.py` 顶部注释）     | 本期 Pipeline B 不引用、不写入；`ai_analysis_rules.json` 是**独立新文件**                       |
 | `config/normalize_schemas.json`                    | 已存在 `source_type                                            | content_type → normalized_type` 契约                                                            | 复用并扩展（详见 §3 路由表） |
-| `DataSourceType`                                   | `file_upload / nas / crawler / database / webhook`             | 复用；不新增                                                                                    |
+| `DataSourceType`                                   | `file_upload / nas / crawler / webhook`                        | 复用；不新增                                                                                    |
 
 > 设计文档与实施计划已落在"`ai_analysis_rules` 为 **PG 表 + JSON seed**"模式（决策 2 最终态）；本文档锁定该形态。
 
@@ -120,7 +120,6 @@
 | `file_upload`  | `application/json`（json）                                                  | `record`      | B1 同周期紧跟                                           |
 | `file_upload`  | `application/pdf` / `application/msword` / `text/html` / 其他文档型         | `document`    | Pipeline A，不变                                        |
 | `crawler`      | `application/json`                                                          | `record`      | 复用现有 `normalize_schemas.json` 契约                  |
-| `database`     | `application/json`                                                          | `record`      | 同上                                                    |
 | `webhook`      | `application/json`                                                          | `record`      | 同上                                                    |
 | `nas`          | xlsx/csv/json                                                               | `record`      | NAS 扫描产生的 raw_object 沿用 file_upload 同 mime 路由 |
 | `nas`          | 文档型 mime                                                                 | `document`    | 不变                                                    |
@@ -380,7 +379,7 @@ normalized_ref_id  UUID NOT NULL  FK -> normalized_asset_ref.id
 asset_version_id   UUID NOT NULL                              -- 冗余读优化
 major_name         TEXT NULL                                  -- 专业 / 方向
 industry_name      TEXT NULL                                  -- 默认行业（可被记录级覆盖）
-source_channel     TEXT NOT NULL                              -- excel_upload / crawler / database / manual_import
+source_channel     TEXT NOT NULL                              -- excel_upload / crawler / manual_import
 record_count       INT  NOT NULL DEFAULT 0
 invalid_count      INT  NOT NULL DEFAULT 0
 duplicate_count    INT  NOT NULL DEFAULT 0

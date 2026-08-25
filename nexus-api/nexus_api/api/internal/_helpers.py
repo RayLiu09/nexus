@@ -55,7 +55,6 @@ def prompt_registry() -> GovernancePromptRegistry:
 _CONNECTION_CONFIG_SCHEMAS = {
     DataSourceType.NAS: domain_schemas.NasConnectionConfig,
     DataSourceType.CRAWLER: domain_schemas.CrawlerConnectionConfig,
-    DataSourceType.DATABASE: domain_schemas.DatabaseConnectionConfig,
     DataSourceType.WEBHOOK: domain_schemas.WebhookConnectionConfig,
 }
 

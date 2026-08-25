@@ -35,7 +35,7 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
 | `metadata-service.ai-governance` | Internal AI governance submodule: Prompt/profile management, LiteLLM calls, AI suggestions, quality scoring              | Independent deployment, bypassing rule guardrails                     |
 | Semantic retrieval backend        | Index construction and retrieval execution behind NEXUS adapter; P0 default = PostgreSQL pgvector adapter, replaceable by dedicated retrieval engines later | NEXUS master data, permissions, audit authority, or chunk semantics   |
 | Crawler systems                  | Dynamic data source push                                                                                                 | Governance, index governance, permissions                             |
-| Scan-task orchestration          | Turns NAS/Webhook/crawler/database scan items into `raw_object` + PostgreSQL ingest jobs using existing pipeline routing | Live filesystem crawler daemon, MQ scheduler, or new execution engine |
+| Scan-task orchestration          | Turns NAS/Webhook/crawler scan items into `raw_object` + PostgreSQL ingest jobs using existing pipeline routing | Live filesystem crawler daemon, external database direct connector, MQ scheduler, or new execution engine |
 | Upper systems                    | Consume NEXUS APIs                                                                                                       | Direct calls to MinerU, retrieval backends, LiteLLM, or internal DBs  |
 
 ## Design Principles
@@ -105,7 +105,7 @@ Pipeline routing stored in `Job.payload.pipeline_type` at job creation. Workers 
 | `file_upload`, `nas` | file object | non-`application/json` | `"document"` |
 | `file_upload`, `nas` | JSON package | `application/json` | `"record"` |
 | `crawler` | `firecrawl_document` web document | `text/html`, `text/markdown`, `application/pdf`, `application/vnd.nexus.firecrawl-html-snapshot+json` | `"document"` |
-| `database`, `webhook` | structured record | any | `"record"` |
+| `webhook` | structured record | any | `"record"` |
 
 Crawler is not inferred at Worker runtime. The ingest gateway freezes
 `pipeline_type` from the approved Connector configuration, content kind, and

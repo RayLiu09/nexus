@@ -66,7 +66,6 @@ QUALITY_FLAG_KEYS: frozenset[str] = frozenset({
 _KNOWN_SOURCE_CHANNELS: frozenset[str] = frozenset({
     "excel_upload",
     "crawler",
-    "database",
     "manual_import",
 })
 

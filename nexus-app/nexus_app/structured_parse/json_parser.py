@@ -21,7 +21,7 @@ Out of scope (left for future parsers):
 
 This parser is NOT yet wired into `execute_job()` (per B1.4 scope decision):
 the existing JSON path through `_load_record_payload` is left untouched so
-crawler / database / webhook ingestion contracts stay stable. B2 may later
+crawler / webhook ingestion contracts stay stable. B2 may later
 route file_upload+JSON through `parse_json` once profile_detect can decide
 between business-object and table-shaped JSON.
 """

@@ -20,7 +20,6 @@ const SOURCE_TYPE_META: Record<string, { icon: string; name: string }> = {
   file_upload: { icon: "📤", name: "本地文件上传" },
   nas: { icon: "📡", name: "NAS 同步" },
   crawler: { icon: "🕷", name: "Crawler 爬虫" },
-  database: { icon: "🗄", name: "数据库对接" },
   webhook: { icon: "⚡", name: "API 推送" },
 };
 

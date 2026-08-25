@@ -22,7 +22,6 @@ from nexus_app.storage import ObjectStorage
 _SCAN_SOURCE_TYPES = frozenset({
     DataSourceType.NAS,
     DataSourceType.CRAWLER,
-    DataSourceType.DATABASE,
     DataSourceType.WEBHOOK,
 })
 

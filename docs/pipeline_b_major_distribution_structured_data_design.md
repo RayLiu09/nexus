@@ -433,7 +433,7 @@ header 别名必须配置化，禁止在 detector 中硬编码单一列名。建
 | `normalized_ref_id` | string(36) FK | 指向 `normalized_asset_ref.id`，单向 |
 | `asset_version_id` | string(36) FK | 版本锚点，便于查询 |
 | `dataset_name` | text | 数据集名称 |
-| `source_channel` | text | `excel_upload` / `nas` / `database` / `crawler` |
+| `source_channel` | text | `excel_upload` / `nas` / `crawler`              |
 | `major_scope` | text | `single_major` / `multi_major` / `unknown` |
 | `major_name` | text null | 单专业数据集时填值，多专业可空 |
 | `major_code` | text null | 单专业数据集时填值，多专业可空 |

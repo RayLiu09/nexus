@@ -117,7 +117,7 @@ P0 必须对象：
 | source_type | 原始内容形态 | MinIO 存储 | MIME 类型 |
 |-------------|------------|-----------|----------|
 | `file_upload`, `nas` | 二进制原始文件（PDF, Word, Excel, 图片等） | `raw/<source_type>/<source_id>/.../<filename>` | 原始 MIME |
-| `crawler`, `database`, `webhook` | 结构化 JSON 包（序列化后写入 MinIO） | `raw/<source_type>/<source_id>/.../<record_id>.json` | `application/json` |
+| `crawler`, `webhook` | 结构化 JSON 包（序列化后写入 MinIO） | `raw/<source_type>/<source_id>/.../<record_id>.json` | `application/json` |
 
 ### 5.4 normalized_asset_ref 字段规范（v3.0 补全）
 
@@ -186,12 +186,12 @@ binary raw_object（PDF/Word/Excel/PPT/图片/扫描件）
 
 ### 6.2 管道 B：记录处理管道（Record Processing Pipeline）
 
-**适用来源**：`crawler`、`database`、`webhook`，以及 `mime_type=application/json` 的接入对象
+**适用来源**：`crawler`、`webhook`，以及 `mime_type=application/json` 的接入对象
 
 **处理链路**：
 
 ```
-structured_json raw_object（爬虫 JSON 包、数据库记录、Webhook 事件）
+structured_json raw_object（爬虫 JSON 包、Webhook 事件）
   ↓  [ingest stage] 接入校验、校验和计算、raw 区持久化（JSON 序列化后写入）
   ↓  raw_object.status = raw_persisted
   ↓  [ingest_validate stage] 格式校验、哈希计算、重复判断
@@ -220,7 +220,7 @@ structured_json raw_object（爬虫 JSON 包、数据库记录、Webhook 事件�
 |------------------------|---------------------|---------------|
 | `file_upload`, `nas` | 非 `application/json` | `document` |
 | `file_upload`, `nas` | `application/json` | `record` |
-| `crawler`, `database`, `webhook` | 任意 | `record` |
+| `crawler`, `webhook` | 任意 | `record` |
 
 ### 6.4 两管道共享约定
 

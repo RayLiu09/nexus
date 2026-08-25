@@ -31,7 +31,7 @@ Role constraints:
 ## P0 Scope
 
 - Local org/user/API caller management.
-- Data source registration and file/NAS/crawler ingestion, plus Mode B scan-task orchestration for configured NAS/Webhook/crawler/database sources. Crawler supports low-frequency Firecrawl document acquisition through generic plans or the built-in quick-start plan; Firecrawl HTML/PDF/Markdown is routed to Pipeline A.
+- Data source registration and file/NAS/crawler ingestion, plus Mode B scan-task orchestration for configured NAS/Webhook/crawler sources. NEXUS does not support direct external database connections. Crawler supports low-frequency Firecrawl document acquisition through generic plans or the built-in quick-start plan; Firecrawl HTML/PDF/Markdown is routed to Pipeline A.
 - Raw object retention and ingest ledger.
 - `ingest_validate` job stage: format validation, virus scan, hash calculation, deduplication; writes `INGEST_VALIDATE_COMPLETED` / `INGEST_VALIDATE_FAILED` audit events.
 - `assetize` job stage: create/re-version `asset`/`asset_version` by `(data_source_id, source_object_key)` idempotency anchor.
@@ -216,7 +216,7 @@ P0 API groups include:
   and `GET /open/v1/record-assets/graphs/teaching-standard-knowledge?major_name|major_code=`.
   The equivalent `/internal/v1` graph preview and build-control interfaces
   remain console-only.
-- Data sources, including scan-task creation for NAS/Webhook/crawler/database Mode B orchestration.
+- Data sources, including scan-task creation for NAS/Webhook/crawler Mode B orchestration.
 - Ingest submit and batch query.
 - Raw object query.
 - Job query, retry, and idempotent reprocess (`POST /internal/v1/jobs/reprocess`)

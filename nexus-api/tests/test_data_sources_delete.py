@@ -119,3 +119,18 @@ def test_list_data_sources_hides_deleted_by_default(app, session):
 def test_delete_unknown_source_returns_404(app):
     client = TestClient(app)
     assert client.delete("/internal/v1/data-sources/nope").status_code == 404
+
+
+def test_create_data_source_rejects_legacy_database_connector(app):
+    client = TestClient(app)
+
+    response = client.post(
+        "/internal/v1/data-sources",
+        json={
+            "code": "legacy_database",
+            "name": "Legacy database connector",
+            "source_type": "database",
+        },
+    )
+
+    assert response.status_code == 422

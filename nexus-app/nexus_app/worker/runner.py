@@ -1688,7 +1688,7 @@ def execute_job(
     # then for Pipeline B dispatch to a payload-loader / parser by MIME:
     #   - xlsx → structured_parse via parse_xlsx (B1.3, feature-flagged at gateway)
     #   - csv  → structured_parse via parse_csv  (B1.4, feature-flagged at gateway)
-    #   - JSON → existing _load_record_payload (crawler / database / webhook /
+    #   - JSON → existing _load_record_payload (crawler / webhook /
     #     file_upload+json) — kept as-is so existing ingestion contracts stay
     #     stable; B2 profile_detect may later route file_upload+json through
     #     parse_json once table-shaped vs business-object JSON can be disambiguated.
@@ -1724,7 +1724,7 @@ def execute_job(
 
             # B2.3 profile_detect — only the structured_parse branch produces a
             # ParsedWorkbook-shaped dict that the detector can consume. JSON
-            # payloads from crawler / database / webhook stay on the
+            # payloads from crawler / webhook stay on the
             # _load_record_payload contract until B2 widens its scope.
             if mime in XLSX_MIME_TYPES or mime in CSV_MIME_TYPES:
                 profile_result = _run_profile_detect(
