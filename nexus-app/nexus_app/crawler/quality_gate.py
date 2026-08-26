@@ -4,7 +4,7 @@ import hashlib
 import re
 import unicodedata
 from dataclasses import dataclass
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from nexus_app.crawler.firecrawl_client import FirecrawlDocumentSnapshot
 from nexus_app.crawler.url_safety import UnsafeCrawlerUrlError, validate_target_url
@@ -67,6 +67,17 @@ _GITHUB_LINE_COUNT_RE = re.compile(
 # Han character is rejected as out-of-scope noise at admission.
 _HAN_CHAR_RE = re.compile(r"[\u4e00-\u9fff]")
 
+# Search-result pages often contain many genuine policy titles and issuers.
+# They are navigation aggregates, not a single evidence-bearing document.
+_SEARCH_NAVIGATION_TITLE_MARKERS = (
+    "智能云搜索",
+    "站内搜索",
+    "搜索结果",
+)
+_SEARCH_RESULT_COUNT_RE = re.compile(
+    r"(?:相关\s*)?结果\s*\d{1,7}\s*条",
+)
+
 @dataclass(frozen=True)
 class QualityDecision:
     accepted: bool
@@ -95,6 +106,8 @@ def evaluate_websearch_item(
         or _is_websearch_aggregation_path(path)
     ):
         return QualityDecision(False, "homepage_or_channel")
+    if _is_websearch_navigation_results_page(title, url, content):
+        return QualityDecision(False, "navigation_search_results")
     if _is_websearch_news_item(path, title, content):
         return QualityDecision(False, "news_report")
     if len(content.strip()) < min_text_chars:
@@ -109,6 +122,34 @@ def _is_websearch_aggregation_path(path: str) -> bool:
     if re.fullmatch(r"(?:page|index|list)[-_]?\d*\.html?", filename):
         return True
     return "/col/" in lowered and filename in {"", "index.html", "index.htm"}
+
+
+def _is_websearch_navigation_results_page(title: str, url: str, content: str) -> bool:
+    """Recognize an actual search-result aggregation, not policy detail text.
+
+    A search title alone is too broad, and a generic query parameter is not
+    reliable across government portals.  Require the page's result-count
+    topology as well as either an explicit search title or a search endpoint
+    with an established query parameter.  This lets policy details that cite a
+    search service or discuss a count continue through the normal gate.
+    """
+    parsed = urlparse(url)
+    path = unquote(parsed.path or "/").rstrip("/").lower()
+    query_keys = {key.lower() for key in parse_qs(parsed.query, keep_blank_values=True)}
+    has_result_count = bool(_SEARCH_RESULT_COUNT_RE.search(content[:4000]))
+    if not has_result_count:
+        return False
+
+    has_search_title = any(marker in title for marker in _SEARCH_NAVIGATION_TITLE_MARKERS)
+    is_portal_search_endpoint = (
+        (path == "/so" or path.startswith("/so/"))
+        and bool({"qt", "sitecode", "tab"} & query_keys)
+    )
+    is_generic_search_endpoint = (
+        (path == "/search" or path.startswith("/search/"))
+        and bool({"q", "query", "keyword", "keywords"} & query_keys)
+    )
+    return has_search_title or is_portal_search_endpoint or is_generic_search_endpoint
 
 
 def _is_websearch_news_item(path: str, title: str, content: str) -> bool:

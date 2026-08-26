@@ -28,6 +28,35 @@ def test_websearch_quality_gate_rejects_homepage_and_short_content():
     assert _decision(title="财政预算", content="财政预算公开信息。" * 30).accepted is True
 
 
+def test_websearch_quality_gate_rejects_policy_search_navigation_page():
+    decision = _decision(
+        title="首都之窗_北京市人民政府门户网站智能云搜索",
+        url="http://www.beijing.gov.cn/so/s?qt=CBD&siteCode=1100000088&tab=zcfg",
+        content=(
+            "相关结果177条\n\n"
+            "北京市人民政府关于促进商务中心区高质量发展的若干政策措施\n"
+            "发文机关：北京市人民政府\n"
+            "政策解读：有关部门对政策内容进行说明。\n"
+        ) * 12,
+    )
+
+    assert decision.accepted is False
+    assert decision.reason == "navigation_search_results"
+
+
+def test_websearch_quality_gate_keeps_beijing_policy_detail_page():
+    decision = _decision(
+        title="北京市人民政府关于促进商务中心区高质量发展的若干政策措施",
+        url="https://www.beijing.gov.cn/zhengce/zhengcefagui/202608/t20260826_1234567.html",
+        content=(
+            "北京市人民政府关于促进商务中心区高质量发展的若干政策措施\n"
+            "为推进商务中心区高质量发展，现制定以下政策措施。第一条明确适用范围和支持对象。\n"
+        ) * 15,
+    )
+
+    assert decision.accepted is True
+
+
 def test_websearch_quality_gate_accepts_usable_document():
     assert _decision().accepted is True
 
