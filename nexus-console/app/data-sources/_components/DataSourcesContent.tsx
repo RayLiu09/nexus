@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Button, Card, Space, Statistic, Tag, Tooltip } from "antd";
+import { Button, Space, Tag, Tooltip } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { Card as SharedCard } from "@/components/shared/Card";
 import { StatusLabel } from "@/components/StatusLabel";
@@ -41,34 +41,12 @@ export function DataSourcesContent({
   const filteredDataSources = validSelectedType
     ? dataSources.filter((source) => source.source_type === validSelectedType)
     : dataSources;
-  const activeCount = dataSources.filter((s) => s.status === "active").length;
-  const typeCount = new Set(dataSources.map((s) => s.source_type)).size;
   const filteredActiveCount = filteredDataSources.filter((s) => s.status === "active").length;
   const selectedMeta = validSelectedType ? SOURCE_TYPE_META[validSelectedType] : null;
   const showCrawlerPlans = validSelectedType === "crawler";
 
   return (
     <>
-      {/* ── Metrics ── */}
-      <div className="metric-grid-4 mb-5">
-        <Card size="small" className="metric-secondary">
-          <Statistic title="已注册数据源" value={dataSources.length} />
-          <div className="text-text-muted mt-1 text-xs">{typeCount} 种类型</div>
-        </Card>
-        <Card size="small" className="metric-secondary">
-          <Statistic
-            title="活跃连接"
-            value={activeCount}
-            styles={{ content: { color: "var(--success-600)" } }}
-          />
-          <div className="text-text-muted mt-1 text-xs">正常同步中</div>
-        </Card>
-        <Card size="small" className="metric-secondary">
-          <Statistic title="数据源类型" value={Object.keys(SOURCE_TYPE_META).length} />
-          <div className="text-text-muted mt-1 text-xs">支持的连接器类型</div>
-        </Card>
-      </div>
-
       {/* ── Source Card Grid ── */}
       <div style={{ marginBottom: 20 }}>
         <div
