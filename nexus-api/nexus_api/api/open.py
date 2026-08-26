@@ -32,7 +32,7 @@ import hashlib
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import and_, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from nexus_api import schemas
 from nexus_api.dependencies import (
@@ -53,6 +53,7 @@ from nexus_app.enums import (
     AssetAccessType,
     AssetVersionStatus,
     AuditEventType,
+    NormalizedAssetRefStatus,
     TagAssetIndexTargetType,
 )
 from nexus_app.retrieval.tag_resolver import (
@@ -145,6 +146,11 @@ def get_open_tag_embedding_client():
     return create_embedding_client
 
 
+def _resolve_open_tag_embedding_client(factory_or_client):
+    """Accept the production client factory and dependency-injected test client."""
+    return factory_or_client() if callable(factory_or_client) else factory_or_client
+
+
 def _exactly_matched_ref_ids(
     session: Session,
     *,
@@ -212,79 +218,133 @@ def _semantically_matched_ref_ids(
     return ref_ids
 
 
-def _public_tags_for_ref(
-    session: Session, normalized_ref_id: str
-) -> list[dict[str, str]]:
-    rows = session.scalars(
+def _open_catalog_candidate_version_ids(
+    session: Session,
+    *,
+    domain: str | None,
+    tag_ref_ids: set[str] | None,
+    limit: int,
+    offset: int,
+) -> tuple[list[str], int]:
+    """Select public catalog versions in SQL before relation assembly."""
+    version = aliased(models.AssetVersion)
+    ref = aliased(models.NormalizedAssetRef)
+    result = aliased(models.GovernanceResult)
+    current_ref_id = (
+        select(ref.id)
+        .where(
+            ref.version_id == version.id,
+            ref.status == NormalizedAssetRefStatus.GENERATED,
+        )
+        .order_by(ref.created_at.desc())
+        .limit(1)
+        .correlate(version)
+        .scalar_subquery()
+    )
+    classification = (
+        select(result.classification)
+        .where(result.normalized_ref_id == current_ref_id)
+        .order_by(result.created_at.desc())
+        .limit(1)
+        .correlate(version)
+        .scalar_subquery()
+    )
+    predicates = [
+        version.version_status == AssetVersionStatus.AVAILABLE,
+        current_ref_id.is_not(None),
+    ]
+    if tag_ref_ids is not None:
+        if not tag_ref_ids:
+            return [], 0
+        predicates.append(current_ref_id.in_(tag_ref_ids))
+    if domain:
+        predicates.append(classification == domain)
+
+    candidates = select(version.id).where(*predicates)
+    total = int(
+        session.scalar(select(func.count()).select_from(candidates.subquery())) or 0
+    )
+    page = candidates.order_by(version.created_at.desc()).offset(offset).limit(limit)
+    return list(session.scalars(page).all()), total
+
+
+def _available_open_catalog_rows(
+    session: Session, version_ids: list[str]
+) -> list[domain_schemas.OpenAssetCatalogRead]:
+    """Build public rows using a constant number of set queries for one page."""
+    if not version_ids:
+        return []
+
+    versions_by_id = {
+        version.id: version
+        for version in session.scalars(
+            select(models.AssetVersion).where(models.AssetVersion.id.in_(version_ids))
+        ).all()
+    }
+    refs_by_version: dict[str, models.NormalizedAssetRef] = {}
+    for ref in session.scalars(
+        select(models.NormalizedAssetRef).where(
+            models.NormalizedAssetRef.version_id.in_(version_ids),
+            models.NormalizedAssetRef.status == NormalizedAssetRefStatus.GENERATED,
+        )
+    ).all():
+        existing = refs_by_version.get(ref.version_id)
+        if existing is None or ref.created_at > existing.created_at:
+            refs_by_version[ref.version_id] = ref
+
+    ref_ids = {ref.id for ref in refs_by_version.values()}
+    results_by_ref: dict[str, models.GovernanceResult] = {}
+    for result in session.scalars(
+        select(models.GovernanceResult).where(
+            models.GovernanceResult.normalized_ref_id.in_(ref_ids)
+        )
+    ).all() if ref_ids else []:
+        existing = results_by_ref.get(result.normalized_ref_id)
+        if existing is None or result.created_at > existing.created_at:
+            results_by_ref[result.normalized_ref_id] = result
+
+    asset_ids = {version.asset_id for version in versions_by_id.values()}
+    assets_by_id = {
+        asset.id: asset
+        for asset in session.scalars(
+            select(models.Asset).where(models.Asset.id.in_(asset_ids))
+        ).all()
+    }
+    tags_by_ref: dict[str, list[dict[str, str]]] = {}
+    for tag in session.scalars(
         select(models.TagAssetIndex)
         .where(
             models.TagAssetIndex.target_type
             == TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
-            models.TagAssetIndex.target_id == normalized_ref_id,
+            models.TagAssetIndex.target_id.in_(ref_ids),
         )
         .order_by(models.TagAssetIndex.tag_type, models.TagAssetIndex.tag_value)
-    ).all()
-    return [
-        {"type": row.tag_type, "value": row.tag_value}
-        for row in rows
-    ]
-
-
-def _available_open_catalog_rows(
-    session: Session,
-    *,
-    domain: str | None,
-    tag_type: str | None,
-    tags: list[str] | None,
-    is_exact_matched: bool,
-    embedding_client_factory,
-) -> list[domain_schemas.OpenAssetCatalogRead]:
-    """Build public catalog rows from available version/ref anchors only."""
-    tag_ref_ids: set[str] | None = None
-    if tags:
-        if is_exact_matched:
-            tag_ref_ids = _exactly_matched_ref_ids(
-                session, tags=tags, tag_type=tag_type,
-            )
-        else:
-            tag_ref_ids = _semantically_matched_ref_ids(
-                session,
-                tags=tags,
-                tag_type=tag_type,
-                embedding_client=embedding_client_factory(),
-            )
+    ).all() if ref_ids else []:
+        tags_by_ref.setdefault(tag.target_id, []).append(
+            {"type": tag.tag_type, "value": tag.tag_value}
+        )
 
     rows: list[domain_schemas.OpenAssetCatalogRead] = []
-    versions = list(session.scalars(
-        select(models.AssetVersion)
-        .where(models.AssetVersion.version_status == AssetVersionStatus.AVAILABLE)
-        .order_by(models.AssetVersion.created_at.desc())
-    ).all())
-    for version in versions:
-        ref = pipeline.get_current_normalized_ref(session, version.id)
-        if ref is None or (tag_ref_ids is not None and ref.id not in tag_ref_ids):
+    for version_id in version_ids:
+        version = versions_by_id.get(version_id)
+        ref = refs_by_version.get(version_id)
+        if version is None or ref is None:
             continue
-        governance_result = _latest_governance_result(session, ref.id)
-        classification = (
-            governance_result.classification if governance_result is not None else None
-        )
-        if domain and classification != domain:
-            continue
-        asset = session.get(models.Asset, version.asset_id)
+        asset = assets_by_id.get(version.asset_id)
         if asset is None:
             continue
         asset_payload = domain_schemas.AssetRead.model_validate(asset).model_dump()
-        # Asset.status is a cached projection and may lag an approved version
-        # transition. The public catalog has already selected this available
-        # version, so its effective state is the only state we may expose.
         asset_payload["status"] = version.version_status
+        governance_result = results_by_ref.get(ref.id)
         rows.append(domain_schemas.OpenAssetCatalogRead(
             **asset_payload,
-            domain=classification,
+            domain=(
+                governance_result.classification if governance_result is not None else None
+            ),
             normalized_ref_id=ref.id,
             version_id=version.id,
             raw_object_id=version.raw_object_id,
-            tags=_public_tags_for_ref(session, ref.id),
+            tags=tags_by_ref.get(ref.id, []),
             download_url_endpoint=(
                 f"/open/v1/raw-objects/{version.raw_object_id}/download-url"
             ),
@@ -331,17 +391,31 @@ def list_available_assets(
             status_code=422,
             detail="tags must contain 1 to 10 non-blank values of at most 256 characters",
         )
-    rows = _available_open_catalog_rows(
+    tag_ref_ids: set[str] | None = None
+    if tags:
+        if is_exact_matched:
+            tag_ref_ids = _exactly_matched_ref_ids(
+                session, tags=tags, tag_type=tag_type,
+            )
+        else:
+            tag_ref_ids = _semantically_matched_ref_ids(
+                session,
+                tags=tags,
+                tag_type=tag_type,
+                embedding_client=_resolve_open_tag_embedding_client(
+                    embedding_client_factory
+                ),
+            )
+    version_ids, total = _open_catalog_candidate_version_ids(
         session,
         domain=domain,
-        tag_type=tag_type,
-        tags=tags,
-        is_exact_matched=is_exact_matched,
-        embedding_client_factory=embedding_client_factory,
+        tag_ref_ids=tag_ref_ids,
+        limit=pagination.limit,
+        offset=pagination.offset,
     )
-    total = len(rows)
+    rows = _available_open_catalog_rows(session, version_ids)
     return list_response(
-        rows[pagination.offset: pagination.offset + pagination.limit], request,
+        rows, request,
         page=pagination.page, page_size=pagination.page_size, total=total,
     )
 

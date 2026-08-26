@@ -5,12 +5,16 @@ from nexus_api.dependencies import Pagination
 
 
 def test_pending_governance_reviews_returns_page_slice_with_full_total(monkeypatch):
-    results = [SimpleNamespace(id=f"review-{index}") for index in range(25)]
-    monkeypatch.setattr(governance_review, "_latest_review_results", lambda _session: results)
+    result_ids = [f"review-{index}" for index in range(20, 25)]
     monkeypatch.setattr(
         governance_review,
-        "_queue_item",
-        lambda result: {"governance_result_id": result.id},
+        "_pending_review_result_ids",
+        lambda _session, *, limit, offset: (result_ids, 25),
+    )
+    monkeypatch.setattr(
+        governance_review,
+        "_queue_items",
+        lambda _session, ids: [{"governance_result_id": result_id} for result_id in ids],
     )
 
     response = governance_review.list_pending_governance_reviews(
@@ -22,6 +26,4 @@ def test_pending_governance_reviews_returns_page_slice_with_full_total(monkeypat
     assert response.meta.page == 2
     assert response.meta.page_size == 20
     assert response.meta.total == 25
-    assert [item["governance_result_id"] for item in response.data] == [
-        f"review-{index}" for index in range(20, 25)
-    ]
+    assert [item["governance_result_id"] for item in response.data] == result_ids

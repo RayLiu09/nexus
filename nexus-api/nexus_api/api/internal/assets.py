@@ -6,8 +6,8 @@ inside the handler so the asset detail page reflects the change immediately."""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, aliased
 
 from nexus_api import schemas
 from nexus_api.dependencies import (
@@ -26,6 +26,7 @@ from nexus_app.enums import (
     AuditEventType,
     GovernanceResultStatus,
     IndexManifestStatus,
+    NormalizedAssetRefStatus,
     NormalizedType,
     StageStatus,
     TagAssetIndexTargetType,
@@ -170,121 +171,148 @@ def _latest_governance_result(
     )
 
 
-def _index_status(
-    session: Session,
-    ref: "models.NormalizedAssetRef | None",
-    governance_result: "models.GovernanceResult | None" = None,
-) -> str | None:
-    """Aggregate per-ref IndexManifest statuses into a single asset-level
-    string for the catalog read model.
+def _catalog_rows(
+    session: Session, assets: list[models.Asset]
+) -> list[domain_schemas.AssetCatalogRead]:
+    """Build catalog rows with a constant number of set queries.
 
-    Mapping:
-      - Pipeline B (normalized_type=record) → None. Record-type assets are
-        structured data and never go through the semantic index; the console
-        renders this column as "-" for them, matching the "not-applicable"
-        semantic used elsewhere.
-      - any FAILED → "failed"
-      - all INDEXED → "indexed"
-      - mixed → first manifest's raw status (rare; needs operator look)
-      - NO manifest AND governance approved (index_admission=True) →
-        ``"not_indexed"``. §13 visibility fix: previously this returned
-        None, which the console rendered as "—", indistinguishable from
-        "still being processed". The new value lets the UI render a
-        distinct "未入索引（待处理）" badge so operators know the asset
-        passed governance but never reached the knowledge base.
-      - NO manifest AND governance did NOT approve → None (genuinely
-        not-applicable; render as blank).
+    `asset` intentionally has no current-version reverse pointer.  The
+    catalog therefore derives its read model from the authoritative relation
+    tables, but does so for the entire page at once rather than per asset.
     """
-    if ref is None:
-        return None
-    if ref.normalized_type == NormalizedType.RECORD:
-        return None
-    statuses = list(
+    if not assets:
+        return []
+
+    asset_ids = [asset.id for asset in assets]
+    versions = list(
         session.scalars(
-            select(models.IndexManifest.index_status)
-            .where(models.IndexManifest.normalized_ref_id == ref.id)
+            select(models.AssetVersion).where(models.AssetVersion.asset_id.in_(asset_ids))
         ).all()
     )
-    if statuses:
-        if any(status == IndexManifestStatus.FAILED for status in statuses):
-            return IndexManifestStatus.FAILED.value
-        if all(status == IndexManifestStatus.INDEXED for status in statuses):
-            return IndexManifestStatus.INDEXED.value
-        return statuses[0].value if hasattr(statuses[0], "value") else str(statuses[0])
+    versions_by_asset: dict[str, list[models.AssetVersion]] = {}
+    for version in versions:
+        versions_by_asset.setdefault(version.asset_id, []).append(version)
 
-    # No manifest yet — check whether governance admitted the asset.
-    if (
-        governance_result is not None
-        and getattr(governance_result, "index_admission", False)
-    ):
-        return "not_indexed"
-    return None
+    current_by_asset: dict[str, models.AssetVersion] = {}
+    latest_by_asset: dict[str, models.AssetVersion] = {}
+    for asset_id, candidates in versions_by_asset.items():
+        available = [
+            version
+            for version in candidates
+            if version.version_status == AssetVersionStatus.AVAILABLE
+        ]
+        if available:
+            current_by_asset[asset_id] = max(available, key=lambda version: version.created_at)
+        active = [
+            version
+            for version in candidates
+            if version.version_status
+            not in {AssetVersionStatus.ARCHIVED, AssetVersionStatus.DISABLED}
+        ]
+        if active:
+            latest_by_asset[asset_id] = max(
+                active, key=lambda version: (version.version_no, version.created_at)
+            )
 
+    version_ids = [version.id for version in versions]
+    refs = list(
+        session.scalars(
+            select(models.NormalizedAssetRef).where(
+                models.NormalizedAssetRef.version_id.in_(version_ids),
+                models.NormalizedAssetRef.status == NormalizedAssetRefStatus.GENERATED,
+            )
+        ).all()
+    ) if version_ids else []
+    ref_by_version: dict[str, models.NormalizedAssetRef] = {}
+    for ref in refs:
+        existing = ref_by_version.get(ref.version_id)
+        if existing is None or ref.created_at > existing.created_at:
+            ref_by_version[ref.version_id] = ref
 
-def _catalog_row(session: Session, asset: models.Asset) -> domain_schemas.AssetCatalogRead:
-    current_version = pipeline.get_current_version(session, asset.id)
-    current_ref = (
-        pipeline.get_current_normalized_ref(session, current_version.id)
-        if current_version is not None
-        else None
-    )
-    latest_version = _latest_version(session, asset.id)
-    latest_ref = (
-        pipeline.get_current_normalized_ref(session, latest_version.id)
-        if latest_version is not None
-        else None
-    )
-    ref_for_catalog = current_ref or latest_ref
-    result = _latest_governance_result(
-        session, ref_for_catalog.id if ref_for_catalog is not None else None
-    )
-    quality_summary = result.quality_summary if result is not None else None
-    domain = _canonical_classification(result.classification) if result is not None else None
-    domain_name = _classification_label(domain)
-    base = domain_schemas.AssetRead.model_validate(asset).model_dump()
-    # `asset.status` is a cached projection.  Prefer the effective version
-    # state for catalog reads so historical rows cannot display a stale review
-    # status after an approved governance review has made a version available.
-    effective_status = (
-        current_version.version_status
-        if current_version is not None
-        else latest_version.version_status if latest_version is not None else asset.status
-    )
-    base["status"] = effective_status
-    return domain_schemas.AssetCatalogRead(
-        **base,
-        current_version_no=(
-            current_version.version_no
+    catalog_refs = {
+        ref.id
+        for asset in assets
+        for version in (current_by_asset.get(asset.id), latest_by_asset.get(asset.id))
+        if version is not None
+        for ref in [ref_by_version.get(version.id)]
+        if ref is not None
+    }
+    results = list(
+        session.scalars(
+            select(models.GovernanceResult).where(
+                models.GovernanceResult.normalized_ref_id.in_(catalog_refs)
+            )
+        ).all()
+    ) if catalog_refs else []
+    result_by_ref: dict[str, models.GovernanceResult] = {}
+    for result in results:
+        existing = result_by_ref.get(result.normalized_ref_id)
+        if existing is None or result.created_at > existing.created_at:
+            result_by_ref[result.normalized_ref_id] = result
+
+    manifests = list(
+        session.scalars(
+            select(models.IndexManifest).where(
+                models.IndexManifest.normalized_ref_id.in_(catalog_refs)
+            )
+        ).all()
+    ) if catalog_refs else []
+    statuses_by_ref: dict[str, list[IndexManifestStatus]] = {}
+    for manifest in manifests:
+        statuses_by_ref.setdefault(manifest.normalized_ref_id, []).append(manifest.index_status)
+
+    rows: list[domain_schemas.AssetCatalogRead] = []
+    for asset in assets:
+        current_version = current_by_asset.get(asset.id)
+        latest_version = latest_by_asset.get(asset.id)
+        current_ref = ref_by_version.get(current_version.id) if current_version else None
+        latest_ref = ref_by_version.get(latest_version.id) if latest_version else None
+        ref_for_catalog = current_ref or latest_ref
+        result = result_by_ref.get(ref_for_catalog.id) if ref_for_catalog else None
+        quality_summary = result.quality_summary if result is not None else None
+        domain = _canonical_classification(result.classification) if result is not None else None
+        effective_status = (
+            current_version.version_status
             if current_version is not None
-            else latest_version.version_no if latest_version is not None else None
-        ),
-        current_normalized_ref_id=(
-            current_ref.id
-            if current_ref is not None
-            else latest_ref.id if latest_ref is not None else None
-        ),
-        latest_version_id=latest_version.id if latest_version is not None else None,
-        latest_version_no=latest_version.version_no if latest_version is not None else None,
-        latest_normalized_ref_id=latest_ref.id if latest_ref is not None else None,
-        domain=domain,
-        domain_name=domain_name,
-        level=result.level if result is not None else None,
-        quality_score=(
-            (quality_summary or {}).get("quality_score")
-            if isinstance(quality_summary, dict)
-            else None
-        ),
-        governance_status=(
-            result.status.value
-            if result is not None and hasattr(result.status, "value")
-            else str(result.status) if result is not None else None
-        ),
-        index_status=_index_status(
-            session,
-            ref_for_catalog,
-            governance_result=result,
-        ),
-    )
+            else latest_version.version_status if latest_version is not None else asset.status
+        )
+        base = domain_schemas.AssetRead.model_validate(asset).model_dump()
+        base["status"] = effective_status
+        index_status = None
+        if ref_for_catalog is not None and ref_for_catalog.normalized_type != NormalizedType.RECORD:
+            statuses = statuses_by_ref.get(ref_for_catalog.id, [])
+            if any(status == IndexManifestStatus.FAILED for status in statuses):
+                index_status = IndexManifestStatus.FAILED.value
+            elif statuses and all(status == IndexManifestStatus.INDEXED for status in statuses):
+                index_status = IndexManifestStatus.INDEXED.value
+            elif statuses:
+                first_status = statuses[0]
+                index_status = first_status.value if hasattr(first_status, "value") else str(first_status)
+            elif result is not None and result.index_admission:
+                index_status = "not_indexed"
+        rows.append(
+            domain_schemas.AssetCatalogRead(
+                **base,
+                current_version_no=(current_version or latest_version).version_no
+                if current_version or latest_version else None,
+                current_normalized_ref_id=(current_ref or latest_ref).id
+                if current_ref or latest_ref else None,
+                latest_version_id=latest_version.id if latest_version else None,
+                latest_version_no=latest_version.version_no if latest_version else None,
+                latest_normalized_ref_id=latest_ref.id if latest_ref else None,
+                domain=domain,
+                domain_name=_classification_label(domain),
+                level=result.level if result else None,
+                quality_score=(quality_summary or {}).get("quality_score")
+                if isinstance(quality_summary, dict) else None,
+                governance_status=(
+                    result.status.value if result is not None and hasattr(result.status, "value")
+                    else str(result.status) if result is not None else None
+                ),
+                index_status=index_status,
+            )
+        )
+    return rows
 
 
 def _asset_summary(rows: list[domain_schemas.AssetCatalogRead]) -> domain_schemas.AssetSummaryRead:
@@ -318,53 +346,142 @@ def _asset_summary(rows: list[domain_schemas.AssetCatalogRead]) -> domain_schema
     )
 
 
-def _filtered_catalog_rows(
+def _catalog_candidate_ids(
     session: Session,
     *,
     domain: str | None,
     level: str | None,
     status: str | None,
-    tags: list[str] | None = None,
-    embedding_client=None,
-) -> list[domain_schemas.AssetCatalogRead]:
-    rows = [_catalog_row(session, row) for row in pipeline.list_assets(session)]
-    if tags:
-        matching_ref_ids = _matched_catalog_ref_ids(
-            session,
-            tags=tags,
-            embedding_client=embedding_client,
+    matching_ref_ids: set[str] | None,
+    limit: int | None = None,
+    offset: int | None = None,
+) -> tuple[list[str], int]:
+    """Filter and page the catalog in SQL before loading catalog relations."""
+    current_version = aliased(models.AssetVersion)
+    latest_version = aliased(models.AssetVersion)
+    current_version_id = (
+        select(current_version.id)
+        .where(
+            current_version.asset_id == models.Asset.id,
+            current_version.version_status == AssetVersionStatus.AVAILABLE,
         )
-        rows = [
-            row for row in rows
-            if row.current_normalized_ref_id in matching_ref_ids
-        ]
+        .order_by(current_version.created_at.desc())
+        .limit(1)
+        .correlate(models.Asset)
+        .scalar_subquery()
+    )
+    latest_version_id = (
+        select(latest_version.id)
+        .where(
+            latest_version.asset_id == models.Asset.id,
+            latest_version.version_status.notin_(
+                [AssetVersionStatus.ARCHIVED, AssetVersionStatus.DISABLED]
+            ),
+        )
+        .order_by(latest_version.version_no.desc(), latest_version.created_at.desc())
+        .limit(1)
+        .correlate(models.Asset)
+        .scalar_subquery()
+    )
+    current_version_status = (
+        select(current_version.version_status)
+        .where(
+            current_version.asset_id == models.Asset.id,
+            current_version.version_status == AssetVersionStatus.AVAILABLE,
+        )
+        .order_by(current_version.created_at.desc())
+        .limit(1)
+        .correlate(models.Asset)
+        .scalar_subquery()
+    )
+    latest_version_status = (
+        select(latest_version.version_status)
+        .where(
+            latest_version.asset_id == models.Asset.id,
+            latest_version.version_status.notin_(
+                [AssetVersionStatus.ARCHIVED, AssetVersionStatus.DISABLED]
+            ),
+        )
+        .order_by(latest_version.version_no.desc(), latest_version.created_at.desc())
+        .limit(1)
+        .correlate(models.Asset)
+        .scalar_subquery()
+    )
+    current_ref_id = (
+        select(models.NormalizedAssetRef.id)
+        .where(
+            models.NormalizedAssetRef.version_id == current_version_id,
+            models.NormalizedAssetRef.status == NormalizedAssetRefStatus.GENERATED,
+        )
+        .order_by(models.NormalizedAssetRef.created_at.desc())
+        .limit(1)
+        .correlate(models.Asset)
+        .scalar_subquery()
+    )
+    latest_ref_id = (
+        select(models.NormalizedAssetRef.id)
+        .where(
+            models.NormalizedAssetRef.version_id == latest_version_id,
+            models.NormalizedAssetRef.status == NormalizedAssetRefStatus.GENERATED,
+        )
+        .order_by(models.NormalizedAssetRef.created_at.desc())
+        .limit(1)
+        .correlate(models.Asset)
+        .scalar_subquery()
+    )
+    catalog_ref_id = func.coalesce(current_ref_id, latest_ref_id)
+    result_classification = (
+        select(models.GovernanceResult.classification)
+        .where(models.GovernanceResult.normalized_ref_id == catalog_ref_id)
+        .order_by(models.GovernanceResult.created_at.desc())
+        .limit(1)
+        .correlate(models.Asset)
+        .scalar_subquery()
+    )
+    result_level = (
+        select(models.GovernanceResult.level)
+        .where(models.GovernanceResult.normalized_ref_id == catalog_ref_id)
+        .order_by(models.GovernanceResult.created_at.desc())
+        .limit(1)
+        .correlate(models.Asset)
+        .scalar_subquery()
+    )
+    effective_status = func.coalesce(
+        current_version_status, latest_version_status, models.Asset.status
+    )
+
+    predicates = []
+    if matching_ref_ids is not None:
+        if not matching_ref_ids:
+            return [], 0
+        predicates.append(catalog_ref_id.in_(matching_ref_ids))
     if domain:
-        rows = [row for row in rows if row.domain == domain]
+        canonical_domain = _canonical_classification(domain)
+        if canonical_domain == "major_profile":
+            predicates.append(
+                result_classification.in_(["major_profile", "program_profile"])
+            )
+        else:
+            predicates.append(result_classification == canonical_domain)
     if level:
-        rows = [row for row in rows if row.level == level]
+        predicates.append(result_level == level)
     if status == "visible":
-        rows = [
-            row
-            for row in rows
-            if (
-                row.status.value
-                if hasattr(row.status, "value")
-                else str(row.status)
-            )
-            in _VISIBLE_ASSET_STATUSES
-        ]
+        predicates.append(effective_status.in_(_VISIBLE_ASSET_STATUSES))
     elif status:
-        rows = [
-            row
-            for row in rows
-            if (
-                row.status.value
-                if hasattr(row.status, "value")
-                else str(row.status)
-            )
-            == status
-        ]
-    return rows
+        predicates.append(effective_status == status)
+    else:
+        predicates.append(models.Asset.status != AssetVersionStatus.DISABLED)
+
+    candidates = select(models.Asset.id).where(*predicates)
+    total = int(
+        session.scalar(select(func.count()).select_from(candidates.subquery())) or 0
+    )
+    page = candidates.order_by(models.Asset.created_at.desc())
+    if offset is not None:
+        page = page.offset(offset)
+    if limit is not None:
+        page = page.limit(limit)
+    return list(session.scalars(page).all()), total
 
 
 @router.get("/assets", response_model=schemas.ListResponse[domain_schemas.AssetCatalogRead])
@@ -387,29 +504,33 @@ def list_assets(
             status_code=422,
             detail="tags must contain 1 to 10 non-blank values of at most 256 characters",
         )
-    if domain or level or status or tags:
-        rows = _filtered_catalog_rows(
+    matching_ref_ids = (
+        _matched_catalog_ref_ids(
             session,
-            domain=domain,
-            level=level,
-            status=status,
             tags=tags,
-            embedding_client=embedding_client_factory() if tags else None,
+            embedding_client=embedding_client_factory(),
         )
-        total = len(rows)
-        rows = rows[pagination.offset: pagination.offset + pagination.limit]
-        data = rows
+        if tags else None
+    )
+    asset_ids, total = _catalog_candidate_ids(
+        session,
+        domain=domain,
+        level=level,
+        status=status,
+        matching_ref_ids=matching_ref_ids,
+        limit=pagination.limit,
+        offset=pagination.offset,
+    )
+    if asset_ids:
+        assets_by_id = {
+            asset.id: asset
+            for asset in session.scalars(
+                select(models.Asset).where(models.Asset.id.in_(asset_ids))
+            ).all()
+        }
+        data = _catalog_rows(session, [assets_by_id[asset_id] for asset_id in asset_ids])
     else:
-        asset_rows = pipeline.list_assets(
-            session,
-            limit=pagination.limit,
-            offset=pagination.offset,
-            exclude_statuses={AssetVersionStatus.DISABLED},
-        )
-        total = pipeline.count_assets(
-            session, exclude_statuses={AssetVersionStatus.DISABLED}
-        )
-        data = [_catalog_row(session, row) for row in asset_rows]
+        data = []
     return list_response(
         data, request,
         page=pagination.page, page_size=pagination.page_size, total=total,
@@ -421,11 +542,10 @@ def list_assets(
     response_model=schemas.ApiResponse[domain_schemas.AssetSummaryRead],
 )
 def assets_summary(request: Request, session: Session = Depends(get_db)):
-    rows = [
-        _catalog_row(session, row)
-        for row in pipeline.list_assets(session)
-        if row.status != AssetVersionStatus.DISABLED
-    ]
+    assets = pipeline.list_assets(
+        session, exclude_statuses={AssetVersionStatus.DISABLED}
+    )
+    rows = _catalog_rows(session, assets)
     return response(_asset_summary(rows), request)
 
 

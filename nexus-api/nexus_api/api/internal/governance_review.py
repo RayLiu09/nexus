@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, aliased
 
 from nexus_api import schemas
 from nexus_api.api.internal._helpers import rules_registry, serialize_result_with_view
@@ -30,19 +30,46 @@ def _require_reviewer(user: models.UserAccount) -> None:
         raise HTTPException(status_code=403, detail="business expert or platform data admin role required")
 
 
-def _latest_review_results(session: Session) -> list[models.GovernanceResult]:
-    """One latest `review_required` result per normalized ref, newest first."""
-    rows = session.scalars(
-        select(models.GovernanceResult)
-        .order_by(models.GovernanceResult.normalized_ref_id, models.GovernanceResult.created_at.desc())
-    ).all()
-    latest: dict[str, models.GovernanceResult] = {}
-    for row in rows:
-        latest.setdefault(row.normalized_ref_id, row)
-    return sorted(
-        (item for item in latest.values() if item.status == GovernanceResultStatus.REVIEW_REQUIRED),
-        key=lambda item: item.created_at,
-        reverse=True,
+def _pending_review_candidates():
+    """Latest governance result per ref whose current state needs review."""
+    result = aliased(models.GovernanceResult)
+    latest = aliased(models.GovernanceResult)
+    latest_result_id = (
+        select(latest.id)
+        .where(latest.normalized_ref_id == result.normalized_ref_id)
+        .order_by(latest.created_at.desc())
+        .limit(1)
+        .correlate(result)
+        .scalar_subquery()
+    )
+    return (
+        select(result.id).where(
+            result.id == latest_result_id,
+            result.status == GovernanceResultStatus.REVIEW_REQUIRED,
+        ),
+        result,
+    )
+
+
+def _pending_review_result_ids(
+    session: Session, *, limit: int, offset: int
+) -> tuple[list[str], int]:
+    """Count and page pending latest snapshots before row assembly."""
+    candidates, result = _pending_review_candidates()
+    total = int(
+        session.scalar(select(func.count()).select_from(candidates.subquery())) or 0
+    )
+    page = candidates.order_by(result.created_at.desc()).offset(offset).limit(limit)
+    return list(session.scalars(page).all()), total
+
+
+def _pending_review_count(session: Session) -> int:
+    candidates, _ = _pending_review_candidates()
+    return int(
+        session.scalar(
+            select(func.count()).select_from(candidates.subquery())
+        )
+        or 0
     )
 
 
@@ -65,20 +92,81 @@ def _queue_item(result: models.GovernanceResult) -> dict:
     }
 
 
+def _queue_items(session: Session, result_ids: list[str]) -> list[dict]:
+    """Load the queue page and its ref/version/asset chain in one query."""
+    if not result_ids:
+        return []
+    rows = session.execute(
+        select(
+            models.GovernanceResult,
+            models.NormalizedAssetRef,
+            models.AssetVersion,
+            models.Asset,
+        )
+        .outerjoin(
+            models.NormalizedAssetRef,
+            models.GovernanceResult.normalized_ref_id == models.NormalizedAssetRef.id,
+        )
+        .outerjoin(
+            models.AssetVersion,
+            models.NormalizedAssetRef.version_id == models.AssetVersion.id,
+        )
+        .outerjoin(models.Asset, models.AssetVersion.asset_id == models.Asset.id)
+        .where(models.GovernanceResult.id.in_(result_ids))
+    ).all()
+    rows_by_id = {result.id: (result, ref, version, asset) for result, ref, version, asset in rows}
+    items: list[dict] = []
+    for result_id in result_ids:
+        row = rows_by_id.get(result_id)
+        if row is None:
+            continue
+        result, ref, version, asset = row
+        items.append(
+            {
+                "governance_result_id": result.id,
+                "normalized_ref_id": result.normalized_ref_id,
+                "asset_id": asset.id if asset is not None else None,
+                "asset_title": (
+                    asset.title
+                    if asset is not None
+                    else ref.title if ref is not None else None
+                ),
+                "classification": result.classification,
+                "level": result.level,
+                "org_scope": result.org_scope,
+                "tags": normalize_to_structured(result.tags).model_dump(mode="json"),
+                "quality_summary": result.quality_summary or {},
+                "decision_trail": result.decision_trail or [],
+                "created_at": result.created_at.isoformat() if result.created_at else None,
+            }
+        )
+    return items
+
+
 @router.get("/governance-reviews/pending", response_model=schemas.ListResponse[dict])
 def list_pending_governance_reviews(
     request: Request,
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
 ):
-    items = _latest_review_results(session)
+    result_ids, total = _pending_review_result_ids(
+        session, limit=pagination.limit, offset=pagination.offset
+    )
     return list_response(
-        [_queue_item(item) for item in items[pagination.offset : pagination.offset + pagination.limit]],
+        _queue_items(session, result_ids),
         request,
         page=pagination.page,
         page_size=pagination.page_size,
-        total=len(items),
+        total=total,
     )
+
+
+@router.get("/governance-reviews/pending/count", response_model=schemas.ApiResponse[dict])
+def count_pending_governance_reviews(
+    request: Request, session: Session = Depends(get_db)
+):
+    """Return a lightweight pending count for Console navigation badges."""
+    return response({"total": _pending_review_count(session)}, request)
 
 
 @router.get("/governance-results/{result_id}/review-context", response_model=schemas.ApiResponse[dict])

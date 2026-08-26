@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 
 from nexus_api.api.open import get_open_tag_embedding_client
 from nexus_app import models
@@ -279,6 +280,36 @@ def test_open_asset_catalog_returns_effective_available_version_status(app, sess
     assert response.status_code == 200
     assert response.json()["data"][0]["id"] == matching["asset_id"]
     assert response.json()["data"][0]["status"] == "available"
+
+
+def test_open_asset_catalog_uses_sql_pagination_and_bounded_query_count(app, session):
+    for number in range(6):
+        _seed_asset(
+            session,
+            suffix=f"page-{number}",
+            classification="industry_report",
+            tag_type="industry",
+            tag_value=f"产业-{number}",
+            tag_value_normalized=f"产业-{number}",
+        )
+    statements: list[str] = []
+
+    def count_statement(conn, cursor, statement, parameters, context, executemany):
+        del conn, cursor, parameters, context, executemany
+        statements.append(statement)
+
+    event.listen(session.bind, "before_cursor_execute", count_statement)
+    try:
+        response = TestClient(app).get("/open/v1/assets?page=2&pageSize=2")
+    finally:
+        event.remove(session.bind, "before_cursor_execute", count_statement)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["meta"]["total"] == 6
+    assert len(payload["data"]) == 2
+    # Count, page IDs, versions, refs, governance results, assets, and tags.
+    assert len(statements) <= 7
 
 
 def test_open_asset_catalog_rejects_unknown_tag_type(app):

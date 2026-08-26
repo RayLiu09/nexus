@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 from sqlalchemy.orm import Session
 
 from nexus_api.api.internal.assets import get_catalog_tag_embedding_client
@@ -39,9 +40,10 @@ class _SemanticEmbeddingClient:
         )
 
 
-def _seed_review_required_asset(session: Session):
+def _seed_review_required_asset(session: Session, *, suffix: str = ""):
+    suffix_part = f"-{suffix}" if suffix else ""
     ds = models.DataSource(
-        code="catalog-test-ds",
+        code=f"catalog-test-ds{suffix_part}",
         name="Catalog Test DS",
         source_type=DataSourceType.FILE_UPLOAD,
     )
@@ -50,7 +52,7 @@ def _seed_review_required_asset(session: Session):
 
     batch = models.IngestBatch(
         data_source_id=ds.id,
-        idempotency_key="catalog-batch-001",
+        idempotency_key=f"catalog-batch-001{suffix_part}",
         source_type=DataSourceType.FILE_UPLOAD,
         status=IngestBatchStatus.COMPLETED,
     )
@@ -61,9 +63,9 @@ def _seed_review_required_asset(session: Session):
         batch_id=batch.id,
         data_source_id=ds.id,
         source_type=DataSourceType.FILE_UPLOAD,
-        source_uri="file://catalog-test.pdf",
-        object_uri="raw/catalog-test.pdf",
-        checksum="catalog-raw-sha256",
+        source_uri=f"file://catalog-test{suffix_part}.pdf",
+        object_uri=f"raw/catalog-test{suffix_part}.pdf",
+        checksum=f"catalog-raw-sha256{suffix_part}",
         mime_type="application/pdf",
         size_bytes=4096,
         status=RawObjectStatus.RAW_PERSISTED,
@@ -73,8 +75,8 @@ def _seed_review_required_asset(session: Session):
 
     asset = models.Asset(
         data_source_id=ds.id,
-        source_object_key="catalog-test.pdf",
-        title="Catalog Review Required Asset",
+        source_object_key=f"catalog-test{suffix_part}.pdf",
+        title=f"Catalog Review Required Asset{suffix_part}",
         asset_kind=AssetKind.DOCUMENT,
         status=AssetVersionStatus.REVIEW_REQUIRED,
     )
@@ -85,7 +87,7 @@ def _seed_review_required_asset(session: Session):
         asset_id=asset.id,
         raw_object_id=raw.id,
         version_no=7,
-        source_checksum="catalog-raw-sha256",
+        source_checksum=f"catalog-raw-sha256{suffix_part}",
         version_status=AssetVersionStatus.REVIEW_REQUIRED,
     )
     session.add(version)
@@ -94,15 +96,15 @@ def _seed_review_required_asset(session: Session):
     ref = models.NormalizedAssetRef(
         version_id=version.id,
         normalized_type=NormalizedType.DOCUMENT,
-        object_uri="normalized/catalog-test.json",
+        object_uri=f"normalized/catalog-test{suffix_part}.json",
         schema_version="1.0",
-        checksum="catalog-normalized-sha256",
+        checksum=f"catalog-normalized-sha256{suffix_part}",
         status=NormalizedAssetRefStatus.GENERATED,
         block_count=3,
         record_count=0,
         source_type="file_upload",
         content_type="document",
-        title="Catalog Review Required Asset",
+        title=f"Catalog Review Required Asset{suffix_part}",
         language="zh-CN",
         governance={"classification": "industry_report", "level": "L1"},
         quality={"quality_level": "warning"},
@@ -117,7 +119,7 @@ def _seed_review_required_asset(session: Session):
         profile_id=None,
         model_alias="doubao-seed-2-0-lite-260215",
         prompt_version="v1.0",
-        input_hash="catalog-input-hash",
+        input_hash=f"catalog-input-hash{suffix_part}",
         input_summary={"normalized_ref_id": ref.id},
         raw_output="{}",
         ai_output={
@@ -324,6 +326,32 @@ def test_asset_catalog_filters_by_domain_level_and_status(app, session):
     payload = resp.json()
     assert payload["meta"]["total"] == 0
     assert payload["data"] == []
+
+
+def test_visible_catalog_uses_sql_pagination_and_bounded_query_count(app, session):
+    for number in range(6):
+        _seed_review_required_asset(session, suffix=str(number))
+    statements: list[str] = []
+
+    def count_statement(conn, cursor, statement, parameters, context, executemany):
+        del conn, cursor, parameters, context, executemany
+        statements.append(statement)
+
+    event.listen(session.bind, "before_cursor_execute", count_statement)
+    try:
+        response = TestClient(app).get(
+            "/internal/v1/assets?status=visible&page=2&pageSize=2"
+        )
+    finally:
+        event.remove(session.bind, "before_cursor_execute", count_statement)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["meta"]["total"] == 6
+    assert len(payload["data"]) == 2
+    # Count, page IDs, assets, versions, refs, governance results, manifests.
+    # The bound must not grow with the number of rows in the selected page.
+    assert len(statements) <= 7
 
 
 def test_disabled_asset_is_hidden_by_default_but_available_to_explicit_audit_filter(app, session):
