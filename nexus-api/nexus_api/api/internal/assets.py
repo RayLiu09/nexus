@@ -310,6 +310,7 @@ def _catalog_rows(
                     else str(result.status) if result is not None else None
                 ),
                 index_status=index_status,
+                content_tags=list(result.tags) if result is not None else [],
             )
         )
     return rows

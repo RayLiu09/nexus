@@ -240,6 +240,11 @@ def test_review_required_asset_detail_exposes_latest_read_models(app, session):
 
 def test_asset_catalog_uses_latest_review_required_ref_for_ui_metadata(app, session):
     seeded = _seed_review_required_asset(session)
+    seeded["run"].ai_output = {
+        **seeded["run"].ai_output,
+        "tags": ["unadopted-ai-suggestion"],
+    }
+    session.commit()
     client = TestClient(app)
 
     resp = client.get("/internal/v1/assets")
@@ -257,6 +262,7 @@ def test_asset_catalog_uses_latest_review_required_ref_for_ui_metadata(app, sess
     assert row["level"] == "L1"
     assert row["quality_score"] == 69.83
     assert row["governance_status"] == "review_required"
+    assert row["content_tags"] == ["report"]
 
 
 def test_asset_catalog_uses_effective_version_status_when_asset_projection_is_stale(
@@ -277,6 +283,17 @@ def test_asset_catalog_uses_effective_version_status_when_asset_projection_is_st
     assert resp.status_code == 200
     row = next(item for item in resp.json()["data"] if item["id"] == seeded["asset"].id)
     assert row["status"] == "available"
+
+
+def test_asset_catalog_returns_empty_content_tags_without_governance_result(app, session):
+    seeded = _seed_processing_asset(session)
+
+    with TestClient(app) as client:
+        resp = client.get("/internal/v1/assets?status=all")
+
+    assert resp.status_code == 200
+    row = next(item for item in resp.json()["data"] if item["id"] == seeded["asset"].id)
+    assert row["content_tags"] == []
 
 
 def test_asset_catalog_canonicalizes_deprecated_program_profile_domain(app, session):

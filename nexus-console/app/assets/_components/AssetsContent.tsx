@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { Table, Tag, Select, Input, Card } from "antd";
+import { Table, Tag, Select, Input, Card, Tooltip } from "antd";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import { ApiState } from "@/components/ApiState";
 import { StatusLabel } from "@/components/StatusLabel";
@@ -146,19 +146,6 @@ export function AssetsContent({
       ),
     },
     {
-      title: "当前版本",
-      width: 160,
-      render: (_, r) => (
-        <span style={{ fontSize: 13 }}>
-          {r.current_version_no ? (
-            <code>{r.current_version_no}</code>
-          ) : (
-            <span style={{ color: "var(--text-muted)" }}>-</span>
-          )}
-        </span>
-      ),
-    },
-    {
       title: "标准化引用",
       width: 200,
       render: (_, r) =>
@@ -219,14 +206,28 @@ export function AssetsContent({
         ),
     },
     {
-      title: "组织范围",
-      width: 180,
-      render: (_, r) =>
-        r.org_scope?.length ? (
-          r.org_scope.join(" / ")
-        ) : (
-          <span style={{ color: "var(--text-muted)" }}>-</span>
-        ),
+      title: "内容标签",
+      width: 240,
+      render: (_, r) => {
+        const tags = r.content_tags ?? [];
+        if (!tags.length) {
+          return <span style={{ color: "var(--text-muted)" }}>-</span>;
+        }
+        const visibleTags = tags.slice(0, 3);
+        const hiddenCount = tags.length - visibleTags.length;
+        return (
+          <span>
+            {visibleTags.map((tag, index) => (
+              <Tag key={`${tag}-${index}`}>{tag}</Tag>
+            ))}
+            {hiddenCount > 0 && (
+              <Tooltip title={tags.join("，")}>
+                <Tag>+{hiddenCount}</Tag>
+              </Tooltip>
+            )}
+          </span>
+        );
+      },
     },
     {
       title: "状态",

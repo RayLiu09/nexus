@@ -19,6 +19,21 @@ vi.mock("next/navigation", () => ({
 import { AssetsContent } from "./AssetsContent";
 import { renderWithProviders, screen } from "@/test-utils/test-renderer";
 
+const catalogAsset = {
+  id: "asset-1",
+  data_source_id: "data-source-1",
+  source_object_key: "report.pdf",
+  title: "产业报告",
+  asset_kind: "document",
+  status: "available",
+  org_scope: ["org-a"],
+  metadata_summary: {},
+  created_at: "2026-08-27T00:00:00Z",
+  updated_at: "2026-08-27T00:00:00Z",
+  current_version_no: 7,
+  content_tags: ["产业", "报告", "人才", "区域"],
+};
+
 describe("AssetsContent", () => {
   it("submits a tag search while preserving the other catalog filters", async () => {
     const { user } = renderWithProviders(
@@ -58,6 +73,29 @@ describe("AssetsContent", () => {
     );
 
     expect(screen.queryByRole("button", { name: "保存视图" })).not.toBeInTheDocument();
+  });
+
+  it("replaces organization scope and current version columns with official content tags", () => {
+    renderWithProviders(
+      <AssetsContent
+        assets={[catalogAsset]}
+        totalCount={1}
+        currentPage={1}
+        pageSize={20}
+        filters={{ status: "visible" }}
+        ok
+        error={null}
+        traceId={null}
+      />,
+    );
+
+    expect(screen.queryByRole("columnheader", { name: "组织范围" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "当前版本" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "内容标签" })).toBeInTheDocument();
+    expect(screen.getByText("产业")).toBeInTheDocument();
+    expect(screen.getByText("报告")).toBeInTheDocument();
+    expect(screen.getByText("人才")).toBeInTheDocument();
+    expect(screen.getByText("+1")).toBeInTheDocument();
   });
 
   it("submits each comma-separated tag as an independent query value", async () => {

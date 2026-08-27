@@ -487,6 +487,7 @@ class AssetCatalogRead(AssetRead):
     quality_score: float | None = None
     governance_status: str | None = None
     index_status: str | None = None
+    content_tags: list[str] = Field(default_factory=list)
 
 
 class OpenAssetCatalogRead(AssetRead):

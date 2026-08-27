@@ -12,6 +12,7 @@ export type AssetWithMeta = Asset & {
   quality_score?: number | null;
   governance_status?: string | null;
   index_status?: string | null;
+  content_tags?: string[];
 };
 
 export const DOMAIN_LABELS: Record<string, string> = {
