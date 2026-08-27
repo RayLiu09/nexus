@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 
 from nexus_api.api import talent_training_plans
 from nexus_api.api import institutional_statistics
@@ -166,3 +167,35 @@ def test_province_level_course_and_offering_aggregates(session, fake_request):
     assert courses["data"][0]["coverage_ratio"] == 1.0
     assert all(item["course_stat_key"] != "不应计入的专业简介课程" for item in courses["data"])
     assert courses["aggregations"]["source_policy"] == "combined_prefer_plan"
+
+
+def test_statistics_aggregate_query_counts_are_bounded(session, fake_request):
+    plan = _seed(session, suffix="statistics-query-count", status=AssetVersionStatus.AVAILABLE)
+    plan.province_name = "浙江省"
+    plan.courses[0].course_stat_key = "跨境电子商务实务"
+    session.commit()
+
+    statements: list[str] = []
+
+    def count_statement(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(session.bind, "before_cursor_execute", count_statement)
+    try:
+        institutional_statistics.aggregate_major_offerings(
+            fake_request, province_name=None, major_name=None, major_code=None,
+            education_level=None, institution_name=None, pagination=PAGE, session=session,
+        )
+        offering_queries = len(statements)
+        statements.clear()
+        institutional_statistics.aggregate_major_courses(
+            fake_request, province_name=None, major_name=None, major_code=None,
+            education_level=None, institution_name=None, course=None,
+            min_coverage_ratio=None, pagination=PAGE, session=session,
+        )
+        course_queries = len(statements)
+    finally:
+        event.remove(session.bind, "before_cursor_execute", count_statement)
+
+    assert offering_queries <= 4
+    assert course_queries <= 6

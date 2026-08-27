@@ -5,8 +5,8 @@ from collections import Counter, defaultdict
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, load_only, selectinload
 
 from nexus_api.dependencies import Pagination, pagination_params, require_api_caller
 from nexus_api.responses import list_response
@@ -21,26 +21,97 @@ def _norm(value: str | None) -> str:
     return "".join(str(value or "").split())
 
 
-def _available_profiles(session: Session) -> list[models.MajorProfile]:
-    return list(session.scalars(select(models.MajorProfile).options(selectinload(models.MajorProfile.courses)).join(models.AssetVersion, models.AssetVersion.id == models.MajorProfile.asset_version_id).where(models.AssetVersion.version_status == AssetVersionStatus.AVAILABLE, models.MajorProfile.institution_name.is_not(None))).all())
+def _available_statement(model: Any, **filters: str | None):
+    """Build the common available-source filter in SQL before object loading."""
+    stmt = (
+        select(model)
+        .join(models.AssetVersion, models.AssetVersion.id == model.asset_version_id)
+        .where(
+            models.AssetVersion.version_status == AssetVersionStatus.AVAILABLE,
+            model.institution_name.is_not(None),
+        )
+    )
+    if filters.get("province_name"):
+        stmt = stmt.where(model.province_name == filters["province_name"])
+    if filters.get("major_name"):
+        stmt = stmt.where(model.major_name.contains(filters["major_name"]))
+    if filters.get("major_code"):
+        stmt = stmt.where(model.major_code == filters["major_code"])
+    if filters.get("education_level"):
+        stmt = stmt.where(model.education_level == filters["education_level"])
+    if filters.get("institution_name"):
+        stmt = stmt.where(model.institution_name.contains(filters["institution_name"]))
+    return stmt
 
 
-def _available_plans(session: Session) -> list[models.TalentTrainingPlan]:
-    return list(session.scalars(select(models.TalentTrainingPlan).options(selectinload(models.TalentTrainingPlan.courses)).join(models.AssetVersion, models.AssetVersion.id == models.TalentTrainingPlan.asset_version_id).where(models.AssetVersion.version_status == AssetVersionStatus.AVAILABLE, models.TalentTrainingPlan.institution_name.is_not(None))).all())
+def _available_profiles(
+    session: Session, *, include_courses: bool, **filters: str | None,
+) -> list[models.MajorProfile]:
+    options = [
+        load_only(
+            models.MajorProfile.id,
+            models.MajorProfile.institution_name,
+            models.MajorProfile.province_name,
+            models.MajorProfile.major_name,
+            models.MajorProfile.major_code,
+            models.MajorProfile.education_level,
+        )
+    ]
+    if include_courses:
+        options.append(
+            selectinload(models.MajorProfile.courses).load_only(
+                models.MajorProfileCourse.profile_id,
+                models.MajorProfileCourse.course_stat_key,
+                models.MajorProfileCourse.text,
+            )
+        )
+    return list(session.scalars(_available_statement(models.MajorProfile, **filters).options(*options)).all())
 
 
-def _matches(row: Any, province_name: str | None, major_name: str | None, major_code: str | None, education_level: str | None, institution_name: str | None) -> bool:
-    return (not province_name or row.province_name == province_name) and (not major_name or major_name in row.major_name) and (not major_code or row.major_code == major_code) and (not education_level or row.education_level == education_level) and (not institution_name or institution_name in (row.institution_name or ""))
+def _available_plans(
+    session: Session, *, include_courses: bool, **filters: str | None,
+) -> list[models.TalentTrainingPlan]:
+    options = [
+        load_only(
+            models.TalentTrainingPlan.id,
+            models.TalentTrainingPlan.institution_name,
+            models.TalentTrainingPlan.province_name,
+            models.TalentTrainingPlan.major_name,
+            models.TalentTrainingPlan.major_code,
+            models.TalentTrainingPlan.education_level,
+        )
+    ]
+    if include_courses:
+        options.append(
+            selectinload(models.TalentTrainingPlan.courses).load_only(
+                models.TalentTrainingPlanCourse.plan_id,
+                models.TalentTrainingPlanCourse.course_stat_key,
+                models.TalentTrainingPlanCourse.course_name,
+            )
+        )
+    return list(session.scalars(_available_statement(models.TalentTrainingPlan, **filters).options(*options)).all())
 
 
 def _offer_key(row: Any) -> tuple[str, str, str, str]:
     return (_norm(row.institution_name), _norm(row.major_name), _norm(row.education_level), row.province_name or "")
 
 
-def _source_rows(session: Session, **filters: str | None) -> tuple[dict[tuple[str, str, str, str], tuple[str, Any]], int]:
-    profiles = [row for row in _available_profiles(session) if _matches(row, **filters)]
-    plans = [row for row in _available_plans(session) if _matches(row, **filters)]
-    unresolved = sum(not row.province_name for row in _available_profiles(session) + _available_plans(session))
+def _unresolved_count(session: Session, model: Any) -> int:
+    return int(session.scalar(
+        _available_statement(model).with_only_columns(func.count()).where(
+            model.province_name.is_(None)
+        )
+    ) or 0)
+
+
+def _source_rows(
+    session: Session, *, include_courses: bool, **filters: str | None,
+) -> tuple[dict[tuple[str, str, str, str], tuple[str, Any]], int]:
+    profiles = _available_profiles(session, include_courses=include_courses, **filters)
+    plans = _available_plans(session, include_courses=include_courses, **filters)
+    unresolved = _unresolved_count(session, models.MajorProfile) + _unresolved_count(
+        session, models.TalentTrainingPlan
+    )
     rows: dict[tuple[str, str, str, str], tuple[str, Any]] = {}
     for row in profiles:
         if row.province_name:
@@ -53,7 +124,7 @@ def _source_rows(session: Session, **filters: str | None) -> tuple[dict[tuple[st
 
 @router.get("/major-offerings/aggregate")
 def aggregate_major_offerings(request: Request, province_name: str | None = None, major_name: str | None = None, major_code: str | None = None, education_level: str | None = None, institution_name: str | None = None, pagination: Pagination = Depends(pagination_params), session: Session = Depends(get_db)):
-    rows, unresolved = _source_rows(session, province_name=province_name, major_name=major_name, major_code=major_code, education_level=education_level, institution_name=institution_name)
+    rows, unresolved = _source_rows(session, include_courses=False, province_name=province_name, major_name=major_name, major_code=major_code, education_level=education_level, institution_name=institution_name)
     grouped: dict[tuple[str, str, str, str], set[str]] = defaultdict(set)
     for (_, row) in rows.values():
         grouped[(row.province_name or "", row.major_name, row.major_code or "", row.education_level or "")].add(_norm(row.institution_name))
@@ -65,8 +136,9 @@ def aggregate_major_offerings(request: Request, province_name: str | None = None
 
 @router.get("/major-courses/aggregate")
 def aggregate_major_courses(request: Request, province_name: str | None = None, major_name: str | None = None, major_code: str | None = None, education_level: str | None = None, institution_name: str | None = None, course: str | None = None, min_coverage_ratio: float | None = None, pagination: Pagination = Depends(pagination_params), session: Session = Depends(get_db)):
-    rows, unresolved = _source_rows(session, province_name=province_name, major_name=major_name, major_code=major_code, education_level=education_level, institution_name=institution_name)
-    eligible = Counter((row.province_name, _norm(row.institution_name)) for _, row in rows.values())
+    rows, unresolved = _source_rows(session, include_courses=True, province_name=province_name, major_name=major_name, major_code=major_code, education_level=education_level, institution_name=institution_name)
+    eligible = {(row.province_name, _norm(row.institution_name)) for _, row in rows.values()}
+    eligible_by_province = Counter(province for province, _ in eligible)
     grouped: dict[tuple[str, str], set[tuple[str, str, str, str]]] = defaultdict(set)
     labels: dict[tuple[str, str], str] = {}
     sources: dict[tuple[str, str], Counter[str]] = defaultdict(Counter)
@@ -83,7 +155,7 @@ def aggregate_major_courses(request: Request, province_name: str | None = None, 
     data = []
     for (province, key), offerings in grouped.items():
         institutions = {_key[0] for _key in offerings}
-        denominator = sum(1 for (p, _institution) in eligible if p == province)
+        denominator = eligible_by_province[province]
         ratio = len(institutions) / denominator if denominator else 0.0
         if min_coverage_ratio is not None and ratio < min_coverage_ratio:
             continue
