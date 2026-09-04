@@ -1706,7 +1706,7 @@ class MajorDistributionRecord(TimestampMixin, Base):
 
 
 # ---------------------------------------------------------------------------
-# Pipeline A TSL — professional teaching-standard library (Slice 1)
+# Pipeline A TSL — professional teaching-standard and course library
 # ---------------------------------------------------------------------------
 
 
@@ -1767,6 +1767,9 @@ class TeachingStandardLibrary(TimestampMixin, Base):
     rules: Mapped[list["TeachingStandardRule"]] = relationship(
         back_populates="library", cascade="all, delete-orphan", passive_deletes=True
     )
+    courses: Mapped[list["TeachingStandardCourse"]] = relationship(
+        back_populates="library", cascade="all, delete-orphan", passive_deletes=True
+    )
 
 
 class TeachingStandardOccupation(TimestampMixin, Base):
@@ -1823,6 +1826,61 @@ class TeachingStandardRule(TimestampMixin, Base):
     locator: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
     library: Mapped[TeachingStandardLibrary] = relationship(back_populates="rules")
+
+
+class TeachingStandardCourse(TimestampMixin, Base):
+    """One logical standard course with all normalized-document source bindings."""
+
+    __tablename__ = "teaching_standard_course"
+    __table_args__ = (
+        CheckConstraint(
+            "course_type IN ('foundation', 'core', 'extension')",
+            name="ck_tsc_course_type",
+        ),
+        UniqueConstraint(
+            "library_id",
+            "course_type",
+            "standard_course_name",
+            name="uq_tsc_library_type_name",
+        ),
+        UniqueConstraint("library_id", "course_id", name="uq_tsc_library_course_id"),
+        Index("ix_tsc_library_id", "library_id"),
+        Index("ix_tsc_course_type", "course_type"),
+        Index("ix_tsc_standard_course_name", "standard_course_name"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    library_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("teaching_standard_library.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    course_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    standard_course_name: Mapped[str] = mapped_column(Text, nullable=False)
+    course_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    suggested_total_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    suggested_practice_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    suggested_hours_range: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    hours_setting_basis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    typical_work_task_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    teaching_content_requirement: Mapped[str | None] = mapped_column(Text, nullable=True)
+    knowledge_tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    skill_tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    tool_tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    literacy_tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    match_keywords: Mapped[str | None] = mapped_column(Text, nullable=True)
+    match_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_standard: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_section: Mapped[str] = mapped_column(Text, nullable=False)
+    source_page: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    evidence_bindings: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON, default=list, nullable=False
+    )
+    extractor_version: Mapped[str] = mapped_column(String(128), nullable=False)
+
+    library: Mapped[TeachingStandardLibrary] = relationship(back_populates="courses")
 
 
 class MajorProfile(TimestampMixin, Base):

@@ -2,15 +2,15 @@
 
 ## Status
 
-Slice 0 contract baseline and Slice 1 standard fact projection completed.
-Slice 1 evidence is recorded in
-`wk_teaching_standard_course_library_slice1_task_package.md`. This package
+Slice 0 contract baseline, Slice 1 standard fact projection, and Slice 2
+course fact projection are completed. Slice 2 evidence is recorded under
+`wk_teaching_standard_course_library_slice2_task_package.md`. This package
 remains the master scope and acceptance baseline for subsequent slices.
 
 ## Source Context
 
 - `docs/reference-1.md`: field contract for the professional teaching-standard
-  library, its 21-field course library, whole-standard review lifecycle, and
+  library, its 18-field persisted course library, whole-standard review lifecycle, and
   one batch LLM derivation per professional standard.
 - `AGENTS.md`: all domain extraction consumes `normalized_document` through
   `normalized_asset_ref`; raw files and MinerU output are never valid inputs.
@@ -45,19 +45,22 @@ normalized_document
   `active`. A later effective standard can supersede the earlier projection.
 - Courses have no `confidence_level`, `need_confirm`, or `review_status`.
   Parent-standard status exclusively controls their business availability.
-- Each core-course table row generates one course, and its
-  `standard_course_name` is copied literally from `课程涉及的主要领域`.
-- The course business DTO has exactly 21 fields: `course_id`,
-  `standard_course_name`, `major_code`, `major_name`, `education_level`,
-  `course_type`, `suggested_total_hours`, `suggested_practice_hours`,
+- Each core-course source row maps to one logical course, and its
+  `standard_course_name` is copied literally from `课程涉及的主要领域`. Later
+  rows matching the same course unique key append evidence rather than create
+  another course row.
+- The persisted course contract has exactly 18 course-owned fields:
+  `course_id`, `standard_course_name`, `course_type`,
+  `suggested_total_hours`, `suggested_practice_hours`,
   `suggested_hours_range`, `hours_setting_basis`,
   `typical_work_task_description`, `teaching_content_requirement`,
   `knowledge_tags`, `skill_tags`, `tool_tags`, `literacy_tags`,
   `match_keywords`, `match_text`, `source_standard`, `source_section`, and
   `source_page`.
-- Internal keys, parent/ref/version IDs, source sequence, evidence locators,
-  provenance, timestamps, and audit columns do not expand that 21-field
-  business contract.
+- `major_code`, `major_name`, and `education_level` remain only on the parent
+  `teaching_standard_library`. Internal keys, ref/version IDs, source sequence,
+  evidence locators, provenance, timestamps, and audit columns do not expand
+  that 18-field persisted contract.
 - Public/internal query APIs, retrieval, vector/chunk/index work, and every
   `nexus-console` page or action are excluded.
 
@@ -100,10 +103,10 @@ normalized_document
 
 Freeze table names, state transitions, constraints, audit events, batch schema,
 and fixtures. Build a reviewed corpus covering secondary vocational, higher
-vocational, vocational undergraduate, a cross-page core table, duplicated
-course lists, and a standard without explicit tool names.
+vocational, vocational undergraduate, a cross-page core table, structural
+course admission, and a standard without explicit tool names.
 
-Acceptance: the 21 fields are contract-tested; expected standard/course facts
+Acceptance: the 18 course-owned fields are contract-tested; expected standard/course facts
 are business-expert baselined; required Review Gate inputs are ready.
 
 ### Slice 1: Standard Fact Projection (10-14 person-days)
@@ -116,16 +119,21 @@ Acceptance: one valid normalized ref produces one idempotent review-state
 projection; missing source facts remain empty with diagnostics, never guessed;
 source-scoped values create no global master data.
 
-### Slice 2: Course Fact Projection (12-16 person-days)
+### Slice 2: Course Fact Projection (completed)
 
 Add course/provenance rows. Extract foundation, core, and extension groups;
-merge core-table continuations by sequence and source-table identity; exclude
-prohibited non-courses; and de-duplicate by the frozen business key. Copy core
-course names from `课程涉及的主要领域`.
+merge core-table continuations by sequence and source-table identity; and admit
+courses only from the three recognized professional-course sections. Copy core
+course names from `课程涉及的主要领域`. Enforce
+`UNIQUE(library_id, course_type, standard_course_name)` and merge all matching
+source evidence onto that logical course. Do not use name-based exclusion
+blacklists or persist parent `major_code`, `major_name`, or `education_level`
+on course rows.
 
-Acceptance: every accepted core-table row creates one evidence-bound course;
+Acceptance: every accepted core-table row maps to one evidence-bound course;
 foundation/extension names stay literal with unavailable task text empty;
-duplicates and exclusions yield diagnostics rather than duplicate rows.
+rebuilds are idempotent, same-key source occurrences retain all evidence on one
+course, and no course is filtered by course-name heuristics.
 
 ### Slice 3: One-Batch Derivation And Validation (10-14 person-days)
 
@@ -139,10 +147,10 @@ Acceptance: each complete standard makes at most one LLM derivation call;
 malformed output cannot change source facts; deterministic fields never call
 LLM; practice hours do not exceed total hours.
 
-### Slice 4: Pipeline, Lifecycle, And Audit (8-11 person-days)
+### Slice 4: Lifecycle And Audit Completion (8-11 person-days)
 
-Wire construction/rebuild after normalized-document persistence. Add idempotent
-replacement across new normalized refs, audited domain commands for
+Extend the Slice-2 normalized-document projection wiring with idempotent
+replacement across new normalized refs and audited domain commands for
 `review -> active` and supersession, and regression coverage. Do not add a
 transport route or UI for these commands in this task cycle.
 

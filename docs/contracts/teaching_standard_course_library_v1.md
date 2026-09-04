@@ -46,37 +46,38 @@ and not general asset governance, performs `review -> active`. Every state
 change requires an audit event and actor/trace metadata. Courses do not carry
 their own status, confidence, confirmation, or review columns.
 
-## Course Business Contract
+## Persisted Course Business Contract
 
-The public/business course shape contains exactly 21 fields.
+The persisted course shape contains exactly 18 course-owned business fields.
+`major_code`, `major_name`, and `education_level` remain only on the parent
+`teaching_standard_library`; they must not be copied into
+`teaching_standard_course`. A future enriched read DTO may join them from the
+parent without changing this persistence contract.
 
 | # | Field | Source/derivation rule |
 | ---: | --- | --- |
-| 1 | `course_id` | Deterministic: `VC<major_code>-<type><sequence>`; never LLM generated. |
+| 1 | `course_id` | Deterministic from the parent standard identity, type, and sequence; never LLM generated. |
 | 2 | `standard_course_name` | Literal core-table `课程涉及的主要领域`; literal list item for foundation/extension. |
-| 3 | `major_code` | Standard identity evidence. |
-| 4 | `major_name` | Standard identity evidence. |
-| 5 | `education_level` | Admission-requirement/standard identity evidence. |
-| 6 | `course_type` | `foundation`, `core`, or `extension`, represented with agreed display labels. |
-| 7 | `suggested_total_hours` | Deterministic rule result using batch complexity result. |
-| 8 | `suggested_practice_hours` | Deterministic rule result; never exceeds total hours. |
-| 9 | `suggested_hours_range` | Deterministic rule result. |
-| 10 | `hours_setting_basis` | Deterministic explanation with rule version. |
-| 11 | `typical_work_task_description` | Literal core-table text; empty where unavailable. |
-| 12 | `teaching_content_requirement` | Literal core-table text; empty where unavailable. |
-| 13 | `knowledge_tags` | Batch derivation, validated against source evidence. |
-| 14 | `skill_tags` | Batch derivation, validated against source evidence. |
-| 15 | `tool_tags` | Source-evidenced tool extraction; `无特定工具要求` if absent. |
-| 16 | `literacy_tags` | Batch derivation constrained by source evidence. |
-| 17 | `match_keywords` | Deterministic ordered unique render. |
-| 18 | `match_text` | Deterministic fixed-template render. |
-| 19 | `source_standard` | Literal standard title/identity. |
-| 20 | `source_section` | Normalized heading path. |
-| 21 | `source_page` | Page/table-row evidence locator render. |
+| 3 | `course_type` | `foundation`, `core`, or `extension`, represented with agreed display labels. |
+| 4 | `suggested_total_hours` | Deterministic rule result using batch complexity result. |
+| 5 | `suggested_practice_hours` | Deterministic rule result; never exceeds total hours. |
+| 6 | `suggested_hours_range` | Deterministic rule result. |
+| 7 | `hours_setting_basis` | Deterministic explanation with rule version. |
+| 8 | `typical_work_task_description` | Literal core-table text; empty where unavailable. |
+| 9 | `teaching_content_requirement` | Literal core-table text; empty where unavailable. |
+| 10 | `knowledge_tags` | Batch derivation, validated against source evidence. |
+| 11 | `skill_tags` | Batch derivation, validated against source evidence. |
+| 12 | `tool_tags` | Source-evidenced tool extraction; `无特定工具要求` if absent. |
+| 13 | `literacy_tags` | Batch derivation constrained by source evidence. |
+| 14 | `match_keywords` | Deterministic ordered unique render. |
+| 15 | `match_text` | Deterministic fixed-template render; parent standard supplies major context. |
+| 16 | `source_standard` | Literal standard title/identity. |
+| 17 | `source_section` | Normalized heading path. |
+| 18 | `source_page` | Page/table-row evidence locator render. |
 
 Internal UUIDs, parent IDs, normalized-ref IDs, asset-version IDs, source
 sequence, raw evidence locator, timestamps, and derivation audit/provenance
-are not business fields and must not be exposed as a twenty-second field.
+are not business fields and must not be exposed as a nineteenth field.
 
 ## Source Extraction Rules
 
@@ -85,19 +86,26 @@ are not business fields and must not be exposed as a twenty-second field.
   only from semantic headings plus normalized blocks.
 - Core-course rows use the four-column table: sequence, `课程涉及的主要领域`,
   `典型工作任务描述`, and `主要教学内容与要求`.
-- A core table row maps exactly once to a course. The second column supplies
-  the course name without additional course-name inference.
+- A core table row maps exactly once to a logical course. The second column
+  supplies the course name without additional course-name inference. A later
+  row matching the same unique key appends evidence to that course.
 - Foundation and extension course lists are split deterministically on Chinese
   enumeration punctuation, retaining literal list names. Their unavailable
   task/requirement fields are empty.
 - Cross-page continuation merging requires the same source table identity,
   compatible sequence, and adjacent continuation evidence. Repeated headers
   are not source data.
-- Public foundation courses, practice projects, internships, graduation work,
-  and other reference-defined non-course items are excluded unless explicitly
-  included in a professional-course list.
-- Duplicate key: `major_code + education_level + course_type +
-  standard_course_name`. Keep one row and record a bounded duplicate diagnostic.
+- Course admission is structural: only explicit items in professional
+  foundation, core, or extension sections are projected. Content keywords such
+  as internship, training, project, or graduation design must not be used as
+  an exclusion blacklist when an item is explicitly listed in those sections.
+- Database uniqueness is `library_id + course_type + standard_course_name`.
+  It represents one logical same-name course of one type within one standard;
+  it is not a noise-classification rule. Multiple source occurrences matching
+  that key produce one course whose internal evidence bindings retain every
+  source sequence and locator. Same names in different course types remain
+  separate rows. Reprocessing idempotence is additionally provided by
+  normalized-ref-scoped replacement.
 - Public-foundation, professional-course, practice, elective, and internship
   hour rules are persisted as independent literal constraints. Practice hours
   can occur within both public-foundation and professional courses, and
@@ -126,8 +134,9 @@ failed response records a stable derivation failure and leaves the parent
 library in `review`.
 
 The following are deterministic and must never cause an LLM call: section
-recognition fallback rules, list splitting, core-row merge/de-duplication,
-course IDs, tag ordered-deduplication, suggested-hour bounds/ratios,
+recognition fallback rules, list splitting, core-row continuation merging and
+repeated-header removal, course IDs, tag ordered-deduplication,
+suggested-hour bounds/ratios,
 `match_keywords`, and `match_text`.
 
 ## Derivation Run Provenance
@@ -170,8 +179,6 @@ schema, temperature, token cap, and redaction policy.
 | Failure | `occupation_orientation_missing` | Required occupation-facing section/table missing. |
 | Failure | `core_course_table_missing` | Core-course table not found. |
 | Failure | `core_course_row_incomplete` | Required core row cell missing/unmergeable. |
-| Failure | `course_duplicate` | Duplicate source course retained once. |
-| Failure | `course_non_course_item_excluded` | Explicit non-course item discarded. |
 | Failure | `batch_derivation_schema_invalid` | Batch output does not match schema. |
 | Failure | `batch_derivation_evidence_invalid` | Batch output lacks source evidence. |
 | Failure | `hour_rule_validation_failed` | Suggested-hour constraints fail. |
@@ -184,10 +191,9 @@ introduced into runtime code during Slice 0.
 | Case | Source/fixture | Required assertions |
 | --- | --- | --- |
 | Higher vocational | `docs/samples/（高职电子商务专业教学标准）电子商务专业教学标准-高等职业教育专科.pdf` | Identity, occupational orientation, all three groups, hour rules, core rows. |
-| Secondary vocational | `docs/samples/（中职电子商务专业教学标准）电子商务专业教学标准-中等职业教育.pdf` | Education-level rule variance, foundation/extension lists, excluded practice items. |
+| Secondary vocational | `docs/samples/（中职电子商务专业教学标准）电子商务专业教学标准-中等职业教育.pdf` | Education-level rule variance, foundation/extension lists, and structural section admission. |
 | Vocational undergraduate | `tests/fixtures/teaching_standard_course_library/slice0_contract_corpus.json` | Minimum total hours, 60% practice rule, advanced complexity band. |
 | Cross-page core row | Existing `CROSS_PAGE_ROW_TABLE` fixture in `tests/test_teaching_standard_graph.py`. | One course row, merged task/requirement evidence. |
-| Duplicate course | `tests/fixtures/teaching_standard_course_library/slice0_contract_corpus.json` | One course retained and `course_duplicate` diagnostic. |
 | No explicit tool | `tests/fixtures/teaching_standard_course_library/slice0_contract_corpus.json` | `tool_tags=[无特定工具要求]`; no invented software/platform. |
 
 The vocational-undergraduate fixture and the two synthetic normalized fixtures
@@ -197,7 +203,8 @@ implementation is accepted.
 
 ## Slice 0 Exit Criteria
 
-- The 21-field contract and parent-standard lifecycle are unambiguous.
+- The 18-field persisted-course contract, parent-owned standard context, and
+  parent-standard lifecycle are unambiguous.
 - All planned corpus cases have a real source or an explicitly named fixture.
 - No database, API, retrieval, index, worker, or Console code changes exist.
 - Data Model, AI Governance, Rule Engine, Version State, and Audit review

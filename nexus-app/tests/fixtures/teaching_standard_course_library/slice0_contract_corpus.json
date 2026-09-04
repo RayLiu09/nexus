@@ -3,9 +3,6 @@
   "course_business_fields": [
     "course_id",
     "standard_course_name",
-    "major_code",
-    "major_name",
-    "education_level",
     "course_type",
     "suggested_total_hours",
     "suggested_practice_hours",
@@ -40,31 +37,41 @@
       }
     },
     {
-      "name": "duplicate_core_course",
+      "name": "same_name_source_evidence_is_merged",
       "kind": "normalized_contract_fixture",
-      "major_code": "530701",
-      "education_level": "高等职业教育专科",
       "course_type": "core",
-      "core_rows": [
+      "source_rows": [
         {
           "sequence": "1",
-          "course_field": "课程涉及的主要领域",
           "course_name": "市场策划",
-          "task": "典型工作任务为市场策划，工作内容包括产品策划。",
-          "requirement": "掌握市场策划的流程和方法。"
+          "source_block_id": "core-table-1"
         },
         {
-          "sequence": "1",
-          "course_field": "课程涉及的主要领域",
+          "sequence": "7",
           "course_name": "市场策划",
-          "task": "典型工作任务为市场策划，工作内容包括产品策划。",
-          "requirement": "掌握市场策划的流程和方法。"
+          "source_block_id": "core-table-2"
         }
       ],
       "expected": {
         "retained_course_count": 1,
-        "diagnostic": "course_duplicate",
-        "standard_course_name": "市场策划"
+        "retained_evidence_count": 2,
+        "unique_key": [
+          "library_id",
+          "course_type",
+          "standard_course_name"
+        ],
+        "noise_discarded": false
+      }
+    },
+    {
+      "name": "professional_course_name_is_not_blacklisted",
+      "kind": "normalized_contract_fixture",
+      "course_type": "extension",
+      "course_name": "生产性实训项目",
+      "source_section": "专业拓展课程",
+      "expected": {
+        "retained": true,
+        "name_blacklist_applied": false
       }
     },
     {

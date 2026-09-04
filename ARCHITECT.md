@@ -62,6 +62,11 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
   it may use `LITELLM_EXTRACTION_MODEL_ALIAS` only against normalized-document
   blocks; schema, literal table-row evidence, locator, and confidence gates
   must admit its output before capability-graph staging consumes it.
+- Professional teaching-standard library projection materializes source-scoped
+  foundation, core, and extension courses beneath the review-state standard.
+  Course rows do not duplicate parent major context or carry independent state;
+  repeated occurrences merge evidence under the unique key
+  `(library_id, course_type, standard_course_name)`.
 - MinerU is called with auto-selected `model_version` and `ocr_enable`; images are stored alongside the JSON result.
 - Knowledge Pipeline is independent of Asset Pipeline; they connect only through `normalized_asset_ref`.
 - Query Router may use request-scoped public-web fallback only after a
@@ -137,11 +142,16 @@ plan-owned course objective/content, and unmodelled supplementary sections,
 all linked back to normalized-document block locators.
 
 `teaching_standard_library.v1` is a separate normative professional teaching-
-standard projection, not a `major_profile` extension. Slice 1 materializes one
+standard projection, not a `major_profile` extension. It materializes one
 `teaching_standard_library` per normalized reference plus source-scoped
-`teaching_standard_occupation` and `teaching_standard_rule` children. New rows
-start in the domain state `review`; missing standard identifiers remain NULL,
-and no global industry/occupation/position/certificate master data is created.
+`teaching_standard_occupation`, `teaching_standard_rule`, and
+`teaching_standard_course` children. Course rows are limited to structurally
+identified professional foundation/core/extension sections and uniquely keyed
+by parent, type, and literal name; repeated occurrences merge source evidence.
+They do not duplicate parent major fields or carry independent state. New
+standards start in the domain state `review`; missing standard identifiers
+remain NULL, and no global industry/occupation/position/certificate master data
+is created.
 Public-foundation, professional-course, practice, elective, and internship
 hour rules are independent, potentially overlapping source constraints. Their
 ratios must never be summed as mutually exclusive parts of total hours.

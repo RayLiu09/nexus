@@ -45,6 +45,7 @@ def _payload() -> dict:
             _block("b8", "paragraph", "网络营销、网店运营。", 2),
             _block("b9", "heading", "五、专业拓展课程", 2),
             _block("b10", "paragraph", "跨境电子商务。", 2),
+            _block("b10-1", "heading", "六、学时安排", 3),
             _block(
                 "b11",
                 "paragraph",
@@ -269,3 +270,5 @@ def test_worker_projection_reads_normalized_document_and_audits_generation(sessi
     assert audit.target_id == library.id
     assert audit.summary["normalized_ref_id"] == ref.id
     assert audit.summary["status"] == "review"
+    assert audit.summary["course_count"] == 3
+    assert audit.summary["course_diagnostics"] == {"core_course_table_missing": 1}

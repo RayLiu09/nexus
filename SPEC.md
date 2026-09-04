@@ -40,11 +40,13 @@ Role constraints:
 - Talent-training-plan documents may produce a `talent_training_plan.v1` read model from normalized document evidence. It supports structured retrieval over institution, major, duration, declared career orientation, skills, certificates, and plan-owned courses. Industry/occupation/position/skill/certificate values remain plan-local evidenced attributes until their respective master-data domains are introduced.
 - Professional teaching-standard documents may produce an independent
   `teaching_standard_library.v1` review-state fact projection from normalized
-  document evidence. Slice 1 covers standard identity, education facts,
-  source-scoped occupation-facing declarations, course-structure presence, and
-  literal hour/ratio/internship rules only. These overlapping rule dimensions
-  are not added together. Course records, activation, APIs, retrieval, and
-  Console views remain later slices.
+  document evidence. It covers standard identity, education facts,
+  source-scoped occupation-facing declarations, course-structure presence,
+  literal hour/ratio/internship rules, and structurally admitted professional
+  foundation/core/extension courses. These overlapping rule dimensions are not
+  added together. Course rows inherit major context and review state from the
+  parent standard. Activation, APIs, retrieval, and Console views remain later
+  slices.
 - Talent-training-plan graph reads are deterministic plan views, not generic Evidence Graph builds: every eligible plan exposes a course knowledge graph; a position-capability graph is available only when the plan contains evidenced position-to-skill facts.
 - Talent-training-plan retrieval is structure-first. The shared semantic search path supplements, but never replaces, exact plan/course/position filters: it indexes only training goal/specification, evidenced position capability, course objective/content, and unmodelled supplementary sections. Identity, certificate, and position-only attributes remain structured retrieval concerns.
 - Standardization via normalize-service: LLM semantic extraction + rule-engine fallback validation; produces `normalized_document` / `normalized_record` with full `normalized_asset_ref` fields (governance, quality, lineage, source_type, content_type, title, language).

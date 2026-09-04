@@ -27,7 +27,9 @@ the teaching-standard and course-library schema/migration work begins.
 
 - One standard is reviewed and activated as a whole: `review -> active`;
   later revision: `superseded`.
-- The standard-course business contract contains exactly 21 fields.
+- The persisted standard-course business contract contains exactly 18
+  course-owned fields. Major code, major name, and education level remain on
+  the parent standard only.
 - A core-table row maps to one course whose name is the literal
   `课程涉及的主要领域` value.
 - One standard makes at most one LLM derivation call. Deterministic fields are
@@ -43,5 +45,6 @@ the teaching-standard and course-library schema/migration work begins.
 
 - The contract distinguishes domain status from existing asset-version status.
 - The corpus covers high vocational, secondary vocational, vocational
-  undergraduate, cross-page core table, duplicate lists, and no-tool cases.
+  undergraduate, cross-page core table, structural course admission, and
+  no-tool cases.
 - No unapproved API, retrieval, Console, or persistence changes are made.

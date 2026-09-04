@@ -1007,9 +1007,13 @@ def _run_teaching_standard_library_projection(
     trace_id: str | None,
     job_id: str,
 ) -> None:
-    """Build independent Slice-1 standard facts from persisted normalized text."""
+    """Build standard and course facts from persisted normalized text."""
     if normalized_ref.normalized_type != NormalizedType.DOCUMENT:
         return
+    from nexus_app.teaching_standard_library.course_extractor import (
+        extract as extract_courses,
+    )
+    from nexus_app.teaching_standard_library.course_writer import write as write_courses
     from nexus_app.teaching_standard_library.extractor import extract
     from nexus_app.teaching_standard_library.writer import write
 
@@ -1023,6 +1027,16 @@ def _run_teaching_standard_library_projection(
             write(session, normalized_ref, projection_payload)
             if projection_payload is not None
             else None
+        )
+        course_projection = (
+            extract_courses(payload)
+            if library is not None and isinstance(payload, dict)
+            else None
+        )
+        courses = (
+            write_courses(session, library, course_projection)
+            if library is not None and course_projection is not None
+            else []
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception(
@@ -1059,6 +1073,12 @@ def _run_teaching_standard_library_projection(
             "status": library.status,
             "occupation_count": len(library.occupations),
             "rule_count": len(library.rules),
+            "course_count": len(courses),
+            "course_diagnostics": {
+                key: value
+                for key, value in (course_projection or {}).get("diagnostics", {}).items()
+                if value
+            },
             "quality_flag_keys": sorted(
                 key for key, value in (library.quality_flags or {}).items() if value
             ),
