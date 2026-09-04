@@ -240,6 +240,9 @@ class AuditEventType(StrEnum):
     # `build_capability_staging` call. Carries the build_id + counts so the
     # audit alone is enough to reproduce the build outcome.
     CAPABILITY_GRAPH_STAGING_GENERATED = "CapabilityGraphStagingGenerated"
+    # Pipeline A teaching-standard library Slice 1. This records the
+    # deterministic, source-evidenced standard fact projection only.
+    TEACHING_STANDARD_LIBRARY_GENERATED = "TeachingStandardLibraryGenerated"
     # Pipeline B PD — operator-maintained major distribution structured rows.
     MAJOR_DISTRIBUTION_RECORD_UPDATED = "MajorDistributionRecordUpdated"
     MAJOR_DISTRIBUTION_RECORD_DELETED = "MajorDistributionRecordDeleted"

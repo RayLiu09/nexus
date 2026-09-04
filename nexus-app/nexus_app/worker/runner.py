@@ -999,6 +999,73 @@ def _run_major_profile_normalize(
     )
 
 
+def _run_teaching_standard_library_projection(
+    ctx: PipelineContext,
+    normalized_ref: models.NormalizedAssetRef,
+    raw_object: models.RawObject,
+    session: Session,
+    trace_id: str | None,
+    job_id: str,
+) -> None:
+    """Build independent Slice-1 standard facts from persisted normalized text."""
+    if normalized_ref.normalized_type != NormalizedType.DOCUMENT:
+        return
+    from nexus_app.teaching_standard_library.extractor import extract
+    from nexus_app.teaching_standard_library.writer import write
+
+    session.commit()
+    try:
+        uri = normalized_ref.object_uri
+        key = uri.split("/", 3)[-1] if uri.startswith("s3://") else uri
+        payload = json.loads(ctx.storage.get_bytes(key).decode("utf-8"))
+        projection_payload = extract(payload) if isinstance(payload, dict) else None
+        library = (
+            write(session, normalized_ref, projection_payload)
+            if projection_payload is not None
+            else None
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception(
+            "teaching_standard_library write failed for normalized_ref=%s",
+            normalized_ref.id,
+        )
+        write_audit(
+            session,
+            AuditEventType.DOMAIN_NORMALIZE_FAILED,
+            "normalized_asset_ref",
+            normalized_ref.id,
+            trace_id,
+            {
+                "raw_object_id": raw_object.id,
+                "job_id": job_id,
+                "domain_profile": "teaching_standard_library.v1",
+                "error": f"{type(exc).__name__}: {exc}",
+            },
+        )
+        return
+
+    if library is None:
+        return
+    write_audit(
+        session,
+        AuditEventType.TEACHING_STANDARD_LIBRARY_GENERATED,
+        "teaching_standard_library",
+        library.id,
+        trace_id,
+        {
+            "raw_object_id": raw_object.id,
+            "job_id": job_id,
+            "normalized_ref_id": normalized_ref.id,
+            "status": library.status,
+            "occupation_count": len(library.occupations),
+            "rule_count": len(library.rules),
+            "quality_flag_keys": sorted(
+                key for key, value in (library.quality_flags or {}).items() if value
+            ),
+        },
+    )
+
+
 def _run_teaching_standard_graph(
     ctx: PipelineContext,
     normalized_ref: models.NormalizedAssetRef,
@@ -1796,6 +1863,9 @@ def execute_job(
         if pipeline_type == PipelineType.DOCUMENT:
             normalized_ref = _run_document_pipeline(ctx, version)
             _run_major_profile_normalize(
+                ctx, normalized_ref, raw_object, session, trace_id, job.id
+            )
+            _run_teaching_standard_library_projection(
                 ctx, normalized_ref, raw_object, session, trace_id, job.id
             )
         else:

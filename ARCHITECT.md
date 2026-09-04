@@ -136,6 +136,16 @@ training goal/specification, evidenced position-capability narratives,
 plan-owned course objective/content, and unmodelled supplementary sections,
 all linked back to normalized-document block locators.
 
+`teaching_standard_library.v1` is a separate normative professional teaching-
+standard projection, not a `major_profile` extension. Slice 1 materializes one
+`teaching_standard_library` per normalized reference plus source-scoped
+`teaching_standard_occupation` and `teaching_standard_rule` children. New rows
+start in the domain state `review`; missing standard identifiers remain NULL,
+and no global industry/occupation/position/certificate master data is created.
+Public-foundation, professional-course, practice, elective, and internship
+hour rules are independent, potentially overlapping source constraints. Their
+ratios must never be summed as mutually exclusive parts of total hours.
+
 `major_profile.v1` supports both national standard introductions and
 institution/official-site introductions. National profiles retain the
 code-centric standard shape; institution profiles can have no national code

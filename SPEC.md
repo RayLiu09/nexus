@@ -38,6 +38,13 @@ Role constraints:
 - Persistent job center backed by PostgreSQL job table + Worker polling, state machine, failure lookup, retry, lock lease, and dead-letter handling.
 - MinerU parsing (Pipeline A): auto-selected `model_version` (general HTML upload→MinerU-HTML, default→pipeline, complex→vlm); OCR auto-enabled for image/pdf/tiff; images stored at `parsed/<version_id>/<artifact_id>/images/`. Crawler Firecrawl HTML is parsed by the crawler `trafilatura` main-content extractor plus NEXUS deterministic Markdown block/section/locator builder because downstream retrieval needs stable Markdown section ranges without parse-time LLM latency.
 - Talent-training-plan documents may produce a `talent_training_plan.v1` read model from normalized document evidence. It supports structured retrieval over institution, major, duration, declared career orientation, skills, certificates, and plan-owned courses. Industry/occupation/position/skill/certificate values remain plan-local evidenced attributes until their respective master-data domains are introduced.
+- Professional teaching-standard documents may produce an independent
+  `teaching_standard_library.v1` review-state fact projection from normalized
+  document evidence. Slice 1 covers standard identity, education facts,
+  source-scoped occupation-facing declarations, course-structure presence, and
+  literal hour/ratio/internship rules only. These overlapping rule dimensions
+  are not added together. Course records, activation, APIs, retrieval, and
+  Console views remain later slices.
 - Talent-training-plan graph reads are deterministic plan views, not generic Evidence Graph builds: every eligible plan exposes a course knowledge graph; a position-capability graph is available only when the plan contains evidenced position-to-skill facts.
 - Talent-training-plan retrieval is structure-first. The shared semantic search path supplements, but never replaces, exact plan/course/position filters: it indexes only training goal/specification, evidenced position capability, course objective/content, and unmodelled supplementary sections. Identity, certificate, and position-only attributes remain structured retrieval concerns.
 - Standardization via normalize-service: LLM semantic extraction + rule-engine fallback validation; produces `normalized_document` / `normalized_record` with full `normalized_asset_ref` fields (governance, quality, lineage, source_type, content_type, title, language).

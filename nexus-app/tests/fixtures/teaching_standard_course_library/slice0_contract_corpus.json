@@ -1,0 +1,92 @@
+{
+  "schema_version": "teaching_standard_course_library.slice0.v1",
+  "course_business_fields": [
+    "course_id",
+    "standard_course_name",
+    "major_code",
+    "major_name",
+    "education_level",
+    "course_type",
+    "suggested_total_hours",
+    "suggested_practice_hours",
+    "suggested_hours_range",
+    "hours_setting_basis",
+    "typical_work_task_description",
+    "teaching_content_requirement",
+    "knowledge_tags",
+    "skill_tags",
+    "tool_tags",
+    "literacy_tags",
+    "match_keywords",
+    "match_text",
+    "source_standard",
+    "source_section",
+    "source_page"
+  ],
+  "cases": [
+    {
+      "name": "vocational_undergraduate_hour_rules",
+      "kind": "normalized_contract_fixture",
+      "education_level": "高等职业教育本科",
+      "hour_rules": {
+        "total_hours_min": 3200,
+        "practice_ratio_min": 0.6,
+        "elective_ratio_min": 0.1,
+        "internship_months_min": 6
+      },
+      "expected": {
+        "advanced_complexity_band": true,
+        "initial_library_status": "review"
+      }
+    },
+    {
+      "name": "duplicate_core_course",
+      "kind": "normalized_contract_fixture",
+      "major_code": "530701",
+      "education_level": "高等职业教育专科",
+      "course_type": "core",
+      "core_rows": [
+        {
+          "sequence": "1",
+          "course_field": "课程涉及的主要领域",
+          "course_name": "市场策划",
+          "task": "典型工作任务为市场策划，工作内容包括产品策划。",
+          "requirement": "掌握市场策划的流程和方法。"
+        },
+        {
+          "sequence": "1",
+          "course_field": "课程涉及的主要领域",
+          "course_name": "市场策划",
+          "task": "典型工作任务为市场策划，工作内容包括产品策划。",
+          "requirement": "掌握市场策划的流程和方法。"
+        }
+      ],
+      "expected": {
+        "retained_course_count": 1,
+        "diagnostic": "course_duplicate",
+        "standard_course_name": "市场策划"
+      }
+    },
+    {
+      "name": "core_course_without_explicit_tool",
+      "kind": "normalized_contract_fixture",
+      "major_code": "530701",
+      "education_level": "高等职业教育专科",
+      "course_type": "core",
+      "core_rows": [
+        {
+          "sequence": "2",
+          "course_field": "课程涉及的主要领域",
+          "course_name": "客户服务",
+          "task": "典型工作任务为客户沟通、需求确认和服务方案制定。",
+          "requirement": "掌握客户沟通规范，能够处理常见服务问题。"
+        }
+      ],
+      "expected": {
+        "tool_tags": ["无特定工具要求"],
+        "forbidden_invented_tools": ["计算机", "办公软件"],
+        "initial_library_status": "review"
+      }
+    }
+  ]
+}

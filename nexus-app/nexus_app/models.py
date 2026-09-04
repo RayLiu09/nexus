@@ -1705,6 +1705,126 @@ class MajorDistributionRecord(TimestampMixin, Base):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Pipeline A TSL — professional teaching-standard library (Slice 1)
+# ---------------------------------------------------------------------------
+
+
+class TeachingStandardLibrary(TimestampMixin, Base):
+    """Evidence-bound professional teaching-standard fact projection.
+
+    This is deliberately independent from ``MajorProfile``: it models a
+    normative teaching standard, not an institution's professional overview.
+    """
+
+    __tablename__ = "teaching_standard_library"
+    __table_args__ = (
+        CheckConstraint("status IN ('review', 'active', 'superseded')", name="ck_tsl_status"),
+        UniqueConstraint("normalized_ref_id", name="uq_tsl_normalized_ref"),
+        UniqueConstraint("standard_id", "hash_digest", name="uq_tsl_standard_hash"),
+        Index("ix_tsl_asset_version_id", "asset_version_id"),
+        Index("ix_tsl_standard_id", "standard_id"),
+        Index("ix_tsl_major_code", "major_code"),
+        Index("ix_tsl_major_name", "major_name"),
+        Index("ix_tsl_status", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    normalized_ref_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("normalized_asset_ref.id"), nullable=False
+    )
+    asset_version_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("asset_version.id"), nullable=False
+    )
+    domain_profile: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Standards without an evidence-backed issue/standard number retain NULL;
+    # SQLite/PostgreSQL both allow multiple NULLs under the composite unique key.
+    standard_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    standard_title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    major_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    major_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    education_level: Mapped[str | None] = mapped_column(Text, nullable=True)
+    major_category_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    major_category_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    major_class_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    major_class_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    basic_study_years: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # LLM summary belongs to Slice 3. Slice 1 intentionally leaves it NULL.
+    training_goal_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    course_structures: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    original_from: Mapped[str | None] = mapped_column(Text, nullable=True)
+    hash_digest: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="review")
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    extractor_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_evidence: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    quality_flags: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+    normalized_ref: Mapped[NormalizedAssetRef] = relationship()
+    occupations: Mapped[list["TeachingStandardOccupation"]] = relationship(
+        back_populates="library", cascade="all, delete-orphan", passive_deletes=True
+    )
+    rules: Mapped[list["TeachingStandardRule"]] = relationship(
+        back_populates="library", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class TeachingStandardOccupation(TimestampMixin, Base):
+    __tablename__ = "teaching_standard_occupation"
+    __table_args__ = (
+        CheckConstraint(
+            "dimension_type IN ('applied_industry', 'occupation_type', 'primary_position', 'certificate_type')",
+            name="ck_tso_dimension_type",
+        ),
+        UniqueConstraint(
+            "library_id", "dimension_type", "item_index", name="uq_tso_library_dimension_item"
+        ),
+        Index("ix_tso_library_id", "library_id"),
+        Index("ix_tso_dimension_type", "dimension_type"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    library_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("teaching_standard_library.id", ondelete="CASCADE"), nullable=False
+    )
+    dimension_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_name: Mapped[str] = mapped_column(Text, nullable=False)
+    item_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    evidence_block_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    locator: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+    library: Mapped[TeachingStandardLibrary] = relationship(back_populates="occupations")
+
+
+class TeachingStandardRule(TimestampMixin, Base):
+    __tablename__ = "teaching_standard_rule"
+    __table_args__ = (
+        CheckConstraint(
+            "rule_type IN ('total_hours', 'public_foundation_ratio', 'professional_course_ratio', 'practice_ratio', 'elective_ratio', 'internship_months')",
+            name="ck_tsr_rule_type",
+        ),
+        CheckConstraint("comparator IN ('>=', '<=', '=', 'range')", name="ck_tsr_comparator"),
+        Index("ix_tsr_library_id", "library_id"),
+        Index("ix_tsr_rule_type", "rule_type"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    library_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("teaching_standard_library.id", ondelete="CASCADE"), nullable=False
+    )
+    rule_type: Mapped[str] = mapped_column(String(48), nullable=False)
+    comparator: Mapped[str] = mapped_column(String(8), nullable=False)
+    numeric_value: Mapped[float | None] = mapped_column(nullable=True)
+    unit: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    source_text: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_block_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    locator: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+    library: Mapped[TeachingStandardLibrary] = relationship(back_populates="rules")
+
+
 class MajorProfile(TimestampMixin, Base):
     """Professional introduction/profile extracted from a normalized document."""
 
