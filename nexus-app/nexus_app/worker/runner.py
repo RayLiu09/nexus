@@ -1038,6 +1038,25 @@ def _run_teaching_standard_library_projection(
             if library is not None and course_projection is not None
             else []
         )
+        derivation_result = None
+        if library is not None and courses:
+            from nexus_app.teaching_standard_library.derivation_service import (
+                derive_library,
+            )
+
+            settings = getattr(ctx, "settings", None)
+            derivation_llm_client = getattr(ctx, "llm_client", None)
+            if derivation_llm_client is None and settings is not None:
+                derivation_llm_client = _build_extraction_llm_client(settings)
+            derivation_result = derive_library(
+                session,
+                library,
+                llm_client=derivation_llm_client,
+                default_governance_model=(
+                    settings.default_governance_model if settings is not None else ""
+                ),
+                trace_id=trace_id,
+            )
     except Exception as exc:  # noqa: BLE001
         logger.exception(
             "teaching_standard_library write failed for normalized_ref=%s",
@@ -1079,6 +1098,18 @@ def _run_teaching_standard_library_projection(
                 for key, value in (course_projection or {}).get("diagnostics", {}).items()
                 if value
             },
+            "derivation_run_id": (
+                derivation_result.run_id if derivation_result is not None else None
+            ),
+            "derivation_status": (
+                derivation_result.status if derivation_result is not None else None
+            ),
+            "derivation_failure_code": (
+                derivation_result.failure_code if derivation_result is not None else None
+            ),
+            "derivation_reused": (
+                derivation_result.reused if derivation_result is not None else False
+            ),
             "quality_flag_keys": sorted(
                 key for key, value in (library.quality_flags or {}).items() if value
             ),

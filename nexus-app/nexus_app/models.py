@@ -1770,6 +1770,9 @@ class TeachingStandardLibrary(TimestampMixin, Base):
     courses: Mapped[list["TeachingStandardCourse"]] = relationship(
         back_populates="library", cascade="all, delete-orphan", passive_deletes=True
     )
+    derivation_runs: Mapped[list["TeachingStandardDerivationRun"]] = relationship(
+        back_populates="library", cascade="all, delete-orphan", passive_deletes=True
+    )
 
 
 class TeachingStandardOccupation(TimestampMixin, Base):
@@ -1881,6 +1884,47 @@ class TeachingStandardCourse(TimestampMixin, Base):
     extractor_version: Mapped[str] = mapped_column(String(128), nullable=False)
 
     library: Mapped[TeachingStandardLibrary] = relationship(back_populates="courses")
+
+
+class TeachingStandardDerivationRun(Base):
+    """One whole-standard batch derivation attempt and its bounded provenance."""
+
+    __tablename__ = "teaching_standard_derivation_run"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'completed', 'failed')",
+            name="ck_tsdr_status",
+        ),
+        Index("ix_tsdr_library_id", "library_id"),
+        Index("ix_tsdr_prompt_profile_id", "prompt_profile_id"),
+        Index("ix_tsdr_library_input", "library_id", "input_hash"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    library_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("teaching_standard_library.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    prompt_profile_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("ai_prompt_profile.id"), nullable=True
+    )
+    derivation_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    output_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending")
+    failure_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    library: Mapped[TeachingStandardLibrary] = relationship(
+        back_populates="derivation_runs"
+    )
+    prompt_profile: Mapped[AIPromptProfile | None] = relationship()
 
 
 class MajorProfile(TimestampMixin, Base):

@@ -122,16 +122,30 @@ response contains:
 
 ```text
 training_goal_summary
-courses[] keyed by stable source sequence
+courses[] keyed only by immutable input course_id
   -> knowledge_tags, skill_tags, tool evidence references,
      literacy_tags, complexity_classification
 ```
 
 The request excludes raw document bytes and any data from other standards.
-The response must be schema-valid, refer only to known course identifiers and
+Every response `course_id` must be byte-for-byte identical to one input
+`teaching_standard_course.course_id`. The input and output course-ID sets must
+match exactly: unknown, missing, duplicate, regenerated, or modified IDs reject
+the whole batch. Adoption maps results by `course_id`, never by array position,
+course name, or source sequence, so derived fields cannot move onto another
+master-data row. The response must also be schema-valid, refer only to known
 block/row evidence, and cannot change literal source fields. One malformed or
 failed response records a stable derivation failure and leaves the parent
-library in `review`.
+library in `review`, with no partial course updates.
+
+The derivation selects the active `ai_prompt_profile` for the dedicated
+teaching-standard course-derivation task/scenario. Its prompt template,
+output-schema version, temperature, token cap, and redaction policy are the
+authoritative AI-governance configuration used through the existing LiteLLM
+client. The seeded Profile has an empty `litellm_model_alias`. A non-empty
+Profile alias has priority; otherwise the effective model falls back to the
+AI-governance environment setting `DEFAULT_GOVERNANCE_MODEL`. The
+course-library module must not hard-code another model alias.
 
 The following are deterministic and must never cause an LLM call: section
 recognition fallback rules, list splitting, core-row continuation merging and
@@ -160,11 +174,15 @@ teaching_standard_derivation_run
   completed_at: timestamp | null
 ```
 
-The profile reference is mandatory for any LLM-backed execution. It is NULL
-only for a deterministic no-LLM derivation record, should one be persisted.
-Joining `prompt_profile_id` to `ai_prompt_profile` is the only supported way
-to recover model alias, Profile version, prompt version, template, output
-schema, temperature, token cap, and redaction policy.
+The profile reference is mandatory for any execution that reaches LiteLLM. It
+is NULL only for a preflight failure recorded before an active Profile can be
+resolved, or for a deterministic no-LLM derivation record should one be
+persisted.
+Joining `prompt_profile_id` to `ai_prompt_profile` is the supported way to
+recover Profile version, prompt version, template, output schema, temperature,
+token cap, and redaction policy. The effective LLM alias is the non-empty
+Profile alias or, when absent, runtime `DEFAULT_GOVERNANCE_MODEL`; it is not
+duplicated on the derivation run.
 
 ## Proposed Audit Events And Failure Codes
 
@@ -179,9 +197,20 @@ schema, temperature, token cap, and redaction policy.
 | Failure | `occupation_orientation_missing` | Required occupation-facing section/table missing. |
 | Failure | `core_course_table_missing` | Core-course table not found. |
 | Failure | `core_course_row_incomplete` | Required core row cell missing/unmergeable. |
+| Failure | `library_not_review` | Parent standard is not in review state. |
+| Failure | `prompt_profile_missing` | Active derivation Prompt Profile is missing. |
+| Failure | `prompt_output_schema_mismatch` | Profile output schema does not match the supported derivation schema. |
+| Failure | `derivation_input_incomplete` | Training-goal or course evidence required for one-batch derivation is incomplete. |
+| Failure | `governance_model_missing` | Neither Profile alias nor `DEFAULT_GOVERNANCE_MODEL` supplies an effective model. |
+| Failure | `redaction_policy_blocked` | AI-governance redaction/private-model policy blocks the request. |
+| Failure | `llm_client_unavailable` | No LiteLLM client is available. |
+| Failure | `llm_call_failed` | The single LiteLLM batch call failed. |
 | Failure | `batch_derivation_schema_invalid` | Batch output does not match schema. |
+| Failure | `batch_course_id_mismatch` | Output course IDs do not exactly match immutable input IDs. |
 | Failure | `batch_derivation_evidence_invalid` | Batch output lacks source evidence. |
 | Failure | `hour_rule_validation_failed` | Suggested-hour constraints fail. |
+| Failure | `derivation_input_changed` | Source facts or governing request conditions changed during the call. |
+| Failure | `derivation_persist_failed` | Atomic adoption of the validated batch failed. |
 
 The final enum names are frozen in Slice 1 with migrations and must not be
 introduced into runtime code during Slice 0.

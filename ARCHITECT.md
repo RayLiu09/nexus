@@ -51,6 +51,13 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
 - AI leads semantic understanding and scoring; rules are hard guardrails; humans handle exceptions, samples, and feedback.
 - AI output must be explainable, structured, schema-valid, evidence-backed, and auditable.
 - Models are replaceable through LiteLLM aliases; NEXUS owns output schemas.
+- Teaching-standard course derivation prefers a non-empty model alias from the
+  active AI-governance `ai_prompt_profile`, falling back to
+  `DEFAULT_GOVERNANCE_MODEL`; the seeded Profile alias is empty. The Profile
+  also supplies the Prompt, output schema, temperature, token cap, and
+  redaction policy. Batch results are joined back to course master data only by
+  an unchanged, exact-set-validated
+  `teaching_standard_course.course_id`.
 - Local identity is the baseline; DingTalk sync is optional.
 - P0 reserves operations extension points but does not productize an operations center.
 - Right-size by scale: use minimum viable infrastructure in P0; each simplified capability has a documented upgrade trigger and migration path.

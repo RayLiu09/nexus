@@ -272,3 +272,15 @@ def test_worker_projection_reads_normalized_document_and_audits_generation(sessi
     assert audit.summary["status"] == "review"
     assert audit.summary["course_count"] == 3
     assert audit.summary["course_diagnostics"] == {"core_course_table_missing": 1}
+    derivation = session.scalar(select(models.TeachingStandardDerivationRun))
+    derivation_audit = session.scalar(
+        select(models.AuditLog).where(
+            models.AuditLog.event_type == AuditEventType.TEACHING_STANDARD_COURSE_DERIVATION_FAILED
+        )
+    )
+    assert derivation is not None
+    assert derivation.status == "failed"
+    assert derivation.failure_code == "prompt_profile_missing"
+    assert derivation_audit is not None
+    assert audit.summary["derivation_run_id"] == derivation.id
+    assert audit.summary["derivation_status"] == "failed"

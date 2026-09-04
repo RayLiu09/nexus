@@ -2,9 +2,10 @@
 
 ## Status
 
-Slice 0 contract baseline, Slice 1 standard fact projection, and Slice 2
-course fact projection are completed. Slice 2 evidence is recorded under
-`wk_teaching_standard_course_library_slice2_task_package.md`. This package
+Slice 0 contract baseline, Slice 1 standard fact projection, Slice 2 course
+fact projection, and Slice 3 one-batch derivation implementation are completed.
+Slice 3 remains pending its human Review Gates under
+`wk_teaching_standard_course_library_slice3_task_package.md`. This package
 remains the master scope and acceptance baseline for subsequent slices.
 
 ## Source Context
@@ -139,13 +140,25 @@ course, and no course is filtered by course-name heuristics.
 
 Implement a strict LLM request/response for one standard's training-goal
 summary and all candidate-course tag/complexity results. Deterministic code
-creates IDs, normalizes/deduplicates tags, calculates suggested hours from
-rules, validates ratios/ranges, and renders match fields. Persist input/output
-hashes, `ai_prompt_profile` reference, evidence bindings, and failure reasons.
+preserves the Slice-2 course IDs, normalizes/deduplicates tags, calculates
+suggested hours from rules, validates ratios/ranges, and renders match fields.
+Persist input/output hashes, `ai_prompt_profile` reference, evidence bindings,
+and failure reasons.
+Select the active AI-governance Prompt Profile for the dedicated derivation
+task/scenario and use its Prompt/call configuration. Its seeded
+`litellm_model_alias` is empty; a later non-empty Profile alias takes priority,
+otherwise use `DEFAULT_GOVERNANCE_MODEL`. Do not hard-code another model. Send
+the persisted `course_id` for every course and require the response to return
+the exact same ID set.
+Adopt results by `course_id` only, never by response order, name, or source
+sequence.
 
 Acceptance: each complete standard makes at most one LLM derivation call;
 malformed output cannot change source facts; deterministic fields never call
-LLM; practice hours do not exceed total hours.
+LLM; practice hours do not exceed total hours; an unknown, missing, duplicate,
+or changed output `course_id` rejects the complete batch with no partial
+updates; and the recorded `prompt_profile_id` identifies the AI-governance
+Prompt configuration used for the call.
 
 ### Slice 4: Lifecycle And Audit Completion (8-11 person-days)
 

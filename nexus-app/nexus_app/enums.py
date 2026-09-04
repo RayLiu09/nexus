@@ -243,6 +243,12 @@ class AuditEventType(StrEnum):
     # Pipeline A teaching-standard library Slice 1. This records the
     # deterministic, source-evidenced standard fact projection only.
     TEACHING_STANDARD_LIBRARY_GENERATED = "TeachingStandardLibraryGenerated"
+    TEACHING_STANDARD_COURSE_DERIVATION_COMPLETED = (
+        "TeachingStandardCourseDerivationCompleted"
+    )
+    TEACHING_STANDARD_COURSE_DERIVATION_FAILED = (
+        "TeachingStandardCourseDerivationFailed"
+    )
     # Pipeline B PD — operator-maintained major distribution structured rows.
     MAJOR_DISTRIBUTION_RECORD_UPDATED = "MajorDistributionRecordUpdated"
     MAJOR_DISTRIBUTION_RECORD_DELETED = "MajorDistributionRecordDeleted"
