@@ -105,13 +105,17 @@ Role constraints:
 - `metadata_enrich` auto-tagging: targets normalized assets (not chunks); high-confidence tags auto-commit (audit logged); low-confidence tags enter human review queue.
 - RBAC, org scope filtering, data-level visibility, masking for L3/L4 exceptions, audit. ABAC is an extension point.
 - `nexus-console` P0 pages and `/v1` P0 APIs.
+- Business-task Asset Center navigation across five fixed domains. Domain cards
+  list their resource types with real on-demand counts and link directly to
+  resource views; there are no intermediate domain-summary pages. IA-1 adds no
+  persisted statistics model, permissions, or source-trace interaction.
 - Search/QA source traceability to asset version, normalized ref (with image_uris), chunk, and raw object.
 - Basic maintainability: health checks, structured logs, trace IDs, job status, basic runtime state.
 
 ## P1 Scope
 
 - Optional DingTalk org sync.
-- Retrieval test console.
+- Intelligent search console.
 - Basic knowledge asset management.
 - API Key operation enhancements.
 - Basic reports for assets, quality, search, API calls.
@@ -131,14 +135,55 @@ Role constraints:
 
 ## Console Information Architecture
 
-P0 pages:
+First-level navigation:
+
+- **总览**: workbench and operational overview.
+- **资产中心**: business-task views for industry-policy, professional, market,
+  teaching-resource, and user-behavior data.
+- **智能检索**: one direct first-level entry to the intelligent query view.
+  The former retrieval-integration page is retired and is not a second-level
+  navigation item.
+- **数据管理**: data sources, raw ledger, jobs, and the complete technical asset
+  ledger.
+- **治理管理**: governance review/tracking, rules, and Prompt configuration.
+- **访问与审计**: API callers and audit views.
+- **个人工作**: personal workspace.
+
+Asset Center IA-1:
+
+- **产业政策数据**: industry policy, education policy, industry report, and
+  sector report. Industry/education policy pages reserve all, national,
+  provincial, and regional dimensions. Policy level is not encoded as six
+  combined classifications.
+- **专业数据**: major profile, major-distribution records, professional
+  teaching standards, a standard-course-library view, talent-demand reports,
+  talent-training plans, and occupational analysis. The course-library entry
+  reads `teaching_standard_course` records and is not a governance
+  classification. Existing
+  `competency_analysis` is presented under this domain rather than market data.
+- **市场数据**: job-demand records, industrial parks, enterprises, and
+  certificates. Industrial parks and enterprises are future fixed-schema
+  imports from their own lists; IA-1 adds neither governance classification.
+- **教材资源数据**: theory textbooks, training textbooks, teaching cases, and
+  course standards. Case-library APIs and final resource fields are deferred.
+- **用户行为数据**: ability indicator library, scoring-system library,
+  learning data, and learning analysis. Their domain models are deferred.
+
+The Asset Center is not tied to a role contract in IA-1 and does not include
+source-lineage UI. It has no `产业画像` entry. The future industry-data domain
+model for industry identity/type, metrics, regional distribution, industry
+chains, policy trends, and talent gaps is a separate task.
+
+P0 management pages:
 
 - **工作台**: ingestion/job/review/AI adoption/rule overview/basic runtime state.
 - **数据源管理**: source registration, upload entry, NAS sync, crawler push config, and Crawler plans. Crawler plans support generic configuration (topic, target site URLs, execution plan) and one built-in quick-start plan backed by JSON configuration for national/provincial vocational-education policy, industry-education integration policy, ecommerce, digital-economy policy/report, and regional ecommerce/digital-economy data acquisition. Template and region whitelist sites are file-configured and are not maintained through Console.
 - **数据接入**: single file, batch upload, directory import, ingestion policy.
 - **原始数据台账**: batch query, raw object query, checksum, replay entry.
 - **作业中心**: job list, stage progress (including ingest_validate / assetize / parse / normalize), failure reason, retry, reprocess, re-governance.
-- **资产目录**: asset list, current version read model, versions, normalized refs (with governance/quality/lineage fields), index status.
+- **全部资产台账**: `/assets` asset list, current version read model, versions,
+  normalized refs (with governance/quality/lineage fields), and index status.
+  It is a technical management view and is not the Asset Center landing page.
 - **资产详情**: overview, versions, normalized refs, AI governance, quality score, governance result, decision tracking, chunks (with normalized_ref_id), course textbook Task Outline read view for training-operation textbooks, record-asset structured views (list plus read-only staging graph for job demand / ability analysis), index manifest, lineage (including image_uris), audit.
 - **治理中心**: AI suggestions, AI quality score, AI Prompt config, review tasks, rule config, save-to-activate changes, decision tracking, quality review.
 - **规则配置**: structured editor for `config/governance_rules.json` (classifications, levels, tags, quality scoring, knowledge types); ETag-based concurrency control; save takes effect immediately for future governance runs.
@@ -147,7 +192,7 @@ P0 pages:
 - **治理审核**: business experts submit one final governance conclusion for a `review_required` normalized asset. It includes classification, level, structured taxonomy tags, quality disposition/reason, org scope, and review reason. There is no reject/revise/auto-submit-history workflow.
 
 P1 pages:
-- 检索测试
+- 智能检索
 - 知识资产管理 (Knowledge Pipeline 1 assets)
 - DingTalk 同步（可选）
 - API Key 运营增强

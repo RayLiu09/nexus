@@ -456,6 +456,61 @@ def test_asset_summary_counts_review_required_assets_with_latest_refs(app, sessi
     ]
 
 
+def test_asset_center_counts_use_resource_boundaries_in_two_queries(app, session):
+    seeded = _seed_review_required_asset(session)
+    library = models.TeachingStandardLibrary(
+        normalized_ref_id=seeded["ref"].id,
+        asset_version_id=seeded["version"].id,
+        domain_profile="teaching_standard_library.v1",
+        standard_title="电子商务专业教学标准",
+        major_code="530701",
+        major_name="电子商务",
+        hash_digest="standard-hash",
+        status="review",
+        extractor_version="teaching-standard.v1",
+    )
+    session.add(library)
+    session.flush()
+    session.add_all(
+        [
+            models.TeachingStandardCourse(
+                library_id=library.id,
+                course_id=f"course-{index}",
+                standard_course_name=name,
+                course_type="core",
+                source_section="专业核心课程",
+                source_order=index,
+                source_hash=f"course-hash-{index}",
+                extractor_version="teaching-standard.v1",
+            )
+            for index, name in enumerate(("网店运营", "数字营销"), start=1)
+        ]
+    )
+    session.commit()
+
+    statements = 0
+
+    def count_statement(*_args):
+        nonlocal statements
+        statements += 1
+
+    event.listen(session.bind, "before_cursor_execute", count_statement)
+    try:
+        response = TestClient(app).get("/internal/v1/asset-center/counts")
+    finally:
+        event.remove(session.bind, "before_cursor_execute", count_statement)
+
+    assert response.status_code == 200
+    counts = response.json()["data"]["counts"]
+    assert counts["policy/industry-reports"] == 1
+    assert counts["major/teaching-standards"] == 1
+    assert counts["major/standard-course-library"] == 2
+    assert counts["market/industrial-parks"] == 0
+    assert counts["user-behavior/learning-analytics"] == 0
+    assert "major/teaching-standards/courses" not in counts
+    assert statements == 2
+
+
 def test_latest_ref_can_fetch_ai_governance_runs(app, session):
     seeded = _seed_review_required_asset(session)
     client = TestClient(app)

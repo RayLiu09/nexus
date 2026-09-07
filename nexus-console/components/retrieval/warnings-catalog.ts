@@ -5,9 +5,7 @@
  * codes rather than translated messages, so this dictionary is the
  * single place that turns those codes into user-facing labels + tooltips.
  *
- * Consumed by:
- * - `components/retrieval/WarningsPanel.tsx` (retrieval-test panel today)
- * - Future `/search` v1.3 conversation UI (PR-search-v1_3-conversational-uplift)
+ * Consumed by the intelligent-search warning presentation.
  *
  * Contract with backend:
  * - Codes emitted by `nexus_app.retrieval.tag_resolver.ResolverResult.add_warning`

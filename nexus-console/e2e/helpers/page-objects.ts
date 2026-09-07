@@ -225,76 +225,9 @@ export async function mockApi(page: Page) {
 }
 
 /**
- * Retrieval-test panel page object.
- *
- * The panel calls two console-side proxy routes:
- *   - `/api/knowledge-retrieval/plans` (Plan Only mode)
- *   - `/api/knowledge-retrieval`       (Full Run mode)
- *
- * We intercept both directly so tests never hit the backend (nexus-api)
- * and stay deterministic. See `mockRetrievalApi(page, ...)` below.
- */
-export class RetrievalTestPage {
-  readonly panel: Locator;
-  readonly querySelect: Locator;
-  readonly queryInput: Locator;
-  readonly modeSwitch: Locator;
-  readonly submitButton: Locator;
-  readonly intentSlot: Locator;
-  readonly planSlot: Locator;
-  readonly friendlyPlanSlot: Locator;
-  readonly resultsSlot: Locator;
-  readonly warningsSlot: Locator;
-
-  constructor(readonly page: Page) {
-    this.panel = page.getByTestId("retrieval-test-panel");
-    this.querySelect = page.getByTestId("fixture-select");
-    this.queryInput = page.getByTestId("query-input");
-    this.modeSwitch = page.getByTestId("mode-switch");
-    this.submitButton = page.getByTestId("submit-button");
-    this.intentSlot = page.getByTestId("intent-slot");
-    this.planSlot = page.getByTestId("plan-slot");
-    this.friendlyPlanSlot = page.getByTestId("friendly-plan-slot");
-    this.resultsSlot = page.getByTestId("results-slot");
-    this.warningsSlot = page.getByTestId("warnings-slot");
-  }
-
-  async goto() {
-    // Pretend we're authenticated so the middleware doesn't redirect
-    // to /login. The backend proxy calls are all intercepted below,
-    // so the token value itself is never validated.
-    await this.page.context().addCookies([
-      {
-        name: "nexus_access_token",
-        value: "e2e-fake-token",
-        domain: "localhost",
-        path: "/",
-      },
-    ]);
-    await this.page.goto("/retrieval-test");
-  }
-
-  async submitFreeform(query: string) {
-    await this.queryInput.fill(query);
-    await this.submitButton.click();
-  }
-
-  async submitPreset(presetLabel: string | RegExp) {
-    await this.querySelect.click();
-    // Antd Select dropdown renders options in a portal; select by role.
-    await this.page.getByRole("option", { name: presetLabel }).click();
-    await this.submitButton.click();
-  }
-
-  async switchMode(mode: "Plan Only" | "Full Run") {
-    await this.modeSwitch.getByText(mode).click();
-  }
-}
-
-/**
- * Sample KnowledgeRetrievalResponse used by mockRetrievalApi. Kept
- * intentionally small — the panel only needs enough fields to render
- * intent + plan + one result + one warning.
+ * Sample KnowledgeRetrievalResponse used by the search E2E fixtures.
+ * It stays intentionally small while covering intent, plan, results, and
+ * warning rendering.
  */
 export function makeRetrievalResponse(
   overrides: {
@@ -450,47 +383,4 @@ export function makeFriendlyView(): unknown {
       combine_summary: "所有维度均需匹配（AND）",
     },
   };
-}
-
-/**
- * Intercept the two console-side proxy routes with fixed envelopes.
- * `mode` controls which endpoint responds successfully; the other is
- * left untouched. `errorEndpoint` overrides one endpoint with a 500.
- */
-export async function mockRetrievalApi(
-  page: Page,
-  opts: {
-    planResponse?: unknown;
-    fullResponse?: unknown;
-    errorEndpoint?: "plans" | "full";
-  } = {},
-) {
-  const planResponse = opts.planResponse ?? makeRetrievalResponse({ hasResults: false });
-  const fullResponse = opts.fullResponse ?? makeRetrievalResponse();
-
-  await page.route("**/api/knowledge-retrieval/plans", async (route) => {
-    if (opts.errorEndpoint === "plans") {
-      await route.fulfill({
-        status: 500,
-        json: { ok: false, status: 500, message: "e2e mock: plans failure" },
-      });
-      return;
-    }
-    await route.fulfill({
-      json: { ok: true, status: 200, data: planResponse, traceId: "e2e-plan-001" },
-    });
-  });
-
-  await page.route("**/api/knowledge-retrieval", async (route) => {
-    if (opts.errorEndpoint === "full") {
-      await route.fulfill({
-        status: 500,
-        json: { ok: false, status: 500, message: "e2e mock: full failure" },
-      });
-      return;
-    }
-    await route.fulfill({
-      json: { ok: true, status: 200, data: fullResponse, traceId: "e2e-full-001" },
-    });
-  });
 }

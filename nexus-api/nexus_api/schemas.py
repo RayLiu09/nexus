@@ -44,6 +44,10 @@ class HealthRead(BaseModel):
     environment: str
 
 
+class AssetCenterCountsRead(BaseModel):
+    counts: dict[str, int]
+
+
 # ── Auth contract (mirrors nexus-console/lib/auth/token.ts) ─────────────────
 
 

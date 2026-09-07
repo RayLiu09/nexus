@@ -24,6 +24,10 @@ export type RuntimeState = {
   recent_error: string | null;
 };
 
+export type AssetCenterCounts = {
+  counts: Record<string, number>;
+};
+
 export type OrgUnit = {
   id: string;
   code: string;

@@ -30,11 +30,7 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
   if (status && status !== "all") tableParams.status = status;
   if (tags.length) tableParams.tags = tags;
 
-  const tableResult = await getApiData<AssetWithMeta[]>(
-    "/internal/v1/assets",
-    [],
-    tableParams,
-  );
+  const tableResult = await getApiData<AssetWithMeta[]>("/internal/v1/assets", [], tableParams);
 
   const tableData = tableResult.data;
   const totalCount = tableResult.total ?? tableData.length;
@@ -42,9 +38,9 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
   return (
     <>
       <PageHeader
-        eyebrow="主数据与当前视图"
-        title="资产目录"
-        description="目录页以「当前可读视图」服务运营和消费方，核心是 current version / current normalized ref / index state 的组合。"
+        eyebrow="数据管理"
+        title="全部资产台账"
+        description="管理资产当前版本、标准化引用、治理、质量和索引状态。"
       />
       <AssetsContent
         assets={tableData}

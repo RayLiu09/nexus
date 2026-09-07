@@ -3,9 +3,9 @@
  *
  * Sourced from the backend `KnowledgeRetrievalResponse` envelope
  * exposed by `POST /internal/v1/knowledge-retrieval/query` and
- * `/knowledge-retrieval/plans`. Both `/retrieval-test` and `/search`
- * consume these types; playground-specific wire types (SearchResponse,
- * QaResponse) stay in `app/search/_lib/searchTypes.ts`.
+ * `/knowledge-retrieval/plans`. The intelligent-search UI consumes these
+ * types; page-specific wire types (SearchResponse, QaResponse) stay in
+ * `app/search/_lib/searchTypes.ts`.
  */
 
 export type RetrievalStatus =

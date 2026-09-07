@@ -114,6 +114,43 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
 6. **Index, permission, and service layer**: index/search adapter, semantic retrieval backend, `search-service`, `iam-audit-service`, `nexus-api`.
 7. **Knowledge Pipeline layer** (independent): input = `normalized_asset_ref`; P0 scope = Pipeline 1 (semantic retrieval KB) only.
 
+## Business Asset Center Boundary
+
+NEXUS Console separates the business-task Asset Center from the technical
+asset ledger:
+
+- `/asset-center` organizes usable data through five fixed business domains:
+  industry-policy data, professional data, market data, teaching resources,
+  and user-behavior data.
+- `/assets` remains the complete technical ledger for asset/version,
+  normalized-reference, governance, quality, index, and lineage operations.
+- Asset Center navigation and routes are compile-time product structure. They
+  are not persisted in `governance_result`, database tables, or governance-rule
+  configuration, and no generic `catalog_mode` is introduced.
+- A business entry may read a governed document list, a cross-dataset record
+  view, or an existing domain projection. This does not change the underlying
+  asset/ref ownership or create copied global tables.
+- Professional teaching standards and `标准课程库` are independent business
+  entries over the same parent/course projection. The course library reads
+  `teaching_standard_course` records and is not a new governance
+  classification.
+- Industrial-park and enterprise entries are reserved for fixed-schema bulk
+  import from their own business lists. They do not introduce
+  `industrial_park` or `enterprise` governance classifications in IA-1.
+- Policy pages distinguish industry policy from education policy. National,
+  provincial, and regional policy are page-level business dimensions rather
+  than six combined classification codes. Education-policy governance and the
+  future industry-data domain model are separate implementation tasks.
+- IA-1 does not expose source-lineage interactions in Asset Center business
+  views. Existing production lineage and audit contracts remain unchanged.
+
+Asset Center cards obtain all resource counts through one on-demand aggregate
+read and link directly to resource views; domain-only summary pages do not
+exist. Counts follow each resource's actual asset/record boundary, are not
+persisted, and never fall back to synthetic values. Trend, freshness, and review
+metrics remain absent. Domain-specific fields, permissions, and final list
+interactions are frozen only in later bounded tasks.
+
 ## Two Processing Pipelines
 
 Pipeline routing stored in `Job.payload.pipeline_type` at job creation. Workers read from payload; no runtime inference.

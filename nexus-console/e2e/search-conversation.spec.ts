@@ -153,9 +153,8 @@ test.describe("Search page — M-C v1.3 four-layer embed", () => {
   });
 
   test("warnings collapse uses the shared catalog labels", async ({ page }) => {
-    // Consumers of the same catalog (retrieval-test + search) must render
-    // the same Chinese labels for the same codes.  If the shared module
-    // ever drifts, this spec catches it in search's context.
+    // Search must render the shared catalog's Chinese labels for the same
+    // codes. If the shared module ever drifts, this spec catches it here.
     const response = {
       ...(makeRetrievalResponse({
         warnings: ["weighted_rerank_applied"],
