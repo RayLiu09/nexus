@@ -4,9 +4,13 @@
 
 Slice 0 contract baseline, Slice 1 standard fact projection, Slice 2 course
 fact projection, and Slice 3 one-batch derivation implementation are completed.
-Slice 3 remains pending its human Review Gates under
-`wk_teaching_standard_course_library_slice3_task_package.md`. This package
-remains the master scope and acceptance baseline for subsequent slices.
+Slice 4 lifecycle and review work is deferred until the Nexus Console course-
+library interaction design is approved. Slice 5A dry-run-first historical
+backfill implementation is complete under
+`wk_teaching_standard_course_library_slice5a_task_package.md`. This package
+remains the master scope and acceptance baseline for subsequent slices. The
+bounded post-backfill field/storage corrections are tracked in
+`wk_teaching_standard_course_library_slice5b_task_package.md`.
 
 ## Source Context
 
@@ -162,6 +166,9 @@ Prompt configuration used for the call.
 
 ### Slice 4: Lifecycle And Audit Completion (8-11 person-days)
 
+Deferred together with Nexus Console review interactions until their shared
+interaction and API contract is approved.
+
 Extend the Slice-2 normalized-document projection wiring with idempotent
 replacement across new normalized refs and audited domain commands for
 `review -> active` and supersession, and regression coverage. Do not add a
@@ -172,6 +179,10 @@ old projections; only a business-expert domain command activates a standard;
 existing capability-graph construction is unchanged.
 
 ### Slice 5: Historical Backfill And Review Evidence (6-10 person-days)
+
+Split into Slice 5A historical discovery/backfill to `review` and a deferred
+review-evidence portion that follows Slice 4. Slice 5A does not activate any
+standard.
 
 Create a dry-run-first backfill command, pilot it only after approval, and
 report bounded counts/stable failure reasons. Capture corpus comparison and

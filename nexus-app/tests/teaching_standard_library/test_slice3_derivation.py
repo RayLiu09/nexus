@@ -91,6 +91,11 @@ def _seed_library_with_courses(session) -> models.TeachingStandardLibrary:
             "evidence_block_ids": ["goal-1"],
             "locator": {"heading_path": ["培养目标"], "pages": [3]},
         },
+        "training_specification_source": {
+            "text": "具有数字素养、团队协作能力和持续学习能力。",
+            "evidence_block_ids": ["specification-1"],
+            "locator": {"heading_path": ["培养规格"], "pages": [4]},
+        },
     }
     projection = extract_courses(_payload())
     assert projection is not None
@@ -167,6 +172,12 @@ def test_one_call_uses_model_priority_and_maps_reordered_results_by_course_id(
     assert client.calls[0]["model_alias"] == expected_alias
     assert client.calls[0]["temperature"] == profile.temperature
     assert client.calls[0]["max_tokens"] == profile.max_input_tokens
+    request = json.loads(client.calls[0]["messages"][1]["content"])
+    assert request["standard"]["training_specification"] == {
+        "text": "具有数字素养、团队协作能力和持续学习能力。",
+        "evidence_block_ids": ["specification-1"],
+        "locator": {"heading_path": ["培养规格"], "pages": [4]},
+    }
     assert library.status == "review"
     assert library.training_goal_summary == "培养网络营销、网店运营与数据分析能力。"
     for course in library.courses:
@@ -294,6 +305,30 @@ def test_actual_tool_tags_require_corresponding_course_evidence(session) -> None
     assert all(course.match_keywords is None for course in library.courses)
 
 
+def test_foundation_tags_may_use_training_specification_evidence(session) -> None:
+    library = _seed_library_with_courses(session)
+    _seed_profile(session)
+    response = _response(library)
+    foundation = next(
+        course for course in library.courses if course.course_type == "foundation"
+    )
+    output = next(
+        item
+        for item in response["courses"]
+        if item["course_id"] == foundation.course_id
+    )
+    output["evidence_block_ids"] = ["specification-1"]
+
+    result = derive_library(
+        session,
+        library,
+        llm_client=RecordingClient(response),
+        default_governance_model="governance/env-model",
+    )
+
+    assert result.status == "completed"
+
+
 def test_l3_masked_content_never_sends_source_narrative(session) -> None:
     library = _seed_library_with_courses(session)
     library.normalized_ref.governance = {"level": "L3"}
@@ -311,6 +346,7 @@ def test_l3_masked_content_never_sends_source_narrative(session) -> None:
     assert result.status == "completed"
     request = json.loads(client.calls[0]["messages"][1]["content"])
     assert request["standard"]["training_goal"]["text"] == "[MASKED]"
+    assert request["standard"]["training_specification"]["text"] == "[MASKED]"
     assert all(
         course["typical_work_task_description"] == "[MASKED]"
         and course["teaching_content_requirement"] == "[MASKED]"

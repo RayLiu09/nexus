@@ -47,7 +47,11 @@ _OCCUPATION_COLUMNS = {
 }
 _RATIO_VALUE = r"(\d{1,3}(?:\.\d+)?\s*%|\d+(?:\.\d+)?\s*/\s*\d+(?:\.\d+)?)"
 _RULES = (
-    ("total_hours", r"(?:总学时|总课时)[^\n。；;]{0,30}?(\d{3,5})\s*(?:学时|课时|小时)", "hours"),
+    (
+        "total_hours",
+        r"(?:总学时|总课时)[^\n。；;]{0,30}?(\d{3,5})\s*(?:学时|课时|小时)",
+        "hours",
+    ),
     (
         "public_foundation_ratio",
         rf"(?:公共基础课程|公共基础课)[^\n。；;]{{0,80}}?(?:占(?:总学时)?(?:的)?|不低于|不少于)\s*{_RATIO_VALUE}(?:以上|以下)?",
@@ -87,14 +91,14 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
     if "专业教学标准" not in f"{title}\n{whole_text}":
         return None
 
-    standard_id = _extract_standard_id(title, whole_text)
     major_code, major_name = _extract_major_identity(title, whole_text)
     education_level = _extract_education_level(title, whole_text)
     sections = _sections(blocks)
     occupations = _occupations(sections)
     rules = _rules(blocks)
     course_structures = _course_structures(sections)
-    training_goal = _first_section(sections, ("培养目标", "培养目标定位", "培养规格"))
+    training_goal = _first_section(sections, ("培养目标", "培养目标定位"))
+    training_specification = _first_section(sections, ("培养规格",))
     quality_flags: dict[str, Any] = {}
     if not major_name:
         quality_flags["major_identity_missing"] = True
@@ -106,7 +110,6 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
         "schema_version": DOMAIN_PROFILE,
         "domain_profile": DOMAIN_PROFILE,
         "extractor_version": EXTRACTOR_VERSION,
-        "standard_id": standard_id,
         "standard_title": title or None,
         "major_code": major_code,
         "major_name": major_name,
@@ -118,6 +121,7 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
         "course_structures": course_structures,
         "rules": rules,
         "training_goal_source": training_goal,
+        "training_specification_source": training_specification,
         "source_evidence": {"title": title, "source_block_ids": _ids(blocks[:3])},
         "quality_flags": quality_flags,
     }
@@ -130,7 +134,9 @@ def _sections(blocks: list[dict[str, Any]]) -> list[tuple[str, list[dict[str, An
     title = ""
     for block in blocks:
         text = _text(block)
-        heading = _heading(text) if block.get("block_type") in {"heading", "title"} else ""
+        heading = (
+            _heading(text) if block.get("block_type") in {"heading", "title"} else ""
+        )
         if heading:
             if current is not None:
                 result.append((title, current))
@@ -142,22 +148,29 @@ def _sections(blocks: list[dict[str, Any]]) -> list[tuple[str, list[dict[str, An
     return result
 
 
-def _occupations(sections: list[tuple[str, list[dict[str, Any]]]]) -> list[dict[str, Any]]:
+def _occupations(
+    sections: list[tuple[str, list[dict[str, Any]]]]
+) -> list[dict[str, Any]]:
     output: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
     for heading, blocks in sections:
-        table_facts = [fact for block in blocks for fact in _occupation_table_facts(block, heading)]
+        table_facts = [
+            fact for block in blocks for fact in _occupation_table_facts(block, heading)
+        ]
         for fact in table_facts:
             identity = (fact["dimension_type"], fact["source_name"])
             if identity not in seen:
                 seen.add(identity)
                 output.append(fact)
         dimension = next(
-            (value for alias, value in _SECTION_DIMENSIONS.items() if alias in heading), None
+            (value for alias, value in _SECTION_DIMENSIONS.items() if alias in heading),
+            None,
         )
         if dimension is None:
             continue
-        narrative_blocks = [block for block in blocks if block.get("block_type") != "table"]
+        narrative_blocks = [
+            block for block in blocks if block.get("block_type") != "table"
+        ]
         source = "\n".join(_text(block) for block in narrative_blocks)
         for item in _items(source):
             identity = (dimension, item)
@@ -176,7 +189,9 @@ def _occupations(sections: list[tuple[str, list[dict[str, Any]]]]) -> list[dict[
     return output
 
 
-def _occupation_table_facts(block: dict[str, Any], heading: str) -> list[dict[str, Any]]:
+def _occupation_table_facts(
+    block: dict[str, Any], heading: str
+) -> list[dict[str, Any]]:
     if block.get("block_type") != "table":
         return []
     parsed = _parse_markdown_table(_text(block))
@@ -186,7 +201,12 @@ def _occupation_table_facts(block: dict[str, Any], heading: str) -> list[dict[st
     for index, header in enumerate(parsed["headers"]):
         normalized = re.sub(r"\s+|[（(][^）)]*[）)]", "", header)
         dimension = next(
-            (value for alias, value in _OCCUPATION_COLUMNS.items() if alias in normalized), None
+            (
+                value
+                for alias, value in _OCCUPATION_COLUMNS.items()
+                if alias in normalized
+            ),
+            None,
         )
         if dimension:
             columns[index] = dimension
@@ -222,7 +242,9 @@ def _coded_items(value: str) -> list[tuple[str, str | None]]:
         if not item:
             continue
         match = re.match(r"(.+?)[（(]\s*([0-9][0-9.\-]*)\s*[）)]$", item)
-        output.append((match.group(1).strip(), match.group(2)) if match else (item, None))
+        output.append(
+            (match.group(1).strip(), match.group(2)) if match else (item, None)
+        )
     return output
 
 
@@ -296,16 +318,11 @@ def _first_section(
     return None
 
 
-def _extract_standard_id(title: str, text: str) -> str | None:
-    match = re.search(
-        r"(?:标准编号|标准号|专业代码)\s*[：:]?\s*([A-Z]{1,6}/?[A-Z0-9.\-]{3,})", f"{title}\n{text}"
-    )
-    return match.group(1) if match else None
-
-
 def _extract_major_identity(title: str, text: str) -> tuple[str | None, str | None]:
     source = f"{title}\n{text[:12000]}"
-    match = re.search(r"([\u4e00-\u9fffA-Za-z]{2,40})\s*[（(]\s*(\d{4,6})\s*[）)]", source)
+    match = re.search(
+        r"([\u4e00-\u9fffA-Za-z]{2,40})\s*[（(]\s*(\d{4,6})\s*[）)]", source
+    )
     if match:
         return match.group(2), match.group(1).strip()
     match = re.search(
@@ -315,7 +332,9 @@ def _extract_major_identity(title: str, text: str) -> tuple[str | None, str | No
     if match:
         return match.group(2), match.group(1).strip()
     title_match = re.search(r"([\u4e00-\u9fffA-Za-z]{2,30})专业教学标准", title)
-    return (None, title_match.group(1).strip("（）() -")) if title_match else (None, None)
+    return (
+        (None, title_match.group(1).strip("（）() -")) if title_match else (None, None)
+    )
 
 
 def _extract_education_level(title: str, text: str) -> str | None:
@@ -327,14 +346,36 @@ def _extract_education_level(title: str, text: str) -> str | None:
 
 
 def _classification(text: str, label: str) -> dict[str, str | None]:
-    match = re.search(
-        rf"{label}\s*[：:]?\s*(?:（?\s*(\d{{2,4}})\s*）?)?\s*([^\n，。；;]{{2,40}})", text
+    match = re.search(rf"{label}\s*[：:]?\s*([^\n]{{1,120}})", text)
+    if match is None:
+        return {}
+    value = match.group(1).strip(" \t|｜")
+    value = re.sub(
+        r"^(?:[（(]\s*代码\s*[）)]|代码)\s*[|｜]?\s*",
+        "",
+        value,
     )
-    return {"code": match.group(1), "name": match.group(2).strip()} if match else {}
+    name_code = re.search(
+        r"([^|｜（）()]{2,40}?)\s*[（(]\s*(?:代码\s*[：:]?\s*)?(\d{2,4})\s*[）)]",
+        value,
+    )
+    if name_code is not None:
+        return {"code": name_code.group(2), "name": name_code.group(1).strip()}
+    code_name = re.search(
+        r"[（(]?\s*(\d{2,4})\s*[）)]?\s*[|｜]?\s*([^|｜]{2,40})", value
+    )
+    if code_name is not None:
+        return {
+            "code": code_name.group(1),
+            "name": code_name.group(2).strip(" \t|｜"),
+        }
+    return {"code": None, "name": value} if value else {}
 
 
 def _study_years(text: str) -> str | None:
-    match = re.search(r"(?:基本修业年限|基本学习年限|修业年限)\s*[：:]?\s*([^\n。；;]{1,40})", text)
+    match = re.search(
+        r"(?:基本修业年限|基本学习年限|修业年限)\s*[：:]?\s*([^\n。；;]{1,40})", text
+    )
     return match.group(1).strip() if match else None
 
 
@@ -348,7 +389,11 @@ def _items(text: str) -> list[str]:
 
 
 def _heading(value: str) -> str:
-    return re.sub(r"^[#\s一二三四五六七八九十\d]+[、.．\s]*", "", value).strip().rstrip("：:")
+    return (
+        re.sub(r"^[#\s一二三四五六七八九十\d]+[、.．\s]*", "", value)
+        .strip()
+        .rstrip("：:")
+    )
 
 
 def _text(block: dict[str, Any]) -> str:
@@ -360,9 +405,18 @@ def _clean(value: Any) -> str:
 
 
 def _ids(blocks: list[dict[str, Any]]) -> list[str]:
-    return list(dict.fromkeys(str(block["block_id"]) for block in blocks if block.get("block_id")))
+    return list(
+        dict.fromkeys(
+            str(block["block_id"]) for block in blocks if block.get("block_id")
+        )
+    )
 
 
 def _locator(blocks: list[dict[str, Any]], heading: str | None) -> dict[str, Any]:
-    pages = [block.get("page") for block in blocks if isinstance(block.get("page"), int)]
-    return {"heading_path": [heading] if heading else [], "pages": list(dict.fromkeys(pages))}
+    pages = [
+        block.get("page") for block in blocks if isinstance(block.get("page"), int)
+    ]
+    return {
+        "heading_path": [heading] if heading else [],
+        "pages": list(dict.fromkeys(pages)),
+    }

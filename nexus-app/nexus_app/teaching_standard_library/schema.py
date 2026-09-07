@@ -5,7 +5,14 @@ from __future__ import annotations
 import re
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 DOMAIN_PROFILE = "teaching_standard_library.v1"
 
@@ -77,7 +84,6 @@ class TeachingStandardLibraryPayload(BaseModel):
     schema_version: Literal["teaching_standard_library.v1"]
     domain_profile: Literal["teaching_standard_library.v1"]
     extractor_version: str
-    standard_id: str | None = None
     standard_title: str | None = None
     major_code: str | None = None
     major_name: str | None = None
@@ -91,6 +97,7 @@ class TeachingStandardLibraryPayload(BaseModel):
     )
     rules: list[NumericRule] = Field(default_factory=list)
     training_goal_source: dict[str, Any] | None = None
+    training_specification_source: dict[str, Any] | None = None
     source_evidence: dict[str, Any] = Field(default_factory=dict)
     quality_flags: dict[str, Any] = Field(default_factory=dict)
 
@@ -103,10 +110,16 @@ class TeachingStandardLibraryPayload(BaseModel):
         return value if re.fullmatch(r"\d{4,6}", value) else None
 
 
-def validate_payload(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any]]:
-    flags = dict(payload.get("quality_flags") or {}) if isinstance(payload, dict) else {}
+def validate_payload(
+    payload: dict[str, Any]
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    flags = (
+        dict(payload.get("quality_flags") or {}) if isinstance(payload, dict) else {}
+    )
     try:
-        validated = TeachingStandardLibraryPayload.model_validate(payload).model_dump(mode="json")
+        validated = TeachingStandardLibraryPayload.model_validate(payload).model_dump(
+            mode="json"
+        )
     except ValidationError as exc:
         flags["invalid_schema"] = True
         flags["validation_errors"] = [
@@ -115,8 +128,6 @@ def validate_payload(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, di
         return None, flags
     if not validated.get("major_name"):
         flags["major_identity_missing"] = True
-    if not validated.get("standard_id"):
-        flags["standard_id_missing"] = True
     if not validated.get("occupations"):
         flags["occupation_orientation_missing"] = True
     validated["quality_flags"] = flags

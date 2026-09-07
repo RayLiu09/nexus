@@ -42,7 +42,11 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
         return None
     blocks = [block for block in payload.get("blocks", []) if isinstance(block, dict)]
     title = _clean(payload.get("title"))
-    if not blocks or "专业教学标准" not in f"{title}\n{' '.join(_text(block) for block in blocks)}":
+    if (
+        not blocks
+        or "专业教学标准"
+        not in f"{title}\n{' '.join(_text(block) for block in blocks)}"
+    ):
         return None
 
     sections = _sections(blocks)
@@ -167,7 +171,9 @@ def _simple_course_table(
         if not name:
             continue
         sequence = _row_sequence(parsed["headers"], cells)
-        binding = _binding(block, row.get("raw") or name, sequence, section.heading, row_index)
+        binding = _binding(
+            block, row.get("raw") or name, sequence, section.heading, row_index
+        )
         courses.append(
             {
                 "standard_course_name": name,
@@ -259,7 +265,11 @@ def _core_courses(
                 )
                 continue
             binding = _binding(
-                block, row.get("raw") or " | ".join(cells), sequence, section.heading, row_index
+                block,
+                row.get("raw") or " | ".join(cells),
+                sequence,
+                section.heading,
+                row_index,
             )
             candidate = {
                 "standard_course_name": name,
@@ -328,7 +338,9 @@ def _merge_logical_courses(candidates: list[dict[str, Any]]) -> list[dict[str, A
             [*existing["evidence_bindings"], *candidate["evidence_bindings"]]
         )
         existing["source_section"] = _merge_text(
-            existing.get("source_section"), candidate.get("source_section"), separator="；"
+            existing.get("source_section"),
+            candidate.get("source_section"),
+            separator="；",
         )
         existing["source_page"] = _source_page(existing["evidence_bindings"])
     return sorted(merged.values(), key=lambda item: item["source_order"])
@@ -337,9 +349,13 @@ def _merge_logical_courses(candidates: list[dict[str, Any]]) -> list[dict[str, A
 def _split_course_names(text: str) -> list[str]:
     cleaned = re.sub(r"\s+", " ", text).strip()
     cleaned = re.sub(
-        r"^(?:一般设置\s*\d+\s*门[课程]*[。；;，,]?)?\s*(?:主要)?包括\s*[：:]?", "", cleaned
+        r"^(?:一般设置\s*\d+\s*门[课程]*[。；;，,]?)?\s*(?:主要)?包括\s*[：:]?",
+        "",
+        cleaned,
     )
-    cleaned = re.sub(r"(?:等领域的(?:内容|课程)|等专业课程|等课程)\s*[。.]?.*$", "", cleaned)
+    cleaned = re.sub(
+        r"(?:等领域的(?:内容|课程)|等专业课程|等课程)\s*[。.]?.*$", "", cleaned
+    )
     cleaned = cleaned.split("。", 1)[0]
     values = [item.strip(" ：:、，,；;。") for item in re.split(r"[、，,；;]", cleaned)]
     return list(dict.fromkeys(item for item in values if 1 < len(item) <= 80))
@@ -350,7 +366,11 @@ def _core_column_indexes(headers: list[str]) -> dict[str, int] | None:
     normalized = [_normalize_header(header) for header in headers]
     for key, aliases in _CORE_HEADERS.items():
         index = next(
-            (i for i, header in enumerate(normalized) if any(alias in header for alias in aliases)),
+            (
+                i
+                for i, header in enumerate(normalized)
+                if any(alias in header for alias in aliases)
+            ),
             None,
         )
         if index is None:
@@ -361,7 +381,8 @@ def _core_column_indexes(headers: list[str]) -> dict[str, int] | None:
 
 def _row_sequence(headers: list[str], cells: list[str]) -> str | None:
     index = next(
-        (i for i, header in enumerate(headers) if "序号" in _normalize_header(header)), None
+        (i for i, header in enumerate(headers) if "序号" in _normalize_header(header)),
+        None,
     )
     if index is None:
         return None
@@ -388,7 +409,9 @@ def _binding(
 
 def _locator(block: dict[str, Any], heading: str) -> dict[str, Any]:
     source_locator = (
-        block.get("source_locator") if isinstance(block.get("source_locator"), dict) else {}
+        block.get("source_locator")
+        if isinstance(block.get("source_locator"), dict)
+        else {}
     )
     page = block.get("page")
     if not isinstance(page, int):
@@ -446,14 +469,17 @@ def _unique_bindings(bindings: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return result
 
 
-def _merge_text(first: str | None, second: str | None, *, separator: str = "\n") -> str | None:
+def _merge_text(
+    first: str | None, second: str | None, *, separator: str = "\n"
+) -> str | None:
     values = [value.strip() for value in (first, second) if value and value.strip()]
     return separator.join(dict.fromkeys(values)) or None
 
 
 def _is_repeated_header(cells: list[str], headers: list[str]) -> bool:
     return len(cells) == len(headers) and all(
-        _normalize_header(cell) == _normalize_header(header) for cell, header in zip(cells, headers)
+        _normalize_header(cell) == _normalize_header(header)
+        for cell, header in zip(cells, headers)
     )
 
 

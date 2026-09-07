@@ -19,6 +19,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, declared_attr, mapped_column, relationship
 from sqlalchemy.types import TypeDecorator
 
@@ -1721,9 +1722,7 @@ class TeachingStandardLibrary(TimestampMixin, Base):
     __table_args__ = (
         CheckConstraint("status IN ('review', 'active', 'superseded')", name="ck_tsl_status"),
         UniqueConstraint("normalized_ref_id", name="uq_tsl_normalized_ref"),
-        UniqueConstraint("standard_id", "hash_digest", name="uq_tsl_standard_hash"),
         Index("ix_tsl_asset_version_id", "asset_version_id"),
-        Index("ix_tsl_standard_id", "standard_id"),
         Index("ix_tsl_major_code", "major_code"),
         Index("ix_tsl_major_name", "major_name"),
         Index("ix_tsl_status", "status"),
@@ -1737,9 +1736,6 @@ class TeachingStandardLibrary(TimestampMixin, Base):
         String(36), ForeignKey("asset_version.id"), nullable=False
     )
     domain_profile: Mapped[str] = mapped_column(String(64), nullable=False)
-    # Standards without an evidence-backed issue/standard number retain NULL;
-    # SQLite/PostgreSQL both allow multiple NULLs under the composite unique key.
-    standard_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     standard_title: Mapped[str | None] = mapped_column(Text, nullable=True)
     major_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     major_name: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -1867,10 +1863,18 @@ class TeachingStandardCourse(TimestampMixin, Base):
     hours_setting_basis: Mapped[str | None] = mapped_column(Text, nullable=True)
     typical_work_task_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     teaching_content_requirement: Mapped[str | None] = mapped_column(Text, nullable=True)
-    knowledge_tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
-    skill_tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
-    tool_tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
-    literacy_tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    knowledge_tags: Mapped[list[str]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), default=list, nullable=False
+    )
+    skill_tags: Mapped[list[str]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), default=list, nullable=False
+    )
+    tool_tags: Mapped[list[str]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), default=list, nullable=False
+    )
+    literacy_tags: Mapped[list[str]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), default=list, nullable=False
+    )
     match_keywords: Mapped[str | None] = mapped_column(Text, nullable=True)
     match_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_standard: Mapped[str | None] = mapped_column(Text, nullable=True)

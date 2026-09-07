@@ -44,13 +44,28 @@ Role constraints:
   source-scoped occupation-facing declarations, course-structure presence,
   literal hour/ratio/internship rules, and structurally admitted professional
   foundation/core/extension courses. These overlapping rule dimensions are not
-  added together. Course rows inherit major context and review state from the
+  added together. The parent does not persist an unused standard identifier;
+  category/class names are cleaned and their parenthesized codes are stored
+  separately. Course rows inherit major context and review state from the
   parent standard. Subsequent batch derivation uses
   a non-empty model alias from the active AI-governance Prompt Profile, or
   `DEFAULT_GOVERNANCE_MODEL` when the Profile alias is empty, and maps the
   complete result back only through unchanged `course_id` values; any missing,
   duplicate, unknown, or changed ID rejects the whole batch.
+  The four course tag arrays are PostgreSQL JSONB containing Chinese strings,
+  not escaped JSON text.
+  Core-course tags use course-owned evidence. Foundation and extension course
+  tags may also use the standard's evidence-bound training specification when
+  course-owned text is insufficient; tool evidence remains course-owned.
   Activation, APIs, retrieval, and Console views remain later slices.
+- Historical professional teaching-standard processing is exposed only as a
+  dry-run-first internal command. It scans generated normalized documents whose
+  latest official governance classification is `teaching_standard`, and skips
+  documents with no structurally extracted course facts,
+  reports bounded candidate/call/failure counts without writes or model
+  traffic by default, and requires explicit apply mode to reuse the existing
+  standard/course projection and derivation path. Applied rows remain in
+  `review`; the command cannot activate or supersede a standard.
 - Talent-training-plan graph reads are deterministic plan views, not generic Evidence Graph builds: every eligible plan exposes a course knowledge graph; a position-capability graph is available only when the plan contains evidenced position-to-skill facts.
 - Talent-training-plan retrieval is structure-first. The shared semantic search path supplements, but never replaces, exact plan/course/position filters: it indexes only training goal/specification, evidenced position capability, course objective/content, and unmodelled supplementary sections. Identity, certificate, and position-only attributes remain structured retrieval concerns.
 - Standardization via normalize-service: LLM semantic extraction + rule-engine fallback validation; produces `normalized_document` / `normalized_record` with full `normalized_asset_ref` fields (governance, quality, lineage, source_type, content_type, title, language).

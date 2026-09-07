@@ -50,6 +50,77 @@ class DerivationResult:
     reused: bool = False
 
 
+@dataclass(frozen=True)
+class DerivationPreview:
+    input_hash: str
+    prompt_profile_id: str | None
+    course_count: int
+    effective_model_source: str
+    call_required: bool
+    reusable: bool = False
+    failure_code: str | None = None
+
+
+@dataclass(frozen=True)
+class DerivationModelPreview:
+    prompt_profile_id: str | None
+    effective_model_source: str
+    failure_code: str | None = None
+
+
+@dataclass(frozen=True)
+class _PreparedDerivation:
+    profile: models.AIPromptProfile | None
+    effective_alias: str
+    effective_model_source: str
+    source_payload: dict[str, Any]
+    request_payload: dict[str, Any] | None
+    input_hash: str
+    failure_code: str | None
+    completed: models.TeachingStandardDerivationRun | None = None
+
+
+def preview_library_derivation(
+    session: Session,
+    library: models.TeachingStandardLibrary,
+    *,
+    default_governance_model: str,
+) -> DerivationPreview:
+    """Inspect call/reuse eligibility without mutation or LiteLLM traffic."""
+    prepared = _prepare_derivation(session, library, default_governance_model)
+    return DerivationPreview(
+        input_hash=prepared.input_hash,
+        prompt_profile_id=(
+            prepared.profile.id if prepared.profile is not None else None
+        ),
+        course_count=len(prepared.source_payload["courses"]),
+        effective_model_source=prepared.effective_model_source,
+        call_required=prepared.failure_code is None and prepared.completed is None,
+        reusable=prepared.completed is not None,
+        failure_code=prepared.failure_code,
+    )
+
+
+def preview_derivation_model(
+    session: Session, *, default_governance_model: str
+) -> DerivationModelPreview:
+    """Resolve the Profile/model preflight shared by historical planning."""
+    profile = _load_active_profile(session)
+    effective_alias = _effective_model_alias(profile, default_governance_model)
+    failure_code = None
+    if profile is None:
+        failure_code = "prompt_profile_missing"
+    elif profile.output_schema_version != DERIVATION_SCHEMA_VERSION:
+        failure_code = "prompt_output_schema_mismatch"
+    elif not effective_alias:
+        failure_code = "governance_model_missing"
+    return DerivationModelPreview(
+        prompt_profile_id=profile.id if profile is not None else None,
+        effective_model_source=_effective_model_source(profile, effective_alias),
+        failure_code=failure_code,
+    )
+
+
 def derive_library(
     session: Session,
     library: models.TeachingStandardLibrary,
@@ -59,93 +130,22 @@ def derive_library(
     trace_id: str | None = None,
 ) -> DerivationResult:
     """Derive all courses with one model call and atomically adopt the result."""
-    profile = _load_active_profile(session)
-    effective_alias = _effective_model_alias(profile, default_governance_model)
-    source_payload, input_error = _build_source_payload(library)
-    input_hash = _input_hash(source_payload, profile, effective_alias)
-
-    if library.status != "review":
+    prepared = _prepare_derivation(session, library, default_governance_model)
+    profile = prepared.profile
+    effective_alias = prepared.effective_alias
+    source_payload = prepared.source_payload
+    input_hash = prepared.input_hash
+    if prepared.failure_code is not None:
         return _failed_without_call(
             session,
             library,
             profile,
             input_hash,
-            "library_not_review",
+            prepared.failure_code,
             effective_alias,
             trace_id,
         )
-    if profile is None:
-        return _failed_without_call(
-            session,
-            library,
-            None,
-            input_hash,
-            "prompt_profile_missing",
-            effective_alias,
-            trace_id,
-        )
-    if profile.output_schema_version != DERIVATION_SCHEMA_VERSION:
-        return _failed_without_call(
-            session,
-            library,
-            profile,
-            input_hash,
-            "prompt_output_schema_mismatch",
-            effective_alias,
-            trace_id,
-        )
-    if input_error is not None:
-        return _failed_without_call(
-            session,
-            library,
-            profile,
-            input_hash,
-            input_error,
-            effective_alias,
-            trace_id,
-        )
-    if not effective_alias:
-        return _failed_without_call(
-            session,
-            library,
-            profile,
-            input_hash,
-            "governance_model_missing",
-            effective_alias,
-            trace_id,
-        )
-
-    try:
-        request_payload = _apply_redaction_policy(
-            session,
-            source_payload,
-            policy=profile.redaction_policy,
-            sensitivity_level=(library.normalized_ref.governance or {}).get(
-                "level", "L1"
-            ),
-            effective_alias=effective_alias,
-        )
-    except ValueError:
-        return _failed_without_call(
-            session,
-            library,
-            profile,
-            input_hash,
-            "redaction_policy_blocked",
-            effective_alias,
-            trace_id,
-        )
-
-    input_hash = _input_hash(request_payload, profile, effective_alias)
-    completed = session.scalars(
-        select(models.TeachingStandardDerivationRun)
-        .where(
-            models.TeachingStandardDerivationRun.library_id == library.id,
-            models.TeachingStandardDerivationRun.input_hash == input_hash,
-            models.TeachingStandardDerivationRun.status == "completed",
-        )
-        .order_by(models.TeachingStandardDerivationRun.completed_at.desc())
-    ).first()
+    completed = prepared.completed
     if completed is not None:
         return DerivationResult(
             run_id=completed.id,
@@ -156,6 +156,11 @@ def derive_library(
             course_count=len(library.courses),
             reused=True,
         )
+    if profile is None or prepared.request_payload is None:
+        raise RuntimeError(
+            "valid derivation preflight lacks Profile or request payload"
+        )
+    request_payload = prepared.request_payload
 
     run = models.TeachingStandardDerivationRun(
         library_id=library.id,
@@ -220,8 +225,28 @@ def derive_library(
         )
 
     try:
-        output = TeachingStandardDerivationOutput.model_validate(json.loads(raw_output))
-    except (json.JSONDecodeError, TypeError, ValidationError):
+        decoded_output = json.loads(raw_output)
+    except (json.JSONDecodeError, TypeError) as exc:
+        logger.warning(
+            "teaching-standard derivation returned invalid JSON: %s",
+            type(exc).__name__,
+        )
+        return _fail_run(
+            session,
+            run_id,
+            library.id,
+            "batch_derivation_schema_invalid",
+            effective_alias,
+            len(source_payload["courses"]),
+            trace_id,
+        )
+    try:
+        output = TeachingStandardDerivationOutput.model_validate(decoded_output)
+    except ValidationError as exc:
+        logger.warning(
+            "teaching-standard derivation schema errors: %s",
+            exc.errors(include_url=False, include_input=False)[:20],
+        )
         return _fail_run(
             session,
             run_id,
@@ -376,6 +401,81 @@ def derive_library(
     )
 
 
+def _prepare_derivation(
+    session: Session,
+    library: models.TeachingStandardLibrary,
+    default_governance_model: str,
+) -> _PreparedDerivation:
+    profile = _load_active_profile(session)
+    effective_alias = _effective_model_alias(profile, default_governance_model)
+    model_source = _effective_model_source(profile, effective_alias)
+    source_payload, input_error = _build_source_payload(library)
+    input_hash = _input_hash(source_payload, profile, effective_alias)
+    failure_code = None
+    if library.status != "review":
+        failure_code = "library_not_review"
+    elif profile is None:
+        failure_code = "prompt_profile_missing"
+    elif profile.output_schema_version != DERIVATION_SCHEMA_VERSION:
+        failure_code = "prompt_output_schema_mismatch"
+    elif input_error is not None:
+        failure_code = input_error
+    elif not effective_alias:
+        failure_code = "governance_model_missing"
+    if failure_code is not None:
+        return _PreparedDerivation(
+            profile,
+            effective_alias,
+            model_source,
+            source_payload,
+            None,
+            input_hash,
+            failure_code,
+        )
+
+    try:
+        request_payload = _apply_redaction_policy(
+            session,
+            source_payload,
+            policy=profile.redaction_policy,
+            sensitivity_level=(library.normalized_ref.governance or {}).get(
+                "level", "L1"
+            ),
+            effective_alias=effective_alias,
+        )
+    except ValueError:
+        return _PreparedDerivation(
+            profile,
+            effective_alias,
+            model_source,
+            source_payload,
+            None,
+            input_hash,
+            "redaction_policy_blocked",
+        )
+
+    input_hash = _input_hash(request_payload, profile, effective_alias)
+    completed = session.scalars(
+        select(models.TeachingStandardDerivationRun)
+        .where(
+            models.TeachingStandardDerivationRun.library_id == library.id,
+            models.TeachingStandardDerivationRun.input_hash == input_hash,
+            models.TeachingStandardDerivationRun.status == "completed",
+        )
+        .order_by(models.TeachingStandardDerivationRun.completed_at.desc())
+    ).first()
+    return _PreparedDerivation(
+        profile,
+        effective_alias,
+        model_source,
+        source_payload,
+        request_payload,
+        input_hash,
+        None,
+        completed,
+    )
+
+
 def _load_active_profile(session: Session) -> models.AIPromptProfile | None:
     return session.scalars(
         select(models.AIPromptProfile)
@@ -398,6 +498,14 @@ def _effective_model_alias(
     return profile_alias or default_governance_model.strip()
 
 
+def _effective_model_source(
+    profile: models.AIPromptProfile | None, effective_alias: str
+) -> str:
+    if profile is not None and (profile.litellm_model_alias or "").strip():
+        return "profile"
+    return "environment" if effective_alias else "missing"
+
+
 def _build_source_payload(
     library: models.TeachingStandardLibrary,
 ) -> tuple[dict[str, Any], str | None]:
@@ -406,6 +514,13 @@ def _build_source_payload(
         training_goal = {}
     training_text = str(training_goal.get("text") or "").strip()
     training_ids = _clean_ids(training_goal.get("evidence_block_ids"))
+    training_specification = (library.source_evidence or {}).get(
+        "training_specification_source"
+    )
+    if not isinstance(training_specification, dict):
+        training_specification = {}
+    specification_text = str(training_specification.get("text") or "").strip()
+    specification_ids = _clean_ids(training_specification.get("evidence_block_ids"))
     courses = sorted(
         library.courses,
         key=lambda item: (item.source_order, item.course_id),
@@ -414,7 +529,6 @@ def _build_source_payload(
         "schema_version": DERIVATION_SCHEMA_VERSION,
         "standard": {
             "library_id": library.id,
-            "standard_id": library.standard_id,
             "standard_title": library.standard_title,
             "major_name": library.major_name,
             "education_level": library.education_level,
@@ -422,6 +536,11 @@ def _build_source_payload(
                 "text": training_text[:12000],
                 "evidence_block_ids": training_ids,
                 "locator": training_goal.get("locator") or {},
+            },
+            "training_specification": {
+                "text": specification_text[:12000],
+                "evidence_block_ids": specification_ids,
+                "locator": training_specification.get("locator") or {},
             },
             "hour_rules": [
                 {
@@ -497,11 +616,13 @@ def _apply_redaction_policy(
     copied = json.loads(json.dumps(payload, ensure_ascii=False))
     if policy == "metadata_only":
         copied["standard"]["training_goal"]["text"] = "[METADATA_ONLY]"
+        copied["standard"]["training_specification"]["text"] = "[METADATA_ONLY]"
         for course in copied["courses"]:
             course["typical_work_task_description"] = "[METADATA_ONLY]"
             course["teaching_content_requirement"] = "[METADATA_ONLY]"
     elif sensitivity_level in {"L3", "L4"} and policy == "masked_content":
         copied["standard"]["training_goal"]["text"] = "[MASKED]"
+        copied["standard"]["training_specification"]["text"] = "[MASKED]"
         for course in copied["courses"]:
             course["typical_work_task_description"] = "[MASKED]"
             course["teaching_content_requirement"] = "[MASKED]"
@@ -515,16 +636,26 @@ def _evidence_is_valid(
 ) -> bool:
     training_goal = (library.source_evidence or {}).get("training_goal_source") or {}
     training_allowed = set(_clean_ids(training_goal.get("evidence_block_ids")))
+    training_specification = (library.source_evidence or {}).get(
+        "training_specification_source"
+    ) or {}
+    specification_allowed = set(
+        _clean_ids(training_specification.get("evidence_block_ids"))
+    )
     if not set(output.training_goal_evidence_block_ids).issubset(training_allowed):
         return False
     for item in output.courses:
-        allowed = set(_course_evidence_ids(courses_by_id[item.course_id]))
+        course = courses_by_id[item.course_id]
+        course_allowed = set(_course_evidence_ids(course))
+        allowed = set(course_allowed)
+        if course.course_type in {"foundation", "extension"}:
+            allowed.update(specification_allowed)
         if not set(item.evidence_block_ids).issubset(allowed):
             return False
         actual_tools = [tag for tag in item.tool_tags if tag != NO_SPECIFIC_TOOL]
         if actual_tools and not item.tool_evidence_block_ids:
             return False
-        if not set(item.tool_evidence_block_ids).issubset(allowed):
+        if not set(item.tool_evidence_block_ids).issubset(course_allowed):
             return False
     return True
 
@@ -551,12 +682,18 @@ def _input_hash(
     profile: models.AIPromptProfile | None,
     effective_alias: str,
 ) -> str:
+    hash_payload = json.loads(json.dumps(payload, ensure_ascii=False))
+    standard = hash_payload.get("standard")
+    if isinstance(standard, dict):
+        # Slice 5B removed the persistently-empty field. Keep the historical
+        # null in hash canonicalization so completed pre-migration runs reuse.
+        standard.setdefault("standard_id", None)
     return _canonical_hash(
         {
             "derivation_version": DERIVATION_VERSION,
             "prompt_profile_id": profile.id if profile is not None else None,
             "effective_model_alias": effective_alias,
-            "payload": payload,
+            "payload": hash_payload,
         }
     )
 
@@ -667,6 +804,10 @@ __all__ = [
     "PROFILE_NAME",
     "SCENARIO",
     "TASK_TYPE",
+    "DerivationModelPreview",
+    "DerivationPreview",
     "DerivationResult",
     "derive_library",
+    "preview_derivation_model",
+    "preview_library_derivation",
 ]

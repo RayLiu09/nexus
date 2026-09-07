@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
-from sqlalchemy import select
+from sqlalchemy import inspect, select
 
 from nexus_app import models
 from nexus_app.enums import (
@@ -11,6 +11,7 @@ from nexus_app.enums import (
     AssetVersionStatus,
     AuditEventType,
     DataSourceType,
+    GovernanceResultStatus,
     IngestBatchStatus,
     NormalizedAssetRefStatus,
     NormalizedType,
@@ -30,6 +31,14 @@ def _payload() -> dict:
         "content_type": "document",
         "title": "电子商务（530701）专业教学标准（高等职业教育专科）",
         "blocks": [
+            _block("b0", "heading", "专业基本信息", 1),
+            _block(
+                "b0-1",
+                "paragraph",
+                "所属专业大类（代码） | 财经商贸大类（53） |\n"
+                "所属专业类（代码) | 电子商务类（5307) |",
+                1,
+            ),
             _block("b1", "heading", "一、职业面向", 1),
             _block(
                 "b2",
@@ -38,7 +47,16 @@ def _payload() -> dict:
                 1,
             ),
             _block("b3", "heading", "二、培养目标", 1),
-            _block("b4", "paragraph", "培养能够从事网络营销、网店运营工作的技术技能人才。", 1),
+            _block(
+                "b4",
+                "paragraph",
+                "培养能够从事网络营销、网店运营工作的技术技能人才。",
+                1,
+            ),
+            _block("b4-1", "heading", "三、培养规格", 2),
+            _block(
+                "b4-2", "paragraph", "具有数字素养、团队协作能力和持续学习能力。", 2
+            ),
             _block("b5", "heading", "三、专业基础课程", 2),
             _block("b6", "paragraph", "电子商务基础、市场营销。", 2),
             _block("b7", "heading", "四、专业核心课程", 2),
@@ -107,7 +125,13 @@ def _seed_ref(session) -> models.NormalizedAssetRef:
         metadata_summary={},
         title="电子商务（530701）专业教学标准",
     )
-    session.add_all([source, batch, raw, asset, version, ref])
+    governance_result = models.GovernanceResult(
+        id="tsl-governance-result",
+        normalized_ref_id=ref.id,
+        classification="teaching_standard",
+        status=GovernanceResultStatus.AVAILABLE,
+    )
+    session.add_all([source, batch, raw, asset, version, ref, governance_result])
     session.commit()
     return ref
 
@@ -119,14 +143,23 @@ def test_extracts_only_evidence_bound_standard_facts() -> None:
     assert projection["major_code"] == "530701"
     assert projection["major_name"] == "电子商务"
     assert projection["education_level"] == "高等职业教育专科"
+    assert projection["major_category"] == {"code": "53", "name": "财经商贸大类"}
+    assert projection["major_class"] == {"code": "5307", "name": "电子商务类"}
     assert projection["course_structures"] == ["foundation", "core", "extension"]
     assert projection["training_goal_source"]["text"].startswith("培养能够")
+    assert projection["training_specification_source"] == {
+        "text": "具有数字素养、团队协作能力和持续学习能力。",
+        "evidence_block_ids": ["b4-2"],
+        "locator": {"heading_path": ["培养规格"], "pages": [2]},
+    }
     assert "training_goal_summary" not in projection
     rules = {rule["rule_type"]: rule for rule in projection["rules"]}
     assert rules["total_hours"]["numeric_value"] == 2500
     assert rules["practice_ratio"]["numeric_value"] == 0.6
     assert rules["internship_months"]["numeric_value"] == 6
     assert all(item["evidence_block_ids"] for item in projection["occupations"])
+    assert "standard_id" not in projection
+    assert "standard_id" not in inspect(models.TeachingStandardLibrary).columns
 
 
 def test_unrelated_document_creates_no_standard_projection() -> None:
@@ -171,7 +204,8 @@ def test_hour_rules_preserve_overlapping_constraints_without_summing() -> None:
     assert by_type["elective_ratio"][0]["comparator"] == ">="
     assert by_type["elective_ratio"][0]["numeric_value"] == 0.1
     assert [
-        (rule["comparator"], rule["numeric_value"]) for rule in by_type["internship_months"]
+        (rule["comparator"], rule["numeric_value"])
+        for rule in by_type["internship_months"]
     ] == [("<=", 6), ("<=", 3)]
     assert (
         sum(
@@ -202,7 +236,8 @@ def test_occupation_table_columns_create_separate_source_scoped_dimensions() -> 
 
     assert projection is not None
     facts = {
-        (fact["dimension_type"], fact["source_name"]): fact for fact in projection["occupations"]
+        (fact["dimension_type"], fact["source_name"]): fact
+        for fact in projection["occupations"]
     }
     assert facts[("applied_industry", "互联网和相关服务")]["source_code"] == "64"
     assert facts[("occupation_type", "电子商务师")]["source_code"] == "4-01-06-01"
@@ -240,7 +275,9 @@ def test_writer_replaces_children_and_keeps_review_status(session) -> None:
     )
 
 
-def test_worker_projection_reads_normalized_document_and_audits_generation(session) -> None:
+def test_worker_projection_reads_normalized_document_and_audits_generation(
+    session,
+) -> None:
     ref = _seed_ref(session)
     raw = session.get(models.RawObject, "tsl-raw")
     assert raw is not None
@@ -262,7 +299,8 @@ def test_worker_projection_reads_normalized_document_and_audits_generation(sessi
     library = session.scalar(select(models.TeachingStandardLibrary))
     audit = session.scalar(
         select(models.AuditLog).where(
-            models.AuditLog.event_type == AuditEventType.TEACHING_STANDARD_LIBRARY_GENERATED
+            models.AuditLog.event_type
+            == AuditEventType.TEACHING_STANDARD_LIBRARY_GENERATED
         )
     )
     assert library is not None
@@ -275,7 +313,8 @@ def test_worker_projection_reads_normalized_document_and_audits_generation(sessi
     derivation = session.scalar(select(models.TeachingStandardDerivationRun))
     derivation_audit = session.scalar(
         select(models.AuditLog).where(
-            models.AuditLog.event_type == AuditEventType.TEACHING_STANDARD_COURSE_DERIVATION_FAILED
+            models.AuditLog.event_type
+            == AuditEventType.TEACHING_STANDARD_COURSE_DERIVATION_FAILED
         )
     )
     assert derivation is not None

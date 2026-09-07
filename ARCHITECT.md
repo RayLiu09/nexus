@@ -74,6 +74,12 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
   Course rows do not duplicate parent major context or carry independent state;
   repeated occurrences merge evidence under the unique key
   `(library_id, course_type, standard_course_name)`.
+- Historical teaching-standard projection uses a dry-run-first operational
+  command over generated `normalized_document` objects only. Dry-run performs
+  no writes or LiteLLM calls; apply reuses the same fact writers and one-batch
+  derivation service, isolates failures per normalized ref, and leaves every
+  new standard in `review`. Activation and supersession remain deferred with
+  the Nexus Console whole-library review design.
 - MinerU is called with auto-selected `model_version` and `ocr_enable`; images are stored alongside the JSON result.
 - Knowledge Pipeline is independent of Asset Pipeline; they connect only through `normalized_asset_ref`.
 - Query Router may use request-scoped public-web fallback only after a
@@ -156,9 +162,16 @@ standard projection, not a `major_profile` extension. It materializes one
 identified professional foundation/core/extension sections and uniquely keyed
 by parent, type, and literal name; repeated occurrences merge source evidence.
 They do not duplicate parent major fields or carry independent state. New
-standards start in the domain state `review`; missing standard identifiers
-remain NULL, and no global industry/occupation/position/certificate master data
-is created.
+standards start in the domain state `review`; the unused standard identifier is
+not persisted, and no global industry/occupation/position/certificate master
+data is created. Category/class codes and names are split from the same source
+table value, excluding header and Markdown separator noise. Whole-standard
+derivation keeps training goal and training
+specification as separate standard-level evidence. Core-course semantic fields
+remain course-evidence-only; foundation and extension courses may additionally
+use training-specification evidence when their own source rows are insufficient.
+Course tag arrays use PostgreSQL JSONB so Chinese tag values remain directly
+readable in database text output.
 Public-foundation, professional-course, practice, elective, and internship
 hour rules are independent, potentially overlapping source constraints. Their
 ratios must never be summed as mutually exclusive parts of total hours.

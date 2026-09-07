@@ -16,7 +16,9 @@ if TYPE_CHECKING:
 
 
 def write(
-    session: "Session", normalized_ref: models.NormalizedAssetRef, payload: dict[str, Any]
+    session: "Session",
+    normalized_ref: models.NormalizedAssetRef,
+    payload: dict[str, Any],
 ) -> models.TeachingStandardLibrary | None:
     validated, flags = validate_payload(payload)
     if validated is None or validated.get("schema_version") != DOMAIN_PROFILE:
@@ -26,16 +28,13 @@ def write(
             models.TeachingStandardLibrary.normalized_ref_id == normalized_ref.id
         )
     )
-    digest = hashlib.sha256(
-        json.dumps(validated, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
+    digest = _validated_source_digest(validated)
     category = validated.get("major_category") or {}
     major_class = validated.get("major_class") or {}
     values = {
         "normalized_ref_id": normalized_ref.id,
         "asset_version_id": normalized_ref.version_id,
         "domain_profile": DOMAIN_PROFILE,
-        "standard_id": validated.get("standard_id"),
         "standard_title": validated.get("standard_title"),
         "major_code": validated.get("major_code"),
         "major_name": validated.get("major_name"),
@@ -52,6 +51,9 @@ def write(
         "source_evidence": {
             **(validated.get("source_evidence") or {}),
             "training_goal_source": validated.get("training_goal_source"),
+            "training_specification_source": validated.get(
+                "training_specification_source"
+            ),
         },
         "quality_flags": flags,
     }
@@ -111,3 +113,22 @@ def write(
     session.flush()
     session.expire(library, ["occupations", "rules"])
     return library
+
+
+def source_fact_digest(payload: dict[str, Any]) -> str | None:
+    """Return the writer's canonical source digest without mutating a session."""
+    validated, _flags = validate_payload(payload)
+    if validated is None or validated.get("schema_version") != DOMAIN_PROFILE:
+        return None
+    return _validated_source_digest(validated)
+
+
+def _validated_source_digest(validated: dict[str, Any]) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            validated,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
