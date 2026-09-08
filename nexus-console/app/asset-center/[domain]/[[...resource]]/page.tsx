@@ -3,7 +3,12 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { PageHeader } from "@/components/PageHeader";
-import { getApiData, type TeachingStandardCourse, type TeachingStandardLibrary } from "@/lib/api";
+import {
+  getApiData,
+  type MajorDistributionRecord,
+  type TeachingStandardCourse,
+  type TeachingStandardLibrary,
+} from "@/lib/api";
 import { findAssetCenterDomain, findAssetCenterResource } from "@/lib/asset-center/catalog";
 import { DEFAULT_PAGE_SIZE, parsePaginationParams } from "@/lib/pagination";
 import { normalizePolicyLevel } from "../../_components/PolicyLevelNav";
@@ -16,6 +21,10 @@ import {
   StandardCourseLibraryTable,
   type StandardCourseFilters,
 } from "../../_components/StandardCourseLibraryTable";
+import {
+  MajorDistributionTable,
+  type MajorDistributionFilters,
+} from "../../_components/MajorDistributionTable";
 
 type AssetCenterRouteProps = {
   params: Promise<{ domain: string; resource?: string[] }>;
@@ -41,6 +50,47 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
   const pagination = parsePaginationParams(query);
   const page = pagination.page ?? 1;
   const pageSize = pagination.pageSize ?? DEFAULT_PAGE_SIZE;
+
+  if (domain.slug === "major" && resource.path === "distributions") {
+    const filters: MajorDistributionFilters = {
+      year: first(query.year),
+      province_name: first(query.province_name),
+      major_name: first(query.major_name),
+      major_code: first(query.major_code),
+      education_level: first(query.education_level),
+      region_scope: first(query.region_scope),
+    };
+    const result = await getApiData<MajorDistributionRecord[]>(
+      "/internal/v1/record-assets/major-distribution-records",
+      [],
+      {
+        page: String(page),
+        pageSize: String(pageSize),
+        ...Object.fromEntries(
+          Object.entries(filters).filter((entry): entry is [string, string] => Boolean(entry[1])),
+        ),
+      },
+    );
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          eyebrow={domain.name}
+          title={resource.name}
+          description={resource.description}
+        />
+        <MajorDistributionTable
+          rows={result.data}
+          total={result.total ?? result.data.length}
+          page={page}
+          pageSize={pageSize}
+          filters={filters}
+          ok={result.ok}
+          error={result.error}
+          traceId={result.traceId}
+        />
+      </div>
+    );
+  }
 
   if (domain.slug === "major" && resource.path === "teaching-standards") {
     const filters: TeachingStandardFilters = {

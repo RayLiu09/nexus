@@ -125,6 +125,49 @@ test.describe("Asset Center IA-1", () => {
     }
   });
 
+  test("renders the cross-dataset professional distribution business list", async ({ page }) => {
+    const antdWarnings: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "warning" && message.text().includes("[antd:")) {
+        antdWarnings.push(message.text());
+      }
+    });
+    await page.goto("/asset-center/major/distributions");
+
+    await expect(page.getByRole("heading", { level: 1, name: "专业布点数据" })).toBeVisible();
+    await expect(page.getByText("暂无可用业务视图")).toHaveCount(0);
+    for (const heading of [
+      "年份",
+      "省份",
+      "专业名称",
+      "专业代码",
+      "培养层次",
+      "区域",
+      "布点数",
+      "操作",
+    ]) {
+      await expect(page.getByRole("columnheader", { name: heading })).toBeVisible();
+    }
+    await expect(page.getByRole("button", { name: /编辑/ }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /删除/ }).first()).toBeVisible();
+    expect(antdWarnings).toEqual([]);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+  });
+
+  test("keeps the professional distribution list out of technical asset detail", async ({
+    page,
+  }) => {
+    const assetId = process.env.NEXUS_E2E_MAJOR_DISTRIBUTION_ASSET_ID;
+    test.skip(!assetId, "No professional-distribution asset ID was supplied");
+
+    await page.goto(`/assets/${assetId}`);
+
+    await expect(page.getByRole("tab", { name: "结构化图谱" })).toHaveCount(0);
+    await expect(page.getByText("专业布点列表")).toHaveCount(0);
+  });
+
   test("renders the expandable standard-course library and evidence drawer", async ({
     page,
   }, testInfo) => {

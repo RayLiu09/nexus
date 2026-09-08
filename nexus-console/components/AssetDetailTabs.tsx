@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { tagLabel, type TagDictionary } from "@/lib/tagLabels";
 import { Tabs, Tag, Progress, Empty } from "antd";
 import { StatusLabel } from "@/components/StatusLabel";
@@ -10,7 +10,6 @@ import { DocumentKnowledgeView } from "@/app/assets/[assetId]/_components/Docume
 import { SourcePreviewSection } from "@/app/assets/[assetId]/_components/SourcePreviewSection";
 import { JobDemandKnowledgeView } from "@/app/assets/[assetId]/_components/JobDemandKnowledgeView";
 import { AbilityAnalysisKnowledgeView } from "@/app/assets/[assetId]/_components/AbilityAnalysisKnowledgeView";
-import { MajorDistributionKnowledgeView } from "@/app/assets/[assetId]/_components/MajorDistributionKnowledgeView";
 import { MajorProfileKnowledgeView } from "@/app/assets/[assetId]/_components/MajorProfileKnowledgeView";
 import { TalentTrainingPlanKnowledgeView } from "@/app/assets/[assetId]/_components/TalentTrainingPlanKnowledgeView";
 import { TeachingStandardKnowledgeView } from "@/app/assets/[assetId]/_components/TeachingStandardKnowledgeView";
@@ -285,9 +284,6 @@ function KnowledgeChunksTab({
   }
   if (view === "ability_analysis" && latestRef) {
     return <AbilityAnalysisKnowledgeView normalizedRef={latestRef} assetTitle={assetTitle} />;
-  }
-  if (view === "major_distribution" && latestRef) {
-    return <MajorDistributionKnowledgeView normalizedRefId={latestRef.id} />;
   }
   if (view === "generic_table" && latestRef) {
     return <GenericRecordKnowledgeView normalizedRef={latestRef} />;
@@ -751,15 +747,18 @@ export function AssetDetailTabs({
   talentTrainingPlanId,
   teachingStandardGraphBuildType,
 }: Props) {
-  const [activeTab, setActiveTab] = useState("lineage");
+  const [selectedTab, setSelectedTab] = useState("lineage");
   const knowledgeTabLabel = latestRef?.normalized_type === "record" ? "结构化图谱" : "知识块";
   const isRecordAsset = latestRef?.normalized_type === "record";
-
-  useEffect(() => {
-    if (isRecordAsset && activeTab === "preview") {
-      setActiveTab("lineage");
-    }
-  }, [activeTab, isRecordAsset]);
+  const isMajorDistribution =
+    resolveRecordView(latestRef) === "major_distribution" ||
+    latestGovernanceResult?.classification === "major_distribution" ||
+    asset?.metadata_summary?.domain_profile === "major_distribution.v1";
+  const activeTab =
+    (isRecordAsset && selectedTab === "preview") ||
+    (isMajorDistribution && selectedTab === "knowledge-chunks")
+      ? "lineage"
+      : selectedTab;
 
   // Wired to KnowledgeOutlineView's Drawer "跳到原文" button.
   // Setting `location.hash` before the tab switch lets SourcePreviewSection
@@ -768,10 +767,14 @@ export function AssetDetailTabs({
     if (typeof window !== "undefined") {
       window.location.hash = `#block-${blockId}`;
     }
-    setActiveTab("preview");
+    setSelectedTab("preview");
   }, []);
 
-  const tabItems = TABS.filter((tab) => !(isRecordAsset && tab.key === "preview")).map((t) => {
+  const tabItems = TABS.filter(
+    (tab) =>
+      !(isRecordAsset && tab.key === "preview") &&
+      !(isMajorDistribution && tab.key === "knowledge-chunks"),
+  ).map((t) => {
     const badgeCount =
       t.key === "ai-governance" && (governanceRuns.length > 0 || latestGovernanceResult)
         ? Math.max(governanceRuns.length, 1)
@@ -805,7 +808,7 @@ export function AssetDetailTabs({
     <>
       <div className="card" style={{ marginBottom: 0 }}>
         <div className="card-header" style={{ borderBottom: "1px solid var(--line)" }}>
-          <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
+          <Tabs activeKey={activeTab} onChange={setSelectedTab} items={tabItems} />
         </div>
       </div>
 

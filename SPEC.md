@@ -161,6 +161,14 @@ Asset Center IA-1:
   reads `teaching_standard_course` records and is not a governance
   classification. Existing
   `competency_analysis` is presented under this domain rather than market data.
+- **专业布点业务视图**: `/asset-center/major/distributions` reads
+  `major_distribution_record` facts across datasets and exposes year,
+  province, professional name/code, education level, region scope, and count.
+  Its filters and pagination execute server-side; record corrections and
+  deletion reuse the existing audited internal endpoints. Because these are
+  boundary-free record facts, the business list is no longer mounted in an
+  individual `/assets/{asset_id}` detail, and professional-distribution asset
+  details do not expose the `结构化图谱` tab.
 - **专业教学标准业务视图**: the paginated list exposes professional code/name,
   category/class names with codes, education level, and study years. `课程库`
   opens the standard-course list scoped by parent library. `职业领域图谱` opens
