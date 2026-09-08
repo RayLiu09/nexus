@@ -190,6 +190,20 @@ Asset Center IA-1:
   counts are projected for the current page in one grouped query and are not
   persisted. The migrated views and `结构化图谱` tab are no longer present in
   the technical asset detail.
+- **人才培养方案业务视图**: `/asset-center/major/training-plans` exposes an
+  expandable, server-paginated list with professional name/code, study
+  duration, education level, and institution. The expanded non-table
+  information panel groups professional category/class under professional
+  belonging and industry/occupation/position under career orientation, with
+  position allocated the widest content track. Source codes remain visible
+  where present. The list admits only the current catalog-visible asset/version/ref
+  rows whose latest official classification is `talent_training_plan`, so its
+  total matches the Asset Center count and excludes archived, failed, or
+  superseded projections. `课程知识图谱` and `岗位能力图谱` open
+  the existing evidence-bound graphs in right Drawers and fetch only the
+  selected graph. These two plan-specific graph choices are removed from
+  technical asset detail, which retains the generic RAG/document knowledge
+  view.
 - **市场数据**: job-demand records, industrial parks, enterprises, and
   certificates. Industrial parks and enterprises are future fixed-schema
   imports from their own lists; IA-1 adds neither governance classification.

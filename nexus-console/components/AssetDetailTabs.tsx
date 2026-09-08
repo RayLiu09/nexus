@@ -10,14 +10,12 @@ import { DocumentKnowledgeView } from "@/app/assets/[assetId]/_components/Docume
 import { SourcePreviewSection } from "@/app/assets/[assetId]/_components/SourcePreviewSection";
 import { JobDemandKnowledgeView } from "@/app/assets/[assetId]/_components/JobDemandKnowledgeView";
 import { MajorProfileKnowledgeView } from "@/app/assets/[assetId]/_components/MajorProfileKnowledgeView";
-import { TalentTrainingPlanKnowledgeView } from "@/app/assets/[assetId]/_components/TalentTrainingPlanKnowledgeView";
 import { TeachingStandardKnowledgeView } from "@/app/assets/[assetId]/_components/TeachingStandardKnowledgeView";
 import type { CapabilityGraphBuildType } from "@/app/assets/[assetId]/_components/CapabilityGraphView";
 import { GenericRecordKnowledgeView } from "@/app/assets/[assetId]/_components/GenericRecordKnowledgeView";
 import { resolveRecordView, shouldUseMajorProfileView } from "@/lib/api";
 import {
   formatDateTime,
-  shortId,
   type Asset,
   type AssetVersion,
   type NormalizedAssetRef,
@@ -46,7 +44,6 @@ type Props = {
   rawObjectNames?: Map<string, string>;
   dataSourceName?: string | null;
   tagDictionary: TagDictionary;
-  talentTrainingPlanId?: string | null;
   teachingStandardGraphBuildType?: Extract<
     CapabilityGraphBuildType,
     "teaching_standard" | "course_standard"
@@ -95,7 +92,6 @@ function LineageTab({
   latestRef,
   relatedArtifact,
   rawObjectNames,
-  dataSourceName,
 }: Omit<
   Props,
   | "versions"
@@ -222,7 +218,6 @@ function KnowledgeChunksTab({
   taskOutlineOk,
   taskOutlineError,
   taskOutlineTraceId,
-  talentTrainingPlanId,
   onJumpToBlock,
   teachingStandardGraphBuildType = "teaching_standard",
 }: {
@@ -233,7 +228,6 @@ function KnowledgeChunksTab({
   taskOutlineOk?: boolean;
   taskOutlineError?: string | null;
   taskOutlineTraceId?: string | null;
-  talentTrainingPlanId?: string | null;
   onJumpToBlock?: (blockId: string) => void;
   teachingStandardGraphBuildType?: Extract<
     CapabilityGraphBuildType,
@@ -254,17 +248,6 @@ function KnowledgeChunksTab({
     view === "teaching_standard" ||
     latestGovernanceResult?.classification === "teaching_standard" ||
     asset?.metadata_summary?.domain_profile === "teaching_standard.v1";
-  const isTalentTrainingPlan =
-    latestGovernanceResult?.classification === "talent_training_plan" ||
-    Boolean(talentTrainingPlanId);
-  if (isTalentTrainingPlan) {
-    return (
-      <TalentTrainingPlanKnowledgeView
-        normalizedRefId={latestRef?.id ?? null}
-        planId={talentTrainingPlanId ?? null}
-      />
-    );
-  }
   if (latestRef && shouldUseMajorProfileView(latestRef, latestGovernanceResult?.classification)) {
     return <MajorProfileKnowledgeView normalizedRefId={latestRef.id} />;
   }
@@ -738,7 +721,6 @@ export function AssetDetailTabs({
   rawObjectNames,
   dataSourceName,
   tagDictionary,
-  talentTrainingPlanId,
   teachingStandardGraphBuildType,
 }: Props) {
   const [selectedTab, setSelectedTab] = useState("lineage");
@@ -832,7 +814,6 @@ export function AssetDetailTabs({
             taskOutlineOk={taskOutlineOk}
             taskOutlineError={taskOutlineError}
             taskOutlineTraceId={taskOutlineTraceId}
-            talentTrainingPlanId={talentTrainingPlanId}
             onJumpToBlock={handleJumpToBlock}
             teachingStandardGraphBuildType={teachingStandardGraphBuildType}
           />

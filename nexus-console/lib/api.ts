@@ -274,6 +274,37 @@ export type TalentTrainingPlanGraph = {
   edges: TalentTrainingPlanGraphEdge[];
 };
 
+export type TalentTrainingPlanCareerFact = {
+  name: string;
+  code?: string;
+};
+
+export type TalentTrainingPlanCareerSummary = {
+  major_categories: TalentTrainingPlanCareerFact[];
+  major_classes: TalentTrainingPlanCareerFact[];
+  industries: TalentTrainingPlanCareerFact[];
+  occupations: TalentTrainingPlanCareerFact[];
+  positions: TalentTrainingPlanCareerFact[];
+};
+
+export type TalentTrainingPlanSummary = {
+  id: string;
+  normalized_ref_id: string;
+  asset_version_id: string;
+  institution_name: string | null;
+  major_name: string | null;
+  major_code: string | null;
+  education_level: string | null;
+  study_duration: string | null;
+  training_goal: string | null;
+  confidence: number | null;
+  status: string;
+  course_count: number;
+  career_orientation_summary: TalentTrainingPlanCareerSummary;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 export type TeachingStandardLibrary = {
   id: string;
   normalized_ref_id: string;

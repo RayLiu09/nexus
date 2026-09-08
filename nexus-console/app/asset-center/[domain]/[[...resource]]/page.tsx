@@ -7,6 +7,7 @@ import {
   type AbilityAnalysis,
   getApiData,
   type MajorDistributionRecord,
+  type TalentTrainingPlanSummary,
   type TeachingStandardCourse,
   type TeachingStandardLibrary,
 } from "@/lib/api";
@@ -30,6 +31,10 @@ import {
   OccupationalAnalysisTable,
   type OccupationalAnalysisFilters,
 } from "../../_components/OccupationalAnalysisTable";
+import {
+  TalentTrainingPlansTable,
+  type TalentTrainingPlanFilters,
+} from "../../_components/TalentTrainingPlansTable";
 
 type AssetCenterRouteProps = {
   params: Promise<{ domain: string; resource?: string[] }>;
@@ -114,6 +119,47 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
           description={resource.description}
         />
         <MajorDistributionTable
+          rows={result.data}
+          total={result.total ?? result.data.length}
+          page={page}
+          pageSize={pageSize}
+          filters={filters}
+          ok={result.ok}
+          error={result.error}
+          traceId={result.traceId}
+        />
+      </div>
+    );
+  }
+
+  if (domain.slug === "major" && resource.path === "training-plans") {
+    const filters: TalentTrainingPlanFilters = {
+      major_name: first(query.major_name),
+      major_code: first(query.major_code),
+      institution_name: first(query.institution_name),
+      education_level: first(query.education_level),
+    };
+    const result = await getApiData<TalentTrainingPlanSummary[]>(
+      "/internal/v1/talent-training-plans",
+      [],
+      {
+        page: String(page),
+        pageSize: String(pageSize),
+        official_only: "true",
+        catalog_visible_only: "true",
+        ...Object.fromEntries(
+          Object.entries(filters).filter((entry): entry is [string, string] => Boolean(entry[1])),
+        ),
+      },
+    );
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          eyebrow={domain.name}
+          title={resource.name}
+          description={resource.description}
+        />
+        <TalentTrainingPlansTable
           rows={result.data}
           total={result.total ?? result.data.length}
           page={page}

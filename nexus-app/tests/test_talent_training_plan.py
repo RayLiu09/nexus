@@ -61,9 +61,9 @@ def test_extracts_plan_facts_from_normalized_markdown_tables() -> None:
 | --- | --- |
 | 专业代码 | 330702 |"""),
             _block("b2", """四、职业面向
-| 对应行业（代码） | 主要职业类别（代码） | 主要岗位（群） |
-| --- | --- | --- |
-| 批发业（51） | 电子商务师（4-01-06-01） | 跨境电商运营经理；跨境电商客服经理 |"""),
+| 所属专业大类（代码） | 所属专业类（代码） | 对应行业（代码） | 主要职业类别（代码） | 主要岗位（群） | 职业技能等级证书或行业企业标准证书举例 |
+| --- | --- | --- | --- | --- | --- |
+| 财经商贸大类（53） | 电子商务类（5307） | 批发业（51） | 电子商务师（4-01-06-01） | 跨境电商运营经理；跨境电商客服经理 | 跨境电商B2B数据运营职业技能等级证书 |"""),
             _block("b2-key-value", """|  |  |
 | --- | --- |
 | 对应行业（代码） | 批发业（51）零售业（52） |
@@ -81,15 +81,141 @@ def test_extracts_plan_facts_from_normalized_markdown_tables() -> None:
     assert plan["major_name"] == "跨境电子商务"
     assert plan["major_code"] == "330702"
     assert plan["institution_name"] == "浙江机电职业技术大学"
+    assert plan["career_orientation"]["major_categories"][0]["name"] == "财经商贸大类"
+    assert plan["career_orientation"]["major_categories"][0]["code"] == "53"
+    assert plan["career_orientation"]["major_classes"][0]["name"] == "电子商务类"
+    assert plan["career_orientation"]["major_classes"][0]["code"] == "5307"
     assert {item["name"] for item in plan["career_orientation"]["positions"]} == {
         "跨境电商运营经理", "跨境电商客服经理",
     }
     assert {item["code"] for item in plan["career_orientation"]["industries"]} == {"51", "52"}
+    assert all("证书" not in item["name"] for item in plan["career_orientation"]["industries"])
     assert {item["code"] for item in plan["career_orientation"]["occupations"]} == {
         "2-06-07-01", "4-01-06-01",
     }
     assert plan["courses"][0]["course_name"] == "国际贸易实务（双语）"
     assert plan["courses"][0]["course_content"] == "进出口合同与国际物流"
+
+
+def test_extracts_professional_taxonomy_from_key_value_and_labeled_text() -> None:
+    payload = _payload()
+    payload["blocks"].extend([
+        _block("b8", """|  |  |
+| --- | --- |
+| 所属专业大类（代码） | 财经商 贸大类 （53） |
+| 所属专业类（代码） | 电子 商务类（5307） |"""),
+        _block(
+            "b9",
+            "所属专业大类（代码）：财经商贸大类(53)\n所属专业类（代码）：电子商务类(5307)",
+        ),
+    ])
+
+    plan = extract(payload)
+
+    assert plan is not None
+    assert [item["name"] for item in plan["career_orientation"]["major_categories"]] == [
+        "财经商贸大类"
+    ]
+    assert [item["code"] for item in plan["career_orientation"]["major_classes"]] == [
+        "5307"
+    ]
+    assert plan["career_orientation"]["major_categories"][0]["evidence"]["block_ids"] == [
+        "b8"
+    ]
+
+
+def test_extracts_first_row_from_headerless_career_key_value_table() -> None:
+    payload = _payload()
+    payload["blocks"].append(_block("b-textile", """| 所属专业大类（代码) | 财经商贸大类（53） |
+| --- | --- |
+| 所属专业类（代码) | 电子商务类（5307) |
+| 对应行业(代码) | 互联网和相关服务（64）、批发业（51）、零售业（52) |
+| 主要职业类别（代码) | 电子商务师（4-01-06-01) |
+| 主要岗位（群）或技术领域 | 跨境电商运营专员 |
+| 职业类证书 | 跨境电商B2B数据运营职业技能等级证书 |"""))
+
+    plan = extract(payload)
+
+    assert plan is not None
+    assert [(item["name"], item["code"]) for item in plan["career_orientation"]["major_categories"]] == [
+        ("财经商贸大类", "53")
+    ]
+    assert [(item["name"], item["code"]) for item in plan["career_orientation"]["major_classes"]] == [
+        ("电子商务类", "5307")
+    ]
+    assert {item["name"] for item in plan["career_orientation"]["industries"]} >= {
+        "互联网和相关服务", "批发业", "零售业",
+    }
+    assert all("证书" not in item["name"] for values in plan["career_orientation"].values() for item in values)
+
+
+def test_restores_rowspan_columns_before_extracting_career_facts() -> None:
+    payload = _payload()
+    payload["blocks"].append(_block("b-guangsha", html="""
+        <table>
+          <tr><td>所属专业大类（代码）</td><td>所属专业类（代码）</td><td>对应行业（代码）</td><td>主要职业类别（代码）</td><td>主要岗位（群）</td><td>证书举例</td></tr>
+          <tr><td rowspan="3">财经商贸大类 (33)</td><td rowspan="3">电子商务类 (3307)</td><td>互联网和相关服务；(64)</td><td>电子商务师 (4-01-06-01)</td><td>电商运营</td><td>电子商务师证书</td></tr>
+          <tr><td>批发业 (51)</td><td>国际商务专业人员 (2-06-07-01)</td><td>跨境电商运营</td><td>跨境电商证书</td></tr>
+          <tr><td>零售业 (52)</td><td>营销员 (4-01-02-01)</td><td>网络营销</td><td>营销员证书</td></tr>
+        </table>
+    """))
+
+    plan = extract(payload)
+
+    assert plan is not None
+    career = plan["career_orientation"]
+    assert [(item["name"], item["code"]) for item in career["major_categories"]] == [
+        ("财经商贸大类", "33")
+    ]
+    assert [(item["name"], item["code"]) for item in career["major_classes"]] == [
+        ("电子商务类", "3307")
+    ]
+    assert {(item["name"], item.get("code")) for item in career["industries"]} >= {
+        ("互联网和相关服务", "64"), ("批发业", "51"), ("零售业", "52"),
+    }
+    assert all("电子商务师" not in item["name"] for item in career["major_categories"])
+    assert all("国际商务" not in item["name"] for item in career["major_classes"])
+
+
+def test_title_fallback_removes_detected_institution_and_filename_noise() -> None:
+    payload = _payload()
+    payload["title"] = "PDF--浙江纺织服装职业技术学院 2023级 跨境电子商务专业人才培养方案.pdf"
+    payload["blocks"][0]["text"] = "专业代码：530702\n基本修业年限：三年"
+
+    plan = extract(payload)
+
+    assert plan is not None
+    assert plan["institution_name"] == "浙江纺织服装职业技术学院"
+    assert plan["major_name"] == "跨境电子商务"
+
+
+def test_title_fallback_removes_document_number_year_level_and_duplicate_text() -> None:
+    payload = _payload()
+    payload["blocks"][0]["text"] = "专业代码：530702\n基本修业年限：三年"
+    payload["title"] = "2.1.2.6专业人才培养方案-电子商务专业人才培养方案2025.docx"
+
+    numbered_plan = extract(payload)
+
+    assert numbered_plan is not None
+    assert numbered_plan["major_name"] == "电子商务"
+
+    payload["title"] = "（高职网络营销与直播电商专业人才培养方案）高职网络营销与直播电商专业人才培养方案.pdf"
+    repeated_plan = extract(payload)
+
+    assert repeated_plan is not None
+    assert repeated_plan["major_name"] == "网络营销与直播电商"
+    assert repeated_plan["institution_name"] is None
+
+
+def test_title_fallback_keeps_professional_direction_without_study_duration() -> None:
+    payload = _payload()
+    payload["blocks"][0]["text"] = "专业代码：530701\n基本修业年限：三年"
+    payload["title"] = "浙江安防职业技术学院 电子商务专业（跨境电子商务方向）人才培养方案（三年制）.pdf"
+
+    plan = extract(payload)
+
+    assert plan is not None
+    assert plan["major_name"] == "电子商务（跨境电子商务方向）"
 
 
 def test_course_extraction_drops_table_noise_and_requires_content() -> None:

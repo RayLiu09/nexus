@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import Text, cast, func, or_, select
+from sqlalchemy import Text, case, cast, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from nexus_api import schemas
@@ -14,7 +14,7 @@ from nexus_api.dependencies.user import require_user
 from nexus_api.responses import list_response, response
 from nexus_app import models
 from nexus_app.database import get_db
-from nexus_app.enums import AssetVersionStatus
+from nexus_app.enums import AssetVersionStatus, NormalizedAssetRefStatus
 
 internal_router = APIRouter(dependencies=[Depends(require_user)])
 open_router = APIRouter(
@@ -29,6 +29,81 @@ def _available_ids(session: Session):
         .join(models.NormalizedAssetRef)
         .join(models.AssetVersion)
         .where(models.AssetVersion.version_status == AssetVersionStatus.AVAILABLE)
+    )
+
+
+def _official_talent_training_plan_ref_ids():
+    ranked = select(
+        models.GovernanceResult.normalized_ref_id.label("normalized_ref_id"),
+        models.GovernanceResult.classification.label("classification"),
+        func.row_number().over(
+            partition_by=models.GovernanceResult.normalized_ref_id,
+            order_by=(
+                models.GovernanceResult.created_at.desc(),
+                models.GovernanceResult.id.desc(),
+            ),
+        ).label("row_number"),
+    ).subquery()
+    return select(ranked.c.normalized_ref_id).where(
+        ranked.c.row_number == 1,
+        ranked.c.classification == "talent_training_plan",
+    )
+
+
+def _catalog_visible_ref_ids():
+    """Mirror the Asset Center count's current asset/version/ref read model."""
+    version_rank = func.row_number().over(
+        partition_by=models.AssetVersion.asset_id,
+        order_by=(
+            case(
+                (models.AssetVersion.version_status == AssetVersionStatus.AVAILABLE, 0),
+                else_=1,
+            ),
+            models.AssetVersion.version_no.desc(),
+            models.AssetVersion.created_at.desc(),
+            models.AssetVersion.id.desc(),
+        ),
+    )
+    versions = (
+        select(
+            models.AssetVersion.id.label("version_id"),
+            models.AssetVersion.version_status.label("version_status"),
+            version_rank.label("row_number"),
+        )
+        .where(
+            models.AssetVersion.version_status.notin_(
+                (AssetVersionStatus.ARCHIVED, AssetVersionStatus.DISABLED)
+            )
+        )
+        .subquery()
+    )
+    refs = (
+        select(
+            models.NormalizedAssetRef.id.label("ref_id"),
+            models.NormalizedAssetRef.version_id.label("version_id"),
+            func.row_number()
+            .over(
+                partition_by=models.NormalizedAssetRef.version_id,
+                order_by=(
+                    models.NormalizedAssetRef.created_at.desc(),
+                    models.NormalizedAssetRef.id.desc(),
+                ),
+            )
+            .label("row_number"),
+        )
+        .where(models.NormalizedAssetRef.status == NormalizedAssetRefStatus.GENERATED)
+        .subquery()
+    )
+    return (
+        select(refs.c.ref_id)
+        .join(versions, versions.c.version_id == refs.c.version_id)
+        .where(
+            versions.c.row_number == 1,
+            refs.c.row_number == 1,
+            versions.c.version_status.in_(
+                (AssetVersionStatus.AVAILABLE, AssetVersionStatus.REVIEW_REQUIRED)
+            ),
+        )
     )
 
 
@@ -85,8 +160,33 @@ def _json_contains(column: Any, value: str) -> Any:
     return or_(text_value.contains(value), text_value.contains(encoded))
 
 
-def _summary(row: models.TalentTrainingPlan) -> dict[str, Any]:
-    return {
+def _career_orientation_summary(row: models.TalentTrainingPlan) -> dict[str, Any]:
+    orientation = row.career_orientation if isinstance(row.career_orientation, dict) else {}
+    result: dict[str, list[dict[str, str]]] = {}
+    for key in (
+        "major_categories",
+        "major_classes",
+        "industries",
+        "occupations",
+        "positions",
+    ):
+        values = orientation.get(key) if isinstance(orientation.get(key), list) else []
+        items: list[dict[str, str]] = []
+        for value in values:
+            if not isinstance(value, dict) or not str(value.get("name") or "").strip():
+                continue
+            item = {"name": str(value["name"]).strip()}
+            if str(value.get("code") or "").strip():
+                item["code"] = str(value["code"]).strip()
+            items.append(item)
+        result[key] = items
+    return result
+
+
+def _summary(
+    row: models.TalentTrainingPlan, *, include_career_orientation_summary: bool = False
+) -> dict[str, Any]:
+    data = {
         "id": row.id,
         "normalized_ref_id": row.normalized_ref_id,
         "asset_version_id": row.asset_version_id,
@@ -102,6 +202,9 @@ def _summary(row: models.TalentTrainingPlan) -> dict[str, Any]:
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
+    if include_career_orientation_summary:
+        data["career_orientation_summary"] = _career_orientation_summary(row)
+    return data
 
 
 def _detail(row: models.TalentTrainingPlan) -> dict[str, Any]:
@@ -294,6 +397,9 @@ def _list(
     session: Session,
     pagination: Pagination,
     available_only: bool,
+    include_career_orientation_summary: bool = False,
+    official_only: bool = False,
+    catalog_visible_only: bool = False,
     **filters: Any,
 ):
     statement = select(models.TalentTrainingPlan).options(
@@ -303,6 +409,18 @@ def _list(
     if available_only:
         ids = _available_ids(session).subquery()
         predicate = models.TalentTrainingPlan.id.in_(select(ids.c.id))
+        statement = statement.where(predicate)
+        count = count.where(predicate)
+    if official_only:
+        predicate = models.TalentTrainingPlan.normalized_ref_id.in_(
+            _official_talent_training_plan_ref_ids()
+        )
+        statement = statement.where(predicate)
+        count = count.where(predicate)
+    if catalog_visible_only:
+        predicate = models.TalentTrainingPlan.normalized_ref_id.in_(
+            _catalog_visible_ref_ids()
+        )
         statement = statement.where(predicate)
         count = count.where(predicate)
     statement = _filters(statement, **filters)
@@ -316,7 +434,13 @@ def _list(
         ).unique()
     )
     return list_response(
-        [_summary(row) for row in rows],
+        [
+            _summary(
+                row,
+                include_career_orientation_summary=include_career_orientation_summary,
+            )
+            for row in rows
+        ],
         request,
         page=pagination.page,
         page_size=pagination.page_size,
@@ -354,11 +478,17 @@ def list_internal_talent_training_plans(
     skill: str | None = None,
     certificate: str | None = None,
     course: str | None = None,
+    official_only: bool = False,
+    catalog_visible_only: bool = False,
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
 ):
     return _list(
-        request, session, pagination, False, institution_name=institution_name,
+        request, session, pagination, False,
+        include_career_orientation_summary=True,
+        official_only=official_only,
+        catalog_visible_only=catalog_visible_only,
+        institution_name=institution_name,
         major_name=major_name, major_code=major_code, education_level=education_level,
         study_duration=study_duration, position=position, skill=skill,
         certificate=certificate, course=course,

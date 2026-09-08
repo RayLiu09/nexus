@@ -152,6 +152,19 @@ asset ledger:
   explicitly walks bounded pages to assemble its complete hierarchy. The
   item, tree, and existing staging-graph views are not duplicated in technical
   asset detail.
+- `/asset-center/major/training-plans` reads talent-training-plan projections
+  as a paginated business list. The outer table contains plan identity; the
+  expanded row groups the compact projection into professional belonging
+  (category/class) and career orientation (industry/occupation/position).
+  Category/class
+  values are extracted only from explicit normalized-document labels and stay
+  inside `career_orientation`; they are not inferred from `major_profile` or
+  another asset. Only the current catalog-visible asset/version/ref projection
+  whose latest official governance classification is `talent_training_plan`
+  enters this business view; archived, failed, and superseded projections remain
+  auditable but do not affect its total. Course
+  and position graphs load independently after their row action opens a Drawer
+  and no longer appear in technical asset detail.
 - Industrial-park and enterprise entries are reserved for fixed-schema bulk
   import from their own business lists. They do not introduce
   `industrial_park` or `enterprise` governance classifications in IA-1.

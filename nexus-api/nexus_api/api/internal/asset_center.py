@@ -68,6 +68,7 @@ def _classification_counts(session: Session) -> dict[str, int]:
             ),
             models.AssetVersion.version_no.desc(),
             models.AssetVersion.created_at.desc(),
+            models.AssetVersion.id.desc(),
         ),
     )
     versions = (
@@ -91,7 +92,10 @@ def _classification_counts(session: Session) -> dict[str, int]:
             func.row_number()
             .over(
                 partition_by=models.NormalizedAssetRef.version_id,
-                order_by=models.NormalizedAssetRef.created_at.desc(),
+                order_by=(
+                    models.NormalizedAssetRef.created_at.desc(),
+                    models.NormalizedAssetRef.id.desc(),
+                ),
             )
             .label("rank"),
         )
@@ -105,7 +109,10 @@ def _classification_counts(session: Session) -> dict[str, int]:
             func.row_number()
             .over(
                 partition_by=models.GovernanceResult.normalized_ref_id,
-                order_by=models.GovernanceResult.created_at.desc(),
+                order_by=(
+                    models.GovernanceResult.created_at.desc(),
+                    models.GovernanceResult.id.desc(),
+                ),
             )
             .label("rank"),
         )

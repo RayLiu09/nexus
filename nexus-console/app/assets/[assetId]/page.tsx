@@ -110,12 +110,6 @@ export default async function AssetDetailPage({
     courseStandardBuilds.ok && courseStandardBuilds.data.length > 0
       ? "course_standard"
       : "teaching_standard";
-  const talentTrainingPlanMeta = displayRef?.metadata_summary?.talent_training_plan;
-  const talentTrainingPlanId =
-    talentTrainingPlanMeta && typeof talentTrainingPlanMeta === "object"
-      ? (talentTrainingPlanMeta as Record<string, unknown>).plan_id
-      : null;
-
   return (
     <>
       <PageHeader
@@ -205,9 +199,6 @@ export default async function AssetDetailPage({
         dataSourceName={dataSourceName}
         tagDictionary={tagDictionary}
         teachingStandardGraphBuildType={teachingStandardGraphBuildType}
-        talentTrainingPlanId={
-          typeof talentTrainingPlanId === "string" ? talentTrainingPlanId : null
-        }
       />
     </>
   );

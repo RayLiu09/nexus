@@ -7,15 +7,30 @@ from html.parser import HTMLParser
 from typing import Any
 
 DOMAIN_PROFILE = "talent_training_plan.v1"
-EXTRACTOR_VERSION = "talent_training_plan_extractor.v1"
+EXTRACTOR_VERSION = "talent_training_plan_extractor.v1.2"
 
 
 class _TableParser(HTMLParser):
     def __init__(self) -> None:
-        super().__init__(); self.rows: list[list[str]] = []; self._row: list[str] | None = None; self._cell: list[str] | None = None
+        super().__init__()
+        self.rows: list[list[str]] = []
+        self._row: list[str] | None = None
+        self._cell: list[str] | None = None
+        self._column = 0
+        self._cell_rowspan = 1
+        self._cell_colspan = 1
+        self._pending_spans: dict[int, tuple[str, int]] = {}
+
     def handle_starttag(self, tag: str, attrs) -> None:
-        if tag == "tr": self._row = []
-        elif tag in {"td", "th"}: self._cell = []
+        if tag == "tr":
+            self._row = []
+            self._column = 0
+        elif tag in {"td", "th"}:
+            self._append_pending_spans()
+            attributes = dict(attrs)
+            self._cell = []
+            self._cell_rowspan = _positive_span(attributes.get("rowspan"))
+            self._cell_colspan = _positive_span(attributes.get("colspan"))
         elif tag in {"br", "p", "div", "li"} and self._cell is not None:
             # Preserve source-provided cell structure. Course and capability
             # facts can be safely split at these boundaries later; a plain
@@ -25,9 +40,46 @@ class _TableParser(HTMLParser):
         if self._cell is not None: self._cell.append(data)
     def handle_endtag(self, tag: str) -> None:
         if tag in {"td", "th"} and self._row is not None and self._cell is not None:
-            self._row.append("".join(self._cell).strip()); self._cell = None
-        elif tag == "tr" and self._row:
-            self.rows.append(self._row); self._row = None
+            value = "".join(self._cell).strip()
+            for _ in range(self._cell_colspan):
+                self._row.append(value)
+                if self._cell_rowspan > 1:
+                    self._pending_spans[self._column] = (value, self._cell_rowspan - 1)
+                self._column += 1
+            self._cell = None
+        elif tag == "tr" and self._row is not None:
+            self._append_trailing_spans()
+            if self._row:
+                self.rows.append(self._row)
+            self._row = None
+
+    def _append_pending_spans(self) -> None:
+        while self._row is not None and self._column in self._pending_spans:
+            value, remaining = self._pending_spans[self._column]
+            self._row.append(value)
+            if remaining == 1:
+                del self._pending_spans[self._column]
+            else:
+                self._pending_spans[self._column] = (value, remaining - 1)
+            self._column += 1
+
+    def _append_trailing_spans(self) -> None:
+        if not self._pending_spans:
+            return
+        last_column = max(self._pending_spans)
+        while self._column <= last_column:
+            if self._column in self._pending_spans:
+                self._append_pending_spans()
+            else:
+                self._row.append("")
+                self._column += 1
+
+
+def _positive_span(value: Any) -> int:
+    try:
+        return max(1, int(value))
+    except (TypeError, ValueError):
+        return 1
 
 
 def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
@@ -37,7 +89,8 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
     title = str(payload.get("title") or "")
     text = "\n".join(_text(b) for b in blocks)
     if "人才培养方案" not in f"{title}\n{text}": return None
-    major_name, major_code = _identity(text, title)
+    institution_name = _institution(title, text)
+    major_name, major_code = _identity(text, title, institution_name)
     if not major_name: return None
     tables = [
         (block, rows)
@@ -46,7 +99,7 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
         for rows in _table_row_groups(block)
         if rows
     ]
-    career = _career_orientation(tables)
+    career = _career_orientation(tables, blocks)
     courses = _courses(tables)
     _link_courses_to_position_skills(courses, career["positions"])
     goal = _section_text(blocks, ("培养目标",), stop=("培养规格", "课程设置", "毕业要求"))
@@ -64,7 +117,7 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
     if not courses: flags["missing_courses"] = True
     return {
         "schema_version": DOMAIN_PROFILE, "domain_profile": DOMAIN_PROFILE, "extractor_version": EXTRACTOR_VERSION,
-        "institution_name": _institution(title, text), "major_name": major_name, "major_code": major_code,
+        "institution_name": institution_name, "major_name": major_name, "major_code": major_code,
         "education_level": _education_level(title, text), "study_duration": _duration(text), "training_goal": goal,
         "training_specification": specification, "career_orientation": career, "certificates": certificates,
         "courses": courses, "confidence": 0.9 if courses and career else 0.75,
@@ -131,7 +184,9 @@ def _markdown_separator(cells: list[str]) -> bool:
     return bool(cells) and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells)
 
 
-def _identity(text: str, title: str) -> tuple[str | None, str | None]:
+def _identity(
+    text: str, title: str, institution_name: str | None
+) -> tuple[str | None, str | None]:
     code = re.search(r"专业代码\s*[:：]\s*(\d{4,6})", text)
     name = re.search(r"专业名称\s*[:：]\s*([\u4e00-\u9fa5A-Za-z0-9（）()·\-]+)", text)
     if not code:
@@ -139,15 +194,42 @@ def _identity(text: str, title: str) -> tuple[str | None, str | None]:
     if not name:
         name = re.search(r"\|\s*专业名称\s*\|\s*([^|\n]+?)\s*\|", text)
     if name: return name.group(1).strip(), code.group(1) if code else None
-    cleaned = re.sub(r"[（(].*?[）)]", "", title)
-    cleaned = re.sub(r"\.(?:pdf|docx?)$", "", cleaned, flags=re.IGNORECASE)
-    cleaned = cleaned.replace("人才培养方案", "").strip()
+    cleaned = re.sub(r"\.(?:pdf|docx?)$", "", title.strip(), flags=re.IGNORECASE)
+    cleaned = re.sub(r"^\s*(?:PDF|WORD)\s*[-_—–:：]+\s*", "", cleaned, flags=re.IGNORECASE)
+    if institution_name:
+        cleaned = cleaned.replace(institution_name, "", 1)
+    cleaned = re.sub(r"[（(]\s*20\d{2}(?:级|年)?[^）)]*[）)]", "", cleaned)
+    cleaned = re.sub(r"[（(]\s*[一二三四五六七八九十0-9]+年制\s*[）)]", "", cleaned)
+    cleaned = re.sub(r"20\d{2}\s*级", "", cleaned)
+    cleaned = re.sub(r"(?:专业)?人才培养方案", "", cleaned)
+    cleaned = re.sub(r"^\s*\d+(?:\.\d+)+\s*[-_—–:：]*\s*", "", cleaned)
+    cleaned = re.sub(r"\s*20\d{2}\s*$", "", cleaned)
+    cleaned = re.sub(r"^[\s_\-—–:：|]+|[\s_\-—–:：|]+$", "", cleaned)
+    duplicate = re.fullmatch(r"[（(](.+?)[）)]\s*(.+)", cleaned)
+    if duplicate and duplicate.group(1).strip() == duplicate.group(2).strip():
+        cleaned = duplicate.group(2).strip()
+    cleaned = re.sub(r"^(?:中职|高职)\s*", "", cleaned)
+    cleaned = re.sub(r"专业(?=\s*[（(][^）)]*方向[）)]\s*$)", "", cleaned)
+    cleaned = re.sub(r"专业\s*$", "", cleaned).strip()
     return (cleaned or None, code.group(1) if code else None)
 
 
 def _institution(title: str, text: str) -> str | None:
-    match = re.search(r"([\u4e00-\u9fa5]{2,30}(?:职业技术大学|职业技术学院|职业学院|学院|学校))", title + "\n" + text[:1200])
-    return match.group(1) if match else None
+    pattern = re.compile(
+        r"([\u4e00-\u9fa5]{2,30}(?:职业技术大学|职业技术学院|职业学院|学院|学校))"
+    )
+    generic_names = {
+        "中等职业学校",
+        "初级中等学校",
+        "高等职业学校",
+        "全日制普通高等职业学校",
+    }
+    for source in (title, text[:1200]):
+        for match in pattern.finditer(source):
+            candidate = match.group(1)
+            if candidate not in generic_names:
+                return candidate
+    return None
 
 
 def _education_level(title: str, text: str) -> str | None:
@@ -175,16 +257,44 @@ def _item(name: str, code: str | None, block: dict[str, Any], column: str) -> di
     return {"name": name.strip(), **({"code": code} if code else {}), "source_text": name.strip(), "evidence": _evidence(block, column)}
 
 
-def _career_orientation(tables: list[tuple[dict[str, Any], list[list[str]]]]) -> dict[str, Any]:
-    result: dict[str, list[dict[str, Any]]] = {"industries": [], "occupations": [], "positions": []}
+def _career_orientation(
+    tables: list[tuple[dict[str, Any], list[list[str]]]],
+    blocks: list[dict[str, Any]],
+) -> dict[str, Any]:
+    result: dict[str, list[dict[str, Any]]] = {
+        "major_categories": [],
+        "major_classes": [],
+        "industries": [],
+        "occupations": [],
+        "positions": [],
+    }
     for block, rows in tables:
         if not rows: continue
+        if _is_career_key_value_table(rows):
+            for row in rows:
+                if len(row) < 2:
+                    continue
+                label, value = row[0], row[1]
+                kind = _career_header_kind(label)
+                if kind:
+                    _append_career_values(result, kind, value, block, label)
+            continue
         headers = rows[0]
         mapping = _position_skill_mapping(block, rows)
         if mapping:
             result["positions"].extend(mapping)
-            continue
-        indices = {kind: next((i for i, h in enumerate(headers) if marker in h), None) for kind, marker in (("industries", "行业"), ("occupations", "职业"), ("positions", "岗位"))}
+        indices = {
+            kind: next(
+                (index for index, header in enumerate(headers) if _career_header_kind(header) == kind),
+                None,
+            )
+            for kind in result
+        }
+        if mapping:
+            # The position/capability table already yielded richer position
+            # facts. Other explicit dimensions in the same table still need
+            # to be retained, without duplicating its position nodes.
+            indices["positions"] = None
         if any(index is not None for index in indices.values()):
             for row in rows[1:]:
                 for kind, index in indices.items():
@@ -199,18 +309,66 @@ def _career_orientation(tables: list[tuple[dict[str, Any], list[list[str]]]]) ->
                 if len(row) < 2:
                     continue
                 label, value = row[0], row[1]
-                kind = (
-                    "industries" if "行业" in label
-                    else "occupations" if "职业类别" in label or "职业名称" in label
-                    else "positions" if "岗位" in label
-                    else None
-                )
+                kind = _career_header_kind(label)
                 if kind:
                     _append_career_values(result, kind, value, block, label)
-    result["industries"] = _unique(result["industries"], "name")
-    result["occupations"] = _unique(result["occupations"], "name")
+
+    _append_labeled_career_text(result, blocks)
+    for kind in ("major_categories", "major_classes", "industries", "occupations"):
+        result[kind] = _unique(result[kind], "name")
     result["positions"] = _merge_positions(result["positions"])
     return result
+
+
+def _is_career_key_value_table(rows: list[list[str]]) -> bool:
+    if not rows or len(rows[0]) != 2:
+        return False
+    recognized_rows = sum(
+        1 for row in rows if len(row) >= 2 and _career_header_kind(row[0]) is not None
+    )
+    return recognized_rows >= 2
+
+
+def _career_header_kind(value: str) -> str | None:
+    header = re.sub(r"\s+", "", value)
+    if "专业大类" in header:
+        return "major_categories"
+    if "专业类" in header:
+        return "major_classes"
+    if (
+        "对应行业" in header
+        or "所属行业" in header
+        or "行业类别" in header
+        or header in {"行业", "行业代码"}
+    ):
+        return "industries"
+    if "职业类别" in header or "职业名称" in header or header == "职业":
+        return "occupations"
+    if "岗位" in header or header.startswith("主要技术领域"):
+        return "positions"
+    return None
+
+
+def _append_labeled_career_text(
+    result: dict[str, list[dict[str, Any]]], blocks: list[dict[str, Any]]
+) -> None:
+    """Keep category/class values from explicit non-table labels only."""
+    patterns = {
+        "major_categories": re.compile(
+            r"(?:所属)?专业大类(?:及代码|\s*[（(]代码[）)])?\s*[:：]\s*([^\n|]+)"
+        ),
+        "major_classes": re.compile(
+            r"(?:所属)?专业类(?:及代码|\s*[（(]代码[）)])?\s*[:：]\s*([^\n|]+)"
+        ),
+    }
+    for block in blocks:
+        text = _text(block)
+        if not text:
+            continue
+        for kind, pattern in patterns.items():
+            for match in pattern.finditer(text):
+                label = match.group(0).split(match.group(1), 1)[0].rstrip("：:")
+                _append_career_values(result, kind, match.group(1), block, label)
 
 
 def _append_career_values(
@@ -223,7 +381,18 @@ def _append_career_values(
     if not raw_value.strip():
         return
     value = re.sub(r"<br\s*/?>", "\n", raw_value, flags=re.IGNORECASE)
+    initial_count = len(result[kind])
     for segment in _split_values(value):
+        code_only = re.fullmatch(r"[（(]\s*([0-9-]{1,14})\s*[）)]", segment)
+        if code_only:
+            code = code_only.group(1)
+            if (
+                _valid_career_code(kind, code)
+                and len(result[kind]) > initial_count
+                and not result[kind][-1].get("code")
+            ):
+                result[kind][-1]["code"] = code
+            continue
         # A common rendered form is `批发业（51）零售业（52）`, which has no
         # punctuation boundary but does have explicit name/code evidence.
         coded_items = list(re.finditer(
@@ -231,13 +400,33 @@ def _append_career_values(
         ))
         if coded_items:
             for match in coded_items:
-                name = match.group(1).strip()
-                if name:
+                name = _normalize_career_fact_name(match.group(1), kind)
+                if name and _valid_career_code(kind, match.group(2)):
                     result[kind].append(_item(name, match.group(2), block, column))
             continue
-        name = segment.strip()
+        name = _normalize_career_fact_name(segment, kind)
         if name:
             result[kind].append(_item(name, None, block, column))
+
+
+def _valid_career_code(kind: str, code: str) -> bool:
+    if kind == "major_categories":
+        return bool(re.fullmatch(r"\d{2}", code))
+    if kind == "major_classes":
+        return bool(re.fullmatch(r"\d{4}", code))
+    if kind == "industries":
+        return bool(re.fullmatch(r"\d{1,4}", code))
+    return True
+
+
+def _normalize_career_fact_name(value: str, kind: str) -> str:
+    text = value.strip()
+    if kind == "positions":
+        return re.sub(r"\s+", " ", text)
+    text = re.sub(r"(?<=[\u4e00-\u9fff])\s+(?=[\u4e00-\u9fff])", "", text)
+    text = re.sub(r"\s+([（()）])", r"\1", text)
+    text = re.sub(r"([（(])\s+", r"\1", text)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def _merge_positions(items: list[dict[str, Any]]) -> list[dict[str, Any]]:

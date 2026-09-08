@@ -251,6 +251,74 @@ test.describe("Asset Center IA-1", () => {
     ).toBe(true);
   });
 
+  test("renders talent training plans and the two migrated graph drawers", async ({
+    page,
+  }, testInfo) => {
+    const antdWarnings: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "warning" && message.text().includes("[antd:")) {
+        antdWarnings.push(message.text());
+      }
+    });
+    await page.goto("/asset-center/major/training-plans");
+
+    await expect(page.getByRole("heading", { level: 1, name: "人才培养方案" })).toBeVisible();
+    for (const heading of ["专业名称", "专业代码", "修业年限", "培养层次", "院校名称", "操作"]) {
+      await expect(page.getByRole("columnheader", { name: heading })).toBeVisible();
+    }
+
+    await page.locator(".ant-table-row-expand-icon").first().click();
+    await expect(page.getByRole("heading", { level: 4, name: "专业归属" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 4, name: "职业面向" })).toBeVisible();
+    await expect(page.getByTestId("career-orientation-panel")).toHaveCSS(
+      "margin-left",
+      "24px",
+    );
+    for (const label of [
+      "专业大类（代码）",
+      "专业类（代码）",
+      "所属行业",
+      "职业类别",
+      "岗位名称",
+    ]) {
+      await expect(page.getByText(label, { exact: true })).toBeVisible();
+    }
+    if (process.env.NEXUS_CAPTURE_SCREENSHOTS) {
+      await page.screenshot({
+        path: `/tmp/talent-training-plans-${testInfo.project.name}.png`,
+        fullPage: true,
+      });
+    }
+
+    await page
+      .getByRole("button", { name: /课程知识图谱/ })
+      .first()
+      .click();
+    let dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText("课程知识图谱");
+    await dialog.getByRole("button", { name: "关闭" }).click();
+
+    await page
+      .getByRole("button", { name: /岗位能力图谱/ })
+      .first()
+      .click();
+    dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText("岗位能力图谱");
+    expect(antdWarnings).toEqual([]);
+  });
+
+  test("keeps talent training plan graphs out of technical asset detail", async ({ page }) => {
+    const assetId = process.env.NEXUS_E2E_TALENT_TRAINING_PLAN_ASSET_ID;
+    test.skip(!assetId, "No talent-training-plan asset ID was supplied");
+
+    await page.goto(`/assets/${assetId}`);
+    await page.getByRole("tab", { name: "知识块" }).click();
+
+    await expect(page.getByText("课程知识图谱", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("岗位能力图谱", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("RAG知识块", { exact: true }).first()).toBeVisible();
+  });
+
   test("keeps occupational ability views out of technical asset detail", async ({ page }) => {
     const assetId = process.env.NEXUS_E2E_ABILITY_ANALYSIS_ASSET_ID;
     test.skip(!assetId, "No occupational-ability asset ID was supplied");

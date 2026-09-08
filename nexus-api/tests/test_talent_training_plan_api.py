@@ -7,7 +7,7 @@ from nexus_api.api import talent_training_plans
 from nexus_api.api import institutional_statistics
 from nexus_api.dependencies import Pagination
 from nexus_app import models
-from nexus_app.enums import AssetKind, AssetVersionStatus, DataSourceType, IngestBatchStatus, NormalizedAssetRefStatus, NormalizedType, RawObjectStatus
+from nexus_app.enums import AssetKind, AssetVersionStatus, DataSourceType, GovernanceResultStatus, IngestBatchStatus, NormalizedAssetRefStatus, NormalizedType, RawObjectStatus
 
 
 PAGE = Pagination(page=1, page_size=20)
@@ -20,7 +20,7 @@ def _seed(session, *, suffix: str, status: AssetVersionStatus) -> models.TalentT
     asset = models.Asset(id=f"asset-{suffix}", data_source_id=ds.id, source_object_key=f"ttp-{suffix}", title="ttp", asset_kind=AssetKind.DOCUMENT, status=status)
     version = models.AssetVersion(id=f"version-{suffix}", asset_id=asset.id, raw_object_id=raw.id, version_no=1, source_checksum=raw.checksum, version_status=status)
     ref = models.NormalizedAssetRef(id=f"ref-{suffix}", version_id=version.id, normalized_type=NormalizedType.DOCUMENT, object_uri="s3://bucket/normalized.json", schema_version="normalized-document-v1", checksum=f"ref-{suffix}", status=NormalizedAssetRefStatus.GENERATED, governance={}, quality={}, lineage={}, metadata_summary={}, title="跨境电子商务人才培养方案")
-    plan = models.TalentTrainingPlan(id=f"ttp-{suffix}", normalized_ref_id=ref.id, asset_version_id=version.id, domain_profile="talent_training_plan.v1", institution_name="杭州万向职业技术学院", major_name="跨境电子商务", major_code="630805", education_level="高职", study_duration="三年", training_goal="培养跨境电商运营人才", training_specification={"ability_requirements":[{"name":"跨境平台操作能力"}]}, career_orientation={"positions":[{"name":"跨境电商B2C运营岗","skills":[{"name":"跨境平台操作能力"}]}]}, certificates=[{"name":"1+X跨境电商运营职业技能等级证书"}], source_title=ref.title, extractor_version="test", evidence={}, quality_flags={}, status="generated")
+    plan = models.TalentTrainingPlan(id=f"ttp-{suffix}", normalized_ref_id=ref.id, asset_version_id=version.id, domain_profile="talent_training_plan.v1", institution_name="杭州万向职业技术学院", major_name="跨境电子商务", major_code="630805", education_level="高职", study_duration="三年", training_goal="培养跨境电商运营人才", training_specification={"ability_requirements":[{"name":"跨境平台操作能力"}]}, career_orientation={"major_categories":[{"name":"财经商贸大类","code":"53","evidence":{"block_id":"career-table"}}],"major_classes":[{"name":"电子商务类","code":"5307","evidence":{"block_id":"career-table"}}],"industries":[{"name":"批发业","code":"51"}],"occupations":[{"name":"电子商务师","code":"4-01-06-01"}],"positions":[{"name":"跨境电商B2C运营岗","skills":[{"name":"跨境平台操作能力"}]}]}, certificates=[{"name":"1+X跨境电商运营职业技能等级证书"}], source_title=ref.title, extractor_version="test", evidence={}, quality_flags={}, status="generated")
     course = models.TalentTrainingPlanCourse(id=f"course-{suffix}", plan_id=plan.id, normalized_ref_id=ref.id, item_index=1, course_name="跨境电子商务实务", curriculum_group="professional_core", course_type="course", course_objective="培养跨境平台操作能力", course_content="跨境平台规则与国际物流", skill_refs=[], knowledge_topics=[], evidence={}, metadata_summary={})
     session.add_all([ds, batch, raw, asset, version, ref, plan, course]); session.commit(); return plan
 
@@ -39,6 +39,124 @@ def test_detail_keeps_plan_local_json_and_course_rows(session):
     detail = talent_training_plans._detail(talent_training_plans._get(session, plan.id, True))
     assert detail["career_orientation"]["positions"][0]["name"] == "跨境电商B2C运营岗"
     assert detail["courses"][0]["course_name"] == "跨境电子商务实务"
+
+
+def test_internal_list_includes_compact_career_summary_without_position_skills(
+    session, fake_request
+):
+    _seed(session, suffix="summary", status=AssetVersionStatus.AVAILABLE)
+
+    result = talent_training_plans._list(
+        fake_request,
+        session,
+        PAGE,
+        False,
+        include_career_orientation_summary=True,
+    ).model_dump(mode="json")["data"][0]
+
+    assert result["career_orientation_summary"] == {
+        "major_categories": [{"name": "财经商贸大类", "code": "53"}],
+        "major_classes": [{"name": "电子商务类", "code": "5307"}],
+        "industries": [{"name": "批发业", "code": "51"}],
+        "occupations": [{"name": "电子商务师", "code": "4-01-06-01"}],
+        "positions": [{"name": "跨境电商B2C运营岗"}],
+    }
+
+
+def test_open_list_does_not_add_console_business_summary(session, fake_request):
+    _seed(session, suffix="open-summary", status=AssetVersionStatus.AVAILABLE)
+
+    result = talent_training_plans._list(
+        fake_request, session, PAGE, True
+    ).model_dump(mode="json")["data"][0]
+
+    assert "career_orientation_summary" not in result
+
+
+def test_internal_business_list_query_count_is_bounded(session, fake_request):
+    _seed(session, suffix="bounded-one", status=AssetVersionStatus.AVAILABLE)
+    _seed(session, suffix="bounded-two", status=AssetVersionStatus.AVAILABLE)
+    statements: list[str] = []
+
+    def count_statement(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(session.bind, "before_cursor_execute", count_statement)
+    try:
+        talent_training_plans._list(
+            fake_request,
+            session,
+            PAGE,
+            False,
+            include_career_orientation_summary=True,
+            catalog_visible_only=True,
+        )
+    finally:
+        event.remove(session.bind, "before_cursor_execute", count_statement)
+
+    assert len(statements) == 3
+
+
+def test_internal_business_list_can_require_latest_official_classification(
+    session, fake_request
+):
+    included = _seed(session, suffix="official-plan", status=AssetVersionStatus.AVAILABLE)
+    excluded = _seed(session, suffix="official-standard", status=AssetVersionStatus.AVAILABLE)
+    session.add_all([
+        models.GovernanceResult(
+            normalized_ref_id=included.normalized_ref_id,
+            classification="talent_training_plan",
+            index_admission=True,
+            status=GovernanceResultStatus.AVAILABLE,
+        ),
+        models.GovernanceResult(
+            normalized_ref_id=excluded.normalized_ref_id,
+            classification="teaching_standard",
+            index_admission=True,
+            status=GovernanceResultStatus.AVAILABLE,
+        ),
+    ])
+    session.commit()
+
+    body = talent_training_plans._list(
+        fake_request,
+        session,
+        PAGE,
+        False,
+        include_career_orientation_summary=True,
+        official_only=True,
+    ).model_dump(mode="json")
+
+    assert body["meta"]["total"] == 1
+    assert body["data"][0]["id"] == included.id
+
+
+def test_internal_business_list_matches_catalog_current_visibility(session, fake_request):
+    available = _seed(session, suffix="catalog-available", status=AssetVersionStatus.AVAILABLE)
+    review = _seed(session, suffix="catalog-review", status=AssetVersionStatus.REVIEW_REQUIRED)
+    archived = _seed(session, suffix="catalog-archived", status=AssetVersionStatus.ARCHIVED)
+    failed = _seed(session, suffix="catalog-failed", status=AssetVersionStatus.FAILED)
+    for plan in (available, review, archived, failed):
+        session.add(models.GovernanceResult(
+            normalized_ref_id=plan.normalized_ref_id,
+            classification="talent_training_plan",
+            index_admission=True,
+            status=GovernanceResultStatus.AVAILABLE,
+        ))
+    session.commit()
+
+    body = talent_training_plans._list(
+        fake_request,
+        session,
+        PAGE,
+        False,
+        include_career_orientation_summary=True,
+        official_only=True,
+        catalog_visible_only=True,
+    ).model_dump(mode="json")
+
+    assert body["meta"]["total"] == 2
+    assert {item["id"] for item in body["data"]} == {available.id, review.id}
 
 
 def test_plan_graph_views_are_deterministic_and_position_graph_is_optional(session):
