@@ -249,6 +249,8 @@ class AuditEventType(StrEnum):
     TEACHING_STANDARD_COURSE_DERIVATION_FAILED = (
         "TeachingStandardCourseDerivationFailed"
     )
+    TEACHING_STANDARD_COURSE_UPDATED = "TeachingStandardCourseUpdated"
+    TEACHING_STANDARD_LIBRARY_ACTIVATED = "TeachingStandardLibraryActivated"
     # Pipeline B PD — operator-maintained major distribution structured rows.
     MAJOR_DISTRIBUTION_RECORD_UPDATED = "MajorDistributionRecordUpdated"
     MAJOR_DISTRIBUTION_RECORD_DELETED = "MajorDistributionRecordDeleted"

@@ -1,18 +1,15 @@
 "use client";
 
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import {
-  Alert,
-  Card,
-  Checkbox,
-  Drawer,
-  Empty,
-  Select,
-  Skeleton,
-  Tag,
-  Tooltip,
-  Typography,
-} from "antd";
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Alert, Card, Drawer, Empty, Select, Skeleton, Tag, Tooltip, Typography } from "antd";
 import type { ECharts, EChartsOption } from "echarts";
 import {
   downloadEchartsGraphImage,
@@ -36,6 +33,7 @@ type Props = {
   normalizedRefId: string;
   buildType: CapabilityGraphBuildType;
   title: string;
+  embedded?: boolean;
 };
 
 type GraphState = {
@@ -63,8 +61,19 @@ const MAX_EDGES_PER_TYPE = 1600;
 const NODE_TYPES_BY_BUILD: Record<CapabilityGraphBuildType, string[]> = {
   job_demand: ["JobRole", "Skill", "ProfessionalLiteracy", "WorkContent"],
   ability_analysis: ["WorkTask", "WorkContent", "Ability"],
-  teaching_standard: ["Major", "OccupationalDomain", "TypicalWorkTask", "SkillKnowledgeRequirement"],
-  course_standard: ["Course", "CourseModule", "CourseContent", "SkillRequirement", "KnowledgeRequirement"],
+  teaching_standard: [
+    "Major",
+    "OccupationalDomain",
+    "TypicalWorkTask",
+    "SkillKnowledgeRequirement",
+  ],
+  course_standard: [
+    "Course",
+    "CourseModule",
+    "CourseContent",
+    "SkillRequirement",
+    "KnowledgeRequirement",
+  ],
 };
 
 const EDGE_TYPES_BY_BUILD: Record<CapabilityGraphBuildType, string[]> = {
@@ -175,7 +184,12 @@ const EDGE_LABELS: Record<string, string> = {
 // Antd 若接受空字符串会与"未初始化"混淆，改用带前缀的常量避免与真实 node.id 冲突。
 const JOB_ROLE_ALL = "__all__";
 
-export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props) {
+export function CapabilityGraphView({
+  normalizedRefId,
+  buildType,
+  title,
+  embedded = false,
+}: Props) {
   const [state, setState] = useState<GraphState>({
     loading: true,
     build: null,
@@ -185,7 +199,6 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
     edgesTotal: 0,
     error: null,
   });
-  const [showEdgeLabels, setShowEdgeLabels] = useState(false);
   const [selectedNode, setSelectedNode] = useState<CapabilityGraphStagingNode | null>(null);
   // 岗位过滤仅在 job_demand 场景下生效；null 表示尚未初始化，JOB_ROLE_ALL 表示不过滤。
   // 数据集通常包含多个 JobRole，默认收窄到第一个避免图谱噪声（业务需求）。
@@ -292,11 +305,7 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
   // 子图 BFS：从选定 JobRole 出发沿 source→target 遍历，得到该岗位可达节点集合。
   // 返回 null 表示不做岗位收窄（非 job_demand、无 JobRole、或用户选"全部岗位"）。
   const jobRoleSubgraphNodeIds = useMemo<Set<string> | null>(() => {
-    if (
-      buildType !== "job_demand" ||
-      !selectedJobRoleId ||
-      selectedJobRoleId === JOB_ROLE_ALL
-    ) {
+    if (buildType !== "job_demand" || !selectedJobRoleId || selectedJobRoleId === JOB_ROLE_ALL) {
       return null;
     }
     const outgoing = new Map<string, string[]>();
@@ -353,27 +362,32 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
   const isTruncated =
     state.nodes.length < state.nodesTotal || state.edges.length < state.edgesTotal;
 
-  const handleGraphNodeSelect = useCallback((node: CapabilityGraphStagingNode) => {
-    if (buildType === "course_standard" && node.node_type === "CourseContent") {
-      setExpandedCourseContentIds((current) => {
-        const next = new Set(current);
-        if (next.has(node.id)) next.delete(node.id);
-        else next.add(node.id);
-        return next;
-      });
-      return;
-    }
-    setSelectedNode(node);
-  }, [buildType]);
+  const handleGraphNodeSelect = useCallback(
+    (node: CapabilityGraphStagingNode) => {
+      if (buildType === "course_standard" && node.node_type === "CourseContent") {
+        setExpandedCourseContentIds((current) => {
+          const next = new Set(current);
+          if (next.has(node.id)) next.delete(node.id);
+          else next.add(node.id);
+          return next;
+        });
+        return;
+      }
+      setSelectedNode(node);
+    },
+    [buildType],
+  );
 
   return (
     <Card
-      title={title}
+      title={embedded ? undefined : title}
       size="small"
       extra={
-        state.build ? (
+        state.build && !embedded ? (
           <div className="flex items-center gap-2">
-            <Tag color="processing" className="!mr-0">{state.build.status}</Tag>
+            <Tag color="processing" className="!mr-0">
+              {state.build.status}
+            </Tag>
             <GraphViewportActions
               title={title}
               disabled={displayedNodes.length === 0}
@@ -383,7 +397,7 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
                 nodes={displayedNodes}
                 edges={displayedEdges}
                 buildType={buildType}
-                showEdgeLabels={showEdgeLabels}
+                showEdgeLabels={false}
                 onNodeSelect={handleGraphNodeSelect}
                 fullscreen
               />
@@ -409,34 +423,48 @@ export function CapabilityGraphView({ normalizedRefId, buildType, title }: Props
             />
           ) : null}
 
-          {buildType !== "course_standard" ? (
+          {!embedded && buildType === "job_demand" && jobRoleNodes.length >= 2 ? (
             <GraphToolbar
-              showEdgeLabels={showEdgeLabels}
-              onShowEdgeLabelsChange={setShowEdgeLabels}
-              jobRoleFilter={
-                buildType === "job_demand" && jobRoleNodes.length >= 2
-                  ? {
-                      options: jobRoleNodes,
-                      value: selectedJobRoleId ?? JOB_ROLE_ALL,
-                      onChange: setSelectedJobRoleId,
-                      subgraphNodeCount: jobRoleSubgraphNodeIds?.size ?? null,
-                    }
-                  : null
-              }
+              jobRoleFilter={{
+                options: jobRoleNodes,
+                value: selectedJobRoleId ?? JOB_ROLE_ALL,
+                onChange: setSelectedJobRoleId,
+                subgraphNodeCount: jobRoleSubgraphNodeIds?.size ?? null,
+              }}
             />
           ) : null}
 
           {displayedNodes.length === 0 ? (
             <Empty description="当前筛选条件下无图谱节点" image={Empty.PRESENTED_IMAGE_SIMPLE} />
           ) : (
-            <EchartsGraph
-              ref={graphRef}
-              nodes={displayedNodes}
-              edges={displayedEdges}
-              buildType={buildType}
-              showEdgeLabels={showEdgeLabels}
-              onNodeSelect={handleGraphNodeSelect}
-            />
+            <div className={embedded ? "relative" : undefined}>
+              {embedded ? (
+                <div className="absolute top-2 right-2 z-10 rounded bg-white/90 px-1 shadow-sm">
+                  <GraphViewportActions
+                    title={title}
+                    disabled={displayedNodes.length === 0}
+                    onDownload={() => graphRef.current?.downloadImage(`${title}.png`)}
+                  >
+                    <EchartsGraph
+                      nodes={displayedNodes}
+                      edges={displayedEdges}
+                      buildType={buildType}
+                      showEdgeLabels={false}
+                      onNodeSelect={handleGraphNodeSelect}
+                      fullscreen
+                    />
+                  </GraphViewportActions>
+                </div>
+              ) : null}
+              <EchartsGraph
+                ref={graphRef}
+                nodes={displayedNodes}
+                edges={displayedEdges}
+                buildType={buildType}
+                showEdgeLabels={false}
+                onNodeSelect={handleGraphNodeSelect}
+              />
+            </div>
           )}
 
           <div className="flex flex-wrap gap-2" aria-label="图谱图例">
@@ -461,50 +489,28 @@ type JobRoleFilterProps = {
   subgraphNodeCount: number | null;
 };
 
-function GraphToolbar({
-  showEdgeLabels,
-  onShowEdgeLabelsChange,
-  jobRoleFilter,
-}: {
-  showEdgeLabels: boolean;
-  onShowEdgeLabelsChange: (value: boolean) => void;
-  jobRoleFilter: JobRoleFilterProps | null;
-}) {
-  const layout = jobRoleFilter
-    ? "grid grid-cols-1 gap-2 lg:grid-cols-[minmax(220px,1fr)_auto]"
-    : "flex justify-end";
+function GraphToolbar({ jobRoleFilter }: { jobRoleFilter: JobRoleFilterProps }) {
   return (
-    <div className={layout}>
-      {jobRoleFilter ? (
-        <div className="flex flex-col gap-1">
-          <Select
-            value={jobRoleFilter.value}
-            onChange={jobRoleFilter.onChange}
-            options={[
-              { label: "全部岗位", value: JOB_ROLE_ALL },
-              ...jobRoleFilter.options.map((node) => ({
-                label: node.display_name,
-                value: node.id,
-              })),
-            ]}
-            aria-label="岗位过滤"
-            showSearch
-            optionFilterProp="label"
-          />
-          {jobRoleFilter.value !== JOB_ROLE_ALL && jobRoleFilter.subgraphNodeCount !== null ? (
-            <span className="text-muted text-xs">
-              已收窄至选定岗位子图（{jobRoleFilter.subgraphNodeCount} 个节点）
-            </span>
-          ) : null}
-        </div>
+    <div className="flex max-w-md flex-col gap-1">
+      <Select
+        value={jobRoleFilter.value}
+        onChange={jobRoleFilter.onChange}
+        options={[
+          { label: "全部岗位", value: JOB_ROLE_ALL },
+          ...jobRoleFilter.options.map((node) => ({
+            label: node.display_name,
+            value: node.id,
+          })),
+        ]}
+        aria-label="岗位过滤"
+        showSearch
+        optionFilterProp="label"
+      />
+      {jobRoleFilter.value !== JOB_ROLE_ALL && jobRoleFilter.subgraphNodeCount !== null ? (
+        <span className="text-muted text-xs">
+          已收窄至选定岗位子图（{jobRoleFilter.subgraphNodeCount} 个节点）
+        </span>
       ) : null}
-      <Checkbox
-        checked={showEdgeLabels}
-        onChange={(event) => onShowEdgeLabelsChange(event.target.checked)}
-        className="self-center"
-      >
-        显示边标签
-      </Checkbox>
     </div>
   );
 }
@@ -680,21 +686,20 @@ function numberOrNull(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-const EchartsGraph = forwardRef<GraphImageHandle, {
-  nodes: CapabilityGraphStagingNode[];
-  edges: CapabilityGraphStagingEdge[];
-  buildType: CapabilityGraphBuildType;
-  showEdgeLabels: boolean;
-  onNodeSelect: (node: GraphDisplayNode) => void;
-  fullscreen?: boolean;
-}>(function EchartsGraph({
-  nodes,
-  edges,
-  buildType,
-  showEdgeLabels,
-  onNodeSelect,
-  fullscreen = false,
-}, ref) {
+const EchartsGraph = forwardRef<
+  GraphImageHandle,
+  {
+    nodes: CapabilityGraphStagingNode[];
+    edges: CapabilityGraphStagingEdge[];
+    buildType: CapabilityGraphBuildType;
+    showEdgeLabels: boolean;
+    onNodeSelect: (node: GraphDisplayNode) => void;
+    fullscreen?: boolean;
+  }
+>(function EchartsGraph(
+  { nodes, edges, buildType, showEdgeLabels, onNodeSelect, fullscreen = false },
+  ref,
+) {
   const chartRef = useRef<HTMLDivElement | null>(null);
   const chartInstance = useRef<ECharts | null>(null);
   const displayGraph = useMemo(
@@ -712,13 +717,18 @@ const EchartsGraph = forwardRef<GraphImageHandle, {
     [buildType, displayGraph.edges, displayGraph.nodes, showEdgeLabels],
   );
 
-  useImperativeHandle(ref, () => ({
-    downloadImage: (filename: string) => downloadEchartsGraphImage({
-      option,
-      filename,
-      nodeCount: displayGraph.nodes.length,
+  useImperativeHandle(
+    ref,
+    () => ({
+      downloadImage: (filename: string) =>
+        downloadEchartsGraphImage({
+          option,
+          filename,
+          nodeCount: displayGraph.nodes.length,
+        }),
     }),
-  }), [displayGraph.nodes.length, option]);
+    [displayGraph.nodes.length, option],
+  );
 
   useEffect(() => {
     let disposed = false;
@@ -800,11 +810,12 @@ function buildGraphOption(
     degree.set(edge.source_node_id, (degree.get(edge.source_node_id) ?? 0) + 1);
     degree.set(edge.target_node_id, (degree.get(edge.target_node_id) ?? 0) + 1);
   }
-  const fixedPositions = buildType === "teaching_standard"
-    ? teachingStandardRadialPositions(nodes, drawableEdges)
-    : buildType === "course_standard"
-      ? courseStandardTreePositions(nodes, drawableEdges)
-      : new Map<string, { x: number; y: number }>();
+  const fixedPositions =
+    buildType === "teaching_standard"
+      ? teachingStandardRadialPositions(nodes, drawableEdges)
+      : buildType === "course_standard"
+        ? courseStandardTreePositions(nodes, drawableEdges)
+        : new Map<string, { x: number; y: number }>();
   const useFixedLayout = buildType === "teaching_standard" || buildType === "course_standard";
 
   return {
@@ -840,13 +851,15 @@ function buildGraphOption(
         roam: true,
         draggable: true,
         categories,
-        force: useFixedLayout ? undefined : {
-          repulsion: 260,
-          edgeLength: [70, 180],
-          gravity: 0.08,
-        },
+        force: useFixedLayout
+          ? undefined
+          : {
+              repulsion: 260,
+              edgeLength: [70, 180],
+              gravity: 0.08,
+            },
         label: {
-          show: true,
+          show: buildType !== "teaching_standard",
           position: "right",
           formatter: "{b}",
           fontSize: 11,
@@ -866,6 +879,7 @@ function buildGraphOption(
         },
         emphasis: {
           focus: "adjacency",
+          label: { show: true },
           lineStyle: { width: 3 },
         },
         data: nodes.map((node) => {
@@ -882,6 +896,10 @@ function buildGraphOption(
               borderColor: "#ffffff",
               borderWidth: 1,
             },
+            ...(buildType === "teaching_standard" &&
+            (node.node_type === "Major" || node.node_type === "OccupationalDomain")
+              ? { label: { show: true } }
+              : {}),
             ...(fixedPositions.get(node.id) ?? {}),
           };
         }),
@@ -908,7 +926,9 @@ function teachingStandardRadialPositions(
   const root = nodes.find((node) => node.node_type === "Major");
   if (!root) return positions;
   positions.set(root.id, { x: 0, y: 0 });
-  const domainIds = nodes.filter((node) => node.node_type === "OccupationalDomain").map((node) => node.id);
+  const domainIds = nodes
+    .filter((node) => node.node_type === "OccupationalDomain")
+    .map((node) => node.id);
   const leavesByDomain = new Map<string, string[]>();
   for (const edge of edges) {
     if (domainIds.includes(edge.source_node_id)) {
@@ -924,7 +944,8 @@ function teachingStandardRadialPositions(
     const leaves = leavesByDomain.get(domainId) ?? [];
     const spread = Math.min(Math.PI * 0.85, domainAngle * 0.9);
     leaves.forEach((leafId, leafIndex) => {
-      const leafAngle = angle - spread / 2 + (spread * (leafIndex + 0.5)) / Math.max(leaves.length, 1);
+      const leafAngle =
+        angle - spread / 2 + (spread * (leafIndex + 0.5)) / Math.max(leaves.length, 1);
       positions.set(leafId, { x: Math.cos(leafAngle) * 520, y: Math.sin(leafAngle) * 520 });
     });
   });
@@ -980,9 +1001,11 @@ function courseStandardTreePositions(
   let nextLeafY = 0;
   const place = (nodeId: string, depth: number): number => {
     const targets = children.get(nodeId) ?? [];
-    const y = targets.length === 0
-      ? nextLeafY++ * 86
-      : targets.reduce((total, targetId) => total + place(targetId, depth + 1), 0) / targets.length;
+    const y =
+      targets.length === 0
+        ? nextLeafY++ * 86
+        : targets.reduce((total, targetId) => total + place(targetId, depth + 1), 0) /
+          targets.length;
     positions.set(nodeId, { x: depth * 280, y });
     return y;
   };

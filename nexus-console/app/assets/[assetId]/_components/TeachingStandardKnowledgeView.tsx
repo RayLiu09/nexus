@@ -29,6 +29,11 @@ export function TeachingStandardKnowledgeView({
   const [directory, setDirectory] = useState<TeachingStandardDirectoryNode[]>([]);
   const [loading, setLoading] = useState(false);
   const graphTitle = graphBuildType === "course_standard" ? "课程知识图谱" : "岗位知识图谱";
+  const viewOptions = [
+    { label: "知识块", value: "chunks" },
+    { label: "目录", value: "directory" },
+    ...(graphBuildType === "course_standard" ? [{ label: graphTitle, value: "graph" }] : []),
+  ];
   useEffect(() => {
     if (view !== "directory") return;
     setLoading(true);
@@ -54,11 +59,7 @@ export function TeachingStandardKnowledgeView({
         <Segmented
           value={view}
           onChange={(value) => setView(value as View)}
-          options={[
-            { label: "知识块", value: "chunks" },
-            { label: "目录", value: "directory" },
-            { label: graphTitle, value: "graph" },
-          ]}
+          options={viewOptions}
           aria-label="切换教学标准知识视图"
         />
       </div>
@@ -79,7 +80,7 @@ export function TeachingStandardKnowledgeView({
       {view === "directory" && !loading && directory.length > 0 ? (
         <Tree treeData={directory} defaultExpandAll />
       ) : null}
-      {view === "graph" ? (
+      {view === "graph" && graphBuildType === "course_standard" ? (
         <CapabilityGraphView
           normalizedRefId={normalizedRefId}
           buildType={graphBuildType}

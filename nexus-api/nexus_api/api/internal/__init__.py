@@ -24,6 +24,9 @@ from nexus_api.api.internal.ingest import router as _ingest_router
 from nexus_api.api.internal.jobs import router as _jobs_router
 from nexus_api.api.internal.assets import router as _assets_router
 from nexus_api.api.internal.asset_center import router as _asset_center_router
+from nexus_api.api.internal.teaching_standard_library import (
+    router as _teaching_standard_library_router,
+)
 from nexus_api.api.internal.ai_prompts import router as _ai_prompts_router
 from nexus_api.api.internal.ai_governance import router as _ai_governance_router
 from nexus_api.api.internal.governance import router as _governance_router
@@ -172,6 +175,7 @@ router.include_router(_ingest_router)
 router.include_router(_jobs_router)
 router.include_router(_assets_router)
 router.include_router(_asset_center_router)
+router.include_router(_teaching_standard_library_router)
 router.include_router(_ai_prompts_router)
 router.include_router(_ai_governance_router)
 router.include_router(_governance_router)

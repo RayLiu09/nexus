@@ -63,4 +63,120 @@ test.describe("Asset Center IA-1", () => {
     await page.goto("/retrieval-test");
     await expect(page).toHaveURL(/\/query$/);
   });
+
+  test("renders the professional teaching-standard business list and graph drawer", async ({
+    page,
+  }, testInfo) => {
+    await page.goto("/asset-center/major/teaching-standards");
+
+    await expect(page.getByRole("heading", { level: 1, name: "专业教学标准" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "返回专业标准库" })).toHaveCount(0);
+    for (const heading of [
+      "专业代码",
+      "专业名称",
+      "专业大类",
+      "专业类",
+      "培养层次",
+      "修业年限",
+      "操作",
+    ]) {
+      await expect(page.getByRole("columnheader", { name: heading })).toBeVisible();
+    }
+    await expect(page.getByRole("button", { name: /课程库/ }).first()).toBeVisible();
+    await page
+      .getByRole("button", { name: /职业领域图谱/ })
+      .first()
+      .click();
+    await expect(page.getByRole("dialog")).toContainText("职业领域图谱");
+    await expect(page.getByText(/专业 → 职业领域 → 典型工作任务/)).toHaveCount(0);
+    await expect(page.getByText("generated", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("checkbox", { name: /显示边/ })).toHaveCount(0);
+    const graphCanvas = page.getByRole("dialog").locator("canvas").first();
+    await expect(graphCanvas).toBeVisible({ timeout: 20_000 });
+    await expect
+      .poll(
+        () =>
+          graphCanvas.evaluate((canvas: HTMLCanvasElement) => {
+            const context = canvas.getContext("2d");
+            if (!context || canvas.width === 0 || canvas.height === 0) return 0;
+            const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+            let colored = 0;
+            for (let index = 0; index < pixels.length; index += 16) {
+              if (
+                pixels[index + 3] > 0 &&
+                (pixels[index] < 245 || pixels[index + 1] < 245 || pixels[index + 2] < 245)
+              ) {
+                colored += 1;
+              }
+            }
+            return colored;
+          }),
+        { timeout: 20_000 },
+      )
+      .toBeGreaterThan(100);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    if (process.env.NEXUS_CAPTURE_SCREENSHOTS) {
+      await page.screenshot({
+        path: `/tmp/teaching-standards-graph-${testInfo.project.name}.png`,
+        fullPage: true,
+      });
+    }
+  });
+
+  test("renders the expandable standard-course library and evidence drawer", async ({
+    page,
+  }, testInfo) => {
+    const antdWarnings: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "warning" && message.text().includes("[antd:")) {
+        antdWarnings.push(message.text());
+      }
+    });
+    await page.goto("/asset-center/major/standard-course-library");
+
+    await expect(page.getByRole("heading", { level: 1, name: "标准课程库" })).toBeVisible();
+    const backLink = page.getByRole("link", { name: "返回专业标准库" });
+    await expect(backLink).toHaveAttribute("href", "/asset-center/major/teaching-standards");
+    await backLink.click();
+    await expect(page).toHaveURL(/\/asset-center\/major\/teaching-standards$/);
+    await expect(page.getByRole("heading", { level: 1, name: "专业教学标准" })).toBeVisible();
+    await page.goto("/asset-center/major/standard-course-library");
+    for (const heading of [
+      "课程唯一编号",
+      "课程名称",
+      "专业代码",
+      "专业名称",
+      "培养层次",
+      "课程类型",
+      "建议总学时",
+      "建议实践学时",
+      "建议学时区间",
+      "操作",
+    ]) {
+      await expect(page.getByRole("columnheader", { name: heading })).toBeVisible();
+    }
+    await expect(page.getByRole("spinbutton", { name: /建议总学时/ }).first()).toBeVisible();
+    await page.locator(".ant-table-row-expand-icon").first().click();
+    await expect(page.getByText("典型工作任务", { exact: true })).toBeVisible();
+    await expect(page.getByText("主要教学内容与要求", { exact: true })).toBeVisible();
+    await expect(page.getByText("知识标签", { exact: true })).toBeVisible();
+    await page
+      .getByRole("button", { name: /血缘追溯/ })
+      .first()
+      .click();
+    await expect(page.getByRole("dialog")).toContainText("学时设置依据");
+    await expect(page.getByRole("dialog")).toContainText("证据绑定");
+    expect(antdWarnings).toEqual([]);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    if (process.env.NEXUS_CAPTURE_SCREENSHOTS) {
+      await page.screenshot({
+        path: `/tmp/standard-course-evidence-${testInfo.project.name}.png`,
+        fullPage: true,
+      });
+    }
+  });
 });

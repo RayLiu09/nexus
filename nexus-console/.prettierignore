@@ -9,3 +9,10 @@ package-lock.json
 *.min.js
 *.min.css
 public
+
+# Markdown tables and prose use repository-maintained formatting. Formatting
+# them with Prettier creates whole-file churn for small documentation edits.
+**/*.md
+../*.md
+../config/**/*.md
+../docs/**/*.md

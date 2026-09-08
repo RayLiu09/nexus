@@ -134,6 +134,17 @@ asset ledger:
   entries over the same parent/course projection. The course library reads
   `teaching_standard_course` records and is not a new governance
   classification.
+- `/asset-center/major/teaching-standards` reads the parent standard identity
+  as one paginated business list. Its `职业领域图谱` Drawer reuses the existing
+  evidence-bound `teaching_standard` staging graph (`专业 -> 职业领域 ->
+  典型工作任务 / 主要教学内容与要求`) by `normalized_ref_id`; inferred course
+  tags never become graph nodes or edges. This professional graph entry is no
+  longer hosted by the technical asset-detail knowledge view.
+- `/asset-center/major/standard-course-library` joins parent major identity in
+  one paginated query and never copies those columns to course rows. Suggested
+  total/practice/range hours are editable only while the parent is `review`.
+  Activating from any course row activates the whole parent standard and is
+  idempotent; both mutations write bounded audit snapshots.
 - Industrial-park and enterprise entries are reserved for fixed-schema bulk
   import from their own business lists. They do not introduce
   `industrial_park` or `enterprise` governance classifications in IA-1.

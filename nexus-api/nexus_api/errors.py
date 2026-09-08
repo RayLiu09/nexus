@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from fastapi import HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -10,6 +11,17 @@ from nexus_api.trace import get_trace_id
 from nexus_app.services import ResourceNotFoundError
 
 logger = logging.getLogger(__name__)
+
+
+def _json_safe_validation_details(value: Any) -> Any:
+    """Preserve Pydantic error structure without leaking non-JSON objects."""
+    if isinstance(value, BaseException):
+        return str(value)
+    if isinstance(value, dict):
+        return {key: _json_safe_validation_details(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe_validation_details(item) for item in value]
+    return value
 
 
 def _trace_id(request: Request) -> str:
@@ -68,7 +80,7 @@ async def validation_exception_handler(
         status_code=422,
         code="VALIDATION_ERROR",
         message="Request validation failed",
-        details=exc.errors(),
+        details=_json_safe_validation_details(exc.errors()),
     )
 
 

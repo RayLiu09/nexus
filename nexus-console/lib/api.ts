@@ -274,6 +274,72 @@ export type TalentTrainingPlanGraph = {
   edges: TalentTrainingPlanGraphEdge[];
 };
 
+export type TeachingStandardLibrary = {
+  id: string;
+  normalized_ref_id: string;
+  asset_version_id: string;
+  standard_title: string | null;
+  major_code: string | null;
+  major_name: string | null;
+  major_category_code: string | null;
+  major_category_name: string | null;
+  major_class_code: string | null;
+  major_class_name: string | null;
+  educational_level: string | null;
+  basic_study_years: string | null;
+  status: "review" | "active" | "superseded";
+  course_count: number;
+  updated_at: string | null;
+};
+
+export type SuggestedHoursRange = {
+  min: number;
+  max: number;
+  unit: "学时";
+};
+
+export type TeachingStandardEvidenceBinding = {
+  source_sequence?: number | null;
+  source_text?: string | null;
+  evidence_block_ids?: string[];
+  locator?: {
+    heading_path?: string[];
+    page?: string | number | null;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
+
+export type TeachingStandardCourse = {
+  id: string;
+  library_id: string;
+  course_id: string;
+  course_name: string;
+  major_code: string | null;
+  major_name: string | null;
+  educational_level: string | null;
+  library_status: "review" | "active" | "superseded";
+  course_type: "foundation" | "core" | "extension";
+  suggested_total_hours: number | null;
+  suggested_practice_hours: number | null;
+  suggested_hours_range: SuggestedHoursRange | null;
+  hours_setting_basis: string | null;
+  typical_work_task_description: string | null;
+  teaching_content_requirement: string | null;
+  knowledge_tags: string[];
+  skill_tags: string[];
+  tool_tags: string[];
+  literacy_tags: string[];
+  match_keywords: string | null;
+  match_text: string | null;
+  source_standard: string | null;
+  source_section: string;
+  source_page: string | null;
+  source_order: number;
+  evidence_bindings: TeachingStandardEvidenceBinding[];
+  updated_at: string | null;
+};
+
 export type TaskOutlineProfile = {
   id: string;
   normalized_ref_id: string;

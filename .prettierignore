@@ -1,0 +1,3 @@
+# Markdown contains hand-maintained tables and intentional line wrapping.
+# Keep documentation edits local; never rewrite whole Markdown files with Prettier.
+**/*.md

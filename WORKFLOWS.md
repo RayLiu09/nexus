@@ -149,6 +149,13 @@ Human owners review high-risk changes using the gates below.
 
 Run relevant tests, check demo path, inspect audit/traceability evidence, and confirm no P1/P2 creep.
 
+Markdown formatting rule:
+
+- Preserve hand-maintained Markdown tables and intentional prose wrapping.
+- Edit Markdown with bounded patches; do not run Prettier over Markdown files.
+- Repository and `nexus-console` Prettier ignore files enforce this boundary for
+  root-level and Console-level formatting commands.
+
 8. Merge small.
 
 Merge only bounded, reviewed, tested changes. Avoid large late integration.
