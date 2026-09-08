@@ -32,6 +32,10 @@ import re
 import unicodedata
 from typing import Any
 
+from nexus_app.capability_graph.major_normalizer import (
+    extract_ability_analysis_major_name,
+    normalize_major_name,
+)
 from nexus_app.profile_detect.config import (
     JOB_DEMAND_HEADER_ALIASES,
     JOB_DEMAND_OPTIONAL_HEADERS,
@@ -547,11 +551,21 @@ def _project_ability_analysis_pgsd(
         "work_content_count": work_content_total,
         "ability_item_count": ability_total,
     }
-    # Surface major hints from profile evidence if available.
+    # Preserve explicit profile evidence first.  The PGSD detector currently
+    # identifies the analysis shape but does not extract professional
+    # identity, so fall back to the parsed workbook's source filename.  This
+    # stays inside the normalized-record projection boundary and never
+    # reopens raw workbook bytes.
     evidence = profile_dict.get("evidence") or {}
+    explicit_major_name = None
+    if isinstance(evidence, dict) and isinstance(evidence.get("major_name"), str):
+        explicit_major_name = normalize_major_name(evidence["major_name"])
+    major_name = explicit_major_name or extract_ability_analysis_major_name(
+        raw_payload.get("source_filename")
+    )
+    if major_name:
+        analysis["major_name"] = major_name
     if isinstance(evidence, dict):
-        if evidence.get("major_name"):
-            analysis["major_name"] = evidence["major_name"]
         if evidence.get("major_direction"):
             analysis["major_direction"] = evidence["major_direction"]
 

@@ -9,7 +9,6 @@ import { ConfidenceBadge } from "@/components/ConfidenceBadge";
 import { DocumentKnowledgeView } from "@/app/assets/[assetId]/_components/DocumentKnowledgeView";
 import { SourcePreviewSection } from "@/app/assets/[assetId]/_components/SourcePreviewSection";
 import { JobDemandKnowledgeView } from "@/app/assets/[assetId]/_components/JobDemandKnowledgeView";
-import { AbilityAnalysisKnowledgeView } from "@/app/assets/[assetId]/_components/AbilityAnalysisKnowledgeView";
 import { MajorProfileKnowledgeView } from "@/app/assets/[assetId]/_components/MajorProfileKnowledgeView";
 import { TalentTrainingPlanKnowledgeView } from "@/app/assets/[assetId]/_components/TalentTrainingPlanKnowledgeView";
 import { TeachingStandardKnowledgeView } from "@/app/assets/[assetId]/_components/TeachingStandardKnowledgeView";
@@ -219,7 +218,6 @@ function KnowledgeChunksTab({
   latestRef,
   asset,
   latestGovernanceResult,
-  assetTitle,
   taskOutline,
   taskOutlineOk,
   taskOutlineError,
@@ -231,7 +229,6 @@ function KnowledgeChunksTab({
   latestRef: NormalizedAssetRef | null;
   asset: Asset | null;
   latestGovernanceResult?: GovernanceResult | null;
-  assetTitle?: string | null;
   taskOutline?: TaskOutlineEnvelope | null;
   taskOutlineOk?: boolean;
   taskOutlineError?: string | null;
@@ -281,9 +278,6 @@ function KnowledgeChunksTab({
   }
   if (view === "job_demand" && latestRef) {
     return <JobDemandKnowledgeView normalizedRefId={latestRef.id} />;
-  }
-  if (view === "ability_analysis" && latestRef) {
-    return <AbilityAnalysisKnowledgeView normalizedRef={latestRef} assetTitle={assetTitle} />;
   }
   if (view === "generic_table" && latestRef) {
     return <GenericRecordKnowledgeView normalizedRef={latestRef} />;
@@ -754,9 +748,14 @@ export function AssetDetailTabs({
     resolveRecordView(latestRef) === "major_distribution" ||
     latestGovernanceResult?.classification === "major_distribution" ||
     asset?.metadata_summary?.domain_profile === "major_distribution.v1";
+  const isAbilityAnalysis =
+    resolveRecordView(latestRef) === "ability_analysis" ||
+    latestGovernanceResult?.classification === "competency_analysis" ||
+    asset?.metadata_summary?.domain_profile === "ability_analysis.pgsd.v1";
+  const hidesStructuredView = isMajorDistribution || isAbilityAnalysis;
   const activeTab =
     (isRecordAsset && selectedTab === "preview") ||
-    (isMajorDistribution && selectedTab === "knowledge-chunks")
+    (hidesStructuredView && selectedTab === "knowledge-chunks")
       ? "lineage"
       : selectedTab;
 
@@ -773,7 +772,7 @@ export function AssetDetailTabs({
   const tabItems = TABS.filter(
     (tab) =>
       !(isRecordAsset && tab.key === "preview") &&
-      !(isMajorDistribution && tab.key === "knowledge-chunks"),
+      !(hidesStructuredView && tab.key === "knowledge-chunks"),
   ).map((t) => {
     const badgeCount =
       t.key === "ai-governance" && (governanceRuns.length > 0 || latestGovernanceResult)
@@ -829,7 +828,6 @@ export function AssetDetailTabs({
             latestRef={latestRef}
             asset={asset}
             latestGovernanceResult={latestGovernanceResult}
-            assetTitle={asset?.title ?? null}
             taskOutline={taskOutline}
             taskOutlineOk={taskOutlineOk}
             taskOutlineError={taskOutlineError}

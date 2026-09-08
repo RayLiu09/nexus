@@ -44,6 +44,7 @@ _ASSET_TYPE_SUFFIXES: tuple[str, ...] = (
     "院校专业简介",
     "专业简介",
     # Ability analysis
+    "专业职业能力分析表",
     "职业能力分析表",
     "能力分析表",
 )
@@ -62,6 +63,20 @@ _ASSET_TYPE_TRAILING_RE = re.compile(
 # Trailing "类" but not "大类". The negative lookbehind guards the
 # compound "大类" from being partially stripped.
 _TRAILING_CLASS_RE = re.compile(r"(?<!大)类$")
+
+_ABILITY_ANALYSIS_SUFFIXES: tuple[str, ...] = (
+    "专业职业能力分析表",
+    "职业能力分析表",
+    "能力分析表",
+)
+_ABILITY_ANALYSIS_FILENAME_SUFFIX_RE = re.compile(
+    rf"(?:{'|'.join(re.escape(value) for value in _ABILITY_ANALYSIS_SUFFIXES)})$"
+)
+_FILENAME_EXTENSION_RE = re.compile(r"\.(?:xlsx?|csv|json)$", re.IGNORECASE)
+_LEADING_SEQUENCE_RE = re.compile(r"^\s*\d+(?:\.\d+)*\s*[.、．_-]\s*")
+_LEADING_ABILITY_LABEL_RE = re.compile(
+    r"^\s*[（(【\[]\s*职业能力分析\s*[）)】\]]\s*"
+)
 
 
 def normalize_major_name(raw: str | None) -> str | None:
@@ -93,6 +108,30 @@ def normalize_major_name(raw: str | None) -> str | None:
     return value or None
 
 
+def extract_ability_analysis_major_name(source_filename: str | None) -> str | None:
+    """Extract a professional name from an ability-analysis source filename.
+
+    The extraction is intentionally narrow: a filename must end with a known
+    occupational-ability-analysis suffix after its file extension is removed.
+    Numeric ordering prefixes and a leading ``(职业能力分析)`` category label
+    are treated as source-list decoration, not as part of the professional
+    identity.  Any other filename returns ``None`` instead of guessing from
+    task or ability content.
+    """
+    if source_filename is None:
+        return None
+    value = str(source_filename).strip()
+    if not value:
+        return None
+    value = re.split(r"[/\\]", value)[-1]
+    value = _FILENAME_EXTENSION_RE.sub("", value).strip()
+    value = _LEADING_SEQUENCE_RE.sub("", value)
+    value = _LEADING_ABILITY_LABEL_RE.sub("", value).strip()
+    if not _ABILITY_ANALYSIS_FILENAME_SUFFIX_RE.search(value):
+        return None
+    return normalize_major_name(value)
+
+
 def normalize_major_code(raw: str | None) -> str | None:
     """Whitespace-trim and validate the identity extractor's major_code.
 
@@ -111,6 +150,7 @@ def normalize_major_code(raw: str | None) -> str | None:
 
 
 __all__ = [
+    "extract_ability_analysis_major_name",
     "normalize_major_code",
     "normalize_major_name",
 ]

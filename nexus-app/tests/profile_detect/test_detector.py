@@ -81,10 +81,15 @@ def _sheet(
     )
 
 
-def _workbook(sheets: list[ParsedSheet]) -> ParsedWorkbook:
+def _workbook(
+    sheets: list[ParsedSheet],
+    *,
+    source_filename: str | None = None,
+) -> ParsedWorkbook:
     return ParsedWorkbook(
         parser_version="test_parser.v1",
         parsed_at=datetime(2026, 6, 25, tzinfo=timezone.utc),
+        source_filename=source_filename,
         timezone="Asia/Shanghai",
         sheets=sheets,
     )
@@ -208,6 +213,21 @@ class TestDetectAbilityAnalysisPgsdSynthetic:
             "职业能力", "通用能力", "社会能力", "发展能力",
         }
         assert set(result.evidence.matched_code_prefixes) == {"P", "G", "S", "D"}
+
+    def test_major_name_is_retained_as_profile_evidence(self):
+        wb = _workbook(
+            [
+                _sheet("1.数据采集", rows=[
+                    _row(1, ["职业能力", "通用能力", "社会能力", "发展能力"]),
+                    _row(2, ["P-1.1.1", "G-1.1", "S-1.1", "D-1.1"]),
+                ]),
+            ],
+            source_filename=(
+                "2.（职业能力分析）大数据技术应用专业职业能力分析表.xlsx"
+            ),
+        )
+        result = detect_ability_analysis_pgsd(wb)
+        assert result.evidence.major_name == "大数据技术应用"
 
     def test_zhiye_jineng_alias_normalises_to_zhiye_nengli(self):
         # Decision 1 (settled): "职业技能" is an alias of canonical "职业能力".
@@ -485,6 +505,9 @@ class TestSampleAbilityAnalysisIntegration:
 
     def test_all_four_code_prefixes_matched(self, result):
         assert set(result.evidence.matched_code_prefixes) == {"P", "G", "S", "D"}
+
+    def test_major_name_extracted_from_source_filename(self, result):
+        assert result.evidence.major_name == "大数据技术应用"
 
 
 @pytest.mark.skipif(not SAMPLE_MAJOR_MULTI.exists(), reason="sample missing")

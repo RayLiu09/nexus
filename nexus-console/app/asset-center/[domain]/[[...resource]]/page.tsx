@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { PageHeader } from "@/components/PageHeader";
 import {
+  type AbilityAnalysis,
   getApiData,
   type MajorDistributionRecord,
   type TeachingStandardCourse,
@@ -25,6 +26,10 @@ import {
   MajorDistributionTable,
   type MajorDistributionFilters,
 } from "../../_components/MajorDistributionTable";
+import {
+  OccupationalAnalysisTable,
+  type OccupationalAnalysisFilters,
+} from "../../_components/OccupationalAnalysisTable";
 
 type AssetCenterRouteProps = {
   params: Promise<{ domain: string; resource?: string[] }>;
@@ -50,6 +55,36 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
   const pagination = parsePaginationParams(query);
   const page = pagination.page ?? 1;
   const pageSize = pagination.pageSize ?? DEFAULT_PAGE_SIZE;
+
+  if (domain.slug === "major" && resource.path === "occupation-analyses") {
+    const filters: OccupationalAnalysisFilters = {
+      major_name: first(query.major_name),
+    };
+    const result = await getApiData<AbilityAnalysis[]>(
+      "/internal/v1/record-assets/ability-analyses",
+      [],
+      {
+        page: String(page),
+        pageSize: String(pageSize),
+        ...(filters.major_name ? { major_name: filters.major_name } : {}),
+      },
+    );
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader eyebrow={domain.name} title="职业能力分析" description={resource.description} />
+        <OccupationalAnalysisTable
+          rows={result.data}
+          total={result.total ?? result.data.length}
+          page={page}
+          pageSize={pageSize}
+          filters={filters}
+          ok={result.ok}
+          error={result.error}
+          traceId={result.traceId}
+        />
+      </div>
+    );
+  }
 
   if (domain.slug === "major" && resource.path === "distributions") {
     const filters: MajorDistributionFilters = {

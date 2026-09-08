@@ -1353,8 +1353,19 @@ def delete_major_distribution_record(
 
 
 
-def _serialize_analysis(analysis: models.OccupationalAbilityAnalysis) -> dict:
-    return {
+_ABILITY_CATEGORY_COUNT_FIELDS = {
+    "G": "general_ability_count",
+    "D": "development_ability_count",
+    "P": "occupational_ability_count",
+    "S": "social_ability_count",
+}
+
+
+def _serialize_analysis(
+    analysis: models.OccupationalAbilityAnalysis,
+    category_counts: dict[str, int] | None = None,
+) -> dict:
+    payload = {
         "id": analysis.id,
         "normalized_ref_id": analysis.normalized_ref_id,
         "asset_version_id": analysis.asset_version_id,
@@ -1371,6 +1382,38 @@ def _serialize_analysis(analysis: models.OccupationalAbilityAnalysis) -> dict:
         "created_at": analysis.created_at.isoformat() if analysis.created_at else None,
         "updated_at": analysis.updated_at.isoformat() if analysis.updated_at else None,
     }
+    counts = category_counts or {}
+    payload.update(
+        {
+            field: counts.get(category, 0)
+            for category, field in _ABILITY_CATEGORY_COUNT_FIELDS.items()
+        }
+    )
+    return payload
+
+
+def _load_ability_category_counts(
+    session: Session,
+    analysis_ids: list[str],
+) -> dict[str, dict[str, int]]:
+    if not analysis_ids:
+        return {}
+    rows = session.execute(
+        select(
+            models.OccupationalAbilityItem.analysis_id,
+            models.OccupationalAbilityItem.ability_major_category_code,
+            func.count(models.OccupationalAbilityItem.id),
+        )
+        .where(models.OccupationalAbilityItem.analysis_id.in_(analysis_ids))
+        .group_by(
+            models.OccupationalAbilityItem.analysis_id,
+            models.OccupationalAbilityItem.ability_major_category_code,
+        )
+    ).all()
+    counts: dict[str, dict[str, int]] = {}
+    for analysis_id, category, count in rows:
+        counts.setdefault(analysis_id, {})[category] = int(count)
+    return counts
 
 
 def _serialize_profile(profile: models.AbilityAnalysisProfile) -> dict:
@@ -1532,9 +1575,13 @@ def list_ability_analyses(
                 session, analysis_ids,
             )
 
+    category_counts_by_analysis = _load_ability_category_counts(
+        session,
+        [row.id for row in rows],
+    )
     serialized: list[dict] = []
     for row in rows:
-        payload = _serialize_analysis(row)
+        payload = _serialize_analysis(row, category_counts_by_analysis.get(row.id))
         if include_tasks:
             payload["tasks"] = tasks_by_analysis.get(row.id, [])
         if include_ability_items:
@@ -1621,7 +1668,8 @@ def get_ability_analysis(
 ):
     analysis = _get_analysis_or_404(session, analysis_id)
     profile = session.get(models.AbilityAnalysisProfile, analysis.profile_id)
-    payload = _serialize_analysis(analysis)
+    category_counts = _load_ability_category_counts(session, [analysis.id])
+    payload = _serialize_analysis(analysis, category_counts.get(analysis.id))
     payload["profile"] = _serialize_profile(profile) if profile is not None else None
     return response(payload, request)
 

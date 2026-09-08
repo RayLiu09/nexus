@@ -1303,7 +1303,7 @@ nextjs-portal:empty {
   border-bottom: 1px solid var(--line-light);
 }
 
-.asset-detail-tabs :global(.ant-tabs-nav) {
+.asset-detail-tabs .ant-tabs-nav {
   margin-bottom: 0 !important;
 }
 

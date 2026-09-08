@@ -28,6 +28,9 @@ import logging
 import re
 from typing import Iterable
 
+from nexus_app.capability_graph.major_normalizer import (
+    extract_ability_analysis_major_name,
+)
 from nexus_app.profile_detect.config import (
     DEFAULT_AUTO_ADMIT_THRESHOLD,
     DETECTOR_VERSION,
@@ -363,6 +366,8 @@ def detect_ability_analysis_pgsd(workbook: ParsedWorkbook) -> ProfileDetectResul
     if confidence <= 0:
         return _zero_confidence_pgsd(sheet_names=sheet_names)
 
+    major_name = extract_ability_analysis_major_name(workbook.source_filename)
+
     return ProfileDetectResult(
         record_type="occupational_ability_analysis",
         domain="occupation",
@@ -375,6 +380,7 @@ def detect_ability_analysis_pgsd(workbook: ParsedWorkbook) -> ProfileDetectResul
             matched_code_prefixes=sorted(matched_code_prefixes),
             sheet_names=sheet_names,
             sample_row_count=sample_row_count,
+            major_name=major_name,
         ),
     )
 

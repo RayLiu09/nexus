@@ -9,6 +9,7 @@ from __future__ import annotations
 import pytest
 
 from nexus_app.capability_graph.major_normalizer import (
+    extract_ability_analysis_major_name,
     normalize_major_code,
     normalize_major_name,
 )
@@ -90,7 +91,27 @@ def test_longer_suffix_matched_before_shorter():
 
 def test_ability_analysis_suffix_stripped():
     assert normalize_major_name("电子商务职业能力分析表") == "电子商务"
+    assert normalize_major_name("电子商务专业职业能力分析表") == "电子商务"
     assert normalize_major_name("电子商务能力分析表") == "电子商务"
+
+
+@pytest.mark.parametrize(
+    "source_filename, expected",
+    [
+        ("电子商务职业能力分析表.xlsx", "电子商务"),
+        ("电子商务专业职业能力分析表.xlsx", "电子商务"),
+        (
+            "2.（职业能力分析）大数据技术应用专业职业能力分析表.xlsx",
+            "大数据技术应用",
+        ),
+        (r"C:\imports\电子商务职业能力分析表.xls", "电子商务"),
+        ("职业能力分析数据.xlsx", None),
+        ("岗位需求.xlsx", None),
+        (None, None),
+    ],
+)
+def test_extract_ability_analysis_major_name(source_filename, expected):
+    assert extract_ability_analysis_major_name(source_filename) == expected
 
 
 def test_major_profile_suffix_stripped():

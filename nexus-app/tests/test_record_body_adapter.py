@@ -58,11 +58,11 @@ def _sheet(name: str, rows: list[dict]) -> dict:
     }
 
 
-def _workbook(*sheets: dict) -> dict:
+def _workbook(*sheets: dict, source_filename: str = "test.xlsx") -> dict:
     return {
         "parser_version": "xlsx_parser.v1",
         "parsed_at": "2026-06-25T00:00:00+00:00",
-        "source_filename": "test.xlsx",
+        "source_filename": source_filename,
         "source_mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "timezone": "Asia/Shanghai",
         "sheets": list(sheets),
@@ -270,6 +270,34 @@ class TestAbilityAnalysisProjection:
         assert analysis["task_count"] == 1
         assert analysis["work_content_count"] == 2  # 1.1, 1.2
         assert analysis["ability_item_count"] == 6  # 3 P + G + S + D
+
+    def test_major_name_derived_from_source_filename(self):
+        workbook = self._pgsd_wb()
+        workbook["source_filename"] = (
+            "2.（职业能力分析）大数据技术应用专业职业能力分析表.xlsx"
+        )
+        out = project_to_record_body(
+            workbook, {"domain_profile": "ability_analysis.pgsd.v1"}
+        )
+        assert out["analysis"]["major_name"] == "大数据技术应用"
+
+    def test_explicit_major_name_takes_precedence_over_source_filename(self):
+        workbook = self._pgsd_wb()
+        workbook["source_filename"] = "电子商务职业能力分析表.xlsx"
+        out = project_to_record_body(
+            workbook,
+            {
+                "domain_profile": "ability_analysis.pgsd.v1",
+                "evidence": {"major_name": "大数据技术应用"},
+            },
+        )
+        assert out["analysis"]["major_name"] == "大数据技术应用"
+
+    def test_generic_source_filename_does_not_invent_major_name(self):
+        out = project_to_record_body(
+            self._pgsd_wb(), {"domain_profile": "ability_analysis.pgsd.v1"}
+        )
+        assert "major_name" not in out["analysis"]
 
     def test_non_pgsd_sheets_ignored(self):
         wb = _workbook(

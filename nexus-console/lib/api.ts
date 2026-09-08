@@ -912,6 +912,10 @@ export type AbilityAnalysis = {
   task_count: number;
   work_content_count: number;
   ability_item_count: number;
+  general_ability_count: number;
+  development_ability_count: number;
+  occupational_ability_count: number;
+  social_ability_count: number;
   schema_version: string;
   quality_summary: Record<string, unknown>;
   // The detail endpoint embeds the profile so the UI can read

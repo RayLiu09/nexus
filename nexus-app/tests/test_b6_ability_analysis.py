@@ -698,6 +698,9 @@ class TestWriterUpsert:
         ability_writer_write(session, ref, body)
         new_task_ids = {t.id for t in session.scalars(select(models.OccupationalWorkTask))}
         assert new_task_ids.isdisjoint(old_task_ids), "child rows must be replaced, not appended"
+        rebuilt = session.scalar(select(models.OccupationalAbilityAnalysis))
+        assert rebuilt is not None
+        assert rebuilt.major_name == "大数据技术应用"
 
     def test_unique_constraint_per_normalized_ref(self, session):
         """The writer's upsert hinges on `uq_oaa_normalized_ref` — verify

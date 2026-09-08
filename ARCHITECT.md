@@ -145,6 +145,13 @@ asset ledger:
   total/practice/range hours are editable only while the parent is `review`.
   Activating from any course row activates the whole parent standard and is
   idempotent; both mutations write bounded audit snapshots.
+- `/asset-center/major/occupation-analyses` reads occupational-ability
+  projections as a paginated business list. P/G/S/D counts for all rows on the
+  current page are computed by one grouped query rather than persisted or
+  loaded per row. Ability items retain server-side pagination, while the tree
+  explicitly walks bounded pages to assemble its complete hierarchy. The
+  item, tree, and existing staging-graph views are not duplicated in technical
+  asset detail.
 - Industrial-park and enterprise entries are reserved for fixed-schema bulk
   import from their own business lists. They do not introduce
   `industrial_park` or `enterprise` governance classifications in IA-1.

@@ -182,6 +182,14 @@ Asset Center IA-1:
   matched text, section/page, block IDs, and evidence bindings. `更新` is
   review-only; `激活` confirms and activates the complete parent standard and
   all its course records rather than creating a course-level status.
+- **职业能力分析业务视图**: `/asset-center/major/occupation-analyses` exposes a
+  paginated analysis list with professional name, analysis model, task count,
+  and exact P/G/S/D category counts. `能力条目` uses server-side pagination and
+  shows only category, description, and corresponding task name; `能力树` and
+  `能力图谱` preserve the existing structured views in right Drawers. Category
+  counts are projected for the current page in one grouped query and are not
+  persisted. The migrated views and `结构化图谱` tab are no longer present in
+  the technical asset detail.
 - **市场数据**: job-demand records, industrial parks, enterprises, and
   certificates. Industrial parks and enterprises are future fixed-schema
   imports from their own lists; IA-1 adds neither governance classification.
@@ -205,7 +213,7 @@ P0 management pages:
 - **全部资产台账**: `/assets` asset list, current version read model, versions,
   normalized refs (with governance/quality/lineage fields), and index status.
   It is a technical management view and is not the Asset Center landing page.
-- **资产详情**: overview, versions, normalized refs, AI governance, quality score, governance result, decision tracking, generic chunks (with normalized_ref_id), course textbook Task Outline read view for training-operation textbooks, record-asset structured views (list plus read-only staging graph for job demand / ability analysis), index manifest, lineage (including image_uris), audit. Professional teaching-standard domain graph navigation belongs to Asset Center rather than this technical ledger view.
+- **资产详情**: overview, versions, normalized refs, AI governance, quality score, governance result, decision tracking, generic chunks (with normalized_ref_id), course textbook Task Outline read view for training-operation textbooks, job-demand record structured views, index manifest, lineage (including image_uris), audit. Professional teaching-standard and occupational-ability domain views belong to Asset Center rather than this technical ledger view.
 - **治理中心**: AI suggestions, AI quality score, AI Prompt config, review tasks, rule config, save-to-activate changes, decision tracking, quality review.
 - **规则配置**: structured editor for `config/governance_rules.json` (classifications, levels, tags, quality scoring, knowledge types); ETag-based concurrency control; save takes effect immediately for future governance runs.
 - **权限与审计**: local users, roles, API keys, org scopes, approvals, audit logs.
@@ -368,6 +376,10 @@ P0 end-to-end cases:
 - Image/scanned PDF ingestion: `ocr_enable = true` auto-set; parse succeeds.
 - Crawler Firecrawl document batch: `ingest_validate` passes → `assetize` (Pipeline A) → HTML uses the crawler `trafilatura` Markdown extractor with deterministic `markdown_range` locators, Markdown uses the markdown adapter, PDF stays on MinerU → normalize into `normalized_document` with full `normalized_asset_ref` fields → queryable and searchable after governance/index admission.
 - Professional major-distribution XLSX: `ingest_validate` passes → Pipeline B structured parse/profile detect (`major_distribution.v1`) → `normalized_record` → domain tables; summary rows such as `全部` are ignored, `新疆生产建设兵团` is stored as `province`, and missing education level stays empty unless explicit source/file/context evidence exists.
+- Occupational-ability-analysis XLSX: the normalized-record projection keeps
+  explicit professional identity when present and otherwise derives it only
+  from a source filename carrying a recognized ability-analysis suffix; task
+  names and ability text are never used to invent a professional name.
 - Course textbook training-operation PDF: normalized document payload is
   detected as `training_operation` → `task_outline_profile` stores
   `processing_profile=task_outline` and

@@ -99,7 +99,7 @@ export const ASSET_CENTER_DOMAINS = [
       },
       {
         path: "occupation-analyses",
-        name: "职业分析数据",
+        name: "职业能力分析",
         description: "职业任务和能力要求分析",
         classificationCode: "competency_analysis",
       },

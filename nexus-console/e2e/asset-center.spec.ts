@@ -168,6 +168,99 @@ test.describe("Asset Center IA-1", () => {
     await expect(page.getByText("专业布点列表")).toHaveCount(0);
   });
 
+  test("renders occupational analyses and the three migrated views", async ({ page }) => {
+    const antdWarnings: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "warning" && message.text().includes("[antd:")) {
+        antdWarnings.push(message.text());
+      }
+    });
+    await page.goto("/asset-center/major/occupation-analyses");
+
+    await expect(page.getByRole("heading", { level: 1, name: "职业能力分析" })).toBeVisible();
+    for (const heading of [
+      "专业名称",
+      "分析模型",
+      "典型任务数",
+      "通用能力数",
+      "发展能力数",
+      "职业能力数",
+      "社会能力数",
+      "操作",
+    ]) {
+      await expect(page.getByRole("columnheader", { name: heading })).toBeVisible();
+    }
+    const firstAnalysisRow = page.locator(".ant-table-tbody > tr.ant-table-row").first();
+    for (const columnIndex of [2, 3, 4, 5, 6]) {
+      await expect(firstAnalysisRow.locator("td").nth(columnIndex)).toHaveText(/^\d+$/);
+    }
+
+    await page
+      .getByRole("button", { name: /能力条目/ })
+      .first()
+      .click();
+    let dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText("能力条目");
+    await expect(dialog.getByRole("columnheader")).toHaveCount(3);
+    for (const heading of ["类别", "能力描述", "对应任务名称"]) {
+      await expect(dialog.getByRole("columnheader", { name: heading })).toBeVisible();
+    }
+    await dialog.getByRole("button", { name: "关闭" }).click();
+
+    await page
+      .getByRole("button", { name: /能力树/ })
+      .first()
+      .click();
+    dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText("能力树");
+    await expect(dialog.getByRole("tree", { name: "能力分析任务树" })).toBeVisible();
+    await dialog.getByRole("button", { name: "关闭" }).click();
+
+    await page
+      .getByRole("button", { name: /能力图谱/ })
+      .first()
+      .click();
+    dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText("能力图谱");
+    const graphCanvas = dialog.locator("canvas").first();
+    await expect(graphCanvas).toBeVisible({ timeout: 20_000 });
+    await expect
+      .poll(
+        () =>
+          graphCanvas.evaluate((canvas: HTMLCanvasElement) => {
+            const context = canvas.getContext("2d");
+            if (!context || canvas.width === 0 || canvas.height === 0) return 0;
+            const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+            let colored = 0;
+            for (let index = 0; index < pixels.length; index += 16) {
+              if (
+                pixels[index + 3] > 0 &&
+                (pixels[index] < 245 || pixels[index + 1] < 245 || pixels[index + 2] < 245)
+              ) {
+                colored += 1;
+              }
+            }
+            return colored;
+          }),
+        { timeout: 20_000 },
+      )
+      .toBeGreaterThan(100);
+    expect(antdWarnings).toEqual([]);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+  });
+
+  test("keeps occupational ability views out of technical asset detail", async ({ page }) => {
+    const assetId = process.env.NEXUS_E2E_ABILITY_ANALYSIS_ASSET_ID;
+    test.skip(!assetId, "No occupational-ability asset ID was supplied");
+
+    await page.goto(`/assets/${assetId}`);
+
+    await expect(page.getByRole("tab", { name: "结构化图谱" })).toHaveCount(0);
+    await expect(page.getByText("能力条目", { exact: true })).toHaveCount(0);
+  });
+
   test("renders the expandable standard-course library and evidence drawer", async ({
     page,
   }, testInfo) => {

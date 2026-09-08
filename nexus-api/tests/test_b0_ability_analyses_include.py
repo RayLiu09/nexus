@@ -18,7 +18,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import event, select
 from sqlalchemy.orm import Session
 
 from nexus_app import models
@@ -199,6 +199,73 @@ class TestIncludeTasks:
         assert tasks[0]["task_name"] == "市场数据采集"
         assert tasks[0]["id"] == seeded["task_id"]
 
+
+class TestAbilityCategoryCounts:
+    def test_list_returns_exact_category_counts_with_constant_query_count(
+        self,
+        app,
+        session,
+    ):
+        seeded = _seed_analysis(
+            session,
+            major_name="电子商务",
+            task_name="数据运营",
+            ability_content="执行数据运营任务",
+        )
+        task = session.get(models.OccupationalWorkTask, seeded["task_id"])
+        assert task is not None
+        for index, category in enumerate(("G", "D", "S"), start=1):
+            session.add(
+                models.OccupationalAbilityItem(
+                    analysis_id=seeded["analysis_id"],
+                    task_id=task.id,
+                    work_content_id=None,
+                    ability_code=f"{category}-{index}",
+                    ability_major_category_code=category,
+                    ability_major_category_name={
+                        "G": "通用能力",
+                        "D": "发展能力",
+                        "S": "社会能力",
+                    }[category],
+                    ability_sequence=str(index),
+                    ability_content=f"{category} 类能力",
+                    normalized_terms={},
+                    quality_flags={},
+                    trace={},
+                )
+            )
+        analysis = session.get(
+            models.OccupationalAbilityAnalysis,
+            seeded["analysis_id"],
+        )
+        assert analysis is not None
+        analysis.ability_item_count = 4
+        session.commit()
+
+        statements: list[str] = []
+
+        def capture_statement(*args):
+            statement = args[2]
+            if statement.lstrip().upper().startswith("SELECT"):
+                statements.append(statement)
+
+        event.listen(session.bind, "before_cursor_execute", capture_statement)
+        try:
+            with TestClient(app) as client:
+                response = client.get(
+                    "/internal/v1/record-assets/ability-analyses",
+                    params={"major_name": "电子商务"},
+                )
+        finally:
+            event.remove(session.bind, "before_cursor_execute", capture_statement)
+
+        assert response.status_code == 200
+        row = response.json()["data"][0]
+        assert row["general_ability_count"] == 1
+        assert row["development_ability_count"] == 1
+        assert row["occupational_ability_count"] == 1
+        assert row["social_ability_count"] == 1
+        assert len(statements) == 3
 
 class TestIncludeAbilityItems:
     def test_include_ability_items_inlines_items(self, app, session):
