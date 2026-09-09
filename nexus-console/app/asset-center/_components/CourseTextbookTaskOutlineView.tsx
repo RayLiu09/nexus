@@ -1,36 +1,29 @@
 "use client";
 
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { Alert, Card, Empty, Segmented, Skeleton, Space, Tag, Tree, Typography } from "antd";
+import { Alert, Empty, Skeleton, Tag, Tree, Typography } from "antd";
 import type { DataNode } from "antd/es/tree";
 import type { ECharts, EChartsOption } from "echarts";
 import remarkGfm from "remark-gfm";
 
-import type { TaskOutlineEnvelope, TaskOutlineNode, TaskOutlineProfile } from "@/lib/api";
+import type { TaskOutlineEnvelope, TaskOutlineNode } from "@/lib/api";
 import {
   downloadEchartsGraphImage,
   GraphViewportActions,
   type GraphImageHandle,
-} from "./GraphViewportActions";
+} from "@/app/assets/[assetId]/_components/GraphViewportActions";
 
 const Markdown = dynamic(() => import("react-markdown"), {
   ssr: false,
   loading: () => <Skeleton active paragraph={{ rows: 2 }} />,
 });
 
+export type CourseTextbookTaskOutlineMode = "tree" | "radial";
+
 type Props = {
-  refId: string | null;
-  initialData?: TaskOutlineEnvelope | null;
-  initialError?: string | null;
+  refId: string;
+  mode: CourseTextbookTaskOutlineMode;
 };
 
 type ApiEnvelope =
@@ -44,8 +37,6 @@ type ApiEnvelope =
       error: { message?: string };
       meta?: { trace_id?: string | null };
     };
-
-type ViewMode = "tree" | "radial";
 
 type OutlineTreeNode = {
   key: string;
@@ -87,128 +78,70 @@ const SECTION_LABELS: Record<string, string> = {
   assessment: "评价",
 };
 
-const SUBTYPE_LABELS: Record<string, string> = {
-  theory_knowledge: "理论知识型",
-  training_operation: "实训操作型",
-  hybrid: "混合型",
-  unknown: "未识别",
-};
-
-const GRAPH_ADMISSION_LABELS: Record<string, string> = {
-  recommended: "推荐构图",
-  not_recommended: "不推荐构图",
-  chapter_selective: "章节选择",
-  unknown: "未判定",
-};
-
-export function TaskOutlineView({ refId, initialData = null, initialError = null }: Props) {
-  const [data, setData] = useState<TaskOutlineEnvelope | null>(initialData);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(initialError);
-  const [viewMode, setViewMode] = useState<ViewMode>("tree");
+export function CourseTextbookTaskOutlineView({ refId, mode }: Props) {
+  const [data, setData] = useState<TaskOutlineEnvelope | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const radialRef = useRef<GraphImageHandle | null>(null);
 
-  const load = useCallback(async () => {
-    if (!refId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(
-        `/api/normalized-refs/${encodeURIComponent(refId)}/task-outline`,
-        { cache: "no-store" },
-      );
-      const body = (await res.json()) as ApiEnvelope;
-      if (!res.ok || body.error) {
-        throw new Error(body.error?.message || `HTTP ${res.status}`);
-      }
-      setData(body.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/normalized-refs/${encodeURIComponent(refId)}/task-outline`, {
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        const body = (await response.json()) as ApiEnvelope;
+        if (!response.ok || body.error) {
+          throw new Error(body.error?.message || `HTTP ${response.status}`);
+        }
+        if (!cancelled) setData(body.data);
+      })
+      .catch((reason: unknown) => {
+        if (!cancelled) {
+          setError(reason instanceof Error ? reason.message : String(reason));
+          setData(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [refId]);
 
-  useEffect(() => {
-    if (!refId) return;
-    if (initialData || initialError) return;
-    load();
-  }, [initialData, initialError, load, refId]);
-
-  const nodes = data?.nodes ?? [];
   const profile = data?.profile ?? null;
-  const outlineTree = useMemo(() => buildOutlineTree(nodes), [nodes]);
+  const outlineTree = useMemo(() => buildOutlineTree(data?.nodes ?? []), [data?.nodes]);
   const graphDisabled = outlineTree.length === 0;
 
-  if (!refId) {
-    return (
-      <Card className="!mt-4" title="任务大纲">
-        <Alert type="info" showIcon title="该资产尚无标准化引用，暂无任务大纲。" />
-      </Card>
-    );
-  }
-
   return (
-    <Card
-      className="!mt-4"
-      title={
-        <Space wrap>
-          <span>任务大纲</span>
-          {profile?.textbook_subtype ? (
-            <Tag color={profile.textbook_subtype === "training_operation" ? "blue" : "default"}>
-              {SUBTYPE_LABELS[profile.textbook_subtype] ?? profile.textbook_subtype}
-            </Tag>
-          ) : null}
-          {profile?.evidence_graph_admission ? (
-            <Tag color={profile.evidence_graph_admission === "not_recommended" ? "warning" : "green"}>
-              {GRAPH_ADMISSION_LABELS[profile.evidence_graph_admission] ??
-                profile.evidence_graph_admission}
-            </Tag>
-          ) : null}
-          {data?.chunk_projection.projected_chunk_count ? (
-            <Tag color="processing">{data.chunk_projection.projected_chunk_count} chunks</Tag>
-          ) : null}
-        </Space>
-      }
-      extra={
-        profile && outlineTree.length > 0 ? (
-          <div className="flex items-center gap-2">
-            <Segmented
-              value={viewMode}
-              onChange={(value) => setViewMode(value as ViewMode)}
-              options={[
-                { label: "树视图", value: "tree" },
-                { label: "圆形树", value: "radial" },
-              ]}
-              aria-label="切换任务大纲视图"
-            />
-            {viewMode === "tree" ? (
-              <GraphViewportActions
-                title="任务大纲树"
-                disabled={graphDisabled}
-                downloadLabel="下载任务大纲 Markdown"
-                downloadAriaLabel="下载任务大纲 Markdown"
-                onDownload={() => downloadTextFile("任务大纲.md", outlineTreeToMarkdown(outlineTree))}
-              >
-                <div className="h-full overflow-auto">
-                  <TaskTreeSection roots={outlineTree} fullscreen />
-                </div>
-              </GraphViewportActions>
-            ) : (
-              <GraphViewportActions
-                title="任务大纲圆形树"
-                disabled={graphDisabled}
-                immersive
-                onDownload={() => radialRef.current?.downloadImage("任务大纲圆形树.png")}
-              >
-                <RadialTaskTree roots={outlineTree} fullscreen />
-              </GraphViewportActions>
-            )}
-          </div>
-        ) : null
-      }
-    >
+    <section className="flex min-h-[620px] flex-col gap-3">
+      <div className="flex min-h-8 items-center justify-end">
+        {profile && outlineTree.length > 0 ? (
+          mode === "tree" ? (
+            <GraphViewportActions
+              title="任务大纲树"
+              disabled={graphDisabled}
+              downloadLabel="下载任务大纲 Markdown"
+              downloadAriaLabel="下载任务大纲 Markdown"
+              onDownload={() => downloadTextFile("任务大纲.md", outlineTreeToMarkdown(outlineTree))}
+            >
+              <div className="h-full overflow-auto">
+                <TaskTreeSection roots={outlineTree} fullscreen />
+              </div>
+            </GraphViewportActions>
+          ) : (
+            <GraphViewportActions
+              title="任务大纲圆形树"
+              disabled={graphDisabled}
+              immersive
+              onDownload={() => radialRef.current?.downloadImage("任务大纲圆形树.png")}
+            >
+              <RadialTaskTree roots={outlineTree} fullscreen />
+            </GraphViewportActions>
+          )
+        ) : null}
+      </div>
       {error ? <Alert type="error" showIcon className="!mb-3" title={error} /> : null}
       {loading && data === null ? (
         <Skeleton active paragraph={{ rows: 4 }} />
@@ -218,15 +151,21 @@ export function TaskOutlineView({ refId, initialData = null, initialError = null
         <Empty description="该任务大纲暂无节点。" />
       ) : (
         <div className="flex flex-col gap-4">
-          {viewMode === "tree" ? <TaskTreeSection roots={outlineTree} /> : null}
-          {viewMode === "radial" ? <RadialTaskTree ref={radialRef} roots={outlineTree} /> : null}
+          {mode === "tree" ? <TaskTreeSection roots={outlineTree} /> : null}
+          {mode === "radial" ? <RadialTaskTree ref={radialRef} roots={outlineTree} /> : null}
         </div>
       )}
-    </Card>
+    </section>
   );
 }
 
-function TaskTreeSection({ roots, fullscreen = false }: { roots: OutlineTreeNode[]; fullscreen?: boolean }) {
+function TaskTreeSection({
+  roots,
+  fullscreen = false,
+}: {
+  roots: OutlineTreeNode[];
+  fullscreen?: boolean;
+}) {
   const treeData = useMemo(() => roots.map(toDataNode), [roots]);
   const expandedKeys = useMemo(() => {
     const keys: string[] = [];
@@ -240,7 +179,7 @@ function TaskTreeSection({ roots, fullscreen = false }: { roots: OutlineTreeNode
 
   return (
     <div
-      className={`task-outline-tree-view w-full rounded border border-line bg-bg-subtle ${
+      className={`task-outline-tree-view border-line bg-bg-subtle w-full rounded border ${
         fullscreen ? "min-h-full overflow-auto px-5 py-4" : "overflow-x-auto px-4 py-3"
       }`}
     >
@@ -307,37 +246,37 @@ function TreeNodeTitle({ item }: { item: OutlineTreeNode }) {
           <Tag className="!m-0">{node.source_block_ids.length} blocks</Tag>
         ) : null}
       </div>
-      {content ? (
-        <MarkdownContent content={content} />
-      ) : null}
+      {content ? <MarkdownContent content={content} /> : null}
     </div>
   );
 }
 
 function MarkdownContent({ content }: { content: string }) {
   return (
-    <div className="task-outline-markdown mt-2 w-full min-w-0 overflow-x-auto rounded border border-line bg-bg px-3 py-2 text-sm leading-6 text-text-secondary">
+    <div className="task-outline-markdown border-line bg-bg text-text-secondary mt-2 w-full min-w-0 overflow-x-auto rounded border px-3 py-2 text-sm leading-6">
       <Markdown
         remarkPlugins={[remarkGfm]}
         components={{
           p: ({ children }) => <p className="mb-2 whitespace-pre-wrap last:mb-0">{children}</p>,
           table: ({ children }) => (
-            <table className="my-2 w-full min-w-[680px] border-collapse text-xs leading-5">{children}</table>
+            <table className="my-2 w-full min-w-[680px] border-collapse text-xs leading-5">
+              {children}
+            </table>
           ),
           th: ({ children }) => (
-            <th className="border border-line bg-bg-subtle px-2 py-1 text-left font-medium text-text-secondary">
+            <th className="border-line bg-bg-subtle text-text-secondary border px-2 py-1 text-left font-medium">
               {children}
             </th>
           ),
           td: ({ children }) => (
-            <td className="border border-line bg-bg px-2 py-1 align-top text-text-secondary">
+            <td className="border-line bg-bg text-text-secondary border px-2 py-1 align-top">
               {children}
             </td>
           ),
           ul: ({ children }) => <ul className="mb-1 list-disc pl-5">{children}</ul>,
           ol: ({ children }) => <ol className="mb-1 list-decimal pl-5">{children}</ol>,
           code: ({ children }) => (
-            <code className="rounded bg-fill px-1 py-0.5 text-xs">{children}</code>
+            <code className="bg-fill rounded px-1 py-0.5 text-xs">{children}</code>
           ),
         }}
       >
@@ -347,75 +286,81 @@ function MarkdownContent({ content }: { content: string }) {
   );
 }
 
-const RadialTaskTree = forwardRef<GraphImageHandle, { roots: OutlineTreeNode[]; fullscreen?: boolean }>(
-  function RadialTaskTree(
-  {
-    roots,
-    fullscreen = false,
-  },
-  forwardedRef,
-) {
+const RadialTaskTree = forwardRef<
+  GraphImageHandle,
+  { roots: OutlineTreeNode[]; fullscreen?: boolean }
+>(function RadialTaskTree({ roots, fullscreen = false }, forwardedRef) {
   const chartRef = useRef<HTMLDivElement | null>(null);
   const instanceRef = useRef<ECharts | null>(null);
   const nodeCount = useMemo(() => countOutlineNodes(roots), [roots]);
-  const option = useMemo<EChartsOption>(() => ({
-    tooltip: {
-      trigger: "item",
-      triggerOn: "mousemove",
-      formatter: (params) => {
-        const item = Array.isArray(params) ? params[0] : params;
-        const data = (item as ChartTooltipData | undefined)?.data;
-        const page = data?.pageRange ? `<br/>${data.pageRange}` : "";
-        const content = data?.contentPreview
-          ? `<br/><span style="display:inline-block;max-width:360px;white-space:normal;line-height:1.5;margin-top:4px;">${escapeHtml(data.contentPreview)}</span>`
-          : "";
-        return `${data?.nodeLabel ?? "节点"}：${escapeHtml(data?.name ?? "")}${page}${content}`;
-      },
-    },
-    series: [{
-      type: "tree",
-      data: [toChartTree(roots)],
-      layout: "radial",
-      top: 24,
-      bottom: 24,
-      left: 24,
-      right: 24,
-      symbol: "circle",
-      symbolSize: 7,
-      initialTreeDepth: 4,
-      roam: true,
-      expandAndCollapse: true,
-      animationDuration: 300,
-      animationDurationUpdate: 450,
-      label: {
-        position: "right",
-        rotate: 0,
-        fontSize: 11,
-        overflow: "truncate",
-        width: 120,
-      },
-      leaves: {
-        label: {
-          position: "right",
-          rotate: 0,
-          fontSize: 11,
-          overflow: "truncate",
-          width: 120,
+  const option = useMemo<EChartsOption>(
+    () => ({
+      tooltip: {
+        trigger: "item",
+        triggerOn: "mousemove",
+        formatter: (params) => {
+          const item = Array.isArray(params) ? params[0] : params;
+          const data = (item as ChartTooltipData | undefined)?.data;
+          const page = data?.pageRange ? `<br/>${data.pageRange}` : "";
+          const content = data?.contentPreview
+            ? `<br/><span style="display:inline-block;max-width:360px;white-space:normal;line-height:1.5;margin-top:4px;">${escapeHtml(data.contentPreview)}</span>`
+            : "";
+          return `${data?.nodeLabel ?? "节点"}：${escapeHtml(data?.name ?? "")}${page}${content}`;
         },
       },
-      itemStyle: { color: "#1677ff" },
-      lineStyle: { color: "#94a3b8", width: 1 },
-      emphasis: { focus: "descendant" },
-    }],
-  }), [roots]);
-
-  useImperativeHandle(forwardedRef, () => ({
-    downloadImage: (filename: string) => downloadEchartsGraphImage({
-      option,
-      filename,
-      nodeCount,
+      series: [
+        {
+          type: "tree",
+          data: [toChartTree(roots)],
+          layout: "radial",
+          top: 24,
+          bottom: 24,
+          left: 24,
+          right: 24,
+          symbol: "circle",
+          symbolSize: 7,
+          initialTreeDepth: 4,
+          roam: true,
+          expandAndCollapse: true,
+          animationDuration: 300,
+          animationDurationUpdate: 450,
+          label: {
+            position: "right",
+            rotate: 0,
+            fontSize: 11,
+            overflow: "truncate",
+            width: 120,
+          },
+          leaves: {
+            label: {
+              position: "right",
+              rotate: 0,
+              fontSize: 11,
+              overflow: "truncate",
+              width: 120,
+            },
+          },
+          itemStyle: { color: "#1677ff" },
+          lineStyle: { color: "#94a3b8", width: 1 },
+          emphasis: { focus: "descendant" },
+        },
+      ],
     }),
-  }), [nodeCount, option]);
+    [roots],
+  );
+
+  useImperativeHandle(
+    forwardedRef,
+    () => ({
+      downloadImage: (filename: string) =>
+        downloadEchartsGraphImage({
+          option,
+          filename,
+          nodeCount,
+        }),
+    }),
+    [nodeCount, option],
+  );
 
   useEffect(() => {
     if (!chartRef.current) return;
@@ -451,7 +396,9 @@ const RadialTaskTree = forwardRef<GraphImageHandle, { roots: OutlineTreeNode[]; 
   }, [option]);
 
   return (
-    <div className={`w-full rounded border border-line bg-bg-subtle ${fullscreen ? "h-full min-h-0" : ""}`}>
+    <div
+      className={`border-line bg-bg-subtle w-full rounded border ${fullscreen ? "h-full min-h-0" : ""}`}
+    >
       <div
         ref={chartRef}
         className={`w-full ${fullscreen ? "h-full min-h-0" : "h-[680px] min-h-[520px]"}`}
@@ -540,8 +487,8 @@ function toChartNode(item: OutlineTreeNode): {
 
 function nodeLabel(node: TaskOutlineNode) {
   return node.section_type
-    ? SECTION_LABELS[node.section_type] ?? node.section_type
-    : NODE_LABELS[node.node_type] ?? node.node_type;
+    ? (SECTION_LABELS[node.section_type] ?? node.section_type)
+    : (NODE_LABELS[node.node_type] ?? node.node_type);
 }
 
 function formatPageRange(locator: Record<string, unknown> | null): string | null {
@@ -558,7 +505,11 @@ function displayContent(item: OutlineTreeNode): string | null {
   const content = node?.summary || node?.content;
   if (content && content.trim()) return removeRepeatedTitleLine(content, item.title);
   if (!node || item.children.length > 0) return null;
-  if (node.node_type === "project" || node.node_type === "task" || node.node_type === "task_section") {
+  if (
+    node.node_type === "project" ||
+    node.node_type === "task" ||
+    node.node_type === "task_section"
+  ) {
     return null;
   }
   const title = item.title.trim();

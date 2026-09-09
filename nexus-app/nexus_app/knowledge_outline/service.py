@@ -2,7 +2,7 @@
 
 Consumed by ``nexus-api`` GET (auto-build on first hit) and POST rebuild.
 Never invoked from the pipeline — construction is synchronous, gated on
-``task_outline_profile.textbook_subtype == "theory_knowledge"``.
+``course_textbook.textbook_subtype == "theory_knowledge"``.
 """
 
 from __future__ import annotations
@@ -75,10 +75,10 @@ def has_theory_knowledge_profile(session: Session, ref_id: str) -> bool:
     """Return True when the ref has a course_textbook profile whose
     ``textbook_subtype`` matches the gate value."""
     row = session.scalar(
-        select(models.TaskOutlineProfile.textbook_subtype)
+        select(models.CourseTextbook.textbook_subtype)
         .where(
-            models.TaskOutlineProfile.normalized_ref_id == ref_id,
-            models.TaskOutlineProfile.asset_profile == TASK_OUTLINE_ASSET_PROFILE,
+            models.CourseTextbook.normalized_ref_id == ref_id,
+            models.CourseTextbook.asset_profile == TASK_OUTLINE_ASSET_PROFILE,
         )
     )
     return row in KNOWLEDGE_OUTLINE_ELIGIBLE_SUBTYPES

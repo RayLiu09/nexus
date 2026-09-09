@@ -2748,7 +2748,7 @@ def run_knowledge_outline_build(
             build_and_persist_outline,
         )
         from nexus_app.task_outline.detector import detect_course_textbook_subtype
-        from nexus_app.task_outline.schemas import TaskOutlineProfileCreate
+        from nexus_app.task_outline.schemas import CourseTextbookCreate
         from nexus_app.task_outline.service import get_profile_by_ref, upsert_profile
 
         profile = get_profile_by_ref(
@@ -2804,7 +2804,7 @@ def run_knowledge_outline_build(
         if profile is None and detection is not None:
             profile = upsert_profile(
                 ctx.session,
-                TaskOutlineProfileCreate(
+                CourseTextbookCreate(
                     normalized_ref_id=normalized_ref.id,
                     asset_version_id=version.id,
                     asset_profile="course_textbook",

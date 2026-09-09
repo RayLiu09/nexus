@@ -22,14 +22,14 @@ from nexus_app.task_outline.normalizer import (
 from nexus_app.task_outline.quality import calculate_quality
 from nexus_app.task_outline.schemas import (
     TaskOutlineNodeCreate,
-    TaskOutlineProfileCreate,
+    CourseTextbookCreate,
 )
 from nexus_app.task_outline.subtype_llm import TextbookSubtypeArbiterProtocol
 
 
 @dataclass(frozen=True)
 class TaskOutlineExtraction:
-    profile: TaskOutlineProfileCreate
+    profile: CourseTextbookCreate
     nodes: list[TaskOutlineNodeCreate]
     detection: TextbookSubtypeDetection
     quality: dict
@@ -67,7 +67,7 @@ def extract_course_textbook_outline(
         source_block_count=len(blocks),
         assigned_block_ids=assigned_block_ids,
     )
-    profile = TaskOutlineProfileCreate(
+    profile = CourseTextbookCreate(
         normalized_ref_id=normalized_ref_id,
         asset_version_id=asset_version_id,
         asset_profile="course_textbook",

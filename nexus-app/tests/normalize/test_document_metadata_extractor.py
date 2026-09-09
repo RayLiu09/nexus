@@ -98,6 +98,47 @@ class TestAuthorsAndPublishDate:
         assert md["authors"] == ["市场监管总局发展研究中心"]
         assert "block-p-4" not in ids
 
+    def test_extracts_explicit_textbook_publication_metadata_without_heading(self):
+        blocks = [
+            _p(1, "电子商务数据分析"),
+            _p(2, "主编：张三、李四"),
+            _p(3, "出版社：高等教育出版社"),
+            _p(4, "出版时间：2024年8月"),
+        ]
+
+        md, ids = extract(blocks, body_markdown="", toc=None)
+
+        assert md["chief_editors"] == ["张三", "李四"]
+        assert md["publisher"] == "高等教育出版社"
+        assert md["publish_date"] == "2024-08"
+        assert {"block-p-2", "block-p-3", "block-p-4"} <= ids
+
+    def test_extracts_suffix_editor_and_edition_date(self):
+        blocks = [
+            _h(1, "# 网络营销"),
+            _p(2, "王晓明、李华 主编"),
+            _p(3, "清华大学出版社"),
+            _p(4, "2023年6月第2版"),
+        ]
+
+        md, _ = extract(blocks, body_markdown="", toc=None)
+
+        assert md["chief_editors"] == ["王晓明", "李华"]
+        assert md["publisher"] == "清华大学出版社"
+        assert md["publish_date"] == "2023-06"
+
+    def test_does_not_infer_bibliographic_metadata_from_unlabelled_body(self):
+        blocks = [
+            _p(1, "张三、李四"),
+            _p(2, "课程内容于2024年完成修订，但尚未正式出版。"),
+        ]
+
+        md, _ = extract(blocks, body_markdown="", toc=None)
+
+        assert md["chief_editors"] == []
+        assert md["publisher"] is None
+        assert md["publish_date"] is None
+
 
 class TestKeywords:
     def test_extracts_keywords_split_by_chinese_punctuation(self):
@@ -180,6 +221,7 @@ class TestEmptyAndFallbacks:
         md, ids = extract([], body_markdown="", toc=None)
         assert md["title"] is None
         assert md["authors"] == []
+        assert md["chief_editors"] == []
         assert md["keywords"] == []
         assert md["outline"] == []
         assert ids == set()

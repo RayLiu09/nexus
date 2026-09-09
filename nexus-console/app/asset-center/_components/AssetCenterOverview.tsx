@@ -9,7 +9,7 @@ import {
 export function AssetCenterOverview({ counts }: { counts: Record<string, number> | null }) {
   return (
     <div
-      className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3"
+      className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3"
       aria-label="资产中心领域"
     >
       {ASSET_CENTER_DOMAINS.map((domain) => {
@@ -30,7 +30,7 @@ export function AssetCenterOverview({ counts }: { counts: Record<string, number>
 
         return (
           <article
-            className={`border-line bg-surface shadow-card overflow-hidden rounded-md border border-t-2 ${cardSpan}`}
+            className={`border-line bg-surface shadow-card flex h-full flex-col overflow-hidden rounded-md border border-t-2 ${cardSpan}`}
             key={domain.slug}
             style={{ borderTopColor: domain.accent }}
           >

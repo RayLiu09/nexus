@@ -14,7 +14,6 @@ import {
   type AIGovernanceRun,
   type DataSource,
   type RawObject,
-  type TaskOutlineEnvelope,
   type CapabilityGraphStagingBuild,
 } from "@/lib/api";
 import { buildTagDictionary, type TagDictionaryEntry } from "@/lib/tagLabels";
@@ -86,19 +85,13 @@ export default async function AssetDetailPage({
     : null;
 
   // Fetch AI governance runs for the latest normalized ref
-  const [governanceRuns, taskOutline, courseStandardBuilds] = await Promise.all([
+  const [governanceRuns, courseStandardBuilds] = await Promise.all([
     displayRef
       ? getApiData<AIGovernanceRun[]>(
           `/internal/v1/ai/governance-runs?normalized_ref_id=${displayRef.id}`,
           [],
         )
       : Promise.resolve({ data: [], ok: true, error: null, traceId: null, total: null }),
-    displayRef?.normalized_type === "document"
-      ? getApiData<TaskOutlineEnvelope | null>(
-          `/internal/v1/normalized-refs/${displayRef.id}/task-outline`,
-          null,
-        )
-      : Promise.resolve({ data: null, ok: true, error: null, traceId: null, total: null }),
     displayRef
       ? getApiData<CapabilityGraphStagingBuild[]>(
           `/internal/v1/capability-graph-staging/builds?normalized_ref_id=${encodeURIComponent(displayRef.id)}&build_type=course_standard&status=generated&page_size=1`,
@@ -191,10 +184,6 @@ export default async function AssetDetailPage({
         governanceRunsOk={governanceRuns.ok}
         governanceRunsError={governanceRuns.error}
         governanceRunsTraceId={governanceRuns.traceId}
-        taskOutline={taskOutline.data}
-        taskOutlineOk={taskOutline.ok}
-        taskOutlineError={taskOutline.error}
-        taskOutlineTraceId={taskOutline.traceId}
         rawObjectNames={rawObjectNames}
         dataSourceName={dataSourceName}
         tagDictionary={tagDictionary}

@@ -88,7 +88,7 @@ Role constraints:
   A missing or incomplete table is traceably skipped rather than inferred.
 - Course textbook Task Outline processing for D4 `course_textbook`
   normalized documents: training-operation textbooks are detected, persisted
-  as `task_outline_profile` plus `task_outline_node` trees, and projected into
+  as `course_textbook` plus `task_outline_node` trees, and projected into
   unified `knowledge_chunk` rows with `domain_model=task_outline.v1`.
   Rebuild uses the normalized payload only, replaces nodes/chunks idempotently,
   and marks the existing `index_manifest(course_textbook)` stale after projection
@@ -207,8 +207,18 @@ Asset Center IA-1:
 - **市场数据**: job-demand records, industrial parks, enterprises, and
   certificates. Industrial parks and enterprises are future fixed-schema
   imports from their own lists; IA-1 adds neither governance classification.
-- **教材资源数据**: theory textbooks, training textbooks, teaching cases, and
-  course standards. Case-library APIs and final resource fields are deferred.
+- **课程教材业务视图**:
+  `/asset-center/teaching-resources/course-textbooks` merges the former theory
+  and training textbook entries. Its server-paginated list shows textbook
+  name, type, publisher, chief editor, and publication year from the current
+  catalog-visible normalized projection. Theory/hybrid profiles display as
+  `理论型`; training-operation profiles display as `实训型`. Theory rows open
+  knowledge-outline radial and ECharts Left-to-Right tree Drawers; training
+  rows open task-outline tree and radial Drawers. Each action loads only the
+  selected outline, and the technical asset detail no longer duplicates these
+  textbook-specific views.
+- **教材资源数据**: course textbooks, teaching cases, and course standards.
+  Case-library APIs and final resource fields are deferred.
 - **用户行为数据**: ability indicator library, scoring-system library,
   learning data, and learning analysis. Their domain models are deferred.
 
@@ -227,7 +237,7 @@ P0 management pages:
 - **全部资产台账**: `/assets` asset list, current version read model, versions,
   normalized refs (with governance/quality/lineage fields), and index status.
   It is a technical management view and is not the Asset Center landing page.
-- **资产详情**: overview, versions, normalized refs, AI governance, quality score, governance result, decision tracking, generic chunks (with normalized_ref_id), course textbook Task Outline read view for training-operation textbooks, job-demand record structured views, index manifest, lineage (including image_uris), audit. Professional teaching-standard and occupational-ability domain views belong to Asset Center rather than this technical ledger view.
+- **资产详情**: overview, versions, normalized refs, AI governance, quality score, governance result, decision tracking, generic chunks (with normalized_ref_id), job-demand record structured views, index manifest, lineage (including image_uris), audit. Professional teaching-standard, occupational-ability, talent-training-plan, and course-textbook outline views belong to Asset Center rather than this technical ledger view.
 - **治理中心**: AI suggestions, AI quality score, AI Prompt config, review tasks, rule config, save-to-activate changes, decision tracking, quality review.
 - **规则配置**: structured editor for `config/governance_rules.json` (classifications, levels, tags, quality scoring, knowledge types); ETag-based concurrency control; save takes effect immediately for future governance runs.
 - **权限与审计**: local users, roles, API keys, org scopes, approvals, audit logs.
@@ -395,7 +405,7 @@ P0 end-to-end cases:
   from a source filename carrying a recognized ability-analysis suffix; task
   names and ability text are never used to invent a professional name.
 - Course textbook training-operation PDF: normalized document payload is
-  detected as `training_operation` → `task_outline_profile` stores
+  detected as `training_operation` → `course_textbook` stores
   `processing_profile=task_outline` and
   `evidence_graph_admission=not_recommended` → project/task/task-section/
   operation-step/task-artifact nodes preserve `source_block_ids` and

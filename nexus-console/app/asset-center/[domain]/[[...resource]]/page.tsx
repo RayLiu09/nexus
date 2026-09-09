@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import {
   type AbilityAnalysis,
+  type CourseTextbookSummary,
   getApiData,
   type MajorDistributionRecord,
   type TalentTrainingPlanSummary,
@@ -35,6 +36,10 @@ import {
   TalentTrainingPlansTable,
   type TalentTrainingPlanFilters,
 } from "../../_components/TalentTrainingPlansTable";
+import {
+  CourseTextbooksTable,
+  type CourseTextbookFilters,
+} from "../../_components/CourseTextbooksTable";
 
 type AssetCenterRouteProps = {
   params: Promise<{ domain: string; resource?: string[] }>;
@@ -60,6 +65,46 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
   const pagination = parsePaginationParams(query);
   const page = pagination.page ?? 1;
   const pageSize = pagination.pageSize ?? DEFAULT_PAGE_SIZE;
+
+  if (domain.slug === "teaching-resources" && resource.path === "course-textbooks") {
+    const yearValue = first(query.publication_year);
+    const parsedYear = yearValue ? Number.parseInt(yearValue, 10) : undefined;
+    const filters: CourseTextbookFilters = {
+      title: first(query.title),
+      textbook_type: first(query.textbook_type) as CourseTextbookFilters["textbook_type"],
+      publisher: first(query.publisher),
+      chief_editor: first(query.chief_editor),
+      publication_year: Number.isFinite(parsedYear) ? parsedYear : undefined,
+    };
+    const result = await getApiData<CourseTextbookSummary[]>("/internal/v1/course-textbooks", [], {
+      page: String(page),
+      pageSize: String(pageSize),
+      ...Object.fromEntries(
+        Object.entries(filters)
+          .filter((entry) => entry[1] !== undefined && entry[1] !== "")
+          .map(([key, value]) => [key, String(value)]),
+      ),
+    });
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          eyebrow={domain.name}
+          title={resource.name}
+          description={resource.description}
+        />
+        <CourseTextbooksTable
+          rows={result.data}
+          total={result.total ?? result.data.length}
+          page={page}
+          pageSize={pageSize}
+          filters={filters}
+          ok={result.ok}
+          error={result.error}
+          traceId={result.traceId}
+        />
+      </div>
+    );
+  }
 
   if (domain.slug === "major" && resource.path === "occupation-analyses") {
     const filters: OccupationalAnalysisFilters = {

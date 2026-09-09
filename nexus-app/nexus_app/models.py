@@ -690,23 +690,23 @@ class NormalizedAssetRef(TimestampMixin, Base):
     version: Mapped[AssetVersion] = relationship()
 
 
-class TaskOutlineProfile(TimestampMixin, Base):
-    """Task-operation content profile for textbooks and future task sheets.
+class CourseTextbook(TimestampMixin, Base):
+    """Course-textbook master projection shared by outline processors.
 
-    The profile is keyed from ``normalized_asset_ref``. It intentionally does
+    The textbook is keyed from ``normalized_asset_ref``. It intentionally does
     not create reverse pointers on normalized refs, asset versions, or chunks.
     Task-aware chunk projection links back through
     ``KnowledgeChunk.chunk_metadata.outline_node_id``.
     """
-    __tablename__ = "task_outline_profile"
+    __tablename__ = "course_textbook"
     __table_args__ = (
         UniqueConstraint(
             "normalized_ref_id", "asset_profile",
-            name="uq_task_outline_profile_ref_asset_profile",
+            name="uq_course_textbook_ref_asset_profile",
         ),
-        Index("ix_task_outline_profile_normalized_ref_id", "normalized_ref_id"),
-        Index("ix_task_outline_profile_asset_version_id", "asset_version_id"),
-        Index("ix_task_outline_profile_processing", "processing_profile"),
+        Index("ix_course_textbook_normalized_ref_id", "normalized_ref_id"),
+        Index("ix_course_textbook_asset_version_id", "asset_version_id"),
+        Index("ix_course_textbook_processing", "processing_profile"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
@@ -733,6 +733,11 @@ class TaskOutlineProfile(TimestampMixin, Base):
     asset_version: Mapped[AssetVersion] = relationship()
 
 
+# Compatibility name for task-outline internals while callers migrate to the
+# course-textbook domain name. Both names refer to the same mapped table.
+TaskOutlineProfile = CourseTextbook
+
+
 class TaskOutlineNode(TimestampMixin, Base):
     """Tree node in a Task Outline domain model."""
     __tablename__ = "task_outline_node"
@@ -748,7 +753,7 @@ class TaskOutlineNode(TimestampMixin, Base):
         String(36), ForeignKey("normalized_asset_ref.id"), nullable=False
     )
     profile_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("task_outline_profile.id", ondelete="CASCADE"),
+        String(36), ForeignKey("course_textbook.id", ondelete="CASCADE"),
         nullable=False,
     )
     parent_id: Mapped[str | None] = mapped_column(
@@ -769,7 +774,7 @@ class TaskOutlineNode(TimestampMixin, Base):
     )
 
     normalized_ref: Mapped[NormalizedAssetRef] = relationship()
-    profile: Mapped[TaskOutlineProfile] = relationship()
+    profile: Mapped[CourseTextbook] = relationship()
     parent: Mapped["TaskOutlineNode | None"] = relationship(remote_side=[id])
 
 
@@ -1185,7 +1190,7 @@ class KnowledgeOutlineNode(TimestampMixin, Base):
     """Deterministic 3-level outline over a normalized textbook.
 
     Built from the MinerU heading tree at the end of ``normalize`` when the
-    matching ``task_outline_profile.textbook_subtype == "theory_knowledge"``.
+    matching ``course_textbook.textbook_subtype == "theory_knowledge"``.
     Root is ``level=0``; L1/L2/L3 headings map to ``level=1/2/3``. Deeper
     headings collapse under the nearest L3 ancestor. ``anchor_range`` is
     populated on LEAF nodes only; ``build_run_id`` identifies the specific

@@ -1,6 +1,8 @@
 """Task Outline domain services for task-operation textbooks."""
 
 from nexus_app.task_outline.schemas import (
+    CourseTextbookCreate,
+    CourseTextbookRead,
     TaskOutlineNodeCreate,
     TaskOutlineNodeRead,
     TaskOutlineProfileCreate,
@@ -42,6 +44,8 @@ from nexus_app.task_outline.subtype_llm import (
 __all__ = [
     "DOMAIN_MODEL",
     "DEFAULT_KNOWLEDGE_TYPE_CODE",
+    "CourseTextbookCreate",
+    "CourseTextbookRead",
     "TaskOutlineNodeCreate",
     "TaskOutlineNodeRead",
     "TaskOutlineExtraction",

@@ -146,15 +146,9 @@ export const ASSET_CENTER_DOMAINS = [
     accentBackground: "#fff1f2",
     resources: [
       {
-        path: "theory-textbooks",
-        name: "理论教材",
-        description: "以理论知识体系为主的教材",
-        classificationCode: "course_textbook",
-      },
-      {
-        path: "training-textbooks",
-        name: "实训教材",
-        description: "以项目、任务和实训过程为主的教材",
+        path: "course-textbooks",
+        name: "课程教材",
+        description: "理论型与实训型课程教材",
         classificationCode: "course_textbook",
       },
       {

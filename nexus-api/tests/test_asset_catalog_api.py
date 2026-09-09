@@ -506,6 +506,7 @@ def test_asset_center_counts_use_resource_boundaries_in_two_queries(app, session
     assert counts["major/teaching-standards"] == 1
     assert counts["major/standard-course-library"] == 2
     assert counts["market/industrial-parks"] == 0
+    assert counts["teaching-resources/course-textbooks"] == 0
     assert counts["user-behavior/learning-analytics"] == 0
     assert "major/teaching-standards/courses" not in counts
     assert statements == 2

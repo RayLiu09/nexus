@@ -29,10 +29,10 @@ def get_task_outline_by_ref(
     session: Session = Depends(get_db),
 ):
     profile = session.scalar(
-        select(models.TaskOutlineProfile)
+        select(models.CourseTextbook)
         .where(
-            models.TaskOutlineProfile.normalized_ref_id == ref_id,
-            models.TaskOutlineProfile.asset_profile == "course_textbook",
+            models.CourseTextbook.normalized_ref_id == ref_id,
+            models.CourseTextbook.asset_profile == "course_textbook",
         )
     )
     if profile is None:
@@ -125,7 +125,7 @@ def get_task_outline_profile(
     request: Request,
     session: Session = Depends(get_db),
 ):
-    profile = session.get(models.TaskOutlineProfile, profile_id)
+    profile = session.get(models.CourseTextbook, profile_id)
     if profile is None:
         raise HTTPException(
             status_code=404,
@@ -158,7 +158,7 @@ def _load_task_outline_payload(ref: models.NormalizedAssetRef) -> dict[str, Any]
     return _load_normalized_payload(ref)
 
 
-def _serialize_profile(profile: models.TaskOutlineProfile) -> dict[str, Any]:
+def _serialize_profile(profile: models.CourseTextbook) -> dict[str, Any]:
     return {
         "id": profile.id,
         "normalized_ref_id": profile.normalized_ref_id,

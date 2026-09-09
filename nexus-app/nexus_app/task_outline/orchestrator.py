@@ -31,7 +31,7 @@ from nexus_app.task_outline.subtype_llm import (
 
 @dataclass(frozen=True)
 class TaskOutlineRebuildResult:
-    profile: models.TaskOutlineProfile
+    profile: models.CourseTextbook
     nodes: list[models.TaskOutlineNode]
     chunks: list[models.KnowledgeChunk]
     quality: dict[str, Any]

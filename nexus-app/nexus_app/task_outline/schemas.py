@@ -57,7 +57,7 @@ class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class TaskOutlineProfileCreate(BaseModel):
+class CourseTextbookCreate(BaseModel):
     normalized_ref_id: str = Field(min_length=1, max_length=36)
     asset_version_id: str = Field(min_length=1, max_length=36)
     asset_profile: str = Field(min_length=1, max_length=64)
@@ -94,7 +94,7 @@ class TaskOutlineProfileCreate(BaseModel):
         )
 
 
-class TaskOutlineProfileRead(ORMModel):
+class CourseTextbookRead(ORMModel):
     id: str
     normalized_ref_id: str
     asset_version_id: str
@@ -110,6 +110,12 @@ class TaskOutlineProfileRead(ORMModel):
     profile_metadata: dict[str, Any]
     created_at: datetime
     updated_at: datetime
+
+
+# Compatibility names for existing task-outline call sites. New code uses the
+# course-textbook domain entity names.
+TaskOutlineProfileCreate = CourseTextbookCreate
+TaskOutlineProfileRead = CourseTextbookRead
 
 
 class TaskOutlineNodeCreate(BaseModel):
@@ -174,4 +180,3 @@ def _validate_required_choice(value: str, allowed: set[str], field_name: str) ->
         allowed_values = ", ".join(sorted(allowed))
         raise ValueError(f"{field_name} must be one of: {allowed_values}")
     return stripped
-

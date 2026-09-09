@@ -29,7 +29,7 @@ MAY_PROJECT_NODE_TYPES = {
 def project_profile_to_chunks(
     session: Session,
     *,
-    profile: models.TaskOutlineProfile,
+    profile: models.CourseTextbook,
     knowledge_type_code: str = DEFAULT_KNOWLEDGE_TYPE_CODE,
     replace_existing: bool = True,
 ) -> list[models.KnowledgeChunk]:
@@ -144,7 +144,7 @@ def render_node_content(node: models.TaskOutlineNode) -> str:
 
 
 def chunk_metadata_for_node(
-    profile: models.TaskOutlineProfile,
+    profile: models.CourseTextbook,
     node: models.TaskOutlineNode,
 ) -> dict[str, Any]:
     node_meta = dict(node.node_metadata or {})

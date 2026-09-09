@@ -1,4 +1,4 @@
-"""Rebuild the task_outline_profile + knowledge_outline_node tree for one
+"""Rebuild the course_textbook + knowledge_outline_node tree for one
 normalized_ref, out-of-band from the API path.
 
 Use when a ref was normalized before the `task_outline` detector was wired in
@@ -9,7 +9,7 @@ Steps
 -----
 1. Load the normalized payload from object storage.
 2. Run ``detect_course_textbook_subtype`` over the blocks.
-3. Upsert ``task_outline_profile`` (course_textbook scope) with the detection.
+3. Upsert ``course_textbook`` with the detection.
 4. Only when subtype == ``theory_knowledge``: call
    ``build_and_persist_outline`` to (re)build the 3-level tree and backfill
    ``knowledge_chunk.knowledge_outline_node_id`` for leaves.
@@ -46,7 +46,7 @@ from nexus_app.storage import get_object_storage  # noqa: E402
 from nexus_app.task_outline.detector import (  # noqa: E402
     detect_course_textbook_subtype,
 )
-from nexus_app.task_outline.schemas import TaskOutlineProfileCreate  # noqa: E402
+from nexus_app.task_outline.schemas import CourseTextbookCreate  # noqa: E402
 from nexus_app.task_outline.service import upsert_profile  # noqa: E402
 
 ASSET_PROFILE = "course_textbook"
@@ -111,13 +111,13 @@ def rebuild(ref_id: str, *, apply: bool) -> int:
 
         if not apply:
             summary["next_steps"] = (
-                "would upsert task_outline_profile; "
+                "would upsert course_textbook; "
                 "would build outline if subtype == theory_knowledge"
             )
             print(json.dumps(summary, ensure_ascii=False, indent=2))
             return 0
 
-        profile_create = TaskOutlineProfileCreate(
+        profile_create = CourseTextbookCreate(
             normalized_ref_id=ref.id,
             asset_version_id=ref.version_id,
             asset_profile=ASSET_PROFILE,
@@ -135,7 +135,7 @@ def rebuild(ref_id: str, *, apply: bool) -> int:
             },
         )
         profile = upsert_profile(session, profile_create)
-        summary["task_outline_profile_id"] = profile.id
+        summary["course_textbook_id"] = profile.id
 
         if detection.textbook_subtype == THEORY_KNOWLEDGE:
             tree = build_and_persist_outline(

@@ -1,7 +1,8 @@
 """Document-level metadata extractor.
 
-Pulls document-level fields (title, authors, publish_date, keywords, abstract,
-outline) out of ``normalized_ref.blocks`` so they live ONCE on the
+Pulls document-level fields (title, authors, chief_editors, publisher,
+publish_date, keywords, abstract, outline) out of ``normalized_ref.blocks`` so
+they live ONCE on the
 ``NormalizedAssetRef`` (column ``document_metadata``) instead of being
 duplicated into every per-chunk metadata downstream.
 
@@ -16,6 +17,7 @@ docs/blocks_to_rag_chunks_optimization.md §三.3:
         "title":         str | None,
         "subtitle":      str | None,
         "authors":       list[str],
+        "chief_editors": list[str],
         "publish_date":  str | None,        # ISO yyyy[-mm[-dd]]
         "publisher":     str | None,
         "doc_number":    str | None,
@@ -67,6 +69,7 @@ def _block_text(block: dict[str, Any], body_markdown: str) -> str:
 
 
 _DATE_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"^\s*(\d{4})\s*年?\s*$"),
     re.compile(r"^\s*(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})?\s*日?\s*$"),
     re.compile(r"^\s*(\d{4})-(\d{1,2})(?:-(\d{1,2}))?\s*$"),
     re.compile(r"^\s*(\d{4})\.(\d{1,2})(?:\.(\d{1,2}))?\s*$"),
@@ -80,9 +83,15 @@ def _parse_publish_date(text: str) -> str | None:
         m = pat.match(s)
         if m:
             y = int(m.group(1))
+            if m.lastindex == 1:
+                return f"{y:04d}"
             mo = int(m.group(2))
             d = m.group(3)
+            if not 1 <= mo <= 12:
+                return None
             if d:
+                if not 1 <= int(d) <= 31:
+                    return None
                 return f"{y:04d}-{mo:02d}-{int(d):02d}"
             return f"{y:04d}-{mo:02d}"
     return None
@@ -97,6 +106,25 @@ _AUTHOR_SUFFIXES = (
 )
 
 _DOC_NUMBER_RE = re.compile(r"^\s*([A-Z]{2,}[\s-]*\d{1,4}[\s-]*[—-]?[\s-]*\d{0,4})\s*$")
+_PUBLISHER_LABEL_RE = re.compile(
+    r"^\s*(?:出版社|出版者|出版发行)\s*[:：]?\s*(.+?)\s*$",
+    re.IGNORECASE,
+)
+_CHIEF_EDITOR_PREFIX_RE = re.compile(
+    r"^\s*(?:总\s*主\s*编|主\s*编)\s*[:：]?\s*(.+?)\s*$",
+)
+_CHIEF_EDITOR_SUFFIX_RE = re.compile(
+    r"^\s*(.+?)\s+(?:总\s*主\s*编|主\s*编)\s*$",
+)
+_PERSON_SPLIT_RE = re.compile(r"[、,，;；/\s]+")
+_PUBLISH_DATE_LABEL_RE = re.compile(
+    r"^\s*(?:出版时间|出版日期|出版年月|出版)\s*[:：]?\s*(.+?)\s*$",
+)
+_PUBLISH_DATE_SEARCH_RE = re.compile(
+    r"(?<!\d)((?:18|19|20|21)\d{2})\s*年"
+    r"(?:\s*(\d{1,2})\s*月)?(?:\s*(\d{1,2})\s*日)?",
+)
+_EDITION_MARKER_RE = re.compile(r"第\s*\d+\s*版|版次")
 
 
 def _looks_like_author(text: str) -> bool:
@@ -116,6 +144,40 @@ def _looks_like_publisher(text: str) -> bool:
     )
 
 
+def _extract_publisher(text: str, *, require_label: bool = False) -> str | None:
+    match = _PUBLISHER_LABEL_RE.match(text)
+    if match:
+        value = match.group(1).strip()
+        return value if _looks_like_publisher(value) else None
+    if not require_label and _looks_like_publisher(text):
+        return text.strip()
+    return None
+
+
+def _extract_chief_editors(text: str) -> list[str]:
+    match = _CHIEF_EDITOR_PREFIX_RE.match(text) or _CHIEF_EDITOR_SUFFIX_RE.match(text)
+    if not match:
+        return []
+    value = match.group(1).strip(" ：:")
+    return [part for part in _PERSON_SPLIT_RE.split(value) if 1 < len(part) <= 20]
+
+
+def _extract_explicit_publish_date(text: str) -> str | None:
+    labelled = _PUBLISH_DATE_LABEL_RE.match(text)
+    candidate = labelled.group(1) if labelled else text
+    match = _PUBLISH_DATE_SEARCH_RE.search(candidate)
+    if not match:
+        return None
+    if not labelled and not _EDITION_MARKER_RE.search(candidate):
+        return None
+    year, month, day = match.groups()
+    if day:
+        return _parse_publish_date(f"{year}年{month}月{day}日")
+    if month:
+        return _parse_publish_date(f"{year}年{month}月")
+    return _parse_publish_date(year)
+
+
 def extract(
     blocks: list[dict[str, Any]],
     body_markdown: str,
@@ -133,6 +195,7 @@ def extract(
         "title": None,
         "subtitle": None,
         "authors": [],
+        "chief_editors": [],
         "publish_date": None,
         "publisher": None,
         "doc_number": None,
@@ -159,6 +222,34 @@ def extract(
                 contributed.add(b.get("block_id"))
                 break
 
+    # Explicit bibliographic labels are strong enough to extract even when
+    # the parser did not mark the cover title as a heading. Keep the scan
+    # bounded to leading blocks so examples in normal body text are ignored.
+    for b in blocks[:40]:
+        if _is_heading(b):
+            continue
+        raw = _block_text(b, body_markdown).strip()
+        if not raw:
+            continue
+        block_id = b.get("block_id")
+        editors = _extract_chief_editors(raw)
+        if editors:
+            for editor in editors:
+                if editor not in metadata["chief_editors"]:
+                    metadata["chief_editors"].append(editor)
+            if block_id:
+                contributed.add(block_id)
+        publisher = _extract_publisher(raw, require_label=True)
+        if publisher and metadata["publisher"] is None:
+            metadata["publisher"] = publisher
+            if block_id:
+                contributed.add(block_id)
+        publish_date = _extract_explicit_publish_date(raw)
+        if publish_date and metadata["publish_date"] is None:
+            metadata["publish_date"] = publish_date
+            if block_id:
+                contributed.add(block_id)
+
     # ---- 2. Walk forward from title until first h2 (## section heading),
     #         collecting short author / publisher / date paragraphs. ----
     abstract_start_idx: int | None = None
@@ -175,8 +266,16 @@ def extract(
             raw = _block_text(b, body_markdown).strip()
             if not raw:
                 continue
+            # explicitly labelled chief editor?
+            editors = _extract_chief_editors(raw)
+            if editors:
+                for editor in editors:
+                    if editor not in metadata["chief_editors"]:
+                        metadata["chief_editors"].append(editor)
+                contributed.add(b.get("block_id"))
+                continue
             # publish date?
-            d = _parse_publish_date(raw)
+            d = _parse_publish_date(raw) or _extract_explicit_publish_date(raw)
             if d and metadata["publish_date"] is None:
                 metadata["publish_date"] = d
                 contributed.add(b.get("block_id"))
@@ -188,8 +287,9 @@ def extract(
                 contributed.add(b.get("block_id"))
                 continue
             # publisher?
-            if _looks_like_publisher(raw) and metadata["publisher"] is None:
-                metadata["publisher"] = raw
+            publisher = _extract_publisher(raw)
+            if publisher and metadata["publisher"] is None:
+                metadata["publisher"] = publisher
                 contributed.add(b.get("block_id"))
                 continue
             # doc number (e.g. GB/T 12345-2024) — narrow regex avoids
@@ -257,10 +357,11 @@ def extract(
 
     metadata["source_block_ids"] = sorted(contributed)
     logger.info(
-        "document_metadata: title=%s authors=%d publish_date=%s "
-        "keywords=%d outline=%d abstract=%dchars contributed=%d",
+        "document_metadata: title=%s authors=%d chief_editors=%d "
+        "publish_date=%s keywords=%d outline=%d abstract=%dchars contributed=%d",
         (metadata["title"] or "")[:40],
         len(metadata["authors"]),
+        len(metadata["chief_editors"]),
         metadata["publish_date"],
         len(metadata["keywords"]),
         len(metadata["outline"]),

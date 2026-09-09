@@ -8,6 +8,9 @@ from sqlalchemy.orm import Session
 
 from nexus_api import schemas
 from nexus_api.responses import response
+from nexus_api.api.internal.course_textbooks import (
+    catalog_visible_course_textbook_ref_ids,
+)
 from nexus_app import models
 from nexus_app.database import get_db
 from nexus_app.enums import AssetVersionStatus, NormalizedAssetRefStatus
@@ -30,8 +33,7 @@ _RESOURCE_KEYS = (
     "market/industrial-parks",
     "market/enterprises",
     "market/certificates",
-    "teaching-resources/theory-textbooks",
-    "teaching-resources/training-textbooks",
+    "teaching-resources/course-textbooks",
     "teaching-resources/cases",
     "teaching-resources/course-standards",
     "user-behavior/ability-indicators",
@@ -170,18 +172,16 @@ def _projection_counts(session: Session) -> dict[str, int]:
             func.count(models.JobDemandRecord.id).label("count"),
         ),
         select(
-            literal("teaching-resources/theory-textbooks").label("resource_key"),
-            func.count(func.distinct(models.TaskOutlineProfile.normalized_ref_id)).label("count"),
+            literal("teaching-resources/course-textbooks").label("resource_key"),
+            func.count(func.distinct(models.CourseTextbook.normalized_ref_id)).label("count"),
         ).where(
-            models.TaskOutlineProfile.asset_profile == "course_textbook",
-            models.TaskOutlineProfile.textbook_subtype.in_(("theory_knowledge", "hybrid")),
-        ),
-        select(
-            literal("teaching-resources/training-textbooks").label("resource_key"),
-            func.count(func.distinct(models.TaskOutlineProfile.normalized_ref_id)).label("count"),
-        ).where(
-            models.TaskOutlineProfile.asset_profile == "course_textbook",
-            models.TaskOutlineProfile.textbook_subtype == "training_operation",
+            models.CourseTextbook.asset_profile == "course_textbook",
+            models.CourseTextbook.textbook_subtype.in_(
+                ("theory_knowledge", "hybrid", "training_operation")
+            ),
+            models.CourseTextbook.normalized_ref_id.in_(
+                catalog_visible_course_textbook_ref_ids()
+            ),
         ),
     )
     return {

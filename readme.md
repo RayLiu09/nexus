@@ -128,6 +128,17 @@ Root documents are distilled implementation contracts:
   grouped regions in the expanded row. Course-knowledge and optional position-capability graphs
   open lazily in row Drawers and are no longer duplicated in technical asset
   detail.
+- Course textbooks are browsed at
+  `/asset-center/teaching-resources/course-textbooks` as one paginated
+  `课程教材` list instead of separate theory/training entries. The
+  `course_textbook` table is the master projection; catalog-visible rows map
+  theory/hybrid to `理论型` and
+  training-operation to `实训型`; normalized bibliographic metadata supplies
+  publisher, chief editor, and year without per-row outline reads. Display
+  titles remove explicit numeric sequence prefixes and document extensions.
+  Conditional row actions lazily open the migrated knowledge radial, knowledge
+  tree, task tree, and task radial views without top summary badges. Technical
+  asset detail no longer duplicates the textbook outline views.
 - Pipeline A evidence-bound `talent_training_plan.v1` projections for institutional talent-training plans: plan-local major, training objective/specification, industry/occupation/position/skill/certificate declarations, and plan-owned course rows. These facts are derived only from `normalized_document`; every eligible plan has a deterministic course knowledge graph view, while the position-capability view appears only for evidenced position-to-skill facts. These plan views never enter the generic Evidence Graph or create global industry, occupation, position, skill, or certificate master data. Structured plan/course/position retrieval remains primary; the shared pgvector RAG projection is limited to high-value narrative complements (goal/specification, evidenced capability, course objective/content, and unmodelled supplementary sections) with normalized-document locators.
 - Pipeline A `teaching_standard_library.v1` projections for normative professional teaching standards: one review-state standard row plus evidence-bound, source-scoped occupation, numeric-rule, and professional foundation/core/extension course facts derived only from the persisted `normalized_document`. The parent omits the unused standard identifier and splits clean category/class names from their parenthesized codes. Course rows inherit major context from their parent, merge repeated source evidence under `library_id + course_type + standard_course_name`, carry no independent review state, and store Chinese tag arrays as PostgreSQL JSONB. One whole-standard LiteLLM call derives the training-goal summary and every course's semantic fields; core courses use course-owned evidence, while foundation and extension courses may additionally use standard-level training-specification evidence when their own content is insufficient. An active Prompt Profile alias takes priority, with `DEFAULT_GOVERNANCE_MODEL` as its fallback, and exact `course_id` set validation prevents partial or misaligned adoption. A dry-run-first historical command limits candidates to the latest official `teaching_standard` classification, rejects records without extracted course facts, reports model-call budgets without mutation, and keeps explicit-apply results in `review`. This model is independent from professional introductions (`major_profile.v1`), creates no global occupation master data, and treats public/professional/practice/elective/internship hour constraints as potentially overlapping rather than additive.
 - Cross-dataset API-caller reads for Pipeline B job-demand and major-distribution facts, including server-side major-distribution aggregation and generated job, occupational-capability, and teaching-standard graph adapters. Record reads retain dataset/ref lineage but do not depend on an `available` asset-version projection.
@@ -139,7 +150,7 @@ Root documents are distilled implementation contracts:
 - Course textbook Task Outline processing for D4 teaching materials:
   training-operation textbooks are detected from normalized documents,
   persisted as profile/tree rows, projected into unified `knowledge_chunk`
-  rows, exposed in the Console asset detail read view, and rebuilt
+  rows, exposed in the Asset Center course-textbook business view, and rebuilt
   idempotently with `index_manifest(course_textbook)` marked stale after projection
   replacement.
 - Evidence-grounded Knowledge Graph data foundation, with build/node/fact/edge/

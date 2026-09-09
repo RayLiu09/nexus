@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { tagLabel, type TagDictionary } from "@/lib/tagLabels";
 import { Tabs, Tag, Progress, Empty } from "antd";
 import { StatusLabel } from "@/components/StatusLabel";
@@ -22,7 +22,6 @@ import {
   type ParseArtifact,
   type AIGovernanceRun,
   type GovernanceResult,
-  type TaskOutlineEnvelope,
 } from "@/lib/api";
 import { extractGovernanceTags } from "@/lib/governance-tags";
 
@@ -37,10 +36,6 @@ type Props = {
   governanceRunsOk?: boolean;
   governanceRunsError?: string | null;
   governanceRunsTraceId?: string | null;
-  taskOutline?: TaskOutlineEnvelope | null;
-  taskOutlineOk?: boolean;
-  taskOutlineError?: string | null;
-  taskOutlineTraceId?: string | null;
   rawObjectNames?: Map<string, string>;
   dataSourceName?: string | null;
   tagDictionary: TagDictionary;
@@ -214,21 +209,11 @@ function KnowledgeChunksTab({
   latestRef,
   asset,
   latestGovernanceResult,
-  taskOutline,
-  taskOutlineOk,
-  taskOutlineError,
-  taskOutlineTraceId,
-  onJumpToBlock,
   teachingStandardGraphBuildType = "teaching_standard",
 }: {
   latestRef: NormalizedAssetRef | null;
   asset: Asset | null;
   latestGovernanceResult?: GovernanceResult | null;
-  taskOutline?: TaskOutlineEnvelope | null;
-  taskOutlineOk?: boolean;
-  taskOutlineError?: string | null;
-  taskOutlineTraceId?: string | null;
-  onJumpToBlock?: (blockId: string) => void;
   teachingStandardGraphBuildType?: Extract<
     CapabilityGraphBuildType,
     "teaching_standard" | "course_standard"
@@ -268,12 +253,7 @@ function KnowledgeChunksTab({
   return (
     <DocumentKnowledgeView
       normalizedRef={latestRef}
-      initialTaskOutline={taskOutline}
-      taskOutlineOk={taskOutlineOk}
-      taskOutlineError={taskOutlineError}
-      taskOutlineTraceId={taskOutlineTraceId}
       classification={latestGovernanceResult?.classification}
-      onJumpToBlock={onJumpToBlock}
     />
   );
 }
@@ -714,10 +694,6 @@ export function AssetDetailTabs({
   governanceRunsOk,
   governanceRunsError,
   governanceRunsTraceId,
-  taskOutline,
-  taskOutlineOk,
-  taskOutlineError,
-  taskOutlineTraceId,
   rawObjectNames,
   dataSourceName,
   tagDictionary,
@@ -740,16 +716,6 @@ export function AssetDetailTabs({
     (hidesStructuredView && selectedTab === "knowledge-chunks")
       ? "lineage"
       : selectedTab;
-
-  // Wired to KnowledgeOutlineView's Drawer "跳到原文" button.
-  // Setting `location.hash` before the tab switch lets SourcePreviewSection
-  // pick up the target block on mount and scroll+highlight it.
-  const handleJumpToBlock = useCallback((blockId: string) => {
-    if (typeof window !== "undefined") {
-      window.location.hash = `#block-${blockId}`;
-    }
-    setSelectedTab("preview");
-  }, []);
 
   const tabItems = TABS.filter(
     (tab) =>
@@ -810,11 +776,6 @@ export function AssetDetailTabs({
             latestRef={latestRef}
             asset={asset}
             latestGovernanceResult={latestGovernanceResult}
-            taskOutline={taskOutline}
-            taskOutlineOk={taskOutlineOk}
-            taskOutlineError={taskOutlineError}
-            taskOutlineTraceId={taskOutlineTraceId}
-            onJumpToBlock={handleJumpToBlock}
             teachingStandardGraphBuildType={teachingStandardGraphBuildType}
           />
         )}

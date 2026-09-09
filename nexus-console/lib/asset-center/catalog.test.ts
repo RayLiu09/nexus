@@ -68,4 +68,11 @@ describe("Asset Center catalogue", () => {
       "teaching_standard",
     );
   });
+
+  it("merges theory and training textbooks into the course-textbook entry", () => {
+    const teachingResources = findAssetCenterDomain("teaching-resources");
+    expect(findAssetCenterResource(teachingResources!, "course-textbooks")?.name).toBe("课程教材");
+    expect(teachingResources!.resources.map((resource) => resource.name)).not.toContain("理论教材");
+    expect(teachingResources!.resources.map((resource) => resource.name)).not.toContain("实训教材");
+  });
 });

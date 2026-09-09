@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 
 from nexus_app import models
 from nexus_app.task_outline.schemas import (
+    CourseTextbookCreate,
     TaskOutlineNodeCreate,
-    TaskOutlineProfileCreate,
 )
 
 
@@ -17,19 +17,19 @@ def get_profile_by_ref(
     *,
     normalized_ref_id: str,
     asset_profile: str = "course_textbook",
-) -> models.TaskOutlineProfile | None:
+) -> models.CourseTextbook | None:
     return session.scalar(
-        select(models.TaskOutlineProfile).where(
-            models.TaskOutlineProfile.normalized_ref_id == normalized_ref_id,
-            models.TaskOutlineProfile.asset_profile == asset_profile,
+        select(models.CourseTextbook).where(
+            models.CourseTextbook.normalized_ref_id == normalized_ref_id,
+            models.CourseTextbook.asset_profile == asset_profile,
         )
     )
 
 
 def upsert_profile(
     session: Session,
-    payload: TaskOutlineProfileCreate,
-) -> models.TaskOutlineProfile:
+    payload: CourseTextbookCreate,
+) -> models.CourseTextbook:
     """Create or update the effective profile for a normalized ref/profile pair."""
     existing = get_profile_by_ref(
         session,
@@ -38,7 +38,7 @@ def upsert_profile(
     )
     values = _profile_values(payload)
     if existing is None:
-        profile = models.TaskOutlineProfile(**values)
+        profile = models.CourseTextbook(**values)
         session.add(profile)
         session.flush()
         return profile
@@ -53,7 +53,7 @@ def upsert_profile(
 def replace_nodes(
     session: Session,
     *,
-    profile: models.TaskOutlineProfile,
+    profile: models.CourseTextbook,
     nodes: list[TaskOutlineNodeCreate],
 ) -> list[models.TaskOutlineNode]:
     """Replace all nodes for a profile in one idempotent operation."""
@@ -95,7 +95,7 @@ def list_nodes(
     return list(session.scalars(stmt))
 
 
-def _profile_values(payload: TaskOutlineProfileCreate) -> dict:
+def _profile_values(payload: CourseTextbookCreate) -> dict:
     return {
         "normalized_ref_id": payload.normalized_ref_id,
         "asset_version_id": payload.asset_version_id,
@@ -115,7 +115,7 @@ def _profile_values(payload: TaskOutlineProfileCreate) -> dict:
 def _node_values(
     payload: TaskOutlineNodeCreate,
     *,
-    profile: models.TaskOutlineProfile,
+    profile: models.CourseTextbook,
 ) -> dict:
     values = {
         "normalized_ref_id": payload.normalized_ref_id or profile.normalized_ref_id,
@@ -135,4 +135,3 @@ def _node_values(
     if payload.id:
         values["id"] = payload.id
     return values
-

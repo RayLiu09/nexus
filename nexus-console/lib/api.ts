@@ -417,6 +417,20 @@ export type TaskOutlineEnvelope = {
   };
 };
 
+export type CourseTextbookSummary = {
+  profile_id: string;
+  normalized_ref_id: string;
+  asset_version_id: string;
+  asset_id: string;
+  title: string;
+  textbook_type: "theory" | "training";
+  textbook_type_label: "理论型" | "实训型";
+  source_subtype: "theory_knowledge" | "hybrid" | "training_operation";
+  publisher: string | null;
+  chief_editors: string[];
+  publication_year: number | null;
+};
+
 // Knowledge Outline (theory_knowledge textbooks) — 3-level radial tree.
 export type KnowledgeOutlineNode = {
   id: string;

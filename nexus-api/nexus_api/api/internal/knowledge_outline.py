@@ -1,7 +1,7 @@
 """Knowledge Outline internal API for Console.
 
 Sync construction: GET auto-builds the outline on first hit (gated by
-``task_outline_profile.textbook_subtype == "theory_knowledge"``); POST
+``course_textbook.textbook_subtype == "theory_knowledge"``); POST
 rebuild replaces the existing tree inline.
 """
 

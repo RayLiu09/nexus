@@ -22,10 +22,39 @@ test.describe("Asset Center IA-1", () => {
     await expect(page.getByRole("heading", { name: "市场数据" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "教材资源数据" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "用户行为数据" })).toBeVisible();
-    await expect(page.getByRole("link", { name: /标准课程库，[\d,]+ 条/ })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: /标准课程库，(?:[\d,]+ 条|数量暂不可用)/ }),
+    ).toBeVisible();
     await expect(page.getByText("产业画像")).toHaveCount(0);
     await expect(page.getByRole("link", { name: "智能检索", exact: true })).toHaveCount(1);
     await expect(page.getByRole("link", { name: "检索联调" })).toHaveCount(0);
+
+    const domainCards = page.locator("main").getByRole("article");
+    const [marketBox, teachingResourceBox, userBehaviorBox] = await Promise.all([
+      domainCards.nth(2).boundingBox(),
+      domainCards.nth(3).boundingBox(),
+      domainCards.nth(4).boundingBox(),
+    ]);
+    expect(marketBox).not.toBeNull();
+    expect(teachingResourceBox).not.toBeNull();
+    expect(userBehaviorBox).not.toBeNull();
+    const cardBottoms = [marketBox!, teachingResourceBox!, userBehaviorBox!].map(
+      (box) => box.y + box.height,
+    );
+    expect(Math.max(...cardBottoms) - Math.min(...cardBottoms)).toBeLessThanOrEqual(1);
+
+    const teachingResourceLinks = domainCards.nth(3).getByRole("link");
+    const teachingResourceLinkBoxes = await Promise.all(
+      Array.from({ length: await teachingResourceLinks.count() }, (_, index) =>
+        teachingResourceLinks.nth(index).boundingBox(),
+      ),
+    );
+    expect(teachingResourceLinkBoxes).toHaveLength(3);
+    for (let index = 1; index < teachingResourceLinkBoxes.length; index += 1) {
+      expect(teachingResourceLinkBoxes[index]!.y - teachingResourceLinkBoxes[index - 1]!.y).toBe(
+        49,
+      );
+    }
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
@@ -54,6 +83,66 @@ test.describe("Asset Center IA-1", () => {
 
     await expect(page.getByText("页面未找到", { exact: true })).toBeVisible();
     await expect(page.locator("main").getByRole("article")).toHaveCount(0);
+  });
+
+  test("renders course textbooks with clean titles and outline drawers", async ({
+    page,
+  }, testInfo) => {
+    const antdWarnings: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "warning" && message.text().includes("[antd:")) {
+        antdWarnings.push(message.text());
+      }
+    });
+
+    await page.goto("/asset-center/teaching-resources/course-textbooks");
+
+    await expect(page.getByRole("heading", { level: 1, name: "课程教材" })).toBeVisible();
+    for (const heading of ["教材名称", "类型", "出版社", "主编", "出版年份", "操作"]) {
+      await expect(page.getByRole("columnheader", { name: heading })).toBeVisible();
+    }
+    const rows = page.locator(".ant-table-tbody > tr.ant-table-row");
+    await expect(rows).toHaveCount(7);
+    const titles = await rows.locator("td:first-child").allTextContents();
+    for (const title of titles) {
+      expect(title.trim()).not.toMatch(/^\s*(?:\d{1,3}[.．、_：:\-]|[（(]\d{1,3}[）)])/);
+      expect(title.trim()).not.toMatch(/\.(?:pdf|docx?|docxp|pptx?|xlsx?|xls|txt|md|html?|rtf|odt)$/i);
+    }
+    await expect(page.getByText(/Left-to-Right/)).toHaveCount(0);
+
+    await page.getByRole("button", { name: "知识大纲树" }).first().click();
+    let dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText("知识大纲树");
+    await expect(dialog.getByText(/Left-to-Right/)).toHaveCount(0);
+    await expect(dialog.locator("[data-outline-layout='orthogonal']")).toBeVisible();
+    await expect(dialog.getByText(/\d+ 节点|\d+ 级深度|单节点回退/)).toHaveCount(0);
+    await dialog.getByRole("button", { name: /Close|关闭/ }).click();
+
+    await page.getByRole("button", { name: "知识大纲径向图" }).first().click();
+    dialog = page.getByRole("dialog");
+    await expect(dialog.locator("[data-outline-layout='radial']")).toBeVisible();
+    await expect(dialog.getByText(/\d+ 节点|\d+ 级深度|单节点回退/)).toHaveCount(0);
+    await dialog.getByRole("button", { name: /Close|关闭/ }).click();
+
+    await page.getByRole("button", { name: "任务大纲树视图" }).first().click();
+    dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("tree", { name: "任务大纲树" })).toBeVisible();
+    await expect(dialog.getByText(/实训操作型|不推荐构图|推荐构图|\d+ chunks/)).toHaveCount(0);
+    await dialog.getByRole("button", { name: /Close|关闭/ }).click();
+
+    await page.getByRole("button", { name: "任务大纲圆形树" }).first().click();
+    dialog = page.getByRole("dialog");
+    await expect(dialog.locator("canvas").first()).toBeVisible({ timeout: 20_000 });
+    await expect(dialog.getByText(/实训操作型|不推荐构图|推荐构图|\d+ chunks/)).toHaveCount(0);
+    if (process.env.NEXUS_CAPTURE_SCREENSHOTS) {
+      await page.screenshot({
+        path: `/tmp/course-textbooks-${testInfo.project.name}.png`,
+        fullPage: true,
+      });
+    }
+    await dialog.getByRole("button", { name: /Close|关闭/ }).click();
+
+    expect(antdWarnings).toEqual([]);
   });
 
   test("redirects retired catalogue and retrieval-test routes", async ({ page }) => {

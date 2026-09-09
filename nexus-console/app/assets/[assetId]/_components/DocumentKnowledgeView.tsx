@@ -1,95 +1,46 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Segmented } from "antd";
 
 import { ChunkListSection } from "./ChunkListSection";
 import { EvidenceGraphView } from "./EvidenceGraphView";
-import { KnowledgeOutlineView } from "./KnowledgeOutlineView";
-import { TaskOutlineView } from "./TaskOutlineView";
-import type { NormalizedAssetRef, TaskOutlineEnvelope } from "@/lib/api";
+import type { NormalizedAssetRef } from "@/lib/api";
 import { shouldShowEvidenceGraph } from "@/lib/evidenceGraphAdmission";
 
 type Props = {
   normalizedRef: NormalizedAssetRef | null;
-  initialTaskOutline?: TaskOutlineEnvelope | null;
-  taskOutlineOk?: boolean;
-  taskOutlineError?: string | null;
-  taskOutlineTraceId?: string | null;
   classification?: string | null;
-  // Forwarded from AssetDetailTabs — invoked by KnowledgeOutlineView
-  // to jump the "原文预览" tab to a specific block.
-  onJumpToBlock?: (blockId: string) => void;
 };
 
-type ViewKey = "chunks" | "evidence_graph" | "knowledge_outline" | "task_outline";
+type ViewKey = "chunks" | "evidence_graph";
 
 const CHUNK_VIEW_OPTION = { label: "RAG知识块", value: "chunks" as const };
 const EVIDENCE_GRAPH_VIEW_OPTION = { label: "Evidence Graph", value: "evidence_graph" as const };
-// theory_knowledge textbooks get the persisted 3-level knowledge outline.
-const KNOWLEDGE_OUTLINE_VIEW_OPTION = {
-  label: "知识点大纲",
-  value: "knowledge_outline" as const,
-};
-const TASK_OUTLINE_VIEW_OPTION = { label: "任务大纲", value: "task_outline" as const };
-
-export function DocumentKnowledgeView({
-  normalizedRef,
-  initialTaskOutline = null,
-  taskOutlineOk = true,
-  taskOutlineError = null,
-  taskOutlineTraceId = null,
-  classification = null,
-  onJumpToBlock,
-}: Props) {
+export function DocumentKnowledgeView({ normalizedRef, classification = null }: Props) {
   const [view, setView] = useState<ViewKey>("chunks");
   const normalizedRefId = normalizedRef?.id ?? null;
-  const taskProfile = initialTaskOutline?.profile ?? null;
-  const graphAdmission = taskProfile?.evidence_graph_admission ?? null;
-  // theory_knowledge is the primary target for 知识点大纲; hybrid textbooks
-  // also benefit (LLM v2 handles them cleanly). Kept in sync with
-  // KNOWLEDGE_OUTLINE_ELIGIBLE_SUBTYPES on the backend.
-  const showKnowledgeOutline =
-    taskOutlineOk &&
-    (taskProfile?.textbook_subtype === "theory_knowledge" ||
-      taskProfile?.textbook_subtype === "hybrid");
-  const showTaskOutline =
-    taskOutlineOk &&
-    taskProfile?.processing_profile === "task_outline" &&
-    taskProfile?.textbook_subtype === "training_operation";
-  const showEvidenceGraph = shouldShowEvidenceGraph(graphAdmission, classification);
+  const showEvidenceGraph = shouldShowEvidenceGraph(null, classification);
 
   const viewOptions: Array<{ label: string; value: ViewKey }> = [
     CHUNK_VIEW_OPTION,
     ...(showEvidenceGraph ? [EVIDENCE_GRAPH_VIEW_OPTION] : []),
-    ...(showKnowledgeOutline ? [KNOWLEDGE_OUTLINE_VIEW_OPTION] : []),
-    ...(showTaskOutline ? [TASK_OUTLINE_VIEW_OPTION] : []),
   ];
 
-  useEffect(() => {
-    if (view === "knowledge_outline" && !showKnowledgeOutline) {
-      setView("chunks");
-    }
-    if (view === "task_outline" && !showTaskOutline) {
-      setView("chunks");
-    }
-    if (view === "evidence_graph" && !showEvidenceGraph) {
-      setView("chunks");
-    }
-  }, [showEvidenceGraph, showKnowledgeOutline, showTaskOutline, view]);
+  const activeView = showEvidenceGraph ? view : "chunks";
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-end gap-3">
         <Segmented
-          value={view}
+          value={activeView}
           onChange={(value) => setView(value as ViewKey)}
           options={viewOptions}
           aria-label="切换文档知识块视图"
         />
       </div>
 
-      {view === "chunks" ? (
+      {activeView === "chunks" ? (
         <ChunkListSection
           refId={normalizedRefId}
           title="RAG知识块"
@@ -98,26 +49,8 @@ export function DocumentKnowledgeView({
           actionLabel="定位原文"
         />
       ) : null}
-      {view === "evidence_graph" && showEvidenceGraph ? (
+      {activeView === "evidence_graph" && showEvidenceGraph ? (
         <EvidenceGraphView normalizedRef={normalizedRef} />
-      ) : null}
-      {view === "knowledge_outline" && showKnowledgeOutline ? (
-        <KnowledgeOutlineView
-          refId={normalizedRefId}
-          isTheoryKnowledge={showKnowledgeOutline}
-          onJumpToBlock={onJumpToBlock}
-        />
-      ) : null}
-      {view === "task_outline" && showTaskOutline ? (
-        <TaskOutlineView
-          refId={normalizedRefId}
-          initialData={initialTaskOutline}
-          initialError={
-            taskOutlineOk
-              ? null
-              : `${taskOutlineError ?? "任务大纲加载失败"}${taskOutlineTraceId ? `（trace ${taskOutlineTraceId}）` : ""}`
-          }
-        />
       ) : null}
     </div>
   );

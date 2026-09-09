@@ -165,6 +165,16 @@ asset ledger:
   auditable but do not affect its total. Course
   and position graphs load independently after their row action opens a Drawer
   and no longer appear in technical asset detail.
+- `/asset-center/teaching-resources/course-textbooks` is the unified
+  `课程教材` business entry for existing `course_textbook` projections.
+  `theory_knowledge` and `hybrid` display as `理论型`, while
+  `training_operation` displays as `实训型`. The paginated list joins only the
+  current catalog-visible asset/version/latest generated ref and reads title,
+  publisher, chief editor, and publication year from normalized projection
+  metadata without loading outline nodes. Knowledge radial/LR and task
+  tree/radial views load only after their matching row action opens a Drawer.
+  These textbook-specific outline views are no longer hosted by technical
+  asset detail; persistence, indexing, and rebuild ownership remain unchanged.
 - Industrial-park and enterprise entries are reserved for fixed-schema bulk
   import from their own business lists. They do not introduce
   `industrial_park` or `enterprise` governance classifications in IA-1.
@@ -329,12 +339,14 @@ P0 record profiles include job demand, occupational ability analysis, and major 
   they store logical collectors, embeddings, vector metadata, and filter-ready
   columns anchored by `knowledge_chunk`; they do not own asset master data,
   governance, permissions, audit authority, or chunk semantics.
-- Course textbook Task Outline: `task_outline_profile`,
-  `task_outline_node`. These tables store the detected processing profile and
-  project/task/step/artifact tree for `course_textbook` training-operation
-  textbooks. They are anchored by `normalized_ref_id` and `asset_version_id`;
-  no reverse pointer is stored on `normalized_asset_ref`, `asset_version`, or
-  `knowledge_chunk`.
+- Course textbooks: `course_textbook` is the master domain projection and
+  `task_outline_node` stores the project/task/step/artifact tree for
+  training-operation textbooks. The master row also gates theory/hybrid
+  knowledge-outline processing. It is anchored by `normalized_ref_id` and
+  `asset_version_id`; publisher, chief editor, and publication date remain
+  canonical normalized-document metadata rather than duplicated master-table
+  columns. No reverse pointer is stored on `normalized_asset_ref`,
+  `asset_version`, or `knowledge_chunk`.
 - Evidence-grounded KG extension: `knowledge_graph_build`,
   `knowledge_graph_node`, `knowledge_graph_fact`, `knowledge_graph_edge`,
   `knowledge_graph_mention`, `knowledge_graph_evidence`. These tables store
@@ -613,8 +625,8 @@ Asset Pipeline → normalized_asset_ref (stable contract)
   stale after projection replacement.
 - Course textbook Knowledge Outline is a Pipeline 1 stage for eligible
   `course_textbook` normalized documents. After `knowledge_chunking` and before
-  `index_submit`, the worker reuses existing `task_outline_profile` or detects
-  the textbook subtype when no profile exists, creates a profile only for
+  `index_submit`, the worker reuses an existing `course_textbook` row or detects
+  the textbook subtype when no row exists, creates one only for
   eligible refs, and builds `knowledge_outline_node` for
   `theory_knowledge` / `hybrid` refs so chunks can carry
   `knowledge_outline_node_id` before indexing. The stage is non-blocking during
