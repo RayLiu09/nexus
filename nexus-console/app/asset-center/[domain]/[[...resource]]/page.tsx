@@ -8,6 +8,7 @@ import {
   type CourseTextbookSummary,
   getApiData,
   type MajorDistributionRecord,
+  type MajorProfile,
   type TalentTrainingPlanSummary,
   type TeachingStandardCourse,
   type TeachingStandardLibrary,
@@ -40,6 +41,7 @@ import {
   CourseTextbooksTable,
   type CourseTextbookFilters,
 } from "../../_components/CourseTextbooksTable";
+import { MajorProfilesTable, type MajorProfileFilters } from "../../_components/MajorProfilesTable";
 
 type AssetCenterRouteProps = {
   params: Promise<{ domain: string; resource?: string[] }>;
@@ -65,6 +67,43 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
   const pagination = parsePaginationParams(query);
   const page = pagination.page ?? 1;
   const pageSize = pagination.pageSize ?? DEFAULT_PAGE_SIZE;
+
+  if (domain.slug === "major" && resource.path === "profiles") {
+    const filters: MajorProfileFilters = {
+      major_name: first(query.major_name),
+      major_code: first(query.major_code),
+      education_level: first(query.education_level),
+      institution_name: first(query.institution_name),
+    };
+    const result = await getApiData<MajorProfile[]>("/internal/v1/major-profiles", [], {
+      page: String(page),
+      pageSize: String(pageSize),
+      official_only: "true",
+      catalog_visible_only: "true",
+      ...Object.fromEntries(
+        Object.entries(filters).filter((entry): entry is [string, string] => Boolean(entry[1])),
+      ),
+    });
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          eyebrow={domain.name}
+          title={resource.name}
+          description={resource.description}
+        />
+        <MajorProfilesTable
+          rows={result.data}
+          total={result.total ?? result.data.length}
+          page={page}
+          pageSize={pageSize}
+          filters={filters}
+          ok={result.ok}
+          error={result.error}
+          traceId={result.traceId}
+        />
+      </div>
+    );
+  }
 
   if (domain.slug === "teaching-resources" && resource.path === "course-textbooks") {
     const yearValue = first(query.publication_year);

@@ -1101,8 +1101,11 @@ export type MajorProfile = {
   normalized_ref_id: string;
   asset_version_id: string;
   domain_profile: string;
-  major_code: string;
+  major_code: string | null;
   major_name: string;
+  profile_source?: string;
+  institution_name?: string | null;
+  region_tags?: string[];
   education_level: string | null;
   basic_study_duration: string | null;
   training_goal: string | null;
@@ -1275,29 +1278,4 @@ export function resolveRecordView(ref: NormalizedAssetRef | null): RecordView {
   // ingested record-shaped data; we just don't know the specialisation).
   if (ref.normalized_type === "record") return "generic_table";
   return "unknown";
-}
-
-const MAJOR_PROFILE_CLASSIFICATIONS = new Set(["major_profile", "program_profile"]);
-
-/**
- * A structured professional-profile view is valid only when its normalized
- * projection agrees with the latest official classification and knowledge
- * emission. This guards asset details against historical false detections.
- */
-export function shouldUseMajorProfileView(
-  ref: NormalizedAssetRef | null,
-  classification: string | null | undefined,
-): boolean {
-  if (resolveRecordView(ref) !== "major_profile") return false;
-  if (!classification || !MAJOR_PROFILE_CLASSIFICATIONS.has(classification)) return false;
-  const emissions = ref?.metadata_summary?.knowledge_emissions;
-  return (
-    Array.isArray(emissions) &&
-    emissions.some(
-      (emission) =>
-        typeof emission === "object" &&
-        emission !== null &&
-        (emission as Record<string, unknown>).code === "major_profile_knowledge",
-    )
-  );
 }

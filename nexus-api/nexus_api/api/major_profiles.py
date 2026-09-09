@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from nexus_api import schemas
@@ -12,13 +12,88 @@ from nexus_api.dependencies.user import require_user
 from nexus_api.responses import list_response, response
 from nexus_app import models
 from nexus_app.database import get_db
-from nexus_app.enums import AssetVersionStatus
+from nexus_app.enums import AssetVersionStatus, NormalizedAssetRefStatus
 
 internal_router = APIRouter(dependencies=[Depends(require_user)])
 open_router = APIRouter(
     prefix="/open/v1/major-profiles",
     dependencies=[Depends(require_api_caller)],
 )
+
+_MAJOR_PROFILE_CLASSIFICATIONS = ("major_profile", "program_profile")
+
+
+def _official_major_profile_ref_ids():
+    ranked = select(
+        models.GovernanceResult.normalized_ref_id.label("normalized_ref_id"),
+        models.GovernanceResult.classification.label("classification"),
+        func.row_number().over(
+            partition_by=models.GovernanceResult.normalized_ref_id,
+            order_by=(
+                models.GovernanceResult.created_at.desc(),
+                models.GovernanceResult.id.desc(),
+            ),
+        ).label("row_number"),
+    ).subquery()
+    return select(ranked.c.normalized_ref_id).where(
+        ranked.c.row_number == 1,
+        ranked.c.classification.in_(_MAJOR_PROFILE_CLASSIFICATIONS),
+    )
+
+
+def _catalog_visible_ref_ids():
+    """Mirror the Asset Center's current asset/version/ref read model."""
+    version_rank = func.row_number().over(
+        partition_by=models.AssetVersion.asset_id,
+        order_by=(
+            case(
+                (models.AssetVersion.version_status == AssetVersionStatus.AVAILABLE, 0),
+                else_=1,
+            ),
+            models.AssetVersion.version_no.desc(),
+            models.AssetVersion.created_at.desc(),
+            models.AssetVersion.id.desc(),
+        ),
+    )
+    versions = (
+        select(
+            models.AssetVersion.id.label("version_id"),
+            models.AssetVersion.version_status.label("version_status"),
+            version_rank.label("row_number"),
+        )
+        .where(
+            models.AssetVersion.version_status.notin_(
+                (AssetVersionStatus.ARCHIVED, AssetVersionStatus.DISABLED)
+            )
+        )
+        .subquery()
+    )
+    refs = (
+        select(
+            models.NormalizedAssetRef.id.label("ref_id"),
+            models.NormalizedAssetRef.version_id.label("version_id"),
+            func.row_number().over(
+                partition_by=models.NormalizedAssetRef.version_id,
+                order_by=(
+                    models.NormalizedAssetRef.created_at.desc(),
+                    models.NormalizedAssetRef.id.desc(),
+                ),
+            ).label("row_number"),
+        )
+        .where(models.NormalizedAssetRef.status == NormalizedAssetRefStatus.GENERATED)
+        .subquery()
+    )
+    return (
+        select(refs.c.ref_id)
+        .join(versions, versions.c.version_id == refs.c.version_id)
+        .where(
+            versions.c.row_number == 1,
+            refs.c.row_number == 1,
+            versions.c.version_status.in_(
+                (AssetVersionStatus.AVAILABLE, AssetVersionStatus.REVIEW_REQUIRED)
+            ),
+        )
+    )
 
 
 def _available_profile_ids(session: Session):
@@ -60,6 +135,7 @@ def _apply_profile_filters(
     certificate: str | None,
     continuation: str | None,
     education_level: str | None,
+    institution_name: str | None,
     normalized_ref_id: str | None = None,
 ):
     if major_code:
@@ -68,6 +144,8 @@ def _apply_profile_filters(
         stmt = stmt.where(models.MajorProfile.major_name.contains(major_name))
     if education_level:
         stmt = stmt.where(models.MajorProfile.education_level == education_level)
+    if institution_name:
+        stmt = stmt.where(models.MajorProfile.institution_name.contains(institution_name))
     if normalized_ref_id:
         stmt = stmt.where(models.MajorProfile.normalized_ref_id == normalized_ref_id)
     if occupation:
@@ -221,8 +299,11 @@ def _list_profiles(
     certificate: str | None,
     continuation: str | None,
     education_level: str | None,
+    institution_name: str | None,
     normalized_ref_id: str | None,
     available_only: bool,
+    official_only: bool,
+    catalog_visible_only: bool,
 ):
     stmt = select(models.MajorProfile)
     count_stmt = select(func.count(func.distinct(models.MajorProfile.id)))
@@ -231,6 +312,18 @@ def _list_profiles(
         stmt = stmt.where(models.MajorProfile.id.in_(select(available_ids.c.id)))
         count_stmt = count_stmt.where(
             models.MajorProfile.id.in_(select(available_ids.c.id))
+        )
+    if official_only:
+        official_ref_ids = _official_major_profile_ref_ids()
+        stmt = stmt.where(models.MajorProfile.normalized_ref_id.in_(official_ref_ids))
+        count_stmt = count_stmt.where(
+            models.MajorProfile.normalized_ref_id.in_(official_ref_ids)
+        )
+    if catalog_visible_only:
+        catalog_ref_ids = _catalog_visible_ref_ids()
+        stmt = stmt.where(models.MajorProfile.normalized_ref_id.in_(catalog_ref_ids))
+        count_stmt = count_stmt.where(
+            models.MajorProfile.normalized_ref_id.in_(catalog_ref_ids)
         )
     stmt = _apply_profile_filters(
         stmt,
@@ -244,6 +337,7 @@ def _list_profiles(
         certificate=certificate,
         continuation=continuation,
         education_level=education_level,
+        institution_name=institution_name,
         normalized_ref_id=normalized_ref_id,
     )
     count_stmt = _apply_profile_filters(
@@ -258,6 +352,7 @@ def _list_profiles(
         certificate=certificate,
         continuation=continuation,
         education_level=education_level,
+        institution_name=institution_name,
         normalized_ref_id=normalized_ref_id,
     )
     total = session.scalar(count_stmt) or 0
@@ -308,7 +403,10 @@ def list_internal_major_profiles(
     certificate: str | None = None,
     continuation: str | None = None,
     education_level: str | None = None,
+    institution_name: str | None = None,
     normalized_ref_id: str | None = None,
+    official_only: bool = False,
+    catalog_visible_only: bool = False,
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
 ):
@@ -326,8 +424,11 @@ def list_internal_major_profiles(
         certificate=certificate,
         continuation=continuation,
         education_level=education_level,
+        institution_name=institution_name,
         normalized_ref_id=normalized_ref_id,
         available_only=False,
+        official_only=official_only,
+        catalog_visible_only=catalog_visible_only,
     )
 
 
@@ -419,8 +520,11 @@ def list_open_major_profiles(
         certificate=certificate,
         continuation=continuation,
         education_level=education_level,
+        institution_name=None,
         normalized_ref_id=None,
         available_only=True,
+        official_only=False,
+        catalog_visible_only=False,
     )
 
 

@@ -109,6 +109,13 @@ Root documents are distilled implementation contracts:
   identity, supports review-only numeric hour corrections, exposes derivation
   evidence, and activates only at whole-standard scope with audit. Inferred
   course tags remain review information and are never treated as graph facts.
+- Professional introductions are browsed at `/asset-center/major/profiles` as
+  a paginated `major_profile` business list with professional identity in the
+  outer table and occupation, positioning, ability, course/training, and
+  certificate facts loaded only when a row expands. The list follows the
+  current catalog-visible version/ref and latest official classification;
+  technical asset detail keeps generic RAG chunks but no longer duplicates the
+  professional-profile directory or graph.
 - Professional major-distribution records are browsed across datasets at
   `/asset-center/major/distributions`, with server-side filtering, pagination,
   and audited record corrections/deletion. The former asset-detail

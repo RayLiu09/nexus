@@ -10,10 +10,12 @@ export async function GET(request: Request): Promise<Response> {
     { from: "major_name" },
     { from: "occupation" },
     { from: "education_level" },
+    { from: "institution_name" },
+    { from: "official_only" },
+    { from: "catalog_visible_only" },
     { from: "page" },
     { from: "pageSize" },
     { from: "page_size", to: "pageSize" },
   ]);
   return proxyInternalList<MajorProfile>("/internal/v1/major-profiles", search);
 }
-

@@ -9,11 +9,10 @@ import { ConfidenceBadge } from "@/components/ConfidenceBadge";
 import { DocumentKnowledgeView } from "@/app/assets/[assetId]/_components/DocumentKnowledgeView";
 import { SourcePreviewSection } from "@/app/assets/[assetId]/_components/SourcePreviewSection";
 import { JobDemandKnowledgeView } from "@/app/assets/[assetId]/_components/JobDemandKnowledgeView";
-import { MajorProfileKnowledgeView } from "@/app/assets/[assetId]/_components/MajorProfileKnowledgeView";
 import { TeachingStandardKnowledgeView } from "@/app/assets/[assetId]/_components/TeachingStandardKnowledgeView";
 import type { CapabilityGraphBuildType } from "@/app/assets/[assetId]/_components/CapabilityGraphView";
 import { GenericRecordKnowledgeView } from "@/app/assets/[assetId]/_components/GenericRecordKnowledgeView";
-import { resolveRecordView, shouldUseMajorProfileView } from "@/lib/api";
+import { resolveRecordView } from "@/lib/api";
 import {
   formatDateTime,
   type Asset,
@@ -233,9 +232,6 @@ function KnowledgeChunksTab({
     view === "teaching_standard" ||
     latestGovernanceResult?.classification === "teaching_standard" ||
     asset?.metadata_summary?.domain_profile === "teaching_standard.v1";
-  if (latestRef && shouldUseMajorProfileView(latestRef, latestGovernanceResult?.classification)) {
-    return <MajorProfileKnowledgeView normalizedRefId={latestRef.id} />;
-  }
   if (isTeachingStandard && latestRef) {
     return (
       <TeachingStandardKnowledgeView

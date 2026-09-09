@@ -130,6 +130,16 @@ asset ledger:
 - A business entry may read a governed document list, a cross-dataset record
   view, or an existing domain projection. This does not change the underlying
   asset/ref ownership or create copied global tables.
+- `/asset-center/major/profiles` reads `major_profile` as a paginated domain
+  projection: one row per extracted professional profile, including multiple
+  rows when one normalized document describes multiple majors. The outer list
+  carries professional name/code, study duration, education level, and
+  institution; occupation, training positioning, abilities, courses/training,
+  and certificates load from child tables only after row expansion. Only the
+  current catalog-visible version/latest generated ref with a latest official
+  `major_profile` classification (or historical `program_profile`) enters the
+  business list. Technical Asset Detail retains generic document chunks but no
+  longer owns a dedicated professional-profile directory or graph view.
 - Professional teaching standards and `标准课程库` are independent business
   entries over the same parent/course projection. The course library reads
   `teaching_standard_course` records and is not a new governance

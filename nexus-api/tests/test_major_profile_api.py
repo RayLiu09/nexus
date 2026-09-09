@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from sqlalchemy import event
 
 from nexus_api.api import major_profiles
 from nexus_api.dependencies import Pagination
@@ -9,6 +10,7 @@ from nexus_app.enums import (
     AssetKind,
     AssetVersionStatus,
     DataSourceType,
+    GovernanceResultStatus,
     IngestBatchStatus,
     NormalizedAssetRefStatus,
     NormalizedType,
@@ -299,6 +301,120 @@ def test_internal_list_by_normalized_ref_returns_empty_list(fake_request, sessio
     )
 
     assert _body(resp)["data"] == []
+
+
+def test_internal_business_list_uses_official_current_projection_without_child_queries(
+    fake_request, session
+) -> None:
+    candidates = [
+        ("available", AssetVersionStatus.AVAILABLE, "major_profile", "mp-available"),
+        ("review", AssetVersionStatus.REVIEW_REQUIRED, "program_profile", "mp-review"),
+        ("wrong", AssetVersionStatus.AVAILABLE, "teaching_standard", "mp-wrong"),
+        ("failed", AssetVersionStatus.FAILED, "major_profile", "mp-failed"),
+        (
+            "superseded",
+            AssetVersionStatus.REVIEW_REQUIRED,
+            "major_profile",
+            "mp-superseded",
+        ),
+    ]
+    for suffix, status, classification, profile_id in candidates:
+        ref = _seed_anchor(
+            session,
+            ref_id=f"ref-mp-{suffix}",
+            version_id=f"ver-mp-{suffix}",
+            status=status,
+        )
+        profile = _seed_profile(
+            session,
+            ref=ref,
+            profile_id=profile_id,
+            major_code=f"code-{suffix}",
+            major_name=f"专业-{suffix}",
+        )
+        profile.institution_name = "浙江职业技术学院"
+        session.add(
+            models.GovernanceResult(
+                normalized_ref_id=ref.id,
+                classification=classification,
+                index_admission=status == AssetVersionStatus.AVAILABLE,
+                status=(
+                    GovernanceResultStatus.AVAILABLE
+                    if status == AssetVersionStatus.AVAILABLE
+                    else GovernanceResultStatus.REVIEW_REQUIRED
+                ),
+            )
+        )
+    superseded_ref = session.get(models.NormalizedAssetRef, "ref-mp-superseded")
+    superseded_version = session.get(models.AssetVersion, "ver-mp-superseded")
+    assert superseded_ref is not None
+    assert superseded_version is not None
+    successor_version = models.AssetVersion(
+        id="ver-mp-successor",
+        asset_id=superseded_version.asset_id,
+        raw_object_id=superseded_version.raw_object_id,
+        version_no=2,
+        source_checksum="cs-mp-successor",
+        version_status=AssetVersionStatus.AVAILABLE,
+    )
+    successor_ref = models.NormalizedAssetRef(
+        id="ref-mp-successor",
+        version_id=successor_version.id,
+        normalized_type=NormalizedType.DOCUMENT,
+        object_uri="s3://bucket/normalized/ref-mp-successor.json",
+        schema_version="normalized-document-v1",
+        checksum="cs-ref-mp-successor",
+        status=NormalizedAssetRefStatus.GENERATED,
+        governance={},
+        quality={},
+        lineage={},
+        metadata_summary={"domain_profile": "major_profile.v1"},
+        title="后续版本专业简介",
+    )
+    session.add_all(
+        [
+            successor_version,
+            successor_ref,
+            models.GovernanceResult(
+                normalized_ref_id=successor_ref.id,
+                classification="major_profile",
+                index_admission=True,
+                status=GovernanceResultStatus.AVAILABLE,
+            ),
+        ]
+    )
+    session.commit()
+
+    statements: list[str] = []
+
+    def record_statement(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(session.bind, "before_cursor_execute", record_statement)
+    try:
+        resp = major_profiles.list_internal_major_profiles(
+            request=fake_request,
+            institution_name="浙江职业",
+            official_only=True,
+            catalog_visible_only=True,
+            pagination=PAGE,
+            session=session,
+        )
+    finally:
+        event.remove(session.bind, "before_cursor_execute", record_statement)
+
+    body = _body(resp)
+    assert body["meta"]["total"] == 2
+    assert {item["id"] for item in body["data"]} == {"mp-available", "mp-review"}
+    assert len(statements) == 2
+    joined_sql = "\n".join(statements)
+    for child_table in (
+        "major_profile_occupation",
+        "major_profile_ability",
+        "major_profile_course",
+        "major_profile_certificate",
+    ):
+        assert child_table not in joined_sql
 
 
 def test_open_list_returns_only_available(fake_request, session) -> None:
