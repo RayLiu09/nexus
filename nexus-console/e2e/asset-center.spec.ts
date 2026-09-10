@@ -252,6 +252,27 @@ test.describe("Asset Center IA-1", () => {
     }
   });
 
+  test("keeps the teaching-standard directory out of technical asset detail", async ({ page }) => {
+    const assetId = process.env.NEXUS_E2E_TEACHING_STANDARD_ASSET_ID;
+    test.skip(!assetId, "No professional teaching-standard asset ID was supplied");
+
+    await page.goto(`/assets/${assetId}`);
+    await page.getByRole("tab", { name: "知识块" }).click();
+
+    await expect(page.getByText("目录", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("知识块", { exact: true }).last()).toBeVisible();
+  });
+
+  test("keeps the job-demand structured view out of technical asset detail", async ({ page }) => {
+    const assetId = process.env.NEXUS_E2E_JOB_DEMAND_ASSET_ID;
+    test.skip(!assetId, "No job-demand asset ID was supplied");
+
+    await page.goto(`/assets/${assetId}`);
+
+    await expect(page.getByRole("tab", { name: "结构化图谱" })).toHaveCount(0);
+    await expect(page.getByLabel("切换岗位需求视图")).toHaveCount(0);
+  });
+
   test("renders the cross-dataset professional distribution business list", async ({ page }) => {
     const antdWarnings: string[] = [];
     page.on("console", (message) => {

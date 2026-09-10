@@ -109,6 +109,8 @@ Root documents are distilled implementation contracts:
   identity, supports review-only numeric hour corrections, exposes derivation
   evidence, and activates only at whole-standard scope with audit. Inferred
   course tags remain review information and are never treated as graph facts.
+  Technical asset detail retains filtered teaching-standard chunks but no
+  longer loads or displays the professional teaching-standard directory.
 - Professional introductions are browsed at `/asset-center/major/profiles` as
   a paginated `major_profile` business list with professional identity in the
   outer table and occupation, positioning, ability, course/training, and
@@ -127,6 +129,9 @@ Root documents are distilled implementation contracts:
   and graph views; ability-item page changes are server requests rather than
   client-side slicing of a preloaded result. The corresponding technical asset
   detail no longer exposes `结构化图谱`.
+- Job-demand projections and APIs remain intact, but their technical asset
+  detail no longer exposes `结构化图谱` or loads the specialized job-demand
+  record/graph view; its Asset Center business view remains a later task.
 - Talent-training plans are browsed at
   `/asset-center/major/training-plans` as an expandable, paginated business
   list whose total uses the same current catalog-visible asset/version/ref

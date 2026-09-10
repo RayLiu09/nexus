@@ -8,11 +8,11 @@ import { CopyableShortId } from "@/components/shared/CopyableShortId";
 import { ConfidenceBadge } from "@/components/ConfidenceBadge";
 import { DocumentKnowledgeView } from "@/app/assets/[assetId]/_components/DocumentKnowledgeView";
 import { SourcePreviewSection } from "@/app/assets/[assetId]/_components/SourcePreviewSection";
-import { JobDemandKnowledgeView } from "@/app/assets/[assetId]/_components/JobDemandKnowledgeView";
 import { TeachingStandardKnowledgeView } from "@/app/assets/[assetId]/_components/TeachingStandardKnowledgeView";
 import type { CapabilityGraphBuildType } from "@/app/assets/[assetId]/_components/CapabilityGraphView";
 import { GenericRecordKnowledgeView } from "@/app/assets/[assetId]/_components/GenericRecordKnowledgeView";
 import { resolveRecordView } from "@/lib/api";
+import { shouldHideAssetDetailStructuredView } from "@/lib/asset-detail-view-policy";
 import {
   formatDateTime,
   type Asset,
@@ -239,9 +239,6 @@ function KnowledgeChunksTab({
         graphBuildType={teachingStandardGraphBuildType}
       />
     );
-  }
-  if (view === "job_demand" && latestRef) {
-    return <JobDemandKnowledgeView normalizedRefId={latestRef.id} />;
   }
   if (view === "generic_table" && latestRef) {
     return <GenericRecordKnowledgeView normalizedRef={latestRef} />;
@@ -698,15 +695,11 @@ export function AssetDetailTabs({
   const [selectedTab, setSelectedTab] = useState("lineage");
   const knowledgeTabLabel = latestRef?.normalized_type === "record" ? "结构化图谱" : "知识块";
   const isRecordAsset = latestRef?.normalized_type === "record";
-  const isMajorDistribution =
-    resolveRecordView(latestRef) === "major_distribution" ||
-    latestGovernanceResult?.classification === "major_distribution" ||
-    asset?.metadata_summary?.domain_profile === "major_distribution.v1";
-  const isAbilityAnalysis =
-    resolveRecordView(latestRef) === "ability_analysis" ||
-    latestGovernanceResult?.classification === "competency_analysis" ||
-    asset?.metadata_summary?.domain_profile === "ability_analysis.pgsd.v1";
-  const hidesStructuredView = isMajorDistribution || isAbilityAnalysis;
+  const hidesStructuredView = shouldHideAssetDetailStructuredView(
+    resolveRecordView(latestRef),
+    latestGovernanceResult?.classification,
+    asset?.metadata_summary?.domain_profile,
+  );
   const activeTab =
     (isRecordAsset && selectedTab === "preview") ||
     (hidesStructuredView && selectedTab === "knowledge-chunks")

@@ -1254,7 +1254,7 @@ export type KnowledgeGraphLatestSummary = {
 export type RecordView =
   | "document" // legacy / Pipeline A — existing RAG chunk view
   | "major_profile" // Pipeline A — major_profile.v1 structured profile
-  | "teaching_standard" // Pipeline A — standard directory + capability graph
+  | "teaching_standard" // Pipeline A — filtered chunks + optional course graph
   | "job_demand" // B4 — job_demand_dataset + records
   | "ability_analysis" // B6 — PGSD analysis tree
   | "major_distribution" // PD — major_distribution_dataset + records

@@ -149,7 +149,9 @@ asset ledger:
   evidence-bound `teaching_standard` staging graph (`专业 -> 职业领域 ->
   典型工作任务 / 主要教学内容与要求`) by `normalized_ref_id`; inferred course
   tags never become graph nodes or edges. This professional graph entry is no
-  longer hosted by the technical asset-detail knowledge view.
+  longer hosted by the technical asset-detail knowledge view. Technical Asset
+  Detail retains the standard's filtered semantic chunks but no longer loads
+  or renders a document-directory tree.
 - `/asset-center/major/standard-course-library` joins parent major identity in
   one paginated query and never copies those columns to course rows. Suggested
   total/practice/range hours are editable only while the parent is `review`.
@@ -162,6 +164,10 @@ asset ledger:
   explicitly walks bounded pages to assemble its complete hierarchy. The
   item, tree, and existing staging-graph views are not duplicated in technical
   asset detail.
+- Job-demand records retain their domain projections and APIs, but technical
+  Asset Detail no longer exposes the job-demand `结构化图谱` tab or loads its
+  specialized record/graph presentation. A future Asset Center job-demand
+  business view may reuse those projections independently.
 - `/asset-center/major/training-plans` reads talent-training-plan projections
   as a paginated business list. The outer table contains plan identity; the
   expanded row groups the compact projection into professional belonging

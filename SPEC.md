@@ -185,7 +185,8 @@ Asset Center IA-1:
   opens the standard-course list scoped by parent library. `职业领域图谱` opens
   the existing `teaching_standard` graph in place; it preserves the
   professional/occupational/task/requirement topology and never turns inferred
-  course tags into graph facts.
+  course tags into graph facts. Technical Asset Detail keeps the standard's
+  filtered knowledge chunks but no longer provides or loads a `目录` view.
 - **标准课程库业务视图**: the expandable outer table joins parent professional
   identity and exposes course identity/type plus directly editable suggested
   total, practice, and range hours. Expanded details show work task, teaching
@@ -218,6 +219,9 @@ Asset Center IA-1:
 - **市场数据**: job-demand records, industrial parks, enterprises, and
   certificates. Industrial parks and enterprises are future fixed-schema
   imports from their own lists; IA-1 adds neither governance classification.
+  Job-demand domain records and APIs remain available, while their technical
+  Asset Detail no longer exposes the `结构化图谱` tab; the business view itself
+  is a later Asset Center task.
 - **课程教材业务视图**:
   `/asset-center/teaching-resources/course-textbooks` merges the former theory
   and training textbook entries. Its server-paginated list shows textbook
@@ -248,7 +252,7 @@ P0 management pages:
 - **全部资产台账**: `/assets` asset list, current version read model, versions,
   normalized refs (with governance/quality/lineage fields), and index status.
   It is a technical management view and is not the Asset Center landing page.
-- **资产详情**: overview, versions, normalized refs, AI governance, quality score, governance result, decision tracking, generic chunks (with normalized_ref_id), job-demand record structured views, index manifest, lineage (including image_uris), audit. Professional-profile, professional teaching-standard, occupational-ability, talent-training-plan, and course-textbook domain views belong to Asset Center rather than this technical ledger view.
+- **资产详情**: overview, versions, normalized refs, AI governance, quality score, governance result, decision tracking, generic chunks (with normalized_ref_id), index manifest, lineage (including image_uris), audit. Professional-profile, professional teaching-standard directory, job-demand structured, occupational-ability, talent-training-plan, and course-textbook domain views are not hosted by this technical ledger view.
 - **治理中心**: AI suggestions, AI quality score, AI Prompt config, review tasks, rule config, save-to-activate changes, decision tracking, quality review.
 - **规则配置**: structured editor for `config/governance_rules.json` (classifications, levels, tags, quality scoring, knowledge types); ETag-based concurrency control; save takes effect immediately for future governance runs.
 - **权限与审计**: local users, roles, API keys, org scopes, approvals, audit logs.
