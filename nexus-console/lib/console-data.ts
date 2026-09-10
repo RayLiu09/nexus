@@ -1,6 +1,5 @@
 import {
   type ApiCaller,
-  type AIGovernanceRun,
   type AuditLog,
   type DataSource,
   type Asset,
@@ -12,58 +11,31 @@ import {
   type RawObject,
   type RuntimeState,
   type UserAccount,
-  getApiData
+  type WorkbenchSummary,
+  getApiData,
 } from "@/lib/api";
 
 export async function loadWorkbenchData() {
-  const [
-    runtime,
-    dataSources,
-    batches,
-    rawObjects,
-    jobs,
-    assets,
-    normalizedRefs,
-    audits,
-    governanceRuns
-  ] = await Promise.all([
+  const [summary, runtime, dataSources, batches, audits] = await Promise.all([
+    getApiData<WorkbenchSummary | null>("/internal/v1/workbench/summary", null),
     getApiData<RuntimeState | null>("/internal/v1/runtime/state", null),
-    getApiData<DataSource[]>("/internal/v1/data-sources", []),
-    getApiData<IngestBatch[]>("/internal/v1/ingest/batches", []),
-    getApiData<RawObject[]>("/internal/v1/raw-objects", []),
-    getApiData<Job[]>("/internal/v1/jobs", []),
-    getApiData<Asset[]>("/internal/v1/assets", []),
-    getApiData<NormalizedAssetRef[]>("/internal/v1/normalized-refs", []),
-    getApiData<AuditLog[]>("/internal/v1/audit-logs", []),
-    getApiData<AIGovernanceRun[]>("/internal/v1/ai/governance-runs", [])
+    getApiData<DataSource[]>("/internal/v1/data-sources", [], { pageSize: "200" }),
+    getApiData<IngestBatch[]>("/internal/v1/ingest/batches", [], { pageSize: "20" }),
+    getApiData<AuditLog[]>("/internal/v1/audit-logs", [], { pageSize: "20" }),
   ]);
 
-  const results = [
-    runtime,
-    dataSources,
-    batches,
-    rawObjects,
-    jobs,
-    assets,
-    normalizedRefs,
-    audits,
-    governanceRuns
-  ];
+  const results = [summary, runtime, dataSources, batches, audits];
   const failed = results.find((item) => !item.ok);
 
   return {
+    summary,
     runtime,
     dataSources,
     batches,
-    rawObjects,
-    jobs,
-    assets,
-    normalizedRefs,
     audits,
-    governanceRuns,
     ok: results.every((item) => item.ok),
     error: failed?.error ?? null,
-    traceId: failed?.traceId ?? results.find((item) => item.traceId)?.traceId ?? null
+    traceId: failed?.traceId ?? results.find((item) => item.traceId)?.traceId ?? null,
   };
 }
 
@@ -86,7 +58,7 @@ export async function loadWeek2Lists() {
       getApiData<Job[]>("/internal/v1/jobs", []),
       getApiData<ParseArtifact[]>("/internal/v1/parse-artifacts", []),
       getApiData<NormalizedAssetRef[]>("/internal/v1/normalized-refs", []),
-      getApiData<Asset[]>("/internal/v1/assets", [])
+      getApiData<Asset[]>("/internal/v1/assets", []),
     ]);
 
   return { dataSources, batches, rawObjects, jobs, parseArtifacts, normalizedRefs, assets };

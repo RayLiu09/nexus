@@ -245,6 +245,12 @@ chains, policy trends, and talent gaps is a separate task.
 P0 management pages:
 
 - **工作台**: ingestion/job/review/AI adoption/rule overview/basic runtime state.
+  `GET /internal/v1/workbench/summary` returns complete-table counts and
+  status distributions independently of list pagination. Governance coverage,
+  adoption, and quality select one latest AI run per normalized reference;
+  pending count and preview rows use the same latest official-result criteria
+  as Governance Review. Recent batch and audit activity remains a bounded
+  preview rather than an input to totals.
 - **数据源管理**: source registration, upload entry, NAS sync, crawler push config, and Crawler plans. Crawler plans support generic configuration (topic, target site URLs, execution plan) and one built-in quick-start plan backed by JSON configuration for national/provincial vocational-education policy, industry-education integration policy, ecommerce, digital-economy policy/report, and regional ecommerce/digital-economy data acquisition. Template and region whitelist sites are file-configured and are not maintained through Console.
 - **数据接入**: single file, batch upload, directory import, ingestion policy.
 - **原始数据台账**: batch query, raw object query, checksum, replay entry.

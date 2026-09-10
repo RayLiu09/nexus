@@ -48,6 +48,34 @@ class AssetCenterCountsRead(BaseModel):
     counts: dict[str, int]
 
 
+class WorkbenchReviewItemRead(BaseModel):
+    id: str
+    normalized_ref_id: str
+    adoption_status: str
+
+
+class WorkbenchSummaryRead(BaseModel):
+    asset_count: int
+    normalized_ref_count: int
+    raw_object_count: int
+    ingest_batch_count: int
+    processing_batches: int
+    job_count: int
+    succeeded_jobs: int
+    failed_jobs: int
+    running_jobs: int
+    pipeline_health: int
+    governed_ref_count: int
+    governance_coverage: int
+    auto_adopted: int
+    review_required: int
+    quality_pass: int
+    quality_warning: int
+    quality_fail: int
+    avg_quality: int
+    review_items: list[WorkbenchReviewItemRead] = Field(default_factory=list)
+
+
 # ── Auth contract (mirrors nexus-console/lib/auth/token.ts) ─────────────────
 
 

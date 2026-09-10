@@ -28,6 +28,34 @@ export type AssetCenterCounts = {
   counts: Record<string, number>;
 };
 
+export type WorkbenchReviewItem = {
+  id: string;
+  normalized_ref_id: string;
+  adoption_status: string;
+};
+
+export type WorkbenchSummary = {
+  asset_count: number;
+  normalized_ref_count: number;
+  raw_object_count: number;
+  ingest_batch_count: number;
+  processing_batches: number;
+  job_count: number;
+  succeeded_jobs: number;
+  failed_jobs: number;
+  running_jobs: number;
+  pipeline_health: number;
+  governed_ref_count: number;
+  governance_coverage: number;
+  auto_adopted: number;
+  review_required: number;
+  quality_pass: number;
+  quality_warning: number;
+  quality_fail: number;
+  avg_quality: number;
+  review_items: WorkbenchReviewItem[];
+};
+
 export type OrgUnit = {
   id: string;
   code: string;

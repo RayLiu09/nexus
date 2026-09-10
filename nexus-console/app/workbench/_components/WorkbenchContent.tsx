@@ -10,7 +10,6 @@ import {
   WarningOutlined,
 } from "@ant-design/icons";
 
-import { selectCurrentReviewRuns } from "@/lib/governance-runs";
 import { DecisionList } from "./DecisionList";
 import { UnifiedActivityFeed } from "./UnifiedActivityFeed";
 import type { WorkbenchData } from "../page";
@@ -36,7 +35,7 @@ export function WorkbenchContent({ data }: { data: WorkbenchData }) {
   const {
     assetCount,
     refCount,
-    grCount,
+    governedRefCount,
     succeededJobs,
     failedJobs,
     runningJobs,
@@ -54,7 +53,7 @@ export function WorkbenchContent({ data }: { data: WorkbenchData }) {
     batches,
     audits,
     dataSourceById,
-    governanceRuns,
+    reviewItems,
     processingBatches,
   } = data;
 
@@ -215,12 +214,12 @@ export function WorkbenchContent({ data }: { data: WorkbenchData }) {
           title="决策待办"
           size="small"
           extra={
-            <Link href="/governance" className="text-brand text-xs">
+            <Link href="/tag-review" className="text-brand text-xs">
               查看全部 →
             </Link>
           }
         >
-          <DecisionList items={selectCurrentReviewRuns(governanceRuns).slice(0, 5)} />
+          <DecisionList items={reviewItems} />
         </Card>
       </div>
 
@@ -237,14 +236,18 @@ export function WorkbenchContent({ data }: { data: WorkbenchData }) {
           <Statistic
             title="处理中批次"
             value={processingBatches}
-            styles={{ content: processingBatches === 0 ? { color: "var(--text-muted)" } : undefined }}
+            styles={{
+              content: processingBatches === 0 ? { color: "var(--text-muted)" } : undefined,
+            }}
           />
         </Card>
         <Card size="small" className="metric-secondary">
           <Statistic
-            title="治理队列"
-            value={grCount}
-            styles={{ content: grCount === 0 ? { color: "var(--text-muted)" } : undefined }}
+            title="已治理引用"
+            value={governedRefCount}
+            styles={{
+              content: governedRefCount === 0 ? { color: "var(--text-muted)" } : undefined,
+            }}
           />
         </Card>
       </div>

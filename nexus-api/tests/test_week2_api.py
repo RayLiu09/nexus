@@ -26,6 +26,7 @@ def test_week2_routes_are_registered(app):
     assert "/internal/v1/ingest/files/upload" in paths
     assert "/internal/v1/ingest/crawler-packages" in paths
     assert "/internal/v1/jobs" in paths
+    assert "/internal/v1/workbench/summary" in paths
     assert "/internal/v1/jobs/{job_id}/stages" in paths
     assert "/internal/v1/assets" in paths
     assert "/internal/v1/assets/{asset_id}" in paths

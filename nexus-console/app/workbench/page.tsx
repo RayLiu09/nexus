@@ -1,8 +1,7 @@
 import { PageHeader } from "@/components/PageHeader";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { loadWorkbenchData } from "@/lib/console-data";
-import { selectCurrentReviewRuns, selectLatestGovernanceRuns } from "@/lib/governance-runs";
-import type { AIGovernanceRun, AuditLog, DataSource, IngestBatch } from "@/lib/api";
+import type { AuditLog, DataSource, IngestBatch, WorkbenchReviewItem } from "@/lib/api";
 import { WorkbenchContent } from "./_components/WorkbenchContent";
 
 export const dynamic = "force-dynamic";
@@ -10,8 +9,7 @@ export const dynamic = "force-dynamic";
 export interface WorkbenchData {
   assetCount: number;
   refCount: number;
-  jobCount: number;
-  grCount: number;
+  governedRefCount: number;
   succeededJobs: number;
   failedJobs: number;
   runningJobs: number;
@@ -30,65 +28,33 @@ export interface WorkbenchData {
     actionLabel: string;
   }[];
   rawCount: number;
-  batchCount: number;
   funnelSteps: { label: string; value: number }[];
-  /** 全部 batches，按 updated_at desc 排序；UnifiedActivityFeed 内部切片 */
+  /** 最近 batches，按 updated_at desc 排序；UnifiedActivityFeed 内部切片 */
   batches: IngestBatch[];
-  /** 全部 audits，按 created_at desc 排序；UnifiedActivityFeed 内部切片 */
+  /** 最近 audits，按 created_at desc 排序；UnifiedActivityFeed 内部切片 */
   audits: AuditLog[];
   dataSourceById: Record<string, DataSource | undefined>;
-  governanceRuns: AIGovernanceRun[];
+  reviewItems: WorkbenchReviewItem[];
   processingBatches: number;
 }
 
 export default async function WorkbenchPage() {
   const data = await loadWorkbenchData();
+  const summary = data.summary.data;
 
-  const assetCount = data.assets.data.length;
-  const refCount = data.normalizedRefs.data.length;
-  const jobCount = data.jobs.data.length;
-  const currentGovernanceRuns = selectLatestGovernanceRuns(data.governanceRuns.data);
-  const currentReviewRuns = selectCurrentReviewRuns(data.governanceRuns.data);
-  const grCount = currentGovernanceRuns.length;
-
-  const succeededJobs = data.jobs.data.filter((j) => j.status === "succeeded").length;
-  const failedJobs = data.jobs.data.filter(
-    (j) => j.status === "failed" || j.status === "dead_lettered",
-  ).length;
-  const runningJobs = data.jobs.data.filter(
-    (j) => j.status === "running" || j.status === "queued",
-  ).length;
-  const completedJobs = succeededJobs + failedJobs;
-  const pipelineHealth = completedJobs > 0 ? Math.round((succeededJobs / completedJobs) * 100) : 100;
-
-  const governedRefIds = new Set(currentGovernanceRuns.map((gr) => gr.normalized_ref_id));
-  const governanceCoverage = refCount > 0 ? Math.round((governedRefIds.size / refCount) * 100) : 0;
-  const autoAdopted = currentGovernanceRuns.filter(
-    (gr) => gr.adoption_status === "auto_adopted",
-  ).length;
-  const reviewRequired = currentReviewRuns.length;
-
-  let qualityPass = 0;
-  let qualityWarning = 0;
-  let qualityFail = 0;
-  let qualitySumTotal = 0;
-  let qualityCountTotal = 0;
-
-  currentGovernanceRuns.forEach((gr) => {
-    const qs = gr.quality_summary as Record<string, unknown> | null;
-    const score =
-      (qs?.overall_score as number) ??
-      (qs?.quality_score as number) ??
-      ((gr.ai_output as Record<string, unknown> | null)?.overall_score as number);
-    if (typeof score === "number") {
-      qualitySumTotal += score;
-      qualityCountTotal += 1;
-      if (score >= 80) qualityPass += 1;
-      else if (score >= 60) qualityWarning += 1;
-      else qualityFail += 1;
-    }
-  });
-  const avgQuality = qualityCountTotal > 0 ? Math.round(qualitySumTotal / qualityCountTotal) : 0;
+  const assetCount = summary?.asset_count ?? 0;
+  const refCount = summary?.normalized_ref_count ?? 0;
+  const succeededJobs = summary?.succeeded_jobs ?? 0;
+  const failedJobs = summary?.failed_jobs ?? 0;
+  const runningJobs = summary?.running_jobs ?? 0;
+  const pipelineHealth = summary?.pipeline_health ?? 100;
+  const governanceCoverage = summary?.governance_coverage ?? 0;
+  const autoAdopted = summary?.auto_adopted ?? 0;
+  const reviewRequired = summary?.review_required ?? 0;
+  const qualityPass = summary?.quality_pass ?? 0;
+  const qualityWarning = summary?.quality_warning ?? 0;
+  const qualityFail = summary?.quality_fail ?? 0;
+  const avgQuality = summary?.avg_quality ?? 0;
 
   const attentionItems: WorkbenchData["attentionItems"] = [];
   if (failedJobs > 0)
@@ -102,7 +68,7 @@ export default async function WorkbenchPage() {
     attentionItems.push({
       tone: "warning",
       text: `${reviewRequired} 项治理待复核`,
-      href: "/governance",
+      href: "/tag-review",
       actionLabel: "前往复核",
     });
   if (qualityFail > 0)
@@ -113,16 +79,15 @@ export default async function WorkbenchPage() {
       actionLabel: "查看未达标资产",
     });
 
-  const rawCount = data.rawObjects.data.length;
-  const batchCount = data.batches.data.length;
+  const rawCount = summary?.raw_object_count ?? 0;
   const funnelSteps = [
     { label: "原始对象", value: rawCount },
     { label: "数据资产", value: assetCount },
     { label: "标准化引用", value: refCount },
-    { label: "已治理", value: governedRefIds.size },
+    { label: "已治理", value: summary?.governed_ref_count ?? 0 },
   ];
 
-  const processingBatches = data.batches.data.filter((b) => b.status === "processing").length;
+  const processingBatches = summary?.processing_batches ?? 0;
 
   // 服务端预排序：UnifiedActivityFeed 切片即可
   const sortedBatches = [...data.batches.data].sort((a, b) =>
@@ -137,8 +102,7 @@ export default async function WorkbenchPage() {
   const workbenchData: WorkbenchData = {
     assetCount,
     refCount,
-    jobCount,
-    grCount,
+    governedRefCount: summary?.governed_ref_count ?? 0,
     succeededJobs,
     failedJobs,
     runningJobs,
@@ -152,12 +116,11 @@ export default async function WorkbenchPage() {
     avgQuality,
     attentionItems,
     rawCount,
-    batchCount,
     funnelSteps,
     batches: sortedBatches,
     audits: sortedAudits,
     dataSourceById,
-    governanceRuns: currentGovernanceRuns,
+    reviewItems: summary?.review_items ?? [],
     processingBatches,
   };
 

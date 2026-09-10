@@ -130,6 +130,14 @@ asset ledger:
 - A business entry may read a governed document list, a cross-dataset record
   view, or an existing domain projection. This does not change the underlying
   asset/ref ownership or create copied global tables.
+- Workbench totals come from the read-only
+  `GET /internal/v1/workbench/summary` control-plane projection. Resource and
+  status counts are aggregated over complete tables, while governance
+  coverage, adoption, and quality use only the latest AI run per normalized
+  reference. Pending work reuses the latest official Governance Review queue
+  criteria and returns at most five preview items. The Console must not infer
+  totals from a paginated first page or download complete ledgers to calculate
+  dashboard metrics.
 - `/asset-center/major/profiles` reads `major_profile` as a paginated domain
   projection: one row per extracted professional profile, including multiple
   rows when one normalized document describes multiple majors. The outer list

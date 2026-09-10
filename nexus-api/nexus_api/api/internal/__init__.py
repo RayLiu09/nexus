@@ -56,7 +56,7 @@ from nexus_api.api.internal.auth import router as auth_router
 
 # Re-export handler symbols so call sites that imported them off the old
 # flat `internal.py` keep working (tests in particular use this pattern).
-from nexus_api.api.internal.system import runtime_state  # noqa: F401
+from nexus_api.api.internal.system import runtime_state, workbench_summary  # noqa: F401
 from nexus_api.api.internal.auth import (  # noqa: F401
     auth_login,
     auth_refresh,

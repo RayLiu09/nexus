@@ -5,9 +5,9 @@ import { Tooltip } from "antd";
 import { CheckCircleOutlined } from "@ant-design/icons";
 import { StatusLabel } from "@/components/StatusLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { shortId, type AIGovernanceRun } from "@/lib/api";
+import { shortId, type WorkbenchReviewItem } from "@/lib/api";
 
-export function DecisionList({ items }: { items: AIGovernanceRun[] }) {
+export function DecisionList({ items }: { items: WorkbenchReviewItem[] }) {
   if (items.length === 0) {
     return (
       <EmptyState
@@ -27,7 +27,7 @@ export function DecisionList({ items }: { items: AIGovernanceRun[] }) {
     <div role="list">
       {items.map((gr) => (
         <Link
-          href="/governance"
+          href="/tag-review"
           key={gr.id}
           role="listitem"
           className="border-line-light text-text hover:bg-bg-alt mb-2 flex items-center justify-between rounded border px-3 py-2 text-xs no-underline last:mb-0"

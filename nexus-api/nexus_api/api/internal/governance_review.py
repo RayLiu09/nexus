@@ -2,11 +2,15 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session, aliased
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from nexus_api import schemas
 from nexus_api.api.internal._helpers import rules_registry, serialize_result_with_view
+from nexus_api.api.internal.governance_review_queue import (
+    pending_review_count as _pending_review_count,
+    pending_review_result_ids as _pending_review_result_ids,
+)
 from nexus_api.dependencies import Pagination, pagination_params, require_idempotency_key, require_user
 from nexus_api.responses import list_response, response
 from nexus_app import models
@@ -28,49 +32,6 @@ _REVIEWER_ROLES = {UserRole.BUSINESS_EXPERT, UserRole.PLATFORM_DATA_ADMIN}
 def _require_reviewer(user: models.UserAccount) -> None:
     if user.role not in _REVIEWER_ROLES:
         raise HTTPException(status_code=403, detail="business expert or platform data admin role required")
-
-
-def _pending_review_candidates():
-    """Latest governance result per ref whose current state needs review."""
-    result = aliased(models.GovernanceResult)
-    latest = aliased(models.GovernanceResult)
-    latest_result_id = (
-        select(latest.id)
-        .where(latest.normalized_ref_id == result.normalized_ref_id)
-        .order_by(latest.created_at.desc())
-        .limit(1)
-        .correlate(result)
-        .scalar_subquery()
-    )
-    return (
-        select(result.id).where(
-            result.id == latest_result_id,
-            result.status == GovernanceResultStatus.REVIEW_REQUIRED,
-        ),
-        result,
-    )
-
-
-def _pending_review_result_ids(
-    session: Session, *, limit: int, offset: int
-) -> tuple[list[str], int]:
-    """Count and page pending latest snapshots before row assembly."""
-    candidates, result = _pending_review_candidates()
-    total = int(
-        session.scalar(select(func.count()).select_from(candidates.subquery())) or 0
-    )
-    page = candidates.order_by(result.created_at.desc()).offset(offset).limit(limit)
-    return list(session.scalars(page).all()), total
-
-
-def _pending_review_count(session: Session) -> int:
-    candidates, _ = _pending_review_candidates()
-    return int(
-        session.scalar(
-            select(func.count()).select_from(candidates.subquery())
-        )
-        or 0
-    )
 
 
 def _queue_item(result: models.GovernanceResult) -> dict:
