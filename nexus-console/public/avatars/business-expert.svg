@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="业务专家">
+  <title>业务专家</title>
+  <defs>
+    <linearGradient id="be-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+    <linearGradient id="be-shine" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff7ed" stop-opacity="0.35"/>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="be-halo" cx="0.5" cy="0.42" r="0.55">
+      <stop offset="0%" stop-color="#fffbeb" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#fffbeb" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="64" cy="64" r="64" fill="url(#be-bg)"/>
+  <circle cx="64" cy="64" r="64" fill="url(#be-shine)"/>
+  <circle cx="64" cy="55" r="42" fill="url(#be-halo)"/>
+  <g stroke="#fff7ed" stroke-opacity="0.35" stroke-linecap="round" stroke-width="2">
+    <line x1="64" y1="16" x2="64" y2="24"/>
+    <line x1="30" y1="34" x2="36" y2="40"/>
+    <line x1="98" y1="34" x2="92" y2="40"/>
+    <line x1="18" y1="60" x2="26" y2="60"/>
+    <line x1="102" y1="60" x2="110" y2="60"/>
+  </g>
+  <path d="M64 30 c-13.5 0 -24 10 -24 22.5 c0 8 4 14 9 18.5 c2 1.8 3 3.6 3 6 v3 h24 v-3 c0 -2.4 1 -4.2 3 -6 c5 -4.5 9 -10.5 9 -18.5 c0 -12.5 -10.5 -22.5 -24 -22.5 z"
+        fill="#fffbeb" stroke="#7c2d12" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M64 42 c-6 3.5 -9 8 -9 13" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M56 84 h16 v3 a4 4 0 0 1 -4 4 h-8 a4 4 0 0 1 -4 -4 z"
+        fill="#7c2d12"/>
+  <path d="M60 96 h8 v3 a2.5 2.5 0 0 1 -2.5 2.5 h-3 a2.5 2.5 0 0 1 -2.5 -2.5 z"
+        fill="#7c2d12"/>
+  <g fill="none" stroke="#fffbeb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="42,110 50,102 58,106 66,96 74,100 82,90"/>
+    <circle cx="82" cy="90" r="2.4" fill="#fffbeb"/>
+  </g>
+</svg>

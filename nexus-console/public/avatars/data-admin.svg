@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="平台数据管理员">
+  <title>平台数据管理员</title>
+  <defs>
+    <linearGradient id="da-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="da-shine" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <circle cx="64" cy="64" r="64" fill="url(#da-bg)"/>
+  <circle cx="64" cy="64" r="64" fill="url(#da-shine)"/>
+  <g stroke="#ffffff" stroke-opacity="0.14" stroke-width="1" fill="none">
+    <line x1="16" y1="46" x2="112" y2="46"/>
+    <line x1="16" y1="64" x2="112" y2="64"/>
+    <line x1="16" y1="82" x2="112" y2="82"/>
+  </g>
+  <g fill="#ffffff" stroke="#ffffff" stroke-linejoin="round" stroke-width="2.4">
+    <ellipse cx="64" cy="42" rx="20" ry="6.5" fill="#ffffff" fill-opacity="0.96"/>
+    <path d="M44 42 v13 c0 3.6 8.9 6.5 20 6.5 s20 -2.9 20 -6.5 v-13" fill="#e0e7ff"/>
+    <path d="M44 60 v13 c0 3.6 8.9 6.5 20 6.5 s20 -2.9 20 -6.5 v-13" fill="#ffffff"/>
+  </g>
+  <path d="M64 84 l14 6 v10 c0 8 -6.5 15 -14 17 c-7.5 -2 -14 -9 -14 -17 v-10 z"
+        fill="#ffffff" stroke="#1e3a8a" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M57.5 100.5 l4.5 4.5 l9 -10" fill="none" stroke="#2563eb" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
