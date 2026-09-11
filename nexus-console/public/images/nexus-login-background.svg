@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1200" role="img" aria-labelledby="title desc">
+  <title id="title">NEXUS data and knowledge network</title>
+  <desc id="desc">An abstract enterprise data landscape with connected assets, documents, and knowledge nodes.</desc>
+  <defs>
+    <linearGradient id="base" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07111d"/>
+      <stop offset="0.56" stop-color="#102c3a"/>
+      <stop offset="1" stop-color="#173f42"/>
+    </linearGradient>
+    <linearGradient id="plane" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#163d50" stop-opacity=".88"/>
+      <stop offset="1" stop-color="#0a1b2a" stop-opacity=".3"/>
+    </linearGradient>
+    <filter id="softGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="grid" width="72" height="72" patternUnits="userSpaceOnUse" patternTransform="skewY(-30) scale(1 .58)">
+      <path d="M72 0H0V72" fill="none" stroke="#8ed3d0" stroke-opacity=".08" stroke-width="1"/>
+    </pattern>
+    <clipPath id="sceneClip"><rect width="1420" height="1200"/></clipPath>
+  </defs>
+
+  <rect width="1920" height="1200" fill="url(#base)"/>
+  <rect width="1450" height="1200" fill="url(#grid)"/>
+  <path d="M0 1010 720 595l690 398-362 207H0Z" fill="url(#plane)" opacity=".9"/>
+
+  <g clip-path="url(#sceneClip)">
+    <g fill="none" stroke-linecap="round">
+      <path d="M180 810 478 638 762 802 1058 630" stroke="#5ec8c2" stroke-opacity=".45" stroke-width="3"/>
+      <path d="M328 918 612 754 922 934 1240 750" stroke="#6d8fea" stroke-opacity=".42" stroke-width="3"/>
+      <path d="M478 638 478 396 733 248" stroke="#5ec8c2" stroke-opacity=".3" stroke-width="2"/>
+      <path d="M762 802 762 526 1058 354" stroke="#e9a84a" stroke-opacity=".32" stroke-width="2"/>
+      <path d="M612 754 612 538 834 410" stroke="#d96f6c" stroke-opacity=".28" stroke-width="2"/>
+      <path d="M922 934 922 694 1194 537" stroke="#5ec8c2" stroke-opacity=".3" stroke-width="2"/>
+    </g>
+
+    <g opacity=".72" fill="#82cfd0">
+      <circle cx="180" cy="810" r="6"/><circle cx="478" cy="638" r="7"/>
+      <circle cx="762" cy="802" r="7"/><circle cx="1058" cy="630" r="6"/>
+      <circle cx="328" cy="918" r="6"/><circle cx="612" cy="754" r="7"/>
+      <circle cx="922" cy="934" r="7"/><circle cx="1240" cy="750" r="6"/>
+    </g>
+
+    <!-- Structured records -->
+    <g transform="translate(178 648)">
+      <path d="m0 66 92-53 92 53-92 54Z" fill="#1f5261" stroke="#65c9c5" stroke-opacity=".7"/>
+      <path d="m0 66 92 54v94L0 160Z" fill="#102d3c" stroke="#65c9c5" stroke-opacity=".55"/>
+      <path d="m184 66-92 54v94l92-54Z" fill="#194450" stroke="#65c9c5" stroke-opacity=".55"/>
+      <path d="m32 83 60-35 60 35-60 35Z" fill="#5ec8c2" fill-opacity=".52"/>
+      <path d="m32 118 60 35 60-35M32 149l60 35 60-35" fill="none" stroke="#8be0db" stroke-opacity=".42"/>
+    </g>
+
+    <!-- Document assets -->
+    <g transform="translate(394 286)">
+      <path d="m0 63 110-63 118 68-110 64Z" fill="#284b71" stroke="#8faaf4" stroke-opacity=".8"/>
+      <path d="m0 63 118 69v158L0 221Z" fill="#132c49" stroke="#8faaf4" stroke-opacity=".55"/>
+      <path d="m228 68-110 64v158l110-64Z" fill="#1a3a59" stroke="#8faaf4" stroke-opacity=".55"/>
+      <path d="m28 87 90 52v18L28 105Zm0 48 72 42v15l-72-42Zm0 40 86 50v15l-86-50Z" fill="#91a9eb" fill-opacity=".72"/>
+      <path d="m149 150 50-29v18l-50 29Zm0 42 50-29v18l-50 29Zm0 42 35-20v18l-35 20Z" fill="#5ec8c2" fill-opacity=".58"/>
+    </g>
+
+    <!-- Governance hub -->
+    <g transform="translate(710 503)">
+      <ellipse cx="0" cy="94" rx="142" ry="82" fill="#07131f" fill-opacity=".56" stroke="#67cbc5" stroke-opacity=".3"/>
+      <ellipse cx="0" cy="48" rx="105" ry="61" fill="#163b49" stroke="#67cbc5" stroke-opacity=".8" stroke-width="2"/>
+      <path d="M-105 48v55c0 34 47 61 105 61s105-27 105-61V48c0 34-47 61-105 61S-105 82-105 48Z" fill="#102b39" stroke="#67cbc5" stroke-opacity=".62"/>
+      <ellipse cx="0" cy="48" rx="61" ry="35" fill="#5ec8c2" fill-opacity=".34" stroke="#a1e5df"/>
+      <circle cx="0" cy="48" r="13" fill="#e8b45e" filter="url(#softGlow)"/>
+      <path d="M0 35V-64M-53 24l-65-38M53 24l65-38" stroke="#81d9d3" stroke-opacity=".75" stroke-width="2"/>
+      <circle cx="0" cy="-72" r="9" fill="#6f91eb"/><circle cx="-126" cy="-19" r="8" fill="#d96f6c"/><circle cx="126" cy="-19" r="8" fill="#e9a84a"/>
+    </g>
+
+    <!-- Knowledge graph -->
+    <g transform="translate(1014 250)" stroke-linecap="round">
+      <path d="M0 132 94 76l106 61 92-53M94 76l5-108M200 137l87 51M0 132l-82-47M200 137l-5 112M94 76l106 61" fill="none" stroke="#83d6d2" stroke-opacity=".52" stroke-width="3"/>
+      <g stroke="#b6eeea" stroke-opacity=".7">
+        <circle cx="0" cy="132" r="18" fill="#276b6b"/>
+        <circle cx="94" cy="76" r="24" fill="#315687"/>
+        <circle cx="200" cy="137" r="20" fill="#397b76"/>
+        <circle cx="292" cy="84" r="13" fill="#bd7940"/>
+        <circle cx="99" cy="-32" r="13" fill="#4b6eb8"/>
+        <circle cx="287" cy="188" r="12" fill="#b9585c"/>
+        <circle cx="195" cy="249" r="15" fill="#277a72"/>
+        <circle cx="-82" cy="85" r="11" fill="#b87a36"/>
+      </g>
+      <g fill="#d9f5f2"><circle cx="0" cy="132" r="4"/><circle cx="94" cy="76" r="5"/><circle cx="200" cy="137" r="4"/></g>
+    </g>
+
+    <!-- Quality signals -->
+    <g transform="translate(904 756)">
+      <path d="m0 50 79-46 81 47-80 47Z" fill="#22445c" stroke="#7f9fe9" stroke-opacity=".58"/>
+      <path d="m0 50 80 48v102L0 152Z" fill="#122a3d" stroke="#7f9fe9" stroke-opacity=".4"/>
+      <path d="m160 51-80 47v102l80-47Z" fill="#193747" stroke="#7f9fe9" stroke-opacity=".4"/>
+      <path d="m31 112 31 18 65-69" fill="none" stroke="#72d2b2" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+
+    <g fill="#91e0dc" filter="url(#softGlow)">
+      <circle cx="117" cy="312" r="3"/><circle cx="290" cy="220" r="3"/>
+      <circle cx="716" cy="160" r="4"/><circle cx="1248" cy="470" r="3"/>
+      <circle cx="1128" cy="866" r="4"/><circle cx="496" cy="1010" r="3"/>
+    </g>
+  </g>
+
+  <rect x="1420" width="500" height="1200" fill="#07111d" fill-opacity=".2"/>
+</svg>

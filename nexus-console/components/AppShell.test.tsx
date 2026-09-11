@@ -5,13 +5,24 @@ import { describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "./AppShell";
 
+const navigationMocks = vi.hoisted(() => ({ pathname: "/workbench" }));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => navigationMocks.pathname,
+}));
+
 vi.mock("@/components/QuickUploadProvider", () => ({
   QuickUploadProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
 vi.mock("@/components/Sidebar", () => ({
   Sidebar: ({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) => (
-    <button type="button" aria-label="切换侧边栏" data-collapsed={String(collapsed)} onClick={onToggle}>
+    <button
+      type="button"
+      aria-label="切换侧边栏"
+      data-collapsed={String(collapsed)}
+      onClick={onToggle}
+    >
       切换侧边栏
     </button>
   ),
@@ -26,9 +37,29 @@ vi.mock("@/components/shared/RouteBoundary", () => ({
 }));
 
 describe("AppShell", () => {
+  it("renders the login route without the application navigation shell", () => {
+    navigationMocks.pathname = "/login";
+
+    const { container } = render(
+      <AppShell>
+        <p>登录页面</p>
+      </AppShell>,
+    );
+
+    expect(screen.getByText("登录页面")).toBeInTheDocument();
+    expect(screen.queryByText("Topbar")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "切换侧边栏" })).not.toBeInTheDocument();
+    expect(container.querySelector(".app-shell")).toBeNull();
+  });
+
   it("toggles the collapsed class when the sidebar is collapsed and expanded", async () => {
+    navigationMocks.pathname = "/workbench";
     const user = userEvent.setup();
-    const { container } = render(<AppShell><p>页面内容</p></AppShell>);
+    const { container } = render(
+      <AppShell>
+        <p>页面内容</p>
+      </AppShell>,
+    );
     const shell = container.querySelector(".app-shell");
 
     expect(shell).not.toBeNull();
@@ -38,7 +69,8 @@ describe("AppShell", () => {
 
     expect(shell).toHaveClass("app-shell", "collapsed");
     expect(screen.getByRole("button", { name: "切换侧边栏" })).toHaveAttribute(
-      "data-collapsed", "true",
+      "data-collapsed",
+      "true",
     );
 
     await user.click(screen.getByRole("button", { name: "切换侧边栏" }));
@@ -46,7 +78,8 @@ describe("AppShell", () => {
     expect(shell).toHaveClass("app-shell");
     expect(shell).not.toHaveClass("collapsed");
     expect(screen.getByRole("button", { name: "切换侧边栏" })).toHaveAttribute(
-      "data-collapsed", "false",
+      "data-collapsed",
+      "false",
     );
   });
 });

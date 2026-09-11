@@ -1,0 +1,395 @@
+.page {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden auto;
+  color: #f7fbff;
+  background: #07111d;
+  isolation: isolate;
+}
+
+.background {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-image: url("/images/nexus-login-background.svg");
+  background-position: center;
+  background-size: cover;
+}
+
+.veil {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    90deg,
+    rgba(4, 12, 22, 0.08) 0%,
+    rgba(4, 12, 22, 0.16) 47%,
+    rgba(4, 12, 22, 0.52) 100%
+  );
+}
+
+.layout {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 440px;
+  align-items: center;
+  gap: clamp(48px, 8vw, 140px);
+  padding: 52px clamp(40px, 5vw, 88px);
+}
+
+.brand {
+  position: absolute;
+  top: clamp(36px, 5vh, 56px);
+  left: clamp(40px, 5vw, 88px);
+  max-width: 660px;
+}
+
+.brandLockup {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.logo {
+  position: relative;
+  width: 68px;
+  height: 68px;
+  flex: 0 0 68px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(210, 247, 244, 0.5);
+  border-radius: 8px;
+  color: #fff;
+  background: rgba(9, 28, 41, 0.72);
+  box-shadow: 0 18px 40px rgba(1, 10, 18, 0.26);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.logo::before,
+.logo::after {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  content: "";
+  background: #65d2c8;
+}
+
+.logo::before {
+  top: 8px;
+  right: 8px;
+}
+
+.logo::after {
+  bottom: 8px;
+  left: 8px;
+  background: #e7ad50;
+}
+
+.brandName {
+  margin: 0;
+  color: #fff;
+  font-size: 48px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.platformName {
+  margin: 11px 0 0;
+  color: rgba(237, 250, 251, 0.86);
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+
+.brandRule {
+  width: 112px;
+  height: 2px;
+  margin-top: 28px;
+  background: #5ec8c2;
+}
+
+.panelWrap {
+  grid-column: 2;
+  align-self: center;
+  width: 100%;
+}
+
+.layout > .panel {
+  grid-column: 2;
+  align-self: center;
+}
+
+.panel {
+  width: 100%;
+  min-height: 520px;
+  padding: 40px;
+  color: #0f1424;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 8px;
+  box-shadow: 0 28px 72px rgba(0, 8, 15, 0.32);
+  backdrop-filter: blur(14px);
+}
+
+.panelHeader {
+  margin-bottom: 28px;
+}
+
+.panelTitle {
+  margin: 0;
+  color: #111827;
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+.panelSubtitle {
+  margin: 8px 0 0;
+  color: #667085;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.roleSection {
+  margin-bottom: 28px;
+  padding: 14px 16px;
+  background: #f4f7f9;
+  border: 1px solid #e5eaee;
+  border-radius: 6px;
+}
+
+.roleLabel {
+  display: block;
+  margin-bottom: 10px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.role {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.role svg {
+  flex: 0 0 auto;
+  color: #287f79;
+}
+
+.form :global(.ant-form-item-label) {
+  padding-bottom: 7px;
+}
+
+.form :global(.ant-form-item-label > label) {
+  height: auto;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.form :global(.ant-input-affix-wrapper) {
+  min-height: 46px;
+  padding-inline: 13px;
+  border-color: #d5dce3;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.form :global(.ant-input-affix-wrapper:hover) {
+  border-color: #627bd7;
+}
+
+.form :global(.ant-input-affix-wrapper-focused) {
+  border-color: #3851d3;
+  box-shadow: 0 0 0 3px rgba(56, 81, 211, 0.14);
+}
+
+.inputIcon {
+  color: #7b8797;
+}
+
+.submit {
+  min-height: 46px;
+  margin-top: 6px;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: 0 9px 22px rgba(56, 81, 211, 0.22);
+}
+
+.error {
+  margin-bottom: 20px;
+  border-radius: 6px;
+}
+
+.securityNote {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin: 24px 0 0;
+  color: #7b8797;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.securityNote svg {
+  color: #478f88;
+}
+
+.loading {
+  min-height: 438px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  color: #667085;
+  font-size: 14px;
+}
+
+.copyright {
+  margin: 18px 0 0;
+  color: rgba(235, 247, 248, 0.64);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+@media (max-width: 860px) {
+  .page {
+    overflow-x: hidden;
+  }
+
+  .background {
+    background-position: 34% center;
+  }
+
+  .veil {
+    background: rgba(3, 11, 20, 0.52);
+  }
+
+  .layout {
+    width: min(100% - 32px, 480px);
+    min-height: 100dvh;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: center;
+    gap: 28px;
+    padding: 34px 0;
+  }
+
+  .brand {
+    position: static;
+    justify-self: center;
+    text-align: center;
+  }
+
+  .panelWrap,
+  .layout > .panel {
+    grid-column: 1;
+  }
+
+  .brandLockup {
+    gap: 14px;
+  }
+
+  .logo {
+    width: 54px;
+    height: 54px;
+    flex-basis: 54px;
+    font-size: 27px;
+  }
+
+  .brandName {
+    font-size: 34px;
+    text-align: left;
+  }
+
+  .platformName {
+    margin-top: 6px;
+    font-size: 14px;
+    text-align: left;
+  }
+
+  .brandRule {
+    display: none;
+  }
+
+  .panel {
+    min-height: 0;
+    padding: 30px;
+  }
+
+  .copyright {
+    color: rgba(242, 250, 251, 0.76);
+  }
+}
+
+@media (max-width: 420px) {
+  .layout {
+    width: calc(100% - 24px);
+    gap: 22px;
+    padding: 24px 0;
+  }
+
+  .panel {
+    padding: 26px 22px;
+  }
+
+  .panelHeader,
+  .roleSection {
+    margin-bottom: 22px;
+  }
+
+  .roles {
+    gap: 9px 16px;
+  }
+}
+
+@media (max-height: 720px) and (min-width: 861px) {
+  .layout {
+    padding: 24px 0;
+  }
+
+  .panel {
+    min-height: 0;
+    padding-block: 30px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page *,
+  .page *::before,
+  .page *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

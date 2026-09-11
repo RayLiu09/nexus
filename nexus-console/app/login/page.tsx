@@ -2,8 +2,17 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Alert, App, Button, Card, Form, Input, Space, Typography } from "antd";
-import { LockOutlined, UserOutlined } from "@ant-design/icons";
+import { Alert, App, Button, Form, Input, Spin } from "antd";
+import {
+  BriefcaseBusiness,
+  Database,
+  LockKeyhole,
+  LogIn,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
+
+import styles from "./page.module.css";
 
 interface LoginFormValues {
   username: string;
@@ -83,79 +92,124 @@ function LoginForm() {
     [router, searchParams, message],
   );
 
-  if (checkingSession) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[var(--bg)]">
-        <Card className="w-full max-w-sm">
-          <div className="flex items-center justify-center py-12">
-            <Typography.Text type="secondary">检查登录状态...</Typography.Text>
-          </div>
-        </Card>
-      </main>
-    );
-  }
-
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[var(--bg)]">
-      <Card
-        className="w-full max-w-sm shadow-sm"
-        styles={{ body: { padding: 32 } }}
-      >
-        <Space orientation="vertical" size="large" className="w-full">
-          {/* Brand */}
-          <div className="text-center">
-            <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#2563eb] to-[#0d9488]">
-              <span className="text-xl font-bold text-white">N</span>
+    <main className={styles.page}>
+      <div className={styles.background} aria-hidden="true" />
+      <div className={styles.veil} aria-hidden="true" />
+      <div className={styles.layout}>
+        <section className={styles.brand} aria-label="NEXUS 平台品牌">
+          <div className={styles.brandLockup}>
+            <div className={styles.logo} role="img" aria-label="NEXUS Logo">
+              N
             </div>
-            <Typography.Title level={4} className="!mb-1">
-              NEXUS
-            </Typography.Title>
-            <Typography.Text type="secondary" className="text-sm">
-              企业数据与知识资产平台
-            </Typography.Text>
+            <div>
+              <h1 className={styles.brandName}>NEXUS</h1>
+              <p className={styles.platformName}>企业数据与知识资产平台</p>
+            </div>
           </div>
+          <div className={styles.brandRule} aria-hidden="true" />
+        </section>
 
-          {/* Error */}
-          {error && <Alert type="error" showIcon title={error} />}
+        <div className={styles.panelWrap}>
+          <section className={styles.panel} aria-labelledby="login-heading">
+            {checkingSession ? (
+              <div className={styles.loading} role="status" aria-live="polite">
+                <Spin size="large" />
+                <span>正在验证登录状态</span>
+              </div>
+            ) : (
+              <>
+                <header className={styles.panelHeader}>
+                  <h2 id="login-heading" className={styles.panelTitle}>
+                    账户登录
+                  </h2>
+                  <p className={styles.panelSubtitle}>使用 NEXUS 平台账号访问工作台</p>
+                </header>
 
-          {/* Form */}
-          <Form<LoginFormValues>
-            onFinish={handleLogin}
-            layout="vertical"
-            size="large"
-            requiredMark={false}
-          >
-            <Form.Item
-              name="username"
-              rules={[{ required: true, message: "请输入用户名" }]}
-            >
-              <Input
-                prefix={<UserOutlined />}
-                placeholder="用户名"
-                autoComplete="username"
-                autoFocus
-              />
-            </Form.Item>
+                <div className={styles.roleSection} aria-label="支持的登录角色">
+                  <span className={styles.roleLabel}>支持的登录角色</span>
+                  <ul className={styles.roles}>
+                    <li className={styles.role}>
+                      <Database size={16} aria-hidden="true" />
+                      数据管理员
+                    </li>
+                    <li className={styles.role}>
+                      <BriefcaseBusiness size={16} aria-hidden="true" />
+                      业务专家
+                    </li>
+                  </ul>
+                </div>
 
-            <Form.Item
-              name="password"
-              rules={[{ required: true, message: "请输入密码" }]}
-            >
-              <Input.Password
-                prefix={<LockOutlined />}
-                placeholder="密码"
-                autoComplete="current-password"
-              />
-            </Form.Item>
+                {error && (
+                  <Alert
+                    className={styles.error}
+                    type="error"
+                    showIcon
+                    title={error}
+                    role="alert"
+                  />
+                )}
 
-            <Form.Item className="!mb-0">
-              <Button type="primary" htmlType="submit" block loading={loading}>
-                进入工作台
-              </Button>
-            </Form.Item>
-          </Form>
-        </Space>
-      </Card>
+                <Form<LoginFormValues>
+                  className={styles.form}
+                  onFinish={handleLogin}
+                  layout="vertical"
+                  size="large"
+                  requiredMark={false}
+                >
+                  <Form.Item
+                    label="账号"
+                    name="username"
+                    rules={[{ required: true, message: "请输入用户名" }]}
+                  >
+                    <Input
+                      prefix={
+                        <UserRound className={styles.inputIcon} size={17} aria-hidden="true" />
+                      }
+                      placeholder="请输入用户名"
+                      autoComplete="username"
+                      autoFocus
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    label="密码"
+                    name="password"
+                    rules={[{ required: true, message: "请输入密码" }]}
+                  >
+                    <Input.Password
+                      prefix={
+                        <LockKeyhole className={styles.inputIcon} size={17} aria-hidden="true" />
+                      }
+                      placeholder="请输入密码"
+                      autoComplete="current-password"
+                    />
+                  </Form.Item>
+
+                  <Form.Item className="!mb-0">
+                    <Button
+                      className={styles.submit}
+                      type="primary"
+                      htmlType="submit"
+                      block
+                      loading={loading}
+                      icon={<LogIn size={17} aria-hidden="true" />}
+                    >
+                      登录
+                    </Button>
+                  </Form.Item>
+                </Form>
+
+                <p className={styles.securityNote}>
+                  <ShieldCheck size={15} aria-hidden="true" />
+                  受保护的本地身份认证
+                </p>
+              </>
+            )}
+          </section>
+          <p className={styles.copyright}>NEXUS Console</p>
+        </div>
+      </div>
     </main>
   );
 }
@@ -164,12 +218,28 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <main className="flex min-h-screen items-center justify-center bg-[var(--bg)]">
-          <Card className="w-full max-w-sm">
-            <div className="flex items-center justify-center py-12">
-              <Typography.Text type="secondary">加载中...</Typography.Text>
-            </div>
-          </Card>
+        <main className={styles.page}>
+          <div className={styles.background} aria-hidden="true" />
+          <div className={styles.veil} aria-hidden="true" />
+          <div className={styles.layout}>
+            <section className={styles.brand} aria-label="NEXUS 平台品牌">
+              <div className={styles.brandLockup}>
+                <div className={styles.logo} role="img" aria-label="NEXUS Logo">
+                  N
+                </div>
+                <div>
+                  <h1 className={styles.brandName}>NEXUS</h1>
+                  <p className={styles.platformName}>企业数据与知识资产平台</p>
+                </div>
+              </div>
+            </section>
+            <section className={styles.panel} aria-label="加载登录页">
+              <div className={styles.loading} role="status">
+                <Spin size="large" />
+                <span>正在加载登录页</span>
+              </div>
+            </section>
+          </div>
         </main>
       }
     >

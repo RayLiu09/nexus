@@ -15,14 +15,21 @@ function pageRequest(role: string): NextRequest {
 }
 
 describe("Console middleware role boundary", () => {
+  it("allows the login background image without a Console session", () => {
+    const response = middleware(
+      new NextRequest("http://localhost/images/nexus-login-background.svg"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+  });
+
   it.each(["ops", "api_caller"])("redirects backend role %s and clears auth cookies", (role) => {
     const response = middleware(pageRequest(role));
     const setCookie = response.headers.get("set-cookie") ?? "";
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe(
-      "http://localhost/login?redirect=%2Fai-prompts",
-    );
+    expect(response.headers.get("location")).toBe("http://localhost/login?redirect=%2Fai-prompts");
     expect(setCookie).toContain("nexus_access_token=");
     expect(setCookie).toContain("nexus_refresh_token=");
     expect(setCookie).toContain("Max-Age=0");

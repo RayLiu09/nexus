@@ -11,13 +11,14 @@
  * - /login (auth page)
  * - /api/auth/* (login/refresh/logout handlers)
  * - /_next/* (static assets)
+ * - /images/* (public image assets used by the login page)
  * - /favicon.ico, etc.
  */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { isConsoleSessionRole } from "@/lib/auth/roles";
 
-const PUBLIC_PATHS = ["/login", "/api/", "/_next/", "/favicon.ico"];
+const PUBLIC_PATHS = ["/login", "/api/", "/_next/", "/images/", "/favicon.ico"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname.startsWith(p));
@@ -79,7 +80,8 @@ export const config = {
      * - /login (public)
      * - /api/* (API routes — auth handled by handlers)
      * - /_next/* (Next.js internals)
+     * - /images/* (public image assets)
      */
-    "/((?!login|api/|_next|favicon.ico).*)",
+    "/((?!login|api/|_next|images/|favicon.ico).*)",
   ],
 };
