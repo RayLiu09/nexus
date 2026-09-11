@@ -15,11 +15,32 @@
  */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { isConsoleSessionRole } from "@/lib/auth/roles";
 
 const PUBLIC_PATHS = ["/login", "/api/", "/_next/", "/favicon.ico"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+}
+
+function tokenRole(token: string): unknown {
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    return (JSON.parse(atob(payload)) as { role?: unknown }).role;
+  } catch {
+    return null;
+  }
+}
+
+function deniedConsoleSession(request: NextRequest): NextResponse {
+  const loginUrl = new URL("/login", request.url);
+  loginUrl.searchParams.set("redirect", request.nextUrl.pathname);
+  const response = NextResponse.redirect(loginUrl);
+  response.cookies.set("nexus_access_token", "", { path: "/", maxAge: 0 });
+  response.cookies.set("nexus_refresh_token", "", { path: "/", maxAge: 0 });
+  return response;
 }
 
 export function middleware(request: NextRequest) {
@@ -42,6 +63,10 @@ export function middleware(request: NextRequest) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  if (!isConsoleSessionRole(tokenRole(accessToken))) {
+    return deniedConsoleSession(request);
   }
 
   return NextResponse.next();

@@ -1,461 +1,822 @@
 "use client";
 
-import { useState } from "react";
-import { Button, Drawer, Tag, Descriptions, App, Input, InputNumber, Select, Alert } from "antd";
-import { PlusOutlined, EditOutlined, CopyOutlined, StopOutlined, ExperimentOutlined } from "@ant-design/icons";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  App,
+  Button,
+  Drawer,
+  Empty,
+  Input,
+  InputNumber,
+  Modal,
+  Select,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from "antd";
+import type { TableColumnsType } from "antd";
+import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  FlaskConical,
+  History,
+  RotateCcw,
+  Save,
+} from "lucide-react";
+
 import { formatTime } from "@/lib/format-time";
-import { StatusLabel } from "@/components/StatusLabel";
-import { EmptyState } from "@/components/shared/EmptyState";
-import { postApiData, putApiData } from "@/lib/api";
+import {
+  dryRunPromptCandidate,
+  fetchPromptHistory,
+  saveActivePrompt,
+  validatePromptCandidate,
+  type PromptCandidateDryRunResult,
+  type PromptProfile,
+  type PromptProfileCandidate,
+} from "@/lib/prompt-profiles-api";
+import {
+  CORE_PROMPT_SCENARIOS,
+  DOMAIN_PROMPT_SCENARIOS,
+  findPromptScenario,
+  validateScenarioVariables,
+  type PromptScenarioDefinition,
+} from "@/lib/prompt-scenarios";
 
-type PromptProfile = {
-  id: string;
-  profile_name: string;
-  profile_version: number;
-  task_type: string;
-  status: string;
-  litellm_model_alias: string;
-  prompt_version: string;
-  output_schema_version: string;
-  scoring_weight_version: string;
+type PromptDraft = {
+  promptTemplate: string;
+  outputSchemaText: string;
+  promptVersion: string;
+  outputSchemaVersion: string;
   temperature: number;
-  max_input_tokens: number;
-  redaction_policy: string;
-  created_at: string;
-  updated_at: string;
+  redactionPolicy: PromptProfile["redaction_policy"];
 };
 
-const MOCK_FALLBACK: PromptProfile[] = [
-  {
-    id: "pp-1",
-    profile_name: "元数据治理",
-    profile_version: 3,
-    task_type: "metadata_governance",
-    status: "active",
-    litellm_model_alias: "LiteLLM/qwen-plus",
-    prompt_version: "v3",
-    output_schema_version: "1.0",
-    scoring_weight_version: "1.0",
-    temperature: 0.3,
-    max_input_tokens: 4096,
-    redaction_policy: "masked_content",
-    created_at: "2026-05-07T10:00:00Z",
-    updated_at: "2026-05-14T08:23:00Z",
-  },
-  {
-    id: "pp-2",
-    profile_name: "质量评分",
-    profile_version: 2,
-    task_type: "quality_scoring",
-    status: "active",
-    litellm_model_alias: "LiteLLM/deepseek-v3",
-    prompt_version: "v2",
-    output_schema_version: "1.0",
-    scoring_weight_version: "1.0",
-    temperature: 0.2,
-    max_input_tokens: 4096,
-    redaction_policy: "metadata_only",
-    created_at: "2026-05-01T10:00:00Z",
-    updated_at: "2026-05-10T14:00:00Z",
-  },
-  {
-    id: "pp-3",
-    profile_name: "敏感复核",
-    profile_version: 1,
-    task_type: "sensitive_review",
-    status: "active",
-    litellm_model_alias: "LiteLLM/qwen-plus",
-    prompt_version: "v1",
-    output_schema_version: "1.0",
-    scoring_weight_version: "1.0",
-    temperature: 0.1,
-    max_input_tokens: 2048,
-    redaction_policy: "full_content_private",
-    created_at: "2026-05-01T10:00:00Z",
-    updated_at: "2026-05-08T11:00:00Z",
-  },
-];
+type EditorValidation = {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  contentHash?: string;
+};
 
-// PLACEHOLDER_REST
+const EMPTY_DRAFT: PromptDraft = {
+  promptTemplate: "",
+  outputSchemaText: "{}",
+  promptVersion: "",
+  outputSchemaVersion: "1.0",
+  temperature: 0.2,
+  redactionPolicy: "masked_content",
+};
 
-const TASK_TYPES = [
-  { value: "metadata_governance", label: "元数据治理" },
-  { value: "quality_scoring", label: "质量评分" },
-  { value: "sensitive_review", label: "敏感复核" },
-  { value: "tag_generation", label: "标签生成" },
-];
-
-const REDACTION_POLICIES = [
-  { value: "masked_content", label: "内容脱敏" },
+const REDACTION_OPTIONS = [
   { value: "metadata_only", label: "仅元数据" },
-  { value: "full_content_private", label: "全内容私有" },
+  { value: "masked_content", label: "脱敏内容" },
+  { value: "full_content_private", label: "私有全量内容" },
 ];
 
-type FormState = {
-  profile_name: string;
-  task_type: string;
-  litellm_model_alias: string;
-  prompt_version: string;
-  output_schema_version: string;
-  scoring_weight_version: string;
-  temperature: number;
-  max_input_tokens: number;
-  redaction_policy: string;
-};
+function profileToDraft(profile: PromptProfile | undefined): PromptDraft {
+  if (!profile) return EMPTY_DRAFT;
+  return {
+    promptTemplate: profile.prompt_template ?? "",
+    outputSchemaText: JSON.stringify(profile.output_schema ?? {}, null, 2),
+    promptVersion: profile.prompt_version ?? "",
+    outputSchemaVersion: profile.output_schema_version ?? "1.0",
+    temperature: profile.temperature ?? 0.2,
+    redactionPolicy: profile.redaction_policy ?? "masked_content",
+  };
+}
 
-const DEFAULT_FORM: FormState = {
-  profile_name: "",
-  task_type: "metadata_governance",
-  litellm_model_alias: "LiteLLM/qwen-plus",
-  prompt_version: "v1",
-  output_schema_version: "1.0",
-  scoring_weight_version: "1.0",
-  temperature: 0.3,
-  max_input_tokens: 4096,
-  redaction_policy: "masked_content",
-};
+function hasEditableProfileContract(profile: PromptProfile): boolean {
+  return (
+    typeof profile.prompt_template === "string" &&
+    profile.output_schema !== null &&
+    !Array.isArray(profile.output_schema) &&
+    typeof profile.output_schema === "object" &&
+    typeof profile.content_hash === "string"
+  );
+}
+
+function draftFingerprint(draft: PromptDraft): string {
+  return JSON.stringify(draft);
+}
+
+function parseOutputSchema(text: string): Record<string, unknown> {
+  const parsed: unknown = JSON.parse(text);
+  if (parsed === null || Array.isArray(parsed) || typeof parsed !== "object") {
+    throw new Error("输出 Schema 根节点必须是 JSON 对象");
+  }
+  return parsed as Record<string, unknown>;
+}
+
+function buildCandidate(
+  profile: PromptProfile,
+  draft: PromptDraft,
+  outputSchema: Record<string, unknown>,
+): PromptProfileCandidate {
+  return {
+    profile_name: profile.profile_name,
+    task_type: profile.task_type,
+    scenario: profile.scenario,
+    prompt_version: draft.promptVersion.trim(),
+    prompt_template: draft.promptTemplate,
+    output_schema: outputSchema,
+    output_schema_version: draft.outputSchemaVersion.trim(),
+    scoring_weight_version: profile.scoring_weight_version,
+    temperature: draft.temperature,
+    redaction_policy: draft.redactionPolicy,
+  };
+}
+
+function shortHash(hash: string): string {
+  if (!hash) return "-";
+  return hash.length > 12 ? hash.slice(0, 12) : hash;
+}
 
 export default function AiPromptsContent({ profiles }: { profiles: PromptProfile[] }) {
-  const isDemo = profiles.length === 0;
-  const data = isDemo ? MOCK_FALLBACK : profiles;
-  const [items, setItems] = useState<PromptProfile[]>(data);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState>(DEFAULT_FORM);
-  const [saving, setSaving] = useState(false);
   const { message, modal } = App.useApp();
+  const defaultProfileName = CORE_PROMPT_SCENARIOS[0].profileName;
+  const [profileState, setProfileState] = useState(profiles);
+  const [selectedProfileName, setSelectedProfileName] = useState(defaultProfileName);
+  const [domainExpanded, setDomainExpanded] = useState(false);
+  const [draft, setDraft] = useState(() =>
+    profileToDraft(profiles.find((profile) => profile.profile_name === defaultProfileName)),
+  );
+  const [validation, setValidation] = useState<EditorValidation | null>(null);
+  const [validating, setValidating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [changeSummary, setChangeSummary] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [history, setHistory] = useState<PromptProfile[]>([]);
+  const [historySelection, setHistorySelection] = useState<PromptProfile | null>(null);
+  const [dryRunOpen, setDryRunOpen] = useState(false);
+  const [dryRunLoading, setDryRunLoading] = useState(false);
+  const [normalizedRefId, setNormalizedRefId] = useState("");
+  const [dryRunResult, setDryRunResult] = useState<PromptCandidateDryRunResult | null>(null);
 
-  const openCreate = () => {
-    setEditingId(null);
-    setForm(DEFAULT_FORM);
-    setDrawerOpen(true);
-  };
+  const profileByName = useMemo(
+    () => new Map(profileState.map((profile) => [profile.profile_name, profile])),
+    [profileState],
+  );
+  const selectedProfile = profileByName.get(selectedProfileName);
+  const selectedScenario = findPromptScenario(selectedProfileName) ?? CORE_PROMPT_SCENARIOS[0];
+  const editableContractAvailable = selectedProfile
+    ? hasEditableProfileContract(selectedProfile)
+    : false;
+  const isDirty = selectedProfile
+    ? draftFingerprint(draft) !== draftFingerprint(profileToDraft(selectedProfile))
+    : false;
 
-  const openEdit = (p: PromptProfile) => {
-    setEditingId(p.id);
-    setForm({
-      profile_name: p.profile_name,
-      task_type: p.task_type,
-      litellm_model_alias: p.litellm_model_alias,
-      prompt_version: p.prompt_version,
-      output_schema_version: p.output_schema_version,
-      scoring_weight_version: p.scoring_weight_version,
-      temperature: p.temperature,
-      max_input_tokens: p.max_input_tokens,
-      redaction_policy: p.redaction_policy,
-    });
-    setDrawerOpen(true);
-  };
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
 
-  const openClone = (p: PromptProfile) => {
-    setEditingId(null);
-    setForm({
-      profile_name: `${p.profile_name} (副本)`,
-      task_type: p.task_type,
-      litellm_model_alias: p.litellm_model_alias,
-      prompt_version: `v${p.profile_version + 1}`,
-      output_schema_version: p.output_schema_version,
-      scoring_weight_version: p.scoring_weight_version,
-      temperature: p.temperature,
-      max_input_tokens: p.max_input_tokens,
-      redaction_policy: p.redaction_policy,
-    });
-    setDrawerOpen(true);
-  };
+  const loadScenario = useCallback(
+    (profileName: string) => {
+      setSelectedProfileName(profileName);
+      setDraft(profileToDraft(profileByName.get(profileName)));
+      setValidation(null);
+      setDryRunResult(null);
+    },
+    [profileByName],
+  );
 
-  const handleSave = async () => {
-    if (!form.profile_name.trim()) {
-      message.warning("请填写配置名称");
+  function selectScenario(profileName: string) {
+    if (profileName === selectedProfileName) return;
+    if (!isDirty) {
+      loadScenario(profileName);
       return;
     }
+    modal.confirm({
+      title: "放弃未保存的修改？",
+      content: "切换场景后，当前 Prompt 模板和 Schema 的修改将不会保留。",
+      okText: "放弃并切换",
+      cancelText: "继续编辑",
+      okButtonProps: { danger: true },
+      onOk: () => loadScenario(profileName),
+    });
+  }
+
+  function resetDraft() {
+    if (!selectedProfile || !isDirty) return;
+    modal.confirm({
+      title: "重置当前修改？",
+      content: "编辑器将恢复为当前生效版本。",
+      okText: "重置",
+      cancelText: "取消",
+      onOk: () => {
+        setDraft(profileToDraft(selectedProfile));
+        setValidation(null);
+      },
+    });
+  }
+
+  function validateLocally(): Record<string, unknown> | null {
+    const errors: string[] = [];
+    let schema: Record<string, unknown> | null = null;
+
+    if (!draft.promptTemplate.trim()) errors.push("提示词模板不能为空");
+    if (!draft.promptVersion.trim()) errors.push("Prompt 版本不能为空");
+    if (!draft.outputSchemaVersion.trim()) errors.push("Schema 版本不能为空");
+    errors.push(...validateScenarioVariables(draft.promptTemplate, selectedScenario));
+    try {
+      schema = parseOutputSchema(draft.outputSchemaText);
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : "输出 Schema 不是合法 JSON");
+    }
+
+    if (errors.length > 0) {
+      setValidation({ valid: false, errors, warnings: [] });
+      message.error("校验未通过");
+      return null;
+    }
+    return schema;
+  }
+
+  async function runValidation(showSuccess = true): Promise<PromptProfileCandidate | null> {
+    if (!selectedProfile) return null;
+    const schema = validateLocally();
+    if (!schema) return null;
+    const candidate = buildCandidate(selectedProfile, draft, schema);
+
+    setValidating(true);
+    try {
+      const result = await validatePromptCandidate(candidate);
+      setValidation({
+        valid: result.valid,
+        errors: result.errors,
+        warnings: result.warnings,
+        contentHash: result.content_hash,
+      });
+      if (result.valid && showSuccess) message.success("Prompt 模板校验通过");
+      if (!result.valid) message.error("校验未通过");
+      return result.valid ? candidate : null;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      setValidation({ valid: false, errors: [detail], warnings: [] });
+      message.error(`校验失败：${detail}`);
+      return null;
+    } finally {
+      setValidating(false);
+    }
+  }
+
+  async function openSaveModal() {
+    if (!isDirty || saving) return;
+    const candidate = await runValidation(false);
+    if (!candidate) return;
+    setChangeSummary("");
+    setSaveModalOpen(true);
+  }
+
+  async function submitSave() {
+    if (!selectedProfile || !changeSummary.trim() || saving) return;
+    const schema = validateLocally();
+    if (!schema) {
+      setSaveModalOpen(false);
+      return;
+    }
+    const candidate = buildCandidate(selectedProfile, draft, schema);
     setSaving(true);
     try {
-      if (editingId) {
-        const result = await putApiData<PromptProfile>(
-          `/v1/ai/prompt-profiles/${editingId}`,
-          form as unknown as Record<string, unknown>,
-        );
-        setItems((prev) => prev.map((p) => (p.id === editingId ? { ...p, ...result.data } : p)));
-        message.success("配置已更新");
-      } else {
-        const result = await postApiData<PromptProfile>(
-          "/v1/ai/prompt-profiles",
-          form as unknown as Record<string, unknown>,
-        );
-        setItems((prev) => [result.data, ...prev]);
-        message.success("配置已创建");
-      }
-      setDrawerOpen(false);
-    } catch (e) {
-      message.error(`保存失败：${e instanceof Error ? e.message : String(e)}`);
+      const updated = await saveActivePrompt(selectedProfile.profile_name, {
+        scenario: candidate.scenario,
+        prompt_version: candidate.prompt_version,
+        prompt_template: candidate.prompt_template,
+        output_schema: candidate.output_schema,
+        output_schema_version: candidate.output_schema_version,
+        scoring_weight_version: candidate.scoring_weight_version,
+        temperature: candidate.temperature,
+        redaction_policy: candidate.redaction_policy,
+        change_summary: changeSummary.trim(),
+      });
+      setProfileState((current) => [
+        ...current.filter((profile) => profile.profile_name !== updated.profile_name),
+        updated,
+      ]);
+      setDraft(profileToDraft(updated));
+      setValidation(null);
+      setSaveModalOpen(false);
+      setChangeSummary("");
+      message.success(`已生效为配置版本 v${updated.profile_version}`);
+    } catch (error) {
+      message.error(`保存失败：${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setSaving(false);
     }
-  };
+  }
 
-  const handleDisable = (p: PromptProfile) => {
-    modal.confirm({
-      title: `确认禁用「${p.profile_name}」？`,
-      content: "禁用后此配置不再参与 AI 治理选用。已使用此配置产生的历史治理记录不受影响。",
-      okText: "确认禁用",
-      okButtonProps: { danger: true },
-      cancelText: "取消",
-      onOk: async () => {
-        try {
-          await postApiData<void>(`/v1/ai/prompt-profiles/${p.id}/disable`, {});
-          setItems((prev) => prev.map((x) => (x.id === p.id ? { ...x, status: "disabled" } : x)));
-          message.success("已禁用");
-        } catch (e) {
-          message.error(`禁用失败：${e instanceof Error ? e.message : String(e)}`);
-        }
-      },
-    });
-  };
+  async function openHistory() {
+    if (!selectedProfile) return;
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    setHistory([]);
+    setHistorySelection(null);
+    try {
+      const versions = await fetchPromptHistory(selectedProfile.profile_name);
+      setHistory(versions);
+      setHistorySelection(versions[0] ?? null);
+    } catch (error) {
+      message.error(`历史版本加载失败：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function openDryRun() {
+    const candidate = await runValidation(false);
+    if (!candidate) return;
+    setNormalizedRefId("");
+    setDryRunResult(null);
+    setDryRunOpen(true);
+  }
+
+  async function submitDryRun() {
+    if (!normalizedRefId.trim() || dryRunLoading) return;
+    const candidate = await runValidation(false);
+    if (!candidate) {
+      setDryRunOpen(false);
+      return;
+    }
+    setDryRunLoading(true);
+    try {
+      const result = await dryRunPromptCandidate(candidate, normalizedRefId.trim());
+      setDryRunResult(result);
+      message.success("试运行完成，未写入治理结果");
+    } catch (error) {
+      message.error(`试运行失败：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setDryRunLoading(false);
+    }
+  }
+
+  const historyColumns: TableColumnsType<PromptProfile> = [
+    {
+      title: "配置版本",
+      dataIndex: "profile_version",
+      width: 96,
+      render: (value: number) => `v${value}`,
+    },
+    { title: "Prompt 版本", dataIndex: "prompt_version", width: 120 },
+    {
+      title: "状态",
+      dataIndex: "status",
+      width: 90,
+      render: (value: PromptProfile["status"]) => (
+        <Tag color={value === "active" ? "success" : "default"}>
+          {value === "active" ? "生效中" : value === "archived" ? "已归档" : "已禁用"}
+        </Tag>
+      ),
+    },
+    {
+      title: "变更摘要",
+      dataIndex: "change_summary",
+      ellipsis: true,
+      render: (value: string | null) => value || "-",
+    },
+    {
+      title: "更新时间",
+      dataIndex: "updated_at",
+      width: 145,
+      render: (value: string) => formatTime(value).display,
+    },
+    {
+      title: "查看",
+      key: "view",
+      width: 72,
+      render: (_, record) => (
+        <Tooltip title="查看只读版本">
+          <Button
+            type="text"
+            icon={<Eye size={16} />}
+            aria-label={`查看配置版本 v${record.profile_version}`}
+            onClick={() => setHistorySelection(record)}
+          />
+        </Tooltip>
+      ),
+    },
+  ];
 
   return (
-    <>
-      {/* Toolbar */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 16,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-            {items.length} 个配置 · {items.filter((p) => p.status === "active").length} 个生效中
+    <section className="prompt-workspace" aria-label="Prompt 提示词工作区">
+      <aside className="prompt-scenario-panel" aria-label="提示词模板场景">
+        <div className="prompt-scenario-heading">
+          <span>提示词模板</span>
+          <span>{CORE_PROMPT_SCENARIOS.length}</span>
+        </div>
+        <nav className="prompt-scenario-list" aria-label="核心提示词模板">
+          {CORE_PROMPT_SCENARIOS.map((scenario) => (
+            <ScenarioButton
+              key={scenario.profileName}
+              scenario={scenario}
+              selected={selectedProfileName === scenario.profileName}
+              available={profileByName.has(scenario.profileName)}
+              onSelect={selectScenario}
+            />
+          ))}
+        </nav>
+
+        <button
+          type="button"
+          className="prompt-domain-toggle"
+          aria-expanded={domainExpanded}
+          onClick={() => setDomainExpanded((expanded) => !expanded)}
+        >
+          <span className="flex items-center gap-2">
+            {domainExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+            领域场景
           </span>
-          {isDemo && (
-            <Alert
-              type="warning"
-              showIcon
-              icon={<ExperimentOutlined />}
-              title="演示数据"
-              className="!mb-0 !py-0.5 !px-2.5 text-xs"
-            />
-          )}
-        </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-          新建配置
-        </Button>
-      </div>
+          <span>{DOMAIN_PROMPT_SCENARIOS.length}</span>
+        </button>
+        {domainExpanded && (
+          <nav className="prompt-scenario-list" aria-label="领域提示词模板">
+            {DOMAIN_PROMPT_SCENARIOS.map((scenario) => (
+              <ScenarioButton
+                key={scenario.profileName}
+                scenario={scenario}
+                selected={selectedProfileName === scenario.profileName}
+                available={profileByName.has(scenario.profileName)}
+                onSelect={selectScenario}
+              />
+            ))}
+          </nav>
+        )}
+      </aside>
 
-      {/* Profile Cards */}
-      {items.length === 0 ? (
-        <EmptyState title="暂无 Prompt 配置" hint="新建 AI Prompt 配置来开始治理流水线" />
-      ) : (
-        <div style={{ display: "grid", gap: 12 }}>
-          {items.map((p) => {
-            const { display } = formatTime(p.updated_at);
-            return (
-              <div
-                key={p.id}
-                style={{
-                  background: "var(--surface)",
-                  border: "1px solid var(--line)",
-                  borderLeft:
-                    p.status === "active"
-                      ? "3px solid var(--success-600)"
-                      : "3px solid var(--line-strong)",
-                  borderRadius: "var(--radius-xl)",
-                  padding: "16px 20px",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                  }}
-                >
-                  <div>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        marginBottom: 6,
-                      }}
-                    >
-                      <strong style={{ fontSize: 15 }}>{p.profile_name}</strong>
-                      <Tag color="blue">{p.task_type}</Tag>
-                      <Tag>v{p.profile_version}</Tag>
-                      <StatusLabel value={p.status} />
-                    </div>
-                    <Descriptions size="small" column={4}>
-                      <Descriptions.Item label="模型">
-                        <code style={{ fontSize: 12 }}>{p.litellm_model_alias}</code>
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Temperature">{p.temperature}</Descriptions.Item>
-                      <Descriptions.Item label="Max Tokens">{p.max_input_tokens}</Descriptions.Item>
-                      <Descriptions.Item label="脱敏">
-                        <StatusLabel value={p.redaction_policy} />
-                      </Descriptions.Item>
-                    </Descriptions>
-                  </div>
-                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                    <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(p)}>
-                      编辑
-                    </Button>
-                    <Button size="small" icon={<CopyOutlined />} onClick={() => openClone(p)}>
-                      复制
-                    </Button>
-                    {p.status === "active" && (
-                      <Button
-                        size="small"
-                        danger
-                        icon={<StopOutlined />}
-                        onClick={() => handleDisable(p)}
-                      >
-                        禁用
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: "var(--text-muted)",
-                    marginTop: 6,
-                  }}
-                >
-                  更新于 {display} · Prompt {p.prompt_version} · Schema {p.output_schema_version}
-                </div>
+      <article className="prompt-editor-panel">
+        <header className="prompt-editor-header">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2>{selectedScenario.displayName}</h2>
+              {selectedProfile ? <Tag color="success">生效中</Tag> : <Tag>未配置</Tag>}
+              {isDirty && <Tag color="warning">未保存</Tag>}
+            </div>
+            <p>{selectedScenario.description}</p>
+          </div>
+          {selectedProfile && (
+            <dl className="prompt-version-meta">
+              <div>
+                <dt>配置版本</dt>
+                <dd>v{selectedProfile.profile_version}</dd>
               </div>
-            );
-          })}
-        </div>
-      )}
+              <div>
+                <dt>Prompt 版本</dt>
+                <dd>{selectedProfile.prompt_version}</dd>
+              </div>
+              <div>
+                <dt>更新</dt>
+                <dd title={formatTime(selectedProfile.updated_at).iso}>
+                  {formatTime(selectedProfile.updated_at).display} ·{" "}
+                  {selectedProfile.created_by || "系统"}
+                </dd>
+              </div>
+              <div>
+                <dt>内容哈希</dt>
+                <dd className="font-mono">{shortHash(selectedProfile.content_hash)}</dd>
+              </div>
+            </dl>
+          )}
+        </header>
 
-      {/* Create/Edit Drawer */}
-      <Drawer
-        title={editingId ? "编辑 Prompt 配置" : "新建 Prompt 配置"}
-        size={480}
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        destroyOnClose
-        footer={
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-            <Button onClick={() => setDrawerOpen(false)}>取消</Button>
-            <Button type="primary" loading={saving} onClick={handleSave}>
-              {editingId ? "保存更新" : "创建配置"}
-            </Button>
+        {!selectedProfile ? (
+          <div className="prompt-empty-state">
+            <Empty description="当前环境没有该场景的活动 Prompt 版本" />
           </div>
-        }
+        ) : (
+          <>
+            <div className="prompt-document">
+              {!editableContractAvailable && (
+                <Alert
+                  type="error"
+                  showIcon
+                  title="Prompt 数据契约不完整"
+                  description="当前后端未返回模板内容、输出 Schema 或内容哈希。请升级并重启 nexus-api 后再编辑，当前页面已锁定以避免覆盖生效版本。"
+                />
+              )}
+              <section className="prompt-document-section prompt-template-section">
+                <div className="prompt-section-label">
+                  <label htmlFor="prompt-template-editor">提示词模板</label>
+                  <span>Markdown · {draft.promptTemplate.split("\n").length} 行</span>
+                </div>
+                <textarea
+                  id="prompt-template-editor"
+                  aria-label="提示词模板内容"
+                  value={draft.promptTemplate}
+                  disabled={!editableContractAvailable}
+                  onChange={(event) => {
+                    setDraft((current) => ({ ...current, promptTemplate: event.target.value }));
+                    setValidation(null);
+                  }}
+                  className="prompt-template-editor"
+                  spellCheck={false}
+                />
+              </section>
+
+              <section className="prompt-document-section">
+                <div className="prompt-section-label">
+                  <span>允许变量</span>
+                  <span>运行时契约</span>
+                </div>
+                <div className="prompt-variable-list">
+                  {selectedScenario.allowedVariables.length > 0 ? (
+                    selectedScenario.allowedVariables.map((variable) => (
+                      <Tag key={variable} color="blue" className="font-mono">
+                        {variable}
+                      </Tag>
+                    ))
+                  ) : (
+                    <Typography.Text type="secondary">
+                      无模板变量，运行时输入通过独立消息提供
+                    </Typography.Text>
+                  )}
+                </div>
+              </section>
+
+              <section className="prompt-document-section prompt-schema-section">
+                <div className="prompt-section-label">
+                  <label htmlFor="prompt-schema-editor">输出 Schema</label>
+                  <span>JSON Object</span>
+                </div>
+                <textarea
+                  id="prompt-schema-editor"
+                  aria-label="输出 Schema"
+                  value={draft.outputSchemaText}
+                  disabled={!editableContractAvailable}
+                  onChange={(event) => {
+                    setDraft((current) => ({ ...current, outputSchemaText: event.target.value }));
+                    setValidation(null);
+                  }}
+                  className="prompt-schema-editor"
+                  spellCheck={false}
+                />
+              </section>
+
+              <section className="prompt-document-section">
+                <div className="prompt-section-label">
+                  <span>运行参数</span>
+                  <span>{selectedScenario.impactText}</span>
+                </div>
+                <div className="prompt-runtime-grid">
+                  <label>
+                    <span>Prompt 版本</span>
+                    <Input
+                      value={draft.promptVersion}
+                      disabled={!editableContractAvailable}
+                      maxLength={40}
+                      onChange={(event) =>
+                        setDraft((current) => ({ ...current, promptVersion: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>Schema 版本</span>
+                    <Input
+                      value={draft.outputSchemaVersion}
+                      disabled={!editableContractAvailable}
+                      maxLength={40}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          outputSchemaVersion: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>Temperature</span>
+                    <InputNumber
+                      min={0}
+                      max={2}
+                      step={0.1}
+                      value={draft.temperature}
+                      disabled={!editableContractAvailable}
+                      onChange={(value) =>
+                        setDraft((current) => ({ ...current, temperature: value ?? 0.2 }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>脱敏策略</span>
+                    <Select
+                      value={draft.redactionPolicy}
+                      disabled={!editableContractAvailable}
+                      options={REDACTION_OPTIONS}
+                      onChange={(value: PromptProfile["redaction_policy"]) =>
+                        setDraft((current) => ({ ...current, redactionPolicy: value }))
+                      }
+                    />
+                  </label>
+                </div>
+              </section>
+
+              {validation && (
+                <Alert
+                  className="prompt-validation-alert"
+                  type={validation.valid ? "success" : "error"}
+                  showIcon
+                  title={validation.valid ? "校验通过" : "校验未通过"}
+                  description={
+                    <div className="space-y-1">
+                      {validation.errors.map((error) => (
+                        <div key={error}>{error}</div>
+                      ))}
+                      {validation.warnings.map((warning) => (
+                        <div key={warning}>警告：{warning}</div>
+                      ))}
+                      {validation.contentHash && (
+                        <div className="font-mono text-xs">
+                          候选内容哈希：{shortHash(validation.contentHash)}
+                        </div>
+                      )}
+                    </div>
+                  }
+                />
+              )}
+            </div>
+
+            <footer className="prompt-action-bar">
+              <div>
+                <Button icon={<History size={16} />} onClick={openHistory}>
+                  历史版本
+                </Button>
+                <Button icon={<RotateCcw size={16} />} disabled={!isDirty} onClick={resetDraft}>
+                  重置
+                </Button>
+              </div>
+              <div>
+                <Button
+                  icon={<CheckCircle2 size={16} />}
+                  loading={validating}
+                  disabled={!editableContractAvailable}
+                  onClick={() => void runValidation()}
+                >
+                  校验
+                </Button>
+                <Tooltip
+                  title={
+                    selectedScenario.dryRunSupported
+                      ? "使用 normalized_asset_ref 执行，不写入治理结果"
+                      : "该场景尚未接入候选 Prompt 试运行适配器"
+                  }
+                >
+                  <span>
+                    <Button
+                      icon={<FlaskConical size={16} />}
+                      aria-disabled={
+                        !editableContractAvailable || !selectedScenario.dryRunSupported
+                      }
+                      disabled={
+                        !editableContractAvailable || !selectedScenario.dryRunSupported
+                      }
+                      onClick={() => void openDryRun()}
+                    >
+                      试运行
+                    </Button>
+                  </span>
+                </Tooltip>
+                <Button
+                  type="primary"
+                  icon={<Save size={16} />}
+                  disabled={!editableContractAvailable || !isDirty}
+                  loading={saving}
+                  onClick={() => void openSaveModal()}
+                >
+                  保存并生效
+                </Button>
+              </div>
+            </footer>
+          </>
+        )}
+      </article>
+
+      <Modal
+        title="保存并生效"
+        open={saveModalOpen}
+        okText="确认保存并生效"
+        cancelText="取消"
+        confirmLoading={saving}
+        okButtonProps={{ disabled: !changeSummary.trim() }}
+        onOk={() => void submitSave()}
+        onCancel={() => !saving && setSaveModalOpen(false)}
       >
-        <div style={{ display: "grid", gap: 16 }}>
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 500, display: "block", marginBottom: 4 }}>
-              配置名称 *
-            </label>
-            <Input
-              value={form.profile_name}
-              onChange={(e) => setForm((f) => ({ ...f, profile_name: e.target.value }))}
-              placeholder="例：元数据治理"
-            />
-          </div>
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 500, display: "block", marginBottom: 4 }}>
-              任务类型
-            </label>
-            <Select
-              value={form.task_type}
-              onChange={(v) => setForm((f) => ({ ...f, task_type: v }))}
-              options={TASK_TYPES}
-              style={{ width: "100%" }}
-            />
-          </div>
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 500, display: "block", marginBottom: 4 }}>
-              LiteLLM 模型别名
-            </label>
-            <Input
-              value={form.litellm_model_alias}
-              onChange={(e) => setForm((f) => ({ ...f, litellm_model_alias: e.target.value }))}
-            />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: "block", marginBottom: 4 }}>
-                Temperature
-              </label>
-              <InputNumber
-                value={form.temperature}
-                min={0}
-                max={2}
-                step={0.1}
-                onChange={(v) => setForm((f) => ({ ...f, temperature: v ?? 0.3 }))}
-                style={{ width: "100%" }}
-              />
+        <Alert
+          className="mb-4"
+          type="warning"
+          showIcon
+          title="保存将创建新的活动版本，并自动归档当前活动版本。"
+        />
+        <label className="prompt-modal-field" htmlFor="prompt-change-summary">
+          <span>变更摘要</span>
+          <Input.TextArea
+            id="prompt-change-summary"
+            value={changeSummary}
+            rows={3}
+            maxLength={512}
+            showCount
+            placeholder="说明本次 Prompt 或 Schema 的调整"
+            onChange={(event) => setChangeSummary(event.target.value)}
+          />
+        </label>
+      </Modal>
+
+      <Modal
+        title={`试运行 · ${selectedScenario.displayName}`}
+        open={dryRunOpen}
+        width={720}
+        okText="执行试运行"
+        cancelText="关闭"
+        confirmLoading={dryRunLoading}
+        okButtonProps={{ disabled: !normalizedRefId.trim() }}
+        onOk={() => void submitDryRun()}
+        onCancel={() => !dryRunLoading && setDryRunOpen(false)}
+      >
+        <label className="prompt-modal-field" htmlFor="prompt-dry-run-ref">
+          <span>normalized_ref_id</span>
+          <Input
+            id="prompt-dry-run-ref"
+            value={normalizedRefId}
+            placeholder="输入标准化资产引用 ID"
+            onChange={(event) => setNormalizedRefId(event.target.value)}
+          />
+        </label>
+        {dryRunResult && (
+          <div className="prompt-dry-run-result">
+            <div className="flex items-center justify-between">
+              <strong>运行结果</strong>
+              <Tag color="success">未持久化</Tag>
             </div>
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: "block", marginBottom: 4 }}>
-                Max Input Tokens
-              </label>
-              <InputNumber
-                value={form.max_input_tokens}
-                min={512}
-                max={32768}
-                step={512}
-                onChange={(v) => setForm((f) => ({ ...f, max_input_tokens: v ?? 4096 }))}
-                style={{ width: "100%" }}
-              />
-            </div>
+            <pre>{JSON.stringify(dryRunResult.output, null, 2)}</pre>
           </div>
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 500, display: "block", marginBottom: 4 }}>
-              脱敏策略
-            </label>
-            <Select
-              value={form.redaction_policy}
-              onChange={(v) => setForm((f) => ({ ...f, redaction_policy: v }))}
-              options={REDACTION_POLICIES}
-              style={{ width: "100%" }}
-            />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: "block", marginBottom: 4 }}>
-                Prompt 版本
-              </label>
-              <Input
-                value={form.prompt_version}
-                onChange={(e) => setForm((f) => ({ ...f, prompt_version: e.target.value }))}
-              />
+        )}
+      </Modal>
+
+      <Drawer
+        title={`${selectedScenario.displayName} · 历史版本`}
+        open={historyOpen}
+        size={860}
+        onClose={() => setHistoryOpen(false)}
+      >
+        <Table<PromptProfile>
+          rowKey="id"
+          size="small"
+          loading={historyLoading}
+          columns={historyColumns}
+          dataSource={history}
+          pagination={false}
+          rowClassName={(record) =>
+            record.id === historySelection?.id ? "prompt-history-row-selected" : ""
+          }
+        />
+        {historySelection && (
+          <section className="prompt-history-preview" aria-label="历史版本只读内容">
+            <div className="prompt-history-preview-header">
+              <div>
+                <strong>配置版本 v{historySelection.profile_version}</strong>
+                <span>Prompt {historySelection.prompt_version}</span>
+              </div>
+              <Tag>{historySelection.status === "active" ? "生效中" : "只读"}</Tag>
             </div>
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: "block", marginBottom: 4 }}>
-                Schema 版本
-              </label>
-              <Input
-                value={form.output_schema_version}
-                onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    output_schema_version: e.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: "block", marginBottom: 4 }}>
-                权重版本
-              </label>
-              <Input
-                value={form.scoring_weight_version}
-                onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    scoring_weight_version: e.target.value,
-                  }))
-                }
-              />
-            </div>
-          </div>
-        </div>
+            <h3>提示词模板</h3>
+            <pre>{historySelection.prompt_template}</pre>
+            <h3>输出 Schema</h3>
+            <pre>{JSON.stringify(historySelection.output_schema, null, 2)}</pre>
+          </section>
+        )}
       </Drawer>
-    </>
+    </section>
+  );
+}
+
+function ScenarioButton({
+  scenario,
+  selected,
+  available,
+  onSelect,
+}: {
+  scenario: PromptScenarioDefinition;
+  selected: boolean;
+  available: boolean;
+  onSelect: (profileName: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={["prompt-scenario-button", selected ? "is-selected" : ""]
+        .filter(Boolean)
+        .join(" ")}
+      aria-label={scenario.displayName}
+      aria-current={selected ? "page" : undefined}
+      onClick={() => onSelect(scenario.profileName)}
+    >
+      <span>{scenario.displayName}</span>
+      <i className={available ? "is-available" : ""} aria-hidden="true" />
+    </button>
   );
 }

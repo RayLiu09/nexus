@@ -80,6 +80,13 @@ Root documents are distilled implementation contracts:
 - NEXUS does not depend on enterprise IAM. It uses local `identity-org-service`; DingTalk sync is optional.
 - NEXUS does not develop `llm-gateway`. Existing LiteLLM is the AI gateway platform.
 - Prompt templates, Prompt versions, scenario, output schema, scoring weights, redaction policy, dry-run previews, and governance audit data are maintained in NEXUS through `ai_prompt_profile`.
+- Console Prompt management is available through the single Governance
+  Management entry `/ai-prompts`. It uses a fixed business-scenario registry,
+  defaults to data-asset classification, edits Prompt Markdown and structured
+  output Schema in one split workspace, and saves directly as a new active
+  version with immutable history. Technical Markdown-render profiles and the
+  currently unwired retrieval query-expansion profile are intentionally hidden;
+  legacy per-profile model alias and token-limit fields are never exposed.
 - `ai_prompt_profile` is the only governance Prompt runtime source. The five
   fixed `metadata_governance` profiles cover classification, level assessment,
   quality assessment, tagging, and knowledge inference. Retained model-alias

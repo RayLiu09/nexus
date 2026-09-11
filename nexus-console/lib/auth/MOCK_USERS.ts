@@ -1,4 +1,5 @@
 import type { Session, SessionRole } from "./session";
+import { CONSOLE_ROLE_LABELS } from "./roles";
 
 /**
  * dev 模式预置账号 —— 只用于 /login 选角色，不参与后端 IAM。
@@ -18,44 +19,23 @@ interface MockUser {
 export const MOCK_USERS: ReadonlyArray<MockUser> = [
   {
     id: "user-admin-001",
-    username: "platform_admin",
+    username: "platform_data_admin",
     displayName: "张敏",
-    role: "platform_admin",
+    role: "platform_data_admin",
     orgUnit: { id: "org-root", name: "产教融合中心" },
     description: "平台管理员 — 全部权限，可发布规则、管理 Prompt、查看全部审计",
   },
   {
     id: "user-steward-002",
-    username: "data_steward",
+    username: "business_expert",
     displayName: "李华",
-    role: "data_steward",
+    role: "business_expert",
     orgUnit: { id: "org-research", name: "教研中心" },
-    description: "数据管家 — 数据源接入、批次治理、资产元数据补齐",
-  },
-  {
-    id: "user-reviewer-003",
-    username: "reviewer",
-    displayName: "王涛",
-    role: "reviewer",
-    orgUnit: { id: "org-quality", name: "质量审核组" },
-    description: "审核员 — AI 治理建议复核、敏感内容裁定",
-  },
-  {
-    id: "user-reader-004",
-    username: "reader",
-    displayName: "陈雪",
-    role: "reader",
-    orgUnit: { id: "org-research", name: "教研中心" },
-    description: "只读用户 — 仅检索与查看，无写权限",
+    description: "业务专家 — 数据源接入、资产治理和治理建议复核",
   },
 ];
 
-export const ROLE_LABELS: Record<SessionRole, string> = {
-  platform_admin: "平台管理员",
-  data_steward: "数据管家",
-  reviewer: "审核员",
-  reader: "只读用户",
-};
+export const ROLE_LABELS: Record<SessionRole, string> = CONSOLE_ROLE_LABELS;
 
 export function findMockUserById(id: string): MockUser | null {
   return MOCK_USERS.find((u) => u.id === id) ?? null;

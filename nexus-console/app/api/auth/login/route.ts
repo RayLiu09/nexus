@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 
 import { proxy } from "@/lib/api/proxy";
 import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, isCookieSecure } from "@/lib/auth/token";
+import { isConsoleSessionRole } from "@/lib/auth/roles";
 
 // Cookies from backend are short-lived; maxAge values are coordinated with backend.
 const ACCESS_MAX_AGE = 900; // 15 min
@@ -65,6 +66,12 @@ export async function POST(request: Request) {
   }
 
   const { access_token, refresh_token, user } = result.data;
+  if (!isConsoleSessionRole(user.role)) {
+    return NextResponse.json(
+      { error: { message: "该账号不具备 Console 登录权限" } },
+      { status: 403 },
+    );
+  }
 
   const response = NextResponse.json({
     data: {

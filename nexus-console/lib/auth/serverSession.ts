@@ -7,14 +7,16 @@
 import { cookies } from "next/headers";
 
 import { ACCESS_TOKEN_COOKIE, decodeJwtPayload, isTokenExpired } from "./token";
-import type { Session, SessionRole } from "./session";
+import type { Session } from "./session";
+import { isConsoleSessionRole } from "./roles";
 
-function sessionFromPayload(payload: Record<string, unknown>): Session {
+function sessionFromPayload(payload: Record<string, unknown>): Session | null {
+  if (!isConsoleSessionRole(payload.role)) return null;
   return {
     id: String(payload.sub ?? ""),
     username: String(payload.username ?? payload.sub ?? ""),
     displayName: String(payload.display_name ?? payload.sub ?? ""),
-    role: (payload.role as SessionRole) ?? "reader",
+    role: payload.role,
     orgUnit: {
       id: String(payload.org_id ?? ""),
       name: String(payload.org_name ?? ""),

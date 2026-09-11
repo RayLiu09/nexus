@@ -1,8 +1,6 @@
 import type { SessionRole } from "@/lib/auth/session";
 import type { LucideIcon } from "lucide-react";
 import {
-  BookOpenCheck,
-  Bot,
   BriefcaseBusiness,
   Database,
   FileArchive,
@@ -11,6 +9,7 @@ import {
   LayoutDashboard,
   LibraryBig,
   ListChecks,
+  MessageSquareText,
   Search,
   Settings2,
   ShieldCheck,
@@ -34,10 +33,8 @@ export type NavGroupId =
  * Higher numeric value = more privileged.
  */
 const ROLE_LEVEL: Record<SessionRole, number> = {
-  platform_admin: 4,
-  data_steward: 3,
-  reviewer: 2,
-  reader: 1,
+  platform_data_admin: 2,
+  business_expert: 1,
 };
 
 /** Check if a role meets or exceeds the minimum required level. */
@@ -94,14 +91,13 @@ export const navigation: Navigation = [
     items: [
       { href: "/tag-review", label: "治理审核", icon: ListChecks, badgeTone: "warning" },
       { href: "/governance", label: "治理追踪", icon: FileSearch },
-      { href: "/rules", label: "规则配置", icon: Settings2, minRole: "data_steward" },
+      { href: "/rules", label: "规则配置", icon: Settings2, minRole: "business_expert" },
       {
-        href: "/governance-prompts",
-        label: "治理 Prompt",
-        icon: BookOpenCheck,
-        minRole: "data_steward",
+        href: "/ai-prompts",
+        label: "Prompt 提示词",
+        icon: MessageSquareText,
+        minRole: "business_expert",
       },
-      { href: "/ai-prompts", label: "AI Prompt", icon: Bot, minRole: "data_steward" },
     ],
   },
   {

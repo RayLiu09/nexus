@@ -8,10 +8,11 @@
 
 import type { JwtPayload } from "./token";
 import { getJwtPayload, clearTokens } from "./token";
+import { isConsoleSessionRole, type SessionRole } from "./roles";
+
+export type { SessionRole } from "./roles";
 
 // ── Types ─────────────────────────────────────────────────────────────────
-
-export type SessionRole = "platform_admin" | "data_steward" | "reviewer" | "reader";
 
 export interface SessionOrg {
   id: string;
@@ -35,12 +36,13 @@ export const SESSION_STORAGE_KEY = "nexus.session";
 
 // ── JWT → Session ─────────────────────────────────────────────────────────
 
-function sessionFromPayload(payload: JwtPayload): Session {
+function sessionFromPayload(payload: JwtPayload): Session | null {
+  if (!isConsoleSessionRole(payload.role)) return null;
   return {
     id: payload.sub,
     username: payload.username ?? payload.sub,
     displayName: payload.display_name ?? payload.sub,
-    role: (payload.role as SessionRole) ?? "reader",
+    role: payload.role,
     orgUnit: {
       id: payload.org_id ?? "",
       name: payload.org_name ?? "",
@@ -102,7 +104,11 @@ export function decodeSession(raw: string | null | undefined): Session | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(decodeURIComponent(raw));
-    if (parsed && typeof parsed.id === "string" && typeof parsed.role === "string") {
+    if (
+      parsed &&
+      typeof parsed.id === "string" &&
+      isConsoleSessionRole(parsed.role)
+    ) {
       return parsed as Session;
     }
     return null;

@@ -146,7 +146,9 @@ First-level navigation:
   navigation item.
 - **数据管理**: data sources, raw ledger, jobs, and the complete technical asset
   ledger.
-- **治理管理**: governance review/tracking, rules, and Prompt configuration.
+- **治理管理**: governance review/tracking, rules, and one canonical
+  `Prompt 提示词` entry at `/ai-prompts`. The historical
+  `/governance-prompts` path is redirect-only.
 - **访问与审计**: API callers and audit views.
 - **个人工作**: personal workspace.
 
@@ -263,10 +265,27 @@ P0 management pages:
 - **治理中心**: AI suggestions, AI quality score, AI Prompt config, review tasks, rule config, save-to-activate changes, decision tracking, quality review.
 - **规则配置**: structured editor for `config/governance_rules.json` (classifications, levels, tags, quality scoring, knowledge types); ETag-based concurrency control; save takes effect immediately for future governance runs.
 - **权限与审计**: local users, roles, API keys, org scopes, approvals, audit logs.
-- **AI Prompt 配置**: Prompt templates, versions, task/scenario, output schema,
+- **Prompt 提示词**: Prompt templates, versions, task/scenario, output schema,
   scoring weights, redaction policies, content hash, change summary,
   validation, history, and dry-run. Model alias and token-limit controls are
-  not exposed.
+  not exposed. The Console uses a split workspace: the left side lists eight
+  core scenarios in fixed order (classification, level, quality, tagging,
+  knowledge inference, retrieval intent, retrieval parameter extraction, and
+  retrieval answer composition), and a collapsed domain group contains job
+  requirement extraction, occupational-task structuring, textbook-outline
+  heading classification, and teaching-standard course derivation. The first
+  core scenario is selected by default. The right side is immediately editable
+  and keeps Prompt Markdown, scenario-owned allowed variables, output
+  requirements, and structured JSON Schema in one continuous editor surface.
+  Technical `body_markdown_render` profiles are excluded because they serve
+  text-location rendering rather than a business Prompt. The unwired
+  `retrieval.query_expansion_v2` profile is also excluded.
+- **Prompt actions**: the fixed bottom actions are history, reset,
+  validation, dry-run, and save-to-activate. Scenario switching confirms before
+  discarding unsaved changes; history is read-only; save requires a change
+  summary. Candidate dry-run is enabled only for governance scenarios backed by
+  `normalized_asset_ref`; retrieval/domain controls remain explicitly disabled
+  until scenario-specific unsaved-candidate adapters exist.
 - **治理审核**: business experts submit one final governance conclusion for a `review_required` normalized asset. It includes classification, level, structured taxonomy tags, quality disposition/reason, org scope, and review reason. There is no reject/revise/auto-submit-history workflow.
 
 P1 pages:

@@ -746,6 +746,21 @@ Single-node capacity (16 Core / 64 GB / 48 GB GPU):
   `governance.level_assessment`, `governance.quality_assessment`,
   `governance.tagging`, and `governance.knowledge_inference` under scenario
   `metadata_governance`. No draft state.
+- Console Prompt management has one canonical `/ai-prompts` route. Its editable
+  business-scene registry includes the five governance profiles, retrieval
+  intent/parameter/composition profiles, and four active domain processing
+  profiles. `body_markdown_render` profiles remain runtime technical helpers and
+  are not business-editing scenes; `retrieval.query_expansion_v2` remains hidden
+  until its active Profile is wired to the query-expansion runtime. The UI
+  presents Prompt text and JSON Schema in one document-like surface but
+  persists `output_schema` as structured JSON. Scenario-owned placeholder
+  allowlists prevent UI-authored variables from becoming runtime inputs.
+- Candidate validation applies to every editable scene. The current generic
+  candidate dry-run path is governance-only because it builds input from
+  `normalized_asset_ref` and invokes governance validators. Retrieval and
+  domain Prompt dry-run must remain disabled until they have scene-specific
+  input builders and validators; the Console must not treat the governance
+  adapter as a generic Prompt runner.
 - `ai_prompt_profile.litellm_model_alias` and `max_input_tokens` remain only for
   physical/history compatibility. New rows receive service-owned sentinels;
   neither field may change model selection or call limits.

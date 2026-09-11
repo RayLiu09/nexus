@@ -12,7 +12,8 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { ACCESS_TOKEN_COOKIE } from "@/lib/auth/token";
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@/lib/auth/token";
+import { isConsoleSessionRole } from "@/lib/auth/roles";
 
 interface JwtPayload {
   sub: string;
@@ -49,12 +50,21 @@ export async function GET() {
   if (!payload || Date.now() / 1000 >= payload.exp - 30) {
     return new NextResponse(null, { status: 204 });
   }
+  if (!isConsoleSessionRole(payload.role)) {
+    const response = NextResponse.json(
+      { error: { message: "该账号不具备 Console 登录权限" } },
+      { status: 403 },
+    );
+    response.cookies.set(ACCESS_TOKEN_COOKIE, "", { path: "/", maxAge: 0 });
+    response.cookies.set(REFRESH_TOKEN_COOKIE, "", { path: "/", maxAge: 0 });
+    return response;
+  }
   return NextResponse.json({
     data: {
       id: payload.sub,
       username: payload.username ?? payload.sub,
       displayName: payload.display_name ?? payload.sub,
-      role: payload.role ?? "reader",
+      role: payload.role,
       orgUnit: { id: payload.org_id ?? "", name: payload.org_name ?? "" },
       env: payload.env ?? "demo",
     },

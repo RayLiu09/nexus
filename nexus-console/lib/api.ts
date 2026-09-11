@@ -734,10 +734,11 @@ export async function postApiData<T>(
 export async function putApiData<T>(
   path: string,
   payload: Record<string, unknown>,
-  options?: { etag?: string },
+  options?: { etag?: string; idempotencyKey?: string },
 ): Promise<ApiEnvelope<T>> {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (options?.etag) headers["if-match"] = options.etag;
+  if (options?.idempotencyKey) headers["idempotency-key"] = options.idempotencyKey;
   return requestApi<T>(path, {
     method: "PUT",
     headers,
@@ -832,7 +833,10 @@ async function requestApi<T>(path: string, init: RequestInit): Promise<ApiEnvelo
 
   if (!response.ok) {
     const errBody = (parsed.error ?? {}) as { message?: string };
-    const message = errBody.message ?? `NEXUS API ${response.status}`;
+    const message =
+      errBody.message ??
+      (typeof parsed.message === "string" ? parsed.message : null) ??
+      `NEXUS API ${response.status}`;
     throw new NexusApiError(message, response.status, traceId);
   }
 
