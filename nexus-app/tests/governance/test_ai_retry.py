@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
+from nexus_app.config import get_settings
 from nexus_app.ai_governance.litellm_client import (
     LiteLLMCallError,
     LiteLLMCallSummary,
@@ -16,6 +17,15 @@ from nexus_app.ai_governance.services import (
     _AI_CALL_RETRIABLE_ERRORS,
     AIGovernanceService,
 )
+
+
+@pytest.fixture(autouse=True)
+def _fixed_retry_budget(monkeypatch):
+    """Keep retry-contract tests independent of workstation .env values."""
+    monkeypatch.setenv("LITELLM_RETRY_ATTEMPTS", str(_AI_CALL_MAX_RETRIES))
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 def _ok_summary() -> LiteLLMCallSummary:

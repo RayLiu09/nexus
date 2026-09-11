@@ -124,7 +124,7 @@ def extract_requirements_for_dataset(
     prompt_profile_id = prompt.id
     prompt_template = prompt.prompt_template
     temperature = float(prompt.temperature)
-    max_tokens = int(prompt.max_input_tokens)
+    max_tokens = 4096
     prompt_version = prompt.prompt_version
     model_alias = resolve_model_alias(prompt)
     prepared_records = [

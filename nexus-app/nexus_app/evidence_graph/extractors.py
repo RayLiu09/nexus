@@ -142,7 +142,9 @@ ENTITY_TYPE_ALIASES = {
 
 
 def default_model_alias() -> str:
-    return get_settings().default_governance_model or DEFAULT_MODEL_ALIAS_FALLBACK
+    from nexus_app.ai_governance.model_alias import require_governance_model
+
+    return require_governance_model(get_settings())
 
 
 class GraphExtractor(Protocol):
@@ -170,7 +172,8 @@ class BodyLLMExtractor:
         max_tokens: int = 2048,
     ) -> None:
         self._llm_client = llm_client
-        self._model_alias = model_alias or default_model_alias()
+        del model_alias
+        self._model_alias = default_model_alias()
         self._temperature = temperature
         self._max_tokens = max_tokens
 

@@ -17,6 +17,7 @@ Create Date: 2026-07-11
 
 from collections.abc import Sequence
 
+import sqlalchemy as sa
 from alembic import op
 
 revision: str = "20260711_0072"
@@ -26,15 +27,25 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.create_index(
-        "ix_knowledge_chunk_outline_node_id",
-        "knowledge_chunk",
-        ["knowledge_outline_node_id"],
-    )
+    inspector = sa.inspect(op.get_bind())
+    index_names = {
+        index["name"] for index in inspector.get_indexes("knowledge_chunk")
+    }
+    if "ix_knowledge_chunk_outline_node_id" not in index_names:
+        op.create_index(
+            "ix_knowledge_chunk_outline_node_id",
+            "knowledge_chunk",
+            ["knowledge_outline_node_id"],
+        )
 
 
 def downgrade() -> None:
-    op.drop_index(
-        "ix_knowledge_chunk_outline_node_id",
-        table_name="knowledge_chunk",
-    )
+    inspector = sa.inspect(op.get_bind())
+    index_names = {
+        index["name"] for index in inspector.get_indexes("knowledge_chunk")
+    }
+    if "ix_knowledge_chunk_outline_node_id" in index_names:
+        op.drop_index(
+            "ix_knowledge_chunk_outline_node_id",
+            table_name="knowledge_chunk",
+        )

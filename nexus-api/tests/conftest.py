@@ -14,12 +14,18 @@ from nexus_api.auth import require_api_caller
 from nexus_api.dependencies import require_user
 from nexus_api.main import create_app
 from nexus_app import database, models
+from nexus_app.config import get_settings
 from nexus_app.database import Base, get_db
 from nexus_app.enums import PrincipalStatus, UserRole
 
 
 @pytest.fixture()
-def session() -> Generator[Session, None, None]:
+def session(monkeypatch) -> Generator[Session, None, None]:
+    # Lifespan registry loading bypasses FastAPI dependency overrides. Keep it
+    # on a local in-memory database instead of inheriting .env.dev PostgreSQL.
+    monkeypatch.setenv("NEXUS_DATABASE_URL", "sqlite+pysqlite:///:memory:")
+    monkeypatch.setenv("NEXUS_ALLOW_MISSING_RULES", "true")
+    get_settings.cache_clear()
     engine = create_engine(
         "sqlite+pysqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -40,6 +46,7 @@ def session() -> Generator[Session, None, None]:
         yield db
     database.get_engine.cache_clear()
     database.get_session_local.cache_clear()
+    get_settings.cache_clear()
 
 
 @pytest.fixture()

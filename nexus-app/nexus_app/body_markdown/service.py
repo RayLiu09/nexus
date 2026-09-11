@@ -217,7 +217,7 @@ def _try_llm_render(
             resolve_model_alias(prompt),
             messages,
             temperature=float(prompt.temperature),
-            max_tokens=int(prompt.max_input_tokens),
+            max_tokens=8192,
         )
     except LiteLLMCallError as exc:
         logger.info("body_markdown LLM call failed; falling back: %s", exc)

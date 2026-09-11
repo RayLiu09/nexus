@@ -5,6 +5,7 @@ from __future__ import annotations
 from sqlalchemy import select
 
 from nexus_app import models
+from nexus_app.config import get_settings
 from nexus_app.enums import (
     AIGovernanceRunAdoptionStatus,
     AIGovernanceRunValidationStatus,
@@ -193,17 +194,22 @@ def _payload():
     }
 
 
-def test_build_creates_one_ai_run_with_bookkeeping(session):
+def test_build_creates_one_ai_run_with_bookkeeping(session, monkeypatch):
     from nexus_app.knowledge_outline.llm_classifier import (
         build_and_persist_outline_llm,
     )
-    ref = _seed_ref_for_llm(session)
-    outcome = build_and_persist_outline_llm(
-        session, ref=ref, payload=_payload(),
-        client=_FakeLiteLLM("knowledge_point", 0.95),
-        model_alias="fake-alias", rules_etag=None,
-    )
-    session.commit()
+    monkeypatch.setenv("DEFAULT_GOVERNANCE_MODEL", "governance/test-model")
+    get_settings.cache_clear()
+    try:
+        ref = _seed_ref_for_llm(session)
+        outcome = build_and_persist_outline_llm(
+            session, ref=ref, payload=_payload(),
+            client=_FakeLiteLLM("knowledge_point", 0.95),
+            model_alias="ignored-legacy-alias", rules_etag=None,
+        )
+        session.commit()
+    finally:
+        get_settings.cache_clear()
 
     runs = list(session.scalars(
         select(models.AIGovernanceRun)
@@ -218,7 +224,7 @@ def test_build_creates_one_ai_run_with_bookkeeping(session):
     assert run.ai_output and "classifications" in run.ai_output
     assert len(run.ai_output["classifications"]) == 2
     assert run.input_summary["confidence_buckets"]["high"] == 2
-    assert run.model_alias == "fake-alias"
+    assert run.model_alias == "governance/test-model"
 
 
 def test_low_confidence_downgraded_and_flags_review(session):

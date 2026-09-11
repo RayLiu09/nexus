@@ -16,6 +16,7 @@ from nexus_app.ai_governance.litellm_client import (
     create_litellm_client,
 )
 from nexus_app.config import Settings, get_settings
+from nexus_app.ai_governance.model_alias import require_governance_model
 from nexus_app.task_outline.detector import TextbookSubtypeDetection
 from nexus_app.task_outline.normalizer import text_of
 from nexus_app.task_outline.schemas import TEXTBOOK_SUBTYPES
@@ -59,7 +60,7 @@ class LiteLLMTextbookSubtypeArbiter:
     ) -> None:
         self._settings = settings or get_settings()
         self._llm_client = llm_client or _create_default_llm_client(self._settings)
-        self._model_alias = model_alias or self._settings.effective_task_outline_subtype_model_alias
+        self._model_alias = require_governance_model(self._settings)
         self._block_limit = block_limit or self._settings.task_outline_subtype_llm_block_limit
         self._min_confidence = (
             min_confidence

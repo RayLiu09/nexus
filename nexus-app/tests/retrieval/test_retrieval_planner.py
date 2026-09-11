@@ -108,7 +108,7 @@ def test_planner_returns_single_unstructured_plan():
     assert result.plan.sub_queries[0].unstructured_plan.top_k == 8
     assert result.conversation_step.status == StepStatus.COMPLETED
     assert result.conversation_step.display_payload["sub_query_count"] == 1
-    assert llm.calls[0]["model_alias"] == "planner-model"
+    assert llm.calls[0]["model_alias"] == "governance-model"
     assert llm.calls[0]["temperature"] == 0.0
     assert llm.calls[0]["response_format"] == {"type": "json_object"}
 

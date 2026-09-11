@@ -50,12 +50,15 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
 - Imported data sources default to L1/L2; L3/L4 must be explicitly configured, rule-evidenced, or manually/security approved and audited.
 - AI leads semantic understanding and scoring; rules are hard guardrails; humans handle exceptions, samples, and feedback.
 - AI output must be explainable, structured, schema-valid, evidence-backed, and auditable.
-- Models are replaceable through LiteLLM aliases; NEXUS owns output schemas.
-- Teaching-standard course derivation prefers a non-empty model alias from the
-  active AI-governance `ai_prompt_profile`, falling back to
-  `DEFAULT_GOVERNANCE_MODEL`; the seeded Profile alias is empty. The Profile
-  also supplies the Prompt, output schema, temperature, token cap, and
-  redaction policy. Batch results are joined back to course master data only by
+- Generative and structured-output models are replaceable through the single
+  LiteLLM alias configured by `DEFAULT_GOVERNANCE_MODEL`; embedding,
+  tag-embedding, and reranking keep independent settings. NEXUS owns output
+  schemas.
+- Teaching-standard course derivation uses `DEFAULT_GOVERNANCE_MODEL`. The
+  active `ai_prompt_profile` supplies the Prompt, output schema, temperature,
+  and redaction policy; its retained `litellm_model_alias` and
+  `max_input_tokens` columns have no runtime meaning. Batch results are joined
+  back to course master data only by
   an unchanged, exact-set-validated
   `teaching_standard_course.course_id`.
 - Local identity is the baseline; DingTalk sync is optional.
@@ -66,7 +69,7 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
 - **assetize** builds the master data anchor; **normalize** converts content to the standard contract. These are distinct stages.
 - `normalize-service` uses LLM semantic extraction + rule-engine fallback validation (dual-layer).
 - Teaching-standard table extraction is rule-first. On a diagnosed rule miss,
-  it may use `LITELLM_EXTRACTION_MODEL_ALIAS` only against normalized-document
+  it may use `DEFAULT_GOVERNANCE_MODEL` only against normalized-document
   blocks; schema, literal table-row evidence, locator, and confidence gates
   must admit its output before capability-graph staging consumes it.
 - Professional teaching-standard library projection materializes source-scoped
@@ -735,7 +738,21 @@ Single-node capacity (16 Core / 64 GB / 48 GB GPU):
 ## AI Governance Architecture
 
 - NEXUS does not build `llm-gateway`; uses existing LiteLLM.
-- `ai_prompt_profile` is P0: save-to-activate, auto-increment version, old version archived, scenario-aware, and supports dry-run previews that do not persist `ai_governance_run` or official governance results. No draft state.
+- `ai_prompt_profile` is the only runtime Prompt source. It is save-to-activate,
+  auto-increments versions, archives the prior active version, enforces at most
+  one active row per `profile_name`, and supports candidate validation, version
+  history, and dry-run previews without persisting runs or official results.
+  Governance uses the fixed names `governance.classification`,
+  `governance.level_assessment`, `governance.quality_assessment`,
+  `governance.tagging`, and `governance.knowledge_inference` under scenario
+  `metadata_governance`. No draft state.
+- `ai_prompt_profile.litellm_model_alias` and `max_input_tokens` remain only for
+  physical/history compatibility. New rows receive service-owned sentinels;
+  neither field may change model selection or call limits.
+- All generative and structured-output paths, including normalization,
+  governance, knowledge processing, retrieval intent/planning/composition, and
+  QA, resolve `DEFAULT_GOVERNANCE_MODEL`. Deprecated per-feature environment
+  aliases are ignored. Embedding and reranking settings are unaffected.
 - Governance input must be `normalized_document` or `normalized_record` (accessed via `normalized_asset_ref`). Raw files and raw JSON are not valid inputs.
 - AI output pipeline: schema validation → field whitelist → redaction policy → `governance_rules.json` threshold checks (confidence_threshold_auto_adopt, quality pass/warning/fail, level requires_approval) → state-machine decision (available / review_required).
 - L3/L4 plain text must not reach external models unless using an approved private LiteLLM alias or explicit security exception.
@@ -743,7 +760,11 @@ Single-node capacity (16 Core / 64 GB / 48 GB GPU):
 ## Rule Governance Architecture
 
 - Business governance rules are stored exclusively in `config/governance_rules.json` (file-based, not DB tables).
-- AI is the primary governance executor: it receives the full rule context (classifications, levels, tags, quality scoring criteria) as structured prompt instructions and produces classification/level/tags + confidence + evidence.
+- AI classification runs first; level, tagging, quality assessment, and
+  knowledge inference then receive its validated result. Every stage has a
+  fixed Pydantic output contract and rule whitelist. AI quality assessment is
+  advisory to deterministic quality scoring, and AI knowledge inference is
+  advisory to the active rule projection.
 - Human review is triggered only when AI confidence falls below `quality_scoring.confidence_threshold_auto_adopt` or quality score falls below thresholds — this is the "low-confidence human review" mechanism.
 - Console provides a structured editor for business experts to maintain rules; writes are protected by Pydantic schema validation, ETag optimistic locking, and fcntl exclusive file lock.
 - Rule changes take effect immediately for future governance runs; already-governed assets are not retroactively affected unless explicitly re-governed.
@@ -870,7 +891,8 @@ Activate Phase 2 when: governance or compliance requires downstream impact asses
 - `normalized_asset_ref` includes governance, quality, lineage, source_type, content_type, title, language fields.
 - `governance_result` target is `normalized_asset_ref`; `knowledge_chunk.normalized_ref_id` links to normalized ref.
 - No enterprise IAM dependency. No NEXUS `llm-gateway` service.
-- AI suggestions traceable to LiteLLM alias, Prompt profile version, input summary, evidence refs.
+- AI suggestions traceable to the actual `DEFAULT_GOVERNANCE_MODEL` alias,
+  every Prompt Profile ID/version/content hash, input summary, and evidence refs.
 - Current version and normalized ref are derived read models.
 - Job failures locatable and retryable. Permission leakage rate = 0.
 - P0 deployment does not require RabbitMQ or Redis.

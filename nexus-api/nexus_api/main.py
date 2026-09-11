@@ -27,7 +27,11 @@ from nexus_api.middleware import TraceIdMiddleware
 from nexus_api.responses import response
 from nexus_app.ai_governance.prompt_registry import get_governance_prompt_registry
 from nexus_app.ai_governance.rules_registry import get_governance_rules_registry
-from nexus_app.config import Settings, get_settings
+from nexus_app.config import (
+    Settings,
+    configured_deprecated_model_env_vars,
+    get_settings,
+)
 from nexus_app.database import get_session_local
 from nexus_app.ingest.config_loader import get_ingest_validate_registry
 from nexus_app.normalize.config_loader import get_normalize_schemas_registry
@@ -133,7 +137,7 @@ def _load_registries_fail_fast() -> None:
         session.close()
 
 
-def _seed_v2_prompts_idempotent(settings: Settings) -> None:
+def _seed_v2_prompts_idempotent() -> None:
     """Ensure the 4 Query Router v2 ai_prompt_profile rows exist.
 
     Idempotent — `seed_retrieval_v2_prompts` skips profiles that already
@@ -142,18 +146,12 @@ def _seed_v2_prompts_idempotent(settings: Settings) -> None:
     boot; the /query endpoints already degrade to the ⚠️ fallback body
     when a profile is missing.
 
-    The alias is threaded through explicitly so a fresh environment
-    picks up whatever `default_governance_model` resolves to; passing
-    None lets `seed_retrieval_v2_prompts` fall back to the same
-    settings lookup internally.  Existing rows keep their current
-    alias — console operators change models via the profile UI.
+    Profile rows contain only a compatibility sentinel for the retained model
+    column. Runtime model selection is exclusively `DEFAULT_GOVERNANCE_MODEL`.
     """
     session = get_session_local()()
     try:
-        seed_retrieval_v2_prompts(
-            session,
-            litellm_model_alias=settings.default_governance_model or None,
-        )
+        seed_retrieval_v2_prompts(session)
         session.commit()
     except Exception as exc:  # noqa: BLE001 - seed failure ≠ API failure
         logger.warning(
@@ -167,9 +165,16 @@ def _seed_v2_prompts_idempotent(settings: Settings) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    deprecated_model_vars = configured_deprecated_model_env_vars()
+    if deprecated_model_vars:
+        logger.warning(
+            "Ignoring deprecated generative model environment variables: %s; "
+            "use DEFAULT_GOVERNANCE_MODEL",
+            ", ".join(deprecated_model_vars),
+        )
     check_production_secrets(settings)
     _load_registries_fail_fast()
-    _seed_v2_prompts_idempotent(settings)
+    _seed_v2_prompts_idempotent()
     worker_pool = WorkerPool(settings)
     app.state.worker_pool = worker_pool
     worker_pool.start()

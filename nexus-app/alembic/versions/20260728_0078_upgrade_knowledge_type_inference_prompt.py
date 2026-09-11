@@ -54,14 +54,14 @@ def upgrade() -> None:
                  created_by, trace_id, created_at, updated_at)
             SELECT gen_random_uuid(), :task_type,
                    :template_name,
-                   COALESCE(MAX(template_version), 0) + 1,
+                   (SELECT COALESCE(MAX(template_version), 0) + 1
+                      FROM governance_prompt_template
+                     WHERE task_type = :task_type),
                    'active', :prompt_template, :output_schema_version,
                    :litellm_model_alias, :temperature, :max_input_tokens,
                    :redaction_policy, :change_summary,
                    'system', :trace_id, now(), now()
-              FROM governance_prompt_template
-             WHERE task_type = :task_type
-               AND NOT EXISTS (
+             WHERE NOT EXISTS (
                    SELECT 1 FROM governance_prompt_template
                     WHERE task_type = :task_type AND status = 'active'
                )

@@ -41,6 +41,7 @@ from nexus_app.ai_governance.litellm_client import (
     LiteLLMCallError,
     LiteLLMClientProtocol,
 )
+from nexus_app.ai_governance.model_alias import require_governance_model
 from nexus_app.retrieval.chart_adapter import (
     ChartRegistry,
     ChartReplacementResult,
@@ -216,7 +217,7 @@ class MDComposerV2:
 
         try:
             raw_markdown, _summary = self.llm_client.call(
-                profile.litellm_model_alias,
+                require_governance_model(),
                 messages,
                 temperature=profile.temperature,
                 max_tokens=self.max_tokens,
@@ -330,7 +331,7 @@ class MDComposerV2:
         accumulated: list[str] = []
         try:
             for delta in self.llm_client.call_stream(
-                profile.litellm_model_alias,
+                require_governance_model(),
                 messages,
                 temperature=profile.temperature,
                 max_tokens=self.max_tokens,

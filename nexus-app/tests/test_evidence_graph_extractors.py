@@ -845,7 +845,7 @@ def test_body_llm_extractor_defaults_to_governance_model_env(monkeypatch):
     assert llm.calls[0]["model_alias"] == "env-governance-model"
 
 
-def test_body_llm_extractor_explicit_model_alias_overrides_env(monkeypatch):
+def test_body_llm_extractor_ignores_legacy_explicit_model_alias(monkeypatch):
     get_settings.cache_clear()
     monkeypatch.setenv("DEFAULT_GOVERNANCE_MODEL", "env-governance-model")
     llm = _ScriptedLLM([_llm_payload({
@@ -865,7 +865,7 @@ def test_body_llm_extractor_explicit_model_alias_overrides_env(monkeypatch):
     finally:
         get_settings.cache_clear()
 
-    assert llm.calls[0]["model_alias"] == "explicit-model"
+    assert llm.calls[0]["model_alias"] == "env-governance-model"
 
 
 def test_body_llm_extractor_rejects_invalid_json_without_rule_fallback():

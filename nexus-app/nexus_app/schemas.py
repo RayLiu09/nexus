@@ -611,30 +611,53 @@ class PromptProfileCreate(BaseModel):
     profile_name: str = Field(min_length=1, max_length=128)
     task_type: str = Field(min_length=1, max_length=80)
     scenario: str = Field(default="default", min_length=1, max_length=80)
-    litellm_model_alias: str = Field(min_length=1, max_length=128)
     prompt_version: str = Field(min_length=1, max_length=40)
     prompt_template: str = Field(min_length=1)
+    output_schema: dict[str, Any] = Field(default_factory=dict)
     output_schema_version: str = "1.0"
     scoring_weight_version: str = "1.0"
     temperature: float = Field(default=0.2, ge=0, le=2)
-    max_input_tokens: int = Field(default=4096, gt=0)
     redaction_policy: str = Field(default="masked_content",
                                    pattern="^(metadata_only|masked_content|full_content_private)$")
+    change_summary: str | None = Field(default=None, max_length=512)
 
 
 class PromptProfileUpdate(BaseModel):
     scenario: str | None = Field(default=None, min_length=1, max_length=80)
-    litellm_model_alias: str | None = Field(default=None, max_length=128)
     prompt_version: str | None = Field(default=None, max_length=40)
     prompt_template: str | None = None
+    output_schema: dict[str, Any] | None = None
     output_schema_version: str | None = None
     scoring_weight_version: str | None = None
     temperature: float | None = Field(default=None, ge=0, le=2)
-    max_input_tokens: int | None = Field(default=None, gt=0)
     redaction_policy: str | None = Field(
         default=None,
         pattern="^(metadata_only|masked_content|full_content_private)$",
     )
+    change_summary: str | None = Field(default=None, max_length=512)
+
+
+class PromptProfileValidationRead(BaseModel):
+    valid: bool
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    content_hash: str
+    model_alias: str
+    model_source: str = "DEFAULT_GOVERNANCE_MODEL"
+
+
+class PromptCandidateDryRunCreate(BaseModel):
+    candidate: PromptProfileCreate
+    normalized_ref_id: str
+
+
+class PromptCandidateDryRunRead(BaseModel):
+    validation: PromptProfileValidationRead
+    normalized_ref_id: str
+    task_type: str
+    model_alias: str
+    output: dict[str, Any] | None = None
+    persisted: bool = False
 
 
 class PromptProfileRead(ORMModel):
@@ -644,13 +667,15 @@ class PromptProfileRead(ORMModel):
     task_type: str
     scenario: str
     status: PromptProfileStatus
-    litellm_model_alias: str
     prompt_version: str
+    prompt_template: str
+    output_schema: dict[str, Any]
     output_schema_version: str
     scoring_weight_version: str
     temperature: float
-    max_input_tokens: int
     redaction_policy: str
+    content_hash: str
+    change_summary: str | None
     created_by: str | None
     created_at: datetime
     updated_at: datetime

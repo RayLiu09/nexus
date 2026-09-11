@@ -1,8 +1,8 @@
 # NEXUS AI 数据资产治理架构文档
 
-> 基于代码库实际实现梳理，最后更新：2026-06-09
+> 基于代码库实际实现梳理，最后更新：2026-09-11
 >
-> **本次更新**：治理规则存储方案从基于文件（`governance_rules.json`）重构为基于数据库，新增治理 Prompt 模板体系。
+> **本次更新**：治理 Prompt 运行时来源统一到 `ai_prompt_profile`，生成式模型统一到 `DEFAULT_GOVERNANCE_MODEL`。
 
 ---
 
@@ -14,7 +14,7 @@
 
 - AI 输出永远不能直接成为正式治理状态，必须经过 schema 校验、字段白名单、脱敏策略、规则护栏、置信度阈值和状态机决策
 - 治理输入必须是 `normalized_document` 或 `normalized_record`（通过 `normalized_asset_ref` 访问），禁止使用原始文件或 MinerU 原始输出
-- LiteLLM 是外部平台，NEXUS 只存储模型别名引用和审计摘要
+- LiteLLM 是外部平台；NEXUS 通过 `DEFAULT_GOVERNANCE_MODEL` 选择唯一生成式模型，并保存实际调用模型和 Prompt 快照作为审计证据
 - `governance_result` 目标是 `normalized_asset_ref`，不是 `asset_version`
 - **业务治理规则统一存储在数据库 `governance_rules_version` 表**，是唯一真源
 
@@ -27,8 +27,8 @@
 | 模型 | 所在模块 | 说明 |
 |------|----------|------|
 | `GovernanceRulesVersion` | `nexus-app` | **（新增）** 治理规则版本表，含版本号、状态（active/archived）、完整规则内容（JSONB） |
-| `GovernancePromptTemplate` | `nexus-app` | **（新增）** 治理 Prompt 模板表，按任务类型关联，一种任务类型仅允许一个 active |
-| `AIPromptProfile` | `nexus-app` | **（保留，扩展）** AI 提示词配置（通用用途，非治理专用） |
+| `GovernancePromptTemplate` | `nexus-app` | 历史兼容表；迁移后不再作为运行时或管理 API 数据源 |
+| `AIPromptProfile` | `nexus-app` | 唯一 Prompt 运行时来源；同一 `profile_name` 最多一个 active 版本 |
 | `AIGovernanceRun` | `nexus-app` | 每次 LLM 调用的记录，FK → `normalized_asset_ref` + prompt 来源 |
 | `GovernanceResult` | `nexus-app` | 权威治理决策结果，FK → `normalized_asset_ref` + `ai_governance_run` |
 | `NormalizedAssetRef` | `nexus-app` | 标准化资产引用，含 `governance`、`quality`、`lineage` JSON 字段 |
@@ -166,31 +166,34 @@ CREATE UNIQUE INDEX uq_grv_active ON governance_rules_version (status) WHERE sta
 }
 ```
 
-#### GovernancePromptTemplate — 治理 Prompt 模板表
+#### AIPromptProfile — 唯一 Prompt 配置表
 
 ```sql
-CREATE TABLE governance_prompt_template (
+CREATE TABLE ai_prompt_profile (
     id                    VARCHAR(36) PRIMARY KEY,
-    task_type             VARCHAR(80) NOT NULL,        -- 治理任务类型
-    template_name         VARCHAR(128) NOT NULL,
-    template_version      INTEGER NOT NULL DEFAULT 1,
+    profile_name          VARCHAR(128) NOT NULL,
+    profile_version       INTEGER NOT NULL DEFAULT 1,
+    task_type             VARCHAR(80) NOT NULL,
+    scenario              VARCHAR(80) NOT NULL,
     status                VARCHAR(16) NOT NULL DEFAULT 'active',  -- active | archived | disabled
-    prompt_template       TEXT NOT NULL,                -- 结构化提示词模板
+    prompt_template       TEXT NOT NULL,
+    output_schema         JSONB NOT NULL,
     output_schema_version VARCHAR(40) NOT NULL DEFAULT '1.0',
-    litellm_model_alias   VARCHAR(128) NOT NULL,       -- 模型别名
+    litellm_model_alias   VARCHAR(128) NOT NULL,       -- 仅历史兼容，不参与运行时
     temperature           FLOAT NOT NULL DEFAULT 0.2,
-    max_input_tokens      INTEGER NOT NULL DEFAULT 4096,
+    max_input_tokens      INTEGER NOT NULL DEFAULT 0,  -- 仅历史兼容，不参与运行时
     redaction_policy      VARCHAR(64) NOT NULL DEFAULT 'masked_content',
+    content_hash          VARCHAR(64) NOT NULL,
     change_summary        VARCHAR(512),
     created_at            TIMESTAMP NOT NULL DEFAULT NOW(),
     created_by            VARCHAR(36),
     trace_id              VARCHAR(64)
 );
 
--- 每种任务类型同一时间只允许一个 active
-CREATE UNIQUE INDEX uq_gpt_task_type_active ON governance_prompt_template (task_type) WHERE status = 'active';
--- 同一任务类型下版本号唯一
-CREATE UNIQUE INDEX uq_gpt_task_type_version ON governance_prompt_template (task_type, template_version);
+CREATE UNIQUE INDEX uq_ai_prompt_profile_name_active
+  ON ai_prompt_profile (profile_name) WHERE status = 'active';
+CREATE UNIQUE INDEX uq_ai_prompt_profile_name_ver
+  ON ai_prompt_profile (profile_name, profile_version);
 ```
 
 **治理任务类型枚举（`GovernanceTaskType`）**：
@@ -200,15 +203,16 @@ CREATE UNIQUE INDEX uq_gpt_task_type_version ON governance_prompt_template (task
 | `classification` | 数据分类识别 | normalized_document/record 元数据+摘要 | classification（D1/D2/D3/D4）+ confidence |
 | `level_assessment` | 敏感等级评估 | normalized_document/record 内容+分类结果 | level（L1/L2/L3/L4）+ evidence_refs |
 | `tagging` | 5 维度标签打标 | normalized 内容 + 分类结果 + 当前分类的 5 维度有效值 | tags[{dimension, value, confidence, evidence}] × 5 |
-| `quality_scoring` | 质量评分 | AI 输出（分类/等级/标签）+ 原始内容 | quality_scores + overall_score + check_items |
-| `knowledge_type_inference` | 知识类型推断 | AI 输出 + classification + content_type | knowledge_type + co_emissions |
+| `quality_assessment` | 质量评估建议 | 分类结果 + normalized 内容 | dimensions + overall_score + issues；正式分值仍由规则计算 |
+| `knowledge_inference` | 知识推断建议 | classification + normalized 内容 | knowledge_types；正式发射仍由规则投影 |
 
 ### 2.3 保留/修改的现有表
 
-#### AIPromptProfile 变更
+#### GovernancePromptTemplate 兼容边界
 
-- `task_type` 字段不再用于治理任务（治理任务改用 `governance_prompt_template`）
-- 保留用于通用 AI 任务（如通用文本摘要、翻译等非治理场景）
+- 表结构和历史记录保留，不物理删除。
+- 迁移 `20260911_0102` 将五个 active 历史模板幂等迁移为固定名称 Profile。
+- 运行时注册表与管理 API 均不再读取或写入该表。
 
 #### GovernanceResult 变更
 
@@ -523,16 +527,16 @@ FastAPI startup event
   │          ├─ 存在 → 加载到内存
   │          └─ 不存在 → 从种子数据创建首条记录
   │
-  └─ 2. GovernancePromptRegistry.load_all(db_session)
-         └─ 查询 governance_prompt_template WHERE status='active'
-             ├─ 存在 → 加载到内存
-             └─ 不存在（首次启动）→ 写入 5 个默认 Prompt 模板
+  └─ 2. GovernancePromptRegistry.load(db_session)
+         └─ 按五个固定 profile_name 查询 ai_prompt_profile active 版本
+             ├─ 完整 → 形成一次运行时快照
+             └─ 缺失 → 对应治理阶段不可执行并产生明确错误
 ```
 
 ### 7.2 种子数据来源
 
 - **治理规则**：`docs/ai-governance/20260605数据清单.xlsx` 第一个 sheet「对应分类说明」
-- **默认 Prompt 模板**：内置 Python 字典常量（`nexus_app/ai_governance/default_prompts.py`，新增文件）
+- **默认 Prompt 模板**：历史内置常量经 `20260911_0102` 迁移到 `ai_prompt_profile`
 - 种子数据在数据库迁移中写入，确保首次部署时数据库已包含基础规则和 Prompt
 
 ---
@@ -553,16 +557,14 @@ FastAPI startup event
 - `POST /admin/governance-rules/reload`（不再需要从文件热重载）
 - ETag/If-Match 头机制（改为数据库行级锁 + 唯一索引）
 
-### 8.2 治理 Prompt 模板 API（新增）
+### 8.2 治理 Prompt 兼容 API
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/admin/governance-prompts` | 列出所有 Prompt 模板（按 task_type 分组） |
-| GET | `/admin/governance-prompts/{template_id}` | 获取指定模板详情 |
-| POST | `/admin/governance-prompts` | 创建新 Prompt 模板 |
-| PUT | `/admin/governance-prompts/{task_type}/active` | 更新指定任务类型的 Prompt（创建新版本，旧版变 archived） |
-| POST | `/admin/governance-prompts/{template_id}/disable` | 禁用指定模板 |
-| POST | `/admin/governance-prompts/{template_id}/dry-run` | 试运行 Prompt（预览效果，不持久化） |
+| GET | `/admin/governance-prompts` | 从 `ai_prompt_profile` 列出治理 Prompt 历史 |
+| GET | `/admin/governance-prompts/{profile_id}` | 获取指定 Profile 详情 |
+| PUT | `/admin/governance-prompts/{task_type}/active` | 转接到 Profile save-to-activate 版本更新 |
+| POST | `/admin/governance-prompts/{profile_id}/disable` | 转接到 Profile 禁用 |
 
 ### 8.3 保留 API（不变）
 
@@ -575,9 +577,14 @@ FastAPI startup event
 | GET | `/ai/governance-runs/{run_id}` | 获取单个运行 |
 | GET | `/ai/governance-runs/{run_id}/quality-summary` | 获取质量摘要 |
 
-### 8.4 Prompt Profile API（保留，用于通用 AI 任务）
+### 8.4 Prompt Profile API（唯一主接口）
 
-保持现有 `POST/GET/PUT /ai/prompt-profiles` 端点不变，但不再用于治理任务。
+`/ai/prompt-profiles` 同时管理治理与通用 AI Prompt，支持按 task、scenario、
+status 查询、同名版本历史、候选校验、候选 dry-run 和已保存版本 dry-run。
+治理固定使用 `metadata_governance` 场景下的五个名称：
+`governance.classification`、`governance.level_assessment`、
+`governance.quality_assessment`、`governance.tagging`、
+`governance.knowledge_inference`。请求与响应不再暴露模型别名和 token 限制。
 
 ---
 
@@ -613,7 +620,7 @@ FastAPI startup event
 ```
 FastAPI Startup
   ├─ GovernanceRulesRegistry.load()         ← governance_rules_version (active)
-  └─ GovernancePromptRegistry.load_all()    ← governance_prompt_template (active × 5)
+  └─ GovernancePromptRegistry.load()        ← ai_prompt_profile (active fixed names × 5)
 
 DataSource
   │
@@ -626,11 +633,12 @@ ingest_validate → assetize → parse/normalize → normalized_asset_ref
   │                                ├─ 从 GovernanceRulesRegistry 获取活跃规则
   │                                ├─ 从 GovernancePromptRegistry 获取各阶段 Prompt
   │                                ├─ AIGovernanceService.run_governance()
-  │                                │   ├─ 阶段1: classification Prompt + LLM
+  │                                │   ├─ 阶段1: classification Prompt + LLM（先执行并校验）
   │                                │   ├─ 阶段2: level_assessment Prompt + LLM
   │                                │   ├─ 阶段3: tagging Prompt + LLM
-  │                                │   ├─ 阶段4: quality_scoring（规则引擎+LLM）
-  │                                │   └─ 阶段5: knowledge_type_inference Prompt + LLM
+  │                                │   ├─ 阶段4: quality_assessment Prompt + LLM（建议）
+  │                                │   ├─ 阶段5: knowledge_inference Prompt + LLM（建议）
+  │                                │   └─ quality_scoring（确定性规则，正式结论）
   │                                ├─ GovernanceDecisionService.execute_governance()
   │                                │   ├─ 四项规则检查 → decision_trail
   │                                │   └─ 创建 GovernanceResult + rules_version_id
@@ -691,16 +699,17 @@ available → archived
 | 0017 | 种子数据：从 Excel 解析并写入默认规则（version=1, active） |
 | 0018 | 种子数据：写入 5 个默认 Prompt 模板 |
 | 0019 | 清理：移除 `governance_rules.json` 文件相关配置引用（保留文件作为历史归档） |
+| 0102 | 将五个治理 Prompt 迁移到 `ai_prompt_profile`，增加输出 Schema/内容哈希/变更说明，并建立同名 active 唯一约束 |
 
 ---
 
 ## 十三、设计约束与红线
 
 1. **不构建 `llm-gateway`**：AI 模型路由属于 LiteLLM 平台
-2. **Prompt 维护在 NEXUS**：治理 Prompt 模板由 `governance_prompt_template` 管理
+2. **Prompt 维护在 NEXUS**：`ai_prompt_profile` 是治理 Prompt 的唯一运行时与管理数据源
 3. **`governance_result` 目标是 `normalized_asset_ref`**，不是 `asset_version`
-4. **单个 active 约束**：规则表和 Prompt 模板表均使用部分唯一索引确保同一时间只有一个 active
-5. **版本不可变**：archived 的规则版本和 Prompt 模板不可修改，确保历史决策可回溯
+4. **单个 active 约束**：同一 `ai_prompt_profile.profile_name` 使用部分唯一索引确保同一时间只有一个 active
+5. **版本不可变**：archived 的规则版本和 Prompt Profile 不可修改，确保历史决策可回溯
 6. **P0 导入数据源默认 L1/L2**：不默认 L3/L4
 7. **L3/L4 明文不得发送到外部模型**，除非模型别名在 `approved_private_model_aliases` 白名单中
 8. **规则和 Prompt 变更必须写审计日志**

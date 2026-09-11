@@ -796,6 +796,13 @@ class AIPromptProfile(TimestampMixin, Base):
     __table_args__ = (
         Index("ix_ai_prompt_profile_name_status", "profile_name", "status"),
         Index("ix_ai_prompt_profile_scenario", "scenario"),
+        Index(
+            "uq_ai_prompt_profile_name_active",
+            "profile_name",
+            unique=True,
+            postgresql_where=text("status = 'active'"),
+            sqlite_where=text("status = 'active'"),
+        ),
         UniqueConstraint("profile_name", "profile_version", name="uq_ai_prompt_profile_name_ver"),
     )
 
@@ -815,12 +822,17 @@ class AIPromptProfile(TimestampMixin, Base):
     litellm_model_alias: Mapped[str] = mapped_column(String(128), nullable=False)
     prompt_version: Mapped[str] = mapped_column(String(40), nullable=False)
     prompt_template: Mapped[str] = mapped_column(Text, nullable=False)
+    output_schema: Mapped[dict[str, Any]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), default=dict, nullable=False
+    )
     output_schema_version: Mapped[str] = mapped_column(String(40), nullable=False, default="1.0")
     scoring_weight_version: Mapped[str] = mapped_column(String(40), nullable=False, default="1.0")
     temperature: Mapped[float] = mapped_column(nullable=False, default=0.2)
     max_input_tokens: Mapped[int] = mapped_column(nullable=False, default=4096)
     redaction_policy: Mapped[str] = mapped_column(String(64), nullable=False,
                                                    default="masked_content")
+    content_hash: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    change_summary: Mapped[str | None] = mapped_column(String(512), nullable=True)
     created_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
     trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 

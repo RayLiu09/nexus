@@ -3,6 +3,7 @@ from nexus_app.capability_graph.whitelists import EdgeType, NodeType
 import json
 
 from nexus_app.ai_governance.litellm_client import FakeLiteLLMClient
+from nexus_app.config import get_settings
 from nexus_app.teaching_standard import extract
 from nexus_app.teaching_standard.llm_fallback import extract as llm_fallback
 
@@ -123,13 +124,18 @@ def _fallback_response(*, text="市场策划", confidence=0.92, block_id="table-
     }
 
 
-def test_llm_fallback_adopts_evidence_bound_payload_with_extraction_alias():
+def test_llm_fallback_adopts_evidence_bound_payload_with_governance_model(monkeypatch):
+    monkeypatch.setenv("DEFAULT_GOVERNANCE_MODEL", "governance/teaching-test")
+    get_settings.cache_clear()
     client = FakeLiteLLMClient(response_override=json.dumps(_fallback_response(), ensure_ascii=False))
-    result = llm_fallback(_fallback_payload(), llm_client=client, model_alias="test-extraction-alias", rule_failure_reason="header_alias_unmapped")
+    try:
+        result = llm_fallback(_fallback_payload(), llm_client=client, model_alias="ignored-extraction-alias", rule_failure_reason="header_alias_unmapped")
+    finally:
+        get_settings.cache_clear()
     assert result.payload is not None
     assert result.payload["major_code"] == "530701"
     assert result.payload["extractor"]["strategy"] == "llm_fallback"
-    assert result.payload["extractor"]["model_alias"] == "test-extraction-alias"
+    assert result.payload["extractor"]["model_alias"] == "governance/teaching-test"
     nodes, edges = build_teaching_standard(result.payload)
     assert nodes and {edge.edge_type for edge in edges} <= {
         EdgeType.MAJOR_HAS_OCCUPATIONAL_DOMAIN,

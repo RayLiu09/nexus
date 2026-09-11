@@ -97,6 +97,7 @@ def test_llm_subtype_arbiter_overrides_ambiguous_rule_detection():
     arbiter = LiteLLMTextbookSubtypeArbiter(
         settings=Settings(
             TASK_OUTLINE_SUBTYPE_LLM_ENABLED=True,
+            DEFAULT_GOVERNANCE_MODEL="governance/subtype-test",
             TASK_OUTLINE_SUBTYPE_LLM_MODEL="subtype-model",
         ),
         llm_client=llm,
@@ -113,7 +114,7 @@ def test_llm_subtype_arbiter_overrides_ambiguous_rule_detection():
     assert result.evidence_graph_admission == "recommended"
     assert result.subtype_confidence == 0.9
     assert result.scores["llm_override"] == 1.0
-    assert llm.calls[0]["model_alias"] == "subtype-model"
+    assert llm.calls[0]["model_alias"] == "governance/subtype-test"
     assert llm.calls[0]["temperature"] == 0.0
     assert llm.calls[0]["response_format"] == {"type": "json_object"}
 

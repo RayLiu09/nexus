@@ -12,6 +12,7 @@ from nexus_app.ai_governance.litellm_client import (
     LiteLLMCallError,
     LiteLLMClientProtocol,
 )
+from nexus_app.ai_governance.model_alias import require_governance_model
 from nexus_app.knowledge.semantic_repack import _parse_markdown_table
 from nexus_app.teaching_standard.extractor import DOMAIN_PROFILE, EXTRACTOR_VERSION
 
@@ -66,8 +67,8 @@ def extract(
     """Use only normalized table blocks and adopt output only after evidence checks."""
     if llm_client is None:
         return _skipped("llm_client_unavailable", rule_failure_reason)
-    if not model_alias:
-        return _skipped("model_alias_unconfigured", rule_failure_reason)
+    del model_alias
+    model_alias = require_governance_model()
     request, source_rows, source_text = _candidate_input(payload)
     if not request:
         return _skipped(

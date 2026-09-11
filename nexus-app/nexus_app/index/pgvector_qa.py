@@ -12,6 +12,7 @@ from nexus_app.ai_governance.litellm_client import (
     LiteLLMConfig,
     create_litellm_client,
 )
+from nexus_app.ai_governance.model_alias import require_governance_model
 from nexus_app.config import Settings, get_settings
 from nexus_app.index.pgvector_search import PgvectorSearchAdapter, create_pgvector_search_adapter
 
@@ -47,7 +48,8 @@ class PgvectorQAService:
         self._settings = settings or get_settings()
         self._search_adapter = search_adapter or create_pgvector_search_adapter(self._settings)
         self._llm_client = llm_client or _create_default_qa_llm_client(self._settings)
-        self._model_alias = model_alias or self._settings.default_governance_model
+        del model_alias
+        self._model_alias = require_governance_model(self._settings)
 
     def answer(
         self,

@@ -44,13 +44,13 @@ def upgrade() -> None:
             """
             UPDATE knowledge_chunk
                SET locator = jsonb_build_object(
-                     'page_start', (metadata->'source_locator'->>'page')::int,
-                     'page_end',   (metadata->'source_locator'->>'page')::int,
-                     'bbox_union', metadata->'source_locator'->'bbox',
-                     'blocks',     jsonb_build_array(metadata->'source_locator')
+                     'page_start', ((metadata::jsonb)->'source_locator'->>'page')::int,
+                     'page_end',   ((metadata::jsonb)->'source_locator'->>'page')::int,
+                     'bbox_union', (metadata::jsonb)->'source_locator'->'bbox',
+                     'blocks',     jsonb_build_array((metadata::jsonb)->'source_locator')
                    )
              WHERE locator IS NULL
-               AND metadata ? 'source_locator';
+               AND (metadata::jsonb) ? 'source_locator';
             """
         )
     # SQLite / others: skip backfill; legacy rows keep source_locator inside chunk_metadata.

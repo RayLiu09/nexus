@@ -24,6 +24,7 @@ from nexus_app.ai_governance.litellm_client import (
     LiteLLMCallError,
     LiteLLMClientProtocol,
 )
+from nexus_app.ai_governance.model_alias import require_governance_model
 from nexus_app.normalize.config_loader import (
     NormalizeSchemasRegistry,
     get_normalize_schemas_registry,
@@ -83,7 +84,8 @@ class NormalizeService:
     ) -> None:
         self._registry = registry or get_normalize_schemas_registry()
         self._llm = llm_client
-        self._llm_model_alias = llm_model_alias
+        del llm_model_alias
+        self._llm_model_alias = require_governance_model()
 
     # ------------------------------------------------------------------
     # Public API

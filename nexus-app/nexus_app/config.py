@@ -1,11 +1,29 @@
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import quote_plus
 
 from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+DEPRECATED_GENERATIVE_MODEL_ENV_VARS = (
+    "DEFAULT_NORMALIZE_MODEL",
+    "LITELLM_EXTRACTION_MODEL_ALIAS",
+    "LITELLM_BODY_MARKDOWN_MODEL_ALIAS",
+    "DEFAULT_RETRIEVAL_INTENT_MODEL",
+    "RETRIEVAL_INTENT_RECONGNITION_MODEL",
+    "DEFAULT_RETRIEVAL_PLANNER_MODEL",
+    "DEFAULT_RETRIEVAL_SUMMARY_MODEL",
+    "TASK_OUTLINE_SUBTYPE_LLM_MODEL",
+)
+
+
+def configured_deprecated_model_env_vars() -> tuple[str, ...]:
+    """Return deprecated variable names only; values must never be logged."""
+    return tuple(name for name in DEPRECATED_GENERATIVE_MODEL_ENV_VARS if name in os.environ)
 
 
 def root_env_file() -> str:
@@ -153,27 +171,6 @@ class Settings(BaseSettings):
         default="gpt-4o-mini",
         alias="DEFAULT_GOVERNANCE_MODEL",
     )
-    # LLM alias used by NormalizeService for semantic field extraction and
-    # summary generation. When unset, falls back to DEFAULT_GOVERNANCE_MODEL so
-    # operators don't need to provision two separate keys in dev.
-    default_normalize_model: str | None = Field(
-        default=None,
-        alias="DEFAULT_NORMALIZE_MODEL",
-    )
-    # Pipeline B B5 LLM aliases — env-level overrides for prompt profiles
-    # whose seeded `litellm_model_alias` (e.g. `internal/job-extract-v1`)
-    # may not be accessible under the deployed LiteLLM key. When set, the
-    # override is preferred over `ai_prompt_profile.litellm_model_alias`;
-    # when unset (default), the seeded alias is used unchanged so prod
-    # behavior is unaffected.
-    litellm_extraction_model_alias: str | None = Field(
-        default=None,
-        alias="LITELLM_EXTRACTION_MODEL_ALIAS",
-    )
-    litellm_body_markdown_model_alias: str | None = Field(
-        default=None,
-        alias="LITELLM_BODY_MARKDOWN_MODEL_ALIAS",
-    )
     default_embedding_model: str = Field(
         default="bge-large-zh-v1.5",
         alias="DEFAULT_EMBEDDING_MODEL",
@@ -202,25 +199,9 @@ class Settings(BaseSettings):
         default=512,
         alias="TAG_EMBEDDING_DIMENSION",
     )
-    default_retrieval_intent_model: str | None = Field(
-        default=None,
-        alias="DEFAULT_RETRIEVAL_INTENT_MODEL",
-    )
-    default_retrieval_planner_model: str | None = Field(
-        default=None,
-        alias="DEFAULT_RETRIEVAL_PLANNER_MODEL",
-    )
-    default_retrieval_summary_model: str | None = Field(
-        default=None,
-        alias="DEFAULT_RETRIEVAL_SUMMARY_MODEL",
-    )
     task_outline_subtype_llm_enabled: bool = Field(
         default=False,
         alias="TASK_OUTLINE_SUBTYPE_LLM_ENABLED",
-    )
-    task_outline_subtype_llm_model: str | None = Field(
-        default=None,
-        alias="TASK_OUTLINE_SUBTYPE_LLM_MODEL",
     )
     task_outline_subtype_llm_block_limit: int = Field(
         default=200,
@@ -293,26 +274,6 @@ class Settings(BaseSettings):
     @property
     def effective_embedding_model_alias(self) -> str:
         return self.litellm_embedding_model_alias or self.default_embedding_model
-
-    @computed_field
-    @property
-    def effective_retrieval_intent_model_alias(self) -> str:
-        return self.default_retrieval_intent_model or self.default_governance_model
-
-    @computed_field
-    @property
-    def effective_retrieval_planner_model_alias(self) -> str:
-        return self.default_retrieval_planner_model or self.default_governance_model
-
-    @computed_field
-    @property
-    def effective_retrieval_summary_model_alias(self) -> str:
-        return self.default_retrieval_summary_model or self.default_governance_model
-
-    @computed_field
-    @property
-    def effective_task_outline_subtype_model_alias(self) -> str:
-        return self.task_outline_subtype_llm_model or self.default_governance_model
 
     @computed_field
     @property

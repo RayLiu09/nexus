@@ -38,6 +38,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy.orm import Session
 
 from nexus_app import models
+from nexus_app.ai_governance.model_alias import require_governance_model
 from nexus_app.ai_governance.litellm_client import (
     LiteLLMCallError,
     LiteLLMClientProtocol,
@@ -225,7 +226,7 @@ class ParameterExtractorV2:
 
         try:
             content, _summary = self.llm_client.call(
-                profile.litellm_model_alias,
+                require_governance_model(),
                 messages,
                 temperature=profile.temperature,
                 max_tokens=1024,

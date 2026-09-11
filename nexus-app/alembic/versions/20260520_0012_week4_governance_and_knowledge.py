@@ -19,6 +19,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 revision: str = "20260520_0012"
 down_revision: str | None = "20260514_0011"
@@ -133,7 +134,9 @@ def upgrade() -> None:
         sa.Column("rule_set_version", sa.Integer(), nullable=False, server_default="1"),
         sa.Column(
             "status",
-            sa.Enum("active", "disabled", name="rulesetstatus"),
+            postgresql.ENUM(
+                "active", "disabled", name="rulesetstatus", create_type=False
+            ),
             nullable=False,
             server_default="active",
         ),
@@ -160,10 +163,10 @@ def upgrade() -> None:
                   sa.ForeignKey("governance_rule_set.id"), nullable=False),
         sa.Column(
             "rule_type",
-            sa.Enum(
+            postgresql.ENUM(
                 "classification", "level", "tag", "org_scope",
                 "quality_admission", "manual_review_trigger", "index_admission",
-                name="ruletype"
+                name="ruletype", create_type=False,
             ),
             nullable=False,
         ),
@@ -211,7 +214,12 @@ def upgrade() -> None:
                   comment="List of DecisionTrail entries"),
         sa.Column(
             "status",
-            sa.Enum("available", "review_required", name="governanceresultstatus"),
+            postgresql.ENUM(
+                "available",
+                "review_required",
+                name="governanceresultstatus",
+                create_type=False,
+            ),
             nullable=False,
             server_default="review_required",
         ),
@@ -241,7 +249,13 @@ def upgrade() -> None:
                   sa.ForeignKey("normalized_asset_ref.id"), nullable=False),
         sa.Column(
             "index_status",
-            sa.Enum("pending", "indexed", "failed", name="indexmanifeststatus"),
+            postgresql.ENUM(
+                "pending",
+                "indexed",
+                "failed",
+                name="indexmanifeststatus",
+                create_type=False,
+            ),
             nullable=False,
             server_default="pending",
         ),
@@ -275,28 +289,28 @@ def upgrade() -> None:
                   comment="Knowledge type code from governance_rules.json"),
         sa.Column(
             "chunk_type",
-            sa.Enum(
+            postgresql.ENUM(
                 "passthrough_descriptor", "semantic", "structured_field", "qa_pair",
                 "process_step", "indicator", "case_section", "graph_node", "tag",
-                name="chunktype"
+                name="chunktype", create_type=False,
             ),
             nullable=False,
         ),
         sa.Column(
             "chunking_strategy",
-            sa.Enum(
+            postgresql.ENUM(
                 "passthrough_to_ragflow", "structured_decompose", "qa_extract",
                 "process_step_extract", "indicator_decompose", "case_decompose",
                 "graph_extract", "tag_decompose",
-                name="chunkingstrategy"
+                name="chunkingstrategy", create_type=False,
             ),
             nullable=False,
         ),
         sa.Column(
             "source_kind",
-            sa.Enum(
+            postgresql.ENUM(
                 "extracted_from_normalized", "coauthored_with_template", "manually_authored",
-                name="sourcekind"
+                name="sourcekind", create_type=False,
             ),
             nullable=False,
         ),
@@ -312,7 +326,13 @@ def upgrade() -> None:
         sa.Column("ragflow_chunk_id", sa.String(128), nullable=True),
         sa.Column(
             "embedding_status",
-            sa.Enum("pending", "embedded", "failed", name="embeddingstatus"),
+            postgresql.ENUM(
+                "pending",
+                "embedded",
+                "failed",
+                name="embeddingstatus",
+                create_type=False,
+            ),
             nullable=False,
             server_default="pending",
         ),

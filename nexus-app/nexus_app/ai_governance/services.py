@@ -7,6 +7,7 @@ import logging
 import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from types import SimpleNamespace
 from typing import Any
 
 from sqlalchemy import select
@@ -24,7 +25,11 @@ from nexus_app.ai_governance.litellm_client import (
     LiteLLMConfig,
     create_litellm_client,
 )
-from nexus_app.ai_governance.output_validator import AIOutputValidator, PydanticOutputValidator
+from nexus_app.ai_governance.output_validator import (
+    AIOutputValidator,
+    PydanticOutputValidator,
+    validate_governance_stage_output,
+)
 from nexus_app.ai_governance.quality_scorer import QualityScoringService
 from nexus_app.ai_governance.prompt_registry import GovernancePromptRegistry
 from nexus_app.ai_governance.rules_registry import GovernanceRulesRegistry
@@ -38,6 +43,10 @@ from nexus_app.enums import (
 )
 
 logger = logging.getLogger(__name__)
+
+LEGACY_PROMPT_MODEL_ALIAS = "__runtime_default_governance_model__"
+LEGACY_PROMPT_MAX_INPUT_TOKENS = 0
+_GOVERNANCE_MAX_OUTPUT_TOKENS = 4096
 
 
 # Retry policy for transient LiteLLM failures. After exhausting retries the
@@ -103,6 +112,38 @@ class PromptProfileDisabledError(AIGovernanceError):
     pass
 
 
+def _prompt_content_hash(
+    *,
+    prompt_template: str,
+    output_schema: dict[str, Any],
+    output_schema_version: str,
+    temperature: float,
+    redaction_policy: str,
+) -> str:
+    payload = {
+        "prompt_template": prompt_template,
+        "output_schema": output_schema,
+        "output_schema_version": output_schema_version,
+        "temperature": temperature,
+        "redaction_policy": redaction_policy,
+    }
+    return hashlib.sha256(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+
+def _reload_governance_prompt_registry(
+    session: Session, profile_name: str
+) -> None:
+    from nexus_app.ai_governance.prompt_registry import (
+        GOVERNANCE_PROMPT_PROFILE_NAMES,
+        get_governance_prompt_registry,
+    )
+
+    if profile_name in GOVERNANCE_PROMPT_PROFILE_NAMES.values():
+        get_governance_prompt_registry().reload(session)
+
+
 class PromptProfileService:
     """Manages ai_prompt_profile lifecycle: create, update, disable, query."""
 
@@ -111,21 +152,38 @@ class PromptProfileService:
         session: Session,
         profile_name: str,
         task_type: str,
-        litellm_model_alias: str,
+        litellm_model_alias: str | None,
         prompt_version: str,
         prompt_template: str,
         scenario: str = "default",
         *,
         output_schema_version: str = "1.0",
+        output_schema: dict[str, Any] | None = None,
         scoring_weight_version: str = "1.0",
         temperature: float = 0.2,
-        max_input_tokens: int = 4096,
+        max_input_tokens: int | None = None,
         redaction_policy: str = "masked_content",
+        change_summary: str | None = None,
         user_id: str | None = None,
+        trace_id: str | None = None,
     ) -> models.AIPromptProfile:
+        validation = self.validate_candidate({
+            "profile_name": profile_name,
+            "task_type": task_type,
+            "scenario": scenario,
+            "prompt_template": prompt_template,
+            "output_schema": output_schema or {},
+            "output_schema_version": output_schema_version,
+            "temperature": temperature,
+            "redaction_policy": redaction_policy,
+        })
+        if not validation["valid"]:
+            raise AIGovernanceError("; ".join(validation["errors"]))
+        self._lock_profile_versions(session, profile_name)
         self._archive_active_version(session, profile_name)
         next_ver = self._generate_next_version(session, profile_name)
-        trace_id = str(uuid.uuid4())
+        effective_trace_id = trace_id or str(uuid.uuid4())
+        effective_schema = output_schema or {}
 
         profile = models.AIPromptProfile(
             profile_name=profile_name,
@@ -133,23 +191,33 @@ class PromptProfileService:
             task_type=task_type,
             scenario=scenario,
             status=PromptProfileStatus.ACTIVE,
-            litellm_model_alias=litellm_model_alias,
+            litellm_model_alias=LEGACY_PROMPT_MODEL_ALIAS,
             prompt_version=prompt_version,
             prompt_template=prompt_template,
+            output_schema=effective_schema,
             output_schema_version=output_schema_version,
             scoring_weight_version=scoring_weight_version,
             temperature=temperature,
-            max_input_tokens=max_input_tokens,
+            max_input_tokens=LEGACY_PROMPT_MAX_INPUT_TOKENS,
             redaction_policy=redaction_policy,
+            content_hash=_prompt_content_hash(
+                prompt_template=prompt_template,
+                output_schema=effective_schema,
+                output_schema_version=output_schema_version,
+                temperature=temperature,
+                redaction_policy=redaction_policy,
+            ),
+            change_summary=change_summary,
             created_by=user_id,
-            trace_id=trace_id,
+            trace_id=effective_trace_id,
         )
         session.add(profile)
         session.flush()
 
         _write_audit(session, AuditEventType.PROMPT_PROFILE_CREATED, "ai_prompt_profile",
-                     profile.id, user_id, trace_id,
+                     profile.id, user_id, effective_trace_id,
                      {"profile_name": profile_name, "version": next_ver, "scenario": scenario})
+        _reload_governance_prompt_registry(session, profile_name)
         return profile
 
     def update_profile(
@@ -164,15 +232,38 @@ class PromptProfileService:
         temperature: float | None = None,
         redaction_policy: str | None = None,
         output_schema_version: str | None = None,
+        output_schema: dict[str, Any] | None = None,
         scoring_weight_version: str | None = None,
         max_input_tokens: int | None = None,
+        change_summary: str | None = None,
         user_id: str | None = None,
+        trace_id: str | None = None,
     ) -> models.AIPromptProfile:
-        current = self._get_active_profile(session, profile_name)
+        self._lock_profile_versions(session, profile_name)
+        current = self._get_active_profile(session, profile_name, lock=True)
         if current is None:
             raise PromptProfileNotFoundError(f"No active profile for '{profile_name}'")
 
-        trace_id = str(uuid.uuid4())
+        effective_trace_id = trace_id or str(uuid.uuid4())
+        effective_template = (
+            prompt_template if prompt_template is not None else current.prompt_template
+        )
+        effective_schema = output_schema if output_schema is not None else current.output_schema
+        effective_schema_version = output_schema_version or current.output_schema_version
+        effective_temperature = temperature if temperature is not None else current.temperature
+        effective_redaction_policy = redaction_policy or current.redaction_policy
+        validation = self.validate_candidate({
+            "profile_name": current.profile_name,
+            "task_type": current.task_type,
+            "scenario": scenario or current.scenario,
+            "prompt_template": effective_template,
+            "output_schema": effective_schema,
+            "output_schema_version": effective_schema_version,
+            "temperature": effective_temperature,
+            "redaction_policy": effective_redaction_policy,
+        })
+        if not validation["valid"]:
+            raise AIGovernanceError("; ".join(validation["errors"]))
         self._archive_active_version(session, profile_name)
         next_ver = self._generate_next_version(session, profile_name)
 
@@ -182,22 +273,32 @@ class PromptProfileService:
             task_type=current.task_type,
             scenario=scenario or current.scenario,
             status=PromptProfileStatus.ACTIVE,
-            litellm_model_alias=litellm_model_alias or current.litellm_model_alias,
+            litellm_model_alias=LEGACY_PROMPT_MODEL_ALIAS,
             prompt_version=prompt_version or current.prompt_version,
-            prompt_template=prompt_template or current.prompt_template,
-            output_schema_version=output_schema_version or current.output_schema_version,
+            prompt_template=effective_template,
+            output_schema=effective_schema,
+            output_schema_version=effective_schema_version,
             scoring_weight_version=scoring_weight_version or current.scoring_weight_version,
-            temperature=temperature if temperature is not None else current.temperature,
-            max_input_tokens=max_input_tokens or current.max_input_tokens,
-            redaction_policy=redaction_policy or current.redaction_policy,
+            temperature=effective_temperature,
+            max_input_tokens=LEGACY_PROMPT_MAX_INPUT_TOKENS,
+            redaction_policy=effective_redaction_policy,
+            content_hash=_prompt_content_hash(
+                prompt_template=effective_template,
+                output_schema=effective_schema,
+                output_schema_version=effective_schema_version,
+                temperature=effective_temperature,
+                redaction_policy=effective_redaction_policy,
+            ),
+            change_summary=change_summary,
             created_by=user_id,
-            trace_id=trace_id,
+            trace_id=effective_trace_id,
         )
         session.add(profile)
         session.flush()
         _write_audit(session, AuditEventType.PROMPT_PROFILE_UPDATED, "ai_prompt_profile",
-                     profile.id, user_id, trace_id,
+                     profile.id, user_id, effective_trace_id,
                      {"profile_name": profile_name, "version": next_ver, "scenario": profile.scenario})
+        _reload_governance_prompt_registry(session, profile_name)
         return profile
 
     def disable_profile(
@@ -206,15 +307,18 @@ class PromptProfileService:
         profile_id: str,
         *,
         user_id: str | None = None,
+        trace_id: str | None = None,
     ) -> models.AIPromptProfile:
         profile = session.get(models.AIPromptProfile, profile_id)
         if profile is None:
             raise PromptProfileNotFoundError(f"Profile '{profile_id}' not found")
         profile.status = PromptProfileStatus.DISABLED
-        trace_id = str(uuid.uuid4())
+        effective_trace_id = trace_id or str(uuid.uuid4())
         _write_audit(session, AuditEventType.PROMPT_PROFILE_DISABLED, "ai_prompt_profile",
-                     profile_id, user_id, trace_id,
+                     profile_id, user_id, effective_trace_id,
                      {"profile_name": profile.profile_name})
+        session.flush()
+        _reload_governance_prompt_registry(session, profile.profile_name)
         return profile
 
     def get_profile(self, session: Session, profile_id: str) -> models.AIPromptProfile:
@@ -228,11 +332,17 @@ class PromptProfileService:
         session: Session,
         *,
         profile_name: str | None = None,
+        task_type: str | None = None,
+        scenario: str | None = None,
         status: PromptProfileStatus | None = None,
     ) -> list[models.AIPromptProfile]:
         q = select(models.AIPromptProfile)
         if profile_name:
             q = q.where(models.AIPromptProfile.profile_name == profile_name)
+        if task_type:
+            q = q.where(models.AIPromptProfile.task_type == task_type)
+        if scenario:
+            q = q.where(models.AIPromptProfile.scenario == scenario)
         if status:
             q = q.where(models.AIPromptProfile.status == status)
         q = q.order_by(
@@ -281,7 +391,7 @@ class PromptProfileService:
                 profile.redaction_policy,
                 sensitivity_level,
                 registry=registry,
-                model_alias=_governance_model_alias(profile.litellm_model_alias),
+                model_alias=_governance_model_alias(),
             )
         except RedactionPolicyError as exc:
             return _dry_run_payload(
@@ -299,10 +409,10 @@ class PromptProfileService:
             client = client or _create_default_litellm_client()
             raw_output, call_summary, _ = AIGovernanceService._call_llm_with_retry(
                 client,
-                _governance_model_alias(profile.litellm_model_alias),
+                _governance_model_alias(),
                 messages,
                 temperature=profile.temperature,
-                max_tokens=profile.max_input_tokens,
+                max_tokens=_GOVERNANCE_MAX_OUTPUT_TOKENS,
             )
         except LiteLLMCallError as exc:
             return _dry_run_payload(
@@ -350,6 +460,131 @@ class PromptProfileService:
             request_id=call_summary.request_id,
         )
 
+    def validate_candidate(self, candidate: dict[str, Any]) -> dict[str, Any]:
+        """Validate a Prompt candidate without writing database state."""
+        from nexus_app.ai_governance.model_alias import require_governance_model
+        from nexus_app.ai_governance.prompt_registry import (
+            GOVERNANCE_PROMPT_PROFILE_NAMES,
+            GOVERNANCE_PROMPT_SCENARIO,
+        )
+
+        errors: list[str] = []
+        warnings: list[str] = []
+        template = str(candidate.get("prompt_template") or "")
+        profile_name = str(candidate.get("profile_name") or "")
+        task_type = str(candidate.get("task_type") or "")
+        scenario = str(candidate.get("scenario") or "default")
+        output_schema = candidate.get("output_schema") or {}
+
+        if not template.strip():
+            errors.append("prompt_template must not be empty")
+        if scenario == GOVERNANCE_PROMPT_SCENARIO:
+            expected_names = set(GOVERNANCE_PROMPT_PROFILE_NAMES.values())
+            if profile_name not in expected_names:
+                errors.append(
+                    "metadata_governance profile_name must be one of "
+                    f"{sorted(expected_names)}"
+                )
+            canonical_tasks = {
+                "quality_scoring": "quality_assessment",
+                "knowledge_type_inference": "knowledge_inference",
+            }
+            expected_task_by_profile = {
+                name: canonical_tasks.get(stage, stage)
+                for stage, name in GOVERNANCE_PROMPT_PROFILE_NAMES.items()
+            }
+            expected_task = expected_task_by_profile.get(profile_name)
+            if expected_task and task_type != expected_task:
+                errors.append(
+                    f"task_type must be '{expected_task}' for profile '{profile_name}'"
+                )
+            for placeholder in ("{{RULES}}", "{{DOCUMENT}}"):
+                if placeholder not in template:
+                    errors.append(
+                        f"metadata_governance prompt_template requires {placeholder}"
+                    )
+        elif "{{DOCUMENT}}" not in template:
+            warnings.append("prompt_template does not contain {{DOCUMENT}}")
+
+        if output_schema:
+            if not isinstance(output_schema, dict):
+                errors.append("output_schema must be a JSON object")
+            elif output_schema.get("type") not in (None, "object"):
+                errors.append("output_schema root type must be 'object'")
+
+        content_hash = _prompt_content_hash(
+            prompt_template=template,
+            output_schema=output_schema if isinstance(output_schema, dict) else {},
+            output_schema_version=str(candidate.get("output_schema_version") or "1.0"),
+            temperature=float(candidate.get("temperature", 0.2)),
+            redaction_policy=str(candidate.get("redaction_policy") or "masked_content"),
+        )
+        return {
+            "valid": not errors,
+            "errors": errors,
+            "warnings": warnings,
+            "content_hash": content_hash,
+            "model_alias": require_governance_model(),
+            "model_source": "DEFAULT_GOVERNANCE_MODEL",
+        }
+
+    def dry_run_candidate(
+        self,
+        session: Session,
+        candidate: dict[str, Any],
+        normalized_ref_id: str,
+        *,
+        litellm_client: LiteLLMClientProtocol | None = None,
+        registry: GovernanceRulesRegistry | None = None,
+    ) -> dict[str, Any]:
+        validation = self.validate_candidate(candidate)
+        task_type = str(candidate.get("task_type") or "")
+        result = {
+            "validation": validation,
+            "normalized_ref_id": normalized_ref_id,
+            "task_type": task_type,
+            "model_alias": validation["model_alias"],
+            "output": None,
+            "persisted": False,
+        }
+        if not validation["valid"]:
+            return result
+        ref = session.get(models.NormalizedAssetRef, normalized_ref_id)
+        if ref is None:
+            raise AIGovernanceError(
+                f"NormalizedAssetRef '{normalized_ref_id}' not found"
+            )
+        profile = SimpleNamespace(
+            id="candidate",
+            profile_name=candidate["profile_name"],
+            profile_version=0,
+            prompt_version=candidate["prompt_version"],
+            prompt_template=candidate["prompt_template"],
+            output_schema=candidate.get("output_schema") or {},
+            output_schema_version=candidate.get("output_schema_version", "1.0"),
+            temperature=candidate.get("temperature", 0.2),
+            redaction_policy=candidate.get("redaction_policy", "masked_content"),
+            content_hash=validation["content_hash"],
+        )
+
+        class _CandidateRegistry:
+            def get_prompt(self, _task_type: str) -> Any:
+                return profile
+
+        runtime_task_type = {
+            "quality_assessment": "quality_scoring",
+            "knowledge_inference": "knowledge_type_inference",
+        }.get(task_type, task_type)
+        result["output"] = AIGovernanceService()._run_llm_stage(
+            litellm_client or _create_default_litellm_client(),
+            _CandidateRegistry(),
+            runtime_task_type,
+            AIGovernanceService._build_ref_dict(ref),
+            (ref.governance or {}).get("level", "L1"),
+            registry,
+        )
+        return result
+
     def _generate_next_version(self, session: Session, profile_name: str) -> int:
         row = session.scalars(
             select(models.AIPromptProfile.profile_version)
@@ -365,16 +600,32 @@ class PromptProfileService:
             active.status = PromptProfileStatus.ARCHIVED
 
     def _get_active_profile(
-        self, session: Session, profile_name: str
+        self, session: Session, profile_name: str, *, lock: bool = False
     ) -> models.AIPromptProfile | None:
-        return session.scalars(
+        query = (
             select(models.AIPromptProfile)
             .where(
                 models.AIPromptProfile.profile_name == profile_name,
                 models.AIPromptProfile.status == PromptProfileStatus.ACTIVE,
             )
             .limit(1)
-        ).first()
+        )
+        if lock:
+            query = query.with_for_update()
+        return session.scalars(query).first()
+
+    @staticmethod
+    def _lock_profile_versions(session: Session, profile_name: str) -> None:
+        """Serialize version allocation where rows already exist.
+
+        The database partial unique index remains the final protection for the
+        first-version race, where there is no row available to lock.
+        """
+        session.scalars(
+            select(models.AIPromptProfile.id)
+            .where(models.AIPromptProfile.profile_name == profile_name)
+            .with_for_update()
+        ).all()
 
 
 def _dry_run_payload(
@@ -397,7 +648,7 @@ def _dry_run_payload(
         "profile_version": profile.profile_version,
         "scenario": profile.scenario,
         "normalized_ref_id": normalized_ref_id,
-        "model_alias": profile.litellm_model_alias,
+        "model_alias": _governance_model_alias(),
         "prompt_version": profile.prompt_version,
         "input_hash": input_hash,
         "input_summary": input_summary,
@@ -432,9 +683,14 @@ def _create_default_litellm_client(settings: Settings | None = None) -> LiteLLMC
     )
 
 
-def _governance_model_alias(configured_alias: str, settings: Settings | None = None) -> str:
-    current = settings or get_settings()
-    return current.default_governance_model or configured_alias
+def _governance_model_alias(
+    configured_alias: str | None = None,
+    settings: Settings | None = None,
+) -> str:
+    from nexus_app.ai_governance.model_alias import require_governance_model
+
+    del configured_alias
+    return require_governance_model(settings)
 
 
 class AIGovernanceService:
@@ -473,7 +729,7 @@ class AIGovernanceService:
         try:
             built = builder.build(
                 ref_dict, profile.redaction_policy, sensitivity_level,
-                registry=registry, model_alias=_governance_model_alias(profile.litellm_model_alias),
+                registry=registry, model_alias=_governance_model_alias(),
             )
         except RedactionPolicyError as exc:
             # Policy blocked the call before any LiteLLM request — record an
@@ -488,7 +744,7 @@ class AIGovernanceService:
             run = models.AIGovernanceRun(
                 normalized_ref_id=normalized_ref_id,
                 profile_id=profile_id,
-                model_alias=_governance_model_alias(profile.litellm_model_alias),
+                model_alias=_governance_model_alias(),
                 prompt_version=profile.prompt_version,
                 input_hash=blocked_hash,
                 input_summary={
@@ -514,7 +770,7 @@ class AIGovernanceService:
                     "blocked_reason": "redaction_policy",
                     "level": sensitivity_level,
                     "policy": profile.redaction_policy,
-                    "model_alias": _governance_model_alias(profile.litellm_model_alias),
+                    "model_alias": _governance_model_alias(),
                     "error": str(exc)[:500],
                 },
             )
@@ -523,7 +779,7 @@ class AIGovernanceService:
         run = models.AIGovernanceRun(
             normalized_ref_id=normalized_ref_id,
             profile_id=profile_id,
-            model_alias=_governance_model_alias(profile.litellm_model_alias),
+            model_alias=_governance_model_alias(),
             prompt_version=profile.prompt_version,
             input_hash=built["input_hash"],
             input_summary=built["input_summary"],
@@ -540,10 +796,10 @@ class AIGovernanceService:
             client = client or _create_default_litellm_client()
             raw_output, call_summary, attempts = self._call_llm_with_retry(
                 client,
-                _governance_model_alias(profile.litellm_model_alias),
+                _governance_model_alias(),
                 messages,
                 temperature=profile.temperature,
-                max_tokens=profile.max_input_tokens,
+                max_tokens=_GOVERNANCE_MAX_OUTPUT_TOKENS,
             )
             run.raw_output = raw_output
             run.call_latency_ms = call_summary.latency_ms
@@ -676,14 +932,14 @@ class AIGovernanceService:
         litellm_client: LiteLLMClientProtocol | None = None,
         user_id: str | None = None,
     ) -> models.AIGovernanceRun:
-        """Multi-stage governance: 5 independent LLM calls + quality scoring.
+        """Run five governed Prompt stages plus deterministic quality scoring.
 
         Stages:
           1. classification       → LLM (determine category)
           2. level_assessment     → LLM (sensitivity level L1-L4)
           3. tagging              → LLM (5-dimension tags)
-          4. quality_scoring      → Rule engine (QualityScoringService)
-          5. knowledge_type       → LLM (infer knowledge types)
+          4. quality_scoring      → LLM advisory + deterministic rule scoring
+          5. knowledge_type       → LLM advisory; active rules remain authoritative
 
         All stage outputs are aggregated into a single ``AIGovernanceRun``
         record with per-stage details in ``ai_output._stages``.
@@ -700,28 +956,57 @@ class AIGovernanceService:
         sensitivity_level = (ref.governance or {}).get("level", "L1")
         normalized_ref_version_id = ref.version_id
 
-        # Snapshot: record which prompt-templates were used
-        prompt_ids: dict[str, str] = {}
-        for task_type in ("classification", "level_assessment", "tagging",
-                          "knowledge_type_inference"):
-            try:
-                tmpl = prompt_registry.get_prompt(task_type)
-                prompt_ids[task_type] = tmpl.id
-            except Exception:
-                pass
+        task_types = (
+            "classification",
+            "level_assessment",
+            "tagging",
+            "quality_scoring",
+            "knowledge_type_inference",
+        )
+        profiles = {task_type: prompt_registry.get_prompt(task_type) for task_type in task_types}
+        prompt_snapshot = {
+            task_type: {
+                "profile_id": profile.id,
+                "profile_name": getattr(profile, "profile_name", task_type),
+                "profile_version": getattr(
+                    profile, "profile_version", getattr(profile, "template_version", 1)
+                ),
+                "prompt_version": getattr(
+                    profile, "prompt_version", str(getattr(profile, "template_version", 1))
+                ),
+                "content_hash": getattr(profile, "content_hash", "") or _prompt_content_hash(
+                    prompt_template=profile.prompt_template,
+                    output_schema=getattr(profile, "output_schema", {}) or {},
+                    output_schema_version=profile.output_schema_version,
+                    temperature=profile.temperature,
+                    redaction_policy=profile.redaction_policy,
+                ),
+            }
+            for task_type, profile in profiles.items()
+        }
+        prompt_snapshot["runtime"] = {
+            "model_alias": _governance_model_alias(),
+            "model_source": "DEFAULT_GOVERNANCE_MODEL",
+        }
+        prompt_ids = {
+            task_type: profile.id for task_type, profile in profiles.items()
+        }
 
         # Create the run record (profile_id is nullable for multi-stage)
-        classification_tmpl = prompt_registry.get_prompt("classification")
+        classification_tmpl = profiles["classification"]
         run = models.AIGovernanceRun(
             normalized_ref_id=normalized_ref_id,
             profile_id=None,
-            model_alias=_governance_model_alias(classification_tmpl.litellm_model_alias),
-            prompt_version=f"multi-stage/{classification_tmpl.template_version}",
+            model_alias=_governance_model_alias(),
+            prompt_version=(
+                "multi-stage/"
+                f"{getattr(classification_tmpl, 'profile_version', getattr(classification_tmpl, 'template_version', 1))}"
+            ),
             input_hash="",
             input_summary={"mode": "multi_stage", "task_types": sorted(prompt_ids)},
             validation_status=AIGovernanceRunValidationStatus.FAILED,
             adoption_status=AIGovernanceRunAdoptionStatus.REVIEW_REQUIRED,
-            prompt_snapshot=prompt_ids,
+            prompt_snapshot=prompt_snapshot,
             created_by=user_id,
             trace_id=trace_id,
         )
@@ -734,14 +1019,57 @@ class AIGovernanceService:
         # transaction below.
         session.commit()
 
-        stage_outputs: dict[str, Any] = self._run_llm_stages_parallel(
+        # Classification is a dependency for all subsequent advisory stages.
+        classification_output = self._run_llm_stage(
             client,
             prompt_registry,
-            ("classification", "level_assessment", "tagging", "knowledge_type_inference"),
+            "classification",
             ref_dict,
             sensitivity_level,
             rules_registry,
         )
+        if not isinstance(classification_output, dict):
+            classification_output = {
+                "_error": "classification stage returned no output",
+                "_task_type": "classification",
+            }
+        self._apply_instructional_material_guard(
+            classification_output, ref_dict, rules_registry
+        )
+        dependent_ref_dict = dict(ref_dict)
+        if "_error" not in classification_output:
+            dependent_ref_dict["classification_context"] = {
+                key: value
+                for key, value in classification_output.items()
+                if not key.startswith("_")
+            }
+            stage_outputs = self._run_llm_stages_parallel(
+                client,
+                prompt_registry,
+                (
+                    "level_assessment",
+                    "tagging",
+                    "quality_scoring",
+                    "knowledge_type_inference",
+                ),
+                dependent_ref_dict,
+                sensitivity_level,
+                rules_registry,
+            )
+        else:
+            stage_outputs = {
+                task_type: {
+                    "_error": "classification_dependency_unavailable",
+                    "_task_type": task_type,
+                }
+                for task_type in (
+                    "level_assessment",
+                    "tagging",
+                    "quality_scoring",
+                    "knowledge_type_inference",
+                )
+            }
+        stage_outputs["classification"] = classification_output
         total_latency_ms = sum(
             float(output.get("_latency_ms", 0.0))
             for output in stage_outputs.values()
@@ -759,11 +1087,12 @@ class AIGovernanceService:
         if not isinstance(tag_output, dict):
             tag_output = {}
 
-        self._apply_instructional_material_guard(
-            cls_output, ref_dict, rules_registry
-        )
+        # The LLM quality result remains advisory. The deterministic scorer owns
+        # the official score, blockers and disposition consumed by decisions.
+        quality_advisory = stage_outputs.pop("quality_scoring", None)
+        if quality_advisory is not None:
+            stage_outputs["quality_assessment"] = quality_advisory
 
-        # ---- Stage 4: Quality Scoring (rule engine, not LLM) ----
         quality_summary: dict[str, Any] | None = None
         if rules_registry is not None and cls_output and "_error" not in cls_output:
             try:
@@ -1043,7 +1372,7 @@ class AIGovernanceService:
                     stage_ref_dict.pop(field, None)
             built = builder.build(
                 stage_ref_dict, tmpl.redaction_policy, sensitivity_level,
-                registry=rules_registry, model_alias=tmpl.litellm_model_alias,
+                registry=rules_registry, model_alias=_governance_model_alias(),
             )
         except RedactionPolicyError as exc:
             logger.warning("Redaction blocked for %s: %s", task_type, exc)
@@ -1065,10 +1394,10 @@ class AIGovernanceService:
         try:
             raw_output, call_summary, attempts = self._call_llm_with_retry(
                 client,
-                _governance_model_alias(tmpl.litellm_model_alias),
+                _governance_model_alias(),
                 messages,
                 temperature=tmpl.temperature,
-                max_tokens=tmpl.max_input_tokens,
+                max_tokens=_GOVERNANCE_MAX_OUTPUT_TOKENS,
             )
         except LiteLLMCallError as exc:
             logger.warning("LLM call failed for %s: %s", task_type, exc)
@@ -1087,10 +1416,26 @@ class AIGovernanceService:
                 "_raw": raw_output[:500],
             }  # type: ignore[dict-item]
 
+        validated, validation_error = validate_governance_stage_output(
+            task_type, parsed, registry=rules_registry
+        )
+        if validated is None:
+            return {
+                "_error": validation_error or "schema_validation_failed",
+                "_task_type": task_type,
+                "_validation_status": "schema_invalid",
+            }
+
+        parsed = validated
         parsed["_latency_ms"] = call_summary.latency_ms
         parsed["_attempts"] = attempts
         parsed["_task_type"] = task_type
-        parsed["_model_alias"] = _governance_model_alias(tmpl.litellm_model_alias)
+        parsed["_model_alias"] = _governance_model_alias()
+        parsed["_profile_id"] = tmpl.id
+        parsed["_profile_version"] = getattr(
+            tmpl, "profile_version", getattr(tmpl, "template_version", 1)
+        )
+        parsed["_content_hash"] = getattr(tmpl, "content_hash", "")
         return parsed
 
     # ------------------------------------------------------------------

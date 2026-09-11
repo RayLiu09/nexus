@@ -15,6 +15,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 revision: str = "20260514_0011"
 down_revision: str | None = "20260513_0010"
@@ -69,7 +70,13 @@ def upgrade() -> None:
         sa.Column("task_type", sa.String(80), nullable=False),
         sa.Column(
             "status",
-            sa.Enum("active", "disabled", "archived", name="promptprofilestatus"),
+            postgresql.ENUM(
+                "active",
+                "disabled",
+                "archived",
+                name="promptprofilestatus",
+                create_type=False,
+            ),
             nullable=False,
             server_default="active",
         ),
@@ -117,15 +124,27 @@ def upgrade() -> None:
         sa.Column("quality_summary", sa.JSON(), nullable=True),
         sa.Column(
             "validation_status",
-            sa.Enum("schema_valid", "schema_invalid", "policy_blocked", "failed",
-                    name="aigovernancerunvalidationstatus"),
+            postgresql.ENUM(
+                "schema_valid",
+                "schema_invalid",
+                "policy_blocked",
+                "failed",
+                name="aigovernancerunvalidationstatus",
+                create_type=False,
+            ),
             nullable=False,
             server_default="failed",
         ),
         sa.Column(
             "adoption_status",
-            sa.Enum("review_required", "pending_rule_guardrail", "auto_adopted", "rejected",
-                    name="aigovernancerundoptionstatus"),
+            postgresql.ENUM(
+                "review_required",
+                "pending_rule_guardrail",
+                "auto_adopted",
+                "rejected",
+                name="aigovernancerundoptionstatus",
+                create_type=False,
+            ),
             nullable=False,
             server_default="review_required",
         ),

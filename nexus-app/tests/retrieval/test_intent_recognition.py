@@ -86,7 +86,7 @@ def test_intent_recognition_returns_completed_step_for_high_confidence_output():
     assert result.intent.confidence == pytest.approx(0.91)
     assert result.conversation_step.status == StepStatus.COMPLETED
     assert result.conversation_step.display_payload["confidence"] == pytest.approx(0.91)
-    assert llm.calls[0]["model_alias"] == "intent-model"
+    assert llm.calls[0]["model_alias"] == "governance-model"
     assert llm.calls[0]["temperature"] == 0.0
     assert llm.calls[0]["response_format"] == {"type": "json_object"}
 

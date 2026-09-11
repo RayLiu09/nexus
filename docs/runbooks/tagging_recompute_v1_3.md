@@ -3,7 +3,7 @@
 - **状态**：初版
 - **日期**：2026-07-10
 - **适用范围**：Milestone A A5；将老 `governance_result.tags`（v1 打平字符串或 5 维 dict）升级为 v1.3 §4.1 结构化 7 类
-- **前置**：`governance_rules_v2` → `v3` seed（Alembic 0068）与 `governance_prompt_template.tagging` v1 → v2 seed（Alembic 0069）已 apply
+- **前置**：治理规则 seed 与 `20260911_0102` 治理 Prompt Profile 统一迁移已 apply
 - **不动**：`classification` / `level` / `quality_summary` / `index_admission` / `status`
 - **只动**：`governance_result.tags`、`rules_schema_version`、`rules_version_id`
 
@@ -15,7 +15,7 @@
 
 - [ ] `alembic upgrade head` 已跑到 `20260710_0069`
 - [ ] `governance_rules_version` 表中 `status='active'` 的行 `schema_version='3.0'`
-- [ ] `governance_prompt_template` 中 `task_type='tagging'` 的 `template_version=2` 且 `status='active'`
+- [ ] `ai_prompt_profile` 中 `profile_name='governance.tagging'` 仅有一个 active 版本
 - [ ] `.env.dev` / `.env.prod` 中 `LITELLM_ENDPOINT` / `LITELLM_API_KEY` / `TAG_EMBEDDING_MODEL` 就位
 - [ ] 数据库连接与 LiteLLM 网关连通
 - [ ] `docs/knowledge_retrieval_result_enhancement_v1.3.md §16.4` 已被相关方 review
@@ -251,7 +251,7 @@ psql> SELECT id, actor_id, summary
 uv run python scripts/evaluate_tagging_v2_golden.py \
     --output ../reports/tagging_v2_reliability_$(date +%Y%m%d_%H%M%S).md
 
-# 指定模型（A/B 测评；explicit alias 会 bypass DEFAULT_GOVERNANCE_MODEL）
+# `--model` 为兼容参数；评测仍使用 DEFAULT_GOVERNANCE_MODEL
 uv run python scripts/evaluate_tagging_v2_golden.py \
     --model doubao-seed-2-0-lite-260215 \
     --output ../reports/tagging_v2_lite_$(date +%Y%m%d_%H%M%S).md
@@ -287,13 +287,13 @@ uv run python scripts/evaluate_tagging_v2_golden.py --limit 3 --only-tagging
 
 ---
 
-## 10. A/B 换模型 SOP
+## 10. 统一模型切换 SOP
 
 未来 LiteLLM key 白名单变化（新增 gpt-4o-mini / Claude Haiku / qwen-flash 等）时：
 
 1. **确认可用**：向 LiteLLM 网关询问当前 key 允许的模型清单
 2. **不改 Prompt / 不改 golden set**：保持所有其他变量不变
-3. **跑候选**：
+3. **在隔离环境修改 `DEFAULT_GOVERNANCE_MODEL` 后跑候选**：
    ```
    uv run python scripts/evaluate_tagging_v2_golden.py \
        --model <candidate_alias> \
@@ -307,12 +307,11 @@ uv run python scripts/evaluate_tagging_v2_golden.py --limit 3 --only-tagging
    - 主体精度不低于豆包 Lite 且 evidence_span 命中率保持 100%
    - **延迟降幅 ≥ 30%** 或 **成本降幅 ≥ 50%**
    - **举例漏出率仍 = 0**
-6. **切换实施**：
-   - 生产改 `V1_3_PROMPT_UPGRADES["tagging"]["litellm_model_alias"]`（走 v1.3 R2 profile 版本升级机制生成 template_version=N+1）
-   - 或改 `.env.dev` / `.env.prod` 的 `DEFAULT_GOVERNANCE_MODEL`
+6. **切换实施**：生产仅修改 `DEFAULT_GOVERNANCE_MODEL`，并对全部生成式治理/检索/知识处理路径执行回归验证
    - Runbook 本节记录切换日期与依据
 
-**注意**：`--model` 参数**显式**指定的 alias 会**绕过** `DEFAULT_GOVERNANCE_MODEL` 覆盖（`tagging_evaluate.evaluate_tagging_prompt` 的 A/B 语义），保证测评的是**目标模型**而非配置默认。
+**注意**：Profile 字段或 `--model` 兼容参数均不能绕过
+`DEFAULT_GOVERNANCE_MODEL`。A/B 测试必须通过隔离部署的环境配置完成。
 
 ---
 

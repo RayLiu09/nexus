@@ -1,4 +1,10 @@
-"""GovernancePromptService — CRUD and version management for prompt templates."""
+"""Historical ``governance_prompt_template`` compatibility access.
+
+This module has no production API/runtime caller. New governance Prompt reads
+and mutations use ``PromptProfileService`` and ``ai_prompt_profile`` only. The
+legacy table and these accessors remain for historical inspection and rollback
+compatibility; do not introduce new callers.
+"""
 
 from __future__ import annotations
 
@@ -19,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class GovernancePromptService:
-    """CRUD operations for ``GovernancePromptTemplate`` with DB row-level locking.
+    """Deprecated compatibility CRUD for ``GovernancePromptTemplate``.
 
     Updating a prompt template automatically:
     1. Locks the current active row (``SELECT ... FOR UPDATE``)

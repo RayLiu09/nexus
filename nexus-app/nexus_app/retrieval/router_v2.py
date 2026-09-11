@@ -352,16 +352,9 @@ class QueryRouterV2:
         (rather than at import) so tests that stub the LLM don't need
         settings to be loaded.
         """
-        if self.model_alias:
-            return self.model_alias
-        from nexus_app.config import get_settings
-        alias = get_settings().default_governance_model
-        if not alias:
-            raise RuntimeError(
-                "QueryRouterV2.model_alias is unset and "
-                "settings.default_governance_model is not configured."
-            )
-        return alias
+        from nexus_app.ai_governance.model_alias import require_governance_model
+
+        return require_governance_model()
 
     def run(
         self,

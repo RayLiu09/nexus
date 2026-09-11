@@ -48,8 +48,9 @@ Role constraints:
   category/class names are cleaned and their parenthesized codes are stored
   separately. Course rows inherit major context and review state from the
   parent standard. Subsequent batch derivation uses
-  a non-empty model alias from the active AI-governance Prompt Profile, or
-  `DEFAULT_GOVERNANCE_MODEL` when the Profile alias is empty, and maps the
+  `DEFAULT_GOVERNANCE_MODEL`; the active Prompt Profile configures the Prompt,
+  output schema, temperature, and redaction policy but cannot override the
+  model or token limit. The service maps the
   complete result back only through unchanged `course_id` values; any missing,
   duplicate, unknown, or changed ID rejects the whole batch.
   The four course tag arrays are PostgreSQL JSONB containing Chinese strings,
@@ -262,7 +263,10 @@ P0 management pages:
 - **治理中心**: AI suggestions, AI quality score, AI Prompt config, review tasks, rule config, save-to-activate changes, decision tracking, quality review.
 - **规则配置**: structured editor for `config/governance_rules.json` (classifications, levels, tags, quality scoring, knowledge types); ETag-based concurrency control; save takes effect immediately for future governance runs.
 - **权限与审计**: local users, roles, API keys, org scopes, approvals, audit logs.
-- **AI Prompt 配置**: Prompt templates, LiteLLM alias references, output schema, scoring weights, redaction policies.
+- **AI Prompt 配置**: Prompt templates, versions, task/scenario, output schema,
+  scoring weights, redaction policies, content hash, change summary,
+  validation, history, and dry-run. Model alias and token-limit controls are
+  not exposed.
 - **治理审核**: business experts submit one final governance conclusion for a `review_required` normalized asset. It includes classification, level, structured taxonomy tags, quality disposition/reason, org scope, and review reason. There is no reject/revise/auto-submit-history workflow.
 
 P1 pages:
@@ -286,6 +290,13 @@ Level inheritance: asset → asset_version → normalized_document → knowledge
 
 AI governance:
 - Input: `normalized_document` or `normalized_record` (via `normalized_asset_ref`).
+- Prompt source: only the five active `metadata_governance` profiles in
+  `ai_prompt_profile`: classification, level assessment, quality assessment,
+  tagging, and knowledge inference.
+- Execution order: validated classification first, then level/tagging/quality/
+  knowledge stages with classification context. Quality and knowledge outputs
+  are advisory; deterministic quality rules and active knowledge-type rules
+  remain authoritative.
 - Output pipeline: schema validation → field whitelist → redaction policy → `governance_rules.json` threshold checks (classification isolation `< 0.5`, confidence_threshold_auto_adopt, quality pass/warning, level requires_approval) → state-machine decision (available / review_required / disabled).
 - AI runs remain in `ai_governance_run`; official outcomes are immutable `governance_result` snapshots. Human review is persisted in immutable `governance_review_decision` and linked into the resulting `decision_trail`; the source AI run/result is unchanged.
 - High-confidence AI + quality pass → `available`. Classification confidence `< 0.5` → `disabled` and AI-run `rejected`; it is retained only for audit and explicit administrator queries. Classification confidence `[0.5, confidence_threshold_auto_adopt)` or an actionable quality/rule issue → `review_required`.
@@ -374,7 +385,10 @@ P0 API groups include:
 - Search and QA.
 - Governance rules read/edit (`config/governance_rules.json` via `/v1/admin/governance-rules`, ETag-protected).
 - Governance decision query.
-- AI Prompt profile query/create/update (save-to-activate)/disable/version query, including `scenario` and dry-run preview.
+- AI Prompt profile query with task/scenario/status filters, create/update
+  (save-to-activate), disable, version history, candidate validation, candidate
+  dry-run, and saved-version dry-run. The existing authenticated `/internal/v1`
+  boundary is unchanged.
 - AI governance run query, AI re-score, AI feedback.
 - Auth verification.
 

@@ -1,10 +1,8 @@
-"""GovernancePromptRegistry — loads and caches active governance prompt templates.
+"""Cached resolver for the five active governance Prompt Profiles.
 
-Process-level singleton that caches all ``status='active'`` rows from
-``governance_prompt_template`` keyed by ``task_type``.  Call ``load(session)``
-at startup (or after a version change) to populate the cache.
+``ai_prompt_profile`` is the only runtime source. The historical
+``governance_prompt_template`` table is intentionally not read here.
 """
-
 from __future__ import annotations
 
 import hashlib
@@ -16,102 +14,93 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from nexus_app import models
+from nexus_app.enums import PromptProfileStatus
 
 logger = logging.getLogger(__name__)
 
+GOVERNANCE_PROMPT_SCENARIO = "metadata_governance"
+GOVERNANCE_PROMPT_PROFILE_NAMES: dict[str, str] = {
+    "classification": "governance.classification",
+    "level_assessment": "governance.level_assessment",
+    "quality_scoring": "governance.quality_assessment",
+    "tagging": "governance.tagging",
+    "knowledge_type_inference": "governance.knowledge_inference",
+}
+
 
 class GovernancePromptNotFoundError(Exception):
-    """Raised when no active prompt template is found for a task_type."""
+    """Raised when a required active governance Prompt Profile is missing."""
 
 
 class GovernancePromptRegistry:
-    """Loads and caches governance prompt templates from DB.
-
-    One active template per ``task_type`` (enforced by a partial unique
-    index).  The registry is a **process-level singleton** — call
-    ``load(session)`` at startup and ``reload(session)`` after a version
-    change.
-    """
+    """Process-local snapshot of active governance Prompt Profiles."""
 
     def __init__(self) -> None:
-        self._prompts: dict[str, models.GovernancePromptTemplate] = {}
+        self._prompts: dict[str, models.AIPromptProfile] = {}
         self._loaded = False
 
-    # ------------------------------------------------------------------
-    # Lifecycle
-    # ------------------------------------------------------------------
-
     def load(self, session: Session) -> None:
-        """Load all active prompt templates from the database."""
+        names = tuple(GOVERNANCE_PROMPT_PROFILE_NAMES.values())
         rows = session.scalars(
-            select(models.GovernancePromptTemplate).where(
-                models.GovernancePromptTemplate.status == "active"
+            select(models.AIPromptProfile).where(
+                models.AIPromptProfile.profile_name.in_(names),
+                models.AIPromptProfile.status == PromptProfileStatus.ACTIVE,
             )
         ).all()
-        self._prompts = {r.task_type: r for r in rows}
+        by_name = {row.profile_name: row for row in rows}
+        self._prompts = {
+            task_type: by_name[profile_name]
+            for task_type, profile_name in GOVERNANCE_PROMPT_PROFILE_NAMES.items()
+            if profile_name in by_name
+        }
         self._loaded = True
         logger.info(
-            "Loaded %d active governance prompt templates: %s",
-            len(self._prompts), sorted(self._prompts.keys()),
+            "Loaded %d active governance Prompt Profiles: %s",
+            len(self._prompts),
+            sorted(row.profile_name for row in self._prompts.values()),
         )
 
     def reload(self, session: Session) -> None:
-        """Re-query the database and rebuild the cache (e.g. after an update)."""
         self._prompts.clear()
         self._loaded = False
         self.load(session)
 
-    # ------------------------------------------------------------------
-    # Accessors
-    # ------------------------------------------------------------------
-
-    def get_prompt(self, task_type: str) -> models.GovernancePromptTemplate:
-        """Return the active prompt template for *task_type*.
-
-        Raises:
-            GovernancePromptNotFoundError: if no active template is found.
-            RuntimeError: if the registry hasn't been loaded.
-        """
+    def get_prompt(self, task_type: str) -> models.AIPromptProfile:
         self._ensure_loaded()
-        if task_type not in self._prompts:
+        normalized = {
+            "quality_assessment": "quality_scoring",
+            "knowledge_inference": "knowledge_type_inference",
+        }.get(task_type, task_type)
+        if normalized not in self._prompts:
+            profile_name = GOVERNANCE_PROMPT_PROFILE_NAMES.get(normalized, task_type)
             raise GovernancePromptNotFoundError(
-                f"No active governance prompt template for task_type={task_type!r}"
+                f"No active ai_prompt_profile for {profile_name!r}"
             )
-        return self._prompts[task_type]
+        return self._prompts[normalized]
 
-    def get_all_prompts(self) -> dict[str, models.GovernancePromptTemplate]:
-        """Return all cached active templates keyed by task_type."""
+    def get_all_prompts(self) -> dict[str, models.AIPromptProfile]:
         self._ensure_loaded()
         return dict(self._prompts)
 
     def get_prompts_content_hash(self) -> str:
-        """SHA256 of all prompt templates' content (for audit snapshots).
-
-        Serializes task_type → template_name + prompt_template + output_schema
-        for each cached template to produce a deterministic hash.
-        """
         self._ensure_loaded()
         payload: dict[str, Any] = {}
-        for task_type, tmpl in sorted(self._prompts.items()):
+        for task_type, profile in sorted(self._prompts.items()):
             payload[task_type] = {
-                "template_name": tmpl.template_name,
-                "template_version": tmpl.template_version,
-                "prompt_template": tmpl.prompt_template,
-                "output_schema_version": tmpl.output_schema_version,
-                "litellm_model_alias": tmpl.litellm_model_alias,
-                "temperature": tmpl.temperature,
-                "max_input_tokens": tmpl.max_input_tokens,
-                "redaction_policy": tmpl.redaction_policy,
+                "id": profile.id,
+                "profile_name": profile.profile_name,
+                "profile_version": profile.profile_version,
+                "prompt_version": profile.prompt_version,
+                "prompt_template": profile.prompt_template,
+                "output_schema_version": profile.output_schema_version,
+                "temperature": profile.temperature,
+                "redaction_policy": profile.redaction_policy,
             }
         content_json = json.dumps(payload, ensure_ascii=False, sort_keys=True)
         return hashlib.sha256(content_json.encode("utf-8")).hexdigest()
 
     def is_loaded(self) -> bool:
         return self._loaded
-
-    # ------------------------------------------------------------------
-    # Internal
-    # ------------------------------------------------------------------
 
     def _ensure_loaded(self) -> None:
         if not self._loaded:
@@ -124,7 +113,6 @@ _singleton: GovernancePromptRegistry | None = None
 
 
 def get_governance_prompt_registry() -> GovernancePromptRegistry:
-    """Return the process-wide prompt registry singleton (lazy-created)."""
     global _singleton
     if _singleton is None:
         _singleton = GovernancePromptRegistry()

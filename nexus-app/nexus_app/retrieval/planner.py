@@ -15,6 +15,7 @@ from nexus_app.ai_governance.litellm_client import (
     create_litellm_client,
 )
 from nexus_app.config import Settings, get_settings
+from nexus_app.ai_governance.model_alias import require_governance_model
 from nexus_app.retrieval.prompts import build_retrieval_plan_messages
 from nexus_app.retrieval.schemas import (
     ConversationStep,
@@ -59,7 +60,7 @@ class RetrievalPlannerService:
     ) -> None:
         self._settings = settings or get_settings()
         self._llm_client = llm_client or _create_default_planner_llm_client(self._settings)
-        self._model_alias = model_alias or self._settings.effective_retrieval_planner_model_alias
+        self._model_alias = require_governance_model(self._settings)
         configured_max = max_sub_queries or self._settings.retrieval_max_sub_queries
         self._max_sub_queries = max(1, min(configured_max, MAX_SUB_QUERIES))
 

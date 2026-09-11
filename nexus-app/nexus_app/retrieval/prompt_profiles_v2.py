@@ -292,28 +292,6 @@ _V2_PROFILES: tuple[_V2ProfileSpec, ...] = (
 # ---------------------------------------------------------------------------
 
 
-def _resolve_litellm_alias(explicit: str | None) -> str:
-    """Deployment-time alias resolution.
-
-    Returns the caller's explicit value when provided; otherwise the
-    settings-driven `default_governance_model`. Raises when neither is
-    set so a mis-configured environment fails loudly at seed time
-    instead of writing profiles that will error the first time the
-    LLM is dialled.
-    """
-    if explicit:
-        return explicit
-    from nexus_app.config import get_settings
-    alias = get_settings().default_governance_model
-    if not alias:
-        raise ValueError(
-            "seed_retrieval_v2_prompts requires an explicit "
-            "litellm_model_alias OR settings.default_governance_model to "
-            "be set; neither is configured."
-        )
-    return alias
-
-
 def seed_retrieval_v2_prompts(
     session: Session,
     *,
@@ -326,19 +304,16 @@ def seed_retrieval_v2_prompts(
     already lives in the DB (e.g. a console user has edited the
     template) we leave it alone and reuse that version.
 
-    When ``litellm_model_alias`` is None we resolve from
-    ``settings.default_governance_model`` so the seed follows the
-    deployment's configured LiteLLM alias (e.g. dev vs. prod aliases
-    diverge without touching source).  A misconfigured environment
-    (no alias anywhere) raises rather than writing rows that would
-    fail on first LLM call.
+    ``litellm_model_alias`` remains as a source-compatibility argument but is
+    ignored. New rows receive the service-owned legacy-column sentinel, while
+    runtime calls resolve only ``DEFAULT_GOVERNANCE_MODEL``.
 
     Returns a dict keyed by `profile_name` mapping to the profile
     row present in the DB after this call. Callers typically ignore
     the return value; it's mainly for smoke tests that want to inspect
     what got inserted.
     """
-    resolved_alias = _resolve_litellm_alias(litellm_model_alias)
+    del litellm_model_alias
     service = PromptProfileService()
     out: dict[str, models.AIPromptProfile] = {}
     for spec in _V2_PROFILES:
@@ -350,7 +325,7 @@ def seed_retrieval_v2_prompts(
             session,
             profile_name=spec.profile_name,
             task_type=RETRIEVAL_V2_TASK_TYPE,
-            litellm_model_alias=resolved_alias,
+            litellm_model_alias=None,
             prompt_version="v2.0.2",
             prompt_template=spec.prompt_template,
             scenario=spec.scenario,

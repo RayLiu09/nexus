@@ -25,6 +25,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from nexus_app import models
+from nexus_app.ai_governance.model_alias import require_governance_model
 from nexus_app.ai_governance.litellm_client import (
     LiteLLMCallError,
     LiteLLMClientProtocol,
@@ -256,6 +257,8 @@ def classify_headings(
     if not candidates:
         return [], []
 
+    del model_alias
+    model_alias = require_governance_model()
     prompt = system_prompt or SYSTEM_PROMPT
     stats: list[LLMCallStat] = []
     label_by_idx: dict[int, HeadingClassification] = {}
@@ -796,14 +799,16 @@ def ensure_knowledge_outline_prompt_profile(
         scenario=PROMPT_PROFILE_SCENARIO,
         domain=PROMPT_PROFILE_DOMAIN,
         status=PromptProfileStatus.ACTIVE,
-        litellm_model_alias=default_model_alias,
+        litellm_model_alias="__runtime_default_governance_model__",
         prompt_version=PROMPT_PROFILE_VERSION,
         prompt_template=SYSTEM_PROMPT,
         output_schema_version=PROMPT_PROFILE_OUTPUT_SCHEMA,
         scoring_weight_version="1.0",
         temperature=0.1,
-        max_input_tokens=8192,
+        max_input_tokens=0,
         redaction_policy="masked_content",
+        output_schema={},
+        content_hash=hashlib.sha256(SYSTEM_PROMPT.encode("utf-8")).hexdigest(),
         created_by="seed:knowledge_outline",
     )
     session.add(profile)
@@ -851,7 +856,7 @@ def build_and_persist_outline_llm(
     raw_classifications, stats = classify_headings(
         candidates,
         client=client,
-        model_alias=profile.litellm_model_alias,
+        model_alias=require_governance_model(),
         batch_size=batch_size,
         temperature=profile.temperature,
         system_prompt=profile.prompt_template,
@@ -877,7 +882,7 @@ def build_and_persist_outline_llm(
     ai_run = models.AIGovernanceRun(
         normalized_ref_id=ref.id,
         profile_id=profile.id,
-        model_alias=profile.litellm_model_alias,
+        model_alias=require_governance_model(),
         prompt_version=profile.prompt_version,
         input_hash=input_hash,
         input_summary={
@@ -1014,7 +1019,7 @@ def build_and_persist_outline_llm(
             "prompt_profile_name": profile.profile_name,
             "prompt_profile_version": profile.profile_version,
             "prompt_version": profile.prompt_version,
-            "model_alias": profile.litellm_model_alias,
+            "model_alias": require_governance_model(),
             "ai_run_id": ai_run.id,
             "adoption_status": adoption_status.value,
             "validation_status": validation_status.value,
@@ -1045,7 +1050,7 @@ def build_and_persist_outline_llm(
         label_distribution=label_dist,
         prompt_profile_id=profile.id,
         prompt_version=profile.prompt_version,
-        model_alias=profile.litellm_model_alias,
+        model_alias=require_governance_model(),
         ai_run_id=ai_run.id,
         adoption_status=adoption_status.value,
         validation_status=validation_status.value,

@@ -194,7 +194,7 @@ def derive_library(
             effective_alias,
             messages,
             temperature=float(profile.temperature),
-            max_tokens=int(profile.max_input_tokens),
+            max_tokens=8192,
             response_format={"type": "json_object"},
         )
     except LiteLLMCallError as exc:
@@ -492,17 +492,14 @@ def _load_active_profile(session: Session) -> models.AIPromptProfile | None:
 def _effective_model_alias(
     profile: models.AIPromptProfile | None, default_governance_model: str
 ) -> str:
-    profile_alias = (
-        (profile.litellm_model_alias or "").strip() if profile is not None else ""
-    )
-    return profile_alias or default_governance_model.strip()
+    del profile
+    return default_governance_model.strip()
 
 
 def _effective_model_source(
     profile: models.AIPromptProfile | None, effective_alias: str
 ) -> str:
-    if profile is not None and (profile.litellm_model_alias or "").strip():
-        return "profile"
+    del profile
     return "environment" if effective_alias else "missing"
 
 

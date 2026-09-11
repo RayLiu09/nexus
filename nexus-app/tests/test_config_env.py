@@ -57,42 +57,43 @@ def test_litellm_embedding_alias_overrides_default_embedding_model(monkeypatch):
     assert settings.effective_embedding_model_alias == "gateway/embedding"
 
 
-def test_retrieval_intent_model_falls_back_to_governance_model(monkeypatch):
+def test_retrieval_intent_uses_governance_model(monkeypatch):
     monkeypatch.delenv("DEFAULT_RETRIEVAL_INTENT_MODEL", raising=False)
 
     settings = Settings()
 
     assert settings.retrieval_intent_confidence_threshold == 0.78
-    assert settings.effective_retrieval_intent_model_alias == settings.default_governance_model
+    assert settings.default_governance_model
+    assert not hasattr(settings, "default_retrieval_intent_model")
 
 
-def test_retrieval_intent_model_can_be_overridden(monkeypatch):
+def test_deprecated_retrieval_intent_model_is_ignored(monkeypatch):
     monkeypatch.setenv("DEFAULT_GOVERNANCE_MODEL", "governance-model")
     monkeypatch.setenv("DEFAULT_RETRIEVAL_INTENT_MODEL", "retrieval-intent-model")
     monkeypatch.setenv("RETRIEVAL_INTENT_CONFIDENCE_THRESHOLD", "0.82")
 
     settings = Settings()
 
-    assert settings.default_retrieval_intent_model == "retrieval-intent-model"
-    assert settings.effective_retrieval_intent_model_alias == "retrieval-intent-model"
+    assert settings.default_governance_model == "governance-model"
+    assert not hasattr(settings, "default_retrieval_intent_model")
     assert settings.retrieval_intent_confidence_threshold == 0.82
 
 
-def test_retrieval_planner_model_can_be_overridden(monkeypatch):
+def test_deprecated_retrieval_planner_model_is_ignored(monkeypatch):
     monkeypatch.setenv("DEFAULT_RETRIEVAL_PLANNER_MODEL", "retrieval-planner-model")
     monkeypatch.setenv("RETRIEVAL_MAX_SUB_QUERIES", "4")
 
     settings = Settings(DEFAULT_GOVERNANCE_MODEL="governance-model")
 
-    assert settings.default_retrieval_planner_model == "retrieval-planner-model"
-    assert settings.effective_retrieval_planner_model_alias == "retrieval-planner-model"
+    assert settings.default_governance_model == "governance-model"
+    assert not hasattr(settings, "default_retrieval_planner_model")
     assert settings.retrieval_max_sub_queries == 4
 
 
-def test_retrieval_summary_model_can_be_overridden(monkeypatch):
+def test_deprecated_retrieval_summary_model_is_ignored(monkeypatch):
     monkeypatch.setenv("DEFAULT_RETRIEVAL_SUMMARY_MODEL", "retrieval-summary-model")
 
     settings = Settings(DEFAULT_GOVERNANCE_MODEL="governance-model")
 
-    assert settings.default_retrieval_summary_model == "retrieval-summary-model"
-    assert settings.effective_retrieval_summary_model_alias == "retrieval-summary-model"
+    assert settings.default_governance_model == "governance-model"
+    assert not hasattr(settings, "default_retrieval_summary_model")

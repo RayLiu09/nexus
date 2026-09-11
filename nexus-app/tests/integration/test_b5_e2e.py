@@ -619,17 +619,11 @@ class TestProvenanceFields:
     def test_requirement_items_carry_audit_fields(
         self, session, job_demand_setup, monkeypatch
     ):
-        # The persisted `ai_model_alias` is the alias actually called on
-        # LiteLLM. When `LITELLM_EXTRACTION_MODEL_ALIAS` is set in the
-        # surrounding env (.env.dev for dev workstations), the env override
-        # wins over the seeded `internal/test-v1`. Clear both override env
-        # vars + the settings cache so the test pins the seeded-prompt path
-        # regardless of where it runs.
+        # The persisted `ai_model_alias` is the unified governance model
+        # actually called on LiteLLM. Legacy extraction/body aliases and the
+        # model stored on the seeded Prompt Profile are intentionally inert.
         from nexus_app.config import get_settings
-        monkeypatch.delenv("LITELLM_EXTRACTION_MODEL_ALIAS", raising=False)
-        monkeypatch.delenv("LITELLM_BODY_MARKDOWN_MODEL_ALIAS", raising=False)
-        monkeypatch.setenv("LITELLM_EXTRACTION_MODEL_ALIAS", "")
-        monkeypatch.setenv("LITELLM_BODY_MARKDOWN_MODEL_ALIAS", "")
+        monkeypatch.setenv("DEFAULT_GOVERNANCE_MODEL", "governance/b5-test")
         get_settings.cache_clear()
 
         records = list(session.scalars(select(models.JobDemandRecord).order_by(
@@ -650,6 +644,6 @@ class TestProvenanceFields:
         for item in items:
             assert item.rules_version_id == result.rule_set_id
             assert item.prompt_template_id == result.prompt_profile_id
-            assert item.ai_model_alias == "internal/test-v1"
+            assert item.ai_model_alias == "governance/b5-test"
             assert item.extractor_version == "1.0"
         get_settings.cache_clear()

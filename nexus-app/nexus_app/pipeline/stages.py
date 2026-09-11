@@ -1337,7 +1337,7 @@ def _build_normalized_document(
             fallback = _extract_institution_profile(
                 major_profile_input,
                 llm_client=ctx.teaching_standard_llm_client,
-                model_alias=ctx.settings.litellm_extraction_model_alias,
+                model_alias=ctx.settings.default_governance_model,
             )
             major_profile_payload = fallback.payload
             metadata["major_profile_extraction"] = fallback.metadata
@@ -1518,7 +1518,7 @@ def _build_normalized_document(
             fallback = _llm_fallback(
                 {"content_type": "document", "title": title_from(raw_object, parse_payload), "blocks": blocks, "toc": toc},
                 llm_client=ctx.teaching_standard_llm_client,
-                model_alias=ctx.settings.litellm_extraction_model_alias,
+                model_alias=ctx.settings.default_governance_model,
                 rule_failure_reason=rule_result.failure_reason or "rule_extraction_failed",
             )
             teaching_standard_payload = fallback.payload

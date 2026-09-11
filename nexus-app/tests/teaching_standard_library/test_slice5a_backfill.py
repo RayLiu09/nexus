@@ -216,9 +216,10 @@ def test_apply_derives_once_keeps_review_and_rerun_reuses(session) -> None:
     assert library.training_goal_summary is not None
     assert len(library.courses) == 3
     assert len(client.calls) == 1
-    assert client.calls[0]["model_alias"] == "governance/profile-model"
+    assert client.calls[0]["model_alias"] == "governance/env-model"
     assert first.derived_count == 1
-    assert first.profile_model_count == 1
+    assert first.profile_model_count == 0
+    assert first.environment_model_count == 1
     assert planned_replay.reused_count == 1
     assert planned_replay.llm_required_count == 0
     assert planned_replay.refs[0].reason == "dry_run_would_reuse"

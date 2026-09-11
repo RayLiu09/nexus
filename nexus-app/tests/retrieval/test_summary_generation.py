@@ -214,7 +214,7 @@ def test_summary_generation_accepts_markdown_with_valid_source_refs():
     assert result.summary.source_ref_ids == ["q1-src-1", "q2-src-1"]
     assert result.summary.warnings == []
     assert result.warnings == ()
-    assert llm.calls[0]["model_alias"] == "summary-model"
+    assert llm.calls[0]["model_alias"] == "governance-model"
     assert llm.calls[0]["temperature"] == 0.0
     assert llm.calls[0]["response_format"] == {"type": "json_object"}
 
@@ -237,7 +237,7 @@ def test_summary_generation_sanitizes_unknown_source_refs():
 
     assert result.summary.source_ref_ids == ["q1-src-1"]
     assert "missing-src" not in result.summary.content
-    assert result.summary.model_alias == "summary-model"
+    assert result.summary.model_alias == "governance-model"
     assert result.summary.warnings == ["low_evidence", "summary_source_refs_sanitized"]
     assert result.warnings == ("summary_source_refs_sanitized", "low_evidence")
 
@@ -264,7 +264,7 @@ def test_summary_generation_handles_invalid_json_safely():
 
     assert result.summary.content == NO_EVIDENCE_MARKDOWN
     assert result.summary.source_ref_ids == []
-    assert result.summary.model_alias == "summary-model"
+    assert result.summary.model_alias == "governance-model"
     assert result.summary.warnings == ["summary_schema_invalid"]
     assert result.warnings == ("summary_schema_invalid",)
 

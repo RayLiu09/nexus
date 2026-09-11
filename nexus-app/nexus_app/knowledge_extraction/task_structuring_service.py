@@ -135,7 +135,7 @@ def structure_task_descriptions_for_analysis(
     prompt_template = prompt.prompt_template
     model_alias = resolve_model_alias(prompt)
     temperature = float(prompt.temperature)
-    max_tokens = int(prompt.max_input_tokens)
+    max_tokens = 2048
     prepared_tasks = [
         _PreparedTask(
             task_id=task.id,

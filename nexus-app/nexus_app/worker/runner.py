@@ -117,14 +117,19 @@ def _build_normalize_service(settings: Settings) -> NormalizeService:
             exc,
         )
         llm_client = None
-    model_alias = settings.default_normalize_model or settings.default_governance_model
+    from nexus_app.ai_governance.model_alias import require_governance_model
+
+    model_alias = require_governance_model(settings)
     return NormalizeService(llm_client=llm_client, llm_model_alias=model_alias)
 
 
 def _build_teaching_standard_llm_client(settings: Settings):
-    """Build the opt-in table fallback client only when its alias is set."""
-    if not settings.litellm_extraction_model_alias:
+    """Build the constrained fallback client when unified AI config is ready."""
+    if not settings.litellm_endpoint or not settings.litellm_api_key:
         return None
+    from nexus_app.ai_governance.model_alias import require_governance_model
+
+    require_governance_model(settings)
     try:
         from nexus_app.ai_governance.services import _create_default_litellm_client
         return _create_default_litellm_client(settings)

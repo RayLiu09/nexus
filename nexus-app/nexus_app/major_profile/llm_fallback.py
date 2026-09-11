@@ -9,6 +9,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from nexus_app.ai_governance.litellm_client import LiteLLMCallError, LiteLLMClientProtocol
+from nexus_app.ai_governance.model_alias import require_governance_model
 from nexus_app.major_profile.schema import validate_profile_payload
 
 MIN_CONFIDENCE = 0.80
@@ -72,8 +73,10 @@ class _InstitutionProfileResponse(BaseModel):
 
 
 def extract(payload: dict[str, Any], *, llm_client: LiteLLMClientProtocol | None, model_alias: str | None) -> FallbackResult:
-    if llm_client is None or not model_alias:
+    if llm_client is None:
         return FallbackResult(None, {"strategy": "llm_fallback", "status": "not_adopted", "reason": "llm_unavailable"})
+    del model_alias
+    model_alias = require_governance_model()
     blocks = [
         {
             "block_id": str(block.get("block_id")),

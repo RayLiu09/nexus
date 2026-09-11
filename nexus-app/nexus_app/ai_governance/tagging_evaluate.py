@@ -58,8 +58,8 @@ def evaluate_tagging_prompt(
         Optional LiteLLM client.  If ``None``, creates one from settings
         (raises if credentials are missing).
     model_alias:
-        Overrides the ``V1_3_PROMPT_UPGRADES["tagging"]["litellm_model_alias"]``
-        default; useful for A/B evaluation.
+        Deprecated compatibility argument. It is ignored; execution always
+        uses ``DEFAULT_GOVERNANCE_MODEL``.
     prompt_template / temperature / max_tokens:
         Same override semantics.  ``None`` uses the v2 profile defaults.
 
@@ -81,15 +81,8 @@ def evaluate_tagging_prompt(
     if llm_client is None:
         llm_client = _create_default_litellm_client()
 
-    # A/B evaluation semantics: an explicit ``model_alias`` from the caller
-    # must be used verbatim so we actually measure the target model, not
-    # whatever ``DEFAULT_GOVERNANCE_MODEL`` in the settings file has
-    # pinned as the production override.  Only fall back to the settings-
-    # aware resolver when the caller left ``model_alias`` unset.
-    if model_alias is not None:
-        effective_alias = model_alias
-    else:
-        effective_alias = _governance_model_alias(cfg["litellm_model_alias"])
+    del model_alias
+    effective_alias = _governance_model_alias()
 
     rules_text = _render_tagging_rules(rules_registry)
     document_payload = (

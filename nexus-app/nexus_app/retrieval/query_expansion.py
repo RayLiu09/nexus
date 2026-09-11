@@ -96,7 +96,12 @@ class LiteLLMQueryExpansionProvider:
     """
 
     llm_client: Any  # LiteLLMClientProtocol (avoid hard import cycle)
-    model_alias: str = "primary-llm"
+    model_alias: str | None = None
+
+    def __post_init__(self) -> None:
+        from nexus_app.ai_governance.model_alias import require_governance_model
+
+        self.model_alias = require_governance_model()
 
     def generate(
         self,

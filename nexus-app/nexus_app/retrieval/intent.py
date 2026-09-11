@@ -14,6 +14,7 @@ from nexus_app.ai_governance.litellm_client import (
     create_litellm_client,
 )
 from nexus_app.config import Settings, get_settings
+from nexus_app.ai_governance.model_alias import require_governance_model
 from nexus_app.retrieval.prompts import build_intent_recognition_messages
 from nexus_app.retrieval.schemas import (
     Clarification,
@@ -47,7 +48,7 @@ class IntentRecognitionService:
     ) -> None:
         self._settings = settings or get_settings()
         self._llm_client = llm_client or _create_default_intent_llm_client(self._settings)
-        self._model_alias = model_alias or self._settings.effective_retrieval_intent_model_alias
+        self._model_alias = require_governance_model(self._settings)
         self._confidence_threshold = (
             confidence_threshold
             if confidence_threshold is not None

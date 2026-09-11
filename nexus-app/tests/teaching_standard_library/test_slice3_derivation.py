@@ -143,7 +143,7 @@ def _response(library: models.TeachingStandardLibrary) -> dict[str, Any]:
         (
             "governance/profile-model",
             "governance/env-model",
-            "governance/profile-model",
+            "governance/env-model",
         ),
     ],
 )

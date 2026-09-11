@@ -91,7 +91,6 @@ class TestPromptProfileAPI:
             "profile_name": "test-profile",
             "task_type": "governance",
             "scenario": "metadata_enrich",
-            "litellm_model_alias": "nexus-gpt-4o",
             "prompt_version": "v1.0",
             "prompt_template": "You are a governance assistant.",
             "temperature": 0.2,
@@ -110,7 +109,6 @@ class TestPromptProfileAPI:
         base = {
             "profile_name": "versioned-profile",
             "task_type": "governance",
-            "litellm_model_alias": "nexus-gpt-4o",
             "prompt_version": "v1.0",
             "prompt_template": "Original.",
         }
@@ -120,7 +118,6 @@ class TestPromptProfileAPI:
         update = {
             "profile_name": "versioned-profile",
             "task_type": "governance",
-            "litellm_model_alias": "nexus-gpt-4o",
             "prompt_version": "v2.0",
             "prompt_template": "Updated.",
         }
@@ -132,7 +129,7 @@ class TestPromptProfileAPI:
         client = TestClient(app)
         client.post("/internal/v1/ai/prompt-profiles", headers={"Idempotency-Key": "test-idem"}, json={
             "profile_name": "list-test", "task_type": "governance",
-            "litellm_model_alias": "alias", "prompt_version": "v1",
+            "prompt_version": "v1",
             "prompt_template": "T.",
         })
         resp = client.get("/internal/v1/ai/prompt-profiles")
@@ -144,7 +141,7 @@ class TestPromptProfileAPI:
         client = TestClient(app)
         created = client.post("/internal/v1/ai/prompt-profiles", headers={"Idempotency-Key": "test-idem"}, json={
             "profile_name": "get-test", "task_type": "governance",
-            "litellm_model_alias": "alias", "prompt_version": "v1",
+            "prompt_version": "v1",
             "prompt_template": "T.",
         }).json()["data"]
         resp = client.get(f"/internal/v1/ai/prompt-profiles/{created['id']}")
@@ -160,7 +157,7 @@ class TestPromptProfileAPI:
         client = TestClient(app)
         created = client.post("/internal/v1/ai/prompt-profiles", headers={"Idempotency-Key": "test-idem"}, json={
             "profile_name": "disable-test", "task_type": "governance",
-            "litellm_model_alias": "alias", "prompt_version": "v1",
+            "prompt_version": "v1",
             "prompt_template": "T.",
         }).json()["data"]
         resp = client.post(f"/internal/v1/ai/prompt-profiles/{created['id']}/disable")
@@ -171,7 +168,7 @@ class TestPromptProfileAPI:
         client = TestClient(app)
         resp = client.post("/internal/v1/ai/prompt-profiles", headers={"Idempotency-Key": "test-idem"}, json={
             "profile_name": "bad-policy", "task_type": "governance",
-            "litellm_model_alias": "alias", "prompt_version": "v1",
+            "prompt_version": "v1",
             "prompt_template": "T.", "redaction_policy": "invalid_policy",
         })
         assert resp.status_code == 422
@@ -183,7 +180,6 @@ class TestPromptProfileAPI:
             "profile_name": "dry-run-test",
             "task_type": "governance",
             "scenario": "prompt_lab",
-            "litellm_model_alias": "alias",
             "prompt_version": "v1",
             "prompt_template": "T.",
         }).json()["data"]
@@ -213,7 +209,6 @@ class TestAIGovernanceRunAPI:
         resp = client.post("/internal/v1/ai/prompt-profiles", headers={"Idempotency-Key": "test-idem"}, json={
             "profile_name": "gov-run-profile",
             "task_type": "governance",
-            "litellm_model_alias": "nexus-gpt-4o",
             "prompt_version": "v1.0",
             "prompt_template": "You are a governance assistant.",
         })

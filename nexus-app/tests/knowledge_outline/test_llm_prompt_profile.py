@@ -45,7 +45,8 @@ def test_first_use_creates_active_profile(session):
     assert profile.status == PromptProfileStatus.ACTIVE
     assert profile.profile_version == 1
     assert profile.prompt_template == SYSTEM_PROMPT
-    assert profile.litellm_model_alias == "doubao-lite-heading"
+    assert profile.litellm_model_alias == "__runtime_default_governance_model__"
+    assert profile.max_input_tokens == 0
     assert profile.temperature == 0.1
 
     rows = _list_profiles(session)
@@ -62,7 +63,7 @@ def test_repeated_calls_return_same_active_profile(session):
         session, default_model_alias="alias-2-would-be-ignored",
     )
     assert p1.id == p2.id
-    assert p2.litellm_model_alias == "alias-1"
+    assert p2.litellm_model_alias == "__runtime_default_governance_model__"
     rows = _list_profiles(session)
     assert len(rows) == 1
 
@@ -82,7 +83,7 @@ def test_force_reseed_archives_prior_and_installs_next_version(session):
     assert p1.status == PromptProfileStatus.ARCHIVED
     assert p2.status == PromptProfileStatus.ACTIVE
     assert p2.profile_version == 2
-    assert p2.litellm_model_alias == "alias-2"
+    assert p2.litellm_model_alias == "__runtime_default_governance_model__"
 
 
 def test_operator_edited_profile_wins_after_seed(session):

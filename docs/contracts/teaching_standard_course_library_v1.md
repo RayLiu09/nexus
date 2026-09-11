@@ -140,12 +140,11 @@ library in `review`, with no partial course updates.
 
 The derivation selects the active `ai_prompt_profile` for the dedicated
 teaching-standard course-derivation task/scenario. Its prompt template,
-output-schema version, temperature, token cap, and redaction policy are the
-authoritative AI-governance configuration used through the existing LiteLLM
-client. The seeded Profile has an empty `litellm_model_alias`. A non-empty
-Profile alias has priority; otherwise the effective model falls back to the
-AI-governance environment setting `DEFAULT_GOVERNANCE_MODEL`. The
-course-library module must not hard-code another model alias.
+output-schema version, temperature, and redaction policy are the authoritative
+Prompt configuration used through the existing LiteLLM client. The effective
+model is always the AI-governance environment setting
+`DEFAULT_GOVERNANCE_MODEL`; retained Profile model/token columns cannot
+override it.
 
 The following are deterministic and must never cause an LLM call: section
 recognition fallback rules, list splitting, core-row continuation merging and
@@ -180,9 +179,9 @@ resolved, or for a deterministic no-LLM derivation record should one be
 persisted.
 Joining `prompt_profile_id` to `ai_prompt_profile` is the supported way to
 recover Profile version, prompt version, template, output schema, temperature,
-token cap, and redaction policy. The effective LLM alias is the non-empty
-Profile alias or, when absent, runtime `DEFAULT_GOVERNANCE_MODEL`; it is not
-duplicated on the derivation run.
+and redaction policy. The effective LLM alias comes only from runtime
+`DEFAULT_GOVERNANCE_MODEL`; it is recorded in audit summaries rather than
+selected by the Profile.
 
 ## Proposed Audit Events And Failure Codes
 
@@ -201,7 +200,7 @@ duplicated on the derivation run.
 | Failure | `prompt_profile_missing` | Active derivation Prompt Profile is missing. |
 | Failure | `prompt_output_schema_mismatch` | Profile output schema does not match the supported derivation schema. |
 | Failure | `derivation_input_incomplete` | Training-goal or course evidence required for one-batch derivation is incomplete. |
-| Failure | `governance_model_missing` | Neither Profile alias nor `DEFAULT_GOVERNANCE_MODEL` supplies an effective model. |
+| Failure | `governance_model_missing` | `DEFAULT_GOVERNANCE_MODEL` is empty. |
 | Failure | `redaction_policy_blocked` | AI-governance redaction/private-model policy blocks the request. |
 | Failure | `llm_client_unavailable` | No LiteLLM client is available. |
 | Failure | `llm_call_failed` | The single LiteLLM batch call failed. |

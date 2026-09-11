@@ -141,7 +141,7 @@ def rebuild(ref_id: str, *, apply: bool, use_llm: bool) -> int:
                 fallback = extract_institution_profile(
                     normalized_input,
                     llm_client=_create_default_litellm_client(settings),
-                    model_alias=settings.litellm_extraction_model_alias,
+                    model_alias=settings.default_governance_model,
                 )
                 profile_payload = fallback.payload
                 extraction_metadata = fallback.metadata
