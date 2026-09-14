@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import {
   App,
   Avatar,
@@ -36,6 +36,10 @@ interface PasswordFormValues {
   confirmPassword: string;
 }
 
+const subscribeToHydration = () => () => {};
+const getHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
+
 export function Topbar() {
   const pathname = usePathname();
   const crumbs = getBreadcrumb(pathname);
@@ -45,6 +49,11 @@ export function Topbar() {
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
   const [passwordForm] = Form.useForm<PasswordFormValues>();
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
 
   const breadcrumbItems = crumbs.map((crumb, i) => ({
     key: i,
@@ -188,72 +197,74 @@ export function Topbar() {
         )}
       </div>
 
-      <Modal
-        title="修改密码"
-        open={passwordOpen}
-        onCancel={closePasswordModal}
-        footer={null}
-        forceRender
-        destroyOnHidden
-        width={440}
-      >
-        <div className="password-modal-intro">
-          <SafetyOutlined aria-hidden="true" />
-          <span>验证当前密码后设置新密码，后续登录将使用新密码。</span>
-        </div>
-        <Form<PasswordFormValues>
-          form={passwordForm}
-          layout="vertical"
-          requiredMark={false}
-          onFinish={handlePasswordSubmit}
-          className="password-modal-form"
+      {mounted ? (
+        <Modal
+          title="修改密码"
+          open={passwordOpen}
+          onCancel={closePasswordModal}
+          footer={null}
+          forceRender
+          destroyOnHidden
+          width={440}
         >
-          <Form.Item
-            label="当前密码"
-            name="currentPassword"
-            rules={[{ required: true, message: "请输入当前密码" }]}
-          >
-            <Input.Password placeholder="请输入当前密码" autoComplete="current-password" />
-          </Form.Item>
-          <Form.Item
-            label="新密码"
-            name="newPassword"
-            extra="建议使用至少 8 位，包含大小写字母、数字或符号。"
-            rules={[
-              { required: true, message: "请输入新密码" },
-              { min: 8, message: "新密码至少需要 8 位" },
-            ]}
-          >
-            <Input.Password placeholder="请输入新密码" autoComplete="new-password" />
-          </Form.Item>
-          <Form.Item
-            label="确认新密码"
-            name="confirmPassword"
-            dependencies={["newPassword"]}
-            rules={[
-              { required: true, message: "请再次输入新密码" },
-              ({ getFieldValue }) => ({
-                validator(_, value) {
-                  if (!value || getFieldValue("newPassword") === value) {
-                    return Promise.resolve();
-                  }
-                  return Promise.reject(new Error("两次输入的新密码不一致"));
-                },
-              }),
-            ]}
-          >
-            <Input.Password placeholder="请再次输入新密码" autoComplete="new-password" />
-          </Form.Item>
-          <div className="password-modal-actions">
-            <Button onClick={closePasswordModal} disabled={passwordSubmitting}>
-              取消
-            </Button>
-            <Button type="primary" htmlType="submit" loading={passwordSubmitting}>
-              确认修改
-            </Button>
+          <div className="password-modal-intro">
+            <SafetyOutlined aria-hidden="true" />
+            <span>验证当前密码后设置新密码，后续登录将使用新密码。</span>
           </div>
-        </Form>
-      </Modal>
+          <Form<PasswordFormValues>
+            form={passwordForm}
+            layout="vertical"
+            requiredMark={false}
+            onFinish={handlePasswordSubmit}
+            className="password-modal-form"
+          >
+            <Form.Item
+              label="当前密码"
+              name="currentPassword"
+              rules={[{ required: true, message: "请输入当前密码" }]}
+            >
+              <Input.Password placeholder="请输入当前密码" autoComplete="current-password" />
+            </Form.Item>
+            <Form.Item
+              label="新密码"
+              name="newPassword"
+              extra="建议使用至少 8 位，包含大小写字母、数字或符号。"
+              rules={[
+                { required: true, message: "请输入新密码" },
+                { min: 8, message: "新密码至少需要 8 位" },
+              ]}
+            >
+              <Input.Password placeholder="请输入新密码" autoComplete="new-password" />
+            </Form.Item>
+            <Form.Item
+              label="确认新密码"
+              name="confirmPassword"
+              dependencies={["newPassword"]}
+              rules={[
+                { required: true, message: "请再次输入新密码" },
+                ({ getFieldValue }) => ({
+                  validator(_, value) {
+                    if (!value || getFieldValue("newPassword") === value) {
+                      return Promise.resolve();
+                    }
+                    return Promise.reject(new Error("两次输入的新密码不一致"));
+                  },
+                }),
+              ]}
+            >
+              <Input.Password placeholder="请再次输入新密码" autoComplete="new-password" />
+            </Form.Item>
+            <div className="password-modal-actions">
+              <Button onClick={closePasswordModal} disabled={passwordSubmitting}>
+                取消
+              </Button>
+              <Button type="primary" htmlType="submit" loading={passwordSubmitting}>
+                确认修改
+              </Button>
+            </div>
+          </Form>
+        </Modal>
+      ) : null}
     </header>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   App,
@@ -77,6 +77,10 @@ const ROLE_OPTIONS = CONSOLE_SESSION_ROLES.map((role) => ({
 
 const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 
+const subscribeToHydration = () => () => {};
+const getHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
+
 function normalizeRole(value: string): SessionRole | null {
   return (CONSOLE_SESSION_ROLES as readonly string[]).includes(value)
     ? (value as SessionRole)
@@ -121,6 +125,11 @@ export function UsersContent({
   const pathname = usePathname();
 
   const [users, setUsers] = useState<UserAccount[]>(initialUsers);
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
@@ -298,7 +307,7 @@ export function UsersContent({
         ),
       },
       {
-        title: "登录邮箱",
+        title: "登录账号",
         dataIndex: "username",
         key: "username",
         render: (username: string) => <span className="font-mono text-sm">{username}</span>,
@@ -417,7 +426,7 @@ export function UsersContent({
       )}
 
       {/* ── Create user ── */}
-      <Modal
+      {mounted ? <Modal
         title="创建用户"
         open={createOpen}
         onCancel={() => setCreateOpen(false)}
@@ -444,10 +453,10 @@ export function UsersContent({
           </Form.Item>
 
           <Form.Item
-            label="登录邮箱"
+            label="登录账号"
             name="username"
             rules={[
-              { required: true, message: "请输入登录邮箱" },
+              { required: true, message: "请输入登录账号" },
               {
                 pattern: EMAIL_PATTERN,
                 message: "请输入合法的邮箱地址",
@@ -493,10 +502,10 @@ export function UsersContent({
             </Button>
           </div>
         </Form>
-      </Modal>
+      </Modal> : null}
 
       {/* ── Edit user ── */}
-      <Modal
+      {mounted ? <Modal
         title={editTarget ? `编辑用户 · ${editTarget.display_name}` : "编辑用户"}
         open={editTarget !== null}
         onCancel={() => setEditTarget(null)}
@@ -516,7 +525,7 @@ export function UsersContent({
               <div className="flex flex-col">
                 <strong>{editTarget.username}</strong>
                 <Typography.Text type="secondary" className="text-xs">
-                  登录邮箱不可修改；如需变更请新建账号后再禁用旧账号。
+                  登录账号不可修改；如需变更请新建账号后再禁用旧账号。
                 </Typography.Text>
               </div>
             </div>
@@ -552,10 +561,10 @@ export function UsersContent({
             </div>
           </Form>
         ) : null}
-      </Modal>
+      </Modal> : null}
 
       {/* ── Reset password ── */}
-      <Modal
+      {mounted ? <Modal
         title={passwordTarget ? `重置密码 · ${passwordTarget.display_name}` : "重置密码"}
         open={passwordTarget !== null}
         onCancel={() => setPasswordTarget(null)}
@@ -612,7 +621,7 @@ export function UsersContent({
             </div>
           </Form>
         ) : null}
-      </Modal>
+      </Modal> : null}
     </>
   );
 }

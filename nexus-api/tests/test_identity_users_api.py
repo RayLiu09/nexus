@@ -228,3 +228,72 @@ def test_change_own_password_rejects_wrong_current(app, session, stub_user):
     session.refresh(stub_user)
     # Password must NOT have been changed.
     assert auth_service.verify_password("Correct123", stub_user.password_hash)
+
+
+def test_create_user_missing_description_column_returns_actionable_message(
+    app, session, monkeypatch
+):
+    """Simulate the "operator forgot to run alembic upgrade" case: the
+    description column is missing on user_account. Endpoint must return a 500
+    with a message that names the alembic step, not the opaque generic 500."""
+    from sqlalchemy.exc import DBAPIError
+
+    from nexus_app import services as app_services
+
+    class _FakeOrig(Exception):
+        def __str__(self) -> str:  # matches Postgres UndefinedColumn wording
+            return 'column "description" of relation "user_account" does not exist'
+
+    def _boom(*_args, **_kwargs):
+        raise DBAPIError("INSERT INTO ...", {}, _FakeOrig())
+
+    monkeypatch.setattr(app_services, "create_user", _boom)
+
+    client = TestClient(app)
+    resp = client.post(
+        "/internal/v1/users",
+        json={
+            "username": "diag@nexus.local",
+            "display_name": "Diag",
+            "role": "business_expert",
+            "password": "SecretPassw0rd!",
+        },
+    )
+    assert resp.status_code == 500, resp.text
+    body = resp.json()
+    # The error envelope's message must guide the operator to fix the issue.
+    assert "alembic upgrade head" in body["error"]["message"]
+    assert "description" in body["error"]["message"]
+
+
+def test_create_user_missing_audit_enum_value_returns_actionable_message(
+    app, session, monkeypatch
+):
+    from sqlalchemy.exc import DBAPIError
+
+    from nexus_app import services as app_services
+
+    class _FakeOrig(Exception):
+        def __str__(self) -> str:
+            return (
+                'invalid input value for enum auditeventtype: "UserCreated"'
+            )
+
+    def _boom(*_args, **_kwargs):
+        raise DBAPIError("INSERT INTO audit_log ...", {}, _FakeOrig())
+
+    monkeypatch.setattr(app_services, "create_user", _boom)
+
+    client = TestClient(app)
+    resp = client.post(
+        "/internal/v1/users",
+        json={
+            "username": "diag2@nexus.local",
+            "display_name": "Diag",
+            "role": "business_expert",
+            "password": "SecretPassw0rd!",
+        },
+    )
+    assert resp.status_code == 500, resp.text
+    assert "alembic upgrade head" in resp.json()["error"]["message"]
+    assert "auditeventtype" in resp.json()["error"]["message"]

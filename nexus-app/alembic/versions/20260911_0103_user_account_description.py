@@ -1,7 +1,16 @@
-"""Add description column to user_account and console user CRUD audit events.
+"""Add description column to user_account and sync auditeventtype enum.
 
 Revision ID: 20260911_0103
 Revises: 20260911_0102
+
+- Adds the optional `description` column on `user_account` (rendered by the
+  console /users module).
+- Introduces four new console-facing audit event values —
+  UserCreated / UserUpdated / UserStatusChanged / UserPasswordReset —
+  and re-syncs the ENTIRE ``auditeventtype`` PostgreSQL enum to the
+  Python source of truth. Follows the defensive pattern established by
+  20260626_0045_sync_audit_event_enum_for_ability_analysis.py so any
+  historically-missed enum member is picked up here as well.
 """
 
 from __future__ import annotations
@@ -20,29 +29,23 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
-_NEW_AUDIT_EVENTS = (
-    AuditEventType.USER_CREATED,
-    AuditEventType.USER_UPDATED,
-    AuditEventType.USER_STATUS_CHANGED,
-    AuditEventType.USER_PASSWORD_RESET,
-)
-
-
 def upgrade() -> None:
-    # New optional human-readable note surfaced by the console
-    # user-management module (nexus-console /users).
     op.add_column(
         "user_account",
         sa.Column("description", sa.String(length=500), nullable=True),
     )
-    # PostgreSQL native enum requires ALTER TYPE ADD VALUE for each new member.
-    # SQLite treats the column as text so this is a no-op there.
     bind = op.get_bind()
-    if bind.dialect.name == "postgresql":
-        for member in _NEW_AUDIT_EVENTS:
-            op.execute(
-                f"ALTER TYPE auditeventtype ADD VALUE IF NOT EXISTS '{member.value}'"
-            )
+    if bind.dialect.name != "postgresql":
+        # SQLite treats the enum column as text — validation happens at the
+        # SQLAlchemy layer, so nothing to sync.
+        return
+    # Idempotent sync of EVERY AuditEventType member (not just the four new
+    # ones). Guarantees the four USER_* values land even if a prior migration
+    # was skipped or the DB was seeded from an out-of-date snapshot.
+    for member in AuditEventType:
+        op.execute(
+            f"ALTER TYPE auditeventtype ADD VALUE IF NOT EXISTS '{member.value}'"
+        )
 
 
 def downgrade() -> None:

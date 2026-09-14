@@ -1,10 +1,12 @@
 """Identity endpoints (`/internal/v1/{org-units,users,api-callers}`)."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
@@ -16,7 +18,29 @@ from nexus_app.audit import write_audit
 from nexus_app.database import get_db
 from nexus_app.enums import AuditEventType
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+
+
+def _diagnose_dbapi_error(exc: DBAPIError) -> str | None:
+    """Translate common Postgres failure modes into an actionable operator hint.
+
+    Returns None if the failure doesn't match any known pattern (caller should
+    fall through to the generic 500 handler)."""
+    text = str(exc.orig or exc).lower()
+    if "column" in text and "description" in text and "does not exist" in text:
+        return (
+            "user_account.description column is missing — the database has not been "
+            "migrated to head. Run `alembic upgrade head` on nexus-app."
+        )
+    if "invalid input value for enum" in text and "auditeventtype" in text:
+        return (
+            "auditeventtype PostgreSQL enum is missing the console user CRUD values "
+            "(UserCreated / UserUpdated / UserStatusChanged / UserPasswordReset). "
+            "Run `alembic upgrade head` on nexus-app to sync the enum."
+        )
+    return None
 
 
 # ── Org units ────────────────────────────────────────────────────────────
@@ -76,6 +100,16 @@ def create_user(
         )
     except services.DuplicateUsernameError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except DBAPIError as exc:
+        # DDL drift (missing column / stale enum) surfaces here as a generic
+        # 500. Attempt to translate into an actionable message so the operator
+        # doesn't have to grep application logs to see the real cause.
+        hint = _diagnose_dbapi_error(exc)
+        if hint is not None:
+            logger.warning("create_user DDL drift detected: %s", hint)
+            session.rollback()
+            raise HTTPException(status_code=500, detail=hint) from exc
+        raise
     return response(row, request)
 
 
