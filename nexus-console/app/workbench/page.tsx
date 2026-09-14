@@ -1,7 +1,13 @@
 import { PageHeader } from "@/components/PageHeader";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { loadWorkbenchData } from "@/lib/console-data";
-import type { AuditLog, DataSource, IngestBatch } from "@/lib/api";
+import type {
+  AuditLog,
+  DataSource,
+  IngestBatch,
+  WorkbenchJobDuration,
+  WorkbenchQueueTrend,
+} from "@/lib/api";
 import { WorkbenchContent } from "./_components/WorkbenchContent";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +19,7 @@ export interface WorkbenchData {
   succeededJobs: number;
   failedJobs: number;
   runningJobs: number;
+  queuedJobs: number;
   pipelineHealth: number;
   governanceCoverage: number;
   autoAdopted: number;
@@ -24,8 +31,8 @@ export interface WorkbenchData {
     href: string;
     actionLabel: string;
   }[];
-  rawCount: number;
-  funnelSteps: { label: string; value: number }[];
+  executionDurationTop: WorkbenchJobDuration[];
+  queueTrend: WorkbenchQueueTrend[];
   /** 最近 batches，按 updated_at desc 排序；UnifiedActivityFeed 内部切片 */
   batches: IngestBatch[];
   /** 最近 audits，按 created_at desc 排序；UnifiedActivityFeed 内部切片 */
@@ -43,6 +50,7 @@ export default async function WorkbenchPage() {
   const succeededJobs = summary?.succeeded_jobs ?? 0;
   const failedJobs = summary?.failed_jobs ?? 0;
   const runningJobs = summary?.running_jobs ?? 0;
+  const queuedJobs = summary?.queued_jobs ?? 0;
   const pipelineHealth = summary?.pipeline_health ?? 100;
   const governanceCoverage = summary?.governance_coverage ?? 0;
   const autoAdopted = summary?.auto_adopted ?? 0;
@@ -63,14 +71,6 @@ export default async function WorkbenchPage() {
       actionLabel: "查看失败作业",
     });
 
-  const rawCount = summary?.raw_object_count ?? 0;
-  const funnelSteps = [
-    { label: "原始对象", value: rawCount },
-    { label: "数据资产", value: assetCount },
-    { label: "标准化引用", value: refCount },
-    { label: "已治理", value: summary?.governed_ref_count ?? 0 },
-  ];
-
   const processingBatches = summary?.processing_batches ?? 0;
 
   // 服务端预排序：UnifiedActivityFeed 切片即可
@@ -90,14 +90,15 @@ export default async function WorkbenchPage() {
     succeededJobs,
     failedJobs,
     runningJobs,
+    queuedJobs,
     pipelineHealth,
     governanceCoverage,
     autoAdopted,
     avgQuality,
     qualityPass,
     attentionItems,
-    rawCount,
-    funnelSteps,
+    executionDurationTop: summary?.execution_duration_top ?? [],
+    queueTrend: summary?.queue_trend ?? [],
     batches: sortedBatches,
     audits: sortedAudits,
     dataSourceById,

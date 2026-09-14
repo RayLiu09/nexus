@@ -182,6 +182,7 @@ def test_workbench_summary_uses_all_rows_beyond_default_page(session):
     assert summary.succeeded_jobs == 18
     assert summary.failed_jobs == 3
     assert summary.running_jobs == 4
+    assert summary.queued_jobs == 2
     assert summary.pipeline_health == 86
     assert summary.governed_ref_count == 25
     assert summary.governance_coverage == 100
@@ -203,3 +204,19 @@ def test_workbench_summary_endpoint_uses_standard_envelope(session, fake_request
     assert payload.data.asset_count == 0
     assert payload.data.review_items == []
     assert payload.meta.trace_id == "trace-test-001"
+
+
+def test_workbench_failed_jobs_use_final_logical_job_state(session):
+    _seed_workbench_data(session)
+
+    retried_job = session.get(models.Job, "job-18")
+    assert retried_job is not None
+    # A manual retry reuses the durable job row. Once the retry succeeds, the
+    # earlier failed attempt must not remain in the Workbench failure total.
+    retried_job.status = JobStatus.SUCCEEDED
+    retried_job.retry_count = 1
+    session.commit()
+
+    summary = build_workbench_summary(session)
+
+    assert summary.failed_jobs == 2

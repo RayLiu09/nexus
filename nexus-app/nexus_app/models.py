@@ -909,6 +909,15 @@ class AIGovernanceRun(TimestampMixin, Base):
     __tablename__ = "ai_governance_run"
     __table_args__ = (
         Index("ix_ai_governance_run_ref_id", "normalized_ref_id"),
+        # Supports the PostgreSQL DISTINCT ON query used by the Workbench
+        # summary to select the latest run per normalized reference.
+        Index(
+            "ix_ai_governance_run_latest_ref",
+            "normalized_ref_id",
+            "created_at",
+            "updated_at",
+            "id",
+        ),
         Index("ix_ai_governance_run_profile_id", "profile_id"),
         Index("ix_ai_governance_run_validation_status", "validation_status"),
     )

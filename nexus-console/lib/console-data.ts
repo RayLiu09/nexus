@@ -9,27 +9,24 @@ import {
   type OrgUnit,
   type ParseArtifact,
   type RawObject,
-  type RuntimeState,
   type UserAccount,
   type WorkbenchSummary,
   getApiData,
 } from "@/lib/api";
 
 export async function loadWorkbenchData() {
-  const [summary, runtime, dataSources, batches, audits] = await Promise.all([
+  const [summary, dataSources, batches, audits] = await Promise.all([
     getApiData<WorkbenchSummary | null>("/internal/v1/workbench/summary", null),
-    getApiData<RuntimeState | null>("/internal/v1/runtime/state", null),
     getApiData<DataSource[]>("/internal/v1/data-sources", [], { pageSize: "200" }),
     getApiData<IngestBatch[]>("/internal/v1/ingest/batches", [], { pageSize: "20" }),
     getApiData<AuditLog[]>("/internal/v1/audit-logs", [], { pageSize: "20" }),
   ]);
 
-  const results = [summary, runtime, dataSources, batches, audits];
+  const results = [summary, dataSources, batches, audits];
   const failed = results.find((item) => !item.ok);
 
   return {
     summary,
-    runtime,
     dataSources,
     batches,
     audits,

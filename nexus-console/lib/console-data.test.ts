@@ -29,7 +29,6 @@ describe("loadWorkbenchData", () => {
     expect(result.summary.data).toEqual({ asset_count: 309 });
     expect(requestedPaths).toEqual([
       "/internal/v1/workbench/summary",
-      "/internal/v1/runtime/state",
       "/internal/v1/data-sources",
       "/internal/v1/ingest/batches",
       "/internal/v1/audit-logs",

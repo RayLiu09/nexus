@@ -34,6 +34,19 @@ export type WorkbenchReviewItem = {
   adoption_status: string;
 };
 
+export type WorkbenchJobDuration = {
+  job_id: string;
+  job_type: string;
+  status: string;
+  duration_seconds: number;
+};
+
+export type WorkbenchQueueTrend = {
+  month: string;
+  queued_count: number;
+  average_wait_seconds: number;
+};
+
 export type WorkbenchSummary = {
   asset_count: number;
   normalized_ref_count: number;
@@ -44,6 +57,7 @@ export type WorkbenchSummary = {
   succeeded_jobs: number;
   failed_jobs: number;
   running_jobs: number;
+  queued_jobs: number;
   pipeline_health: number;
   governed_ref_count: number;
   governance_coverage: number;
@@ -54,6 +68,8 @@ export type WorkbenchSummary = {
   quality_fail: number;
   avg_quality: number;
   review_items: WorkbenchReviewItem[];
+  execution_duration_top: WorkbenchJobDuration[];
+  queue_trend: WorkbenchQueueTrend[];
 };
 
 export type OrgUnit = {

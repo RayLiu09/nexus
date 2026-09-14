@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Alert, Button, Card, Progress, Statistic, Tag, Tooltip } from "antd";
+import { Alert, Button, Card, Progress, Statistic, Tag } from "antd";
 import {
   ArrowRightOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
-  RiseOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
 
@@ -34,25 +33,34 @@ export function WorkbenchContent({ data }: { data: WorkbenchData }) {
   const {
     assetCount,
     refCount,
-    governedRefCount,
     succeededJobs,
     failedJobs,
     runningJobs,
+    queuedJobs,
     pipelineHealth,
     governanceCoverage,
     autoAdopted,
     qualityPass,
     avgQuality,
     attentionItems,
-    rawCount,
-    funnelSteps,
+    executionDurationTop,
+    queueTrend,
     batches,
     audits,
     dataSourceById,
-    processingBatches,
   } = data;
 
   const hasQuality = avgQuality > 0;
+  const maxDuration = Math.max(...executionDurationTop.map((item) => item.duration_seconds), 1);
+  const maxQueued = Math.max(...queueTrend.map((item) => item.queued_count), 1);
+  const maxWait = Math.max(...queueTrend.map((item) => item.average_wait_seconds), 1);
+
+  function formatDuration(seconds: number): string {
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+    return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  }
 
   return (
     <>
@@ -93,9 +101,7 @@ export function WorkbenchContent({ data }: { data: WorkbenchData }) {
         {/* Secondary 2 —— AI 治理覆盖率（管理员视角：AI 自动化占比） */}
         <Card size="small" className="metric-secondary">
           <Statistic title="AI 治理覆盖率" value={governanceCoverage} suffix="%" />
-          <div className="text-text-muted text-num mt-1 text-xs">
-            {autoAdopted} 项已自动采纳
-          </div>
+          <div className="text-text-muted text-num mt-1 text-xs">{autoAdopted} 项已自动采纳</div>
         </Card>
 
         {/* Secondary 3 —— 数据质量均分（空态用 em-dash）*/}
@@ -156,76 +162,88 @@ export function WorkbenchContent({ data }: { data: WorkbenchData }) {
         </div>
       )}
 
-      {/* ── Focus Module —— 主链路漏斗（管理员视角占满宽）───────────── */}
-      <Card title="主链路漏斗" size="small" className="mb-5">
-        <div className="grid gap-3">
-          {funnelSteps.map((step, i) => {
-            const rawPct = rawCount > 0 ? (step.value / rawCount) * 100 : 0;
-            const cappedPct = Math.min(100, Math.round(rawPct));
-            const overage = rawPct > 100 ? Math.round(rawPct - 100) : 0;
-            const convRate =
-              i > 0 && funnelSteps[i - 1].value > 0
-                ? Math.round((step.value / funnelSteps[i - 1].value) * 100)
-                : null;
-            const isEmpty = step.value === 0;
-            return (
-              <div key={step.label}>
-                <div className="mb-1 flex items-center justify-between text-sm">
-                  <span className={isEmpty ? "text-text-muted" : ""}>{step.label}</span>
-                  <span className={`text-num ${isEmpty ? "text-text-muted" : "font-semibold"}`}>
-                    {step.value}
-                    {convRate !== null && (
-                      <span className="text-text-muted ml-1.5 text-xs">({convRate}%)</span>
-                    )}
-                    {overage > 0 && (
-                      <Tooltip
-                        title={`引用数 ${step.value} 超出原始对象 ${rawCount}，包含多版本或回溯生成`}
-                      >
-                        <Tag color="processing" className="ml-2 text-[11px]">
-                          <RiseOutlined className="mr-0.5" />+{overage}%
-                        </Tag>
-                      </Tooltip>
-                    )}
-                  </span>
+      {/* ── Resource Insights —— 执行时长与队列趋势 ───────────────────── */}
+      <div className="mb-5 grid gap-4 lg:grid-cols-2">
+        <Card
+          title="任务执行时长 TOP 10"
+          size="small"
+          extra={<span className="text-text-muted text-xs">近 6 个月</span>}
+        >
+          {executionDurationTop.length === 0 ? (
+            <div className="text-text-muted py-8 text-center text-sm">暂无可用执行时长数据</div>
+          ) : (
+            <div className="grid gap-3">
+              {executionDurationTop.map((item) => (
+                <div
+                  key={item.job_id}
+                  className="grid grid-cols-[104px_1fr_auto] items-center gap-2"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-medium" title={item.job_id}>
+                      {item.job_type}
+                    </div>
+                    <div className="text-text-muted truncate font-mono text-[10px]">
+                      {item.job_id.slice(0, 8)}
+                    </div>
+                  </div>
+                  <Progress
+                    percent={Math.round((item.duration_seconds / maxDuration) * 100)}
+                    showInfo={false}
+                    size="small"
+                    strokeColor="var(--brand-600)"
+                  />
+                  <div className="text-num text-text-secondary text-xs">
+                    {formatDuration(item.duration_seconds)}
+                  </div>
                 </div>
-                <Progress
-                  percent={cappedPct}
-                  showInfo={false}
-                  size="small"
-                  strokeColor={isEmpty ? "var(--line-strong)" : "var(--brand-gradient)"}
-                />
-              </div>
-            );
-          })}
-        </div>
-      </Card>
+              ))}
+            </div>
+          )}
+        </Card>
 
-      {/* ── Running Status —— 满宽 3 列 ──────────────────────────────── */}
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Card size="small" className="metric-secondary">
-          <Statistic
-            title="运行中作业"
-            value={runningJobs}
-            styles={{ content: runningJobs === 0 ? { color: "var(--text-muted)" } : undefined }}
-          />
-        </Card>
-        <Card size="small" className="metric-secondary">
-          <Statistic
-            title="处理中批次"
-            value={processingBatches}
-            styles={{
-              content: processingBatches === 0 ? { color: "var(--text-muted)" } : undefined,
-            }}
-          />
-        </Card>
-        <Card size="small" className="metric-secondary">
-          <Statistic
-            title="已治理引用"
-            value={governedRefCount}
-            styles={{
-              content: governedRefCount === 0 ? { color: "var(--text-muted)" } : undefined,
-            }}
-          />
+        <Card
+          title="任务排队趋势"
+          size="small"
+          extra={
+            <span className="text-text-muted text-xs">
+              当前排队 {queuedJobs} · 近 6 个月入队量 / 平均等待
+            </span>
+          }
+        >
+          <div className="mb-3 flex items-center gap-4 text-xs">
+            <span className="flex items-center gap-1.5">
+              <i className="bg-brand-600 h-2 w-2 rounded-full" />
+              入队量
+            </span>
+            <span className="flex items-center gap-1.5">
+              <i className="bg-warning-600 h-2 w-2 rounded-full" />
+              平均等待
+            </span>
+          </div>
+          <div className="grid grid-cols-6 items-end gap-2">
+            {queueTrend.map((item) => (
+              <div key={item.month} className="grid min-w-0 gap-1 text-center">
+                <div className="border-line-light relative flex h-28 items-end justify-center gap-1 border-b">
+                  <div
+                    className="bg-brand-600/80 w-3 rounded-t"
+                    style={{ height: `${Math.max(4, (item.queued_count / maxQueued) * 100)}%` }}
+                    title={`${item.month} 入队 ${item.queued_count}`}
+                  />
+                  <div
+                    className="bg-warning-600/80 w-3 rounded-t"
+                    style={{
+                      height: `${Math.max(4, (item.average_wait_seconds / maxWait) * 100)}%`,
+                    }}
+                    title={`${item.month} 平均等待 ${formatDuration(item.average_wait_seconds)}`}
+                  />
+                </div>
+                <div className="text-text-muted text-[10px]">{item.month.slice(5)}月</div>
+                <div className="text-num text-text-secondary text-[10px]">
+                  {item.queued_count} · {formatDuration(item.average_wait_seconds)}
+                </div>
+              </div>
+            ))}
+          </div>
         </Card>
       </div>
 

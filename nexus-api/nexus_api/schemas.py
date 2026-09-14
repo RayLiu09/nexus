@@ -54,6 +54,19 @@ class WorkbenchReviewItemRead(BaseModel):
     adoption_status: str
 
 
+class WorkbenchJobDurationRead(BaseModel):
+    job_id: str
+    job_type: str
+    status: str
+    duration_seconds: int
+
+
+class WorkbenchQueueTrendRead(BaseModel):
+    month: str
+    queued_count: int
+    average_wait_seconds: int
+
+
 class WorkbenchSummaryRead(BaseModel):
     asset_count: int
     normalized_ref_count: int
@@ -64,6 +77,7 @@ class WorkbenchSummaryRead(BaseModel):
     succeeded_jobs: int
     failed_jobs: int
     running_jobs: int
+    queued_jobs: int
     pipeline_health: int
     governed_ref_count: int
     governance_coverage: int
@@ -74,6 +88,8 @@ class WorkbenchSummaryRead(BaseModel):
     quality_fail: int
     avg_quality: int
     review_items: list[WorkbenchReviewItemRead] = Field(default_factory=list)
+    execution_duration_top: list[WorkbenchJobDurationRead] = Field(default_factory=list)
+    queue_trend: list[WorkbenchQueueTrendRead] = Field(default_factory=list)
 
 
 # ── Auth contract (mirrors nexus-console/lib/auth/token.ts) ─────────────────
