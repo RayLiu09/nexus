@@ -7,7 +7,11 @@ from sqlalchemy.orm import Session
 from nexus_app import models
 from nexus_app.api_permissions import OPEN_API_FULL_ACCESS_SCOPES
 from nexus_app.audit import write_audit
-from nexus_app.auth_service import generate_api_caller_key, hash_api_caller_key
+from nexus_app.auth_service import (
+    generate_api_caller_key,
+    hash_api_caller_key,
+    hash_password,
+)
 from nexus_app.enums import AuditEventType
 
 ModelT = TypeVar("ModelT")
@@ -88,9 +92,150 @@ def create_org_unit(session: Session, payload) -> models.OrgUnit:
     return row
 
 
-def create_user(session: Session, payload) -> models.UserAccount:
-    row = models.UserAccount(**payload.model_dump())
+class DuplicateUsernameError(Exception):
+    """Raised by `create_user` when the requested username already exists."""
+
+    def __init__(self, username: str) -> None:
+        super().__init__(f"username '{username}' already exists")
+        self.username = username
+
+
+def _summarize_user(row: "models.UserAccount") -> dict[str, Any]:
+    return {
+        "username": row.username,
+        "display_name": row.display_name,
+        "role": row.role.value if hasattr(row.role, "value") else str(row.role),
+        "status": row.status.value if hasattr(row.status, "value") else str(row.status),
+    }
+
+
+def create_user(
+    session: Session,
+    payload,
+    *,
+    trace_id: str | None = None,
+) -> models.UserAccount:
+    """Create a console user. Password is bcrypt-hashed; audit event emitted."""
+    data: dict[str, Any] = payload.model_dump()
+    password = data.pop("password")
+    # Username uniqueness check — do it before insert so we can raise a typed
+    # error instead of leaking an IntegrityError to the route layer.
+    existing = session.scalar(
+        select(models.UserAccount).where(models.UserAccount.username == data["username"])
+    )
+    if existing is not None:
+        raise DuplicateUsernameError(data["username"])
+
+    row = models.UserAccount(**data, password_hash=hash_password(password))
     session.add(row)
+    session.flush()
+    write_audit(
+        session,
+        AuditEventType.USER_CREATED,
+        target_type="user_account",
+        target_id=row.id,
+        trace_id=trace_id,
+        summary=_summarize_user(row),
+    )
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+def update_user(
+    session: Session,
+    user_id: str,
+    payload,
+    *,
+    trace_id: str | None = None,
+) -> models.UserAccount:
+    """Partial update. Fields set to None on the payload are treated as
+    "not provided" (Pydantic default) and skipped."""
+    row = session.get(models.UserAccount, user_id)
+    if row is None:
+        raise ResourceNotFoundError("user_account")
+
+    updates = payload.model_dump(exclude_unset=True)
+    if not updates:
+        return row
+
+    changed: dict[str, tuple[Any, Any]] = {}
+    status_before = row.status
+    for field, new_value in updates.items():
+        current = getattr(row, field)
+        if current != new_value:
+            changed[field] = (current, new_value)
+            setattr(row, field, new_value)
+
+    if not changed:
+        return row
+
+    session.flush()
+
+    if "status" in changed:
+        write_audit(
+            session,
+            AuditEventType.USER_STATUS_CHANGED,
+            target_type="user_account",
+            target_id=row.id,
+            trace_id=trace_id,
+            summary={
+                "username": row.username,
+                "status_before": (
+                    status_before.value
+                    if hasattr(status_before, "value")
+                    else str(status_before)
+                ),
+                "status_after": (
+                    row.status.value if hasattr(row.status, "value") else str(row.status)
+                ),
+            },
+        )
+
+    non_status = {k: v for k, v in changed.items() if k != "status"}
+    if non_status:
+        write_audit(
+            session,
+            AuditEventType.USER_UPDATED,
+            target_type="user_account",
+            target_id=row.id,
+            trace_id=trace_id,
+            summary={
+                "username": row.username,
+                "changed_fields": sorted(non_status.keys()),
+            },
+        )
+
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+def reset_user_password(
+    session: Session,
+    user_id: str,
+    new_password: str,
+    *,
+    trace_id: str | None = None,
+) -> models.UserAccount:
+    """Admin-initiated password reset. Clears any active lockout so the user
+    can log in immediately with the new credential."""
+    row = session.get(models.UserAccount, user_id)
+    if row is None:
+        raise ResourceNotFoundError("user_account")
+
+    row.password_hash = hash_password(new_password)
+    row.failed_login_count = 0
+    row.lockout_until = None
+    session.flush()
+    write_audit(
+        session,
+        AuditEventType.USER_PASSWORD_RESET,
+        target_type="user_account",
+        target_id=row.id,
+        trace_id=trace_id,
+        summary={"username": row.username},
+    )
     session.commit()
     session.refresh(row)
     return row

@@ -42,8 +42,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {/* Navigation groups */}
       <nav className="sidebar-nav" aria-label="主导航">
         {navigation.map((group) => {
-          const visibleItems = group.items.filter(
-            (item) => !item.minRole || roleCanAccess(session?.role, item.minRole),
+          const visibleItems = group.items.filter((item) =>
+            roleCanAccess(session?.role, item.allowedRoles),
           );
           if (visibleItems.length === 0) return null;
           return (

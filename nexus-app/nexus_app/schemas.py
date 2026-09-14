@@ -1,7 +1,9 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+import re
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from nexus_app.api_permissions import OPEN_API_FULL_ACCESS_SCOPES
 from nexus_app.enums import (
@@ -47,13 +49,90 @@ class OrgUnitRead(ORMModel):
     updated_at: datetime
 
 
+# Console-manageable roles. `ops` / `api_caller` exist for backend/service
+# principals and must never be creatable through the user-management console.
+CONSOLE_MANAGEABLE_ROLES: frozenset[UserRole] = frozenset(
+    {UserRole.PLATFORM_DATA_ADMIN, UserRole.BUSINESS_EXPERT}
+)
+
+
+def _require_console_role(role: UserRole) -> UserRole:
+    if role not in CONSOLE_MANAGEABLE_ROLES:
+        raise ValueError(
+            f"role '{role.value}' is not manageable via the console; "
+            "only platform_data_admin and business_expert are allowed"
+        )
+    return role
+
+
+# Kept intentionally permissive — full RFC 5322 validation would require the
+# email-validator dependency (not currently declared). We only need a "looks
+# like an email" gate to reject obviously wrong input in the console.
+_EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
+
+
+def _normalize_login_email(value: str) -> str:
+    normalized = value.strip().lower()
+    if not _EMAIL_RE.match(normalized):
+        raise ValueError("must be a valid email address")
+    return normalized
+
+
 class UserCreate(BaseModel):
-    username: str = Field(min_length=1, max_length=64)
+    """Console-create payload. Username IS the login email (lower-cased)."""
+
+    username: str = Field(min_length=3, max_length=254)
     display_name: str = Field(min_length=1, max_length=128)
     role: UserRole
+    password: str = Field(min_length=8, max_length=128)
     org_unit_id: str | None = None
-    email: str | None = Field(default=None, max_length=255)
+    email: str | None = Field(default=None, max_length=254)
+    description: str | None = Field(default=None, max_length=500)
     status: PrincipalStatus = PrincipalStatus.ACTIVE
+
+    @field_validator("username")
+    @classmethod
+    def _username_is_email(cls, value: str) -> str:
+        return _normalize_login_email(value)
+
+    @field_validator("email")
+    @classmethod
+    def _email_is_email(cls, value: str | None) -> str | None:
+        return None if value is None else _normalize_login_email(value)
+
+    @field_validator("role")
+    @classmethod
+    def _role_manageable(cls, value: UserRole) -> UserRole:
+        return _require_console_role(value)
+
+    @model_validator(mode="after")
+    def _sync_email(self) -> "UserCreate":
+        # If email was omitted, mirror the username so records stay consistent
+        # for downstream consumers that still filter on `email`.
+        if self.email is None:
+            object.__setattr__(self, "email", self.username)
+        return self
+
+
+class UserUpdate(BaseModel):
+    """Partial update. Only present fields are applied."""
+
+    display_name: str | None = Field(default=None, min_length=1, max_length=128)
+    role: UserRole | None = None
+    org_unit_id: str | None = None
+    description: str | None = Field(default=None, max_length=500)
+    status: PrincipalStatus | None = None
+
+    @field_validator("role")
+    @classmethod
+    def _role_manageable(cls, value: UserRole | None) -> UserRole | None:
+        if value is None:
+            return None
+        return _require_console_role(value)
+
+
+class UserPasswordReset(BaseModel):
+    password: str = Field(min_length=8, max_length=128)
 
 
 class UserRead(ORMModel):
@@ -63,6 +142,7 @@ class UserRead(ORMModel):
     role: UserRole
     org_unit_id: str | None
     email: str | None
+    description: str | None
     status: PrincipalStatus
     created_at: datetime
     updated_at: datetime

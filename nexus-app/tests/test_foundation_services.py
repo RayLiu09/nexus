@@ -17,9 +17,10 @@ def create_foundation(session):
     user = services.create_user(
         session,
         UserCreate(
-            username="admin",
+            username="admin@nexus.local",
             display_name="Platform Admin",
             role="platform_data_admin",
+            password="ChangeMe!123",
             org_unit_id=org.id,
         ),
     )
@@ -51,7 +52,7 @@ def test_identity_api_caller_and_data_source_services(session):
     )
 
     assert caller.caller_key == "upper-system-a"
-    assert services.list_rows(session, models.UserAccount)[0].username == "admin"
+    assert services.list_rows(session, models.UserAccount)[0].username == "admin@nexus.local"
     assert services.list_rows(session, models.DataSource)[0].id == source.id
 
 

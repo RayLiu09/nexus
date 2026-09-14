@@ -77,7 +77,7 @@
 
 | Endpoint | Method | Status | 使用页面 | 备注 |
 |----------|--------|--------|----------|------|
-| `/v1/ai/governance-runs` | GET | `partial` | `/workbench`, `/governance`, `/my-workspace` | AI 治理运行列表 |
+| `/v1/ai/governance-runs` | GET | `partial` | `/workbench`, `/governance` | AI 治理运行列表 |
 | `/v1/ai/governance-runs?normalized_ref_id={refId}` | GET | `partial` | `/assets/[assetId]` | 按标准化引用过滤 |
 | `/v1/ai/governance-runs/{id}/adopt` | POST | `planned` | `/governance` | P5.1 裁定操作 |
 | `/v1/ai/governance-runs/{id}/reject` | POST | `planned` | `/governance` | P5.1 裁定操作 |
@@ -149,7 +149,7 @@
 | Endpoint | Method | Status | 使用页面 | 备注 |
 |----------|--------|--------|----------|------|
 | `/v1/runtime/state` | GET | `partial` | `/workbench` | 运行时健康状态 |
-| `/v1/audit-logs` | GET | `partial` | `/workbench`, `/iam-audit`, `/my-workspace` | 审计日志列表 |
+| `/v1/audit-logs` | GET | `partial` | `/workbench`, `/iam-audit` | 审计日志列表 |
 
 ---
 

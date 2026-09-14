@@ -19,19 +19,20 @@ interface MockUser {
 export const MOCK_USERS: ReadonlyArray<MockUser> = [
   {
     id: "user-admin-001",
-    username: "platform_data_admin",
+    username: "admin@nexus.local",
     displayName: "张敏",
     role: "platform_data_admin",
     orgUnit: { id: "org-root", name: "产教融合中心" },
-    description: "平台管理员 — 全部权限，可发布规则、管理 Prompt、查看全部审计",
+    description:
+      "平台数据管理员 — 负责数据源接入、原始台账、作业中心、访问与审计以及用户管理等平台侧功能。",
   },
   {
     id: "user-steward-002",
-    username: "business_expert",
+    username: "expert@nexus.local",
     displayName: "李华",
     role: "business_expert",
     orgUnit: { id: "org-research", name: "教研中心" },
-    description: "业务专家 — 数据源接入、资产治理和治理建议复核",
+    description: "业务专家 — 负责资产中心浏览、智能检索问答以及治理审核与规则/Prompt 的业务复核。",
   },
 ];
 

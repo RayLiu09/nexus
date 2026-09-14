@@ -172,6 +172,9 @@ class UserAccount(TimestampMixin, Base):
     lockout_until: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Free-form description shown in the console user-management module. Not
+    # used for auth / access decisions — purely a human-readable note.
+    description: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     org_unit: Mapped[OrgUnit | None] = relationship()
 

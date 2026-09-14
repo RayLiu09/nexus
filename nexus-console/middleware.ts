@@ -7,18 +7,25 @@
  *   JSON-based error handling on the client (fetch follows the redirect
  *   and receives HTML instead of a structured 401 envelope).
  *
+ * Role enforcement: the two console roles have DISJOINT feature sets
+ * (see navigation.ts). We enforce the same allowlist server-side so a
+ * business_expert cannot reach `/data-sources` (or vice versa) via a
+ * direct URL — they get 302'd to their role home.
+ *
  * Excluded paths (no cookie check):
  * - /login (auth page)
  * - /api/auth/* (login/refresh/logout handlers)
  * - /_next/* (static assets)
  * - /images/* (public image assets used by the login page)
+ * - /avatars/* (public role avatars)
  * - /favicon.ico, etc.
  */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { isConsoleSessionRole } from "@/lib/auth/roles";
+import { CONSOLE_ROLE_HOME, isConsoleSessionRole, type SessionRole } from "@/lib/auth/roles";
+import { ADMIN_ONLY_PREFIXES, EXPERT_ONLY_PREFIXES } from "@/lib/navigation";
 
-const PUBLIC_PATHS = ["/login", "/api/", "/_next/", "/images/", "/favicon.ico"];
+const PUBLIC_PATHS = ["/login", "/api/", "/_next/", "/images/", "/avatars/", "/favicon.ico"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname.startsWith(p));
@@ -44,6 +51,16 @@ function deniedConsoleSession(request: NextRequest): NextResponse {
   return response;
 }
 
+function matchesPrefix(pathname: string, prefixes: readonly string[]): boolean {
+  return prefixes.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
+
+function roleAllowedOnPath(role: SessionRole, pathname: string): boolean {
+  if (role === "platform_data_admin") return !matchesPrefix(pathname, EXPERT_ONLY_PREFIXES);
+  if (role === "business_expert") return !matchesPrefix(pathname, ADMIN_ONLY_PREFIXES);
+  return true;
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -66,8 +83,19 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (!isConsoleSessionRole(tokenRole(accessToken))) {
+  const role = tokenRole(accessToken);
+  if (!isConsoleSessionRole(role)) {
     return deniedConsoleSession(request);
+  }
+
+  // Root always redirects to the role-appropriate landing page, so
+  // business_expert never sees the admin-only /workbench even for a moment.
+  if (pathname === "/") {
+    return NextResponse.redirect(new URL(CONSOLE_ROLE_HOME[role], request.url));
+  }
+
+  if (!roleAllowedOnPath(role, pathname)) {
+    return NextResponse.redirect(new URL(CONSOLE_ROLE_HOME[role], request.url));
   }
 
   return NextResponse.next();

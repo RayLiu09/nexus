@@ -68,7 +68,15 @@ def get_org_unit(org_unit_id: str, request: Request, session: Session = Depends(
 def create_user(
     payload: domain_schemas.UserCreate, request: Request, session: Session = Depends(get_db)
 ):
-    return response(services.create_user(session, payload), request)
+    try:
+        row = services.create_user(
+            session,
+            payload,
+            trace_id=str(getattr(request.state, "trace_id", "")),
+        )
+    except services.DuplicateUsernameError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return response(row, request)
 
 
 @router.get("/users", response_model=schemas.ListResponse[domain_schemas.UserRead])
@@ -90,6 +98,53 @@ def list_users(
 @router.get("/users/{user_id}", response_model=schemas.ApiResponse[domain_schemas.UserRead])
 def get_user(user_id: str, request: Request, session: Session = Depends(get_db)):
     return response(services.get_row(session, models.UserAccount, user_id, "user"), request)
+
+
+@router.patch(
+    "/users/{user_id}",
+    response_model=schemas.ApiResponse[domain_schemas.UserRead],
+)
+def update_user(
+    user_id: str,
+    payload: domain_schemas.UserUpdate,
+    request: Request,
+    session: Session = Depends(get_db),
+):
+    """Partial update: display_name / role / org_unit_id / description / status.
+    Fields omitted from the payload are left untouched."""
+    try:
+        row = services.update_user(
+            session,
+            user_id,
+            payload,
+            trace_id=str(getattr(request.state, "trace_id", "")),
+        )
+    except services.ResourceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"user '{user_id}' not found") from exc
+    return response(row, request)
+
+
+@router.post(
+    "/users/{user_id}/password",
+    response_model=schemas.ApiResponse[domain_schemas.UserRead],
+)
+def reset_user_password(
+    user_id: str,
+    payload: domain_schemas.UserPasswordReset,
+    request: Request,
+    session: Session = Depends(get_db),
+):
+    """Admin-initiated password reset. Clears any active lockout counters."""
+    try:
+        row = services.reset_user_password(
+            session,
+            user_id,
+            payload.password,
+            trace_id=str(getattr(request.state, "trace_id", "")),
+        )
+    except services.ResourceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"user '{user_id}' not found") from exc
+    return response(row, request)
 
 
 # ── API callers ──────────────────────────────────────────────────────────

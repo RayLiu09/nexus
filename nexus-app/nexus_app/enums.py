@@ -282,6 +282,11 @@ class AuditEventType(StrEnum):
     USER_LOGIN_FAILED               = "UserLoginFailed"
     USER_LOGIN_LOCKED               = "UserLoginLocked"
     USER_LOGOUT                     = "UserLogout"
+    # Console user-account CRUD (platform_data_admin operations)
+    USER_CREATED                    = "UserCreated"
+    USER_UPDATED                    = "UserUpdated"
+    USER_STATUS_CHANGED             = "UserStatusChanged"
+    USER_PASSWORD_RESET             = "UserPasswordReset"
     TOKEN_REFRESHED                 = "TokenRefreshed"
     TOKEN_REFRESH_FAILED            = "TokenRefreshFailed"
     # Job control (operator actions)

@@ -73,9 +73,32 @@ export type UserAccount = {
   role: string;
   org_unit_id: string | null;
   email: string | null;
+  description: string | null;
   status: string;
   created_at: string;
   updated_at: string;
+};
+
+export type UserCreatePayload = {
+  username: string;
+  display_name: string;
+  role: "platform_data_admin" | "business_expert";
+  password: string;
+  description?: string | null;
+  org_unit_id?: string | null;
+  status?: "active" | "disabled";
+};
+
+export type UserUpdatePayload = {
+  display_name?: string;
+  role?: "platform_data_admin" | "business_expert";
+  description?: string | null;
+  status?: "active" | "disabled";
+  org_unit_id?: string | null;
+};
+
+export type UserPasswordResetPayload = {
+  password: string;
 };
 
 export type ApiCaller = {
