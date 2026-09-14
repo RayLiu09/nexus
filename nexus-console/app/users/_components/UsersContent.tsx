@@ -391,10 +391,7 @@ export function UsersContent({
     <>
       <ApiState ok={ok} error={error} traceId={traceId} />
 
-      <div className="mb-3 flex items-center justify-between">
-        <div className="text-text-muted text-sm">
-          共 <strong className="text-text">{totalCount}</strong> 位用户 · 仅平台数据管理员可访问本页
-        </div>
+      <div className="mb-3 flex items-center justify-end">
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
           创建用户
         </Button>

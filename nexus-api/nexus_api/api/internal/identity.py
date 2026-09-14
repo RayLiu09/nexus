@@ -8,9 +8,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
-from nexus_api.dependencies import Pagination, pagination_params
+from nexus_api.dependencies import Pagination, pagination_params, require_user
 from nexus_api.responses import list_response, response
-from nexus_app import models, schemas as domain_schemas, services
+from nexus_app import auth_service, models, schemas as domain_schemas, services
 from nexus_app.api_permissions import OPEN_API_FULL_ACCESS_SCOPES
 from nexus_app.audit import write_audit
 from nexus_app.database import get_db
@@ -145,6 +145,36 @@ def reset_user_password(
     except services.ResourceNotFoundError as exc:
         raise HTTPException(status_code=404, detail=f"user '{user_id}' not found") from exc
     return response(row, request)
+
+
+@router.post(
+    "/users/me/change-password",
+    response_model=schemas.ApiResponse[schemas.ChangePasswordResult],
+)
+def change_own_password(
+    payload: schemas.ChangePasswordRequest,
+    request: Request,
+    session: Session = Depends(get_db),
+    current_user: models.UserAccount = Depends(require_user),
+):
+    """Self-service password change for the currently authenticated user.
+
+    Requires the caller to prove knowledge of the current password; on success
+    re-hashes with bcrypt and clears any brute-force lockout counters.
+    Rejects with 400 if the current password does not match — never leaks
+    whether the account exists (the JWT already implies the account exists).
+    """
+    if not auth_service.verify_password(payload.current_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="current password does not match")
+    services.reset_user_password(
+        session,
+        current_user.id,
+        payload.new_password,
+        trace_id=str(getattr(request.state, "trace_id", "")),
+        actor_type="user",
+        actor_id=current_user.id,
+    )
+    return response(schemas.ChangePasswordResult(), request)
 
 
 # ── API callers ──────────────────────────────────────────────────────────

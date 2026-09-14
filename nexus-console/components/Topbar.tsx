@@ -4,7 +4,6 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useState } from "react";
 import {
-  Alert,
   App,
   Avatar,
   Breadcrumb,
@@ -27,6 +26,7 @@ import {
 import { getBreadcrumb } from "@/lib/navigation";
 import { useSession } from "@/lib/auth/useSession";
 import { logout } from "@/lib/auth/session";
+import { postApiData } from "@/lib/api";
 import { useQuickUpload } from "@/components/QuickUploadProvider";
 import { CONSOLE_ROLE_AVATARS, CONSOLE_ROLE_LABELS } from "@/lib/auth/roles";
 
@@ -43,6 +43,7 @@ export function Topbar() {
   const { open: openQuickUpload } = useQuickUpload();
   const { message } = App.useApp();
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
   const [passwordForm] = Form.useForm<PasswordFormValues>();
 
   const breadcrumbItems = crumbs.map((crumb, i) => ({
@@ -66,8 +67,21 @@ export function Topbar() {
     setPasswordOpen(false);
   };
 
-  const handlePasswordSubmit = () => {
-    message.info("修改密码接口尚未接入，本次未提交任何数据");
+  const handlePasswordSubmit = async (values: PasswordFormValues) => {
+    setPasswordSubmitting(true);
+    try {
+      await postApiData<{ ok: boolean }>("/api/auth/change-password", {
+        current_password: values.currentPassword,
+        new_password: values.newPassword,
+      });
+      message.success("密码已更新，请使用新密码登录");
+      closePasswordModal();
+    } catch (err) {
+      const text = err instanceof Error ? err.message : "修改密码失败";
+      message.error(text);
+    } finally {
+      setPasswordSubmitting(false);
+    }
   };
 
   const accountOverlay = (
@@ -185,15 +199,8 @@ export function Topbar() {
       >
         <div className="password-modal-intro">
           <SafetyOutlined aria-hidden="true" />
-          <span>设置新密码后，后续登录将使用新密码。</span>
+          <span>验证当前密码后设置新密码，后续登录将使用新密码。</span>
         </div>
-        <Alert
-          type="info"
-          showIcon
-          title="当前为界面演示"
-          description="修改密码接口尚未接入，提交后不会改变实际密码。"
-          className="password-modal-alert"
-        />
         <Form<PasswordFormValues>
           form={passwordForm}
           layout="vertical"
@@ -238,8 +245,10 @@ export function Topbar() {
             <Input.Password placeholder="请再次输入新密码" autoComplete="new-password" />
           </Form.Item>
           <div className="password-modal-actions">
-            <Button onClick={closePasswordModal}>取消</Button>
-            <Button type="primary" htmlType="submit">
+            <Button onClick={closePasswordModal} disabled={passwordSubmitting}>
+              取消
+            </Button>
+            <Button type="primary" htmlType="submit" loading={passwordSubmitting}>
               确认修改
             </Button>
           </div>

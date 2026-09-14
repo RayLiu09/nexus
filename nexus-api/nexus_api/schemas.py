@@ -119,6 +119,17 @@ class LogoutResult(BaseModel):
     ok: bool = True
 
 
+class ChangePasswordRequest(BaseModel):
+    """Self-service password change for the currently authenticated user."""
+
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class ChangePasswordResult(BaseModel):
+    ok: bool = True
+
+
 # ── Action results for jobs/datasources/api-callers ─────────────────────────
 
 

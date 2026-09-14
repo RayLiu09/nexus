@@ -182,3 +182,49 @@ def test_reset_user_password_clears_lockout(app, session, existing_user):
     audit = _latest_audit(session, AuditEventType.USER_PASSWORD_RESET)
     assert audit is not None
     assert audit.target_id == existing_user.id
+
+
+def test_change_own_password_verifies_current_and_rotates(app, session, stub_user):
+    """Self-service change-password should verify the current password, rehash
+    the new one, and emit an audit event with the acting user as actor."""
+    # stub_user has password_hash=None from conftest — set a real hash so the
+    # current-password check has something to verify against.
+    stub_user.password_hash = auth_service.hash_password("OldPass1234")
+    session.add(stub_user)
+    session.commit()
+
+    client = TestClient(app)
+    resp = client.post(
+        "/internal/v1/users/me/change-password",
+        json={"current_password": "OldPass1234", "new_password": "NewPass1234"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["data"]["ok"] is True
+
+    session.refresh(stub_user)
+    assert auth_service.verify_password("NewPass1234", stub_user.password_hash)
+    assert not auth_service.verify_password("OldPass1234", stub_user.password_hash)
+
+    audit = _latest_audit(session, AuditEventType.USER_PASSWORD_RESET)
+    assert audit is not None
+    assert audit.target_id == stub_user.id
+    assert audit.actor_type == "user"
+    assert audit.actor_id == stub_user.id
+    assert audit.summary.get("self_service") is True
+
+
+def test_change_own_password_rejects_wrong_current(app, session, stub_user):
+    stub_user.password_hash = auth_service.hash_password("Correct123")
+    session.add(stub_user)
+    session.commit()
+
+    client = TestClient(app)
+    resp = client.post(
+        "/internal/v1/users/me/change-password",
+        json={"current_password": "Wrong123!", "new_password": "AnotherNew1"},
+    )
+    assert resp.status_code == 400, resp.text
+
+    session.refresh(stub_user)
+    # Password must NOT have been changed.
+    assert auth_service.verify_password("Correct123", stub_user.password_hash)

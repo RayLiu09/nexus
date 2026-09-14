@@ -217,9 +217,15 @@ def reset_user_password(
     new_password: str,
     *,
     trace_id: str | None = None,
+    actor_type: str | None = None,
+    actor_id: str | None = None,
 ) -> models.UserAccount:
-    """Admin-initiated password reset. Clears any active lockout so the user
-    can log in immediately with the new credential."""
+    """Reset a user's login password. Called by:
+      • admin flow (POST /users/{id}/password) — actor_* omitted;
+      • self-service flow (POST /users/me/change-password) — actor_type='user',
+        actor_id=current_user.id, so the audit row records who performed it.
+    Always clears the brute-force lockout counters so the target user can log
+    in immediately with the new credential."""
     row = session.get(models.UserAccount, user_id)
     if row is None:
         raise ResourceNotFoundError("user_account")
@@ -234,7 +240,12 @@ def reset_user_password(
         target_type="user_account",
         target_id=row.id,
         trace_id=trace_id,
-        summary={"username": row.username},
+        summary={
+            "username": row.username,
+            "self_service": actor_id == row.id,
+        },
+        actor_type=actor_type,
+        actor_id=actor_id,
     )
     session.commit()
     session.refresh(row)
