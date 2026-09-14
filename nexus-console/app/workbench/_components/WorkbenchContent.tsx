@@ -10,7 +10,6 @@ import {
   WarningOutlined,
 } from "@ant-design/icons";
 
-import { DecisionList } from "./DecisionList";
 import { UnifiedActivityFeed } from "./UnifiedActivityFeed";
 import type { WorkbenchData } from "../page";
 
@@ -42,10 +41,7 @@ export function WorkbenchContent({ data }: { data: WorkbenchData }) {
     pipelineHealth,
     governanceCoverage,
     autoAdopted,
-    reviewRequired,
     qualityPass,
-    qualityWarning,
-    qualityFail,
     avgQuality,
     attentionItems,
     rawCount,
@@ -53,7 +49,6 @@ export function WorkbenchContent({ data }: { data: WorkbenchData }) {
     batches,
     audits,
     dataSourceById,
-    reviewItems,
     processingBatches,
   } = data;
 
@@ -95,11 +90,11 @@ export function WorkbenchContent({ data }: { data: WorkbenchData }) {
           <div className="text-text-muted text-num mt-1 text-xs">已标准化 {refCount} 个引用</div>
         </Card>
 
-        {/* Secondary 2 —— AI 治理覆盖率 */}
+        {/* Secondary 2 —— AI 治理覆盖率（管理员视角：AI 自动化占比） */}
         <Card size="small" className="metric-secondary">
           <Statistic title="AI 治理覆盖率" value={governanceCoverage} suffix="%" />
           <div className="text-text-muted text-num mt-1 text-xs">
-            {autoAdopted} 自动 · {reviewRequired} 待复核
+            {autoAdopted} 项已自动采纳
           </div>
         </Card>
 
@@ -120,9 +115,7 @@ export function WorkbenchContent({ data }: { data: WorkbenchData }) {
             </>
           )}
           <div className="text-text-muted text-num mt-1 text-xs">
-            {hasQuality
-              ? `通过 ${qualityPass} · 预警 ${qualityWarning} · 未过 ${qualityFail}`
-              : "暂无评分数据"}
+            {hasQuality ? `已评估 ${qualityPass} 项通过` : "暂无评分数据"}
           </div>
         </Card>
       </div>
@@ -163,65 +156,49 @@ export function WorkbenchContent({ data }: { data: WorkbenchData }) {
         </div>
       )}
 
-      {/* ── Focus Modules ── 漏斗 + 决策待办 ─────────────────────────── */}
-      <div className="mb-5 grid gap-5 lg:grid-cols-[3fr_2fr]">
-        {/* Pipeline Funnel —— 进度条锁 100%，超额数值用 chip 旁挂 */}
-        <Card title="主链路漏斗" size="small">
-          <div className="grid gap-3">
-            {funnelSteps.map((step, i) => {
-              const rawPct = rawCount > 0 ? (step.value / rawCount) * 100 : 0;
-              const cappedPct = Math.min(100, Math.round(rawPct));
-              const overage = rawPct > 100 ? Math.round(rawPct - 100) : 0;
-              const convRate =
-                i > 0 && funnelSteps[i - 1].value > 0
-                  ? Math.round((step.value / funnelSteps[i - 1].value) * 100)
-                  : null;
-              const isEmpty = step.value === 0;
-              return (
-                <div key={step.label}>
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span className={isEmpty ? "text-text-muted" : ""}>{step.label}</span>
-                    <span className={`text-num ${isEmpty ? "text-text-muted" : "font-semibold"}`}>
-                      {step.value}
-                      {convRate !== null && (
-                        <span className="text-text-muted ml-1.5 text-xs">({convRate}%)</span>
-                      )}
-                      {overage > 0 && (
-                        <Tooltip
-                          title={`引用数 ${step.value} 超出原始对象 ${rawCount}，包含多版本或回溯生成`}
-                        >
-                          <Tag color="processing" className="ml-2 text-[11px]">
-                            <RiseOutlined className="mr-0.5" />+{overage}%
-                          </Tag>
-                        </Tooltip>
-                      )}
-                    </span>
-                  </div>
-                  <Progress
-                    percent={cappedPct}
-                    showInfo={false}
-                    size="small"
-                    strokeColor={isEmpty ? "var(--line-strong)" : "var(--brand-gradient)"}
-                  />
+      {/* ── Focus Module —— 主链路漏斗（管理员视角占满宽）───────────── */}
+      <Card title="主链路漏斗" size="small" className="mb-5">
+        <div className="grid gap-3">
+          {funnelSteps.map((step, i) => {
+            const rawPct = rawCount > 0 ? (step.value / rawCount) * 100 : 0;
+            const cappedPct = Math.min(100, Math.round(rawPct));
+            const overage = rawPct > 100 ? Math.round(rawPct - 100) : 0;
+            const convRate =
+              i > 0 && funnelSteps[i - 1].value > 0
+                ? Math.round((step.value / funnelSteps[i - 1].value) * 100)
+                : null;
+            const isEmpty = step.value === 0;
+            return (
+              <div key={step.label}>
+                <div className="mb-1 flex items-center justify-between text-sm">
+                  <span className={isEmpty ? "text-text-muted" : ""}>{step.label}</span>
+                  <span className={`text-num ${isEmpty ? "text-text-muted" : "font-semibold"}`}>
+                    {step.value}
+                    {convRate !== null && (
+                      <span className="text-text-muted ml-1.5 text-xs">({convRate}%)</span>
+                    )}
+                    {overage > 0 && (
+                      <Tooltip
+                        title={`引用数 ${step.value} 超出原始对象 ${rawCount}，包含多版本或回溯生成`}
+                      >
+                        <Tag color="processing" className="ml-2 text-[11px]">
+                          <RiseOutlined className="mr-0.5" />+{overage}%
+                        </Tag>
+                      </Tooltip>
+                    )}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
-        </Card>
-
-        {/* Decision Queue */}
-        <Card
-          title="决策待办"
-          size="small"
-          extra={
-            <Link href="/tag-review" className="text-brand text-xs">
-              查看全部 →
-            </Link>
-          }
-        >
-          <DecisionList items={reviewItems} />
-        </Card>
-      </div>
+                <Progress
+                  percent={cappedPct}
+                  showInfo={false}
+                  size="small"
+                  strokeColor={isEmpty ? "var(--line-strong)" : "var(--brand-gradient)"}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </Card>
 
       {/* ── Running Status —— 满宽 3 列 ──────────────────────────────── */}
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">

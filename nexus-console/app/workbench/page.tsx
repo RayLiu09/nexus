@@ -1,7 +1,7 @@
 import { PageHeader } from "@/components/PageHeader";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { loadWorkbenchData } from "@/lib/console-data";
-import type { AuditLog, DataSource, IngestBatch, WorkbenchReviewItem } from "@/lib/api";
+import type { AuditLog, DataSource, IngestBatch } from "@/lib/api";
 import { WorkbenchContent } from "./_components/WorkbenchContent";
 
 export const dynamic = "force-dynamic";
@@ -16,11 +16,8 @@ export interface WorkbenchData {
   pipelineHealth: number;
   governanceCoverage: number;
   autoAdopted: number;
-  reviewRequired: number;
-  qualityPass: number;
-  qualityWarning: number;
-  qualityFail: number;
   avgQuality: number;
+  qualityPass: number;
   attentionItems: {
     tone: "danger" | "warning";
     text: string;
@@ -34,7 +31,6 @@ export interface WorkbenchData {
   /** 最近 audits，按 created_at desc 排序；UnifiedActivityFeed 内部切片 */
   audits: AuditLog[];
   dataSourceById: Record<string, DataSource | undefined>;
-  reviewItems: WorkbenchReviewItem[];
   processingBatches: number;
 }
 
@@ -50,12 +46,14 @@ export default async function WorkbenchPage() {
   const pipelineHealth = summary?.pipeline_health ?? 100;
   const governanceCoverage = summary?.governance_coverage ?? 0;
   const autoAdopted = summary?.auto_adopted ?? 0;
-  const reviewRequired = summary?.review_required ?? 0;
   const qualityPass = summary?.quality_pass ?? 0;
-  const qualityWarning = summary?.quality_warning ?? 0;
-  const qualityFail = summary?.quality_fail ?? 0;
   const avgQuality = summary?.avg_quality ?? 0;
 
+  // Admin workbench focuses on pipeline / data-plane operations. Governance
+  // review counts and quality-fail alerts belong to the business_expert
+  // workflow (/tag-review, /governance) and are intentionally omitted here —
+  // those routes are also gated to business_expert by middleware, so linking
+  // to them from the admin workbench would produce broken navigation.
   const attentionItems: WorkbenchData["attentionItems"] = [];
   if (failedJobs > 0)
     attentionItems.push({
@@ -63,20 +61,6 @@ export default async function WorkbenchPage() {
       text: `${failedJobs} 个作业失败，需排查`,
       href: "/jobs?status=failed",
       actionLabel: "查看失败作业",
-    });
-  if (reviewRequired > 0)
-    attentionItems.push({
-      tone: "warning",
-      text: `${reviewRequired} 项治理待复核`,
-      href: "/tag-review",
-      actionLabel: "前往复核",
-    });
-  if (qualityFail > 0)
-    attentionItems.push({
-      tone: "warning",
-      text: `${qualityFail} 个资产质量未达标`,
-      href: "/governance",
-      actionLabel: "查看未达标资产",
     });
 
   const rawCount = summary?.raw_object_count ?? 0;
@@ -109,18 +93,14 @@ export default async function WorkbenchPage() {
     pipelineHealth,
     governanceCoverage,
     autoAdopted,
-    reviewRequired,
-    qualityPass,
-    qualityWarning,
-    qualityFail,
     avgQuality,
+    qualityPass,
     attentionItems,
     rawCount,
     funnelSteps,
     batches: sortedBatches,
     audits: sortedAudits,
     dataSourceById,
-    reviewItems: summary?.review_items ?? [],
     processingBatches,
   };
 
