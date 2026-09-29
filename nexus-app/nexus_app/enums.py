@@ -273,6 +273,10 @@ class AuditEventType(StrEnum):
     CRAWLER_RUN_SKIPPED_BY_SCHEDULE = "CrawlerRunSkippedBySchedule"
     CRAWLER_SCHEDULE_PAUSED         = "CrawlerSchedulePaused"
     CRAWLER_SCHEDULE_RESUMED        = "CrawlerScheduleResumed"
+    DATA_SYNC_PLAN_CREATED          = "DataSyncPlanCreated"
+    DATA_SYNC_PLAN_PAUSED           = "DataSyncPlanPaused"
+    DATA_SYNC_PLAN_RESUMED          = "DataSyncPlanResumed"
+    DATA_SYNC_PLAN_DELETED          = "DataSyncPlanDeleted"
     # API caller management
     API_CALLER_CREATED              = "ApiCallerCreated"
     API_CALLER_UPDATED              = "ApiCallerUpdated"

@@ -367,6 +367,31 @@ class CrawlerRegionRead(BaseModel):
     site_count: int
 
 
+class DataSyncPlanCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=128)
+    provider_code: str = Field(min_length=1, max_length=64)
+    frequency: Literal["1_month", "3_months", "6_months", "9_months", "1_year"]
+    query_config: dict[str, Any]
+
+
+class DataSyncPlanRead(ORMModel):
+    id: str
+    name: str
+    provider_code: str
+    status: str
+    frequency: str
+    query_config: dict[str, Any]
+    next_run_at: datetime | None
+    last_run_at: datetime | None
+    created_by: str
+    updated_by: str | None
+    deleted_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
 class CrawlerSitesRead(BaseModel):
     region_code: str
     region_name: str

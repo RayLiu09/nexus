@@ -1,0 +1,1 @@
+"""Trusted provider adapter implementations."""

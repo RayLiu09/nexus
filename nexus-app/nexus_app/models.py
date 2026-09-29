@@ -327,6 +327,35 @@ class CrawlerPlan(TimestampMixin, Base):
     data_source: Mapped[DataSource | None] = relationship()
 
 
+class DataSyncConfig(TimestampMixin, Base):
+    __tablename__ = "data_sync_config"
+    __table_args__ = (
+        CheckConstraint("status IN ('active', 'paused', 'deleted')", name="ck_data_sync_config_status"),
+        CheckConstraint(
+            "frequency IN ('1_month', '3_months', '6_months', '9_months', '1_year')",
+            name="ck_data_sync_config_frequency",
+        ),
+        UniqueConstraint("created_by", "idempotency_key", name="uq_data_sync_config_actor_idem"),
+        Index("ix_data_sync_config_schedule", "status", "next_run_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="active", nullable=False)
+    frequency: Mapped[str] = mapped_column(String(16), nullable=False)
+    query_config: Mapped[dict[str, Any]] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=False
+    )
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[str] = mapped_column(String(36), nullable=False)
+    updated_by: Mapped[str | None] = mapped_column(String(36))
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    idempotency_key: Mapped[str] = mapped_column(String(256), nullable=False)
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
 class CrawlerRun(TimestampMixin, Base):
     __tablename__ = "crawler_run"
     __table_args__ = (

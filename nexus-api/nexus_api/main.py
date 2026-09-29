@@ -37,6 +37,7 @@ from nexus_app.ingest.config_loader import get_ingest_validate_registry
 from nexus_app.normalize.config_loader import get_normalize_schemas_registry
 from nexus_app.retrieval.prompt_profiles_v2 import seed_retrieval_v2_prompts
 from nexus_app.worker.pool import WorkerPool
+from nexus_app.data_sync.catalog import load_catalog
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +174,7 @@ async def lifespan(app: FastAPI):
             ", ".join(deprecated_model_vars),
         )
     check_production_secrets(settings)
+    load_catalog()
     _load_registries_fail_fast()
     _seed_v2_prompts_idempotent()
     worker_pool = WorkerPool(settings)

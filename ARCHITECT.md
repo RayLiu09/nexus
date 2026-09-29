@@ -695,6 +695,8 @@ Rule change, Prompt update, parse failure, index failure, manual review, or scor
 
 ## Ingest Layer Architecture
 
+API Push data sync is a separate control-plane flow from `data_source` and the ingest pipelines. Provider definitions and tenant parameters are loaded from a validated system configuration file, never from a Provider table or hardcoded entries. The adapter owns its query schema, Token API protocol, paging, status mapping, and external controls. The configuration holds `tenant_id`, `tenant_name`, and a Secret reference, never tenantKey plaintext. Users create immutable `data_sync_config` plans with frequency and query parameters; plans can be paused, resumed, or soft-deleted. `data_sync_run` records execution snapshots and does not currently persist fetched business records. Result processing remains a later extension point. See `docs/api_data_sync_framework_implementation_plan.md`.
+
 The ingest gateway uses the `IngestAdapter` protocol:
 
 - `PreparedContent`: `content`, `filename`, `mime_type`, `source_uri`, `raw_metadata`, `batch_summary`, `source_object_key`.
