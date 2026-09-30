@@ -149,6 +149,15 @@ def change_plan_status(
         return plan
     if plan.status == "deleted":
         raise PlanConflict("deleted sync plan cannot be changed")
+    if action == "delete":
+        active_run = session.scalar(
+            select(models.DataSyncRun.id).where(
+                models.DataSyncRun.data_sync_config_id == plan_id,
+                models.DataSyncRun.status.in_(("queued", "running", "paused")),
+            )
+        )
+        if active_run is not None:
+            raise PlanConflict("sync plan has a nonterminal run")
     now = datetime.now(timezone.utc)
     plan.status = target
     plan.updated_by = actor_id

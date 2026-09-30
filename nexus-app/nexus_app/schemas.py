@@ -13,6 +13,7 @@ from nexus_app.enums import (
     AssetVersionStatus,
     DataSourceStatus,
     DataSourceType,
+    DataSyncRunStatus,
     IngestBatchStatus,
     JobStatus,
     JobType,
@@ -388,6 +389,37 @@ class DataSyncPlanRead(ORMModel):
     created_by: str
     updated_by: str | None
     deleted_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class DataSyncRunRead(ORMModel):
+    id: str
+    data_sync_config_id: str
+    provider_code: str
+    adapter_version: str
+    status: DataSyncRunStatus
+    external_task_id: str | None
+    request_id: str | None
+    query_snapshot: dict[str, Any]
+    query_hash: str
+    queued_at: datetime
+    started_at: datetime | None
+    last_polled_at: datetime | None
+    finished_at: datetime | None
+    last_cursor: str | None
+    processed_count: int
+    success_count: int
+    failure_count: int
+    skipped_count: int
+    last_control_action: str | None
+    last_control_requested_at: datetime | None
+    last_control_operator_id: str | None
+    external_status: str | None
+    status_detail: dict[str, Any]
+    failure_summary: str | None
+    result_summary: dict[str, Any]
+    trace_id: str
     created_at: datetime
     updated_at: datetime
 

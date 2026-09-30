@@ -65,6 +65,7 @@ Architecture v3.0 baseline:
 
 - `docs/api_data_sync_framework_implementation_plan.md`: API Push data-sync implementation plan. Provider Catalog is system-file-backed, sync plans are immutable after creation, and fetched result handling is reserved for a later design.
 - `docs/task-packages/wk_api_data_sync_w0_w1_catalog_task_package.md`: first contract and Catalog implementation slice.
+- `docs/task-packages/wk_api_data_sync_w3_run_task_package.md`: provider-independent run persistence, queued-run creation, and internal run read APIs; external execution follows in W4.
 
 - `docs/企业数据与知识资产平台技术选型和架构nexus_v3.0.md`
 - `docs/企业数据与知识资产平台nexus_v8.0.md`

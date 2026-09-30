@@ -1,6 +1,6 @@
 # API Data Sync Contract (W0)
 
-Status: implementation contract for W1-W8. Source: `docs/api_data_sync_framework_implementation_plan.md` v1.7.
+Status: implementation contract for W1-W8. W3 run persistence and internal create/list/detail APIs are implemented; W4 execution and W5 controls remain pending. Source: `docs/api_data_sync_framework_implementation_plan.md` v1.7.
 
 ## Ownership And Boundaries
 
@@ -43,7 +43,7 @@ Provider response fields: `provider_code`, `display_name`, `api_server_url`, `te
 ## Idempotency And Migration Draft
 
 - Plan creation: persist caller scope plus `Idempotency-Key` and a canonical payload digest. Reuse with identical input returns the same plan; reuse with different input returns 409.
-- Manual run creation: key is scoped to plan and caller. Scheduled run creation uses a unique `(plan_id, scheduled_slot)` identity. Under a row lock, only one nonterminal run per plan can exist. Retry after a crash returns the same queued run.
+- Manual run creation: key is scoped to plan and caller. Scheduled run creation uses a unique `(plan_id, scheduled_slot)` identity. Under a row lock, only one nonterminal run per plan can exist. Retry after a crash returns the same queued run while the plan remains active; paused or deleted plans reject creation, including replay.
 - Run controls: persist action and idempotency key with audit; repeated identical requests return current run state. A 401 refreshes Token once, 408/429/5xx use bounded backoff, 409 invokes external-task lookup/recovery, and 422 is not retried.
 - `data_sync_config` migration: UUID PK; unique idempotency scope/key; provider code, immutable name/frequency/query JSONB, plan status, next/last run timestamps, created/updated actor and timestamps, deleted timestamp. Index `(status, next_run_at)` for scheduler claim.
 - `data_sync_run` migration: UUID PK and FK to plan with no cascade delete; provider code, adapter version, immutable query JSONB/hash, seven-state status, external task/request IDs, schedule slot, cursor, counts, control metadata, safe summaries, trace ID, claim owner/lease/heartbeat/retry timestamps and attempts, timestamps. Unique scheduled-slot identity and partial unique nonterminal-plan index. Preserve audit log as the control history.

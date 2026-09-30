@@ -148,14 +148,14 @@ class DataSyncProvider(Protocol):
 
 ### W3 通用 data_sync_run
 
-- [ ] 增加 ORM 模型和迁移。
-- [ ] 固定七个稳定状态，创建后直接进入 `queued`。
-- [ ] 实现 query snapshot/hash、外部任务 ID、cursor、计数和错误摘要。
-- [ ] 实现基于 `active` 计划的手动/定时运行创建，并在创建时冻结 query snapshot 和 adapter 版本。
-- [ ] 实现未终态运行互斥、运行列表和详情 API。
-- [ ] 接入现有审计日志，不增加 data_sync_run_event。
+- [x] 增加 ORM 模型和迁移。
+- [x] 固定七个稳定状态，创建后直接进入 `queued`。
+- [x] 实现 query snapshot/hash、外部任务 ID、cursor、计数和错误摘要字段；运行时写入由 W4 完成。
+- [x] 实现基于 `active` 计划的手动/定时运行创建，并在创建时冻结 query snapshot 和 adapter 版本；调度器调用由 W4 完成。
+- [x] 实现未终态运行互斥、运行列表和详情 API。
+- [x] 接入现有审计日志，不增加 data_sync_run_event。
 
-验收：Mock Provider 可以完整还原一次同步；不同 provider 共用同一运行表和 API。
+本阶段验收：不同 provider 共用同一运行表和 API；Mock Provider 的完整外部同步还原随 W4 执行器验收。W3 的 Data Model、API Contract、Permission And Audit、Version State Review Gates 待人工确认。
 
 ### W4 调度器、Worker 和分页运行时
 

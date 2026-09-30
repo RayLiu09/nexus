@@ -356,6 +356,77 @@ class DataSyncConfig(TimestampMixin, Base):
     request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
 
+class DataSyncRun(TimestampMixin, Base):
+    __tablename__ = "data_sync_run"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('queued', 'running', 'paused', 'succeeded', "
+            "'partially_succeeded', 'failed', 'cancelled')",
+            name="ck_data_sync_run_status",
+        ),
+        UniqueConstraint(
+            "data_sync_config_id", "created_by", "idempotency_key",
+            name="uq_data_sync_run_manual_idem",
+        ),
+        UniqueConstraint(
+            "data_sync_config_id", "scheduled_slot",
+            name="uq_data_sync_run_scheduled_slot",
+        ),
+        Index(
+            "uq_data_sync_run_active_plan", "data_sync_config_id", unique=True,
+            postgresql_where=text("status IN ('queued', 'running', 'paused')"),
+            sqlite_where=text("status IN ('queued', 'running', 'paused')"),
+        ),
+        Index("ix_data_sync_run_status_queued", "status", "queued_at"),
+        Index("ix_data_sync_run_provider_created", "provider_code", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    data_sync_config_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("data_sync_config.id", ondelete="RESTRICT"), nullable=False
+    )
+    provider_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    adapter_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="queued")
+    created_by: Mapped[str | None] = mapped_column(String(36))
+    idempotency_key: Mapped[str | None] = mapped_column(String(256))
+    scheduled_slot: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    external_task_id: Mapped[str | None] = mapped_column(String(256))
+    request_id: Mapped[str | None] = mapped_column(String(256))
+    query_snapshot: Mapped[dict[str, Any]] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=False
+    )
+    query_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    queued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_polled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_cursor: Mapped[str | None] = mapped_column(String(2048))
+    processed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    success_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failure_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    skipped_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_control_action: Mapped[str | None] = mapped_column(String(16))
+    last_control_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_control_operator_id: Mapped[str | None] = mapped_column(String(36))
+    external_status: Mapped[str | None] = mapped_column(String(128))
+    status_detail: Mapped[dict[str, Any]] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict
+    )
+    failure_summary: Mapped[str | None] = mapped_column(String(2000))
+    result_summary: Mapped[dict[str, Any]] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict
+    )
+    trace_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    claim_owner: Mapped[str | None] = mapped_column(String(128))
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    plan: Mapped[DataSyncConfig] = relationship()
+
+
 class CrawlerRun(TimestampMixin, Base):
     __tablename__ = "crawler_run"
     __table_args__ = (

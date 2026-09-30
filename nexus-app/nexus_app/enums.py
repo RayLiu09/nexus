@@ -59,6 +59,16 @@ class JobStatus(StrEnum):
     CANCELLED     = "cancelled"
 
 
+class DataSyncRunStatus(StrEnum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    PAUSED = "paused"
+    SUCCEEDED = "succeeded"
+    PARTIALLY_SUCCEEDED = "partially_succeeded"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
 class JobType(StrEnum):
     INGEST_PROCESS = "ingest_process"
     KNOWLEDGE_CONTINUATION = "knowledge_continuation"
@@ -277,6 +287,7 @@ class AuditEventType(StrEnum):
     DATA_SYNC_PLAN_PAUSED           = "DataSyncPlanPaused"
     DATA_SYNC_PLAN_RESUMED          = "DataSyncPlanResumed"
     DATA_SYNC_PLAN_DELETED          = "DataSyncPlanDeleted"
+    DATA_SYNC_RUN_QUEUED            = "DataSyncRunQueued"
     # API caller management
     API_CALLER_CREATED              = "ApiCallerCreated"
     API_CALLER_UPDATED              = "ApiCallerUpdated"
