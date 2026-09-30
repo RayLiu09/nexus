@@ -2,7 +2,7 @@
 
 ## Source Context
 
-- `docs/api_data_sync_framework_implementation_plan.md` v1.6: file-backed Provider Catalog, adapter-owned query schema and Token protocol, immutable sync plans, seven run states, deferred result sink.
+- `docs/api_data_sync_framework_implementation_plan.md` v1.7: file-backed Provider Catalog, adapter-owned query schema and Token protocol, immutable sync plans, seven run states, deferred result sink.
 - `ARCHITECT.md`, `SPEC.md`, `WORKFLOWS.md`: PostgreSQL polling, internal Console control APIs, audit, and review gates.
 
 ## Goal
@@ -25,14 +25,14 @@ Freeze the data-sync contract and deliver the first executable slice: a validate
 ## Forbidden Changes
 
 - Do not persist Provider Catalog in a database or hardcode its entries.
-- Do not place query schema, Token API URL, or tenantKey plaintext in Catalog JSON.
+- Do not place query schema or Token API URL in Catalog JSON. The committed Mock key is fake; real tenantKey belongs only in a private deployment Catalog.
 - Do not let requests select arbitrary adapter code.
 - Do not introduce RabbitMQ, Celery, Redis, or a new gateway.
 
 ## Deliverables And Acceptance
 
 - Startup/config loader rejects malformed, duplicate, or incompatible Provider entries.
-- Mock Provider appears through an authenticated read-only internal API, including adapter query schema and credential availability, without exposing the Secret reference or value.
+- Mock Provider appears through an authenticated read-only internal API, including adapter query schema and credential availability, without exposing tenantKey.
 - Focused tests pass; root docs and implementation plan agree on ownership.
 
 ## Follow-On Packages

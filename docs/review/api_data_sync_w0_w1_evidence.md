@@ -22,7 +22,7 @@ Human review: completed, as confirmed by the project owner on 2026-09-29.
 | Architecture | Catalog is file-backed; query schema and Token protocol live in adapter; no ingest coupling. | Review completed. |
 | Data Model | Plan has immutable content fields, status check, actor/idempotency uniqueness, soft-delete timestamp; PostgreSQL query uses JSONB. | Review completed for W1; run FK and active-run deletion guard arrive with W3. |
 | API Contract | Authenticated `/internal/v1/data-sync` read/create/control APIs; tests cover 201/409/422/428 and no Provider mutation route. | Review completed. |
-| Permission And Audit | Platform admin role enforced; non-admin 403; create/pause/resume/delete audited with trace ID; Secret reference/value absent from Provider response. | Review completed. |
+| Permission And Audit | Platform admin role enforced; non-admin 403; create/pause/resume/delete audited with trace ID; tenantKey absent from Provider response. | Review completed. |
 
 ## Remaining Implementation
 

@@ -10,14 +10,13 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, field_validator
 
 
 DEFAULT_CATALOG_PATH = Path(__file__).resolve().parents[2] / "config" / "data_sync_providers.json"
 _ADAPTER_REF = re.compile(
     r"^nexus_app\.data_sync\.adapters\.[A-Za-z_][A-Za-z_0-9.]*:[A-Za-z_][A-Za-z_0-9]*$"
 )
-_SECRET_REF = re.compile(r"^env:[A-Z][A-Z0-9_]*$")
 
 
 class CatalogError(ValueError):
@@ -32,7 +31,7 @@ class ProviderConfig(BaseModel):
     api_server_url: str = Field(pattern=r"^https?://[^/\s]+")
     tenant_id: str = Field(min_length=1)
     tenant_name: str = Field(min_length=1)
-    tenant_key_secret_ref: str
+    tenant_key: SecretStr
     adapter_factory: str
     adapter_version: str = Field(min_length=1)
     status: Literal["enabled", "disabled"]
@@ -51,11 +50,11 @@ class ProviderConfig(BaseModel):
             raise ValueError("api_server_url has an invalid port") from exc
         return value
 
-    @field_validator("tenant_key_secret_ref")
+    @field_validator("tenant_key")
     @classmethod
-    def valid_secret_ref(cls, value: str) -> str:
-        if not _SECRET_REF.fullmatch(value):
-            raise ValueError("tenant_key_secret_ref must be an env:VARIABLE reference")
+    def nonempty_tenant_key(cls, value: SecretStr) -> SecretStr:
+        if not value.get_secret_value():
+            raise ValueError("tenant_key must not be empty")
         return value
 
     @field_validator("adapter_factory")
@@ -73,7 +72,7 @@ def _load_adapter(ref: str) -> Any:
         adapter = adapter_type()
     except (AttributeError, ImportError, TypeError) as exc:
         raise CatalogError(f"adapter_factory cannot be loaded: {ref}") from exc
-    for method in ("get_query_schema", "validate_query"):
+    for method in ("get_query_schema", "validate_query", "get_access_token"):
         if not callable(getattr(adapter, method, None)):
             raise CatalogError(f"adapter_factory lacks {method}: {ref}")
     schema = adapter.get_query_schema()
@@ -115,11 +114,7 @@ def list_provider_views(path: Path | None = None) -> list[dict[str, Any]]:
             "display_name": provider.display_name,
             "api_server_url": provider.api_server_url,
             "tenant_name": provider.tenant_name,
-            "credential_status": (
-                "available"
-                if os.environ.get(provider.tenant_key_secret_ref.removeprefix("env:"))
-                else "missing"
-            ),
+            "credential_status": "available",
             "adapter_version": provider.adapter_version,
             "status": provider.status,
             "query_schema": _load_adapter(provider.adapter_factory).get_query_schema(),

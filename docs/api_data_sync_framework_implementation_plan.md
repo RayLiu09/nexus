@@ -1,6 +1,6 @@
 # 通用 API 数据同步框架实施计划
 
-> 文档状态：实施计划 v1.6
+> 文档状态：实施计划 v1.7
 > 本期不包含：crawler-engine provider 实际同步、岗位数据归一化和岗位词典库建设。
 
 ## 目标和边界
@@ -23,13 +23,13 @@ display_name
 api_server_url
 tenant_id
 tenant_name
-tenant_key_secret_ref
+tenant_key
 adapter_factory
 adapter_version
 status
 ```
 
-`api_server_url` 只包含协议、host 和可选 port，不包含任何 API 路径、query、fragment 或认证信息；业务和 Token API 路径由 adapter 实现。`adapter_factory` 引用已部署的 adapter 实现；配置加载时必须校验引用和接口兼容性，不能通过用户请求动态加载任意代码。`query_schema` 由具体 adapter 提供，Token API 地址及其请求格式由具体 adapter 实现，二者都不写入 Provider Catalog 配置文件。`tenant_id`、`tenant_name` 和 `tenant_key_secret_ref` 按 Provider 写入系统配置文件，不硬编码在 adapter 中，也不属于用户的同步计划配置。`tenant_key_secret_ref` 仅是凭证引用；adapter 根据配置的 `tenant_id` 和 Secret Resolver 返回的 tenantKey 获取 access token。tenantKey 不能明文写入配置文件、数据库、响应、日志或审计；Token 使用短期缓存，401 只刷新重试一次。
+`api_server_url` 只包含协议、host 和可选 port，不包含任何 API 路径、query、fragment 或认证信息；业务和 Token API 路径由 adapter 实现。`adapter_factory` 引用已部署的 adapter 实现；配置加载时必须校验引用和接口兼容性，不能通过用户请求动态加载任意代码。`query_schema` 由具体 adapter 提供，Token API 地址及其请求格式由具体 adapter 实现，二者都不写入 Provider Catalog 配置文件。`tenant_id`、`tenant_name` 和 `tenant_key` 按 Provider 写入系统配置文件，不硬编码在 adapter 中，也不属于用户的同步计划配置。adapter 直接使用配置中的 `tenant_id` 和 `tenant_key` 获取 access token，不引入外部 Secret Resolver。配置文件应由部署环境限制访问；真实 tenantKey 不提交到版本库，也不写入数据库、响应、日志或审计。Token 使用短期缓存，401 只刷新重试一次。
 
 API 路径、固定参数、状态映射、分页规则、控制接口等属于 provider adapter 开发配置，不提供用户编辑入口。Logo 由 Console 前端按 `provider_code` 选择和生成默认 SVG，不进入 provider 配置或数据库。
 
@@ -128,7 +128,7 @@ class DataSyncProvider(Protocol):
 
 ### W1 配置文件 Provider Catalog 和同步配置
 
-- [x] 定义系统配置文件格式和加载校验规则，由文件声明 Provider 清单、元数据、租户标识/名称、Secret 引用和 adapter 引用；不增加 Provider 注册表或硬编码 Provider 清单及租户参数。
+- [x] 定义系统配置文件格式和加载校验规则，由文件声明 Provider 清单、元数据、租户标识/名称/key 和 adapter 引用；不增加 Provider 注册表或硬编码 Provider 清单及租户参数。
 - [x] 增加独立的 `data_sync_config` ORM 和迁移。
 - [x] 实现创建计划时由 adapter 提供的 query schema 驱动的校验；计划内容创建后不可编辑。
 - [x] 实现只读 Provider 列表、同步计划创建/读取/暂停/恢复/软删除 API，并审计状态变更。
@@ -139,12 +139,12 @@ class DataSyncProvider(Protocol):
 
 ### W2 租户凭证和 Token 框架
 
-- [ ] 从 Provider 配置文件读取 tenant_id、tenant_name、tenant_key_secret_ref，校验必填值和 Secret 引用可解析；由 adapter 实现 Token API 地址和请求格式。
-- [ ] 实现 Secret Resolver、Token Provider、缓存、过期判断和一次 401 刷新重试。
-- [ ] 分类处理 401、403、Token API 超时和响应格式错误。
-- [ ] 使用 Mock Token Server，增加敏感信息泄漏测试。
+- [x] 从 Provider 配置文件读取 tenant_id、tenant_name、tenant_key，校验必填值；由 adapter 实现 Token API 地址和请求格式。
+- [x] 实现 Token Provider、缓存、过期判断和一次 401 刷新重试，不引入外部 Secret Resolver。
+- [x] 分类处理 401、403、Token API 超时和响应格式错误。
+- [x] 使用 Mock Token Server，增加敏感信息泄漏测试。
 
-验收：租户参数可随 Provider 配置文件调整，无需修改 adapter 代码；明文 tenantKey 不出现在配置文件、数据库、日志、响应和审计；Token 可缓存、刷新和失效。
+验收：租户参数可随 Provider 配置文件调整，无需修改 adapter 代码；真实 tenantKey 只存在于受控的部署配置文件中，不进入版本库、数据库、日志、响应和审计；Token 可缓存、刷新和失效。
 
 ### W3 通用 data_sync_run
 
@@ -217,7 +217,7 @@ crawler-engine provider 作为独立任务包实现 Token API、submit/status/fe
 1. 系统配置文件中的 Provider Catalog 能列出 Provider，Console 能生成对应卡片和默认 SVG Logo；Provider 清单和租户参数不落数据库、不硬编码，用户 API 不能注册或修改 Provider 定义。
 2. 独立的 `data_sync_config` 能保存固定的 frequency 和 query，且不依赖 `data_source`；同一 Provider 可以创建多个计划，计划支持暂停、恢复和软删除。
 3. data_sync_run 为 provider 无关通用记录，创建后直接进入 queued。
-4. adapter 能按自身 Token API 协议获取 access token，框架安全管理 tenantKey 引用、Token 缓存和一次 401 刷新重试。
+4. adapter 能按自身 Token API 协议使用 Provider 配置中的 tenantKey 获取 access token，框架负责 Token 缓存和一次 401 刷新重试。
 5. 支持分页、cursor 续取、重试、幂等、失败结算和暂停/恢复/取消。
 6. Console 允许创建计划并暂停、恢复或删除已有计划；新的频率或 query 通过新计划表达，不提供计划内容编辑。
 7. Mock Provider 端到端测试通过并形成后续 provider adapter 接入模板；同步结果持久化留待后续结果处理流程设计完成后补齐。

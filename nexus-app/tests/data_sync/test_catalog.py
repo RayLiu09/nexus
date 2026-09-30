@@ -16,7 +16,7 @@ def _document():
                 "api_server_url": "http://127.0.0.1:18080",
                 "tenant_id": "tenant-1",
                 "tenant_name": "Test Tenant",
-                "tenant_key_secret_ref": "env:NEXUS_SYNC_TEST_TENANT_KEY",
+                "tenant_key": "private-test-key",
                 "adapter_factory": "nexus_app.data_sync.adapters.mock:MockDataSyncProvider",
                 "adapter_version": "1.0.0",
                 "status": "enabled",
@@ -31,9 +31,8 @@ def _write(tmp_path, document):
     return path
 
 
-def test_catalog_loads_adapter_schema_without_exposing_credentials(tmp_path, monkeypatch):
+def test_catalog_loads_adapter_schema_without_exposing_credentials(tmp_path):
     path = _write(tmp_path, _document())
-    monkeypatch.setenv("NEXUS_SYNC_TEST_TENANT_KEY", "never-return-this-value")
 
     providers = load_catalog(path)
     view = list_provider_views(path)[0]
@@ -42,8 +41,9 @@ def test_catalog_loads_adapter_schema_without_exposing_credentials(tmp_path, mon
     assert view["credential_status"] == "available"
     assert view["query_schema"]["properties"]["keyword"]["minLength"] == 1
     assert "tenant_id" not in view
-    assert "tenant_key_secret_ref" not in view
-    assert "never-return-this-value" not in json.dumps(view)
+    assert "tenant_key" not in view
+    assert "private-test-key" not in json.dumps(view)
+    assert "private-test-key" not in repr(providers[0])
 
 
 def test_catalog_rejects_duplicate_codes(tmp_path):
@@ -56,7 +56,8 @@ def test_catalog_rejects_duplicate_codes(tmp_path):
 @pytest.mark.parametrize(
     "field,value",
     [
-        ("tenant_key_secret_ref", "plaintext-key"),
+        ("tenant_key", ""),
+        ("tenant_key_secret_ref", "env:OBSOLETE"),
         ("adapter_factory", "os:system"),
         ("api_server_url", "https://user:secret@example.com"),
         ("api_server_url", "https://example.com/api/v1"),

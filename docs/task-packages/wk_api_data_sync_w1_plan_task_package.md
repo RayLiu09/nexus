@@ -2,7 +2,7 @@
 
 ## Source Context
 
-- `docs/api_data_sync_framework_implementation_plan.md` v1.6 and `docs/contracts/api_data_sync_contract.md` freeze immutable plans and the control API.
+- `docs/api_data_sync_framework_implementation_plan.md` v1.7 and `docs/contracts/api_data_sync_contract.md` freeze immutable plans and the control API.
 - `WORKFLOWS.md` requires Data Model, API Contract, Permission And Audit gates.
 
 ## Goal
@@ -22,7 +22,7 @@ Persist independent sync plans and expose authenticated create/list/read/pause/r
 ## Forbidden Changes
 
 - Do not edit plan name/Provider/frequency/query after creation.
-- Do not persist Provider definitions, Secret references, or tenantKey in plan rows.
+- Do not persist Provider definitions or tenantKey in plan rows.
 - Do not change crawler plans or ingest jobs.
 
 ## Acceptance

@@ -7,7 +7,7 @@
       "api_server_url": "http://127.0.0.1:18080",
       "tenant_id": "mock-tenant",
       "tenant_name": "Mock Tenant",
-      "tenant_key_secret_ref": "env:NEXUS_SYNC_MOCK_TENANT_KEY",
+      "tenant_key": "mock-test-key",
       "adapter_factory": "nexus_app.data_sync.adapters.mock:MockDataSyncProvider",
       "adapter_version": "1.0.0",
       "status": "enabled"

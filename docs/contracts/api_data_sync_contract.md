@@ -1,10 +1,10 @@
 # API Data Sync Contract (W0)
 
-Status: implementation contract for W1-W8. Source: `docs/api_data_sync_framework_implementation_plan.md` v1.6.
+Status: implementation contract for W1-W8. Source: `docs/api_data_sync_framework_implementation_plan.md` v1.7.
 
 ## Ownership And Boundaries
 
-- `nexus-app/config/data_sync_providers.json` is deployment-owned. It declares Provider metadata, an API server URL containing only scheme/host/optional port, `tenant_id`, `tenant_name`, Secret reference, and adapter reference. It is not a database table or a user-editable resource.
+- The Provider Catalog is deployment-owned. It declares Provider metadata, an API server URL containing only scheme/host/optional port, `tenant_id`, `tenant_name`, `tenant_key`, and adapter reference. The committed Mock Catalog contains a fake key; real keys belong only in a private deployment Catalog selected through `DATA_SYNC_PROVIDER_CATALOG_PATH`. The Catalog is not a database table or a user-editable resource.
 - The adapter owns query schema, Token API endpoint and protocol, submit/status/page/control protocols, and external state mapping. The Catalog may reference only trusted deployed adapters.
 - `data_sync_config` is an immutable user-created sync plan. Name, Provider, frequency, and query parameters cannot be edited. `active`, `paused`, and `deleted` are plan states. Pause blocks future scheduled and manual runs; it does not control an existing run. Delete is soft and returns 409 while a nonterminal run exists.
 - `data_sync_run` is one execution of a plan. It stores an immutable query snapshot and adapter version. It does not store fetched business records in this phase. A result sink is reserved for a later contract.
@@ -36,7 +36,7 @@ All paths below are Console control-plane APIs under the existing authenticated 
 | POST | `/internal/v1/data-sync/runs/{run_id}/resume` | Ask adapter to resume a paused external task. |
 | POST | `/internal/v1/data-sync/runs/{run_id}/cancel` | Ask adapter to cancel a nonterminal external task. |
 
-Provider response fields: `provider_code`, `display_name`, `api_server_url`, `tenant_name`, `credential_status`, `adapter_version`, `status`, and adapter-supplied `query_schema`. Never return `tenant_id`, `tenant_key_secret_ref`, tenantKey, Token API URL, access token, or adapter factory. Plan response fields are plan ID/name/Provider/status/frequency/query/next and last run times/timestamps. Run response fields are the safe fields in the implementation plan; failure and result summaries are bounded and redacted.
+Provider response fields: `provider_code`, `display_name`, `api_server_url`, `tenant_name`, `credential_status`, `adapter_version`, `status`, and adapter-supplied `query_schema`. Never return `tenant_id`, `tenant_key`, Token API URL, access token, or adapter factory. Plan response fields are plan ID/name/Provider/status/frequency/query/next and last run times/timestamps. Run response fields are the safe fields in the implementation plan; failure and result summaries are bounded and redacted.
 
 `400/422` means malformed or schema-invalid input, `404` means unknown ID, `409` means state conflict, active-run deletion, or idempotency-key reuse with a different payload, and `503` means a configured Provider is unavailable. No user request can register Provider code or change adapter/tenant credentials.
 
