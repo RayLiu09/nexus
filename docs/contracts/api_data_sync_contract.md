@@ -1,6 +1,6 @@
 # API Data Sync Contract (W0)
 
-Status: implementation contract for W1-W8. W3 run persistence and internal create/list/detail APIs are implemented; W4 execution and W5 controls remain pending. Source: `docs/api_data_sync_framework_implementation_plan.md` v1.7.
+Status: implementation contract for W1-W8. W3 run persistence and W4 scheduling/execution runtime are implemented; W5 controls remain pending. Source: `docs/api_data_sync_framework_implementation_plan.md` v1.7.
 
 ## Ownership And Boundaries
 
@@ -48,6 +48,7 @@ Provider response fields: `provider_code`, `display_name`, `api_server_url`, `te
 - `data_sync_config` migration: UUID PK; unique idempotency scope/key; provider code, immutable name/frequency/query JSONB, plan status, next/last run timestamps, created/updated actor and timestamps, deleted timestamp. Index `(status, next_run_at)` for scheduler claim.
 - `data_sync_run` migration: UUID PK and FK to plan with no cascade delete; provider code, adapter version, immutable query JSONB/hash, seven-state status, external task/request IDs, schedule slot, cursor, counts, control metadata, safe summaries, trace ID, claim owner/lease/heartbeat/retry timestamps and attempts, timestamps. Unique scheduled-slot identity and partial unique nonterminal-plan index. Preserve audit log as the control history.
 - The stored query hash supports comparison and idempotency within a run; it is not a plan version. Secrets and large external response bodies never enter either table or audit summaries.
+- W4 runtime claims queued runs with a lease, refreshes heartbeat, requeues expired leases within bounded attempts, and persists external IDs, cursors, counters, and bounded failure summaries after each page. Catalog loading and all Token/submit/status/page calls occur outside database transactions. Progress writes use short transactions with lease-owner checks. Runtime startup is opt-in through `DATA_SYNC_RUNTIME_ENABLED` and uses the existing PostgreSQL-backed WorkerPool; no MQ, Celery, Redis, or result sink is required.
 
 ## Review Gates
 

@@ -697,6 +697,8 @@ Rule change, Prompt update, parse failure, index failure, manual review, or scor
 
 API Push data sync is a separate control-plane flow from `data_source` and the ingest pipelines. Provider definitions and tenant parameters are loaded from a validated system configuration file, never from a Provider table or hardcoded entries. The adapter owns its query schema, Token API protocol, paging, status mapping, and external controls. The deployment configuration holds `tenant_id`, `tenant_name`, and `tenant_key`; real keys stay out of version control, database rows, responses, logs, and audit. Users create immutable `data_sync_config` plans with frequency and query parameters; plans can be paused, resumed, or soft-deleted. `data_sync_run` records execution snapshots and does not currently persist fetched business records. Result processing remains a later extension point. See `docs/api_data_sync_framework_implementation_plan.md`.
 
+The W4 runtime optionally starts with `DATA_SYNC_RUNTIME_ENABLED`: a PostgreSQL-backed scheduler creates due runs, and a separate leased worker calls the configured adapter. Provider Catalog and external Token/submit/status/page operations run outside database transactions; progress and status changes use short transactions with lease-owner checks and audit. The runtime does not persist fetched records.
+
 The ingest gateway uses the `IngestAdapter` protocol:
 
 - `PreparedContent`: `content`, `filename`, `mime_type`, `source_uri`, `raw_metadata`, `batch_summary`, `source_object_key`.

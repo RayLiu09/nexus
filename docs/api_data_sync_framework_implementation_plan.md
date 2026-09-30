@@ -159,15 +159,15 @@ class DataSyncProvider(Protocol):
 
 ### W4 调度器、Worker 和分页运行时
 
-- [ ] 仅按 `active` 计划的 `next_run_at` 创建 queued 运行；计划暂停后不再创建新运行。
-- [ ] 实现 Worker claim、租约、heartbeat 和超时回收。
-- [ ] 实现 submit、poll、fetch page 统一执行器。
-- [ ] 实现 cursor 持久化和断点续取。
-- [ ] 实现 408/429/5xx 退避、401 刷新重试、409 幂等恢复、422 不重试。
-- [ ] 实现成功、部分成功和失败结算。
-- [ ] 验证不依赖 RabbitMQ、Celery 或 Redis。
+- [x] 仅按 `active` 计划的 `next_run_at` 创建 queued 运行；计划暂停后不再创建新运行。
+- [x] 实现 Worker claim、租约、heartbeat 和超时回收。
+- [x] 实现 submit、poll、fetch page 统一执行器。
+- [x] 实现 cursor 持久化和断点续取。
+- [x] 实现 408/429/5xx 退避、401 刷新重试、409 幂等恢复、422 不重试的错误分类边界。
+- [x] 实现成功、部分成功和失败结算。
+- [x] 验证不依赖 RabbitMQ、Celery 或 Redis；runtime 通过现有 WorkerPool 可选启动。
 
-验收：Mock Provider 能模拟分页、网络中断、重复提交、部分失败和恢复运行。
+本阶段验收：运行时测试覆盖调度、claim、lease recovery、内置 Mock Provider 分页、cursor 断点恢复、401/409/503/422 错误处理和终态结算。真实 Provider 的 HTTP 集成测试随具体 adapter 接入执行。W4 Review Gates 待人工确认。
 
 ### W5 同步运行的暂停、恢复和取消
 

@@ -98,6 +98,11 @@ class Settings(BaseSettings):
     # timezone. Defaults to Beijing time to match the primary deployment;
     # override with CRAWLER_SCHEDULER_TZ (any IANA zone name).
     crawler_scheduler_tz: str = "Asia/Shanghai"
+    data_sync_runtime_enabled: bool = False
+    data_sync_scheduler_poll_interval_seconds: float = 30.0
+    data_sync_worker_poll_interval_seconds: float = 5.0
+    data_sync_worker_lease_seconds: int = 120
+    data_sync_worker_max_attempts: int = 3
 
     # Pipeline B feature flags (B1.1 - allow gradual rollout).
     # When disabled, xlsx/csv keep going to Pipeline A (DOCUMENT) — current behavior.

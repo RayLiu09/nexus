@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import logging
 import threading
+import uuid
 from dataclasses import dataclass
 
 from nexus_app.config import Settings, get_settings
 from nexus_app.crawler.scheduler import CrawlerScheduler
 from nexus_app.database import get_session_local
+from nexus_app.data_sync.runtime import DataSyncScheduler, DataSyncWorker
 from nexus_app.worker.loop import WorkerLoop
 
 logger = logging.getLogger(__name__)
@@ -28,6 +30,8 @@ class WorkerPool:
         self._threads: list[threading.Thread] = []
         self._loops: list[WorkerLoop] = []
         self._scheduler_thread: threading.Thread | None = None
+        self._data_sync_scheduler_thread: threading.Thread | None = None
+        self._data_sync_worker_thread: threading.Thread | None = None
         self._lock = threading.Lock()
 
     def start(self) -> None:
@@ -62,6 +66,36 @@ class WorkerPool:
                 thread.start()
             logger.info("worker pool started size=%d", self.size)
             self._start_crawler_scheduler()
+            self._start_data_sync_runtime()
+
+    def _start_data_sync_runtime(self) -> None:
+        if not self.settings.data_sync_runtime_enabled:
+            return
+        scheduler = DataSyncScheduler(
+            get_session_local(),
+            poll_interval=self.settings.data_sync_scheduler_poll_interval_seconds,
+        )
+        self._data_sync_scheduler_thread = threading.Thread(
+            target=scheduler.run_until_stopped,
+            args=(self._stop_event,),
+            name="nexus-data-sync-scheduler",
+            daemon=False,
+        )
+        self._data_sync_scheduler_thread.start()
+        worker = DataSyncWorker(
+            get_session_local(),
+            worker_id=f"data-sync-worker-{uuid.uuid4().hex[:12]}",
+            poll_interval=self.settings.data_sync_worker_poll_interval_seconds,
+            lease_seconds=self.settings.data_sync_worker_lease_seconds,
+            max_attempts=self.settings.data_sync_worker_max_attempts,
+        )
+        self._data_sync_worker_thread = threading.Thread(
+            target=worker.run_until_stopped,
+            args=(self._stop_event,),
+            name="nexus-data-sync-worker",
+            daemon=False,
+        )
+        self._data_sync_worker_thread.start()
 
     def _start_crawler_scheduler(self) -> None:
         if not self.settings.crawler_scheduler_enabled:
@@ -89,6 +123,8 @@ class WorkerPool:
         with self._lock:
             threads = list(self._threads)
             scheduler_thread = self._scheduler_thread
+            data_sync_scheduler_thread = self._data_sync_scheduler_thread
+            data_sync_worker_thread = self._data_sync_worker_thread
             self._stop_event.set()
         join_timeout = timeout if timeout is not None else max(
             1.0,
@@ -102,6 +138,9 @@ class WorkerPool:
             thread.join(timeout=join_timeout)
         if scheduler_thread is not None:
             scheduler_thread.join(timeout=join_timeout)
+        for thread in (data_sync_scheduler_thread, data_sync_worker_thread):
+            if thread is not None:
+                thread.join(timeout=join_timeout)
         with self._lock:
             alive = [thread for thread in self._threads if thread.is_alive()]
             if alive:
@@ -110,7 +149,11 @@ class WorkerPool:
             self._loops = [loop for loop, thread in zip(self._loops, threads, strict=False) if thread.is_alive()]
             if self._scheduler_thread is not None and not self._scheduler_thread.is_alive():
                 self._scheduler_thread = None
-            if not alive and self._scheduler_thread is None:
+            if self._data_sync_scheduler_thread is not None and not self._data_sync_scheduler_thread.is_alive():
+                self._data_sync_scheduler_thread = None
+            if self._data_sync_worker_thread is not None and not self._data_sync_worker_thread.is_alive():
+                self._data_sync_worker_thread = None
+            if not alive and self._scheduler_thread is None and self._data_sync_scheduler_thread is None and self._data_sync_worker_thread is None:
                 logger.info("worker pool stopped")
 
     def state(self) -> WorkerPoolState:

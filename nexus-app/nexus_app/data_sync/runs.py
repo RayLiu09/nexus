@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from nexus_app import models
 from nexus_app.audit import write_audit
-from nexus_app.data_sync.catalog import load_catalog
+from nexus_app.data_sync.catalog import ProviderConfig, load_catalog
 from nexus_app.enums import AuditEventType, DataSyncRunStatus
 
 
@@ -43,6 +43,7 @@ def _query_hash(query: dict) -> str:
 def create_manual_run(
     session: Session, *, plan_id: str, actor_id: str, idempotency_key: str, trace_id: str,
 ) -> models.DataSyncRun:
+    providers = load_catalog()
     plan = session.scalar(
         select(models.DataSyncConfig).where(models.DataSyncConfig.id == plan_id).with_for_update()
     )
@@ -67,7 +68,7 @@ def create_manual_run(
     )
     if active is not None:
         raise RunConflict("sync plan already has a nonterminal run")
-    provider = next((item for item in load_catalog() if item.provider_code == plan.provider_code), None)
+    provider = next((item for item in providers if item.provider_code == plan.provider_code), None)
     if provider is None or provider.status != "enabled":
         raise RunConflict("Provider is unavailable")
     snapshot = json.loads(json.dumps(plan.query_config))
@@ -111,9 +112,11 @@ def create_manual_run(
 
 def create_scheduled_run(
     session: Session, *, plan_id: str, scheduled_slot: datetime, trace_id: str,
+    providers: list[ProviderConfig] | None = None,
 ) -> models.DataSyncRun:
     if scheduled_slot.tzinfo is None or scheduled_slot.utcoffset() is None:
         raise RunError("scheduled_slot must include a timezone")
+    providers = providers if providers is not None else load_catalog()
     plan = session.scalar(
         select(models.DataSyncConfig).where(models.DataSyncConfig.id == plan_id).with_for_update()
     )
@@ -134,7 +137,7 @@ def create_scheduled_run(
     ))
     if active is not None:
         raise RunConflict("sync plan already has a nonterminal run")
-    provider = next((item for item in load_catalog() if item.provider_code == plan.provider_code), None)
+    provider = next((item for item in providers if item.provider_code == plan.provider_code), None)
     if provider is None or provider.status != "enabled":
         raise RunConflict("Provider is unavailable")
     snapshot = json.loads(json.dumps(plan.query_config))

@@ -65,3 +65,27 @@ class MockDataSyncProvider:
         ):
             raise TokenInvalidResponse()
         return TokenGrant(access_token=token, expires_in=expires_in)
+
+    def submit(
+        self, context: Any, query: dict[str, Any], access_token: str, idempotency_key: str
+    ) -> dict[str, str]:
+        task_id = f"mock-{idempotency_key}"
+        return {"external_task_id": task_id, "request_id": task_id}
+
+    def get_status(self, context: Any, external_task_id: str, access_token: str) -> dict[str, str]:
+        if not external_task_id.startswith("mock-"):
+            return {"state": "failed", "request_id": external_task_id}
+        return {"state": "succeeded", "request_id": external_task_id}
+
+    def fetch_page(
+        self, context: Any, external_task_id: str, cursor: str | None, access_token: str
+    ) -> dict[str, Any]:
+        if not external_task_id.startswith("mock-"):
+            return {"records": [], "next_cursor": None, "request_id": external_task_id}
+        if cursor == "page-2":
+            return {"records": [], "next_cursor": None, "request_id": external_task_id}
+        return {
+            "records": [{"provider": "mock", "external_task_id": external_task_id}],
+            "next_cursor": "page-2",
+            "request_id": external_task_id,
+        }

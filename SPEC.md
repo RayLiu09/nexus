@@ -30,7 +30,7 @@ Role constraints:
 
 ## P0 Scope
 
-- API Push data sync is planned as a separate flow from `data_source`: read-only file-backed Provider Catalog, user-created immutable sync plans, and provider-independent runs. Plans support pause, resume, and soft delete; adapter-defined query parameters are fixed at creation. This implementation begins with a Mock Provider and Catalog API. External provider integration and result processing are later slices.
+- API Push data sync is a separate flow from `data_source`: read-only file-backed Provider Catalog, user-created immutable sync plans, and provider-independent runs. Plans support pause, resume, and soft delete; adapter-defined query parameters are fixed at creation. The opt-in W4 scheduler and Worker execute runs through the Mock Provider with lease recovery and paged progress. External provider integration, run controls, and result processing are later slices.
 - Local org/user/API caller management.
 - Data source registration and file/NAS/crawler ingestion, plus Mode B scan-task orchestration for configured NAS/Webhook/crawler sources. NEXUS does not support direct external database connections. Crawler supports low-frequency Firecrawl document acquisition through generic plans or the built-in quick-start plan; Firecrawl HTML/PDF/Markdown is routed to Pipeline A.
 - Raw object retention and ingest ledger.

@@ -288,6 +288,7 @@ class AuditEventType(StrEnum):
     DATA_SYNC_PLAN_RESUMED          = "DataSyncPlanResumed"
     DATA_SYNC_PLAN_DELETED          = "DataSyncPlanDeleted"
     DATA_SYNC_RUN_QUEUED            = "DataSyncRunQueued"
+    DATA_SYNC_RUN_STATUS_CHANGED    = "DataSyncRunStatusChanged"
     # API caller management
     API_CALLER_CREATED              = "ApiCallerCreated"
     API_CALLER_UPDATED              = "ApiCallerUpdated"
