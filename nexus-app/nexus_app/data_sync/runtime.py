@@ -222,7 +222,9 @@ def claim_run(session: Session, worker_id: str, *, lease_seconds: int = 120) -> 
     run = session.scalar(
         select(models.DataSyncRun)
         .where(
-            models.DataSyncRun.status == DataSyncRunStatus.QUEUED.value,
+            (models.DataSyncRun.status == DataSyncRunStatus.QUEUED.value)
+            | ((models.DataSyncRun.status == DataSyncRunStatus.RUNNING.value)
+               & models.DataSyncRun.claim_owner.is_(None)),
             (models.DataSyncRun.next_retry_at.is_(None) | (models.DataSyncRun.next_retry_at <= now)),
         )
         .order_by(models.DataSyncRun.queued_at.asc(), models.DataSyncRun.id.asc())
@@ -231,7 +233,8 @@ def claim_run(session: Session, worker_id: str, *, lease_seconds: int = 120) -> 
     )
     if run is None:
         return None
-    _set_status(session, run, DataSyncRunStatus.RUNNING.value)
+    if run.status == DataSyncRunStatus.QUEUED.value:
+        _set_status(session, run, DataSyncRunStatus.RUNNING.value)
     run.claim_owner = worker_id
     run.heartbeat_at = now
     run.lease_expires_at = now + timedelta(seconds=lease_seconds)
@@ -374,10 +377,10 @@ class DataSyncExecutor:
                 self._tokens, provider, adapter,
                 lambda token: adapter.get_status(provider, external_task_id, token),
             ))
-            if status.state not in {"failed", "cancelled", "succeeded", "partially_succeeded", "completed", "ready"}:
+            if status.state not in {"failed", "cancelled", "paused", "succeeded", "partially_succeeded", "completed", "ready"}:
                 raise SyncRuntimeError("provider task is not ready", retryable=True, code="not_ready")
             page = None
-            if status.state not in {"failed", "cancelled"}:
+            if status.state not in {"failed", "cancelled", "paused"}:
                 page = _coerce_page(_invoke_with_token(
                     self._tokens, provider, adapter,
                     lambda token: adapter.fetch_page(provider, external_task_id, cursor, token),
@@ -392,9 +395,13 @@ class DataSyncExecutor:
                     return
                 run.external_status = status.state
                 run.request_id = status.request_id or run.request_id
-                if status.state in {"failed", "cancelled"}:
+                if status.state in {"failed", "cancelled", "paused"}:
                     _set_status(session, run, status.state, reason="provider_terminal")
-                    run.finished_at = _utcnow()
+                    if status.state != "paused":
+                        run.finished_at = _utcnow()
+                    run.claim_owner = None
+                    run.lease_expires_at = None
+                    run.heartbeat_at = None
                     run.failure_summary = "provider reported failure" if status.state == "failed" else None
                     session.commit()
                     return

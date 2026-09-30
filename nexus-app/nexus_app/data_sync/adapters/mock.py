@@ -89,3 +89,12 @@ class MockDataSyncProvider:
             "next_cursor": "page-2",
             "request_id": external_task_id,
         }
+
+    def pause(self, context: Any, external_task_id: str, access_token: str, idempotency_key: str) -> dict[str, str]:
+        return {"request_id": external_task_id}
+
+    def resume(self, context: Any, external_task_id: str, access_token: str, idempotency_key: str) -> dict[str, str]:
+        return {"request_id": external_task_id}
+
+    def cancel(self, context: Any, external_task_id: str, access_token: str, idempotency_key: str) -> dict[str, str]:
+        return {"request_id": external_task_id}

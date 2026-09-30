@@ -271,3 +271,27 @@ def test_pending_provider_status_does_not_exhaust_failure_attempts(session, monk
     refreshed = session.get(models.DataSyncRun, run.id)
     assert refreshed.status == "queued"
     assert refreshed.attempt_count == 0
+
+
+def test_external_paused_status_releases_worker_lease(session, monkeypatch):
+    plan = _plan(session)
+    run = create_manual_run(
+        session, plan_id=plan.id, actor_id="admin", idempotency_key="external-pause",
+        trace_id="trace-pause",
+    )
+    factory = sessionmaker(bind=session.get_bind(), expire_on_commit=False)
+
+    class PausedAdapter(_FakeAdapter):
+        def get_status(self, context, external_task_id, access_token):
+            return StatusResult("paused")
+
+    monkeypatch.setattr("nexus_app.data_sync.runtime._provider_code", lambda _: (object(), PausedAdapter()))
+    executor = DataSyncExecutor(factory, worker_id="pause-worker")
+    monkeypatch.setattr(executor._tokens, "get_token", lambda *_: "token")
+    assert executor.run_once()
+    executor.close()
+    session.expire_all()
+    refreshed = session.get(models.DataSyncRun, run.id)
+    assert refreshed.status == "paused"
+    assert refreshed.claim_owner is None
+    assert refreshed.lease_expires_at is None

@@ -171,12 +171,12 @@ class DataSyncProvider(Protocol):
 
 ### W5 同步运行的暂停、恢复和取消
 
-- [ ] 实现通用 pause/resume/cancel service 和控制幂等键。
-- [ ] 控制请求发送后保持当前稳定状态，通过下一次 poll 确认目标状态。
-- [ ] 保存最近控制动作、操作人和错误摘要。
-- [ ] 终态运行控制返回 409，所有控制写入审计日志。
+- [x] 实现通用 pause/resume/cancel service 和控制幂等键。
+- [x] 控制请求同步发送；下游成功返回后立即更新本次运行的稳定状态，不引入异步控制请求机制。
+- [x] 保存最近控制动作、操作人和安全错误码摘要。
+- [x] 终态运行的新控制返回 409，控制成功及失败均写入审计日志。
 
-验收：`running -> paused -> running`、`running -> cancelled` 和重复点击均幂等；无控制过渡状态。
+验收：`running -> paused -> running`、`running -> cancelled`、queued 本地取消和同一幂等键重复点击均已验证；无控制过渡状态或新增控制请求表。W5 Review Gates 待人工确认。
 
 ### W6 Console Provider 卡片
 

@@ -699,6 +699,8 @@ API Push data sync is a separate control-plane flow from `data_source` and the i
 
 The W4 runtime optionally starts with `DATA_SYNC_RUNTIME_ENABLED`: a PostgreSQL-backed scheduler creates due runs, and a separate leased worker calls the configured adapter. Provider Catalog and external Token/submit/status/page operations run outside database transactions; progress and status changes use short transactions with lease-owner checks and audit. The runtime does not persist fetched records.
 
+W5 run controls synchronously call the adapter outside database transactions. A successful downstream pause, resume, or cancel immediately updates the stable run state and writes an audit record; failed calls retain the prior state and store only a safe error code. Idempotency keys are hashed in the existing audit history, with no separate control-request queue or transition state.
+
 The ingest gateway uses the `IngestAdapter` protocol:
 
 - `PreparedContent`: `content`, `filename`, `mime_type`, `source_uri`, `raw_metadata`, `batch_summary`, `source_object_key`.

@@ -10,7 +10,7 @@ from nexus_api.dependencies import Pagination, pagination_params, require_idempo
 from nexus_api.responses import list_response, response
 from nexus_app import models, schemas as domain_schemas
 from nexus_app.data_sync.catalog import list_provider_views
-from nexus_app.data_sync import plans, runs
+from nexus_app.data_sync import controls, plans, runs
 from nexus_app.database import get_db
 from nexus_app.enums import DataSyncRunStatus, UserRole
 
@@ -173,3 +173,48 @@ def get_data_sync_run(run_id: str, request: Request, session: Session = Depends(
     except runs.RunNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return response(domain_schemas.DataSyncRunRead.model_validate(run), request)
+
+
+def _control_run(
+    run_id: str, action: str, request: Request, session: Session,
+    user: models.UserAccount, idempotency_key: str,
+):
+    try:
+        run = controls.control_run(
+            session, run_id=run_id, action=action, actor_id=user.id,
+            idempotency_key=idempotency_key, trace_id=str(request.state.trace_id),
+        )
+    except controls.ControlNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except controls.ControlConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except controls.ControlUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return response(domain_schemas.DataSyncRunRead.model_validate(run), request)
+
+
+@router.post("/runs/{run_id}/pause", response_model=schemas.ApiResponse[domain_schemas.DataSyncRunRead])
+def pause_data_sync_run(
+    run_id: str, request: Request, session: Session = Depends(get_db),
+    user: models.UserAccount = Depends(require_data_sync_admin),
+    idempotency_key: str = Depends(require_idempotency_key),
+):
+    return _control_run(run_id, "pause", request, session, user, idempotency_key)
+
+
+@router.post("/runs/{run_id}/resume", response_model=schemas.ApiResponse[domain_schemas.DataSyncRunRead])
+def resume_data_sync_run(
+    run_id: str, request: Request, session: Session = Depends(get_db),
+    user: models.UserAccount = Depends(require_data_sync_admin),
+    idempotency_key: str = Depends(require_idempotency_key),
+):
+    return _control_run(run_id, "resume", request, session, user, idempotency_key)
+
+
+@router.post("/runs/{run_id}/cancel", response_model=schemas.ApiResponse[domain_schemas.DataSyncRunRead])
+def cancel_data_sync_run(
+    run_id: str, request: Request, session: Session = Depends(get_db),
+    user: models.UserAccount = Depends(require_data_sync_admin),
+    idempotency_key: str = Depends(require_idempotency_key),
+):
+    return _control_run(run_id, "cancel", request, session, user, idempotency_key)
