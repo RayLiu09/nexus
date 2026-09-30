@@ -30,7 +30,7 @@ Role constraints:
 
 ## P0 Scope
 
-- API Push data sync is a separate flow from `data_source`: read-only file-backed Provider Catalog, user-created immutable sync plans, and provider-independent runs. Plans support pause, resume, and soft delete; adapter-defined query parameters are fixed at creation. The opt-in W4 scheduler and Worker execute runs through the Mock Provider with lease recovery and paged progress. W5 run pause/resume/cancel controls synchronously update status after downstream success. External provider integration and result processing are later slices.
+- API Push data sync is a separate flow from `data_source`: read-only file-backed Provider Catalog, user-created immutable sync plans, and provider-independent runs. Plans support pause, resume, and soft delete; adapter-defined query parameters are fixed at creation. The opt-in W4 scheduler and Worker execute runs through the Mock Provider with lease recovery and paged progress. W5 run pause/resume/cancel controls synchronously update status after downstream success. The administrator Console has a dedicated `/data-sync` page for Provider cards, plan creation and controls, and run monitoring and controls. External provider integration, detailed log search, and result processing are later slices.
 - Local org/user/API caller management.
 - Data source registration and file/NAS/crawler ingestion, plus Mode B scan-task orchestration for configured NAS/Webhook/crawler sources. NEXUS does not support direct external database connections. Crawler supports low-frequency Firecrawl document acquisition through generic plans or the built-in quick-start plan; Firecrawl HTML/PDF/Markdown is routed to Pipeline A.
 - Raw object retention and ingest ledger.
@@ -255,7 +255,7 @@ P0 management pages:
   pending count and preview rows use the same latest official-result criteria
   as Governance Review. Recent batch and audit activity remains a bounded
   preview rather than an input to totals.
-- **数据源管理**: source registration, upload entry, NAS sync, crawler push config, and Crawler plans. Crawler plans support generic configuration (topic, target site URLs, execution plan) and one built-in quick-start plan backed by JSON configuration for national/provincial vocational-education policy, industry-education integration policy, ecommerce, digital-economy policy/report, and regional ecommerce/digital-economy data acquisition. Template and region whitelist sites are file-configured and are not maintained through Console.
+- **数据源管理**: source registration, upload entry, and NAS sync. Crawler plans have a dedicated first-level Console page at `/crawler`; they support generic configuration (topic, target site URLs, execution plan) and one built-in quick-start plan backed by JSON configuration for national/provincial vocational-education policy, industry-education integration policy, ecommerce, digital-economy policy/report, and regional ecommerce/digital-economy data acquisition. Template and region whitelist sites are file-configured and are not maintained through Console.
 - **数据接入**: single file, batch upload, directory import, ingestion policy.
 - **原始数据台账**: batch query, raw object query, checksum, replay entry.
 - **作业中心**: job list, stage progress (including ingest_validate / assetize / parse / normalize), failure reason, retry, reprocess, re-governance.

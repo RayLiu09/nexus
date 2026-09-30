@@ -8,7 +8,6 @@ import { StatusLabel } from "@/components/StatusLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { formatTime } from "@/lib/format-time";
 import { type DataSource } from "@/lib/api";
-import { CrawlerPlansPanel } from "./CrawlerPlansPanel";
 
 export interface SyncInfo {
   /** 最近一个相关 ingest_batch 的 updated_at（ISO） */
@@ -22,8 +21,6 @@ export interface SyncInfo {
 const SOURCE_TYPE_META: Record<string, { icon: string; name: string; desc: string }> = {
   file_upload: { icon: "📤", name: "本地文件上传", desc: "通过界面上传文件，即时校验" },
   nas: { icon: "📡", name: "NAS 同步", desc: "挂载共享目录，批量同步" },
-  crawler: { icon: "🕷", name: "Crawler 爬虫", desc: "配置规则，自动抓取 Web 页面" },
-  webhook: { icon: "⚡", name: "API 推送", desc: "通过 Webhook/API 批量提交" },
 };
 
 interface DataSourcesContentProps {
@@ -43,7 +40,6 @@ export function DataSourcesContent({
     : dataSources;
   const filteredActiveCount = filteredDataSources.filter((s) => s.status === "active").length;
   const selectedMeta = validSelectedType ? SOURCE_TYPE_META[validSelectedType] : null;
-  const showCrawlerPlans = validSelectedType === "crawler";
 
   return (
     <>
@@ -65,11 +61,9 @@ export function DataSourcesContent({
               </Link>
             )}
           </Space>
-          {!showCrawlerPlans && (
-            <Button type="primary" icon={<PlusOutlined />} href="/data-sources/new">
-              新建数据源
-            </Button>
-          )}
+          <Button type="primary" icon={<PlusOutlined />} href="/data-sources/new">
+            新建数据源
+          </Button>
         </div>
         <div
           style={{
@@ -113,9 +107,7 @@ export function DataSourcesContent({
         </div>
       </div>
 
-      {showCrawlerPlans ? (
-        <CrawlerPlansPanel />
-      ) : filteredDataSources.length === 0 ? (
+      {filteredDataSources.length === 0 ? (
         <EmptyState
           title={selectedMeta ? `暂无${selectedMeta.name}数据源` : "暂无已注册数据源"}
           hint={

@@ -180,13 +180,13 @@ class DataSyncProvider(Protocol):
 
 ### W6 Console Provider 卡片
 
-- [ ] 实现 API Push provider 卡片列表和默认 SVG Logo。
-- [ ] 实现按 adapter query schema 创建同步计划，选择五档频率，并提供计划暂停、恢复和删除操作；不提供计划内容编辑。
-- [ ] 只读展示 API Server、租户名称、凭证状态和 provider 版本。
-- [ ] 分别展示计划状态和运行状态，以及外部任务 ID、处理计数、错误摘要和同步日志入口。
-- [ ] 实现运行级暂停、恢复、取消和刷新；不提供 API 路径、固定参数、Token 协议或 tenantKey 编辑。
+- [x] 实现 API Push provider 卡片列表和默认 SVG Logo。
+- [x] 实现按 adapter query schema 创建同步计划，选择五档频率，并提供计划暂停、恢复和删除操作；不提供计划内容编辑。
+- [x] 只读展示 API Server、租户名称、凭证状态和 provider 版本。
+- [x] 分别展示计划状态和运行状态，以及外部任务 ID、处理计数、错误摘要和同步日志入口。
+- [x] 实现运行级暂停、恢复、取消和刷新；不提供 API 路径、固定参数、Token 协议或 tenantKey 编辑。
 
-验收：用户在创建计划时确定频率和 query，之后只能暂停、恢复或删除计划；固定 Provider 配置和凭证不可修改。
+验收：用户在创建计划时确定频率和 query，之后只能暂停、恢复或删除计划；固定 Provider 配置和凭证不可修改。API 同步仅通过一级导航进入，数据源页不再展示 API 推送卡片；页面上部展示 Provider 卡片，下部展示同步计划，创建计划和计划运行记录均使用右侧抽屉，运行记录不作为一级页面内容。旧 Webhook 列表和创建入口已退役，历史记录保留。P0 Frontend UX Review Gate 待人工确认。W7 的详细日志查询仍未实现。
 
 ### W7 同步日志和审计
 

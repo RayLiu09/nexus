@@ -25,6 +25,9 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
     getApiData<DataSource[]>("/internal/v1/data-sources", []),
     getApiData<IngestBatch[]>("/internal/v1/ingest/batches", []),
   ]);
+  const visibleSources = sourcesResult.data.filter(
+    (source) => source.source_type !== "webhook" && source.source_type !== "crawler",
+  );
 
   // 取每个数据源最近一次批次的 updated_at —— 这是用户视角的"上次同步"
   const lastSyncByDsId = new Map<string, string>();
@@ -38,7 +41,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
   // 解析 schedule_cron 算下次触发；不支持的表达式返回 null，UI 降级
   const now = new Date();
   const syncInfoByDsId: Record<string, SyncInfo> = {};
-  for (const ds of sourcesResult.data) {
+  for (const ds of visibleSources) {
     const cron = readScheduleCron(ds);
     const next = cron ? nextCronRun(cron, now) : null;
     syncInfoByDsId[ds.id] = {
@@ -53,7 +56,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
       <PageHeader
         eyebrow="数据工程 — 连接器注册与管理"
         title="数据源"
-        description="注册不同类型的多源数据接入方式。系统支持本地文件上传、NAS 同步、Crawler 爬虫和 API 推送四种数据源类型。"
+        description="管理文件和 NAS 数据源。"
       />
 
       <ApiState
@@ -63,7 +66,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
       />
 
       <DataSourcesContent
-        dataSources={sourcesResult.data}
+        dataSources={visibleSources}
         syncInfoByDsId={syncInfoByDsId}
         selectedType={selectedType}
       />

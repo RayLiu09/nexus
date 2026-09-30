@@ -7,7 +7,7 @@ import { CheckCircleOutlined, LeftOutlined, RightOutlined } from "@ant-design/ic
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
-type SourceTypeValue = "file_upload" | "nas" | "webhook";
+type SourceTypeValue = "file_upload" | "nas";
 
 interface SourceTypeOption {
   value: SourceTypeValue;
@@ -32,13 +32,6 @@ const SOURCE_TYPES: SourceTypeOption[] = [
     desc: "挂载共享目录，批量同步",
     scenario: "适合教务、行政等组织内固定共享盘",
   },
-  {
-    value: "webhook",
-    label: "API 推送",
-    icon: "⚡",
-    desc: "Webhook / API 批量提交",
-    scenario: "适合由第三方系统主动推送数据",
-  },
 ];
 
 interface WizardState {
@@ -49,9 +42,6 @@ interface WizardState {
   orgScopeHint: string;
   cfgMountPath: string;
   cfgScanPattern: string;
-  cfgAuthToken: string;
-  cfgWebhookSecret: string;
-  cfgAllowedIps: string;
 }
 
 const INITIAL_STATE: WizardState = {
@@ -62,9 +52,6 @@ const INITIAL_STATE: WizardState = {
   orgScopeHint: "",
   cfgMountPath: "",
   cfgScanPattern: "",
-  cfgAuthToken: "",
-  cfgWebhookSecret: "",
-  cfgAllowedIps: "",
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -85,9 +72,6 @@ function validateConnection(state: WizardState): string | null {
       return null;
     case "nas":
       if (!state.cfgMountPath.trim()) return "挂载路径必填";
-      return null;
-    case "webhook":
-      if (!state.cfgWebhookSecret.trim()) return "Webhook Secret 必填";
       return null;
     default:
       return null;
@@ -160,12 +144,6 @@ export function CreateDataSourceForm({ action, preselectedType }: CreateDataSour
         <>
           <input type="hidden" name="cfg_mount_path" value={state.cfgMountPath} />
           <input type="hidden" name="cfg_scan_pattern" value={state.cfgScanPattern} />
-        </>
-      )}
-      {state.sourceType === "webhook" && (
-        <>
-          <input type="hidden" name="cfg_webhook_secret" value={state.cfgWebhookSecret} />
-          <input type="hidden" name="cfg_allowed_ips" value={state.cfgAllowedIps} />
         </>
       )}
 
@@ -262,24 +240,6 @@ export function CreateDataSourceForm({ action, preselectedType }: CreateDataSour
               </Form.Item>
             </>
           )}
-          {state.sourceType === "webhook" && (
-            <>
-              <Form.Item label="Webhook Secret" required>
-                <Input.Password
-                  value={state.cfgWebhookSecret}
-                  onChange={(e) => update("cfgWebhookSecret", e.target.value)}
-                  placeholder="whsec_xxx"
-                />
-              </Form.Item>
-              <Form.Item label="允许 IP（逗号分隔）">
-                <Input
-                  value={state.cfgAllowedIps}
-                  onChange={(e) => update("cfgAllowedIps", e.target.value)}
-                  placeholder="10.0.0.0/8, 192.168.1.0/24"
-                />
-              </Form.Item>
-            </>
-          )}
         </Form>
       )}
 
@@ -318,16 +278,6 @@ export function CreateDataSourceForm({ action, preselectedType }: CreateDataSour
                   <Descriptions.Item label="扫描模式">
                     <code className="font-mono text-xs">{state.cfgScanPattern}</code>
                   </Descriptions.Item>
-                )}
-              </>
-            )}
-            {state.sourceType === "webhook" && (
-              <>
-                <Descriptions.Item label="Webhook Secret">
-                  <Tag color="orange">已设置</Tag>
-                </Descriptions.Item>
-                {state.cfgAllowedIps && (
-                  <Descriptions.Item label="允许 IP">{state.cfgAllowedIps}</Descriptions.Item>
                 )}
               </>
             )}

@@ -68,6 +68,7 @@ Architecture v3.0 baseline:
 - `docs/task-packages/wk_api_data_sync_w3_run_task_package.md`: provider-independent run persistence, queued-run creation, and internal run read APIs; external execution follows in W4.
 - `docs/task-packages/wk_api_data_sync_w4_runtime_task_package.md`: opt-in data-sync scheduler, leased Worker runtime, and paged adapter execution.
 - `docs/task-packages/wk_api_data_sync_w5_controls_task_package.md`: synchronous run pause, resume, and cancel with audit-backed idempotency.
+- `docs/task-packages/wk_api_data_sync_w6_console_task_package.md`: administrator Console for read-only Provider cards, immutable sync plans, and run controls.
 
 - `docs/企业数据与知识资产平台技术选型和架构nexus_v3.0.md`
 - `docs/企业数据与知识资产平台nexus_v8.0.md`
@@ -110,7 +111,7 @@ Root documents are distilled implementation contracts:
 ## Core P0 Capabilities
 
 - Local organization, user, role, API caller, and API key management.
-- Data source registration and file/NAS/crawler ingestion, including scan-task orchestration for NAS/Webhook/record sources. Crawler includes a low-frequency Firecrawl document acquisition path with generic plans and one JSON-configured quick-start plan for national/provincial policy, report, ecommerce, and digital-economy data; Firecrawl HTML/PDF/Markdown enters Pipeline A, where HTML is converted from Firecrawl `onlyMainContent` output into Markdown plus deterministic block/section locators by the crawler `trafilatura` parser, PDF stays on MinerU, and Markdown uses the lightweight document adapter.
+- Data source registration and file/NAS ingestion, including scan-task orchestration for NAS/Webhook/record sources. Crawler plans are managed from the dedicated first-level `/crawler` Console page. Crawler includes a low-frequency Firecrawl document acquisition path with generic plans and one JSON-configured quick-start plan for national/provincial policy, report, ecommerce, and digital-economy data; Firecrawl HTML/PDF/Markdown enters Pipeline A, where HTML is converted from Firecrawl `onlyMainContent` output into Markdown plus deterministic block/section locators by the crawler `trafilatura` parser, PDF stays on MinerU, and Markdown uses the lightweight document adapter.
 - Raw object and original JSON package retention.
 - Persistent job center with stage, failure reason, retry, reprocess, and re-governance.
 - Workbench metrics are served by a dedicated read-only aggregate endpoint:

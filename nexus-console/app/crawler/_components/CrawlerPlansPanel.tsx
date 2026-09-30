@@ -442,12 +442,20 @@ export function CrawlerPlansPanel() {
                   {item.title || item.url}
                 </Typography.Link>
                 {item.description ? (
-                  <Typography.Text type="secondary" ellipsis className="block w-full max-w-full text-xs">
+                  <Typography.Text
+                    type="secondary"
+                    ellipsis
+                    className="block w-full max-w-full text-xs"
+                  >
                     {item.description}
                   </Typography.Text>
                 ) : null}
                 {item.source_url && item.source_url !== item.url ? (
-                  <Typography.Text type="secondary" ellipsis className="block w-full max-w-full text-xs">
+                  <Typography.Text
+                    type="secondary"
+                    ellipsis
+                    className="block w-full max-w-full text-xs"
+                  >
                     来源：{item.source_url}
                   </Typography.Text>
                 ) : null}
@@ -550,7 +558,7 @@ export function CrawlerPlansPanel() {
   };
 
   return (
-    <section className="mt-5">
+    <section>
       <div className="border-line bg-surface overflow-hidden rounded-lg border">
         <div className="border-line-light flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
           <div>
