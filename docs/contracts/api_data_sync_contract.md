@@ -1,6 +1,6 @@
 # API Data Sync Contract (W0)
 
-Status: implementation contract for W1-W8. W3 run persistence, W4 scheduling/execution runtime, and W5 synchronous controls are implemented. Source: `docs/api_data_sync_framework_implementation_plan.md` v1.7.
+Status: implementation contract for W1-W8. W3 run persistence, W4 scheduling/execution runtime, W5 synchronous controls, W6 Console, and W7 log reads are implemented. Source: `docs/api_data_sync_framework_implementation_plan.md` v1.7.
 
 ## Ownership And Boundaries
 
@@ -30,13 +30,16 @@ All paths below are Console control-plane APIs under the existing authenticated 
 | POST | `/internal/v1/data-sync/plans/{plan_id}/resume` | Resume scheduling. |
 | DELETE | `/internal/v1/data-sync/plans/{plan_id}` | Soft-delete plan; 409 if any run is nonterminal. |
 | POST | `/internal/v1/data-sync/plans/{plan_id}/runs` | Manually create a queued run from an active plan; returns 201. |
-| GET | `/internal/v1/data-sync/runs` | Filter by Provider, plan, status, and time; paginated. |
+| GET | `/internal/v1/data-sync/runs` | Filter by exact run ID, Provider, plan, status, and time; paginated. |
 | GET | `/internal/v1/data-sync/runs/{run_id}` | Read run status, external task, counts, cursor, and safe summary. |
+| GET | `/internal/v1/data-sync/runs/{run_id}/logs` | Admin-only run log projection with bounded, redacted query summary and paginated allowlisted audit history. |
 | POST | `/internal/v1/data-sync/runs/{run_id}/pause` | Ask adapter to pause an active external task. |
 | POST | `/internal/v1/data-sync/runs/{run_id}/resume` | Ask adapter to resume a paused external task. |
 | POST | `/internal/v1/data-sync/runs/{run_id}/cancel` | Ask adapter to cancel a nonterminal external task. |
 
 Provider response fields: `provider_code`, `display_name`, `api_server_url`, `tenant_name`, `credential_status`, `adapter_version`, `status`, and adapter-supplied `query_schema`. Never return `tenant_id`, `tenant_key`, Token API URL, access token, or adapter factory. Plan response fields are plan ID/name/Provider/status/frequency/query/next and last run times/timestamps. Run response fields are the safe fields in the implementation plan; failure and result summaries are bounded and redacted.
+
+W7 log responses retain the stored query hash and adapter version, and summarize the query snapshot with recursive sensitive-key redaction, per-field shortening, and a 600-character total bound. Audit output includes only known status/control fields; it excludes idempotency-key hashes, raw bodies, and arbitrary audit summary keys. A soft-deleted plan remains queryable through its historical run ID. Console log search stays inside each plan's run drawer; the selected plan supplies the Provider filter.
 
 `400/422` means malformed or schema-invalid input, `404` means unknown ID, `409` means state conflict, active-run deletion, or idempotency-key reuse with a different payload, and `503` means a configured Provider is unavailable. No user request can register Provider code or change adapter/tenant credentials.
 

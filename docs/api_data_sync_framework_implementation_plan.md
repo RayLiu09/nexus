@@ -190,12 +190,12 @@ class DataSyncProvider(Protocol):
 
 ### W7 同步日志和审计
 
-- [ ] 按 provider、状态、时间和运行 ID查询。
-- [ ] 展示 query snapshot 摘要、外部任务 ID、计数、失败摘要和最近控制操作。
-- [ ] 关联审计日志并脱敏/截断敏感字段和大段响应。
-- [ ] 验证历史运行保留 query snapshot/hash 和 adapter version；计划软删除及 Catalog 变更不改写历史运行。
+- [x] 按 provider、状态、时间和运行 ID 查询；Console 通过计划限定 provider，在运行抽屉中筛选。
+- [x] 展示 query snapshot 摘要、外部任务 ID、计数、失败摘要和最近控制操作。
+- [x] 关联审计日志并脱敏/截断敏感字段和大段响应。
+- [x] 验证历史运行保留 query snapshot/hash 和 adapter version；计划软删除及 Catalog 变更不改写历史运行。
 
-验收：日志页面展示 Mock Provider 及未来 provider 时不依赖岗位字段。
+验收：日志抽屉展示 Mock Provider 及未来 provider 时不依赖岗位字段。已删除计划可在 Console 显示历史后打开运行记录；W7 API Contract、Permission And Audit、Frontend UX Review Gates 待人工确认。
 
 ### W8 测试、Review Gate 和交付
 

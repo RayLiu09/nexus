@@ -55,3 +55,36 @@ export type SyncRun = {
   queued_at: string;
   updated_at: string;
 };
+
+export type SyncAuditEvent = {
+  id: string;
+  event_type: string;
+  actor_type: string | null;
+  actor_id: string | null;
+  trace_id: string | null;
+  summary: Record<string, string>;
+  created_at: string;
+};
+
+export type SyncRunLogs = {
+  run_id: string;
+  plan_id: string;
+  provider_code: string;
+  status: string;
+  adapter_version: string;
+  query_hash: string;
+  query_summary: string;
+  external_task_id: string | null;
+  processed_count: number;
+  success_count: number;
+  failure_count: number;
+  skipped_count: number;
+  failure_summary: string | null;
+  last_control_action: string | null;
+  last_control_requested_at: string | null;
+  last_control_operator_id: string | null;
+  created_at: string;
+  updated_at: string;
+  audit_total: number;
+  audit_events: SyncAuditEvent[];
+};

@@ -23,6 +23,8 @@ function pathFor(parts: string[], method: string): string | null {
       return `${resource}/${encodeURIComponent(id)}`;
   }
   if (parts.length === 3 && id) {
+    if (method === "GET" && resource === "runs" && action === "logs")
+      return `runs/${encodeURIComponent(id)}/logs`;
     if (method === "POST" && resource === "plans" && action === "runs")
       return `plans/${encodeURIComponent(id)}/runs`;
     if (

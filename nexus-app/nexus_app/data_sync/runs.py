@@ -182,12 +182,14 @@ def get_run(session: Session, run_id: str) -> models.DataSyncRun:
 
 
 def list_runs(
-    session: Session, *, provider_code: str | None = None,
+    session: Session, *, run_id: str | None = None, provider_code: str | None = None,
     plan_id: str | None = None, status: DataSyncRunStatus | None = None,
     created_from: datetime | None = None, created_to: datetime | None = None,
     offset: int = 0, limit: int = 20,
 ) -> tuple[list[models.DataSyncRun], int]:
     filters = []
+    if run_id:
+        filters.append(models.DataSyncRun.id == run_id)
     if provider_code:
         filters.append(models.DataSyncRun.provider_code == provider_code)
     if plan_id:

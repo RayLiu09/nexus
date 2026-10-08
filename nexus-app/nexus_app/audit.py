@@ -18,6 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover
 # summaries before persistence. Compared after lower-casing the key.
 SENSITIVE_KEY_PATTERNS: tuple[str, ...] = (
     "api_key", "apikey",
+    "tenant_key", "tenantkey",
     "api_secret", "secret",
     "password", "passwd",
     "bearer", "token",

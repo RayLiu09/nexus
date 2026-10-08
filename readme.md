@@ -69,6 +69,7 @@ Architecture v3.0 baseline:
 - `docs/task-packages/wk_api_data_sync_w4_runtime_task_package.md`: opt-in data-sync scheduler, leased Worker runtime, and paged adapter execution.
 - `docs/task-packages/wk_api_data_sync_w5_controls_task_package.md`: synchronous run pause, resume, and cancel with audit-backed idempotency.
 - `docs/task-packages/wk_api_data_sync_w6_console_task_package.md`: administrator Console for read-only Provider cards, immutable sync plans, and run controls.
+- `docs/task-packages/wk_api_data_sync_w7_logs_task_package.md`: paginated run log search and redacted audit history in the plan-level Console drawer.
 
 - `docs/企业数据与知识资产平台技术选型和架构nexus_v3.0.md`
 - `docs/企业数据与知识资产平台nexus_v8.0.md`
