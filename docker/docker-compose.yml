@@ -87,6 +87,12 @@ services:
       LITELLM_BASE_URL: ${LITELLM_BASE_URL:-}
       LITELLM_API_KEY: ${LITELLM_API_KEY:-}
       DEFAULT_GOVERNANCE_MODEL: ${DEFAULT_GOVERNANCE_MODEL:-gpt-4o-mini}
+      # Provider Catalog is deployment-owned. Mount a private catalog file
+      # instead of baking tenant credentials into the image.
+      DATA_SYNC_PROVIDER_CATALOG_PATH: ${DATA_SYNC_PROVIDER_CATALOG_PATH:-/run/secrets/data_sync_providers.json}
+      DATA_SYNC_RUNTIME_ENABLED: ${DATA_SYNC_RUNTIME_ENABLED:-false}
+    volumes:
+      - ${DATA_SYNC_PROVIDER_CATALOG_FILE:-../nexus-app/config/data_sync_providers.json}:${DATA_SYNC_PROVIDER_CATALOG_PATH:-/run/secrets/data_sync_providers.json}:ro
     ports:
       - "${NEXUS_API_PORT:-8000}:8000"
     healthcheck:

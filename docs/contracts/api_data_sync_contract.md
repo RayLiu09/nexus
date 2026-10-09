@@ -5,6 +5,31 @@ Status: implementation contract for W1-W8. W3 run persistence, W4 scheduling/exe
 ## Ownership And Boundaries
 
 - The Provider Catalog is deployment-owned. It declares Provider metadata, an API server URL containing only scheme/host/optional port, `tenant_id`, `tenant_name`, `tenant_key`, and adapter reference. The committed Mock Catalog contains a fake key; real keys belong only in a private deployment Catalog selected through `DATA_SYNC_PROVIDER_CATALOG_PATH`. The Catalog is not a database table or a user-editable resource.
+
+## Container deployment
+
+`docker/docker-compose.yml` supports mounting the deployment-owned catalog from
+the host. Set `DATA_SYNC_PROVIDER_CATALOG_FILE` to the private host file and
+leave `DATA_SYNC_PROVIDER_CATALOG_PATH` at its default container path, or set
+both explicitly when the container path is managed by the deployment platform:
+
+```dotenv
+DATA_SYNC_PROVIDER_CATALOG_FILE=/opt/nexus/secrets/data_sync_providers.json
+DATA_SYNC_PROVIDER_CATALOG_PATH=/run/secrets/data_sync_providers.json
+DATA_SYNC_RUNTIME_ENABLED=true
+```
+
+The file is mounted read-only and must contain `status: "enabled"` for
+`crawler_engine`. `tenant_key` must remain outside Git and container image
+layers. Recreate `nexus-api` after changing the file or its mount:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d --force-recreate nexus-api
+```
+
+`DATA_SYNC_RUNTIME_ENABLED` controls the PostgreSQL Worker runtime separately;
+provider catalog loading and provider availability do not enable the Worker by
+themselves.
 - The adapter owns query schema, Token API endpoint and protocol, submit/status/page/control protocols, and external state mapping. The Catalog may reference only trusted deployed adapters.
 - `data_sync_config` is an immutable user-created sync plan. Name, Provider, frequency, and query parameters cannot be edited. `active`, `paused`, and `deleted` are plan states. Pause blocks future scheduled and manual runs; it does not control an existing run. Delete is soft and returns 409 while a nonterminal run exists.
 - `data_sync_run` is one execution of a plan. It stores an immutable query snapshot and adapter version. It does not store fetched business records in this phase. A result sink is reserved for a later contract.
