@@ -74,6 +74,7 @@ Architecture v3.0 baseline:
 - `docs/contracts/job_collection_raw_intake_contract.md`: one raw job row and one provenance row per upstream record ID; no batch or observation table.
 - `docs/task-packages/wk_job_collection_c6_console_catalog_task_package.md`: database job-name catalog from the Excel name column, city/job multi-select plans, and the job-collection Console form.
 - `docs/task-packages/wk_job_collection_c7_submit_recovery_pause_task_package.md`: idempotent recovery of unconfirmed crawler submits and clear plan/run pause controls.
+- `docs/task-packages/wk_job_collection_c8_resume_visibility_task_package.md`: make paused-run controls visible after a plan resumes future scheduling.
 
 - `docs/企业数据与知识资产平台技术选型和架构nexus_v3.0.md`
 - `docs/企业数据与知识资产平台nexus_v8.0.md`

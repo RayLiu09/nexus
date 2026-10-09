@@ -522,7 +522,7 @@ export function DataSyncContent({
                     />
                   </Tooltip>
                   {plan.status !== "deleted" && (
-                    <Tooltip title={plan.status === "active" ? "暂停后续调度" : "恢复计划"}>
+                    <Tooltip title={plan.status === "active" ? "暂停后续调度" : "恢复后续调度"}>
                       <Button
                         aria-label={`${plan.status === "active" ? "暂停" : "恢复"}计划 ${plan.name}`}
                         icon={plan.status === "active" ? <PauseOutlined /> : <PlayCircleOutlined />}
@@ -535,9 +535,11 @@ export function DataSyncContent({
                               `/api/data-sync/plans/${plan.id}/${pausing ? "pause" : "resume"}`,
                               {},
                             ),
-                            pausing ? "计划已暂停；当前运行可在运行记录中单独暂停" : "计划已恢复",
+                            pausing
+                              ? "计划已暂停；当前运行可在运行记录中单独暂停"
+                              : "计划已恢复；暂停中的运行可在运行记录中单独恢复",
                           );
-                          if (succeeded && pausing) openRunHistory(plan);
+                          if (succeeded) openRunHistory(plan);
                         }}
                       />
                     </Tooltip>
