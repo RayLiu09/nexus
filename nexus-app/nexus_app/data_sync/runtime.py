@@ -55,6 +55,8 @@ class SubmitResult:
 class StatusResult:
     state: str
     request_id: str | None = None
+    desired_state: str | None = None
+    processed_count: int | None = None
 
 
 @dataclass(frozen=True)
@@ -140,7 +142,10 @@ def _coerce_status(value: Any) -> StatusResult:
     if isinstance(value, StatusResult):
         return value
     if isinstance(value, dict) and isinstance(value.get("state"), str):
-        return StatusResult(value["state"], value.get("request_id"))
+        return StatusResult(
+            value["state"], value.get("request_id"),
+            value.get("desired_state"), value.get("processed_count"),
+        )
     raise SyncRuntimeError("provider returned invalid status response", code="invalid_status")
 
 
@@ -366,6 +371,7 @@ class DataSyncExecutor:
         self._poll_pages(run_id, provider, adapter)
 
     def _poll_pages(self, run_id: str, provider: Any, adapter: DataSyncProvider) -> None:
+        handler = getattr(adapter, "result_handler", None)
         while True:
             with self._session_factory() as session:
                 run = session.get(models.DataSyncRun, run_id)
@@ -377,10 +383,26 @@ class DataSyncExecutor:
                 self._tokens, provider, adapter,
                 lambda token: adapter.get_status(provider, external_task_id, token),
             ))
-            if status.state not in {"failed", "cancelled", "paused", "succeeded", "partially_succeeded", "completed", "ready"}:
+            if status.state not in {
+                "failed", "cancelled", "paused", "succeeded", "partially_succeeded",
+                "completed", "ready",
+            }:
+                with self._session_factory() as session:
+                    run = session.scalar(select(models.DataSyncRun).where(
+                        models.DataSyncRun.id == run_id,
+                    ).with_for_update())
+                    if run is None or run.status != "running" or run.claim_owner != self.worker_id:
+                        return
+                    run.external_status = status.state
+                    run.status_detail = {
+                        "desired_state": status.desired_state,
+                        "upstream_processed_count": status.processed_count,
+                    }
+                    run.last_polled_at = _utcnow()
+                    session.commit()
                 raise SyncRuntimeError("provider task is not ready", retryable=True, code="not_ready")
             page = None
-            if status.state not in {"failed", "cancelled", "paused"}:
+            if status.state != "paused":
                 page = _coerce_page(_invoke_with_token(
                     self._tokens, provider, adapter,
                     lambda token: adapter.fetch_page(provider, external_task_id, cursor, token),
@@ -395,30 +417,47 @@ class DataSyncExecutor:
                     return
                 run.external_status = status.state
                 run.request_id = status.request_id or run.request_id
-                if status.state in {"failed", "cancelled", "paused"}:
-                    _set_status(session, run, status.state, reason="provider_terminal")
-                    if status.state != "paused":
-                        run.finished_at = _utcnow()
+                run.status_detail = {
+                    "desired_state": status.desired_state,
+                    "upstream_processed_count": status.processed_count,
+                }
+                if status.state == "paused":
+                    _set_status(session, run, "paused", reason="provider_paused")
                     run.claim_owner = None
                     run.lease_expires_at = None
                     run.heartbeat_at = None
-                    run.failure_summary = "provider reported failure" if status.state == "failed" else None
                     session.commit()
                     return
                 assert page is not None
+                if handler is not None:
+                    intake = handler.accept_page(session, run, page.records)
+                    accepted, duplicate = intake.accepted, intake.duplicate
+                else:
+                    accepted, duplicate = len(page.records), 0
                 run.processed_count += len(page.records)
-                run.success_count += len(page.records)
+                run.success_count += accepted
+                run.skipped_count += duplicate
                 run.last_cursor = page.next_cursor
                 run.last_polled_at = _utcnow()
                 run.request_id = page.request_id or run.request_id
                 if page.next_cursor is None:
+                    final_status = {
+                        "failed": "failed",
+                        "cancelled": "cancelled",
+                        "partially_succeeded": "partially_succeeded",
+                    }.get(status.state, "succeeded")
+                    if final_status == "succeeded" and run.failure_count:
+                        final_status = "partially_succeeded"
                     _set_status(
-                        session, run,
-                        DataSyncRunStatus.PARTIALLY_SUCCEEDED.value
-                        if status.state == "partially_succeeded" or run.failure_count
-                        else DataSyncRunStatus.SUCCEEDED.value,
+                        session, run, final_status,
                     )
                     run.finished_at = _utcnow()
+                    run.claim_owner = None
+                    run.lease_expires_at = None
+                    run.heartbeat_at = None
+                    run.failure_summary = (
+                        "provider reported failure" if final_status == "failed" else None
+                    )
                 session.commit()
                 if page.next_cursor is None:
                     return
@@ -436,18 +475,21 @@ class DataSyncExecutor:
             waiting = isinstance(exc, SyncRuntimeError) and exc.code == "not_ready"
             if waiting:
                 run.attempt_count = max(0, run.attempt_count - 1)
-            if retryable and (waiting or run.attempt_count < self.max_attempts):
+                run.next_retry_at = _utcnow() + timedelta(seconds=5)
+                run.failure_summary = None
+            elif retryable and run.attempt_count < self.max_attempts:
                 delay = min(300, 2 ** max(0, run.attempt_count - 1) * 5)
                 _set_status(session, run, DataSyncRunStatus.QUEUED.value, reason="retry")
                 run.next_retry_at = _utcnow() + timedelta(seconds=delay)
             else:
                 _set_status(session, run, DataSyncRunStatus.FAILED.value, reason="execution_error")
                 run.finished_at = _utcnow()
-            run.failure_summary = (
-                exc.code if isinstance(exc, SyncRuntimeError)
-                else exc.code if isinstance(exc, TokenError)
-                else type(exc).__name__
-            )[:2000]
+            if not waiting:
+                run.failure_summary = (
+                    exc.code if isinstance(exc, SyncRuntimeError)
+                    else exc.code if isinstance(exc, TokenError)
+                    else type(exc).__name__
+                )[:2000]
             run.claim_owner = None
             run.lease_expires_at = None
             run.heartbeat_at = None

@@ -99,15 +99,18 @@ def control_run(
     if external_task_id is None and expected_status != "queued":
         raise ControlConflict("run has no external task")
 
+    control_result = None
+    has_result_handler = False
     if external_task_id is not None:
         try:
             provider, adapter = _provider_code(provider_code)
             method = getattr(adapter, action, None)
             if not callable(method):
                 raise SyncRuntimeError("control unsupported", code="control_unsupported")
+            has_result_handler = getattr(adapter, "result_handler", None) is not None
             with httpx.Client(timeout=30.0) as client:
                 tokens = TokenManager(client)
-                _invoke_with_token(
+                control_result = _invoke_with_token(
                     tokens, provider, adapter,
                     lambda token: method(provider, external_task_id, token, idempotency_key),
                 )
@@ -129,6 +132,12 @@ def control_run(
                         trace_id=trace_id, digest=digest, outcome="failed", error_code=error_code,
                     )
             raise ControlUnavailable("Provider control failed") from exc
+
+    external_state = control_result.get("state") if isinstance(control_result, dict) else None
+    desired_state = control_result.get("desired_state") if isinstance(control_result, dict) else None
+    pending = external_state in {"pausing", "cancelling"} or (
+        has_result_handler and action == "cancel" and external_state == "cancelled"
+    )
 
     conflict = False
     with session.begin():
@@ -157,16 +166,25 @@ def control_run(
                 trace_id=trace_id, digest=digest, outcome="failed", error_code="status_changed",
             )
         else:
-            _set_status(session, run, _TARGET[action], reason=f"user_{action}")
+            if pending:
+                if run.status == "paused":
+                    _set_status(session, run, "running", reason=f"user_{action}_accepted")
+                    run.claim_owner = None
+                    run.lease_expires_at = None
+                    run.heartbeat_at = None
+                run.external_status = external_state
+                run.status_detail = {"desired_state": desired_state}
+            else:
+                _set_status(session, run, _TARGET[action], reason=f"user_{action}")
             run.last_control_action = action
             run.last_control_operator_id = actor_id
             run.last_control_requested_at = datetime.now(timezone.utc)
             run.failure_summary = None
-            if action in {"pause", "cancel"}:
+            if not pending and action in {"pause", "cancel"}:
                 run.claim_owner = None
                 run.lease_expires_at = None
                 run.heartbeat_at = None
-            if action == "cancel":
+            if action == "cancel" and not pending:
                 run.finished_at = datetime.now(timezone.utc)
             _write_control_audit(
                 session, run, action=action, actor_id=actor_id,

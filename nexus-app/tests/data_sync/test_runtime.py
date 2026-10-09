@@ -269,7 +269,7 @@ def test_pending_provider_status_does_not_exhaust_failure_attempts(session, monk
     executor.close()
     session.expire_all()
     refreshed = session.get(models.DataSyncRun, run.id)
-    assert refreshed.status == "queued"
+    assert refreshed.status == "running"
     assert refreshed.attempt_count == 0
 
 

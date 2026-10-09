@@ -9,6 +9,13 @@ export type QueryField = {
   minLength?: number;
   maxLength?: number;
   anyOf?: QueryField[];
+  items?: QueryField;
+};
+
+export type JobCollectionCategory = {
+  id: string;
+  name: string;
+  titles: { id: string; name: string }[];
 };
 
 export type QuerySchema = {

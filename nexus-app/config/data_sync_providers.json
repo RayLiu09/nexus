@@ -11,6 +11,17 @@
       "adapter_factory": "nexus_app.data_sync.adapters.mock:MockDataSyncProvider",
       "adapter_version": "1.0.0",
       "status": "enabled"
+    },
+    {
+      "provider_code": "crawler_engine",
+      "display_name": "岗位需求采集",
+      "api_server_url": "http://10.100.11.51:8080",
+      "tenant_id": "upstream-application-a",
+      "tenant_name": "岗位采集租户",
+      "tenant_key": "configure-in-private-catalog",
+      "adapter_factory": "nexus_app.data_sync.adapters.crawler_engine:CrawlerEngineDataSyncProvider",
+      "adapter_version": "0.2.0",
+      "status": "disabled"
     }
   ]
 }

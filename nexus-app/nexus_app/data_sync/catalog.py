@@ -12,6 +12,8 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, field_validator
 
+from nexus_app.config import get_settings
+
 
 DEFAULT_CATALOG_PATH = Path(__file__).resolve().parents[2] / "config" / "data_sync_providers.json"
 _ADAPTER_REF = re.compile(
@@ -82,9 +84,8 @@ def _load_adapter(ref: str) -> Any:
 
 
 def load_catalog(path: Path | None = None) -> list[ProviderConfig]:
-    catalog_path = path or Path(
-        os.environ.get("DATA_SYNC_PROVIDER_CATALOG_PATH", str(DEFAULT_CATALOG_PATH))
-    )
+    configured_path = os.environ.get("DATA_SYNC_PROVIDER_CATALOG_PATH") or get_settings().data_sync_provider_catalog_path
+    catalog_path = path or Path(configured_path or DEFAULT_CATALOG_PATH)
     try:
         document = json.loads(catalog_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:

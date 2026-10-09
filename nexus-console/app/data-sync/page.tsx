@@ -1,14 +1,15 @@
 import { PageHeader } from "@/components/PageHeader";
 import { getApiData } from "@/lib/api";
-import type { SyncPlan, SyncProvider } from "@/lib/data-sync";
+import type { JobCollectionCategory, SyncPlan, SyncProvider } from "@/lib/data-sync";
 import { DataSyncContent } from "./_components/DataSyncContent";
 
 export const dynamic = "force-dynamic";
 
 export default async function DataSyncPage() {
-  const [providers, plans] = await Promise.all([
+  const [providers, plans, catalog] = await Promise.all([
     getApiData<SyncProvider[]>("/internal/v1/data-sync/providers", []),
     getApiData<SyncPlan[]>("/internal/v1/data-sync/plans", []),
+    getApiData<JobCollectionCategory[]>("/internal/v1/data-sync/job-catalog", []),
   ]);
   return (
     <>
@@ -20,7 +21,8 @@ export default async function DataSyncPage() {
       <DataSyncContent
         initialProviders={providers.data}
         initialPlans={plans.data}
-        initialError={providers.error ?? plans.error}
+        initialCatalog={catalog.data}
+        initialError={providers.error ?? plans.error ?? catalog.error}
       />
     </>
   );

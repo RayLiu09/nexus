@@ -99,6 +99,7 @@ class Settings(BaseSettings):
     # override with CRAWLER_SCHEDULER_TZ (any IANA zone name).
     crawler_scheduler_tz: str = "Asia/Shanghai"
     data_sync_runtime_enabled: bool = False
+    data_sync_provider_catalog_path: str | None = None
     data_sync_scheduler_poll_interval_seconds: float = 30.0
     data_sync_worker_poll_interval_seconds: float = 5.0
     data_sync_worker_lease_seconds: int = 120

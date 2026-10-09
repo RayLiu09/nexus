@@ -8,7 +8,7 @@ interface Context {
   params: Promise<{ path: string[] }>;
 }
 
-const allowed = /^(providers|plans|runs)$/;
+const allowed = /^(providers|plans|runs|job-catalog)$/;
 const actions = /^(pause|resume|cancel)$/;
 
 function pathFor(parts: string[], method: string): string | null {
@@ -16,6 +16,8 @@ function pathFor(parts: string[], method: string): string | null {
   const [resource, id, action] = parts;
   if (!allowed.test(resource ?? "")) return null;
   if (resource === "providers") return method === "GET" && parts.length === 1 ? "providers" : null;
+  if (resource === "job-catalog")
+    return method === "GET" && parts.length === 1 ? "job-catalog" : null;
   if (parts.length === 1)
     return method === "GET" || (method === "POST" && resource === "plans") ? resource : null;
   if (parts.length === 2 && id) {

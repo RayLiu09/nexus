@@ -13,6 +13,7 @@ from nexus_api.responses import list_response, response
 from nexus_app import models, schemas as domain_schemas
 from nexus_app.audit import sanitize_audit_summary
 from nexus_app.data_sync.catalog import list_provider_views
+from nexus_app.data_sync.job_catalog import list_job_catalog
 from nexus_app.data_sync import controls, plans, runs
 from nexus_app.database import get_db
 from nexus_app.enums import DataSyncRunStatus, UserRole
@@ -30,6 +31,12 @@ router = APIRouter(prefix="/data-sync", dependencies=[Depends(require_data_sync_
 @router.get("/providers", response_model=schemas.ListResponse[dict])
 def list_data_sync_providers(request: Request):
     items = list_provider_views()
+    return list_response(items, request, page=1, page_size=max(len(items), 1), total=len(items))
+
+
+@router.get("/job-catalog", response_model=schemas.ListResponse[dict])
+def get_job_collection_catalog(request: Request, session: Session = Depends(get_db)):
+    items = list_job_catalog(session)
     return list_response(items, request, page=1, page_size=max(len(items), 1), total=len(items))
 
 

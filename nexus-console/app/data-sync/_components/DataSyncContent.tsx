@@ -31,7 +31,7 @@ import {
 } from "@ant-design/icons";
 
 import { deleteApiData, getApiData, postApiData } from "@/lib/api";
-import type { QueryField, SyncPlan, SyncProvider, SyncRun, SyncRunLogs } from "@/lib/data-sync";
+import type { JobCollectionCategory, QueryField, SyncPlan, SyncProvider, SyncRun, SyncRunLogs } from "@/lib/data-sync";
 import { formatTime } from "@/lib/format-time";
 import dayjs from "dayjs";
 
@@ -135,14 +135,17 @@ function QueryInput({ field }: { field: QueryField }) {
 export function DataSyncContent({
   initialProviders,
   initialPlans,
+  initialCatalog,
   initialError,
 }: {
   initialProviders: SyncProvider[];
   initialPlans: SyncPlan[];
+  initialCatalog: JobCollectionCategory[];
   initialError: string | null;
 }) {
-  const [providers, setProviders] = useState(initialProviders);
-  const [plans, setPlans] = useState(initialPlans);
+  const [providers, setProviders] = useState(initialProviders.filter((item) => item.provider_code !== "mock"));
+  const [plans, setPlans] = useState(initialPlans.filter((item) => item.provider_code !== "mock"));
+  const [catalog, setCatalog] = useState(initialCatalog);
   const [runs, setRuns] = useState<SyncRun[]>([]);
   const [runTotal, setRunTotal] = useState(0);
   const [runLoading, setRunLoading] = useState(false);
@@ -165,6 +168,8 @@ export function DataSyncContent({
   const logRequestSeq = useRef(0);
   const { message } = App.useApp();
   const [form] = Form.useForm();
+  const categoryId = Form.useWatch("category_id", form);
+  const selectedCategory = catalog.find((item) => item.id === categoryId);
 
   async function loadRuns(plan: SyncPlan, page: number, filters: RunFilters) {
     const requestSeq = ++runRequestSeq.current;
@@ -208,16 +213,18 @@ export function DataSyncContent({
   }
 
   async function refresh() {
-    const [providerResult, planResult] = await Promise.all([
+    const [providerResult, planResult, catalogResult] = await Promise.all([
       getApiData<SyncProvider[]>("/api/data-sync/providers", []),
       getApiData<SyncPlan[]>("/api/data-sync/plans", [], { include_deleted: String(showDeleted) }),
+      getApiData<JobCollectionCategory[]>("/api/data-sync/job-catalog", []),
     ]);
-    if (!providerResult.ok || !planResult.ok) {
-      setError(providerResult.error ?? planResult.error);
+    if (!providerResult.ok || !planResult.ok || !catalogResult.ok) {
+      setError(providerResult.error ?? planResult.error ?? catalogResult.error);
       return;
     }
-    setProviders(providerResult.data);
-    setPlans(planResult.data);
+    setProviders(providerResult.data.filter((item) => item.provider_code !== "mock"));
+    setPlans(planResult.data.filter((item) => item.provider_code !== "mock"));
+    setCatalog(catalogResult.data);
     setError(null);
     if (selectedPlan) await loadRuns(selectedPlan, runPage, appliedFilters);
     if (selectedRunId) await loadLogs(selectedRunId, auditPage);
@@ -229,7 +236,7 @@ export function DataSyncContent({
       include_deleted: String(checked),
     });
     if (result.ok) {
-      setPlans(result.data);
+      setPlans(result.data.filter((item) => item.provider_code !== "mock"));
       setError(null);
     } else {
       setError(result.error);
@@ -255,6 +262,15 @@ export function DataSyncContent({
 
   function openCreate(provider: SyncProvider) {
     form.resetFields();
+    if (provider.provider_code === "crawler_engine") {
+      form.setFieldsValue({
+        frequency: "1_month",
+        category_id: catalog[0]?.id,
+        query_config: { keywords: [], regions: [], pageLimit: 30 },
+      });
+      setSelectedProvider(provider);
+      return;
+    }
     const defaults = Object.fromEntries(
       Object.entries(provider.query_schema.properties ?? {})
         .filter(([, field]) => field.default !== undefined)
@@ -292,6 +308,14 @@ export function DataSyncContent({
     query_config?: Record<string, unknown>;
   }) {
     if (!selectedProvider) return;
+    if (selectedProvider.provider_code === "crawler_engine") {
+      const names = values.query_config?.keywords;
+      const regions = values.query_config?.regions;
+      if (Array.isArray(names) && Array.isArray(regions) && names.length * regions.length > 100) {
+        message.error("岗位与城市的组合不能超过 100 组");
+        return;
+      }
+    }
     const providerCode = selectedProvider.provider_code;
     const created = await act("create", () =>
       postApiData("/api/data-sync/plans", {
@@ -306,9 +330,11 @@ export function DataSyncContent({
 
   const required = selectedProvider?.query_schema.required ?? [];
   const fields = Object.entries(selectedProvider?.query_schema.properties ?? {});
+  const isJobCollection = selectedProvider?.provider_code === "crawler_engine";
+  const regionOptions = selectedProvider?.query_schema.properties?.regions?.items?.enum ?? [];
   const unsupported = fields.some(
     ([, field]) =>
-      !field.enum && !["string", "integer", "number", "boolean"].includes(fieldType(field) ?? ""),
+      !isJobCollection && !field.enum && !["string", "integer", "number", "boolean"].includes(fieldType(field) ?? ""),
   );
 
   return (
@@ -377,7 +403,7 @@ export function DataSyncContent({
                 <Button
                   type="primary"
                   icon={<PlusOutlined />}
-                  disabled={provider.status !== "enabled"}
+                  disabled={provider.status !== "enabled" || (provider.provider_code === "crawler_engine" && catalog.length === 0)}
                   onClick={() => openCreate(provider)}
                 >
                   新建同步计划
@@ -449,7 +475,9 @@ export function DataSyncContent({
                   }
                 >
                   <span className="inline-block max-w-48 truncate align-middle">
-                    {JSON.stringify(value)}
+                    {Array.isArray(value.keywords) && Array.isArray(value.regions)
+                      ? `${value.keywords.length} 个岗位 · ${value.regions.length} 个城市 · ${value.pageLimit} 页`
+                      : JSON.stringify(value)}
                   </span>
                 </Tooltip>
               ),
@@ -561,7 +589,48 @@ export function DataSyncContent({
           <Form.Item name="frequency" label="同步频率" rules={[{ required: true }]}>
             <Select options={frequencies} />
           </Form.Item>
-          {fields.map(([name, field]) => (
+          {isJobCollection && (
+            <>
+              <Form.Item name="category_id" label="专业类别" rules={[{ required: true, message: "请选择专业类别" }]}>
+                <Select
+                  options={catalog.map((item) => ({ value: item.id, label: item.name }))}
+                  onChange={() => form.setFieldValue(["query_config", "keywords"], [])}
+                />
+              </Form.Item>
+              <Form.Item
+                name={["query_config", "keywords"]}
+                label="岗位名称"
+                rules={[{ required: true, type: "array", min: 1, message: "请选择岗位名称" }]}
+              >
+                <Select
+                  mode="multiple"
+                  showSearch
+                  optionFilterProp="label"
+                  maxTagCount="responsive"
+                  placeholder="选择岗位名称"
+                  options={(selectedCategory?.titles ?? []).map((item) => ({ value: item.name, label: item.name }))}
+                />
+              </Form.Item>
+              <Form.Item
+                name={["query_config", "regions"]}
+                label="区域"
+                rules={[{ required: true, type: "array", min: 1, message: "请选择区域" }]}
+              >
+                <Select
+                  mode="multiple"
+                  showSearch
+                  optionFilterProp="label"
+                  maxTagCount="responsive"
+                  placeholder="选择城市"
+                  options={regionOptions.map((value) => ({ value: String(value), label: String(value) }))}
+                />
+              </Form.Item>
+              <Form.Item name={["query_config", "pageLimit"]} label="页数" rules={[{ required: true }]}>
+                <Select options={[10, 30, 50, 100].map((value) => ({ value, label: `${value} 页` }))} />
+              </Form.Item>
+            </>
+          )}
+          {!isJobCollection && fields.map(([name, field]) => (
             <Form.Item
               key={name}
               name={["query_config", name]}

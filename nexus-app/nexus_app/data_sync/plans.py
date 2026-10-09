@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from nexus_app import models
 from nexus_app.audit import write_audit
 from nexus_app.data_sync.catalog import _load_adapter, load_catalog
+from nexus_app.data_sync.job_catalog import titles_are_available
 from nexus_app.enums import AuditEventType
 
 
@@ -72,6 +73,10 @@ def create_plan(
         raise PlanError("query_config is invalid for this Provider") from exc
     if not isinstance(normalized_query, dict):
         raise PlanError("Provider query validation must return an object")
+    if provider_code == "crawler_engine" and not titles_are_available(
+        session, normalized_query["keywords"]
+    ):
+        raise PlanError("selected job titles are unavailable")
     digest = _request_hash(name, provider_code, frequency, normalized_query)
     existing = session.scalar(
         select(models.DataSyncConfig).where(

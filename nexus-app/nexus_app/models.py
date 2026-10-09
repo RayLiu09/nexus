@@ -427,6 +427,81 @@ class DataSyncRun(TimestampMixin, Base):
     plan: Mapped[DataSyncConfig] = relationship()
 
 
+class RawJob(TimestampMixin, Base):
+    __tablename__ = "raw_jobs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    title_raw: Mapped[str] = mapped_column(Text, nullable=False)
+    company_name_raw: Mapped[str | None] = mapped_column(Text)
+    address_raw: Mapped[str | None] = mapped_column(Text)
+    salary_raw: Mapped[str | None] = mapped_column(Text)
+    experience_raw: Mapped[str | None] = mapped_column(Text)
+    degree_raw: Mapped[str | None] = mapped_column(Text)
+    hiring_raw: Mapped[str | None] = mapped_column(Text)
+    description_raw: Mapped[str | None] = mapped_column(Text)
+    skills_raw: Mapped[str | None] = mapped_column(Text)
+    job_tags_raw: Mapped[str | None] = mapped_column(Text)
+    responsibilities_raw: Mapped[str | None] = mapped_column(Text)
+    requirements_raw: Mapped[str | None] = mapped_column(Text)
+    qualifications_raw: Mapped[str | None] = mapped_column(Text)
+    other_matters_raw: Mapped[str | None] = mapped_column(Text)
+    company_industry_raw: Mapped[str | None] = mapped_column(Text)
+    company_scale_raw: Mapped[str | None] = mapped_column(Text)
+    company_financing_raw: Mapped[str | None] = mapped_column(Text)
+
+
+class RawJobProvenance(TimestampMixin, Base):
+    __tablename__ = "raw_job_provenance"
+    __table_args__ = (
+        UniqueConstraint("provider_code", "upstream_record_id", name="uq_raw_job_provenance_record"),
+        Index("ix_raw_job_provenance_source_job", "source_name", "source_job_id"),
+        Index("ix_raw_job_provenance_collected", "collected_at"),
+    )
+
+    raw_job_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("raw_jobs.id", ondelete="RESTRICT"), primary_key=True
+    )
+    provider_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    upstream_record_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    source_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_job_id: Mapped[str | None] = mapped_column(String(200))
+    source_url: Mapped[str] = mapped_column(String(2083), nullable=False)
+    external_job_id: Mapped[str | None] = mapped_column(String(256))
+    external_task_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    source_page: Mapped[int] = mapped_column(Integer, nullable=False)
+    keyword: Mapped[str] = mapped_column(String(120), nullable=False)
+    query_region: Mapped[str | None] = mapped_column(String(80))
+    collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    upstream_payload_hash: Mapped[str] = mapped_column(String(71), nullable=False)
+    raw_record_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    raw_record: Mapped[dict[str, Any]] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=False
+    )
+
+    job: Mapped[RawJob] = relationship()
+
+
+class JobCollectionCategory(TimestampMixin, Base):
+    __tablename__ = "job_collection_category"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    name: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+
+
+class JobCollectionTitle(TimestampMixin, Base):
+    __tablename__ = "job_collection_title"
+    __table_args__ = (Index("ix_job_collection_title_category_name", "category_id", "name"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    category_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("job_collection_category.id", ondelete="RESTRICT"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+
+    category: Mapped[JobCollectionCategory] = relationship()
+
+
 class CrawlerRun(TimestampMixin, Base):
     __tablename__ = "crawler_run"
     __table_args__ = (
