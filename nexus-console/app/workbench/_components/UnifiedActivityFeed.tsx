@@ -35,7 +35,7 @@ function batchToItem(b: IngestBatch, ds?: DataSource): ActivityItem {
     (b.summary.filename as string | undefined) ??
     (b.summary.package_type as string | undefined) ??
     "—";
-  const href = ds ? `/data-sources/${ds.id}?tab=history` : "/data-sources";
+  const href = `/raw-ledger?batch_id=${b.id}`;
   return {
     id: b.id,
     kind: "batch",
@@ -217,7 +217,7 @@ export function UnifiedActivityFeed({
               emptyConfig={{
                 icon: <CloudUploadOutlined />,
                 title: "暂无接入活动",
-                hint: "顶栏「快速上传」或定时同步会出现在这里",
+                hint: "本地上传和手动同步的批次会出现在这里",
               }}
             />
           ),

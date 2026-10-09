@@ -1,17 +1,14 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { CloudUploadOutlined, InboxOutlined, ReloadOutlined } from "@ant-design/icons";
 import {
   Alert,
   Button,
   Drawer,
-  Empty,
   Form,
   Progress,
-  Select,
   Space,
-  Spin,
   Tag,
   Upload,
   message,
@@ -19,7 +16,6 @@ import {
 import type { UploadFile, UploadProps } from "antd";
 import Link from "next/link";
 
-import type { DataSource } from "@/lib/api";
 import { NexusApiError, postApiData } from "@/lib/api";
 import { FileStatusList } from "@/components/ingest/FileStatusList";
 import type { BatchSubmitItem, BatchSubmitResult, SelectedFile } from "@/lib/ingest/batchTypes";
@@ -83,34 +79,6 @@ function statusLabel(status: string): string {
   }
 }
 
-interface SourcesProxyOk {
-  ok: true;
-  status: number;
-  data: DataSource[];
-  traceId: string | null;
-}
-interface SourcesProxyErr {
-  ok: false;
-  status: number;
-  message: string;
-}
-type SourcesProxyResult = SourcesProxyOk | SourcesProxyErr;
-
-async function fetchDataSources(signal: AbortSignal): Promise<DataSource[]> {
-  const resp = await fetch("/api/data-sources", { signal, cache: "no-store" });
-  const text = await resp.text();
-  let body: SourcesProxyResult;
-  try {
-    body = JSON.parse(text) as SourcesProxyResult;
-  } catch {
-    throw new Error(`Invalid JSON from /api/data-sources: ${text.slice(0, 200)}`);
-  }
-  if (!body.ok) {
-    throw new Error(body.message ?? `Failed to fetch data sources (HTTP ${resp.status})`);
-  }
-  return body.data;
-}
-
 // ── Drawer body ───────────────────────────────────────────────────────────
 
 interface DrawerBodyProps {
@@ -119,51 +87,13 @@ interface DrawerBodyProps {
 }
 
 function QuickUploadBody({ prefillDataSourceId, onClose }: DrawerBodyProps) {
-  const [form] = Form.useForm<{ data_source_id: string }>();
-  const [sources, setSources] = useState<DataSource[]>([]);
-  const [sourcesLoading, setSourcesLoading] = useState(true);
-  const [sourcesError, setSourcesError] = useState<string | null>(null);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [batchId, setBatchId] = useState<string | null>(null);
   const [items, setItems] = useState<BatchSubmitItem[]>([]);
-  const [submittedSourceId, setSubmittedSourceId] = useState<string | null>(null);
 
   const { detail: batchDetail, error: pollError, isPolling } = useBatchStatus(batchId);
-
-  // Lazy load data sources when drawer mounts.
-  useEffect(() => {
-    const controller = new AbortController();
-    setSourcesLoading(true);
-    fetchDataSources(controller.signal)
-      .then((data) => {
-        setSources(data);
-        setSourcesError(null);
-      })
-      .catch((err) => {
-        if (controller.signal.aborted) return;
-        setSourcesError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setSourcesLoading(false);
-      });
-    return () => controller.abort();
-  }, []);
-
-  // file_upload 类型才允许通过此 drawer 接收文件
-  const fileUploadSources = useMemo(
-    () => sources.filter((s) => s.source_type === "file_upload" && s.status !== "disabled"),
-    [sources],
-  );
-
-  // Apply prefilled source if it matches a file_upload entry.
-  useEffect(() => {
-    if (!prefillDataSourceId) return;
-    if (fileUploadSources.some((s) => s.id === prefillDataSourceId)) {
-      form.setFieldValue("data_source_id", prefillDataSourceId);
-    }
-  }, [prefillDataSourceId, fileUploadSources, form]);
 
   const fileNamesByKey = useMemo<Record<string, string>>(() => {
     return fileList.reduce<Record<string, string>>((acc, file) => {
@@ -197,18 +127,15 @@ function QuickUploadBody({ prefillDataSourceId, onClose }: DrawerBodyProps) {
   };
 
   const handleReset = useCallback(() => {
-    form.resetFields();
     setFileList([]);
     setItems([]);
     setBatchId(null);
-    setSubmittedSourceId(null);
     setSubmitError(null);
-  }, [form]);
+  }, []);
 
   const handleSubmit = async () => {
     setSubmitError(null);
     try {
-      const values = await form.validateFields();
       if (fileList.length === 0) {
         message.warning("请至少选择一个文件");
         return;
@@ -231,7 +158,7 @@ function QuickUploadBody({ prefillDataSourceId, onClose }: DrawerBodyProps) {
 
       const batchKey = `quick-upload-${Date.now()}`;
       const payload = {
-        data_source_id: values.data_source_id,
+        data_source_id: prefillDataSourceId,
         batch_idempotency_key: batchKey,
         files: selected.map((file) => ({
           file_idempotency_key: file.key,
@@ -247,7 +174,6 @@ function QuickUploadBody({ prefillDataSourceId, onClose }: DrawerBodyProps) {
       );
       setItems(result.data.items);
       setBatchId(result.data.batch.id);
-      setSubmittedSourceId(values.data_source_id);
       message.success(`已入队 ${result.data.items.length} 个文件`);
     } catch (err) {
       if (err instanceof NexusApiError) {
@@ -266,40 +192,6 @@ function QuickUploadBody({ prefillDataSourceId, onClose }: DrawerBodyProps) {
     ["succeeded", "failed", "dead_lettered", "cancelled"].includes(v),
   ).length;
   const percent = totalFiles === 0 ? 0 : Math.round((finishedCount / totalFiles) * 100);
-
-  // ── Render: sources loading ──────────────────────────────────────────────
-  if (sourcesLoading) {
-    return (
-      <div className="flex h-full items-center justify-center py-12">
-        <Spin description="加载数据源列表…" />
-      </div>
-    );
-  }
-
-  if (sourcesError) {
-    return <Alert type="error" showIcon title="无法加载数据源列表" description={sourcesError} />;
-  }
-
-  // ── Render: no file_upload sources ────────────────────────────────────────
-  if (fileUploadSources.length === 0) {
-    return (
-      <Empty
-        image={Empty.PRESENTED_IMAGE_SIMPLE}
-        description={
-          <div className="text-sm">
-            <div className="mb-2 font-medium">尚未注册「本地文件上传」类型数据源</div>
-            <div className="text-text-secondary">
-              快速上传需要先创建一个 file_upload 类型的数据源作为归属。
-            </div>
-          </div>
-        }
-      >
-        <Link href="/data-sources/new" onClick={onClose}>
-          <Button type="primary">前往创建数据源</Button>
-        </Link>
-      </Empty>
-    );
-  }
 
   // ── Render: post-submit progress view ────────────────────────────────────
   if (batchId) {
@@ -334,15 +226,9 @@ function QuickUploadBody({ prefillDataSourceId, onClose }: DrawerBodyProps) {
         />
 
         <div className="border-line-light mt-auto flex items-center justify-between gap-2 border-t pt-3">
-          {submittedSourceId && (
-            <Link
-              href={`/data-sources/${submittedSourceId}?tab=history`}
-              onClick={onClose}
-              className="text-brand text-sm"
-            >
-              在数据源中查看完整历史 →
-            </Link>
-          )}
+          <Link href={`/raw-ledger?batch_id=${batchId}`} onClick={onClose} className="text-brand text-sm">
+            查看批次原始数据
+          </Link>
           <Space>
             <Button onClick={handleReset} icon={<ReloadOutlined />}>
               再传一批
@@ -358,31 +244,7 @@ function QuickUploadBody({ prefillDataSourceId, onClose }: DrawerBodyProps) {
 
   // ── Render: pre-submit form ───────────────────────────────────────────────
   return (
-    <Form<{ data_source_id: string }>
-      form={form}
-      layout="vertical"
-      initialValues={
-        prefillDataSourceId && fileUploadSources.some((s) => s.id === prefillDataSourceId)
-          ? { data_source_id: prefillDataSourceId }
-          : undefined
-      }
-    >
-      <Form.Item
-        name="data_source_id"
-        label="归属数据源"
-        rules={[{ required: true, message: "请选择数据源" }]}
-        extra="仅可选择「本地文件上传」类型数据源。其他类型请在数据源详情页配置定时同步。"
-      >
-        <Select
-          placeholder="选择数据源"
-          showSearch
-          optionFilterProp="label"
-          options={fileUploadSources.map((source) => ({
-            value: source.id,
-            label: `${source.name} [${source.code}]`,
-          }))}
-        />
-      </Form.Item>
+    <Form layout="vertical">
 
       <Form.Item label={`文件（最多 ${MAX_FILES} 个，单文件 ≤ 100MB）`} required>
         <Upload.Dragger {...uploadProps}>

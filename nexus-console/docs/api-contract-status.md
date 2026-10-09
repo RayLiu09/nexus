@@ -31,10 +31,10 @@
 
 | Endpoint | Method | Status | 使用页面 | 备注 |
 |----------|--------|--------|----------|------|
-| `/v1/data-sources` | GET | `partial` | `/workbench`, `/data-sources`, `/ingest`, `/ingest/batch` | 列表查询，需确认分页/过滤参数 |
-| `/v1/data-sources/{id}` | GET | `partial` | `/data-sources/[id]` | 单条详情 |
-| `/v1/data-sources` | POST | `partial` | `/data-sources/new` | 创建数据源，需 Idempotency-Key |
-| `/v1/data-sources/{id}` | DELETE | `planned` | `/data-sources/[id]` | P1.3 危险操作，需 ConfirmButton |
+| `/internal/v1/data-sources` | GET | `integrated` | `/workbench`, `/raw-ledger` | 后台来源与追溯查询 |
+| `/internal/v1/data-sources/{id}` | GET | `integrated` | `/assets/[assetId]` | 资产来源读取 |
+| `/internal/v1/data-sources/default-upload` | POST | `integrated` | `/file-sync` (via multi-file proxy) | 幂等确保默认本地上传来源；禁用时返回 409 |
+| `/internal/v1/data-sources/{id}/scan-tasks` | POST | `partial` | 无 Console 入口 | 只编排调用方提供的 items；不扫描 NAS 目录 |
 
 ---
 
@@ -42,10 +42,10 @@
 
 | Endpoint | Method | Status | 使用页面 | 备注 |
 |----------|--------|--------|----------|------|
-| `/v1/ingest/batches` | GET | `partial` | `/workbench`, `/data-sources/[id]`, `/ingest` | 批次列表 |
+| `/v1/ingest/batches` | GET | `partial` | `/workbench`, `/file-sync` | 批次列表 |
 | `/v1/ingest/batches/{id}` | GET | `partial` | `/ingest/batch` (via `/api/ingest/batches/[id]` proxy) | 批次详情+状态 |
 | `/v1/ingest/files` | POST | `partial` | `/ingest` (Server Action) | 单文件上传接入 |
-| `/v1/ingest/files/multi` | POST | `partial` | `/ingest/batch` (via `/api/ingest/files/multi` proxy) | 批量文件上传 |
+| `/v1/ingest/files/multi` | POST | `integrated` | `/file-sync`, `/ingest/batch` (via `/api/ingest/files/multi` proxy) | 未指定来源时自动使用默认本地上传来源 |
 
 ---
 
@@ -53,7 +53,7 @@
 
 | Endpoint | Method | Status | 使用页面 | 备注 |
 |----------|--------|--------|----------|------|
-| `/v1/raw-objects` | GET | `partial` | `/workbench`, `/data-sources/[id]`, `/raw-ledger` | 原始对象列表，需服务端分页 |
+| `/v1/raw-objects` | GET | `partial` | `/workbench`, `/raw-ledger` | 原始对象列表，需服务端分页 |
 | `/v1/jobs` | GET | `partial` | `/workbench`, `/jobs` | 作业列表 |
 | `/v1/jobs/{id}/stages` | GET | `partial` | `/jobs` | 作业阶段详情 |
 | `/v1/jobs/{id}/retry` | POST | `planned` | `/jobs` | P1.3 批量操作，需 ConfirmButton |

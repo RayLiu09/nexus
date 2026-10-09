@@ -76,6 +76,7 @@ from nexus_api.api.internal.identity import (  # noqa: F401
     revoke_api_caller,
 )
 from nexus_api.api.internal.data_sources import (  # noqa: F401
+    ensure_default_upload_source,
     create_data_source,
     list_data_sources,
     get_data_source,

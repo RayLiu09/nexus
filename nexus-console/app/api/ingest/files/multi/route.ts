@@ -58,6 +58,17 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
+  if (!payload.data_source_id) {
+    const source = await ingestProxyPost<{ id: string }>(
+      "/internal/v1/data-sources/default-upload",
+      {},
+    );
+    if (!source.ok) {
+      return NextResponse.json(source, { status: source.status });
+    }
+    payload.data_source_id = source.data.id;
+  }
+
   const result = await ingestProxyPost<MultiFileResult>(
     "/internal/v1/ingest/files/multi",
     payload,

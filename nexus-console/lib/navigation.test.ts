@@ -71,7 +71,9 @@ describe("Console navigation", () => {
   it("splits admin- and expert-only prefixes disjointly", () => {
     expect(ADMIN_ONLY_PREFIXES).toEqual([
       "/workbench",
-      "/data-sources",
+      "/file-sync",
+      "/crawler",
+      "/data-sync",
       "/raw-ledger",
       "/jobs",
       "/assets",

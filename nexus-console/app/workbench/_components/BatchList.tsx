@@ -27,8 +27,8 @@ export function BatchList({ batches, dataSourceById }: BatchListProps) {
         size="small"
         icon={<CloudUploadOutlined />}
         title="暂无接入活动"
-        hint="从顶栏「快速上传」或注册数据源开始首次接入"
-        actions={[{ label: "查看数据源", href: "/data-sources", type: "default" }]}
+        hint="从文件数据同步上传首批文件"
+        actions={[{ label: "上传文件", href: "/file-sync", type: "default" }]}
       />
     );
   }
@@ -42,7 +42,7 @@ export function BatchList({ batches, dataSourceById }: BatchListProps) {
           (b.summary.filename as string | undefined) ??
           (b.summary.package_type as string | undefined) ??
           "—";
-        const dsHref = ds ? `/data-sources/${ds.id}?tab=history` : "/data-sources";
+        const dsHref = `/raw-ledger?batch_id=${b.id}`;
         const isLast = idx === batches.length - 1;
 
         return (

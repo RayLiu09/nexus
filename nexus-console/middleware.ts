@@ -9,7 +9,7 @@
  *
  * Role enforcement: the two console roles have DISJOINT feature sets
  * (see navigation.ts). We enforce the same allowlist server-side so a
- * business_expert cannot reach `/data-sources` (or vice versa) via a
+ * business_expert cannot reach `/file-sync` (or vice versa) via a
  * direct URL — they get 302'd to their role home.
  *
  * Excluded paths (no cookie check):

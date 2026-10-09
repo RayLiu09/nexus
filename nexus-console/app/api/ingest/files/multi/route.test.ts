@@ -65,4 +65,25 @@ describe("POST /api/ingest/files/multi", () => {
     expect(body.message).toContain("batch_idempotency_key");
     expect(ingestProxyPostMock).not.toHaveBeenCalled();
   });
+
+  it("resolves the default upload source when none is supplied", async () => {
+    ingestProxyPostMock
+      .mockResolvedValueOnce({ ok: true, status: 200, data: { id: "default-source" } })
+      .mockResolvedValueOnce({ ok: true, status: 202, data: { batch: { id: "batch-1" }, items: [] } });
+    const request = new Request("http://localhost/api/ingest/files/multi", {
+      method: "POST",
+      body: JSON.stringify({ batch_idempotency_key: "first-upload", files: [] }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(202);
+    expect(ingestProxyPostMock).toHaveBeenNthCalledWith(
+      1, "/internal/v1/data-sources/default-upload", {},
+    );
+    expect(ingestProxyPostMock).toHaveBeenNthCalledWith(
+      2, "/internal/v1/ingest/files/multi",
+      { batch_idempotency_key: "first-upload", files: [], data_source_id: "default-source" },
+      { "Idempotency-Key": "first-upload" },
+    );
+  });
 });

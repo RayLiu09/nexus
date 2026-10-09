@@ -36,6 +36,8 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
 | Semantic retrieval backend        | Index construction and retrieval execution behind NEXUS adapter; P0 default = PostgreSQL pgvector adapter, replaceable by dedicated retrieval engines later | NEXUS master data, permissions, audit authority, or chunk semantics   |
 | Crawler systems                  | Dynamic data source push                                                                                                 | Governance, index governance, permissions                             |
 | Scan-task orchestration          | Turns NAS/Webhook/crawler scan items into `raw_object` + PostgreSQL ingest jobs using existing pipeline routing | Live filesystem crawler daemon, external database direct connector, MQ scheduler, or new execution engine |
+
+Console file upload at `/file-sync` uses an audited, idempotently ensured backend `file_upload` source so operators need no source-registration step. The NAS view is manual-only and unavailable while live filesystem scanning remains outside the implemented scan-task orchestration boundary.
 | Upper systems                    | Consume NEXUS APIs                                                                                                       | Direct calls to MinerU, retrieval backends, LiteLLM, or internal DBs  |
 
 ## Design Principles

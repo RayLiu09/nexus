@@ -21,7 +21,7 @@
 
 | 操作 | 页面 | 等级 | 确认词 | 备注 |
 |------|------|------|--------|------|
-| 删除数据源 | `/data-sources/[id]` | D2 | 数据源名称 | 删除后关联批次和原始对象仍保留，但数据源元数据不可恢复 |
+| 删除数据源 | 无 Console 入口 | D2 | 数据源名称 | 后台来源仍用于批次和原始对象追溯 |
 
 ### API Caller
 
@@ -57,6 +57,6 @@
 | 操作 | 状态 | 文件 |
 |------|------|------|
 | 吊销 API Caller | 已集成 | `app/api-callers/_components/ApiCallersContent.tsx` |
-| 删除数据源 | 待集成 | `app/data-sources/[id]/page.tsx` |
+| 删除数据源 | 无 Console 入口 | 后台管理能力保留 |
 | 重试失败作业 | 待集成 | `components/JobsContent.tsx` |
 | 取消运行中作业 | 待集成 | `components/JobsContent.tsx` |

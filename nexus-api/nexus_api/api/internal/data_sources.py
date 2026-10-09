@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
@@ -19,6 +20,43 @@ from nexus_app.ingest import batch as ingest_batch
 from nexus_app.ingest import scan as ingest_scan
 
 router = APIRouter()
+
+DEFAULT_UPLOAD_SOURCE_CODE = "system_local_upload"
+
+
+@router.post(
+    "/data-sources/default-upload",
+    response_model=schemas.ApiResponse[domain_schemas.DataSourceRead],
+)
+def ensure_default_upload_source(request: Request, session: Session = Depends(get_db)):
+    source = session.scalar(
+        select(models.DataSource).where(models.DataSource.code == DEFAULT_UPLOAD_SOURCE_CODE)
+    )
+    if source is None:
+        try:
+            source = services.create_data_source(
+                session,
+                domain_schemas.DataSourceCreate(
+                    code=DEFAULT_UPLOAD_SOURCE_CODE,
+                    name="本地上传",
+                    source_type=DataSourceType.FILE_UPLOAD,
+                ),
+                trace_id=str(getattr(request.state, "trace_id", "")),
+            )
+        except IntegrityError:
+            session.rollback()
+            source = session.scalar(
+                select(models.DataSource).where(models.DataSource.code == DEFAULT_UPLOAD_SOURCE_CODE)
+            )
+            if source is None:
+                raise
+    if (
+        source.source_type != DataSourceType.FILE_UPLOAD
+        or source.deleted_at is not None
+        or source.status != DataSourceStatus.ENABLED
+    ):
+        raise HTTPException(status_code=409, detail="default upload source is unavailable")
+    return response(source, request)
 
 
 @router.post(

@@ -41,19 +41,17 @@ export class WorkbenchPage {
 }
 
 /**
- * Data sources list page object.
+ * File data sync page object.
  */
-export class DataSourcesPage {
+export class FileSyncPage {
   readonly heading: Locator;
-  readonly newButton: Locator;
 
   constructor(readonly page: Page) {
     this.heading = page.getByRole("heading", { level: 1 });
-    this.newButton = page.getByRole("button", { name: /新建|新增|创建/ });
   }
 
   async goto() {
-    await this.page.goto("/data-sources");
+    await this.page.goto("/file-sync");
   }
 }
 

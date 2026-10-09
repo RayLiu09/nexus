@@ -50,7 +50,7 @@ describe("Console middleware role boundary", () => {
   );
 
   it("lets platform_data_admin reach admin-only routes", () => {
-    const response = middleware(pageRequest("/data-sources", "platform_data_admin"));
+    const response = middleware(pageRequest("/file-sync", "platform_data_admin"));
     expect(response.status).toBe(200);
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
@@ -67,8 +67,8 @@ describe("Console middleware role boundary", () => {
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
-  it("redirects business_expert away from admin-only /data-sources", () => {
-    const response = middleware(pageRequest("/data-sources", "business_expert"));
+  it("redirects business_expert away from admin-only /file-sync", () => {
+    const response = middleware(pageRequest("/file-sync", "business_expert"));
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe("http://localhost/asset-center");
   });

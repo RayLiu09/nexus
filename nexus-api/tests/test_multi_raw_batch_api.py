@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import base64
 
+from fastapi import HTTPException
+import pytest
+
 from nexus_api.api import internal as v1
 from nexus_app import models, services
 from nexus_app.ingest import batch as ingest_batch
@@ -17,6 +20,7 @@ from nexus_app.schemas import (
     MultiRawBatchCreate,
 )
 from nexus_app.storage import InMemoryObjectStorage
+from nexus_app.enums import DataSourceStatus
 
 
 def _b64(payload: bytes) -> str:
@@ -35,6 +39,22 @@ def test_multi_raw_batch_routes_registered(app):
     assert "/internal/v1/ingest/batches" in paths
     assert "/internal/v1/ingest/batches/{batch_id}/files" in paths
     assert "/internal/v1/ingest/files/multi" in paths
+    assert "/internal/v1/data-sources/default-upload" in paths
+
+
+def test_default_upload_source_is_reused_and_disabled_source_is_rejected(session, fake_request):
+    first = v1.ensure_default_upload_source(fake_request, session).data
+    second = v1.ensure_default_upload_source(fake_request, session).data
+    assert first.id == second.id
+    assert first.code == "system_local_upload"
+    assert first.source_type.value == "file_upload"
+
+    source = session.get(models.DataSource, first.id)
+    source.status = DataSourceStatus.DISABLED
+    session.commit()
+    with pytest.raises(HTTPException) as error:
+        v1.ensure_default_upload_source(fake_request, session)
+    assert error.value.status_code == 409
 
 
 def test_create_batch_returns_open_status(monkeypatch, session, fake_request):

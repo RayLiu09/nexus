@@ -25,7 +25,7 @@ NEXUS_API_BASE_URL=http://127.0.0.1:8000 npm run dev
 
 - `/login`
 - `/workbench`
-- `/data-sources`
+- `/file-sync` (本地上传；NAS 手动同步入口暂未开放)
 - `/ingest`
 - `/raw-ledger`
 - `/jobs`

@@ -1,12 +1,10 @@
 "use client";
 
 import { CloudUploadOutlined, ReloadOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, Form, Progress, Select, Space, Tag, Upload, message } from "antd";
+import { Alert, Button, Card, Form, Progress, Space, Tag, Upload, message } from "antd";
 import type { UploadFile, UploadProps } from "antd";
-import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 
-import type { DataSource } from "@/lib/api";
 import { postApiData, NexusApiError, shortId } from "@/lib/api";
 import { FileStatusList } from "@/components/ingest/FileStatusList";
 import type { BatchSubmitItem, BatchSubmitResult, SelectedFile } from "@/lib/ingest/batchTypes";
@@ -16,13 +14,6 @@ import { useBatchStatus } from "@/lib/ingest/useBatchStatus";
 const MAX_FILES = 20;
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
 
-interface BatchUploadPageProps {
-  sources: DataSource[];
-}
-
-interface FormValues {
-  data_source_id: string;
-}
 
 function statusTone(status: string): "default" | "success" | "warning" | "error" | "processing" {
   if (status === "completed") return "success";
@@ -55,8 +46,7 @@ function statusLabel(status: string): string {
   }
 }
 
-export function BatchUploadPage({ sources }: BatchUploadPageProps) {
-  const [form] = Form.useForm<FormValues>();
+export function BatchUploadPage() {
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -73,12 +63,11 @@ export function BatchUploadPage({ sources }: BatchUploadPageProps) {
   }, [fileList]);
 
   const handleReset = useCallback(() => {
-    form.resetFields();
     setFileList([]);
     setItems([]);
     setBatchId(null);
     setSubmitError(null);
-  }, [form]);
+  }, []);
 
   const uploadProps: UploadProps = {
     multiple: true,
@@ -107,7 +96,6 @@ export function BatchUploadPage({ sources }: BatchUploadPageProps) {
   const handleSubmit = async () => {
     setSubmitError(null);
     try {
-      const values = await form.validateFields();
       if (fileList.length === 0) {
         message.warning("请至少选择一个文件");
         return;
@@ -132,7 +120,6 @@ export function BatchUploadPage({ sources }: BatchUploadPageProps) {
 
       const batchKey = `console-multi-${Date.now()}`;
       const payload = {
-        data_source_id: values.data_source_id,
         batch_idempotency_key: batchKey,
         files: selected.map((file) => ({
           file_idempotency_key: file.key,
@@ -171,30 +158,9 @@ export function BatchUploadPage({ sources }: BatchUploadPageProps) {
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,1fr)]">
       <Card
-        title="选择数据源与文件"
-        extra={
-          <Link href="/ingest" className="text-brand text-xs">
-            ← 返回单文件接入
-          </Link>
-        }
+        title="本地上传"
       >
-        <Form<FormValues> form={form} layout="vertical">
-          <Form.Item
-            name="data_source_id"
-            label="数据源"
-            rules={[{ required: true, message: "请选择数据源" }]}
-          >
-            <Select
-              placeholder="选择已注册的数据源"
-              options={sources.map((source) => ({
-                value: source.id,
-                label: `${source.name} [${source.code}]`,
-              }))}
-              showSearch
-              optionFilterProp="label"
-              disabled={sources.length === 0 || batchId !== null}
-            />
-          </Form.Item>
+        <Form layout="vertical">
           <Form.Item label={`文件列表（最多 ${MAX_FILES} 个，单文件 ≤ 100MB）`} required>
             <Upload.Dragger {...uploadProps} disabled={batchId !== null} className="!p-0">
               <p className="text-2xl">

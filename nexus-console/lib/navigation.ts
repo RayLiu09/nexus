@@ -1,7 +1,7 @@
 import type { SessionRole } from "@/lib/auth/session";
 import type { LucideIcon } from "lucide-react";
 import {
-  Database,
+  FolderSync,
   ScanSearch,
   RefreshCw,
   FileArchive,
@@ -108,7 +108,7 @@ export const navigation: Navigation = [
     id: "data-management",
     label: "数据管理",
     items: [
-      { href: "/data-sources", label: "数据源", icon: Database, allowedRoles: ADMIN_ONLY },
+      { href: "/file-sync", label: "文件数据同步", icon: FolderSync, allowedRoles: ADMIN_ONLY },
       { href: "/crawler", label: "Crawler 爬虫", icon: ScanSearch, allowedRoles: ADMIN_ONLY },
       { href: "/data-sync", label: "API 数据同步", icon: RefreshCw, allowedRoles: ADMIN_ONLY },
       {
