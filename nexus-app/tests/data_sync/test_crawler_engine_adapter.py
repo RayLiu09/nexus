@@ -166,6 +166,31 @@ def test_submit_uses_stable_identifiers_and_live_request_shape():
     assert len(requests) == 2
 
 
+def test_submit_can_replay_after_response_is_lost():
+    requests = []
+
+    def handler(request):
+        requests.append((request.headers["Idempotency-Key"], json.loads(request.content)))
+        if len(requests) == 1:
+            raise httpx.ReadTimeout("response lost after upstream commit")
+        return httpx.Response(202, json={
+            "collectionJobId": JOB_ID,
+            "externalRequestId": "nexus-data-sync:run-1",
+            "status": "queued",
+        })
+
+    adapter = _adapter(handler)
+    query = {"keywords": ["数据化运营助理"], "regions": ["杭州市"]}
+    with pytest.raises(SyncRuntimeError) as caught:
+        adapter.submit(_provider(), query, "token", "run-1")
+    assert caught.value.code == "submit_unconfirmed"
+    assert caught.value.retryable
+    assert adapter.submit(_provider(), query, "token", "run-1") == {
+        "external_task_id": JOB_ID, "request_id": "nexus-data-sync:run-1",
+    }
+    assert requests[0] == requests[1]
+
+
 def test_submit_expands_selected_titles_and_cities():
     submitted = []
 
@@ -275,7 +300,7 @@ def test_job_id_mismatch_is_rejected():
     assert caught.value.code == "invalid_status"
 
 
-def test_submit_409_and_unknown_status_do_not_expose_raw_response():
+def test_submit_409_does_not_expose_raw_response():
     adapter = _adapter(lambda _: httpx.Response(409, text="secret upstream detail"))
     with pytest.raises(SyncRuntimeError) as caught:
         adapter.submit(_provider(), {"keyword": "数据化运营助理"}, "token", "run-1")
@@ -283,6 +308,18 @@ def test_submit_409_and_unknown_status_do_not_expose_raw_response():
     assert caught.value.retryable is False
     assert "secret upstream detail" not in str(caught.value)
 
+
+@pytest.mark.parametrize("status_code", [408, 429, 503])
+def test_submit_transient_http_result_is_unconfirmed(status_code):
+    adapter = _adapter(lambda _: httpx.Response(status_code, text="secret upstream detail"))
+    with pytest.raises(SyncRuntimeError) as caught:
+        adapter.submit(_provider(), {"keyword": "数据化运营助理"}, "token", "run-1")
+    assert caught.value.code == "submit_unconfirmed"
+    assert caught.value.retryable
+    assert "secret upstream detail" not in str(caught.value)
+
+
+def test_submit_unknown_status_does_not_expose_raw_response():
     adapter = _adapter(lambda _: httpx.Response(200, json={
         **_job(), "status": "future_unknown_state", "raw": "secret upstream detail",
     }))

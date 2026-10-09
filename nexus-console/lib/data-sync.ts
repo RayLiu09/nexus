@@ -53,6 +53,7 @@ export type SyncRun = {
   provider_code: string;
   adapter_version: string;
   status: string;
+  external_status: string | null;
   external_task_id: string | null;
   processed_count: number;
   success_count: number;

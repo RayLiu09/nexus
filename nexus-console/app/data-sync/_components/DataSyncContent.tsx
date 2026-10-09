@@ -85,6 +85,10 @@ const statusColor: Record<string, string> = {
   failed: "red",
   cancelled: "default",
 };
+const runStatus = (run: SyncRun) =>
+  run.status === "running" && run.external_status === "pausing" ? "暂停中" :
+  run.status === "running" && run.external_status === "cancelling" ? "取消中" :
+  statusNames[run.status] ?? run.status;
 
 function fieldType(field: QueryField): string | null {
   if (field.type) return field.type;
@@ -243,11 +247,11 @@ export function DataSyncContent({
     }
   }
 
-  async function act(key: string, action: () => Promise<unknown>): Promise<boolean> {
+  async function act(key: string, action: () => Promise<unknown>, successText = "操作成功"): Promise<boolean> {
     setBusy(key);
     try {
       await action();
-      message.success("操作成功");
+      message.success(successText);
       await refresh();
       return true;
     } catch (cause) {
@@ -518,19 +522,23 @@ export function DataSyncContent({
                     />
                   </Tooltip>
                   {plan.status !== "deleted" && (
-                    <Tooltip title={plan.status === "active" ? "暂停计划" : "恢复计划"}>
+                    <Tooltip title={plan.status === "active" ? "暂停后续调度" : "恢复计划"}>
                       <Button
                         aria-label={`${plan.status === "active" ? "暂停" : "恢复"}计划 ${plan.name}`}
                         icon={plan.status === "active" ? <PauseOutlined /> : <PlayCircleOutlined />}
                         loading={busy === `plan-${plan.id}`}
-                        onClick={() =>
-                          act(`plan-${plan.id}`, () =>
-                            postApiData(
-                              `/api/data-sync/plans/${plan.id}/${plan.status === "active" ? "pause" : "resume"}`,
+                        onClick={async () => {
+                          const pausing = plan.status === "active";
+                          const succeeded = await act(
+                            `plan-${plan.id}`,
+                            () => postApiData(
+                              `/api/data-sync/plans/${plan.id}/${pausing ? "pause" : "resume"}`,
                               {},
                             ),
-                          )
-                        }
+                            pausing ? "计划已暂停；当前运行可在运行记录中单独暂停" : "计划已恢复",
+                          );
+                          if (succeeded && pausing) openRunHistory(plan);
+                        }}
                       />
                     </Tooltip>
                   )}
@@ -753,8 +761,10 @@ export function DataSyncContent({
               title: "运行状态",
               dataIndex: "status",
               key: "status",
-              render: (value: string) => (
-                <Tag color={statusColor[value]}>{statusNames[value] ?? value}</Tag>
+              render: (value: string, run: SyncRun) => (
+                <Tag color={run.external_status === "pausing" ? "orange" : statusColor[value]}>
+                  {runStatus(run)}
+                </Tag>
               ),
             },
             {
@@ -805,7 +815,7 @@ export function DataSyncContent({
                       }}
                     />
                   </Tooltip>
-                  {run.status === "running" && (
+                  {run.status === "running" && !["pausing", "cancelling"].includes(run.external_status ?? "") && (
                     <Tooltip title="暂停本次运行">
                       <Button
                         aria-label={`暂停运行 ${run.id}`}

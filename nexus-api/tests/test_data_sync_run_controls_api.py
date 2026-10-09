@@ -104,6 +104,59 @@ def test_queued_cancel_is_local_and_requires_admin(app, session, stub_user):
         assert _control(client, run_id, "cancel", "forbidden").status_code == 403
 
 
+def test_crawler_pause_ack_waits_for_external_paused_state(app, session, monkeypatch):
+    from nexus_app.data_sync import controls
+    from nexus_app.data_sync.tokens import TokenManager
+
+    class Adapter:
+        result_handler = object()
+
+        def pause(self, provider, task_id, token, key):
+            assert not session.in_transaction()
+            return {"state": "pausing", "desired_state": "paused"}
+
+    monkeypatch.setattr(controls, "_provider_code", lambda _: (object(), Adapter()))
+    monkeypatch.setattr(TokenManager, "get_token", lambda *_: "token")
+    with TestClient(app) as client:
+        run_id = _run(client, "crawler-pausing")
+        run = session.get(models.DataSyncRun, run_id)
+        run.status = "running"
+        run.external_task_id = "external-pausing"
+        session.commit()
+        paused = _control(client, run_id, "pause", "pause-crawler")
+        assert paused.status_code == 200
+        assert paused.json()["data"]["status"] == "running"
+        assert paused.json()["data"]["external_status"] == "pausing"
+        assert session.get(models.DataSyncRun, run_id).status_detail["desired_state"] == "paused"
+
+
+def test_crawler_stable_pause_ack_updates_external_state(app, session, monkeypatch):
+    from nexus_app.data_sync import controls
+    from nexus_app.data_sync.tokens import TokenManager
+
+    class Adapter:
+        result_handler = object()
+
+        def pause(self, provider, task_id, token, key):
+            assert not session.in_transaction()
+            return {"state": "paused", "desired_state": "paused"}
+
+    monkeypatch.setattr(controls, "_provider_code", lambda _: (object(), Adapter()))
+    monkeypatch.setattr(TokenManager, "get_token", lambda *_: "token")
+    with TestClient(app) as client:
+        run_id = _run(client, "crawler-stable-pause")
+        run = session.get(models.DataSyncRun, run_id)
+        run.status = "running"
+        run.external_status = "queued"
+        run.external_task_id = "external-paused"
+        session.commit()
+        paused = _control(client, run_id, "pause", "pause-crawler-stable")
+        assert paused.status_code == 200
+        assert paused.json()["data"]["status"] == "paused"
+        assert paused.json()["data"]["external_status"] == "paused"
+        assert session.get(models.DataSyncRun, run_id).status_detail["desired_state"] == "paused"
+
+
 def test_failed_downstream_control_keeps_state_and_can_retry_key(app, session, monkeypatch):
     from nexus_app.data_sync import controls
     from nexus_app.data_sync.runtime import SyncRuntimeError

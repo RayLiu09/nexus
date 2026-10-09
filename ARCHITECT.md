@@ -699,6 +699,8 @@ API Push data sync is a separate control-plane flow from `data_source` and the i
 
 The W4 runtime optionally starts with `DATA_SYNC_RUNTIME_ENABLED`: a PostgreSQL-backed scheduler creates due runs, and a separate leased worker calls the configured adapter. Provider Catalog and external Token/submit/status/page operations run outside database transactions; progress and status changes use short transactions with lease-owner checks and audit. The crawler-engine result handler writes raw job rows and the page checkpoint atomically.
 
+For crawler-engine, an unconfirmed submit response is retried with the frozen query and the same run-derived external request ID and idempotency key. The upstream returns the original Job ID on identical replay; an actual 409 conflict fails safely. A plan pause stops future scheduling, while an existing run requires its own synchronous pause control.
+
 W5 run controls synchronously call the adapter outside database transactions. The crawler engine can return transitional `pausing` or `cancelling` after accepting a request; the local run remains nonterminal until an upstream status read confirms its stable state. Failed calls retain the prior state and store only a safe error code. Idempotency keys are hashed in the existing audit history, with no separate control-request queue or transition table.
 
 The ingest gateway uses the `IngestAdapter` protocol:

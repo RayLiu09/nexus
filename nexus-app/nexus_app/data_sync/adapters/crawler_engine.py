@@ -177,10 +177,20 @@ class CrawlerEngineDataSyncProvider:
                 },
                 headers={"Idempotency-Key": request_id},
             )
+        except httpx.RequestError as exc:
+            raise SyncRuntimeError(
+                "provider submit outcome is unconfirmed", retryable=True,
+                code="submit_unconfirmed",
+            ) from exc
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code == 409:
                 raise SyncRuntimeError(
                     "provider submit identifier conflict", code="submit_conflict"
+                ) from exc
+            if exc.response.status_code in {408, 429} or exc.response.status_code >= 500:
+                raise SyncRuntimeError(
+                    "provider submit outcome is unconfirmed", retryable=True,
+                    code="submit_unconfirmed",
                 ) from exc
             raise
         result = self._parse(response, _SubmitResponse, "invalid_submit")

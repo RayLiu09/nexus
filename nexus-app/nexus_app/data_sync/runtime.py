@@ -274,7 +274,7 @@ def recover_expired_runs(session: Session, *, now: datetime | None = None, max_a
         run.claim_owner = None
         run.lease_expires_at = None
         run.heartbeat_at = None
-        if run.attempt_count >= max_attempts:
+        if run.attempt_count >= max_attempts and run.external_task_id is not None:
             _set_status(session, run, DataSyncRunStatus.FAILED.value, reason="lease_expired")
             run.finished_at = now
             run.failure_summary = "worker lease expired after maximum attempts"
@@ -473,12 +473,16 @@ class DataSyncExecutor:
                 isinstance(exc, SyncRuntimeError) and exc.retryable
             )
             waiting = isinstance(exc, SyncRuntimeError) and exc.code == "not_ready"
+            unconfirmed_submit = (
+                isinstance(exc, SyncRuntimeError) and exc.code == "submit_unconfirmed"
+                and run.external_task_id is None
+            )
             if waiting:
                 run.attempt_count = max(0, run.attempt_count - 1)
                 run.next_retry_at = _utcnow() + timedelta(seconds=5)
                 run.failure_summary = None
-            elif retryable and run.attempt_count < self.max_attempts:
-                delay = min(300, 2 ** max(0, run.attempt_count - 1) * 5)
+            elif retryable and (unconfirmed_submit or run.attempt_count < self.max_attempts):
+                delay = min(300, 2 ** min(max(0, run.attempt_count - 1), 6) * 5)
                 _set_status(session, run, DataSyncRunStatus.QUEUED.value, reason="retry")
                 run.next_retry_at = _utcnow() + timedelta(seconds=delay)
             else:

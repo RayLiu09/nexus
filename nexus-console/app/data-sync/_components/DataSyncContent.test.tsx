@@ -1,9 +1,12 @@
 import { App } from "antd";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
-import type { JobCollectionCategory, SyncPlan, SyncProvider } from "@/lib/data-sync";
+import { getApiData, postApiData } from "@/lib/api";
+import type { JobCollectionCategory, SyncPlan, SyncProvider, SyncRun } from "@/lib/data-sync";
 import { DataSyncContent } from "./DataSyncContent";
+
+vi.mock("@/lib/api", () => ({ getApiData: vi.fn(), postApiData: vi.fn(), deleteApiData: vi.fn() }));
 
 vi.stubGlobal("ResizeObserver", class {
   observe() {}
@@ -71,4 +74,35 @@ it("shows only the real provider and opens the job-collection plan controls", ()
   expect(screen.getByText("区域")).toBeInTheDocument();
   expect(screen.getByText("页数")).toBeInTheDocument();
   expect(screen.getByText("30 页")).toBeInTheDocument();
+});
+
+it("opens run history after pausing a plan and shows the pending run pause", async () => {
+  const plan: SyncPlan = { ...mockPlan, id: "crawler-plan", name: "杭州岗位", provider_code: "crawler_engine" };
+  const run: SyncRun = {
+    id: "run-1", data_sync_config_id: plan.id, provider_code: "crawler_engine",
+    adapter_version: "0.2.0", status: "running", external_status: "pausing",
+    external_task_id: "external-1", processed_count: 1, success_count: 1,
+    failure_count: 0, skipped_count: 0, failure_summary: null,
+    queued_at: "2026-10-09T00:00:00Z", updated_at: "2026-10-09T00:01:00Z",
+  };
+  vi.mocked(postApiData).mockResolvedValue({ data: {} });
+  vi.mocked(getApiData).mockImplementation(async (path) => ({
+    data: path.includes("/runs") ? [run] : path.includes("/providers") ? [provider("crawler_engine")] :
+      path.includes("/job-catalog") ? catalog : [{ ...plan, status: "paused" }],
+    ok: true, error: null, traceId: null, total: 1,
+  }));
+  render(
+    <App>
+      <DataSyncContent
+        initialProviders={[provider("crawler_engine")]}
+        initialPlans={[plan]}
+        initialCatalog={catalog}
+        initialError={null}
+      />
+    </App>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "暂停计划 杭州岗位" }));
+  await waitFor(() => expect(screen.getByText("暂停中")).toBeInTheDocument());
+  expect(screen.getByText("运行记录 · 杭州岗位")).toBeInTheDocument();
+  expect(postApiData).toHaveBeenCalledWith("/api/data-sync/plans/crawler-plan/pause", {});
 });

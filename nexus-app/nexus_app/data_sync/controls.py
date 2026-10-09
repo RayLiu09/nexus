@@ -172,10 +172,11 @@ def control_run(
                     run.claim_owner = None
                     run.lease_expires_at = None
                     run.heartbeat_at = None
-                run.external_status = external_state
-                run.status_detail = {"desired_state": desired_state}
             else:
                 _set_status(session, run, _TARGET[action], reason=f"user_{action}")
+            if external_state is not None:
+                run.external_status = external_state
+                run.status_detail = {"desired_state": desired_state}
             run.last_control_action = action
             run.last_control_operator_id = actor_id
             run.last_control_requested_at = datetime.now(timezone.utc)

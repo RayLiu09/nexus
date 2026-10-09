@@ -12,6 +12,7 @@ from nexus_app.data_sync.runtime import (
     PageResult,
     StatusResult,
     SubmitResult,
+    SyncRuntimeError,
     claim_run,
     recover_expired_runs,
 )
@@ -41,6 +42,21 @@ def test_claim_heartbeat_and_expired_run_recovery(session):
     assert claimed is not None
     assert claimed.id == run.id
     assert claimed.status == "running"
+    claimed.lease_expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    session.commit()
+    assert recover_expired_runs(session, max_attempts=3) == 1
+    assert session.get(models.DataSyncRun, run.id).status == "queued"
+
+
+def test_expired_unconfirmed_submit_can_replay_after_attempt_limit(session):
+    plan = _plan(session)
+    run = create_manual_run(
+        session, plan_id=plan.id, actor_id="admin", idempotency_key="expired-submit",
+        trace_id="trace-expired-submit",
+    )
+    claimed = claim_run(session, "crashed-worker", lease_seconds=10)
+    assert claimed.id == run.id
+    claimed.attempt_count = 3
     claimed.lease_expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
     session.commit()
     assert recover_expired_runs(session, max_attempts=3) == 1
@@ -205,6 +221,47 @@ def test_runtime_refreshes_401_and_recovers_409(session, monkeypatch):
     assert refreshed.external_task_id == "external-recovered"
     assert adapter.submit_calls == 2
     assert len(calls) == 1
+
+
+def test_unconfirmed_submit_replays_beyond_attempt_limit(session, monkeypatch):
+    plan = _plan(session)
+    run = create_manual_run(
+        session, plan_id=plan.id, actor_id="admin", idempotency_key="lost-response",
+        trace_id="trace-lost-response",
+    )
+    factory = sessionmaker(bind=session.get_bind(), expire_on_commit=False)
+
+    class ResponseLostAdapter(_FakeAdapter):
+        def __init__(self):
+            super().__init__()
+            self.submissions = []
+
+        def submit(self, context, query, access_token, idempotency_key):
+            self.submissions.append((query, idempotency_key))
+            if len(self.submissions) == 1:
+                raise SyncRuntimeError(
+                    "submit outcome unconfirmed", retryable=True, code="submit_unconfirmed"
+                )
+            return SubmitResult("existing-external-job", f"nexus-data-sync:{idempotency_key}")
+
+    adapter = ResponseLostAdapter()
+    monkeypatch.setattr("nexus_app.data_sync.runtime._provider_code", lambda _: (object(), adapter))
+    executor = DataSyncExecutor(factory, worker_id="lost-response-worker", max_attempts=1)
+    monkeypatch.setattr(executor._tokens, "get_token", lambda *_: "token")
+    assert executor.run_once()
+    session.expire_all()
+    refreshed = session.get(models.DataSyncRun, run.id)
+    assert refreshed.status == "queued"
+    assert refreshed.failure_summary == "submit_unconfirmed"
+    refreshed.next_retry_at = None
+    session.commit()
+    assert executor.run_once()
+    executor.close()
+    session.expire_all()
+    refreshed = session.get(models.DataSyncRun, run.id)
+    assert refreshed.status == "succeeded"
+    assert refreshed.external_task_id == "existing-external-job"
+    assert adapter.submissions == [(plan.query_config, run.id)] * 2
 
 
 def test_runtime_resumes_from_persisted_cursor_after_page_failure(session, monkeypatch):
