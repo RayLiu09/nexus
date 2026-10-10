@@ -316,6 +316,12 @@ class CrawlerPlanCreate(BaseModel):
     status: Literal["active", "disabled", "archived"] = "active"
 
 
+class CrawlerPlanUpdate(CrawlerPlanCreate):
+    """Editable crawler configuration; connector identity is checked by the service."""
+
+    pass
+
+
 class CrawlerPlanRead(ORMModel):
     id: str
     name: str
@@ -373,6 +379,14 @@ class DataSyncPlanCreate(BaseModel):
 
     name: str = Field(min_length=1, max_length=128)
     provider_code: str = Field(min_length=1, max_length=64)
+    frequency: Literal["1_month", "3_months", "6_months", "9_months", "1_year"]
+    query_config: dict[str, Any]
+
+
+class DataSyncPlanUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=128)
     frequency: Literal["1_month", "3_months", "6_months", "9_months", "1_year"]
     query_config: dict[str, Any]
 

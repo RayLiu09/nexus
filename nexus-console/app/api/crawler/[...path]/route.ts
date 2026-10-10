@@ -44,3 +44,17 @@ export async function POST(request: Request, context: RouteContext): Promise<Nex
     headers: pickResponseHeaders(result),
   });
 }
+
+export async function PUT(request: Request, context: RouteContext): Promise<NextResponse> {
+  const { path } = await context.params;
+  const body = await request.json().catch(() => null);
+  const result = await proxy<unknown>(crawlerPath(path), {
+    method: "PUT",
+    body: body ?? undefined,
+    forwardHeaders: forwardedHeadersFrom(request),
+  });
+  return NextResponse.json(result, {
+    status: result.ok ? 200 : result.status,
+    headers: pickResponseHeaders(result),
+  });
+}

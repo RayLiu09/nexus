@@ -20,6 +20,7 @@ import {
 } from "antd";
 import {
   DeleteOutlined,
+  EditOutlined,
   HistoryOutlined,
   LinkOutlined,
   PauseCircleOutlined,
@@ -107,6 +108,11 @@ async function crawlerPost<T>(path: string, body: unknown): Promise<ApiProxyResu
     },
     body: JSON.stringify(body ?? {}),
   });
+  return response.json();
+}
+
+async function crawlerPut<T>(path: string, body: unknown): Promise<ApiProxyResult<T>> {
+  const response = await fetch(`/api/crawler${path}`, { method: "PUT", headers: { "content-type": "application/json", "Idempotency-Key": createIdempotencyKey() }, body: JSON.stringify(body ?? {}) });
   return response.json();
 }
 
@@ -240,10 +246,12 @@ export function CrawlerPlansPanel() {
   const [runningPlanId, setRunningPlanId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<CrawlerPlan | null>(null);
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
   const [historyPlan, setHistoryPlan] = useState<CrawlerPlan | null>(null);
   const [historyRuns, setHistoryRuns] = useState<CrawlerRun[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [formDataLoading, setFormDataLoading] = useState(false);
 
   const activePlans = plans.filter((plan) => plan.status !== "archived");
   const crawlerSourceOptions = [
@@ -261,24 +269,14 @@ export function CrawlerPlansPanel() {
   const refresh = async () => {
     setLoading(true);
     setError(null);
-    const [configResult, regionsResult, plansResult, runsResult] = await Promise.all([
-      crawlerGet<CrawlerConfig>("/config"),
-      crawlerGet<CrawlerRegion[]>("/regions"),
-      crawlerGet<CrawlerPlan[]>("/plans"),
-      crawlerGet<CrawlerRun[]>("/runs"),
+    const [plansResult, runsResult] = await Promise.all([
+      crawlerGet<CrawlerPlan[]>("/plans?pageSize=100"),
+      crawlerGet<CrawlerRun[]>("/runs?pageSize=200&summary=counts"),
     ]);
-    const failedResult = [configResult, regionsResult, plansResult, runsResult].find(
+    const failedResult = [plansResult, runsResult].find(
       (result) => !result.ok,
     );
     if (failedResult) setError(readableError(failedResult));
-    if (configResult.ok) {
-      setConfig(configResult.data);
-      setForm((prev) => ({
-        ...prev,
-        regionCode: prev.regionCode || configResult.data.default_region_code,
-      }));
-    }
-    if (regionsResult.ok) setRegions(regionsResult.data);
     if (plansResult.ok) setPlans(plansResult.data);
     if (runsResult.ok) setRuns(runsResult.data);
     setLoading(false);
@@ -292,7 +290,31 @@ export function CrawlerPlansPanel() {
   }, []);
 
   useEffect(() => {
-    if (!form.regionCode) return;
+    if (!drawerOpen || !form.regionCode || config) return;
+    let disposed = false;
+    setFormDataLoading(true);
+    Promise.all([
+      crawlerGet<CrawlerConfig>("/config"),
+      crawlerGet<CrawlerRegion[]>("/regions"),
+    ]).then(([configResult, regionsResult]) => {
+      if (disposed) return;
+      if (configResult.ok) {
+        setConfig(configResult.data);
+        setForm((prev) => ({
+          ...prev,
+          regionCode: prev.regionCode || configResult.data.default_region_code,
+        }));
+      }
+      if (regionsResult.ok) setRegions(regionsResult.data);
+      setFormDataLoading(false);
+    });
+    return () => {
+      disposed = true;
+    };
+  }, [drawerOpen, form.regionCode, config]);
+
+  useEffect(() => {
+    if (!drawerOpen || !config || !form.regionCode) return;
     let disposed = false;
     crawlerGet<CrawlerSites>(`/regions/${encodeURIComponent(form.regionCode)}/sites`).then(
       (result) => {
@@ -302,10 +324,17 @@ export function CrawlerPlansPanel() {
     return () => {
       disposed = true;
     };
-  }, [form.regionCode]);
+  }, [drawerOpen, form.regionCode, config]);
 
   const update = <K extends keyof PlanFormState>(key: K, value: PlanFormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const openEdit = (plan: CrawlerPlan) => {
+    const search = plan.search_policy ?? {};
+    setEditingPlan(plan);
+    setForm({ connectorType: plan.connector_type as PlanFormState["connectorType"], mode: plan.mode as PlanFormState["mode"], name: plan.name, dataSourceId: plan.data_source_id ?? "", regionCode: plan.region_code ?? "national", executionMode: plan.execution_mode as PlanFormState["executionMode"], scheduleCron: plan.schedule_cron ?? "", topicKeywords: plan.topic_keywords.join(", "), targetUrls: plan.target_sites.map((site) => site.base_url).join("\n"), query: typeof search.query === "string" ? search.query : INITIAL_FORM.query, resultCount: typeof search.result_count === "number" ? search.result_count : INITIAL_FORM.resultCount, timeRangePreset: typeof search.time_range_preset === "string" ? search.time_range_preset : INITIAL_FORM.timeRangePreset });
+    setDrawerOpen(true);
   };
 
   const createPlan = async () => {
@@ -326,22 +355,21 @@ export function CrawlerPlansPanel() {
       return;
     }
     setSaving(true);
-    const result = await crawlerPost<CrawlerPlan>(
-      "/plans",
-      buildPayload(form, effectiveDataSourceId, effectiveTopicKeywords),
-    );
+    const payload = buildPayload(form, effectiveDataSourceId, effectiveTopicKeywords);
+    const result = editingPlan ? await crawlerPut<CrawlerPlan>(`/plans/${encodeURIComponent(editingPlan.id)}`, payload) : await crawlerPost<CrawlerPlan>("/plans", payload);
     setSaving(false);
     if (!result.ok) {
       message.error(result.message);
       return;
     }
-    message.success("Crawler 计划已创建");
-    setPlans((prev) => [result.data, ...prev]);
+    message.success(editingPlan ? "Crawler 计划已更新" : "Crawler 计划已创建");
+    setPlans((prev) => editingPlan ? prev.map((item) => item.id === editingPlan.id ? result.data : item) : [result.data, ...prev]);
     setForm({
       ...INITIAL_FORM,
       regionCode: config?.default_region_code ?? INITIAL_FORM.regionCode,
     });
     setDrawerOpen(false);
+    setEditingPlan(null);
   };
 
   const runPlan = async (planId: string) => {
@@ -388,7 +416,9 @@ export function CrawlerPlansPanel() {
     setHistoryPlan(plan);
     setHistoryDrawerOpen(true);
     setHistoryLoading(true);
-    const result = await crawlerGet<CrawlerRun[]>(`/runs?plan_id=${encodeURIComponent(plan.id)}`);
+    const result = await crawlerGet<CrawlerRun[]>(
+      `/runs?plan_id=${encodeURIComponent(plan.id)}&pageSize=20&summary=full`,
+    );
     setHistoryLoading(false);
     if (!result.ok) {
       message.error(result.message);
@@ -568,7 +598,7 @@ export function CrawlerPlansPanel() {
             </div>
           </div>
           <Space>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setDrawerOpen(true)}>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingPlan(null); setForm({ ...INITIAL_FORM, regionCode: config?.default_region_code ?? INITIAL_FORM.regionCode }); setDrawerOpen(true); }}>
               新增计划
             </Button>
             <Button icon={<ReloadOutlined />} onClick={refresh} loading={loading}>
@@ -590,6 +620,7 @@ export function CrawlerPlansPanel() {
             rowKey="id"
             dataSource={activePlans}
             pagination={{ pageSize: 8 }}
+            scroll={{ x: 1100 }}
             columns={[
               {
                 title: "计划",
@@ -611,6 +642,25 @@ export function CrawlerPlansPanel() {
                 render: (connectorType: string) => {
                   const connector = crawlerConnectorLabel(connectorType);
                   return <Tag color={connector.color}>{connector.text}</Tag>;
+                },
+              },
+              {
+                title: "查询关键字",
+                width: 240,
+                render: (_, plan) => {
+                  const query = plan.search_policy.query;
+                  const keywords =
+                    plan.connector_type === "websearch" && typeof query === "string"
+                      ? query
+                      : plan.topic_keywords.join("、");
+                  if (!keywords) return <span className="text-text-muted">-</span>;
+                  return (
+                    <Tooltip title={keywords}>
+                      <Typography.Text ellipsis className="block w-full max-w-full">
+                        {keywords}
+                      </Typography.Text>
+                    </Tooltip>
+                  );
                 },
               },
               {
@@ -655,6 +705,7 @@ export function CrawlerPlansPanel() {
                 width: 220,
                 render: (_, plan) => (
                   <Space size={6}>
+                    <Tooltip title="编辑计划"><Button size="small" icon={<EditOutlined />} onClick={() => openEdit(plan)} /></Tooltip>
                     <Tooltip title="执行历史">
                       <Button
                         size="small"
@@ -707,16 +758,16 @@ export function CrawlerPlansPanel() {
       </div>
 
       <Drawer
-        title="新增 Crawler 计划"
+        title={editingPlan ? "编辑 Crawler 计划" : "新增 Crawler 计划"}
         styles={{ wrapper: { width: 504 } }}
         open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+        onClose={() => { setDrawerOpen(false); setEditingPlan(null); }}
         destroyOnClose
         footer={
           <div className="flex justify-end gap-2">
             <Button onClick={() => setDrawerOpen(false)}>取消</Button>
-            <Button type="primary" icon={<PlusOutlined />} loading={saving} onClick={createPlan}>
-              创建计划
+            <Button type="primary" icon={editingPlan ? <EditOutlined /> : <PlusOutlined />} loading={saving} onClick={createPlan}>
+              {editingPlan ? "保存修改" : "创建计划"}
             </Button>
           </div>
         }
@@ -814,6 +865,7 @@ export function CrawlerPlansPanel() {
                           value: region.region_code,
                           label: `${region.region_name} · ${region.site_count} 站点`,
                         }))}
+                        loading={formDataLoading}
                       />
                     </Form.Item>
                     <div className="border-line-light bg-bg-alt mb-4 rounded-md border p-3">

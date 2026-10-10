@@ -31,7 +31,7 @@ docker compose -f docker/docker-compose.yml up -d --force-recreate nexus-api
 provider catalog loading and provider availability do not enable the Worker by
 themselves.
 - The adapter owns query schema, Token API endpoint and protocol, submit/status/page/control protocols, and external state mapping. The Catalog may reference only trusted deployed adapters.
-- `data_sync_config` is an immutable user-created sync plan. Name, Provider, frequency, and query parameters cannot be edited. `active`, `paused`, and `deleted` are plan states. Pause blocks future scheduled and manual runs; it does not control an existing run. Delete is soft and returns 409 while a nonterminal run exists.
+- `data_sync_config` is a user-created sync plan. Provider identity cannot be edited; name, frequency, and validated query parameters can be edited while no run is nonterminal. `active`, `paused`, and `deleted` are plan states. Pause blocks future scheduled and manual runs; it does not control an existing run. Delete is soft and returns 409 while a nonterminal run exists. Edits are audited.
 - `data_sync_run` is one execution of a plan. It stores an immutable query snapshot and adapter version. It does not store fetched business records in this phase. A result sink is reserved for a later contract.
 - This flow is separate from `data_source`, the existing ingest Job pipeline, and crawler plans. It uses PostgreSQL polling and the existing audit log; no MQ, Celery, Redis, or new run-event table.
 
@@ -49,7 +49,8 @@ All paths below are Console control-plane APIs under the existing authenticated 
 | --- | --- | --- |
 | GET | `/internal/v1/data-sync/providers` | Read-only Catalog view and adapter query schema; implemented in W0/W1 slice. |
 | GET | `/internal/v1/data-sync/plans` | List plans; deleted plans are excluded unless explicitly requested. |
-| POST | `/internal/v1/data-sync/plans` | Create immutable plan with `name`, `provider_code`, `frequency`, and `query_config`; returns 201. |
+| POST | `/internal/v1/data-sync/plans` | Create plan with `name`, `provider_code`, `frequency`, and `query_config`; returns 201. |
+| PUT | `/internal/v1/data-sync/plans/{id}` | Edit name, frequency, and validated `query_config`; Provider identity is fixed. Returns 409 when a nonterminal run exists. |
 | GET | `/internal/v1/data-sync/plans/{plan_id}` | Read plan and current schedule state. |
 | POST | `/internal/v1/data-sync/plans/{plan_id}/pause` | Stop future run creation. |
 | POST | `/internal/v1/data-sync/plans/{plan_id}/resume` | Resume scheduling. |

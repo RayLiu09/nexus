@@ -21,7 +21,7 @@ function pathFor(parts: string[], method: string): string | null {
   if (parts.length === 1)
     return method === "GET" || (method === "POST" && resource === "plans") ? resource : null;
   if (parts.length === 2 && id) {
-    if (method === "GET" || (method === "DELETE" && resource === "plans"))
+    if (method === "GET" || (method === "PUT" && resource === "plans") || (method === "DELETE" && resource === "plans"))
       return `${resource}/${encodeURIComponent(id)}`;
   }
   if (parts.length === 3 && id) {
@@ -39,12 +39,12 @@ function pathFor(parts: string[], method: string): string | null {
   return null;
 }
 
-async function handle(request: Request, context: Context, method: "GET" | "POST" | "DELETE") {
+async function handle(request: Request, context: Context, method: "GET" | "POST" | "PUT" | "DELETE") {
   const { path } = await context.params;
   const target = pathFor(path, method);
   if (!target)
     return NextResponse.json({ error: { message: "不支持的数据同步操作" } }, { status: 404 });
-  const body = method === "POST" ? await request.json().catch(() => ({})) : undefined;
+  const body = method === "POST" || method === "PUT" ? await request.json().catch(() => ({})) : undefined;
   const result = await proxy<unknown>(`/internal/v1/data-sync/${target}`, {
     method,
     body,
@@ -64,4 +64,5 @@ async function handle(request: Request, context: Context, method: "GET" | "POST"
 
 export const GET = (request: Request, context: Context) => handle(request, context, "GET");
 export const POST = (request: Request, context: Context) => handle(request, context, "POST");
+export const PUT = (request: Request, context: Context) => handle(request, context, "PUT");
 export const DELETE = (request: Request, context: Context) => handle(request, context, "DELETE");

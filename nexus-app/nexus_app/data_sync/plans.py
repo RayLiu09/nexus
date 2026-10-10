@@ -1,4 +1,4 @@
-"""Immutable API data sync plans and audited lifecycle controls."""
+"""API data sync plans and audited lifecycle controls."""
 
 from __future__ import annotations
 
@@ -185,4 +185,46 @@ def change_plan_status(
     )
     session.commit()
     session.refresh(plan)
+    return plan
+
+
+def update_plan(
+    session: Session, plan_id: str, *, name: str, frequency: str,
+    query_config: dict[str, Any], actor_id: str, trace_id: str,
+) -> models.DataSyncConfig:
+    if frequency not in _MONTHS:
+        raise PlanError("unsupported frequency")
+    plan = session.scalar(select(models.DataSyncConfig).where(models.DataSyncConfig.id == plan_id).with_for_update())
+    if plan is None:
+        raise PlanNotFound("sync plan not found")
+    if plan.status == "deleted":
+        raise PlanConflict("deleted sync plan cannot be changed")
+    active_run = session.scalar(select(models.DataSyncRun.id).where(
+        models.DataSyncRun.data_sync_config_id == plan_id,
+        models.DataSyncRun.status.in_(("queued", "running", "paused")),
+    ))
+    if active_run is not None:
+        raise PlanConflict("sync plan has a nonterminal run")
+    provider = next((item for item in load_catalog() if item.provider_code == plan.provider_code), None)
+    if provider is None or provider.status != "enabled":
+        raise PlanError("Provider is unavailable")
+    try:
+        normalized_query = _load_adapter(provider.adapter_factory).validate_query(query_config)
+    except ValidationError as exc:
+        raise PlanError("query_config is invalid for this Provider") from exc
+    if not isinstance(normalized_query, dict):
+        raise PlanError("Provider query validation must return an object")
+    if plan.provider_code == "crawler_engine" and not titles_are_available(session, normalized_query["keywords"]):
+        raise PlanError("selected job titles are unavailable")
+    changed = (plan.name != name or plan.frequency != frequency or plan.query_config != normalized_query)
+    if not changed:
+        return plan
+    plan.name = name
+    plan.frequency = frequency
+    plan.query_config = normalized_query
+    plan.updated_by = actor_id
+    plan.next_run_at = None if plan.status == "paused" else next_run_time(datetime.now(timezone.utc), frequency)
+    write_audit(session, AuditEventType.DATA_SYNC_PLAN_UPDATED, "data_sync_config", plan.id, trace_id,
+                {"provider_code": plan.provider_code, "frequency": frequency}, actor_type="user", actor_id=actor_id)
+    session.commit(); session.refresh(plan)
     return plan

@@ -336,6 +336,82 @@ def create_plan(
     return row
 
 
+def update_plan(
+    session: Session,
+    plan_id: str,
+    payload: schemas.CrawlerPlanUpdate,
+    *,
+    trace_id: str | None = None,
+    actor_type: str | None = None,
+    actor_id: str | None = None,
+) -> models.CrawlerPlan:
+    row = session.scalar(
+        select(models.CrawlerPlan).where(models.CrawlerPlan.id == plan_id).with_for_update()
+    )
+    if row is None:
+        raise CrawlerPlanError(f"crawler_plan '{plan_id}' not found")
+    if row.status == "archived":
+        raise CrawlerPlanError("archived crawler plan cannot be edited")
+    if payload.connector_type != row.connector_type or payload.connector_version != row.connector_version:
+        raise CrawlerPlanError("crawler connector identity cannot be changed")
+    if payload.data_source_id and _resolve_plan_data_source_id(session, payload.data_source_id) != row.data_source_id:
+        raise CrawlerPlanError("crawler data source cannot be changed")
+
+    if row.connector_type == "websearch":
+        template, _ = load_websearch_template()
+        query = _validate_websearch_query((payload.search_policy or {}).get("query") or template["query"])
+        count = int((payload.search_policy or {}).get("result_count", template["default_result_count"]))
+        if not 10 <= count <= 50:
+            raise CrawlerPlanError("websearch result_count must be between 10 and 50")
+        row.search_policy = {"query": query, "result_count": count, "time_range_preset": (payload.search_policy or {}).get("time_range_preset", "one_year"), "content_formats": "markdown"}
+        row.mode = payload.mode
+        row.topic_keywords = []
+        row.target_sites = []
+        row.region_code = None
+        row.region_name = None
+    else:
+        template, _ = load_template()
+        if payload.mode == "quick_start":
+            region_code = payload.region_code or template.get("default_region_code", "national")
+            region = read_region_sites(region_code)
+            row.target_sites = [{**dict(site), "from_region_profile": True} for site in region.get("sites", [])]
+            row.region_code = region_code
+            row.region_name = region.get("region_name")
+            row.template_code = template["template_code"]
+            row.template_version = template.get("schema_version")
+            row.topic_keywords = payload.topic_keywords or list(template.get("default_keywords") or [])
+            row.content_goals = payload.content_goals or list(template.get("content_goals") or [])
+            row.classification_hints = payload.classification_hints or list(template.get("allowed_classification_codes") or [])
+        else:
+            row.target_sites = [_site_to_dict(site) for site in payload.target_sites]
+            row.region_code = payload.region_code
+            row.region_name = None
+            row.template_code = None
+            row.template_version = None
+            row.topic_keywords = payload.topic_keywords
+            row.content_goals = payload.content_goals
+            row.classification_hints = payload.classification_hints
+        validate_target_sites(row.target_sites, allow_http_authority_seed=payload.mode == "quick_start", require_sites=payload.mode == "quick_start")
+        row.mode = payload.mode
+        row.crawl_policy = _default_crawl_policy(template, payload.crawl_policy)
+        row.search_policy = {}
+
+    row.name = payload.name
+    row.execution_mode = payload.execution_mode
+    row.schedule_cron = payload.schedule_cron
+    if payload.execution_mode == "scheduled":
+        row.next_run_at = None if row.schedule_paused else _resolve_schedule_next_run(payload.execution_mode, payload.schedule_cron)
+    else:
+        row.next_run_at = None
+        row.schedule_paused = False
+    write_audit(session, AuditEventType.CRAWLER_PLAN_UPDATED, "crawler_plan", row.id, trace_id,
+                {"execution_mode": row.execution_mode, "schedule_cron": row.schedule_cron, "mode": row.mode},
+                actor_type=actor_type, actor_id=actor_id)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
 def archive_plan(
     session: Session,
     plan_id: str,
@@ -850,15 +926,37 @@ def _looks_like_pdf(content: bytes) -> bool:
     return content[:1024].lstrip().startswith(b"%PDF")
 
 
-def list_plans(session: Session, *, include_archived: bool = False) -> list[models.CrawlerPlan]:
+def list_plans(
+    session: Session,
+    *,
+    include_archived: bool = False,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[models.CrawlerPlan]:
     stmt = select(models.CrawlerPlan)
     if not include_archived:
         stmt = stmt.where(models.CrawlerPlan.status != "archived")
-    return list(session.scalars(stmt.order_by(models.CrawlerPlan.created_at.desc())).all())
+    stmt = stmt.order_by(models.CrawlerPlan.created_at.desc())
+    if offset:
+        stmt = stmt.offset(offset)
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    return list(session.scalars(stmt).all())
 
 
-def list_runs(session: Session, *, plan_id: str | None = None) -> list[models.CrawlerRun]:
+def list_runs(
+    session: Session,
+    *,
+    plan_id: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[models.CrawlerRun]:
     stmt = select(models.CrawlerRun)
     if plan_id:
         stmt = stmt.where(models.CrawlerRun.plan_id == plan_id)
-    return list(session.scalars(stmt.order_by(models.CrawlerRun.started_at.desc())).all())
+    stmt = stmt.order_by(models.CrawlerRun.started_at.desc())
+    if offset:
+        stmt = stmt.offset(offset)
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    return list(session.scalars(stmt).all())

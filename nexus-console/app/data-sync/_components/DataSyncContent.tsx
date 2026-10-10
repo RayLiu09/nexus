@@ -22,6 +22,7 @@ import {
 } from "antd";
 import {
   DeleteOutlined,
+  EditOutlined,
   PauseOutlined,
   PlayCircleOutlined,
   PlusOutlined,
@@ -30,7 +31,7 @@ import {
   UnorderedListOutlined,
 } from "@ant-design/icons";
 
-import { deleteApiData, getApiData, postApiData } from "@/lib/api";
+import { deleteApiData, getApiData, postApiData, putApiData } from "@/lib/api";
 import type { JobCollectionCategory, QueryField, SyncPlan, SyncProvider, SyncRun, SyncRunLogs } from "@/lib/data-sync";
 import { formatTime } from "@/lib/format-time";
 import dayjs from "dayjs";
@@ -167,6 +168,7 @@ export function DataSyncContent({
   const [error, setError] = useState(initialError);
   const [busy, setBusy] = useState<string | null>(null);
   const [selectedProvider, setSelectedProvider] = useState<SyncProvider | null>(null);
+  const [editingPlan, setEditingPlan] = useState<SyncPlan | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<SyncPlan | null>(null);
   const runRequestSeq = useRef(0);
   const logRequestSeq = useRef(0);
@@ -265,6 +267,7 @@ export function DataSyncContent({
   }
 
   function openCreate(provider: SyncProvider) {
+    setEditingPlan(null);
     form.resetFields();
     if (provider.provider_code === "crawler_engine") {
       form.setFieldsValue({
@@ -281,6 +284,17 @@ export function DataSyncContent({
         .map(([name, field]) => [name, field.default]),
     );
     form.setFieldsValue({ frequency: "1_month", query_config: defaults });
+    setSelectedProvider(provider);
+  }
+
+  function openEdit(plan: SyncPlan) {
+    const provider = providers.find((item) => item.provider_code === plan.provider_code);
+    if (!provider || plan.status === "deleted") return;
+    const category = plan.provider_code === "crawler_engine"
+      ? catalog.find((item) => (plan.query_config.keywords as string[] | undefined)?.every((name) => item.titles.some((title) => title.name === name)))
+      : undefined;
+    form.setFieldsValue({ name: plan.name, frequency: plan.frequency, query_config: plan.query_config, category_id: category?.id });
+    setEditingPlan(plan);
     setSelectedProvider(provider);
   }
 
@@ -321,15 +335,17 @@ export function DataSyncContent({
       }
     }
     const providerCode = selectedProvider.provider_code;
-    const created = await act("create", () =>
-      postApiData("/api/data-sync/plans", {
+    const saved = await act(editingPlan ? `edit-${editingPlan.id}` : "create", () =>
+      editingPlan ? putApiData(`/api/data-sync/plans/${editingPlan.id}`, {
+        name: values.name.trim(), frequency: values.frequency, query_config: values.query_config ?? {},
+      }) : postApiData("/api/data-sync/plans", {
         name: values.name.trim(),
         provider_code: providerCode,
         frequency: values.frequency,
         query_config: values.query_config ?? {},
       }),
     );
-    if (created) setSelectedProvider(null);
+    if (saved) { setSelectedProvider(null); setEditingPlan(null); }
   }
 
   const required = selectedProvider?.query_schema.required ?? [];
@@ -508,6 +524,11 @@ export function DataSyncContent({
                       onClick={() => openRunHistory(plan)}
                     />
                   </Tooltip>
+                  {plan.status !== "deleted" && (
+                    <Tooltip title="编辑计划">
+                      <Button aria-label={`编辑计划 ${plan.name}`} icon={<EditOutlined />} onClick={() => openEdit(plan)} />
+                    </Tooltip>
+                  )}
                   <Tooltip title="手动创建运行">
                     <Button
                       aria-label={`运行 ${plan.name}`}
@@ -572,7 +593,7 @@ export function DataSyncContent({
       </section>
 
       <Drawer
-        title={`新建同步计划${selectedProvider ? ` · ${selectedProvider.display_name}` : ""}`}
+        title={`${editingPlan ? "编辑同步计划" : "新建同步计划"}${selectedProvider ? ` · ${selectedProvider.display_name}` : ""}`}
         open={!!selectedProvider}
         onClose={() => setSelectedProvider(null)}
         width={520}
@@ -580,10 +601,10 @@ export function DataSyncContent({
           <Button
             type="primary"
             disabled={unsupported}
-            loading={busy === "create"}
+            loading={busy === "create" || (editingPlan ? busy === `edit-${editingPlan.id}` : false)}
             onClick={() => form.submit()}
           >
-            创建计划
+            {editingPlan ? "保存修改" : "创建计划"}
           </Button>
         }
         destroyOnHidden

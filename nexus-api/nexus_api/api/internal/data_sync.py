@@ -88,6 +88,25 @@ def get_data_sync_plan(plan_id: str, request: Request, session: Session = Depend
     return response(domain_schemas.DataSyncPlanRead.model_validate(plan), request)
 
 
+@router.put("/plans/{plan_id}", response_model=schemas.ApiResponse[domain_schemas.DataSyncPlanRead])
+def update_data_sync_plan(
+    plan_id: str, payload: domain_schemas.DataSyncPlanUpdate, request: Request,
+    session: Session = Depends(get_db), user: models.UserAccount = Depends(require_data_sync_admin),
+    _: str = Depends(require_idempotency_key),
+):
+    try:
+        plan = plans.update_plan(session, plan_id, name=payload.name, frequency=payload.frequency,
+                                 query_config=payload.query_config, actor_id=user.id,
+                                 trace_id=str(request.state.trace_id))
+    except plans.PlanNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except plans.PlanConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except plans.PlanError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return response(domain_schemas.DataSyncPlanRead.model_validate(plan), request)
+
+
 def _change_plan(plan_id: str, action: str, request: Request, session: Session, user: models.UserAccount):
     try:
         plan = plans.change_plan_status(

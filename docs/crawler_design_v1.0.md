@@ -434,6 +434,8 @@ GET  /internal/v1/crawler/runs
 GET  /internal/v1/crawler/runs/{run_id}
 ```
 
+计划和运行列表遵循 Console 统一的 `page` / `pageSize` 分页参数，服务端最多返回 200 条。运行列表默认返回计数摘要，不返回候选 URL、提交详情等大数组；需要展开执行历史时使用 `summary=full` 或按 `run_id` 获取完整运行详情。完整运行摘要只在历史查看场景按需加载，不作为 Crawler 首屏数据。
+
 不提供以下 API：
 
 ```text

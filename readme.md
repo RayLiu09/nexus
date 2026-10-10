@@ -68,7 +68,7 @@ Architecture v3.0 baseline:
 - `docs/task-packages/wk_api_data_sync_w3_run_task_package.md`: provider-independent run persistence, queued-run creation, and internal run read APIs; external execution follows in W4.
 - `docs/task-packages/wk_api_data_sync_w4_runtime_task_package.md`: opt-in data-sync scheduler, leased Worker runtime, and paged adapter execution.
 - `docs/task-packages/wk_api_data_sync_w5_controls_task_package.md`: synchronous run pause, resume, and cancel with audit-backed idempotency.
-- `docs/task-packages/wk_api_data_sync_w6_console_task_package.md`: administrator Console for read-only Provider cards, immutable sync plans, and run controls.
+- `docs/task-packages/wk_api_data_sync_w6_console_task_package.md`: administrator Console for Provider cards, editable sync plans, and run controls.
 - `docs/task-packages/wk_api_data_sync_w7_logs_task_package.md`: paginated run log search and redacted audit history in the plan-level Console drawer.
 - `docs/contracts/job_collection_provider_contract.md`: crawler-api v0.2 wire contract, verified with a ten-page live Job.
 - `docs/contracts/job_collection_raw_intake_contract.md`: one raw job row and one provenance row per upstream record ID; no batch or observation table.

@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas as api_schemas
 from nexus_api.dependencies import require_idempotency_key
+from nexus_api.dependencies import Pagination, pagination_params
 from nexus_api.responses import list_response, response
 from nexus_app import models, schemas as domain_schemas
 from nexus_app.crawler import service as crawler_service
@@ -77,13 +79,29 @@ def create_crawler_plan(
 def list_crawler_plans(
     request: Request,
     include_archived: bool = Query(False),
+    pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
 ):
+    base = select(models.CrawlerPlan)
+    if not include_archived:
+        base = base.where(models.CrawlerPlan.status != "archived")
     rows = [
         domain_schemas.CrawlerPlanRead.model_validate(row)
-        for row in crawler_service.list_plans(session, include_archived=include_archived)
+        for row in crawler_service.list_plans(
+            session,
+            include_archived=include_archived,
+            limit=pagination.limit,
+            offset=pagination.offset,
+        )
     ]
-    return list_response(rows, request, page=1, page_size=max(len(rows), 1), total=len(rows))
+    total = int(session.scalar(select(func.count()).select_from(base.subquery())) or 0)
+    return list_response(
+        rows,
+        request,
+        page=pagination.page,
+        page_size=pagination.page_size,
+        total=total,
+    )
 
 
 @router.get(
@@ -94,6 +112,22 @@ def get_crawler_plan(plan_id: str, request: Request, session: Session = Depends(
     row = session.get(models.CrawlerPlan, plan_id)
     if row is None:
         raise HTTPException(status_code=404, detail=f"crawler_plan '{plan_id}' not found")
+    return response(domain_schemas.CrawlerPlanRead.model_validate(row), request)
+
+
+@router.put(
+    "/plans/{plan_id}",
+    response_model=api_schemas.ApiResponse[domain_schemas.CrawlerPlanRead],
+    dependencies=[Depends(require_idempotency_key)],
+)
+def update_crawler_plan(
+    plan_id: str, payload: domain_schemas.CrawlerPlanUpdate, request: Request, session: Session = Depends(get_db)
+):
+    try:
+        row = crawler_service.update_plan(session, plan_id, payload, trace_id=str(getattr(request.state, "trace_id", "")))
+    except (crawler_service.CrawlerPlanError, UnsafeCrawlerUrlError) as exc:
+        status = 404 if "not found" in str(exc) else 422
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
     return response(domain_schemas.CrawlerPlanRead.model_validate(row), request)
 
 
@@ -190,13 +224,50 @@ def run_crawler_plan(
 def list_crawler_runs(
     request: Request,
     plan_id: str | None = Query(None),
+    summary: str = Query("counts", pattern="^(counts|full)$"),
+    pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
 ):
+    base = select(models.CrawlerRun)
+    if plan_id:
+        base = base.where(models.CrawlerRun.plan_id == plan_id)
+    rows = crawler_service.list_runs(
+        session,
+        plan_id=plan_id,
+        limit=pagination.limit,
+        offset=pagination.offset,
+    )
+
+    def read_run(row: models.CrawlerRun) -> domain_schemas.CrawlerRunRead:
+        payload = domain_schemas.CrawlerRunRead.model_validate(row)
+        if summary == "counts":
+            raw = row.summary or {}
+            payload.summary = {
+                key: raw.get(key, 0)
+                for key in (
+                    "discovered_count",
+                    "accepted_count",
+                    "filtered_count",
+                    "submitted_count",
+                    "duplicate_count",
+                    "failed_count",
+                )
+            }
+            payload.summary["filter_reasons"] = raw.get("filter_reasons", {})
+        return payload
+
     rows = [
-        domain_schemas.CrawlerRunRead.model_validate(row)
-        for row in crawler_service.list_runs(session, plan_id=plan_id)
+        read_run(row)
+        for row in rows
     ]
-    return list_response(rows, request, page=1, page_size=max(len(rows), 1), total=len(rows))
+    total = int(session.scalar(select(func.count()).select_from(base.subquery())) or 0)
+    return list_response(
+        rows,
+        request,
+        page=pagination.page,
+        page_size=pagination.page_size,
+        total=total,
+    )
 
 
 @router.get(
