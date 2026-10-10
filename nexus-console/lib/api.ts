@@ -28,6 +28,22 @@ export type AssetCenterCounts = {
   counts: Record<string, number>;
 };
 
+export type RawJob = {
+  id: string;
+  job_title: string;
+  job_responsibilities: string | null;
+  experience_requirement: string | null;
+  education: string | null;
+  salary_range: string | null;
+  industry: string | null;
+  company_name: string | null;
+  company_size: string | null;
+  address: string | null;
+  source_url: string | null;
+  collected_at: string | null;
+  created_at: string | null;
+};
+
 export type WorkbenchReviewItem = {
   id: string;
   normalized_ref_id: string;

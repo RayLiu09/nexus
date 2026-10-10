@@ -127,6 +127,7 @@ Root documents are distilled implementation contracts:
   criteria. Recent activity remains bounded and is not used to infer totals.
 - MinerU parsing (auto model_version, OCR, image extraction) and standardization into `normalized_document` / `normalized_record` with full `normalized_asset_ref` fields.
 - Pipeline B structured record assets, including job demand, occupational ability analysis, and professional major-distribution tables with domain read models.
+- Asset Center market job-demand list reads crawler-intake `raw_jobs` directly; the retired Pipeline B `job_demand_*` projection is not used by this view.
 - A business-task Asset Center at `/asset-center` organizes data through five
   fixed domains: industry-policy, professional, market, teaching resources,
   and user behavior. It is distinct from `/assets`, which remains the complete

@@ -12,16 +12,17 @@ test.describe("Asset Center IA-1", () => {
     ]);
   });
 
-  test("renders five business domains and fixed navigation", async ({ page }, testInfo) => {
+  test("renders four business domains and fixed navigation", async ({ page }, testInfo) => {
     await page.goto("/asset-center");
 
     await expect(page.getByRole("heading", { level: 1, name: "资产中心" })).toBeVisible();
-    await expect(page.locator("main").getByRole("article")).toHaveCount(5);
+    await expect(page.locator("main").getByRole("article")).toHaveCount(4);
     await expect(page.getByRole("heading", { name: "产业政策数据" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "专业数据" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "市场数据" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "教材资源数据" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "用户行为数据" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "用户行为数据" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /证书数据/ })).toHaveCount(0);
     await expect(
       page.getByRole("link", { name: /标准课程库，(?:[\d,]+ 条|数量暂不可用)/ }),
     ).toBeVisible();
@@ -30,18 +31,18 @@ test.describe("Asset Center IA-1", () => {
     await expect(page.getByRole("link", { name: "检索联调" })).toHaveCount(0);
 
     const domainCards = page.locator("main").getByRole("article");
-    const [marketBox, teachingResourceBox, userBehaviorBox] = await Promise.all([
+    const [marketBox, teachingResourceBox] = await Promise.all([
       domainCards.nth(2).boundingBox(),
       domainCards.nth(3).boundingBox(),
-      domainCards.nth(4).boundingBox(),
     ]);
     expect(marketBox).not.toBeNull();
     expect(teachingResourceBox).not.toBeNull();
-    expect(userBehaviorBox).not.toBeNull();
-    const cardBottoms = [marketBox!, teachingResourceBox!, userBehaviorBox!].map(
-      (box) => box.y + box.height,
-    );
-    expect(Math.max(...cardBottoms) - Math.min(...cardBottoms)).toBeLessThanOrEqual(1);
+    if (page.viewportSize()!.width >= 768) {
+      expect(marketBox!.y).toBe(teachingResourceBox!.y);
+      expect(marketBox!.y + marketBox!.height).toBe(
+        teachingResourceBox!.y + teachingResourceBox!.height,
+      );
+    }
 
     const teachingResourceLinks = domainCards.nth(3).getByRole("link");
     const teachingResourceLinkBoxes = await Promise.all(
@@ -144,7 +145,9 @@ test.describe("Asset Center IA-1", () => {
     const titles = await rows.locator("td:first-child").allTextContents();
     for (const title of titles) {
       expect(title.trim()).not.toMatch(/^\s*(?:\d{1,3}[.．、_：:\-]|[（(]\d{1,3}[）)])/);
-      expect(title.trim()).not.toMatch(/\.(?:pdf|docx?|docxp|pptx?|xlsx?|xls|txt|md|html?|rtf|odt)$/i);
+      expect(title.trim()).not.toMatch(
+        /\.(?:pdf|docx?|docxp|pptx?|xlsx?|xls|txt|md|html?|rtf|odt)$/i,
+      );
     }
     await expect(page.getByText(/Left-to-Right/)).toHaveCount(0);
 
@@ -418,10 +421,7 @@ test.describe("Asset Center IA-1", () => {
     await page.locator(".ant-table-row-expand-icon").first().click();
     await expect(page.getByRole("heading", { level: 4, name: "专业归属" })).toBeVisible();
     await expect(page.getByRole("heading", { level: 4, name: "职业面向" })).toBeVisible();
-    await expect(page.getByTestId("career-orientation-panel")).toHaveCSS(
-      "margin-left",
-      "24px",
-    );
+    await expect(page.getByTestId("career-orientation-panel")).toHaveCSS("margin-left", "24px");
     for (const label of [
       "专业大类（代码）",
       "专业类（代码）",

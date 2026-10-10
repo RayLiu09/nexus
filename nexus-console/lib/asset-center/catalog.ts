@@ -108,7 +108,7 @@ export const ASSET_CENTER_DOMAINS = [
   {
     slug: "market",
     name: "市场数据",
-    description: "岗位、园区、企业与市场认可证书数据",
+    description: "岗位、园区与企业数据",
     icon: BriefcaseBusiness,
     accent: "#b45309",
     accentBackground: "#fffbeb",

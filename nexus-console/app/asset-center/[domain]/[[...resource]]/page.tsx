@@ -9,6 +9,7 @@ import {
   getApiData,
   type MajorDistributionRecord,
   type MajorProfile,
+  type RawJob,
   type TalentTrainingPlanSummary,
   type TeachingStandardCourse,
   type TeachingStandardLibrary,
@@ -42,6 +43,7 @@ import {
   type CourseTextbookFilters,
 } from "../../_components/CourseTextbooksTable";
 import { MajorProfilesTable, type MajorProfileFilters } from "../../_components/MajorProfilesTable";
+import { JobDemandTable, type JobDemandFilters } from "../../_components/JobDemandTable";
 
 type AssetCenterRouteProps = {
   params: Promise<{ domain: string; resource?: string[] }>;
@@ -92,6 +94,39 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
           description={resource.description}
         />
         <MajorProfilesTable
+          rows={result.data}
+          total={result.total ?? result.data.length}
+          page={page}
+          pageSize={pageSize}
+          filters={filters}
+          ok={result.ok}
+          error={result.error}
+          traceId={result.traceId}
+        />
+      </div>
+    );
+  }
+
+  if (domain.slug === "market" && resource.path === "job-demands") {
+    const filters: JobDemandFilters = {
+      q: first(query.q),
+      industry: first(query.industry),
+    };
+    const result = await getApiData<RawJob[]>("/internal/v1/raw-jobs", [], {
+      page: String(page),
+      pageSize: String(pageSize),
+      ...Object.fromEntries(
+        Object.entries(filters).filter((entry): entry is [string, string] => Boolean(entry[1])),
+      ),
+    });
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          eyebrow={domain.name}
+          title={resource.name}
+          description={resource.description}
+        />
+        <JobDemandTable
           rows={result.data}
           total={result.total ?? result.data.length}
           page={page}

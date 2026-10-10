@@ -169,7 +169,7 @@ def _projection_counts(session: Session) -> dict[str, int]:
         ),
         select(
             literal("market/job-demands").label("resource_key"),
-            func.count(models.JobDemandRecord.id).label("count"),
+            func.count(models.RawJob.id).label("count"),
         ),
         select(
             literal("teaching-resources/course-textbooks").label("resource_key"),

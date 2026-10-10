@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { AssetCenterOverview } from "./AssetCenterOverview";
 
 describe("AssetCenterOverview", () => {
-  it("renders the five approved domains and business resource links", () => {
+  it("renders four visible domains and their business resource links", () => {
     render(
       <AssetCenterOverview
         counts={{
@@ -15,7 +15,7 @@ describe("AssetCenterOverview", () => {
       />,
     );
 
-    expect(screen.getAllByRole("article")).toHaveLength(5);
+    expect(screen.getAllByRole("article")).toHaveLength(4);
     expect(screen.getByLabelText("资产中心领域")).toHaveClass("items-stretch");
     for (const card of screen.getAllByRole("article")) {
       expect(card).toHaveClass("h-full", "flex", "flex-col");
@@ -24,7 +24,8 @@ describe("AssetCenterOverview", () => {
     expect(screen.getByRole("heading", { name: "专业数据" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "市场数据" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "教材资源数据" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "用户行为数据" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "用户行为数据" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /证书数据/ })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "标准课程库，128 条" })).toHaveAttribute(
       "href",
       "/asset-center/major/standard-course-library",
