@@ -117,11 +117,9 @@ test.describe("Asset Center IA-1", () => {
     test.skip(!assetId, "No professional-profile asset ID was supplied");
 
     await page.goto(`/assets/${assetId}`);
-    await page.getByRole("tab", { name: "知识块" }).click();
-
+    await expect(page.getByRole("tab", { name: "知识块" })).toHaveCount(0);
     await expect(page.getByLabel("切换专业简介知识视图")).toHaveCount(0);
     await expect(page.getByText("专业图谱", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("RAG知识块", { exact: true }).first()).toBeVisible();
   });
 
   test("renders course textbooks with clean titles and outline drawers", async ({
@@ -260,10 +258,8 @@ test.describe("Asset Center IA-1", () => {
     test.skip(!assetId, "No professional teaching-standard asset ID was supplied");
 
     await page.goto(`/assets/${assetId}`);
-    await page.getByRole("tab", { name: "知识块" }).click();
-
+    await expect(page.getByRole("tab", { name: "知识块" })).toHaveCount(0);
     await expect(page.getByText("目录", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("知识块", { exact: true }).last()).toBeVisible();
   });
 
   test("keeps the job-demand structured view out of technical asset detail", async ({ page }) => {
@@ -460,11 +456,9 @@ test.describe("Asset Center IA-1", () => {
     test.skip(!assetId, "No talent-training-plan asset ID was supplied");
 
     await page.goto(`/assets/${assetId}`);
-    await page.getByRole("tab", { name: "知识块" }).click();
-
+    await expect(page.getByRole("tab", { name: "知识块" })).toHaveCount(0);
     await expect(page.getByText("课程知识图谱", { exact: true })).toHaveCount(0);
     await expect(page.getByText("岗位能力图谱", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("RAG知识块", { exact: true }).first()).toBeVisible();
   });
 
   test("keeps occupational ability views out of technical asset detail", async ({ page }) => {

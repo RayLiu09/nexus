@@ -6,13 +6,8 @@ import { Tabs, Tag, Progress, Empty } from "antd";
 import { StatusLabel } from "@/components/StatusLabel";
 import { CopyableShortId } from "@/components/shared/CopyableShortId";
 import { ConfidenceBadge } from "@/components/ConfidenceBadge";
-import { DocumentKnowledgeView } from "@/app/assets/[assetId]/_components/DocumentKnowledgeView";
 import { SourcePreviewSection } from "@/app/assets/[assetId]/_components/SourcePreviewSection";
-import { TeachingStandardKnowledgeView } from "@/app/assets/[assetId]/_components/TeachingStandardKnowledgeView";
 import type { CapabilityGraphBuildType } from "@/app/assets/[assetId]/_components/CapabilityGraphView";
-import { GenericRecordKnowledgeView } from "@/app/assets/[assetId]/_components/GenericRecordKnowledgeView";
-import { resolveRecordView } from "@/lib/api";
-import { shouldHideAssetDetailStructuredView } from "@/lib/asset-detail-view-policy";
 import {
   formatDateTime,
   type Asset,
@@ -71,7 +66,6 @@ function classificationLabel(output: Record<string, unknown>): string {
 const TABS = [
   { key: "lineage", label: "血缘追溯" },
   { key: "preview", label: "原文预览" },
-  { key: "knowledge-chunks", label: "知识块" },
   { key: "ai-governance", label: "AI 治理" },
   { key: "quality", label: "质量评分" },
   { key: "versions", label: "版本历史" },
@@ -201,53 +195,6 @@ function LineageTab({
         {!latestVersion && !relatedArtifact && !latestRef && <Empty description="暂无血缘数据" />}
       </div>
     </>
-  );
-}
-
-function KnowledgeChunksTab({
-  latestRef,
-  asset,
-  latestGovernanceResult,
-  teachingStandardGraphBuildType = "teaching_standard",
-}: {
-  latestRef: NormalizedAssetRef | null;
-  asset: Asset | null;
-  latestGovernanceResult?: GovernanceResult | null;
-  teachingStandardGraphBuildType?: Extract<
-    CapabilityGraphBuildType,
-    "teaching_standard" | "course_standard"
-  >;
-}) {
-  // B9 — "知识块" tab adapts to the underlying record_type. Pipeline A
-  // documents see the RAG chunk list (unchanged). Pipeline B record
-  // assets route to a type-specific structured view per design §9.
-  // Routing logic lives in `resolveRecordView()` so the tab stays a
-  // thin dispatcher and individual views own their own loading state.
-  const view = resolveRecordView(latestRef);
-  // Current Pipeline A refs carry teaching_standard.v1. Older refs were
-  // normalized before that profile marker was added, so use their official
-  // classification as a read-only compatibility signal. This prevents them
-  // from falling back to DocumentKnowledgeView (and its Evidence Graph tab).
-  const isTeachingStandard =
-    view === "teaching_standard" ||
-    latestGovernanceResult?.classification === "teaching_standard" ||
-    asset?.metadata_summary?.domain_profile === "teaching_standard.v1";
-  if (isTeachingStandard && latestRef) {
-    return (
-      <TeachingStandardKnowledgeView
-        normalizedRefId={latestRef.id}
-        graphBuildType={teachingStandardGraphBuildType}
-      />
-    );
-  }
-  if (view === "generic_table" && latestRef) {
-    return <GenericRecordKnowledgeView normalizedRef={latestRef} />;
-  }
-  return (
-    <DocumentKnowledgeView
-      normalizedRef={latestRef}
-      classification={latestGovernanceResult?.classification}
-    />
   );
 }
 
@@ -690,37 +637,20 @@ export function AssetDetailTabs({
   rawObjectNames,
   dataSourceName,
   tagDictionary,
-  teachingStandardGraphBuildType,
 }: Props) {
   const [selectedTab, setSelectedTab] = useState("lineage");
-  const knowledgeTabLabel = latestRef?.normalized_type === "record" ? "结构化图谱" : "知识块";
-  const isRecordAsset = latestRef?.normalized_type === "record";
-  const hidesStructuredView = shouldHideAssetDetailStructuredView(
-    resolveRecordView(latestRef),
-    latestGovernanceResult?.classification,
-    asset?.metadata_summary?.domain_profile,
-  );
-  const activeTab =
-    (isRecordAsset && selectedTab === "preview") ||
-    (hidesStructuredView && selectedTab === "knowledge-chunks")
-      ? "lineage"
-      : selectedTab;
+  const activeTab = selectedTab;
 
-  const tabItems = TABS.filter(
-    (tab) =>
-      !(isRecordAsset && tab.key === "preview") &&
-      !(hidesStructuredView && tab.key === "knowledge-chunks"),
-  ).map((t) => {
+  const tabItems = TABS.map((t) => {
     const badgeCount =
       t.key === "ai-governance" && (governanceRuns.length > 0 || latestGovernanceResult)
         ? Math.max(governanceRuns.length, 1)
         : undefined;
-    const label = t.key === "knowledge-chunks" ? knowledgeTabLabel : t.label;
     return {
       key: t.key,
       label: (
         <span>
-          {label}
+          {t.label}
           {badgeCount != null && (
             <span
               style={{
@@ -760,14 +690,6 @@ export function AssetDetailTabs({
           />
         )}
         {activeTab === "preview" && <SourcePreviewSection refId={latestRef?.id ?? null} />}
-        {activeTab === "knowledge-chunks" && (
-          <KnowledgeChunksTab
-            latestRef={latestRef}
-            asset={asset}
-            latestGovernanceResult={latestGovernanceResult}
-            teachingStandardGraphBuildType={teachingStandardGraphBuildType}
-          />
-        )}
         {activeTab === "ai-governance" && (
           <AIGovernanceTab
             runs={governanceRuns}

@@ -538,6 +538,118 @@ def list_assets(
     )
 
 
+def _list_industry_documents(
+    request: Request,
+    pagination: Pagination,
+    session: Session,
+    *,
+    classification: str,
+):
+    """Build a report/policy list projection from catalog and normalized refs."""
+    asset_ids, total = _catalog_candidate_ids(
+        session,
+        domain=classification,
+        level=None,
+        status="visible",
+        matching_ref_ids=None,
+        limit=pagination.limit,
+        offset=pagination.offset,
+    )
+    if not asset_ids:
+        return list_response([], request, page=pagination.page, page_size=pagination.page_size, total=total)
+
+    assets_by_id = {
+        asset.id: asset
+        for asset in session.scalars(select(models.Asset).where(models.Asset.id.in_(asset_ids))).all()
+    }
+    catalog_rows = _catalog_rows(
+        session,
+        [assets_by_id[asset_id] for asset_id in asset_ids if asset_id in assets_by_id],
+    )
+    ref_ids = [row.current_normalized_ref_id for row in catalog_rows if row.current_normalized_ref_id]
+    refs = {
+        ref.id: ref
+        for ref in session.scalars(
+            select(models.NormalizedAssetRef).where(models.NormalizedAssetRef.id.in_(ref_ids))
+        ).all()
+    } if ref_ids else {}
+    tag_rows = list(session.scalars(
+        select(models.TagAssetIndex)
+        .where(
+            models.TagAssetIndex.target_type == TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
+            models.TagAssetIndex.target_id.in_(ref_ids),
+        )
+        .order_by(models.TagAssetIndex.tag_type, models.TagAssetIndex.tag_value)
+    ).all()) if ref_ids else []
+    tags_by_ref: dict[str, dict[str, list[str]]] = {}
+    for tag in tag_rows:
+        tags_by_ref.setdefault(tag.target_id, {}).setdefault(tag.tag_type, []).append(tag.tag_value)
+
+    rows = []
+    for row in catalog_rows:
+        ref_id = row.current_normalized_ref_id
+        ref = refs.get(ref_id) if ref_id else None
+        typed_tags = tags_by_ref.get(ref_id or "", {})
+        metadata = ref.document_metadata if ref is not None and isinstance(ref.document_metadata, dict) else {}
+        rows.append({
+            "id": row.id,
+            "asset_name": row.title,
+            "normalized_ref_id": ref_id,
+            "region": typed_tags.get("region", []),
+            "industry": typed_tags.get("industry", []),
+            "publish_date": metadata.get("publish_date"),
+            "content_tags": [
+                value
+                for tag_type, values in typed_tags.items()
+                if tag_type not in {"region", "industry"}
+                for value in values
+            ] or row.content_tags,
+        })
+    return list_response(
+        rows,
+        request,
+        page=pagination.page,
+        page_size=pagination.page_size,
+        total=total,
+    )
+
+
+@router.get("/industry-policies", response_model=schemas.ListResponse[dict])
+def list_industry_policies(
+    request: Request,
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+):
+    """Business list view for industry-policy documents."""
+    return _list_industry_documents(
+        request, pagination, session, classification="industry_policy"
+    )
+
+
+@router.get("/industry-reports", response_model=schemas.ListResponse[dict])
+def list_industry_reports(
+    request: Request,
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+):
+    """Business list view for industry reports."""
+    return _list_industry_documents(
+        request, pagination, session, classification="industry_report"
+    )
+
+
+@router.get("/sector-reports", response_model=schemas.ListResponse[dict])
+def list_sector_reports(
+    request: Request,
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+):
+    """Business list view for sector reports (行业报告)."""
+    return _list_industry_documents(
+        request, pagination, session, classification="sector_report"
+    )
+
+
 @router.get(
     "/assets/summary",
     response_model=schemas.ApiResponse[domain_schemas.AssetSummaryRead],

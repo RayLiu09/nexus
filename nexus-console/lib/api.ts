@@ -28,6 +28,16 @@ export type AssetCenterCounts = {
   counts: Record<string, number>;
 };
 
+export type IndustryPolicy = {
+  id: string;
+  asset_name: string;
+  normalized_ref_id: string | null;
+  region: string[];
+  industry: string[];
+  publish_date: string | null;
+  content_tags: string[];
+};
+
 export type RawJob = {
   id: string;
   job_title: string;

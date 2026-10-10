@@ -9,6 +9,7 @@ import {
   getApiData,
   type MajorDistributionRecord,
   type MajorProfile,
+  type IndustryPolicy,
   type RawJob,
   type TalentTrainingPlanSummary,
   type TeachingStandardCourse,
@@ -43,6 +44,7 @@ import {
   type CourseTextbookFilters,
 } from "../../_components/CourseTextbooksTable";
 import { MajorProfilesTable, type MajorProfileFilters } from "../../_components/MajorProfilesTable";
+import { IndustryPoliciesTable } from "../../_components/IndustryPoliciesTable";
 import { JobDemandTable, type JobDemandFilters } from "../../_components/JobDemandTable";
 
 type AssetCenterRouteProps = {
@@ -102,6 +104,59 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
           ok={result.ok}
           error={result.error}
           traceId={result.traceId}
+        />
+      </div>
+    );
+  }
+
+  if (domain.slug === "policy" && resource.path === "industry-policies") {
+    const result = await getApiData<IndustryPolicy[]>("/internal/v1/industry-policies", [], {
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          eyebrow={domain.name}
+          title={resource.name}
+          description={resource.description}
+        />
+        <IndustryPoliciesTable
+          rows={result.data}
+          total={result.total ?? result.data.length}
+          page={page}
+          pageSize={pageSize}
+          ok={result.ok}
+          error={result.error}
+          traceId={result.traceId}
+        />
+      </div>
+    );
+  }
+
+  if (domain.slug === "policy" && ["industry-reports", "sector-reports"].includes(resource.path)) {
+    const result = await getApiData<IndustryPolicy[]>(`/internal/v1/${resource.path}`, [], {
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          eyebrow={domain.name}
+          title={resource.name}
+          description={resource.description}
+        />
+        <IndustryPoliciesTable
+          rows={result.data}
+          total={result.total ?? result.data.length}
+          page={page}
+          pageSize={pageSize}
+          ok={result.ok}
+          error={result.error}
+          traceId={result.traceId}
+          showRegion={false}
+          emptyText={`暂无${resource.name}`}
+          nameColumnTitle="报告名称"
         />
       </div>
     );
