@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { Alert, App, Button, Drawer, Form, Input, Select, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { EditOutlined } from "@ant-design/icons";
+import { EditOutlined, FileTextOutlined } from "@ant-design/icons";
 import { AssetRefCell } from "@/components/shared/AssetRefCell";
+import { SourcePreviewSection } from "@/app/assets/[assetId]/_components/SourcePreviewSection";
 import { classificationLabel, type ClassificationDictionary } from "@/lib/classificationLabels";
 import { createIdempotencyKey } from "@/lib/idempotency";
 import { levelLabel, type LevelDictionary } from "@/lib/levelLabels";
@@ -111,6 +112,7 @@ export default function TagReviewContent({
   const [pageSize, setPageSize] = useState(20);
   const [queueLoading, setQueueLoading] = useState(false);
   const [item, setItem] = useState<GovernanceReviewItem | null>(null);
+  const [previewItem, setPreviewItem] = useState<GovernanceReviewItem | null>(null);
   const [context, setContext] = useState<ReviewContext | null>(null);
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm<Record<string, string>>();
@@ -265,16 +267,26 @@ export default function TagReviewContent({
     },
     {
       title: "操作",
-      width: 84,
+      width: 180,
       render: (_v, row) => (
-        <Button
-          size="small"
-          icon={<EditOutlined />}
-          loading={loading && item?.governance_result_id === row.governance_result_id}
-          onClick={() => void openReview(row)}
-        >
-          审核
-        </Button>
+        <span style={{ display: "inline-flex", gap: 8 }}>
+          <Button
+            size="small"
+            icon={<FileTextOutlined />}
+            disabled={!row.normalized_ref_id}
+            onClick={() => setPreviewItem(row)}
+          >
+            原文预览
+          </Button>
+          <Button
+            size="small"
+            icon={<EditOutlined />}
+            loading={loading && item?.governance_result_id === row.governance_result_id}
+            onClick={() => void openReview(row)}
+          >
+            审核
+          </Button>
+        </span>
       ),
     },
   ];
@@ -305,6 +317,15 @@ export default function TagReviewContent({
           locale={{ emptyText: "暂无待治理审核资产" }}
         />
       </div>
+      <Drawer
+        title={previewItem ? `原文预览 · ${previewItem.asset_title ?? "数据资产"}` : "原文预览"}
+        open={Boolean(previewItem)}
+        onClose={() => setPreviewItem(null)}
+        width="min(960px, calc(100vw - 32px))"
+        destroyOnClose
+      >
+        {previewItem && <SourcePreviewSection refId={previewItem.normalized_ref_id} />}
+      </Drawer>
       <Drawer
         title="治理审核"
         open={Boolean(item)}
