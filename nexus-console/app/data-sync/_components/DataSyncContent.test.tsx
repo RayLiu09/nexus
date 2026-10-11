@@ -1,12 +1,14 @@
 import { App } from "antd";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 
 import { getApiData, postApiData } from "@/lib/api";
 import type { JobCollectionCategory, SyncPlan, SyncProvider, SyncRun } from "@/lib/data-sync";
 import { DataSyncContent } from "./DataSyncContent";
 
 vi.mock("@/lib/api", () => ({ getApiData: vi.fn(), postApiData: vi.fn(), deleteApiData: vi.fn() }));
+
+beforeEach(() => vi.clearAllMocks());
 
 vi.stubGlobal("ResizeObserver", class {
   observe() {}
@@ -139,4 +141,117 @@ it("opens the paused run and its resume action after resuming a plan", async () 
   await waitFor(() => expect(screen.getByRole("button", { name: "恢复运行 run-2" })).toBeInTheDocument());
   expect(screen.getByText("运行记录 · 杭州岗位")).toBeInTheDocument();
   expect(postApiData).toHaveBeenCalledWith("/api/data-sync/plans/crawler-plan/resume", {});
+});
+
+it("copies a sync plan into a new prefilled plan", async () => {
+  const plan: SyncPlan = {
+    ...mockPlan,
+    id: "job-plan",
+    name: "杭州岗位",
+    provider_code: "crawler_engine",
+    query_config: { keywords: ["数据化运营助理"], regions: ["杭州市"], pageLimit: 30 },
+  };
+  vi.mocked(postApiData).mockResolvedValue({ data: {} });
+  vi.mocked(getApiData).mockImplementation(async (path) => ({
+    data: path.includes("/providers") ? [provider("crawler_engine")] :
+      path.includes("/job-catalog") ? catalog : [plan],
+    ok: true, error: null, traceId: null, total: 1,
+  }));
+  render(
+    <App>
+      <DataSyncContent
+        initialProviders={[provider("crawler_engine")]}
+        initialPlans={[plan]}
+        initialCatalog={catalog}
+        initialError={null}
+      />
+    </App>,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "复制计划 杭州岗位" }));
+  expect(screen.getByText("复制同步计划 · 岗位需求采集")).toBeInTheDocument();
+  expect(screen.getByRole("textbox", { name: "计划名称" })).toHaveValue("杭州岗位 副本");
+  expect(screen.getAllByText(/已选/).map((item) => item.textContent)).toEqual(["已选 1 项", "已选 1 项"]);
+  fireEvent.click(screen.getByRole("button", { name: "创建计划" }));
+  await waitFor(() => expect(postApiData).toHaveBeenCalledWith("/api/data-sync/plans", {
+    name: "杭州岗位 副本",
+    provider_code: "crawler_engine",
+    frequency: "1_month",
+    query_config: plan.query_config,
+  }));
+});
+
+it("selects every job title and region for a new collection plan", async () => {
+  vi.mocked(postApiData).mockResolvedValue({ data: {} });
+  vi.mocked(getApiData).mockImplementation(async (path) => ({
+    data: path.includes("/providers") ? [provider("crawler_engine")] :
+      path.includes("/job-catalog") ? catalog : [],
+    ok: true, error: null, traceId: null, total: 0,
+  }));
+  render(
+    <App>
+      <DataSyncContent
+        initialProviders={[provider("crawler_engine")]}
+        initialPlans={[]}
+        initialCatalog={[{
+          ...catalog[0],
+          titles: [...catalog[0].titles, { id: "job-2", name: "跨境电商运营" }],
+        }]}
+        initialError={null}
+      />
+    </App>,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: /新建同步计划/ }));
+  fireEvent.change(screen.getByRole("textbox", { name: "计划名称" }), {
+    target: { value: "全选岗位计划" },
+  });
+  fireEvent.click(screen.getByRole("checkbox", { name: "全选岗位名称" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: "全选区域" }));
+  expect(screen.getAllByText(/已选/).map((item) => item.textContent)).toEqual(["已选 2 项", "已选 2 项"]);
+  fireEvent.click(screen.getByRole("checkbox", { name: "全选区域" }));
+  expect(screen.getAllByText(/已选/).map((item) => item.textContent)).toEqual(["已选 2 项", "已选 0 项"]);
+  fireEvent.click(screen.getByRole("checkbox", { name: "全选区域" }));
+  fireEvent.click(screen.getByRole("button", { name: "创建计划" }));
+
+  await waitFor(() => expect(postApiData).toHaveBeenCalledWith("/api/data-sync/plans", {
+    name: "全选岗位计划",
+    provider_code: "crawler_engine",
+    frequency: "1_month",
+    query_config: {
+      keywords: ["数据化运营助理", "跨境电商运营"],
+      regions: ["杭州市", "上海市"],
+      pageLimit: 30,
+    },
+  }));
+});
+
+it("blocks a fully selected collection plan above the upstream combination limit", async () => {
+  const largeCatalog: JobCollectionCategory[] = [{
+    ...catalog[0],
+    titles: Array.from({ length: 51 }, (_, index) => ({
+      id: `job-${index}`,
+      name: `岗位${index}`,
+    })),
+  }];
+  render(
+    <App>
+      <DataSyncContent
+        initialProviders={[provider("crawler_engine")]}
+        initialPlans={[]}
+        initialCatalog={largeCatalog}
+        initialError={null}
+      />
+    </App>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /新建同步计划/ }));
+  fireEvent.change(screen.getByRole("textbox", { name: "计划名称" }), {
+    target: { value: "超限计划" },
+  });
+  fireEvent.click(screen.getByRole("checkbox", { name: "全选岗位名称" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: "全选区域" }));
+
+  expect(screen.getByText("岗位与城市组合不能超过 100 组，请缩小选择范围")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "创建计划" }));
+  await waitFor(() => expect(postApiData).not.toHaveBeenCalled());
 });

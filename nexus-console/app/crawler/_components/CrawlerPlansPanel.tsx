@@ -19,6 +19,7 @@ import {
   Typography,
 } from "antd";
 import {
+  CopyOutlined,
   DeleteOutlined,
   EditOutlined,
   HistoryOutlined,
@@ -247,6 +248,7 @@ export function CrawlerPlansPanel() {
   const [error, setError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<CrawlerPlan | null>(null);
+  const [copyingPlan, setCopyingPlan] = useState<CrawlerPlan | null>(null);
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
   const [historyPlan, setHistoryPlan] = useState<CrawlerPlan | null>(null);
   const [historyRuns, setHistoryRuns] = useState<CrawlerRun[]>([]);
@@ -259,6 +261,9 @@ export function CrawlerPlansPanel() {
       value: BUILTIN_FIRECRAWL_SOURCE_ID,
       label: "Firecrawl",
     },
+    ...(form.dataSourceId && form.dataSourceId !== BUILTIN_FIRECRAWL_SOURCE_ID
+      ? [{ value: form.dataSourceId, label: "当前数据源" }]
+      : []),
   ];
   const effectiveDataSourceId = form.dataSourceId || BUILTIN_FIRECRAWL_SOURCE_ID;
   const defaultTopicKeywords = Array.isArray(config?.template.default_keywords)
@@ -330,10 +335,11 @@ export function CrawlerPlansPanel() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const openEdit = (plan: CrawlerPlan) => {
+  const openPlanForm = (plan: CrawlerPlan, copy: boolean) => {
     const search = plan.search_policy ?? {};
-    setEditingPlan(plan);
-    setForm({ connectorType: plan.connector_type as PlanFormState["connectorType"], mode: plan.mode as PlanFormState["mode"], name: plan.name, dataSourceId: plan.data_source_id ?? "", regionCode: plan.region_code ?? "national", executionMode: plan.execution_mode as PlanFormState["executionMode"], scheduleCron: plan.schedule_cron ?? "", topicKeywords: plan.topic_keywords.join(", "), targetUrls: plan.target_sites.map((site) => site.base_url).join("\n"), query: typeof search.query === "string" ? search.query : INITIAL_FORM.query, resultCount: typeof search.result_count === "number" ? search.result_count : INITIAL_FORM.resultCount, timeRangePreset: typeof search.time_range_preset === "string" ? search.time_range_preset : INITIAL_FORM.timeRangePreset });
+    setEditingPlan(copy ? null : plan);
+    setCopyingPlan(copy ? plan : null);
+    setForm({ connectorType: plan.connector_type as PlanFormState["connectorType"], mode: plan.mode as PlanFormState["mode"], name: copy ? `${plan.name.slice(0, 125)} 副本` : plan.name, dataSourceId: plan.data_source_id ?? "", regionCode: plan.region_code ?? "national", executionMode: plan.execution_mode as PlanFormState["executionMode"], scheduleCron: plan.schedule_cron ?? "", topicKeywords: plan.topic_keywords.join(", "), targetUrls: plan.target_sites.map((site) => site.base_url).join("\n"), query: typeof search.query === "string" ? search.query : INITIAL_FORM.query, resultCount: typeof search.result_count === "number" ? search.result_count : INITIAL_FORM.resultCount, timeRangePreset: typeof search.time_range_preset === "string" ? search.time_range_preset : INITIAL_FORM.timeRangePreset });
     setDrawerOpen(true);
   };
 
@@ -356,6 +362,16 @@ export function CrawlerPlansPanel() {
     }
     setSaving(true);
     const payload = buildPayload(form, effectiveDataSourceId, effectiveTopicKeywords);
+    if (copyingPlan && copyingPlan.connector_type === form.connectorType && copyingPlan.mode === form.mode) {
+      payload.content_goals = copyingPlan.content_goals;
+      payload.classification_hints = copyingPlan.classification_hints;
+      payload.crawl_policy = copyingPlan.crawl_policy;
+      if (form.connectorType === "firecrawl" && form.mode === "custom") {
+        payload.target_sites = splitLines(form.targetUrls).map((url) =>
+          copyingPlan.target_sites.find((site) => site.base_url === url) ?? { base_url: url },
+        );
+      }
+    }
     const result = editingPlan ? await crawlerPut<CrawlerPlan>(`/plans/${encodeURIComponent(editingPlan.id)}`, payload) : await crawlerPost<CrawlerPlan>("/plans", payload);
     setSaving(false);
     if (!result.ok) {
@@ -370,6 +386,7 @@ export function CrawlerPlansPanel() {
     });
     setDrawerOpen(false);
     setEditingPlan(null);
+    setCopyingPlan(null);
   };
 
   const runPlan = async (planId: string) => {
@@ -598,7 +615,7 @@ export function CrawlerPlansPanel() {
             </div>
           </div>
           <Space>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingPlan(null); setForm({ ...INITIAL_FORM, regionCode: config?.default_region_code ?? INITIAL_FORM.regionCode }); setDrawerOpen(true); }}>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingPlan(null); setCopyingPlan(null); setForm({ ...INITIAL_FORM, regionCode: config?.default_region_code ?? INITIAL_FORM.regionCode }); setDrawerOpen(true); }}>
               新增计划
             </Button>
             <Button icon={<ReloadOutlined />} onClick={refresh} loading={loading}>
@@ -702,10 +719,11 @@ export function CrawlerPlansPanel() {
               },
               {
                 title: "操作",
-                width: 220,
+                width: 252,
                 render: (_, plan) => (
                   <Space size={6}>
-                    <Tooltip title="编辑计划"><Button size="small" icon={<EditOutlined />} onClick={() => openEdit(plan)} /></Tooltip>
+                    <Tooltip title="编辑计划"><Button size="small" icon={<EditOutlined />} onClick={() => openPlanForm(plan, false)} /></Tooltip>
+                    <Tooltip title="复制计划"><Button size="small" aria-label={`复制计划 ${plan.name}`} icon={<CopyOutlined />} onClick={() => openPlanForm(plan, true)} /></Tooltip>
                     <Tooltip title="执行历史">
                       <Button
                         size="small"
@@ -758,14 +776,14 @@ export function CrawlerPlansPanel() {
       </div>
 
       <Drawer
-        title={editingPlan ? "编辑 Crawler 计划" : "新增 Crawler 计划"}
+        title={editingPlan ? "编辑 Crawler 计划" : copyingPlan ? "复制 Crawler 计划" : "新增 Crawler 计划"}
         styles={{ wrapper: { width: 504 } }}
         open={drawerOpen}
-        onClose={() => { setDrawerOpen(false); setEditingPlan(null); }}
+        onClose={() => { setDrawerOpen(false); setEditingPlan(null); setCopyingPlan(null); }}
         destroyOnClose
         footer={
           <div className="flex justify-end gap-2">
-            <Button onClick={() => setDrawerOpen(false)}>取消</Button>
+            <Button onClick={() => { setDrawerOpen(false); setEditingPlan(null); setCopyingPlan(null); }}>取消</Button>
             <Button type="primary" icon={editingPlan ? <EditOutlined /> : <PlusOutlined />} loading={saving} onClick={createPlan}>
               {editingPlan ? "保存修改" : "创建计划"}
             </Button>

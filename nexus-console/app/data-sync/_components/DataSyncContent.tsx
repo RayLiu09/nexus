@@ -21,6 +21,7 @@ import {
   Tooltip,
 } from "antd";
 import {
+  CopyOutlined,
   DeleteOutlined,
   EditOutlined,
   PauseOutlined,
@@ -169,12 +170,15 @@ export function DataSyncContent({
   const [busy, setBusy] = useState<string | null>(null);
   const [selectedProvider, setSelectedProvider] = useState<SyncProvider | null>(null);
   const [editingPlan, setEditingPlan] = useState<SyncPlan | null>(null);
+  const [copyingPlan, setCopyingPlan] = useState<SyncPlan | null>(null);
+  const [categoryId, setCategoryId] = useState<string | undefined>();
+  const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<SyncPlan | null>(null);
   const runRequestSeq = useRef(0);
   const logRequestSeq = useRef(0);
   const { message } = App.useApp();
   const [form] = Form.useForm();
-  const categoryId = Form.useWatch("category_id", form);
   const selectedCategory = catalog.find((item) => item.id === categoryId);
 
   async function loadRuns(plan: SyncPlan, page: number, filters: RunFilters) {
@@ -268,6 +272,10 @@ export function DataSyncContent({
 
   function openCreate(provider: SyncProvider) {
     setEditingPlan(null);
+    setCopyingPlan(null);
+    setCategoryId(catalog[0]?.id);
+    setSelectedKeywords([]);
+    setSelectedRegions([]);
     form.resetFields();
     if (provider.provider_code === "crawler_engine") {
       form.setFieldsValue({
@@ -290,11 +298,37 @@ export function DataSyncContent({
   function openEdit(plan: SyncPlan) {
     const provider = providers.find((item) => item.provider_code === plan.provider_code);
     if (!provider || plan.status === "deleted") return;
+    form.resetFields();
     const category = plan.provider_code === "crawler_engine"
       ? catalog.find((item) => (plan.query_config.keywords as string[] | undefined)?.every((name) => item.titles.some((title) => title.name === name)))
       : undefined;
+    setCategoryId(category?.id);
+    setSelectedKeywords(Array.isArray(plan.query_config.keywords) ? plan.query_config.keywords as string[] : []);
+    setSelectedRegions(Array.isArray(plan.query_config.regions) ? plan.query_config.regions as string[] : []);
     form.setFieldsValue({ name: plan.name, frequency: plan.frequency, query_config: plan.query_config, category_id: category?.id });
     setEditingPlan(plan);
+    setCopyingPlan(null);
+    setSelectedProvider(provider);
+  }
+
+  function openCopy(plan: SyncPlan) {
+    const provider = providers.find((item) => item.provider_code === plan.provider_code);
+    if (!provider || provider.status !== "enabled") return;
+    const category = plan.provider_code === "crawler_engine"
+      ? catalog.find((item) => (plan.query_config.keywords as string[] | undefined)?.every((name) => item.titles.some((title) => title.name === name)))
+      : undefined;
+    setCategoryId(category?.id);
+    setSelectedKeywords(Array.isArray(plan.query_config.keywords) ? plan.query_config.keywords as string[] : []);
+    setSelectedRegions(Array.isArray(plan.query_config.regions) ? plan.query_config.regions as string[] : []);
+    form.resetFields();
+    form.setFieldsValue({
+      name: `${plan.name.slice(0, 125)} 副本`,
+      frequency: plan.frequency,
+      query_config: structuredClone(plan.query_config),
+      category_id: category?.id,
+    });
+    setEditingPlan(null);
+    setCopyingPlan(plan);
     setSelectedProvider(provider);
   }
 
@@ -345,13 +379,14 @@ export function DataSyncContent({
         query_config: values.query_config ?? {},
       }),
     );
-    if (saved) { setSelectedProvider(null); setEditingPlan(null); }
+    if (saved) { setSelectedProvider(null); setEditingPlan(null); setCopyingPlan(null); }
   }
 
   const required = selectedProvider?.query_schema.required ?? [];
   const fields = Object.entries(selectedProvider?.query_schema.properties ?? {});
   const isJobCollection = selectedProvider?.provider_code === "crawler_engine";
   const regionOptions = selectedProvider?.query_schema.properties?.regions?.items?.enum ?? [];
+  const keywordOptions = selectedCategory?.titles.map((item) => item.name) ?? [];
   const unsupported = fields.some(
     ([, field]) =>
       !isJobCollection && !field.enum && !["string", "integer", "number", "boolean"].includes(fieldType(field) ?? ""),
@@ -529,6 +564,14 @@ export function DataSyncContent({
                       <Button aria-label={`编辑计划 ${plan.name}`} icon={<EditOutlined />} onClick={() => openEdit(plan)} />
                     </Tooltip>
                   )}
+                  <Tooltip title="复制计划">
+                    <Button
+                      aria-label={`复制计划 ${plan.name}`}
+                      icon={<CopyOutlined />}
+                      disabled={providers.find((provider) => provider.provider_code === plan.provider_code)?.status !== "enabled"}
+                      onClick={() => openCopy(plan)}
+                    />
+                  </Tooltip>
                   <Tooltip title="手动创建运行">
                     <Button
                       aria-label={`运行 ${plan.name}`}
@@ -593,9 +636,9 @@ export function DataSyncContent({
       </section>
 
       <Drawer
-        title={`${editingPlan ? "编辑同步计划" : "新建同步计划"}${selectedProvider ? ` · ${selectedProvider.display_name}` : ""}`}
+        title={`${editingPlan ? "编辑同步计划" : copyingPlan ? "复制同步计划" : "新建同步计划"}${selectedProvider ? ` · ${selectedProvider.display_name}` : ""}`}
         open={!!selectedProvider}
-        onClose={() => setSelectedProvider(null)}
+        onClose={() => { setSelectedProvider(null); setCopyingPlan(null); }}
         width={520}
         extra={
           <Button
@@ -625,12 +668,25 @@ export function DataSyncContent({
               <Form.Item name="category_id" label="专业类别" rules={[{ required: true, message: "请选择专业类别" }]}>
                 <Select
                   options={catalog.map((item) => ({ value: item.id, label: item.name }))}
-                  onChange={() => form.setFieldValue(["query_config", "keywords"], [])}
+                  onChange={(value) => {
+                    setCategoryId(value);
+                    setSelectedKeywords([]);
+                    form.setFieldValue(["query_config", "keywords"], []);
+                  }}
                 />
               </Form.Item>
               <Form.Item
                 name={["query_config", "keywords"]}
-                label="岗位名称"
+                label={<Space size={8}>岗位名称<Checkbox
+                  aria-label="全选岗位名称"
+                  checked={keywordOptions.length > 0 && selectedKeywords.length === keywordOptions.length}
+                  indeterminate={selectedKeywords.length > 0 && selectedKeywords.length < keywordOptions.length}
+                  onChange={(event) => {
+                    const values = event.target.checked ? keywordOptions : [];
+                    setSelectedKeywords(values);
+                    form.setFieldValue(["query_config", "keywords"], values);
+                  }}
+                >全选</Checkbox><span className="text-text-muted text-xs">已选 {selectedKeywords.length} 项</span></Space>}
                 rules={[{ required: true, type: "array", min: 1, message: "请选择岗位名称" }]}
               >
                 <Select
@@ -639,12 +695,22 @@ export function DataSyncContent({
                   optionFilterProp="label"
                   maxTagCount="responsive"
                   placeholder="选择岗位名称"
-                  options={(selectedCategory?.titles ?? []).map((item) => ({ value: item.name, label: item.name }))}
+                  options={keywordOptions.map((name) => ({ value: name, label: name }))}
+                  onChange={setSelectedKeywords}
                 />
               </Form.Item>
               <Form.Item
                 name={["query_config", "regions"]}
-                label="区域"
+                label={<Space size={8}>区域<Checkbox
+                  aria-label="全选区域"
+                  checked={regionOptions.length > 0 && regionOptions.every((region) => selectedRegions.includes(String(region)))}
+                  indeterminate={selectedRegions.length > 0 && selectedRegions.length < regionOptions.length}
+                  onChange={(event) => {
+                    const values = event.target.checked ? regionOptions.map(String) : [];
+                    setSelectedRegions(values);
+                    form.setFieldValue(["query_config", "regions"], values);
+                  }}
+                >全选</Checkbox><span className="text-text-muted text-xs">已选 {selectedRegions.length} 项</span></Space>}
                 rules={[{ required: true, type: "array", min: 1, message: "请选择区域" }]}
               >
                 <Select
@@ -654,8 +720,12 @@ export function DataSyncContent({
                   maxTagCount="responsive"
                   placeholder="选择城市"
                   options={regionOptions.map((value) => ({ value: String(value), label: String(value) }))}
+                  onChange={setSelectedRegions}
                 />
               </Form.Item>
+              {selectedKeywords.length * selectedRegions.length > 100 && (
+                <Alert type="warning" showIcon title="岗位与城市组合不能超过 100 组，请缩小选择范围" />
+              )}
               <Form.Item name={["query_config", "pageLimit"]} label="页数" rules={[{ required: true }]}>
                 <Select options={[10, 30, 50, 100].map((value) => ({ value, label: `${value} 页` }))} />
               </Form.Item>
