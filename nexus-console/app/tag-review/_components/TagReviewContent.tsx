@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Alert, App, Button, Drawer, Form, Input, Select, Table, Tag } from "antd";
+import { Alert, App, Button, Collapse, Drawer, Form, Input, Select, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { EditOutlined, FileTextOutlined } from "@ant-design/icons";
 import { AssetRefCell } from "@/components/shared/AssetRefCell";
@@ -11,7 +11,7 @@ import { createIdempotencyKey } from "@/lib/idempotency";
 import { levelLabel, type LevelDictionary } from "@/lib/levelLabels";
 
 type TagEntry = { value: string };
-type StructuredTags = Record<string, TagEntry[]> & { time_ranges?: unknown[] };
+type StructuredTags = Partial<Record<(typeof TAG_BUCKETS)[number], TagEntry[]>> & { time_ranges?: unknown[] };
 
 export interface GovernanceReviewItem {
   governance_result_id: string;
@@ -61,12 +61,25 @@ const BUCKET_LABELS: Record<(typeof TAG_BUCKETS)[number], string> = {
   topics: "主题",
 };
 
-function asText(tags: StructuredTags, bucket: string): string {
+function asText(tags: StructuredTags, bucket: (typeof TAG_BUCKETS)[number]): string {
   const values = Array.isArray(tags[bucket]) ? tags[bucket] : [];
   return values
     .map((item) => item?.value)
     .filter(Boolean)
     .join("，");
+}
+
+function asTimeRanges(tags: StructuredTags): string {
+  if (!Array.isArray(tags.time_ranges)) return "";
+  return tags.time_ranges.map((entry) => {
+    if (!entry || typeof entry !== "object") return "";
+    const period = entry as { kind?: string; year?: number; start?: number; end?: number };
+    if (period.kind === "point_in_time" && Number.isInteger(period.year)) return String(period.year);
+    if (period.kind === "year_range" && Number.isInteger(period.start) && Number.isInteger(period.end)) {
+      return `${period.start}-${period.end}`;
+    }
+    return "";
+  }).filter(Boolean).join("，");
 }
 
 function splitValues(value: string): TagEntry[] {
@@ -115,6 +128,7 @@ export default function TagReviewContent({
   const [previewItem, setPreviewItem] = useState<GovernanceReviewItem | null>(null);
   const [context, setContext] = useState<ReviewContext | null>(null);
   const [loading, setLoading] = useState(false);
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [form] = Form.useForm<Record<string, string>>();
   const { message } = App.useApp();
 
@@ -152,10 +166,10 @@ export default function TagReviewContent({
       level: item.level ?? "",
       org_scope: item.org_scope ?? "",
       quality_disposition: "pass",
-      quality_reason: "",
-      review_reason: "",
+      quality_reason: "内容完整，结构清洗，符合质量要求",
+      review_reason: "审核通过，继续处理",
       ...Object.fromEntries(TAG_BUCKETS.map((bucket) => [bucket, asText(item.tags, bucket)])),
-      time_ranges: "",
+      time_ranges: asTimeRanges(item.tags),
     });
   }, [form, item]);
 
@@ -170,6 +184,7 @@ export default function TagReviewContent({
       if (!res.ok || !envelope.data)
         throw new Error(envelope.error?.message ?? "无法加载审核上下文");
       setContext(envelope.data);
+      setDetailsExpanded(false);
       setItem(row);
     } catch (err) {
       message.error(err instanceof Error ? err.message : "无法加载审核上下文");
@@ -180,7 +195,13 @@ export default function TagReviewContent({
 
   const submit = async () => {
     if (!item) return;
-    const values = await form.validateFields();
+    let values: Record<string, string>;
+    try {
+      values = await form.validateFields();
+    } catch {
+      if (form.getFieldError("org_scope").length) setDetailsExpanded(true);
+      return;
+    }
     let tags: StructuredTags;
     try {
       tags = buildTags(values);
@@ -370,25 +391,42 @@ export default function TagReviewContent({
                 }))}
               />
             </Form.Item>
-            <Form.Item
-              label="组织范围"
-              name="org_scope"
-              rules={[{ required: true, message: "请填写组织范围" }]}
-            >
-              <Input />
+            <Form.Item label="主题标签" name="topics">
+              <Input placeholder="使用逗号、顿号或换行分隔" />
             </Form.Item>
-            {TAG_BUCKETS.map((bucket) => (
-              <Form.Item key={bucket} label={`${BUCKET_LABELS[bucket]}标签`} name={bucket}>
-                <Input placeholder="使用逗号、顿号或换行分隔" />
-              </Form.Item>
-            ))}
-            <Form.Item
-              label="时间标签"
-              name="time_ranges"
-              extra="支持 YYYY 或 YYYY-YYYY，多个值使用逗号分隔"
-            >
-              <Input />
-            </Form.Item>
+            <Collapse
+              bordered={false}
+              activeKey={detailsExpanded ? ["details"] : []}
+              onChange={(keys) => setDetailsExpanded(keys.includes("details"))}
+              items={[{
+                key: "details",
+                label: "组织范围与细分标签",
+                forceRender: true,
+                children: (
+                  <>
+                    <Form.Item
+                      label="组织范围"
+                      name="org_scope"
+                      rules={[{ required: true, message: "请填写组织范围" }]}
+                    >
+                      <Input />
+                    </Form.Item>
+                    {(["regions", "industries", "occupations", "abilities", "majors"] as const).map((bucket) => (
+                      <Form.Item key={bucket} label={`${BUCKET_LABELS[bucket]}标签`} name={bucket}>
+                        <Input placeholder="使用逗号、顿号或换行分隔" />
+                      </Form.Item>
+                    ))}
+                    <Form.Item
+                      label="时间标签"
+                      name="time_ranges"
+                      extra="支持 YYYY 或 YYYY-YYYY，多个值使用逗号分隔"
+                    >
+                      <Input />
+                    </Form.Item>
+                  </>
+                ),
+              }]}
+            />
             <Form.Item label="质量处置" name="quality_disposition" rules={[{ required: true }]}>
               <Select
                 options={[

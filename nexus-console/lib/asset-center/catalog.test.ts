@@ -10,7 +10,7 @@ import {
 describe("Asset Center catalogue", () => {
   it("freezes exactly five business domains without synthetic entries", () => {
     expect(ASSET_CENTER_DOMAINS.map((domain) => domain.name)).toEqual([
-      "产业政策数据",
+      "产教政策数据",
       "专业数据",
       "市场数据",
       "教材资源数据",
@@ -35,6 +35,12 @@ describe("Asset Center catalogue", () => {
         expect(findAssetCenterResource(domain, resource.path)).toBe(resource);
       }
     }
+  });
+
+  it("renames the industry policy view without changing policy routes", () => {
+    const policy = findAssetCenterDomain("policy")!;
+    expect(findAssetCenterResource(policy, "industry-policies")?.name).toBe("产教政策");
+    expect(findAssetCenterResource(policy, "education-policies")?.name).toBe("教育政策");
   });
 
   it("does not create governance classifications for parks or enterprises", () => {

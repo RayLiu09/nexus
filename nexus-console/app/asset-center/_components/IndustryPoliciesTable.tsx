@@ -53,7 +53,7 @@ export function IndustryPoliciesTable({
   error,
   traceId,
   showRegion = true,
-  emptyText = "暂无产业政策",
+  emptyText = "暂无产教政策",
   nameColumnTitle = "资产名称",
 }: Props) {
   const router = useRouter();

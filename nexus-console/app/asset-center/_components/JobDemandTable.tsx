@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Button, Form, Input, Space, Table, Tooltip } from "antd";
+import { App, Button, Form, Input, Space, Table, Tooltip } from "antd";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
-import { Search, X } from "lucide-react";
+import { Download, Search, X } from "lucide-react";
 
 import { ApiState } from "@/components/ApiState";
 import type { RawJob } from "@/lib/api";
@@ -46,7 +46,9 @@ export function JobDemandTable({
   const router = useRouter();
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
+  const [exporting, setExporting] = useState(false);
   const [form] = Form.useForm<JobDemandFilters>();
+  const { message } = App.useApp();
 
   useEffect(() => form.setFieldsValue(filters), [filters, form]);
 
@@ -58,6 +60,32 @@ export function JobDemandTable({
     if (nextPage > 1) search.set("page", String(nextPage));
     if (nextPageSize !== 20) search.set("pageSize", String(nextPageSize));
     startTransition(() => router.replace(`${pathname}${search.size ? `?${search}` : ""}`));
+  };
+
+  const exportAll = async () => {
+    const params = new URLSearchParams();
+    if (filters.q?.trim()) params.set("q", filters.q.trim());
+    if (filters.industry?.trim()) params.set("industry", filters.industry.trim());
+    setExporting(true);
+    try {
+      const response = await fetch(`/api/raw-jobs/export${params.size ? `?${params}` : ""}`);
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({})) as { error?: { message?: string } };
+        throw new Error(body.error?.message ?? "岗位数据导出失败");
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `岗位数据-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "岗位数据导出失败");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const columns: ColumnsType<RawJob> = [
@@ -118,6 +146,14 @@ export function JobDemandTable({
             }}
           >
             重置
+          </Button>
+          <Button
+            icon={<Download size={15} />}
+            loading={exporting}
+            disabled={!ok || total === 0}
+            onClick={() => void exportAll()}
+          >
+            导出全部
           </Button>
         </Space>
       </Form>

@@ -11,7 +11,7 @@ from nexus_app.crawler.firecrawl_client import (
 )
 from nexus_app.crawler.quality_gate import is_pdf_candidate
 from nexus_app.crawler import runner as crawler_runner
-from nexus_app.enums import JobStatus
+from nexus_app.enums import DataSourceStatus, DataSourceType, JobStatus
 from nexus_app.storage import InMemoryObjectStorage
 
 
@@ -520,6 +520,97 @@ def test_scheduled_websearch_plan_requires_cron(app):
 
     assert resp.status_code == 422
     assert "schedule_cron" in resp.json()["error"]["message"]
+
+
+def test_websearch_plan_accepts_separated_query_terms(app):
+    client = TestClient(app)
+    resp = client.post(
+        "/internal/v1/crawler/plans",
+        headers={"Idempotency-Key": "crawler-plan-ws-terms-001"},
+        json={
+            "name": "WebSearch多词查询",
+            "mode": "custom",
+            "connector_type": "websearch",
+            "connector_version": "custom",
+            "execution_mode": "run_once",
+            "search_policy": {
+                "query": "浙江省，低空经济 政策",
+                "result_count": 10,
+                "time_range_preset": "one_year",
+            },
+        },
+    )
+    assert resp.status_code == 201
+    assert resp.json()["data"]["search_policy"]["query"] == "浙江省，低空经济 政策"
+
+
+@pytest.mark.parametrize("result_count", [None, "not-a-number", True])
+def test_websearch_plan_rejects_invalid_result_count_without_server_error(app, result_count):
+    client = TestClient(app)
+    resp = client.post(
+        "/internal/v1/crawler/plans",
+        headers={"Idempotency-Key": f"crawler-invalid-count-{result_count}"},
+        json={
+            "name": "无效返回数量", "mode": "custom", "connector_type": "websearch",
+            "connector_version": "custom", "execution_mode": "run_once",
+            "search_policy": {"query": "低空经济", "result_count": result_count},
+        },
+    )
+    assert resp.status_code == 422
+    assert "result_count" in resp.json()["error"]["message"]
+
+
+@pytest.mark.parametrize("connector_type,mode", [
+    ("firecrawl", "custom"), ("firecrawl", "quick_start"),
+    ("websearch", "custom"), ("websearch", "quick_start"),
+])
+def test_crawler_plan_copy_payload_creates_a_new_plan(app, session, connector_type, mode):
+    client = TestClient(app)
+    source = models.DataSource(
+        code=f"crawler-copy-{connector_type}-{mode}", name="Crawler copy source",
+        source_type=DataSourceType.CRAWLER, status=DataSourceStatus.ENABLED,
+    )
+    session.add(source)
+    session.commit()
+    common = {
+        "name": "原计划", "mode": mode, "connector_type": connector_type,
+        "connector_version": "custom" if connector_type == "websearch" else "v2",
+        "execution_mode": "scheduled", "schedule_cron": "0 2 * * 1",
+        "topic_keywords": ["低空经济"],
+    }
+    original_payload = {
+        **common,
+        "data_source_id": source.id if connector_type == "firecrawl" else None,
+        "target_sites": [{"base_url": "https://example.gov.cn/policy"}]
+        if connector_type == "firecrawl" and mode == "custom" else [],
+        "search_policy": {"query": "浙江省 低空经济 政策", "result_count": 10, "time_range_preset": "one_year"}
+        if connector_type == "websearch" else {},
+    }
+    original = client.post(
+        "/internal/v1/crawler/plans",
+        headers={"Idempotency-Key": f"crawler-copy-original-{connector_type}-{mode}"},
+        json=original_payload,
+    )
+    assert original.status_code == 201
+    saved = original.json()["data"]
+    copy_payload = {
+        **common,
+        "name": "原计划 副本",
+        "data_source_id": saved["data_source_id"] if connector_type == "firecrawl" else None,
+        "region_code": saved["region_code"] or "national",
+        "content_goals": saved["content_goals"],
+        "classification_hints": saved["classification_hints"],
+        "crawl_policy": saved["crawl_policy"],
+        "target_sites": saved["target_sites"],
+        "search_policy": saved["search_policy"],
+    }
+    copied = client.post(
+        "/internal/v1/crawler/plans",
+        headers={"Idempotency-Key": f"crawler-copy-new-{connector_type}-{mode}"},
+        json=copy_payload,
+    )
+    assert copied.status_code == 201
+    assert copied.json()["data"]["id"] != saved["id"]
 
 
 def test_scheduled_websearch_plan_sets_next_run_at(app):

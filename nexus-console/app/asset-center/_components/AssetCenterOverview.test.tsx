@@ -20,12 +20,13 @@ describe("AssetCenterOverview", () => {
     for (const card of screen.getAllByRole("article")) {
       expect(card).toHaveClass("h-full", "flex", "flex-col");
     }
-    expect(screen.getByRole("heading", { name: "产业政策数据" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "产教政策数据" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "专业数据" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "市场数据" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "教材资源数据" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "用户行为数据" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /证书数据/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /教育政策/ })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "标准课程库，128 条" })).toHaveAttribute(
       "href",
       "/asset-center/major/standard-course-library",
@@ -39,13 +40,13 @@ describe("AssetCenterOverview", () => {
       "/asset-center/teaching-resources/course-textbooks",
     );
     expect(screen.queryByText("产业画像")).not.toBeInTheDocument();
-    expect(screen.queryByText(/进入产业政策数据/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/进入产教政策数据/)).not.toBeInTheDocument();
   });
 
   it("does not present API failures as zero counts", () => {
     render(<AssetCenterOverview counts={null} />);
 
-    expect(screen.getByRole("link", { name: "产业政策，数量暂不可用" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "产教政策，数量暂不可用" })).toBeInTheDocument();
     expect(screen.getAllByText("--").length).toBeGreaterThan(0);
   });
 });

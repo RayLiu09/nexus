@@ -21,16 +21,16 @@ export type AssetCenterDomain = {
 export const ASSET_CENTER_DOMAINS = [
   {
     slug: "policy",
-    name: "产业政策数据",
-    description: "产业与教育政策、产业报告和行业报告",
+    name: "产教政策数据",
+    description: "产教政策、产业报告和行业报告",
     icon: Landmark,
     accent: "#166534",
     accentBackground: "#f0fdf4",
     resources: [
       {
         path: "industry-policies",
-        name: "产业政策",
-        description: "国家、省级和区域产业政策",
+        name: "产教政策",
+        description: "国家、省级和区域产教政策",
         classificationCode: "industry_policy",
       },
       {

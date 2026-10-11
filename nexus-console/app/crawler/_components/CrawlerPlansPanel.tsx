@@ -167,7 +167,7 @@ function runContentItems(run: CrawlerRun): {
     items.map((item, idx) => ({ ...item, _k: `${bucket}:${idx}` }));
   return {
     discovered: withKey("discovered", objectArrayFrom(run.summary, "discovered")),
-    accepted: withKey("accepted", objectArrayFrom(run.summary, "accepted_snapshots")),
+    accepted: withKey("accepted", objectArrayFrom(run.summary, run.connector_type === "websearch" ? "accepted" : "accepted_snapshots")),
     failures: withKey("failures", objectArrayFrom(run.summary, "failures")),
     filtered: withKey("filtered", objectArrayFrom(run.summary, "filtered")),
     submitted: withKey("submitted", objectArrayFrom(run.summary, "submitted")),
@@ -348,8 +348,13 @@ export function CrawlerPlansPanel() {
       message.error("请填写计划名称");
       return;
     }
-    if (form.connectorType === "websearch" && /[\s,，;；]/.test(form.query.trim())) {
-      message.error("WebSearch 仅支持单个查询词，不能包含空格、逗号或分号");
+    const searchTerms = [...new Set(form.query.trim().split(/[\s,，、;；|/]+/).filter(Boolean))];
+    if (form.connectorType === "websearch" && (searchTerms.length < 1 || searchTerms.length > 4)) {
+      message.error("请输入 1 至 4 个查询关键词");
+      return;
+    }
+    if (form.connectorType === "websearch" && (!Number.isInteger(form.resultCount) || form.resultCount < 10 || form.resultCount > 50)) {
+      message.error("每组查询返回数量须为 10 至 50 的整数");
       return;
     }
     if (!effectiveDataSourceId) {
@@ -566,6 +571,8 @@ export function CrawlerPlansPanel() {
 
   const renderRunDetails = (run: CrawlerRun) => {
     const items = runContentItems(run);
+    const searches = Array.isArray(run.summary.searches) ? run.summary.searches as Array<{ query?: string; result_count?: number }> : [];
+    const searchFailures = Array.isArray(run.summary.search_failures) ? run.summary.search_failures as Array<{ query?: string; reason?: string }> : [];
     const filterReasons = run.summary.filter_reasons;
     const filterReasonText =
       filterReasons && typeof filterReasons === "object"
@@ -594,6 +601,19 @@ export function CrawlerPlansPanel() {
             {run.summary.web_wide_search ? "全网搜索" : "目标站点"}
           </Descriptions.Item>
         </Descriptions>
+        {run.connector_type === "websearch" && searches.length > 0 && (
+          <div className="text-text-secondary text-xs">
+            {searches.map((item) => `${item.query ?? ""} (${item.result_count ?? 0})`).join(" · ")}
+          </div>
+        )}
+        {searchFailures.length > 0 && (
+          <Alert
+            type="warning"
+            showIcon
+            title="部分查询失败"
+            description={searchFailures.map((item) => `${item.query ?? ""}: ${item.reason ?? "未知错误"}`).join("；")}
+          />
+        )}
         {renderContentTable("搜索候选", items.discovered)}
         {renderContentTable("通过抓取", items.accepted)}
         {renderContentTable("提交 Pipeline", items.submitted, { showSubmitted: true })}
@@ -825,14 +845,14 @@ export function CrawlerPlansPanel() {
                 <Form.Item
                   label="查询"
                   required
-                  extra="仅支持单个查询词，不能包含空格、逗号或分号。"
+                  extra="支持 1 至 4 个关键词，可用空格、逗号、顿号或分号分隔；执行时自动组合查询并汇总去重。"
                 >
                   <Input
                     value={form.query}
                     onChange={(event) => update("query", event.target.value)}
                   />
                 </Form.Item>
-                <Form.Item label="返回结果数量">
+                <Form.Item label="每组查询返回数量">
                   <Input
                     type="number"
                     min={10}

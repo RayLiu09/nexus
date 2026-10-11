@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import unicodedata
+from itertools import combinations
 from datetime import timedelta
 from datetime import datetime, timezone
 from dataclasses import dataclass
@@ -132,9 +134,31 @@ def _validate_websearch_query(query: str) -> str:
     value = query.strip()
     if not value or len(value) > 100:
         raise CrawlerPlanError("websearch query must contain 1 to 100 characters")
-    if any(marker in value for marker in (" ", "\u3000", ",", "，", ";", "；", "\t", "\n", "\r")):
-        raise CrawlerPlanError("websearch query must be a single term without spaces, commas, or semicolons")
+    terms = list(dict.fromkeys(part for part in re.split(r"[\s,，、;；|/]+", value) if part))
+    if not terms or len(terms) > 4:
+        raise CrawlerPlanError("websearch query must contain 1 to 4 unique terms")
     return value
+
+
+def _validate_websearch_result_count(value: Any) -> int:
+    if isinstance(value, bool):
+        raise CrawlerPlanError("websearch result_count must be between 10 and 50")
+    try:
+        count = int(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise CrawlerPlanError("websearch result_count must be between 10 and 50") from exc
+    if not 10 <= count <= 50:
+        raise CrawlerPlanError("websearch result_count must be between 10 and 50")
+    return count
+
+
+def _websearch_queries(query: str) -> list[str]:
+    terms = list(dict.fromkeys(part for part in re.split(r"[\s,，、;；|/]+", query) if part))
+    return list(dict.fromkeys(
+        "".join(parts)
+        for size in range(len(terms), 0, -1)
+        for parts in combinations(terms, size)
+    ))
 
 
 def _ensure_builtin_firecrawl_data_source(session: Session) -> models.DataSource:
@@ -236,9 +260,9 @@ def create_plan(
             raise CrawlerPlanError("websearch only supports custom version")
         template, template_hash = load_websearch_template()
         query = _validate_websearch_query((payload.search_policy or {}).get("query") or template["query"])
-        count = int((payload.search_policy or {}).get("result_count", template["default_result_count"]))
-        if not 10 <= count <= 50:
-            raise CrawlerPlanError("websearch result_count must be between 10 and 50")
+        count = _validate_websearch_result_count(
+            (payload.search_policy or {}).get("result_count", template["default_result_count"])
+        )
         policy = {"query": query, "result_count": count, "time_range_preset": (payload.search_policy or {}).get("time_range_preset", "one_year"), "content_formats": "markdown"}
         next_run_at = _resolve_schedule_next_run(payload.execution_mode, payload.schedule_cron)
         row = models.CrawlerPlan(name=payload.name, connector_type="websearch", connector_version="custom", mode=payload.mode,
@@ -360,9 +384,9 @@ def update_plan(
     if row.connector_type == "websearch":
         template, _ = load_websearch_template()
         query = _validate_websearch_query((payload.search_policy or {}).get("query") or template["query"])
-        count = int((payload.search_policy or {}).get("result_count", template["default_result_count"]))
-        if not 10 <= count <= 50:
-            raise CrawlerPlanError("websearch result_count must be between 10 and 50")
+        count = _validate_websearch_result_count(
+            (payload.search_policy or {}).get("result_count", template["default_result_count"])
+        )
         row.search_policy = {"query": query, "result_count": count, "time_range_preset": (payload.search_policy or {}).get("time_range_preset", "one_year"), "content_formats": "markdown"}
         row.mode = payload.mode
         row.topic_keywords = []
@@ -652,15 +676,36 @@ def _run_websearch_custom_plan(session: Session, plan: models.CrawlerPlan, *, tr
     run = models.CrawlerRun(plan_id=plan.id, status="running", connector_type="websearch", connector_version="custom",
         started_at=datetime.now(timezone.utc), template_code=plan.template_code, template_config_hash=None, region_sites_config_hash=None, summary={})
     session.add(run); session.flush()
-    try:
-        outcome = HttpWebSearchCustomClient().search(query=query, count=int(policy["result_count"]), time_range=_websearch_time_range(str(policy.get("time_range_preset"))))
-    except WebSearchCustomError as exc:
-        run.status="failed"; run.finished_at=datetime.now(timezone.utc); run.summary={"runner":"websearch_custom_sync", "error_type":str(exc), "query_length":len(query), "submitted_count":0, "accepted_count":0}
+    search_results = []
+    search_failures = []
+    search_details = []
+    seen_urls: set[str] = set()
+    client = HttpWebSearchCustomClient()
+    time_range = _websearch_time_range(str(policy.get("time_range_preset")))
+    for search_query in _websearch_queries(query):
+        try:
+            outcome = client.search(query=search_query, count=int(policy["result_count"]), time_range=time_range)
+        except WebSearchCustomError as exc:
+            search_failures.append({"query": search_query, "reason": str(exc)})
+            continue
+        search_details.append({"query": search_query, "result_count": len(outcome.items),
+                               "request_id": outcome.request_id, "log_id": outcome.log_id,
+                               "time_cost_ms": outcome.time_cost_ms})
+        for item in outcome.items:
+            url = _normalized_websearch_url(item.url)
+            if url not in seen_urls:
+                seen_urls.add(url)
+                search_results.append((item, outcome))
+    if not search_details:
+        run.status="failed"; run.finished_at=datetime.now(timezone.utc)
+        run.summary={"runner":"websearch_custom_sync", "query":query, "query_length":len(query), "query_count":len(_websearch_queries(query)),
+                     "search_failures":search_failures, "result_count":0, "submitted_count":0,
+                     "accepted_count":0, "failed_count":len(search_failures)}
         session.commit(); session.refresh(run); return run
     accepted = []
     filtered = []
     filter_reasons: dict[str, int] = {}
-    for item in outcome.items:
+    for item, outcome in search_results:
         decision = evaluate_websearch_item(
             title=item.title, url=item.url, content=item.content,
         )
@@ -669,14 +714,14 @@ def _run_websearch_custom_plan(session: Session, plan: models.CrawlerPlan, *, tr
             filter_reasons[reason] = filter_reasons.get(reason, 0) + 1
             filtered.append({"url": item.url, "title": item.title[:256], "reason": reason})
             continue
-        accepted.append(item)
+        accepted.append((item, outcome))
 
     submitted=[]; failures=[]
     batch = None
     if accepted:
         batch = ingest_batch.create_batch(session, data_source_id=plan.data_source_id, batch_idempotency_key=f"crawler-run-{run.id}",
             summary={"connector_type":"websearch_custom_document", "crawler_plan_id":plan.id, "crawler_run_id":run.id, "accepted_count":len(accepted)}, trace_id=trace_id)
-    for index, item in enumerate(accepted, 1):
+    for index, (item, outcome) in enumerate(accepted, 1):
         # The persisted package must be stable for the same upstream result.
         # Run/request identifiers belong in RawObject metadata: including them
         # here changes the raw checksum on every run and defeats batch dedupe.
@@ -689,13 +734,15 @@ def _run_websearch_custom_plan(session: Session, plan: models.CrawlerPlan, *, tr
             submitted.append({"url":item.url,"title":item.title,"raw_object_id":result.raw_object.id,"content_hash":checksum,"asset_content_fingerprint":asset_content_fingerprint,"content_length":len(item.content),"duplicate":result.duplicate,"pipeline_type":result.job.payload.get("pipeline_type")})
         except ingest_batch.BatchError as exc: failures.append({"url":item.url,"reason":str(exc)})
     run.finished_at=datetime.now(timezone.utc)
-    if not outcome.items:
+    if not search_results:
         run.status = "no_results"
     elif not submitted:
         run.status = "failed"
     else:
-        run.status = "partial_failed" if failures or filtered else "succeeded"
-    run.summary={"runner":"websearch_custom_sync","query_length":len(query),"time_range":_websearch_time_range(str(policy.get("time_range_preset"))),"provider_request_id":outcome.request_id,"provider_log_id":outcome.log_id,"time_cost_ms":outcome.time_cost_ms,"result_count":len(outcome.items),"accepted_count":len(accepted),"filtered_count":len(filtered),"submitted_count":len(submitted),"raw_persisted_count":sum(1 for item in submitted if not item["duplicate"]),"duplicate_count":sum(1 for item in submitted if item["duplicate"]),"failed_count":len(failures),"filter_reasons":filter_reasons,"accepted":[{"url":item.url,"title":item.title[:256],"result_id":item.result_id,"rank_score":item.metadata.get("RankScore"),"content_hash":"sha256:"+hashlib.sha256(item.content.encode("utf-8")).hexdigest(),"content_chars":len(item.content)} for item in accepted],"filtered":filtered,"submitted":submitted,"failures":failures}
+        run.status = "partial_failed" if failures or filtered or search_failures else "succeeded"
+    if search_failures and run.status == "no_results":
+        run.status = "partial_failed"
+    run.summary={"runner":"websearch_custom_sync","query":query,"query_length":len(query),"query_count":len(_websearch_queries(query)),"searches":search_details,"search_failures":search_failures,"time_range":time_range,"result_count":len(search_results),"accepted_count":len(accepted),"filtered_count":len(filtered),"submitted_count":len(submitted),"raw_persisted_count":sum(1 for item in submitted if not item["duplicate"]),"duplicate_count":sum(1 for item in submitted if item["duplicate"]),"failed_count":len(failures)+len(search_failures),"filter_reasons":filter_reasons,"accepted":[{"url":item.url,"title":item.title[:256],"result_id":item.result_id,"rank_score":item.metadata.get("RankScore"),"content_hash":"sha256:"+hashlib.sha256(item.content.encode("utf-8")).hexdigest(),"content_chars":len(item.content)} for item, _ in accepted],"filtered":filtered,"submitted":submitted,"failures":failures}
     session.commit(); session.refresh(run); return run
 
 

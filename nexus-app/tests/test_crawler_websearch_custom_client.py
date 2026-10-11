@@ -177,3 +177,64 @@ def test_websearch_successful_empty_response_is_no_results(session, monkeypatch)
     assert run.summary["filtered_count"] == 0
     assert run.summary["submitted_count"] == 0
     assert run.summary["failed_count"] == 0
+
+
+def test_websearch_query_combinations_accept_separators_and_deduplicate_terms():
+    query = crawler_service._validate_websearch_query("浙江省，低空经济;政策 浙江省")
+    assert crawler_service._websearch_queries(query) == [
+        "浙江省低空经济政策", "浙江省低空经济", "浙江省政策",
+        "低空经济政策", "浙江省", "低空经济", "政策",
+    ]
+    assert crawler_service._websearch_queries("电子商务") == ["电子商务"]
+    with pytest.raises(crawler_service.CrawlerPlanError, match="1 to 4 unique terms"):
+        crawler_service._validate_websearch_query("一 二 三 四 五")
+
+
+def test_websearch_combines_results_by_url_and_keeps_partial_success(session, monkeypatch):
+    source = models.DataSource(
+        code="websearch-combinations", name="WebSearch combinations",
+        source_type=DataSourceType.CRAWLER, status=DataSourceStatus.ENABLED,
+    )
+    session.add(source)
+    session.flush()
+    plan = models.CrawlerPlan(
+        name="WebSearch combinations", connector_type="websearch",
+        connector_version="custom", mode="custom", data_source_id=source.id,
+        execution_mode="run_once",
+        search_policy={"query": "电子商务 政策", "result_count": 10, "time_range_preset": "one_year"},
+        pipeline_policy={"pipeline_type": "document"}, status="active",
+    )
+    session.add(plan)
+    session.commit()
+    item = WebSearchCustomItem(
+        result_id="result-1", title="2026年电子商务市场运行报告",
+        url="https://example.gov.cn/reports/ecommerce-2026",
+        content="电子商务产业市场规模持续增长，网络零售额和跨境电商进出口数据表现良好。" * 20,
+        content_source="content", metadata={"RankScore": 0.9},
+    )
+
+    class FakeClient:
+        calls = []
+
+        def search(self, *, query, **_kwargs):
+            self.__class__.calls.append(query)
+            if query == "政策":
+                raise module.WebSearchCustomError("provider_rate_limited")
+            return WebSearchCustomResponse(
+                items=[item], request_id=f"request-{query}", log_id=None, time_cost_ms=10,
+            )
+
+    monkeypatch.setattr(crawler_service, "HttpWebSearchCustomClient", FakeClient)
+    run = crawler_service._run_websearch_custom_plan(
+        session, plan, trace_id="trace-combinations",
+        storage=InMemoryObjectStorage(), settings=Settings(),
+    )
+
+    assert FakeClient.calls == ["电子商务政策", "电子商务", "政策"]
+    assert run.status == "partial_failed"
+    assert run.summary["result_count"] == 1
+    assert run.summary["submitted_count"] == 1
+    assert run.summary["search_failures"] == [
+        {"query": "政策", "reason": "provider_rate_limited"}
+    ]
+    assert session.query(models.RawObject).count() == 1

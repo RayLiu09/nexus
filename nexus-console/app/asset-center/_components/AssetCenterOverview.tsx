@@ -35,7 +35,7 @@ export function AssetCenterOverview({ counts }: { counts: Record<string, number>
 
             <ul className={resourceGrid}>
               {domain.resources
-                .filter((resource) => resource.path !== "certificates")
+                .filter((resource) => resource.path !== "certificates" && resource.path !== "education-policies")
                 .map((resource, resourceIndex) => {
                   const count = counts?.[assetCenterCountKey(domain, resource)];
                   const countAvailable = count !== undefined;
