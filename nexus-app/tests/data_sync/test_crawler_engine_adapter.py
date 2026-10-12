@@ -6,7 +6,7 @@ import httpx
 import pytest
 from pydantic import SecretStr, ValidationError
 
-from nexus_app.data_sync.adapters.crawler_engine import CrawlerEngineDataSyncProvider
+from nexus_app.data_sync.adapters.crawler_engine import CORE_CITIES, CrawlerEngineDataSyncProvider
 from nexus_app.data_sync.catalog import _load_adapter, list_provider_views, load_catalog
 from nexus_app.data_sync.runtime import SyncRuntimeError, _invoke_with_token
 from nexus_app.data_sync.tokens import (
@@ -60,7 +60,13 @@ def test_query_schema_and_catalog_loading():
     )
     schema = adapter.get_query_schema()
     assert schema["type"] == "object"
-    assert schema["properties"]["regions"]["items"]["enum"]
+    assert schema["properties"]["regions"]["items"]["enum"] == list(CORE_CITIES)
+    added_cities = {
+        "贵阳市", "石家庄市", "温州市", "常州市", "珠海市", "中山市", "惠州市",
+    }
+    assert added_cities <= set(CORE_CITIES)
+    all_cities_query = {"keywords": ["数据化运营助理"], "regions": list(CORE_CITIES)}
+    assert adapter.validate_query(all_cities_query)["regions"] == list(CORE_CITIES)
     assert adapter.validate_query({"keywords": ["数据化运营助理"], "regions": ["杭州市"]}) == {
         "keywords": ["数据化运营助理"], "regions": ["杭州市"], "pageLimit": 30,
     }

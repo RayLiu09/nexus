@@ -21,7 +21,8 @@ CORE_CITIES = (
     "北京市", "上海市", "广州市", "深圳市", "杭州市", "南京市", "苏州市", "成都市",
     "重庆市", "武汉市", "西安市", "天津市", "长沙市", "郑州市", "青岛市", "宁波市",
     "东莞市", "佛山市", "无锡市", "合肥市", "福州市", "厦门市", "济南市", "大连市",
-    "沈阳市", "昆明市", "南宁市", "哈尔滨市", "长春市", "南昌市",
+    "沈阳市", "昆明市", "贵阳市", "南宁市", "哈尔滨市", "长春市", "南昌市",
+    "石家庄市", "温州市", "常州市", "珠海市", "中山市", "惠州市",
 )
 
 
@@ -29,7 +30,7 @@ class CrawlerQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     keywords: list[str] = Field(min_length=1, max_length=100, title="岗位名称")
-    regions: list[str] = Field(min_length=1, max_length=30, title="区域")
+    regions: list[str] = Field(min_length=1, max_length=len(CORE_CITIES), title="区域")
     pageLimit: Literal[10, 30, 50, 100] = Field(default=30, title="页数")
 
     @model_validator(mode="before")
