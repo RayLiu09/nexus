@@ -617,7 +617,8 @@ export function CrawlerPlansPanel() {
         {renderContentTable("搜索候选", items.discovered)}
         {renderContentTable("通过抓取", items.accepted)}
         {renderContentTable("提交 Pipeline", items.submitted, { showSubmitted: true })}
-        {renderContentTable("失败/过滤", [...items.failures, ...items.filtered], {
+        {renderContentTable("过滤结果", items.filtered, { showReason: true })}
+        {renderContentTable("失败结果", items.failures, {
           showReason: true,
         })}
       </div>
@@ -1009,8 +1010,9 @@ export function CrawlerPlansPanel() {
               width: 180,
               render: (_, run) => (
                 <Space size={4} wrap>
-                  <Tag>发现 {numberFrom(run.summary, "discovered_count")}</Tag>
+                  <Tag>发现 {numberFrom(run.summary, run.connector_type === "websearch" ? "result_count" : "discovered_count")}</Tag>
                   <Tag color="green">通过 {numberFrom(run.summary, "accepted_count")}</Tag>
+                  <Tag>过滤 {numberFrom(run.summary, "filtered_count")}</Tag>
                   <Tag color="red">失败 {numberFrom(run.summary, "failed_count")}</Tag>
                 </Space>
               ),

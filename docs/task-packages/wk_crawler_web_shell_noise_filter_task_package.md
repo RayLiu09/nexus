@@ -42,7 +42,7 @@ extracted content must remain allowed.
 
 ## Acceptance
 
-- The filtered snapshot is recorded in the run `filter_reasons` and `failures`
+- The filtered snapshot is recorded in the run `filter_reasons` and `filtered`
   and never enters `accepted_snapshots`, so no raw object or job is created.
 - A normal Firecrawl HTML page continues through the existing parse path.
 - Run:

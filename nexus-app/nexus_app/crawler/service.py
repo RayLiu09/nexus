@@ -734,14 +734,10 @@ def _run_websearch_custom_plan(session: Session, plan: models.CrawlerPlan, *, tr
             submitted.append({"url":item.url,"title":item.title,"raw_object_id":result.raw_object.id,"content_hash":checksum,"asset_content_fingerprint":asset_content_fingerprint,"content_length":len(item.content),"duplicate":result.duplicate,"pipeline_type":result.job.payload.get("pipeline_type")})
         except ingest_batch.BatchError as exc: failures.append({"url":item.url,"reason":str(exc)})
     run.finished_at=datetime.now(timezone.utc)
-    if not search_results:
-        run.status = "no_results"
-    elif not submitted:
-        run.status = "failed"
+    if not submitted:
+        run.status = "failed" if failures or search_failures else "no_results"
     else:
-        run.status = "partial_failed" if failures or filtered or search_failures else "succeeded"
-    if search_failures and run.status == "no_results":
-        run.status = "partial_failed"
+        run.status = "partial_failed" if failures or search_failures else "succeeded"
     run.summary={"runner":"websearch_custom_sync","query":query,"query_length":len(query),"query_count":len(_websearch_queries(query)),"searches":search_details,"search_failures":search_failures,"time_range":time_range,"result_count":len(search_results),"accepted_count":len(accepted),"filtered_count":len(filtered),"submitted_count":len(submitted),"raw_persisted_count":sum(1 for item in submitted if not item["duplicate"]),"duplicate_count":sum(1 for item in submitted if item["duplicate"]),"failed_count":len(failures)+len(search_failures),"filter_reasons":filter_reasons,"accepted":[{"url":item.url,"title":item.title[:256],"result_id":item.result_id,"rank_score":item.metadata.get("RankScore"),"content_hash":"sha256:"+hashlib.sha256(item.content.encode("utf-8")).hexdigest(),"content_chars":len(item.content)} for item, _ in accepted],"filtered":filtered,"submitted":submitted,"failures":failures}
     session.commit(); session.refresh(run); return run
 

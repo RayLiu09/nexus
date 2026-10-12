@@ -1,6 +1,9 @@
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 import pytest
 
+from nexus_api.api.internal.crawler import list_crawler_runs
+from nexus_api.dependencies import Pagination
 from nexus_app import models, schemas as domain_schemas, services
 from nexus_app.config import get_settings
 from nexus_app.crawler import service as crawler_service
@@ -305,6 +308,46 @@ def test_create_quick_start_plan_defaults_and_unconfigured_run_fails(app, monkey
     assert plans_resp.status_code == 200
     assert plans_resp.json()["data"][0]["connector_type"] == "firecrawl"
     assert plans_resp.json()["data"][0]["connector_version"] == "v2"
+
+
+def test_crawler_run_count_summary_includes_websearch_result_count(session):
+    plan = models.CrawlerPlan(
+        name="WebSearch count summary",
+        connector_type="websearch",
+        connector_version="custom",
+        mode="custom",
+        execution_mode="run_once",
+        search_policy={"query": "电子商务", "result_count": 10, "time_range_preset": "one_year"},
+        pipeline_policy={"pipeline_type": "document"},
+        status="active",
+    )
+    session.add(plan)
+    session.flush()
+    session.add(models.CrawlerRun(
+        plan_id=plan.id,
+        status="succeeded",
+        connector_type="websearch",
+        connector_version="custom",
+        summary={
+            "result_count": 45,
+            "accepted_count": 35,
+            "filtered_count": 10,
+            "submitted_count": 35,
+            "failed_count": 0,
+            "filter_reasons": {"news_report": 10},
+        },
+    ))
+    session.commit()
+
+    request = Request({"type": "http", "method": "GET", "path": "/internal/v1/crawler/runs", "headers": []})
+    response = list_crawler_runs(
+        request, plan_id=None, summary="counts", pagination=Pagination(page=1, page_size=20), session=session,
+    )
+
+    summary = response.data[0].summary
+    assert summary["result_count"] == 45
+    assert summary["filtered_count"] == 10
+    assert summary["failed_count"] == 0
 
 
 def test_custom_plan_rejects_unsafe_urls(app):
@@ -671,7 +714,7 @@ def test_firecrawl_runner_with_fake_client_accepts_and_filters(session, monkeypa
         storage=storage,
     )
 
-    assert run.status == "partial_failed"
+    assert run.status == "succeeded"
     assert run.summary["runner"] == "firecrawl_sync"
     assert run.summary["query"] == "职业教育 产教融合 电子商务 跨境电商 农村电商 直播电商 旅游电商 数字经济 区域经济 发展报告"
     assert run.summary["search_scope"] == {"scope_type": "national", "scope_name": "全国"}
@@ -680,6 +723,9 @@ def test_firecrawl_runner_with_fake_client_accepts_and_filters(session, monkeypa
     assert run.summary["submitted_count"] == 2
     assert run.summary["accepted_snapshots"][0]["url"] == "https://www.zj.gov.cn/policy/1.html"
     assert run.summary["filtered_count"] == 2
+    assert run.summary["failed_count"] == 0
+    assert run.summary["failures"] == []
+    assert len(run.summary["filtered"]) == 1
     assert run.summary["filter_reasons"] == {
         "duplicate_url": 1,
         "duplicate_content": 1,
@@ -710,7 +756,7 @@ def test_firecrawl_runner_with_fake_client_accepts_and_filters(session, monkeypa
     assert len(jobs) == 2
     assert {job.payload["pipeline_type"] for job in jobs} == {"document"}
     assert any(job.status == JobStatus.QUEUED for job in jobs)
-    assert "duplicate_content" in {item["reason"] for item in run.summary["failures"]}
+    assert "duplicate_content" in {item["reason"] for item in run.summary["filtered"]}
 
     get_settings.cache_clear()
     second = crawler_service.run_plan(
@@ -727,6 +773,55 @@ def test_firecrawl_runner_with_fake_client_accepts_and_filters(session, monkeypa
     assert second.summary["duplicate_count"] == 2
     assert {item["raw_object_id"] for item in second.summary["submitted"]} == {raw.id for raw in raw_objects}
     assert len(session.query(models.RawObject).all()) == 2
+
+
+def test_firecrawl_all_filtered_results_are_no_results(session, monkeypatch):
+    monkeypatch.setenv("CRAWLER_FIRECRAWL_SCRAPE_LIMIT_ENABLED", "false")
+    get_settings.cache_clear()
+    source = services.create_data_source(
+        session,
+        domain_schemas.DataSourceCreate(
+            code="crawler-filter-only",
+            name="Crawler filter-only test",
+            source_type="crawler",
+        ),
+    )
+    plan = crawler_service.create_plan(
+        session,
+        domain_schemas.CrawlerPlanCreate(
+            name="过滤结果测试",
+            mode="quick_start",
+            data_source_id=source.id,
+            execution_mode="run_once",
+        ),
+        trace_id="trace-filter",
+    )
+
+    class FilterOnlyClient(FakeFirecrawlClient):
+        def search(self, **_kwargs):
+            return [FirecrawlSearchResult(url="https://example.gov.cn/", title="首页")]
+
+        def scrape(self, *, url, **_kwargs):
+            return FirecrawlDocumentSnapshot(
+                source_url=url,
+                final_url=url,
+                title="首页",
+                markdown="网站导航" * 20,
+                html=None,
+                metadata={},
+            )
+
+    run = crawler_service.run_plan(
+        session, plan.id, trace_id="trace-filter",
+        client=FilterOnlyClient(), storage=InMemoryObjectStorage(),
+    )
+
+    assert run.status == "no_results"
+    assert run.summary["filtered_count"] == 1
+    assert run.summary["submitted_count"] == 0
+    assert run.summary["failed_count"] == 0
+    assert run.summary["failures"] == []
+    assert run.summary["filtered"][0]["reason"] == "too_short"
 
 
 def test_firecrawl_query_preserves_user_terms_and_records_province_scope(session, monkeypatch):
@@ -975,7 +1070,13 @@ def test_firecrawl_runner_records_missing_single_scrape(session):
     assert run.summary["discovered_count"] == 1
     assert run.summary["accepted_count"] == 0
     assert run.summary["scrape_failed_count"] == 1
-    assert run.summary["filter_reasons"] == {"scrape_missing": 1}
+    assert run.summary["failed_count"] == 1
+    assert run.summary["filtered_count"] == 0
+    assert run.summary["filter_reasons"] == {}
+    assert run.summary["failures"] == [{
+        "url": "https://www.zj.gov.cn/policy/fallback.html",
+        "reason": "scrape_missing",
+    }]
 
 
 def test_firecrawl_runner_limits_scrape_urls_when_dev_guard_enabled(session, monkeypatch):

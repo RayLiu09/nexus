@@ -88,7 +88,7 @@ def run_firecrawl_plan(
             scrape_limit_filtered_count = len(scrape_urls) - scrape_limit
             scrape_urls = scrape_urls[:scrape_limit]
         snapshots = []
-        scrape_failed_count = 0
+        scrape_failures: list[dict[str, str]] = []
         by_url = {item.url: item for item in discovered_results}
         for url in scrape_urls:
             if is_pdf_candidate(url, {}):
@@ -104,10 +104,10 @@ def run_firecrawl_plan(
                     max_age_ms=settings.crawler_firecrawl_cache_max_age_ms,
                 )
             except FirecrawlClientError:
-                scrape_failed_count += 1
+                scrape_failures.append({"url": url, "reason": "scrape_failed"})
                 continue
             if snapshot is None:
-                scrape_failed_count += 1
+                scrape_failures.append({"url": url, "reason": "scrape_missing"})
                 continue
             snapshots.append(snapshot)
     except FirecrawlClientError as exc:
@@ -132,7 +132,7 @@ def run_firecrawl_plan(
 
     accepted: list[dict[str, Any]] = []
     accepted_snapshot_objects: list[FirecrawlDocumentSnapshot] = []
-    failures: list[dict[str, Any]] = []
+    filtered: list[dict[str, Any]] = []
     filter_reasons: dict[str, int] = {}
     seen_content_fingerprints: set[str] = set()
     if duplicate_url_count:
@@ -144,7 +144,7 @@ def run_firecrawl_plan(
         if not decision.accepted:
             reason = decision.reason or "filtered"
             filter_reasons[reason] = filter_reasons.get(reason, 0) + 1
-            failures.append({
+            filtered.append({
                 "url": snapshot.final_url or snapshot.source_url,
                 "reason": reason,
             })
@@ -153,7 +153,7 @@ def run_firecrawl_plan(
         content_fingerprint = normalized_content_fingerprint(snapshot)
         if content_fingerprint and content_fingerprint in seen_content_fingerprints:
             filter_reasons["duplicate_content"] = filter_reasons.get("duplicate_content", 0) + 1
-            failures.append({
+            filtered.append({
                 "url": snapshot.final_url or snapshot.source_url,
                 "reason": "duplicate_content",
                 "content_fingerprint": content_fingerprint,
@@ -166,13 +166,13 @@ def run_firecrawl_plan(
         accepted.append(_accepted_snapshot_summary(snapshot, content_fingerprint=content_fingerprint))
         accepted_snapshot_objects.append(snapshot)
 
-    provider_missing = scrape_failed_count
-    if provider_missing:
-        filter_reasons["scrape_missing"] = filter_reasons.get("scrape_missing", 0) + provider_missing
-
-    status = "no_results" if not discovered_urls else "succeeded"
-    if failures or provider_missing:
+    scrape_failed_count = len(scrape_failures)
+    if scrape_failed_count:
         status = "partial_failed" if accepted else "failed"
+    elif not accepted:
+        status = "no_results"
+    else:
+        status = "succeeded"
 
     summary = _base_summary(
         plan=plan,
@@ -193,11 +193,12 @@ def run_firecrawl_plan(
         "accepted_count": len(accepted),
         "filtered_count": sum(filter_reasons.values()),
         "submitted_count": len(accepted),
-        "failed_count": len(failures) + provider_missing,
+        "failed_count": scrape_failed_count,
         "filter_reasons": filter_reasons,
         "accepted_snapshots": accepted,
         "submitted": [],
-        "failures": failures,
+        "failures": scrape_failures,
+        "filtered": filtered,
         "scrape_mode": "single_scrape_sync",
         "scrape_failed_count": scrape_failed_count,
     })

@@ -32,4 +32,5 @@ Make local file upload usable without manually registering a data source. Replac
 - Concurrent requests reuse that source; a disabled default source cannot accept new uploads.
 - `/file-sync` is the navigation target; former `/data-sources` pages are unavailable.
 - NAS is visibly manual-only and its sync action is unavailable.
+- The batch-status details scroll vertically inside a viewport-bounded panel instead of expanding the File Sync page with every file row.
 - Backend and Console focused tests, typecheck, and Frontend UX/API Contract Gate review evidence.

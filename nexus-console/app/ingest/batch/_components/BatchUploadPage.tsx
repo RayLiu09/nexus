@@ -14,7 +14,6 @@ import { useBatchStatus } from "@/lib/ingest/useBatchStatus";
 const MAX_FILES = 20;
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
 
-
 function statusTone(status: string): "default" | "success" | "warning" | "error" | "processing" {
   if (status === "completed") return "success";
   if (status === "failed") return "error";
@@ -157,9 +156,7 @@ export function BatchUploadPage() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,1fr)]">
-      <Card
-        title="本地上传"
-      >
+      <Card title="本地上传">
         <Form layout="vertical">
           <Form.Item label={`文件列表（最多 ${MAX_FILES} 个，单文件 ≤ 100MB）`} required>
             <Upload.Dragger {...uploadProps} disabled={batchId !== null} className="!p-0">
@@ -201,6 +198,7 @@ export function BatchUploadPage() {
       </Card>
 
       <Card
+        className="min-w-0 self-start"
         title={
           <Space>
             <span>批次状态</span>
@@ -214,41 +212,48 @@ export function BatchUploadPage() {
           batchId && <code className="text-text-muted font-mono text-xs">{shortId(batchId)}</code>
         }
       >
-        {!batchId && (
-          <Alert
-            type="info"
-            showIcon
-            message="尚未提交批次"
-            description="选择数据源并添加文件后点击「提交批次」，提交后此处会实时展示处理进度。"
-          />
-        )}
-
-        {batchId && (
-          <>
-            <div className="mb-3">
-              <Progress percent={percent} status={percent === 100 ? "success" : "active"} />
-              <p className="text-text-secondary mt-1 text-xs">
-                {finishedCount} / {totalFiles} 个文件已完成处理
-              </p>
-            </div>
-
-            {pollError && (
-              <Alert
-                type="warning"
-                showIcon
-                message="状态查询失败"
-                description={pollError}
-                className="mb-3"
-              />
-            )}
-
-            <FileStatusList
-              submittedItems={items}
-              fileNamesByKey={fileNamesByKey}
-              batchDetail={batchDetail}
+        <div
+          role="region"
+          aria-label="批次状态明细"
+          tabIndex={0}
+          className="max-h-[min(60vh,32rem)] overflow-y-auto"
+        >
+          {!batchId && (
+            <Alert
+              type="info"
+              showIcon
+              message="尚未提交批次"
+              description="选择数据源并添加文件后点击「提交批次」，提交后此处会实时展示处理进度。"
             />
-          </>
-        )}
+          )}
+
+          {batchId && (
+            <>
+              <div className="mb-3">
+                <Progress percent={percent} status={percent === 100 ? "success" : "active"} />
+                <p className="text-text-secondary mt-1 text-xs">
+                  {finishedCount} / {totalFiles} 个文件已完成处理
+                </p>
+              </div>
+
+              {pollError && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="状态查询失败"
+                  description={pollError}
+                  className="mb-3"
+                />
+              )}
+
+              <FileStatusList
+                submittedItems={items}
+                fileNamesByKey={fileNamesByKey}
+                batchDetail={batchDetail}
+              />
+            </>
+          )}
+        </div>
       </Card>
     </div>
   );

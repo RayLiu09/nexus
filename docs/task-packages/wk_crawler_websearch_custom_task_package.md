@@ -72,8 +72,9 @@ Acceptance:
 
 - Low-rank, home/category, too-short, and insufficient-query-coverage results
   create neither raw objects nor jobs and are visible through `filter_reasons`.
-- A run with filtered results is `partial_failed` when it also submitted work,
-  and `failed` when no result passed admission.
+- Filtered results are normal admission decisions: a run is `succeeded` when it
+  submitted work and `no_results` when every result was filtered, unless a
+  provider or ingest error occurred.
 - A successful upstream response with no usable search results is `no_results`,
   distinct from provider, admission, or ingest failures.
 - WebSearch asset titles equal the upstream `title` metadata.

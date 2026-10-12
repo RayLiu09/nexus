@@ -246,6 +246,7 @@ def list_crawler_runs(
                 key: raw.get(key, 0)
                 for key in (
                     "discovered_count",
+                    "result_count",
                     "accepted_count",
                     "filtered_count",
                     "submitted_count",

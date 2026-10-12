@@ -1,7 +1,7 @@
 import { App as AntApp } from "antd";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Topbar } from "./Topbar";
 
@@ -10,7 +10,7 @@ const sessionMocks = vi.hoisted(() => ({
     id: "user-1",
     username: "platform_data_admin",
     displayName: "张敏",
-    role: "platform_data_admin" as const,
+    role: "platform_data_admin" as "platform_data_admin" | "business_expert",
     orgUnit: { id: "org-1", name: "产教融合中心" },
     env: "prod" as const,
     loggedInAt: Date.now(),
@@ -55,7 +55,28 @@ beforeAll(() => {
   );
 });
 
+beforeEach(() => {
+  sessionMocks.session.role = "platform_data_admin";
+  quickUploadMock.open.mockClear();
+});
+
 describe("Topbar account center", () => {
+  it("shows Quick Upload to administrators and opens its drawer", async () => {
+    const user = userEvent.setup();
+    renderTopbar();
+
+    await user.click(screen.getByRole("button", { name: /快速上传/ }));
+    expect(quickUploadMock.open).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not show Quick Upload to business experts", () => {
+    sessionMocks.session.role = "business_expert";
+    renderTopbar();
+
+    expect(screen.queryByRole("button", { name: /快速上传/ })).not.toBeInTheDocument();
+    expect(quickUploadMock.open).not.toHaveBeenCalled();
+  });
+
   it("shows a compact account trigger without exposing environment information", () => {
     renderTopbar();
 

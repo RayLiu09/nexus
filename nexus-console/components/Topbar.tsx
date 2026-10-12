@@ -167,11 +167,13 @@ export function Topbar() {
       </div>
 
       <div className="topbar-right">
-        <Tooltip title="拖拽上传文件，自动入库并触发流水线">
-          <Button type="primary" icon={<CloudUploadOutlined />} onClick={() => openQuickUpload()}>
-            快速上传
-          </Button>
-        </Tooltip>
+        {session?.role === "platform_data_admin" && (
+          <Tooltip title="拖拽上传文件，自动入库并触发流水线">
+            <Button type="primary" icon={<CloudUploadOutlined />} onClick={() => openQuickUpload()}>
+              快速上传
+            </Button>
+          </Tooltip>
+        )}
         {session && (
           <Dropdown popupRender={() => accountOverlay} placement="bottomRight" trigger={["click"]}>
             <button type="button" className="topbar-account-trigger" aria-label="打开账户信息中心">

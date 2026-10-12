@@ -179,6 +179,70 @@ def test_websearch_successful_empty_response_is_no_results(session, monkeypatch)
     assert run.summary["failed_count"] == 0
 
 
+@pytest.mark.parametrize("include_accepted", [False, True])
+def test_websearch_normal_filters_do_not_fail_run(session, monkeypatch, include_accepted):
+    source = models.DataSource(
+        code=f"websearch-filter-{include_accepted}",
+        name="WebSearch filter test",
+        source_type=DataSourceType.CRAWLER,
+        status=DataSourceStatus.ENABLED,
+    )
+    session.add(source)
+    session.flush()
+    plan = models.CrawlerPlan(
+        name="WebSearch filter plan",
+        connector_type="websearch",
+        connector_version="custom",
+        mode="custom",
+        data_source_id=source.id,
+        execution_mode="run_once",
+        search_policy={"query": "电子商务", "result_count": 10, "time_range_preset": "one_year"},
+        pipeline_policy={"pipeline_type": "document"},
+        status="active",
+    )
+    session.add(plan)
+    session.commit()
+
+    filtered = WebSearchCustomItem(
+        result_id="home",
+        title="首页",
+        url="https://example.gov.cn/",
+        content="首页导航" * 50,
+        content_source="content",
+        metadata={},
+    )
+    accepted = WebSearchCustomItem(
+        result_id="report",
+        title="电子商务市场报告",
+        url="https://example.gov.cn/reports/ecommerce",
+        content="电子商务市场数据和行业分析。" * 30,
+        content_source="content",
+        metadata={},
+    )
+
+    class FakeClient:
+        def search(self, **_kwargs):
+            return WebSearchCustomResponse(
+                items=[filtered, accepted] if include_accepted else [filtered],
+                request_id="request-filter",
+                log_id=None,
+                time_cost_ms=10,
+            )
+
+    monkeypatch.setattr(crawler_service, "HttpWebSearchCustomClient", FakeClient)
+    run = crawler_service._run_websearch_custom_plan(
+        session, plan, trace_id="trace-filter",
+        storage=InMemoryObjectStorage(), settings=Settings(),
+    )
+
+    assert run.status == ("succeeded" if include_accepted else "no_results")
+    assert run.summary["filtered_count"] == 1
+    assert run.summary["submitted_count"] == int(include_accepted)
+    assert run.summary["failed_count"] == 0
+    assert run.summary["failures"] == []
+    assert run.summary["filter_reasons"] == {"homepage_or_channel": 1}
+
+
 def test_websearch_query_combinations_accept_separators_and_deduplicate_terms():
     query = crawler_service._validate_websearch_query("浙江省，低空经济;政策 浙江省")
     assert crawler_service._websearch_queries(query) == [

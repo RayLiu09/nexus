@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { ingestProxyPostMock } = vi.hoisted(() => ({
+const { ingestProxyPostMock, getServerSessionMock } = vi.hoisted(() => ({
   ingestProxyPostMock: vi.fn(),
+  getServerSessionMock: vi.fn(),
 }));
 
 vi.mock("@/lib/ingestProxy", () => ({
   ingestProxyPost: ingestProxyPostMock,
+}));
+vi.mock("@/lib/auth/serverSession", () => ({
+  getServerSession: getServerSessionMock,
 }));
 
 import { POST } from "./route";
@@ -13,12 +17,36 @@ import { POST } from "./route";
 describe("POST /api/ingest/files/multi", () => {
   beforeEach(() => {
     ingestProxyPostMock.mockReset();
+    getServerSessionMock.mockReset();
+    getServerSessionMock.mockResolvedValue({ role: "platform_data_admin" });
     ingestProxyPostMock.mockResolvedValue({
       ok: true,
       status: 202,
       data: { batch: { id: "batch-1", status: "submitted" }, items: [] },
       traceId: "trace-1",
     });
+  });
+
+  it("rejects unauthenticated requests before proxying", async () => {
+    getServerSessionMock.mockResolvedValue(null);
+    const response = await POST(new Request("http://localhost/api/ingest/files/multi", {
+      method: "POST",
+      body: JSON.stringify({ batch_idempotency_key: "batch-1", files: [] }),
+    }));
+
+    expect(response.status).toBe(401);
+    expect(ingestProxyPostMock).not.toHaveBeenCalled();
+  });
+
+  it("forbids business experts before resolving a source or proxying", async () => {
+    getServerSessionMock.mockResolvedValue({ role: "business_expert" });
+    const response = await POST(new Request("http://localhost/api/ingest/files/multi", {
+      method: "POST",
+      body: JSON.stringify({ batch_idempotency_key: "batch-1", files: [] }),
+    }));
+
+    expect(response.status).toBe(403);
+    expect(ingestProxyPostMock).not.toHaveBeenCalled();
   });
 
   it("forwards batch_idempotency_key as Idempotency-Key", async () => {

@@ -7,6 +7,7 @@
 import { NextResponse } from "next/server";
 
 import { ingestProxyPost } from "@/lib/ingestProxy";
+import { getServerSession } from "@/lib/auth/serverSession";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,14 @@ interface MultiFileResult {
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
+  const session = await getServerSession();
+  if (!session) {
+    return NextResponse.json({ ok: false, status: 401, message: "请先登录" }, { status: 401 });
+  }
+  if (session.role !== "platform_data_admin") {
+    return NextResponse.json({ ok: false, status: 403, message: "无权上传文件" }, { status: 403 });
+  }
+
   let payload: MultiFilePayload;
   try {
     payload = (await request.json()) as MultiFilePayload;
