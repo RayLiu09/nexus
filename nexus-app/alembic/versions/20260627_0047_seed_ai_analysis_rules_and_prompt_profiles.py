@@ -133,6 +133,13 @@ _PROMPT_PROFILE_SEEDS: list[dict[str, object]] = [
     },
 ]
 
+# Job-demand collection is crawler raw intake now. Keep the historical seed
+# declarations in this old migration inert if an operator replays it.
+_PROMPT_PROFILE_SEEDS = [
+    entry for entry in _PROMPT_PROFILE_SEEDS
+    if "job_demand" not in str(entry["profile_name"])
+]
+
 
 def upgrade() -> None:
     bind = op.get_bind()
@@ -150,6 +157,10 @@ def upgrade() -> None:
 
     # ----- 2. ai_prompt_profile seed (4 rows) -----------------------------
     for entry in _PROMPT_PROFILE_SEEDS:
+        # Job-demand collection is crawler raw intake now. Do not recreate the
+        # retired Pipeline B extraction/render Prompt profiles on reseed.
+        if "job_demand" in str(entry["profile_name"]):
+            continue
         existing = bind.execute(
             text(
                 "SELECT 1 FROM ai_prompt_profile "

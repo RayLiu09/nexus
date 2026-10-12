@@ -52,10 +52,6 @@ logger = logging.getLogger(__name__)
 # domain = registering one entry here + landing the deterministic renderer +
 # adding a `body_markdown_render` rule_set + prompt profile to the seed.
 _RENDER_REGISTRY: dict[str, tuple[str, Any]] = {
-    "job_demand.v1": (
-        "job_demand_body_markdown_render",
-        deterministic.render_job_demand,
-    ),
     "ability_analysis.pgsd.v1": (
         "ability_analysis_body_markdown_render",
         deterministic.render_ability_analysis,

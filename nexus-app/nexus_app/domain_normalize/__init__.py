@@ -1,8 +1,9 @@
 """Pipeline B `domain_normalize` stage dispatcher.
 
 Routes a `NormalizedAssetRef` to the writer module that owns its
-`domain_profile`. B4 owns `job_demand.v1` (job_demand_writer);
-B6 owns `ability_analysis.pgsd.v1` (ability_analysis_writer).
+`domain_profile`. B6 owns `ability_analysis.pgsd.v1`
+(ability_analysis_writer). Job-demand records are owned by crawler raw
+intake and have no Pipeline B writer.
 
 Contract: `docs/pipeline_b_b4_b6_contract_freeze.md §五 / §一`.
 
@@ -41,7 +42,6 @@ logger = logging.getLogger(__name__)
 # alphabetical by profile to make merge conflicts predictable.
 _WRITER_REGISTRY: dict[str, tuple[str, str]] = {
     "ability_analysis.pgsd.v1": ("nexus_app.domain_normalize.ability_analysis_writer", "write"),
-    "job_demand.v1": ("nexus_app.domain_normalize.job_demand_writer", "write"),
     "major_distribution.v1": ("nexus_app.domain_normalize.major_distribution_writer", "write"),
 }
 

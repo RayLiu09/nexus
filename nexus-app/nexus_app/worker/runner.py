@@ -669,7 +669,6 @@ def _run_structured_parse_csv(
 # here so any future record_type added to the catalog has to be classified by
 # the worker integrator (not silently fall through).
 _REVIEW_REQUIRED_RECORD_TYPES: frozenset[str] = frozenset({
-    "job_demand_dataset_candidate",
     "major_distribution_dataset_candidate",
     "occupational_ability_analysis_candidate",
     "generic_table_dataset",
@@ -866,32 +865,12 @@ def _run_domain_normalize(
         },
     )
 
-    # B5.3 — render body_markdown derivative view. Runs on every successful
-    # writer dispatch (job_demand + ability_analysis); skipped on dispatcher
-    # skip. Mutates `normalized_ref.object_uri` payload in place + updates
-    # ref.checksum. Failures fall back to deterministic template — never
-    # raises, so the rest of the pipeline keeps moving.
-    if not result.skipped and result.domain_profile in {
-        "job_demand.v1", "ability_analysis.pgsd.v1"
-    }:
+    # B5.3 — render body_markdown only for the remaining ability-analysis
+    # projection. Job-demand assets no longer have a Pipeline B derivative.
+    if not result.skipped and result.domain_profile == "ability_analysis.pgsd.v1":
         _run_body_markdown_render(
             ctx, normalized_ref, raw_object, session, trace_id, job_id,
             domain_profile=result.domain_profile,
-        )
-
-    # B5.2 — knowledge_unit extraction on the job_demand path. Skipped when
-    # the dispatcher itself was skipped (no dataset to extract from) or when
-    # the domain isn't job_demand. Failures inside the extraction service
-    # are audited but never raised, so governance / chunking still get a
-    # chance to run.
-    if (
-        not result.skipped
-        and result.domain_profile == "job_demand.v1"
-        and result.dataset_id is not None
-    ):
-        _run_requirement_extraction(
-            ctx, normalized_ref, raw_object, session, trace_id, job_id,
-            dataset_id=result.dataset_id,
         )
 
     # B5.4 — task_description_structured LLM fill on the ability_analysis
@@ -922,18 +901,11 @@ def _run_domain_normalize(
             analysis_id=result.analysis_id,
         )
 
-    # B8 — materialise the domain graph after B5 extraction. Job-demand
-    # construction remains useful even if extraction was skipped: it preserves
-    # the JobRole -> JobDemandRecord projection, while accepted requirement
-    # items add the capability nodes when available.
-    if not result.skipped and result.domain_profile in {
-        "job_demand.v1", "ability_analysis.pgsd.v1"
-    }:
-        build_type = (
-            "job_demand"
-            if result.domain_profile == "job_demand.v1"
-            else "ability_analysis"
-        )
+    # B8 — materialise only the remaining ability-analysis graph. Job-demand
+    # records are owned by crawler raw intake and do not build Pipeline B
+    # capability graphs.
+    if not result.skipped and result.domain_profile == "ability_analysis.pgsd.v1":
+        build_type = "ability_analysis"
         _run_capability_graph_staging(
             ctx, normalized_ref, raw_object, session, trace_id, job_id,
             build_type=build_type,
@@ -1327,7 +1299,7 @@ def _run_requirement_extraction(
     *,
     dataset_id: str,
 ) -> None:
-    """B5.2 — run LLM extraction over the freshly-persisted job_demand_dataset.
+    """Legacy repair helper for historical job-demand records.
 
     Lives next to `_run_domain_normalize` so the timing relationship
     (extraction immediately follows the writer) is obvious to readers
@@ -1942,7 +1914,7 @@ def execute_job(
                 )
 
             # Stage 3.5: domain_normalize — dispatch to per-domain writer
-            # (B4 job_demand_writer / B6 ability_analysis_writer). Skipped
+            # (B6 ability_analysis_writer). Skipped
             # quietly when no writer is registered for the domain_profile or
             # the writer module hasn't shipped yet (B4 / B6 staggered
             # rollout). Failures are audited but **do not** fail the job —

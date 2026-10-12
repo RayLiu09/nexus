@@ -217,7 +217,6 @@ def _build_code(name: str) -> str:
         "产业政策": "industry_policy",
         "产业报告": "industry_report",
         "行业报告": "sector_report",
-        "岗位需求数据": "job_demand",
         "职业能力分析表": "competency_analysis",
         "职业类证书": "vocational_certificate",
         "专业教学标准": "teaching_standard",
@@ -346,6 +345,12 @@ def parse_classifications(excel_path: str | Path | None = None) -> list[dict[str
             continue
 
         code = _build_code(name)
+
+        # Job-demand records are crawler raw-intake data. Keep them out of
+        # governance classification seeds so future crawler data cannot be
+        # routed into the retired Pipeline B / AI-governance path.
+        if name == "岗位需求数据":
+            continue
 
         # --- Build quality dimensions from L-O columns ---
         quality_dims: list[dict[str, Any]] = []

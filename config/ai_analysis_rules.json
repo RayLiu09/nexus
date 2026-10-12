@@ -8,47 +8,6 @@
   },
   "rule_sets": [
     {
-      "rule_set_code": "occupation.job_demand.requirement_extraction.rules",
-      "version": "v1",
-      "scenario": "job_demand_requirement_extraction",
-      "domain": "occupation",
-      "target_type": ["normalized_record", "job_demand_record"],
-      "output_format": "json",
-      "output_contract": {
-        "professional_skill": "array",
-        "tool": "array",
-        "certificate": "array",
-        "professional_literacy": "array",
-        "work_task_candidate": "array"
-      },
-      "output_item_schema": {
-        "item_name": "string",
-        "raw_text": "string",
-        "evidence_field": "enum:job_skill_text|job_description|requirement_text",
-        "confidence": "number[0..1]"
-      },
-      "field_whitelist": [
-        "job_title",
-        "job_skill_text",
-        "job_description",
-        "requirement_text",
-        "industry_name",
-        "enterprise_size"
-      ],
-      "guardrails": [
-        "no_external_evidence",
-        "distinguish_skill_vs_literacy",
-        "preserve_raw_text",
-        "emit_confidence",
-        "reject_l3_l4_plaintext",
-        "no_speculation_beyond_record"
-      ],
-      "auto_admit_threshold": 0.85,
-      "schema_version": "job_requirement_extraction.v1",
-      "owner_module": "knowledge_unit_extraction",
-      "is_builtin": true
-    },
-    {
       "rule_set_code": "occupation.task_description_structuring.rules",
       "version": "v1",
       "scenario": "occupational_task_description_structuring",
@@ -79,49 +38,6 @@
       "schema_version": "occupational_task_description.v1",
       "owner_module": "knowledge_unit_extraction",
       "is_builtin": true
-    },
-    {
-      "rule_set_code": "occupation.job_demand.body_markdown_render.rules",
-      "version": "v1",
-      "scenario": "job_demand_body_markdown_render",
-      "domain": "occupation",
-      "target_type": ["normalized_record"],
-      "output_format": "markdown",
-      "output_contract": {
-        "body_markdown": "string"
-      },
-      "markdown_skeleton": {
-        "required_h1": "岗位需求数据集",
-        "required_overview_keys": ["专业", "默认行业", "有效记录数"],
-        "per_record_h2_pattern": "^## 记录 \\d+：.+$",
-        "per_record_required_blocks": [
-          "公司",
-          "城市",
-          "薪资",
-          "经验",
-          "学历",
-          "技能"
-        ],
-        "long_text_blockquote_fields": ["job_description"],
-        "long_text_truncate_chars": 240,
-        "max_records_inline": 50,
-        "overflow_notice_template": "_其余 {n} 条记录已省略，详见 record_body JSON。_"
-      },
-      "field_whitelist": ["dataset", "records"],
-      "guardrails": [
-        "no_fabricated_fields",
-        "preserve_raw_values_no_translation",
-        "follow_skeleton_strictly",
-        "truncate_long_descriptions",
-        "no_field_value_speculation",
-        "emit_in_source_language",
-        "preserve_circled_number_semantics"
-      ],
-      "auto_admit_threshold": 0.85,
-      "schema_version": "body_markdown.job_demand.v1",
-      "owner_module": "knowledge_unit_extraction",
-      "is_builtin": true,
-      "fallback_strategy": "deterministic_template"
     },
     {
       "rule_set_code": "occupation.ability_analysis.body_markdown_render.rules",

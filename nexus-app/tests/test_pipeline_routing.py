@@ -68,15 +68,28 @@ class TestLegacyRoutingUnaffectedByFlags:
         {"xlsx": False, "csv": True},
         {"xlsx": True, "csv": True},
     ])
-    @pytest.mark.parametrize("source_type", [
-        DataSourceType.CRAWLER,
-        DataSourceType.WEBHOOK,
-    ])
-    def test_crawler_webhook_always_record(self, flags, source_type) -> None:
-        # These sources are record-shaped by definition (per design §2.2); the
-        # flags must never reroute them.
+    @pytest.mark.parametrize("source_type", [DataSourceType.WEBHOOK])
+    def test_webhook_always_record(self, flags, source_type) -> None:
+        # Webhook payloads remain the supported structured-record intake.
         result = _pipeline_type_for(source_type, "application/octet-stream", settings=_settings(**flags))
         assert result == PipelineType.RECORD
+
+    @pytest.mark.parametrize("flags", [
+        {"xlsx": False, "csv": False},
+        {"xlsx": True, "csv": True},
+    ])
+    def test_crawler_non_document_payload_defaults_to_document(self, flags) -> None:
+        # Crawler job data is persisted by crawler raw intake and must not
+        # enter the retired Pipeline B record branch.
+        result = _pipeline_type_for(
+            DataSourceType.CRAWLER, "application/octet-stream", settings=_settings(**flags)
+        )
+        assert result == PipelineType.DOCUMENT
+
+    def test_crawler_json_does_not_enter_record_pipeline(self) -> None:
+        assert _pipeline_type_for(
+            DataSourceType.CRAWLER, "application/json", settings=_settings()
+        ) == PipelineType.DOCUMENT
 
     @pytest.mark.parametrize("mime", [
         "text/html",

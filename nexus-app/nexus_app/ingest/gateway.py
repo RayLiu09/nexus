@@ -97,8 +97,8 @@ def _pipeline_type_for(
     """Determine pipeline routing from source type and MIME type.
 
     Routing rules (in order):
-    1. CRAWLER Firecrawl document MIME types → DOCUMENT.
-    2. CRAWLER / WEBHOOK sources → RECORD.
+    1. CRAWLER sources → DOCUMENT. Job collection uses raw intake directly.
+    2. WEBHOOK sources → RECORD.
     3. FILE_UPLOAD / NAS with JSON MIME → RECORD (predates B1)
     4. FILE_UPLOAD / NAS with xlsx MIME → RECORD when ``pipeline_b_xlsx_enabled`` flag is on (B1.1)
     5. FILE_UPLOAD / NAS with csv MIME → RECORD when ``pipeline_b_csv_enabled`` flag is on (B1.1)
@@ -110,10 +110,10 @@ def _pipeline_type_for(
     cannot execute, so flags default to ``False`` and are toggled only at B1.5.
     """
     normalized_mime = (mime_type or "").lower()
-    if source_type == DataSourceType.CRAWLER and normalized_mime in FIRECRAWL_DOCUMENT_MIME_TYPES:
+    if source_type == DataSourceType.CRAWLER:
         return PipelineType.DOCUMENT
 
-    if source_type in {DataSourceType.CRAWLER, DataSourceType.WEBHOOK}:
+    if source_type == DataSourceType.WEBHOOK:
         return PipelineType.RECORD
 
     if "json" in normalized_mime:
