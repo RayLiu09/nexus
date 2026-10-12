@@ -32,6 +32,7 @@ export type IndustryPolicy = {
   id: string;
   asset_name: string;
   normalized_ref_id: string | null;
+  raw_object_id?: string | null;
   region: string[];
   industry: string[];
   publish_date: string | null;
@@ -280,7 +281,7 @@ export type Job = {
   job_type: string;
   status: string;
   ingest_batch_id: string | null;
-  raw_object_id: string | null;
+  raw_object_id?: string | null;
   retry_count: number;
   current_stage: string | null;
   failure_reason: string | null;
@@ -384,6 +385,7 @@ export type TalentTrainingPlanSummary = {
   id: string;
   normalized_ref_id: string;
   asset_version_id: string;
+  raw_object_id?: string | null;
   institution_name: string | null;
   major_name: string | null;
   major_code: string | null;
@@ -402,6 +404,7 @@ export type TeachingStandardLibrary = {
   id: string;
   normalized_ref_id: string;
   asset_version_id: string;
+  raw_object_id?: string | null;
   standard_title: string | null;
   major_code: string | null;
   major_name: string | null;

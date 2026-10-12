@@ -26,6 +26,23 @@ def _settings():
     )
 
 
+def test_normalize_legacy_duplicate_status_as_success():
+    run = SimpleNamespace(
+        status="partial_failed",
+        summary={
+            "accepted_count": 2,
+            "submitted_count": 2,
+            "duplicate_count": 2,
+            "failed_count": 2,
+            "failures": [{"reason": "duplicate_raw_object"}, {"reason": "去重"}],
+        },
+    )
+    assert crawler_service.normalize_crawler_run_status(run) is True
+    assert run.status == "succeeded"
+    assert run.summary["failed_count"] == 0
+    assert run.summary["failures"] == []
+
+
 def test_custom_client_requests_markdown_and_parses_direct_result(monkeypatch):
     monkeypatch.setattr(module, "get_settings", _settings)
     captured: dict[str, object] = {}
@@ -129,8 +146,12 @@ def test_websearch_dedup_uses_stable_package_without_run_provenance(session, mon
     )
 
     assert first.summary["submitted"][0]["duplicate"] is False
+    assert first.status == "succeeded"
     assert second.summary["submitted"][0]["duplicate"] is True
     assert second.summary["duplicate_count"] == 1
+    assert second.summary["failed_count"] == 0
+    assert second.summary["failures"] == []
+    assert second.status == "succeeded"
     raw_objects = session.query(models.RawObject).all()
     assert len(raw_objects) == 1
     raw_key = raw_objects[0].object_uri.split("/", 3)[-1]

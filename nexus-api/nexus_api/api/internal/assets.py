@@ -562,6 +562,21 @@ def _list_industry_documents(
         asset.id: asset
         for asset in session.scalars(select(models.Asset).where(models.Asset.id.in_(asset_ids))).all()
     }
+    versions_by_asset: dict[str, models.AssetVersion] = {}
+    for version in session.scalars(
+        select(models.AssetVersion).where(models.AssetVersion.asset_id.in_(asset_ids))
+    ).all():
+        if version.version_status == AssetVersionStatus.AVAILABLE:
+            current = versions_by_asset.get(version.asset_id)
+            if current is None or current.version_status != AssetVersionStatus.AVAILABLE or version.created_at > current.created_at:
+                versions_by_asset[version.asset_id] = version
+        elif version.version_status not in {AssetVersionStatus.ARCHIVED, AssetVersionStatus.DISABLED}:
+            current = versions_by_asset.get(version.asset_id)
+            if current is None or (
+                current.version_status not in {AssetVersionStatus.AVAILABLE}
+                and (version.version_no, version.created_at) > (current.version_no, current.created_at)
+            ):
+                versions_by_asset[version.asset_id] = version
     catalog_rows = _catalog_rows(
         session,
         [assets_by_id[asset_id] for asset_id in asset_ids if asset_id in assets_by_id],
@@ -595,6 +610,11 @@ def _list_industry_documents(
             "id": row.id,
             "asset_name": row.title,
             "normalized_ref_id": ref_id,
+            "raw_object_id": (
+                versions_by_asset.get(row.id).raw_object_id
+                if versions_by_asset.get(row.id) is not None
+                else None
+            ),
             "region": typed_tags.get("region", []),
             "industry": typed_tags.get("industry", []),
             "publish_date": metadata.get("publish_date"),

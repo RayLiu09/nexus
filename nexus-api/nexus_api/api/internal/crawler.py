@@ -239,6 +239,10 @@ def list_crawler_runs(
     )
 
     def read_run(row: models.CrawlerRun) -> domain_schemas.CrawlerRunRead:
+        if crawler_service.normalize_crawler_run_status(row):
+            # Keep historical runs correct for subsequent reads as well as this response.
+            session.commit()
+            session.refresh(row)
         payload = domain_schemas.CrawlerRunRead.model_validate(row)
         if summary == "counts":
             raw = row.summary or {}
@@ -279,4 +283,7 @@ def get_crawler_run(run_id: str, request: Request, session: Session = Depends(ge
     row = session.get(models.CrawlerRun, run_id)
     if row is None:
         raise HTTPException(status_code=404, detail=f"crawler_run '{run_id}' not found")
+    if crawler_service.normalize_crawler_run_status(row):
+        session.commit()
+        session.refresh(row)
     return response(domain_schemas.CrawlerRunRead.model_validate(row), request)

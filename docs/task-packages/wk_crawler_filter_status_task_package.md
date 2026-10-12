@@ -29,6 +29,7 @@ Keep filtered results visible without marking a Crawler run partially failed sol
 
 - Filter-only runs are `succeeded` when some content is submitted and `no_results` when none is submitted.
 - Filtered items contribute to `filtered_count`, not `failed_count` or `failures`.
+- Idempotent duplicate submissions contribute to `duplicate_count`, not `failed_count` or `failures`.
 - Provider, search, and ingest errors still produce `partial_failed` or `failed` as appropriate.
 - The Console displays filtered and failed rows separately.
 - The cited WebSearch run `908d6601-d832-4550-bc42-b76e7b9fa692` is corrected only after confirming its 35 accepted/submitted, 10 filtered, and zero true failures; the correction is recorded in its summary.

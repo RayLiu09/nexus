@@ -2,9 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Button, Drawer, Space, Table, Tag, Tooltip } from "antd";
+import { App, Button, Drawer, Space, Table, Tag, Tooltip } from "antd";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
-import { BookOpen, FileText } from "lucide-react";
+import { BookOpen, Download, FileText } from "lucide-react";
+import type { RawDownloadResponse } from "@/lib/chunkTypes";
 
 import { ApiState } from "@/components/ApiState";
 import type { IndustryPolicy } from "@/lib/api";
@@ -60,6 +61,28 @@ export function IndustryPoliciesTable({
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
   const [drawer, setDrawer] = useState<{ view: DrawerView; row: IndustryPolicy } | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const { message } = App.useApp();
+
+  const downloadOriginal = async (row: IndustryPolicy) => {
+    if (!row.raw_object_id) return;
+    setDownloadingId(row.id);
+    try {
+      const response = await fetch(
+        `/api/raw-objects/${encodeURIComponent(row.raw_object_id)}/download-url`,
+        { cache: "no-store" },
+      );
+      const body = (await response.json()) as
+        | { ok: true; data: RawDownloadResponse }
+        | { ok: false; message?: string };
+      if (!body.ok) throw new Error(body.message ?? `下载地址生成失败（HTTP ${response.status}）`);
+      window.open(body.data.download_url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "原文下载失败");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const replacePage = (nextPage: number, nextPageSize: number) => {
     const search = new URLSearchParams();
@@ -77,12 +100,14 @@ export function IndustryPoliciesTable({
       render: (value: string) => <strong>{value || "-"}</strong>,
     },
     ...(showRegion
-      ? [{
-      title: "区域信息",
-      dataIndex: "region",
-      width: 180,
-      render: (value: string[]) => tags(value, "blue"),
-      }]
+      ? [
+          {
+            title: "区域信息",
+            dataIndex: "region",
+            width: 180,
+            render: (value: string[]) => tags(value, "blue"),
+          },
+        ]
       : []),
     {
       title: "行业领域",
@@ -126,6 +151,16 @@ export function IndustryPoliciesTable({
             onClick={() => setDrawer({ view: "preview", row })}
           >
             原文预览
+          </Button>
+          <Button
+            type="link"
+            size="small"
+            icon={<Download size={14} />}
+            loading={downloadingId === row.id}
+            disabled={!row.raw_object_id}
+            onClick={() => void downloadOriginal(row)}
+          >
+            原文下载
           </Button>
         </Space>
       ),

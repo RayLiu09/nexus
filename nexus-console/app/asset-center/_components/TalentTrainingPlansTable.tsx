@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Button, Drawer, Form, Input, Space, Table, Tag } from "antd";
+import { App, Button, Drawer, Form, Input, Space, Table, Tag } from "antd";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
-import { BookOpen, Network, Search, X } from "lucide-react";
+import { BookOpen, Download, Network, Search, X } from "lucide-react";
+import type { RawDownloadResponse } from "@/lib/chunkTypes";
 
 import { ApiState } from "@/components/ApiState";
 import type {
@@ -96,7 +97,32 @@ export function TalentTrainingPlansTable({
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
   const [graphSelection, setGraphSelection] = useState<GraphSelection | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const { message } = App.useApp();
   const [form] = Form.useForm<TalentTrainingPlanFilters>();
+
+  const downloadOriginal = useCallback(
+    async (row: TalentTrainingPlanSummary) => {
+      if (!row.raw_object_id) return;
+      setDownloadingId(row.id);
+      try {
+        const response = await fetch(
+          `/api/raw-objects/${encodeURIComponent(row.raw_object_id)}/download-url`,
+          { cache: "no-store" },
+        );
+        const body = (await response.json()) as
+          | { ok: true; data: RawDownloadResponse }
+          | { ok: false; message?: string };
+        if (!body.ok) throw new Error(body.message ?? "原文下载失败");
+        window.open(body.data.download_url, "_blank", "noopener,noreferrer");
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : "原文下载失败");
+      } finally {
+        setDownloadingId(null);
+      }
+    },
+    [message],
+  );
 
   useEffect(() => form.setFieldsValue({ ...EMPTY_FILTERS, ...filters }), [filters, form]);
 
@@ -167,11 +193,21 @@ export function TalentTrainingPlansTable({
             >
               岗位能力图谱
             </Button>
+            <Button
+              type="link"
+              size="small"
+              icon={<Download size={14} />}
+              loading={downloadingId === row.id}
+              disabled={!row.raw_object_id}
+              onClick={() => void downloadOriginal(row)}
+            >
+              原文下载
+            </Button>
           </Space>
         ),
       },
     ],
-    [],
+    [downloadOriginal, downloadingId],
   );
 
   const handleTableChange = (pagination: TablePaginationConfig) => {

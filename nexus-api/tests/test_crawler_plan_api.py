@@ -771,6 +771,9 @@ def test_firecrawl_runner_with_fake_client_accepts_and_filters(session, monkeypa
     assert second.summary["submitted_count"] == 2
     assert second.summary["raw_persisted_count"] == 0
     assert second.summary["duplicate_count"] == 2
+    assert second.summary["failed_count"] == 0
+    assert second.summary["failures"] == []
+    assert second.status == "succeeded"
     assert {item["raw_object_id"] for item in second.summary["submitted"]} == {raw.id for raw in raw_objects}
     assert len(session.query(models.RawObject).all()) == 2
 

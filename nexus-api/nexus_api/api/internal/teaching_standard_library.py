@@ -52,11 +52,13 @@ def _serialize_library(
     library: models.TeachingStandardLibrary,
     *,
     course_count: int,
+    raw_object_id: str | None = None,
 ) -> dict[str, Any]:
     return {
         "id": library.id,
         "normalized_ref_id": library.normalized_ref_id,
         "asset_version_id": library.asset_version_id,
+        "raw_object_id": raw_object_id,
         "standard_title": library.standard_title,
         "major_code": library.major_code,
         "major_name": library.major_name,
@@ -167,9 +169,20 @@ def list_teaching_standard_libraries(
         .offset(pagination.offset)
         .limit(pagination.limit)
     ).all()
+    version_ids = [library.asset_version_id for library, _ in rows]
+    raw_ids = {
+        version.id: version.raw_object_id
+        for version in session.scalars(
+            select(models.AssetVersion).where(models.AssetVersion.id.in_(version_ids))
+        )
+    } if version_ids else {}
     return list_response(
         [
-            _serialize_library(library, course_count=int(course_count))
+            _serialize_library(
+                library,
+                course_count=int(course_count),
+                raw_object_id=raw_ids.get(library.asset_version_id),
+            )
             for library, course_count in rows
         ],
         request,

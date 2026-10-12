@@ -184,12 +184,16 @@ def _career_orientation_summary(row: models.TalentTrainingPlan) -> dict[str, Any
 
 
 def _summary(
-    row: models.TalentTrainingPlan, *, include_career_orientation_summary: bool = False
+    row: models.TalentTrainingPlan,
+    *,
+    include_career_orientation_summary: bool = False,
+    raw_object_id: str | None = None,
 ) -> dict[str, Any]:
     data = {
         "id": row.id,
         "normalized_ref_id": row.normalized_ref_id,
         "asset_version_id": row.asset_version_id,
+        "raw_object_id": raw_object_id,
         "institution_name": row.institution_name,
         "major_name": row.major_name,
         "major_code": row.major_code,
@@ -433,11 +437,19 @@ def _list(
             .limit(pagination.limit)
         ).unique()
     )
+    version_ids = [row.asset_version_id for row in rows]
+    raw_ids = {
+        version.id: version.raw_object_id
+        for version in session.scalars(
+            select(models.AssetVersion).where(models.AssetVersion.id.in_(version_ids))
+        )
+    } if version_ids else {}
     return list_response(
         [
             _summary(
                 row,
                 include_career_orientation_summary=include_career_orientation_summary,
+                raw_object_id=raw_ids.get(row.asset_version_id),
             )
             for row in rows
         ],

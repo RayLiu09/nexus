@@ -66,6 +66,69 @@ class PdfDownloader(Protocol):
     def download(self, url: str) -> bytes: ...
 
 
+_NON_FAILURE_REASON_MARKERS = (
+    "duplicate",
+    "dedup",
+    "去重",
+    "filter",
+    "filtered",
+    "过滤",
+)
+
+
+def _is_non_failure_entry(entry: Any) -> bool:
+    """Identify legacy entries that were incorrectly copied into failures."""
+    if isinstance(entry, str):
+        text = entry
+    elif isinstance(entry, dict):
+        text = " ".join(str(entry.get(key, "")) for key in ("reason", "status", "type", "code"))
+    else:
+        return False
+    text = text.casefold()
+    return any(marker in text for marker in _NON_FAILURE_REASON_MARKERS)
+
+
+def normalize_crawler_run_status(run: models.CrawlerRun) -> bool:
+    """Repair statuses persisted by pre-dedup/filter status logic.
+
+    Returns whether the row was changed. Duplicate and filter outcomes are
+    successful processing outcomes and must never make a run partial_failed.
+    """
+    if run.status == "running":
+        return False
+    summary = dict(run.summary or {})
+    raw_failures: list[Any] = []
+    for key in ("failures", "ingest_failures", "search_failures", "scrape_failures"):
+        value = summary.get(key)
+        if isinstance(value, list):
+            raw_failures.extend(value)
+    failures = [entry for entry in raw_failures if not _is_non_failure_entry(entry)]
+    submitted = int(summary.get("submitted_count") or 0)
+    accepted = int(summary.get("accepted_count") or 0)
+    discovered = int(summary.get("discovered_count", summary.get("result_count", 0)) or 0)
+    if failures:
+        expected = "partial_failed" if submitted or accepted else "failed"
+    elif submitted or accepted:
+        expected = "succeeded"
+    elif discovered:
+        expected = "no_results"
+    else:
+        expected = "failed" if run.status == "failed" else "no_results"
+    if expected == run.status and len(failures) == int(summary.get("failed_count") or 0):
+        return False
+    old_status = run.status
+    summary["failures"] = failures
+    summary["failed_count"] = len(failures)
+    summary["status_correction"] = {
+        "from": old_status,
+        "to": expected,
+        "reason": "duplicate_and_filtered_results_are_not_failures",
+    }
+    run.summary = summary
+    run.status = expected
+    return True
+
+
 @dataclass(frozen=True)
 class CrawlerRawContent:
     content: bytes
