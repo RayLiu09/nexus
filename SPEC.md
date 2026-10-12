@@ -133,6 +133,13 @@ Role constraints:
 - Productized multi-domain knowledge graph construction beyond
   Evidence-grounded KG slices.
 - Productized operations center for release, monitoring, alerting, capacity planning.
+
+- Market Asset Center includes list views for `产业园区数据` and `企业数据`.
+  The park view shows park name, industry tags, introduction, and enterprise
+  count. The enterprise view shows enterprise name, business scope, and an
+  optional associated park. Both views support server-side filtering,
+  pagination, Excel export, and idempotent import from
+  `docs/samples/companies.json`.
 - Prompt automatic optimization, LiteLLM alias A/B comparison, active learning, batch AI re-scoring strategy.
 - Full high availability upgrades.
 

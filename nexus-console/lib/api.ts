@@ -55,6 +55,24 @@ export type RawJob = {
   created_at: string | null;
 };
 
+export type IndustrialPark = {
+  id: string;
+  park_name: string;
+  industry_tags: string[];
+  introduction: string;
+  enterprise_count: number;
+  source_url: string | null;
+};
+
+export type Enterprise = {
+  id: string;
+  enterprise_name: string;
+  business_scope: string;
+  industrial_park_id: string | null;
+  park_name: string | null;
+  source_url: string | null;
+};
+
 export type WorkbenchReviewItem = {
   id: string;
   normalized_ref_id: string;

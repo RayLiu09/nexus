@@ -11,6 +11,8 @@ import {
   type MajorProfile,
   type IndustryPolicy,
   type RawJob,
+  type IndustrialPark,
+  type Enterprise,
   type TalentTrainingPlanSummary,
   type TeachingStandardCourse,
   type TeachingStandardLibrary,
@@ -46,6 +48,8 @@ import {
 import { MajorProfilesTable, type MajorProfileFilters } from "../../_components/MajorProfilesTable";
 import { IndustryPoliciesTable } from "../../_components/IndustryPoliciesTable";
 import { JobDemandTable, type JobDemandFilters } from "../../_components/JobDemandTable";
+import { IndustrialParksTable } from "../../_components/IndustrialParksTable";
+import { EnterprisesTable } from "../../_components/EnterprisesTable";
 
 type AssetCenterRouteProps = {
   params: Promise<{ domain: string; resource?: string[] }>;
@@ -187,6 +191,65 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
           page={page}
           pageSize={pageSize}
           filters={filters}
+          ok={result.ok}
+          error={result.error}
+          traceId={result.traceId}
+        />
+      </div>
+    );
+  }
+
+  if (domain.slug === "market" && resource.path === "industrial-parks") {
+    const q = first(query.q);
+    const industry = first(query.industry);
+    const result = await getApiData<IndustrialPark[]>("/internal/v1/industrial-parks", [], {
+      page: String(page),
+      pageSize: String(pageSize),
+      ...(q ? { q } : {}),
+      ...(industry ? { industry } : {}),
+    });
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          eyebrow={domain.name}
+          title={resource.name}
+          description={resource.description}
+        />
+        <IndustrialParksTable
+          rows={result.data}
+          total={result.total ?? result.data.length}
+          page={page}
+          pageSize={pageSize}
+          q={q}
+          industry={industry}
+          ok={result.ok}
+          error={result.error}
+          traceId={result.traceId}
+        />
+      </div>
+    );
+  }
+
+  if (domain.slug === "market" && resource.path === "enterprises") {
+    const q = first(query.q);
+    const result = await getApiData<Enterprise[]>("/internal/v1/enterprises", [], {
+      page: String(page),
+      pageSize: String(pageSize),
+      ...(q ? { q } : {}),
+    });
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          eyebrow={domain.name}
+          title={resource.name}
+          description={resource.description}
+        />
+        <EnterprisesTable
+          rows={result.data}
+          total={result.total ?? result.data.length}
+          page={page}
+          pageSize={pageSize}
+          q={q}
           ok={result.ok}
           error={result.error}
           traceId={result.traceId}

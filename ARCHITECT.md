@@ -65,6 +65,13 @@ Console file upload at `/file-sync` uses an audited, idempotently ensured backen
   `teaching_standard_course.course_id`.
 - Local identity is the baseline; DingTalk sync is optional.
 - P0 reserves operations extension points but does not productize an operations center.
+
+- Asset Center market data has dedicated `industrial_park` and `enterprise`
+  projections. Parks are keyed by the source park identifier and include park
+  name, industry tags, introduction, and source lineage. Enterprises include
+  enterprise name and business scope and may reference a park through a
+  nullable foreign key. Both projections expose paginated list reads and
+  streamed Excel exports, separate from the technical asset ledger.
 - Right-size by scale: use minimum viable infrastructure in P0; each simplified capability has a documented upgrade trigger and migration path.
 - `raw_object` is the unified raw retention model for all sources (binary files and serialized JSON packages).
 - Processing pipeline is determined at job creation, not at runtime inference.

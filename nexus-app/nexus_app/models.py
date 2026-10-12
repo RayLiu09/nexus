@@ -1659,6 +1659,49 @@ class JobDemandDataset(TimestampMixin, Base):
     )
 
 
+class IndustrialPark(TimestampMixin, Base):
+    """Business projection for an industrial park catalog entry."""
+
+    __tablename__ = "industrial_park"
+    __table_args__ = (
+        UniqueConstraint("source_park_id", name="uq_industrial_park_source_id"),
+        Index("ix_industrial_park_name", "park_name"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    source_park_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    park_name: Mapped[str] = mapped_column(Text, nullable=False)
+    industry_tags: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    introduction: Mapped[str] = mapped_column(Text, nullable=False)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_name: Mapped[str] = mapped_column(Text, nullable=False, default="samples/companies.json")
+
+    enterprises: Mapped[list["Enterprise"]] = relationship(back_populates="industrial_park")
+
+
+class Enterprise(TimestampMixin, Base):
+    """Business projection for a company from the industrial park sample."""
+
+    __tablename__ = "enterprise"
+    __table_args__ = (
+        UniqueConstraint("source_record_key", name="uq_enterprise_source_record"),
+        Index("ix_enterprise_name", "enterprise_name"),
+        Index("ix_enterprise_park_id", "industrial_park_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    industrial_park_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("industrial_park.id", ondelete="SET NULL"), nullable=True
+    )
+    source_record_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    enterprise_name: Mapped[str] = mapped_column(Text, nullable=False)
+    business_scope: Mapped[str] = mapped_column(Text, nullable=False)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_name: Mapped[str] = mapped_column(Text, nullable=False, default="samples/companies.json")
+
+    industrial_park: Mapped[IndustrialPark | None] = relationship(back_populates="enterprises")
+
+
 class JobDemandRecord(TimestampMixin, Base):
     """A single job posting derived from a row in the source dataset.
 
