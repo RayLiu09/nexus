@@ -116,6 +116,8 @@ export interface NormalizedBlock {
   text?: string;
   content?: string;
   heading_level?: number;
+  caption?: string;
+  image_uris?: Record<string, string>;
   md_char_range: [number, number] | null;
 }
 

@@ -330,7 +330,7 @@ export default function TagReviewContent({
             disabled={!row.normalized_ref_id}
             onClick={() => setPreviewItem(row)}
           >
-            原文预览
+            解析预览
           </Button>
           <Button
             size="small"
@@ -419,7 +419,7 @@ export default function TagReviewContent({
         />
       </Modal>
       <Drawer
-        title={previewItem ? `原文预览 · ${previewItem.asset_title ?? "数据资产"}` : "原文预览"}
+        title={previewItem ? `解析预览 · ${previewItem.asset_title ?? "数据资产"}` : "解析预览"}
         open={Boolean(previewItem)}
         onClose={() => setPreviewItem(null)}
         width="min(960px, calc(100vw - 32px))"

@@ -3,7 +3,7 @@
  *
  * Server-side proxy for the backend's internal normalized payload endpoint.
  * Returns body_markdown + blocks (document) or record_body (record) for
- * the asset detail "原文预览" tab. MinIO read happens server-side; the
+ * the asset detail "解析预览" tab. MinIO read happens server-side; the
  * console only forwards. Authenticated via JWT Bearer — no API caller key.
  */
 import { NextResponse } from "next/server";

@@ -6,6 +6,7 @@ import json
 from fastapi.testclient import TestClient
 
 from nexus_app import models
+from nexus_app.storage import ObjectNotFoundError
 from nexus_app.enums import (
     AssetKind,
     AssetVersionStatus,
@@ -227,6 +228,69 @@ class TestInternalChunkPreview:
         client = TestClient(app)
         resp = client.get(f"/internal/v1/normalized-refs/{ref.id}/page-image?page=0")
         assert resp.status_code == 415
+
+
+class TestNormalizedBlockImages:
+    def test_requires_console_authentication(self, app_no_auth_override, session):
+        _, _, _, ref = _seed_asset(session)
+        response = TestClient(app_no_auth_override).get(
+            f"/internal/v1/normalized-refs/{ref.id}/blocks/chart-1/images/0"
+        )
+        assert response.status_code == 401
+
+    def test_serves_only_image_owned_by_requested_block(self, app, session, monkeypatch):
+        _, _, version, ref = _seed_asset(session)
+        image_key = f"parsed/{version.id}/artifact-1/images/chart.jpg"
+        payload = {"blocks": [
+            {"block_id": "chart-1", "image_uris": {"chart.jpg": f"s3://bucket/{image_key}"}},
+            {"block_id": "text-1"},
+        ]}
+        requested = []
+
+        class FakeStorage:
+            def get_bytes(self, key):
+                requested.append(key)
+                if key == "normalized/ref-preview.json":
+                    return json.dumps(payload).encode("utf-8")
+                if key == image_key:
+                    return b"\xff\xd8\xffimage"
+                raise AssertionError(f"unexpected storage key: {key}")
+
+        monkeypatch.setattr("nexus_app.storage.get_object_storage", lambda: FakeStorage())
+        client = TestClient(app)
+        url = f"/internal/v1/normalized-refs/{ref.id}/blocks/chart-1/images/0"
+        response = client.get(url)
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "image/jpeg"
+        assert response.headers["x-content-type-options"] == "nosniff"
+        assert response.content == b"\xff\xd8\xffimage"
+        assert requested == ["normalized/ref-preview.json", image_key]
+
+        assert client.get(url.replace("chart-1", "text-1")).status_code == 404
+        assert client.get(url.replace("/images/0", "/images/1")).status_code == 404
+        assert requested == ["normalized/ref-preview.json", image_key] + ["normalized/ref-preview.json"] * 2
+
+    def test_rejects_image_outside_version_and_missing_object(self, app, session, monkeypatch):
+        _, _, version, ref = _seed_asset(session)
+        payload = {"blocks": [{"block_id": "chart-1", "image_uris": {
+            "chart.jpg": "s3://bucket/parsed/other-version/artifact/images/chart.jpg",
+        }}]}
+
+        class FakeStorage:
+            def get_bytes(self, key):
+                if key == "normalized/ref-preview.json":
+                    return json.dumps(payload).encode("utf-8")
+                raise ObjectNotFoundError("bucket", key)
+
+        monkeypatch.setattr("nexus_app.storage.get_object_storage", lambda: FakeStorage())
+        url = f"/internal/v1/normalized-refs/{ref.id}/blocks/chart-1/images/0"
+        client = TestClient(app)
+        assert client.get(url).status_code == 404
+
+        payload["blocks"][0]["image_uris"]["chart.jpg"] = (
+            f"s3://bucket/parsed/{version.id}/artifact/images/chart.jpg"
+        )
+        assert client.get(url).status_code == 404
 
     def test_page_image_validates_bbox_shape(self, app, session):
         _, _, _, ref = _seed_asset(session)

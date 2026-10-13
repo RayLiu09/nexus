@@ -156,6 +156,7 @@ First-level navigation:
   navigation item.
 - **数据管理**: data sources, raw ledger, jobs, and the complete technical asset
   ledger.
+- **解析预览**: document views show normalized Markdown and retained original extracted images at their source blocks; the original file remains available through 原文下载.
 - **治理管理**: governance review/tracking, rules, and one canonical
   `Prompt 提示词` entry at `/ai-prompts`. The historical
   `/governance-prompts` path is redirect-only.

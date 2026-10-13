@@ -41,7 +41,7 @@ const plan: CrawlerPlan = {
 it("copies a crawler plan through the create endpoint", async () => {
   const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
     const url = String(input);
-    if (url.endsWith("/plans?pageSize=100"))
+    if (url.endsWith("/plans?page=1&pageSize=20"))
       return { json: async () => ({ ok: true, data: [plan], total: 1, traceId: null }) };
     if (url.includes("/runs?"))
       return { json: async () => ({ ok: true, data: [], total: 0, traceId: null }) };
@@ -78,5 +78,33 @@ it("copies a crawler plan through the create endpoint", async () => {
       crawl_policy: { max_pages: 10 },
       target_sites: [{ base_url: "https://example.gov.cn", include_paths: ["/policy"] }],
     });
+  });
+});
+
+it("requests crawler plan pages from the API with 20 rows by default", async () => {
+  const fetchMock = vi.fn(async (input: string) => {
+    const url = String(input);
+    if (url.endsWith("/plans?page=1&pageSize=20"))
+      return { json: async () => ({ ok: true, data: [plan], total: 41, traceId: null }) };
+    if (url.endsWith("/plans?page=2&pageSize=20"))
+      return { json: async () => ({ ok: true, data: [{ ...plan, id: "plan-2", name: "第二页计划" }], total: 41, traceId: null }) };
+    if (url.endsWith("/plans?page=1&pageSize=50"))
+      return { json: async () => ({ ok: true, data: [plan], total: 41, traceId: null }) };
+    if (url.includes("/runs?"))
+      return { json: async () => ({ ok: true, data: [], total: 0, traceId: null }) };
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App><CrawlerPlansPanel /></App>);
+  expect(await screen.findByText("41 个活跃计划 · 0 次运行")).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledWith("/api/crawler/plans?page=1&pageSize=20", expect.anything());
+  fireEvent.click(screen.getByTitle("2"));
+  expect(await screen.findByText("第二页计划")).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledWith("/api/crawler/plans?page=2&pageSize=20", expect.anything());
+  fireEvent.mouseDown(screen.getByRole("combobox"));
+  fireEvent.click(await screen.findByText("50 / page"));
+  await waitFor(() => {
+    expect(fetchMock).toHaveBeenCalledWith("/api/crawler/plans?page=1&pageSize=50", expect.anything());
   });
 });

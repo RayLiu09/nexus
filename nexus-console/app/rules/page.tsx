@@ -30,6 +30,8 @@ import {
 import { RulesEditor } from "./_components/RulesEditor";
 import { RulesReadView } from "./_components/RulesReadView";
 import { RecomputeSummaryDrawer } from "./_components/RecomputeSummaryDrawer";
+import { classificationCriteria } from "./_lib/classificationCriteria";
+import { extractTagDimensions, type TagDimensionRow } from "./_lib/tagDimensions";
 
 type ClassificationRow = {
   code: string;
@@ -42,13 +44,6 @@ type LevelRow = {
   name: string;
   requires_approval: boolean;
   forbid_external_llm: boolean;
-  criteria: string[];
-};
-
-type TagRow = {
-  code: string;
-  name: string;
-  applicable_classifications: string[];
   criteria: string[];
 };
 
@@ -185,7 +180,7 @@ export default function RulesPage() {
     }
   }
 
-  const { classifications, levels, tags, dimensions, thresholds, autoAdoptThreshold } =
+  const { classifications, levels, tagDimensions, dimensions, thresholds, autoAdoptThreshold } =
     useMemo(() => extractTables(rules), [rules]);
 
   const versionColumns = [
@@ -283,7 +278,7 @@ export default function RulesPage() {
         <RulesReadView
           classifications={classifications}
           levels={levels}
-          tags={tags}
+          tagDimensions={tagDimensions}
           dimensions={dimensions}
           thresholds={thresholds}
           autoAdoptThreshold={autoAdoptThreshold}
@@ -349,7 +344,7 @@ export default function RulesPage() {
 interface ExtractedTables {
   classifications: ClassificationRow[];
   levels: LevelRow[];
-  tags: TagRow[];
+  tagDimensions: TagDimensionRow[];
   dimensions: DimensionRow[];
   thresholds: Record<string, unknown> | null;
   autoAdoptThreshold: number | string | null;
@@ -361,7 +356,7 @@ function extractTables(rules: GovernanceRules | null): ExtractedTables {
   const classifications = asArray(root.classifications).map((c) => ({
     code: String(c.code ?? ""),
     name: String(c.name ?? ""),
-    criteria: asStringArray(c.criteria),
+    criteria: classificationCriteria(c),
   }));
 
   const levels = asArray(root.levels).map((l) => ({
@@ -372,12 +367,7 @@ function extractTables(rules: GovernanceRules | null): ExtractedTables {
     criteria: asStringArray(l.criteria),
   }));
 
-  const tags = asArray(root.tags).map((t) => ({
-    code: String(t.code ?? ""),
-    name: String(t.name ?? ""),
-    applicable_classifications: asStringArray(t.applicable_classifications),
-    criteria: asStringArray(t.criteria),
-  }));
+  const tagDimensions = extractTagDimensions(root);
 
   const qs = root.quality_scoring as Record<string, unknown> | undefined;
   const dimensions = asArray(qs?.dimensions).map((d) => ({
@@ -394,7 +384,7 @@ function extractTables(rules: GovernanceRules | null): ExtractedTables {
       ? autoAdoptRaw
       : null;
 
-  return { classifications, levels, tags, dimensions, thresholds, autoAdoptThreshold };
+  return { classifications, levels, tagDimensions, dimensions, thresholds, autoAdoptThreshold };
 }
 
 function asArray(value: unknown): Record<string, unknown>[] {

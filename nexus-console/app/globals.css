@@ -3100,7 +3100,7 @@ nextjs-portal:empty {
   z-index: 1;
 }
 
-/* ── Markdown preview (Asset Detail "原文预览") ───────────────── */
+/* ── Markdown preview (Asset Detail "解析预览") ───────────────── */
 
 .md-preview {
   font-size: 14px;

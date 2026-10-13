@@ -150,7 +150,7 @@ export function IndustryPoliciesTable({
             disabled={!row.normalized_ref_id}
             onClick={() => setDrawer({ view: "preview", row })}
           >
-            原文预览
+            解析预览
           </Button>
           <Button
             type="link"
@@ -196,7 +196,7 @@ export function IndustryPoliciesTable({
         width="min(960px, calc(100vw - 32px))"
         title={
           drawer
-            ? `${drawer.view === "chunks" ? "知识块视图" : "原文预览"} · ${drawer.row.asset_name}`
+            ? `${drawer.view === "chunks" ? "知识块视图" : "解析预览"} · ${drawer.row.asset_name}`
             : undefined
         }
         destroyOnClose

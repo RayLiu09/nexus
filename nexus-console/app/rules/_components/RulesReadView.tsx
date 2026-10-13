@@ -2,6 +2,7 @@
 
 import { Badge, Card, Space, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import type { TagDimensionRow, TagRuleDetail } from "../_lib/tagDimensions";
 
 type ClassificationRow = {
   code: string;
@@ -17,13 +18,6 @@ type LevelRow = {
   criteria: string[];
 };
 
-type TagRow = {
-  code: string;
-  name: string;
-  applicable_classifications: string[];
-  criteria: string[];
-};
-
 type DimensionRow = {
   name: string;
   weight: number;
@@ -34,7 +28,7 @@ type DimensionRow = {
 interface RulesReadViewProps {
   classifications: ClassificationRow[];
   levels: LevelRow[];
-  tags: TagRow[];
+  tagDimensions: TagDimensionRow[];
   dimensions: DimensionRow[];
   thresholds: Record<string, unknown> | null;
   autoAdoptThreshold: number | string | null;
@@ -53,7 +47,9 @@ const CLASSIFICATION_COLUMNS: ColumnsType<ClassificationRow> = [
     dataIndex: "criteria",
     render: (criteria: string[]) =>
       criteria.length > 0 ? (
-        <span className="text-xs text-[var(--text-muted)]">{criteria.join("；")}</span>
+        <div className="space-y-1 text-xs leading-5 text-[var(--text-muted)]">
+          {criteria.map((item, index) => <div key={`${index}-${item}`}>{item}</div>)}
+        </div>
       ) : (
         "-"
       ),
@@ -95,35 +91,36 @@ const LEVEL_COLUMNS: ColumnsType<LevelRow> = [
   },
 ];
 
-const TAG_COLUMNS: ColumnsType<TagRow> = [
+const TAG_DIMENSION_COLUMNS: ColumnsType<TagDimensionRow> = [
   {
-    title: "Code",
-    dataIndex: "code",
-    width: 140,
-    render: (code: string) => <Tag>{code}</Tag>,
-  },
-  { title: "名称", dataIndex: "name", width: 180 },
-  {
-    title: "适用分类",
-    dataIndex: "applicable_classifications",
-    width: 200,
-    render: (xs: string[]) =>
-      xs.length > 0 ? (
-        <span className="text-xs">{xs.join(", ")}</span>
-      ) : (
-        <span className="text-xs text-[var(--text-muted)]">通用</span>
-      ),
+    title: "维度",
+    dataIndex: "name",
+    width: 170,
+    render: (name: string, row) => <><strong>{name}</strong><div className="text-xs text-[var(--text-muted)]">{row.code}</div></>,
   },
   {
-    title: "判断标准",
-    dataIndex: "criteria",
-    render: (criteria: string[]) =>
-      criteria.length > 0 ? (
-        <span className="text-xs text-[var(--text-muted)]">{criteria.join("；")}</span>
-      ) : (
-        "-"
-      ),
+    title: "来源",
+    dataIndex: "source",
+    width: 110,
+    render: (source: string) => source === "fixed" ? "固定选项" : "按分类打标",
   },
+  {
+    title: "选项 / 依据",
+    render: (_, row) => <div className="space-y-1 text-xs leading-5">
+      {row.description && <div>{row.description}</div>}
+      {row.values.map((value) => <div key={value}>{value}</div>)}
+      {row.details.length > 0 && <span className="text-[var(--text-muted)]">{row.details.length} 个分类有打标依据</span>}
+    </div>,
+  },
+];
+
+const TAG_DETAIL_COLUMNS: ColumnsType<TagRuleDetail> = [
+  { title: "适用分类", dataIndex: "classification", width: 180 },
+  { title: "选项与判断标准", dataIndex: "criteria", render: (criteria: string[]) => (
+    <div className="space-y-1 text-xs leading-5">
+      {criteria.map((item, index) => <div key={`${index}-${item}`}>{item}</div>)}
+    </div>
+  ) },
 ];
 
 const DIMENSION_COLUMNS: ColumnsType<DimensionRow> = [
@@ -157,7 +154,7 @@ const DIMENSION_COLUMNS: ColumnsType<DimensionRow> = [
 export function RulesReadView({
   classifications,
   levels,
-  tags,
+  tagDimensions,
   dimensions,
   thresholds,
   autoAdoptThreshold,
@@ -201,17 +198,27 @@ export function RulesReadView({
       <Card
         title={
           <Space>
-            <span>数据标签（tags）</span>
-            <Badge count={tags.length} color="var(--brand)" />
+            <span>数据标签（tag_dimensions）</span>
+            <Badge count={tagDimensions.length} color="var(--brand)" />
           </Space>
         }
       >
-        <Table<TagRow>
+        <Table<TagDimensionRow>
           rowKey="code"
-          dataSource={tags}
+          dataSource={tagDimensions}
           pagination={false}
           size="middle"
-          columns={TAG_COLUMNS}
+          columns={TAG_DIMENSION_COLUMNS}
+          expandable={{
+            rowExpandable: (row) => row.details.length > 0,
+            expandedRowRender: (row) => <Table<TagRuleDetail>
+              rowKey="code"
+              dataSource={row.details}
+              columns={TAG_DETAIL_COLUMNS}
+              pagination={{ pageSize: 10, hideOnSinglePage: true }}
+              size="small"
+            />,
+          }}
         />
       </Card>
 

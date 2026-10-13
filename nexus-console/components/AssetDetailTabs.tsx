@@ -65,7 +65,7 @@ function classificationLabel(output: Record<string, unknown>): string {
 
 const TABS = [
   { key: "lineage", label: "血缘追溯" },
-  { key: "preview", label: "原文预览" },
+  { key: "preview", label: "解析预览" },
   { key: "ai-governance", label: "AI 治理" },
   { key: "quality", label: "质量评分" },
   { key: "versions", label: "版本历史" },

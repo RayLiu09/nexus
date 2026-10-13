@@ -287,6 +287,62 @@ def get_normalized_ref_content(
     return response(out, request)
 
 
+@router.get("/normalized-refs/{ref_id}/blocks/{block_id}/images/{image_index}")
+def get_normalized_block_image(
+    ref_id: str,
+    block_id: str,
+    image_index: int,
+    session: Session = Depends(get_db),
+):
+    """Serve an extracted image only when the requested normalized block owns it."""
+    ref = session.get(models.NormalizedAssetRef, ref_id)
+    if ref is None:
+        raise HTTPException(status_code=404, detail="normalized ref not found")
+    if image_index < 0:
+        raise HTTPException(status_code=404, detail="image not found")
+
+    payload = _load_normalized_payload(ref)
+    blocks = payload.get("blocks")
+    block = next(
+        (item for item in blocks if isinstance(item, dict) and item.get("block_id") == block_id),
+        None,
+    ) if isinstance(blocks, list) else None
+    image_uris = block.get("image_uris") if block else None
+    if not isinstance(image_uris, dict) or image_index >= len(image_uris):
+        raise HTTPException(status_code=404, detail="image not found")
+    uri = list(image_uris.values())[image_index]
+    if not isinstance(uri, str) or not uri:
+        raise HTTPException(status_code=404, detail="image not found")
+    key = _object_key(uri)
+    if not key.startswith(f"parsed/{ref.version_id}/") or "/images/" not in key:
+        raise HTTPException(status_code=404, detail="image not found")
+
+    from nexus_app.storage import ObjectNotFoundError, ObjectStorageError, get_object_storage
+
+    try:
+        image = get_object_storage().get_bytes(key)
+    except ObjectNotFoundError:
+        raise HTTPException(status_code=404, detail="image file missing")
+    except ObjectStorageError:
+        raise HTTPException(status_code=503, detail="object storage temporarily unavailable")
+
+    if image.startswith(b"\xff\xd8\xff"):
+        media_type = "image/jpeg"
+    elif image.startswith(b"\x89PNG\r\n\x1a\n"):
+        media_type = "image/png"
+    elif image.startswith((b"GIF87a", b"GIF89a")):
+        media_type = "image/gif"
+    elif image.startswith(b"RIFF") and image[8:12] == b"WEBP":
+        media_type = "image/webp"
+    else:
+        raise HTTPException(status_code=415, detail="unsupported image format")
+    return Response(
+        content=image,
+        media_type=media_type,
+        headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"},
+    )
+
+
 # ---------------------------------------------------------------------------
 # Chunk preview payload (markdown + locator anchors)
 # ---------------------------------------------------------------------------

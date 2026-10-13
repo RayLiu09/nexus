@@ -204,7 +204,7 @@ export function ChunkDetailDrawer({ chunk, open, onClose }: ChunkDetailDrawerPro
 /**
  * BlockAnchorTag — a block_id tag rendered as an anchor link that deep-links
  * to `#block-<id>` and closes the drawer so the operator sees the scrolled
- * markdown viewer underneath. Works on the Asset Detail "原文预览" tab; on
+ * markdown viewer underneath. Works on the Asset Detail "解析预览" tab; on
  * other pages the hash is set but nothing scrolls (graceful no-op).
  */
 function BlockAnchorTag({

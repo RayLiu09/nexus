@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SourcePreviewSection — Asset Detail "原文预览" tab.
+ * SourcePreviewSection — Asset Detail "解析预览" tab.
  *
  * Renders ``body_markdown`` from a normalized_ref through react-markdown
  * with remark-gfm (GFM tables / strikethrough / task-lists).  The body is
@@ -16,7 +16,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
-import { Alert, Card, Empty, Skeleton } from "antd";
+import { Alert, Card, Empty, Image, Skeleton } from "antd";
 import remarkGfm from "remark-gfm";
 import type { NormalizedBlock, NormalizedRefContent } from "@/lib/chunkTypes";
 
@@ -86,7 +86,7 @@ export function SourcePreviewSection({ refId }: SourcePreviewSectionProps) {
   if (!refId) {
     return (
       <Card className="!mt-4">
-        <Empty description="该资产尚无标准化引用，无法预览原文" />
+        <Empty description="该资产尚无标准化引用，无法预览解析内容" />
       </Card>
     );
   }
@@ -117,18 +117,19 @@ export function SourcePreviewSection({ refId }: SourcePreviewSectionProps) {
       </Card>
     );
   }
-  if (!content.body_markdown) {
+  if (!content.body_markdown && !content.blocks?.some((block) => Object.keys(block.image_uris ?? {}).length > 0)) {
     return (
-      <Card title="原文预览" className="!mt-4">
+      <Card title="解析预览" className="!mt-4">
         <Empty description="该 ref 暂无 body_markdown" />
       </Card>
     );
   }
   return (
-    <Card title="原文预览" className="!mt-4">
+    <Card title="解析预览" className="!mt-4">
       <MarkdownViewer
-        body={content.body_markdown}
+        body={content.body_markdown ?? ""}
         blocks={content.blocks ?? []}
+        refId={refId}
       />
     </Card>
   );
@@ -139,14 +140,19 @@ export function SourcePreviewSection({ refId }: SourcePreviewSectionProps) {
 interface MarkdownViewerProps {
   body: string;
   blocks: NormalizedBlock[];
+  refId: string;
 }
 
-function MarkdownViewer({ body, blocks }: MarkdownViewerProps) {
+function MarkdownViewer({ body, blocks, refId }: MarkdownViewerProps) {
   // Build segments aligned to line starts so tables stay intact.
   const segments = useMemo(
     () => buildSegments(body, blocks),
     [body, blocks],
   );
+  const unplacedImages = useMemo(() => {
+    const placed = new Set(segments.flatMap((segment) => segment.imageBlocks.map((block) => block.block_id)));
+    return blocks.filter((block) => hasImages(block) && !placed.has(block.block_id));
+  }, [blocks, segments]);
 
   const [activeBlock, setActiveBlock] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -176,13 +182,14 @@ function MarkdownViewer({ body, blocks }: MarkdownViewerProps) {
         <MarkdownTableContainer>
           <Markdown remarkPlugins={[remarkGfm]}>{body}</Markdown>
         </MarkdownTableContainer>
+        {blocks.filter(hasImages).map((block) => <BlockImages key={`${refId}-${block.block_id}`} block={block} refId={refId} />)}
       </div>
     );
   }
 
   return (
     <div ref={rootRef} className="md-preview max-h-[70vh] overflow-y-auto">
-      {segments.map(({ blockId, text }, index) => (
+      {segments.map(({ blockId, text, imageBlocks }, index) => (
         <div
           key={`${blockId}-${index}`}
           id={`block-${blockId}`}
@@ -196,8 +203,10 @@ function MarkdownViewer({ body, blocks }: MarkdownViewerProps) {
           <MarkdownTableContainer>
             <Markdown remarkPlugins={[remarkGfm]}>{text}</Markdown>
           </MarkdownTableContainer>
+          {imageBlocks.map((block) => <BlockImages key={`${refId}-${block.block_id}`} block={block} refId={refId} />)}
         </div>
       ))}
+      {unplacedImages.map((block) => <BlockImages key={`${refId}-${block.block_id}`} block={block} refId={refId} />)}
     </div>
   );
 }
@@ -211,6 +220,30 @@ function MarkdownTableContainer({ children }: { children: ReactNode }) {
 interface Segment {
   blockId: string;
   text: string;
+  imageBlocks: NormalizedBlock[];
+}
+
+function hasImages(block: NormalizedBlock): boolean {
+  return Object.keys(block.image_uris ?? {}).length > 0;
+}
+
+function BlockImages({ block, refId }: { block: NormalizedBlock; refId: string }) {
+  const [failed, setFailed] = useState<number[]>([]);
+  const imageCount = Object.keys(block.image_uris ?? {}).length;
+  return <div className="my-3 space-y-3" aria-label={`${block.caption || block.block_id} 图片`}>
+    {Array.from({ length: imageCount }, (_, index) => failed.includes(index) ? (
+      <Alert key={index} type="warning" showIcon title="解析图片加载失败，文字内容仍可查看" />
+    ) : (
+      <Image
+        key={index}
+        src={`/api/normalized-refs/${encodeURIComponent(refId)}/blocks/${encodeURIComponent(block.block_id)}/images/${index}`}
+        alt={block.caption || `第 ${block.page != null ? block.page + 1 : "?"} 页图片`}
+        loading="lazy"
+        style={{ display: "block", maxWidth: "100%", height: "auto" }}
+        onError={() => setFailed((previous) => [...previous, index])}
+      />
+    ))}
+  </div>;
 }
 
 /**
@@ -232,15 +265,17 @@ function buildSegments(
     const r = b.md_char_range;
     if (!Array.isArray(r) || r.length !== 2) continue;
     const start = r[0];
-    if (start <= 0 || start >= body.length) continue;
-    positions.add(snapLineStart(body, start));
+    if (start > 0 && start < body.length) positions.add(snapLineStart(body, start));
+    if (hasImages(b) && r[1] < body.length) {
+      positions.add(snapNextLineStart(body, r[1]));
+    }
   }
   // Remove position 0 (beginning of body — no split needed).
   positions.delete(0);
 
   if (positions.size === 0) return [];
 
-  const sorted = [...positions].sort((a, b) => a - b);
+  const sorted = [...positions].filter((pos) => pos > 0 && pos < body.length).sort((a, b) => a - b);
 
   // Slice body at each position.
   const segs: Segment[] = [];
@@ -250,6 +285,7 @@ function buildSegments(
     segs.push({
       blockId: findBlockIdAt(blocks, cursor),
       text: body.slice(cursor, pos),
+      imageBlocks: blocks.filter((block) => hasImages(block) && isBlockInSegment(block, cursor, pos)),
     });
     cursor = pos;
   }
@@ -258,9 +294,15 @@ function buildSegments(
     segs.push({
       blockId: findBlockIdAt(blocks, cursor),
       text: body.slice(cursor),
+      imageBlocks: blocks.filter((block) => hasImages(block) && isBlockInSegment(block, cursor, body.length)),
     });
   }
   return segs;
+}
+
+function isBlockInSegment(block: NormalizedBlock, start: number, end: number): boolean {
+  const position = block.md_char_range?.[0];
+  return typeof position === "number" && position >= start && position < end;
 }
 
 /** Walk backwards from `pos` to find the nearest preceding newline. */
@@ -269,6 +311,11 @@ function snapLineStart(body: string, pos: number): number {
   let p = pos - 1;
   while (p > 0 && body[p] !== "\n") p--;
   return body[p] === "\n" ? p + 1 : 0;
+}
+
+function snapNextLineStart(body: string, pos: number): number {
+  const nextLine = body.indexOf("\n", pos);
+  return nextLine === -1 ? body.length : nextLine + 1;
 }
 
 function findBlockIdAt(blocks: NormalizedBlock[], pos: number): string {

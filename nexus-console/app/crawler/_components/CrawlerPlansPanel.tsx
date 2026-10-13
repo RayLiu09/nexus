@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   App,
@@ -241,6 +241,10 @@ export function CrawlerPlansPanel() {
   const [regions, setRegions] = useState<CrawlerRegion[]>([]);
   const [regionSites, setRegionSites] = useState<CrawlerSites | null>(null);
   const [plans, setPlans] = useState<CrawlerPlan[]>([]);
+  const [planPage, setPlanPage] = useState(1);
+  const [planPageSize, setPlanPageSize] = useState(20);
+  const [planTotal, setPlanTotal] = useState(0);
+  const refreshId = useRef(0);
   const [runs, setRuns] = useState<CrawlerRun[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -271,28 +275,33 @@ export function CrawlerPlansPanel() {
     : "";
   const effectiveTopicKeywords = form.topicKeywords || defaultTopicKeywords;
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
+    const requestId = ++refreshId.current;
     setLoading(true);
     setError(null);
     const [plansResult, runsResult] = await Promise.all([
-      crawlerGet<CrawlerPlan[]>("/plans?pageSize=100"),
+      crawlerGet<CrawlerPlan[]>(`/plans?page=${planPage}&pageSize=${planPageSize}`),
       crawlerGet<CrawlerRun[]>("/runs?pageSize=200&summary=counts"),
     ]);
+    if (requestId !== refreshId.current) return;
     const failedResult = [plansResult, runsResult].find(
       (result) => !result.ok,
     );
     if (failedResult) setError(readableError(failedResult));
-    if (plansResult.ok) setPlans(plansResult.data);
+    if (plansResult.ok) {
+      setPlans(plansResult.data);
+      setPlanTotal(plansResult.total ?? plansResult.data.length);
+    }
     if (runsResult.ok) setRuns(runsResult.data);
     setLoading(false);
-  };
+  }, [planPage, planPageSize]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void refresh();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [refresh]);
 
   useEffect(() => {
     if (!drawerOpen || !form.regionCode || config) return;
@@ -384,7 +393,8 @@ export function CrawlerPlansPanel() {
       return;
     }
     message.success(editingPlan ? "Crawler 计划已更新" : "Crawler 计划已创建");
-    setPlans((prev) => editingPlan ? prev.map((item) => item.id === editingPlan.id ? result.data : item) : [result.data, ...prev]);
+    if (!editingPlan && planPage !== 1) setPlanPage(1);
+    else void refresh();
     setForm({
       ...INITIAL_FORM,
       regionCode: config?.default_region_code ?? INITIAL_FORM.regionCode,
@@ -431,7 +441,8 @@ export function CrawlerPlansPanel() {
       return;
     }
     message.success("计划已废弃");
-    setPlans((prev) => prev.map((plan) => (plan.id === planId ? result.data : plan)));
+    if (activePlans.length === 1 && planPage > 1) setPlanPage(planPage - 1);
+    else void refresh();
   };
 
   const openHistory = async (plan: CrawlerPlan) => {
@@ -632,7 +643,7 @@ export function CrawlerPlansPanel() {
           <div>
             <h3 className="text-base font-semibold">Crawler 计划</h3>
             <div className="text-text-secondary mt-1 text-xs">
-              {activePlans.length} 个活跃计划 · {runs.length} 次运行
+              {planTotal} 个活跃计划 · {runs.length} 次运行
             </div>
           </div>
           <Space>
@@ -657,7 +668,17 @@ export function CrawlerPlansPanel() {
             loading={loading}
             rowKey="id"
             dataSource={activePlans}
-            pagination={{ pageSize: 8 }}
+            pagination={{
+              current: planPage,
+              pageSize: planPageSize,
+              total: planTotal,
+              showSizeChanger: true,
+              pageSizeOptions: [20, 50, 100],
+              onChange: (page, pageSize) => {
+                setPlanPage(pageSize === planPageSize ? page : 1);
+                setPlanPageSize(pageSize);
+              },
+            }}
             scroll={{ x: 1100 }}
             columns={[
               {
@@ -972,7 +993,7 @@ export function CrawlerPlansPanel() {
           loading={historyLoading}
           rowKey="id"
           dataSource={historyRuns}
-          pagination={{ pageSize: 8 }}
+          pagination={{ pageSize: 20, pageSizeOptions: [20, 50, 100] }}
           expandable={{
             expandedRowRender: renderRunDetails,
             rowExpandable: (run) => {
