@@ -24,7 +24,7 @@ def test_job_catalog_reads_database_and_requires_admin(app, session, stub_user):
     session.add(category)
     session.flush()
     session.add_all([
-        models.JobCollectionTitle(category_id=category.id, name="数据化运营助理"),
+        models.JobCollectionTitle(category_id=category.id, name="数据化运营助理", job_category="运营类", crawl_keywords="数据运营，电商运营"),
         models.JobCollectionTitle(category_id=category.id, name="视觉设计师"),
         models.JobCollectionTitle(category_id=category.id, name="视觉设计师"),
     ])
@@ -36,4 +36,6 @@ def test_job_catalog_reads_database_and_requires_admin(app, session, stub_user):
         assert [row["name"] for row in response.json()["data"][0]["titles"]] == [
             "数据化运营助理", "视觉设计师",
         ]
+        assert response.json()["data"][0]["titles"][0]["job_category"] == "运营类"
+        assert response.json()["data"][0]["titles"][0]["crawl_keywords"] == "数据运营，电商运营"
         assert client.post("/internal/v1/data-sync/job-catalog", json={}).status_code == 405

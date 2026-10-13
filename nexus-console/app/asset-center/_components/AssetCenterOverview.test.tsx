@@ -16,10 +16,7 @@ describe("AssetCenterOverview", () => {
     );
 
     expect(screen.getAllByRole("article")).toHaveLength(4);
-    expect(screen.getByLabelText("资产中心领域")).toHaveClass("items-stretch");
-    for (const card of screen.getAllByRole("article")) {
-      expect(card).toHaveClass("h-full", "flex", "flex-col");
-    }
+    expect(screen.getByLabelText("资产中心领域")).toContainElement(screen.getAllByRole("article")[0]);
     expect(screen.getByRole("heading", { name: "产教政策数据" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "专业数据" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "市场数据" })).toBeInTheDocument();
@@ -31,7 +28,11 @@ describe("AssetCenterOverview", () => {
       "href",
       "/asset-center/major/standard-course-library",
     );
-    expect(screen.getByRole("link", { name: "产业园区数据，0 条" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "市场岗位，数量暂不可用" })).toHaveAttribute(
+      "href",
+      "/asset-center/market/job-demands",
+    );
+    expect(screen.getByRole("link", { name: "产业园区，0 条" })).toHaveAttribute(
       "href",
       "/asset-center/market/industrial-parks",
     );

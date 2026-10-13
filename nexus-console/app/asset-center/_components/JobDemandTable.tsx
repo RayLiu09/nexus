@@ -165,7 +165,7 @@ export function JobDemandTable({
         pagination={pagination}
         loading={pending}
         scroll={{ x: 1520 }}
-        locale={{ emptyText: ok ? "暂无岗位需求数据" : "暂无数据" }}
+        locale={{ emptyText: ok ? "暂无市场岗位" : "暂无数据" }}
       />
     </div>
   );

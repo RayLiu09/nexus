@@ -73,6 +73,7 @@ Architecture v3.0 baseline:
 - `docs/contracts/job_collection_provider_contract.md`: crawler-api v0.2 wire contract, verified with a ten-page live Job.
 - `docs/contracts/job_collection_raw_intake_contract.md`: one raw job row and one provenance row per upstream record ID; no batch or observation table.
 - `docs/task-packages/wk_job_collection_c6_console_catalog_task_package.md`: database job-name catalog from the Excel name column, city/job multi-select plans, and the job-collection Console form.
+- `docs/task-packages/wk_job_collection_title_metadata_task_package.md`: 29 additional finance-commerce titles with job category and recruiting-site search keywords in the database catalog.
 - `docs/task-packages/wk_job_collection_c7_submit_recovery_pause_task_package.md`: idempotent recovery of unconfirmed crawler submits and clear plan/run pause controls.
 - `docs/task-packages/wk_job_collection_c8_resume_visibility_task_package.md`: make paused-run controls visible after a plan resumes future scheduling.
 

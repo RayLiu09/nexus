@@ -115,13 +115,13 @@ export const ASSET_CENTER_DOMAINS = [
     resources: [
       {
         path: "job-demands",
-        name: "岗位需求数据",
+        name: "市场岗位",
         description: "跨来源岗位需求记录",
         classificationCode: "job_demand",
       },
       {
         path: "industrial-parks",
-        name: "产业园区数据",
+        name: "产业园区",
         description: "产业园区业务数据",
       },
       {

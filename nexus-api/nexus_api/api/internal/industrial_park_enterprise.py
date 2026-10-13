@@ -105,7 +105,7 @@ def export_industrial_parks(session: Session = Depends(get_db)):
     for row in session.scalars(select(models.IndustrialPark).order_by(models.IndustrialPark.park_name)).yield_per(1000):
         count = session.scalar(select(func.count(models.Enterprise.id)).where(models.Enterprise.industrial_park_id == row.id)) or 0
         sheet.append([_excel_text(row.park_name), _excel_text("、".join(row.industry_tags or [])), _excel_text(row.introduction), count, _excel_text(row.source_url)])
-    return _xlsx_response(workbook, "industrial-parks.xlsx", "产业园区数据.xlsx")
+    return _xlsx_response(workbook, "industrial-parks.xlsx", "产业园区.xlsx")
 
 
 @router.get("/enterprises/export")

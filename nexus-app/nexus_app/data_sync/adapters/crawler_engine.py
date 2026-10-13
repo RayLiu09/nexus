@@ -22,7 +22,7 @@ CORE_CITIES = (
     "重庆市", "武汉市", "西安市", "天津市", "长沙市", "郑州市", "青岛市", "宁波市",
     "东莞市", "佛山市", "无锡市", "合肥市", "福州市", "厦门市", "济南市", "大连市",
     "沈阳市", "昆明市", "贵阳市", "南宁市", "哈尔滨市", "长春市", "南昌市",
-    "石家庄市", "温州市", "常州市", "珠海市", "中山市", "惠州市",
+    "石家庄市", "温州市", "常州市", "珠海市", "中山市", "惠州市", "大理市",
 )
 
 
@@ -60,8 +60,10 @@ class CrawlerQuery(BaseModel):
     @field_validator("regions")
     @classmethod
     def valid_regions(cls, value: list[str]) -> list[str]:
-        if any(region not in CORE_CITIES and region != "" for region in value) or len(value) != len(set(value)):
+        if any(region != "" and (not region.strip() or len(region) > 128 or region != region.strip()) for region in value):
             raise ValueError("invalid region")
+        if len(value) != len(set(value)):
+            raise ValueError("duplicate region")
         return value
 
     @model_validator(mode="after")

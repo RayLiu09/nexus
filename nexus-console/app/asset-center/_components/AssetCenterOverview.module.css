@@ -1,0 +1,136 @@
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 16px;
+}
+
+.card {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-top: 3px solid;
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px 24px;
+}
+
+.icon {
+  display: flex;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+
+.heading,
+.resource {
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 28px;
+}
+
+.description {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.resources {
+  margin: 0 12px 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.resource {
+  border-top: 1px solid var(--line-light);
+}
+
+.link {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: background-color 150ms ease;
+}
+
+.link:hover {
+  background: var(--surface-alt);
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+
+.resourceName {
+  min-width: 0;
+  flex: 1;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+}
+
+.link:hover .resourceName {
+  color: var(--brand);
+}
+
+.count {
+  min-width: 64px;
+  flex: none;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 24px;
+}
+
+@media (min-width: 768px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid {
+    gap: 20px;
+  }
+
+  .header {
+    padding-block: 24px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .majorResources {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .columnDivider {
+    border-right: 1px solid var(--line-light);
+  }
+}

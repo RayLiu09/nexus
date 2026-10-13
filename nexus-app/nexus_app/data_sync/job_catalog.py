@@ -20,7 +20,12 @@ def list_job_catalog(session: Session) -> list[dict]:
     for title in titles:
         if title.category_id in by_category and title.name not in seen_names[title.category_id]:
             seen_names[title.category_id].add(title.name)
-            by_category[title.category_id].append({"id": title.id, "name": title.name})
+            by_category[title.category_id].append({
+                "id": title.id,
+                "name": title.name,
+                "job_category": title.job_category,
+                "crawl_keywords": title.crawl_keywords,
+            })
     return [{
         "id": category.id,
         "name": category.name,

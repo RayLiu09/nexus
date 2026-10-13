@@ -1,4 +1,5 @@
 import Link from "next/link";
+import styles from "./AssetCenterOverview.module.css";
 
 import {
   ASSET_CENTER_DOMAINS,
@@ -8,32 +9,32 @@ import {
 
 export function AssetCenterOverview({ counts }: { counts: Record<string, number> | null }) {
   return (
-    <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2" aria-label="资产中心领域">
+    <div className={styles.grid} aria-label="资产中心领域">
       {ASSET_CENTER_DOMAINS.filter((domain) => domain.slug !== "user-behavior").map((domain) => {
         const Icon = domain.icon;
         const isMajor = domain.slug === "major";
-        const resourceGrid = isMajor ? "grid md:grid-cols-2" : "";
+        const resourceGrid = isMajor ? styles.majorResources : "";
 
         return (
           <article
-            className="border-line bg-surface shadow-card flex h-full flex-col overflow-hidden rounded-md border border-t-2"
+            className={styles.card}
             key={domain.slug}
             style={{ borderTopColor: domain.accent }}
           >
-            <header className="flex min-h-[68px] items-center gap-3 px-4 py-3">
+            <header className={styles.header}>
               <span
-                className="flex size-9 shrink-0 items-center justify-center rounded-md"
+                className={styles.icon}
                 style={{ color: domain.accent, backgroundColor: domain.accentBackground }}
               >
-                <Icon size={18} strokeWidth={1.8} aria-hidden />
+                <Icon size={21} strokeWidth={1.8} aria-hidden />
               </span>
-              <div className="min-w-0">
-                <h2 className="text-text text-base font-semibold">{domain.name}</h2>
-                <p className="text-text-muted mt-0.5 text-xs leading-5">{domain.description}</p>
+              <div className={styles.heading}>
+                <h2 className={styles.title}>{domain.name}</h2>
+                <p className={styles.description}>{domain.description}</p>
               </div>
             </header>
 
-            <ul className={resourceGrid}>
+            <ul className={`${styles.resources} ${resourceGrid}`}>
               {domain.resources
                 .filter((resource) => resource.path !== "certificates" && resource.path !== "education-policies")
                 .map((resource, resourceIndex) => {
@@ -46,19 +47,19 @@ export function AssetCenterOverview({ counts }: { counts: Record<string, number>
 
                   return (
                     <li
-                      className={`border-line-light border-t ${hasColumnDivider ? "md:border-r" : ""}`}
+                      className={`${styles.resource} ${hasColumnDivider ? styles.columnDivider : ""}`}
                       key={resource.path}
                     >
                       <Link
-                        className="group hover:bg-surface-alt focus-visible:ring-brand flex min-h-12 items-center gap-2 px-4 py-2 transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+                        className={styles.link}
                         href={assetCenterHref(domain, resource)}
                         aria-label={`${resource.name}，${countLabel}`}
                       >
-                        <span className="text-text group-hover:text-brand min-w-0 flex-1 text-sm leading-5 font-medium transition-colors">
+                        <span className={styles.resourceName}>
                           {resource.name}
                         </span>
                         <span
-                          className="min-w-[58px] shrink-0 text-right text-xs font-semibold tabular-nums"
+                          className={styles.count}
                           style={{ color: domain.accent }}
                           title={countLabel}
                         >

@@ -498,6 +498,8 @@ class JobCollectionTitle(TimestampMixin, Base):
         String(36), ForeignKey("job_collection_category.id", ondelete="RESTRICT"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
+    job_category: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    crawl_keywords: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     category: Mapped[JobCollectionCategory] = relationship()
 

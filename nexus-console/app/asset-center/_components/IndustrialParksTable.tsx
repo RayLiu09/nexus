@@ -119,7 +119,7 @@ export function IndustrialParksTable({
             showTotal: (count) => `共 ${count} 条`,
             onChange: (next, size) => replace(next, size),
           }}
-          locale={{ emptyText: ok ? "暂无产业园区数据" : "数据加载失败" }}
+          locale={{ emptyText: ok ? "暂无产业园区" : "数据加载失败" }}
         />
       </section>
     </>

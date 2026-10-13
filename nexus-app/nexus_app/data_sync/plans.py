@@ -73,6 +73,8 @@ def create_plan(
         raise PlanError("query_config is invalid for this Provider") from exc
     if not isinstance(normalized_query, dict):
         raise PlanError("Provider query validation must return an object")
+    if provider_code == "crawler_engine" and len(normalized_query.get("regions", [])) > 5:
+        raise PlanError("a sync plan can include at most 5 cities")
     if provider_code == "crawler_engine" and not titles_are_available(
         session, normalized_query["keywords"]
     ):
@@ -214,6 +216,8 @@ def update_plan(
         raise PlanError("query_config is invalid for this Provider") from exc
     if not isinstance(normalized_query, dict):
         raise PlanError("Provider query validation must return an object")
+    if plan.provider_code == "crawler_engine" and len(normalized_query.get("regions", [])) > 5:
+        raise PlanError("a sync plan can include at most 5 cities")
     if plan.provider_code == "crawler_engine" and not titles_are_available(session, normalized_query["keywords"]):
         raise PlanError("selected job titles are unavailable")
     changed = (plan.name != name or plan.frequency != frequency or plan.query_config != normalized_query)

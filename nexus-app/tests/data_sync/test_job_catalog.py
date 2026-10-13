@@ -11,6 +11,7 @@ from nexus_app.data_sync.job_catalog import list_job_catalog
 
 ROOT = Path(__file__).resolve().parents[3]
 SEED = ROOT / "nexus-app/nexus_app/data_sync/job_collection_seed.json"
+EXTENSIONS = ROOT / "nexus-app/nexus_app/data_sync/finance_commerce_title_extensions.json"
 
 
 def test_seed_contains_only_job_names():
@@ -19,6 +20,17 @@ def test_seed_contains_only_job_names():
     assert len(names) == 76
     assert len(set(names)) == 74
     assert names.count("视觉设计师") == 3
+
+
+def test_finance_commerce_extensions_contain_all_requested_metadata():
+    rows = json.loads(EXTENSIONS.read_text(encoding="utf-8"))
+    assert len(rows) == len({row["name"] for row in rows}) == 29
+    assert all(set(row) == {"name", "job_category", "crawl_keywords"} for row in rows)
+    assert next(row for row in rows if row["name"] == "民宿电商运营专员") == {
+        "name": "民宿电商运营专员",
+        "job_category": "民宿电商运营",
+        "crawl_keywords": "民宿电商运营，民宿运营，客栈运营，住宿产品运营",
+    }
 
 
 def test_catalog_deduplicates_names_and_plan_checks_database(session, monkeypatch):

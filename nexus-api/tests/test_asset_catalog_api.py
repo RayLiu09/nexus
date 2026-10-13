@@ -458,6 +458,20 @@ def test_asset_summary_counts_review_required_assets_with_latest_refs(app, sessi
 
 def test_asset_center_counts_use_resource_boundaries_in_two_queries(app, session):
     seeded = _seed_review_required_asset(session)
+    park = models.IndustrialPark(
+        source_park_id="test-park-1",
+        park_name="测试产业园区",
+        industry_tags=["数字经济"],
+        introduction="测试园区介绍",
+    )
+    session.add(park)
+    session.flush()
+    session.add(models.Enterprise(
+        source_record_key="test-park-1:1",
+        industrial_park_id=park.id,
+        enterprise_name="测试企业",
+        business_scope="软件开发",
+    ))
     library = models.TeachingStandardLibrary(
         normalized_ref_id=seeded["ref"].id,
         asset_version_id=seeded["version"].id,
@@ -505,11 +519,23 @@ def test_asset_center_counts_use_resource_boundaries_in_two_queries(app, session
     assert counts["policy/industry-reports"] == 1
     assert counts["major/teaching-standards"] == 1
     assert counts["major/standard-course-library"] == 2
-    assert counts["market/industrial-parks"] == 0
+    assert counts["market/industrial-parks"] == 1
+    assert counts["market/enterprises"] == 1
     assert counts["teaching-resources/course-textbooks"] == 0
     assert counts["user-behavior/learning-analytics"] == 0
     assert "major/teaching-standards/courses" not in counts
     assert statements == 2
+
+    client = TestClient(app)
+    parks = client.get("/internal/v1/industrial-parks", params={"q": "测试", "page": 1, "page_size": 20})
+    assert parks.status_code == 200
+    assert parks.json()["meta"]["total"] == 1
+    assert parks.json()["data"][0]["enterprise_count"] == 1
+
+    enterprises = client.get("/internal/v1/enterprises", params={"park_id": park.id, "page": 1, "page_size": 20})
+    assert enterprises.status_code == 200
+    assert enterprises.json()["meta"]["total"] == 1
+    assert enterprises.json()["data"][0]["enterprise_name"] == "测试企业"
 
 
 def test_latest_ref_can_fetch_ai_governance_runs(app, session):

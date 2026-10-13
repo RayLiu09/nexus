@@ -21,6 +21,7 @@ the asset's data and derivatives while retaining only a minimal audit record.
 
 - Internal asset lifecycle operations and their Console proxy routes.
 - Asset detail header actions for archive and irreversible deletion.
+- Governance review queue list action for irreversible deletion with the same confirmation safeguards.
 - Asset/version and derived-data cleanup, audit events, role authorization,
   storage reference safety, and focused regression tests.
 
@@ -53,6 +54,8 @@ the asset's data and derivatives while retaining only a minimal audit record.
 
 - The asset detail header presents archive and delete commands. Delete uses a
   warning confirmation followed by exact asset-title entry before it is sent.
+- The governance review list exposes delete for rows with an asset ID, uses the
+  same confirmations, and refreshes the queue after successful deletion.
 - Archive removes an asset from current/available reads and sets all versions
   to `archived`.
 - Delete removes the asset and its derivatives, while retaining only the audit

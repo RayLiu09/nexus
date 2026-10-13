@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Alert, App, Button, Collapse, Drawer, Form, Input, Select, Table, Tag } from "antd";
+import { Alert, App, Button, Collapse, Drawer, Form, Input, Modal, Select, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { EditOutlined, FileTextOutlined } from "@ant-design/icons";
+import { DeleteOutlined, EditOutlined, FileTextOutlined } from "@ant-design/icons";
 import { AssetRefCell } from "@/components/shared/AssetRefCell";
 import { SourcePreviewSection } from "@/app/assets/[assetId]/_components/SourcePreviewSection";
 import { classificationLabel, type ClassificationDictionary } from "@/lib/classificationLabels";
@@ -129,6 +129,10 @@ export default function TagReviewContent({
   const [context, setContext] = useState<ReviewContext | null>(null);
   const [loading, setLoading] = useState(false);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const [deleteItem, setDeleteItem] = useState<GovernanceReviewItem | null>(null);
+  const [deleteStep, setDeleteStep] = useState<"warning" | "confirm">("warning");
+  const [typedTitle, setTypedTitle] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const [form] = Form.useForm<Record<string, string>>();
   const { message } = App.useApp();
 
@@ -252,6 +256,35 @@ export default function TagReviewContent({
     }
   };
 
+  const closeDelete = () => {
+    setDeleteItem(null);
+    setDeleteStep("warning");
+    setTypedTitle("");
+  };
+
+  const removeAsset = async () => {
+    if (!deleteItem?.asset_id || typedTitle !== deleteItem.asset_title) return;
+    setDeleting(true);
+    try {
+      const response = await fetch(`/api/assets/${encodeURIComponent(deleteItem.asset_id)}`, {
+        method: "DELETE",
+        headers: { "Idempotency-Key": createIdempotencyKey() },
+      });
+      if (!response.ok) {
+        const envelope = (await response.json()) as { error?: { message?: string } };
+        throw new Error(envelope.error?.message ?? "删除资产失败");
+      }
+      const title = deleteItem.asset_title;
+      closeDelete();
+      await loadPage(items.length === 1 && page > 1 ? page - 1 : page, pageSize);
+      message.success(`资产「${title}」及其衍生数据已删除`);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "删除资产失败");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const columns: ColumnsType<GovernanceReviewItem> = [
     {
       title: "数据资产",
@@ -288,7 +321,7 @@ export default function TagReviewContent({
     },
     {
       title: "操作",
-      width: 180,
+      width: 260,
       render: (_v, row) => (
         <span style={{ display: "inline-flex", gap: 8 }}>
           <Button
@@ -306,6 +339,16 @@ export default function TagReviewContent({
             onClick={() => void openReview(row)}
           >
             审核
+          </Button>
+          <Button
+            size="small"
+            danger
+            aria-label={`删除资产 ${row.asset_title ?? row.asset_id ?? ""}`}
+            icon={<DeleteOutlined />}
+            disabled={!row.asset_id || !row.asset_title}
+            onClick={() => { setDeleteItem(row); setDeleteStep("warning"); setTypedTitle(""); }}
+          >
+            删除
           </Button>
         </span>
       ),
@@ -338,6 +381,43 @@ export default function TagReviewContent({
           locale={{ emptyText: "暂无待治理审核资产" }}
         />
       </div>
+      <Modal
+        title="删除资产"
+        open={Boolean(deleteItem) && deleteStep === "warning"}
+        onCancel={closeDelete}
+        onOk={() => setDeleteStep("confirm")}
+        okText="继续"
+        cancelText="取消"
+        okButtonProps={{ danger: true }}
+        destroyOnHidden
+      >
+        <Typography.Paragraph>
+          删除不可恢复，将同时清理该资产的版本、标准化内容、治理结果、索引和其他衍生对象数据。
+        </Typography.Paragraph>
+        <Typography.Text type="secondary">共享的原始对象不会被删除。</Typography.Text>
+      </Modal>
+      <Modal
+        title="最终确认删除"
+        open={Boolean(deleteItem) && deleteStep === "confirm"}
+        onCancel={closeDelete}
+        onOk={() => void removeAsset()}
+        okText="永久删除"
+        cancelText="取消"
+        okButtonProps={{ danger: true, disabled: typedTitle !== deleteItem?.asset_title, loading: deleting }}
+        confirmLoading={deleting}
+        destroyOnHidden
+      >
+        <Typography.Paragraph>
+          请输入完整资产标题 <Typography.Text code>{deleteItem?.asset_title}</Typography.Text> 以确认永久删除。
+        </Typography.Paragraph>
+        <Input
+          aria-label="完整资产标题"
+          value={typedTitle}
+          onChange={(event) => setTypedTitle(event.target.value)}
+          placeholder={deleteItem?.asset_title ?? ""}
+          autoFocus
+        />
+      </Modal>
       <Drawer
         title={previewItem ? `原文预览 · ${previewItem.asset_title ?? "数据资产"}` : "原文预览"}
         open={Boolean(previewItem)}

@@ -386,6 +386,7 @@ export function DataSyncContent({
   const fields = Object.entries(selectedProvider?.query_schema.properties ?? {});
   const isJobCollection = selectedProvider?.provider_code === "crawler_engine";
   const regionOptions = selectedProvider?.query_schema.properties?.regions?.items?.enum ?? [];
+  const selectableRegionOptions = regionOptions.slice(0, 5).map(String);
   const keywordOptions = selectedCategory?.titles.map((item) => item.name) ?? [];
   const unsupported = fields.some(
     ([, field]) =>
@@ -703,22 +704,27 @@ export function DataSyncContent({
                 name={["query_config", "regions"]}
                 label={<Space size={8}>区域<Checkbox
                   aria-label="全选区域"
-                  checked={regionOptions.length > 0 && regionOptions.every((region) => selectedRegions.includes(String(region)))}
-                  indeterminate={selectedRegions.length > 0 && selectedRegions.length < regionOptions.length}
+                  checked={selectableRegionOptions.length > 0 && selectableRegionOptions.every((region) => selectedRegions.includes(region))}
+                  indeterminate={selectedRegions.length > 0 && selectedRegions.length < selectableRegionOptions.length}
                   onChange={(event) => {
-                    const values = event.target.checked ? regionOptions.map(String) : [];
+                    const values = event.target.checked ? selectableRegionOptions : [];
                     setSelectedRegions(values);
                     form.setFieldValue(["query_config", "regions"], values);
                   }}
                 >全选</Checkbox><span className="text-text-muted text-xs">已选 {selectedRegions.length} 项</span></Space>}
-                rules={[{ required: true, type: "array", min: 1, message: "请选择区域" }]}
+                rules={[
+                  { required: true, type: "array", min: 1, message: "请选择区域" },
+                  { type: "array", max: 5, message: "最多输入 5 个城市" },
+                ]}
               >
                 <Select
-                  mode="multiple"
+                  mode="tags"
                   showSearch
                   optionFilterProp="label"
                   maxTagCount="responsive"
-                  placeholder="选择城市"
+                  maxCount={5}
+                  tokenSeparators={[",", "，"]}
+                  placeholder="选择或输入城市，多个城市用逗号分隔"
                   options={regionOptions.map((value) => ({ value: String(value), label: String(value) }))}
                   onChange={setSelectedRegions}
                 />

@@ -77,3 +77,45 @@ it("keeps collapsed review fields and submits editable default reasons", async (
     },
   });
 });
+
+it("deletes a reviewed asset only after exact-title confirmation and reloads the queue", async () => {
+  const requests: Array<{ url: string; init?: RequestInit }> = [];
+  vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
+    const url = String(input);
+    requests.push({ url, init });
+    if (url === "/api/assets/asset-1" && init?.method === "DELETE") {
+      return { ok: true, json: async () => ({ data: { deleted: true } }) };
+    }
+    if (url.includes("/pending?")) {
+      return { ok: true, json: async () => ({ data: [], meta: { total: 0 } }) };
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  }));
+
+  render(<App><TagReviewContent
+    initialItems={[reviewItem]}
+    initialTotal={1}
+    ok
+    error={null}
+    traceId={null}
+    classificationDictionary={{ industry_policy: "产教政策" }}
+    levelDictionary={{ L1: "L1" }}
+  /></App>);
+
+  fireEvent.click(screen.getByRole("button", { name: "删除资产 示例政策" }));
+  expect(screen.getByText(/删除不可恢复/)).toBeInTheDocument();
+  expect(requests).toHaveLength(0);
+  fireEvent.click(screen.getByRole("button", { name: /继\s*续/ }));
+  const confirm = screen.getByRole("button", { name: /永\s*久\s*删\s*除/ });
+  expect(confirm).toBeDisabled();
+  fireEvent.change(screen.getByRole("textbox", { name: "完整资产标题" }), { target: { value: "示例" } });
+  expect(confirm).toBeDisabled();
+  fireEvent.change(screen.getByRole("textbox", { name: "完整资产标题" }), { target: { value: "示例政策" } });
+  fireEvent.click(confirm);
+
+  await waitFor(() => expect(requests).toHaveLength(2));
+  expect(requests[0].url).toBe("/api/assets/asset-1");
+  expect(requests[0].init?.headers).toMatchObject({ "Idempotency-Key": expect.any(String) });
+  expect(requests[1].url).toContain("/api/governance-reviews/pending?page=1&pageSize=20");
+  expect(screen.getByText("暂无待治理审核资产")).toBeInTheDocument();
+});

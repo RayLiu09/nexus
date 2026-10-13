@@ -20,13 +20,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from nexus_app.ai_governance.rules_service import GovernanceRulesService
+from nexus_app.ai_governance.rules_config import GovernanceRulesConfig
 from nexus_app.database import get_session_local
 
 RULES_PATH = Path(__file__).resolve().parents[2] / "config" / "governance_rules_v2.json"
-CHANGE_SUMMARY = (
-    "Talent-training-plan RAG projection: replace generic structured_decompose "
-    "with bounded talent_training_plan_decompose supplementary semantic chunks"
-)
+CHANGE_SUMMARY = "Retire job_demand classification and its structured-record knowledge-type applicability"
 
 
 def _digest(value: dict) -> str:
@@ -39,6 +37,7 @@ def main() -> int:
     parser.add_argument("--apply", action="store_true", help="Create and activate a new DB rules version")
     args = parser.parse_args()
     staged = json.loads(RULES_PATH.read_text(encoding="utf-8"))
+    GovernanceRulesConfig.model_validate(staged)
     with get_session_local()() as session:
         active = GovernanceRulesService.get_active_or_raise(session)
         same = _digest(active.rules_content) == _digest(staged)
