@@ -668,6 +668,7 @@ export function CrawlerPlansPanel() {
             loading={loading}
             rowKey="id"
             dataSource={activePlans}
+            tableLayout="fixed"
             pagination={{
               current: planPage,
               pageSize: planPageSize,
@@ -679,19 +680,20 @@ export function CrawlerPlansPanel() {
                 setPlanPageSize(pageSize);
               },
             }}
-            scroll={{ x: 1100 }}
+            scroll={{ x: 1200 }}
             columns={[
               {
                 title: "计划",
                 dataIndex: "name",
+                width: 260,
                 render: (_, plan) => (
-                  <Space orientation="vertical" size={0}>
-                    <span className="font-medium">{plan.name}</span>
+                  <div className="min-w-0">
+                    <span className="block truncate font-medium" title={plan.name}>{plan.name}</span>
                     <span className="text-text-muted text-xs">
                       {plan.mode === "quick_start" ? "快速启动" : "通用配置"}
                       {plan.region_name ? ` · ${plan.region_name}` : ""}
                     </span>
-                  </Space>
+                  </div>
                 ),
               },
               {

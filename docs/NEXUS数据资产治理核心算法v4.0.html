@@ -1,0 +1,914 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NEXUS 数据资产治理核心算法技术方案 v4.0</title>
+  <style>
+    :root {
+      --ink: #17212b;
+      --muted: #5e6b76;
+      --line: #d7dee3;
+      --paper: #ffffff;
+      --canvas: #edf1f3;
+      --blue: #176b87;
+      --blue-soft: #e8f3f7;
+      --green: #28765b;
+      --green-soft: #e9f4ef;
+      --gold: #a46612;
+      --gold-soft: #fbf2df;
+      --coral: #b44b3d;
+      --coral-soft: #f9ece9;
+      --violet: #68558f;
+      --violet-soft: #f0edf7;
+      --shadow: 0 12px 30px rgba(23, 33, 43, .10);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--canvas);
+      font-family: Inter, "Noto Sans SC", "Microsoft YaHei", Arial, sans-serif;
+      line-height: 1.45;
+      letter-spacing: 0;
+    }
+    .deck { display: grid; gap: 24px; padding: 24px; }
+    .slide {
+      width: min(1440px, 100%);
+      min-height: 810px;
+      margin: 0 auto;
+      padding: 38px 48px 32px;
+      overflow: hidden;
+      background: var(--paper);
+      border: 1px solid #e0e5e8;
+      border-radius: 6px;
+      box-shadow: var(--shadow);
+      position: relative;
+      page-break-after: always;
+    }
+    .slide:last-child { page-break-after: auto; }
+    .slide::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 5px;
+      background: var(--blue);
+    }
+    .kicker {
+      color: var(--blue);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { font-size: 34px; margin-bottom: 10px; line-height: 1.18; }
+    h2 { font-size: 25px; margin-bottom: 16px; line-height: 1.22; }
+    h3 { font-size: 15px; margin: 14px 0 8px; }
+    p, li, td, th { font-size: 13px; }
+    .lead { color: var(--muted); font-size: 15px; max-width: 1100px; }
+    .accent-line { width: 72px; height: 4px; background: var(--gold); margin: 18px 0 22px; }
+    .stack-banner {
+      display: grid;
+      grid-template-columns: 1.35fr 1fr;
+      gap: 14px;
+      margin: 20px 0;
+    }
+    .band {
+      border-left: 5px solid var(--blue);
+      background: var(--blue-soft);
+      padding: 13px 16px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .band.green { border-color: var(--green); background: var(--green-soft); }
+    .band.gold { border-color: var(--gold); background: var(--gold-soft); }
+    .band.coral { border-color: var(--coral); background: var(--coral-soft); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .grid-2 > *, .grid-3 > *, .grid-4 > *, .stack-banner > *,
+    .constraints > *, .timeline > *, .branch > * { min-width: 0; }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 14px 16px;
+      background: #fff;
+    }
+    .panel h3 { margin-top: 0; color: var(--blue); }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th {
+      text-align: left;
+      background: #eef2f4;
+      color: #30404c;
+      font-weight: 800;
+    }
+    th, td { border: 1px solid var(--line); padding: 8px 9px; vertical-align: top; }
+    tr:nth-child(even) td { background: #fafbfb; }
+    .dense th, .dense td { padding: 5px 7px; font-size: 11px; line-height: 1.28; }
+    code, .mono {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      color: #0f526a;
+      overflow-wrap: anywhere;
+    }
+    .formula {
+      white-space: pre-wrap;
+      background: #f5f7f8;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--violet);
+      border-radius: 4px;
+      padding: 11px 14px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      margin: 10px 0;
+      overflow-wrap: anywhere;
+    }
+    .flow {
+      display: flex;
+      align-items: stretch;
+      gap: 7px;
+      margin: 12px 0;
+    }
+    .flow.wrap { flex-wrap: wrap; }
+    .node {
+      min-width: 0;
+      flex: 1 1 0;
+      padding: 10px 9px;
+      border: 1px solid #b8c7cf;
+      border-top: 4px solid var(--blue);
+      border-radius: 5px;
+      background: #fff;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .node small { display: block; color: var(--muted); font-weight: 500; margin-top: 4px; }
+    .node.green { border-top-color: var(--green); background: var(--green-soft); }
+    .node.gold { border-top-color: var(--gold); background: var(--gold-soft); }
+    .node.coral { border-top-color: var(--coral); background: var(--coral-soft); }
+    .node.violet { border-top-color: var(--violet); background: var(--violet-soft); }
+    .arrow {
+      flex: 0 0 18px;
+      align-self: center;
+      color: var(--blue);
+      font-size: 19px;
+      font-weight: 900;
+      text-align: center;
+    }
+    .branch {
+      display: grid;
+      grid-template-columns: 1.05fr 1.8fr;
+      gap: 18px;
+      align-items: center;
+      margin: 12px 0;
+    }
+    .branch-out { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .route-map {
+      display: grid;
+      grid-template-columns: 210px 1fr;
+      gap: 8px 14px;
+      align-items: center;
+      margin: 10px 0;
+    }
+    .route-label {
+      border-left: 4px solid var(--gold);
+      padding: 8px 10px;
+      background: var(--gold-soft);
+      font-weight: 800;
+      font-size: 12px;
+    }
+    .route-path {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      font-size: 11px;
+    }
+    .pill {
+      display: inline-block;
+      padding: 4px 7px;
+      border: 1px solid #bfd0d8;
+      border-radius: 999px;
+      background: #fff;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .constraints {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .constraint {
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--coral);
+      padding: 10px 12px;
+      border-radius: 4px;
+      font-size: 11px;
+      background: #fff;
+    }
+    .metric-row { display: grid; grid-template-columns: 145px 1fr 105px; gap: 8px; align-items: center; margin: 6px 0; }
+    .bar { height: 10px; background: #e8ecef; border-radius: 3px; overflow: hidden; }
+    .bar > span { display: block; height: 100%; background: var(--green); }
+    .timeline { display: grid; grid-template-columns: repeat(5, 1fr); gap: 9px; margin-top: 12px; }
+    .phase { border-top: 5px solid var(--blue); background: var(--blue-soft); padding: 11px; border-radius: 4px; font-size: 11px; }
+    .phase strong { display: block; margin-bottom: 5px; }
+    ul, ol { margin: 7px 0 0; padding-left: 20px; }
+    li { margin: 4px 0; }
+    .note { color: var(--muted); font-size: 11px; }
+    .strong { font-weight: 850; color: #0e536b; }
+    .footer {
+      position: absolute;
+      left: 48px;
+      right: 48px;
+      bottom: 13px;
+      display: flex;
+      justify-content: space-between;
+      color: #8a959d;
+      font-size: 9px;
+    }
+    @media (max-width: 900px) {
+      .deck { padding: 0; gap: 10px; }
+      .slide { min-height: 0; padding: 28px 20px 42px; border-radius: 0; }
+      .grid-2, .grid-3, .grid-4, .stack-banner, .constraints, .timeline, .branch { grid-template-columns: 1fr; }
+      .flow { flex-direction: column; }
+      .arrow { transform: rotate(90deg); }
+      .route-map { grid-template-columns: 1fr; }
+      .route-path { flex-wrap: wrap; }
+      th, td { overflow-wrap: anywhere; word-break: break-word; }
+      h1 { font-size: 28px; }
+      .footer { left: 20px; right: 20px; }
+    }
+    @media print {
+      @page { size: 13.333in 7.5in; margin: 0; }
+      body { background: #fff; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .deck { display: block; padding: 0; }
+      .slide {
+        width: 13.333in;
+        height: 7.5in;
+        min-height: 7.5in;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      #density-annotation { padding-top: 28px; }
+      #density-annotation h2 { margin-bottom: 10px; }
+      #density-annotation .panel { padding: 10px 12px; }
+      #density-annotation .formula { margin: 6px 0; padding: 8px 10px; line-height: 1.35; }
+      #density-annotation .band { padding: 9px 12px; }
+      #density-annotation .note { margin-bottom: 6px; }
+      #density-annotation .flow { margin: 8px 0; }
+      #seven-dimension-tagging { padding-top: 28px; }
+      #seven-dimension-tagging h2 { margin-bottom: 10px; }
+      #seven-dimension-tagging .dense th,
+      #seven-dimension-tagging .dense td { padding: 3px 5px; font-size: 10px; line-height: 1.15; }
+      #seven-dimension-tagging .flow { margin: 8px 0; }
+      #seven-dimension-tagging .node { padding: 7px 7px; }
+      #seven-dimension-tagging .formula { margin: 6px 0; padding: 8px 10px; line-height: 1.3; }
+      #seven-dimension-tagging .grid-3 { gap: 8px; }
+      #seven-dimension-tagging .band { padding: 8px 10px; }
+    }
+  </style>
+</head>
+<body>
+<main class="deck">
+
+  <section class="slide" id="scope">
+    <div class="kicker">NEXUS / Data &amp; Knowledge Governance</div>
+    <h1>NEXUS 数据资产治理核心算法技术方案 v4.0</h1>
+    <div class="accent-line"></div>
+    <h2>一、技术讨论范围</h2>
+    <p class="lead">将异构原始数据转换为可治理、可检索、可追溯、可复核的数据与知识资产，并冻结核心算法、准入阈值、证据契约和技术组件分工。</p>
+    <table>
+      <thead><tr><th style="width:16%">讨论域</th><th style="width:45%">核心内容</th><th>约束边界</th></tr></thead>
+      <tbody>
+        <tr><td>解析与清洗</td><td>PDF/Office/Markdown/爬虫网页/结构记录路由；噪声、低价值、低信息密度、去重</td><td>原始对象永久保留；删除/合并可解释、可回放</td></tr>
+        <tr><td>标准化</td><td><code>normalized_document</code> / <code>normalized_record</code> 建模、字段归一与领域校验</td><td>治理只通过 <code>normalized_asset_ref</code> 读取标准化数据</td></tr>
+        <tr><td>AI 治理</td><td>分类、分级、打标、结果复核、四维质量与状态准入</td><td>AI 只产生候选；Schema、白名单、脱敏、规则、置信度、状态机不可跳过</td></tr>
+        <tr><td>知识构建</td><td>分类型 RAG 切块、领域模型、块质量、Evidence-grounded KG</td><td><code>knowledge_chunk</code> 归 NEXUS；事实绑定 chunk/block/locator 证据</td></tr>
+        <tr><td>检索</td><td>传统向量 RAG 与 NEXUS 场景化智能检索</td><td>权限/治理过滤先于返回；外部 Web 证据不伪装成 NEXUS 资产</td></tr>
+      </tbody>
+    </table>
+    <div class="stack-banner">
+      <div class="band"><strong>生产中文主链</strong><br>确定性规则 + HanLPAdapter + 领域词典 + BGE + LiteLLM</div>
+      <div class="band green"><strong>结构化质量</strong><br>Pydantic + 领域验证器 + Pandera + Great Expectations</div>
+    </div>
+    <div class="band gold">NLP 输出带 char offset 的注释、特征和候选；不直接删除证据、改写标准化原文或提交正式治理结果。</div>
+    <div class="footer"><span>NEXUS Core Algorithms v4.0</span><span>01</span></div>
+  </section>
+
+  <section class="slide" id="e2e">
+    <div class="kicker">End-to-End Pipeline</div>
+    <h2>二、数据资产端到端处理流程</h2>
+    <div class="flow">
+      <div class="node">数据源<small>文件 / NAS / 爬虫 / API / 记录</small></div><div class="arrow">→</div>
+      <div class="node">Ingest Validate<small>MIME、magic bytes、URL、幂等</small></div><div class="arrow">→</div>
+      <div class="node">Assetize<small>Asset + Version + raw_object</small></div><div class="arrow">→</div>
+      <div class="node green">Parse<small>MinerU / Trafilatura / OpenPyXL</small></div><div class="arrow">→</div>
+      <div class="node green">Clean<small>结构恢复 + 规则 + HanLP/BGE</small></div>
+    </div>
+    <div class="flow">
+      <div class="node violet">Normalize<small>document / record</small></div><div class="arrow">→</div>
+      <div class="node violet">Normalized Asset Ref<small>身份、内容、质量、lineage</small></div><div class="arrow">→</div>
+      <div class="node gold">AI Governance<small>分类 / 分级 / 标签 / 质量</small></div><div class="arrow">→</div>
+      <div class="node coral">规则与状态机<small>disabled / review / available</small></div><div class="arrow">→</div>
+      <div class="node">Knowledge Pipeline<small>领域事实 / Chunk / KG</small></div>
+    </div>
+    <div class="branch">
+      <div class="node green">Available 资产<small>同一资产仅一个 available 版本</small></div>
+      <div class="branch-out">
+        <div class="node">领域结构投影<small>SQL / 精确查询</small></div>
+        <div class="node">Knowledge Chunk<small>BGE → pgvector → rerank</small></div>
+        <div class="node">Evidence KG<small>事实 / 边 / 证据</small></div>
+      </div>
+    </div>
+    <div class="flow">
+      <div class="node coral">权限 + 治理过滤</div><div class="arrow">→</div>
+      <div class="node gold">智能检索 / 证据问答</div><div class="arrow">→</div>
+      <div class="node green">引用 + 审计 + Trace</div>
+    </div>
+    <h3>约束边界</h3>
+    <div class="constraints">
+      <div class="constraint"><strong>01</strong> <code>assetize</code> 与 <code>normalize</code> 是独立阶段。</div>
+      <div class="constraint"><strong>02</strong> Raw、原始 JSON、MinerU 原始输出不是治理输入。</div>
+      <div class="constraint"><strong>03</strong> <code>governance_result.target = normalized_asset_ref</code>。</div>
+      <div class="constraint"><strong>04</strong> 清洗不改变 raw；删除/合并/救场记录版本和原因。</div>
+      <div class="constraint"><strong>05</strong> Chunk、领域事实、KG 共享 ref ID，但独立重建、审计和回滚。</div>
+      <div class="constraint"><strong>06</strong> 失败保留 trace/stage/reason/retry；降级不伪装成成功。</div>
+    </div>
+    <div class="footer"><span>End-to-End Processing</span><span>02</span></div>
+  </section>
+
+  <section class="slide" id="parsing">
+    <div class="kicker">Parsing &amp; Structure Recovery</div>
+    <h2>三、多格式文档解析技术路由</h2>
+    <table class="dense">
+      <thead><tr><th style="width:17%">数据类型</th><th style="width:34%">实现方案</th><th style="width:25%">标准输出</th><th>选择依据</th></tr></thead>
+      <tbody>
+        <tr><td>扫描 PDF / 图片 / TIFF</td><td>MinerU <code>pipeline</code> 自动 OCR；根据版式复杂度自动路由 <code>vlm</code>；表格结构损坏时页渲染 + VLM 恢复</td><td>block / page / bbox / text / table / image URI</td><td>OCR、版面、表格和视觉证据统一到 block 契约</td></tr>
+        <tr><td>数字 PDF</td><td>MinerU <code>pipeline</code>；跨页表基于页码连续性、bbox 对齐和表头重复检测合并；VLM 复核图表</td><td>正文、标题、表格、图片、页定位</td><td>完整保留阅读顺序、跨页结构和 locator</td></tr>
+        <tr><td>DOC / DOCX / PPT / PPTX</td><td>MinerU <code>pipeline</code> 按 MIME 路由；文本、表格、视觉转写和 Office 异常摘要统一生成</td><td>层级文本、表格、图片、幻灯片顺序</td><td>与 PDF 共用一套 normalized document 结构和质量检查</td></tr>
+        <tr><td>XLS / XLSX / CSV</td><td>Pipeline B 结构解析；OpenPyXL 读取 sheet/row/cell；domain profile 字段映射；Pydantic + Pandera + Great Expectations 依次验证对象、批数据和跨批分布</td><td>dataset / record / source row locator / quality flags</td><td>表数据保持行列语义，不转纯文本后再猜测</td></tr>
+        <tr><td>爬虫 HTML</td><td>Firecrawl <code>onlyMainContent</code> 处理动态页；Trafilatura 抽取正文并转 Markdown/block；URL/DOM/正文联合质量门禁</td><td>正文、section、source URL、DOM 来源、字符定位</td><td>DOM 解析负责结构，NLP 只负责正文语义特征</td></tr>
+        <tr><td>Markdown / TXT</td><td>轻量 Markdown adapter；保留 heading/list/code/GFM table；生成 block 和 <code>md_char_range</code></td><td>结构 block + 原文字符定位</td><td>利用已有显式结构，避免重复解析造成信息损失</td></tr>
+        <tr><td>JSON / API 记录</td><td>Pipeline B + domain profile + Pydantic；领域验证器执行业务关系；Pandera/GE 执行批校验与分布异常</td><td><code>normalized_record</code> + dataset/record lineage</td><td>未知 profile 不猜测字段语义，契约不满足则失败</td></tr>
+      </tbody>
+    </table>
+    <h3>入口路由</h3>
+    <div class="flow">
+      <div class="node">Magic Bytes</div><div class="arrow">→</div><div class="node">MIME</div><div class="arrow">→</div>
+      <div class="node">扩展名交叉校验</div><div class="arrow">→</div><div class="node coral">安全 / 解压限制</div><div class="arrow">→</div><div class="node green">Pipeline Type</div>
+    </div>
+    <div class="band gold"><strong>选型指标</strong>：block F1、table cell F1、阅读顺序、locator 覆盖率、图片回指率、P95 耗时、资源峰值、许可证和模型供应链。</div>
+    <div class="footer"><span>Multi-format Parsing</span><span>03</span></div>
+  </section>
+
+  <section class="slide" id="inefficient-data">
+    <div class="kicker">Cleaning Taxonomy</div>
+    <h2>三、低效数据分类与清理算法</h2>
+    <table class="dense">
+      <thead><tr><th style="width:15%">数据格式</th><th style="width:16%">低效类型</th><th style="width:47%">判定算法</th><th>处理结果</th></tr></thead>
+      <tbody>
+        <tr><td>爬虫网页（HTML）</td><td>不安全/不可访问</td><td>URL 安全校验；前 2,000 字登录、账号+密码、CAPTCHA/人机联合模式</td><td>入口拒绝，记 reason</td></tr>
+        <tr><td>爬虫网页（HTML）</td><td>页面壳/聚合页</td><td>首页、栏目、搜索结果、会话壳/源码查看页的 URL + 正文特征</td><td>入口拒绝</td></tr>
+        <tr><td>爬虫网页（HTML）</td><td>内容不足/语言不符</td><td>Firecrawl &lt;300 字、WebSearch &lt;200 字；字符分布检测中文主体比例</td><td>拒绝或人审</td></tr>
+        <tr><td>爬虫网页（HTML）</td><td>低价值活动/人物新闻</td><td>活动标记 ≥2；人物型标题+记者/通讯员/“（完）”；政策、文号、统计证据反向放行</td><td>高置信拒绝，冲突复核</td></tr>
+        <tr><td>HTML / PDF / DOCX / PPTX</td><td>导航/页眉页脚</td><td><code>第 N 页</code>、<code>Page N of M</code>、<code>- N -</code>、DOM/bbox 位置 + 跨页重复率</td><td>删除块，记规则版本</td></tr>
+        <tr><td>PDF / DOCX / PPTX / MD</td><td>目录/索引</td><td>连续目录行 ≥3，或单块目录片段 ≥4；点线+页码、章节序号</td><td>转 <code>toc[]</code>，移出正文</td></tr>
+        <tr><td>PDF / DOCX</td><td>出版/管理元数据</td><td>ISBN/CIP/版权/定价/责编；出版词 ≥3，或 ≥2 且含 URL/ISBN/版权</td><td>转 document metadata</td></tr>
+        <tr><td>HTML / PDF / DOCX / PPTX</td><td>水印/推广/模板</td><td>领域词典 + DOM/bbox 位置 + 跨文档高频段 + 5-gram MinHash 模板发现</td><td>高置信删除，其余标 template</td></tr>
+        <tr><td>PDF / 图片 / TIFF / PPTX</td><td>装饰视觉/QR/Logo</td><td>空 caption/text；短标签+空正文且 bbox 面积 ≤2,500；QR-only VLM 描述</td><td>删除或 decorative；表格豁免</td></tr>
+        <tr><td>PDF / 图片 / TIFF / TXT / CSV</td><td>OCR/编码损坏</td><td>replacement-char、非语言符号、连续乱码、HanLP 词法异常；页图 VLM 复核</td><td>重试 OCR/VLM；不可恢复则阻断</td></tr>
+        <tr><td>全部文本与记录</td><td>空洞/低信息密度</td><td>去空白 &lt;4；chunk ≤12；实词率、领域实体/句、数值证据/句、唯一 n-gram 率</td><td>硬噪声删除；低密度标 weak_value</td></tr>
+        <tr><td>教材 PDF / DOCX / MD</td><td>练习/学习目标</td><td>“请/思考/问题/练习/课后”短问句；heading 含“学习目标”</td><td>保留为 context/weak evidence</td></tr>
+        <tr><td>XLSX / CSV / JSON</td><td>占位/示例/纯序号</td><td><code>.../……/-/无/N/A/TBD</code>、纯序号、“示例/样例”、必填主题为空</td><td>不落正式记录，计 flag</td></tr>
+        <tr><td>XLSX / CSV / JSON</td><td>类型/范围/关系异常</td><td>日期、金额、地区、枚举、外键、代码、跨 sheet 关系、单位维度</td><td>保留 raw/trace + flag；关键失败阻断</td></tr>
+        <tr><td>PDF / DOCX / XLSX / PPTX</td><td>表格/层级损坏</td><td>缺表头、列数漂移、重复表头、跨页不连续、大表未拆</td><td>合并/VLM 恢复；不可恢复则重建</td></tr>
+        <tr><td>全部格式</td><td>精确/近重复/过时版本</td><td>SHA-256、业务键、MinHash/LSH、BGE、时间/来源/效力冲突</td><td>幂等/候选/归档，不误合并</td></tr>
+      </tbody>
+    </table>
+    <div class="band coral" style="margin-top:10px"><strong>组合决策</strong>：格式专属规则先产生 reason/evidence；密度、模板、乱码、重复与 BGE 原型相似共同校准低效概率，白名单和政策/统计/法律证据具有反向放行权。</div>
+    <div class="footer"><span>Inefficient-data Taxonomy</span><span>04</span></div>
+  </section>
+
+  <section class="slide" id="density-annotation">
+    <div class="kicker">Density &amp; NLP Annotation Example</div>
+    <h2>三、低密度计算示例与 NLP Annotation</h2>
+    <div class="grid-2">
+      <div class="panel">
+        <h3>低密度信息计算</h3>
+        <div class="formula">density = (N实词 + N领域实体 + N数值证据 + N引用/关系) / (Ntokens + ε)</div>
+        <p class="note">四类分子按互斥证据单元计数，避免同一 token 重复加分；<code>ε</code> 防止空文本除零。以下为便于评审的字段分词演算，生产计数由 HanLPAdapter 与领域词典版本固化。来源：<code>docs/samples/1.（岗位需求）电子商务岗位招聘数据.xlsx</code>。</p>
+        <div class="band green"><strong>有效记录（第 2 行）</strong><br>“无人机飞手｜天津滨海新区｜4千-7千｜大专｜岗位数 1｜无人机飞行员、多旋翼机型”<br><code>Ntokens=12, 实词=2, 实体=4, 数值=3, 关系=1</code><br><strong>density = 10/(12+ε) ≈ 0.83 → 保留</strong></div>
+        <div class="band coral"><strong>占位记录（第 4 行）</strong><br>“……”<br><code>Ntokens=1, 分子=0</code><br><strong>density = 0 → placeholder 硬规则命中，不落正式记录</strong></div>
+        <div class="formula">P_inefficient = calibrate(θr·rule_hits + θd·(1-density) + θt·template_repeat + θc·corruption + θu·duplicate_similarity + θb·BGE_low_value_similarity)</div>
+        <p class="note"><strong>密度门禁</strong>：density&lt;0.10 且无白名单/领域证据时判硬噪声；0.10–0.30 标 <code>weak_value</code>；≥0.30 进入综合低效概率计算。最终删除仍要求 <code>P_inefficient≥0.90</code> 且无反向放行证据。</p>
+      </div>
+      <div class="panel">
+        <h3>NLP Annotation 处理示例</h3>
+        <div class="formula">原文：无人机飞手，天津滨海新区，薪资4千-7千，需大专学历，熟悉多旋翼机型。
+sentence: s1 char[0,35)
+NER: 无人机飞手/OCCUPATION[0,5)
+     天津滨海新区/LOCATION[6,12)
+     4千-7千/SALARY[15,20)
+     大专/EDUCATION[22,24)
+     多旋翼机型/DOMAIN_TERM[29,34)
+DEP: 熟悉 → 多旋翼机型；需 → 大专学历</div>
+        <div class="band"><strong>领域词典与验证器</strong><br><code>city=天津市/滨海新区</code>；<code>salary_min=4000</code>、<code>salary_max=7000</code>，周期保持 unknown；岗位、学历、技能作为候选标签，Schema/证据验证后才可采纳。</div>
+        <div class="band gold"><strong>Annotation sidecar</strong><br><code>{sentence_id, token, pos, ner, dependency, char_start, char_end, dictionary_version, analyzer_version}</code><br>与原文同 ref 保存，不覆盖 <code>body_markdown</code>。</div>
+      </div>
+    </div>
+    <div class="flow" style="margin-top:12px">
+      <div class="node">原文 + char offset</div><div class="arrow">→</div><div class="node green">HanLPAdapter</div><div class="arrow">→</div><div class="node green">领域词典归一候选</div><div class="arrow">→</div><div class="node violet">Annotation Sidecar</div><div class="arrow">→</div><div class="node gold">密度 / 切块 / 标签 / KG 候选</div>
+    </div>
+    <div class="band coral"><strong>约束边界</strong>：Annotation 是派生特征，不改写原始证据；offset 必须可回指同一 normalized ref；实体、关系和标签候选仍需规则、Schema、置信度与状态机审核。</div>
+    <div class="footer"><span>Density and NLP Annotation</span><span>05</span></div>
+  </section>
+
+  <section class="slide" id="clean-dedup">
+    <div class="kicker">Cleaning &amp; Deduplication</div>
+    <h2>三、完整清洗流程与去重模型</h2>
+    <h3>清洗流程</h3>
+    <div class="flow">
+      <div class="node coral">L0 安全准入<small>URL / MIME / 登录墙 / 语言</small></div><div class="arrow">→</div>
+      <div class="node">L1 结构恢复<small>阅读顺序 / 跨页表 / VLM</small></div><div class="arrow">→</div>
+      <div class="node">L2 硬噪声<small>页脚 / 目录 / 出版 / QR</small></div><div class="arrow">→</div>
+      <div class="node green">L3 HanLP<small>分句 / POS / NER / 依存 / offset</small></div>
+    </div>
+    <div class="flow">
+      <div class="node green">L4 软判别<small>低价值 / 密度 / 模板 / 乱码</small></div><div class="arrow">→</div>
+      <div class="node violet">L5 BGE/LiteLLM<small>主题 / 近重复 / 冲突复核</small></div><div class="arrow">→</div>
+      <div class="node gold">处理决策<small>删除 / metadata / 保留 / review</small></div><div class="arrow">→</div>
+      <div class="node">Normalized Payload<small>body_markdown / md_char_range / audit</small></div>
+    </div>
+    <div class="band">HanLP 不可用时由 <code>RuleOnlyAnalyzer</code> 降级，记录 <code>nlp_status=degraded</code>；确定性规则链持续执行，降级状态不伪装成 NLP 检查通过。</div>
+    <h3>四层去重模型</h3>
+    <div class="grid-4">
+      <div class="panel"><h3>1. 请求幂等</h3><code>(data_source_id,<br>idempotency_key)</code><p>返回已有批次。</p></div>
+      <div class="panel"><h3>2. 原始内容</h3><code>SHA-256(raw bytes)</code><p>同源跳过；跨源保留 lineage。</p></div>
+      <div class="panel"><h3>3. 业务身份</h3><code>source_object_key<br>+ domain natural key</code><p>内容变化创建新版本，原 available 原子归档。</p></div>
+      <div class="panel"><h3>4. 近重复候选</h3><code>MinHash/LSH → BGE<br>→ metadata conflict</code><p>仅产生 duplicate_candidate。</p></div>
+    </div>
+    <div class="formula">candidate := Jaccard_est ≥ Tj AND cosine ≥ Ts
+auto-link := prohibited when version / date / region / issuer / legal_effect differs</div>
+    <div class="band gold"><strong>技术取舍</strong>：SHA/业务键用于正式身份；MinHash 用于大规模字面候选；BGE 用于改写复核。向量相似不替代版本、地区和法律效力判定。</div>
+    <div class="footer"><span>Cleaning and Deduplication</span><span>06</span></div>
+  </section>
+
+  <section class="slide" id="normalization">
+    <div class="kicker">Normalized Asset Contract</div>
+    <h2>四、原始数据标准化建模</h2>
+    <div class="branch">
+      <div class="node violet">normalized_asset_ref<small>identity / content / governance / quality / lineage</small></div>
+      <div class="branch-out">
+        <div class="node">normalized_document<small>body_markdown + blocks + toc + parse_quality</small></div>
+        <div class="node">normalized_record<small>dataset + records + row locator + flags</small></div>
+        <div class="node green">NLP Annotation<small>sentence spans / entity candidates / model &amp; dictionary version</small></div>
+      </div>
+    </div>
+    <h3>标准化处理</h3>
+    <div class="flow">
+      <div class="node">契约解析</div><div class="arrow">→</div><div class="node">规则基础 Payload</div><div class="arrow">→</div>
+      <div class="node gold">LiteLLM 仅补空</div><div class="arrow">→</div><div class="node">Pydantic</div><div class="arrow">→</div>
+      <div class="node green">领域 + Pandera + GE</div><div class="arrow">→</div><div class="node coral">Contract Error / 生成 Ref</div>
+    </div>
+    <table class="dense">
+      <thead><tr><th style="width:18%">对象</th><th>归一规则</th></tr></thead>
+      <tbody>
+        <tr><td>文本</td><td>Unicode NFKC、trim、空白折叠；原文证据与 char offset 不改写</td></tr>
+        <tr><td>枚举/标签</td><td>仅接受注册表 code；未知值标 flag 并复核，不扩展枚举</td></tr>
+        <tr><td>日期/数值/单位</td><td>受控解析、量纲检查和标准单位；同时保留 raw value</td></tr>
+        <tr><td>地区/机构/专业/岗位</td><td>HanLP NER 定位实体；业务专家领域字典提供规范值、类型和标准码，无证据不推断</td></tr>
+        <tr><td>标题/摘要</td><td>优先结构标题；LiteLLM 摘要失败回退正文确定性截取</td></tr>
+        <tr><td>行记录</td><td>字段别名、必填、类型、范围、唯一性、跨列/跨 sheet 关系</td></tr>
+      </tbody>
+    </table>
+    <div class="grid-4" style="margin-top:12px">
+      <div class="band"><strong>Pydantic</strong><br>单对象契约与 API 一致性</div>
+      <div class="band green"><strong>领域验证器</strong><br>专业、岗位、能力、画像关系</div>
+      <div class="band gold"><strong>Pandera</strong><br>Worker 内 DataFrame 批校验</div>
+      <div class="band coral"><strong>Great Expectations</strong><br>跨批分布、基线和数据档案</div>
+    </div>
+    <div class="footer"><span>Normalization Contract</span><span>07</span></div>
+  </section>
+
+  <section class="slide" id="ai-governance">
+    <div class="kicker">AI Governance</div>
+    <h2>五、AI 治理：分类与分级协作算法</h2>
+    <div class="flow">
+      <div class="node violet">Normalized Ref<small>title / blocks / fields / locator</small></div><div class="arrow">→</div>
+      <div class="node">结构硬证据<small>Schema / 标题 / 章节 / 表头</small></div><div class="arrow">→</div>
+      <div class="node green">HanLP Annotation<small>sentence / POS / NER / dependency / offset</small></div><div class="arrow">→</div>
+      <div class="node green">业务专家领域字典<small>专业 / 行业 / 岗位能力 / 政策教材</small></div>
+    </div>
+    <div class="flow">
+      <div class="node">Candidate Mask<small>只保留有结构/NLP/词典证据的分类</small></div><div class="arrow">→</div>
+      <div class="node gold">LiteLLM 受限裁决<small>候选内判断主体、语义和冲突</small></div><div class="arrow">→</div>
+      <div class="node violet">置信度融合<small>规则 + NLP + 词典 + LLM</small></div><div class="arrow">→</div>
+      <div class="node coral">Schema / Evidence / Guardrail</div><div class="arrow">→</div><div class="node green">分类结果</div>
+    </div>
+    <div class="grid-2">
+      <div class="panel">
+        <h3>分类实现细节</h3>
+        <table class="dense">
+          <thead><tr><th style="width:22%">组件</th><th>分类职责</th></tr></thead>
+          <tbody>
+            <tr><td>结构规则</td><td>按文档结构、表头、字段签名和已注册分类生成 candidate mask；强结构不满足的分类直接排除。</td></tr>
+            <tr><td>HanLP</td><td>输出可回指的实体、术语、动宾关系和证据密度；不直接决定官方分类。</td></tr>
+            <tr><td>领域字典</td><td>由业务专家提供专业、行业、岗位能力等术语及分类映射；字典命中形成确定性分类证据。</td></tr>
+            <tr><td>LiteLLM</td><td>只在 mask 内判断文档主体、跨句语义和冲突，返回 classification/confidence/reasons/evidence_refs。</td></tr>
+          </tbody>
+        </table>
+        <div class="formula">Pclass(c) = calibrate(ws·structure(c) + wn·nlp_density(c)
+          + wd·domain_dictionary(c) + wl·llm(c)
+          + wt·title_heading(c) - wx·conflict(c))</div>
+      </div>
+      <div class="panel">
+        <h3>分级与异常路线</h3>
+        <ul>
+          <li>导入源以 L1/L2 为默认先验。</li>
+          <li>规则 + HanLP 敏感 span 检测个人信息、凭据、商业秘密和精确个人定位。</li>
+          <li>LiteLLM 仅在脱敏策略允许时判断上下文敏感性；L3/L4 明文不得外发。</li>
+          <li>高敏命中必须有 exact evidence span；规则与 AI 冲突取更严等级并人审。</li>
+          <li>L3/L4 要求显式审批、脱敏与审计。</li>
+        </ul>
+        <div class="band gold"><strong>领域字典持续完善</strong><br>未命中字典不作为否决条件；保留 HanLP span 和 BGE 相似候选，交由 LiteLLM 裁决。未登录术语进入人工复核，领域字典内容由业务专家独立维护。</div>
+        <div class="band green"><strong>降级路径</strong><br>HanLP 不可用时执行结构规则 + RuleOnlyAnalyzer + LiteLLM；LiteLLM 不可用时仅输出规则/领域字典支持的高置信结果，其余进入复核。</div>
+      </div>
+    </div>
+    <div class="band coral" style="margin-top:12px"><strong>约束边界</strong>：治理输入只能是 normalized asset；分类候选不能绕过 Schema、字段白名单、脱敏、证据回指、置信度和状态机。词典覆盖率影响自动化比例，不改变治理准入标准。</div>
+    <div class="footer"><span>Classification and Level Collaboration</span><span>08</span></div>
+  </section>
+
+  <section class="slide" id="seven-dimension-tagging">
+    <div class="kicker">Seven-dimensional Tagging</div>
+    <h2>五、AI 治理：七维数据打标与协作闭环</h2>
+    <table class="dense">
+      <thead><tr><th style="width:14%">标签维度</th><th style="width:25%">HanLP / 确定性抽取</th><th style="width:27%">业务专家领域字典</th><th>LiteLLM 语义职责</th></tr></thead>
+      <tbody>
+        <tr><td><code>regions</code><br>地区</td><td>LOC span、标题/发布主体/适用范围位置</td><td>行政区名称、简称、层级、父子关系和标准码</td><td>区分主体地区与举例、参考、对比地区</td></tr>
+        <tr><td><code>industries</code><br>行业/产业/业态</td><td>名词短语、行业上下文和实体共现</td><td>行业分类、产业/业态术语和标准映射</td><td>识别新业态，区分行业、主题和修饰词</td></tr>
+        <tr><td><code>occupations</code><br>职业/岗位/工种</td><td>岗位实体、招聘表头和任职上下文</td><td>岗位名称、职业分类和标准映射</td><td>区分岗位名称、部门、工作任务和举例岗位</td></tr>
+        <tr><td><code>majors</code><br>专业名称</td><td>专业实体、代码模式、标题和培养上下文</td><td>教育部专业目录、代码、层次和标准名称</td><td>区分主体专业、课程名称和参考专业</td></tr>
+        <tr><td><code>abilities</code><br>能力/技能/素养</td><td>依存动宾短语、技能实体、要求/目标句</td><td>岗位能力术语、能力分类和原子能力项</td><td>归纳隐含能力，拆分复合能力并消除空泛表述</td></tr>
+        <tr><td><code>topics</code><br>核心主题/概念</td><td>标题/章节名词短语 + BGE 中心度候选</td><td>停用主题、负词、已归入前五维的排除表</td><td>只保留文档核心主题，作为兜底维度且最多 5 条</td></tr>
+        <tr><td><code>time_ranges</code><br>时间范围/时效性</td><td>日期正则、标题年份、发布/有效期结构解析</td><td>年份、区间、季度、半年等受控结构</td><td>仅裁决复杂时间语义和多个时间范围的角色</td></tr>
+      </tbody>
+    </table>
+    <div class="flow">
+      <div class="node">字段投影 / HanLP Span<small>记录优先字段；文档保留 offset</small></div><div class="arrow">→</div>
+      <div class="node green">领域字典匹配<small>业务术语 / 类型 / 规范值 / code</small></div><div class="arrow">→</div>
+      <div class="node gold">LiteLLM 裁决<small>主体 / 类别 / 新词 / 隐含语义</small></div><div class="arrow">→</div>
+      <div class="node violet">七维 Tag Bag<small>value / confidence / evidence_span</small></div><div class="arrow">→</div>
+      <div class="node coral">规则与状态机<small>采纳 / 复核 / 丢弃</small></div>
+    </div>
+    <div class="grid-2">
+      <div class="formula">Candidate(type) = applicable_to(classification)
+∩ (field_projection ∪ HanLP_span ∪ domain_dictionary_hit
+   ∪ BGE_candidate ∪ LLM_semantic_candidate)</div>
+      <div class="formula">Stag = calibrate(wf·field + wh·HanLP + wd·dictionary
+       + wc·context + wb·BGE + wl·LLM
+       - we·example - wn·negation - wx·cross_bucket_conflict)</div>
+    </div>
+    <div class="grid-3">
+      <div class="band green"><strong>自动采纳</strong><br>适用分类 + exact evidence + Schema 合法 + 无冲突 + 分维度阈值达标。</div>
+      <div class="band gold"><strong>人工复核</strong><br>低置信、主体/举例不清、同义冲突、开放能力或复杂主题。</div>
+      <div class="band coral"><strong>未登录术语</strong><br>由 LiteLLM 提取并进入人工复核；审核形成治理结论，但不自动修改业务专家领域字典。</div>
+    </div>
+    <div class="band"><strong>约束边界</strong>：<code>metadata_enrich</code> 目标是 normalized asset，不是 chunk；同一 value 不得跨维度重复；<code>evidence_span</code> 必须是同一 normalized ref 中可连续定位的原文。结构化记录优先使用已验证字段投影，不重复调用 LLM 猜测。</div>
+    <div class="footer"><span>Seven-dimensional Tagging</span><span>09</span></div>
+  </section>
+
+  <section class="slide" id="quality">
+    <div class="kicker">Governance Review &amp; Quality</div>
+    <h2>五、AI 结果审核与数据质量模型</h2>
+    <div class="flow">
+      <div class="node">Schema</div><div class="arrow">→</div><div class="node">字段白名单</div><div class="arrow">→</div>
+      <div class="node">分类/级别/标签注册表</div><div class="arrow">→</div><div class="node green">Evidence 可回指</div><div class="arrow">→</div>
+      <div class="node violet">相互一致</div><div class="arrow">→</div><div class="node coral">敏感策略</div><div class="arrow">→</div><div class="node gold">置信度校准</div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <h3><span class="strong">客观指标主分</span> + AI 语义补分 + 不可绕过的关键质量阻断项</h3>
+        <div class="formula">D = 0.30*C + 0.25*A + 0.25*K + 0.20*U
+dimension = α*deterministic + β*NLP + γ*AI_semantic
+任一关键阻断检查失败 ⇒ 无论 D 得分多高，均不得进入 available</div>
+        <table class="dense">
+          <thead><tr><th>维度</th><th>核心算法</th><th style="width:22%">规则/NLP/AI</th></tr></thead>
+          <tbody>
+            <tr><td>完整性 C</td><td><code>100*Σ(w·valid)/Σw</code>；非空、非占位、类型/关系/证据齐全</td><td>85 / 10 / 5</td></tr>
+            <tr><td>准确性 A</td><td>Schema/注册码、数值单位、实体规范码、证据定位、异常值</td><td>55 / 25 / 20</td></tr>
+            <tr><td>一致性 K</td><td><code>100*(1-加权冲突/加权检查)</code>；代码、别名、单位、地域、时间、跨 sheet、版本</td><td>65 / 20 / 15</td></tr>
+            <tr><td>可用性 U</td><td>解析、噪声、句完整、locator、图片、chunk/index、检索效果</td><td>75 / 20 / 5</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <h3>质量与状态准入</h3>
+        <div class="metric-row"><strong>Pass</strong><div class="bar"><span style="width:88%"></span></div><code>D ≥ 80</code></div>
+        <div class="metric-row"><strong>Warning</strong><div class="bar"><span style="width:68%;background:var(--gold)"></span></div><code>60 ≤ D &lt; 80</code></div>
+        <div class="metric-row"><strong>Fail</strong><div class="bar"><span style="width:42%;background:var(--coral)"></span></div><code>D &lt; 60</code></div>
+        <div class="panel" style="margin-top:14px">
+          <h3>Available 必要条件</h3>
+          <ul>
+            <li>分类置信度 ≥0.85，且 D≥80。</li>
+            <li>无关键质量阻断项，taxonomy 合法，分级无未决审批。</li>
+            <li>分类、级别、标签、org scope 齐全。</li>
+            <li>同一资产没有其他 available 版本。</li>
+          </ul>
+        </div>
+        <div class="band coral" style="margin-top:12px"><strong>未注册 evaluator 执行 fail-closed</strong>。Parse 检查读 ParseArtifact；图片可访问性检查 MinIO；均不由 HanLP 代替。</div>
+      </div>
+    </div>
+    <div class="footer"><span>AI Review and Quality Model</span><span>10</span></div>
+  </section>
+
+  <section class="slide" id="rag-routing">
+    <div class="kicker">RAG Strategy Registry</div>
+    <h2>六、不同数据类型的 RAG 语义块构建</h2>
+    <div class="route-map">
+      <div class="route-label">政策 / 报告 / 通用文档</div><div class="route-path"><span class="pill">semantic_repack</span>→<span class="pill">heading / section</span>→<span class="pill">HanLP 分句</span>→<span class="pill">BGE 主题边界</span></div>
+      <div class="route-label">教材正文</div><div class="route-path"><span class="pill">semantic_repack</span>→<span class="pill">Task Outline</span>→<span class="pill">project/task/step</span>→<span class="pill">weak evidence</span></div>
+      <div class="route-label">岗位需求 / 职业能力 / 专业布点数据</div><div class="route-path"><span class="pill">domain profile</span>→<span class="pill">record/table schema</span>→<span class="pill">业务主键切片/受控聚合</span>→<span class="pill">source row/cell evidence</span></div>
+      <div class="route-label">专业画像 / 培养方案</div><div class="route-path"><span class="pill">domain decompose</span>→<span class="pill">目标/规格</span>→<span class="pill">岗位/能力</span>→<span class="pill">课程</span></div>
+      <div class="route-label">专业 / 课程标准</div><div class="route-path"><span class="pill">领域表投影</span>→<span class="pill">任务/模块</span>→<span class="pill">能力/内容</span>→<span class="pill">叙事补充</span></div>
+      <div class="route-label">流程 / 指标 / 案例</div><div class="route-path"><span class="pill">process_step</span><span class="pill">indicator</span><span class="pill">case_section</span>→<span class="pill">时序/口径/阶段</span></div>
+    </div>
+    <h3>统一 Chunk 契约</h3>
+    <div class="grid-4">
+      <div class="panel"><h3>Identity</h3><code>normalized_ref_id<br>knowledge_type_code<br>chunk_type / index</code></div>
+      <div class="panel"><h3>Content</h3><p>可独立检索、不重复整份文档元数据的语义文本。</p></div>
+      <div class="panel"><h3>Evidence</h3><code>source_block_ids<br>locator / md_spans<br>heading_path</code></div>
+      <div class="panel"><h3>Build</h3><code>strategy/config/NLP<br>dictionary/embedding<br>version &amp; status</code></div>
+    </div>
+    <div class="band gold" style="margin-top:14px"><strong>约束边界</strong>：治理确认的主知识类型决定 strategy；表行、章节、步骤和 Outline 等强结构不交给纯字符窗口或 LLM。</div>
+    <div class="footer"><span>RAG Strategy by Data Type</span><span>11</span></div>
+  </section>
+
+  <section class="slide" id="domain-models">
+    <div class="kicker">Domain Knowledge Models</div>
+    <h2>六、领域知识模型结构与建模算法</h2>
+    <table class="dense">
+      <thead><tr><th style="width:18%">领域模型</th><th style="width:36%">结构</th><th>建模算法与约束边界</th></tr></thead>
+      <tbody>
+        <tr><td>政策/行业报告</td><td><code>Document → Section → Block → Metric/Evidence</code></td><td>Heading 树 + 文号/发布主体/日期 + 指标单位；数值回指表/图/原句</td></tr>
+        <tr><td>岗位需求</td><td><code>Dataset → JobRecord → RequirementItem</code></td><td>公司+岗位+城市+源行指纹；薪资/日期/经验/学历受控解析；占位/重复独立 flag</td></tr>
+        <tr><td>专业布点</td><td><code>Dataset → Year + Province + Major(code,name) → Count</code></td><td>year/province/major_name/major_code 必填，count≥0；代码-名称和行政区划一致</td></tr>
+        <tr><td>职业能力</td><td><code>Analysis → Task → WorkContent → Ability(P/G/S/D)</code></td><td>profile 与 model 一致；ability code regex；ability 关联 task，指定类别关联 work content</td></tr>
+        <tr><td>专业画像</td><td><code>Institution + Major → Career/Goal/Ability/Course</code></td><td>学校身份必须有标题/正文/验证元数据证据；培养、职业、课程完整性</td></tr>
+        <tr><td>人才培养方案</td><td><code>Plan → Major → Goal/Specification → Position-Skill/LearningDomain → Course</code></td><td>仅从 normalized document 投影；课程 plan-local；证据化岗位-技能才构图</td></tr>
+        <tr><td>专业教学标准</td><td><code>Major → OccupationalDomain → TypicalWorkTask → SkillKnowledgeRequirement</code></td><td>专业名/代码归一；任务与能力要求有表格/section 证据</td></tr>
+        <tr><td>课程标准</td><td><code>Course → Module → CourseContent → {Skill, Knowledge}</code></td><td>受控表头别名 + 学时/课时结构锚；Course 名只从标题归一</td></tr>
+        <tr><td>实训教材 Task Outline</td><td><code>Profile → Project → Task → Step → Artifact</code></td><td>Heading/编号/操作词构树；父子层级绑 source block；高价值节点投影 chunk</td></tr>
+        <tr><td>通用证据图</td><td><code>Entity → Fact/Edge → Evidence</code></td><td>规则提取强结构，HanLP 生成实体/依存候选，LiteLLM 补跨句语义；共现不等于关系</td></tr>
+      </tbody>
+    </table>
+    <h3>四层模型分工</h3>
+    <div class="flow">
+      <div class="node coral">资产语义层<small>版本 / 治理 / 权限 / lineage</small></div><div class="arrow">→</div>
+      <div class="node gold">领域事实层<small>精确查询 / 统计 / 枚举</small></div><div class="arrow">→</div>
+      <div class="node green">Chunk 检索层<small>语义召回 / 上下文 / 引用</small></div><div class="arrow">→</div>
+      <div class="node violet">关联图层<small>跨块事实 / 关系 / 证据</small></div>
+    </div>
+    <div class="footer"><span>Domain Knowledge Models</span><span>12</span></div>
+  </section>
+
+  <section class="slide" id="chunking">
+    <div class="kicker">Hybrid Semantic Chunking</div>
+    <h2>六、HanLP + BGE 混合语义切块算法</h2>
+    <div class="flow">
+      <div class="node">Normalized Blocks</div><div class="arrow">→</div>
+      <div class="node coral">强结构边界<small>heading / table / list / outline / media</small></div><div class="arrow">→</div>
+      <div class="node green">HanLPAdapter<small>sentence / POS / NER / dependency / offsets</small></div><div class="arrow">→</div>
+      <div class="node green">领域词典<small>机构 / 专业 / 岗位 / 课程 / 技能</small></div>
+    </div>
+    <div class="flow">
+      <div class="node violet">BGE<small>相邻句相似 / 主题跃迁</small></div><div class="arrow">→</div>
+      <div class="node gold">切点打分<small>结构 + 语义 + 实体 + 指代</small></div><div class="arrow">→</div>
+      <div class="node gold">动态规划<small>min / target / hard-max</small></div><div class="arrow">→</div>
+      <div class="node">Context + Provenance<small>heading / caption / block / md_spans</small></div><div class="arrow">→</div>
+      <div class="node green">Knowledge Chunk</div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <h3>候选切点分数</h3>
+        <div class="formula">B(k) = w1*(1-cos(e_k,e_k+1))
+     + w2*structure_boundary
+     + w3*entity_topic_shift
+     + w4*terminal_punctuation
+     - w5*pronoun_or_dependency_link</div>
+      </div>
+      <div>
+        <h3>Chunk 区间代价</h3>
+        <div class="formula">J(i,j) = λ1*length_penalty
+       + λ2*semantic_dispersion
+       + λ3*broken_structure
+       + λ4*dangling_reference
+       - λ5*B(j)
+DP[j] = min_i(DP[i] + J(i,j))</div>
+      </div>
+    </div>
+    <div class="grid-3">
+      <div class="band"><strong>约束边界</strong><br>强边界不跨越；岗位/专业记录和任务步骤保持原子性。</div>
+      <div class="band green"><strong>长文本拆分</strong><br>段落 → HanLP 句子 → 列表项 → 表行，不生硬字符截断。</div>
+      <div class="band gold"><strong>Provenance</strong><br>HanLP 不改写 body_markdown；所有切块继承 block_id、md_spans 和 locator。</div>
+    </div>
+    <div class="band" style="margin-top:10px"><strong>B(k) 指标说明</strong>：<code>k</code> 为相邻句候选切点；<code>e_k/e_k+1</code> 为两侧句向量，<code>1-cos</code> 越大表示语义跃迁越强；<code>structure_boundary</code> 表示标题、段落、列表或表格边界强度；<code>entity_topic_shift</code> 表示两侧领域实体/关键词集合变化率；<code>terminal_punctuation</code> 表示句末标点与段末置信度；<code>pronoun_or_dependency_link</code> 表示跨切点指代、连词或依存联系强度，值越大越不应切分；<code>w1…w5</code> 为检索黄金集校准的非负权重。</div>
+    <div class="band coral" style="margin-top:10px"><strong>Target / hard-max 阈值</strong>使用中文 token 分布、BGE 模型上限和检索黄金集联合校准；2,500/1,500 字符仅作历史质量监测对照。</div>
+    <div class="footer"><span>HanLP + BGE Chunking</span><span>13</span></div>
+  </section>
+
+  <section class="slide" id="chunk-quality">
+    <div class="kicker">Chunk Quality Evaluation</div>
+    <h2>六、RAG 语义块构建质量评估</h2>
+    <div class="flow">
+      <div class="node coral">硬门禁<small>locator / heading / size / noise / table</small></div><div class="arrow">→</div>
+      <div class="node gold">内在质量<small>句界 / 语义内聚 / 自足 / 原子性</small></div><div class="arrow">→</div>
+      <div class="node green">外在效果<small>Recall / nDCG / answer context / citation</small></div><div class="arrow">→</div>
+      <div class="node violet">准入决策<small>pass / rebuild / review</small></div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <h3>硬门禁</h3>
+        <table class="dense">
+          <thead><tr><th>指标</th><th>Warning / Block</th></tr></thead>
+          <tbody>
+            <tr><td><code>missing_locator_ratio</code></td><td>&gt;5% / &gt;20%</td></tr>
+            <tr><td><code>missing_heading_path_ratio</code></td><td>&gt;20% / &gt;50%</td></tr>
+            <tr><td><code>over_hard_max_ratio</code></td><td>&gt;0 / &gt;5%</td></tr>
+            <tr><td><code>near_empty_ratio (len≤12)</code></td><td>&gt;2% / &gt;10%</td></tr>
+            <tr><td><code>low_information_ratio</code></td><td>&gt;5% / &gt;15%</td></tr>
+            <tr><td>TOC/页脚/版权/大表未拆/embedding pending</td><td>命中告警并定位 chunk</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <h3>内在质量分</h3>
+        <div class="formula">I = .20*provenance_coverage
+  + .15*sentence_boundary_integrity
+  + .15*semantic_cohesion
+  + .10*self_containment
+  + .10*(1-noise_ratio)
+  + .10*size_fitness
+  + .10*structure_atomicity
+  + .10*index_readiness</div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <h3>外在检索效果分</h3>
+        <div class="formula">R = .25*Recall@5 + .15*nDCG@10
+  + .20*answer_context_recall
+  + .20*citation_precision
+  + .10*section_context_hit_rate
+  + .10*(1-no_answer_false_positive_rate)</div>
+      </div>
+      <div class="panel">
+        <h3>指标含义</h3>
+        <ul>
+          <li><strong>semantic cohesion</strong>：块内句向量与 centroid 的平均 cosine。</li>
+          <li><strong>self containment</strong>：无悬空指代、标题缺失、实体/谓词不全的句比例。</li>
+          <li><strong>structure atomicity</strong>：岗位/专业记录、步骤、指标口径不被错拆/错并。</li>
+        </ul>
+      </div>
+    </div>
+    <div class="band coral"><strong>约束边界</strong>：硬检查 block 的 chunk 不进入公共检索与证据问答，生成重建/人审任务；质量报告不直接改变资产状态。记录块使用 source row identity 代替文档 locator。</div>
+    <div class="footer"><span>RAG Chunk Quality</span><span>14</span></div>
+  </section>
+
+  <section class="slide" id="kg">
+    <div class="kicker">Evidence-grounded Knowledge Graph</div>
+    <h2>七、Evidence-grounded KG 构建算法</h2>
+    <div class="flow">
+      <div class="node">Ref 全量 Chunk<small>不用 Top-K / 单页构图</small></div><div class="arrow">→</div>
+      <div class="node coral">候选过滤<small>空 / 噪声 / 装饰 / 非图谱 Outline</small></div><div class="arrow">→</div>
+      <div class="node">上下文单元<small>heading 分组 / table_row / media</small></div><div class="arrow">→</div>
+      <div class="node green">级联候选<small>规则 → HanLP → LiteLLM</small></div>
+    </div>
+    <div class="flow">
+      <div class="node gold">Schema + Evidence</div><div class="arrow">→</div><div class="node gold">显著性 + 置信度</div><div class="arrow">→</div>
+      <div class="node violet">实体 / 谓词 / 量值归一</div><div class="arrow">→</div><div class="node">事实 / 边合并</div><div class="arrow">→</div><div class="node green">Evidence 持久化</div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <h3>事实候选契约</h3>
+        <div class="formula">subject(type,name) --predicate--&gt; object(type,name) | object_literal
++ fact_type + qualifiers + confidence
++ source_chunk_id / evidence_chunk_ids + exact evidence_text</div>
+        <h3>归一与合并</h3>
+        <ul>
+          <li><strong>实体</strong>：NFKC/空白/编号清理 → HanLP 边界 → 标准码/别名词典 → <code>type+canonical_name</code>。</li>
+          <li><strong>谓词</strong>：同义关系映射受控谓词；未知谓词不直接入库。</li>
+          <li><strong>量值</strong>：保留 raw literal，归一 value/unit/time/region；维度冲突不合并。</li>
+          <li><strong>事实键</strong>：subject/predicate/object/literal/semantic qualifiers；取最大置信度并合并 evidence。</li>
+        </ul>
+      </div>
+      <div>
+        <h3>事实显著性分</h3>
+        <div class="formula">S = .25 + .24*core - .18*low_value
+  + .18*strong_predicate - .16*weak_predicate
+  + .08*entity_object + min(.16,literal_len/500)
+  + .18*multi_chunk_evidence + .12*context_link
+  + .08*valid_context_role + .18*(confidence-.70)
+  - .18*generic_entity</div>
+        <div class="band coral"><strong>拒绝条件</strong><br>S&lt;0.45；弱 MENTIONS；低显著通用实体；同源块单证据候选 &gt;8。</div>
+        <div class="band green" style="margin-top:10px"><strong>持久化门禁</strong><br>confidence≥0.70；exact evidence 存在；evidence chunk 属于同一 normalized ref。</div>
+      </div>
+    </div>
+    <div class="band gold"><strong>技术分工</strong>：规则优先强结构；HanLP 产生便宜、可解释的实体/依存候选；LiteLLM 处理跨句和隐含关系；三条路径共用证据门禁。</div>
+    <div class="footer"><span>Evidence-grounded KG</span><span>15</span></div>
+  </section>
+
+  <section class="slide" id="retrieval">
+    <div class="kicker">Retrieval Architecture</div>
+    <h2>八、传统 RAG 与 NEXUS 智能检索技术路径对比</h2>
+    <div class="grid-2">
+      <div class="panel">
+        <h3>传统单路向量 RAG</h3>
+        <div class="flow">
+          <div class="node">Query</div><div class="arrow">→</div><div class="node">Embedding</div><div class="arrow">→</div><div class="node">Cosine</div><div class="arrow">→</div><div class="node">Top-K</div><div class="arrow">→</div><div class="node gold">LLM</div>
+        </div>
+        <div class="formula">score = 1 - cosine_distance
+score ≥ threshold → score DESC → Top-K</div>
+      </div>
+      <div class="panel">
+        <h3>NEXUS 智能检索</h3>
+        <div class="flow">
+          <div class="node">Query</div><div class="arrow">→</div><div class="node green">意图+参数</div><div class="arrow">→</div><div class="node violet">场景工具</div><div class="arrow">→</div><div class="node coral">权限/范围</div><div class="arrow">→</div><div class="node gold">证据组装</div>
+        </div>
+        <div class="branch-out">
+          <div class="node">SQL<small>统计 / 枚举</small></div><div class="node">Vector<small>Chunk / Section</small></div><div class="node">Graph<small>显式关系</small></div>
+        </div>
+      </div>
+    </div>
+    <table class="dense" style="margin-top:14px">
+      <thead><tr><th style="width:16%">维度</th><th>传统向量 RAG</th><th>NEXUS 智能检索</th></tr></thead>
+      <tbody>
+        <tr><td>决策单元</td><td>query-chunk 相似度</td><td>意图、参数、领域工具、结构范围、chunk/section/graph</td></tr>
+        <tr><td>数据通路</td><td>单一向量索引</td><td>pgvector + 结构化 SQL + 领域/证据图 + Outline context</td></tr>
+        <tr><td>精确问题</td><td>用语义相似推测数据</td><td>统计/枚举优先领域表，语义召回补叙事证据</td></tr>
+        <tr><td>范围与证据</td><td>threshold + Top-K</td><td>显式 Outline 不越界、弱证据标记、章节扩展、引用回指</td></tr>
+        <tr><td>主要代价</td><td>召回不全、相似但无答案</td><td>LLM/工具编排延迟；误路由、参数错、工具失败需分层评测</td></tr>
+      </tbody>
+    </table>
+    <h3>场景路由</h3>
+    <div class="grid-4">
+      <div class="band"><strong>Scenario 1</strong><br>政策/报告 → chunks + section summary</div>
+      <div class="band green"><strong>Scenario 2</strong><br>岗位/能力/布点 → SQL / domain graph</div>
+      <div class="band gold"><strong>Scenario 3</strong><br>专业/教学标准 → 领域事实/chunks；显式关系返回 graph</div>
+      <div class="band coral"><strong>Scenario 4</strong><br>教材 → chunks + outline/section + evidence graph</div>
+    </div>
+    <div class="band gold" style="margin-top:10px"><strong>约束边界</strong>：查询扩展 provider 注入生产依赖；原 query + 3–5 个扩展 query 独立召回，RRF 融合后使用 BGE reranker。以 Recall@K、nDCG@K、误扩展率、P95 和成本作准入。外部 Web 结果不持久化、不治理、不索引。</div>
+    <div class="footer"><span>Traditional RAG vs NEXUS</span><span>16</span></div>
+  </section>
+
+  <section class="slide" id="implementation">
+    <div class="kicker">Implementation Blueprint</div>
+    <h2>组件分工、实现路径与验收标准</h2>
+    <table class="dense">
+      <thead><tr><th style="width:17%">能力</th><th style="width:34%">实现组件</th><th>约束边界</th></tr></thead>
+      <tbody>
+        <tr><td>中文 NLP</td><td>HanLPAdapter + 领域词典 + RuleOnlyAnalyzer</td><td>分句、POS、NER、依存和 offset；只产生注释/特征/候选，失败可降级</td></tr>
+        <tr><td>语义表示</td><td><code>bge-large-zh-v1.5</code> + <code>bge-reranker-large</code></td><td>主题边界、近重复候选、向量召回和 rerank；不作身份/事实正式决策</td></tr>
+        <tr><td>语义例外</td><td>LiteLLM + 版本化 Prompt</td><td>分类/标签候选、跨句关系、冲突复核；Schema+证据+规则门禁</td></tr>
+        <tr><td>结构质量</td><td>Pydantic + 领域验证器 + Pandera + Great Expectations</td><td>单对象契约、业务关系、DataFrame 批校验、跨批分布/档案；由 Worker 执行，不引入独立运营中心</td></tr>
+        <tr><td>近重复</td><td>SHA/业务键 + MinHash/LSH + BGE + 元数据冲突</td><td>正式身份与候选发现分离；不合并不同版本/效力</td></tr>
+      </tbody>
+    </table>
+    <h3>生产落地路径</h3>
+    <div class="timeline">
+      <div class="phase"><strong>01 黄金集 + 契约</strong>标注噪声、低价值、句界、实体、关系、近重复和 Chunk 质量验收；冻结 NlpAnalyzer 输出和 char-offset。</div>
+      <div class="phase"><strong>02 影子比对</strong>HanLP 仅写派生 annotation/评测日志；评测 F1、误删率、P95、内存、降级率。</div>
+      <div class="phase"><strong>03 低风险接入</strong>接入 hard-max 分句、实体候选、MinHash 脱模板和 BGE 边界；对比检索黄金集。</div>
+      <div class="phase"><strong>04 质量与检索</strong>启用真实 evaluator、Pandera/GE 校验、查询扩展、RRF 与 BGE rerank；未知检查 fail-closed。</div>
+      <div class="phase"><strong>05 受控自动化</strong>经校准阈值达标的高置信决策自动生效；保留 reason/evidence/version/audit 和 RuleOnly 回退。</div>
+    </div>
+    <div class="grid-2" style="margin-top:14px">
+      <div class="panel">
+        <h3>评审冻结项</h3>
+        <ul>
+          <li>HanLP 模型、许可证、CPU/GPU 部署形态和词典版本。</li>
+          <li>误删率上限、MinHash/BGE 阈值、中文 target/hard-max。</li>
+          <li>四维质量权重、fail-closed 策略、NLP annotation 持久契约。</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>验收底线</h3>
+        <ul>
+          <li>追溯、引用、KG 事实证据覆盖率 100%。</li>
+          <li>权限泄漏、未授权 L3/L4 外发为 0。</li>
+          <li>幂等重跑不产生重复有效对象；NLP 降级可用。</li>
+          <li>Recall/nDCG/引用准确率显著不劣，误删率和 P95 满足冻结阈值。</li>
+        </ul>
+      </div>
+    </div>
+    <p class="note" style="margin-top:10px"><strong>实现依据</strong>：ARCHITECT.md、SPEC.md、governance_rules_v2.json、mineru_converter.py、quality_gate.py、normalize/service.py、structured_parse/*、domain_normalize/*、quality_scorer.py、decision_service.py、semantic_repack.py、chunking_strategies/*、chunk_quality_report.py、evidence_graph/*、pgvector_search.py、retrieval/*。</p>
+    <div class="footer"><span>Implementation and Acceptance</span><span>17</span></div>
+  </section>
+
+</main>
+</body>
+</html>

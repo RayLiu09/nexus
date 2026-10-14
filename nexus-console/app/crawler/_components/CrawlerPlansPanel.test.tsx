@@ -90,6 +90,8 @@ it("requests crawler plan pages from the API with 20 rows by default", async () 
       return { json: async () => ({ ok: true, data: [{ ...plan, id: "plan-2", name: "第二页计划" }], total: 41, traceId: null }) };
     if (url.endsWith("/plans?page=1&pageSize=50"))
       return { json: async () => ({ ok: true, data: [plan], total: 41, traceId: null }) };
+    if (url.endsWith("/plans?page=1&pageSize=100"))
+      return { json: async () => ({ ok: true, data: [{ ...plan, name: "很长的爬虫计划名称".repeat(20) }], total: 41, traceId: null }) };
     if (url.includes("/runs?"))
       return { json: async () => ({ ok: true, data: [], total: 0, traceId: null }) };
     throw new Error(`Unexpected request: ${url}`);
@@ -107,4 +109,13 @@ it("requests crawler plan pages from the API with 20 rows by default", async () 
   await waitFor(() => {
     expect(fetchMock).toHaveBeenCalledWith("/api/crawler/plans?page=1&pageSize=50", expect.anything());
   });
+  fireEvent.mouseDown(screen.getByRole("combobox"));
+  fireEvent.click(await screen.findByText("100 / page"));
+  await waitFor(() => {
+    expect(fetchMock).toHaveBeenCalledWith("/api/crawler/plans?page=1&pageSize=100", expect.anything());
+  });
+  const table = document.querySelector(".ant-table-content table");
+  expect(table).toHaveStyle({ tableLayout: "fixed" });
+  expect(table?.querySelector("col")?.getAttribute("style")).toContain("260px");
+  expect(document.querySelector(".ant-table-cell [title]"))?.toHaveClass("truncate");
 });

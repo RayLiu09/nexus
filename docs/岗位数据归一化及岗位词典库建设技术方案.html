@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NEXUS 岗位数据归一化及岗位词典库建设技术方案</title>
+  <style>
+    :root{--ink:#18242d;--muted:#5c6a73;--line:#d8e0e4;--paper:#fff;--canvas:#eef2f3;--blue:#156b86;--blue-soft:#e8f3f6;--green:#2c765e;--green-soft:#e9f4ef;--gold:#9b6716;--gold-soft:#fbf3e2;--coral:#b84e43;--coral-soft:#f9ecea;--violet:#68548e;--violet-soft:#f0edf7;--shadow:0 12px 32px rgba(24,36,45,.09)}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--canvas);color:var(--ink);font-family:Inter,"Noto Sans SC","Microsoft YaHei",Arial,sans-serif;line-height:1.58;letter-spacing:0}.shell{width:min(1440px,calc(100% - 40px));margin:0 auto}
+    header{margin:24px 0 18px;padding:38px 44px 34px;color:#fff;background:linear-gradient(120deg,#123d4b,#156b86 58%,#2c765e);border-radius:8px;box-shadow:var(--shadow)}.eyebrow{margin:0 0 12px;font-size:12px;font-weight:800;letter-spacing:.13em;opacity:.78}h1,h2,h3,h4,p{margin-top:0}h1{margin-bottom:12px;font-size:clamp(28px,3.1vw,46px);line-height:1.18}header p{max-width:1040px;margin-bottom:0;color:#e3f0f2;font-size:15px}.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}.meta span{padding:5px 9px;border:1px solid rgba(255,255,255,.28);border-radius:4px;font-size:12px;color:#f4fbfc}
+    nav{position:sticky;top:12px;z-index:5;margin-bottom:18px;padding:10px 14px;background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:6px;box-shadow:0 5px 18px rgba(24,36,45,.06)}nav a{display:inline-block;margin:3px 8px;color:var(--blue);font-size:12px;font-weight:700;text-decoration:none}nav a:hover{text-decoration:underline}main{display:grid;gap:18px;padding-bottom:48px}section{padding:28px 34px 32px;background:var(--paper);border:1px solid #dfe5e7;border-radius:7px;box-shadow:var(--shadow)}section>h2{padding-bottom:10px;border-bottom:2px solid var(--blue-soft);color:#123f4d;font-size:25px;line-height:1.25}h3{margin:22px 0 10px;color:var(--blue);font-size:18px}h4{margin:16px 0 8px;color:#29414d;font-size:14px}p,li,td,th{font-size:13px}.lead{color:var(--muted);font-size:15px}
+    .note,.warning,.success,.decision{margin:14px 0;padding:13px 16px;border-left:5px solid var(--blue);background:var(--blue-soft);border-radius:4px}.warning{border-color:var(--coral);background:var(--coral-soft)}.success{border-color:var(--green);background:var(--green-soft)}.decision{border-color:var(--gold);background:var(--gold-soft)}.note strong,.warning strong,.success strong,.decision strong{color:#203942}.grid-2,.grid-3,.grid-4{display:grid;gap:14px}.grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+    .panel{min-width:0;padding:15px 17px;border:1px solid var(--line);border-radius:5px;background:#fff}.panel h3,.panel h4{margin-top:0}.panel.blue{border-top:4px solid var(--blue)}.panel.green{border-top:4px solid var(--green)}.panel.gold{border-top:4px solid var(--gold)}.panel.coral{border-top:4px solid var(--coral)}.panel.violet{border-top:4px solid var(--violet)}.small{color:var(--muted);font-size:12px}
+    table{width:100%;border-collapse:collapse;table-layout:fixed;margin:12px 0 16px}th,td{padding:8px 9px;border:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}th{background:#edf3f5;color:#314852;font-weight:800;text-align:left}tr:nth-child(even) td{background:#fafcfc}.dense th,.dense td{padding:6px 7px;font-size:11px;line-height:1.38}code,pre,.mono{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace}code{color:#0d5970}pre{margin:12px 0;padding:14px 16px;overflow:auto;border:1px solid var(--line);border-left:4px solid var(--violet);border-radius:4px;background:#f5f7f8;color:#283d48;font-size:11px;line-height:1.55;white-space:pre-wrap}
+    .flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px;margin:14px 0}.node{flex:1 1 130px;min-width:120px;padding:11px 10px;border:1px solid #b7c9d0;border-top:4px solid var(--blue);border-radius:5px;background:#fff;text-align:center;font-size:12px;font-weight:800}.node small{display:block;margin-top:4px;color:var(--muted);font-weight:500}.node.green{border-top-color:var(--green);background:var(--green-soft)}.node.gold{border-top-color:var(--gold);background:var(--gold-soft)}.node.coral{border-top-color:var(--coral);background:var(--coral-soft)}.node.violet{border-top-color:var(--violet);background:var(--violet-soft)}.arrow{align-self:center;color:var(--blue);font-size:18px;font-weight:900}.tag{display:inline-block;margin:2px 4px 2px 0;padding:2px 7px;border:1px solid #cbdce1;border-radius:3px;background:#f4f9fa;color:#245868;font-size:11px}.checklist{padding-left:20px}.checklist li{margin:5px 0}.checklist li::marker{color:var(--green)}.rule-list{display:grid;grid-template-columns:26px 1fr;gap:8px 10px;align-items:start}.rule-no{width:26px;height:26px;padding-top:2px;border-radius:50%;background:var(--blue);color:#fff;text-align:center;font-weight:800;font-size:12px}footer{margin:18px 0 34px;color:var(--muted);font-size:12px;text-align:center}
+    @media(max-width:900px){.shell{width:min(100% - 22px,1440px)}header,section{padding-left:20px;padding-right:20px}.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}nav{position:static}table{display:block;overflow-x:auto}th,td{min-width:150px}}@media print{body{background:#fff}.shell{width:100%}header,section{box-shadow:none}nav{display:none}section{break-inside:avoid;margin-bottom:12px}}
+  </style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <p class="eyebrow">NEXUS / JOB DATA NORMALIZATION / TECHNICAL DESIGN</p>
+    <h1>岗位数据归一化及岗位词典库建设技术方案</h1>
+    <p>面向“文本清洗、岗位去重、任务要素提取、岗位任务聚类与分类、标准词典治理”五项处理能力的业务规则、算法、数据模型、质量验收和实施方案。上游招聘数据抓取与外层应用流程不在本文范围；本文从标准岗位输入开始，到可审核、可发布、可追溯的岗位类别与词典结果结束。</p>
+    <div class="meta"><span>设计版本：v1.0</span><span>适用：13 个专业岗位契合度分析</span><span>基线：2026-07 流程说明</span><span>输出格式：HTML 技术版本</span></div>
+  </header>
+  <nav aria-label="文档目录"><a href="#summary">结论摘要</a><a href="#boundary">输入输出</a><a href="#pipeline">处理链路</a><a href="#clean">清洗去重</a><a href="#extract">任务提取</a><a href="#cluster">聚类分类</a><a href="#dictionary">词典治理</a><a href="#data">数据与 API</a><a href="#libraries">确定选型</a><a href="#quality">质量与验收</a><a href="#plan">实施计划</a></nav>
+  <main>
+    <section id="summary">
+      <h2>1. 结论摘要</h2>
+      <p class="lead">岗位分析的核心不是把招聘标题直接映射到预设岗位，而是从清洗去重后的真实企业岗位提取六要素任务事实，依据任务相关度和相似度合并形成标准岗位，再用国家职业大典等权威标准校核边界，沉淀可供专业建设方案等下游应用使用的工作内容和技能要求。系统必须把原始证据、机器结果和人工结论分层保存。</p>
+      <div class="grid-3">
+        <div class="panel blue"><h3>处理主线</h3><p><strong>清洗 → 去重 → 任务提取 → 聚类/分类 → 词典治理。</strong>每一步都有独立输入输出、运行版本和质量门禁，允许从任一步幂等重跑。</p></div>
+        <div class="panel green"><h3>证据优先级</h3><p>职责文本是岗位分类主要证据，工作对象、场景、工艺和工具是边界证据，标题只是弱证据。上游查询词和来源标签不得直接决定岗位类别。</p></div>
+        <div class="panel gold"><h3>技术策略</h3><p>确定采用规则与统计模型完成确定性处理，采用结构化大模型完成六要素语义抽取，采用密度聚类生成候选类别，最终由版本化词典和人工审核控制正式结果。</p></div>
+      </div>
+      <div class="decision"><strong>四项必须坚持的业务规则：</strong>（1）原始文本永不覆盖；（2）职责证据优先于标题；（3）同一岗位允许主类别＋次类别；（4）正式结果只使用有效、去重、已归类并通过边界校验的记录。</div>
+    </section>
+
+    <section id="boundary">
+      <h2>2. 处理边界与输入输出契约</h2>
+      <p class="lead">本文不设计招聘网站抓取、关键词生成、抓取轮次、岗位规模分析和外层应用编排。上游只要按统一契约提交岗位记录，本处理模块即可独立运行。</p>
+      <h3>2.1 标准输入 <code>JobPostingInput</code></h3>
+      <p>当前真实接入由 crawler-api 返回分页记录，岗位字段位于每条记录的 <code>fields</code> 对象。接入适配器校验记录，将岗位原值写入 <code>raw_jobs</code>，将采集出处与完整响应写入一对一的 <code>raw_job_provenance</code>；后续处理以原始岗位记录为输入。旧数据库 JSON 包络示例仅作为历史格式参考。</p>
+      <pre>{
+  "schema_version": "job-postings.v1",
+  "batch_id": "job-source-20260922-001",
+  "source": {"name": "招聘岗位库", "snapshot_at": "2026-09-22T10:00:00+08:00"},
+  "items": [
+    {
+      "source_job_id": "platform-123",
+      "source_url": "https://example.invalid/jobs/123",
+      "title": "环保技术员（急聘）",
+      "company": "某某环保科技有限公司",
+      "region": "昆明市",
+      "description": "岗位职责：现场采样，样品保存与交接。任职要求：熟悉 Excel。",
+      "responsibilityText": "现场采样，样品保存与交接。",
+      "requirementText": "熟悉 Excel。",
+      "bonusText": null,
+      "published_at": "2026-09-20T09:00:00+08:00",
+      "salary": "6-8K",
+      "education": "大专",
+      "experience": "1-3年",
+      "industry": "环境检测"
+    }
+  ],
+  "pagination": {"page": 1, "page_size": 1000, "has_more": false}
+}</pre>
+      <h3>2.1.1 爬虫字段到统一输入的映射</h3>
+      <p>统一输入直接使用爬虫引擎输出的结构化 JSON 字段；页面 CSS 选择器只作为来源定位元数据保存。字段映射由配置文件维护，字段名、来源字段优先级和类型校验不散落在代码中。</p>
+      <table class="dense"><thead><tr><th style="width:28%">爬虫页面字段</th><th style="width:23%">爬虫已拆分的 JSON 字段</th><th style="width:23%">统一字段</th><th>本模块处理规则</th></tr></thead><tbody>
+        <tr><td><code>job-detail-summary__title-text</code></td><td><code>title</code></td><td><code>title_raw</code></td><td>保留原始标题；清洗阶段另生成 <code>title_normalized</code>，去除地区、急聘、薪资和编号装饰，但保留职级与方向词。</td></tr>
+        <tr><td><code>job-detail-summary__salary</code></td><td><code>salary</code>、可选 <code>salary_min</code>/<code>salary_max</code>/<code>salary_period</code></td><td><code>salary_raw</code>、<code>salary_normalized</code></td><td>优先使用爬虫已拆分的数值字段；本模块只做格式校验和异常标记，不重新解释页面结构。</td></tr>
+        <tr><td><code>job-detail-summary__tags</code></td><td><code>experience</code>、<code>education</code>、可选 <code>employment_type</code></td><td><code>experience_raw</code>、<code>education_raw</code>、<code>employment_type</code></td><td>直接按字段映射；缺失值保留质量标记，不把剩余标签猜测成经验或学历。</td></tr>
+        <tr><td><code>job-description__tags .job-description__tag</code></td><td><code>skill_tags</code>、可选 <code>certificate_tags</code>/<code>tool_tags</code></td><td><code>skill_tags_raw</code>、技能/证书/工具候选</td><td>作为任务抽取的辅助证据；不得直接生成工作任务。</td></tr>
+        <tr><td><code>job-description__content</code></td><td><code>description</code></td><td><code>description_raw</code></td><td>保留完整纯文本原文和来源定位，供下游信息验证、证据回溯和拆分字段异常时的兜底策略使用。</td></tr>
+        <tr><td>爬虫描述拆分结果</td><td><code>jobResponsibilitiesText</code>、<code>jobRequirementsText</code>、<code>qualificationsText</code>、<code>otherMattersText</code></td><td><code>responsibilities_raw</code>、<code>requirements_raw</code>、<code>qualifications_raw</code>、<code>other_matters_raw</code></td><td>保留各拆分字段原值；是否属于加分项由后续处理依据证据判定，不在接入时推断。</td></tr>
+        <tr><td><code>job-detail-address__bubble</code></td><td><code>region</code>、可选 <code>address</code></td><td><code>region_raw</code>、<code>address_raw</code></td><td>保留地址原文；本模块只做规范化和质量校验，不重新抓取或猜测地区。</td></tr>
+        <tr><td><code>job-detail-summary__company-meta</code></td><td><code>companyIndustryText</code>、<code>companyScaleText</code>、<code>companyFinancingText</code></td><td><code>industry_raw</code>、<code>enterprise_size_raw</code>、<code>finance_stage_raw</code></td><td>按配置映射为行业、企业规模和融资阶段；企业属性只作为岗位分类的场景辅助证据，不进入任务事实。</td></tr>
+      </tbody></table>
+      <h3>2.1.2 实际 JSON 样本与字段契约校验</h3>
+      <p>当前样本使用的是爬虫字段命名，而不是 CSS 选择器命名。以下字段应直接进入 JSON 接入映射；其中 <code>skillsText</code> 与 <code>jobTagsText</code> 都是技能候选来源，需要合并但保留各自的 <code>source_field</code>。</p>
+      <table class="dense"><thead><tr><th style="width:24%">实际 JSON 字段</th><th style="width:25%">统一字段</th><th style="width:25%">样本值</th><th>处理规则</th></tr></thead><tbody>
+        <tr><td><code>title</code></td><td><code>title_raw</code></td><td>python开发工程师</td><td>原文保留；清洗后生成标准化标题。</td></tr>
+        <tr><td><code>degreeText</code></td><td><code>education_raw</code></td><td>本科</td><td>直接映射学历要求，不参与任务事实抽取。</td></tr>
+        <tr><td><code>hiringText</code></td><td><code>hiring_type_raw</code></td><td>null</td><td>保留空值和缺失标记；不得把空值推断为“全职”。</td></tr>
+        <tr><td><code>salaryText</code></td><td><code>salary_raw</code></td><td>1-1.5万</td><td>进入薪资格式校验和月薪标准化。</td></tr>
+        <tr><td><code>skillsText</code></td><td><code>skill_tags_raw[]</code></td><td>Python, Django, Flask, MySQL ...</td><td>按逗号分隔为技能候选，保留 <code>source_field=skillsText</code>。</td></tr>
+        <tr><td><code>addressText</code></td><td><code>address_raw</code>、<code>region_raw</code></td><td>北京市-海淀区-建材城中路12号17号楼</td><td>地址原文保留；地区抽取只做确定性行政区匹配，失败则标记。</td></tr>
+        <tr><td><code>companyName</code></td><td><code>company_raw</code></td><td>北京优企天下科技有限公司</td><td>进入企业名称清洗和重复链接。</td></tr>
+        <tr><td><code>description</code></td><td><code>description_raw</code></td><td>岗位描述、岗位职责、职位要求和加分项的完整文本</td><td>保留完整原文；用于拆分字段验证、证据回溯和异常时的兜底解析。</td></tr>
+        <tr><td><code>jobResponsibilitiesText</code></td><td><code>responsibilities_raw</code></td><td>爬虫拆分后的岗位职责文本</td><td>作为任务抽取主输入；与 <code>description_raw</code> 做原文覆盖和 offset 校验。</td></tr>
+        <tr><td><code>jobRequirementsText</code></td><td><code>requirements_raw</code></td><td>爬虫拆分后的任职要求文本</td><td>作为必备要求事实主输入；不把能力表达改写成已执行任务。</td></tr>
+        <tr><td><code>qualificationsText</code> / <code>otherMattersText</code></td><td><code>qualifications_raw</code> / <code>other_matters_raw</code></td><td>资格条件与其他事项</td><td>保留原值；后续处理识别是否包含加分项，不从空值推断。</td></tr>
+        <tr><td><code>jobTagsText</code></td><td><code>skill_tags_raw[]</code></td><td>Python, Django, Flask, MySQL</td><td>与 <code>skillsText</code> 合并去重，但保留来源字段，不能覆盖长文本中的证据。</td></tr>
+        <tr><td><code>experienceText</code></td><td><code>experience_raw</code></td><td>1-3年</td><td>直接映射经验要求；不作为岗位类别证据。</td></tr>
+        <tr><td><code>companyScaleText</code></td><td><code>enterprise_size_raw</code></td><td>20-99人</td><td>直接映射企业规模，保留原值并生成规范化规模区间。</td></tr>
+        <tr><td><code>companyIndustryText</code></td><td><code>industry_raw</code></td><td>财务/审计/税务</td><td>直接映射企业行业，保留行业原值和标准词候选。</td></tr>
+        <tr><td><code>companyFinancingText</code></td><td><code>finance_stage_raw</code></td><td>null</td><td>保留为空值和缺失标记，不用企业规模或行业字段补写融资阶段。</td></tr>
+      </tbody></table>
+      <details><summary>实际岗位 JSON 样本（关键字段）</summary><pre>{
+  "title": "python开发工程师",
+  "degreeText": "本科",
+  "hiringText": null,
+  "salaryText": "1-1.5万",
+  "skillsText": "Python, Django, Flask, MySQL, PostgreSQL, Redis, Pandas, NumPy, 互联网电商",
+  "addressText": "北京市-海淀区-建材城中路12号17号楼",
+  "companyName": "北京优企天下科技有限公司",
+  "description": "岗位描述\\n负责公司业务系统、数据处理工具及自动化应用的 Python 后端开发工作，参与产品需求分析、技术方案设计、系统开发、性能优化与上线维护。\\n岗位职责\\n1. 根据产品需求，完成 Python 后端服务、业务模块及工具类应用的设计与开发。\\n2. 编写高质量、可维护、可扩展的代码。\\n3. 编写单元测试和集成测试。\\n4. 使用 Pandas、NumPy 完成数据清洗、分析、转换及业务数据处理。\\n5. 参与系统架构设计、性能优化和线上问题排查。\\n职位要求\\n1. 熟练掌握 Python。\\n2. 熟悉 Django、Flask、FastAPI 等 Web 框架。\\n3. 熟悉 MySQL、PostgreSQL、SQL 和 ORM。\\n4. 熟悉 Redis 或 MongoDB。\\n5. 熟悉 RESTful API、Git、Linux 和异步编程。\\n加分项\\n有 RPA、数据采集、Celery、Airflow、Playwright、Docker 或 CI/CD 经验。",
+  "jobTagsText": "Python, Django, Flask, MySQL",
+  "experienceText": "1-3年",
+  "companyScaleText": "20-99人",
+  "companyIndustryText": "财务/审计/税务",
+  "companyFinancingText": null
+}</pre></details>
+      <div class="note"><strong>字段语义边界：</strong><code>job-detail-summary__tags</code> 的经验/学历字段、<code>job-description__tags .job-description__tag</code> 的技能字段和 <code>job-detail-summary__company-meta</code> 的企业属性分别进入对应统一字段；字段映射、类型校验和缺失标记由配置化接入适配器完成。</div>
+      <div class="grid-2"><div class="panel blue"><h3>接入规则</h3><ul><li>以采集端 <code>recordId</code> 和 Provider 作为重放幂等键，不以分页顺序生成岗位主键。</li><li>同一记录 ID 的重复响应跳过；相同 ID 若返回不同内容则报告契约错误，不覆盖原始岗位。</li><li>上游终态后逐页读取；一页岗位记录与本地分页游标在同一短事务提交，外部 HTTP 请求不在事务内。</li><li>缺失的可选字段允许为空；未知字段和显式 null 保留在完整上游响应中。</li></ul></div><div class="panel green"><h3>字段映射</h3><ul><li><code>fields.title/companyName/addressText/salaryText</code> 等原值直接映射到 <code>raw_jobs</code> 的对应列。</li><li>职责和要求实际字段名为 <code>jobResponsibilitiesText</code>、<code>jobRequirementsText</code>；旧样本中的 <code>responsibilityText</code>、<code>requirementText</code> 不作为当前接入字段。</li><li>来源、查询条件、抓取时间和完整原始记录保存在 <code>raw_job_provenance</code>，供溯源与后续统计关联。</li><li>清洗、缺失标记和技能拆分属于后续处理，不覆盖原始岗位值。</li></ul></div></div>
+      <h3>2.1.3 原始岗位信息留存与统计基线</h3>
+      <p>同步接入的原始岗位信息必须长期保存，不能只保留清洗后的投影。<code>raw_jobs</code> 是后续处理和原始数据统计的起点；同一来源岗位出现新的采集记录 ID 时新增原始版本，不因重新清洗、去重或分类而覆盖。</p>
+      <table class="dense"><thead><tr><th style="width:22%">对象</th><th style="width:36%">关键字段</th><th>存储规则</th></tr></thead><tbody>
+        <tr><td><code>raw_jobs</code></td><td>id、title_raw、company_name_raw、description_raw、responsibilities_raw、requirements_raw 等岗位原值列</td><td>按实际 <code>fields</code> 结构保存岗位数据；不混入采集状态、查询参数和来源页。</td></tr>
+        <tr><td><code>raw_job_provenance</code></td><td>raw_job_id、provider_code、upstream_record_id、source_job_id、source_url、collected_at、raw_record</td><td>与原始岗位一对一，保存采集出处和完整响应；同一上游记录 ID 幂等，同一来源岗位的新记录 ID 保留新版本。</td></tr>
+        <tr><td><code>dataset_snapshot</code></td><td>snapshot_id、source_scope、cutoff_at、raw_record_count、snapshot_hash、status</td><td>后续处理选择原始岗位形成完整数据集快照；不以单次同步运行充当分析范围。</td></tr>
+      </tbody></table>
+      <div class="decision"><strong>统计口径：</strong><code>raw_jobs</code> 行数是原始采集记录版本数；来源岗位数和去重后的需求实体数由后续身份判定分别计算。数据集快照是分析处理单位，不能把一次同步运行直接计为岗位需求量。</div>
+      <table><thead><tr><th style="width:24%">字段组</th><th>必需字段</th><th style="width:35%">规则</th></tr></thead><tbody>
+        <tr><td>来源身份</td><td><code>source_name</code>、<code>source_job_id</code> 或稳定源记录键、<code>source_url</code>、<code>crawled_at</code></td><td>用于硬去重和证据回溯；来源 ID 缺失时，上游必须给出可复现的稳定键。</td></tr>
+        <tr><td>岗位主体</td><td><code>title_raw</code>、<code>company_raw</code>、<code>region_raw</code></td><td>保留源值；允许标准字段为空，但必须记录缺失原因。</td></tr>
+        <tr><td>岗位文本</td><td><code>description_raw</code>、<code>responsibility_raw</code>、<code>requirement_raw</code>、<code>bonus_raw</code></td><td>职责、任职要求和加分项拆分字段是常规处理主输入；<code>description_raw</code> 作为完整原文用于验证、证据回溯和拆分异常时的兜底解析，并保留原文 offset。</td></tr>
+        <tr><td>辅助属性</td><td>发布时间、薪资、学历、经验、行业、雇佣类型</td><td>用于有效性、去重和分类边界；不作为任务事实的替代证据。</td></tr>
+        <tr><td>追踪信息</td><td><code>raw_job_id</code>、来源身份、上游扩展字段</td><td>保存在采集出处中，只表达来源，不直接作为岗位类别标签。</td></tr>
+      </tbody></table>
+      <div class="note"><strong>边界说明：</strong>接入适配器先完成响应校验、原始岗位持久化和来源追踪；后续再按处理范围构建数据集快照并进入清洗、去重和任务分析。原始响应访问必须按权限隔离。</div>
+      <h3>2.2 标准输出</h3>
+      <div class="flow"><div class="node">CleanedPosting<small>清洗文本与字段标准值</small></div><div class="arrow">＋</div><div class="node green">DedupDecision<small>重复组、主记录与解释</small></div><div class="arrow">＋</div><div class="node violet">TaskFact[]<small>六要素与原文证据</small></div><div class="arrow">＋</div><div class="node gold">JobClassification<small>主类、次类、置信度</small></div><div class="arrow">＋</div><div class="node coral">DictionaryCandidate[]<small>可审核词条与规则</small></div></div>
+      <div class="warning"><strong>实现原则：</strong>不以旧 Pipeline B 表结构作为设计前提。可以复用的公共能力（LiteLLM、审计、任务队列、PostgreSQL）直接复用；不适配业务的新需求对象重新建模，旧对象在迁移验证后停止写入或废弃。</div>
+      <h3>2.3 模块责任</h3>
+      <ul class="checklist"><li>模块负责清洗、去重、任务事实提取、候选聚类、正式分类和词典版本治理。</li><li>模块不负责如何发现岗位、何时扩大抓取、外层统计报表和专业契合度应用编排。</li><li>每个输出必须包含 <code>run_id</code>、算法/规则/模型版本、输入内容哈希和原文证据；人工修改以新决策覆盖展示，不覆盖机器原结果。</li></ul>
+    </section>
+
+    <section id="pipeline">
+      <h2>3. 内部处理链路与状态</h2>
+      <h3>3.1 完整数据集快照处理 DAG</h3>
+      <div class="flow"><div class="node">快照固化<small>完整数据集 / cutoff / hash</small></div><div class="arrow">→</div><div class="node">文本清洗<small>全量字段标准化与职责分区</small></div><div class="arrow">→</div><div class="node green">全量重复消解<small>跨采集记录、来源和地区比较</small></div><div class="arrow">→</div><div class="node violet">任务抽取<small>六要素＋证据 span</small></div><div class="arrow">→</div><div class="node gold">聚类/分类<small>全量候选簇＋正式类别</small></div><div class="arrow">→</div><div class="node coral">词典候选<small>审核、发布、版本化</small></div></div>
+      <p>原始岗位接入只负责可靠写入 <code>raw_jobs</code> 及其采集出处；处理链路以完整 <code>dataset_snapshot</code> 为输入。清洗、去重、任务抽取、聚类和分类必须在同一快照范围内运行，不能按单次同步运行分别生成局部结果后直接拼接。聚类和分类是两个不同动作：没有正式词典覆盖的任务进入无监督候选聚类；已有有效词典覆盖的岗位优先走规则＋语义原型分类。新簇经人工命名和标准校核后进入词典候选，词典发布后可触发受影响记录的重新分类，但不触发任何抓取动作。</p>
+      <h3>3.1.1 快照边界与处理粒度</h3>
+      <table class="dense"><thead><tr><th style="width:22%">对象</th><th>边界定义</th><th style="width:30%">处理粒度</th></tr></thead><tbody><tr><td><code>raw_jobs</code></td><td>采集端一个 recordId 对应的原始岗位版本。</td><td>原始接入与统计基线；采集出处通过一对一表追溯，不承担清洗和聚类状态。</td></tr><tr><td><code>dataset_snapshot</code> / <code>snapshot_id</code></td><td>在 cutoff_at 时刻、指定 source_scope 和筛选条件下的完整岗位数据集，可覆盖多次采集得到的原始记录。</td><td>作为清洗、全量去重、画像构建、岗位合并和标准岗位统计的统一边界；snapshot_id 不是一条岗位记录。</td></tr><tr><td><code>demand_id / posting_id</code></td><td>快照中的一个岗位需求实体及其主处理记录。</td><td>六要素抽取和 posting_task_profile/posting_skill_profile 以一条岗位需求为计算单位，每条记录独立生成事实和画像。</td></tr><tr><td><code>standard_job</code></td><td>同一快照内多个岗位需求画像合并形成的标准岗位候选或正式岗位。</td><td>只有在全量岗位画像生成后，才跨 demand_id 计算相似度、聚类和成员归属。</td></tr></tbody></table>
+      <div class="decision"><strong>边界原则：</strong>六要素抽取是“快照范围内逐岗位执行”的行级任务；岗位归一化、标准岗位合并和需求统计是“完整快照范围内”的集合级任务。不能把一次同步运行当作一个快照，也不能在六要素抽取阶段提前跨岗位合并。</div>
+      <h3>3.2 处理状态</h3>
+      <table class="dense"><thead><tr><th style="width:19%">对象</th><th style="width:25%">状态</th><th>状态含义与门禁</th></tr></thead><tbody>
+        <tr><td>岗位记录</td><td><code>valid / invalid / insufficient</code></td><td>失效或职责信息不足的记录保留在原始数据集中，但不进入任务抽取和类别统计。</td></tr>
+        <tr><td>重复决策</td><td><code>unique / duplicate / possible_duplicate / reviewed</code></td><td>在完整数据集快照内进行全量比较；高概率重复自动成组，灰区必须复核；不同地区不得仅因模板相同自动合并。</td></tr>
+        <tr><td>任务事实</td><td><code>candidate / accepted / review_required / rejected</code></td><td>必须具有原文 span；无证据、字段越界、模型低置信度进入复核。</td></tr>
+        <tr><td>岗位分类</td><td><code>classified / multi_class / review_required / excluded / unclassified</code></td><td>保存主类和可选次类；强排除记录原因；未知类别进入聚类候选。</td></tr>
+        <tr><td>词典版本</td><td><code>draft / in_review / active / retired</code></td><td>同一专业范围只能有一个 active 版本；发布后内容不可原地修改。</td></tr>
+      </tbody></table>
+      <div class="note"><strong>幂等要求：</strong>相同 <code>snapshot_hash + processor_version + dictionary_version</code> 必须复用已有成功结果；规则、模型或词典变化时创建新运行，不覆盖历史证据。上游 recordId 的重传幂等属于接入层，不能替代数据集快照级幂等。</div>
+    </section>
+
+    <section id="clean">
+      <h2>4. 文本清洗与去重设计</h2>
+      <p class="lead">清洗的目标是让字段可比较、可验证、可检索，而不是把招聘原文改写成“漂亮文本”。章节拆分由爬虫引擎提供；本模块验证拆分结果并在异常时兜底。所有清洗结果都必须与原文并存。</p>
+      <h3>4.1 字段级文本模型</h3>
+      <p>当前同步数据是字段化 JSON，岗位字段已经是纯文本，岗位职责、任职要求和加分项已经由爬虫引擎拆分输出。归一化模块不重新承担章节拆分；清洗器负责字段规范化、拆分结果与完整 <code>description</code> 的一致性验证，并保留原始 JSON。只有拆分字段缺失、为空或无法与原文证据对应时，才启用有限的 description 兜底解析。</p>
+      <table><thead><tr><th style="width:22%">层次</th><th>内容</th><th style="width:28%">用途</th></tr></thead><tbody><tr><td><code>raw_payload</code></td><td>完整同步 JSON 和字段原值，包括标题、薪资、技能标签、地址、企业属性、拆分后的职责/要求/加分项及 description 原文；原始换行和标点不可变。</td><td>历史统计、审计、回溯、重新处理和争议复核。</td></tr><tr><td><code>clean_fields</code></td><td>按字段生成的规范化值：标题、企业、地区、薪资、技能集合以及爬虫拆分后的职责/要求/加分项文本；不丢失字段级缺失状态。</td><td>全量去重、质量校验、任务抽取和规则匹配。</td></tr><tr><td><code>analysis_segments</code></td><td>优先由上游拆分字段转换得到的章节、条目、句子和任务/要求 span；附完整 description 的原文 offset、标准词、来源字段和版本。</td><td>任务抽取、向量化、分类证据和人工审核。</td></tr></tbody></table>
+      <h3>4.2 纯文本字段清洗规则</h3>
+      <div class="rule-list"><div class="rule-no">1</div><div><strong>JSON 类型和缺失语义。</strong>先按配置化 schema 校验字段类型；<code>null</code>、空字符串和空数组保留原值，同时生成 <code>missing_fields</code>，不把缺失推断为“学历不限”“全职”或其他业务值。</div><div class="rule-no">2</div><div><strong>编码与 Unicode。</strong>使用 ftfy 修复乱码，执行 Unicode NFKC；统一全角/半角标点、不可见字符、连续空格和换行，但保留原文字符 offset。繁简转换只作为检索别名，不覆盖专业词。</div><div class="rule-no">3</div><div><strong>标题清洗。</strong>保留原始标题；仅移除可被正则确定为职位编号的后缀（如 <code>(MJ000966)</code>）、抓取装饰和地区/急聘标记。语义括号（如 <code>平台软件工程师（Agent开发）</code>）保留，职级和技术方向不得删除。</div><div class="rule-no">4</div><div><strong>拆分字段校验。</strong>以爬虫输出的职责、任职要求和加分项字段作为主处理输入；检查字段是否存在、条目是否完整、章节顺序是否合理，并将每条内容回指到完整 <code>description</code> 的原文 offset。发现缺失或无法对齐时标记 <code>section_validation_failed</code>，再进入有限兜底。</div><div class="rule-no">5</div><div><strong>description 保留与兜底。</strong>对完整 description 只做纯文本规范化和证据索引，不作为常规章节拆分输入。仅当拆分字段缺失、为空、结构损坏或无法回指原文时，按标题行、编号列表和能力触发词执行兜底分段，并将 <code>fallback_parser=true</code> 写入运行结果。</div><div class="rule-no">6</div><div><strong>薪资字段解析。</strong>保留 <code>2-3.5万·15薪</code> 等原值；使用 Decimal 和受限正则拆出下限、上限、币种、单位、发薪月数和面议状态。月薪等价值只作为统计派生列，不能覆盖 <code>salary_raw</code> 或丢失 15 薪信息。</div><div class="rule-no">7</div><div><strong>技能标签清洗。</strong>对 <code>skillsText</code>、<code>jobTagsText</code> 按逗号、顿号、分号和换行拆分，保留 <code>source_field</code>；斜杠只在标签语境下作为分隔符，技术名称内部斜杠（如 SQL/NoSQL）保留并生成别名关系。</div><div class="rule-no">8</div><div><strong>地址和企业字段。</strong>地址保留原文并用行政区字典生成省/市/区候选；企业名称只去除比较噪声并保留法人、分公司等主体信息。行业、规模、融资字段按正式映射进入 typed columns，不从其他字段猜测。</div><div class="rule-no">9</div><div><strong>分析副本脱敏。</strong>电话、微信、邮箱等仅在送入模型和日志的分析副本中脱敏；原始 JSON 和统计所需字段仍按权限保存，避免清洗影响历史统计。</div></div>
+      <h3>4.2.1 描述字段验证与兜底规则</h3>
+      <p><code>description</code> 是同步过来的完整岗位说明原文，保留它是为了下游信息验证、证据回溯和拆分字段异常时的兜底解析。常规处理直接消费爬虫已拆分的职责、任职要求和加分项字段；<code>description</code> 不重复承担正常章节拆解。<code>skillsText</code>、<code>jobTagsText</code>、学历和经验字段只能作为补充或交叉校验，不能覆盖拆分字段中的明确要求。</p>
+      <table class="dense"><thead><tr><th style="width:18%">规范章节</th><th style="width:34%">上游字段语义与兜底识别规则</th><th style="width:27%">输出对象</th><th>业务约束</th></tr></thead><tbody>
+        <tr><td><code>overview</code></td><td>爬虫拆分的岗位描述/职位简介/工作概述字段；必要时用 description 原文校验。</td><td><code>description_section</code>，可产生场景和方向候选。</td><td>只作为背景证据；含有明确动作时才产生任务候选。</td></tr>
+        <tr><td><code>responsibility</code></td><td>岗位职责、工作职责、工作内容、主要职责、负责事项；包括编号列表、项目符号和同一主语下的并列动作。</td><td><code>task_fact</code>（实际执行任务）以及六要素证据。</td><td>是岗位聚类的最高权重来源；动作＋对象不足时只能保留候选并标记缺失。</td></tr>
+        <tr><td><code>requirement</code></td><td>职位要求、岗位要求、任职要求、任职资格、资格条件、技能要求、任职条件。</td><td><code>requirement_fact</code>（必备技能、学历、经验、工具、证书、语言和素养）。</td><td>表达“熟悉/掌握/具备/要求”等能力门槛，不得自动改写成已完成的工作任务。</td></tr>
+        <tr><td><code>bonus</code></td><td>加分项、优先条件、优先考虑、额外要求、优先录用、Preferred。</td><td><code>requirement_fact.requirement_level=bonus</code>。</td><td>用于能力画像和分类弱证据；不能单独使岗位进入某类别，也不能当作必备条件。</td></tr>
+        <tr><td><code>unknown</code></td><td>拆分字段缺失、无法与 description 对齐，或兜底标题/列表结构损坏。</td><td>保留原文的未知段、<code>section_validation_failed</code> 和 <code>fallback_parser</code> 标记。</td><td>不丢弃、不强行归类；涉及核心内容时进入 <code>review_required</code>。</td></tr>
+      </tbody></table>
+      <ol class="checklist"><li>主流程直接读取爬虫拆分字段，并为每个章节和条目建立到完整 <code>description</code> 的字符或行号定位；优先使用上游的章节类型和条目顺序。</li><li>校验拆分字段是否覆盖原文核心段落、是否发生重复、是否出现职责内容落入要求字段等冲突；只记录校验结果，不重新改写上游拆分结果。</li><li>拆分字段缺失或无法对齐时才启用兜底：按纯文本换行、标题词、编号列表和能力触发词识别章节；标题可带序号、冒号、空格、中英文括号或“（非必须）”标记。</li><li>兜底模式下，同一章节按编号、项目符号、分号和句号切成最小条目；并列动词拆出子任务，保存原句、顺序和父条目 ID。</li><li>无论主流程还是兜底流程，每个 section、item 和 fact 都必须保存 <code>source_start</code>、<code>source_end</code>、原文片段、来源字段、解析器版本和置信度；归一化短语必须能回指 description 原文。</li></ol>
+      <div class="success"><strong>样本使用方式：</strong>该岗位的职责、任职要求和“加分项（非必须）”优先采用爬虫拆分字段生成 <code>task_fact</code> 与 <code>requirement_fact</code>；完整 <code>description</code> 用于验证“Agent 系统与算法平台的工程实现”“Python / Java / Go / Node.js”等条目是否有原文证据。只有拆分字段缺失或无法定位时，才从这段 description 兜底恢复，不把正常流程重复执行一遍。</div>
+      <h3>4.3 硬去重与软去重</h3>
+      <table class="dense"><thead><tr><th style="width:16%">类型</th><th style="width:34%">判定条件</th><th style="width:24%">主记录选择</th><th>保留信息</th></tr></thead><tbody><tr><td><code>hard</code></td><td>同一数据源的相同岗位 ID、规范化 URL 或同一原始记录版本；无 ID 时使用稳定 <code>source_record_key</code> / 内容哈希。</td><td>字段完整度最高、发布时间最新者；并列时以抓取时间最新者为主。</td><td>所有原始岗位版本保留去重原因和快照追踪，不删除历史记录。</td></tr><tr><td><code>fingerprint</code></td><td>由 source_name、source_job_id/source_url、title_normalized、company_normalized、region_normalized 和 description 分段哈希组成；同一原始输入在不同运行中保持一致。</td><td>写入处理域的 <code>exact_fingerprint</code>，算法版本随运行快照保存。</td><td>可重跑、可审计；原始采集记录统计以 raw_job_id 为基线。</td></tr><tr><td><code>soft</code></td><td>完整数据集快照内先按来源/企业/地区候选 blocking，再比较标准化标题、职责拆分文本、任职要求/加分项集合、技能集合、地址和时间；使用字符 n-gram、集合相似度和必要的向量特征估计匹配概率。</td><td>优先职责字段完整、描述证据完整、发布时间最新、字段缺失少且来源可访问者。</td><td>保留 <code>dedup_group_id</code>、匹配概率、各字段贡献、snapshot_id 和主记录理由；不得物理删除。</td></tr><tr><td><code>near_duplicate</code></td><td>同一企业发布模板相同但地区、职级、技能组合或招聘时间窗口不同；职责相似但业务需求可能独立。</td><td>不自动合并统计实体，进入“同模板不同岗位”标记或人工复核。</td><td>避免把同企多地真实需求或同标题不同方向压成一个岗位。</td></tr></tbody></table>
+      <div class="warning"><strong>不要这样做：</strong>不能只按岗位标题去重，不能把所有缺失企业名的记录视为同一企业，不能因文本相似就删除跨地区真实需求，也不能用关键词命中数量直接当岗位需求量。</div>
+      <div class="decision"><strong>去重实现定案：</strong>软去重统一由 Splink + DuckDB 执行。MinHash/SimHash 不作为独立决策器；如需处理超长职责文本，只作为 Splink 的一个比较特征，最终概率仍由企业、标题、地区、时间和职责证据共同决定。</div>
+      <h3>4.4 建议数据结构</h3>
+      <pre>{
+  "posting_id": "uuid",
+  "job_title_raw": "环保技术员（急聘）-昆明",
+  "job_title_normalized": "环保技术员",
+  "company_raw": "某某环保科技有限公司",
+  "company_normalized": "某某环保科技",
+  "description_raw": "岗位职责：现场采样，样品保存与交接。任职要求：熟悉 Excel。",
+  "responsibility_text_raw": "现场采样，样品保存与交接。",
+  "requirement_text_raw": "熟悉 Excel。",
+  "bonus_text_raw": "",
+  "description_sections": [{"section_type": "responsibility", "item_id": "r-01", "text": "现场采样，样品保存与交接", "source_start": 18, "source_end": 34, "section_confidence": 0.99}, {"section_type": "requirement", "item_id": "q-01", "text": "熟悉 Excel", "source_start": 47, "source_end": 53, "section_confidence": 0.98}],
+  "responsibility_text_raw": "...",
+  "responsibility_text_clean": "1. 现场采样；2. 样品保存与交接；...",
+  "requirement_text_clean": "熟悉 Excel",
+  "bonus_text_clean": "",
+  "cleaning": {"rules_version": "job-clean.v2", "section_source": "crawler_split", "fallback_parser": false, "removed_blocks": [], "warnings": []},
+  "dedup": {"fingerprint": "sha256...", "dedup_type": "soft", "dedup_group_id": "dg_xxx", "is_primary": true, "similarity": 0.94, "primary_reason": "职责更完整且发布时间较新"}
+}</pre>
+    </section>
+
+    <section id="extract">
+      <h2>5. 任务要素提取设计</h2>
+      <p class="lead">任务提取采用“爬虫拆分字段读取＋规则预处理＋结构化模型抽取＋证据校验”的组合。<code>responsibility</code> 是实际任务主来源，<code>requirement</code> 和 <code>bonus</code> 是能力门槛与加分证据；完整 <code>description</code> 用于原文验证和异常兜底。模型只能整理文本中存在的事实，不能把“熟悉/掌握/有经验”改写成已经执行的岗位职责。</p>
+      <h3>5.1 拆分章节到事实类型的分流</h3>
+      <table class="dense"><thead><tr><th style="width:20%">文本来源</th><th style="width:28%">抽取内容</th><th style="width:25%">可参与的下游环节</th><th>禁止事项</th></tr></thead><tbody>
+        <tr><td><code>responsibility</code>／描述中的明确动作句</td><td>动作、对象、工具、工艺、场景、成果/质量约束，形成 <code>task_fact</code>。</td><td>任务聚类、岗位类别分类、核心任务词典。</td><td>不因标题或技能标签覆盖职责事实；不把泛化动作单独当专业边界。</td></tr>
+        <tr><td><code>requirement</code></td><td>必备技能、技术栈、学历、年限、证书、语言、职业素养和能力条件，形成 <code>requirement_fact(level=must)</code>。</td><td>能力画像、分类辅助特征、要求词典。</td><td>“熟悉 Python/Django”不生成“开发 Python/Django”任务；要求缺少动作对象时不得进入任务聚类核心。</td></tr>
+        <tr><td><code>bonus</code></td><td>优先技能、行业经验、加分工具和可选证书，形成 <code>requirement_fact(level=bonus)</code>。</td><td>弱分类特征、词典候选和人工复核提示。</td><td>不能单独满足岗位类别必须条件，不能提升为必备要求。</td></tr>
+        <tr><td><code>skill_tags</code> 与结构化字段</td><td>技能、学历、经验、地点等交叉校验项，并标记 <code>source_field</code>。</td><td>抽取召回补充、冲突检测、去重和质量报告。</td><td>不能覆盖描述中更具体的上下文，也不能替代描述缺失的任务证据。</td></tr>
+      </tbody></table>
+      <pre>{
+  "task_fact": [{"source_section": "responsibility", "fact_type": "work_task", "action": "完成", "object": "Python 后端服务", "evidence": "根据产品需求，完成 Python 后端服务、业务模块及工具类应用的设计与开发"}],
+  "requirement_fact": [
+    {"source_section": "requirement", "requirement_level": "must", "fact_type": "professional_skill", "canonical_value": "Python", "evidence": "熟练掌握 Python 3.6+"},
+    {"source_section": "requirement", "requirement_level": "must", "fact_type": "framework", "canonical_value": "Django|Flask|FastAPI", "evidence": "熟悉 Django、Django REST Framework、Flask、FastAPI"},
+    {"source_section": "bonus", "requirement_level": "bonus", "fact_type": "tool", "canonical_value": "Celery|Airflow|Playwright", "evidence": "有 FastAPI、Celery、Airflow、Playwright 等使用经验"}
+  ]
+}</pre>
+      <h3>5.2 六类要素与标准任务表达</h3>
+      <table><thead><tr><th style="width:17%">要素</th><th style="width:27%">业务问题</th><th style="width:30%">示例</th><th>落库建议</th></tr></thead><tbody><tr><td>工作对象</td><td>处理、检测或服务什么对象</td><td>废水、废气、土壤、样品、在线监测设备</td><td><code>work_objects[]</code>，记录标准词、原文词和证据范围。</td></tr><tr><td>工作动作</td><td>岗位实际执行什么动作</td><td>采集、前处理、分析、校准、巡检、调试、记录</td><td><code>actions[]</code>；动作词作为任务归一主轴。</td></tr><tr><td>工具/设备</td><td>使用什么仪器、设备、软件或平台</td><td>采样器、分光光度计、气相色谱仪、CEMS、数采仪</td><td><code>tools_equipment[]</code>，设备只作辅助证据。</td></tr><tr><td>工艺/方法</td><td>采用什么技术路线或处理方法</td><td>A/O、MBR、RTO、脱硫、脱硝、固化、焚烧</td><td><code>process_methods[]</code>，用于区分方向和子类。</td></tr><tr><td>工作场景</td><td>任务在哪里、面向什么行业发生</td><td>第三方检测实验室、污水厂、企业排放口、危废现场</td><td><code>contexts[]</code>，含企业行业、地点、生产环节。</td></tr><tr><td>成果/质量要求</td><td>形成什么成果或达到什么标准</td><td>原始记录、检测报告、运行台账、达标排放、故障闭环</td><td><code>outputs_constraints[]</code>，保留数值、标准和证书要求。</td></tr></tbody></table>
+      <div class="success"><strong>标准短语格式：</strong><code>动作＋对象＋条件/标准＋成果</code>。例如：<code>在企业排放口采集废水样品，按采样规范完成保存与交接，并形成可追溯样品记录。</code>缺少条件或成果时不强行补齐，字段可为空并标记缺失。</div>
+      <h3>5.3 分步抽取算法</h3>
+      <div class="flow"><div class="node">读取拆分字段<small>职责 / 要求 / 加分项</small></div><div class="arrow">→</div><div class="node">原文对齐<small>description offset / 覆盖校验</small></div><div class="arrow">→</div><div class="node green">候选任务切分<small>并列动作与条目</small></div><div class="arrow">→</div><div class="node violet">结构化抽取<small>LiteLLM JSON Schema</small></div><div class="arrow">→</div><div class="node gold">规则校验<small>证据、白名单、置信度</small></div><div class="arrow">→</div><div class="node coral">任务项与技能项<small>可审计写入</small></div></div>
+      <table class="dense"><thead><tr><th style="width:18%">阶段</th><th>实现规则</th><th style="width:26%">失败处置</th></tr></thead><tbody><tr><td>读取拆分字段</td><td>直接使用爬虫输出的职责、任职要求和加分项字段；按字段类型、条目顺序和缺失状态校验，不重新识别章节。</td><td>字段缺失或类型错误进入 <code>section_validation_failed</code>，满足条件时才启用 description 兜底。</td></tr><tr><td>原文对齐</td><td>将拆分条目与完整 description 做 exact/fuzzy span 对齐；记录覆盖率、重复片段、未对齐片段和来源字段。</td><td>无法对齐的条目保留机器结果但不自动采纳，进入人工复核。</td></tr><tr><td>候选任务切分</td><td>仅在职责拆分条目内部按分号、顿号、句号和并列动词切分；同一主语下的多个动作拆为独立候选，但保留原句和顺序。</td><td>候选过短（仅工具名）或过长标记质量问题，不静默丢弃。</td></tr><tr><td>规则/词典归一</td><td>将“巡检/巡视”“COD 检测/COD 分析”“在线监测系统/CEMS”映射到 canonical term；保留 alias、命中位置和词典版本。</td><td>未知词进入长尾候选表，供词典迭代；不强制映射到最近词。</td></tr><tr><td>结构化模型</td><td>通过 LiteLLM 调用独立抽取 Prompt，输出动作、对象、工具、工艺、场景、成果、技能/证书、素养和证据 span；使用 Pydantic/JSON Schema 严格校验。</td><td>JSON 无法解析、字段越界、无证据 span 或置信度低于阈值时不自动采用，进入人工复核。</td></tr><tr><td>事实校验</td><td>每个 canonical 值必须能在拆分字段及 description 原文找到证据；动作/对象不完整的任务只作为候选，不参与聚类核心样本。</td><td>记录 <code>evidence_missing</code>、<code>unsupported_inference</code> 等错误码并保留原模型输出。</td></tr></tbody></table>
+      <h3>5.3.1 抽取执行算法与门禁</h3>
+      <div class="grid-2"><div class="panel blue"><h3>输入门禁</h3><ol><li>只读取同一 <code>snapshot_id</code> 下清洗成功且去重决策为 <code>unique</code> 或主记录的岗位；重复成员、失效记录和没有职责证据的记录不进入六要素正式抽取。</li><li>抽取输入固定为 <code>responsibility_raw</code>、<code>requirement_raw</code>、<code>bonus_raw</code>、<code>skill_tags_raw</code> 和结构化字段；完整 <code>description_raw</code> 仅用于证据验证或兜底。</li><li>每个输入锁定 <code>cleaning_run_id</code>、<code>dedup_group_id</code>、<code>primary_posting_id</code> 和 <code>snapshot_hash</code>，保证抽取与清洗去重结果一致。</li></ol></div><div class="panel green"><h3>候选到事实</h3><ol><li>HanLP 做中文分句、词性/依存分析和技术实体候选；规则词典识别动作触发词、对象、工具、工艺、场景和成果模式。</li><li>对“负责 A 与 B 的实现和维护”这类并列结构做依存关系展开，生成多个动作—对象候选，但保留同一父句和共享条件。</li><li>规则无法确定关系时才调用 LiteLLM 结构化抽取；模型只能在候选句和允许字段内补足关系，不能引入句外常识。</li><li>将每个候选组装为一条原子任务事实；工具、方法和场景没有证据时保持空值，不用标题或公司行业强行补全。</li></ol></div></div>
+      <table class="dense"><thead><tr><th style="width:20%">处理层</th><th>实现细节</th><th style="width:25%">产物</th></tr></thead><tbody><tr><td>候选生成</td><td>按条目和句子保留父子关系；动作触发词、并列连词、实体类型和标点作为确定性边界。技能标签只生成技能候选，不生成工作动作。</td><td>candidate_sentence、candidate_span、parent_item_id</td></tr><tr><td>关系组装</td><td>用依存关系和规则模板把动作与对象、工具、方法、场景、成果绑定；同句多个动作允许共享对象/条件，但必须记录共享关系。</td><td>task_candidate、relation_links</td></tr><tr><td>模型补全</td><td>对规则未覆盖或跨句关系调用 LiteLLM；Pydantic 校验枚举、数组长度、证据范围和禁止字段，失败即保留原始模型结果并转复核。</td><td>structured_extraction、model_evidence</td></tr><tr><td>标准化</td><td>先精确别名匹配，再做限定范围的模糊匹配；动作、对象、工艺和工具分别使用对应词典，不允许跨类型最近邻替换。</td><td>canonical_id、alias_id、normalization_method</td></tr><tr><td>事实门禁</td><td>要求动作＋对象至少一组证据；每个非空要素必须有原文 span；去重主记录、章节来源和快照版本必须可回溯。</td><td><code>accepted / review_required / rejected</code> task_fact</td></tr></tbody></table>
+      <div class="decision"><strong>置信度计算：</strong>采用可配置加权分数而不是直接使用模型概率：证据 span 完整性、规则命中、词典归一可信度、模型结构化置信度和字段冲突惩罚共同计算 <code>fact_confidence</code>。阈值由金标集校准；高于自动采纳阈值进入 <code>accepted</code>，中间区间进入复核，低于拒绝阈值只保留候选。阈值、权重和版本写入 <code>extraction_run</code>，不得硬编码在结果中。</div>
+      <h3>5.3.2 canonical_id 生成与任务聚合键</h3>
+      <p><code>canonical_id</code> 不是原文字符串的直接 hash，也不是向量近邻得到的 topic ID，而是“要素类型＋版本化术语登记＋别名关系”生成的稳定概念 ID。它用于单岗位任务项标准化和跨岗位相似度计算，但不能改变或删除原始 task_fact。</p>
+      <table class="dense"><thead><tr><th style="width:18%">步骤</th><th>规则</th><th style="width:27%">约束</th></tr></thead><tbody><tr><td>表面归一</td><td>Unicode NFKC、大小写、空白、标点、常见缩写统一；保留 raw_term 和 evidence span。</td><td><code>AGENT开发</code> 可归一为 <code>agent开发</code>，不删除技术限定词。</td></tr><tr><td>类型确定</td><td>先判定 action、object、tool、method、context、output_constraint 或 skill。</td><td><code>Docker</code> 和“容器化”不能因为相似而共用一个概念 ID。</td></tr><tr><td>精确词典</td><td>在同一类型、专业范围的 preferred_label、alias、缩写表中精确命中。</td><td>别名指向同一 concept_id，但保留 alias_id 和来源。</td></tr><tr><td>受限模糊匹配</td><td>仅在同类型候选词表内使用编辑距离/别名相似度；低于阈值进入复核。</td><td>禁止跨类型最近邻替换，禁止用 embedding 直接发放正式 ID。</td></tr><tr><td>未知概念</td><td>生成 <code>candidate:{type}:{sha256(normalized_surface)}</code> 临时 ID，进入长尾候选；审核后分配稳定 <code>{namespace}.{slug}</code>。</td><td>临时 ID 不能直接参与正式标准岗位发布；批准后保留旧 ID 到正式 ID 的映射。</td></tr><tr><td>版本治理</td><td>显示名称修改不改变 concept_id；概念拆分/合并通过新版本和 <code>replaced_by</code>/<code>broader</code> 关系处理。</td><td>历史 task_fact/profile 保留旧 ID 和旧词典版本，不能原地改写。</td></tr></tbody></table>
+      <div class="note"><strong>要素专属规则：</strong>action 归一动词词干并去掉“负责/参与”等语气词；object 保留业务限定词和实体层级；method 与 tool 分开建词典；context 按行业、地点、生产环节和业务场景分层；output_constraint 保存成果类型、操作符、数值和单位。</div>
+      <p><strong>单岗位任务键：</strong>对一个 accepted task_fact 使用 <code>task_key = sha256(action_id | sort(object_ids) | sort(tool_ids) | sort(method_ids) | sort(context_ids) | sort(output_ids))</code> 保存关系结构。该键只用于同一岗位内部索引、重复出现标记和跨岗位相似度计算；<code>posting_task_profile</code> 不据此删除重复事实，跨岗位支持度只在 <code>standard_job_task</code> 阶段计算。</p>
+      <h3>5.4 输出契约</h3>
+      <pre>{
+  "task_id": "uuid", "snapshot_id": "snapshot-20260922", "posting_id": "uuid",
+  "primary_posting_id": "uuid", "dedup_group_id": "dg_xxx", "task_key": "sha256...",
+  "task_text": "负责 Agent 系统与算法平台的工程实现与完善",
+  "task_normalized": "工程实现＋Agent系统/算法平台＋可扩展可维护",
+  "action": {"raw": "工程实现与完善", "canonical_id": "act.engineering_implementation", "evidence": [{"start": 8, "end": 20}]},
+  "object": [{"raw": "Agent 系统", "canonical_id": "obj.agent_system"}, {"raw": "算法平台", "canonical_id": "obj.algorithm_platform"}],
+  "tools": [], "methods": [], "contexts": [{"canonical_id": "ctx.model_platform"}],
+  "outputs_constraints": [{"raw": "可扩展性与可维护性", "canonical_id": "quality.extensible_maintainable"}],
+  "source_section": "responsibility", "source_field": "jobResponsibilitiesText",
+  "status": "accepted", "fact_confidence": 0.91,
+  "extraction_run": {"run_id": "run_xxx", "extractor_version": "occupation.task.v2", "prompt_version": "occupation.task.v1", "rules_version": "occupation-task.v2", "dictionary_version": "job-term.v3"},
+  "evidence": [{"source_locator": "posting://...#description[18:45]", "text": "负责 Agent 系统与算法平台的工程实现与完善"}]
+}</pre>
+      <h3>5.5 岗位级任务画像与技能画像</h3>
+      <p>这里的“岗位画像”是单个 <code>demand_id/posting_id</code> 的抽取结果投影，不是跨岗位统计结果。<code>task_fact</code> 保存不可变的原子事实和证据，<code>posting_task_profile</code> 只负责把这些事实按原文顺序物化为一个岗位的任务项集合；它不负责跨岗位去重、合并或计算核心任务频次。跨岗位的相似度、支持度和标准任务统计推迟到 <code>standard_job</code> 候选形成并确定成员之后。</p>
+      <table class="dense"><thead><tr><th style="width:20%">画像</th><th>构建规则</th><th style="width:28%">下游用途</th></tr></thead><tbody><tr><td><code>posting_task_profile</code></td><td>一条岗位需求生成一个画像；逐条保存任务事实的原文顺序、六要素 raw/canonical 值、证据 span、任务关系、置信度、状态和任务向量引用。<code>accepted</code> 任务进入正式相似度向量；<code>review_required</code> 保留在画像中作为待审事实但不进入正式统计向量；<code>rejected</code> 只保留在事实审计链，不进入画像任务项。相同文本或相同 canonical 组合重复出现时保留 occurrence，不静默删除。</td><td>作为完整数据集范围内岗位相似度、聚类和标准岗位成员判定的输入。</td></tr><tr><td><code>posting_skill_profile</code></td><td>一条岗位需求生成一个画像；保存 must/bonus、技能标签和有证据的任务工具/方法及其来源、置信度和权重。仅在该岗位内部合并同一技能的来源并保留来源集合，不跨岗位求并集或计算支持度。</td><td>作为标准岗位技能归纳和单岗位技能要求展示的输入。</td></tr><tr><td><code>posting_context_profile</code></td><td>一条岗位需求的场景、行业、地区、业务对象和边界标记；保留原始来源和证据，不把企业行业直接提升为任务事实。</td><td>作为完整数据集范围内的边界约束和标准岗位合并校验。</td></tr></tbody></table>
+      <div class="decision"><strong>对“只聚合 accepted task_fact；按 canonical_id 去重，计算核心任务频次”的正确解释：</strong>这句话不能作为 <code>posting_task_profile</code> 的生成规则。它应拆成两个阶段：第一，岗位画像阶段只读取并物化该岗位的任务事实，保留每次 occurrence；第二，在 <code>standard_job_member</code> 已确定后，<code>standard_job_task</code> 才以 accepted task_fact 为正式统计输入，按任务概念组合计算跨岗位 demand 支持数、企业支持数、频次、权重和核心/补充角色。canonical_id 只作为概念对齐和统计键，不是删除原子事实的依据；同一岗位出现两次不会制造两个岗位支持，多个岗位各出现一次才形成两个 demand 支持。</div>
+      <pre>standard_job_task 聚合口径：
+eligible_fact = task_fact.status == "accepted"
+              AND task_fact.demand_id 属于已确定的 standard_job_member
+task_unit = task_fact.task_key  # 由 action/object/tool/method/context/output 的 canonical_id 组合生成
+demand_support_count = COUNT(DISTINCT demand_id WHERE task_unit)
+company_support_count = COUNT(DISTINCT company_id WHERE task_unit)
+occurrence_frequency = COUNT(task_fact_id WHERE task_unit)
+
+说明：demand_support_count 用于判断任务在标准岗位中的覆盖度；occurrence_frequency 用于观察同一岗位文本中的重复强调，不能替代岗位支持数；核心/补充角色由支持度、置信度、证据覆盖率和边界规则综合判定。</pre>
+      <div class="decision"><strong>技能计算口径：</strong>技能画像至少区分 <code>must</code>（任职要求明确要求）、<code>bonus</code>（加分项明确要求）、<code>tag_observed</code>（技能标签出现）和 <code>task_observed</code>（任务事实中的工具/方法有证据）。同一技能多来源合并时保留来源集合和最高可信等级；岗位技能得分使用可配置的来源权重、证据数量和事实置信度，不能把任务中出现一次的工具直接当作必备技能。跨岗位统计时按去重后的主岗位计数，并同时输出 must 需求数、bonus 需求数和 observed 出现数。</div>
+      <pre>{
+  "posting_task_profile": {"profile_version": "task-profile.v2", "task_item_count": 7, "accepted_task_count": 5, "review_task_count": 2, "task_items_ref": "posting_task_item://...", "task_vector_ref": "embedding://...", "profile_hash": "sha256..."},
+  "posting_skill_profile": {"profile_version": "skill-profile.v1", "skills": [
+    {"skill_id": "lang.python", "level": "must", "source_type": "requirement", "weight": 1.0},
+    {"skill_id": "platform.agent", "level": "bonus", "source_type": "bonus", "weight": 0.5},
+    {"skill_id": "tool.docker", "level": "observed_task", "source_type": "task_fact", "weight": 0.3}
+  ]}
+}</pre>
+      <h3>5.6 与既有领域项的映射</h3>
+      <p>任务项不得回写旧领域表；直接写入处理域的 <code>task_fact</code> 和 <code>requirement_fact</code>。建议 <code>fact_type</code> 至少区分 <span class="tag">work_task</span><span class="tag">professional_skill</span><span class="tag">tool</span><span class="tag">process_method</span><span class="tag">certificate</span><span class="tag">professional_literacy</span>；要求事实另带 <code>requirement_level=must|bonus</code>、<code>source_section=requirement|bonus</code>。每项保留 posting_id、规则版本、Prompt 版本、置信度和 raw evidence。技能与职业素养不得混为同一类别，要求事实不得伪装成工作任务。</p>
+    </section>
+
+    <section id="cluster">
+      <h2>6. 岗位任务聚类设计</h2>
+      <p class="lead">聚类对象是六要素抽取后形成的 <code>posting_task_profile</code>，核心输入为“标准化任务短语＋工作对象＋工艺/设备＋场景”，不是岗位标题或技能标签。聚类先生成候选簇，再由业务规则和人工金标命名；算法不能直接把簇名当作正式岗位类别。岗位归一化使用任务画像，岗位技能计算使用独立的 <code>posting_skill_profile</code>，两者不能混成一个向量。</p>
+      <h3>6.1 特征与约束</h3>
+      <table><thead><tr><th style="width:20%">特征层</th><th>组成</th><th style="width:31%">作用</th></tr></thead><tbody><tr><td>语义特征</td><td>任务短语和职责句向量；中文模型优先使用 <code>bge-large-zh-v1.5</code>，可在本地批量生成。</td><td>识别“样品采集/现场取样”等表达差异，形成候选相似关系。</td></tr><tr><td>结构特征</td><td>动作、对象、场景、工艺、工具 canonical ID 的多热/稀疏特征。</td><td>避免纯语义把“食品化验”和“水质分析”错误合并。</td></tr><tr><td>边界特征</td><td>专业方向、行业、地区、强排除词、岗位类型。</td><td>作为硬约束或惩罚项，防止跨专业/跨行业漂移。</td></tr><tr><td>标题特征</td><td>标题及别名只作低权重辅助；同一标题的不同职责允许进入不同簇。</td><td>解释企业叫法，但不主导类别。</td></tr></tbody></table>
+      <h3>6.2 候选簇生成与合并规则</h3>
+      <div class="grid-2"><div class="panel blue"><h3>推荐流程</h3><ol><li>按专业方向和有效性过滤，排除职责缺失、强排除和明显失效记录。</li><li>对任务要素 canonicalize，生成向量和结构特征。</li><li>使用 HDBSCAN/层次聚类生成候选簇；不预设固定簇数，允许噪声点。</li><li>对边界簇用成对相似度、规则冲突和人工样本复核。</li><li>相同动作＋对象高度相似且场景一致时合并；对象或工艺差异造成业务边界时拆分。</li></ol></div><div class="panel green"><h3>命名原则</h3><ul><li>名称采用企业常见、可理解的岗位类别，如“环境监测采样岗”“水处理运行岗”。</li><li>名称体现主要工作对象或核心过程，不以单一设备名替代岗位。</li><li>保留簇内企业标题作为别名词典，不强制企业标题统一。</li><li>同一记录可以主类别＋次类别；主类用于主统计，次类用于能力覆盖分析。</li><li>无法形成稳定簇的长尾任务进入“待命名/扩展岗位”，不被强行归入最近类别。</li></ul></div></div>
+      <h3>6.3 相似度与分类评分</h3>
+      <pre>cluster_similarity =
+    0.55 * cosine(task_embedding)
+  + 0.20 * jaccard(action_object_canonical)
+  + 0.12 * jaccard(process_method)
+  + 0.08 * jaccard(context)
+  + 0.05 * jaccard(tool_equipment)
+  - boundary_penalty(strong_exclusion or cross_domain)
+
+classification_score =
+    title_exact * 5 + title_alias * 4 + core_task_hits * 2
+  + technical_process_hits * 2 + scene_hit * 2 + tool_hits * 1
+  - weak_exclusion_hits * 5</pre>
+      <p class="small">上述分值是流程说明给出的初始配置，不应脱离人工金标直接固化。建议将权重放入受 schema 校验的规则配置，使用金标集做阈值校准，并在每次词典版本中冻结一份内容哈希。</p>
+      <table class="dense"><thead><tr><th style="width:19%">置信度</th><th style="width:30%">判定建议</th><th>业务处置</th></tr></thead><tbody><tr><td>高</td><td>标题/职责/场景证据一致，核心任务命中，且无边界冲突。</td><td>自动纳入候选统计，按专业和词典版本定期抽检。</td></tr><tr><td>中</td><td>模糊标题、跨类职责、弱排除或证据不完整。</td><td>进入人工复核，可调整主类/次类或排除。</td></tr><tr><td>低</td><td>仅命中泛化词、缺少职责、只命中设备或语义相似度不足。</td><td>暂不纳入统计，保留为待复核样本。</td></tr><tr><td>强排除</td><td>命中明确跨行业/跨岗位边界，如“食品化验”“服务器运维”。</td><td>直接排除并记录命中的规则、证据和原因。</td></tr></tbody></table>
+      <h3>6.4 聚类验收</h3><p>不能只看 silhouette 等无监督指标。每个候选簇应同时输出：簇内样本数、核心/边界/噪声样本、代表任务、代表标题、主要对象/工艺、跨专业冲突、与其他簇的最近邻和人工标签。业务专家至少复核高频簇、边界簇、混合职责簇和长尾簇，形成可计算的拆分/合并金标集。</p>
+      <h3>6.5 标准岗位库形成与原始岗位映射</h3>
+      <p>六要素抽取的最终目的不是只生成聚类编号，而是把企业发布的岗位记录按任务相关度和相似度合并为稳定的标准岗位，并沉淀其工作内容和技能要求。岗位合并以 <code>posting_task_profile</code> 为主，<code>posting_skill_profile</code> 和场景边界作为校验；标题只作低权重别名证据。</p>
+      <div class="flow"><div class="node">原始岗位版本<small>raw_jobs / provenance</small></div><div class="arrow">→</div><div class="node">岗位需求实体<small>demand_id / identity link</small></div><div class="arrow">→</div><div class="node">岗位主记录<small>cleaned + dedup primary</small></div><div class="arrow">→</div><div class="node green">六要素事实<small>task_fact + evidence</small></div><div class="arrow">→</div><div class="node violet">岗位画像<small>task / skill / context profile</small></div><div class="arrow">→</div><div class="node gold">标准岗位候选<small>相似度合并</small></div><div class="arrow">→</div><div class="node coral">标准岗位库<small>任务、技能、职业核验</small></div></div>
+      <table class="dense"><thead><tr><th style="width:20%">计算维度</th><th>岗位合并使用的特征</th><th style="width:25%">使用规则</th></tr></thead><tbody><tr><td>任务语义</td><td>task_normalized、动作—对象短语、职责句和任务向量。</td><td>主相似度来源；必须来自 accepted task_fact，不能只用标题或标签。</td></tr><tr><td>任务结构</td><td>action/object/process/context/output 的 canonical ID 集合及权重。</td><td>识别任务骨架；动作和对象缺失时降低置信度。</td></tr><tr><td>技能与工具</td><td>must/bonus 技能、工具、工艺和方法的 canonical ID。</td><td>用于细分方向和校验，不允许单一工具决定合并。</td></tr><tr><td>场景边界</td><td>工作对象、行业、生产环节、地区、岗位类型和强排除规则。</td><td>命中强边界冲突时禁止自动合并；弱冲突进入复核。</td></tr><tr><td>标题别名</td><td>标准化标题、企业标题和历史别名。</td><td>低权重辅助特征，用于解释企业命名，不作为合并主条件。</td></tr></tbody></table>
+      <pre>standard_job_similarity =
+    0.45 * cosine(task_profile_vector)
+  + 0.25 * jaccard(action_object_ids)
+  + 0.15 * jaccard(process_context_ids)
+  + 0.10 * jaccard(output_constraint_ids)
+  + 0.05 * title_alias_similarity
+  - hard_boundary_penalty
+
+merge_decision:
+  high_similarity + no_strong_conflict -> auto_candidate
+  medium_similarity or weak_conflict   -> review_required
+  low_similarity or strong_conflict    -> separate_standard_job</pre>
+      <p>合并只在同一 <code>dataset_snapshot</code> 的有效岗位需求实体之间进行。每个企业岗位通过 <code>demand_id + standard_job_member</code> 保留归属、相似度、命中任务、排除规则、人工结论和版本；同一需求允许一个主标准岗位和有限的次标准岗位，但不能因为相似度高而丢失原始岗位版本。</p>
+      <p class="small"><strong>标准岗位成员确定后才做跨岗位聚合：</strong><code>standard_job_task</code> 按成员 demand_id 的任务支持数、企业支持数和事实置信度计算核心/补充任务；<code>standard_job_skill</code> 按成员 demand_id 的技能等级、来源类型、企业覆盖数和证据覆盖率计算标准技能要求。单个岗位画像中的重复任务不会被当作多个岗位支持，单个企业的大量相似岗位也不能无限放大标准任务权重。</p>
+      <div class="decision"><strong>聚类实现定案：</strong>候选簇统一使用 BERTopic，向量模型固定为 bge-large-zh-v1.5，聚类器固定为 HDBSCAN。scikit-learn 只用于已有类别的监督校准，不再以 K-Means 或任意 topic ID 直接生成正式岗位类别。</div>
+    </section>
+
+    <section id="dictionary">
+      <h2>7. 标准词典构建与生效</h2>
+      <p class="lead">正式词典是“真实任务事实归纳结果＋权威标准边界校核＋人工审核”的版本化规则资产。国家职业名称用于统一口径和边界校核，不替换企业岗位名称，也不承担企业岗位分类的唯一命名责任。</p>
+      <h3>7.1 词典字段</h3>
+      <table class="dense"><thead><tr><th style="width:19%">字段</th><th style="width:35%">要求</th><th>实现建议</th></tr></thead><tbody><tr><td>专业/专业方向</td><td>岗位归属的专业和产业方向。</td><td>作为适用范围约束，不把专业名直接拼成岗位名。</td></tr><tr><td>目标岗位类别</td><td>聚类和校核后的企业岗位类别。</td><td>稳定 ID＋可读名称；名称变更通过新版本记录。</td></tr><tr><td>招聘岗位别名</td><td>真实岗位标题及其可接受的归一别名。</td><td>记录别名来源、频次、精确/模糊级别和冲突类别。</td></tr><tr><td>核心工作任务词</td><td>由 TaskFact 归纳的高频动作—对象短语。</td><td>区分核心、补充和不得单独定类的任务词。</td></tr><tr><td>技术/工艺词</td><td>用于区分岗位方向的专业方法和工艺。</td><td>绑定任务或场景证据，不允许单词独立定类。</td></tr><tr><td>工具/设备词</td><td>岗位常用仪器、设备、软件和平台。</td><td>只作为辅助证据，设置最大贡献权重。</td></tr><tr><td>场景限定词</td><td>企业类型、行业、工作对象和生产场景。</td><td>支持正向条件、组合条件和排除条件。</td></tr><tr><td>排除词/规则</td><td>强排除、弱排除、同义排除和跨领域边界。</td><td>强排除直接排除；弱排除降分并进入复核。</td></tr><tr><td>分类规则</td><td>标题、任务、场景、工艺和排除项的组合逻辑。</td><td>采用受限 JSON DSL，只允许白名单运算符。</td></tr><tr><td>人工复核规则</td><td>模糊标题、跨类职责、低置信度样本的处置。</td><td>定义队列优先级、证据要求和可执行动作。</td></tr><tr><td>版本与证据</td><td>版本、生效时间、样本数、来源、审核人和变更说明。</td><td>内容哈希、审批事件、回滚指针和代表样本。</td></tr></tbody></table>
+      <h3>7.2 规则 DSL 示例</h3>
+      <pre>{
+  "dictionary_version": "HJGC-202607-01", "major": "环境工程技术",
+  "job_group": "环境监测采样岗",
+  "include": {"title_alias_any": ["环境监测采样", "现场采样员", "环保采样员"], "task_any": ["采集样品", "样品保存", "样品交接"], "context_any": ["企业排放口", "第三方检测实验室", "现场监测"], "require": {"task_or_context": true}},
+  "exclude": {"strong_any": ["医学采样", "临床检验", "食品理化检验", "服务器运维"], "weak_any": ["医疗", "食品质控"]},
+  "score": {"title_exact": 5, "title_alias": 4, "core_task": 2, "process": 2, "context": 2, "tool": 1, "weak_exclusion": -5},
+  "decision": {"high": 9, "review": 5, "low": 5, "allow_secondary": true}
+}</pre>
+      <h3>7.3 校核与发布流程</h3>
+      <div class="flow"><div class="node">聚类候选<small>任务事实与边界样本</small></div><div class="arrow">→</div><div class="node">标准校核<small>职业大典/技能标准/教学标准</small></div><div class="arrow">→</div><div class="node gold">业务命名<small>核心/扩展/不相关</small></div><div class="arrow">→</div><div class="node green">规则编译<small>schema + content hash</small></div><div class="arrow">→</div><div class="node violet">人工审核发布<small>生效时间与审计</small></div><div class="arrow">→</div><div class="node coral">规则/原型分类<small>分类理由可解释</small></div></div>
+      <ul class="checklist"><li>标准校核只检查专业边界、职业参照和任务合理性，不把《职业分类大典》名称直接当作招聘标题分类。</li><li>每个类别必须有正例、边界例、排除例和来源证据；没有真实任务事实支持的词只能进入候选，不得发布。</li><li>发布前自动检查别名冲突、强排除覆盖、同一词多类归属、规则不可达、阈值倒置和空证据；冲突必须由业务人员决策。</li><li>发布动作写审计：操作者、审核人、旧/新版本、规则哈希、样本范围、变更差异和回滚版本。</li></ul>
+      <h3>7.4 标准岗位库与国家职业大典核验</h3>
+      <p>标准岗位库中的岗位是由真实企业岗位任务归纳形成的应用对象，不等同于招聘标题，也不直接等同于国家职业大典名称。每个标准岗位必须同时具备标准名称、岗位定义、核心工作内容、技能要求、适用场景、正例/边界例/排除例和来源岗位集合。</p>
+      <table class="dense"><thead><tr><th style="width:22%">标准岗位对象</th><th>内容</th><th style="width:28%">下游可用方式</th></tr></thead><tbody><tr><td><code>standard_job</code></td><td>稳定岗位 ID、标准名称、岗位定义、任务原型、技能原型、场景边界、状态和版本。</td><td>专业建设方案、课程/能力映射、岗位需求统计和岗位画像查询。</td></tr><tr><td><code>standard_job_task</code></td><td>来自高置信度任务画像的核心/补充任务、动作—对象—工艺—成果关系和代表证据。</td><td>展示岗位工作内容、课程任务映射和岗位间任务比较。</td></tr><tr><td><code>standard_job_skill</code></td><td>must/bonus 技能、工具、工艺、证书和职业素养，保存来源岗位数、证据覆盖率和权重。</td><td>岗位技能要求、专业技能缺口和人才培养目标计算。</td></tr><tr><td><code>occupation_reference</code></td><td>国家职业大典或其他权威标准的职业编码、名称、版本、核验结论和差异说明。</td><td>作为边界和口径核验；允许“无直接对应/部分对应”，不强行替换企业标准岗位名。</td></tr></tbody></table>
+      <div class="note"><strong>核验原则：</strong>先依据企业岗位任务形成标准岗位，再用国家职业大典、职业标准和技能标准核验其职责边界、职业归属和名称关系。核验结果至少区分 <code>direct_match</code>、<code>partial_match</code>、<code>related</code>、<code>no_match</code>，并保存匹配证据和人工结论。</div>
+    </section>
+
+    <section id="data">
+      <h2>8. 独立处理域的数据模型与接口</h2>
+      <p class="lead">数据模型围绕“原始岗位、清洗快照、重复决策、六要素事实、任务/技能画像、标准岗位库、词典概念”设计，不依赖旧领域表名。对象采用不可变运行快照加当前有效投影的方式，支持重跑、审核和回溯。</p>
+      <h3>8.1 核心对象</h3>
+      <table class="dense"><thead><tr><th style="width:22%">对象</th><th style="width:34%">关键字段</th><th>用途与约束</th></tr></thead><tbody>
+        <tr><td><code>raw_jobs</code></td><td>id、title_raw、company_name_raw、description_raw、responsibilities_raw、requirements_raw 等</td><td>爬虫 <code>fields</code> 岗位原值的独立存储；用于历史回溯、原始记录统计和重新生成处理投影。</td></tr>
+        <tr><td><code>raw_job_provenance</code></td><td>raw_job_id、provider_code、upstream_record_id、source_job_id、source_url、collected_at、raw_record</td><td>一对一保存采集出处和完整上游记录；同一来源岗位的新 recordId 新增原始版本，不另建观测表。</td></tr>
+        <tr><td><code>job_demand</code></td><td>demand_id、source_scope、source_job_key、first_seen_at、last_seen_at、lifecycle_status、identity_fingerprint</td><td>后续处理域中同一来源下一个真实岗位需求的稳定实体；多个原始岗位版本可链接同一 demand_id。</td></tr>
+        <tr><td><code>demand_identity_link</code></td><td>raw_job_id、demand_id、match_type、match_score、matched_fields、decision_status、evidence</td><td>记录原始岗位版本归属岗位需求的判定依据；支持 hard_key、url、fingerprint、probabilistic、manual 五类关系。</td></tr>
+        <tr><td><code>dataset_snapshot</code></td><td>snapshot_id、source_scope、cutoff_at、raw_record_count、snapshot_hash、status</td><td>由完整原始数据集构成的处理输入；所有清洗、去重、抽取、聚类和分类结果必须关联 snapshot_id。</td></tr>
+        <tr><td><code>posting_input</code></td><td>snapshot_id、raw_record_id、posting_id、source_key、title_raw、company_raw、description_raw、region_raw、source_url、source_extra、input_hash</td><td>指定数据集快照下的处理输入投影；保留来源键和 canonical JSON 哈希，不修改原始存储。</td></tr>
+        <tr><td><code>processing_run</code></td><td>run_id、snapshot_id、stage、snapshot_hash、processor_version、model_version、dictionary_version、status</td><td>基于完整数据集快照的一次阶段执行；相同快照与版本幂等，运行结果不可覆盖历史证据。</td></tr>
+        <tr><td><code>cleaned_posting</code></td><td>posting_id、title_normalized、company_normalized、description_sections、responsibility_text、requirement_text、bonus_text、section_source、fallback_parser、salary_normalized、cleaning_evidence</td><td>清洗输出；保存上游拆分章节、条目父子关系、原文字符偏移、section_confidence、校验结果、兜底标记和清洗规则版本。原始 <code>description_raw</code> 永不覆盖。</td></tr>
+        <tr><td><code>duplicate_group</code></td><td>group_id、member_posting_ids、link_score、link_features、primary_posting_id、decision</td><td>重复组和主记录决策；原记录不删除，地区不同默认不合并。</td></tr>
+        <tr><td><code>task_fact</code></td><td>task_id、snapshot_id、demand_id、posting_id、primary_posting_id、task_key、action、object、tool、method、context、outcome、status、fact_confidence、extraction_run_id</td><td>清洗去重后主岗位需求的原子六要素事实；必须有动作/对象证据才能进入 <code>accepted</code>，重复成员不能单独生成正式事实。</td></tr>
+        <tr><td><code>task_fact_evidence</code></td><td>evidence_id、task_id、source_field、source_section、source_start、source_end、evidence_text、match_type</td><td>任务每个非空要素的原文证据；支持 exact/fuzzy/span 校验和人工反查，证据不可被后续模型运行覆盖。</td></tr>
+        <tr><td><code>requirement_fact</code></td><td>fact_id、snapshot_id、posting_id、fact_type、requirement_level、canonical_value、source_section、evidence_spans、confidence</td><td>岗位要求和加分项的能力事实；<code>must</code> 与 <code>bonus</code> 分开统计，不能直接当作 <code>task_fact</code>。</td></tr>
+        <tr><td><code>posting_task_profile</code></td><td>profile_id、snapshot_id、demand_id、posting_id、profile_version、task_item_count、accepted_task_count、review_task_count、task_vector_ref、profile_hash</td><td>单个岗位需求的六要素任务投影；不保存 core_task、frequency 或跨岗位 support_count，任务明细通过 <code>posting_task_item</code> 保存。</td></tr>
+        <tr><td><code>posting_task_item</code></td><td>profile_id、task_id、sequence_no、task_key、action_id、object_ids、tool_ids、method_ids、context_ids、output_ids、status、evidence_refs</td><td>岗位画像中的一个任务项；保留原子事实顺序、canonical_id、关系和证据，重复出现的任务保留 occurrence。</td></tr>
+        <tr><td><code>posting_skill_profile</code></td><td>profile_id、snapshot_id、demand_id、posting_id、skill_item_count、profile_hash、profile_version</td><td>单个岗位需求的技能要求投影；技能明细通过来源和等级保留，不跨岗位求并集。</td></tr>
+        <tr><td><code>posting_skill_item</code></td><td>profile_id、skill_id、skill_level、source_type、evidence_count、weight、confidence、evidence_refs</td><td>岗位级技能项；区分 must、bonus、tag_observed 和 task_observed，作为标准岗位技能聚合输入。</td></tr>
+        <tr><td><code>posting_context_profile</code></td><td>profile_id、snapshot_id、demand_id、posting_id、industry_ids、region_ids、context_ids、boundary_flags</td><td>岗位需求场景和边界画像；作为分类约束和排除校验，不能替代任务事实。</td></tr>
+        <tr><td><code>standard_job</code></td><td>standard_job_id、standard_name、definition、task_profile_version、skill_profile_version、status、version</td><td>最终标准岗位库主对象；名称和定义由真实岗位任务归纳并经业务审核，不覆盖原始岗位名称。</td></tr>
+        <tr><td><code>standard_job_member</code></td><td>standard_job_id、snapshot_id、demand_id、posting_id、membership_type、similarity、matched_task_ids、decision_status、evidence</td><td>岗位需求实体/岗位主记录到标准岗位的归属关系；保留主/次归属、相似度、命中任务和人工结论。</td></tr>
+        <tr><td><code>standard_job_task</code></td><td>standard_job_id、task_concept_id、task_role、demand_support_count、company_support_count、occurrence_frequency、weight、evidence_refs</td><td>跨岗位成员聚合后的标准岗位核心/补充工作内容；只有在标准岗位成员确定后才计算岗位支持度和原文出现频次。</td></tr>
+        <tr><td><code>standard_job_skill</code></td><td>standard_job_id、skill_id、skill_level、demand_support_count、company_support_count、evidence_coverage、weight、version</td><td>跨岗位成员聚合后的标准岗位技能要求和工具/工艺要求；区分 must、bonus 和 observed，供下游专业建设应用。</td></tr>
+        <tr><td><code>occupation_reference</code></td><td>reference_id、standard_job_id、source_name、occupation_code、occupation_name、match_type、evidence、review_status</td><td>国家职业大典等权威职业参照的核验关系；允许部分对应或无直接对应。</td></tr>
+        <tr><td><code>job_category</code></td><td>category_id、label、prototype_tasks、include_rules、exclude_rules、status</td><td>岗位类别原型；区分候选、审核、有效和退役。</td></tr>
+        <tr><td><code>dictionary_concept</code></td><td>concept_id、preferred_label、alt_labels、broader、related、scope_note、evidence_refs、version</td><td>以 SKOS 概念表达岗位、任务、工具、工艺和场景词。</td></tr>
+        <tr><td><code>classification_decision</code></td><td>posting_id、primary_category、secondary_categories、score、evidence、decision_status、reviewer</td><td>记录分类结果及机器/人工来源，不覆盖任务事实。</td></tr>
+      </tbody></table>
+      <h3>8.1.1 多个原始岗位版本的同一需求判定</h3>
+      <p>“原始记录相同”与“岗位需求相同”分为两层：<code>raw_jobs.id</code> 标识一条不可变采集记录，<code>demand_id</code> 标识同一来源下持续存在的岗位需求。岗位内容更新、薪资变化或描述补全对应新的原始岗位版本，通常不新增需求；岗位 ID 被来源复用、主体或地点发生实质变化时才拆分为新的 demand。</p>
+      <table class="dense"><thead><tr><th style="width:19%">判定顺序</th><th>规则</th><th style="width:28%">结果</th></tr></thead><tbody><tr><td>1. 来源主键</td><td>同一 <code>source_scope + source_job_id</code>，且来源未标记 ID 复用。</td><td>归入同一 demand；内容变化保留为新原始版本。</td></tr><tr><td>2. 稳定 URL</td><td>无岗位 ID 时，规范化 URL 相同且企业主体、地区没有强冲突。</td><td>归入同一 demand；记录 URL 证据。</td></tr><tr><td>3. 字段指纹</td><td>无 ID/URL 时，对 source、企业主体、地区、规范化标题、职责拆分文本生成稳定 fingerprint；不使用数组行号。</td><td>指纹完全一致可自动归并；近似指纹进入概率链接。</td></tr><tr><td>4. 时间连续性</td><td>比较首次/最近采集时间、岗位有效状态、薪资和描述变化；同一 ID 长期消失后以完全不同标题/地点重新出现，视为 ID 复用候选。</td><td>连续版本归并；复用疑点拆分或人工复核。</td></tr><tr><td>5. 概率链接</td><td>Splink 在企业、地区、标题、职责/要求文本、地址和时间窗口内计算概率；相同模板但不同地区或职级默认不合并。</td><td>高概率且无冲突自动链接；灰区进入人工复核。</td></tr><tr><td>6. 跨来源关系</td><td>不同来源的相似岗位不直接共用 demand_id；另建跨来源链接，供标准岗位归并和去重统计选择口径。</td><td>保留来源事实，避免跨平台重复被误当作同一来源需求。</td></tr></tbody></table>
+      <div class="decision"><strong>统计口径：</strong>同一来源同一 demand_id 在一个数据集快照中计为一个岗位需求；多个原始版本保留历史变化。跨来源相似岗位默认分别保留，通过 <code>standard_job_member</code> 归入同一标准岗位；只有经过明确跨来源去重规则或人工确认，才在总需求统计中折算为一个跨来源需求。</div>
+      <div class="note"><strong>事实与画像一致性约束：</strong><code>task_fact</code>、<code>requirement_fact</code> 和各类 profile 必须外键关联 <code>snapshot_id</code>、<code>posting_id</code> 与 <code>processing_run</code>；同一快照、同一岗位、同一抽取/词典版本下，以 <code>task_key</code> 或 <code>profile_hash</code> 保证幂等。画像只读取最终 accepted 事实，生成后不可原地修改；重新抽取或词典变更必须生成新版本并保留旧画像，以便岗位归一化和技能统计回放。</div>
+      <h3>8.2 接口边界</h3>
+      <table class="dense"><thead><tr><th style="width:28%">接口</th><th style="width:30%">职责</th><th>关键约束</th></tr></thead><tbody>
+        <tr><td><code>POST /internal/job-processing/runs</code></td><td>提交完整数据集快照的指定处理阶段。</td><td>必须带 snapshot_id、snapshot_hash、processor_version 和幂等键；不接受自由执行表达式。</td></tr>
+        <tr><td><code>GET /internal/job-processing/runs/{run_id}</code></td><td>查看运行状态、失败原因、计数和质量指标。</td><td>返回配置快照和 trace_id，不返回未经权限过滤的大段原文。</td></tr>
+        <tr><td><code>GET /internal/job-processing/postings/{id}/evidence</code></td><td>查看清洗、重复、任务和分类的证据链。</td><td>按 span 和规则命中返回；敏感联系方式默认脱敏。</td></tr>
+        <tr><td><code>GET /internal/standard-jobs/{standard_job_id}</code></td><td>查询标准岗位定义、核心工作内容、技能要求、职业核验和来源岗位统计。</td><td>返回标准岗位版本、任务/技能画像、成员数量和证据引用；不直接返回未经权限过滤的原始岗位全文。</td></tr>
+        <tr><td><code>GET /internal/standard-jobs/{standard_job_id}/applications</code></td><td>为专业建设方案等下游应用提供稳定的岗位、任务和技能视图。</td><td>按应用版本和权限返回标准化字段；下游不直接依赖 task_fact 内部表。</td></tr>
+        <tr><td><code>POST /internal/job-dictionaries/{version}/review</code></td><td>提交词典审核结论和差异说明。</td><td>审核动作不可覆盖机器草稿，必须追加 decision_trail。</td></tr>
+        <tr><td><code>POST /internal/job-dictionaries/{version}/activate</code></td><td>使一套词典规则成为有效版本。</td><td>需要乐观锁、冲突检查、审核人和 content_hash；激活后只读。</td></tr>
+      </tbody></table>
+    </section>
+
+    <section id="libraries">
+      <h2>9. 确定的开源技术方案</h2>
+      <p class="lead">以下不是候选清单，而是建议的主实现组合。各库承担不同的业务职责，替换必须通过同一接口和金标集验证；没有必要的库不纳入 P0 依赖。</p>
+      <table><thead><tr><th style="width:18%">业务能力</th><th style="width:24%">确定选型</th><th style="width:33%">具体实现</th><th>不采用的方案与原因</th></tr></thead><tbody>
+        <tr><td>文本清洗</td><td><strong>ftfy + regex + Pydantic v2</strong></td><td>Pydantic 校验字段化 JSON 和拆分字段契约；ftfy 修复乱码；regex 配合 Python <code>unicodedata</code>、<code>decimal</code> 完成 Unicode、标题编号、纯文本列表、薪资和联系方式规则。清洗函数输出字段规范值、拆分字段校验结果、原文 offset 和兜底标记。</td><td>不把 trafilatura/lxml 作为主流程：当前输入没有 HTML 结构，DOM 正文抽取会引入无效假设；不依赖 LLM 清洗，避免结果漂移。</td></tr>
+        <tr><td>岗位去重</td><td><strong>Splink + DuckDB</strong></td><td>用 Splink 建立可解释的概率实体链接：先按来源、地区和企业标准名 blocking，再比较标题、公司、职责字符 n-gram、发布时间和 URL；DuckDB 承担批处理，rapidfuzz 作为字符串 comparator。输出匹配概率、字段贡献和主记录。</td><td>不把单一 SimHash/MinHash 当最终去重：只能说明文本近似，不能解释企业、地区和发布时间的组合；不使用黑盒向量近邻直接合并。</td></tr>
+        <tr><td>任务抽取</td><td><strong>HanLP 2.x + LiteLLM 结构化抽取 + Pydantic v2</strong></td><td>HanLP 做中文分句、词法、依存和实体候选；LiteLLM 调用统一模型完成动作—对象—工具—工艺—场景—成果六要素的困难语义解析；Pydantic 严格校验 JSON、字段白名单和证据 span。规则抽取优先覆盖明显列表项，模型只补充复杂关系。</td><td>不采用纯关键词正则：无法处理并列动作和隐含对象；不采用纯 LLM：难以保证证据约束、稳定格式和成本可控。</td></tr>
+        <tr><td>任务聚类</td><td><strong>BERTopic（BGE 中文向量 + HDBSCAN）</strong></td><td>sentence-transformers 加载 bge-large-zh-v1.5 生成任务向量；BERTopic 使用 HDBSCAN 发现未知簇、c-TF-IDF 生成代表词；保留噪声点和簇概率。聚类输入是任务短语及六要素拼接文本，不是岗位标题。</td><td>不使用 K-Means 作为主算法：必须预设簇数且会强行吸收长尾；不使用 UMAP 坐标直接做业务判断，降维只用于诊断。</td></tr>
+        <tr><td>已知类别分类</td><td><strong>规则评分 + BGE 原型相似度 + scikit-learn 校准</strong></td><td>词典规则先执行强排除和必须条件；再将岗位任务向量与类别 prototype_tasks 做余弦相似度；有足够人工金标后用 scikit-learn LogisticRegression/CalibratedClassifier 校准置信度。输出主类、次类、分值和命中证据。</td><td>不直接使用 BERTopic topic ID 作为类别：topic 不稳定、不可审计；不在金标不足时训练复杂监督模型。</td></tr>
+        <tr><td>词典治理</td><td><strong>SKOS + RDFLib + pySHACL</strong></td><td>岗位类别、别名、任务词、工艺、工具和场景建模为 SKOS concept；RDFLib 负责 JSON-LD/Turtle 读写和版本快照；pySHACL 校验每个概念必需标签、关系、排除规则和证据引用；正式快照仍存 PostgreSQL。</td><td>不引入独立图数据库：词典规模和查询复杂度不足以抵消运维成本；不把自由 Markdown/Excel 作为规则真源。</td></tr>
+      </tbody></table>
+      <div class="decision"><strong>P0 固定组合：</strong>ftfy + regex + Pydantic；Splink + DuckDB；HanLP + LiteLLM + Pydantic；BERTopic + BGE + HDBSCAN；规则评分 + 原型相似度 + scikit-learn 校准；SKOS + RDFLib + pySHACL。库版本、模型版本和许可证写入处理运行清单。</div>
+    </section>
+
+    <section id="quality">
+      <h2>10. 质量控制、人工审核与安全</h2>
+      <h3>10.1 环节验收指标</h3>
+      <table class="dense"><thead><tr><th style="width:20%">环节</th><th>必测指标</th><th style="width:29%">验收证据</th></tr></thead><tbody>
+        <tr><td>清洗</td><td>JSON 字段校验通过率、乱码/不可见字符残留率、标题编号清理准确率、拆分字段原文对齐率、兜底触发率、字段标准化准确率。</td><td>固定样本集逐字段标注、拆分字段与 description 对齐报告、字段差异报告和 locator 反查。</td></tr>
+        <tr><td>去重</td><td>硬重复 recall、概率链接 precision/recall、错误合并率、主记录完整度。</td><td>同源、跨源、同企多地、模板相似但非重复四类分层金标。</td></tr>
+        <tr><td>任务抽取</td><td>六类要素 span F1、动作/对象关系准确率、任务短语完整率、证据缺失率、人工修订率、重复运行一致率。</td><td>高频任务、长尾任务、并列职责和跨句关系分别抽检；校验 task_fact 到原文和 snapshot 的完整链路。</td></tr>
+        <tr><td>任务/技能画像</td><td>任务画像覆盖率、技能来源区分准确率、must/bonus 分级准确率、画像版本可复现率、岗位归一化与技能计算一致率。</td><td>对 accepted task_fact、requirement_fact、技能标签和任务工具进行逐项回放，比较画像重建结果。</td></tr>
+        <tr><td>聚类</td><td>簇稳定性、噪声率、边界样本纯度、人工拆分/合并一致率。</td><td>重复运行对比、代表任务清单、边界簇审核记录。</td></tr>
+        <tr><td>分类</td><td>macro-F1、强排除漏放率、主类准确率、次类覆盖率、置信度校准误差。</td><td>每个岗位类别至少有正例、负例和边界例的金标集。</td></tr>
+        <tr><td>词典</td><td>别名冲突、SHACL 违规、规则不可达、证据覆盖率、版本回滚成功率。</td><td>发布 lint 报告、审批记录、content_hash 和回滚演练。</td></tr>
+      </tbody></table>
+      <h3>10.2 人工复核优先级</h3>
+      <div class="grid-4"><div class="panel coral"><h4>P0 错误边界</h4><p>强排除争议、跨专业误纳入、可能造成统计方向错误的记录。</p></div><div class="panel gold"><h4>P1 混合职责</h4><p>一个岗位同时承担多个类别任务，需要主类/次类决策。</p></div><div class="panel blue"><h4>P2 证据不足</h4><p>模型输出无法定位 span、任务要素不完整或分类置信度不稳定。</p></div><div class="panel green"><h4>P3 新概念</h4><p>新工艺、新设备、新企业称谓和新任务进入词典候选。</p></div></div>
+      <h3>10.3 安全边界</h3>
+      <ul class="checklist"><li>电话、微信、邮箱等联系方式在送入模型前脱敏；日志只保留 posting_id、run_id、trace_id 和规则摘要。</li><li>任务抽取结果必须经过 JSON Schema、字段白名单、证据 span、置信度阈值和人工状态机，不得直接变成正式类别。</li><li>词典规则使用受限 DSL 或 SKOS 属性，不接受任意 Python、SQL 或脚本执行。</li><li>岗位原文、清洗快照和证据接口按组织权限读取；机器结果和人工结论均保留审计链。</li></ul>
+    </section>
+
+    <section id="plan">
+      <h2>11. 实施计划与交付物</h2>
+      <p class="lead">实施按处理能力拆分，不以外层抓取流程为前置，也不要求一次性改造旧领域表。每一阶段都先固定输入输出和金标，再增加下一阶段能力。</p>
+      <table><thead><tr><th style="width:15%">阶段</th><th style="width:33%">主要工作</th><th style="width:29%">交付物</th><th>门禁</th></tr></thead><tbody>
+        <tr><td>D0 JSON 接入</td><td>实现岗位列表 JSON 包络校验、裸数组兼容、分页合并、字段映射、canonical JSON 哈希和批次幂等。</td><td>JobPostingBatch schema、映射配置、坏包报告和重复批次测试。</td><td>输入契约门禁</td></tr>
+        <tr><td>D1 清洗</td><td>实现字段化 JSON 校验、纯文本规范化、拆分字段与 description 对齐校验、标题/企业/薪资/技能标准化及 description 兜底解析。</td><td>CleanedPosting schema、ftfy/regex 适配器、字段映射配置、拆分对齐金标和差异报告。</td><td>清洗质量门禁</td></tr>
+        <tr><td>D2 去重</td><td>建立 Splink blocking、比较规则、主记录策略和灰区复核。</td><td>DuplicateGroup、概率解释、分层金标和错误合并报告。</td><td>数据质量门禁</td></tr>
+        <tr><td>D3 任务抽取</td><td>基于清洗去重主记录执行 HanLP 候选生成、关系组装、LiteLLM 结构化补全、六要素证据校验和岗位画像物化；跨岗位统计不在本阶段执行。</td><td>TaskFact、TaskFactEvidence、RequirementFact、PostingTaskProfile、PostingSkillProfile schema；Prompt/规则版本和抽取评测报告。</td><td>AI Governance Gate</td></tr>
+        <tr><td>D4 聚类分类</td><td>BERTopic 候选簇、人工命名、规则＋BGE 原型分类、监督校准实验。</td><td>ClusterRun、JobClassification、金标集和混淆矩阵。</td><td>算法验收门禁</td></tr>
+        <tr><td>D5 词典治理</td><td>SKOS 概念、SHACL 约束、规则 DSL、冲突检查、审核和激活/退役。</td><td>DictionarySnapshot、发布审计、回滚和版本差异报告。</td><td>Rule / Acceptance Gate</td></tr>
+      </tbody></table>
+      <h3>11.1 最小测试集</h3>
+      <ul class="checklist"><li>同一标题但职责分别为“现场采样”和“污水设备巡检”的记录得到不同任务事实和类别。</li><li>食品化验、医学采样、服务器运维等强排除样本不会因为泛化标题命中而进入专业类别。</li><li>同企同岗同地区重复被合并；同企不同地区同模板岗位不被错误合并。</li><li>并列职责可以拆出多个动作和对象；“熟悉 Excel”等任职要求不会被生成实际工作任务。</li><li>无 evidence span、低置信度、弱排除和混合职责样本进入人工队列。</li><li>聚类重复运行结果可比较；词典激活后分类可复现，退役版本仍可查询历史结果。</li></ul>
+      <h3>11.2 交付清单</h3>
+      <div class="grid-3"><div class="panel blue"><h3>处理服务</h3><p>清洗器、Splink 去重器、任务抽取器、聚类/分类器和词典校验发布器。</p></div><div class="panel green"><h3>数据资产</h3><p>清洗快照、重复组、六要素任务事实、类别原型、分类证据、SKOS 词典快照。</p></div><div class="panel gold"><h3>质量证据</h3><p>金标集、评测报告、阈值校准、规则 lint、人工审核记录和版本回滚记录。</p></div></div>
+    </section>
+
+    <section id="references">
+      <h2>12. 设计依据与废弃边界</h2>
+      <p>业务规则依据 <code>docs/招聘岗位抓取与岗位分析工作流程说明.docx</code>：职责优先、六类任务要素、标题/企业/薪资清洗、硬/软去重、语义聚类、权威标准校核、强弱排除和置信度分层。</p>
+      <p>本文只复用 NEXUS 的通用能力：LiteLLM 路由、PostgreSQL/Worker、审计、权限和结构化输出校验。历史领域表、旧接口和旧数据模型不构成本设计前提；如需接入，另行编写适配器和迁移方案，验证通过前不得混写两套状态和规则。</p>
+      <table class="dense"><thead><tr><th style="width:24%">术语</th><th>本文口径</th></tr></thead><tbody><tr><td>任务事实</td><td>从岗位职责中找到原文证据的动作—对象—工具—工艺—场景—成果结构化事实。</td></tr><tr><td>岗位类别</td><td>由任务事实聚类和人工命名形成的企业工作类别，可对应多个招聘标题。</td></tr><tr><td>正式词典</td><td>通过 SHACL、规则冲突检查和业务审核后可用于分类的不可变版本。</td></tr><tr><td>证据链</td><td>岗位原文 → 清洗 span → TaskFact → 类别命中 → 词典版本/审核结论。</td></tr></tbody></table>
+    </section>
+
+
+
+
+
+  </main>
+  <footer>NEXUS 岗位数据归一化及岗位词典库建设技术方案 · v1.0 · 仅用于技术设计与评审</footer>
+</div>
+</body>
+</html>
