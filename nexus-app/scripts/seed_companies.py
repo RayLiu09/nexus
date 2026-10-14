@@ -50,11 +50,11 @@ def import_companies(path: Path) -> tuple[int, int]:
                 continue
             park = parks.get(park_key)
             if park is None:
-                park = models.IndustrialPark(source_park_id=park_key, park_name=park_name, industry_tags=list(item.get("industries") or []), introduction=str(item.get("park_intro") or ""), source_url=item.get("detail_url"))
+                park = models.IndustrialPark(source_park_id=park_key, park_name=park_name, industry_tags="、".join(item.get("industries") or []), introduction=str(item.get("park_intro") or ""), source_url=item.get("detail_url"))
                 session.add(park); session.flush(); parks[park_key] = park; created_parks += 1
             else:
                 park.park_name = park_name
-                park.industry_tags = list(item.get("industries") or park.industry_tags or [])
+                park.industry_tags = "、".join(item.get("industries") or []) or park.industry_tags
                 park.introduction = str(item.get("park_intro") or park.introduction or "")
                 park.source_url = item.get("detail_url") or park.source_url
             source_key = f"{park_key}:{index}"

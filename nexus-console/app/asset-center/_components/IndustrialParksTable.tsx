@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Button, Input, Space, Table, Tag } from "antd";
+import { Button, Input, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Download, Search, X } from "lucide-react";
 import { ApiState } from "@/components/ApiState";
@@ -55,15 +55,7 @@ export function IndustrialParksTable({
       title: "行业标签",
       dataIndex: "industry_tags",
       width: 180,
-      render: (values: string[]) => (
-        <Space wrap>
-          {values.map((value) => (
-            <Tag key={value} color="blue">
-              {value}
-            </Tag>
-          ))}
-        </Space>
-      ),
+      render: (value: string) => value || "-",
     },
     { title: "园区介绍", dataIndex: "introduction", width: 520, ellipsis: true },
     { title: "企业数量", dataIndex: "enterprise_count", width: 110, align: "center" },

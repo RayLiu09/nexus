@@ -136,6 +136,7 @@ Role constraints:
 - Productized operations center for release, monitoring, alerting, capacity planning.
 
 - Market Asset Center includes list views for `市场岗位`, `产业园区`, and `企业数据`; park and enterprise counts come from their persisted business projection tables.
+- Industrial park `industry_tags` is readable `、`-separated text; the park list supports filtering by industry tag.
   The park view shows park name, industry tags, introduction, and enterprise
   count. The enterprise view shows enterprise name, business scope, and an
   optional associated park. Both views support server-side filtering,

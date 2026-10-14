@@ -7,7 +7,7 @@ from tempfile import SpooledTemporaryFile
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
-from sqlalchemy import Text, cast, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
@@ -28,7 +28,7 @@ def _park_payload(row: models.IndustrialPark, enterprise_count: int) -> dict:
     return {
         "id": row.id,
         "park_name": row.park_name,
-        "industry_tags": row.industry_tags or [],
+        "industry_tags": row.industry_tags,
         "introduction": row.introduction,
         "enterprise_count": enterprise_count,
         "source_url": row.source_url,
@@ -62,7 +62,7 @@ def list_industrial_parks(
     if q:
         clauses.append(or_(models.IndustrialPark.park_name.ilike(f"%{q}%"), models.IndustrialPark.introduction.ilike(f"%{q}%")))
     if industry:
-        clauses.append(cast(models.IndustrialPark.industry_tags, Text).ilike(f"%{industry}%"))
+        clauses.append(models.IndustrialPark.industry_tags.ilike(f"%{industry}%"))
     count = session.scalar(select(func.count(models.IndustrialPark.id)).where(*clauses)) or 0
     rows = session.scalars(
         select(models.IndustrialPark)
@@ -104,7 +104,7 @@ def export_industrial_parks(session: Session = Depends(get_db)):
     sheet.append(["园区名称", "行业标签", "园区介绍", "企业数量", "来源链接"])
     for row in session.scalars(select(models.IndustrialPark).order_by(models.IndustrialPark.park_name)).yield_per(1000):
         count = session.scalar(select(func.count(models.Enterprise.id)).where(models.Enterprise.industrial_park_id == row.id)) or 0
-        sheet.append([_excel_text(row.park_name), _excel_text("、".join(row.industry_tags or [])), _excel_text(row.introduction), count, _excel_text(row.source_url)])
+        sheet.append([_excel_text(row.park_name), _excel_text(row.industry_tags), _excel_text(row.introduction), count, _excel_text(row.source_url)])
     return _xlsx_response(workbook, "industrial-parks.xlsx", "产业园区.xlsx")
 
 

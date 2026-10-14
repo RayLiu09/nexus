@@ -1,11 +1,14 @@
 """Asset catalog/detail read contract tests."""
 from __future__ import annotations
 
+from fastapi import Request
 from fastapi.testclient import TestClient
 from sqlalchemy import event
 from sqlalchemy.orm import Session
 
 from nexus_api.api.internal.assets import get_catalog_tag_embedding_client
+from nexus_api.api.internal.industrial_park_enterprise import list_industrial_parks
+from nexus_api.dependencies import Pagination
 from nexus_app import models
 from nexus_app.enums import (
     AIGovernanceRunAdoptionStatus,
@@ -461,7 +464,7 @@ def test_asset_center_counts_use_resource_boundaries_in_two_queries(app, session
     park = models.IndustrialPark(
         source_park_id="test-park-1",
         park_name="测试产业园区",
-        industry_tags=["数字经济"],
+        industry_tags="数字经济、智能制造",
         introduction="测试园区介绍",
     )
     session.add(park)
@@ -531,11 +534,45 @@ def test_asset_center_counts_use_resource_boundaries_in_two_queries(app, session
     assert parks.status_code == 200
     assert parks.json()["meta"]["total"] == 1
     assert parks.json()["data"][0]["enterprise_count"] == 1
+    assert parks.json()["data"][0]["industry_tags"] == "数字经济、智能制造"
+
+    filtered = client.get("/internal/v1/industrial-parks", params={"industry": "数字经济"})
+    assert filtered.status_code == 200
+    assert filtered.json()["meta"]["total"] == 1
+    assert client.get("/internal/v1/industrial-parks", params={"industry": "生物医药"}).json()["meta"]["total"] == 0
 
     enterprises = client.get("/internal/v1/enterprises", params={"park_id": park.id, "page": 1, "page_size": 20})
     assert enterprises.status_code == 200
     assert enterprises.json()["meta"]["total"] == 1
     assert enterprises.json()["data"][0]["enterprise_name"] == "测试企业"
+
+
+def test_industrial_park_industry_filter_uses_readable_text(session):
+    session.add_all([
+        models.IndustrialPark(
+            source_park_id="digital-park",
+            park_name="数字产业园",
+            industry_tags="数字经济、智能制造",
+            introduction="园区介绍",
+        ),
+        models.IndustrialPark(
+            source_park_id="medical-park",
+            park_name="医药产业园",
+            industry_tags="生物医药",
+            introduction="园区介绍",
+        ),
+    ])
+    session.commit()
+    request = Request({"type": "http", "method": "GET", "path": "/internal/v1/industrial-parks", "headers": []})
+    pagination = Pagination(page=1, page_size=20)
+
+    result = list_industrial_parks(request, q=None, industry="数字经济", pagination=pagination, session=session)
+    assert result.meta.total == 1
+    assert result.data[0]["park_name"] == "数字产业园"
+    assert result.data[0]["industry_tags"] == "数字经济、智能制造"
+
+    empty = list_industrial_parks(request, q=None, industry="不存在的行业", pagination=pagination, session=session)
+    assert empty.meta.total == 0
 
 
 def test_latest_ref_can_fetch_ai_governance_runs(app, session):

@@ -1673,7 +1673,7 @@ class IndustrialPark(TimestampMixin, Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     source_park_id: Mapped[str] = mapped_column(String(128), nullable=False)
     park_name: Mapped[str] = mapped_column(Text, nullable=False)
-    industry_tags: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    industry_tags: Mapped[str] = mapped_column(Text, nullable=False, default="")
     introduction: Mapped[str] = mapped_column(Text, nullable=False)
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_name: Mapped[str] = mapped_column(Text, nullable=False, default="samples/companies.json")

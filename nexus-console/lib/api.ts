@@ -58,7 +58,7 @@ export type RawJob = {
 export type IndustrialPark = {
   id: string;
   park_name: string;
-  industry_tags: string[];
+  industry_tags: string;
   introduction: string;
   enterprise_count: number;
   source_url: string | null;
