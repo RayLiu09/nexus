@@ -12,6 +12,7 @@ from typing import Any, Protocol
 from urllib.parse import urlparse, urlsplit, urlunsplit
 
 import httpx
+from botocore.exceptions import BotoCoreError, ClientError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -36,9 +37,15 @@ from nexus_app.crawler.url_safety import (
     validate_target_sites,
     validate_target_url,
 )
-from nexus_app.enums import AuditEventType, DataSourceStatus, DataSourceType, PipelineType
+from nexus_app.enums import (
+    AuditEventType,
+    DataSourceStatus,
+    DataSourceType,
+    IngestBatchStatus,
+    PipelineType,
+)
 from nexus_app.ingest import batch as ingest_batch
-from nexus_app.storage import ObjectStorage, get_object_storage
+from nexus_app.storage import ObjectStorage, ObjectStorageError, get_object_storage
 from nexus_app.worker.notify import notify_job_ready
 
 
@@ -764,6 +771,9 @@ def _run_websearch_custom_plan(session: Session, plan: models.CrawlerPlan, *, tr
         run.summary={"runner":"websearch_custom_sync", "query":query, "query_length":len(query), "query_count":len(_websearch_queries(query)),
                      "search_failures":search_failures, "result_count":0, "submitted_count":0,
                      "accepted_count":0, "failed_count":len(search_failures)}
+        write_audit(session, AuditEventType.CRAWLER_RUN_COMPLETED, "crawler_run", run.id,
+                    trace_id, {"plan_id":plan.id, "status":run.status, "submitted_count":0,
+                               "failed_count":len(search_failures)})
         session.commit(); session.refresh(run); return run
     accepted = []
     filtered = []
@@ -780,6 +790,7 @@ def _run_websearch_custom_plan(session: Session, plan: models.CrawlerPlan, *, tr
         accepted.append((item, outcome))
 
     submitted=[]; failures=[]
+    storage_failed = False
     batch = None
     if accepted:
         batch = ingest_batch.create_batch(session, data_source_id=plan.data_source_id, batch_idempotency_key=f"crawler-run-{run.id}",
@@ -796,12 +807,28 @@ def _run_websearch_custom_plan(session: Session, plan: models.CrawlerPlan, *, tr
             result=ingest_batch.append_file_to_batch(session,batch.id,file_idempotency_key=f"{run.id}-{index:04d}",filename=f"websearch-{checksum[7:19]}.json",content=content,mime_type="application/json",source_uri=item.url,source_object_key=asset_identity,pipeline_type_override=PipelineType.DOCUMENT,raw_metadata={"connector_type":"websearch_custom_document","content_kind":"web_document","source_url":item.url,"title":item.title,"content_hash":checksum,"asset_identity":asset_identity,"asset_content_fingerprint":asset_content_fingerprint,"content_length":len(item.content),"content_format":"markdown","content_source":item.content_source,"crawler_plan_id":plan.id,"crawler_run_id":run.id,"provider_request_id":outcome.request_id,"provider_log_id":outcome.log_id, **item.metadata},storage=storage,settings=settings,trace_id=trace_id)
             submitted.append({"url":item.url,"title":item.title,"raw_object_id":result.raw_object.id,"content_hash":checksum,"asset_content_fingerprint":asset_content_fingerprint,"content_length":len(item.content),"duplicate":result.duplicate,"pipeline_type":result.job.payload.get("pipeline_type")})
         except ingest_batch.BatchError as exc: failures.append({"url":item.url,"reason":str(exc)})
+        except (BotoCoreError, ClientError, ObjectStorageError, OSError):
+            # create_batch and earlier appends are committed; discard only this append.
+            run_id, batch_id = run.id, batch.id
+            session.rollback()
+            run = session.get(models.CrawlerRun, run_id)
+            batch = session.get(models.IngestBatch, batch_id)
+            failures.append({"reason":"object_storage_unavailable"})
+            storage_failed = True
+            if not submitted:
+                batch.status = IngestBatchStatus.FAILED
+            break
     run.finished_at=datetime.now(timezone.utc)
     if not submitted:
         run.status = "failed" if failures or search_failures else "no_results"
     else:
         run.status = "partial_failed" if failures or search_failures else "succeeded"
     run.summary={"runner":"websearch_custom_sync","query":query,"query_length":len(query),"query_count":len(_websearch_queries(query)),"searches":search_details,"search_failures":search_failures,"time_range":time_range,"result_count":len(search_results),"accepted_count":len(accepted),"filtered_count":len(filtered),"submitted_count":len(submitted),"raw_persisted_count":sum(1 for item in submitted if not item["duplicate"]),"duplicate_count":sum(1 for item in submitted if item["duplicate"]),"failed_count":len(failures)+len(search_failures),"filter_reasons":filter_reasons,"accepted":[{"url":item.url,"title":item.title[:256],"result_id":item.result_id,"rank_score":item.metadata.get("RankScore"),"content_hash":"sha256:"+hashlib.sha256(item.content.encode("utf-8")).hexdigest(),"content_chars":len(item.content)} for item, _ in accepted],"filtered":filtered,"submitted":submitted,"failures":failures}
+    if storage_failed:
+        run.summary = {**run.summary, "storage_failed": True}
+    write_audit(session, AuditEventType.CRAWLER_RUN_COMPLETED, "crawler_run", run.id,
+                trace_id, {"plan_id":plan.id, "status":run.status,
+                           "submitted_count":len(submitted), "failed_count":len(failures)+len(search_failures)})
     session.commit(); session.refresh(run); return run
 
 

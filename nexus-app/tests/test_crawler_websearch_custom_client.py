@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+from botocore.exceptions import EndpointConnectionError
 
 from nexus_app import models
 from nexus_app.config import Settings
@@ -14,8 +15,8 @@ from nexus_app.crawler.websearch_custom_client import (
     WebSearchCustomItem,
     WebSearchCustomResponse,
 )
-from nexus_app.enums import DataSourceStatus, DataSourceType
-from nexus_app.storage import InMemoryObjectStorage
+from nexus_app.enums import AuditEventType, DataSourceStatus, DataSourceType, IngestBatchStatus
+from nexus_app.storage import InMemoryObjectStorage, ObjectStorageError
 
 
 def _settings():
@@ -158,6 +159,69 @@ def test_websearch_dedup_uses_stable_package_without_run_provenance(session, mon
     raw_package = json.loads(storage.get_bytes(raw_key).decode("utf-8"))
     assert "provenance" not in raw_package
     assert raw_objects[0].metadata_summary["crawler_run_id"] == first.id
+
+
+@pytest.mark.parametrize("fail_on", [1, 2])
+def test_websearch_storage_failure_finishes_run_and_audits(session, monkeypatch, fail_on):
+    source = models.DataSource(
+        code=f"websearch-storage-{fail_on}", name="WebSearch storage failure",
+        source_type=DataSourceType.CRAWLER, status=DataSourceStatus.ENABLED,
+    )
+    session.add(source)
+    session.flush()
+    plan = models.CrawlerPlan(
+        name="WebSearch storage failure", connector_type="websearch",
+        connector_version="custom", mode="custom", data_source_id=source.id,
+        execution_mode="run_once",
+        search_policy={"query":"电子商务", "result_count":10, "time_range_preset":"one_year"},
+        pipeline_policy={"pipeline_type":"document"}, status="active",
+    )
+    session.add(plan)
+    session.commit()
+
+    class FakeClient:
+        def search(self, **_kwargs):
+            items = [WebSearchCustomItem(
+                result_id=f"result-{index}", title=f"电子商务市场报告 {index}",
+                url=f"https://example.gov.cn/reports/ecommerce-{index}",
+                content="电子商务产业市场规模持续增长。" * 30,
+                content_source="content", metadata={"RankScore":0.9},
+            ) for index in (1, 2)]
+            return WebSearchCustomResponse(items, "request-storage", None, 10)
+
+    class FailingStorage(InMemoryObjectStorage):
+        calls = 0
+
+        def put_bytes(self, *args, **kwargs):
+            self.calls += 1
+            if self.calls == fail_on:
+                if fail_on == 1:
+                    raise EndpointConnectionError(endpoint_url="https://secret-storage.example")
+                raise ObjectStorageError("secret storage endpoint")
+            return super().put_bytes(*args, **kwargs)
+
+    monkeypatch.setattr(crawler_service, "HttpWebSearchCustomClient", FakeClient)
+    run = crawler_service._run_websearch_custom_plan(
+        session, plan, trace_id="trace-storage", storage=FailingStorage(), settings=Settings(),
+    )
+
+    assert run.status == ("failed" if fail_on == 1 else "partial_failed")
+    assert run.finished_at is not None
+    assert run.summary["submitted_count"] == fail_on - 1
+    assert run.summary["failures"] == [{"reason":"object_storage_unavailable"}]
+    assert "secret-storage.example" not in str(run.summary)
+    assert "secret storage endpoint" not in str(run.summary)
+    assert session.query(models.RawObject).count() == fail_on - 1
+    assert session.query(models.Job).count() == fail_on - 1
+    batch = session.query(models.IngestBatch).filter_by(
+        idempotency_key=f"crawler-run-{run.id}",
+    ).one()
+    assert batch.status == (IngestBatchStatus.FAILED if fail_on == 1 else IngestBatchStatus.RAW_PERSISTED)
+    audit = session.query(models.AuditLog).filter_by(
+        target_id=run.id, event_type=AuditEventType.CRAWLER_RUN_COMPLETED,
+    ).one()
+    assert audit.trace_id == "trace-storage"
+    assert audit.summary["status"] == run.status
 
 
 def test_websearch_successful_empty_response_is_no_results(session, monkeypatch):
