@@ -354,6 +354,93 @@ def test_websearch_json_route_bypasses_mineru_without_optional_content_kind(sess
     assert stage.detail["parse_route"] == "websearch_custom_document"
 
 
+def test_websearch_parse_removes_only_repeated_whole_article(session) -> None:
+    ctx, version = _seed_firecrawl_web_job(session, mime_type="text/markdown")
+    title = "提升数字产业集群国际竞争力"
+    paragraphs = [f"第{index}段：" + ("数字产业集群应推进技术创新和人才培养。" * 8) for index in range(4)]
+    article = "\n\n".join(paragraphs)
+    source = f"## {title}\n\n2024-12-28 来源：经济日报\n\n{article}\n\n责任编辑：编辑\n\n# {title}\n\n2024年12月28日 来源：经济日报\n\n{article}\n\n责任编辑：编辑"
+    raw_bytes = json.dumps({
+        "schema_version": "websearch-custom-document.v1",
+        "connector_type": "websearch",
+        "connector_version": "custom",
+        "title": title,
+        "content": source,
+    }, ensure_ascii=False).encode("utf-8")
+    raw_key = ctx.raw_object.object_uri.split("/", 3)[-1]
+    ctx.storage.put_bytes(raw_key, raw_bytes, "application/json")
+    ctx.raw_object.mime_type = "application/json"
+    ctx.raw_object.checksum = checksum_value(raw_bytes)
+    ctx.raw_object.metadata_summary = {"connector_type": "websearch_custom_document", "title": title}
+    session.commit()
+
+    artifact = run_parse(ctx, version)
+    payload = json.loads(ctx.storage.get_bytes(artifact.artifact_uri.split("/", 3)[-1]))
+    assert payload["markdown"].count(paragraphs[0]) == 1
+    assert payload["removed_noise"] == ["duplicate_websearch_article_copy"]
+    assert all(payload["markdown"][block["md_char_range"][0]:block["md_char_range"][1]]
+               for block in payload["blocks"])
+
+
+def test_websearch_parse_keeps_same_title_with_distinct_followup(session) -> None:
+    ctx, version = _seed_firecrawl_web_job(session, mime_type="text/markdown")
+    first = "数字产业集群的第一项研究结论。" * 12
+    second = "低空经济产业的另一项研究结论。" * 12
+    source = f"# 产业观察\n\n{first}\n\n# 产业观察\n\n{second}"
+    raw_bytes = json.dumps({
+        "schema_version": "websearch-custom-document.v1",
+        "connector_type": "websearch",
+        "connector_version": "custom",
+        "title": "产业观察",
+        "content": source,
+    }, ensure_ascii=False).encode("utf-8")
+    raw_key = ctx.raw_object.object_uri.split("/", 3)[-1]
+    ctx.storage.put_bytes(raw_key, raw_bytes, "application/json")
+    ctx.raw_object.mime_type = "application/json"
+    ctx.raw_object.checksum = checksum_value(raw_bytes)
+    ctx.raw_object.metadata_summary = {"connector_type": "websearch_custom_document", "title": "产业观察"}
+    session.commit()
+
+    artifact = run_parse(ctx, version)
+    payload = json.loads(ctx.storage.get_bytes(artifact.artifact_uri.split("/", 3)[-1]))
+    assert first in payload["markdown"]
+    assert second in payload["markdown"]
+    assert payload["removed_noise"] == []
+
+
+def test_websearch_parse_deduplicates_short_article_with_changed_lead(session) -> None:
+    ctx, version = _seed_firecrawl_web_job(session, mime_type="text/markdown")
+    title = "十五五重点培育三类数字产业集群"
+    repeated = [
+        "据了解，国家数据局已开展数字经济创新型企业培育工作，将建立更开放的政策环境。" * 4,
+        "国家数据发展研究院表示，数字经济创新型企业具有高敏捷性和高成长性。" * 4,
+    ]
+    source = (
+        f"## {title}\n\n2026-04-30 来源：新闻\n\n导语。\n\n"
+        + "\n\n".join(repeated)
+        + f"\n\n# {title}\n\n2026年04月30日 来源：新闻\n\n另一种导语。\n\n"
+        + "\n\n".join(repeated)
+    )
+    raw_bytes = json.dumps({
+        "schema_version": "websearch-custom-document.v1",
+        "connector_type": "websearch",
+        "connector_version": "custom",
+        "title": title,
+        "content": source,
+    }, ensure_ascii=False).encode("utf-8")
+    raw_key = ctx.raw_object.object_uri.split("/", 3)[-1]
+    ctx.storage.put_bytes(raw_key, raw_bytes, "application/json")
+    ctx.raw_object.mime_type = "application/json"
+    ctx.raw_object.checksum = checksum_value(raw_bytes)
+    ctx.raw_object.metadata_summary = {"connector_type": "websearch_custom_document", "title": title}
+    session.commit()
+
+    artifact = run_parse(ctx, version)
+    payload = json.loads(ctx.storage.get_bytes(artifact.artifact_uri.split("/", 3)[-1]))
+    assert payload["markdown"].count(repeated[0]) == 1
+    assert payload["removed_noise"] == ["duplicate_websearch_article_copy"]
+
+
 def test_websearch_package_schema_bypasses_mineru_when_raw_metadata_is_missing(session) -> None:
     """The MinIO package schema is a second route guard for historical rows."""
     ctx, version = _seed_firecrawl_web_job(session, mime_type="text/markdown")
@@ -440,6 +527,7 @@ def test_worker_does_not_reuse_mineru_route_for_following_websearch_job(session,
     # for real; downstream governance/index services are outside this contract.
     monkeypatch.setattr(worker_runner, "run_normalize_document", lambda *_args: object())
     monkeypatch.setattr(worker_runner, "_run_major_profile_normalize", lambda *_args: None)
+    monkeypatch.setattr(worker_runner, "_run_teaching_standard_library_projection", lambda *_args: None)
     monkeypatch.setattr(worker_runner, "_run_teaching_standard_graph", lambda *_args: None)
     monkeypatch.setattr(worker_runner, "run_governance_decision", lambda *_args: None)
     monkeypatch.setattr(worker_runner, "run_knowledge_chunking", lambda *_args: [])

@@ -170,6 +170,10 @@ Asset Center IA-1:
   sector report. Industry/education policy pages reserve all, national,
   provincial, and regional dimensions. Policy level is not encoded as six
   combined classifications.
+- The industry-policy, industry-report, and sector-report business lists show
+  count-bearing `财经商贸类` and `低空经济类` topic filters. Counts and pagination
+  use the same visible-asset and current-reference read model as each list;
+  topics may overlap and do not replace official document classification.
 - **专业数据**: major profile, major-distribution records, professional
   teaching standards, a standard-course-library view, talent-demand reports,
   talent-training plans, and occupational analysis. The course-library entry

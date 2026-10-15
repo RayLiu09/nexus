@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { Alert, App, Button, Collapse, Drawer, Form, Input, Modal, Select, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { DeleteOutlined, EditOutlined, FileTextOutlined } from "@ant-design/icons";
-import { AssetRefCell } from "@/components/shared/AssetRefCell";
 import { SourcePreviewSection } from "@/app/assets/[assetId]/_components/SourcePreviewSection";
 import { classificationLabel, type ClassificationDictionary } from "@/lib/classificationLabels";
 import { createIdempotencyKey } from "@/lib/idempotency";
@@ -288,13 +287,7 @@ export default function TagReviewContent({
   const columns: ColumnsType<GovernanceReviewItem> = [
     {
       title: "数据资产",
-      render: (_v, row) => (
-        <AssetRefCell
-          title={row.asset_title}
-          assetId={row.asset_id}
-          normalizedRefId={row.normalized_ref_id}
-        />
-      ),
+      render: (_v, row) => <span className="font-medium text-text">{row.asset_title ?? row.asset_id ?? "-"}</span>,
     },
     {
       title: "数据分类",

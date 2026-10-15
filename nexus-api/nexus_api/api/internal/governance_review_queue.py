@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, aliased
 
 from nexus_app import models
-from nexus_app.enums import GovernanceResultStatus
+from nexus_app.enums import AssetVersionStatus, GovernanceResultStatus
 
 
 def pending_review_candidates():
@@ -20,10 +20,29 @@ def pending_review_candidates():
         .correlate(result)
         .scalar_subquery()
     )
+    ref = aliased(models.NormalizedAssetRef)
+    version = aliased(models.AssetVersion)
+    newer_version = aliased(models.AssetVersion)
+    newer_visible_version = (
+        select(newer_version.id)
+        .where(
+            newer_version.asset_id == version.asset_id,
+            newer_version.version_no > version.version_no,
+            newer_version.version_status.in_((
+                AssetVersionStatus.AVAILABLE,
+                AssetVersionStatus.REVIEW_REQUIRED,
+            )),
+        )
+        .correlate(version)
+        .exists()
+    )
     return (
-        select(result.id).where(
+        select(result.id).join(ref, ref.id == result.normalized_ref_id).join(
+            version, version.id == ref.version_id
+        ).where(
             result.id == latest_result_id,
             result.status == GovernanceResultStatus.REVIEW_REQUIRED,
+            ~newer_visible_version,
         ),
         result,
     )

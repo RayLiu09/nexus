@@ -78,6 +78,21 @@ it("keeps collapsed review fields and submits editable default reasons", async (
   });
 });
 
+it("shows the data asset as plain text in the review table", () => {
+  render(<App><TagReviewContent
+    initialItems={[reviewItem]}
+    initialTotal={1}
+    ok
+    error={null}
+    traceId={null}
+    classificationDictionary={{ industry_policy: "产教政策" }}
+    levelDictionary={{ L1: "L1" }}
+  /></App>);
+
+  expect(screen.getByText("示例政策")).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "示例政策" })).not.toBeInTheDocument();
+});
+
 it("deletes a reviewed asset only after exact-title confirmation and reloads the queue", async () => {
   const requests: Array<{ url: string; init?: RequestInit }> = [];
   vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {

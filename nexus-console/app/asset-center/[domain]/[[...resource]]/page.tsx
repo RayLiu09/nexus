@@ -113,11 +113,21 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
     );
   }
 
-  if (domain.slug === "policy" && resource.path === "industry-policies") {
-    const result = await getApiData<IndustryPolicy[]>("/internal/v1/industry-policies", [], {
-      page: String(page),
-      pageSize: String(pageSize),
-    });
+  if (domain.slug === "policy" && ["industry-policies", "industry-reports", "sector-reports"].includes(resource.path)) {
+    const topicValue = first(query.topic);
+    const topic = topicValue === "finance_commerce" || topicValue === "low_altitude"
+      ? topicValue
+      : undefined;
+    const endpoint = `/internal/v1/${resource.path}`;
+    const [result, allResult, financeResult, lowAltitudeResult] = await Promise.all([
+      getApiData<IndustryPolicy[]>(endpoint, [], {
+        page: String(page), pageSize: String(pageSize), ...(topic ? { topic } : {}),
+      }),
+      topic ? getApiData<IndustryPolicy[]>(endpoint, [], { page: "1", pageSize: "1" }) : null,
+      getApiData<IndustryPolicy[]>(endpoint, [], { page: "1", pageSize: "1", topic: "finance_commerce" }),
+      getApiData<IndustryPolicy[]>(endpoint, [], { page: "1", pageSize: "1", topic: "low_altitude" }),
+    ]);
+    const isReport = resource.path !== "industry-policies";
     return (
       <div className="flex flex-col gap-6">
         <PageHeader
@@ -133,34 +143,15 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
           ok={result.ok}
           error={result.error}
           traceId={result.traceId}
-        />
-      </div>
-    );
-  }
-
-  if (domain.slug === "policy" && ["industry-reports", "sector-reports"].includes(resource.path)) {
-    const result = await getApiData<IndustryPolicy[]>(`/internal/v1/${resource.path}`, [], {
-      page: String(page),
-      pageSize: String(pageSize),
-    });
-    return (
-      <div className="flex flex-col gap-6">
-        <PageHeader
-          eyebrow={domain.name}
-          title={resource.name}
-          description={resource.description}
-        />
-        <IndustryPoliciesTable
-          rows={result.data}
-          total={result.total ?? result.data.length}
-          page={page}
-          pageSize={pageSize}
-          ok={result.ok}
-          error={result.error}
-          traceId={result.traceId}
-          showRegion={false}
+          topic={topic}
+          allCount={(allResult ?? result).ok ? (allResult ?? result).total ?? 0 : null}
+          topicCounts={{
+            finance_commerce: financeResult.ok ? financeResult.total ?? 0 : null,
+            low_altitude: lowAltitudeResult.ok ? lowAltitudeResult.total ?? 0 : null,
+          }}
+          showRegion={!isReport}
           emptyText={`暂无${resource.name}`}
-          nameColumnTitle="报告名称"
+          nameColumnTitle={isReport ? "报告名称" : "资产名称"}
         />
       </div>
     );

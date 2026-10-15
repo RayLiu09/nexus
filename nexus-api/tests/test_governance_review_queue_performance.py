@@ -155,3 +155,23 @@ def test_pending_queue_hides_review_snapshot_superseded_by_newer_result(app, ses
     assert response.status_code == 200
     assert response.json()["meta"]["total"] == 0
     assert response.json()["data"] == []
+
+
+def test_pending_queue_hides_old_version_after_reprocess(app, session):
+    seeded = _seed_pending_review(session, suffix="reprocessed")
+    old_ref = session.get(models.NormalizedAssetRef, seeded["ref_id"])
+    old_version = session.get(models.AssetVersion, old_ref.version_id)
+    new_version = models.AssetVersion(
+        asset_id=old_version.asset_id,
+        raw_object_id=old_version.raw_object_id,
+        version_no=2,
+        source_checksum=old_version.source_checksum,
+        version_status=AssetVersionStatus.AVAILABLE,
+    )
+    session.add(new_version)
+    session.commit()
+
+    response = TestClient(app).get("/internal/v1/governance-reviews/pending")
+    assert response.status_code == 200
+    assert response.json()["meta"]["total"] == 0
+    assert response.json()["data"] == []

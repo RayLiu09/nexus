@@ -138,6 +138,9 @@ Root documents are distilled implementation contracts:
   on-demand counts, and direct resource links without intermediate domain
   summary pages. IA-1 adds no persisted statistics, role redesign, or
   source-trace UI.
+- The three policy/report business lists provide server-side `财经商贸类` and
+  `低空经济类` topic filters with full-list counts, using current asset titles
+  and typed industry/topic tags. Unmatched documents remain in the full list.
 - The professional domain now has real business lists for professional
   teaching standards and the standard course library. The standard list opens
   the existing evidence-bound `专业 -> 职业领域 -> 典型工作任务 / 主要教学内容与要求`

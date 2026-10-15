@@ -5,8 +5,10 @@ version state from `failed` back to `processing`. Audit emission happens
 inside the handler so the asset detail page reflects the change immediately."""
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from nexus_api import schemas
@@ -70,6 +72,39 @@ _VISIBLE_ASSET_STATUSES = {
     AssetVersionStatus.AVAILABLE.value,
     AssetVersionStatus.REVIEW_REQUIRED.value,
 }
+
+DocumentTopic = Literal["finance_commerce", "low_altitude"]
+_DOCUMENT_TOPIC_TERMS: dict[str, tuple[str, ...]] = {
+    "finance_commerce": (
+        "电子商务", "电商", "商贸", "商务", "贸易", "外贸", "零售", "批发",
+        "消费市场", "消费品", "消费趋势", "促消费", "直播带货", "金融",
+        "证券", "银行", "保险", "财税", "会计", "物流", "供应链", "海外仓",
+        "数字经济", "平台经济", "服务业", "企业管理", "投资", "招商",
+    ),
+    "low_altitude": (
+        "低空", "无人机", "无人驾驶航空器", "通用航空", "通航", "eVTOL",
+        "空域", "飞行器", "航空器", "直升机", "城市空中交通",
+    ),
+}
+
+
+def _document_topic_predicate(topic: DocumentTopic, catalog_ref_id):
+    patterns = tuple(f"%{term}%" for term in _DOCUMENT_TOPIC_TERMS[topic])
+    matching_tag = (
+        select(models.TagAssetIndex.id)
+        .where(
+            models.TagAssetIndex.target_type == TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
+            models.TagAssetIndex.target_id == catalog_ref_id,
+            models.TagAssetIndex.tag_type.in_(("industry", "topic")),
+            or_(*(models.TagAssetIndex.tag_value.ilike(pattern) for pattern in patterns)),
+        )
+        .correlate(models.Asset)
+        .exists()
+    )
+    return or_(
+        *(models.Asset.title.ilike(pattern) for pattern in patterns),
+        matching_tag,
+    )
 
 # Catalog tags use the same L1/L2/L4 resolver as public asset discovery.  A
 # console user commonly enters a useful short form (for example, \"跨境电商\")
@@ -354,6 +389,7 @@ def _catalog_candidate_ids(
     level: str | None,
     status: str | None,
     matching_ref_ids: set[str] | None,
+    document_topic: DocumentTopic | None = None,
     limit: int | None = None,
     offset: int | None = None,
 ) -> tuple[list[str], int]:
@@ -456,6 +492,8 @@ def _catalog_candidate_ids(
         if not matching_ref_ids:
             return [], 0
         predicates.append(catalog_ref_id.in_(matching_ref_ids))
+    if document_topic is not None:
+        predicates.append(_document_topic_predicate(document_topic, catalog_ref_id))
     if domain:
         canonical_domain = _canonical_classification(domain)
         if canonical_domain == "major_profile":
@@ -544,6 +582,7 @@ def _list_industry_documents(
     session: Session,
     *,
     classification: str,
+    topic: DocumentTopic | None = None,
 ):
     """Build a report/policy list projection from catalog and normalized refs."""
     asset_ids, total = _catalog_candidate_ids(
@@ -552,6 +591,7 @@ def _list_industry_documents(
         level=None,
         status="visible",
         matching_ref_ids=None,
+        document_topic=topic,
         limit=pagination.limit,
         offset=pagination.offset,
     )
@@ -639,10 +679,11 @@ def list_industry_policies(
     request: Request,
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
+    topic: DocumentTopic | None = Query(default=None),
 ):
     """Business list view for industry-policy documents."""
     return _list_industry_documents(
-        request, pagination, session, classification="industry_policy"
+        request, pagination, session, classification="industry_policy", topic=topic
     )
 
 
@@ -651,10 +692,11 @@ def list_industry_reports(
     request: Request,
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
+    topic: DocumentTopic | None = Query(default=None),
 ):
     """Business list view for industry reports."""
     return _list_industry_documents(
-        request, pagination, session, classification="industry_report"
+        request, pagination, session, classification="industry_report", topic=topic
     )
 
 
@@ -663,10 +705,11 @@ def list_sector_reports(
     request: Request,
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
+    topic: DocumentTopic | None = Query(default=None),
 ):
     """Business list view for sector reports (行业报告)."""
     return _list_industry_documents(
-        request, pagination, session, classification="sector_report"
+        request, pagination, session, classification="sector_report", topic=topic
     )
 
 

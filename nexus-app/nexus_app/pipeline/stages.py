@@ -214,6 +214,38 @@ def _extract_markdown_blocks(content: str) -> list[dict[str, Any]]:
     return blocks
 
 
+def _dedupe_websearch_article_blocks(blocks: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], bool]:
+    """Drop a second whole article when WebSearch returns the same body twice."""
+    headings = [
+        (index, str(block.get("text") or "").strip())
+        for index, block in enumerate(blocks)
+        if block.get("block_type") == "heading"
+    ]
+    for first_index, title in headings:
+        for second_index, repeated_title in headings:
+            if second_index <= first_index or repeated_title != title:
+                continue
+            before = blocks[first_index + 1:second_index]
+            after = blocks[second_index + 1:]
+            before_body = [str(block.get("text") or "").strip() for block in before
+                           if block.get("block_type") == "paragraph" and len(str(block.get("text") or "").strip()) >= 80]
+            after_body = [str(block.get("text") or "").strip() for block in after
+                          if block.get("block_type") == "paragraph" and len(str(block.get("text") or "").strip()) >= 80]
+            matching_suffix = 0
+            for original, repeated in zip(reversed(before_body), reversed(after_body), strict=False):
+                if original != repeated:
+                    break
+                matching_suffix += 1
+            repeated_chars = sum(map(len, before_body[-matching_suffix:])) if matching_suffix else 0
+            if (
+                matching_suffix >= 2
+                and repeated_chars >= 250
+                and matching_suffix >= max(len(before_body), len(after_body)) - 1
+            ):
+                return blocks[:second_index], True
+    return blocks, False
+
+
 def _materialize_web_blocks(
     extracted_blocks: list[dict[str, Any]],
     *,
@@ -460,6 +492,10 @@ def _build_firecrawl_parse_payload(
         parser_backend = HTML_CONTENT_PARSER_BACKEND
     else:
         extracted_blocks = _extract_markdown_blocks(source_text)
+        if route == "websearch_custom_document":
+            extracted_blocks, removed_duplicate = _dedupe_websearch_article_blocks(extracted_blocks)
+            if removed_duplicate:
+                removed_noise.append("duplicate_websearch_article_copy")
         if title and not any(
             block.get("block_type") == "heading" and block.get("heading_level") == 1
             for block in extracted_blocks
