@@ -12,7 +12,6 @@ import nexus_app.knowledge.chunking_strategies.structured_decompose  # noqa: F40
 import nexus_app.knowledge.chunking_strategies.qa_extract  # noqa: F401
 import nexus_app.knowledge.chunking_strategies.process_step_extract  # noqa: F401
 import nexus_app.knowledge.chunking_strategies.indicator_decompose  # noqa: F401
-import nexus_app.knowledge.chunking_strategies.case_decompose  # noqa: F401
 import nexus_app.knowledge.chunking_strategies.graph_extract  # noqa: F401
 import nexus_app.knowledge.chunking_strategies.tag_decompose  # noqa: F401
 import nexus_app.knowledge.chunking_strategies.row_decompose  # noqa: F401

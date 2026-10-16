@@ -50,6 +50,14 @@ export type TalentDemandReport = {
   raw_object_id: string | null;
 };
 
+export type TeachingCase = {
+  id: string;
+  asset_name: string;
+  content_tags: string[];
+  normalized_ref_id: string | null;
+  raw_object_id: string | null;
+};
+
 export type RawJob = {
   id: string;
   job_title: string;

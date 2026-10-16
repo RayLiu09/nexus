@@ -383,6 +383,11 @@ P0 record profiles include job demand, occupational ability analysis, and major 
   canonical normalized-document metadata rather than duplicated master-table
   columns. No reverse pointer is stored on `normalized_asset_ref`,
   `asset_version`, or `knowledge_chunk`.
+- Teaching cases: `teaching_case` is a governed Pipeline A document classification
+  with one `nexus_semantic` / `semantic_repack` Pipeline 1 emission. Its source
+  is `normalized_document`; it creates no case domain table, knowledge outline,
+  or evidence graph. The document's extracted content title is preferred for
+  the Asset Center list, with a leading `教学案例——` removed for display only.
 - Evidence-grounded KG extension: `knowledge_graph_build`,
   `knowledge_graph_node`, `knowledge_graph_fact`, `knowledge_graph_edge`,
   `knowledge_graph_mention`, `knowledge_graph_evidence`. These tables store
@@ -481,7 +486,7 @@ Chunking strategies that consume `normalized_document.blocks[]` should pass the 
 - Console 解析预览 renders retained `image_uris` from normalized visual blocks alongside unchanged Markdown. An authenticated internal binary read resolves images by normalized ref, block ID, and image index; arbitrary storage keys are never accepted from the browser.
 - `mineru_converter.assert_no_anchor_pollution(text)` is the runtime tripwire (enabled via env `NEXUS_ASSERT_NO_ANCHORS=1` in dev/staging). Forbidden patterns: `<!--block:…`, `[#block-…`, `{{anchor:…}}`, U+200B/200C/200D/FEFF.
 
-`nexus_app.knowledge.chunk_builder.resolve_blocks_for_span(blocks, span, doc_fallback=...)` is the reverse-lookup helper used by strategies (`qa_extract`, `process_step_extract`, `case_decompose`, `indicator_decompose`). When no block overlaps it falls back to `doc_fallback`, preserving Stage 1 document-level locator behaviour. Omitting the kwarg defaults to `content_blocks`; passing an explicit `None` (used by `graph_extract`) disables the fallback so primary-extraction blocks can be distinguished from supporting evidence.
+`nexus_app.knowledge.chunk_builder.resolve_blocks_for_span(blocks, span, doc_fallback=...)` is the reverse-lookup helper used by strategies (`qa_extract`, `process_step_extract`, `indicator_decompose`). When no block overlaps it falls back to `doc_fallback`, preserving Stage 1 document-level locator behaviour. Omitting the kwarg defaults to `content_blocks`; passing an explicit `None` (used by `graph_extract`) disables the fallback so primary-extraction blocks can be distinguished from supporting evidence.
 
 ### graph_extract: primary vs evidence
 

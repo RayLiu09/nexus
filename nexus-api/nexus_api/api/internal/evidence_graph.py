@@ -20,7 +20,7 @@ from nexus_app.evidence_graph import (
     get_latest_succeeded_build,
     select_graph_candidate_chunks,
 )
-from nexus_app.evidence_graph.service import is_semantic_only_report
+from nexus_app.evidence_graph.service import is_semantic_only_document
 
 router = APIRouter()
 
@@ -42,8 +42,8 @@ def submit_knowledge_graph_build(
     normalized_ref = session.get(models.NormalizedAssetRef, payload.normalized_ref_id)
     if normalized_ref is None:
         raise HTTPException(status_code=404, detail="normalized_ref not found")
-    if is_semantic_only_report(session, normalized_ref.id):
-        raise HTTPException(status_code=409, detail="talent_demand_report supports semantic chunks only")
+    if is_semantic_only_document(session, normalized_ref.id):
+        raise HTTPException(status_code=409, detail="this classification supports semantic chunks only")
     if _is_talent_training_plan_ref(session, normalized_ref.id):
         return error_response(
             request,

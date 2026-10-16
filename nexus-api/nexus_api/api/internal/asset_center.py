@@ -50,6 +50,7 @@ _CLASSIFICATION_RESOURCE_KEYS = {
     "major_profile": "major/profiles",
     "program_profile": "major/profiles",
     "talent_demand_report": "major/talent-demand-reports",
+    "teaching_case": "teaching-resources/cases",
     "talent_training_plan": "major/training-plans",
 }
 

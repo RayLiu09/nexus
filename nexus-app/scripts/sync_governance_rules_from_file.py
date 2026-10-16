@@ -24,7 +24,7 @@ from nexus_app.ai_governance.rules_config import GovernanceRulesConfig
 from nexus_app.database import get_session_local
 
 RULES_PATH = Path(__file__).resolve().parents[2] / "config" / "governance_rules_v2.json"
-CHANGE_SUMMARY = "Rename talent-demand report display name to talent demand research"
+CHANGE_SUMMARY = "Add teaching-case semantic classification and retire unused case decomposition types"
 
 
 def _digest(value: dict) -> str:

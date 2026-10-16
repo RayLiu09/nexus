@@ -398,6 +398,21 @@ def test_submit_build_rejects_talent_demand_report(app, session):
     assert "semantic chunks only" in response.json()["error"]["message"]
 
 
+def test_submit_build_rejects_teaching_case(app, session):
+    from tests.test_asset_catalog_api import _seed_review_required_asset
+
+    seeded = _seed_review_required_asset(session)
+    seeded["result"].classification = "teaching_case"
+    session.commit()
+    with TestClient(app) as client:
+        response = client.post("/internal/v1/knowledge-graphs/builds", json={
+            "normalized_ref_id": seeded["ref"].id,
+            "graph_profile": "report_document",
+        })
+    assert response.status_code == 409
+    assert "semantic chunks only" in response.json()["error"]["message"]
+
+
 def test_submit_build_creates_envelope_and_rebuild_deprecates_existing(app, session, graph_fixture):
     ref, _build, _pending, _chunk, _chunk_2 = graph_fixture
     with TestClient(app) as client:

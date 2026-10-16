@@ -179,6 +179,9 @@ _POLICY_SECTION_HEADING_RE = re.compile(
     r"|第[一二三四五六七八九十\d]+[章节篇]"
     r")\s*[^。！？!?；;\n]{2,60}\s*[。.]?\s*$"
 )
+_CASE_SECTION_HEADING_RE = re.compile(
+    r"^【案例(?:简介|标签|背景|分析|细节及结果|总结(?:与评析)?|思考)】$"
+)
 _SHORT_SECTION_TITLE_RE = re.compile(
     r"^\s*(编写说明|前\s*言|序\s*言|绪\s*论|导\s*言|内容提要|出版说明|"
     r"项目[一二三四五六七八九十\d]+|任务[一二三四五六七八九十\d]+)\s*$"
@@ -649,6 +652,20 @@ def promote_policy_heading_blocks(blocks: list[dict[str, Any]]) -> list[dict[str
         metadata = dict(copy.get("metadata") or {})
         metadata["semantic_role"] = "promoted_policy_heading"
         copy["metadata"] = metadata
+        promoted.append(copy)
+    return promoted
+
+
+def promote_case_heading_blocks(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    promoted: list[dict[str, Any]] = []
+    for block in blocks:
+        text = _text_of(block).strip()
+        if block.get("block_type") != "paragraph" or not _CASE_SECTION_HEADING_RE.fullmatch(text):
+            promoted.append(block)
+            continue
+        copy = dict(block)
+        copy["block_type"] = "heading"
+        copy["heading_level"] = 2
         promoted.append(copy)
     return promoted
 
@@ -1348,7 +1365,7 @@ def repack(
     """
     if not blocks:
         return []
-    blocks = promote_policy_heading_blocks(blocks)
+    blocks = promote_case_heading_blocks(promote_policy_heading_blocks(blocks))
     n0 = len(blocks)
     metric_blocks, metric_heading_ids = extract_metric_image_blocks(blocks)
     step1 = drop_navigational(blocks)

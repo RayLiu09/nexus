@@ -155,6 +155,7 @@ export const ASSET_CENTER_DOMAINS = [
         path: "cases",
         name: "教学案例",
         description: "跨来源教学案例库",
+        classificationCode: "teaching_case",
       },
       {
         path: "course-standards",

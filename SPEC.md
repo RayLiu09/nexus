@@ -261,7 +261,12 @@ Asset Center IA-1:
   selected outline, and the technical asset detail no longer duplicates these
   textbook-specific views.
 - **教材数据**: course textbooks, teaching cases, and course standards.
-  Case-library APIs and final resource fields are deferred.
+  `/asset-center/teaching-resources/cases` lists current, catalog-visible
+  `teaching_case` documents with asset name and governed content tags. The name
+  prefers the extracted document title and removes a leading `教学案例——`.
+  Its actions open parsed preview, RAG chunks, and original download. The
+  internal paginated read is `/internal/v1/teaching-cases`; cases produce only
+  semantic chunks and have no domain structure model or evidence graph.
 - **用户行为数据**: ability indicator library, scoring-system library,
   learning data, and learning analysis. Their domain models are deferred.
 

@@ -15,6 +15,7 @@ import {
   type Enterprise,
   type TalentTrainingPlanSummary,
   type TalentDemandReport,
+  type TeachingCase,
   type TeachingStandardCourse,
   type TeachingStandardLibrary,
 } from "@/lib/api";
@@ -50,6 +51,7 @@ import {
 import { MajorProfilesTable, type MajorProfileFilters } from "../../_components/MajorProfilesTable";
 import { IndustryPoliciesTable } from "../../_components/IndustryPoliciesTable";
 import { TalentDemandReportsTable } from "../../_components/TalentDemandReportsTable";
+import { TeachingCasesTable } from "../../_components/TeachingCasesTable";
 import { JobDemandTable, type JobDemandFilters } from "../../_components/JobDemandTable";
 import { IndustrialParksTable } from "../../_components/IndustrialParksTable";
 import { EnterprisesTable } from "../../_components/EnterprisesTable";
@@ -78,6 +80,23 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
   const pagination = parsePaginationParams(query);
   const page = pagination.page ?? 1;
   const pageSize = pagination.pageSize ?? DEFAULT_PAGE_SIZE;
+
+  if (domain.slug === "teaching-resources" && resource.path === "cases") {
+    const result = await getApiData<TeachingCase[]>(
+      "/internal/v1/teaching-cases", [],
+      { page: String(page), pageSize: String(pageSize) },
+    );
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader eyebrow={domain.name} title={resource.name} description={resource.description} />
+        <TeachingCasesTable
+          rows={result.data} total={result.total ?? result.data.length}
+          page={page} pageSize={pageSize} ok={result.ok}
+          error={result.error} traceId={result.traceId}
+        />
+      </div>
+    );
+  }
 
   if (domain.slug === "major" && resource.path === "talent-demand-reports") {
     const session = await getServerSession();

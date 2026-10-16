@@ -19,7 +19,7 @@ from nexus_app import models
 GRAPH_TYPE = "evidence_grounded_kg"
 
 
-def is_semantic_only_report(session: Session, normalized_ref_id: str) -> bool:
+def is_semantic_only_document(session: Session, normalized_ref_id: str) -> bool:
     """Use the latest official classification, not stale emission metadata."""
     classification = session.scalar(
         select(models.GovernanceResult.classification)
@@ -27,7 +27,7 @@ def is_semantic_only_report(session: Session, normalized_ref_id: str) -> bool:
         .order_by(models.GovernanceResult.created_at.desc(), models.GovernanceResult.id.desc())
         .limit(1)
     )
-    return classification == "talent_demand_report"
+    return classification in {"talent_demand_report", "teaching_case"}
 
 
 class KnowledgeGraphBuildStatus(StrEnum):

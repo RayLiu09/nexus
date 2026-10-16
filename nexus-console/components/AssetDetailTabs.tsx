@@ -49,6 +49,7 @@ const CLASSIFICATION_LABELS: Record<string, string> = {
   teaching_standard: "专业教学标准",
   major_distribution: "专业布点数",
   talent_demand_report: "人才需求调研",
+  teaching_case: "教学案例",
   talent_training_plan: "人才培养方案",
   major_profile: "专业简介",
 };

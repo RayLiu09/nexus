@@ -5,6 +5,7 @@ version state from `failed` back to `processing`. Audit emission happens
 inside the handler so the asset detail page reflects the change immediately."""
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -87,6 +88,7 @@ _CLASSIFICATION_LABELS: dict[str, str] = {
     "teaching_standard": "专业教学标准",
     "major_distribution": "专业布点数",
     "talent_demand_report": "人才需求调研",
+    "teaching_case": "教学案例",
     "talent_training_plan": "人才培养方案",
     "major_profile": "专业简介",
     "course_textbook": "教材",
@@ -612,6 +614,7 @@ def _list_industry_documents(
     classification: str,
     topic: DocumentTopic | None = None,
     include_report_identity: bool = False,
+    teaching_case: bool = False,
 ):
     """Build a report/policy list projection from catalog and normalized refs."""
     asset_ids, total = _catalog_candidate_ids(
@@ -694,6 +697,11 @@ def _list_industry_documents(
                 for value in values
             ] or row.content_tags,
         }
+        if teaching_case:
+            content_title = metadata.get("title")
+            title = content_title.strip() if isinstance(content_title, str) and content_title.strip() else row.title
+            title = re.sub(r"^教学案例\s*[—–－-]+\s*", "", title).strip()
+            item["asset_name"] = title or row.title
         if include_report_identity:
             item.update(_report_identity(ref) if ref is not None else {
                 field: None for field in _REPORT_IDENTITY_FIELDS
@@ -717,6 +725,18 @@ def list_talent_demand_reports(
     return _list_industry_documents(
         request, pagination, session,
         classification="talent_demand_report", include_report_identity=True,
+    )
+
+
+@router.get("/teaching-cases", response_model=schemas.ListResponse[dict])
+def list_teaching_cases(
+    request: Request,
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+):
+    return _list_industry_documents(
+        request, pagination, session,
+        classification="teaching_case", teaching_case=True,
     )
 
 

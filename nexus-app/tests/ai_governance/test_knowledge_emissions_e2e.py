@@ -106,11 +106,19 @@ class TestKnowledgeEmissions:
         registry = GovernanceRulesRegistry()
         registry.load(rules_path)
 
+        case = next(item for item in registry.get_classifications() if item.code == "teaching_case")
+        assert any("教案" in criterion for criterion in case.criteria)
+        assert not any(
+            item.get("chunking_strategy") == "case_decompose"
+            for item in registry.get_knowledge_types()
+        )
+
         expected_emissions = {
             "industry_policy": ("industry_research_kb", "policy_document"),
             "industry_report": ("industry_research_kb", "report_document"),
             "sector_report": ("industry_research_kb", "report_document"),
             "talent_demand_report": ("talent_demand_report", None),
+            "teaching_case": ("teaching_case", None),
         }
         for classification, (expected_code, expected_profile) in expected_emissions.items():
             emissions = infer_knowledge_emissions(

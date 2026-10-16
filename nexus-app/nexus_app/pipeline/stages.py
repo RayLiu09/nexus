@@ -2456,7 +2456,7 @@ def _enqueue_evidence_graph_build_if_requested(
         .order_by(models.GovernanceResult.created_at.desc(), models.GovernanceResult.id.desc())
         .limit(1)
     )
-    if latest_classification == "talent_demand_report":
+    if latest_classification in {"talent_demand_report", "teaching_case"}:
         return None
     graph_profiles = {
         emission.get("graph_profile")

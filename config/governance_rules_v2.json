@@ -1030,6 +1030,30 @@
       "co_emission_rules": []
     },
     {
+      "code": "teaching_case",
+      "name": "教学案例",
+      "parent_type": "课程资源",
+      "description": "用于教学讨论的独立业务案例，包含具体情境、分析或实践过程，以及总结、评析或思考题；不包括以系统教学章节为主体的教材、教案或实训指导书。",
+      "criteria": [
+        "文档主体是一个独立业务或实践案例，围绕具体情境展开背景、分析或实战细节，并给出结果、总结、评析、思考题或参考答案。",
+        "标题可带教学案例前缀，但仅出现案例一词或教材章节中的举例不足以归为教学案例；须综合正文的案例结构判断。",
+        "教案、课程教材、实训指导书和以教学目标、课时、教学过程为主体的文档不属于教学案例；《直播电商》教案不得归入此类。"
+      ],
+      "application_scenarios": ["案例教学", "备课辅助", "案例检索"],
+      "title_keywords": ["教学案例", "案例分析", "案例"],
+      "content_keywords": ["案例背景", "案例分析", "案例细节及结果", "案例总结", "案例思考", "参考答案"],
+      "tagging_basis": {"professional_domain": [], "education_level": ""},
+      "geo_scope": "仅依据案例主体和明确的业务发生地打标；示例、图示和思考题中的地点不作为适用范围。",
+      "timeliness": [],
+      "data_source": [],
+      "quality_dimensions": [],
+      "decomposition_note": "按标准化文档语义切块，不建立领域结构模型",
+      "structure_description": "案例简介、背景、分析或细节、结果、总结与评析、思考题和答案；栏目可能缺省或名称变化。",
+      "primary_knowledge_type": "teaching_case",
+      "default_level": "L2",
+      "co_emission_rules": []
+    },
+    {
       "code": "course_textbook",
       "name": "教材",
       "parent_type": "课程资源",
@@ -1582,66 +1606,6 @@
       "kb_name": "nexus-kb-teaching-evaluation"
     },
     {
-      "code": "ecommerce_case_library",
-      "name": "电商项目案例库",
-      "description": "电商项目案例集合，用于案例教学与项目化课程",
-      "applicable_classifications": [],
-      "default_level": "L2",
-      "source_kind": "extracted_from_normalized",
-      "chunking_mode": "nexus_extract",
-      "rag_pipeline": "pipeline_1",
-      "source_criteria": [
-        "包含案例背景、问题、解决方案、效果评估",
-        "围绕电商业务场景"
-      ],
-      "chunking_strategy": "case_decompose",
-      "chunking_config": {
-        "case_sections": [
-          "背景",
-          "问题",
-          "解决方案",
-          "效果",
-          "反思"
-        ],
-        "section_chunk_size": 384,
-        "section_overlap": 32
-      },
-      "chunk_type": "case_section",
-      "co_emission_rules": [],
-      "implementation_tier": "C",
-      "kb_name": "nexus-kb-ecommerce-cases"
-    },
-    {
-      "code": "enterprise_task_library",
-      "name": "企业项目任务库",
-      "description": "源自真实企业的项目任务集合，用于产教融合教学",
-      "applicable_classifications": [],
-      "default_level": "L2",
-      "source_kind": "extracted_from_normalized",
-      "chunking_mode": "nexus_extract",
-      "rag_pipeline": "pipeline_1",
-      "source_criteria": [
-        "包含任务背景、目标、交付物、评估要点",
-        "来源于企业真实项目"
-      ],
-      "chunking_strategy": "case_decompose",
-      "chunking_config": {
-        "case_sections": [
-          "背景",
-          "目标",
-          "任务",
-          "交付物",
-          "评估"
-        ],
-        "section_chunk_size": 384,
-        "section_overlap": 32
-      },
-      "chunk_type": "case_section",
-      "co_emission_rules": [],
-      "implementation_tier": "C",
-      "kb_name": "nexus-kb-enterprise-tasks"
-    },
-    {
       "code": "course_knowledge_graph",
       "name": "课程知识图谱数据",
       "description": "课程相关的知识点、概念、关系，用于知识图谱构建与检索",
@@ -1809,6 +1773,23 @@
       "co_emission_rules": [],
       "implementation_tier": "A",
       "kb_name": "nexus-kb-talent-demand-report"
+    },
+    {
+      "code": "teaching_case",
+      "name": "教学案例语义知识库",
+      "description": "从标准化案例文档生成可追溯的语义知识块。",
+      "applicable_classifications": ["teaching_case"],
+      "default_level": "L2",
+      "source_kind": "extracted_from_normalized",
+      "chunking_mode": "nexus_semantic",
+      "rag_pipeline": "pipeline_1",
+      "source_criteria": ["独立案例正文", "包含可检索的背景、分析、结果或思考内容"],
+      "chunking_strategy": "semantic_repack",
+      "chunking_config": {"chunk_size": 512, "overlap": 64, "min_chunk_size": 100, "max_chunk_size": 1024, "split_by": "sentence"},
+      "chunk_type": "semantic",
+      "co_emission_rules": [],
+      "implementation_tier": "A",
+      "kb_name": "nexus-kb-teaching-case"
     },
     {
       "code": "structured_record_table",

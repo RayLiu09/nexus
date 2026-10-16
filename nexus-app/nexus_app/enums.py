@@ -403,6 +403,7 @@ class ChunkType(StrEnum):
     QA_PAIR                = "qa_pair"
     PROCESS_STEP           = "process_step"
     INDICATOR              = "indicator"
+    # Retained for reading historical chunks after case_decompose retirement.
     CASE_SECTION           = "case_section"
     GRAPH_NODE             = "graph_node"
     TAG                    = "tag"
@@ -423,6 +424,7 @@ class ChunkingStrategy(StrEnum):
     QA_EXTRACT             = "qa_extract"
     PROCESS_STEP_EXTRACT   = "process_step_extract"
     INDICATOR_DECOMPOSE    = "indicator_decompose"
+    # Retained for persisted historical strategy values; not registered for new chunks.
     CASE_DECOMPOSE         = "case_decompose"
     GRAPH_EXTRACT          = "graph_extract"
     TAG_DECOMPOSE          = "tag_decompose"

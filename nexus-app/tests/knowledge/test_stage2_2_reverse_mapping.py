@@ -143,38 +143,6 @@ def test_process_step_extract_maps_each_step_to_its_block():
     assert chunks[1].source_block_ids == ["b_s2"]
 
 
-# ---------- case_decompose ----------
-
-def test_case_decompose_maps_each_section_to_its_blocks():
-    body_md = "背景\n这是背景说明。\n\n解决方案\n采用 X 方法。\n\n效果\n显著提升。"
-    blocks = _locate_blocks_in_md(body_md, [
-        ("b_bg_h",  1, [10, 10, 100, 30], "背景"),
-        ("b_bg_p",  1, [10, 40, 100, 70], "这是背景说明。"),
-        ("b_sol_h", 2, [10, 10, 100, 30], "解决方案"),
-        ("b_sol_p", 2, [10, 40, 100, 70], "采用 X 方法。"),
-        ("b_eff_h", 3, [10, 10, 100, 30], "效果"),
-        ("b_eff_p", 3, [10, 40, 100, 70], "显著提升。"),
-    ])
-    strategy = STRATEGY_REGISTRY["case_decompose"]({
-        "case_sections": ["背景", "解决方案", "效果"],
-        "section_chunk_size": 256,
-    })
-    chunks = strategy.chunk(body_md, _EMISSION, _kt_config(), "ref-3", content_blocks=blocks)
-
-    by_section = {c.chunk_metadata["section_name"]: c for c in chunks}
-    assert set(by_section) == {"背景", "解决方案", "效果"}
-    # Body span for 背景 starts after the "背景\n" header → includes 这是背景说明.
-    # Resolver requires overlap: depending on where header ends, b_bg_h may or
-    # may not overlap. The contract is: at minimum the body's primary block must
-    # be present.
-    assert "b_bg_p" in by_section["背景"].source_block_ids
-    assert "b_sol_p" in by_section["解决方案"].source_block_ids
-    assert "b_eff_p" in by_section["效果"].source_block_ids
-    # Cross-section leakage must NOT happen
-    assert "b_sol_p" not in by_section["背景"].source_block_ids
-    assert "b_eff_p" not in by_section["解决方案"].source_block_ids
-
-
 # ---------- indicator_decompose ----------
 
 def test_indicator_decompose_maps_grouped_lines_to_their_blocks():
@@ -195,19 +163,16 @@ def test_indicator_decompose_maps_grouped_lines_to_their_blocks():
 # ---------- back-compat ----------
 
 def test_reverse_mapping_strategies_back_compat_no_blocks():
-    """Without content_blocks, all 4 refactored strategies still yield chunks
+    """Without content_blocks, refactored strategies still yield chunks
     with locator=None (record-pipeline / legacy callers stay safe)."""
     for name, content in [
         ("qa_extract",            "问: q?\n答: a."),
         ("process_step_extract",  "步骤1: 一\n\n步骤2: 二"),
-        ("case_decompose",        "背景\n说明。\n\n效果\n好。"),
         ("indicator_decompose",   "维度: A\n指标: B"),
     ]:
         cls = STRATEGY_REGISTRY[name]
         cfg = {
             "step_indicators": ["步骤"],
-            "case_sections": ["背景", "效果"],
-            "section_chunk_size": 100,
             "indicator_fields": ["维度", "指标"],
         }
         strategy = cls(cfg)

@@ -2,6 +2,7 @@ const GRAPH_HIDDEN_CLASSIFICATIONS = new Set([
   "industry_report",
   "sector_report",
   "talent_demand_report",
+  "teaching_case",
 ]);
 
 export function shouldShowEvidenceGraph(

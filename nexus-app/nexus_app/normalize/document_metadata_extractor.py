@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 # Heading detector — block_type=heading is the most reliable signal, but for
 # back-compat we also accept paragraph blocks whose text starts with "# ".
 def _is_heading(block: dict[str, Any]) -> bool:
-    if block.get("block_type") == "heading":
+    if block.get("block_type") in {"heading", "title"}:
         return True
     text = (block.get("text") or block.get("content") or "").lstrip()
     return text.startswith("#") and " " in text[:6]
@@ -210,17 +210,32 @@ def extract(
     if not blocks:
         return metadata, contributed
 
-    # ---- 1. Title — first h1 heading, anywhere in the leading 5 blocks ----
+    # ---- 1. Title — first heading, or a case title before its first section ----
     title_block_idx: int | None = None
     for i, b in enumerate(blocks[:5]):
         if _is_heading(b):
             text = _block_text(b, body_markdown).lstrip()
             cleaned = text.lstrip("#").strip()
-            if cleaned:
+            if cleaned and not cleaned.startswith("【案例"):
                 metadata["title"] = cleaned
                 title_block_idx = i
                 contributed.add(b.get("block_id"))
                 break
+    if title_block_idx is None:
+        leading = [(i, b, _block_text(b, body_markdown).strip()) for i, b in enumerate(blocks[:6])]
+        nonempty = [(i, b, text) for i, b, text in leading if text]
+        if len(nonempty) >= 2:
+            i, b, text = nonempty[0]
+            next_text = nonempty[1][2]
+            if (
+                len(text) <= 160
+                and not text.startswith("【")
+                and (text.startswith("教学案例") or next_text.startswith(("【案例背景】", "【案例简介】")))
+            ):
+                metadata["title"] = text
+                title_block_idx = i
+                if b.get("block_id"):
+                    contributed.add(b["block_id"])
 
     # Explicit bibliographic labels are strong enough to extract even when
     # the parser did not mark the cover title as a heading. Keep the scan

@@ -8,6 +8,12 @@ per-chunk metadata downstream.
 """
 from __future__ import annotations
 
+from pathlib import Path
+from xml.etree import ElementTree
+from zipfile import ZipFile
+
+import pytest
+
 from nexus_app.normalize.document_metadata_extractor import extract
 
 
@@ -50,6 +56,49 @@ class TestTitle:
         blocks = [_p(1, "纯正文 no heading", page=0)]
         md, _ = extract(blocks, body_markdown="", toc=None)
         assert md["title"] is None
+
+    def test_extracts_case_content_title_without_word_heading_style(self):
+        blocks = [
+            _p(1, "云南白药携手美团买药：以价值共生开拓O2O增长新蓝海"),
+            _p(2, "【案例简介】"),
+            _p(3, "双方合作开展即时零售。"),
+        ]
+        md, ids = extract(blocks, body_markdown="", toc=None)
+        assert md["title"] == blocks[0]["text"]
+        assert "block-p-1" in ids
+
+    def test_extracts_case_title_block(self):
+        blocks = [
+            {"block_id": "title", "block_type": "title", "text": "教学案例——数据可视化"},
+            _p(2, "【案例背景】"),
+        ]
+        md, ids = extract(blocks, body_markdown="", toc=None)
+        assert md["title"] == "教学案例——数据可视化"
+        assert "title" in ids
+
+    @pytest.mark.parametrize("filename", [
+        "智慧家居电商运营数据处理.docx",
+        "某电商企业销售趋势分析案例.docx",
+        "某高端酒店的数据可视化图表应用.docx",
+        "归纳数据可视化报表案例.docx",
+        "美化数据可视化大屏案例.docx",
+        "女装品牌年度运营报告简述.docx",
+        "云南白药携手美团买药：以价值共生开拓O2O增长新蓝海模式实战落地.docx",
+    ])
+    def test_sample_case_title_comes_from_document_content(self, filename):
+        sample = Path(__file__).resolve().parents[3] / "docs" / "samples" / filename
+        with ZipFile(sample) as archive:
+            root = ElementTree.fromstring(archive.read("word/document.xml"))
+        ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+        paragraphs = [
+            "".join(node.itertext()).strip()
+            for node in root.findall(".//w:body/w:p", ns)
+        ]
+        paragraphs = [value for value in paragraphs if value][:3]
+        blocks = [_p(i, value) for i, value in enumerate(paragraphs, start=1)]
+        metadata, ids = extract(blocks, body_markdown="", toc=None)
+        assert metadata["title"] == paragraphs[0]
+        assert "block-p-1" in ids
 
 
 class TestAuthorsAndPublishDate:

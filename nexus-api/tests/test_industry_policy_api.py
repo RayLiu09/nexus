@@ -44,6 +44,32 @@ def test_talent_demand_report_list_reads_document_identity_without_domain_table(
     assert body["data"][0]["content_tags"] == ["岗位需求"]
 
 
+def test_teaching_case_list_uses_content_title_and_current_governed_tags(app, session):
+    seeded = _seed_review_required_asset(session)
+    seeded["result"].classification = "teaching_case"
+    seeded["ref"].document_metadata = {"title": "教学案例——智慧家居电商运营数据处理"}
+    session.add(models.TagAssetIndex(
+        tag_type="topic", tag_value="电商运营", tag_value_normalized="电商运营",
+        target_type=TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
+        target_id=seeded["ref"].id,
+        asset_version_id=seeded["version"].id,
+        source=TagAssetIndexSource.GOVERNANCE_TAG,
+    ))
+    session.commit()
+
+    client = TestClient(app)
+    body = client.get("/internal/v1/teaching-cases").json()
+    assert body["meta"]["total"] == 1
+    assert body["data"][0]["asset_name"] == "智慧家居电商运营数据处理"
+    assert body["data"][0]["content_tags"] == ["电商运营"]
+    assert body["data"][0]["normalized_ref_id"] == seeded["ref"].id
+    assert body["data"][0]["raw_object_id"] == seeded["version"].raw_object_id
+    assert client.get("/internal/v1/asset-center/counts").json()["data"]["counts"]["teaching-resources/cases"] == 1
+    seeded["result"].classification = "course_textbook"
+    session.commit()
+    assert client.get("/internal/v1/teaching-cases").json()["meta"]["total"] == 0
+
+
 def test_business_expert_can_fill_report_identity_with_audit_and_repeat_is_idempotent(app, session, stub_user):
     seeded = _seed_review_required_asset(session)
     seeded["result"].classification = "talent_demand_report"

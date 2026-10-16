@@ -19,7 +19,7 @@ from nexus_app import models
 from nexus_app.audit import write_audit
 from nexus_app.database import get_session_local
 from nexus_app.enums import AuditEventType
-from nexus_app.evidence_graph.service import KnowledgeGraphBuildStatus, is_semantic_only_report
+from nexus_app.evidence_graph.service import KnowledgeGraphBuildStatus, is_semantic_only_document
 from nexus_app.normalize.talent_demand_report_identity import extract
 from nexus_app.storage import get_object_storage
 from nexus_app.config import get_settings
@@ -42,7 +42,7 @@ def main() -> int:
             .distinct()
         ))
         for ref_id in candidate_ids:
-            if not is_semantic_only_report(session, ref_id):
+            if not is_semantic_only_document(session, ref_id):
                 continue
             ref = session.get(models.NormalizedAssetRef, ref_id)
             if ref is None:

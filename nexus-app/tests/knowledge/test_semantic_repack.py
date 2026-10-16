@@ -742,6 +742,19 @@ class TestMetricImageExtraction:
 
 
 class TestRepackPipeline:
+    def test_case_section_paragraph_becomes_heading_context(self):
+        units = repack([
+            _h(1, "教学案例——运营数据处理"),
+            _p(2, "【案例背景】"),
+            _p(3, "某电商平台通过订单与库存数据分析发现季节波动。"),
+            _p(4, "【案例分析】"),
+            _p(5, "团队调整库存和营销节奏，并持续观察销售与复购变化。"),
+        ])
+        assert len(units) == 2
+        assert "案例背景" in units[0]["heading_path"][-1]["title"]
+        assert "案例分析" in units[1]["heading_path"][-1]["title"]
+        assert all("【案例" not in unit["content"] for unit in units)
+
     def test_end_to_end_segments_a_realistic_section(self):
         blocks = [
             _h(1, "# 第三章 行业治理", level=1),
