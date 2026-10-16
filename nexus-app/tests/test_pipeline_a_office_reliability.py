@@ -67,6 +67,30 @@ def _artifact(*, image_uris: dict[str, str] | None = None):
     )
 
 
+def test_talent_demand_report_normalizes_without_domain_model_payloads() -> None:
+    raw = _raw_object("application/pdf")
+    raw.metadata_summary["filename"] = "大数据技术专业人才需求与培养调研报告.pdf"
+    payload = _build_normalized_document(
+        raw,
+        _artifact(),
+        {
+            "title": raw.metadata_summary["filename"],
+            "markdown": "# 大数据技术专业人才需求与培养调研报告\n\n专业代码：510205",
+            "blocks": [
+                {"block_id": "title", "block_type": "heading", "text": "大数据技术专业人才需求与培养调研报告"},
+                {"block_id": "code", "block_type": "paragraph", "text": "专业代码：510205"},
+                {"block_id": "body", "block_type": "paragraph", "text": "人才培养方案制定建议及课程设计"},
+            ],
+        },
+        _office_context(),
+    )
+    assert payload["document_metadata"]["talent_demand_report"]["major_code"] == "510205"
+    assert "talent_training_plan" not in payload
+    assert "major_profile" not in payload
+    assert "teaching_standard" not in payload
+    assert "course_standard" not in payload
+
+
 class TestMinerUOfficeZipResponses:
     def test_selects_substantive_parse_json_not_first_incidental_json(self) -> None:
         body = _zip_response({

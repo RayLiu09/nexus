@@ -263,6 +263,7 @@ class AuditEventType(StrEnum):
     TEACHING_STANDARD_LIBRARY_ACTIVATED = "TeachingStandardLibraryActivated"
     # Pipeline B PD — operator-maintained major distribution structured rows.
     MAJOR_DISTRIBUTION_RECORD_UPDATED = "MajorDistributionRecordUpdated"
+    TALENT_DEMAND_REPORT_IDENTITY_UPDATED = "TalentDemandReportIdentityUpdated"
     MAJOR_DISTRIBUTION_RECORD_DELETED = "MajorDistributionRecordDeleted"
     CROSS_SOURCE_DUPLICATE_DETECTED = "CrossSourceDuplicateDetected"
     VERSION_STATUS_CHANGED          = "VersionStatusChanged"

@@ -1,6 +1,7 @@
-const OUTLINE_FIRST_REPORT_CLASSIFICATIONS = new Set([
+const GRAPH_HIDDEN_CLASSIFICATIONS = new Set([
   "industry_report",
   "sector_report",
+  "talent_demand_report",
 ]);
 
 export function shouldShowEvidenceGraph(
@@ -9,6 +10,6 @@ export function shouldShowEvidenceGraph(
 ): boolean {
   return (
     graphAdmission !== "not_recommended" &&
-    !OUTLINE_FIRST_REPORT_CLASSIFICATIONS.has(classification ?? "")
+    !GRAPH_HIDDEN_CLASSIFICATIONS.has(classification ?? "")
   );
 }

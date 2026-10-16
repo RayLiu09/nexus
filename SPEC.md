@@ -4,6 +4,15 @@ This document is the concise product and requirement contract for implementation
 
 ## Product Goal
 
+Professional talent-demand reports appear in a paginated Asset Center list
+with asset name, major name/code, institution name when source-evidenced,
+governed content tags, parsed preview, RAG chunks, and original download.
+Their knowledge processing creates a semantic index without a structured
+domain model or evidence graph.
+Only business experts may edit the report identity fields from this Asset Center
+list. Manual values are audited and displayed without changing parsed source
+evidence; platform data administrators have no edit permission.
+
 NEXUS一期 builds the minimum usable loop for enterprise data assets and knowledge assets:
 
 `data ingestion → ingest_validate → assetize → parse/normalize → normalized_asset_ref → AI governance and quality scoring → rule guardrails → available/review_required/disabled → NEXUS knowledge_chunk construction → pgvector P0 index/search adapter → permission/governance-filter-ready search/QA → traceable citation and audit`
@@ -251,7 +260,7 @@ Asset Center IA-1:
   rows open task-outline tree and radial Drawers. Each action loads only the
   selected outline, and the technical asset detail no longer duplicates these
   textbook-specific views.
-- **教材资源数据**: course textbooks, teaching cases, and course standards.
+- **教材数据**: course textbooks, teaching cases, and course standards.
   Case-library APIs and final resource fields are deferred.
 - **用户行为数据**: ability indicator library, scoring-system library,
   learning data, and learning analysis. Their domain models are deferred.

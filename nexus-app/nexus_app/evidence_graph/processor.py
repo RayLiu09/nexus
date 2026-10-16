@@ -19,6 +19,7 @@ from nexus_app.evidence_graph.persist import GraphPersistResult, persist_graph_c
 from nexus_app.evidence_graph.service import (
     GRAPH_TYPE,
     KnowledgeGraphBuildStatus,
+    is_semantic_only_report,
     mark_graph_build_failed,
     mark_graph_build_running,
 )
@@ -60,6 +61,14 @@ def claim_pending_graph_build(
         .limit(1)
     )
     build = session.scalar(stmt)
+    while build is not None and is_semantic_only_report(session, build.normalized_ref_id):
+        build.status = KnowledgeGraphBuildStatus.DEPRECATED
+        build.quality_summary = {
+            **dict(build.quality_summary or {}),
+            "retirement_reason": "talent_demand_report_semantic_only",
+        }
+        session.flush()
+        build = session.scalar(stmt)
     if build is None:
         return None
     summary = dict(build.quality_summary or {})
@@ -247,6 +256,7 @@ def process_one_pending_graph_build(
         session.commit()
     build = claim_pending_graph_build(session, worker_id=worker_id)
     if build is None:
+        session.commit()
         return None
     session.commit()
 

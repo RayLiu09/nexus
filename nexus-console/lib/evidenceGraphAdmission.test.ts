@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { shouldShowEvidenceGraph } from "./evidenceGraphAdmission";
 
 describe("shouldShowEvidenceGraph", () => {
-  it.each(["industry_report", "sector_report"])(
+  it.each(["industry_report", "sector_report", "talent_demand_report"])(
     "hides the graph entry for outline-first report classification %s",
     (classification) => {
       expect(shouldShowEvidenceGraph("recommended", classification)).toBe(false);

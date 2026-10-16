@@ -765,7 +765,7 @@
     },
     {
       "code": "talent_demand_report",
-      "name": "专业人才需求报告",
+      "name": "人才需求调研",
       "parent_type": "专业数据",
       "description": "各学校公布的专业人才需求调研报告",
       "application_scenarios": [
@@ -833,7 +833,6 @@
       "decomposition_note": "相对固定的文档结构",
       "structure_description": "调研目的与意义，专业调研背景，专业调研的基本情况，调研情况分析；\n\n调研目的，调研方法，调研对象及内容，调研结果分析，调研结论及建议；",
       "primary_knowledge_type": "talent_demand_report",
-      "graph_profile": "report_document",
       "default_level": "L2",
       "co_emission_rules": []
     },
@@ -1784,7 +1783,7 @@
     },
     {
       "code": "talent_demand_report",
-      "name": "专业人才需求报告知识库",
+      "name": "人才需求调研知识库",
       "description": "专业人才需求、岗位缺口、能力趋势与调研结论类文档；由 NEXUS semantic_repack 进行本地语义切块。",
       "applicable_classifications": [
         "talent_demand_report"

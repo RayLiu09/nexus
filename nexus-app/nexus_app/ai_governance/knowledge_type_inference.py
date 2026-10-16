@@ -120,7 +120,10 @@ def infer_knowledge_emissions_for_classification(
         ],
         "co_emission_origin": None,
     }
-    graph_profile = cls_def.graph_profile or primary_kt_config.get("graph_profile")
+    graph_profile = (
+        None if classification == "talent_demand_report"
+        else cls_def.graph_profile or primary_kt_config.get("graph_profile")
+    )
     if isinstance(graph_profile, str) and graph_profile.strip():
         emission["graph_profile"] = graph_profile.strip()
     return [emission]

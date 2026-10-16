@@ -976,6 +976,32 @@ def _run_major_profile_normalize(
     )
 
 
+def _run_talent_training_plan_projection(
+    ctx: PipelineContext,
+    normalized_ref: models.NormalizedAssetRef,
+) -> None:
+    """Persist a plan only after governance confirms its document class."""
+    from nexus_app.talent_training_plan.writer import write
+
+    ctx.session.commit()
+    uri = normalized_ref.object_uri
+    key = uri.split("/", 3)[-1] if uri.startswith("s3://") else uri
+    payload = json.loads(ctx.storage.get_bytes(key).decode("utf-8"))
+    plan_payload = payload.get("talent_training_plan") if isinstance(payload, dict) else None
+    if not isinstance(plan_payload, dict):
+        return
+    plan = write(ctx.session, normalized_ref, plan_payload)
+    if plan is not None:
+        normalized_ref.metadata_summary = {
+            **dict(normalized_ref.metadata_summary or {}),
+            "talent_training_plan": {
+                **dict((normalized_ref.metadata_summary or {}).get("talent_training_plan") or {}),
+                "domain_table_status": "generated",
+                "plan_id": plan.id,
+            },
+        }
+
+
 def _run_teaching_standard_library_projection(
     ctx: PipelineContext,
     normalized_ref: models.NormalizedAssetRef,
@@ -1890,12 +1916,6 @@ def execute_job(
     try:
         if pipeline_type == PipelineType.DOCUMENT:
             normalized_ref = _run_document_pipeline(ctx, version)
-            _run_major_profile_normalize(
-                ctx, normalized_ref, raw_object, session, trace_id, job.id
-            )
-            _run_teaching_standard_library_projection(
-                ctx, normalized_ref, raw_object, session, trace_id, job.id
-            )
         else:
             profile_dict = (
                 profile_result.model_dump(mode="json", exclude_none=True)
@@ -1924,12 +1944,23 @@ def execute_job(
             )
 
         # Stage 4: governance decision (optional — skipped if no profile/rules)
-        run_governance_decision(ctx, version, normalized_ref)
+        governance_result = run_governance_decision(ctx, version, normalized_ref)
 
         if pipeline_type == PipelineType.DOCUMENT:
-            _run_teaching_standard_graph(
-                ctx, normalized_ref, raw_object, session, trace_id, job.id
-            )
+            classification = governance_result.classification if governance_result else None
+            if classification == "major_profile":
+                _run_major_profile_normalize(
+                    ctx, normalized_ref, raw_object, session, trace_id, job.id
+                )
+            elif classification == "talent_training_plan":
+                _run_talent_training_plan_projection(ctx, normalized_ref)
+            elif classification == "teaching_standard":
+                _run_teaching_standard_library_projection(
+                    ctx, normalized_ref, raw_object, session, trace_id, job.id
+                )
+                _run_teaching_standard_graph(
+                    ctx, normalized_ref, raw_object, session, trace_id, job.id
+                )
 
         # Stage 5a: knowledge chunking (RAG knowledge base only — skipped otherwise)
         chunks = run_knowledge_chunking(ctx, version, normalized_ref)

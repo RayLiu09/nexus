@@ -17,10 +17,10 @@ describe("AssetCenterOverview", () => {
 
     expect(screen.getAllByRole("article")).toHaveLength(4);
     expect(screen.getByLabelText("资产中心领域")).toContainElement(screen.getAllByRole("article")[0]);
-    expect(screen.getByRole("heading", { name: "产教政策数据" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "产业数据" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "专业数据" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "市场数据" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "教材资源数据" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "教材数据" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "用户行为数据" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /证书数据/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /教育政策/ })).not.toBeInTheDocument();
@@ -41,7 +41,7 @@ describe("AssetCenterOverview", () => {
       "/asset-center/teaching-resources/course-textbooks",
     );
     expect(screen.queryByText("产业画像")).not.toBeInTheDocument();
-    expect(screen.queryByText(/进入产教政策数据/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/进入产业数据/)).not.toBeInTheDocument();
   });
 
   it("does not present API failures as zero counts", () => {

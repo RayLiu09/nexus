@@ -1324,6 +1324,11 @@ def _build_normalized_document(
     from nexus_app.normalize.document_metadata_extractor import extract as _extract_doc_md
 
     doc_metadata, contributed_ids = _extract_doc_md(blocks, body_markdown, toc)
+    from nexus_app.normalize.talent_demand_report_identity import extract as _report_identity
+
+    report_identity = _report_identity(title_from(raw_object, parse_payload), blocks)
+    if report_identity is not None:
+        doc_metadata["talent_demand_report"] = report_identity
     if contributed_ids:
         for b in blocks:
             if b.get("block_id") in contributed_ids:
@@ -1348,6 +1353,53 @@ def _build_normalized_document(
         metadata["retrieval_hints"] = parse_payload.get("retrieval_hints")
     if parse_payload.get("quality"):
         metadata["main_content_quality"] = parse_payload.get("quality")
+
+    if report_identity is not None:
+        office_quality = _office_parse_quality(
+            raw_object.mime_type, parse_payload, blocks, body_markdown, image_uris
+        )
+        return {
+            "schema_version": "normalized-document-v1",
+            "asset_id": None,
+            "version_id": None,
+            "source_type": raw_object.source_type.value,
+            "source_ref": {
+                "raw_object_id": raw_object.id,
+                "raw_object_uri": raw_object.object_uri,
+                "batch_id": raw_object.batch_id,
+                "source_uri": raw_object.source_uri,
+            },
+            "content_type": "document",
+            "title": title_from(raw_object, parse_payload),
+            "language": "zh-CN",
+            "toc": toc,
+            "document_metadata": doc_metadata,
+            "blocks": blocks,
+            "body_markdown": body_markdown,
+            "attachments": _extract_attachments(artifact),
+            "metadata": metadata,
+            "governance": {
+                "sensitivity_level": None,
+                "org_scope": [],
+                "version_status": "processing",
+            },
+            "quality": {
+                "parse_score": None,
+                "normalize_score": None,
+                "anomaly_items": office_quality["anomaly_items"],
+                "manual_review_status": (
+                    "required" if office_quality["manual_review_required"] else "not_required"
+                ),
+                **({"office_parse": office_quality} if office_quality["is_office"] else {}),
+            },
+            "lineage": {
+                "raw_object_id": raw_object.id,
+                "raw_object_uri": raw_object.object_uri,
+                "parse_artifact_id": artifact.id,
+                "parse_artifact_uri": artifact.artifact_uri,
+                "image_uris": image_uris,
+            },
+        }
 
     major_profile_payload: dict[str, Any] | None = None
     try:
@@ -1973,22 +2025,6 @@ def _persist_normalized_ref(
     ref.object_uri = stored.object_uri
     ctx.session.flush()
 
-    if normalized_type == NormalizedType.DOCUMENT:
-        plan_payload = normalized_payload.get("talent_training_plan")
-        if isinstance(plan_payload, dict):
-            from nexus_app.talent_training_plan.writer import write as _write_talent_training_plan
-
-            plan = _write_talent_training_plan(ctx.session, ref, plan_payload)
-            if plan is not None:
-                ref.metadata_summary = {
-                    **dict(ref.metadata_summary or {}),
-                    "talent_training_plan": {
-                        **dict((ref.metadata_summary or {}).get("talent_training_plan") or {}),
-                        "domain_table_status": "generated",
-                        "plan_id": plan.id,
-                    },
-                }
-
     version.metadata_summary = {
         **version.metadata_summary,
         "m1_ready_for_governance": True,
@@ -2414,6 +2450,14 @@ def _enqueue_evidence_graph_build_if_requested(
     emissions: list[dict[str, Any]],
 ) -> dict[str, Any] | None:
     """Queue, but never execute, a graph build requested by the primary emission."""
+    latest_classification = ctx.session.scalar(
+        select(models.GovernanceResult.classification)
+        .where(models.GovernanceResult.normalized_ref_id == normalized_ref.id)
+        .order_by(models.GovernanceResult.created_at.desc(), models.GovernanceResult.id.desc())
+        .limit(1)
+    )
+    if latest_classification == "talent_demand_report":
+        return None
     graph_profiles = {
         emission.get("graph_profile")
         for emission in emissions

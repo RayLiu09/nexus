@@ -1,7 +1,8 @@
 from fastapi.testclient import TestClient
 
+from nexus_api.dependencies import require_user
 from nexus_app import models
-from nexus_app.enums import TagAssetIndexSource, TagAssetIndexTargetType
+from nexus_app.enums import AuditEventType, TagAssetIndexSource, TagAssetIndexTargetType, UserRole
 
 from tests.test_asset_catalog_api import _seed_review_required_asset
 
@@ -12,6 +13,88 @@ def test_industry_policy_list_is_available_without_pipeline_specific_tables(app)
     assert response.status_code == 200
     assert response.json()["data"] == []
     assert response.json()["meta"]["total"] == 0
+
+
+def test_talent_demand_report_list_reads_document_identity_without_domain_table(app, session):
+    seeded = _seed_review_required_asset(session)
+    seeded["result"].classification = "talent_demand_report"
+    seeded["ref"].document_metadata = {
+        "talent_demand_report": {
+            "major_name": "大数据技术（含地理信息应用方向）",
+            "major_code": "510205",
+            "institution_name": None,
+        }
+    }
+    session.add(models.TagAssetIndex(
+        tag_type="topic", tag_value="岗位需求", tag_value_normalized="岗位需求",
+        target_type=TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
+        target_id=seeded["ref"].id,
+        asset_version_id=seeded["version"].id,
+        source=TagAssetIndexSource.GOVERNANCE_TAG,
+    ))
+    session.commit()
+
+    response = TestClient(app).get("/internal/v1/talent-demand-reports")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["meta"]["total"] == 1
+    assert body["data"][0]["major_name"] == "大数据技术（含地理信息应用方向）"
+    assert body["data"][0]["major_code"] == "510205"
+    assert body["data"][0]["institution_name"] is None
+    assert body["data"][0]["content_tags"] == ["岗位需求"]
+
+
+def test_business_expert_can_fill_report_identity_with_audit_and_repeat_is_idempotent(app, session, stub_user):
+    seeded = _seed_review_required_asset(session)
+    seeded["result"].classification = "talent_demand_report"
+    seeded["ref"].document_metadata = {"talent_demand_report": {
+        "major_name": "大数据与会计", "major_code": None, "institution_name": None,
+        "evidence": {"major_name_block_id": "cover"},
+    }}
+    session.commit()
+    stub_user.role = UserRole.BUSINESS_EXPERT
+    url = f"/internal/v1/talent-demand-reports/{seeded['asset'].id}/identity"
+    payload = {
+        "normalized_ref_id": seeded["ref"].id,
+        "major_code": "530302",
+        "institution_name": "测试职业学院",
+    }
+    client = TestClient(app)
+    first = client.patch(url, json=payload)
+    assert first.status_code == 200
+    assert first.json()["data"]["major_code"] == "530302"
+    assert client.patch(url, json=payload).status_code == 200
+    audit = session.query(models.AuditLog).filter_by(
+        event_type=AuditEventType.TALENT_DEMAND_REPORT_IDENTITY_UPDATED,
+    ).all()
+    assert len(audit) == 1
+    assert audit[0].actor_id == stub_user.id
+    assert audit[0].summary["before"]["major_code"] is None
+    assert audit[0].summary["after"]["major_code"] == "530302"
+    assert seeded["ref"].document_metadata["talent_demand_report"]["major_code"] is None
+    listing = client.get("/internal/v1/talent-demand-reports").json()["data"][0]
+    assert listing["major_code"] == "530302"
+    assert listing["institution_name"] == "测试职业学院"
+
+
+def test_only_business_expert_can_edit_current_report_ref(app, session, stub_user):
+    seeded = _seed_review_required_asset(session)
+    seeded["result"].classification = "talent_demand_report"
+    session.commit()
+    url = f"/internal/v1/talent-demand-reports/{seeded['asset'].id}/identity"
+    client = TestClient(app)
+    body = {"normalized_ref_id": seeded["ref"].id, "major_code": "510205"}
+    assert client.patch(url, json=body).status_code == 403
+    stub_user.role = UserRole.BUSINESS_EXPERT
+    assert client.patch(url, json={**body, "normalized_ref_id": "stale-ref"}).status_code == 409
+    assert client.patch(url, json={**body, "major_code": "invalid"}).status_code == 422
+    assert client.patch(url, json={**body, "unknown": "value"}).status_code == 422
+    seeded["result"].classification = "industry_report"
+    session.commit()
+    assert client.patch(url, json=body).status_code == 409
+    assert session.query(models.AuditLog).filter_by(
+        event_type=AuditEventType.TALENT_DEMAND_REPORT_IDENTITY_UPDATED,
+    ).count() == 0
 
 
 def test_industry_policy_list_reads_official_classification_and_typed_metadata(app, session):

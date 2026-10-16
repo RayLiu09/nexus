@@ -14,10 +14,12 @@ import {
   type IndustrialPark,
   type Enterprise,
   type TalentTrainingPlanSummary,
+  type TalentDemandReport,
   type TeachingStandardCourse,
   type TeachingStandardLibrary,
 } from "@/lib/api";
 import { findAssetCenterDomain, findAssetCenterResource } from "@/lib/asset-center/catalog";
+import { getServerSession } from "@/lib/auth/serverSession";
 import { DEFAULT_PAGE_SIZE, parsePaginationParams } from "@/lib/pagination";
 import { normalizePolicyLevel } from "../../_components/PolicyLevelNav";
 import { ResourceShell } from "../../_components/ResourceShell";
@@ -47,6 +49,7 @@ import {
 } from "../../_components/CourseTextbooksTable";
 import { MajorProfilesTable, type MajorProfileFilters } from "../../_components/MajorProfilesTable";
 import { IndustryPoliciesTable } from "../../_components/IndustryPoliciesTable";
+import { TalentDemandReportsTable } from "../../_components/TalentDemandReportsTable";
 import { JobDemandTable, type JobDemandFilters } from "../../_components/JobDemandTable";
 import { IndustrialParksTable } from "../../_components/IndustrialParksTable";
 import { EnterprisesTable } from "../../_components/EnterprisesTable";
@@ -75,6 +78,29 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
   const pagination = parsePaginationParams(query);
   const page = pagination.page ?? 1;
   const pageSize = pagination.pageSize ?? DEFAULT_PAGE_SIZE;
+
+  if (domain.slug === "major" && resource.path === "talent-demand-reports") {
+    const session = await getServerSession();
+    const result = await getApiData<TalentDemandReport[]>(
+      "/internal/v1/talent-demand-reports", [],
+      { page: String(page), pageSize: String(pageSize) },
+    );
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader eyebrow={domain.name} title={resource.name} description={resource.description} />
+        <TalentDemandReportsTable
+          canEdit={session?.role === "business_expert"}
+          rows={result.data}
+          total={result.total ?? result.data.length}
+          page={page}
+          pageSize={pageSize}
+          ok={result.ok}
+          error={result.error}
+          traceId={result.traceId}
+        />
+      </div>
+    );
+  }
 
   if (domain.slug === "major" && resource.path === "profiles") {
     const filters: MajorProfileFilters = {

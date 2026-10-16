@@ -383,6 +383,21 @@ def test_submit_build_rejects_talent_training_plan_ref(app, session, graph_fixtu
     assert error["details"] == [{"normalized_ref_id": ref.id}]
 
 
+def test_submit_build_rejects_talent_demand_report(app, session):
+    from tests.test_asset_catalog_api import _seed_review_required_asset
+
+    seeded = _seed_review_required_asset(session)
+    seeded["result"].classification = "talent_demand_report"
+    session.commit()
+    with TestClient(app) as client:
+        response = client.post("/internal/v1/knowledge-graphs/builds", json={
+            "normalized_ref_id": seeded["ref"].id,
+            "graph_profile": "report_document",
+        })
+    assert response.status_code == 409
+    assert "semantic chunks only" in response.json()["error"]["message"]
+
+
 def test_submit_build_creates_envelope_and_rebuild_deprecates_existing(app, session, graph_fixture):
     ref, _build, _pending, _chunk, _chunk_2 = graph_fixture
     with TestClient(app) as client:

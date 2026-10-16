@@ -39,6 +39,17 @@ export type IndustryPolicy = {
   content_tags: string[];
 };
 
+export type TalentDemandReport = {
+  id: string;
+  asset_name: string;
+  major_name: string | null;
+  major_code: string | null;
+  institution_name: string | null;
+  content_tags: string[];
+  normalized_ref_id: string | null;
+  raw_object_id: string | null;
+};
+
 export type RawJob = {
   id: string;
   job_title: string;

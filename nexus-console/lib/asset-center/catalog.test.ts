@@ -10,10 +10,10 @@ import {
 describe("Asset Center catalogue", () => {
   it("freezes exactly five business domains without synthetic entries", () => {
     expect(ASSET_CENTER_DOMAINS.map((domain) => domain.name)).toEqual([
-      "产教政策数据",
+      "产业数据",
       "专业数据",
       "市场数据",
-      "教材资源数据",
+      "教材数据",
       "用户行为数据",
     ]);
     const resourceNames = ASSET_CENTER_DOMAINS.reduce<string[]>(

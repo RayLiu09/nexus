@@ -141,6 +141,12 @@ Root documents are distilled implementation contracts:
 - The three policy/report business lists provide server-side `财经商贸类` and
   `低空经济类` topic filters with full-list counts, using current asset titles
   and typed industry/topic tags. Unmatched documents remain in the full list.
+- Professional talent-demand reports use normalized-document semantic chunks
+  and a searchable index only. Their Asset Center list shows source-backed
+  major identity, institution when explicit, governed content tags, parsed
+  preview, RAG chunks, and original download. They do not build domain tables
+  or evidence graphs. Business experts can correct report identity fields in
+  this list; the audited override preserves extracted source evidence.
 - The professional domain now has real business lists for professional
   teaching standards and the standard course library. The standard list opens
   the existing evidence-bound `专业 -> 职业领域 -> 典型工作任务 / 主要教学内容与要求`

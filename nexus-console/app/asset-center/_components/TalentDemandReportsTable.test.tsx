@@ -1,0 +1,75 @@
+import { App } from "antd";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
+
+const patchApiData = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/api", () => ({ patchApiData }));
+
+vi.stubGlobal("ResizeObserver", class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+});
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => "/asset-center/major/talent-demand-reports",
+}));
+
+import { TalentDemandReportsTable } from "./TalentDemandReportsTable";
+
+describe("TalentDemandReportsTable", () => {
+  it("shows report identity and all document actions", () => {
+    render(
+      <App>
+        <TalentDemandReportsTable
+          rows={[{
+            id: "asset-1", asset_name: "大数据技术专业人才需求与培养调研报告",
+            major_name: "大数据技术", major_code: "510205", institution_name: null,
+            content_tags: ["岗位需求"], normalized_ref_id: "ref-1", raw_object_id: "raw-1",
+          }]}
+          total={1} page={1} pageSize={20} ok error={null} traceId={null} canEdit
+        />
+      </App>,
+    );
+    expect(screen.getByText("大数据技术（510205）")).toBeInTheDocument();
+    expect(screen.getByText("岗位需求")).toBeInTheDocument();
+    for (const action of ["编辑", "解析预览", "RAG知识块", "原文下载"]) {
+      expect(screen.getByRole("button", { name: action })).toBeEnabled();
+    }
+  });
+
+  it("does not offer editing to a platform data administrator", () => {
+    render(<App><TalentDemandReportsTable
+      rows={[{
+        id: "asset-1", asset_name: "报告", major_name: null, major_code: null,
+        institution_name: null, content_tags: [], normalized_ref_id: "ref-1", raw_object_id: "raw-1",
+      }]}
+      total={1} page={1} pageSize={20} ok error={null} traceId={null} canEdit={false}
+    /></App>);
+    expect(screen.queryByRole("button", { name: "编辑" })).not.toBeInTheDocument();
+  });
+
+  it("saves only completed identity fields through the list action", async () => {
+    patchApiData.mockResolvedValueOnce({ data: {
+      major_name: "大数据与会计", major_code: "530302", institution_name: null,
+    } });
+    const user = userEvent.setup();
+    render(<App><TalentDemandReportsTable
+      rows={[{
+        id: "asset-2", asset_name: "会计报告", major_name: "大数据与会计", major_code: null,
+        institution_name: null, content_tags: [], normalized_ref_id: "ref-2", raw_object_id: "raw-2",
+      }]}
+      total={1} page={1} pageSize={20} ok error={null} traceId={null} canEdit
+    /></App>);
+    await user.click(screen.getByRole("button", { name: "编辑" }));
+    await user.type(screen.getByRole("textbox", { name: "专业代码" }), "530302");
+    expect(screen.getByRole("dialog").textContent).toMatch(/保\s*存/);
+    await user.click(screen.getByRole("button", { name: /保\s*存/ }));
+    expect(patchApiData).toHaveBeenCalledWith(
+      "/api/talent-demand-reports/asset-2/identity",
+      { normalized_ref_id: "ref-2", major_code: "530302" },
+    );
+    expect(await screen.findByText("大数据与会计（530302）")).toBeInTheDocument();
+  });
+});

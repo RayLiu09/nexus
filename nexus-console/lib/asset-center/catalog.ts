@@ -21,7 +21,7 @@ export type AssetCenterDomain = {
 export const ASSET_CENTER_DOMAINS = [
   {
     slug: "policy",
-    name: "产教政策数据",
+    name: "产业数据",
     description: "产教政策、产业报告和行业报告",
     icon: Landmark,
     accent: "#166534",
@@ -87,7 +87,7 @@ export const ASSET_CENTER_DOMAINS = [
       },
       {
         path: "talent-demand-reports",
-        name: "专业人才需求报告",
+        name: "人才需求调研",
         description: "专业人才需求及供需分析报告",
         classificationCode: "talent_demand_report",
       },
@@ -139,7 +139,7 @@ export const ASSET_CENTER_DOMAINS = [
   },
   {
     slug: "teaching-resources",
-    name: "教材资源数据",
+    name: "教材数据",
     description: "教材、教学案例和课程标准资源",
     icon: BookOpenText,
     accent: "#9f1239",

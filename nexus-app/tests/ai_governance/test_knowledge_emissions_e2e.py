@@ -110,14 +110,14 @@ class TestKnowledgeEmissions:
             "industry_policy": ("industry_research_kb", "policy_document"),
             "industry_report": ("industry_research_kb", "report_document"),
             "sector_report": ("industry_research_kb", "report_document"),
-            "talent_demand_report": ("talent_demand_report", "report_document"),
+            "talent_demand_report": ("talent_demand_report", None),
         }
         for classification, (expected_code, expected_profile) in expected_emissions.items():
             emissions = infer_knowledge_emissions(
                 {"classification": classification}, {}, registry,
             )
             assert emissions[0]["code"] == expected_code
-            assert emissions[0]["graph_profile"] == expected_profile
+            assert emissions[0].get("graph_profile") == expected_profile
 
         assert all("ragflow" not in item for item in registry.get_knowledge_types())
 

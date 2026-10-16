@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, aliased
 
@@ -40,6 +41,33 @@ from nexus_app.retrieval.tag_resolver import BUCKET_TO_TAG_TYPE, TagAssetIndexRe
 router = APIRouter()
 
 _ASSET_RETIREMENT_ROLES = {UserRole.BUSINESS_EXPERT, UserRole.PLATFORM_DATA_ADMIN}
+_REPORT_IDENTITY_FIELDS = ("major_name", "major_code", "institution_name")
+_REPORT_MANUAL_KEY = "talent_demand_report_manual_identity"
+
+
+class TalentDemandReportIdentityPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    normalized_ref_id: str
+    major_name: str | None = Field(default=None, max_length=100)
+    major_code: str | None = Field(default=None, pattern=r"^\d{4,6}$")
+    institution_name: str | None = Field(default=None, max_length=100)
+
+    @field_validator("major_name", "institution_name")
+    @classmethod
+    def nonempty_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            raise ValueError("field must not be blank")
+        return value
+
+
+def _report_identity(ref: models.NormalizedAssetRef) -> dict[str, str | None]:
+    source = (ref.document_metadata or {}).get("talent_demand_report") or {}
+    manual = (ref.metadata_summary or {}).get(_REPORT_MANUAL_KEY) or {}
+    return {field: manual.get(field) or source.get(field) for field in _REPORT_IDENTITY_FIELDS}
 
 
 def _require_asset_retirement_role(user: models.UserAccount) -> None:
@@ -58,7 +86,7 @@ _CLASSIFICATION_LABELS: dict[str, str] = {
     "vocational_certificate": "职业类证书",
     "teaching_standard": "专业教学标准",
     "major_distribution": "专业布点数",
-    "talent_demand_report": "专业人才需求报告",
+    "talent_demand_report": "人才需求调研",
     "talent_training_plan": "人才培养方案",
     "major_profile": "专业简介",
     "course_textbook": "教材",
@@ -583,6 +611,7 @@ def _list_industry_documents(
     *,
     classification: str,
     topic: DocumentTopic | None = None,
+    include_report_identity: bool = False,
 ):
     """Build a report/policy list projection from catalog and normalized refs."""
     asset_ids, total = _catalog_candidate_ids(
@@ -646,7 +675,7 @@ def _list_industry_documents(
         ref = refs.get(ref_id) if ref_id else None
         typed_tags = tags_by_ref.get(ref_id or "", {})
         metadata = ref.document_metadata if ref is not None and isinstance(ref.document_metadata, dict) else {}
-        rows.append({
+        item = {
             "id": row.id,
             "asset_name": row.title,
             "normalized_ref_id": ref_id,
@@ -664,7 +693,12 @@ def _list_industry_documents(
                 if tag_type not in {"region", "industry"}
                 for value in values
             ] or row.content_tags,
-        })
+        }
+        if include_report_identity:
+            item.update(_report_identity(ref) if ref is not None else {
+                field: None for field in _REPORT_IDENTITY_FIELDS
+            })
+        rows.append(item)
     return list_response(
         rows,
         request,
@@ -672,6 +706,69 @@ def _list_industry_documents(
         page_size=pagination.page_size,
         total=total,
     )
+
+
+@router.get("/talent-demand-reports", response_model=schemas.ListResponse[dict])
+def list_talent_demand_reports(
+    request: Request,
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+):
+    return _list_industry_documents(
+        request, pagination, session,
+        classification="talent_demand_report", include_report_identity=True,
+    )
+
+
+@router.patch(
+    "/talent-demand-reports/{asset_id}/identity",
+    response_model=schemas.ApiResponse[dict],
+)
+def update_talent_demand_report_identity(
+    asset_id: str,
+    payload: TalentDemandReportIdentityPatch,
+    request: Request,
+    user: models.UserAccount = Depends(require_user),
+    session: Session = Depends(get_db),
+):
+    if user.role != UserRole.BUSINESS_EXPERT:
+        raise HTTPException(status_code=403, detail="business expert role required")
+    changes = payload.model_dump(exclude_unset=True, exclude={"normalized_ref_id"})
+    if not changes or any(value is None for value in changes.values()):
+        raise HTTPException(status_code=422, detail="provide at least one non-empty identity field")
+    asset = session.get(models.Asset, asset_id)
+    if asset is None:
+        raise HTTPException(status_code=404, detail="report asset not found")
+    catalog = _catalog_rows(session, [asset])[0]
+    if catalog.domain != "talent_demand_report" or not catalog.current_normalized_ref_id:
+        raise HTTPException(status_code=409, detail="asset is not a current talent demand report")
+    if catalog.current_normalized_ref_id != payload.normalized_ref_id:
+        raise HTTPException(status_code=409, detail="report version changed; refresh the list")
+    ref = session.scalar(
+        select(models.NormalizedAssetRef)
+        .where(models.NormalizedAssetRef.id == payload.normalized_ref_id)
+        .with_for_update()
+    )
+    if ref is None:
+        raise HTTPException(status_code=409, detail="current normalized report not found")
+    before = _report_identity(ref)
+    manual = dict((ref.metadata_summary or {}).get(_REPORT_MANUAL_KEY) or {})
+    manual.update(changes)
+    after = {**before, **changes}
+    if after != before:
+        ref.metadata_summary = {**dict(ref.metadata_summary or {}), _REPORT_MANUAL_KEY: manual}
+        write_audit(
+            session,
+            AuditEventType.TALENT_DEMAND_REPORT_IDENTITY_UPDATED,
+            target_type="normalized_asset_ref",
+            target_id=ref.id,
+            trace_id=str(getattr(request.state, "trace_id", "")),
+            actor_type="user",
+            actor_id=user.id,
+            summary={"asset_id": asset_id, "before": before, "after": after},
+        )
+        session.commit()
+    return response({"id": asset_id, "normalized_ref_id": ref.id, **after}, request)
 
 
 @router.get("/industry-policies", response_model=schemas.ListResponse[dict])

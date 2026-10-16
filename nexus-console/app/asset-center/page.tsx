@@ -14,7 +14,7 @@ export default async function AssetCenterPage() {
       <PageHeader
         eyebrow="业务任务视图"
         title="资产中心"
-        description="产教政策、专业、市场与教材资源数据"
+        description="产业、专业、市场与教材数据"
       />
       <AssetCenterOverview counts={result.ok ? result.data.counts : null} />
     </div>

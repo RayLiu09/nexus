@@ -643,6 +643,14 @@ These three events are the foundation for Phase 2 consumption-side data lineage 
 
 ## Knowledge Pipeline Boundary
 
+`talent_demand_report` is a semantic-only document classification: its
+`normalized_document` emits `talent_demand_report` knowledge chunks and an
+eligible retrieval index. Report identity is document metadata with source
+evidence, not a domain projection. Official classification gates document
+domain-table writers and graph builds; this classification admits none.
+Business-expert identity corrections are an audited overlay in the normalized
+ref's metadata summary; extracted document metadata and source evidence stay intact.
+
 ```
 Asset Pipeline → normalized_asset_ref (stable contract)
                         ↓ (trigger: normalized_asset_ref.status = generated)
