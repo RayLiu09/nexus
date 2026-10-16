@@ -2,10 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { GovernanceTrace } from "./GovernanceTrackingContent";
 
-vi.mock("./AssetRefCell", () => ({
-  AssetRefCell: ({ title }: { title: string | null }) => <span>{title}</span>,
-}));
-
 vi.mock("./DecisionTrailDrawer", () => ({
   DecisionTrailDrawer: ({
     open,
@@ -52,6 +48,8 @@ describe("GovernanceTrackingContent", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "查看证据" }));
 
+    expect(screen.getByText("历史治理资产")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "历史治理资产" })).not.toBeInTheDocument();
     expect(screen.getByText("产业报告")).toBeInTheDocument();
     expect(screen.getByText("公开")).toBeInTheDocument();
     expect(screen.queryByText("industry_report")).not.toBeInTheDocument();

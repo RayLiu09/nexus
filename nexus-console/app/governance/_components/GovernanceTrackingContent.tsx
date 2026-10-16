@@ -85,7 +85,7 @@ export function GovernanceTrackingContent({
   const columns: ColumnsType<GovernanceTrace> = [
     {
       title: "数据资产",
-      render: (_value, row) => <AssetRefCell title={row.asset_title} assetId={row.asset_id} normalizedRefId={row.normalized_ref_id} />,
+      render: (_value, row) => <AssetRefCell title={row.asset_title} assetId={row.asset_id} normalizedRefId={row.normalized_ref_id} linkTitle={false} />,
     },
     {
       title: "数据分类",

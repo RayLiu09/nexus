@@ -24,6 +24,8 @@ and opens the exact historical decision evidence.
 - Rename navigation/page language from `治理中心` to `治理追踪`.
 - Keep `/tag-review` as the sole pending-review and decision-submission flow.
 - Add focused API and console tests.
+- Keep the tracking table's data-asset title as plain text; the historical
+  evidence action remains the row's navigation control.
 
 ## Out Of Scope
 
@@ -56,3 +58,4 @@ and opens the exact historical decision evidence.
 - Opening an old row fetches that exact `governance_result_id`, not the latest
   result for its normalized ref.
 - `/tag-review` remains the only action path for `review_required` results.
+- The tracking table's data-asset title does not link to asset detail.
