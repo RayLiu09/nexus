@@ -16,7 +16,9 @@ describe("AssetCenterOverview", () => {
     );
 
     expect(screen.getAllByRole("article")).toHaveLength(4);
-    expect(screen.getByLabelText("资产中心领域")).toContainElement(screen.getAllByRole("article")[0]);
+    expect(screen.getByLabelText("资产中心领域")).toContainElement(
+      screen.getAllByRole("article")[0],
+    );
     expect(screen.getByRole("heading", { name: "产业数据" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "专业数据" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "市场数据" })).toBeInTheDocument();
@@ -49,5 +51,17 @@ describe("AssetCenterOverview", () => {
 
     expect(screen.getByRole("link", { name: "产教政策，数量暂不可用" })).toBeInTheDocument();
     expect(screen.getAllByText("--").length).toBeGreaterThan(0);
+  });
+
+  it("keeps resource links usable while counts are loading", () => {
+    render(<AssetCenterOverview counts={null} loading />);
+
+    expect(screen.getAllByRole("article")).toHaveLength(4);
+    expect(screen.getByRole("link", { name: "产教政策，数量加载中" })).toHaveAttribute(
+      "href",
+      "/asset-center/policy/industry-policies",
+    );
+    expect(screen.getAllByText("加载中").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("link", { name: /数量暂不可用/ })).not.toBeInTheDocument();
   });
 });

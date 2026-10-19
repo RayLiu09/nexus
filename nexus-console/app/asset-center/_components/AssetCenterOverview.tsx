@@ -7,7 +7,13 @@ import {
   assetCenterHref,
 } from "@/lib/asset-center/catalog";
 
-export function AssetCenterOverview({ counts }: { counts: Record<string, number> | null }) {
+export function AssetCenterOverview({
+  counts,
+  loading = false,
+}: {
+  counts: Record<string, number> | null;
+  loading?: boolean;
+}) {
   return (
     <div className={styles.grid} aria-label="资产中心领域">
       {ASSET_CENTER_DOMAINS.filter((domain) => domain.slug !== "user-behavior").map((domain) => {
@@ -36,13 +42,18 @@ export function AssetCenterOverview({ counts }: { counts: Record<string, number>
 
             <ul className={`${styles.resources} ${resourceGrid}`}>
               {domain.resources
-                .filter((resource) => resource.path !== "certificates" && resource.path !== "education-policies")
+                .filter(
+                  (resource) =>
+                    resource.path !== "certificates" && resource.path !== "education-policies",
+                )
                 .map((resource, resourceIndex) => {
                   const count = counts?.[assetCenterCountKey(domain, resource)];
                   const countAvailable = count !== undefined;
                   const countLabel = countAvailable
                     ? `${count.toLocaleString("zh-CN")} 条`
-                    : "数量暂不可用";
+                    : loading
+                      ? "数量加载中"
+                      : "数量暂不可用";
                   const hasColumnDivider = isMajor && resourceIndex % 2 === 0;
 
                   return (
@@ -55,15 +66,17 @@ export function AssetCenterOverview({ counts }: { counts: Record<string, number>
                         href={assetCenterHref(domain, resource)}
                         aria-label={`${resource.name}，${countLabel}`}
                       >
-                        <span className={styles.resourceName}>
-                          {resource.name}
-                        </span>
+                        <span className={styles.resourceName}>{resource.name}</span>
                         <span
                           className={styles.count}
                           style={{ color: domain.accent }}
                           title={countLabel}
                         >
-                          {countAvailable ? `${count.toLocaleString("zh-CN")} 条` : "--"}
+                          {countAvailable
+                            ? `${count.toLocaleString("zh-CN")} 条`
+                            : loading
+                              ? "加载中"
+                              : "--"}
                         </span>
                       </Link>
                     </li>
