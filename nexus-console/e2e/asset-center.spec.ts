@@ -21,8 +21,11 @@ test.describe("Asset Center IA-1", () => {
     await expect(page.getByRole("heading", { name: "专业数据" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "市场数据" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "教材数据" })).toBeVisible();
+    await expect(page.getByText("教材与教学案例资源")).toBeVisible();
+    await expect(page.getByText(/课程标准/)).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "用户行为数据" })).toHaveCount(0);
     await expect(page.getByRole("link", { name: /证书数据/ })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /课程标准/ })).toHaveCount(0);
     await expect(
       page.getByRole("link", { name: /标准课程库，(?:[\d,]+ 条|数量暂不可用)/ }),
     ).toBeVisible();
@@ -50,7 +53,7 @@ test.describe("Asset Center IA-1", () => {
         teachingResourceLinks.nth(index).boundingBox(),
       ),
     );
-    expect(teachingResourceLinkBoxes).toHaveLength(3);
+    expect(teachingResourceLinkBoxes).toHaveLength(2);
     for (let index = 1; index < teachingResourceLinkBoxes.length; index += 1) {
       expect(teachingResourceLinkBoxes[index]!.y - teachingResourceLinkBoxes[index - 1]!.y).toBe(
         49,

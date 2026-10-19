@@ -44,7 +44,9 @@ export function AssetCenterOverview({
               {domain.resources
                 .filter(
                   (resource) =>
-                    resource.path !== "certificates" && resource.path !== "education-policies",
+                    resource.path !== "certificates" &&
+                    resource.path !== "education-policies" &&
+                    resource.path !== "course-standards",
                 )
                 .map((resource, resourceIndex) => {
                   const count = counts?.[assetCenterCountKey(domain, resource)];

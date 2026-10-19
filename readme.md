@@ -138,6 +138,8 @@ Root documents are distilled implementation contracts:
   on-demand counts, and direct resource links without intermediate domain
   summary pages. IA-1 adds no persisted statistics, role redesign, or
   source-trace UI.
+- The Asset Center overview currently hides the course-standard entry under
+  teaching resources; its route and resource definition are retained.
 - The three policy/report business lists provide server-side `财经商贸类` and
   `低空经济类` topic filters with full-list counts, using current asset titles
   and typed industry/topic tags. Unmatched documents remain in the full list.

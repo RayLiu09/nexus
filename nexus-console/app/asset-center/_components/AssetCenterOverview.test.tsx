@@ -23,9 +23,12 @@ describe("AssetCenterOverview", () => {
     expect(screen.getByRole("heading", { name: "专业数据" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "市场数据" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "教材数据" })).toBeInTheDocument();
+    expect(screen.getByText("教材与教学案例资源")).toBeInTheDocument();
+    expect(screen.queryByText(/课程标准/)).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "用户行为数据" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /证书数据/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /教育政策/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /课程标准/ })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "标准课程库，128 条" })).toHaveAttribute(
       "href",
       "/asset-center/major/standard-course-library",
@@ -41,6 +44,10 @@ describe("AssetCenterOverview", () => {
     expect(screen.getByRole("link", { name: "课程教材，7 条" })).toHaveAttribute(
       "href",
       "/asset-center/teaching-resources/course-textbooks",
+    );
+    expect(screen.getByRole("link", { name: "教学案例，数量暂不可用" })).toHaveAttribute(
+      "href",
+      "/asset-center/teaching-resources/cases",
     );
     expect(screen.queryByText("产业画像")).not.toBeInTheDocument();
     expect(screen.queryByText(/进入产业数据/)).not.toBeInTheDocument();

@@ -175,6 +175,8 @@ First-level navigation:
 
 Asset Center IA-1:
 
+- The overview hides the course-standard entry under teaching resources;
+  its existing route and resource definition remain available.
 - **产业政策数据**: industry policy, education policy, industry report, and
   sector report. Industry/education policy pages reserve all, national,
   provincial, and regional dimensions. Policy level is not encoded as six
