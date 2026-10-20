@@ -8,7 +8,7 @@ import {
   type CourseTextbookSummary,
   getApiData,
   type MajorDistributionRecord,
-  type MajorProfile,
+  type MajorProfileDocument,
   type IndustryPolicy,
   type RawJob,
   type IndustrialPark,
@@ -122,20 +122,12 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
   }
 
   if (domain.slug === "major" && resource.path === "profiles") {
-    const filters: MajorProfileFilters = {
-      major_name: first(query.major_name),
-      major_code: first(query.major_code),
-      education_level: first(query.education_level),
-      institution_name: first(query.institution_name),
-    };
-    const result = await getApiData<MajorProfile[]>("/internal/v1/major-profiles", [], {
+    const session = await getServerSession();
+    const filters: MajorProfileFilters = { q: first(query.q) };
+    const result = await getApiData<MajorProfileDocument[]>("/internal/v1/major-profile-documents", [], {
       page: String(page),
       pageSize: String(pageSize),
-      official_only: "true",
-      catalog_visible_only: "true",
-      ...Object.fromEntries(
-        Object.entries(filters).filter((entry): entry is [string, string] => Boolean(entry[1])),
-      ),
+      ...(filters.q ? { q: filters.q } : {}),
     });
     return (
       <div className="flex flex-col gap-6">
@@ -145,6 +137,7 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
           description={resource.description}
         />
         <MajorProfilesTable
+          canEdit={session?.role === "business_expert" || session?.role === "platform_data_admin"}
           rows={result.data}
           total={result.total ?? result.data.length}
           page={page}

@@ -1097,6 +1097,11 @@ def run_normalize_document(
     normalized_payload = _apply_normalize_service(
         ctx, normalized_payload, raw_object.source_type.value, "document"
     )
+    from nexus_app.major_profile.metadata import extract_document_metadata
+
+    document_metadata = dict(normalized_payload.get("document_metadata") or {})
+    document_metadata["major_profile"] = extract_document_metadata(normalized_payload)
+    normalized_payload["document_metadata"] = document_metadata
     return _persist_normalized_ref(
         ctx, version, NormalizedType.DOCUMENT, normalized_payload, started_at=started_at
     )
@@ -1401,143 +1406,6 @@ def _build_normalized_document(
             },
         }
 
-    major_profile_payload: dict[str, Any] | None = None
-    try:
-        from nexus_app.major_profile.extractor import extract as _extract_major_profile
-        from nexus_app.major_profile.extractor import looks_like_institution_profile as _looks_like_institution_profile
-        from nexus_app.major_profile.schema import validate_payload as _validate_major_profile_payload
-        major_profile_input = {
-            "content_type": "document",
-            "title": title_from(raw_object, parse_payload),
-            "blocks": blocks,
-            "body_markdown": body_markdown,
-            "source_url": (
-                (parse_payload.get("source") or {}).get("source_url")
-                or raw_object.source_uri
-            ),
-        }
-        major_profile_payload = _extract_major_profile(major_profile_input)
-        # Institution web pages normally omit the national code/template.  The
-        # fallback is limited to normalized blocks and adopts only exact,
-        # evidence-bound output; crawler/WebSearch use this same Pipeline A path.
-        if major_profile_payload is None and _looks_like_institution_profile(major_profile_input):
-            from nexus_app.major_profile.llm_fallback import extract as _extract_institution_profile
-            fallback = _extract_institution_profile(
-                major_profile_input,
-                llm_client=ctx.teaching_standard_llm_client,
-                model_alias=ctx.settings.default_governance_model,
-            )
-            major_profile_payload = fallback.payload
-            metadata["major_profile_extraction"] = fallback.metadata
-            if major_profile_payload is None:
-                from nexus_app.major_profile.extractor import (
-                    extract_institution_identity as _extract_institution_identity,
-                )
-
-                identity = _extract_institution_identity(major_profile_input)
-                if identity is not None:
-                    metadata["institution_identity"] = identity
-                else:
-                    # Candidate detection found an institution-specific profile,
-                    # while strict extraction could not establish a usable school
-                    # identity. Preserve the source but block publication.
-                    metadata["major_profile_candidate_quality"] = {
-                        "schema_version": "major_profile_candidate_quality.v1",
-                        "blocking_reasons": [
-                            "major_profile.institution_identity_unresolved"
-                        ],
-                        "validation_status": "review_required",
-                        "extraction_reason": fallback.metadata.get("reason"),
-                    }
-        if major_profile_payload is not None:
-            major_profile_payload = _validate_major_profile_payload(major_profile_payload)
-    except Exception:
-        logger.warning("major_profile extraction failed during normalize", exc_info=True)
-        major_profile_payload = None
-    major_profile_quality_summary: dict[str, Any] | None = None
-    if major_profile_payload is not None:
-        from nexus_app.major_profile.schema import (
-            aggregate_quality_flags as _aggregate_major_profile_quality_flags,
-            blocking_reasons_from_flags as _major_profile_blocking_reasons,
-        )
-
-        raw_major_profiles = major_profile_payload.get("profiles")
-        major_profile_summaries = [
-            profile
-            for profile in (
-                raw_major_profiles
-                if isinstance(raw_major_profiles, list)
-                else [major_profile_payload]
-            )
-            if isinstance(profile, dict)
-        ]
-        major_profile_quality_flags = _aggregate_major_profile_quality_flags(
-            major_profile_summaries
-        )
-        major_profile_blocking_reasons = _major_profile_blocking_reasons(
-            major_profile_quality_flags
-        )
-        major_profile_quality_summary = {
-            "schema_version": "major_profile_quality.v1",
-            "profile_count": len(major_profile_summaries),
-            "quality_flags": major_profile_quality_flags,
-            "blocking_reasons": major_profile_blocking_reasons,
-            "validation_status": (
-                "review_required" if major_profile_blocking_reasons else "pass"
-            ),
-        }
-        metadata["domain_profile"] = "major_profile.v1"
-        metadata["domain_profiles"] = [
-            {
-                "domain": "major",
-                "domain_profile": "major_profile.v1",
-                "extractor": profile.get("extractor_version"),
-                "confidence": profile.get("confidence"),
-                "major_code": profile.get("major_code"),
-                "major_name": profile.get("major_name"),
-                "profile_source": profile.get("profile_source", "national_standard"),
-                "institution_name": profile.get("institution_name"),
-                "region_tags": profile.get("region_tags") or [],
-                "education_level": profile.get("education_level"),
-                "evidence_block_ids": (
-                    profile.get("evidence", {}).get("source_block_ids")
-                    if isinstance(profile.get("evidence"), dict)
-                    else []
-                ),
-                "quality_flags": (
-                    profile.get("quality_flags")
-                    if isinstance(profile.get("quality_flags"), dict)
-                    else {}
-                ),
-                "domain_table_status": "pending",
-            }
-            for profile in major_profile_summaries
-        ]
-        institution_names = [
-            profile.get("institution_name")
-            for profile in major_profile_summaries
-            if isinstance(profile.get("institution_name"), str)
-            and profile.get("institution_name").strip()
-        ]
-        if institution_names:
-            metadata["institution_identity"] = {
-                "institution_name": institution_names[0].strip(),
-                "evidence_source": "major_profile",
-                "evidence_block_ids": [],
-                "source_url": major_profile_input.get("source_url"),
-            }
-        metadata["major_profile_count"] = len(major_profile_summaries)
-        metadata["major_profile_quality"] = major_profile_quality_summary
-        metadata["knowledge_emissions"] = [{
-            "code": "major_profile_knowledge",
-            "name": "专业介绍知识",
-            "primary": True,
-            "confidence": major_profile_payload.get("confidence", 0.85),
-            "source": "profile_detect",
-            "evidence": ["major_profile.v1 section signatures detected"],
-            "co_emission_origin": None,
-        }]
-
     talent_training_plan_payload: dict[str, Any] | None = None
     try:
         from nexus_app.talent_training_plan.extractor import extract as _extract_talent_training_plan
@@ -1633,14 +1501,7 @@ def _build_normalized_document(
         body_markdown,
         image_uris,
     )
-    candidate_major_profile_quality = metadata.get("major_profile_candidate_quality")
-    anomaly_items = list(
-        major_profile_quality_summary.get("blocking_reasons", [])
-        if major_profile_quality_summary else []
-    )
-    if isinstance(candidate_major_profile_quality, dict):
-        anomaly_items.extend(candidate_major_profile_quality.get("blocking_reasons", []))
-    anomaly_items.extend(office_quality["anomaly_items"])
+    anomaly_items = list(office_quality["anomaly_items"])
 
     return {
         "schema_version": "normalized-document-v1",
@@ -1662,7 +1523,6 @@ def _build_normalized_document(
         "body_markdown": body_markdown,
         "attachments": _extract_attachments(artifact),
         "metadata": metadata,
-        **({"major_profile": major_profile_payload} if major_profile_payload else {}),
         **({"talent_training_plan": talent_training_plan_payload} if talent_training_plan_payload else {}),
         **({"teaching_standard": teaching_standard_payload} if teaching_standard_payload else {}),
         **({"course_standard": course_standard_payload} if course_standard_payload else {}),
@@ -1676,26 +1536,9 @@ def _build_normalized_document(
             "normalize_score": None,
             "anomaly_items": anomaly_items,
             "manual_review_status": (
-                "required"
-                if (
-                    major_profile_quality_summary
-                    and major_profile_quality_summary.get("blocking_reasons")
-                )
-                or (
-                    isinstance(candidate_major_profile_quality, dict)
-                    and candidate_major_profile_quality.get("blocking_reasons")
-                ) or office_quality["manual_review_required"]
-                else "not_required"
+                "required" if office_quality["manual_review_required"] else "not_required"
             ),
             **({"office_parse": office_quality} if office_quality["is_office"] else {}),
-            **(
-                {"major_profile": major_profile_quality_summary}
-                if major_profile_quality_summary else {}
-            ),
-            **(
-                {"major_profile_candidate": candidate_major_profile_quality}
-                if isinstance(candidate_major_profile_quality, dict) else {}
-            ),
         },
         "lineage": {
             "raw_object_id": raw_object.id,
@@ -2169,27 +2012,6 @@ def run_governance_decision(
     # are logged but don't block the version state transition.
     ai_svc.write_knowledge_emissions(ctx.session, ai_run, registry)
 
-    # The profile detector runs on normalized document structure before AI
-    # governance. Do not let an incidental, low-quality profile detection
-    # activate the Console's professional-profile presentation once the
-    # official classification says this is another document domain.
-    from nexus_app.major_profile.presentation import reconcile_presentation
-
-    suppressed_projection = reconcile_presentation(normalized_ref, result.classification)
-    if suppressed_projection is not None:
-        write_audit(
-            ctx.session,
-            AuditEventType.DOMAIN_NORMALIZE_COMPLETED,
-            "normalized_asset_ref",
-            normalized_ref.id,
-            ctx.trace_id,
-            {
-                "action": "presentation_projection_suppressed",
-                "governance_result_id": result.id,
-                **suppressed_projection,
-            },
-        )
-
     state_mgr = VersionStateManager()
     target_status = state_mgr.determine_version_status(ctx.session, result)
 
@@ -2571,20 +2393,6 @@ def run_knowledge_chunking(
         return []
 
     emissions = (normalized_ref.metadata_summary or {}).get("knowledge_emissions", [])
-    emissions, domain_model_detail = _filter_domain_model_required_emissions(
-        normalized_ref, emissions
-    )
-    if not emissions and domain_model_detail.get("domain_model_gate") == "major_profile_model_required":
-        reason = str(domain_model_detail["reason"])
-        _add_stage(
-            ctx,
-            "knowledge_chunking",
-            StageStatus.SKIPPED,
-            {"reason": reason, **domain_model_detail, **admission_detail},
-            started_at=started_at,
-        )
-        _audit_chunking_skipped(ctx, normalized_ref, reason, domain_model_detail)
-        return []
     invalid_codes = _invalid_knowledge_emission_codes(emissions)
     if not emissions or invalid_codes:
         emissions, recovery_detail = _recover_knowledge_emissions(ctx, normalized_ref)
@@ -2593,13 +2401,10 @@ def run_knowledge_chunking(
     else:
         recovery_detail = {"recovery": "not_needed"}
     if not emissions:
-        reason = domain_model_detail.get(
-            "reason", "no knowledge_emissions on normalized_ref"
-        )
+        reason = "no knowledge_emissions on normalized_ref"
         _add_stage(ctx, "knowledge_chunking", StageStatus.SKIPPED,
                    {
                        "reason": reason,
-                       **domain_model_detail,
                        **recovery_detail,
                    }, started_at=started_at)
         _audit_chunking_skipped(ctx, normalized_ref, reason, recovery_detail)
@@ -2649,18 +2454,6 @@ def run_knowledge_chunking(
     content, content_blocks, record_body, domain_payloads = _load_normalized_payload(
         ctx, normalized_ref
     )
-    if domain_payloads.get("major_profile"):
-        emissions = [
-            {
-                **emission,
-                **(
-                    {"major_profile": domain_payloads["major_profile"]}
-                    if emission.get("code") == "major_profile_knowledge"
-                    else {}
-                ),
-            }
-            for emission in emissions
-        ]
     if domain_payloads.get("talent_training_plan"):
         emissions = [
             {
@@ -2690,7 +2483,6 @@ def run_knowledge_chunking(
             "normalized_ref_id": normalized_ref.id,
             "emission_count": len(emissions),
             "chunk_count": len(chunks),
-            **domain_model_detail,
             **recovery_detail,
             **admission_detail,
         },
@@ -2712,37 +2504,6 @@ def run_knowledge_chunking(
             started_at=started_at,
         )
     return chunks
-
-
-def _filter_domain_model_required_emissions(
-    normalized_ref: models.NormalizedAssetRef,
-    emissions: object,
-) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Prevent unstructured major-profile pages from entering Pipeline 1.
-
-    ``major_profile_knowledge`` is a domain-model projection, not a generic
-    full-text index.  Assets that lack a publishable ``major_profile.v1`` stay
-    available for catalog/detail and later full-text reference, but must not
-    create empty chunks or an empty index manifest.
-    """
-    items = [item for item in emissions if isinstance(item, dict)] if isinstance(emissions, list) else []
-    has_major_profile_model = any(
-        isinstance(profile, dict)
-        and profile.get("domain_profile") == "major_profile.v1"
-        for profile in ((normalized_ref.metadata_summary or {}).get("domain_profiles") or [])
-    )
-    filtered = [
-        item
-        for item in items
-        if item.get("code") != "major_profile_knowledge" or has_major_profile_model
-    ]
-    if len(filtered) == len(items):
-        return filtered, {"domain_model_gate": "not_applicable"}
-    return filtered, {
-        "domain_model_gate": "major_profile_model_required",
-        "excluded_emission_codes": ["major_profile_knowledge"],
-        "reason": "major_profile domain model unavailable; retained for asset full-text reference",
-    }
 
 
 def run_knowledge_outline_build(
@@ -3042,8 +2803,6 @@ def _load_normalized_payload(
         record_body = None
     blocks = payload.get("blocks")
     domain_payloads: dict[str, Any] = {}
-    if isinstance(payload.get("major_profile"), dict):
-        domain_payloads["major_profile"] = payload["major_profile"]
     if isinstance(payload.get("talent_training_plan"), dict):
         domain_payloads["talent_training_plan"] = payload["talent_training_plan"]
     if isinstance(blocks, list) and blocks:

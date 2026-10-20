@@ -159,12 +159,12 @@ Root documents are distilled implementation contracts:
   Technical asset detail retains filtered teaching-standard chunks but no
   longer loads or displays the professional teaching-standard directory.
 - Professional introductions are browsed at `/asset-center/major/profiles` as
-  a paginated `major_profile` business list with professional identity in the
-  outer table and occupation, positioning, ability, course/training, and
-  certificate facts loaded only when a row expands. The list follows the
-  current catalog-visible version/ref and latest official classification;
-  technical asset detail keeps generic RAG chunks but no longer duplicates the
-  professional-profile directory or graph.
+  one paginated row per catalog-visible document. Normalization persists major
+  name/code, institution, and education level in document metadata; authorized
+  users can edit those fields with an audit trail. Rows offer parsed preview,
+  generic semantic RAG chunks, and original download. The retired
+  `major_profile.v1` domain rows and section-derived chunks are removed by
+  migration; raw and normalized source documents remain traceable.
 - Professional major-distribution records are browsed across datasets at
   `/asset-center/major/distributions`, with server-side filtering, pagination,
   and audited record corrections/deletion. The former asset-detail

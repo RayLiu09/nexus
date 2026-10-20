@@ -253,8 +253,10 @@ Key rule: `run_parse()` auto-selects `model_version` from `raw_object.mime_type`
 Produces: `parse_artifact`, `normalized_asset_ref(type=document)`.
 
 Pipeline A document projections may additionally materialize evidence-bound
-domain read models from `normalized_document`. `major_profile.v1` remains the
-lightweight professional-introduction projection. `talent_training_plan.v1`
+domain read models from `normalized_document`. Professional introductions do
+not require a domain read model: their four identity fields are persisted as
+`document_metadata.major_profile` and may be auditedly overridden on the ref.
+`talent_training_plan.v1`
 represents an institution-specific professional talent-training plan: its
 industry, occupation, position, skill, and certificate declarations are
 controlled JSON attributes with source evidence, not platform master data;
@@ -290,24 +292,24 @@ Public-foundation, professional-course, practice, elective, and internship
 hour rules are independent, potentially overlapping source constraints. Their
 ratios must never be summed as mutually exclusive parts of total hours.
 
-`major_profile.v1` supports both national standard introductions and
-institution/official-site introductions. National profiles retain the
-code-centric standard shape; institution profiles can have no national code
-but must retain institution name, regional tags, major name, and evidence-bound
-occupation/course/certificate/cooperation facts. Institution-format extraction
-uses the configured LiteLLM only as a strict normalized-document fallback:
-closed JSON schema validation, verbatim block evidence validation, confidence
-thresholds, and governance admission apply before domain rows are written.
+`major_profile` is a governance classification for source documents with
+variable structure. Normalization extracts only professional name/code,
+institution name, and education level as optional document metadata. Pipeline 1
+uses generic semantic repacking of normalized blocks; no professional section
+model, domain table write, or profile-specific admission gate is required.
+Historical derived rows and section chunks are retired without deleting source
+documents or immutable governance/audit evidence.
 
-For province-level institution statistics, `major_profile.v1` and
-`talent_training_plan.v1` retain an optional `province_name` derived only from
-their persisted evidence-bound projection fields. Their course rows retain a
+For province-level institution statistics, `talent_training_plan.v1` retains
+an optional `province_name` derived only from its persisted evidence-bound
+projection fields. Its course rows retain a
 formatting-only `course_stat_key` (Unicode, whitespace, and displayed
 hours only). Statistics never use LLM alias resolution or create a global
 course master. For the same institution-major offering, plan-owned courses
 replace profile courses; a profile supplements only an offering without a
 plan. Facts without a resolvable province remain outside provincial aggregates
-and are exposed as a coverage exclusion.
+and are exposed as a coverage exclusion. Retired professional-introduction
+course projections no longer contribute new statistical facts.
 
 **Pipeline B — Record Processing:**
 

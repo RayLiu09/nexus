@@ -89,23 +89,20 @@ test.describe("Asset Center IA-1", () => {
     await expect(page.locator("main").getByRole("article")).toHaveCount(0);
   });
 
-  test("renders professional profiles and lazily expands their domain facts", async ({
+  test("renders professional introduction documents and their source actions", async ({
     page,
   }, testInfo) => {
     await page.goto("/asset-center/major/profiles");
 
     await expect(page.getByRole("heading", { level: 1, name: "专业简介" })).toBeVisible();
-    for (const heading of ["专业名称", "专业代码", "修业年限", "培养层次", "院校名称"]) {
+    for (const heading of ["资产名称", "专业名称", "专业代码", "培养层次", "院校名称", "内容标签", "操作"]) {
       await expect(page.getByRole("columnheader", { name: heading })).toBeVisible();
     }
     const rows = page.locator(".ant-table-tbody > tr.ant-table-row");
     expect(await rows.count()).toBeGreaterThan(0);
-    await rows.first().locator(".ant-table-row-expand-icon").click();
-    const panel = page.getByTestId("major-profile-detail-panel");
-    await expect(panel).toBeVisible();
-    await expect(panel).toHaveCSS("margin-left", "24px");
-    for (const heading of ["职业面向", "培养定位", "能力要求", "课程与实训", "证书信息"]) {
-      await expect(panel.getByRole("heading", { level: 4, name: heading })).toBeVisible();
+    await expect(rows.first().locator(".ant-table-row-expand-icon")).toHaveCount(0);
+    for (const action of ["解析预览", "RAG知识块", "原文下载"]) {
+      await expect(rows.first().getByRole("button", { name: action })).toBeVisible();
     }
     if (process.env.NEXUS_CAPTURE_SCREENSHOTS) {
       await page.screenshot({

@@ -1207,6 +1207,18 @@ export type MajorDistributionRecord = {
   created_at: string;
 };
 
+export type MajorProfileDocument = {
+  id: string;
+  asset_name: string;
+  normalized_ref_id: string | null;
+  raw_object_id: string | null;
+  content_tags: string[];
+  major_name: string | null;
+  major_code: string | null;
+  institution_name: string | null;
+  education_level: string | null;
+};
+
 export type MajorProfileItem = {
   id: string;
   profile_id: string;

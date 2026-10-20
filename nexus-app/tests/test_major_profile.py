@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from types import SimpleNamespace
 
 from sqlalchemy import select
 
@@ -20,9 +19,9 @@ from nexus_app.enums import (
 from nexus_app.knowledge.services import run_knowledge_pipeline
 from nexus_app.major_profile.schema import blocking_reasons_from_flags, validate_profile_payload
 from nexus_app.major_profile.extractor import extract, extract_institution_identity
+from nexus_app.major_profile.metadata import extract_document_metadata
 from nexus_app.major_profile.presentation import reconcile_presentation
 from nexus_app.major_profile.writer import write, write_many
-from nexus_app.pipeline.stages import _filter_domain_model_required_emissions
 from nexus_app.major_profile.llm_fallback import (
     _document_content,
     extract as extract_institution_fallback,
@@ -308,21 +307,17 @@ def test_institution_identity_rejects_generic_school_phrase() -> None:
     assert identity["evidence_block_ids"] == ["b2"]
 
 
-def test_major_profile_knowledge_requires_domain_model() -> None:
-    emissions = [{"code": "major_profile_knowledge", "name": "专业介绍知识"}]
-    no_model, detail = _filter_domain_model_required_emissions(
-        SimpleNamespace(metadata_summary={}), emissions
-    )
-    assert no_model == []
-    assert detail["domain_model_gate"] == "major_profile_model_required"
-
-    with_model, detail = _filter_domain_model_required_emissions(
-        SimpleNamespace(metadata_summary={
-            "domain_profiles": [{"domain_profile": "major_profile.v1"}],
-        }), emissions
-    )
-    assert with_model == emissions
-    assert detail["domain_model_gate"] == "not_applicable"
+def test_major_profile_identity_metadata_does_not_require_domain_sections() -> None:
+    metadata = extract_document_metadata({
+        "title": "530702 跨境电子商务专业简介-浙江商业职业技术学院",
+        "blocks": [{"block_id": "b1", "text": "培养层次：高职专科"}],
+    })
+    assert metadata == {
+        "major_name": "跨境电子商务",
+        "major_code": "530702",
+        "institution_name": "浙江商业职业技术学院",
+        "education_level": "高职专科",
+    }
 
 
 def test_institution_profile_repairs_only_exact_block_evidence() -> None:
@@ -725,9 +720,8 @@ def test_write_multiple_major_profiles_for_one_ref(session) -> None:
     ]
 
 
-def test_major_profile_chunks_are_section_level_not_item_level() -> None:
+def test_major_profile_chunks_use_document_semantics_without_domain_payload() -> None:
     payload = _payload()
-    profile = extract(payload)
     chunks = run_knowledge_pipeline(
         payload["body_markdown"],
         [{
@@ -736,29 +730,13 @@ def test_major_profile_chunks_are_section_level_not_item_level() -> None:
             "primary": True,
             "confidence": 0.9,
             "source": "test",
-            "major_profile": profile,
         }],
         "ref-mp",
         content_blocks=payload["blocks"],
     )
 
-    section_keys = {chunk.chunk_metadata["section_key"] for chunk in chunks}
-    assert section_keys == {
-        "occupation_oriented",
-        "training_goal",
-        "ability_requirements",
-        "courses_and_training",
-        "certificates",
-        "continuation_majors",
-    }
-    assert len(chunks) == 6
-    ability_chunks = [
-        c for c in chunks if c.chunk_metadata["section_key"] == "ability_requirements"
-    ]
-    assert len(ability_chunks) == 1
-    assert "1. 具有互联网产品信息采集" in ability_chunks[0].content
-    assert "2. 具有网店运营" in ability_chunks[0].content
-    assert ability_chunks[0].chunk_type == ChunkType.SEMANTIC_BLOCK
-    assert ability_chunks[0].chunking_strategy == ChunkingStrategy.MAJOR_PROFILE_DECOMPOSE
-    assert ability_chunks[0].source_block_ids == ["b8", "b9"]
-    assert ability_chunks[0].locator is not None
+    assert chunks
+    assert all(chunk.chunk_type == ChunkType.SEMANTIC_BLOCK for chunk in chunks)
+    assert all(chunk.chunking_strategy == ChunkingStrategy.SEMANTIC_REPACK for chunk in chunks)
+    assert all("section_key" not in chunk.chunk_metadata for chunk in chunks)
+    assert any(chunk.source_block_ids for chunk in chunks)

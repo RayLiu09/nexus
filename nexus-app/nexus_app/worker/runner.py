@@ -912,70 +912,6 @@ def _run_domain_normalize(
         )
 
 
-def _run_major_profile_normalize(
-    ctx: PipelineContext,
-    normalized_ref: models.NormalizedAssetRef,
-    raw_object: models.RawObject,
-    session: Session,
-    trace_id: str | None,
-    job_id: str,
-) -> None:
-    """Run Pipeline A major_profile domain-table writer when detected."""
-    if normalized_ref.normalized_type != NormalizedType.DOCUMENT:
-        return
-    if (normalized_ref.metadata_summary or {}).get("domain_profile") != "major_profile.v1":
-        return
-
-    from nexus_app.major_profile import writer
-
-    # The source normalized payload resides in object storage. Publish the
-    # preceding normalize writes before fetching it.
-    session.commit()
-    try:
-        uri = normalized_ref.object_uri
-        key = uri.split("/", 3)[-1] if uri.startswith("s3://") else uri
-        payload = json.loads(ctx.storage.get_bytes(key).decode("utf-8"))
-        profile_payload = payload.get("major_profile") if isinstance(payload, dict) else None
-        profiles = writer.write_many(session, normalized_ref, profile_payload)
-    except Exception as exc:  # noqa: BLE001
-        logger.exception(
-            "major_profile domain write failed for normalized_ref=%s",
-            normalized_ref.id,
-        )
-        write_audit(
-            session,
-            AuditEventType.DOMAIN_NORMALIZE_FAILED,
-            "normalized_asset_ref",
-            normalized_ref.id,
-            trace_id,
-            {
-                "raw_object_id": raw_object.id,
-                "job_id": job_id,
-                "domain_profile": "major_profile.v1",
-                "error": f"{type(exc).__name__}: {exc}",
-            },
-        )
-        return
-
-    write_audit(
-        session,
-        AuditEventType.DOMAIN_NORMALIZE_COMPLETED,
-        "normalized_asset_ref",
-        normalized_ref.id,
-        trace_id,
-        {
-            "raw_object_id": raw_object.id,
-            "job_id": job_id,
-            "domain_profile": "major_profile.v1",
-            "skipped": not profiles,
-            "reason": None if profiles else "major_profile_payload_missing_or_invalid",
-            "profile_id": profiles[0].id if profiles else None,
-            "profile_ids": [profile.id for profile in profiles],
-            "records_written": len(profiles),
-        },
-    )
-
-
 def _run_talent_training_plan_projection(
     ctx: PipelineContext,
     normalized_ref: models.NormalizedAssetRef,
@@ -1948,11 +1884,7 @@ def execute_job(
 
         if pipeline_type == PipelineType.DOCUMENT:
             classification = governance_result.classification if governance_result else None
-            if classification == "major_profile":
-                _run_major_profile_normalize(
-                    ctx, normalized_ref, raw_object, session, trace_id, job.id
-                )
-            elif classification == "talent_training_plan":
+            if classification == "talent_training_plan":
                 _run_talent_training_plan_projection(ctx, normalized_ref)
             elif classification == "teaching_standard":
                 _run_teaching_standard_library_projection(

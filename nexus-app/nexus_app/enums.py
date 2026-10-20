@@ -264,6 +264,7 @@ class AuditEventType(StrEnum):
     # Pipeline B PD — operator-maintained major distribution structured rows.
     MAJOR_DISTRIBUTION_RECORD_UPDATED = "MajorDistributionRecordUpdated"
     TALENT_DEMAND_REPORT_IDENTITY_UPDATED = "TalentDemandReportIdentityUpdated"
+    MAJOR_PROFILE_METADATA_UPDATED = "MajorProfileMetadataUpdated"
     MAJOR_DISTRIBUTION_RECORD_DELETED = "MajorDistributionRecordDeleted"
     CROSS_SOURCE_DUPLICATE_DETECTED = "CrossSourceDuplicateDetected"
     VERSION_STATUS_CHANGED          = "VersionStatusChanged"

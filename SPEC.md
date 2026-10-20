@@ -192,16 +192,13 @@ Asset Center IA-1:
   classification. Existing
   `competency_analysis` is presented under this domain rather than market data.
 - **专业简介业务视图**: `/asset-center/major/profiles` uses a server-paginated
-  `major_profile` list. Its outer columns are professional name, professional
-  code, study duration, education level, and institution name. Expanding a row
-  lazily loads a non-table information panel containing occupation orientation,
-  training positioning, ability requirements, courses and practical training,
-  and certificates; unopened rows do not load child collections. One
-  normalized document may contribute multiple professional rows. The list
-  admits only the current catalog-visible version/ref whose latest official
-  classification is `major_profile` or historical `program_profile`.
-  Technical Asset Detail retains generic RAG/document chunks and no longer
-  presents the professional-profile directory or graph view.
+  document list, one row per catalog-visible asset whose latest official
+  classification is `major_profile` or historical `program_profile`. Columns
+  include asset name, professional name/code, institution, education level,
+  and content tags. The four identity fields are persisted during document
+  normalization and can be changed in an audited edit Drawer. Rows offer
+  parsed preview, generic RAG chunks, and original download; there is no
+  expanded domain-detail panel or `major_profile.v1` row requirement.
 - **专业布点业务视图**: `/asset-center/major/distributions` reads
   `major_distribution_record` facts across datasets and exposes year,
   province, professional name/code, education level, region scope, and count.
@@ -415,11 +412,10 @@ P0 API groups include:
 - Public institutional-statistics endpoints include
   `GET /open/v1/major-offerings/aggregate` and
   `GET /open/v1/major-courses/aggregate`. They aggregate only available
-  institution `major_profile.v1` and `talent_training_plan.v1` projections by
-  `province_name`; unresolved province facts are reported as exclusions.
-  Course equality is deterministic formatting-only, never an LLM or
-  low-confidence semantic merge, and a matching talent-training plan takes
-  precedence over a major-profile course source.
+  `talent_training_plan.v1` projections by `province_name`; unresolved province
+  facts are reported as exclusions. Retired `major_profile.v1` course rows no
+  longer contribute statistical facts. Course equality is deterministic
+  formatting-only, never an LLM or low-confidence semantic merge.
 - Read-only public graph adapters expose generated projections only:
   `GET /open/v1/record-assets/graphs/job-capability?job_title=`,
   `GET /open/v1/record-assets/graphs/occupational-capability?major_name|major_code=`,

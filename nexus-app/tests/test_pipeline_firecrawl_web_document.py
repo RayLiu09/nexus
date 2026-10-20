@@ -526,7 +526,6 @@ def test_worker_does_not_reuse_mineru_route_for_following_websearch_job(session,
     # Keep the test focused on execution routing.  Assetization and parse run
     # for real; downstream governance/index services are outside this contract.
     monkeypatch.setattr(worker_runner, "run_normalize_document", lambda *_args: object())
-    monkeypatch.setattr(worker_runner, "_run_major_profile_normalize", lambda *_args: None)
     monkeypatch.setattr(worker_runner, "_run_teaching_standard_library_projection", lambda *_args: None)
     monkeypatch.setattr(worker_runner, "_run_teaching_standard_graph", lambda *_args: None)
     monkeypatch.setattr(worker_runner, "run_governance_decision", lambda *_args: None)

@@ -44,6 +44,8 @@ router = APIRouter()
 _ASSET_RETIREMENT_ROLES = {UserRole.BUSINESS_EXPERT, UserRole.PLATFORM_DATA_ADMIN}
 _REPORT_IDENTITY_FIELDS = ("major_name", "major_code", "institution_name")
 _REPORT_MANUAL_KEY = "talent_demand_report_manual_identity"
+_PROFILE_MANUAL_KEY = "major_profile_manual_metadata"
+_PROFILE_FIELDS = ("major_name", "major_code", "institution_name", "education_level")
 
 
 class TalentDemandReportIdentityPatch(BaseModel):
@@ -63,6 +65,27 @@ class TalentDemandReportIdentityPatch(BaseModel):
         if not value:
             raise ValueError("field must not be blank")
         return value
+
+
+class MajorProfileMetadataPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    normalized_ref_id: str
+    major_name: str | None = Field(default=None, max_length=160)
+    major_code: str | None = Field(default=None, pattern=r"^\d{4,6}$")
+    institution_name: str | None = Field(default=None, max_length=300)
+    education_level: str | None = Field(default=None, max_length=80)
+
+    @field_validator("major_name", "major_code", "institution_name", "education_level")
+    @classmethod
+    def strip_text(cls, value: str | None) -> str | None:
+        return value.strip() or None if value is not None else None
+
+
+def _profile_metadata(ref: models.NormalizedAssetRef) -> dict[str, str | None]:
+    source = (ref.document_metadata or {}).get("major_profile") or {}
+    manual = (ref.metadata_summary or {}).get(_PROFILE_MANUAL_KEY) or {}
+    return {field: manual.get(field, source.get(field)) for field in _PROFILE_FIELDS}
 
 
 def _report_identity(ref: models.NormalizedAssetRef) -> dict[str, str | None]:
@@ -420,6 +443,7 @@ def _catalog_candidate_ids(
     status: str | None,
     matching_ref_ids: set[str] | None,
     document_topic: DocumentTopic | None = None,
+    title_query: str | None = None,
     limit: int | None = None,
     offset: int | None = None,
 ) -> tuple[list[str], int]:
@@ -524,6 +548,8 @@ def _catalog_candidate_ids(
         predicates.append(catalog_ref_id.in_(matching_ref_ids))
     if document_topic is not None:
         predicates.append(_document_topic_predicate(document_topic, catalog_ref_id))
+    if title_query:
+        predicates.append(models.Asset.title.ilike(f"%{title_query}%"))
     if domain:
         canonical_domain = _canonical_classification(domain)
         if canonical_domain == "major_profile":
@@ -615,6 +641,7 @@ def _list_industry_documents(
     topic: DocumentTopic | None = None,
     include_report_identity: bool = False,
     teaching_case: bool = False,
+    title_query: str | None = None,
 ):
     """Build a report/policy list projection from catalog and normalized refs."""
     asset_ids, total = _catalog_candidate_ids(
@@ -624,6 +651,7 @@ def _list_industry_documents(
         status="visible",
         matching_ref_ids=None,
         document_topic=topic,
+        title_query=title_query,
         limit=pagination.limit,
         offset=pagination.offset,
     )
@@ -653,7 +681,12 @@ def _list_industry_documents(
         session,
         [assets_by_id[asset_id] for asset_id in asset_ids if asset_id in assets_by_id],
     )
-    ref_ids = [row.current_normalized_ref_id for row in catalog_rows if row.current_normalized_ref_id]
+    ref_ids = [
+        ref_id for row in catalog_rows
+        if (ref_id := row.current_normalized_ref_id or (
+            row.latest_normalized_ref_id if classification == "major_profile" else None
+        ))
+    ]
     refs = {
         ref.id: ref
         for ref in session.scalars(
@@ -674,7 +707,9 @@ def _list_industry_documents(
 
     rows = []
     for row in catalog_rows:
-        ref_id = row.current_normalized_ref_id
+        ref_id = row.current_normalized_ref_id or (
+            row.latest_normalized_ref_id if classification == "major_profile" else None
+        )
         ref = refs.get(ref_id) if ref_id else None
         typed_tags = tags_by_ref.get(ref_id or "", {})
         metadata = ref.document_metadata if ref is not None and isinstance(ref.document_metadata, dict) else {}
@@ -706,6 +741,10 @@ def _list_industry_documents(
             item.update(_report_identity(ref) if ref is not None else {
                 field: None for field in _REPORT_IDENTITY_FIELDS
             })
+        if classification == "major_profile":
+            item.update(_profile_metadata(ref) if ref is not None else {
+                field: None for field in _PROFILE_FIELDS
+            })
         rows.append(item)
     return list_response(
         rows,
@@ -714,6 +753,66 @@ def _list_industry_documents(
         page_size=pagination.page_size,
         total=total,
     )
+
+
+@router.get("/major-profile-documents", response_model=schemas.ListResponse[dict])
+def list_major_profile_documents(
+    request: Request,
+    q: str | None = Query(default=None, max_length=200),
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+):
+    return _list_industry_documents(
+        request, pagination, session,
+        classification="major_profile", title_query=q.strip() if q else None,
+    )
+
+
+@router.patch(
+    "/major-profile-documents/{asset_id}/metadata",
+    response_model=schemas.ApiResponse[dict],
+)
+def update_major_profile_document_metadata(
+    asset_id: str,
+    payload: MajorProfileMetadataPatch,
+    request: Request,
+    user: models.UserAccount = Depends(require_user),
+    session: Session = Depends(get_db),
+):
+    _require_asset_retirement_role(user)
+    changes = payload.model_dump(exclude_unset=True, exclude={"normalized_ref_id"})
+    if not changes:
+        raise HTTPException(status_code=422, detail="provide at least one metadata field")
+    asset = session.get(models.Asset, asset_id)
+    if asset is None:
+        raise HTTPException(status_code=404, detail="professional introduction not found")
+    catalog = _catalog_rows(session, [asset])[0]
+    if catalog.domain != "major_profile" or catalog.status.value not in _VISIBLE_ASSET_STATUSES:
+        raise HTTPException(status_code=409, detail="asset is not a visible professional introduction")
+    if (catalog.current_normalized_ref_id or catalog.latest_normalized_ref_id) != payload.normalized_ref_id:
+        raise HTTPException(status_code=409, detail="document version changed; refresh the list")
+    ref = session.scalar(
+        select(models.NormalizedAssetRef)
+        .where(models.NormalizedAssetRef.id == payload.normalized_ref_id)
+        .with_for_update()
+    )
+    if ref is None:
+        raise HTTPException(status_code=409, detail="current normalized document not found")
+    before = _profile_metadata(ref)
+    after = {**before, **changes}
+    if after != before:
+        manual = dict((ref.metadata_summary or {}).get(_PROFILE_MANUAL_KEY) or {})
+        manual.update(changes)
+        ref.metadata_summary = {**dict(ref.metadata_summary or {}), _PROFILE_MANUAL_KEY: manual}
+        write_audit(
+            session, AuditEventType.MAJOR_PROFILE_METADATA_UPDATED,
+            target_type="normalized_asset_ref", target_id=ref.id,
+            trace_id=str(getattr(request.state, "trace_id", "")),
+            actor_type="user", actor_id=user.id,
+            summary={"asset_id": asset_id, "before": before, "after": after},
+        )
+        session.commit()
+    return response({"id": asset_id, "normalized_ref_id": ref.id, **after}, request)
 
 
 @router.get("/talent-demand-reports", response_model=schemas.ListResponse[dict])

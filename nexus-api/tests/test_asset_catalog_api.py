@@ -2,11 +2,19 @@
 from __future__ import annotations
 
 from fastapi import Request
+from fastapi import HTTPException
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import event
 from sqlalchemy.orm import Session
 
 from nexus_api.api.internal.assets import get_catalog_tag_embedding_client
+from nexus_api.api.internal.assets import (
+    MajorProfileMetadataPatch,
+    list_major_profile_documents,
+    update_major_profile_document_metadata,
+)
+from nexus_api.api.internal.asset_center import build_asset_center_counts
 from nexus_api.api.internal.industrial_park_enterprise import list_industrial_parks
 from nexus_api.dependencies import Pagination
 from nexus_app import models
@@ -312,6 +320,50 @@ def test_asset_catalog_canonicalizes_deprecated_program_profile_domain(app, sess
     row = next(item for item in rows if item["id"] == seeded["asset"].id)
     assert row["domain"] == "major_profile"
     assert row["domain_name"] == "专业简介"
+
+
+def test_major_profile_document_list_and_metadata_edit_use_catalog_ref(session, fake_request, stub_user):
+    seeded = _seed_review_required_asset(session)
+    seeded["asset"].title = "跨境电子商务专业简介"
+    seeded["result"].classification = "major_profile"
+    seeded["ref"].document_metadata = {
+        "major_profile": {
+            "major_name": "跨境电子商务", "major_code": "530702",
+            "institution_name": None, "education_level": "高职",
+        }
+    }
+    session.commit()
+    response = list_major_profile_documents(
+        request=fake_request, q=None, pagination=Pagination(page=1, page_size=20), session=session,
+    )
+    body = response.model_dump(mode="json")
+    assert body["meta"]["total"] == 1
+    assert build_asset_center_counts(session)["major/profiles"] == body["meta"]["total"]
+    row = body["data"][0]
+    assert row["id"] == seeded["asset"].id
+    assert row["normalized_ref_id"] == seeded["ref"].id
+    assert row["major_name"] == "跨境电子商务"
+    assert row["raw_object_id"] == seeded["version"].raw_object_id
+
+    patched = update_major_profile_document_metadata(
+        asset_id=row["id"], request=fake_request, user=stub_user, session=session,
+        payload=MajorProfileMetadataPatch(
+            normalized_ref_id=row["normalized_ref_id"],
+            institution_name="浙江商学院", education_level="高职本科",
+        ),
+    )
+    assert patched.model_dump(mode="json")["data"]["institution_name"] == "浙江商学院"
+    refreshed = list_major_profile_documents(
+        request=fake_request, q=None, pagination=Pagination(page=1, page_size=20), session=session,
+    )
+    assert refreshed.model_dump(mode="json")["data"][0]["education_level"] == "高职本科"
+    assert any(log.event_type.value == "MajorProfileMetadataUpdated" for log in session.query(models.AuditLog))
+    with pytest.raises(HTTPException) as stale:
+        update_major_profile_document_metadata(
+            asset_id=row["id"], request=fake_request, user=stub_user, session=session,
+            payload=MajorProfileMetadataPatch(normalized_ref_id="stale-ref", major_name="错误专业"),
+        )
+    assert stale.value.status_code == 409
 
 
 def test_asset_catalog_labels_course_textbook_domain(app, session):
