@@ -33,9 +33,11 @@ import unicodedata
 from typing import Any
 
 from nexus_app.capability_graph.major_normalizer import (
-    extract_ability_analysis_major_name,
+    extract_ability_analysis_major_identity,
+    normalize_major_code,
     normalize_major_name,
 )
+from nexus_app.major_catalog import complete_major_identity
 from nexus_app.profile_detect.config import (
     JOB_DEMAND_HEADER_ALIASES,
     JOB_DEMAND_OPTIONAL_HEADERS,
@@ -44,7 +46,6 @@ from nexus_app.profile_detect.config import (
     MAJOR_DISTRIBUTION_TOTAL_MARKERS,
     PGSD_CATEGORY_ALIASES,
     PGSD_CODE_PREFIX_PATTERN,
-    PGSD_SHEET_NAME_PATTERN,
 )
 
 logger = logging.getLogger(__name__)
@@ -317,6 +318,11 @@ def _project_major_distribution(
                 ignored_summary_count += 1
                 continue
 
+            code, name, level = complete_major_identity(
+                record.get("major_code"), record.get("major_name"), record.get("education_level")
+            )
+            record["major_code"], record["major_name"], record["education_level"] = code, name, level
+
             if not _major_distribution_required_present(record):
                 invalid_count += 1
                 continue
@@ -366,6 +372,11 @@ def _project_major_distribution(
     if isinstance(evidence, dict):
         dataset.setdefault("major_name", evidence.get("major_name"))
         dataset.setdefault("major_code", evidence.get("major_code"))
+
+    code, name, level = complete_major_identity(
+        dataset.get("major_code"), dataset.get("major_name"), dataset.get("education_level")
+    )
+    dataset["major_code"], dataset["major_name"], dataset["education_level"] = code, name, level
 
     return {
         "dataset": dataset,
@@ -463,7 +474,49 @@ def _coerce_int(value: Any) -> int | None:
 
 # Per-task sheet name pattern is `^\d+\.<chinese>...` (see profile_detect
 # config). The number is the task code; the suffix is the task name.
-_TASK_SHEET_HEADER = re.compile(r"^(\d+)\.\s*(.+)$")
+_TASK_ID_FROM_ABILITY = re.compile(r"^P-([A-Z]|\d+)")
+
+
+def _ability_sheet_identity(sheet: dict[str, Any]) -> tuple[str, str] | None:
+    """Identify a task sheet by its professional-ability rows, not its tab label."""
+    sheet_name = str(sheet.get("name") or "").strip()
+    if "课程转化" in sheet_name:
+        return None
+    first_code: str | None = None
+    for row in sheet.get("rows") or []:
+        code, _ = _extract_ability(row)
+        if code and code.startswith("P-"):
+            first_code = code
+            break
+    if not first_code:
+        return None
+    code_match = _TASK_ID_FROM_ABILITY.match(first_code)
+    if not code_match:
+        return None
+    task_code = code_match.group(1)
+    tab_number = re.match(r"^(\d+)\.[^\d]", sheet_name)
+    tab_letter = re.match(r"^(?:职业能力分析表)?([A-Z])(?:\s|$)", sheet_name)
+    if tab_number:
+        task_code = tab_number.group(1)
+    elif tab_letter:
+        task_code = tab_letter.group(1)
+    for row in sheet.get("rows") or []:
+        cells = row.get("cells") or []
+        if len(cells) < 2:
+            continue
+        label = str(cells[0].get("value") or "").replace(" ", "")
+        if len(label) > 40 or not label.startswith(("典型工作任务", "典型职业活动", "典型职业")):
+            continue
+        value = str(cells[1].get("value") or "").strip()
+        if value and not value.startswith(("工作", "能力")):
+            name = re.sub(rf"^{re.escape(task_code)}[.、\s]*", "", value).strip()
+            if name:
+                return task_code, name
+    name = re.sub(r"^\d+\.\d+", "", sheet_name).strip()
+    name = re.sub(r"^(?:\d+-\d+\.)?PGSD能力分析表[-_]?", "", name).strip()
+    name = re.sub(rf"^{re.escape(task_code)}[.、\s]*", "", name).strip()
+    name = re.sub(r"(?:PGSD)?能力分析表.*$", "", name).strip()
+    return task_code, name or sheet_name
 
 
 def _project_ability_analysis_pgsd(
@@ -474,12 +527,10 @@ def _project_ability_analysis_pgsd(
 
     for sheet in sheets:
         sheet_name = sheet.get("name") or ""
-        if not PGSD_SHEET_NAME_PATTERN.match(sheet_name):
+        identity = _ability_sheet_identity(sheet)
+        if not identity:
             continue
-        match = _TASK_SHEET_HEADER.match(sheet_name)
-        if not match:
-            continue
-        task_code, task_name = match.group(1), match.group(2).strip()
+        task_code, task_name = identity
 
         rows = sheet.get("rows") or []
         # Build hierarchical structure: walk rows, maintain "current work content"
@@ -560,11 +611,20 @@ def _project_ability_analysis_pgsd(
     explicit_major_name = None
     if isinstance(evidence, dict) and isinstance(evidence.get("major_name"), str):
         explicit_major_name = normalize_major_name(evidence["major_name"])
-    major_name = explicit_major_name or extract_ability_analysis_major_name(
+    filename_code, filename_name = extract_ability_analysis_major_identity(
         raw_payload.get("source_filename")
     )
+    major_name = explicit_major_name or filename_name
+    explicit_code = evidence.get("major_code") if isinstance(evidence, dict) else None
+    normalized_code = normalize_major_code(explicit_code)
+    major_code = normalized_code if normalized_code and len(normalized_code) == 6 else filename_code
+    major_code, major_name, education_level = complete_major_identity(major_code, major_name)
     if major_name:
         analysis["major_name"] = major_name
+    if major_code:
+        analysis["major_code"] = major_code
+    if education_level:
+        analysis["education_level"] = education_level
     if isinstance(evidence, dict):
         if evidence.get("major_direction"):
             analysis["major_direction"] = evidence["major_direction"]

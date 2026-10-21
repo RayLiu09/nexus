@@ -278,6 +278,14 @@ class TestDetectAbilityAnalysisPgsdSynthetic:
         result = detect_ability_analysis_pgsd(_workbook([]))
         assert result.confidence == 0.0
 
+    def test_coded_sample_filename_populates_professional_identity(self):
+        wb = _workbook([
+            _sheet("1.数据采集", rows=[_row(1, ["职业能力", "P-1.1.1"])]),
+        ], source_filename="530706-商务数据分析与应用-典型工作任务表+职业能力分析表.xlsx")
+        result = detect_ability_analysis_pgsd(wb)
+        assert result.evidence.major_code == "530706"
+        assert result.evidence.major_name == "商务数据分析与应用"
+
 
 # ---------------------------------------------------------------------------
 # Detector: major_distribution

@@ -16,6 +16,7 @@ import {
   GraphViewportActions,
   type GraphImageHandle,
 } from "./GraphViewportActions";
+import { abilityTaskSubgraphNodeIds } from "./capabilityTaskSubgraph";
 import {
   getApiData,
   type CapabilityGraphStagingBuild,
@@ -35,6 +36,7 @@ type Props = {
   title: string;
   embedded?: boolean;
   viewportHeight?: boolean;
+  taskId?: string;
 };
 
 type GraphState = {
@@ -191,6 +193,7 @@ export function CapabilityGraphView({
   title,
   embedded = false,
   viewportHeight = false,
+  taskId,
 }: Props) {
   const [state, setState] = useState<GraphState>({
     loading: true,
@@ -282,6 +285,10 @@ export function CapabilityGraphView({
     setExpandedCourseContentIds(new Set());
   }, [buildType, normalizedRefId]);
 
+  useEffect(() => {
+    setSelectedNode(null);
+  }, [taskId]);
+
   // 排序仅按 display_name 稳定字典序，避免后端返回顺序不确定导致默认岗位漂移。
   const jobRoleNodes = useMemo(() => {
     if (buildType !== "job_demand") return [] as CapabilityGraphStagingNode[];
@@ -335,10 +342,16 @@ export function CapabilityGraphView({
     return visited;
   }, [buildType, selectedJobRoleId, state.edges]);
 
+  const taskSubgraphNodeIds = useMemo<Set<string> | null>(() => {
+    if (buildType !== "ability_analysis" || !taskId) return null;
+    return abilityTaskSubgraphNodeIds(state.nodes, state.edges, taskId);
+  }, [buildType, taskId, state.edges, state.nodes]);
+
   const filteredNodes = useMemo(() => {
-    if (!jobRoleSubgraphNodeIds) return state.nodes;
-    return state.nodes.filter((node) => jobRoleSubgraphNodeIds.has(node.id));
-  }, [state.nodes, jobRoleSubgraphNodeIds]);
+    const ids = taskSubgraphNodeIds ?? jobRoleSubgraphNodeIds;
+    if (!ids) return state.nodes;
+    return state.nodes.filter((node) => ids.has(node.id));
+  }, [state.nodes, jobRoleSubgraphNodeIds, taskSubgraphNodeIds]);
 
   const filteredNodeIds = useMemo(
     () => new Set(filteredNodes.map((node) => node.id)),

@@ -6,6 +6,7 @@ import re
 from typing import Any
 
 from nexus_app.major_profile.extractor import extract_institution_identity
+from nexus_app.major_catalog import complete_major_identity
 
 
 def extract_document_metadata(payload: dict[str, Any]) -> dict[str, str | None]:
@@ -45,6 +46,7 @@ def extract_document_metadata(payload: dict[str, Any]) -> dict[str, str | None]:
         level = "本科"
     else:
         level = None
+    code, name, level = complete_major_identity(code, name, level)
     return {
         "major_name": name,
         "major_code": code,

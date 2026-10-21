@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from nexus_app.major_profile.schema import validate_payload, validate_profile_payload
+from nexus_app.major_catalog import complete_major_identity
 
 DOMAIN_PROFILE = "major_profile.v1"
 EXTRACTOR_VERSION = "major_profile_extractor.v1"
@@ -226,10 +227,14 @@ def _profile_from_segment(
     })
     if not major_name:
         major_name = _extract_major_name_from_title(title)
+    source_has_code = bool(major_code)
+    education_level = _extract_education_level(title, text)
+    major_code, major_name, education_level = complete_major_identity(
+        major_code, major_name, education_level
+    )
     if not major_name:
         return None
 
-    education_level = _extract_education_level(title, text)
     duration = _extract_duration(text)
     training_goal = _section_text(sections.get("training_goal"))
 
@@ -242,7 +247,7 @@ def _profile_from_segment(
         "major_code": major_code,
         "major_name": major_name,
         "profile_source": (
-            "national_standard" if major_code else "institution_profile"
+            "national_standard" if source_has_code else "institution_profile"
         ),
         "institution_name": (
             institution_identity["institution_name"] if institution_identity else None

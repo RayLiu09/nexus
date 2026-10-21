@@ -10,6 +10,7 @@ import pytest
 
 from nexus_app.capability_graph.major_normalizer import (
     extract_ability_analysis_major_name,
+    extract_ability_analysis_major_identity,
     normalize_major_code,
     normalize_major_name,
 )
@@ -112,6 +113,17 @@ def test_ability_analysis_suffix_stripped():
 )
 def test_extract_ability_analysis_major_name(source_filename, expected):
     assert extract_ability_analysis_major_name(source_filename) == expected
+
+
+@pytest.mark.parametrize("filename, expected", [
+    ("530706-商务数据分析与应用-典型工作任务表+职业能力分析表.xlsx", ("530706", "商务数据分析与应用")),
+    ("330702-职业教育本科跨境电子商务专业典型工作任务及pgsd能力分析表.xlsx", ("330702", "跨境电子商务")),
+    ("530703-移动商务专业典型工作任务表+职业能力分析表.xlsx", ("530703", "移动商务")),
+    ("730702-典型工作任务表+职业能力分析表.xlsx", ("730702", "跨境电子商务")),
+    ("电子商务职业能力分析表.xlsx", (None, "电子商务")),
+])
+def test_extract_ability_analysis_major_identity(filename, expected):
+    assert extract_ability_analysis_major_identity(filename) == expected
 
 
 def test_major_profile_suffix_stripped():

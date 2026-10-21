@@ -320,6 +320,16 @@ def test_major_profile_identity_metadata_does_not_require_domain_sections() -> N
     }
 
 
+def test_major_profile_metadata_fills_missing_name_and_level_from_code() -> None:
+    metadata = extract_document_metadata({
+        "title": "730702 跨境电子商务专业简介",
+        "blocks": [{"block_id": "b1", "text": "专业代码：730702"}],
+    })
+    assert metadata["major_code"] == "730702"
+    assert metadata["major_name"] == "跨境电子商务"
+    assert metadata["education_level"] == "中职"
+
+
 def test_institution_profile_repairs_only_exact_block_evidence() -> None:
     blocks = [
         _block("b1", "paragraph", "浙江商业职业技术学院开设电子商务专业。", 1),

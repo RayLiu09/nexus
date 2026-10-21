@@ -706,6 +706,10 @@ Asset Pipeline → normalized_asset_ref (stable contract)
 **Pipeline B (Record):**
 `webhook / batch / file upload → raw_object (JSON/XLSX structured data) → ingest_validate → Job(pipeline_type="record") → assetize (asset/asset_version) → structured_parse/profile_detect when applicable → normalize (normalized_record) → normalized_asset_ref → AI governance → rules → governance_result → index`
 
+Occupational ability analysis rows persist nullable `major_code` and `major_name` from normalized-record evidence. A six-digit code and a bounded name can be extracted from the source workbook filename during structured parsing. PGSD detection and projection accept numeric and letter-coded task sheets with P/G/S/D ability rows; cross-sheet P-code collisions route the workbook to review before domain writing. Task-scoped Asset Center views consume the existing task, ability-item, and graph staging read APIs.
+
+Finance-commerce professional identity completion uses the read-only 52-code catalog in `nexus_app.major_catalog`. Parsers fill absent professional code, name, and education level only when code or name-plus-level identifies one entry; conflicting source facts and ambiguous names remain unchanged. Occupational ability analysis also persists the completed education level.
+
 When an expert finalizes a `review_required` result, the review writes structured
 taxonomy tags with `tag_asset_index.source=expert_manual`, reevaluates the
 version via `VersionStateManager`, and, only for an `available` version, queues

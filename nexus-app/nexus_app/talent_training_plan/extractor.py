@@ -6,6 +6,8 @@ import re
 from html.parser import HTMLParser
 from typing import Any
 
+from nexus_app.major_catalog import complete_major_identity
+
 DOMAIN_PROFILE = "talent_training_plan.v1"
 EXTRACTOR_VERSION = "talent_training_plan_extractor.v1.2"
 
@@ -91,6 +93,9 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
     if "人才培养方案" not in f"{title}\n{text}": return None
     institution_name = _institution(title, text)
     major_name, major_code = _identity(text, title, institution_name)
+    major_code, major_name, education_level = complete_major_identity(
+        major_code, major_name, _education_level(title, text)
+    )
     if not major_name: return None
     tables = [
         (block, rows)
@@ -118,7 +123,7 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
     return {
         "schema_version": DOMAIN_PROFILE, "domain_profile": DOMAIN_PROFILE, "extractor_version": EXTRACTOR_VERSION,
         "institution_name": institution_name, "major_name": major_name, "major_code": major_code,
-        "education_level": _education_level(title, text), "study_duration": _duration(text), "training_goal": goal,
+        "education_level": education_level, "study_duration": _duration(text), "training_goal": goal,
         "training_specification": specification, "career_orientation": career, "certificates": certificates,
         "courses": courses, "confidence": 0.9 if courses and career else 0.75,
         "evidence": {"source_block_ids": evidence_ids}, "quality_flags": flags,

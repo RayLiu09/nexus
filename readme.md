@@ -48,6 +48,9 @@ Week 1 implementation baselines:
 
 Week 2 implementation baselines:
 
+- Occupational ability workbooks support numeric and letter-coded PGSD task sheets. A six-digit filename prefix and bounded professional-name segment supply identity when available. The Asset Center list exposes both fields; ability items and graph can be scoped by typical work task.
+- `nexus_app.major_catalog` holds 52 confirmed finance-commerce professional code/name/level tuples and supplies only missing identity fields during professional asset parsing.
+
 - `docs/week2_runbook.md`: M1 ingest-to-assetization runbook.
 - `docs/review/wk2_review_evidence.md`: Week 2 Review Gate evidence.
 - `nexus-app/`: M1 pipeline services, MinIO/S3 storage adapter, MinerU adapter boundary, job/stage, parse artifact, normalized ref, asset/version models, Alembic migration, and tests.

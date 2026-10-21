@@ -29,7 +29,7 @@ import re
 from typing import Iterable
 
 from nexus_app.capability_graph.major_normalizer import (
-    extract_ability_analysis_major_name,
+    extract_ability_analysis_major_identity,
 )
 from nexus_app.profile_detect.config import (
     DEFAULT_AUTO_ADMIT_THRESHOLD,
@@ -44,7 +44,6 @@ from nexus_app.profile_detect.config import (
     PGSD_CATEGORY_ALIASES,
     PGSD_CODE_PREFIX_PATTERN,
     PGSD_REQUIRED_CATEGORIES,
-    PGSD_SHEET_NAME_PATTERN,
 )
 from nexus_app.profile_detect.schemas import (
     ProfileDetectResult,
@@ -319,7 +318,7 @@ def detect_ability_analysis_pgsd(workbook: ParsedWorkbook) -> ProfileDetectResul
       - All four canonical categories present (职业能力 / 通用能力 / 社会能力 /
         发展能力 — aliases normalised via PGSD_CATEGORY_ALIASES).
       - Ability codes matching `PGSD_CODE_PREFIX_PATTERN` (P-1.1.1, G-1.1, ...).
-      - Per-task sheet names matching `PGSD_SHEET_NAME_PATTERN` (1.数据采集, ...).
+      - Per-task sheets with P-coded ability rows (numeric or letter-coded).
       - Overview sheet name containing one of `OVERVIEW_SHEET_KEYWORDS`.
 
     Scoring is deliberately conservative — sample 2 (all four categories,
@@ -334,19 +333,30 @@ def detect_ability_analysis_pgsd(workbook: ParsedWorkbook) -> ProfileDetectResul
 
     matched_categories: set[str] = set()
     matched_code_prefixes: set[str] = set()
+    professional_code_sheets: dict[str, str] = {}
+    cross_sheet_code_conflict = False
     sample_row_count = 0
+    per_task_sheet_hits = 0
     for sheet in workbook.sheets:
         sample_row_count += max(0, len(sheet.rows) - 1)
+        if "课程转化" in sheet.name:
+            continue
+        sheet_has_professional_ability = False
         for cell in _all_cell_strings(sheet):
             normalised = _normalise_category(cell)
             if normalised in PGSD_REQUIRED_CATEGORIES:
                 matched_categories.add(normalised)
-            if PGSD_CODE_PREFIX_PATTERN.match(cell):
-                matched_code_prefixes.add(cell[0])  # P / G / S / D
+            code = cell.strip()
+            if PGSD_CODE_PREFIX_PATTERN.fullmatch(code):
+                matched_code_prefixes.add(code[0])  # P / G / S / D
+                sheet_has_professional_ability |= code.startswith("P-")
+                if code.startswith("P-"):
+                    previous_sheet = professional_code_sheets.setdefault(code, sheet.name)
+                    if previous_sheet != sheet.name:
+                        cross_sheet_code_conflict = True
+        if sheet_has_professional_ability:
+            per_task_sheet_hits += 1
 
-    per_task_sheet_hits = sum(
-        1 for name in sheet_names if PGSD_SHEET_NAME_PATTERN.match(name)
-    )
     overview_sheet_hit = any(
         any(kw in name for kw in OVERVIEW_SHEET_KEYWORDS) for name in sheet_names
     )
@@ -363,11 +373,13 @@ def detect_ability_analysis_pgsd(workbook: ParsedWorkbook) -> ProfileDetectResul
         min(1.0, category_score + prefix_score + sheet_score + overview_bonus),
         2,
     )
+    if cross_sheet_code_conflict:
+        confidence = min(confidence, 0.80)
 
     if confidence <= 0:
         return _zero_confidence_pgsd(sheet_names=sheet_names)
 
-    major_name = extract_ability_analysis_major_name(workbook.source_filename)
+    major_code, major_name = extract_ability_analysis_major_identity(workbook.source_filename)
 
     return ProfileDetectResult(
         record_type="occupational_ability_analysis",
@@ -379,9 +391,14 @@ def detect_ability_analysis_pgsd(workbook: ParsedWorkbook) -> ProfileDetectResul
         evidence=ProfileEvidence(
             matched_categories=sorted(matched_categories),
             matched_code_prefixes=sorted(matched_code_prefixes),
+            matched_row_patterns=(
+                ["duplicate_professional_ability_code_across_sheets"]
+                if cross_sheet_code_conflict else []
+            ),
             sheet_names=sheet_names,
             sample_row_count=sample_row_count,
             major_name=major_name,
+            major_code=major_code,
         ),
     )
 

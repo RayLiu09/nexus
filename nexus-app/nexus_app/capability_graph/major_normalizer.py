@@ -30,6 +30,8 @@ from __future__ import annotations
 
 import re
 
+from nexus_app.major_catalog import complete_major_identity
+
 # Longest-first ordering matters — `re.sub` matches greedily, so if
 # "教学标准" appeared before "职业教育专业教学标准" we'd chop off the
 # suffix mid-word.
@@ -77,6 +79,29 @@ _LEADING_SEQUENCE_RE = re.compile(r"^\s*\d+(?:\.\d+)*\s*[.、．_-]\s*")
 _LEADING_ABILITY_LABEL_RE = re.compile(
     r"^\s*[（(【\[]\s*职业能力分析\s*[）)】\]]\s*"
 )
+_CODED_ABILITY_FILENAME_RE = re.compile(r"^(?P<code>\d{6})[-_\s]+(?P<rest>.+)$")
+_GENERIC_ABILITY_START_RE = re.compile(r"^(?:典型工作|职业能力|能力分析|课程转化|典型职业)")
+_ABILITY_TITLE_STOP_RE = re.compile(r"[-+＋（(]")
+
+
+def extract_ability_analysis_major_identity(source_filename: str | None) -> tuple[str | None, str | None]:
+    """Read a six-digit code and optional name from an occupational workbook title."""
+    if not source_filename:
+        return None, None
+    filename = re.split(r"[/\\]", str(source_filename).strip())[-1]
+    stem = _FILENAME_EXTENSION_RE.sub("", filename).strip()
+    match = _CODED_ABILITY_FILENAME_RE.match(stem)
+    if not match:
+        return None, extract_ability_analysis_major_name(source_filename)
+    code = match.group("code")
+    rest = match.group("rest").strip()
+    if _GENERIC_ABILITY_START_RE.match(rest):
+        return code, complete_major_identity(code, None)[1]
+    name = _ABILITY_TITLE_STOP_RE.split(rest, maxsplit=1)[0].strip()
+    name = re.sub(r"^(?:职业教育本科|中等职业教育|高等职业教育)", "", name)
+    name = re.sub(r"专业(?:典型工作.*|职业能力.*|能力分析.*)$", "", name)
+    name = normalize_major_name(name.removesuffix("专业"))
+    return code, name or complete_major_identity(code, None)[1]
 
 
 def normalize_major_name(raw: str | None) -> str | None:
@@ -150,6 +175,7 @@ def normalize_major_code(raw: str | None) -> str | None:
 
 
 __all__ = [
+    "extract_ability_analysis_major_identity",
     "extract_ability_analysis_major_name",
     "normalize_major_code",
     "normalize_major_name",

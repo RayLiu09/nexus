@@ -25,7 +25,7 @@ import re
 # Pinned on the ProfileDetectResult so downstream audits and review queues
 # can disjoin results emitted by different detector generations. Bump on
 # any behavioral change to the detectors.
-DETECTOR_VERSION: str = "record-profile-detector.v2"
+DETECTOR_VERSION: str = "record-profile-detector.v3"
 
 # Threshold below which a successful match is downgraded to its `_candidate`
 # variant and the asset version is parked in `review_required`. Detectors
@@ -89,13 +89,12 @@ PGSD_CATEGORY_ALIASES: dict[str, str] = {
 # we match the prefix so detection works even before B2.2 parses individual
 # segments. PGSD codes are 2- or 3-segment (G/S/D vs P) per design §5.7.
 PGSD_CODE_PREFIX_PATTERN: re.Pattern[str] = re.compile(
-    r"^[PGSD]-\d+(?:\.\d+){1,2}$"
+    r"^[PGSD]-(?:\d+\.\d+(?:\.\d+)?|[A-Z]\d+(?:\.\d+)?)$"
 )
 
-# Sheet-name pattern for per-task ability analysis sub-sheets (e.g.
-# "1.数据采集", "4.可视化图表制作"). Matches a leading digit-and-dot prefix
-# followed by Chinese characters. Used to discriminate the canonical PGSD
-# layout from generic spreadsheets.
+# Legacy numeric sheet-name pattern retained for callers that inspect the
+# canonical sample layout. Detection now relies on coded ability rows, since
+# supplied workbooks also use letter and descriptive task sheet names.
 PGSD_SHEET_NAME_PATTERN: re.Pattern[str] = re.compile(
     r"^\d+\.[\u4e00-\u9fa5].*$"
 )

@@ -222,6 +222,8 @@ def _minimal_record_body(**overrides) -> dict:
     base = {
         "analysis": {
             "major_name": "大数据技术应用",
+            "major_code": "530706",
+            "education_level": "高职专科",
             "major_direction": None,
             "analysis_model": "PGSD",
             "task_count": 1,
@@ -353,6 +355,8 @@ class TestWriterHappyPath:
         assert analysis.normalized_ref_id == ref.id
         assert analysis.analysis_model == "PGSD"
         assert analysis.major_name == "大数据技术应用"
+        assert analysis.major_code == "530706"
+        assert analysis.education_level == "高职专科"
         assert analysis.schema_version == "ability_analysis.pgsd.v1"
 
     def test_task_row_created(self, session, state):

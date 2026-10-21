@@ -7,6 +7,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from nexus_app.knowledge.semantic_repack import _parse_markdown_table
+from nexus_app.major_catalog import complete_major_identity
 from nexus_app.teaching_standard_library.schema import DOMAIN_PROFILE, validate_payload
 
 EXTRACTOR_VERSION = "teaching_standard_library_extractor.v1"
@@ -93,6 +94,9 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
 
     major_code, major_name = _extract_major_identity(title, whole_text)
     education_level = _extract_education_level(title, whole_text)
+    major_code, major_name, education_level = complete_major_identity(
+        major_code, major_name, education_level
+    )
     sections = _sections(blocks)
     occupations = _occupations(sections)
     rules = _rules(blocks)

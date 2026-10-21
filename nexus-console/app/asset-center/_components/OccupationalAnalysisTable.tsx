@@ -10,6 +10,7 @@ import {
   Empty,
   Form,
   Input,
+  Select,
   Skeleton,
   Space,
   Table,
@@ -130,6 +131,12 @@ export function OccupationalAnalysisTable({
         render: (value: string | null) => <strong>{value || "-"}</strong>,
       },
       {
+        title: "专业代码",
+        dataIndex: "major_code",
+        width: 120,
+        render: (value: string | null) => value || "-",
+      },
+      {
         title: "分析模型",
         dataIndex: "analysis_model",
         width: 120,
@@ -246,7 +253,7 @@ export function OccupationalAnalysisTable({
           columns={columns}
           dataSource={rows}
           loading={pending}
-          scroll={{ x: 1300 }}
+          scroll={{ x: 1420 }}
           pagination={{
             current: page,
             pageSize,
@@ -273,13 +280,7 @@ export function OccupationalAnalysisTable({
         {drawer?.mode === "items" ? <AbilityItemsView analysisId={drawer.analysis.id} /> : null}
         {drawer?.mode === "tree" ? <AbilityTreeView analysisId={drawer.analysis.id} /> : null}
         {drawer?.mode === "graph" ? (
-          <CapabilityGraphView
-            normalizedRefId={drawer.analysis.normalized_ref_id}
-            buildType="ability_analysis"
-            title="能力图谱"
-            embedded
-            viewportHeight
-          />
+          <AbilityTaskGraphView analysis={drawer.analysis} />
         ) : null}
       </Drawer>
     </>
@@ -289,6 +290,7 @@ export function OccupationalAnalysisTable({
 function AbilityItemsView({ analysisId }: { analysisId: string }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [selectedTaskCode, setSelectedTaskCode] = useState<string | null>(null);
   const [tasks, setTasks] = useState<{
     loading: boolean;
     rows: OccupationalWorkTask[];
@@ -308,6 +310,10 @@ function AbilityItemsView({ analysisId }: { analysisId: string }) {
     ).then((result) => {
       if (!active) return;
       setTasks({ loading: false, rows: result.data, error: result.error });
+      setSelectedTaskCode(result.data[0]?.task_code ?? null);
+      if (result.data.length === 0) {
+        setItems({ loading: false, rows: [], total: 0, error: null });
+      }
     });
     return () => {
       active = false;
@@ -316,10 +322,11 @@ function AbilityItemsView({ analysisId }: { analysisId: string }) {
 
   useEffect(() => {
     let active = true;
+    if (!selectedTaskCode) return;
     getApiData<OccupationalAbilityItem[]>(
       `/api/record-assets/ability-analyses/${analysisId}/ability-items`,
       [],
-      { page: String(page), pageSize: String(pageSize) },
+      { page: String(page), pageSize: String(pageSize), task_code: selectedTaskCode },
     ).then((result) => {
       if (!active) return;
       setItems({
@@ -332,7 +339,7 @@ function AbilityItemsView({ analysisId }: { analysisId: string }) {
     return () => {
       active = false;
     };
-  }, [analysisId, page, pageSize]);
+  }, [analysisId, page, pageSize, selectedTaskCode]);
 
   const taskNames = useMemo(
     () => new Map(tasks.rows.map((task) => [task.id, task.task_name])),
@@ -370,6 +377,19 @@ function AbilityItemsView({ analysisId }: { analysisId: string }) {
 
   return (
     <div className="flex flex-col gap-3">
+      <Select
+        aria-label="典型工作任务"
+        className="w-full max-w-md"
+        placeholder="选择典型工作任务"
+        loading={tasks.loading}
+        value={selectedTaskCode}
+        options={tasks.rows.map((task) => ({ label: task.task_name, value: task.task_code }))}
+        onChange={(code) => {
+          setSelectedTaskCode(code);
+          setPage(1);
+          setItems({ loading: true, rows: [], total: 0, error: null });
+        }}
+      />
       {tasks.error ? (
         <Alert type="error" showIcon title="加载任务名称失败" description={tasks.error} />
       ) : null}
@@ -380,7 +400,7 @@ function AbilityItemsView({ analysisId }: { analysisId: string }) {
         rowKey="id"
         size="small"
         columns={columns}
-        dataSource={items.rows}
+        dataSource={selectedTaskCode ? items.rows : []}
         loading={items.loading || tasks.loading}
         tableLayout="fixed"
         pagination={{
@@ -396,6 +416,53 @@ function AbilityItemsView({ analysisId }: { analysisId: string }) {
           emptyText: <Empty description="暂无能力条目" image={Empty.PRESENTED_IMAGE_SIMPLE} />,
         }}
       />
+    </div>
+  );
+}
+
+function AbilityTaskGraphView({ analysis }: { analysis: AbilityAnalysis }) {
+  const [tasks, setTasks] = useState<{
+    loading: boolean;
+    rows: OccupationalWorkTask[];
+    error: string | null;
+  }>({ loading: true, rows: [], error: null });
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetchAllPages<OccupationalWorkTask>(
+      `/api/record-assets/ability-analyses/${analysis.id}/tasks`,
+    ).then((result) => {
+      if (!active) return;
+      setTasks({ loading: false, rows: result.data, error: result.error });
+      setSelectedTaskId(result.data[0]?.id ?? null);
+    });
+    return () => { active = false; };
+  }, [analysis.id]);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <Select
+        aria-label="典型工作任务"
+        className="w-full max-w-md"
+        placeholder="选择典型工作任务"
+        loading={tasks.loading}
+        value={selectedTaskId}
+        options={tasks.rows.map((task) => ({ label: task.task_name, value: task.id }))}
+        onChange={setSelectedTaskId}
+      />
+      {tasks.error ? <Alert type="error" showIcon title="加载典型工作任务失败" description={tasks.error} /> : null}
+      {!tasks.loading && !tasks.error && !selectedTaskId ? <Empty description="暂无典型工作任务" /> : null}
+      {selectedTaskId ? (
+        <CapabilityGraphView
+          normalizedRefId={analysis.normalized_ref_id}
+          buildType="ability_analysis"
+          title="能力图谱"
+          taskId={selectedTaskId}
+          embedded
+          viewportHeight
+        />
+      ) : null}
     </div>
   );
 }

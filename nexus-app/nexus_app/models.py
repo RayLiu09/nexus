@@ -2536,6 +2536,8 @@ class OccupationalAbilityAnalysis(TimestampMixin, Base):
     )
     analysis_model: Mapped[str] = mapped_column(String(64), nullable=False)
     major_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    major_code: Mapped[str | None] = mapped_column(String(6), nullable=True)
+    education_level: Mapped[str | None] = mapped_column(String(32), nullable=True)
     major_direction: Mapped[str | None] = mapped_column(String(256), nullable=True)
     # B6 depends on B4 job_demand_dataset after merge; keep ORM FK in sync
     # with alembic so mapper relationship joins are deterministic.

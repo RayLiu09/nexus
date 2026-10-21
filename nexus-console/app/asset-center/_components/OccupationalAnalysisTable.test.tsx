@@ -40,14 +40,16 @@ vi.mock("@/app/assets/[assetId]/_components/CapabilityGraphView", () => ({
     buildType,
     embedded,
     viewportHeight,
+    taskId,
   }: {
     normalizedRefId: string;
     buildType: string;
     embedded?: boolean;
     viewportHeight?: boolean;
+    taskId?: string;
   }) => (
     <div data-embedded={embedded} data-viewport-height={viewportHeight} data-testid="ability-graph">
-      {`${normalizedRefId}:${buildType}`}
+      {`${normalizedRefId}:${buildType}:${taskId}`}
     </div>
   ),
 }));
@@ -62,6 +64,8 @@ const analysis: AbilityAnalysis = {
   profile_id: "profile-1",
   analysis_model: "PGSD",
   major_name: "电子商务",
+  major_code: "530701",
+  education_level: "高职专科",
   major_direction: null,
   source_job_demand_dataset_id: null,
   task_count: 12,
@@ -140,6 +144,7 @@ describe("OccupationalAnalysisTable", () => {
 
     for (const heading of [
       "专业名称",
+      "专业代码",
       "分析模型",
       "典型任务数",
       "通用能力数",
@@ -151,6 +156,7 @@ describe("OccupationalAnalysisTable", () => {
       expect(screen.getByRole("columnheader", { name: heading })).toBeInTheDocument();
     }
     expect(screen.getByText("电子商务")).toBeInTheDocument();
+    expect(screen.getByText("530701")).toBeInTheDocument();
     expect(screen.getByText("PGSD")).toBeInTheDocument();
     for (const action of ["能力条目", "能力树", "能力图谱", "原文下载"]) {
       expect(screen.getByRole("button", { name: new RegExp(action) })).toBeInTheDocument();
@@ -202,14 +208,14 @@ describe("OccupationalAnalysisTable", () => {
     }
     expect(within(dialog).getAllByRole("columnheader")).toHaveLength(3);
     expect(await screen.findByText("第一页能力")).toBeInTheDocument();
-    expect(screen.getByText("市场数据采集")).toBeInTheDocument();
+    expect(screen.getAllByText("市场数据采集").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByTitle("2"));
     await waitFor(() =>
       expect(getApiDataMock).toHaveBeenCalledWith(
         "/api/record-assets/ability-analyses/analysis-1/ability-items",
         [],
-        { page: "2", pageSize: "20" },
+        { page: "2", pageSize: "20", task_code: "1" },
       ),
     );
     expect(await screen.findByText("第二页能力")).toBeInTheDocument();
@@ -230,8 +236,25 @@ describe("OccupationalAnalysisTable", () => {
 
     renderTable();
     await user.click(screen.getByRole("button", { name: /能力图谱/ }));
-    expect(screen.getByTestId("ability-graph")).toHaveTextContent("ref-1:ability_analysis");
+    expect(await screen.findByTestId("ability-graph")).toHaveTextContent("ref-1:ability_analysis:task-1");
     expect(screen.getByTestId("ability-graph")).toHaveAttribute("data-embedded", "true");
     expect(screen.getByTestId("ability-graph")).toHaveAttribute("data-viewport-height", "true");
+  });
+
+  it("changes the ability-item source when a typical task is selected", async () => {
+    const secondTask = { ...task, id: "task-2", task_code: "2", task_name: "店铺运营" };
+    getApiDataMock.mockImplementation((path: string, _fallback: unknown, params: Record<string, string>) => {
+      if (path.endsWith("/tasks")) return Promise.resolve(apiResult([task, secondTask], 2));
+      return Promise.resolve(apiResult([abilityItem(params.task_code, "任务能力")], 1));
+    });
+    renderTable();
+    await userEvent.click(screen.getByRole("button", { name: /能力条目/ }));
+    const selector = await screen.findByRole("combobox", { name: "典型工作任务" });
+    await userEvent.click(selector);
+    await userEvent.click(await screen.findByText("店铺运营"));
+    await waitFor(() => expect(getApiDataMock).toHaveBeenCalledWith(
+      "/api/record-assets/ability-analyses/analysis-1/ability-items", [],
+      { page: "1", pageSize: "20", task_code: "2" },
+    ));
   });
 });

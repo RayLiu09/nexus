@@ -14,7 +14,41 @@ These tests pin the contract the B4 / B6 writers depend on:
 """
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
+from nexus_app.profile_detect import detect
+from nexus_app.structured_parse import parse_xlsx
 from nexus_app.structured_parse.record_body_adapter import project_to_record_body
+
+
+_SAMPLE_DIR = Path(__file__).resolve().parents[2] / "docs" / "samples"
+_ABILITY_SAMPLES = sorted(_SAMPLE_DIR.glob("*.xlsx"))
+
+
+@pytest.mark.parametrize("path", _ABILITY_SAMPLES, ids=lambda path: path.name[:6])
+def test_supplied_ability_workbooks_project_distinct_tasks(path: Path):
+    workbook = parse_xlsx(path.read_bytes(), source_filename=path.name)
+    profile = detect(workbook)
+    expected_type = (
+        "occupational_ability_analysis_candidate"
+        if path.name[:6] in {"330702", "730701"}
+        else "occupational_ability_analysis"
+    )
+    assert profile.record_type == expected_type
+    if expected_type.endswith("_candidate"):
+        assert "duplicate_professional_ability_code_across_sheets" in profile.evidence.matched_row_patterns
+    body = project_to_record_body(workbook.model_dump(), profile.model_dump())
+    tasks = body["tasks"]
+    assert len(tasks) >= 6
+    assert len({task["task_code"] for task in tasks}) == len(tasks)
+    assert body["analysis"]["ability_item_count"] > 0
+    assert body["analysis"]["major_code"] == path.name[:6]
+    if path.name.startswith("730702"):
+        assert body["analysis"]["major_name"] == "跨境电子商务"
+        assert body["analysis"]["education_level"] == "中职"
+    assert all("课程转化" not in task["trace"]["sheet"] for task in tasks)
 
 
 # ---------------------------------------------------------------------------
@@ -280,6 +314,13 @@ class TestAbilityAnalysisProjection:
             workbook, {"domain_profile": "ability_analysis.pgsd.v1"}
         )
         assert out["analysis"]["major_name"] == "大数据技术应用"
+
+    def test_sample_filename_projects_major_code_and_name(self):
+        workbook = self._pgsd_wb()
+        workbook["source_filename"] = "530706-商务数据分析与应用-典型工作任务表+职业能力分析表.xlsx"
+        out = project_to_record_body(workbook, {"domain_profile": "ability_analysis.pgsd.v1"})
+        assert out["analysis"]["major_code"] == "530706"
+        assert out["analysis"]["major_name"] == "商务数据分析与应用"
 
     def test_explicit_major_name_takes_precedence_over_source_filename(self):
         workbook = self._pgsd_wb()

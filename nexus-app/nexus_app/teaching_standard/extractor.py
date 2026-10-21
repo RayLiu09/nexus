@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from nexus_app.knowledge.semantic_repack import _parse_markdown_table
+from nexus_app.major_catalog import complete_major_identity
 
 DOMAIN_PROFILE = "teaching_standard.v1"
 EXTRACTOR_VERSION = "teaching_standard_table_extractor.v1"
@@ -37,6 +38,7 @@ def extract_with_diagnostics(payload: dict[str, Any]) -> RuleExtractionResult:
     if not isinstance(blocks, list):
         return RuleExtractionResult(None, "invalid_normalized_document")
     major_code, major_name = _major_identity(str(payload.get("title") or ""), blocks)
+    major_code, major_name, _ = complete_major_identity(major_code, major_name)
     if not major_name:
         return RuleExtractionResult(None, "major_identity_missing")
     rows: list[dict[str, Any]] = []

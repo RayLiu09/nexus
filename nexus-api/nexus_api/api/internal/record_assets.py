@@ -1372,6 +1372,8 @@ def _serialize_analysis(
         "profile_id": analysis.profile_id,
         "analysis_model": analysis.analysis_model,
         "major_name": analysis.major_name,
+        "major_code": analysis.major_code,
+        "education_level": analysis.education_level,
         "major_direction": analysis.major_direction,
         "source_job_demand_dataset_id": analysis.source_job_demand_dataset_id,
         "task_count": analysis.task_count,

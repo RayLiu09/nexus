@@ -186,6 +186,8 @@ def write(
         profile_id=profile.id,
         analysis_model=profile.model_code,
         major_name=_str_or_none(analysis_block.get("major_name")),
+        major_code=_str_or_none(analysis_block.get("major_code")),
+        education_level=_str_or_none(analysis_block.get("education_level")),
         major_direction=_str_or_none(analysis_block.get("major_direction")),
         # P0 default: source_job_demand_dataset_id stays NULL (§二.2).
         source_job_demand_dataset_id=None,

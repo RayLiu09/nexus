@@ -1091,6 +1091,8 @@ export type AbilityAnalysis = {
   profile_id: string;
   analysis_model: string;
   major_name: string | null;
+  major_code: string | null;
+  education_level: string | null;
   major_direction: string | null;
   source_job_demand_dataset_id: string | null;
   task_count: number;

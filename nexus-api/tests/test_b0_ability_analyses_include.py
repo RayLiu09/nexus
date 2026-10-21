@@ -129,6 +129,8 @@ def _seed_analysis(
         normalized_ref_id=ref.id, asset_version_id=version.id,
         profile_id=profile.id, analysis_model="PGSD",
         major_name=major_name,
+        major_code="530701",
+        education_level="高职专科",
         schema_version="ability_analysis.pgsd.v1",
         task_count=1, work_content_count=1, ability_item_count=1,
         quality_summary={},
@@ -286,6 +288,8 @@ class TestAbilityCategoryCounts:
 
         assert response.status_code == 200
         row = response.json()["data"][0]
+        assert row["major_code"] == "530701"
+        assert row["education_level"] == "高职专科"
         assert row["general_ability_count"] == 1
         assert row["development_ability_count"] == 1
         assert row["occupational_ability_count"] == 1
