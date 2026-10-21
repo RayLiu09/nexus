@@ -123,7 +123,7 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
     return {
         "schema_version": DOMAIN_PROFILE, "domain_profile": DOMAIN_PROFILE, "extractor_version": EXTRACTOR_VERSION,
         "institution_name": institution_name, "major_name": major_name, "major_code": major_code,
-        "education_level": education_level, "study_duration": _duration(text), "training_goal": goal,
+        "education_level": education_level, "study_duration": _duration(text, title), "training_goal": goal,
         "training_specification": specification, "career_orientation": career, "certificates": certificates,
         "courses": courses, "confidence": 0.9 if courses and career else 0.75,
         "evidence": {"source_block_ids": evidence_ids}, "quality_flags": flags,
@@ -239,11 +239,19 @@ def _institution(title: str, text: str) -> str | None:
 
 def _education_level(title: str, text: str) -> str | None:
     value = title + "\n" + text[:1500]
+    if "职业本科" in value or "高职本科" in value or "高等职业教育本科" in value:
+        return "职业本科"
     return "中职" if "中职" in value or "中等职业" in value else "高职" if "高职" in value or "高等职业" in value else None
 
 
-def _duration(text: str) -> str | None:
-    match = re.search(r"(?:基本)?修业年限\s*[:：]?\s*([一二三四五六七八九十0-9]+年)", text)
+def _duration(text: str, title: str = "") -> str | None:
+    match = re.search(
+        r"(?:基本)?(?:修业年限|学习年限|学制)\s*(?:[:：]|\|)?\s*([一二三四五六七八九十0-9]+年)(?:制)?",
+        text,
+    )
+    if match:
+        return match.group(1)
+    match = re.search(r"[（(]\s*([一二三四五六七八九十0-9]+年)制\s*[）)]", title)
     return match.group(1) if match else None
 
 

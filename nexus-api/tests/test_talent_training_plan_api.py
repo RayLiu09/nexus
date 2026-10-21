@@ -94,7 +94,9 @@ def test_internal_business_list_query_count_is_bounded(session, fake_request):
     finally:
         event.remove(session.bind, "before_cursor_execute", count_statement)
 
-    assert len(statements) == 3
+    assert len(statements) == 2
+    assert all("row_number()" not in statement.lower() for statement in statements)
+    assert "talent_training_plan_course.course_content" not in statements[1]
 
 
 def test_internal_business_list_can_require_latest_official_classification(
@@ -157,6 +159,53 @@ def test_internal_business_list_matches_catalog_current_visibility(session, fake
 
     assert body["meta"]["total"] == 2
     assert {item["id"] for item in body["data"]} == {available.id, review.id}
+
+
+def test_business_list_uses_latest_official_classification(session, fake_request):
+    plan = _seed(session, suffix="governance-order", status=AssetVersionStatus.AVAILABLE)
+    session.add(models.GovernanceResult(
+        id="governance-a", normalized_ref_id=plan.normalized_ref_id,
+        classification="talent_training_plan", index_admission=True,
+        status=GovernanceResultStatus.AVAILABLE,
+    ))
+    session.commit()
+    session.add(models.GovernanceResult(
+        id="governance-z", normalized_ref_id=plan.normalized_ref_id,
+        classification="teaching_standard", index_admission=True,
+        status=GovernanceResultStatus.AVAILABLE,
+    ))
+    session.commit()
+
+    body = talent_training_plans._list(
+        fake_request, session, PAGE, False, official_only=True,
+    ).model_dump(mode="json")
+    assert body["meta"]["total"] == 0
+
+
+def test_business_list_excludes_superseded_version_and_ref(session, fake_request):
+    version_plan = _seed(session, suffix="old-version", status=AssetVersionStatus.REVIEW_REQUIRED)
+    ref_plan = _seed(session, suffix="old-ref", status=AssetVersionStatus.AVAILABLE)
+    old_version = session.get(models.AssetVersion, version_plan.asset_version_id)
+    newer_version = models.AssetVersion(
+        id="version-newer", asset_id=old_version.asset_id,
+        raw_object_id=old_version.raw_object_id, version_no=2,
+        source_checksum="newer", version_status=AssetVersionStatus.AVAILABLE,
+    )
+    old_ref = session.get(models.NormalizedAssetRef, ref_plan.normalized_ref_id)
+    newer_ref = models.NormalizedAssetRef(
+        id="ref-zz-newer", version_id=old_ref.version_id,
+        normalized_type=old_ref.normalized_type, object_uri=old_ref.object_uri,
+        schema_version=old_ref.schema_version, checksum="newer",
+        status=NormalizedAssetRefStatus.GENERATED,
+        governance={}, quality={}, lineage={}, metadata_summary={},
+    )
+    session.add_all([newer_version, newer_ref])
+    session.commit()
+
+    body = talent_training_plans._list(
+        fake_request, session, PAGE, False, catalog_visible_only=True,
+    ).model_dump(mode="json")
+    assert body["meta"]["total"] == 0
 
 
 def test_plan_graph_views_are_deterministic_and_position_graph_is_optional(session):

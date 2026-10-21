@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import Text, case, cast, func, or_, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, aliased, load_only, selectinload
 
 from nexus_api import schemas
 from nexus_api.dependencies import Pagination, pagination_params, require_api_caller
@@ -32,78 +32,66 @@ def _available_ids(session: Session):
     )
 
 
-def _official_talent_training_plan_ref_ids():
-    ranked = select(
-        models.GovernanceResult.normalized_ref_id.label("normalized_ref_id"),
-        models.GovernanceResult.classification.label("classification"),
-        func.row_number().over(
-            partition_by=models.GovernanceResult.normalized_ref_id,
-            order_by=(
-                models.GovernanceResult.created_at.desc(),
-                models.GovernanceResult.id.desc(),
-            ),
-        ).label("row_number"),
-    ).subquery()
-    return select(ranked.c.normalized_ref_id).where(
-        ranked.c.row_number == 1,
-        ranked.c.classification == "talent_training_plan",
+def _latest_official_classification():
+    result = aliased(models.GovernanceResult)
+    return (
+        select(result.classification)
+        .where(result.normalized_ref_id == models.TalentTrainingPlan.normalized_ref_id)
+        .order_by(result.created_at.desc(), result.id.desc())
+        .limit(1)
+        .correlate(models.TalentTrainingPlan)
+        .scalar_subquery()
     )
 
 
 def _catalog_visible_ref_ids():
     """Mirror the Asset Center count's current asset/version/ref read model."""
-    version_rank = func.row_number().over(
-        partition_by=models.AssetVersion.asset_id,
-        order_by=(
-            case(
-                (models.AssetVersion.version_status == AssetVersionStatus.AVAILABLE, 0),
-                else_=1,
-            ),
-            models.AssetVersion.version_no.desc(),
-            models.AssetVersion.created_at.desc(),
-            models.AssetVersion.id.desc(),
-        ),
-    )
-    versions = (
-        select(
-            models.AssetVersion.id.label("version_id"),
-            models.AssetVersion.version_status.label("version_status"),
-            version_rank.label("row_number"),
-        )
+    version = aliased(models.AssetVersion)
+    current_version = aliased(models.AssetVersion)
+    ref = aliased(models.NormalizedAssetRef)
+    current_ref = aliased(models.NormalizedAssetRef)
+    selected_version_id = (
+        select(current_version.id)
         .where(
-            models.AssetVersion.version_status.notin_(
+            current_version.asset_id == version.asset_id,
+            current_version.version_status.notin_(
                 (AssetVersionStatus.ARCHIVED, AssetVersionStatus.DISABLED)
-            )
+            ),
         )
-        .subquery()
+        .order_by(
+            case((current_version.version_status == AssetVersionStatus.AVAILABLE, 0), else_=1),
+            current_version.version_no.desc(),
+            current_version.created_at.desc(),
+            current_version.id.desc(),
+        )
+        .limit(1)
+        .correlate(version)
+        .scalar_subquery()
     )
-    refs = (
-        select(
-            models.NormalizedAssetRef.id.label("ref_id"),
-            models.NormalizedAssetRef.version_id.label("version_id"),
-            func.row_number()
-            .over(
-                partition_by=models.NormalizedAssetRef.version_id,
-                order_by=(
-                    models.NormalizedAssetRef.created_at.desc(),
-                    models.NormalizedAssetRef.id.desc(),
-                ),
-            )
-            .label("row_number"),
+    selected_ref_id = (
+        select(current_ref.id)
+        .where(
+            current_ref.version_id == version.id,
+            current_ref.status == NormalizedAssetRefStatus.GENERATED,
         )
-        .where(models.NormalizedAssetRef.status == NormalizedAssetRefStatus.GENERATED)
-        .subquery()
+        .order_by(current_ref.created_at.desc(), current_ref.id.desc())
+        .limit(1)
+        .correlate(version)
+        .scalar_subquery()
     )
     return (
-        select(refs.c.ref_id)
-        .join(versions, versions.c.version_id == refs.c.version_id)
+        select(ref.id)
+        .join(version, version.id == ref.version_id)
         .where(
-            versions.c.row_number == 1,
-            refs.c.row_number == 1,
-            versions.c.version_status.in_(
+            ref.id == models.TalentTrainingPlan.normalized_ref_id,
+            version.id == models.TalentTrainingPlan.asset_version_id,
+            version.version_status.in_(
                 (AssetVersionStatus.AVAILABLE, AssetVersionStatus.REVIEW_REQUIRED)
             ),
+            version.id == selected_version_id,
+            ref.id == selected_ref_id,
         )
+        .correlate(models.TalentTrainingPlan)
     )
 
 
@@ -188,6 +176,7 @@ def _summary(
     *,
     include_career_orientation_summary: bool = False,
     raw_object_id: str | None = None,
+    course_count: int | None = None,
 ) -> dict[str, Any]:
     data = {
         "id": row.id,
@@ -202,7 +191,7 @@ def _summary(
         "training_goal": row.training_goal,
         "confidence": row.confidence,
         "status": row.status,
-        "course_count": len(row.courses),
+        "course_count": course_count if course_count is not None else len(row.courses),
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
@@ -406,8 +395,25 @@ def _list(
     catalog_visible_only: bool = False,
     **filters: Any,
 ):
-    statement = select(models.TalentTrainingPlan).options(
-        selectinload(models.TalentTrainingPlan.courses)
+    plan = models.TalentTrainingPlan
+    course_count = (
+        select(func.count(models.TalentTrainingPlanCourse.id))
+        .where(models.TalentTrainingPlanCourse.plan_id == plan.id)
+        .correlate(plan)
+        .scalar_subquery()
+    )
+    list_columns = [
+        plan.id, plan.normalized_ref_id, plan.asset_version_id,
+        plan.institution_name, plan.major_name, plan.major_code,
+        plan.education_level, plan.study_duration, plan.training_goal,
+        plan.confidence, plan.status, plan.created_at, plan.updated_at,
+    ]
+    if include_career_orientation_summary:
+        list_columns.append(plan.career_orientation)
+    statement = (
+        select(plan, course_count, models.AssetVersion.raw_object_id)
+        .join(models.AssetVersion, models.AssetVersion.id == plan.asset_version_id)
+        .options(load_only(*list_columns))
     )
     count = select(func.count(models.TalentTrainingPlan.id))
     if available_only:
@@ -416,9 +422,7 @@ def _list(
         statement = statement.where(predicate)
         count = count.where(predicate)
     if official_only:
-        predicate = models.TalentTrainingPlan.normalized_ref_id.in_(
-            _official_talent_training_plan_ref_ids()
-        )
+        predicate = _latest_official_classification() == "talent_training_plan"
         statement = statement.where(predicate)
         count = count.where(predicate)
     if catalog_visible_only:
@@ -430,28 +434,20 @@ def _list(
     statement = _filters(statement, **filters)
     count = _filters(count, **filters)
     total = session.scalar(count) or 0
-    rows = list(
-        session.scalars(
-            statement.order_by(models.TalentTrainingPlan.created_at.desc())
-            .offset(pagination.offset)
-            .limit(pagination.limit)
-        ).unique()
-    )
-    version_ids = [row.asset_version_id for row in rows]
-    raw_ids = {
-        version.id: version.raw_object_id
-        for version in session.scalars(
-            select(models.AssetVersion).where(models.AssetVersion.id.in_(version_ids))
-        )
-    } if version_ids else {}
+    rows = session.execute(
+        statement.order_by(plan.created_at.desc(), plan.id.desc())
+        .offset(pagination.offset)
+        .limit(pagination.limit)
+    ).all()
     return list_response(
         [
             _summary(
                 row,
                 include_career_orientation_summary=include_career_orientation_summary,
-                raw_object_id=raw_ids.get(row.asset_version_id),
+                raw_object_id=raw_object_id,
+                course_count=number_of_courses,
             )
-            for row in rows
+            for row, number_of_courses, raw_object_id in rows
         ],
         request,
         page=pagination.page,

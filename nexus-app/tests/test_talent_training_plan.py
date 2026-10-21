@@ -4,6 +4,10 @@ from nexus_app import models
 from nexus_app.enums import AssetKind, AssetVersionStatus, DataSourceType, IngestBatchStatus, NormalizedAssetRefStatus, NormalizedType, RawObjectStatus
 from nexus_app.talent_training_plan.extractor import extract
 from nexus_app.talent_training_plan.writer import write
+from nexus_app.storage import InMemoryObjectStorage
+from scripts.backfill_talent_training_plan_identity import backfill
+import json
+from sqlalchemy import select, func
 
 
 def _block(block_id: str, text: str = "", html: str | None = None) -> dict:
@@ -49,6 +53,62 @@ def test_extracts_plan_local_facts_and_courses() -> None:
     assert "国际物流" in plan["courses"][0]["course_content"]
     assert {skill["name"] for skill in plan["courses"][0]["skill_refs"]} == {"跨境电商产品挖掘能力", "跨境电商平台操作能力"}
     assert len(plan["certificates"]) == 2
+
+
+def test_catalog_completion_and_explicit_duration_variants() -> None:
+    payload = _payload()
+    payload["title"] = "跨境电子商务专业人才培养方案（三年制）.pdf"
+    payload["blocks"][0]["text"] = "专业名称：跨境电子商务\n培养层次：高职"
+    plan = extract(payload)
+    assert plan is not None
+    assert (plan["major_code"], plan["education_level"], plan["study_duration"]) == (
+        "530702", "高职", "三年",
+    )
+
+    payload["title"] = "跨境电子商务专业人才培养方案.pdf"
+    payload["blocks"][0]["text"] = "专业名称：跨境电子商务\n学制：三年"
+    plan = extract(payload)
+    assert plan is not None
+    assert plan["study_duration"] == "三年"
+
+
+def test_writer_completes_missing_name_and_level_from_code(session) -> None:
+    ref = _ref(session)
+    payload = {"schema_version": "talent_training_plan.v1", "major_code": "730702"}
+    plan = write(session, ref, payload)
+    assert plan is not None
+    assert (plan.major_name, plan.education_level, plan.study_duration) == (
+        "跨境电子商务", "中职", None,
+    )
+
+
+def test_identity_backfill_is_dry_run_audited_and_idempotent(session) -> None:
+    ref = _ref(session)
+    plan = write(session, ref, {
+        "schema_version": "talent_training_plan.v1", "major_name": "跨境电子商务",
+    })
+    assert plan is not None
+    session.commit()
+    storage = InMemoryObjectStorage(bucket="bucket")
+    storage.put_bytes("normalized/ttp.json", json.dumps({
+        "content_type": "document",
+        "title": "跨境电子商务专业人才培养方案",
+        "blocks": [{"text": "专业名称：跨境电子商务\n培养层次：高职\n学制：三年"}],
+    }).encode(), "application/json")
+
+    preview = backfill(session, storage, apply=False)
+    assert preview["field_updates"] == {
+        "major_code": 1, "major_name": 0, "education_level": 1, "study_duration": 1,
+    }
+    assert plan.major_code is None
+    applied = backfill(session, storage, apply=True)
+    assert applied["updated"] == 1
+    session.refresh(plan)
+    assert (plan.major_code, plan.education_level, plan.study_duration) == (
+        "530702", "高职", "三年",
+    )
+    assert backfill(session, storage, apply=True)["updated"] == 0
+    assert session.scalar(select(func.count()).select_from(models.AuditLog)) == 1
 
 
 def test_extracts_plan_facts_from_normalized_markdown_tables() -> None:
