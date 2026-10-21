@@ -1,4 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
+import { App } from "antd";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -32,6 +33,21 @@ vi.mock("./CourseTextbookTaskOutlineView", () => ({
   ),
 }));
 
+vi.mock("@/app/assets/[assetId]/_components/SourcePreviewSection", () => ({
+  SourcePreviewSection: ({ refId }: { refId: string }) => (
+    <div data-testid="source-preview">{refId}</div>
+  ),
+}));
+vi.mock("@/app/assets/[assetId]/_components/ChunkListSection", () => ({
+  ChunkListSection: ({
+    refId,
+    knowledgeTypeCode,
+  }: {
+    refId: string;
+    knowledgeTypeCode: string;
+  }) => <div data-testid="chunk-list">{`${refId}:${knowledgeTypeCode}`}</div>,
+}));
+
 import { CourseTextbooksTable } from "./CourseTextbooksTable";
 
 const theory: CourseTextbookSummary = {
@@ -39,6 +55,7 @@ const theory: CourseTextbookSummary = {
   normalized_ref_id: "ref-theory",
   asset_version_id: "version-theory",
   asset_id: "asset-theory",
+  raw_object_id: "raw-theory",
   title: "短视频拍摄与剪辑",
   textbook_type: "theory",
   textbook_type_label: "理论型",
@@ -53,6 +70,7 @@ const training: CourseTextbookSummary = {
   normalized_ref_id: "ref-training",
   asset_version_id: "version-training",
   asset_id: "asset-training",
+  raw_object_id: null,
   title: "电子商务数据分析实践",
   textbook_type: "training",
   textbook_type_label: "实训型",
@@ -64,16 +82,18 @@ const training: CourseTextbookSummary = {
 
 function renderTable() {
   return render(
-    <CourseTextbooksTable
-      rows={[theory, training]}
-      total={2}
-      page={1}
-      pageSize={20}
-      filters={{}}
-      ok
-      error={null}
-      traceId={null}
-    />,
+    <App>
+      <CourseTextbooksTable
+        rows={[theory, training]}
+        total={2}
+        page={1}
+        pageSize={20}
+        filters={{}}
+        ok
+        error={null}
+        traceId={null}
+      />
+    </App>,
   );
 }
 
@@ -92,6 +112,9 @@ describe("CourseTextbooksTable", () => {
     expect(within(theoryRow).getByRole("button", { name: /知识大纲径向图/ })).toBeVisible();
     expect(within(theoryRow).getByRole("button", { name: "知识大纲树" })).toBeVisible();
     expect(within(theoryRow).queryByRole("button", { name: /任务大纲/ })).toBeNull();
+    for (const action of ["解析预览", "RAG知识块", "原文下载"]) {
+      expect(within(theoryRow).getByRole("button", { name: action })).toBeEnabled();
+    }
 
     const trainingRow = screen
       .getAllByRole("row")
@@ -99,6 +122,52 @@ describe("CourseTextbooksTable", () => {
     expect(within(trainingRow).getByRole("button", { name: /任务大纲树视图/ })).toBeVisible();
     expect(within(trainingRow).getByRole("button", { name: /任务大纲圆形树/ })).toBeVisible();
     expect(within(trainingRow).queryByRole("button", { name: /知识大纲/ })).toBeNull();
+    expect(within(trainingRow).getByRole("button", { name: "原文下载" })).toBeDisabled();
+  }, 15000);
+
+  it("opens source preview and RAG chunks only for the selected textbook", async () => {
+    const user = userEvent.setup();
+    renderTable();
+    expect(screen.queryByTestId("source-preview")).not.toBeInTheDocument();
+    const theoryRow = screen
+      .getAllByRole("row")
+      .find((row) => within(row).queryByText(theory.title))!;
+    await user.click(within(theoryRow).getByRole("button", { name: "解析预览" }));
+    expect(within(screen.getByRole("dialog")).getByTestId("source-preview")).toHaveTextContent(
+      "ref-theory",
+    );
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: /Close|关闭/ }),
+    );
+    await user.click(within(theoryRow).getByRole("button", { name: "RAG知识块" }));
+    expect(within(screen.getByRole("dialog")).getByTestId("chunk-list")).toHaveTextContent(
+      "ref-theory:course_textbook",
+    );
+  });
+
+  it("requests the selected version's original download", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: async () => ({ ok: true, data: { download_url: "https://example.test/source" } }),
+    });
+    const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      renderTable();
+      await userEvent.click(screen.getAllByRole("button", { name: "原文下载" })[0]);
+      await waitFor(() =>
+        expect(fetchMock).toHaveBeenCalledWith("/api/raw-objects/raw-theory/download-url", {
+          cache: "no-store",
+        }),
+      );
+      expect(openMock).toHaveBeenCalledWith(
+        "https://example.test/source",
+        "_blank",
+        "noopener,noreferrer",
+      );
+    } finally {
+      openMock.mockRestore();
+      vi.unstubAllGlobals();
+    }
   });
 
   it("opens each selected business view in a locked-mode drawer", async () => {

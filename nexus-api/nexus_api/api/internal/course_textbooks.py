@@ -157,6 +157,7 @@ def _serialize(
         "normalized_ref_id": ref.id,
         "asset_version_id": version.id,
         "asset_id": asset.id,
+        "raw_object_id": version.raw_object_id,
         "title": _textbook_title(profile, ref, asset),
         "textbook_type": textbook_type,
         "textbook_type_label": textbook_type_label,

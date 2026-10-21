@@ -31,6 +31,8 @@ from nexus_app.enums import (
     NormalizedType,
     RawObjectStatus,
 )
+from nexus_api.api.internal.record_assets import list_ability_analyses
+from nexus_api.dependencies import Pagination
 
 
 # Full B6 seed pattern — copied from test_b6_ability_analysis_api._seed_full_analysis
@@ -166,6 +168,26 @@ def _seed_analysis(
     }
 
 
+def test_direct_list_download_id_uses_analysis_version(session, fake_request):
+    seeded = _seed_analysis(
+        session, major_name="电子商务", task_name="数据运营", ability_content="执行任务",
+    )
+    result = list_ability_analyses(
+        request=fake_request,
+        normalized_ref_id=None,
+        profile_id=None,
+        major_name=None,
+        include=None,
+        pagination=Pagination(page=1, page_size=20),
+        session=session,
+    )
+    row = result.data[0]
+    assert row["id"] == seeded["analysis_id"]
+    assert row["raw_object_id"] == session.get(
+        models.AssetVersion, row["asset_version_id"]
+    ).raw_object_id
+
+
 # ---------------------------------------------------------------------------
 # include=tasks
 # ---------------------------------------------------------------------------
@@ -179,6 +201,9 @@ class TestIncludeTasks:
             r = client.get("/internal/v1/record-assets/ability-analyses")
         assert r.status_code == 200
         row = r.json()["data"][0]
+        assert row["raw_object_id"] == session.get(
+            models.AssetVersion, row["asset_version_id"]
+        ).raw_object_id
         assert "tasks" not in row
         assert "ability_items" not in row
 

@@ -2,12 +2,15 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Button, Drawer, Form, Input, InputNumber, Select, Space, Table, Tag } from "antd";
+import { App, Button, Drawer, Form, Input, InputNumber, Select, Space, Table, Tag } from "antd";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
-import { GitFork, Network, Search, X } from "lucide-react";
+import { BookOpen, Download, FileText, GitFork, Network, Search, X } from "lucide-react";
 
+import { ChunkListSection } from "@/app/assets/[assetId]/_components/ChunkListSection";
+import { SourcePreviewSection } from "@/app/assets/[assetId]/_components/SourcePreviewSection";
 import { ApiState } from "@/components/ApiState";
 import type { CourseTextbookSummary } from "@/lib/api";
+import type { RawDownloadResponse } from "@/lib/chunkTypes";
 import {
   CourseTextbookKnowledgeOutlineView,
   type CourseTextbookKnowledgeOutlineMode,
@@ -36,7 +39,13 @@ type Props = {
   traceId: string | null;
 };
 
-type ViewKind = "knowledge-radial" | "knowledge-left-to-right" | "task-tree" | "task-radial";
+type ViewKind =
+  | "knowledge-radial"
+  | "knowledge-left-to-right"
+  | "task-tree"
+  | "task-radial"
+  | "preview"
+  | "chunks";
 
 type ViewSelection = {
   textbook: CourseTextbookSummary;
@@ -56,6 +65,8 @@ const VIEW_LABELS: Record<ViewKind, string> = {
   "knowledge-left-to-right": "知识大纲树",
   "task-tree": "任务大纲树视图",
   "task-radial": "任务大纲圆形树",
+  preview: "解析预览",
+  chunks: "RAG知识块",
 };
 
 export function CourseTextbooksTable({
@@ -70,11 +81,35 @@ export function CourseTextbooksTable({
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
+  const { message } = App.useApp();
   const [pending, startTransition] = useTransition();
   const [selection, setSelection] = useState<ViewSelection | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [form] = Form.useForm<CourseTextbookFilters>();
 
   useEffect(() => form.setFieldsValue({ ...EMPTY_FILTERS, ...filters }), [filters, form]);
+
+  async function download(row: CourseTextbookSummary) {
+    if (!row.raw_object_id) return;
+    setDownloadingId(row.profile_id);
+    try {
+      const response = await fetch(
+        `/api/raw-objects/${encodeURIComponent(row.raw_object_id)}/download-url`,
+        {
+          cache: "no-store",
+        },
+      );
+      const body = (await response.json()) as
+        | { ok: true; data: RawDownloadResponse }
+        | { ok: false; message?: string };
+      if (!body.ok) throw new Error(body.message ?? "原文下载失败");
+      window.open(body.data.download_url, "_blank", "noopener,noreferrer");
+    } catch (cause) {
+      message.error(cause instanceof Error ? cause.message : "原文下载失败");
+    } finally {
+      setDownloadingId(null);
+    }
+  }
 
   const replaceQuery = (next: CourseTextbookFilters, nextPage = 1, nextPageSize = pageSize) => {
     const search = new URLSearchParams();
@@ -129,51 +164,82 @@ export function CourseTextbooksTable({
       {
         title: "操作",
         key: "actions",
-        width: 370,
+        width: 550,
         fixed: "right",
-        render: (_, row) =>
-          row.textbook_type === "theory" ? (
-            <Space size={2}>
-              <Button
-                type="link"
-                size="small"
-                icon={<Network size={14} />}
-                onClick={() => setSelection({ textbook: row, kind: "knowledge-radial" })}
-              >
-                知识大纲径向图
-              </Button>
-              <Button
-                type="link"
-                size="small"
-                icon={<GitFork size={14} />}
-                onClick={() => setSelection({ textbook: row, kind: "knowledge-left-to-right" })}
-              >
-                知识大纲树
-              </Button>
-            </Space>
-          ) : (
-            <Space size={2}>
-              <Button
-                type="link"
-                size="small"
-                icon={<GitFork size={14} />}
-                onClick={() => setSelection({ textbook: row, kind: "task-tree" })}
-              >
-                任务大纲树视图
-              </Button>
-              <Button
-                type="link"
-                size="small"
-                icon={<Network size={14} />}
-                onClick={() => setSelection({ textbook: row, kind: "task-radial" })}
-              >
-                任务大纲圆形树
-              </Button>
-            </Space>
-          ),
+        render: (_, row) => (
+          <Space size={2} wrap>
+            {row.textbook_type === "theory" ? (
+              <>
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<Network size={14} />}
+                  onClick={() => setSelection({ textbook: row, kind: "knowledge-radial" })}
+                >
+                  知识大纲径向图
+                </Button>
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<GitFork size={14} />}
+                  onClick={() => setSelection({ textbook: row, kind: "knowledge-left-to-right" })}
+                >
+                  知识大纲树
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<GitFork size={14} />}
+                  onClick={() => setSelection({ textbook: row, kind: "task-tree" })}
+                >
+                  任务大纲树视图
+                </Button>
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<Network size={14} />}
+                  onClick={() => setSelection({ textbook: row, kind: "task-radial" })}
+                >
+                  任务大纲圆形树
+                </Button>
+              </>
+            )}
+            <Button
+              type="link"
+              size="small"
+              icon={<FileText size={14} />}
+              disabled={!row.normalized_ref_id}
+              onClick={() => setSelection({ textbook: row, kind: "preview" })}
+            >
+              解析预览
+            </Button>
+            <Button
+              type="link"
+              size="small"
+              icon={<BookOpen size={14} />}
+              disabled={!row.normalized_ref_id}
+              onClick={() => setSelection({ textbook: row, kind: "chunks" })}
+            >
+              RAG知识块
+            </Button>
+            <Button
+              type="link"
+              size="small"
+              icon={<Download size={14} />}
+              disabled={!row.raw_object_id}
+              loading={downloadingId === row.profile_id}
+              onClick={() => void download(row)}
+            >
+              原文下载
+            </Button>
+          </Space>
+        ),
       },
     ],
-    [],
+    [downloadingId],
   );
 
   const handleTableChange = (pagination: TablePaginationConfig) => {
@@ -245,7 +311,7 @@ export function CourseTextbooksTable({
           dataSource={rows}
           loading={pending}
           tableLayout="fixed"
-          scroll={{ x: 1260 }}
+          scroll={{ x: 1440 }}
           pagination={{
             current: page,
             pageSize,
@@ -260,7 +326,11 @@ export function CourseTextbooksTable({
 
       <Drawer
         open={selection !== null}
-        size="min(1160px, 84vw)"
+        size={
+          selection?.kind === "preview" || selection?.kind === "chunks"
+            ? "min(960px, calc(100vw - 32px))"
+            : "min(1160px, 84vw)"
+        }
         title={
           selection
             ? `${selection.textbook.title} · ${VIEW_LABELS[selection.kind]}`
@@ -276,6 +346,20 @@ export function CourseTextbooksTable({
 }
 
 function SelectedOutline({ selection }: { selection: ViewSelection }) {
+  if (selection.kind === "preview") {
+    return <SourcePreviewSection refId={selection.textbook.normalized_ref_id} />;
+  }
+  if (selection.kind === "chunks") {
+    return (
+      <ChunkListSection
+        refId={selection.textbook.normalized_ref_id}
+        title="RAG知识块"
+        mode="preview"
+        actionLabel="预览定位"
+        knowledgeTypeCode="course_textbook"
+      />
+    );
+  }
   if (selection.kind === "knowledge-radial" || selection.kind === "knowledge-left-to-right") {
     const mode: CourseTextbookKnowledgeOutlineMode =
       selection.kind === "knowledge-radial" ? "radial" : "left-to-right";

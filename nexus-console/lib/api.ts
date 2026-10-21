@@ -555,6 +555,7 @@ export type CourseTextbookSummary = {
   normalized_ref_id: string;
   asset_version_id: string;
   asset_id: string;
+  raw_object_id: string | null;
   title: string;
   textbook_type: "theory" | "training";
   textbook_type_label: "理论型" | "实训型";
@@ -1086,6 +1087,7 @@ export type AbilityAnalysis = {
   id: string;
   normalized_ref_id: string;
   asset_version_id: string;
+  raw_object_id?: string | null;
   profile_id: string;
   analysis_model: string;
   major_name: string | null;

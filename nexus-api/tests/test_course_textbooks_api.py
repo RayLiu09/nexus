@@ -18,6 +18,8 @@ from nexus_app.enums import (
     NormalizedType,
     RawObjectStatus,
 )
+from nexus_api.api.internal.course_textbooks import list_course_textbooks
+from nexus_api.dependencies import Pagination
 
 
 def _seed_textbook(
@@ -107,6 +109,21 @@ def _seed_textbook(
     return {"asset": asset, "version": version, "ref": ref, "profile": profile}
 
 
+def test_direct_list_download_id_uses_current_version(session, fake_request):
+    seeded = _seed_textbook(session, suffix="source-action", subtype="theory_knowledge")
+    result = list_course_textbooks(
+        request=fake_request,
+        title=None,
+        textbook_type=None,
+        publisher=None,
+        chief_editor=None,
+        publication_year=None,
+        pagination=Pagination(page=1, page_size=20),
+        session=session,
+    )
+    assert result.data[0]["raw_object_id"] == seeded["version"].raw_object_id
+
+
 def test_list_projects_types_and_normalized_bibliographic_metadata(app, session):
     _seed_textbook(
         session,
@@ -145,6 +162,9 @@ def test_list_projects_types_and_normalized_bibliographic_metadata(app, session)
     assert rows["短视频拍摄与剪辑"]["chief_editors"] == ["何牧"]
     assert rows["短视频拍摄与剪辑"]["publisher"] == "高等教育出版社"
     assert rows["短视频拍摄与剪辑"]["publication_year"] == 2025
+    assert rows["短视频拍摄与剪辑"]["raw_object_id"] == session.get(
+        models.AssetVersion, rows["短视频拍摄与剪辑"]["asset_version_id"]
+    ).raw_object_id
     assert rows["新媒体营销"]["textbook_type"] == "theory"
     assert rows["新媒体营销"]["chief_editors"] == ["张三", "李四"]
     assert rows["电子商务数据分析实践（初级）"]["textbook_type"] == "training"

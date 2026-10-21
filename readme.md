@@ -173,7 +173,8 @@ Root documents are distilled implementation contracts:
 - Occupational-ability analyses are browsed at
   `/asset-center/major/occupation-analyses` as a paginated list with exact
   task and P/G/S/D counts. Row Drawers host the migrated ability-item, tree,
-  and graph views; ability-item page changes are server requests rather than
+  and graph views; the graph Drawer adapts to viewport width and height. Rows
+  provide original download. Ability-item page changes are server requests rather than
   client-side slicing of a preloaded result. The corresponding technical asset
   detail no longer exposes `结构化图谱`.
 - Job-demand projections and APIs remain intact, but their technical asset
@@ -196,7 +197,8 @@ Root documents are distilled implementation contracts:
   publisher, chief editor, and year without per-row outline reads. Display
   titles remove explicit numeric sequence prefixes and document extensions.
   Conditional row actions lazily open the migrated knowledge radial, knowledge
-  tree, task tree, and task radial views without top summary badges. Technical
+  tree, task tree, and task radial views without top summary badges. Rows also
+  offer parsed preview, RAG chunks, and original download. Technical
   asset detail no longer duplicates the textbook outline views.
 - Teaching cases are browsed at `/asset-center/teaching-resources/cases` as a
   paginated list of current governed documents. The list prefers the extracted

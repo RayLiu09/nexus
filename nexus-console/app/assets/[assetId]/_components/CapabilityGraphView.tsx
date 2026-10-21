@@ -34,6 +34,7 @@ type Props = {
   buildType: CapabilityGraphBuildType;
   title: string;
   embedded?: boolean;
+  viewportHeight?: boolean;
 };
 
 type GraphState = {
@@ -189,6 +190,7 @@ export function CapabilityGraphView({
   buildType,
   title,
   embedded = false,
+  viewportHeight = false,
 }: Props) {
   const [state, setState] = useState<GraphState>({
     loading: true,
@@ -463,6 +465,7 @@ export function CapabilityGraphView({
                 buildType={buildType}
                 showEdgeLabels={false}
                 onNodeSelect={handleGraphNodeSelect}
+                viewportHeight={viewportHeight}
               />
             </div>
           )}
@@ -695,9 +698,18 @@ const EchartsGraph = forwardRef<
     showEdgeLabels: boolean;
     onNodeSelect: (node: GraphDisplayNode) => void;
     fullscreen?: boolean;
+    viewportHeight?: boolean;
   }
 >(function EchartsGraph(
-  { nodes, edges, buildType, showEdgeLabels, onNodeSelect, fullscreen = false },
+  {
+    nodes,
+    edges,
+    buildType,
+    showEdgeLabels,
+    onNodeSelect,
+    fullscreen = false,
+    viewportHeight = false,
+  },
   ref,
 ) {
   const chartRef = useRef<HTMLDivElement | null>(null);
@@ -775,7 +787,11 @@ const EchartsGraph = forwardRef<
     <div
       ref={chartRef}
       className={`border-line bg-surface-alt w-full rounded-md border ${
-        fullscreen ? "h-full min-h-[520px]" : "h-[560px] min-h-[420px]"
+        fullscreen
+          ? "h-full min-h-[520px]"
+          : viewportHeight
+            ? "h-[clamp(280px,calc(100dvh-200px),1000px)]"
+            : "h-[560px] min-h-[420px]"
       }`}
       role="img"
       aria-label="能力图谱可视化画布"

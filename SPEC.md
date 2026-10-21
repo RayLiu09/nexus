@@ -227,7 +227,8 @@ Asset Center IA-1:
   shows only category, description, and corresponding task name; `能力树` and
   `能力图谱` preserve the existing structured views in right Drawers. Category
   counts are projected for the current page in one grouped query and are not
-  persisted. The migrated views and `结构化图谱` tab are no longer present in
+  persisted. Rows also offer original download from the selected asset version;
+  the graph Drawer and canvas adapt to the viewport. The migrated views and `结构化图谱` tab are no longer present in
   the technical asset detail.
 - **人才培养方案业务视图**: `/asset-center/major/training-plans` exposes an
   expandable, server-paginated list with professional name/code, study
@@ -257,7 +258,8 @@ Asset Center IA-1:
   `理论型`; training-operation profiles display as `实训型`. Theory rows open
   knowledge-outline radial and ECharts Left-to-Right tree Drawers; training
   rows open task-outline tree and radial Drawers. Each action loads only the
-  selected outline, and the technical asset detail no longer duplicates these
+  selected outline. Every row also offers lazy parsed preview, RAG chunks, and
+  original download from its selected asset version. The technical asset detail no longer duplicates these
   textbook-specific views.
 - **教材数据**: course textbooks, teaching cases, and course standards.
   `/asset-center/teaching-resources/cases` lists current, catalog-visible

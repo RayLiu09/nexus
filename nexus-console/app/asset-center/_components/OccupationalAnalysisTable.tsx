@@ -2,13 +2,27 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Alert, Button, Drawer, Empty, Form, Input, Skeleton, Space, Table, Tag, Tree } from "antd";
+import {
+  Alert,
+  App,
+  Button,
+  Drawer,
+  Empty,
+  Form,
+  Input,
+  Skeleton,
+  Space,
+  Table,
+  Tag,
+  Tree,
+} from "antd";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import type { DataNode } from "antd/es/tree";
-import { GitBranch, List, Network, Search, X } from "lucide-react";
+import { Download, GitBranch, List, Network, Search, X } from "lucide-react";
 
 import { CapabilityGraphView } from "@/app/assets/[assetId]/_components/CapabilityGraphView";
 import { ApiState } from "@/components/ApiState";
+import type { RawDownloadResponse } from "@/lib/chunkTypes";
 import {
   getApiData,
   type AbilityAnalysis,
@@ -60,8 +74,10 @@ export function OccupationalAnalysisTable({
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
+  const { message } = App.useApp();
   const [pending, startTransition] = useTransition();
   const [drawer, setDrawer] = useState<DrawerState>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [form] = Form.useForm<OccupationalAnalysisFilters>();
 
   useEffect(() => form.setFieldsValue({ major_name: undefined, ...filters }), [filters, form]);
@@ -81,6 +97,28 @@ export function OccupationalAnalysisTable({
   const openDrawer = (mode: DrawerMode, analysis: AbilityAnalysis) => {
     setDrawer({ mode, analysis });
   };
+
+  async function download(analysis: AbilityAnalysis) {
+    if (!analysis.raw_object_id) return;
+    setDownloadingId(analysis.id);
+    try {
+      const response = await fetch(
+        `/api/raw-objects/${encodeURIComponent(analysis.raw_object_id)}/download-url`,
+        {
+          cache: "no-store",
+        },
+      );
+      const body = (await response.json()) as
+        | { ok: true; data: RawDownloadResponse }
+        | { ok: false; message?: string };
+      if (!body.ok) throw new Error(body.message ?? "原文下载失败");
+      window.open(body.data.download_url, "_blank", "noopener,noreferrer");
+    } catch (cause) {
+      message.error(cause instanceof Error ? cause.message : "原文下载失败");
+    } finally {
+      setDownloadingId(null);
+    }
+  }
 
   const columns = useMemo<ColumnsType<AbilityAnalysis>>(
     () => [
@@ -115,7 +153,7 @@ export function OccupationalAnalysisTable({
       {
         title: "操作",
         key: "actions",
-        width: 300,
+        width: 400,
         fixed: "right",
         render: (_, analysis) => (
           <Space size={2}>
@@ -143,11 +181,21 @@ export function OccupationalAnalysisTable({
             >
               能力图谱
             </Button>
+            <Button
+              type="link"
+              size="small"
+              icon={<Download size={14} />}
+              disabled={!analysis.raw_object_id}
+              loading={downloadingId === analysis.id}
+              onClick={() => void download(analysis)}
+            >
+              原文下载
+            </Button>
           </Space>
         ),
       },
     ],
-    [],
+    [downloadingId],
   );
 
   const handleTableChange = (pagination: TablePaginationConfig) => {
@@ -198,7 +246,7 @@ export function OccupationalAnalysisTable({
           columns={columns}
           dataSource={rows}
           loading={pending}
-          scroll={{ x: 1200 }}
+          scroll={{ x: 1300 }}
           pagination={{
             current: page,
             pageSize,
@@ -213,7 +261,11 @@ export function OccupationalAnalysisTable({
 
       <Drawer
         open={drawer !== null}
-        size="min(1120px, 82vw)"
+        size={
+          drawer?.mode === "graph"
+            ? "min(1440px, calc(100vw - 16px))"
+            : "min(1120px, calc(100vw - 16px))"
+        }
         title={drawerTitle}
         destroyOnHidden
         onClose={() => setDrawer(null)}
@@ -226,6 +278,7 @@ export function OccupationalAnalysisTable({
             buildType="ability_analysis"
             title="能力图谱"
             embedded
+            viewportHeight
           />
         ) : null}
       </Drawer>

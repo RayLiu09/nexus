@@ -1,3 +1,4 @@
+import { App } from "antd";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -38,12 +39,14 @@ vi.mock("@/app/assets/[assetId]/_components/CapabilityGraphView", () => ({
     normalizedRefId,
     buildType,
     embedded,
+    viewportHeight,
   }: {
     normalizedRefId: string;
     buildType: string;
     embedded?: boolean;
+    viewportHeight?: boolean;
   }) => (
-    <div data-embedded={embedded} data-testid="ability-graph">
+    <div data-embedded={embedded} data-viewport-height={viewportHeight} data-testid="ability-graph">
       {`${normalizedRefId}:${buildType}`}
     </div>
   ),
@@ -55,6 +58,7 @@ const analysis: AbilityAnalysis = {
   id: "analysis-1",
   normalized_ref_id: "ref-1",
   asset_version_id: "version-1",
+  raw_object_id: "raw-1",
   profile_id: "profile-1",
   analysis_model: "PGSD",
   major_name: "电子商务",
@@ -106,16 +110,18 @@ function apiResult<T>(data: T, total: number | null = null): ApiResult<T> {
 
 function renderTable() {
   return render(
-    <OccupationalAnalysisTable
-      rows={[analysis]}
-      total={1}
-      page={1}
-      pageSize={20}
-      filters={{}}
-      ok
-      error={null}
-      traceId={null}
-    />,
+    <App>
+      <OccupationalAnalysisTable
+        rows={[analysis]}
+        total={1}
+        page={1}
+        pageSize={20}
+        filters={{}}
+        ok
+        error={null}
+        traceId={null}
+      />
+    </App>,
   );
 }
 
@@ -146,8 +152,33 @@ describe("OccupationalAnalysisTable", () => {
     }
     expect(screen.getByText("电子商务")).toBeInTheDocument();
     expect(screen.getByText("PGSD")).toBeInTheDocument();
-    for (const action of ["能力条目", "能力树", "能力图谱"]) {
+    for (const action of ["能力条目", "能力树", "能力图谱", "原文下载"]) {
       expect(screen.getByRole("button", { name: new RegExp(action) })).toBeInTheDocument();
+    }
+  });
+
+  it("downloads the analysis source from its asset version", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: async () => ({ ok: true, data: { download_url: "https://example.test/analysis" } }),
+    });
+    const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      renderTable();
+      await userEvent.click(screen.getByRole("button", { name: "原文下载" }));
+      await waitFor(() =>
+        expect(fetchMock).toHaveBeenCalledWith("/api/raw-objects/raw-1/download-url", {
+          cache: "no-store",
+        }),
+      );
+      expect(openMock).toHaveBeenCalledWith(
+        "https://example.test/analysis",
+        "_blank",
+        "noopener,noreferrer",
+      );
+    } finally {
+      openMock.mockRestore();
+      vi.unstubAllGlobals();
     }
   });
 
@@ -201,5 +232,6 @@ describe("OccupationalAnalysisTable", () => {
     await user.click(screen.getByRole("button", { name: /能力图谱/ }));
     expect(screen.getByTestId("ability-graph")).toHaveTextContent("ref-1:ability_analysis");
     expect(screen.getByTestId("ability-graph")).toHaveAttribute("data-embedded", "true");
+    expect(screen.getByTestId("ability-graph")).toHaveAttribute("data-viewport-height", "true");
   });
 });

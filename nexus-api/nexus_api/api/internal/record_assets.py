@@ -1534,7 +1534,13 @@ def list_ability_analyses(
     include_tasks = bool(include and "tasks" in include)
     include_ability_items = bool(include and "ability_items" in include)
 
-    stmt = select(models.OccupationalAbilityAnalysis)
+    stmt = select(
+        models.OccupationalAbilityAnalysis,
+        models.AssetVersion.raw_object_id,
+    ).join(
+        models.AssetVersion,
+        models.AssetVersion.id == models.OccupationalAbilityAnalysis.asset_version_id,
+    )
     count_stmt = select(func.count(models.OccupationalAbilityAnalysis.id))
     if normalized_ref_id is not None:
         stmt = stmt.where(
@@ -1556,13 +1562,14 @@ def list_ability_analyses(
         )
 
     total = session.scalar(count_stmt) or 0
-    rows = list(
-        session.scalars(
+    page_rows = list(
+        session.execute(
             stmt.order_by(models.OccupationalAbilityAnalysis.created_at.desc())
             .offset(pagination.offset)
             .limit(pagination.limit)
         ).all()
     )
+    rows = [analysis for analysis, _ in page_rows]
 
     tasks_by_analysis: dict[str, list[dict]] = {}
     items_by_analysis: dict[str, list[dict]] = {}
@@ -1580,8 +1587,9 @@ def list_ability_analyses(
         [row.id for row in rows],
     )
     serialized: list[dict] = []
-    for row in rows:
+    for row, raw_object_id in page_rows:
         payload = _serialize_analysis(row, category_counts_by_analysis.get(row.id))
+        payload["raw_object_id"] = raw_object_id
         if include_tasks:
             payload["tasks"] = tasks_by_analysis.get(row.id, [])
         if include_ability_items:
