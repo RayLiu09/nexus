@@ -38,7 +38,17 @@ NEXUS is an enterprise data and knowledge asset platform for D1-D4 pilot domains
 | Scan-task orchestration          | Turns NAS/Webhook/crawler scan items into `raw_object` + PostgreSQL ingest jobs using existing pipeline routing | Live filesystem crawler daemon, external database direct connector, MQ scheduler, or new execution engine |
 
 Console file upload at `/file-sync` uses an audited, idempotently ensured backend `file_upload` source so operators need no source-registration step. The NAS view is manual-only and unavailable while live filesystem scanning remains outside the implemented scan-task orchestration boundary.
+
 | Upper systems                    | Consume NEXUS APIs                                                                                                       | Direct calls to MinerU, retrieval backends, LiteLLM, or internal DBs  |
+
+Crawler WebSearch plans distinguish `connector_version=custom` (existing provider)
+and `connector_version=deepseek`. DeepSeek Search uses a server-only Bearer key,
+requests page content, and admits results only after formal-document authority
+(`authority >= 3`), URL, and content quality checks. `rerank_score` is retained
+as diagnostic metadata and does not block admission.
+Admitted content is retained as a raw object and follows Pipeline A; search JSON
+never enters governance directly. Existing URL identity and content fingerprint
+rules continue to apply within each provider's source.
 
 ## Design Principles
 

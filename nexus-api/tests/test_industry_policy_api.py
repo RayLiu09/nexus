@@ -1,10 +1,69 @@
+from fastapi import Request
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 
+from nexus_api.api.internal.assets import _list_industry_documents, list_talent_demand_reports
+from nexus_api.dependencies import Pagination
 from nexus_api.dependencies import require_user
 from nexus_app import models
 from nexus_app.enums import AuditEventType, TagAssetIndexSource, TagAssetIndexTargetType, UserRole
 
 from tests.test_asset_catalog_api import _seed_review_required_asset
+
+
+def test_talent_demand_report_page_matches_catalog_projection_with_bounded_queries(session):
+    report = _seed_review_required_asset(session, suffix="report-page")
+    report["result"].classification = "talent_demand_report"
+    report["ref"].document_metadata = {
+        "publish_date": "2025-01-01",
+        "talent_demand_report": {"major_name": "电子商务", "major_code": "530701"},
+    }
+    report["ref"].metadata_summary = {
+        "talent_demand_report_manual_identity": {"major_code": "530702"},
+    }
+    other = _seed_review_required_asset(session, suffix="other-page")
+    other["result"].classification = "industry_report"
+    session.commit()
+    request = Request({"type": "http", "method": "GET", "path": "/internal/v1/talent-demand-reports", "headers": []})
+    pagination = Pagination(page=1, page_size=20)
+    baseline = _list_industry_documents(
+        request, pagination, session,
+        classification="talent_demand_report", include_report_identity=True,
+    )
+
+    statements = []
+    engine = session.get_bind()
+    def count_queries(*args):
+        statements.append(args[0])
+    event.listen(engine, "before_cursor_execute", count_queries)
+    try:
+        optimized = list_talent_demand_reports(request, pagination, session)
+    finally:
+        event.remove(engine, "before_cursor_execute", count_queries)
+
+    assert optimized.model_dump() == baseline.model_dump()
+    assert optimized.data[0]["major_code"] == "530702"
+    assert len(statements) <= 7
+
+
+def test_talent_demand_report_uses_latest_official_classification(session):
+    seeded = _seed_review_required_asset(session, suffix="report-reclassified")
+    seeded["result"].classification = "talent_demand_report"
+    session.commit()
+    request = Request({"type": "http", "method": "GET", "path": "/internal/v1/talent-demand-reports", "headers": []})
+    page = Pagination(page=1, page_size=20)
+    assert list_talent_demand_reports(request, page, session).meta.total == 1
+
+    session.add(models.GovernanceResult(
+        normalized_ref_id=seeded["ref"].id,
+        classification="industry_report",
+        level="L1",
+        tags=[],
+        index_admission=False,
+        status=seeded["result"].status,
+    ))
+    session.commit()
+    assert list_talent_demand_reports(request, page, session).meta.total == 0
 
 
 def test_industry_policy_list_is_available_without_pipeline_specific_tables(app):

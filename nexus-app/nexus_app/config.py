@@ -173,6 +173,10 @@ class Settings(BaseSettings):
     crawler_websearch_custom_timeout_seconds: float = Field(
         default=30.0, gt=0, alias="CRAWLER_WEBSEARCH_CUSTOM_TIMEOUT_SECONDS",
     )
+    base_url_deepseek: str = Field(
+        default="https://api.deepseek.com", alias="BASE_URL_DEEPSEEK",
+    )
+    api_key_deepseek: str | None = Field(default=None, alias="API_KEY_DEEPSEEK")
     default_governance_model: str = Field(
         default="gpt-4o-mini",
         alias="DEFAULT_GOVERNANCE_MODEL",

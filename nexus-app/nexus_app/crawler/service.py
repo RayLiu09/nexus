@@ -27,6 +27,7 @@ from nexus_app.crawler.config_loader import (
     load_template,
     load_websearch_template,
 )
+from nexus_app.crawler.deepseek_search_client import HttpDeepSeekSearchClient
 from nexus_app.crawler.firecrawl_client import FirecrawlDocumentClient, FirecrawlDocumentSnapshot
 from nexus_app.crawler.quality_gate import evaluate_websearch_item, is_pdf_candidate
 from nexus_app.crawler.runner import run_firecrawl_plan
@@ -198,6 +199,10 @@ class HttpPdfDownloader:
 BUILTIN_FIRECRAWL_SOURCE_ID = "__builtin_firecrawl__"
 BUILTIN_FIRECRAWL_SOURCE_CODE = "ds_crawler_firecrawl_builtin"
 BUILTIN_WEBSEARCH_SOURCE_CODE = "ds_crawler_websearch_custom_builtin"
+BUILTIN_DEEPSEEK_SOURCE_CODE = "ds_crawler_websearch_deepseek_builtin"
+_FORMAL_DOCUMENT_TITLE = re.compile(
+    r"政策|法规|条例|规章|实施规划|发展规划|行动方案|实施方案|管理办法|实施办法|暂行办法|规定"
+)
 
 
 def _validate_websearch_query(query: str) -> str:
@@ -208,6 +213,24 @@ def _validate_websearch_query(query: str) -> str:
     if not terms or len(terms) > 4:
         raise CrawlerPlanError("websearch query must contain 1 to 4 unique terms")
     return value
+
+
+def _validate_deepseek_query(query: str) -> str:
+    value = query.strip()
+    if not value or len(value) > 90:
+        raise CrawlerPlanError("deepseek query must contain 1 to 90 characters")
+    return value
+
+
+def _deepseek_filter_reason(item: Any) -> str | None:
+    if _FORMAL_DOCUMENT_TITLE.search(item.title):
+        try:
+            authority = int(item.metadata.get("AuthInfoLevel"))
+        except (TypeError, ValueError):
+            return "low_authority"
+        if authority < 3:
+            return "low_authority"
+    return None
 
 
 def _validate_websearch_result_count(value: Any) -> int:
@@ -260,6 +283,17 @@ def _ensure_builtin_websearch_data_source(session: Session) -> models.DataSource
         source_type=DataSourceType.CRAWLER, status=DataSourceStatus.ENABLED, org_scope_hint=[], default_governance_hints={},
         connection_config={"provider": "volcengine_web_search", "connector_type": "websearch", "connector_version": "custom", "managed_by": "environment"},
         description="WebSearch Custom source configured by server environment variables.")
+    session.add(row); session.flush(); return row
+
+
+def _ensure_builtin_deepseek_data_source(session: Session) -> models.DataSource:
+    row = session.scalar(select(models.DataSource).where(models.DataSource.code == BUILTIN_DEEPSEEK_SOURCE_CODE))
+    if row is not None:
+        return row
+    row = models.DataSource(code=BUILTIN_DEEPSEEK_SOURCE_CODE, name="DeepSeek 搜索内置源",
+        source_type=DataSourceType.CRAWLER, status=DataSourceStatus.ENABLED, org_scope_hint=[], default_governance_hints={},
+        connection_config={"provider": "deepseek_search", "connector_type": "websearch", "connector_version": "deepseek", "managed_by": "environment"},
+        description="DeepSeek Search source configured by server environment variables.")
     session.add(row); session.flush(); return row
 
 
@@ -326,17 +360,19 @@ def create_plan(
 ) -> models.CrawlerPlan:
     data_source_id = _resolve_plan_data_source_id(session, payload.data_source_id)
     if payload.connector_type == "websearch":
-        if payload.connector_version != "custom":
-            raise CrawlerPlanError("websearch only supports custom version")
+        if payload.connector_version not in {"custom", "deepseek"}:
+            raise CrawlerPlanError("unsupported websearch version")
         template, template_hash = load_websearch_template()
-        query = _validate_websearch_query((payload.search_policy or {}).get("query") or template["query"])
+        validate_query = _validate_deepseek_query if payload.connector_version == "deepseek" else _validate_websearch_query
+        query = validate_query((payload.search_policy or {}).get("query") or template["query"])
         count = _validate_websearch_result_count(
             (payload.search_policy or {}).get("result_count", template["default_result_count"])
         )
-        policy = {"query": query, "result_count": count, "time_range_preset": (payload.search_policy or {}).get("time_range_preset", "one_year"), "content_formats": "markdown"}
+        policy = {"query": query, "result_count": count, "time_range_preset": (payload.search_policy or {}).get("time_range_preset", "one_year"), "content_formats": "text" if payload.connector_version == "deepseek" else "markdown"}
         next_run_at = _resolve_schedule_next_run(payload.execution_mode, payload.schedule_cron)
-        row = models.CrawlerPlan(name=payload.name, connector_type="websearch", connector_version="custom", mode=payload.mode,
-            data_source_id=data_source_id or _ensure_builtin_websearch_data_source(session).id, template_code=template["template_code"], template_version=template["schema_version"],
+        source = _ensure_builtin_deepseek_data_source if payload.connector_version == "deepseek" else _ensure_builtin_websearch_data_source
+        row = models.CrawlerPlan(name=payload.name, connector_type="websearch", connector_version=payload.connector_version, mode=payload.mode,
+            data_source_id=data_source_id or source(session).id, template_code=template["template_code"], template_version=template["schema_version"],
             region_code=None, region_name=None, topic_keywords=[], content_goals=[], classification_hints=[], target_sites=[],
             execution_mode=payload.execution_mode, schedule_cron=payload.schedule_cron, next_run_at=next_run_at,
             crawl_policy={}, search_policy=policy,
@@ -453,11 +489,12 @@ def update_plan(
 
     if row.connector_type == "websearch":
         template, _ = load_websearch_template()
-        query = _validate_websearch_query((payload.search_policy or {}).get("query") or template["query"])
+        validate_query = _validate_deepseek_query if row.connector_version == "deepseek" else _validate_websearch_query
+        query = validate_query((payload.search_policy or {}).get("query") or template["query"])
         count = _validate_websearch_result_count(
             (payload.search_policy or {}).get("result_count", template["default_result_count"])
         )
-        row.search_policy = {"query": query, "result_count": count, "time_range_preset": (payload.search_policy or {}).get("time_range_preset", "one_year"), "content_formats": "markdown"}
+        row.search_policy = {"query": query, "result_count": count, "time_range_preset": (payload.search_policy or {}).get("time_range_preset", "one_year"), "content_formats": "text" if row.connector_version == "deepseek" else "markdown"}
         row.mode = payload.mode
         row.topic_keywords = []
         row.target_sites = []
@@ -742,21 +779,27 @@ def _websearch_content_fingerprint(title: str, content: str) -> str:
 
 
 def _run_websearch_custom_plan(session: Session, plan: models.CrawlerPlan, *, trace_id: str | None, storage: ObjectStorage, settings: Settings) -> models.CrawlerRun:
-    policy = dict(plan.search_policy or {}); query = _validate_websearch_query(str(policy.get("query") or ""))
-    run = models.CrawlerRun(plan_id=plan.id, status="running", connector_type="websearch", connector_version="custom",
+    is_deepseek = plan.connector_version == "deepseek"
+    content_format = "text" if is_deepseek else "markdown"
+    policy = dict(plan.search_policy or {})
+    query = (_validate_deepseek_query if is_deepseek else _validate_websearch_query)(str(policy.get("query") or ""))
+    search_queries = [query] if is_deepseek else _websearch_queries(query)
+    run = models.CrawlerRun(plan_id=plan.id, status="running", connector_type="websearch", connector_version=plan.connector_version,
         started_at=datetime.now(timezone.utc), template_code=plan.template_code, template_config_hash=None, region_sites_config_hash=None, summary={})
     session.add(run); session.flush()
     search_results = []
     search_failures = []
     search_details = []
     seen_urls: set[str] = set()
-    client = HttpWebSearchCustomClient()
+    client = HttpDeepSeekSearchClient() if is_deepseek else HttpWebSearchCustomClient()
     time_range = _websearch_time_range(str(policy.get("time_range_preset")))
-    for search_query in _websearch_queries(query):
+    for search_query in search_queries:
         try:
             outcome = client.search(query=search_query, count=int(policy["result_count"]), time_range=time_range)
         except WebSearchCustomError as exc:
             search_failures.append({"query": search_query, "reason": str(exc)})
+            if str(exc) == "provider_rate_limited":
+                break
             continue
         search_details.append({"query": search_query, "result_count": len(outcome.items),
                                "request_id": outcome.request_id, "log_id": outcome.log_id,
@@ -768,7 +811,7 @@ def _run_websearch_custom_plan(session: Session, plan: models.CrawlerPlan, *, tr
                 search_results.append((item, outcome))
     if not search_details:
         run.status="failed"; run.finished_at=datetime.now(timezone.utc)
-        run.summary={"runner":"websearch_custom_sync", "query":query, "query_length":len(query), "query_count":len(_websearch_queries(query)),
+        run.summary={"runner":"websearch_deepseek_sync" if is_deepseek else "websearch_custom_sync", "query":query, "query_length":len(query), "query_count":len(search_queries),
                      "search_failures":search_failures, "result_count":0, "submitted_count":0,
                      "accepted_count":0, "failed_count":len(search_failures)}
         write_audit(session, AuditEventType.CRAWLER_RUN_COMPLETED, "crawler_run", run.id,
@@ -779,6 +822,11 @@ def _run_websearch_custom_plan(session: Session, plan: models.CrawlerPlan, *, tr
     filtered = []
     filter_reasons: dict[str, int] = {}
     for item, outcome in search_results:
+        provider_reason = _deepseek_filter_reason(item) if is_deepseek else None
+        if provider_reason:
+            filter_reasons[provider_reason] = filter_reasons.get(provider_reason, 0) + 1
+            filtered.append({"url": item.url, "title": item.title[:256], "reason": provider_reason})
+            continue
         decision = evaluate_websearch_item(
             title=item.title, url=item.url, content=item.content,
         )
@@ -799,12 +847,12 @@ def _run_websearch_custom_plan(session: Session, plan: models.CrawlerPlan, *, tr
         # The persisted package must be stable for the same upstream result.
         # Run/request identifiers belong in RawObject metadata: including them
         # here changes the raw checksum on every run and defeats batch dedupe.
-        raw = {"schema_version":"websearch-custom-document.v1", "provider":"volcengine_web_search", "connector_type":"websearch", "connector_version":"custom", "result_id":item.result_id, "source_url":item.url, "title":item.title, "content":item.content, "content_source":item.content_source, "content_format":"markdown", **item.metadata}
+        raw = {"schema_version":"websearch-custom-document.v1", "provider":"deepseek_search" if is_deepseek else "volcengine_web_search", "connector_type":"websearch", "connector_version":plan.connector_version, "result_id":item.result_id, "source_url":item.url, "title":item.title, "content":item.content, "content_source":item.content_source, "content_format":content_format, **item.metadata}
         content = json.dumps(raw, ensure_ascii=False, sort_keys=True).encode("utf-8"); checksum="sha256:"+hashlib.sha256(content).hexdigest()
         asset_identity = _websearch_asset_identity(item.url)
         asset_content_fingerprint = _websearch_content_fingerprint(item.title, item.content)
         try:
-            result=ingest_batch.append_file_to_batch(session,batch.id,file_idempotency_key=f"{run.id}-{index:04d}",filename=f"websearch-{checksum[7:19]}.json",content=content,mime_type="application/json",source_uri=item.url,source_object_key=asset_identity,pipeline_type_override=PipelineType.DOCUMENT,raw_metadata={"connector_type":"websearch_custom_document","content_kind":"web_document","source_url":item.url,"title":item.title,"content_hash":checksum,"asset_identity":asset_identity,"asset_content_fingerprint":asset_content_fingerprint,"content_length":len(item.content),"content_format":"markdown","content_source":item.content_source,"crawler_plan_id":plan.id,"crawler_run_id":run.id,"provider_request_id":outcome.request_id,"provider_log_id":outcome.log_id, **item.metadata},storage=storage,settings=settings,trace_id=trace_id)
+            result=ingest_batch.append_file_to_batch(session,batch.id,file_idempotency_key=f"{run.id}-{index:04d}",filename=f"websearch-{checksum[7:19]}.json",content=content,mime_type="application/json",source_uri=item.url,source_object_key=asset_identity,pipeline_type_override=PipelineType.DOCUMENT,raw_metadata={"connector_type":"websearch_custom_document","content_kind":"web_document","source_url":item.url,"title":item.title,"content_hash":checksum,"asset_identity":asset_identity,"asset_content_fingerprint":asset_content_fingerprint,"content_length":len(item.content),"content_format":content_format,"content_source":item.content_source,"crawler_plan_id":plan.id,"crawler_run_id":run.id,"provider_request_id":outcome.request_id,"provider_log_id":outcome.log_id, **item.metadata},storage=storage,settings=settings,trace_id=trace_id)
             submitted.append({"url":item.url,"title":item.title,"raw_object_id":result.raw_object.id,"content_hash":checksum,"asset_content_fingerprint":asset_content_fingerprint,"content_length":len(item.content),"duplicate":result.duplicate,"pipeline_type":result.job.payload.get("pipeline_type")})
         except ingest_batch.BatchError as exc: failures.append({"url":item.url,"reason":str(exc)})
         except (BotoCoreError, ClientError, ObjectStorageError, OSError):
@@ -823,7 +871,7 @@ def _run_websearch_custom_plan(session: Session, plan: models.CrawlerPlan, *, tr
         run.status = "failed" if failures or search_failures else "no_results"
     else:
         run.status = "partial_failed" if failures or search_failures else "succeeded"
-    run.summary={"runner":"websearch_custom_sync","query":query,"query_length":len(query),"query_count":len(_websearch_queries(query)),"searches":search_details,"search_failures":search_failures,"time_range":time_range,"result_count":len(search_results),"accepted_count":len(accepted),"filtered_count":len(filtered),"submitted_count":len(submitted),"raw_persisted_count":sum(1 for item in submitted if not item["duplicate"]),"duplicate_count":sum(1 for item in submitted if item["duplicate"]),"failed_count":len(failures)+len(search_failures),"filter_reasons":filter_reasons,"accepted":[{"url":item.url,"title":item.title[:256],"result_id":item.result_id,"rank_score":item.metadata.get("RankScore"),"content_hash":"sha256:"+hashlib.sha256(item.content.encode("utf-8")).hexdigest(),"content_chars":len(item.content)} for item, _ in accepted],"filtered":filtered,"submitted":submitted,"failures":failures}
+    run.summary={"runner":"websearch_deepseek_sync" if is_deepseek else "websearch_custom_sync","query":query,"query_length":len(query),"query_count":len(search_queries),"searches":search_details,"search_failures":search_failures,"time_range":time_range,"result_count":len(search_results),"accepted_count":len(accepted),"filtered_count":len(filtered),"submitted_count":len(submitted),"raw_persisted_count":sum(1 for item in submitted if not item["duplicate"]),"duplicate_count":sum(1 for item in submitted if item["duplicate"]),"failed_count":len(failures)+len(search_failures),"filter_reasons":filter_reasons,"accepted":[{"url":item.url,"title":item.title[:256],"result_id":item.result_id,"rank_score":item.metadata.get("RankScore"),"content_hash":"sha256:"+hashlib.sha256(item.content.encode("utf-8")).hexdigest(),"content_chars":len(item.content)} for item, _ in accepted],"filtered":filtered,"submitted":submitted,"failures":failures}
     if storage_failed:
         run.summary = {**run.summary, "storage_failed": True}
     write_audit(session, AuditEventType.CRAWLER_RUN_COMPLETED, "crawler_run", run.id,

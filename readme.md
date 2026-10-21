@@ -21,6 +21,10 @@ data source
 
 The current P0 target covers D1-D4 pilot domains and focuses on an end-to-end usable loop rather than a full operations center or advanced knowledge-graph/SFT production system.
 
+Crawler WebSearch plans support Custom and DeepSeek Search providers. DeepSeek uses
+server-only `BASE_URL_DEEPSEEK` and `API_KEY_DEEPSEEK` settings and applies
+formal-document authority and content-quality gates before raw-object ingestion.
+
 ## Repository Map
 
 ```text

@@ -48,6 +48,7 @@ type ApiProxyResult<T> =
 
 type PlanFormState = {
   connectorType: "firecrawl" | "websearch";
+  websearchProvider: "custom" | "deepseek";
   mode: "quick_start" | "custom";
   name: string;
   dataSourceId: string;
@@ -80,6 +81,7 @@ type CrawlerRunSummaryItem = {
 
 const INITIAL_FORM: PlanFormState = {
   connectorType: "firecrawl",
+  websearchProvider: "deepseek",
   mode: "quick_start",
   name: "",
   dataSourceId: "",
@@ -204,7 +206,7 @@ function buildPayload(
   const base = {
     name: form.name.trim(),
     connector_type: form.connectorType,
-    connector_version: form.connectorType === "websearch" ? "custom" : "v2",
+    connector_version: form.connectorType === "websearch" ? form.websearchProvider : "v2",
     mode: form.mode,
     data_source_id: dataSourceId || null,
     execution_mode: form.executionMode,
@@ -348,7 +350,7 @@ export function CrawlerPlansPanel() {
     const search = plan.search_policy ?? {};
     setEditingPlan(copy ? null : plan);
     setCopyingPlan(copy ? plan : null);
-    setForm({ connectorType: plan.connector_type as PlanFormState["connectorType"], mode: plan.mode as PlanFormState["mode"], name: copy ? `${plan.name.slice(0, 125)} 副本` : plan.name, dataSourceId: plan.data_source_id ?? "", regionCode: plan.region_code ?? "national", executionMode: plan.execution_mode as PlanFormState["executionMode"], scheduleCron: plan.schedule_cron ?? "", topicKeywords: plan.topic_keywords.join(", "), targetUrls: plan.target_sites.map((site) => site.base_url).join("\n"), query: typeof search.query === "string" ? search.query : INITIAL_FORM.query, resultCount: typeof search.result_count === "number" ? search.result_count : INITIAL_FORM.resultCount, timeRangePreset: typeof search.time_range_preset === "string" ? search.time_range_preset : INITIAL_FORM.timeRangePreset });
+    setForm({ connectorType: plan.connector_type as PlanFormState["connectorType"], websearchProvider: plan.connector_version === "deepseek" ? "deepseek" : "custom", mode: plan.mode as PlanFormState["mode"], name: copy ? `${plan.name.slice(0, 125)} 副本` : plan.name, dataSourceId: plan.data_source_id ?? "", regionCode: plan.region_code ?? "national", executionMode: plan.execution_mode as PlanFormState["executionMode"], scheduleCron: plan.schedule_cron ?? "", topicKeywords: plan.topic_keywords.join(", "), targetUrls: plan.target_sites.map((site) => site.base_url).join("\n"), query: typeof search.query === "string" ? search.query : INITIAL_FORM.query, resultCount: typeof search.result_count === "number" ? search.result_count : INITIAL_FORM.resultCount, timeRangePreset: typeof search.time_range_preset === "string" ? search.time_range_preset : INITIAL_FORM.timeRangePreset });
     setDrawerOpen(true);
   };
 
@@ -358,8 +360,12 @@ export function CrawlerPlansPanel() {
       return;
     }
     const searchTerms = [...new Set(form.query.trim().split(/[\s,，、;；|/]+/).filter(Boolean))];
-    if (form.connectorType === "websearch" && (searchTerms.length < 1 || searchTerms.length > 4)) {
+    if (form.connectorType === "websearch" && form.websearchProvider === "custom" && (searchTerms.length < 1 || searchTerms.length > 4)) {
       message.error("请输入 1 至 4 个查询关键词");
+      return;
+    }
+    if (form.connectorType === "websearch" && form.websearchProvider === "deepseek" && (form.query.trim().length < 1 || form.query.trim().length > 90)) {
+      message.error("DeepSeek 查询须为 1 至 90 个字符");
       return;
     }
     if (form.connectorType === "websearch" && (!Number.isInteger(form.resultCount) || form.resultCount < 10 || form.resultCount > 50)) {
@@ -376,7 +382,7 @@ export function CrawlerPlansPanel() {
     }
     setSaving(true);
     const payload = buildPayload(form, effectiveDataSourceId, effectiveTopicKeywords);
-    if (copyingPlan && copyingPlan.connector_type === form.connectorType && copyingPlan.mode === form.mode) {
+    if (copyingPlan && copyingPlan.connector_type === form.connectorType && copyingPlan.connector_version === (form.connectorType === "websearch" ? form.websearchProvider : "v2") && copyingPlan.mode === form.mode) {
       payload.content_goals = copyingPlan.content_goals;
       payload.classification_hints = copyingPlan.classification_hints;
       payload.crawl_policy = copyingPlan.crawl_policy;
@@ -700,8 +706,9 @@ export function CrawlerPlansPanel() {
                 title: "类型",
                 dataIndex: "connector_type",
                 width: 112,
-                render: (connectorType: string) => {
+                render: (connectorType: string, plan) => {
                   const connector = crawlerConnectorLabel(connectorType);
+                  if (connectorType === "websearch" && plan.connector_version === "deepseek") return <Tag color="green">DeepSeek 搜索</Tag>;
                   return <Tag color={connector.color}>{connector.text}</Tag>;
                 },
               },
@@ -863,13 +870,21 @@ export function CrawlerPlansPanel() {
                     placeholder="例：电商产业政策搜索"
                   />
                 </Form.Item>
-                <Form.Item label="版本">
-                  <Input value="Custom" disabled />
+                <Form.Item label="搜索服务">
+                  <Select
+                    value={form.websearchProvider}
+                    onChange={(value) => update("websearchProvider", value)}
+                    disabled={Boolean(editingPlan)}
+                    options={[
+                      { value: "custom", label: "豆包搜索" },
+                      { value: "deepseek", label: "DeepSeek 搜索" },
+                    ]}
+                  />
                 </Form.Item>
                 <Form.Item
                   label="查询"
                   required
-                  extra="支持 1 至 4 个关键词，可用空格、逗号、顿号或分号分隔；执行时自动组合查询并汇总去重。"
+                  extra={form.websearchProvider === "deepseek" ? "支持 DeepSeek 搜索语法；执行时附加所选时间范围。" : "支持 1 至 4 个关键词，可用空格、逗号、顿号或分号分隔；执行时自动组合查询并汇总去重。"}
                 >
                   <Input
                     value={form.query}

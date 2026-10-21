@@ -587,6 +587,33 @@ def test_websearch_plan_accepts_separated_query_terms(app):
     assert resp.json()["data"]["search_policy"]["query"] == "浙江省，低空经济 政策"
 
 
+def test_deepseek_search_plan_keeps_provider_identity(app):
+    client = TestClient(app)
+    payload = {
+        "name": "DeepSeek政策搜索", "mode": "custom",
+        "connector_type": "websearch", "connector_version": "deepseek",
+        "execution_mode": "run_once",
+        "search_policy": {"query": "电子商务 政策 site:gov.cn", "result_count": 10,
+                          "time_range_preset": "one_year"},
+    }
+    created = client.post(
+        "/internal/v1/crawler/plans",
+        headers={"Idempotency-Key": "crawler-plan-deepseek-001"}, json=payload,
+    )
+    assert created.status_code == 201
+    plan = created.json()["data"]
+    assert plan["connector_version"] == "deepseek"
+    assert plan["search_policy"]["query"] == payload["search_policy"]["query"]
+
+    updated = client.put(
+        f"/internal/v1/crawler/plans/{plan['id']}",
+        headers={"Idempotency-Key": "crawler-plan-deepseek-update-001"},
+        json={**payload, "name": "更新的搜索"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["data"]["connector_version"] == "deepseek"
+
+
 @pytest.mark.parametrize("result_count", [None, "not-a-number", True])
 def test_websearch_plan_rejects_invalid_result_count_without_server_error(app, result_count):
     client = TestClient(app)

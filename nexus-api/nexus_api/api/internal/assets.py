@@ -446,6 +446,7 @@ def _catalog_candidate_ids(
     title_query: str | None = None,
     limit: int | None = None,
     offset: int | None = None,
+    candidate_asset_ids=None,
 ) -> tuple[list[str], int]:
     """Filter and page the catalog in SQL before loading catalog relations."""
     current_version = aliased(models.AssetVersion)
@@ -542,6 +543,8 @@ def _catalog_candidate_ids(
     )
 
     predicates = []
+    if candidate_asset_ids is not None:
+        predicates.append(models.Asset.id.in_(candidate_asset_ids))
     if matching_ref_ids is not None:
         if not matching_ref_ids:
             return [], 0
@@ -821,10 +824,106 @@ def list_talent_demand_reports(
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
 ):
-    return _list_industry_documents(
-        request, pagination, session,
-        classification="talent_demand_report", include_report_identity=True,
+    # Start with refs ever classified as reports. The catalog predicate below
+    # still checks the selected ref's latest official governance result.
+    report_asset_ids = (
+        select(models.AssetVersion.asset_id)
+        .join(models.NormalizedAssetRef, models.NormalizedAssetRef.version_id == models.AssetVersion.id)
+        .join(models.GovernanceResult, models.GovernanceResult.normalized_ref_id == models.NormalizedAssetRef.id)
+        .where(models.GovernanceResult.classification == "talent_demand_report")
     )
+    asset_ids, total = _catalog_candidate_ids(
+        session, domain="talent_demand_report", level=None, status="visible",
+        matching_ref_ids=None, limit=pagination.limit, offset=pagination.offset,
+        candidate_asset_ids=report_asset_ids,
+    )
+    if not asset_ids:
+        return list_response([], request, page=pagination.page, page_size=pagination.page_size, total=total)
+
+    assets = {asset.id: asset for asset in session.scalars(
+        select(models.Asset).where(models.Asset.id.in_(asset_ids))
+    ).all()}
+    versions_by_asset: dict[str, list[models.AssetVersion]] = {}
+    versions = list(session.scalars(
+        select(models.AssetVersion).where(models.AssetVersion.asset_id.in_(asset_ids))
+    ).all())
+    for version in versions:
+        versions_by_asset.setdefault(version.asset_id, []).append(version)
+
+    selected_versions: dict[str, models.AssetVersion] = {}
+    latest_versions: dict[str, models.AssetVersion] = {}
+    for asset_id, candidates in versions_by_asset.items():
+        available = [v for v in candidates if v.version_status == AssetVersionStatus.AVAILABLE]
+        active = [v for v in candidates if v.version_status not in {
+            AssetVersionStatus.ARCHIVED, AssetVersionStatus.DISABLED,
+        }]
+        if active:
+            latest_versions[asset_id] = max(active, key=lambda v: (v.version_no, v.created_at))
+        if available:
+            selected_versions[asset_id] = max(available, key=lambda v: v.created_at)
+        elif active:
+            selected_versions[asset_id] = latest_versions[asset_id]
+
+    selected_version_ids = list({
+        version.id for version in (*selected_versions.values(), *latest_versions.values())
+    })
+    refs_by_version: dict[str, models.NormalizedAssetRef] = {}
+    for ref in session.scalars(
+        select(models.NormalizedAssetRef).where(
+            models.NormalizedAssetRef.version_id.in_(selected_version_ids),
+            models.NormalizedAssetRef.status == NormalizedAssetRefStatus.GENERATED,
+        )
+    ).all():
+        existing = refs_by_version.get(ref.version_id)
+        if existing is None or ref.created_at > existing.created_at:
+            refs_by_version[ref.version_id] = ref
+    refs_by_asset = {}
+    for asset_id, version in selected_versions.items():
+        ref = refs_by_version.get(version.id) or refs_by_version.get(latest_versions[asset_id].id)
+        if ref is not None:
+            refs_by_asset[asset_id] = ref
+    ref_ids = [ref.id for ref in refs_by_asset.values()]
+    results_by_ref: dict[str, models.GovernanceResult] = {}
+    for result in session.scalars(
+        select(models.GovernanceResult).where(models.GovernanceResult.normalized_ref_id.in_(ref_ids))
+    ).all():
+        existing = results_by_ref.get(result.normalized_ref_id)
+        if existing is None or result.created_at > existing.created_at:
+            results_by_ref[result.normalized_ref_id] = result
+    tags_by_ref: dict[str, dict[str, list[str]]] = {}
+    for tag in session.scalars(
+        select(models.TagAssetIndex).where(
+            models.TagAssetIndex.target_type == TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
+            models.TagAssetIndex.target_id.in_(ref_ids),
+        ).order_by(models.TagAssetIndex.tag_type, models.TagAssetIndex.tag_value)
+    ).all():
+        tags_by_ref.setdefault(tag.target_id, {}).setdefault(tag.tag_type, []).append(tag.tag_value)
+
+    rows = []
+    for asset_id in asset_ids:
+        asset = assets[asset_id]
+        version = selected_versions.get(asset_id)
+        ref = refs_by_asset.get(asset_id)
+        result = results_by_ref.get(ref.id) if ref is not None else None
+        typed_tags = tags_by_ref.get(ref.id, {}) if ref is not None else {}
+        metadata = ref.document_metadata if ref is not None and isinstance(ref.document_metadata, dict) else {}
+        rows.append({
+            "id": asset_id,
+            "asset_name": asset.title,
+            "normalized_ref_id": ref.id if ref is not None else None,
+            "raw_object_id": version.raw_object_id if version is not None else None,
+            "region": typed_tags.get("region", []),
+            "industry": typed_tags.get("industry", []),
+            "publish_date": metadata.get("publish_date"),
+            "content_tags": [
+                value for tag_type, values in typed_tags.items()
+                if tag_type not in {"region", "industry"} for value in values
+            ] or (list(result.tags) if result is not None else []),
+            **(_report_identity(ref) if ref is not None else {
+                field: None for field in _REPORT_IDENTITY_FIELDS
+            }),
+        })
+    return list_response(rows, request, page=pagination.page, page_size=pagination.page_size, total=total)
 
 
 @router.get("/teaching-cases", response_model=schemas.ListResponse[dict])

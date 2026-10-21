@@ -314,7 +314,7 @@ def _websearch_package_header(raw_content: bytes | None) -> dict[str, Any] | Non
     if (
         package.get("schema_version") != WEBSEARCH_CUSTOM_DOCUMENT_SCHEMA_VERSION
         or package.get("connector_type") != "websearch"
-        or package.get("connector_version") != "custom"
+        or package.get("connector_version") not in {"custom", "deepseek"}
     ):
         return None
     return package
