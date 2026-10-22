@@ -1,0 +1,3926 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "find_documents",
+      "description": "List available assets, optionally filtered by domain and governance tags.\n\n`domain` is the official governance classification. `tags` is a repeated\nsemantic-query parameter with `ANY` recall semantics. Set\n`is_exact_matched=true` to compare normalized tag values exactly instead.\n`tag_type` is optional: without it, each tag searches every controlled tag\ntype. Results do not contain a presigned URL; use each item's stable\n`download_url_endpoint` to mint one on demand.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "domain": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Domain"
+              },
+              "tag_type": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Tag Type"
+              },
+              "tags": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Tags"
+              },
+              "is_exact_matched": {
+                "type": "boolean",
+                "default": false,
+                "title": "Is Exact Matched"
+              },
+              "tags_match": {
+                "enum": [
+                  "any",
+                  "all"
+                ],
+                "type": "string",
+                "default": "any",
+                "title": "Tags Match"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Title"
+              },
+              "resource_type": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "industry_policy",
+                      "industry_report",
+                      "sector_report",
+                      "major_profile",
+                      "teaching_standard",
+                      "talent_demand_report",
+                      "talent_training_plan",
+                      "competency_analysis",
+                      "course_textbook",
+                      "teaching_case"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Resource Type"
+              },
+              "domains": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 15
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Domains"
+              },
+              "topic": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "finance_commerce",
+                      "low_altitude"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Topic"
+              },
+              "region": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Region"
+              },
+              "industry": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Industry"
+              },
+              "major_code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Code"
+              },
+              "major_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Name"
+              },
+              "institution_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Institution Name"
+              },
+              "education_level": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Education Level"
+              },
+              "published_from": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Inclusive source publication date; requires a full ISO date.",
+                "title": "Published From"
+              },
+              "published_to": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Inclusive source publication date; unknown/partial dates are excluded.",
+                "title": "Published To"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_available_asset",
+      "description": "Asset detail filtered to `available` versions only.\n\n404 if the asset has no `available` version, regardless of whether it exists\nin other states (the upstream contract is \"exists for consumption\").",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "asset_id": {
+                "type": "string",
+                "title": "Asset Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "asset_id"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "list_available_asset_versions",
+      "description": "List Available Asset Versions",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "asset_id": {
+                "type": "string",
+                "title": "Asset Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "asset_id"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "find_textbooks",
+      "description": "List Textbooks",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Title"
+              },
+              "textbook_type": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "theory",
+                      "training"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Textbook Type"
+              },
+              "publisher": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Publisher"
+              },
+              "chief_editor": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Chief Editor"
+              },
+              "publication_year": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "maximum": 2199,
+                    "minimum": 1800
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Publication Year"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_textbook",
+      "description": "Get Textbook",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "profile_id": {
+                "type": "string",
+                "title": "Profile Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "profile_id"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "discover_data_resources",
+      "description": "Discover the 15 visible Asset Center resource types and counts within public consumption boundaries. Counts are ingested coverage.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "query_enterprises",
+      "description": "List Enterprises",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "q": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Q"
+              },
+              "business_scope": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Business Scope"
+              },
+              "park_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 36
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Park Id"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_enterprise",
+      "description": "Get Enterprise",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "enterprise_id": {
+                "type": "string",
+                "title": "Enterprise Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "enterprise_id"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "resolve_business_entities",
+      "description": "Return stored name/code candidates with exact or substring match evidence. Ambiguous candidates are never merged.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "properties": {
+              "entity_type": {
+                "type": "string",
+                "enum": [
+                  "major",
+                  "course",
+                  "enterprise",
+                  "industrial_park"
+                ],
+                "title": "Entity Type"
+              },
+              "query": {
+                "type": "string",
+                "maxLength": 256,
+                "minLength": 1,
+                "title": "Query"
+              },
+              "limit": {
+                "type": "integer",
+                "maximum": 30.0,
+                "minimum": 1.0,
+                "title": "Limit",
+                "default": 10
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "entity_type",
+              "query"
+            ],
+            "title": "EntityRequest"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "body"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_evidence_bundle",
+      "description": "Batch read-only resolution. Every item is independently checked; hidden and unknown IDs both return not_found.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "properties": {
+              "references": {
+                "items": {
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "chunk",
+                        "normalized_ref",
+                        "market_job",
+                        "enterprise",
+                        "industrial_park",
+                        "major_distribution",
+                        "ability_item"
+                      ],
+                      "title": "Kind"
+                    },
+                    "id": {
+                      "type": "string",
+                      "maxLength": 64,
+                      "minLength": 1,
+                      "title": "Id"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "title": "EvidenceReference"
+                },
+                "type": "array",
+                "maxItems": 30,
+                "minItems": 1,
+                "title": "References"
+              },
+              "max_chars": {
+                "type": "integer",
+                "maximum": 10000.0,
+                "minimum": 100.0,
+                "title": "Max Chars",
+                "default": 2000
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "references"
+            ],
+            "title": "EvidenceRequest"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "body"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "search_firecrawl",
+      "description": "External search can ingest data when auto_ingest=true. This consumption tool defaults auto_ingest=false; the executor MUST inject false if omitted. Discover, quality-check, and queue qualifying Firecrawl documents.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "properties": {
+              "query": {
+                "type": "string",
+                "maxLength": 1024,
+                "minLength": 1,
+                "title": "Query"
+              },
+              "auto_ingest": {
+                "type": "boolean",
+                "title": "Auto Ingest",
+                "description": "Queue qualifying results into the NEXUS crawler pipeline.",
+                "default": false
+              },
+              "limit": {
+                "type": "integer",
+                "maximum": 20.0,
+                "minimum": 1.0,
+                "title": "Limit",
+                "default": 10
+              },
+              "include_domains": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "maxItems": 20
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Include Domains"
+              },
+              "country": {
+                "type": "string",
+                "maxLength": 8,
+                "minLength": 2,
+                "title": "Country",
+                "default": "CN"
+              },
+              "languages": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 10,
+                "minItems": 1,
+                "title": "Languages"
+              }
+            },
+            "type": "object",
+            "required": [
+              "query"
+            ],
+            "title": "FirecrawlExternalSearchRequest"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "body"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "search_web_search",
+      "description": "External search can ingest data when auto_ingest=true. This consumption tool defaults auto_ingest=false; the executor MUST inject false if omitted. Retrieve, quality-check, and queue qualifying Web Search documents.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "properties": {
+              "query": {
+                "type": "string",
+                "maxLength": 1024,
+                "minLength": 1,
+                "title": "Query"
+              },
+              "auto_ingest": {
+                "type": "boolean",
+                "title": "Auto Ingest",
+                "description": "Queue qualifying results into the NEXUS crawler pipeline.",
+                "default": false
+              },
+              "count": {
+                "type": "integer",
+                "maximum": 50.0,
+                "minimum": 1.0,
+                "title": "Count",
+                "default": 10
+              },
+              "time_range": {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1,
+                "title": "Time Range",
+                "default": "OneYear"
+              }
+            },
+            "type": "object",
+            "required": [
+              "query"
+            ],
+            "title": "WebSearchExternalSearchRequest"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "body"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "query_industrial_parks",
+      "description": "List Parks",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "q": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Q"
+              },
+              "industry": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Industry"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_industrial_park",
+      "description": "Get Park",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "park_id": {
+                "type": "string",
+                "title": "Park Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "park_id"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_public_knowledge_chunk",
+      "description": "Return a single knowledge chunk for citation lookup.\n\nReturns 404 if the chunk's anchoring asset version is not `available` —\nupstream apps must not be able to dereference chunks belonging to\nreview_required / archived / disabled material.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "chunk_id": {
+                "type": "string",
+                "title": "Chunk Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "chunk_id"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "aggregate_major_courses",
+      "description": "Aggregate Major Courses",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "province_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Province Name"
+              },
+              "major_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Name"
+              },
+              "major_code": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Code"
+              },
+              "education_level": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Education Level"
+              },
+              "institution_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Institution Name"
+              },
+              "course": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Course"
+              },
+              "min_coverage_ratio": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Min Coverage Ratio"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "aggregate_major_offerings",
+      "description": "Aggregate Major Offerings",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "province_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Province Name"
+              },
+              "major_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Name"
+              },
+              "major_code": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Code"
+              },
+              "education_level": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Education Level"
+              },
+              "institution_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Institution Name"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "find_major_profile_documents",
+      "description": "Read current professional-introduction documents and audited identity overrides; does not use retired MajorProfile rows.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Title"
+              },
+              "resource_type": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "industry_policy",
+                      "industry_report",
+                      "sector_report",
+                      "major_profile",
+                      "teaching_standard",
+                      "talent_demand_report",
+                      "talent_training_plan",
+                      "competency_analysis",
+                      "course_textbook",
+                      "teaching_case"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Resource Type"
+              },
+              "domains": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 15
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Domains"
+              },
+              "topic": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "finance_commerce",
+                      "low_altitude"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Topic"
+              },
+              "region": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Region"
+              },
+              "industry": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Industry"
+              },
+              "major_code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Code"
+              },
+              "major_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Name"
+              },
+              "institution_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Institution Name"
+              },
+              "education_level": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Education Level"
+              },
+              "published_from": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Inclusive source publication date; requires a full ISO date.",
+                "title": "Published From"
+              },
+              "published_to": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Inclusive source publication date; unknown/partial dates are excluded.",
+                "title": "Published To"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "query_market_jobs",
+      "description": "Query current raw_jobs postings. Collection time is not publication time; salary is source text.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "q": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Q"
+              },
+              "job_title": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Job Title"
+              },
+              "company_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Company Name"
+              },
+              "industry": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Industry"
+              },
+              "education": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Education"
+              },
+              "experience": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Experience"
+              },
+              "collected_from": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Collected From"
+              },
+              "collected_to": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Collected To"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "aggregate_market_jobs",
+      "description": "Count current raw job records by stored text fields. No numeric salary or inferred city statistics.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "group_by": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "job_title",
+                    "company_name",
+                    "industry",
+                    "education",
+                    "experience",
+                    "company_size"
+                  ],
+                  "type": "string"
+                },
+                "minItems": 1,
+                "maxItems": 3,
+                "default": [
+                  "job_title"
+                ],
+                "title": "Group By"
+              },
+              "q": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Q"
+              },
+              "job_title": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Job Title"
+              },
+              "company_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Company Name"
+              },
+              "industry": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Industry"
+              },
+              "education": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Education"
+              },
+              "experience": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Experience"
+              },
+              "collected_from": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Collected From"
+              },
+              "collected_to": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Collected To"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_market_job",
+      "description": "Get Market Job",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "job_id": {
+                "type": "string",
+                "title": "Job Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "job_id"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_available_normalized_ref",
+      "description": "Return a normalized_asset_ref only when its anchoring version is `available`.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "ref_id": {
+                "type": "string",
+                "title": "Ref Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "ref_id"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "list_chunks_for_normalized_ref",
+      "description": "Paginated chunks anchored on a normalized_ref.\n\nReturns 404 when the ref does not exist or its anchoring version is not\n`available` — same gate as `/knowledge-chunks/{chunk_id}`. Each chunk\ncarries `locator`, `source_block_ids`, and (when present) the\ngraph_extract `primary_block_ids` / `evidence_block_ids` at the top\nlevel, so the Asset Detail consumer can render lineage without a second\nround-trip to chunk_metadata.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "ref_id": {
+                "type": "string",
+                "title": "Ref Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "ref_id"
+            ]
+          },
+          "query": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_normalized_ref_content",
+      "description": "Read the normalized payload from object storage and surface\n``body_markdown`` + ``blocks`` (document type) or ``record_body``\n(record type) for the Asset Detail \"原文预览\" tab.\n\nThe markdown stream is returned **byte-identical** to what was\npersisted in MinIO — see ARCHITECT \"Chunk Locator Contract\" and\n`mineru_converter._FORBIDDEN_ANCHOR_PATTERNS`. The frontend is\ncontracted to render block-level DOM anchors from ``blocks[].md_char_range``\nwithout ever mutating the markdown text.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "ref_id": {
+                "type": "string",
+                "title": "Ref Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "ref_id"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_public_governance_result_for_ref",
+      "description": "Latest governance result for a normalized_asset_ref, forced to `view=public`.\n\n`decision_trail`, AI suggestions, and confidence values are redacted to\nclassification/level/tags/quality_summary only — see\n`nexus_app.governance.redaction.redact_governance_result(..., view='public')`.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "ref_id": {
+                "type": "string",
+                "title": "Ref Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "ref_id"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "read_existing_graph",
+      "description": "Read an existing exact-ref graph or bounded neighborhood. Generated relations remain derived assertions with evidence.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "ref_id": {
+                "type": "string",
+                "title": "Ref Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "ref_id"
+            ]
+          },
+          "query": {
+            "type": "object",
+            "properties": {
+              "graph_type": {
+                "enum": [
+                  "evidence_grounded_kg",
+                  "teaching_standard",
+                  "ability_analysis",
+                  "job_demand",
+                  "combined"
+                ],
+                "type": "string",
+                "default": "evidence_grounded_kg",
+                "title": "Graph Type"
+              },
+              "node_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 36
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Node Id"
+              },
+              "node_types": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 10
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Node Types"
+              },
+              "relation_types": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 10
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Relation Types"
+              },
+              "depth": {
+                "type": "integer",
+                "maximum": 5,
+                "minimum": 0,
+                "default": 1,
+                "title": "Depth"
+              },
+              "max_nodes": {
+                "type": "integer",
+                "maximum": 500,
+                "minimum": 1,
+                "default": 100,
+                "title": "Max Nodes"
+              },
+              "max_edges": {
+                "type": "integer",
+                "maximum": 1000,
+                "minimum": 1,
+                "default": 200,
+                "title": "Max Edges"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_knowledge_outline",
+      "description": "Read only the existing knowledge outline; a missing outline never triggers a build.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "ref_id": {
+                "type": "string",
+                "title": "Ref Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "ref_id"
+            ]
+          },
+          "query": {
+            "type": "object",
+            "properties": {
+              "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 0,
+                "title": "Offset"
+              },
+              "limit": {
+                "type": "integer",
+                "maximum": 500,
+                "minimum": 1,
+                "default": 100,
+                "title": "Limit"
+              },
+              "parent_node_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 36
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Parent Node Id"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_outline_node_context",
+      "description": "Read linked chunks in a node subtree, bounded by both chunk count and total text characters.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "ref_id": {
+                "type": "string",
+                "title": "Ref Id"
+              },
+              "outline_type": {
+                "enum": [
+                  "knowledge",
+                  "task"
+                ],
+                "type": "string",
+                "title": "Outline Type"
+              },
+              "node_id": {
+                "type": "string",
+                "title": "Node Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "ref_id",
+              "outline_type",
+              "node_id"
+            ]
+          },
+          "query": {
+            "type": "object",
+            "properties": {
+              "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 0,
+                "title": "Offset"
+              },
+              "char_offset": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 0,
+                "title": "Char Offset"
+              },
+              "limit": {
+                "type": "integer",
+                "maximum": 100,
+                "minimum": 1,
+                "default": 20,
+                "title": "Limit"
+              },
+              "max_chars": {
+                "type": "integer",
+                "maximum": 20000,
+                "minimum": 100,
+                "default": 8000,
+                "title": "Max Chars"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "list_document_sections",
+      "description": "List persisted block anchors, with bounded previews and an explicit continuation offset.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "ref_id": {
+                "type": "string",
+                "title": "Ref Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "ref_id"
+            ]
+          },
+          "query": {
+            "type": "object",
+            "properties": {
+              "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 0,
+                "title": "Offset"
+              },
+              "limit": {
+                "type": "integer",
+                "maximum": 100,
+                "minimum": 1,
+                "default": 20,
+                "title": "Limit"
+              },
+              "max_chars": {
+                "type": "integer",
+                "maximum": 1000,
+                "minimum": 0,
+                "default": 200,
+                "title": "Max Chars"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "read_document_section",
+      "description": "Read an anchored block and optional neighbors. Offsets count Unicode characters in the joined source text.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "ref_id": {
+                "type": "string",
+                "title": "Ref Id"
+              },
+              "section_id": {
+                "type": "string",
+                "title": "Section Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "ref_id",
+              "section_id"
+            ]
+          },
+          "query": {
+            "type": "object",
+            "properties": {
+              "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 0,
+                "title": "Offset"
+              },
+              "max_chars": {
+                "type": "integer",
+                "maximum": 20000,
+                "minimum": 100,
+                "default": 4000,
+                "title": "Max Chars"
+              },
+              "adjacent_blocks": {
+                "type": "integer",
+                "maximum": 3,
+                "minimum": 0,
+                "default": 0,
+                "title": "Adjacent Blocks"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_task_outline",
+      "description": "Read only the existing task outline, separately from the knowledge hierarchy.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "ref_id": {
+                "type": "string",
+                "title": "Ref Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "ref_id"
+            ]
+          },
+          "query": {
+            "type": "object",
+            "properties": {
+              "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 0,
+                "title": "Offset"
+              },
+              "limit": {
+                "type": "integer",
+                "maximum": 500,
+                "minimum": 1,
+                "default": 100,
+                "title": "Limit"
+              },
+              "parent_node_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 36
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Parent Node Id"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "qa_knowledge",
+      "description": "Question answering with pgvector-retrieved source citations.\n\nArgs:\n    q: Question (1–2048 chars)\n    kb: Knowledge type code. If omitted, uses default KB.\n    top_k: Max source chunks to retrieve, 1–50",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "q": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2048,
+                "title": "Q"
+              },
+              "kb": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Kb"
+              },
+              "top_k": {
+                "type": "integer",
+                "maximum": 50,
+                "minimum": 1,
+                "default": 5,
+                "title": "Top K"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "q"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "query"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "run_query_router_v2_open",
+      "description": "POST /open/v1/query — external api_caller entry to Query Router v2.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "properties": {
+              "query": {
+                "type": "string",
+                "maxLength": 2048,
+                "minLength": 1,
+                "title": "Query"
+              }
+            },
+            "type": "object",
+            "required": [
+              "query"
+            ],
+            "title": "_QueryRouterV2OpenRequest"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "body"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_raw_object_download_url",
+      "description": "Mint a short-lived presigned download URL for the raw object.\n\nGate: the raw_object must back at least one `available` asset version.\nMinIO credentials live exclusively in nexus-app; this endpoint is the\nsole choke-point. Default TTL 15 min (clamped 60s–1h).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "raw_object_id": {
+                "type": "string",
+                "title": "Raw Object Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "raw_object_id"
+            ]
+          },
+          "query": {
+            "type": "object",
+            "properties": {
+              "ttl_seconds": {
+                "type": "integer",
+                "maximum": 3600,
+                "minimum": 60,
+                "default": 900,
+                "title": "Ttl Seconds"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "list_ability_analyses",
+      "description": "Paginated list of `occupational_ability_analysis` rows.\n\nFilters are AND-combined; missing filters mean \"no filter\". Sort:\n`created_at DESC` so the latest analysis surfaces first — matches the\nconsole's default browse order.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "normalized_ref_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 36
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Normalized Ref Id"
+              },
+              "major_code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Code"
+              },
+              "profile_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 36
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Profile Id"
+              },
+              "major_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "专业名称过滤，走 ILIKE substring 匹配（自 v2.0.1 起从 exact 升级为 substring，配合 §1.13 归一化的 build.major_name 命中父子专业）",
+                "title": "Major Name"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_ability_analysis",
+      "description": "Get Ability Analysis",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "analysis_id": {
+                "type": "string",
+                "title": "Analysis Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "analysis_id"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "list_ability_items",
+      "description": "Paginated ability items for an analysis with optional filters.\n\n`task_code` / `work_content_code` filter by the human-readable code\n(not UUID) because that's what upstream consumers see in the rendered\ntree. We resolve them to FK ids server-side.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "analysis_id": {
+                "type": "string",
+                "title": "Analysis Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "analysis_id"
+            ]
+          },
+          "query": {
+            "type": "object",
+            "properties": {
+              "category": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 16
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Filter by ability_major_category_code (P / G / S / D ...)",
+                "title": "Category"
+              },
+              "task_code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Task Code"
+              },
+              "work_content_code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Work Content Code"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "list_ability_relations",
+      "description": "List Ability Relations",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "analysis_id": {
+                "type": "string",
+                "title": "Analysis Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "analysis_id"
+            ]
+          },
+          "query": {
+            "type": "object",
+            "properties": {
+              "source_type": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Source Type"
+              },
+              "relation_type": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Relation Type"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_ability_analysis_tasks",
+      "description": "Return the full task tree (tasks → work_contents) for one analysis.\n\nAlways returned in `display_order` ascending so consumers can render\nwithout resorting. work_contents are batch-loaded by task_id to avoid\nan N+1 query, which matters when the analysis carries 20+ tasks (e.g.\nsample 2 has 4 tasks but a larger import may carry many more).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "analysis_id": {
+                "type": "string",
+                "title": "Analysis Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "analysis_id"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "find_ability_items",
+      "description": "Search stored ability items across analyses, preserving source analysis/ref and independent record boundaries.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "q": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Q"
+              },
+              "major_code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Code"
+              },
+              "major_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Name"
+              },
+              "analysis_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 36
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Analysis Id"
+              },
+              "category_code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Category Code"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_job_capability_graph",
+      "description": "Merge generated job-demand subgraphs matching a position title.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "job_title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+                "title": "Job Title"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "job_title"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "query"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_occupational_capability_graph",
+      "description": "Get Occupational Capability Graph",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "major_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Name"
+              },
+              "major_code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 16
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Code"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_teaching_standard_knowledge_graph",
+      "description": "Get Teaching Standard Knowledge Graph",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "major_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Name"
+              },
+              "major_code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 16
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Code"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "list_major_distribution_records",
+      "description": "Search professional-distribution facts across every dataset.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "year": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "maximum": 2200,
+                    "minimum": 1900
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Year"
+              },
+              "province_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Province Name"
+              },
+              "major_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Name"
+              },
+              "major_code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Code"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "aggregate_major_distribution_records",
+      "description": "Return server-side professional-distribution totals grouped by dimensions.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "group_by": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": [
+                  "year",
+                  "province_name",
+                  "major_name",
+                  "major_code"
+                ],
+                "title": "Group By"
+              },
+              "year": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "maximum": 2200,
+                    "minimum": 1900
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Year"
+              },
+              "province_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Province Name"
+              },
+              "major_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Name"
+              },
+              "major_code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Code"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "search_evidence",
+      "description": "Search indexed knowledge chunks via pgvector.\n\nArgs:\n    q: Search query (1–1024 chars)\n    kb: Knowledge type code (e.g. 'course_textbook'). If omitted, the\n        canonical course-textbook KB is used. `textbook_kb` remains an\n        explicit legacy compatibility value only.\n    top_k: Max results, 1–100 (DoS guard against unbounded fan-out)\n    similarity_threshold: Minimum similarity score, 0.0–1.0\n    outline_node: Optional knowledge_outline_node_id — filters hits to\n        chunks under that node's subtree. 404 if the node does not exist.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "q": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "title": "Q"
+              },
+              "kb": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Kb"
+              },
+              "knowledge_types": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 10
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Knowledge Types"
+              },
+              "asset_ids": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 100
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Asset Ids"
+              },
+              "normalized_ref_ids": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 100
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Normalized Ref Ids"
+              },
+              "top_k": {
+                "type": "integer",
+                "maximum": 100,
+                "minimum": 1,
+                "default": 10,
+                "title": "Top K"
+              },
+              "similarity_threshold": {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "default": 0.7,
+                "title": "Similarity Threshold"
+              },
+              "outline_node": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 36
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Restrict hits to chunks under this knowledge_outline_node's subtree (theory_knowledge textbook chapter/section filter).",
+                "title": "Outline Node"
+              },
+              "task_outline_node": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 36
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Restrict retrieval to the existing task-outline node subtree; AND-combined with all other scopes.",
+                "title": "Task Outline Node"
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Title"
+              },
+              "resource_type": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "industry_policy",
+                      "industry_report",
+                      "sector_report",
+                      "major_profile",
+                      "teaching_standard",
+                      "talent_demand_report",
+                      "talent_training_plan",
+                      "competency_analysis",
+                      "course_textbook",
+                      "teaching_case"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Resource Type"
+              },
+              "domains": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 15
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Domains"
+              },
+              "topic": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "finance_commerce",
+                      "low_altitude"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Topic"
+              },
+              "region": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Region"
+              },
+              "industry": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Industry"
+              },
+              "major_code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Code"
+              },
+              "major_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Name"
+              },
+              "institution_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Institution Name"
+              },
+              "education_level": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Education Level"
+              },
+              "published_from": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Inclusive source publication date; requires a full ISO date.",
+                "title": "Published From"
+              },
+              "published_to": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Inclusive source publication date; unknown/partial dates are excluded.",
+                "title": "Published To"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "q"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "query"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "list_open_talent_training_plans",
+      "description": "List Open Talent Training Plans",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "institution_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Institution Name"
+              },
+              "major_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Name"
+              },
+              "major_code": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Code"
+              },
+              "education_level": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Education Level"
+              },
+              "study_duration": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Study Duration"
+              },
+              "position": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Position"
+              },
+              "skill": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Skill"
+              },
+              "certificate": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Certificate"
+              },
+              "course": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Course"
+              },
+              "published_from": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Published From"
+              },
+              "published_to": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Published To"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_open_talent_training_plan",
+      "description": "Get Open Talent Training Plan",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "item_id": {
+                "type": "string",
+                "title": "Item Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "item_id"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_open_course_knowledge_graph",
+      "description": "Get Open Course Knowledge Graph",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "item_id": {
+                "type": "string",
+                "title": "Item Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "item_id"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_open_position_capability_graph",
+      "description": "Get Open Position Capability Graph",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "item_id": {
+                "type": "string",
+                "title": "Item Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "item_id"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "list_training_plan_courses",
+      "description": "Page through courses declared in an available training plan. They are plan-local declarations, not standard courses.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "plan_id": {
+                "type": "string",
+                "title": "Plan Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "plan_id"
+            ]
+          },
+          "query": {
+            "type": "object",
+            "properties": {
+              "course_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Course Name"
+              },
+              "curriculum_group": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Curriculum Group"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "query_standard_courses",
+      "description": "Query standard courses and their evidence. Hours are suggested; knowledge/skill/tool/literacy tags are derived.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "library_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 36
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Library Id"
+              },
+              "course_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Course Name"
+              },
+              "major_code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Code"
+              },
+              "major_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Name"
+              },
+              "education_level": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Education Level"
+              },
+              "course_type": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "foundation",
+                      "core",
+                      "extension"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Course Type"
+              },
+              "tag": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Tag"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_standard_course",
+      "description": "Get Course",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "course_id": {
+                "type": "string",
+                "title": "Course Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "course_id"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "query_teaching_standards",
+      "description": "Read active standards backed by current available documents; no activation side effect.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "major_code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Code"
+              },
+              "major_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Major Name"
+              },
+              "education_level": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Education Level"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_teaching_standard",
+      "description": "Get Standard",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "object",
+            "properties": {
+              "library_id": {
+                "type": "string",
+                "title": "Library Id"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "library_id"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ]
+      },
+      "strict": false
+    }
+  }
+]

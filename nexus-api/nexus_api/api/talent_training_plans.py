@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import Text, case, cast, func, or_, select
 from sqlalchemy.orm import Session, aliased, load_only, selectinload
 
+from nexus_api.public_access import DocumentFilters, document_ref_query, audit_read, available_refs, require_ref
 from nexus_api import schemas
 from nexus_api.dependencies import Pagination, pagination_params, require_api_caller
 from nexus_api.dependencies.user import require_user
@@ -107,7 +110,14 @@ def _filters(
     skill: str | None = None,
     certificate: str | None = None,
     course: str | None = None,
+    published_from: date | None = None,
+    published_to: date | None = None,
 ) -> Any:
+    if published_from and published_to and published_from > published_to:
+        raise HTTPException(422, "invalid_publication_date_range")
+    if published_from or published_to:
+        stmt = stmt.where(models.TalentTrainingPlan.normalized_ref_id.in_(document_ref_query(
+            DocumentFilters(published_from=published_from, published_to=published_to))))
     if institution_name:
         stmt = stmt.where(models.TalentTrainingPlan.institution_name.contains(institution_name))
     if major_name:
@@ -393,6 +403,7 @@ def _list(
     include_career_orientation_summary: bool = False,
     official_only: bool = False,
     catalog_visible_only: bool = False,
+    public_current_only: bool = False,
     **filters: Any,
 ):
     plan = models.TalentTrainingPlan
@@ -429,6 +440,10 @@ def _list(
         predicate = models.TalentTrainingPlan.normalized_ref_id.in_(
             _catalog_visible_ref_ids()
         )
+        statement = statement.where(predicate)
+        count = count.where(predicate)
+    if public_current_only:
+        predicate = plan.normalized_ref_id.in_(available_refs(("talent_training_plan",)))
         statement = statement.where(predicate)
         count = count.where(predicate)
     statement = _filters(statement, **filters)
@@ -536,33 +551,57 @@ def list_open_talent_training_plans(
     skill: str | None = None,
     certificate: str | None = None,
     course: str | None = None,
+    published_from: date | None = None,
+    published_to: date | None = None,
+    caller=Depends(require_api_caller),
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
 ):
-    return _list(
-        request, session, pagination, True, institution_name=institution_name,
+    result = _list(
+        request, session, pagination, True, public_current_only=True, institution_name=institution_name,
         major_name=major_name, major_code=major_code, education_level=education_level,
         study_duration=study_duration, position=position, skill=skill,
         certificate=certificate, course=course,
+        published_from=published_from, published_to=published_to,
     )
+
+    audit_read(session, request, caller, "talent_training_plans", len(result.data))
+    return result
+
+
+def _open_plan(session, item_id):
+    item = _get(session, item_id, True)
+    ref = require_ref(session, item.normalized_ref_id, ("talent_training_plan",))
+    if ref.version_id != item.asset_version_id:
+        raise HTTPException(404, "training_plan_not_available")
+    return item
 
 
 @open_router.get("/{item_id}/course-knowledge-graph", response_model=schemas.ApiResponse[dict])
 def get_open_course_knowledge_graph(
-    item_id: str, request: Request, session: Session = Depends(get_db)
+    item_id: str, request: Request, caller=Depends(require_api_caller), session: Session = Depends(get_db)
 ):
-    return response(_course_knowledge_graph(_get(session, item_id, True)), request)
+    plan = _open_plan(session, item_id)
+    result = _course_knowledge_graph(plan)
+    audit_read(session, request, caller, "training_plan_course_graph", 1, plan_id=item_id, normalized_ref_id=plan.normalized_ref_id)
+    return response(result, request)
 
 
 @open_router.get("/{item_id}/position-capability-graph", response_model=schemas.ApiResponse[dict])
 def get_open_position_capability_graph(
-    item_id: str, request: Request, session: Session = Depends(get_db)
+    item_id: str, request: Request, caller=Depends(require_api_caller), session: Session = Depends(get_db)
 ):
-    return response(_position_capability_graph(_get(session, item_id, True)), request)
+    plan = _open_plan(session, item_id)
+    result = _position_capability_graph(plan)
+    audit_read(session, request, caller, "training_plan_position_graph", 1, plan_id=item_id, normalized_ref_id=plan.normalized_ref_id)
+    return response(result, request)
 
 
 @open_router.get("/{item_id}", response_model=schemas.ApiResponse[dict])
 def get_open_talent_training_plan(
-    item_id: str, request: Request, session: Session = Depends(get_db)
+    item_id: str, request: Request, caller=Depends(require_api_caller), session: Session = Depends(get_db)
 ):
-    return response(_detail(_get(session, item_id, True)), request)
+    plan = _open_plan(session, item_id)
+    result = _detail(plan)
+    audit_read(session, request, caller, "training_plan_detail", 1, plan_id=item_id, normalized_ref_id=plan.normalized_ref_id)
+    return response(result, request)

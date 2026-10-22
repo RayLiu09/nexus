@@ -260,6 +260,7 @@ def test_plan_graph_views_are_deterministic_and_position_graph_is_optional(sessi
 
 def test_graph_view_routes_return_plan_scoped_projections(app, session):
     plan = _seed(session, suffix="graph-routes", status=AssetVersionStatus.AVAILABLE)
+    session.add(models.GovernanceResult(normalized_ref_id=plan.normalized_ref_id, classification="talent_training_plan", index_admission=True, status=GovernanceResultStatus.AVAILABLE))
     plan.courses[0].skill_refs = [{"name": "跨境平台操作能力"}]
     session.commit()
 

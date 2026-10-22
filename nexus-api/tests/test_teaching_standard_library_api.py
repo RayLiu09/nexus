@@ -101,6 +101,7 @@ def test_business_lists_join_parent_identity_and_expose_course_details(app, sess
         "id": library.id,
         "normalized_ref_id": library.normalized_ref_id,
         "asset_version_id": library.asset_version_id,
+        "raw_object_id": None,
         "standard_title": "电子商务专业教学标准",
         "major_code": "530701",
         "major_name": "电子商务",

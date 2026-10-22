@@ -27,6 +27,16 @@ formal-document authority and content-quality gates before raw-object ingestion.
 
 ## Repository Map
 
+Agent applications can consume all 15 visible Asset Center resource types
+through the public OpenAPI surface. The A/B extension adds current business
+records, document metadata filters, scoped retrieval and bounded evidence reads.
+See [the API contract and coverage](docs/api/public_agent_data_api.md) and
+[基于公开 OpenAPI 生成 function tools 清单](docs/generated/public-function-tools/README.md).
+The generated directory contains Responses/Chat Completions definitions and HTTP
+bindings. Regenerate offline with
+`nexus-api/.venv/bin/python scripts/generate_public_function_tools.py`; append
+`--check` to verify drift. C/change-feed interfaces are outside this extension.
+
 ```text
 .
 ├── AGENTS.md       # Codex coding-agent contract

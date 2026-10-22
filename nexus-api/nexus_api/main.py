@@ -9,6 +9,9 @@ from sqlalchemy.exc import IntegrityError
 from nexus_api import schemas
 from nexus_api.api.internal import auth_router as internal_auth_router, router as internal_router
 from nexus_api.api.open import router as open_router
+from nexus_api.api.open_business import router as open_business_router
+from nexus_api.api.open_evidence import router as open_evidence_router
+from nexus_api.api.open_discovery import router as open_discovery_router
 from nexus_api.api.open_record_assets import router as open_record_assets_router
 from nexus_api.api.major_profiles import open_router as open_major_profiles_router
 from nexus_api.api.talent_training_plans import open_router as open_talent_training_plans_router
@@ -232,10 +235,35 @@ def create_app() -> FastAPI:
     # `open_router`'s `/record-assets/job-demand-records/{record_id}`.
     app.include_router(open_record_assets_router)
     app.include_router(open_router)
+    app.include_router(open_business_router)
+    app.include_router(open_evidence_router)
+    app.include_router(open_discovery_router)
     app.include_router(open_major_profiles_router)
     app.include_router(open_talent_training_plans_router)
     app.include_router(institutional_statistics_router)
     app.include_router(external_search_router)
+    # Freeze public operation IDs and publish credential requirements in OpenAPI.
+    # HTTP routing/auth behavior is unchanged; internal routes retain their schema.
+    from fastapi.routing import APIRoute
+    public_routes = [route for route in app.routes if isinstance(route, APIRoute) and route.path.startswith("/open/v1/")]
+    names = [route.operation_id or route.name for route in public_routes]
+    for route in public_routes:
+        operation_id = route.operation_id or route.name
+        if names.count(operation_id) > 1:
+            import hashlib
+            operation_id += "_" + hashlib.sha256((route.path + str(sorted(route.methods))).encode()).hexdigest()[:8]
+        route.operation_id = operation_id
+        if "/job-demand-records" in route.path:
+            route.deprecated = True
+        route.openapi_extra = {**(route.openapi_extra or {}), "security": [{"ApiKeyHeader": []}]}
+    original_openapi = app.openapi
+    def public_openapi():
+        schema = original_openapi()
+        schema.setdefault("components", {}).setdefault("securitySchemes", {})["ApiKeyHeader"] = {
+            "type": "apiKey", "in": "header", "name": "X-API-Key",
+            "description": "API Caller credential; Authorization Bearer is also supported."}
+        return schema
+    app.openapi = public_openapi
     return app
 
 

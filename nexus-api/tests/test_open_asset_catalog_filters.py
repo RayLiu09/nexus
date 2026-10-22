@@ -309,7 +309,8 @@ def test_open_asset_catalog_uses_sql_pagination_and_bounded_query_count(app, ses
     assert payload["meta"]["total"] == 6
     assert len(payload["data"]) == 2
     # Count, page IDs, versions, refs, governance results, assets, and tags.
-    assert len(statements) <= 7
+    # Seven catalog set queries plus one audit INSERT (no per-item reads).
+    assert len(statements) <= 8
 
 
 def test_open_asset_catalog_rejects_unknown_tag_type(app):

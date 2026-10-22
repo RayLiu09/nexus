@@ -655,6 +655,8 @@ class OpenAssetCatalogRead(AssetRead):
     raw_object_id: str
     tags: list[dict[str, str]] = Field(default_factory=list)
     download_url_endpoint: str
+    business_metadata: dict[str, Any] = Field(default_factory=dict)
+    capabilities: list[str] = Field(default_factory=list)
 
 
 class AssetSummaryRead(BaseModel):

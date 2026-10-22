@@ -401,6 +401,29 @@ Search and QA:
 
 ## Public API Groups
 
+The Agent A/B consumption extension covers the 15 visible Asset Center resource
+types through `/open/v1/data-resources`, current professional-introduction
+documents, same-source raw market jobs and aggregation, parks/enterprises,
+active teaching standards/courses, textbooks, scoped multi-KB retrieval,
+bounded sections, existing knowledge/task outlines, node contexts, existing
+graphs, batch evidence and ambiguity-preserving entity candidates. Catalog
+filters add business resource type, multiple classifications, topic, identity,
+region/industry, source publication date and explicit tag `any/all` semantics.
+Training-plan courses are paginated and ability items can be searched across
+analyses by professional code. All new reads authenticate, preserve source
+anchors and audit without raw-content logging. Missing outlines/graphs never
+trigger builds; semantic-only report/case behavior is preserved. C incremental
+interfaces are excluded. Legacy profile/job-demand projections remain HTTP
+compatible but deprecated in OpenAPI. See
+[the A/B interface and parameter contract](docs/api/public_agent_data_api.md).
+
+External Agent tools are generated from public OpenAPI as Responses functions,
+Chat Completions functions and HTTP bindings with stable names, parameter
+placement and response schemas. Credentials are injected by the executor;
+external-search tools default to `auto_ingest=false` without changing the HTTP
+compatibility default. Artifacts and regeneration instructions are in
+[the generated function tools catalog](docs/generated/public-function-tools/README.md).
+
 P0 API groups include:
 
 - Identity/org/API caller management.

@@ -29,17 +29,19 @@ at P0; the hook stays a noop).
 from __future__ import annotations
 
 import hashlib
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
-from nexus_api import schemas
+from nexus_api import schemas, public_schemas as public_dto
 from nexus_api.dependencies import (
     Pagination,
     pagination_params,
     require_api_caller,
 )
+from nexus_api.public_access import DocumentFilters, document_filters, document_ref_query, audit_read, require_ref
 from nexus_api.permissions import apply_permission_filter
 from nexus_api.responses import list_response, response
 from nexus_app import models, pipeline, schemas as domain_schemas, services
@@ -225,6 +227,7 @@ def _open_catalog_candidate_version_ids(
     tag_ref_ids: set[str] | None,
     limit: int,
     offset: int,
+    filters: DocumentFilters | None = None,
 ) -> tuple[list[str], int]:
     """Select public catalog versions in SQL before relation assembly."""
     version = aliased(models.AssetVersion)
@@ -236,7 +239,7 @@ def _open_catalog_candidate_version_ids(
             ref.version_id == version.id,
             ref.status == NormalizedAssetRefStatus.GENERATED,
         )
-        .order_by(ref.created_at.desc())
+        .order_by(ref.created_at.desc(), ref.id.desc())
         .limit(1)
         .correlate(version)
         .scalar_subquery()
@@ -244,7 +247,7 @@ def _open_catalog_candidate_version_ids(
     classification = (
         select(result.classification)
         .where(result.normalized_ref_id == current_ref_id)
-        .order_by(result.created_at.desc())
+        .order_by(result.created_at.desc(), result.id.desc())
         .limit(1)
         .correlate(version)
         .scalar_subquery()
@@ -259,13 +262,26 @@ def _open_catalog_candidate_version_ids(
         predicates.append(current_ref_id.in_(tag_ref_ids))
     if domain:
         predicates.append(classification == domain)
+    if filters and filters.model_dump(exclude_defaults=True):
+        predicates.append(current_ref_id.in_(document_ref_query(filters)))
 
     candidates = select(version.id).where(*predicates)
     total = int(
         session.scalar(select(func.count()).select_from(candidates.subquery())) or 0
     )
-    page = candidates.order_by(version.created_at.desc()).offset(offset).limit(limit)
+    page = candidates.order_by(version.created_at.desc(), version.id.desc()).offset(offset).limit(limit)
     return list(session.scalars(page).all()), total
+
+
+def _public_document_metadata(ref):
+    from nexus_api.api.internal.assets import _profile_metadata, _report_identity
+    allowed = ("title", "publisher", "authors", "chief_editors", "publish_date", "language")
+    result = {key: ref.document_metadata[key] for key in allowed if key in (ref.document_metadata or {})}
+    result.update({key: value for key, value in _profile_metadata(ref).items() if value is not None})
+    for key, value in _report_identity(ref).items():
+        if value is not None and key not in result:
+            result[key] = value
+    return result
 
 
 def _available_open_catalog_rows(
@@ -289,7 +305,7 @@ def _available_open_catalog_rows(
         )
     ).all():
         existing = refs_by_version.get(ref.version_id)
-        if existing is None or ref.created_at > existing.created_at:
+        if existing is None or (ref.created_at, ref.id) > (existing.created_at, existing.id):
             refs_by_version[ref.version_id] = ref
 
     ref_ids = {ref.id for ref in refs_by_version.values()}
@@ -300,7 +316,7 @@ def _available_open_catalog_rows(
         )
     ).all() if ref_ids else []:
         existing = results_by_ref.get(result.normalized_ref_id)
-        if existing is None or result.created_at > existing.created_at:
+        if existing is None or (result.created_at, result.id) > (existing.created_at, existing.id):
             results_by_ref[result.normalized_ref_id] = result
 
     asset_ids = {version.asset_id for version in versions_by_id.values()}
@@ -345,6 +361,8 @@ def _available_open_catalog_rows(
             version_id=version.id,
             raw_object_id=version.raw_object_id,
             tags=tags_by_ref.get(ref.id, []),
+            business_metadata=_public_document_metadata(ref),
+            capabilities=["content", "chunks", "sections", "scoped_search"],
             download_url_endpoint=(
                 f"/open/v1/raw-objects/{version.raw_object_id}/download-url"
             ),
@@ -354,6 +372,7 @@ def _available_open_catalog_rows(
 
 @router.get(
     "/assets",
+    operation_id="find_documents",
     response_model=schemas.ListResponse[domain_schemas.OpenAssetCatalogRead],
 )
 def list_available_assets(
@@ -365,6 +384,8 @@ def list_available_assets(
     tag_type: str | None = Query(None, min_length=1, max_length=32),
     tags: list[str] | None = Query(None),
     is_exact_matched: bool = Query(False),
+    tags_match: Literal["any", "all"] = Query("any"),
+    filters: DocumentFilters = Depends(document_filters),
     embedding_client_factory=Depends(get_open_tag_embedding_client),
 ):
     """List available assets, optionally filtered by domain and governance tags.
@@ -393,27 +414,22 @@ def list_available_assets(
         )
     tag_ref_ids: set[str] | None = None
     if tags:
-        if is_exact_matched:
-            tag_ref_ids = _exactly_matched_ref_ids(
-                session, tags=tags, tag_type=tag_type,
-            )
-        else:
-            tag_ref_ids = _semantically_matched_ref_ids(
-                session,
-                tags=tags,
-                tag_type=tag_type,
-                embedding_client=_resolve_open_tag_embedding_client(
-                    embedding_client_factory
-                ),
-            )
+        embedding_client = None if is_exact_matched else _resolve_open_tag_embedding_client(embedding_client_factory)
+        def match(values):
+            if is_exact_matched:
+                return _exactly_matched_ref_ids(session, tags=values, tag_type=tag_type)
+            return _semantically_matched_ref_ids(session, tags=values, tag_type=tag_type, embedding_client=embedding_client)
+        tag_ref_ids = match(tags) if tags_match == "any" else set.intersection(*(match([value]) for value in tags))
     version_ids, total = _open_catalog_candidate_version_ids(
         session,
         domain=domain,
         tag_ref_ids=tag_ref_ids,
         limit=pagination.limit,
         offset=pagination.offset,
+        filters=filters,
     )
     rows = _available_open_catalog_rows(session, version_ids)
+    audit_read(session, request, caller, "assets", len(rows), total=total)
     return list_response(
         rows, request,
         page=pagination.page, page_size=pagination.page_size, total=total,
@@ -1145,8 +1161,9 @@ def _collect_outline_subtree_chunk_ids(
         next_frontier: list[str] = []
         for nid in frontier:
             for cid in children_by_parent.get(nid, []):
-                subtree_ids.add(cid)
-                next_frontier.append(cid)
+                if cid not in subtree_ids:
+                    subtree_ids.add(cid)
+                    next_frontier.append(cid)
         frontier = next_frontier
 
     chunk_ids = set(session.scalars(
@@ -1234,11 +1251,15 @@ def _compact_locators(hits: list[dict]) -> list[dict]:
     return out
 
 
-@router.get("/search")
+@router.get("/search", operation_id="search_evidence", response_model=schemas.ApiResponse[public_dto.SearchRead], response_model_exclude_unset=True)
 def search_knowledge(
     request: Request,
     q: str = Query(..., min_length=1, max_length=1024),
     kb: str | None = Query(None, max_length=128),
+    knowledge_types: list[str] | None = Query(None, max_length=10),
+    asset_ids: list[str] | None = Query(None, max_length=100),
+    normalized_ref_ids: list[str] | None = Query(None, max_length=100),
+    filters: DocumentFilters = Depends(document_filters),
     top_k: int = Query(10, ge=1, le=100),
     similarity_threshold: float = Query(0.7, ge=0.0, le=1.0),
     outline_node: str | None = Query(
@@ -1249,6 +1270,7 @@ def search_knowledge(
             "subtree (theory_knowledge textbook chapter/section filter)."
         ),
     ),
+    task_outline_node: str | None = Query(None, max_length=36, description="Restrict retrieval to the existing task-outline node subtree; AND-combined with all other scopes."),
     caller: models.ApiCaller = Depends(require_api_caller),
     session: Session = Depends(get_db),
 ):
@@ -1267,22 +1289,58 @@ def search_knowledge(
     kb_code = kb or "course_textbook"
     subtree_chunk_ids: set[str] | None = None
     if outline_node is not None:
+        node = session.get(models.KnowledgeOutlineNode, outline_node)
+        if node is None:
+            raise HTTPException(404, "outline_node_not_found")
+        require_ref(session, node.normalized_ref_id)
         subtree_chunk_ids = _collect_outline_subtree_chunk_ids(session, outline_node)
         if subtree_chunk_ids is None:
             raise HTTPException(
                 status_code=404,
                 detail=f"knowledge_outline_node '{outline_node}' not found",
             )
+    if task_outline_node is not None:
+        node = session.get(models.TaskOutlineNode, task_outline_node)
+        if node is None:
+            raise HTTPException(404, "outline_node_not_found")
+        require_ref(session, node.normalized_ref_id, ("course_textbook",))
+        from nexus_api.api.open_evidence import descendant_ids
+        task_ids = descendant_ids(session, models.TaskOutlineNode, node.normalized_ref_id, node.id)
+        task_chunks = set(session.scalars(select(models.KnowledgeChunk.id).where(
+            models.KnowledgeChunk.normalized_ref_id == node.normalized_ref_id,
+            models.KnowledgeChunk.chunk_metadata["outline_node_id"].as_string().in_(task_ids),
+        )))
+        subtree_chunk_ids = task_chunks if subtree_chunk_ids is None else subtree_chunk_ids & task_chunks
+    if kb and knowledge_types:
+        raise HTTPException(422, "use_kb_or_knowledge_types")
+    kb_codes = list(dict.fromkeys(knowledge_types or [kb_code]))
+    if any(not code.strip() or len(code) > 128 for code in kb_codes):
+        raise HTTPException(422, "invalid_knowledge_types")
+    # Intersect ALL scope dimensions in SQL before vector ranking/top_k.
+    scope = document_ref_query(filters)
+    if asset_ids is not None:
+        scope = scope.where(models.Asset.id.in_(asset_ids))
+    if normalized_ref_ids is not None:
+        scope = scope.where(models.NormalizedAssetRef.id.in_(normalized_ref_ids))
+    scoped_refs = list(session.scalars(scope))
     adapter = get_pgvector_search_adapter()
-    results = adapter.search(
-        session,
-        query=q,
-        knowledge_type_code=kb_code,
-        top_k=top_k,
-        similarity_threshold=similarity_threshold,
-        chunk_ids=list(subtree_chunk_ids) if subtree_chunk_ids is not None else None,
-    )
+    results = []
+    if scoped_refs:
+        for code in kb_codes:
+            results.extend(adapter.search(
+                session, query=q, knowledge_type_code=code, top_k=top_k,
+                similarity_threshold=similarity_threshold,
+                normalized_ref_ids=scoped_refs,
+                chunk_ids=list(subtree_chunk_ids) if subtree_chunk_ids is not None else None,
+            ))
+        unique = {}
+        for hit in results:
+            key = hit.get("nexus_chunk_id") or hit.get("chunk_id") or hit.get("id")
+            if key not in unique or hit.get("score", 0) > unique[key].get("score", 0):
+                unique[key] = hit
+        results = sorted(unique.values(), key=lambda hit: (-hit.get("score", 0), str(hit.get("nexus_chunk_id") or hit.get("chunk_id", ""))))[:top_k]
     results = _enrich_with_nexus_refs(session, results)
+    results = [hit for hit in results if hit.get("normalized_ref_id") in scoped_refs]
     results = _filter_hits_to_available(session, results)
     results = apply_permission_filter(caller, results)
 
@@ -1300,6 +1358,7 @@ def search_knowledge(
         summary={
             "query_hash": query_hash,
             "kb": kb_code,
+            "knowledge_types": kb_codes,
             "hit_count": len(results),
             "hit_normalized_ref_ids": _hit_ref_ids(results),
             "cited_chunk_ids": _hit_chunk_ids(results),
@@ -1323,6 +1382,7 @@ def search_knowledge(
         {
             "query": q,
             "kb": kb_code,
+            "knowledge_types": kb_codes,
             "results": results,
             "count": len(results),
             "caller_id": caller.id,

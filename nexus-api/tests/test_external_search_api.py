@@ -1,6 +1,7 @@
 """Contract tests for the distinct request-scoped external-search APIs."""
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
@@ -10,6 +11,13 @@ from nexus_app.crawler.firecrawl_client import FirecrawlClientError, FirecrawlSe
 from nexus_app.crawler.websearch_custom_client import WebSearchCustomItem, WebSearchCustomResponse
 from nexus_app.enums import AuditEventType, PipelineType
 from nexus_app.storage import InMemoryObjectStorage
+
+
+@pytest.fixture(autouse=True)
+def persisted_api_caller(session, stub_api_caller):
+    # External search rechecks the persisted credential before returning results.
+    session.add(stub_api_caller)
+    session.commit()
 
 
 class FakeFirecrawlClient:

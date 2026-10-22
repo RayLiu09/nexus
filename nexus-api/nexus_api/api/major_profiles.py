@@ -17,6 +17,7 @@ from nexus_app.enums import AssetVersionStatus, NormalizedAssetRefStatus
 internal_router = APIRouter(dependencies=[Depends(require_user)])
 open_router = APIRouter(
     prefix="/open/v1/major-profiles",
+    deprecated=True,
     dependencies=[Depends(require_api_caller)],
 )
 

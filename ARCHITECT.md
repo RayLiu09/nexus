@@ -550,6 +550,27 @@ not active P0 behavior.
 
 ## Lineage-Facing API Endpoints
 
+Agent consumption extensions stay in `nexus-api` under `/open/v1` and reuse
+existing fact tables and normalized documents without migrations or a second
+knowledge pipeline. Shared current-ref selection gates the new document tools;
+domain projections additionally require their latest official classification,
+and teaching-standard libraries require `active`. Raw jobs, parks, enterprises
+and existing structured records retain independent record boundaries.
+Scoped retrieval intersects document/metadata/node filters before pgvector
+ranking. Sections, outlines, existing graphs and batch evidence are bounded
+read adapters and never trigger knowledge production. Public reads authenticate
+and audit counts/anchors without logging content or credentials. Current
+`open:*` semantics and P0 organization-filter noop remain explicit.
+
+`scripts/generate_public_function_tools.py` derives function definitions and
+HTTP bindings from the public OpenAPI partition without starting app lifespan.
+Stable operation IDs, resolved input/output schemas and trusted credential
+injection are shared by generated Responses/Chat Completions catalogs; internal,
+deprecated and streaming operations are excluded. External-search tool callers
+must inject `auto_ingest=false` when omitted. No C/change-feed API is added.
+See [Agent public API contract](docs/api/public_agent_data_api.md) and
+[generated tools](docs/generated/public-function-tools/README.md).
+
 Two read endpoints added to support consumption-side traceability without exposing MinIO credentials to clients:
 
 - `GET /open/v1/assets?domain=&tag_type=&tags=&is_exact_matched=false&page=&pageSize=` — catalog of

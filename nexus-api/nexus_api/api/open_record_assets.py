@@ -60,6 +60,7 @@ def _serialize_analysis(analysis: models.OccupationalAbilityAnalysis) -> dict[st
         "profile_id": analysis.profile_id,
         "analysis_model": analysis.analysis_model,
         "major_name": analysis.major_name,
+        "major_code": analysis.major_code,
         "major_direction": analysis.major_direction,
         "source_job_demand_dataset_id": analysis.source_job_demand_dataset_id,
         "task_count": analysis.task_count,
@@ -269,6 +270,7 @@ def _get_analysis_or_404(
 def list_ability_analyses(
     request: Request,
     normalized_ref_id: str | None = Query(None, max_length=36),
+    major_code: str | None = Query(None, max_length=64),
     profile_id: str | None = Query(None, max_length=36),
     major_name: str | None = Query(
         None,
@@ -301,6 +303,9 @@ def list_ability_analyses(
         count_stmt = count_stmt.where(
             models.OccupationalAbilityAnalysis.profile_id == profile_id
         )
+    if major_code is not None:
+        stmt = stmt.where(models.OccupationalAbilityAnalysis.major_code == major_code)
+        count_stmt = count_stmt.where(models.OccupationalAbilityAnalysis.major_code == major_code)
     if major_name is not None:
         pattern = f"%{major_name}%"
         stmt = stmt.where(models.OccupationalAbilityAnalysis.major_name.ilike(pattern))
