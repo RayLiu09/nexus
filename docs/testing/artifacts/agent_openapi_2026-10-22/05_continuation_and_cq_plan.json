@@ -1,0 +1,208 @@
+[
+  {
+    "case": "S3",
+    "label": "theory_context_continue",
+    "tool": "get_outline_node_context",
+    "query": {
+      "offset": 0,
+      "char_offset": 100,
+      "limit": 100,
+      "max_chars": 20000
+    },
+    "path": {
+      "ref_id": "18940e50-cd19-4c1c-b896-4543e38a13d2",
+      "outline_type": "knowledge",
+      "node_id": "12714963-6036-4b24-babd-ef17505f405f"
+    }
+  },
+  {
+    "case": "S3",
+    "label": "training_context_continue",
+    "tool": "get_outline_node_context",
+    "query": {
+      "offset": 1,
+      "char_offset": 85,
+      "limit": 100,
+      "max_chars": 20000
+    },
+    "path": {
+      "ref_id": "be6079d7-4ac8-43c3-b182-3558bb7344de",
+      "outline_type": "task",
+      "node_id": "node-task-6b4c72329d28"
+    }
+  },
+  {
+    "case": "S3",
+    "label": "textbook_scoped_search",
+    "tool": "search_evidence",
+    "query": {
+      "q": "新零售商业模式 消费者",
+      "kb": "course_textbook",
+      "normalized_ref_ids": [
+        "18940e50-cd19-4c1c-b896-4543e38a13d2"
+      ],
+      "top_k": 5,
+      "similarity_threshold": 0
+    }
+  },
+  {
+    "case": "S5",
+    "label": "enterprise_e908bfe7",
+    "tool": "get_enterprise",
+    "query": {},
+    "path": {
+      "enterprise_id": "e908bfe7-6cd3-4f21-8b6b-9e8fcbc76785"
+    }
+  },
+  {
+    "case": "S5",
+    "label": "enterprise_975690c6",
+    "tool": "get_enterprise",
+    "query": {},
+    "path": {
+      "enterprise_id": "975690c6-248a-4125-b982-aa2e866f4050"
+    }
+  },
+  {
+    "case": "S5",
+    "label": "enterprise_e8acf093",
+    "tool": "get_enterprise",
+    "query": {},
+    "path": {
+      "enterprise_id": "e8acf093-2c5d-4eae-b99c-ea47d59b9d22"
+    }
+  },
+  {
+    "case": "S6",
+    "label": "introduction_identity_block",
+    "tool": "read_document_section",
+    "query": {
+      "max_chars": 2000
+    },
+    "path": {
+      "ref_id": "a8fbbb03-0c69-421e-bcd9-822a34e96a03",
+      "section_id": "block-p00-005"
+    }
+  },
+  {
+    "case": "S6",
+    "label": "plan_source_position_table",
+    "tool": "read_document_section",
+    "query": {
+      "max_chars": 8000
+    },
+    "path": {
+      "ref_id": "5d82fef8-87f3-4fe9-bb94-3ff1828442e0",
+      "section_id": "block-p00-017"
+    }
+  },
+  {
+    "case": "S1_REVISED",
+    "label": "cq_policy_sections_0",
+    "tool": "list_document_sections",
+    "query": {
+      "limit": 100,
+      "max_chars": 1000
+    },
+    "path": {
+      "ref_id": "5f28592f-7850-4014-8e94-3bb4883a994d"
+    }
+  },
+  {
+    "case": "S1_REVISED",
+    "label": "cq_policy_sections_1",
+    "tool": "list_document_sections",
+    "query": {
+      "limit": 100,
+      "max_chars": 1000
+    },
+    "path": {
+      "ref_id": "dbf725cc-9d48-45d8-9ecb-dfbee540d150"
+    }
+  },
+  {
+    "case": "S1_REVISED",
+    "label": "cq_policy_sections_2",
+    "tool": "list_document_sections",
+    "query": {
+      "limit": 100,
+      "max_chars": 1000
+    },
+    "path": {
+      "ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226"
+    }
+  },
+  {
+    "case": "S1_REVISED",
+    "label": "cq_policy_sections_3",
+    "tool": "list_document_sections",
+    "query": {
+      "limit": 100,
+      "max_chars": 1000
+    },
+    "path": {
+      "ref_id": "5e6a5808-4ac3-4cae-8b96-dac632ae7242"
+    }
+  },
+  {
+    "case": "S1_REVISED",
+    "label": "cq_policy_sections_4",
+    "tool": "list_document_sections",
+    "query": {
+      "limit": 100,
+      "max_chars": 1000
+    },
+    "path": {
+      "ref_id": "0ee8a187-22dc-417e-bc29-841b29026d8a"
+    }
+  },
+  {
+    "case": "S1_REVISED",
+    "label": "cq_policy_sections_5",
+    "tool": "list_document_sections",
+    "query": {
+      "limit": 100,
+      "max_chars": 1000
+    },
+    "path": {
+      "ref_id": "df51b114-d0e1-447a-8892-0d4ea269e606"
+    }
+  },
+  {
+    "case": "S1_REVISED",
+    "label": "cq_policy_sections_6",
+    "tool": "list_document_sections",
+    "query": {
+      "limit": 100,
+      "max_chars": 1000
+    },
+    "path": {
+      "ref_id": "533f1174-233a-42f9-a82e-a547bb2d31c3"
+    }
+  },
+  {
+    "case": "S1_REVISED",
+    "label": "cq_policy_scoped_search",
+    "tool": "search_evidence",
+    "query": {
+      "q": "低空经济 产教融合 人才培养",
+      "kb": "industry_policy",
+      "normalized_ref_ids": [
+        "5f28592f-7850-4014-8e94-3bb4883a994d",
+        "dbf725cc-9d48-45d8-9ecb-dfbee540d150",
+        "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+        "5e6a5808-4ac3-4cae-8b96-dac632ae7242",
+        "0ee8a187-22dc-417e-bc29-841b29026d8a",
+        "df51b114-d0e1-447a-8892-0d4ea269e606",
+        "533f1174-233a-42f9-a82e-a547bb2d31c3"
+      ],
+      "resource_type": "industry_policy",
+      "topic": "low_altitude",
+      "region": "重庆市",
+      "published_from": "2024-10-22",
+      "published_to": "2026-10-22",
+      "top_k": 10,
+      "similarity_threshold": 0
+    }
+  }
+]

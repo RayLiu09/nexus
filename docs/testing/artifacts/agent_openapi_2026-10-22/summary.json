@@ -1,0 +1,30 @@
+{
+  "report": "agent_openapi_scenario_test_report_2026-10-22.md",
+  "scenario_results": {
+    "passed": 4,
+    "partial": 1,
+    "failed": 1
+  },
+  "http_summary": {
+    "requests": 112,
+    "tools": 28,
+    "status_counts": {
+      "200": 103,
+      "401": 2,
+      "422": 5,
+      "404": 2
+    },
+    "plan_checks": 234,
+    "failed_plan_checks": 5
+  },
+  "business_assertions": {
+    "total": 43,
+    "passed": 37,
+    "failed": 6
+  },
+  "service_cleanup": {
+    "api_stopped": true,
+    "console_not_started": true
+  },
+  "credential_in_evidence": false
+}

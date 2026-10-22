@@ -1,0 +1,76 @@
+[
+  {
+    "case": "S1_REVISED",
+    "label": "重庆市_dated",
+    "tool": "find_documents",
+    "query": {
+      "resource_type": "industry_policy",
+      "topic": "low_altitude",
+      "region": "重庆市",
+      "pageSize": 100,
+      "published_from": "2024-10-22",
+      "published_to": "2026-10-22"
+    }
+  },
+  {
+    "case": "S1_REVISED",
+    "label": "重庆市_undated",
+    "tool": "find_documents",
+    "query": {
+      "resource_type": "industry_policy",
+      "topic": "low_altitude",
+      "region": "重庆市",
+      "pageSize": 100
+    }
+  },
+  {
+    "case": "S1_REVISED",
+    "label": "重庆市_finance_commerce_dated",
+    "tool": "find_documents",
+    "query": {
+      "resource_type": "industry_policy",
+      "topic": "finance_commerce",
+      "region": "重庆市",
+      "published_from": "2024-10-22",
+      "published_to": "2026-10-22",
+      "pageSize": 100
+    }
+  },
+  {
+    "case": "S1_REVISED",
+    "label": "成都市_dated",
+    "tool": "find_documents",
+    "query": {
+      "resource_type": "industry_policy",
+      "topic": "low_altitude",
+      "region": "成都市",
+      "pageSize": 100,
+      "published_from": "2024-10-22",
+      "published_to": "2026-10-22"
+    }
+  },
+  {
+    "case": "S1_REVISED",
+    "label": "成都市_undated",
+    "tool": "find_documents",
+    "query": {
+      "resource_type": "industry_policy",
+      "topic": "low_altitude",
+      "region": "成都市",
+      "pageSize": 100
+    }
+  },
+  {
+    "case": "S1_REVISED",
+    "label": "成都市_finance_commerce_dated",
+    "tool": "find_documents",
+    "query": {
+      "resource_type": "industry_policy",
+      "topic": "finance_commerce",
+      "region": "成都市",
+      "published_from": "2024-10-22",
+      "published_to": "2026-10-22",
+      "pageSize": 100
+    }
+  }
+]

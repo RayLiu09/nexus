@@ -1,0 +1,140 @@
+[
+  {
+    "case": "COMMON",
+    "label": "resource_discovery",
+    "tool": "discover_data_resources",
+    "query": {}
+  },
+  {
+    "case": "COMMON",
+    "label": "missing_key",
+    "tool": "discover_data_resources",
+    "query": {},
+    "auth": "none",
+    "expect_status": 401
+  },
+  {
+    "case": "COMMON",
+    "label": "invalid_key",
+    "tool": "discover_data_resources",
+    "query": {},
+    "auth": "invalid",
+    "expect_status": 401
+  },
+  {
+    "case": "COMMON",
+    "label": "bearer_key",
+    "tool": "discover_data_resources",
+    "query": {},
+    "auth": "bearer"
+  },
+  {
+    "case": "S1",
+    "label": "exact_policy",
+    "tool": "find_documents",
+    "query": {
+      "resource_type": "industry_policy",
+      "topic": "low_altitude",
+      "region": "浙江",
+      "published_from": "2024-10-22",
+      "published_to": "2026-10-22",
+      "pageSize": 5
+    }
+  },
+  {
+    "case": "S1",
+    "label": "all_policies",
+    "tool": "find_documents",
+    "query": {
+      "resource_type": "industry_policy",
+      "pageSize": 10
+    }
+  },
+  {
+    "case": "S2",
+    "label": "ecommerce_standard",
+    "tool": "query_teaching_standards",
+    "query": {
+      "major_name": "电子商务",
+      "pageSize": 20
+    }
+  },
+  {
+    "case": "S3",
+    "label": "textbooks",
+    "tool": "find_textbooks",
+    "query": {
+      "pageSize": 20
+    }
+  },
+  {
+    "case": "S4",
+    "label": "jobs_initial",
+    "tool": "query_market_jobs",
+    "query": {
+      "pageSize": 5
+    }
+  },
+  {
+    "case": "S4",
+    "label": "industry_coverage",
+    "tool": "aggregate_market_jobs",
+    "query": {
+      "group_by": [
+        "industry"
+      ],
+      "pageSize": 200
+    }
+  },
+  {
+    "case": "S5",
+    "label": "parks",
+    "tool": "query_industrial_parks",
+    "query": {
+      "pageSize": 20
+    }
+  },
+  {
+    "case": "S6",
+    "label": "major_introductions",
+    "tool": "find_major_profile_documents",
+    "query": {
+      "pageSize": 20
+    }
+  },
+  {
+    "case": "S6",
+    "label": "training_plans",
+    "tool": "list_open_talent_training_plans",
+    "query": {
+      "pageSize": 20
+    }
+  },
+  {
+    "case": "BOUNDARY",
+    "label": "empty_query",
+    "tool": "find_documents",
+    "query": {
+      "title": "__nexus_nonexistent_acceptance_20261022__"
+    }
+  },
+  {
+    "case": "BOUNDARY",
+    "label": "invalid_page_size",
+    "tool": "query_market_jobs",
+    "query": {
+      "pageSize": 201
+    },
+    "expect_status": 422
+  },
+  {
+    "case": "BOUNDARY",
+    "label": "missing_ref",
+    "tool": "list_document_sections",
+    "query": {},
+    "path": {
+      "ref_id": "00000000-0000-0000-0000-000000000000"
+    },
+    "expect_status": 404
+  }
+]

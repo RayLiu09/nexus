@@ -1,0 +1,390 @@
+[
+  {
+    "case": "S1",
+    "label": "policy_search_explicit_type",
+    "tool": "search_evidence",
+    "query": {
+      "q": "低空经济 产教融合 人才培养",
+      "knowledge_types": [
+        "industry_policy"
+      ],
+      "normalized_ref_ids": [
+        "686fdbf1-4202-4606-8cbe-d3d068de23d1"
+      ],
+      "resource_type": "industry_policy",
+      "topic": "low_altitude",
+      "region": "浙江",
+      "published_from": "2024-10-22",
+      "published_to": "2026-10-22",
+      "top_k": 10,
+      "similarity_threshold": 0
+    }
+  },
+  {
+    "case": "S1",
+    "label": "policy_sections_continued",
+    "tool": "list_document_sections",
+    "query": {
+      "offset": 100,
+      "limit": 100,
+      "max_chars": 1000
+    },
+    "path": {
+      "ref_id": "686fdbf1-4202-4606-8cbe-d3d068de23d1"
+    }
+  },
+  {
+    "case": "S1",
+    "label": "policy_clause_read",
+    "tool": "read_document_section",
+    "query": {
+      "max_chars": 2000
+    },
+    "path": {
+      "ref_id": "686fdbf1-4202-4606-8cbe-d3d068de23d1",
+      "section_id": "web-block-0073"
+    }
+  },
+  {
+    "case": "S1",
+    "label": "low_altitude_title_dated",
+    "tool": "find_documents",
+    "query": {
+      "resource_type": "industry_policy",
+      "topic": "low_altitude",
+      "region": "浙江",
+      "title": "低空",
+      "published_from": "2024-10-22",
+      "published_to": "2026-10-22",
+      "pageSize": 10
+    }
+  },
+  {
+    "case": "S1",
+    "label": "low_altitude_title_undated",
+    "tool": "find_documents",
+    "query": {
+      "resource_type": "industry_policy",
+      "topic": "low_altitude",
+      "region": "浙江",
+      "title": "低空",
+      "pageSize": 10
+    }
+  },
+  {
+    "case": "S2",
+    "label": "core_course_detail",
+    "tool": "get_standard_course",
+    "query": {},
+    "path": {
+      "course_id": "08ad245f-d569-435d-a483-c89479e030cf"
+    }
+  },
+  {
+    "case": "S2",
+    "label": "source_standard_table",
+    "tool": "read_document_section",
+    "query": {
+      "max_chars": 20000
+    },
+    "path": {
+      "ref_id": "b289c57a-0aad-4513-b1a8-827e9529c850",
+      "section_id": "block-p03-050"
+    }
+  },
+  {
+    "case": "S2",
+    "label": "standard_evidence_bundle",
+    "tool": "get_evidence_bundle",
+    "query": {},
+    "body": {
+      "references": [
+        {
+          "kind": "normalized_ref",
+          "id": "b289c57a-0aad-4513-b1a8-827e9529c850"
+        }
+      ],
+      "max_chars": 2000
+    }
+  },
+  {
+    "case": "S3",
+    "label": "theory_node_context_small",
+    "tool": "get_outline_node_context",
+    "query": {
+      "max_chars": 100,
+      "limit": 100
+    },
+    "path": {
+      "ref_id": "18940e50-cd19-4c1c-b896-4543e38a13d2",
+      "outline_type": "knowledge",
+      "node_id": "12714963-6036-4b24-babd-ef17505f405f"
+    }
+  },
+  {
+    "case": "S3",
+    "label": "theory_node_context_full",
+    "tool": "get_outline_node_context",
+    "query": {
+      "max_chars": 20000,
+      "limit": 100
+    },
+    "path": {
+      "ref_id": "18940e50-cd19-4c1c-b896-4543e38a13d2",
+      "outline_type": "knowledge",
+      "node_id": "12714963-6036-4b24-babd-ef17505f405f"
+    }
+  },
+  {
+    "case": "S3",
+    "label": "training_node_context_small",
+    "tool": "get_outline_node_context",
+    "query": {
+      "max_chars": 100,
+      "limit": 100
+    },
+    "path": {
+      "ref_id": "be6079d7-4ac8-43c3-b182-3558bb7344de",
+      "outline_type": "task",
+      "node_id": "node-task-6b4c72329d28"
+    }
+  },
+  {
+    "case": "S3",
+    "label": "training_node_context_full",
+    "tool": "get_outline_node_context",
+    "query": {
+      "max_chars": 20000,
+      "limit": 100
+    },
+    "path": {
+      "ref_id": "be6079d7-4ac8-43c3-b182-3558bb7344de",
+      "outline_type": "task",
+      "node_id": "node-task-6b4c72329d28"
+    }
+  },
+  {
+    "case": "S3",
+    "label": "theory_outline_page2",
+    "tool": "get_knowledge_outline",
+    "query": {
+      "offset": 50,
+      "limit": 50
+    },
+    "path": {
+      "ref_id": "18940e50-cd19-4c1c-b896-4543e38a13d2"
+    }
+  },
+  {
+    "case": "S3",
+    "label": "theory_existing_graph",
+    "tool": "read_existing_graph",
+    "query": {
+      "max_nodes": 5,
+      "max_edges": 5
+    },
+    "path": {
+      "ref_id": "18940e50-cd19-4c1c-b896-4543e38a13d2"
+    }
+  },
+  {
+    "case": "S4",
+    "label": "job_detail_0cff7465",
+    "tool": "get_market_job",
+    "query": {},
+    "path": {
+      "job_id": "0cff7465-7510-4c3f-9633-67054bb90cad"
+    }
+  },
+  {
+    "case": "S4",
+    "label": "job_detail_69132d80",
+    "tool": "get_market_job",
+    "query": {},
+    "path": {
+      "job_id": "69132d80-7aa2-4250-8d58-0ed17c4f276b"
+    }
+  },
+  {
+    "case": "S4",
+    "label": "education_distribution_repeat",
+    "tool": "aggregate_market_jobs",
+    "query": {
+      "industry": "互联网电商",
+      "collected_from": "2026-10-22T00:00:00Z",
+      "collected_to": "2026-10-22T09:39:00Z",
+      "group_by": [
+        "education"
+      ],
+      "pageSize": 200
+    }
+  },
+  {
+    "case": "S5",
+    "label": "selected_park",
+    "tool": "get_industrial_park",
+    "query": {},
+    "path": {
+      "park_id": "fef7ea30-1356-4a18-a3e1-2b7eb6cab1cc"
+    }
+  },
+  {
+    "case": "S5",
+    "label": "park_enterprises",
+    "tool": "query_enterprises",
+    "query": {
+      "park_id": "fef7ea30-1356-4a18-a3e1-2b7eb6cab1cc",
+      "pageSize": 100
+    }
+  },
+  {
+    "case": "S6",
+    "label": "matched_introduction",
+    "tool": "find_major_profile_documents",
+    "query": {
+      "institution_name": "湖州职业技术学院",
+      "major_code": "530702",
+      "major_name": "跨境电子商务",
+      "pageSize": 10
+    }
+  },
+  {
+    "case": "S6",
+    "label": "matched_plan_query",
+    "tool": "list_open_talent_training_plans",
+    "query": {
+      "institution_name": "湖州职业技术学院",
+      "major_code": "530702",
+      "major_name": "跨境电子商务",
+      "pageSize": 10
+    }
+  },
+  {
+    "case": "S6",
+    "label": "matched_plan_detail",
+    "tool": "get_open_talent_training_plan",
+    "query": {},
+    "path": {
+      "item_id": "dd91dbd4-bb1a-4fcf-93ea-8384be728ad9"
+    }
+  },
+  {
+    "case": "S6",
+    "label": "introduction_sections",
+    "tool": "list_document_sections",
+    "query": {
+      "limit": 100,
+      "max_chars": 1000
+    },
+    "path": {
+      "ref_id": "a8fbbb03-0c69-421e-bcd9-822a34e96a03"
+    }
+  },
+  {
+    "case": "S6",
+    "label": "plan_courses",
+    "tool": "list_training_plan_courses",
+    "query": {
+      "pageSize": 100
+    },
+    "path": {
+      "plan_id": "dd91dbd4-bb1a-4fcf-93ea-8384be728ad9"
+    }
+  },
+  {
+    "case": "S6",
+    "label": "plan_sections",
+    "tool": "list_document_sections",
+    "query": {
+      "limit": 100,
+      "max_chars": 1000
+    },
+    "path": {
+      "ref_id": "5d82fef8-87f3-4fe9-bb94-3ff1828442e0"
+    }
+  },
+  {
+    "case": "S6",
+    "label": "comparison_evidence_bundle",
+    "tool": "get_evidence_bundle",
+    "query": {},
+    "body": {
+      "references": [
+        {
+          "kind": "normalized_ref",
+          "id": "a8fbbb03-0c69-421e-bcd9-822a34e96a03"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "5d82fef8-87f3-4fe9-bb94-3ff1828442e0"
+        }
+      ],
+      "max_chars": 2000
+    }
+  },
+  {
+    "case": "BOUNDARY",
+    "label": "non_available_ref",
+    "tool": "list_document_sections",
+    "query": {},
+    "path": {
+      "ref_id": "dac250d0-d06b-4723-9675-db8d9d5bc583"
+    },
+    "expect_status": 404
+  },
+  {
+    "case": "BOUNDARY",
+    "label": "mixed_visibility_evidence",
+    "tool": "get_evidence_bundle",
+    "query": {},
+    "body": {
+      "references": [
+        {
+          "kind": "normalized_ref",
+          "id": "686fdbf1-4202-4606-8cbe-d3d068de23d1"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "dac250d0-d06b-4723-9675-db8d9d5bc583"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "market_job",
+          "id": "0cff7465-7510-4c3f-9633-67054bb90cad"
+        },
+        {
+          "kind": "industrial_park",
+          "id": "fef7ea30-1356-4a18-a3e1-2b7eb6cab1cc"
+        }
+      ],
+      "max_chars": 100
+    }
+  },
+  {
+    "case": "BOUNDARY",
+    "label": "cross_classification_scope",
+    "tool": "search_evidence",
+    "query": {
+      "q": "人才",
+      "knowledge_types": [
+        "industry_policy"
+      ],
+      "normalized_ref_ids": [
+        "18940e50-cd19-4c1c-b896-4543e38a13d2"
+      ],
+      "top_k": 5,
+      "similarity_threshold": 0
+    },
+    "checks": [
+      {
+        "name": "AND scope excludes textbook",
+        "path": "data.count",
+        "op": "eq",
+        "value": 0
+      }
+    ]
+  }
+]

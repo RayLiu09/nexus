@@ -1,0 +1,293 @@
+[
+  {
+    "case": "S1_REVISED",
+    "label": "cq_search_actual_index_type",
+    "tool": "search_evidence",
+    "query": {
+      "q": "低空经济 产教融合 人才培养",
+      "kb": "industry_research_kb",
+      "normalized_ref_ids": [
+        "5f28592f-7850-4014-8e94-3bb4883a994d",
+        "dbf725cc-9d48-45d8-9ecb-dfbee540d150",
+        "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+        "5e6a5808-4ac3-4cae-8b96-dac632ae7242",
+        "0ee8a187-22dc-417e-bc29-841b29026d8a",
+        "df51b114-d0e1-447a-8892-0d4ea269e606",
+        "533f1174-233a-42f9-a82e-a547bb2d31c3"
+      ],
+      "resource_type": "industry_policy",
+      "topic": "low_altitude",
+      "region": "重庆市",
+      "published_from": "2024-10-22",
+      "published_to": "2026-10-22",
+      "top_k": 10,
+      "similarity_threshold": 0
+    },
+    "checks": [
+      {
+        "name": "existing indexed evidence is returned",
+        "path": "data.count",
+        "op": "gte",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "case": "S1_REVISED",
+    "label": "cq_low_altitude_clause",
+    "tool": "read_document_section",
+    "query": {
+      "max_chars": 2000
+    },
+    "path": {
+      "ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+      "section_id": "web-block-0019"
+    }
+  },
+  {
+    "case": "S1_REVISED",
+    "label": "cq_talent_clause",
+    "tool": "read_document_section",
+    "query": {
+      "max_chars": 2000
+    },
+    "path": {
+      "ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+      "section_id": "web-block-0038"
+    }
+  },
+  {
+    "case": "S1_REVISED",
+    "label": "cq_ecommerce_talent_clause",
+    "tool": "read_document_section",
+    "query": {
+      "max_chars": 2000
+    },
+    "path": {
+      "ref_id": "5e6a5808-4ac3-4cae-8b96-dac632ae7242",
+      "section_id": "web-block-0047"
+    }
+  },
+  {
+    "case": "S1_REVISED",
+    "label": "topic_false_positive_control",
+    "tool": "find_documents",
+    "query": {
+      "resource_type": "industry_policy",
+      "topic": "low_altitude",
+      "region": "重庆市",
+      "title": "重庆电子商务腾飞计划",
+      "published_from": "2024-10-22",
+      "published_to": "2026-10-22",
+      "pageSize": 20
+    },
+    "checks": [
+      {
+        "name": "low-altitude filter excludes documents without topic title/tags",
+        "path": "meta.total",
+        "op": "eq",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "case": "S5_REVISED",
+    "label": "cq_ecommerce_parks",
+    "tool": "query_industrial_parks",
+    "query": {
+      "industry": "电商",
+      "q": "重庆",
+      "pageSize": 100
+    }
+  },
+  {
+    "case": "S6",
+    "label": "introduction_scoped_search",
+    "tool": "search_evidence",
+    "query": {
+      "q": "跨境电子商务专业 培养目标 核心课程",
+      "kb": "major_profile_knowledge",
+      "normalized_ref_ids": [
+        "a8fbbb03-0c69-421e-bcd9-822a34e96a03"
+      ],
+      "institution_name": "湖州职业技术学院",
+      "major_code": "530702",
+      "top_k": 5,
+      "similarity_threshold": 0
+    },
+    "checks": [
+      {
+        "name": "introduction source search returns evidence",
+        "path": "data.count",
+        "op": "gte",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "case": "BOUNDARY",
+    "label": "oversize_evidence_batch",
+    "tool": "get_evidence_bundle",
+    "query": {},
+    "body": {
+      "references": [
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        }
+      ],
+      "max_chars": 100
+    },
+    "expect_status": 422
+  },
+  {
+    "case": "BOUNDARY",
+    "label": "oversize_section_budget",
+    "tool": "read_document_section",
+    "query": {
+      "max_chars": 20001
+    },
+    "path": {
+      "ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+      "section_id": "web-block-0019"
+    },
+    "expect_status": 422
+  },
+  {
+    "case": "BOUNDARY",
+    "label": "standard_major_intersection",
+    "tool": "query_standard_courses",
+    "query": {
+      "library_id": "359fa704-488e-4829-9952-a7038c343f08",
+      "major_code": "__NONEXISTENT__"
+    },
+    "checks": [
+      {
+        "name": "library and major filters intersect",
+        "path": "meta.total",
+        "op": "eq",
+        "value": 0
+      }
+    ]
+  }
+]

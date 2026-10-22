@@ -1,0 +1,878 @@
+{
+  "executed_at_utc": "2026-10-22T09:51:28.309348+00:00",
+  "base_url": "http://127.0.0.1:8000",
+  "transport": "actual HTTP; no mocks or fixtures",
+  "results": [
+    {
+      "case": "S5_REVISED",
+      "label": "cq_selected_park",
+      "tool": "get_industrial_park",
+      "method": "GET",
+      "path": "/open/v1/industrial-parks/791815d2-05eb-49d8-81bc-5ffdd895b9c1",
+      "query": {},
+      "body": null,
+      "auth_mode": "api_key",
+      "http_status": 200,
+      "duration_ms": 12.09,
+      "trace_id": "bb3b25db-0666-4ebc-ad84-c10b118402a8",
+      "response": {
+        "data": {
+          "id": "791815d2-05eb-49d8-81bc-5ffdd895b9c1",
+          "park_name": "重庆跨境电子商务台湾产业园(通用时代)",
+          "industry_tags": "电子商务、跨境电商",
+          "introduction": "重庆跨境电子商务台湾产业园(通用时代)位于重庆市江北区，重庆市江北区金源路53号通用时代群楼三层，面积约17.16亩。本数据来自前瞻产业研究院产业园区数据库，前瞻产业研究院20年持续聚焦全国细分产业研究、产业规划、产业园区规划、产业地产规划、特色小镇规划、产业新城规划及产业园区招商引资等，助力地方产业发展，促进产城融合。",
+          "enterprise_count": 10,
+          "source_url": "https://y.qianzhan.com/yuanqu/item/1b8fe50d65af2f53.html",
+          "created_at": "2026-10-12T08:16:44.500694Z",
+          "updated_at": "2026-10-12T08:16:44.500696Z"
+        },
+        "meta": {
+          "trace_id": "bb3b25db-0666-4ebc-ad84-c10b118402a8",
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case": "S5_REVISED",
+      "label": "cq_park_enterprises",
+      "tool": "query_enterprises",
+      "method": "GET",
+      "path": "/open/v1/enterprises",
+      "query": {
+        "park_id": "791815d2-05eb-49d8-81bc-5ffdd895b9c1",
+        "pageSize": 100
+      },
+      "body": null,
+      "auth_mode": "api_key",
+      "http_status": 200,
+      "duration_ms": 11.77,
+      "trace_id": "3f7e4a4c-7270-4ad8-8a9d-3a2a8771c75f",
+      "response": {
+        "data": [
+          {
+            "id": "91df77d0-91dc-4d9a-899c-f66aff332b09",
+            "enterprise_name": "中奇恒（重庆）工程咨询有限公司",
+            "business_scope": "许可项目：建设工程设计；建设工程施工；住宅室内装饰装修。（依法须经批准的项目，经相关部门批准...",
+            "industrial_park_id": "791815d2-05eb-49d8-81bc-5ffdd895b9c1",
+            "park_name": "重庆跨境电子商务台湾产业园(通用时代)",
+            "source_url": "https://y.qianzhan.com/yuanqu/item/1b8fe50d65af2f53.html",
+            "created_at": "2026-10-12T08:16:44.505249Z",
+            "updated_at": "2026-10-12T08:16:44.505249Z"
+          },
+          {
+            "id": "75a9540a-e48a-4828-a3d0-709e035a4c6c",
+            "enterprise_name": "大唐重庆能源营销有限公司",
+            "business_scope": "许可项目：发电业务、输电业务、供（配）电业务。（依法须经批准的项目，经相关部门批准后方可开展...",
+            "industrial_park_id": "791815d2-05eb-49d8-81bc-5ffdd895b9c1",
+            "park_name": "重庆跨境电子商务台湾产业园(通用时代)",
+            "source_url": "https://y.qianzhan.com/yuanqu/item/1b8fe50d65af2f53.html",
+            "created_at": "2026-10-12T08:16:44.505247Z",
+            "updated_at": "2026-10-12T08:16:44.505247Z"
+          },
+          {
+            "id": "784acec7-2202-4067-802e-692b65273b34",
+            "enterprise_name": "斯里普文化传播（重庆）有限公司",
+            "business_scope": "许可项目：货物进出口；出版物互联网销售；出版物零售；出版物批发。（依法须经批准的项目，经相关...",
+            "industrial_park_id": "791815d2-05eb-49d8-81bc-5ffdd895b9c1",
+            "park_name": "重庆跨境电子商务台湾产业园(通用时代)",
+            "source_url": "https://y.qianzhan.com/yuanqu/item/1b8fe50d65af2f53.html",
+            "created_at": "2026-10-12T08:16:44.505240Z",
+            "updated_at": "2026-10-12T08:16:44.505241Z"
+          },
+          {
+            "id": "f2ef7a7f-b31c-4919-b268-887a6a5db320",
+            "enterprise_name": "极简兔装饰工程（重庆）有限公司",
+            "business_scope": "许可项目：住宅室内装饰装修；建设工程施工；建设工程设计。（依法须经批准的项目，经相关部门批准...",
+            "industrial_park_id": "791815d2-05eb-49d8-81bc-5ffdd895b9c1",
+            "park_name": "重庆跨境电子商务台湾产业园(通用时代)",
+            "source_url": "https://y.qianzhan.com/yuanqu/item/1b8fe50d65af2f53.html",
+            "created_at": "2026-10-12T08:16:44.505251Z",
+            "updated_at": "2026-10-12T08:16:44.505252Z"
+          },
+          {
+            "id": "5e267a70-f1c2-487a-a080-d89084732359",
+            "enterprise_name": "纵帆供应链管理（重庆）有限公司",
+            "business_scope": "一般项目：供应链管理服务；普通货物仓储服务（不含危险化学品等需许可审批的项目）；国内货物运输...",
+            "industrial_park_id": "791815d2-05eb-49d8-81bc-5ffdd895b9c1",
+            "park_name": "重庆跨境电子商务台湾产业园(通用时代)",
+            "source_url": "https://y.qianzhan.com/yuanqu/item/1b8fe50d65af2f53.html",
+            "created_at": "2026-10-12T08:16:44.505261Z",
+            "updated_at": "2026-10-12T08:16:44.505261Z"
+          },
+          {
+            "id": "c4418487-6516-413a-ae48-e63471e9d771",
+            "enterprise_name": "重庆初光网络科技有限公司",
+            "business_scope": "许可项目：职业中介活动（依法须经批准的项目，经相关部门批准后方可开展经营活动，具体经营项目以...",
+            "industrial_park_id": "791815d2-05eb-49d8-81bc-5ffdd895b9c1",
+            "park_name": "重庆跨境电子商务台湾产业园(通用时代)",
+            "source_url": "https://y.qianzhan.com/yuanqu/item/1b8fe50d65af2f53.html",
+            "created_at": "2026-10-12T08:16:44.505254Z",
+            "updated_at": "2026-10-12T08:16:44.505254Z"
+          },
+          {
+            "id": "8c77487a-9661-4169-b1af-6dfc7294d36c",
+            "enterprise_name": "重庆华奥捷信企业管理有限公司",
+            "business_scope": "一般项目：企业管理；企业管理咨询；信息咨询服务（不含许可类信息咨询服务）；社会经济咨询服务；...",
+            "industrial_park_id": "791815d2-05eb-49d8-81bc-5ffdd895b9c1",
+            "park_name": "重庆跨境电子商务台湾产业园(通用时代)",
+            "source_url": "https://y.qianzhan.com/yuanqu/item/1b8fe50d65af2f53.html",
+            "created_at": "2026-10-12T08:16:44.505263Z",
+            "updated_at": "2026-10-12T08:16:44.505263Z"
+          },
+          {
+            "id": "fb82c7fb-e537-42bd-9796-e75822c41379",
+            "enterprise_name": "重庆爱威视科技有限公司",
+            "business_scope": "计算机软硬件研发、销售及相关技术转让；计算机信息咨询服务。** [依法须经批准的项目，经相关部门...",
+            "industrial_park_id": "791815d2-05eb-49d8-81bc-5ffdd895b9c1",
+            "park_name": "重庆跨境电子商务台湾产业园(通用时代)",
+            "source_url": "https://y.qianzhan.com/yuanqu/item/1b8fe50d65af2f53.html",
+            "created_at": "2026-10-12T08:16:44.505258Z",
+            "updated_at": "2026-10-12T08:16:44.505259Z"
+          },
+          {
+            "id": "d2f02629-f956-48cc-a91a-2a91bbd6cc24",
+            "enterprise_name": "重庆观珩科技有限公司",
+            "business_scope": "一般项目：技术服务、技术开发、技术咨询、技术交流、技术转让、技术推广；软件开发；智能控制系统...",
+            "industrial_park_id": "791815d2-05eb-49d8-81bc-5ffdd895b9c1",
+            "park_name": "重庆跨境电子商务台湾产业园(通用时代)",
+            "source_url": "https://y.qianzhan.com/yuanqu/item/1b8fe50d65af2f53.html",
+            "created_at": "2026-10-12T08:16:44.505256Z",
+            "updated_at": "2026-10-12T08:16:44.505256Z"
+          },
+          {
+            "id": "4549f4e8-f339-4703-b243-318d46c7b24f",
+            "enterprise_name": "飞宏企业清算（重庆）有限公司",
+            "business_scope": "一般项目：资产评估，破产清算服务，税务服务，企业管理咨询，法律咨询（不包括律师事务所业务），...",
+            "industrial_park_id": "791815d2-05eb-49d8-81bc-5ffdd895b9c1",
+            "park_name": "重庆跨境电子商务台湾产业园(通用时代)",
+            "source_url": "https://y.qianzhan.com/yuanqu/item/1b8fe50d65af2f53.html",
+            "created_at": "2026-10-12T08:16:44.505244Z",
+            "updated_at": "2026-10-12T08:16:44.505245Z"
+          }
+        ],
+        "meta": {
+          "trace_id": "3f7e4a4c-7270-4ad8-8a9d-3a2a8771c75f",
+          "page": 1,
+          "page_size": 100,
+          "total": 10
+        },
+        "aggregations": null
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case": "S1_REVISED",
+      "label": "cq_chunk_reference_bundle",
+      "tool": "get_evidence_bundle",
+      "method": "POST",
+      "path": "/open/v1/evidence-resolutions",
+      "query": {},
+      "body": {
+        "references": [
+          {
+            "kind": "chunk",
+            "id": "737747bc-ef87-43f2-9522-4dc87e3c75cb"
+          },
+          {
+            "kind": "chunk",
+            "id": "9be1afef-a52a-420c-9d2f-e531c0d0bda0"
+          },
+          {
+            "kind": "chunk",
+            "id": "e6befe76-4fc9-4e05-a3c8-ee8ba8e63bef"
+          },
+          {
+            "kind": "chunk",
+            "id": "7dbae926-1163-4e22-9110-e8b3c8040c76"
+          }
+        ],
+        "max_chars": 1000
+      },
+      "auth_mode": "api_key",
+      "http_status": 200,
+      "duration_ms": 36.63,
+      "trace_id": "237da0a6-03b4-4994-beab-4ec64cb421ac",
+      "response": {
+        "data": [
+          {
+            "kind": "chunk",
+            "id": "737747bc-ef87-43f2-9522-4dc87e3c75cb",
+            "status": "available",
+            "content": "（二十）提高人力资源驱动力。推动高校开设数字贸易、服务贸易相关专业。加强服务贸易人才培训基地建设，增加数字贸易培训相关内容，扩大培训规模。充分发挥人力资源服务出口基地作用，加大高端人才引进力度，对符合条件的高层次人才提供住房、子女就学、医疗等方面的政策支持，动态调整重点领域境外职业资格认可清单。（责任单位：市人力社保局、市商务委、市委组织部、市教委、市住房城乡建委）",
+            "normalized_ref_id": "5f28592f-7850-4014-8e94-3bb4883a994d",
+            "asset_id": "5c9b326d-bd76-4c59-9f1b-b1103495985c",
+            "version_id": "716e5bc8-becb-44bb-93eb-a1cabb44b34a",
+            "source_url": null,
+            "collected_at": null,
+            "source_block_ids": [
+              "web-block-0045"
+            ],
+            "locator": {
+              "page_start": null,
+              "page_end": null,
+              "bbox_union": null,
+              "block_start_order": 45,
+              "block_end_order": 45,
+              "source_url": "https://gzfw.cqcidc.cn/escms/html/web/wzhqzc/cqzc/2008437690830594049.html",
+              "section_id": "sec-0001",
+              "section_key": "1d499a4d217fa80b28eabca4",
+              "blocks": [
+                {
+                  "block_id": "web-block-0045",
+                  "block_type": "paragraph",
+                  "page": null,
+                  "bbox": null,
+                  "md_char_range": [
+                    5853,
+                    6037
+                  ],
+                  "source_url": "https://gzfw.cqcidc.cn/escms/html/web/wzhqzc/cqzc/2008437690830594049.html",
+                  "dom_path": null,
+                  "dom_index": 45,
+                  "locator_type": "markdown_range",
+                  "section_id": "sec-0001",
+                  "block_order": 45
+                }
+              ],
+              "md_char_range": [
+                5853,
+                6037
+              ],
+              "md_spans": null,
+              "heading_path": [
+                {
+                  "level": 1,
+                  "title": "重庆外资企业智慧服务云平台"
+                },
+                {
+                  "level": 2,
+                  "title": "六、加快构建全要素生态体系"
+                }
+              ]
+            },
+            "truncated": false
+          },
+          {
+            "kind": "chunk",
+            "id": "9be1afef-a52a-420c-9d2f-e531c0d0bda0",
+            "status": "available",
+            "content": "（二十）提高人力资源驱动力。推动高校开设数字贸易、服务贸易相关专业。加强服务贸易人才培训基地建设，增加数字贸易培训相关内容，扩大培训规模。充分发挥人力资源服务出口基地作用，加大高端人才引进力度，对符合条件的高层次人才提供住房、子女就学、医疗等方面的政策支持，动态调整重点领域境外职业资格认可清单。（责任单位：市人力社保局、市商务委、市委组织部、市教委、市住房城乡建委）",
+            "normalized_ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+            "asset_id": "5d8fafd5-9bf1-4dc7-a6bf-b1c613626669",
+            "version_id": "6162886c-42d6-4ad0-85fb-66bf335fb7b9",
+            "source_url": null,
+            "collected_at": null,
+            "source_block_ids": [
+              "web-block-0038"
+            ],
+            "locator": {
+              "page_start": null,
+              "page_end": null,
+              "bbox_union": null,
+              "block_start_order": 38,
+              "block_end_order": 38,
+              "source_url": "http://bdb.shandong.gov.cn/art/2025/11/28/art_329234_10337526.html#1#1",
+              "section_id": "sec-0001",
+              "section_key": "35d7bc360e43c50b4e1f622a",
+              "blocks": [
+                {
+                  "block_id": "web-block-0038",
+                  "block_type": "paragraph",
+                  "page": null,
+                  "bbox": null,
+                  "md_char_range": [
+                    5769,
+                    5953
+                  ],
+                  "source_url": "http://bdb.shandong.gov.cn/art/2025/11/28/art_329234_10337526.html#1#1",
+                  "dom_path": null,
+                  "dom_index": 38,
+                  "locator_type": "markdown_range",
+                  "section_id": "sec-0001",
+                  "block_order": 38
+                }
+              ],
+              "md_char_range": [
+                5769,
+                5953
+              ],
+              "md_spans": null,
+              "heading_path": [
+                {
+                  "level": 1,
+                  "title": "重庆市人民政府办公厅关于印发《重庆市数字贸易和服务贸易高质量发展行动方案》的通知"
+                },
+                {
+                  "level": 2,
+                  "title": "六、加快构建全要素生态体系"
+                }
+              ]
+            },
+            "truncated": false
+          },
+          {
+            "kind": "chunk",
+            "id": "e6befe76-4fc9-4e05-a3c8-ee8ba8e63bef",
+            "status": "available",
+            "content": "（二十）提高人力资源驱动力。推动高校开设数字贸易、服务贸易相关专业。加强服务贸易人才培训基地建设，增加数字贸易培训相关内容，扩大培训规模。充分发挥人力资源服务出口基地作用，加大高端人才引进力度，对符合条件的高层次人才提供住房、子女就学、医疗等方面的政策支持，动态调整重点领域境外职业资格认可清单。（责任单位：市人力社保局、市商务委、市委组织部、市教委、市住房城乡建委）",
+            "normalized_ref_id": "dbf725cc-9d48-45d8-9ecb-dfbee540d150",
+            "asset_id": "e95c3689-de61-497f-b284-a26868e53829",
+            "version_id": "21538a96-d49a-446a-a2ba-d786e9c1ce25",
+            "source_url": null,
+            "collected_at": null,
+            "source_block_ids": [
+              "web-block-0044"
+            ],
+            "locator": {
+              "page_start": null,
+              "page_end": null,
+              "bbox_union": null,
+              "block_start_order": 44,
+              "block_end_order": 44,
+              "source_url": "https://cqrb.cn/shishi/2025-05-28/2292308_pc.html#1",
+              "section_id": "sec-0001",
+              "section_key": "5f69dbae96dd21880216b025",
+              "blocks": [
+                {
+                  "block_id": "web-block-0044",
+                  "block_type": "paragraph",
+                  "page": null,
+                  "bbox": null,
+                  "md_char_range": [
+                    5848,
+                    6032
+                  ],
+                  "source_url": "https://cqrb.cn/shishi/2025-05-28/2292308_pc.html#1",
+                  "dom_path": null,
+                  "dom_index": 44,
+                  "locator_type": "markdown_range",
+                  "section_id": "sec-0001",
+                  "block_order": 44
+                }
+              ],
+              "md_char_range": [
+                5848,
+                6032
+              ],
+              "md_spans": null,
+              "heading_path": [
+                {
+                  "level": 1,
+                  "title": "权威发布｜事关数字贸易和服务贸易高质量发展，重庆出台行动方案→-重庆日报"
+                },
+                {
+                  "level": 2,
+                  "title": "六、加快构建全要素生态体系"
+                }
+              ]
+            },
+            "truncated": false
+          },
+          {
+            "kind": "chunk",
+            "id": "7dbae926-1163-4e22-9110-e8b3c8040c76",
+            "status": "available",
+            "content": "19．建设电商人才高地。构建“市区培训+校企共育+企业实战”三级人才培养体系，优化“星未来电商训练营”“数字商务高质量培训”等课程资源。推动区县开展电商人才梯度培育，通过以赛代训加大人才挖掘和实训力度。鼓励电商平台在渝落地人才培育计划，通过专题课程、深度陪跑等形式强化培训效能。支持院校深化产教融合，与电商平台共建高校电商实训基地，开设微专业、微课堂等特色教育。打造“山城推荐官”达人矩阵，形成“头部引领、腰部支撑、新人跟进”的良性达人发展生态。",
+            "normalized_ref_id": "5e6a5808-4ac3-4cae-8b96-dac632ae7242",
+            "asset_id": "644c799e-b683-42d9-a70d-a6513484bbc4",
+            "version_id": "644a5184-c380-44f0-929d-b8a005a99301",
+            "source_url": null,
+            "collected_at": null,
+            "source_block_ids": [
+              "web-block-0047"
+            ],
+            "locator": {
+              "page_start": null,
+              "page_end": null,
+              "bbox_union": null,
+              "block_start_order": 47,
+              "block_end_order": 47,
+              "source_url": "https://law.foodmate.net/mobile/index.php?moduleid=23&itemid=238963#1",
+              "section_id": "sec-0001",
+              "section_key": "d1fac1a964748afb0f04bd18",
+              "blocks": [
+                {
+                  "block_id": "web-block-0047",
+                  "block_type": "paragraph",
+                  "page": null,
+                  "bbox": null,
+                  "md_char_range": [
+                    4504,
+                    4727
+                  ],
+                  "source_url": "https://law.foodmate.net/mobile/index.php?moduleid=23&itemid=238963#1",
+                  "dom_path": null,
+                  "dom_index": 47,
+                  "locator_type": "markdown_range",
+                  "section_id": "sec-0001",
+                  "block_order": 47
+                }
+              ],
+              "md_char_range": [
+                4504,
+                4727
+              ],
+              "md_spans": null,
+              "heading_path": [
+                {
+                  "level": 1,
+                  "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号) - 重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号)"
+                },
+                {
+                  "level": 2,
+                  "title": "二、重点工作"
+                },
+                {
+                  "level": 3,
+                  "title": "（七）“数智赋能”电商生态优化行动"
+                }
+              ]
+            },
+            "truncated": false
+          }
+        ],
+        "meta": {
+          "trace_id": "237da0a6-03b4-4994-beab-4ec64cb421ac",
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case": "BOUNDARY",
+      "label": "section_initial100",
+      "tool": "read_document_section",
+      "method": "GET",
+      "path": "/open/v1/normalized-refs/fdaaa8e2-5ba0-4829-a5fe-6e8570b17226/sections/web-block-0019",
+      "query": {
+        "max_chars": 100
+      },
+      "body": null,
+      "auth_mode": "api_key",
+      "http_status": 200,
+      "duration_ms": 26.3,
+      "trace_id": "8cd58799-129f-4c46-b476-8d3440c9e1e4",
+      "response": {
+        "data": {
+          "id": "web-block-0019",
+          "normalized_ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+          "title": null,
+          "content": "（四）全力推进产业数字化转型促出口。立足“33618”现代制造业集群体系，应用人工智能等新技术推动数字化转型，对企业“智改数转”提升予以补助，支持出口数字化车间、智能工厂整体解决方案，推动工业数字化出",
+          "source_block_ids": [
+            "web-block-0019"
+          ],
+          "locator": {
+            "md_char_range": [
+              1288,
+              1583
+            ],
+            "context_blocks": [
+              {
+                "id": "web-block-0019",
+                "locator": {
+                  "md_char_range": [
+                    1288,
+                    1583
+                  ]
+                }
+              }
+            ]
+          },
+          "offset": 0,
+          "total_chars": 295,
+          "truncated": true,
+          "next_offset": 100
+        },
+        "meta": {
+          "trace_id": "8cd58799-129f-4c46-b476-8d3440c9e1e4",
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case": "BOUNDARY",
+      "label": "section_resume100",
+      "tool": "read_document_section",
+      "method": "GET",
+      "path": "/open/v1/normalized-refs/fdaaa8e2-5ba0-4829-a5fe-6e8570b17226/sections/web-block-0019",
+      "query": {
+        "max_chars": 2000,
+        "offset": 100
+      },
+      "body": null,
+      "auth_mode": "api_key",
+      "http_status": 200,
+      "duration_ms": 29.09,
+      "trace_id": "e46c0ec3-cd0f-47cf-ba48-f6338f62879e",
+      "response": {
+        "data": {
+          "id": "web-block-0019",
+          "normalized_ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+          "title": null,
+          "content": "海。到2027年，全市累计新建智能工厂30家和数字化车间300个。面向“一带一路”及RCEP（区域全面经济伙伴关系协定）市场，重点推进智能网联新能源汽车、低空飞行器、电子信息制造、云计算、智能装备等领域产品升级和出口，提升对外贸易高技术附加值。深化中老泰“三国三园”国际合作，构建跨境产业链、供应链服务枢纽，实现从产品出口向“产品+技术+标准”输出转型。（责任单位：市经济信息委、市商务委）",
+          "source_block_ids": [
+            "web-block-0019"
+          ],
+          "locator": {
+            "md_char_range": [
+              1288,
+              1583
+            ],
+            "context_blocks": [
+              {
+                "id": "web-block-0019",
+                "locator": {
+                  "md_char_range": [
+                    1288,
+                    1583
+                  ]
+                }
+              }
+            ]
+          },
+          "offset": 100,
+          "total_chars": 295,
+          "truncated": false,
+          "next_offset": null
+        },
+        "meta": {
+          "trace_id": "e46c0ec3-cd0f-47cf-ba48-f6338f62879e",
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case": "BOUNDARY",
+      "label": "entity_major_candidates",
+      "tool": "resolve_business_entities",
+      "method": "POST",
+      "path": "/open/v1/entity-resolutions",
+      "query": {},
+      "body": {
+        "entity_type": "major",
+        "query": "电子商务",
+        "limit": 30
+      },
+      "auth_mode": "api_key",
+      "http_status": 200,
+      "duration_ms": 56.35,
+      "trace_id": "4e00ef14-05ac-4807-979c-b249cdfe3b26",
+      "response": {
+        "data": [
+          {
+            "id": "073befc2-3c3a-41d2-bc3e-75477d997032",
+            "entity_type": "major",
+            "name": "电子商务",
+            "code": null,
+            "match_type": "exact",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "0c6c2fc3-7da0-4ed3-8c63-93fee0d9d23b",
+            "entity_type": "major",
+            "name": "电子商务",
+            "code": null,
+            "match_type": "exact",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "176943bb-b2b6-4eac-80b5-94eb0fd15bb7",
+            "entity_type": "major",
+            "name": "电子商务",
+            "code": null,
+            "match_type": "exact",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "34ab1ec0-d5a1-4314-811c-3c245cac0bd0",
+            "entity_type": "major",
+            "name": "电子商务",
+            "code": null,
+            "match_type": "exact",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "359fa704-488e-4829-9952-a7038c343f08",
+            "entity_type": "major",
+            "name": "电子商务",
+            "code": "330701",
+            "match_type": "exact",
+            "source_resource": "teaching_standard"
+          },
+          {
+            "id": "3ea55277-42f7-4deb-beb6-44edc1fdd1e6",
+            "entity_type": "major",
+            "name": "电子商务",
+            "code": null,
+            "match_type": "exact",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "433ef2a8-67a1-4aa2-b5a4-f8391b9bb89b",
+            "entity_type": "major",
+            "name": "电子商务",
+            "code": null,
+            "match_type": "exact",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "57c14d49-0c2a-48c2-93d5-0f2da11c285a",
+            "entity_type": "major",
+            "name": "电子商务",
+            "code": null,
+            "match_type": "exact",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "5ff6786d-f3fe-4da9-b248-396a4e83b409",
+            "entity_type": "major",
+            "name": "电子商务",
+            "code": null,
+            "match_type": "exact",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "6cc9448a-cd3e-4789-acb7-5794bb17d269",
+            "entity_type": "major",
+            "name": "电子商务",
+            "code": "530701",
+            "match_type": "exact",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "6f3afa66-665d-4a1e-bd5b-dea181ba3973",
+            "entity_type": "major",
+            "name": "电子商务",
+            "code": null,
+            "match_type": "exact",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "6f8d216c-5d8f-4435-b545-0bd90aeb7998",
+            "entity_type": "major",
+            "name": "电子商务",
+            "code": null,
+            "match_type": "exact",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "7a1a4fb7-f294-43a7-90be-c83bd69964df",
+            "entity_type": "major",
+            "name": "电子商务",
+            "code": null,
+            "match_type": "exact",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "8a08e4ff-918e-409b-b2ff-28cbb57e93e5",
+            "entity_type": "major",
+            "name": "电子商务",
+            "code": null,
+            "match_type": "exact",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "97b3ff64-1d09-463b-9bc7-7ceb6eecdba3",
+            "entity_type": "major",
+            "name": "电子商务",
+            "code": "330701",
+            "match_type": "exact",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "b67cff56-6229-4047-8000-70dcb1e606c4",
+            "entity_type": "major",
+            "name": "电子商务",
+            "code": null,
+            "match_type": "exact",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "ba8471e3-308f-41f8-beba-791693781d67",
+            "entity_type": "major",
+            "name": "电子商务",
+            "code": null,
+            "match_type": "exact",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "da57c76b-c759-47bd-8b9b-9c2e31960d23",
+            "entity_type": "major",
+            "name": "电子商务",
+            "code": null,
+            "match_type": "exact",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "ee8a26ff-4d6d-4805-a329-0be045e7f155",
+            "entity_type": "major",
+            "name": "电子商务",
+            "code": "530701",
+            "match_type": "exact",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "ef220da3-8ecd-4e73-80cf-03fdedae4d62",
+            "entity_type": "major",
+            "name": "电子商务",
+            "code": null,
+            "match_type": "exact",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "1b2bef04-0c0f-4026-9d7c-609689d87fb3",
+            "entity_type": "major",
+            "name": "电子商务类",
+            "code": "7307",
+            "match_type": "substring",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "00164fee-ce8a-425a-9325-65a64622c737",
+            "entity_type": "major",
+            "name": "跨境电子商务",
+            "code": null,
+            "match_type": "substring",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "03ddaa48-90cf-404c-8d24-404972b95aa2",
+            "entity_type": "major",
+            "name": "跨境电子商务",
+            "code": null,
+            "match_type": "substring",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "121d15ba-a497-4754-aa89-6d9b900de9e9",
+            "entity_type": "major",
+            "name": "跨境电子商务",
+            "code": null,
+            "match_type": "substring",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "1444cf96-2d6f-4dde-a5a3-b461dc741046",
+            "entity_type": "major",
+            "name": "跨境电子商务",
+            "code": null,
+            "match_type": "substring",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "23f7bb77-7f1f-4534-8e17-790df286548b",
+            "entity_type": "major",
+            "name": "跨境电子商务",
+            "code": "530702",
+            "match_type": "substring",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "283dd06a-b226-4113-9ce2-f6214224a07f",
+            "entity_type": "major",
+            "name": "跨境电子商务",
+            "code": null,
+            "match_type": "substring",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "28d855b3-fb55-47a9-8333-08b31bc2f565",
+            "entity_type": "major",
+            "name": "跨境电子商务",
+            "code": null,
+            "match_type": "substring",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "4843398f-554d-411b-8e81-2456cd13fad8",
+            "entity_type": "major",
+            "name": "跨境电子商务",
+            "code": "530702",
+            "match_type": "substring",
+            "source_resource": "major_profile_document"
+          },
+          {
+            "id": "5bbc863b-b538-4a44-8f10-9ddca1bae8c8",
+            "entity_type": "major",
+            "name": "跨境电子商务",
+            "code": null,
+            "match_type": "substring",
+            "source_resource": "major_profile_document"
+          }
+        ],
+        "meta": {
+          "trace_id": "4e00ef14-05ac-4807-979c-b249cdfe3b26",
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+[
+  {
+    "case": "S5_REVISED",
+    "label": "cq_selected_park",
+    "tool": "get_industrial_park",
+    "query": {},
+    "path": {
+      "park_id": "791815d2-05eb-49d8-81bc-5ffdd895b9c1"
+    }
+  },
+  {
+    "case": "S5_REVISED",
+    "label": "cq_park_enterprises",
+    "tool": "query_enterprises",
+    "query": {
+      "park_id": "791815d2-05eb-49d8-81bc-5ffdd895b9c1",
+      "pageSize": 100
+    }
+  },
+  {
+    "case": "S1_REVISED",
+    "label": "cq_chunk_reference_bundle",
+    "tool": "get_evidence_bundle",
+    "query": {},
+    "body": {
+      "references": [
+        {
+          "kind": "chunk",
+          "id": "737747bc-ef87-43f2-9522-4dc87e3c75cb"
+        },
+        {
+          "kind": "chunk",
+          "id": "9be1afef-a52a-420c-9d2f-e531c0d0bda0"
+        },
+        {
+          "kind": "chunk",
+          "id": "e6befe76-4fc9-4e05-a3c8-ee8ba8e63bef"
+        },
+        {
+          "kind": "chunk",
+          "id": "7dbae926-1163-4e22-9110-e8b3c8040c76"
+        }
+      ],
+      "max_chars": 1000
+    }
+  },
+  {
+    "case": "BOUNDARY",
+    "label": "section_initial100",
+    "tool": "read_document_section",
+    "query": {
+      "max_chars": 100
+    },
+    "path": {
+      "ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+      "section_id": "web-block-0019"
+    }
+  },
+  {
+    "case": "BOUNDARY",
+    "label": "section_resume100",
+    "tool": "read_document_section",
+    "query": {
+      "max_chars": 2000,
+      "offset": 100
+    },
+    "path": {
+      "ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+      "section_id": "web-block-0019"
+    }
+  },
+  {
+    "case": "BOUNDARY",
+    "label": "entity_major_candidates",
+    "tool": "resolve_business_entities",
+    "query": {},
+    "body": {
+      "entity_type": "major",
+      "query": "电子商务",
+      "limit": 30
+    }
+  }
+]

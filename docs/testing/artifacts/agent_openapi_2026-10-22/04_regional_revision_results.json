@@ -1,0 +1,4250 @@
+{
+  "executed_at_utc": "2026-10-22T09:44:17.301149+00:00",
+  "base_url": "http://127.0.0.1:8000",
+  "transport": "actual HTTP; no mocks or fixtures",
+  "results": [
+    {
+      "case": "S1_REVISED",
+      "label": "重庆市_dated",
+      "tool": "find_documents",
+      "method": "GET",
+      "path": "/open/v1/assets",
+      "query": {
+        "resource_type": "industry_policy",
+        "topic": "low_altitude",
+        "region": "重庆市",
+        "pageSize": 100,
+        "published_from": "2024-10-22",
+        "published_to": "2026-10-22"
+      },
+      "body": null,
+      "auth_mode": "api_key",
+      "http_status": 200,
+      "duration_ms": 72.52,
+      "trace_id": "e1616332-491c-4f1e-bee3-fcda814420be",
+      "response": {
+        "data": [
+          {
+            "id": "5c9b326d-bd76-4c59-9f1b-b1103495985c",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:3122e8e5cd0a7e0e9257be7c5f1e16f5010fc5047655b964197bb6aeeb0eead1",
+            "title": "重庆外资企业智慧服务云平台",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T03:58:39.447508Z",
+            "updated_at": "2026-10-22T04:00:30.886189Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "5f28592f-7850-4014-8e94-3bb4883a994d",
+            "version_id": "716e5bc8-becb-44bb-93eb-a1cabb44b34a",
+            "raw_object_id": "9dc2cdfa-dc91-4974-b7cf-2c4628b10263",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字贸易"
+              },
+              {
+                "type": "industry",
+                "value": "服务贸易"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2025-2029"
+              },
+              {
+                "type": "topic",
+                "value": "产业数字化转型"
+              },
+              {
+                "type": "topic",
+                "value": "国际经贸枢纽建设"
+              },
+              {
+                "type": "topic",
+                "value": "贸易高质量发展"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/9dc2cdfa-dc91-4974-b7cf-2c4628b10263/download-url",
+            "business_metadata": {
+              "title": "重庆外资企业智慧服务云平台",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": "2025-05-23",
+              "language": null,
+              "institution_name": "加快建设环大学"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "e95c3689-de61-497f-b284-a26868e53829",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:146f83314f95eef9965ec93dea6b0eddfa2267f509cbef1e9a28026a189ffc06",
+            "title": "权威发布｜事关数字贸易和服务贸易高质量发展，重庆出台行动方案→-重庆日报",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T03:57:30.850073Z",
+            "updated_at": "2026-10-22T03:58:36.030656Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "dbf725cc-9d48-45d8-9ecb-dfbee540d150",
+            "version_id": "21538a96-d49a-446a-a2ba-d786e9c1ce25",
+            "raw_object_id": "a9c8d6b4-b972-40ae-96fb-a00d45f88d2c",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字贸易"
+              },
+              {
+                "type": "industry",
+                "value": "服务贸易"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2025-2029"
+              },
+              {
+                "type": "topic",
+                "value": "产业数字化转型"
+              },
+              {
+                "type": "topic",
+                "value": "品牌建设运营"
+              },
+              {
+                "type": "topic",
+                "value": "知识产权保护"
+              },
+              {
+                "type": "topic",
+                "value": "统计监测分析体系"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/a9c8d6b4-b972-40ae-96fb-a00d45f88d2c/download-url",
+            "business_metadata": {
+              "title": "权威发布｜事关数字贸易和服务贸易高质量发展，重庆出台行动方案→-重庆日报",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": "2025-05-23",
+              "language": null,
+              "institution_name": "加快建设环大学"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "5d8fafd5-9bf1-4dc7-a6bf-b1c613626669",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:17b7773c8c7670504d8f3f387ab689c29ad2ee3d04e728c7d6e845f9386e9cd3",
+            "title": "重庆市人民政府办公厅关于印发《重庆市数字贸易和服务贸易高质量发展行动方案》的通知",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T03:56:35.583925Z",
+            "updated_at": "2026-10-22T03:58:02.045964Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+            "version_id": "6162886c-42d6-4ad0-85fb-66bf335fb7b9",
+            "raw_object_id": "0343722f-8c35-458a-9d9e-642a7915ec67",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字贸易"
+              },
+              {
+                "type": "industry",
+                "value": "服务贸易"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "industry",
+                "value": "高端制造业"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2025-2029"
+              },
+              {
+                "type": "topic",
+                "value": "产业数字化转型"
+              },
+              {
+                "type": "topic",
+                "value": "知识产权保护"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/0343722f-8c35-458a-9d9e-642a7915ec67/download-url",
+            "business_metadata": {
+              "title": "重庆市人民政府办公厅关于印发《重庆市数字贸易和服务贸易高质量发展行动方案》的通知",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": "2025-05-23",
+              "language": null,
+              "institution_name": "加快建设环大学"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "644c799e-b683-42d9-a70d-a6513484bbc4",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:4daddb0a818460a84877bf9ed58c46b3f5b64c37d46d0218b48138b694d93641",
+            "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号) - 重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号)",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-21T09:45:11.819370Z",
+            "updated_at": "2026-10-21T09:46:30.287216Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "5e6a5808-4ac3-4cae-8b96-dac632ae7242",
+            "version_id": "644a5184-c380-44f0-929d-b8a005a99301",
+            "raw_object_id": "93301039-0579-4c1b-a6ab-b8bf8cb721a9",
+            "tags": [
+              {
+                "type": "ability",
+                "value": "品牌建设"
+              },
+              {
+                "type": "ability",
+                "value": "数字化转型升级"
+              },
+              {
+                "type": "ability",
+                "value": "数智赋能"
+              },
+              {
+                "type": "ability",
+                "value": "诚信合规"
+              },
+              {
+                "type": "ability",
+                "value": "质量管理"
+              },
+              {
+                "type": "industry",
+                "value": "数字经济"
+              },
+              {
+                "type": "industry",
+                "value": "电子商务"
+              },
+              {
+                "type": "industry",
+                "value": "直播电商"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2026-2028"
+              },
+              {
+                "type": "topic",
+                "value": "公共服务平台"
+              },
+              {
+                "type": "topic",
+                "value": "数字消费"
+              },
+              {
+                "type": "topic",
+                "value": "网货产业带"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/93301039-0579-4c1b-a6ab-b8bf8cb721a9/download-url",
+            "business_metadata": {
+              "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号) - 重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号)",
+              "publisher": null,
+              "authors": [
+                "发布单位：重庆市商务委员会",
+                "重庆市商务委员会"
+              ],
+              "chief_editors": [],
+              "publish_date": "2026-08-24",
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "5ef07684-659c-4ab0-9c43-c8a87d4a2eba",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:ec87d9748e13a456d281054691765c1782935a82fdb591fe589e8a61ded5a0b5",
+            "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划 （2026-2028年）》的通知 - - [ 索引号 ] 11500229660853981Q/2026-00009",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-21T09:43:32.597930Z",
+            "updated_at": "2026-10-21T09:45:06.053424Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "0ee8a187-22dc-417e-bc29-841b29026d8a",
+            "version_id": "cec63b2d-c6ee-44f4-bf9b-94c81974f623",
+            "raw_object_id": "43f9213f-329e-4580-aa83-db3eb358e74c",
+            "tags": [
+              {
+                "type": "ability",
+                "value": "品牌建设"
+              },
+              {
+                "type": "ability",
+                "value": "数字化转型升级"
+              },
+              {
+                "type": "ability",
+                "value": "数智技术赋能"
+              },
+              {
+                "type": "ability",
+                "value": "诚信合规"
+              },
+              {
+                "type": "ability",
+                "value": "质量管理"
+              },
+              {
+                "type": "industry",
+                "value": "农村电商"
+              },
+              {
+                "type": "industry",
+                "value": "数字经济"
+              },
+              {
+                "type": "industry",
+                "value": "电子商务"
+              },
+              {
+                "type": "industry",
+                "value": "直播电商"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2026-2028"
+              },
+              {
+                "type": "topic",
+                "value": "丝路电商"
+              },
+              {
+                "type": "topic",
+                "value": "数字消费"
+              },
+              {
+                "type": "topic",
+                "value": "网货产业带"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/43f9213f-329e-4580-aa83-db3eb358e74c/download-url",
+            "business_metadata": {
+              "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划 （2026-2028年）》的通知",
+              "publisher": null,
+              "authors": [
+                "重庆市商务委员会"
+              ],
+              "chief_editors": [],
+              "publish_date": "2026-08-24",
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "f33a3d47-5383-4f86-b95d-e91e51e5e673",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:f293749f2d81431db6960cfdcb90e34ce7773a66a722a965402892ea9bca81a1",
+            "title": "重庆外资企业智慧服务云平台",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-21T09:43:31.546722Z",
+            "updated_at": "2026-10-21T09:45:08.394701Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "df51b114-d0e1-447a-8892-0d4ea269e606",
+            "version_id": "b7a5e677-71c7-492d-bf1a-851b880f3661",
+            "raw_object_id": "d0f92aaf-411c-43f9-b34f-f747ad1a66e4",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字经济"
+              },
+              {
+                "type": "industry",
+                "value": "电子商务"
+              },
+              {
+                "type": "industry",
+                "value": "直播电商"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2026-2028"
+              },
+              {
+                "type": "topic",
+                "value": "数商兴农"
+              },
+              {
+                "type": "topic",
+                "value": "数字消费"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/d0f92aaf-411c-43f9-b34f-f747ad1a66e4/download-url",
+            "business_metadata": {
+              "title": "重庆外资企业智慧服务云平台",
+              "publisher": null,
+              "authors": [
+                "来源: 重庆市商务委员会",
+                "重庆市商务委员会"
+              ],
+              "chief_editors": [],
+              "publish_date": "2026-08-24",
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "5b89eaf1-1b1c-4980-a2d7-323066f775d7",
+            "data_source_id": "ad7597ac-5d39-47a6-8dd8-aa536d23c413",
+            "source_object_key": "websearch_url:sha256:ec34c086aa63cd7c38ed4e01fc141d76e6764b6d306647040121113329afb5f3",
+            "title": "重庆市人民政府关于印发《重庆市“十五五”现代服务业发展规划（2026—2030 年）》的通知",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-14T06:34:34.470262Z",
+            "updated_at": "2026-10-14T06:36:01.362624Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "533f1174-233a-42f9-a82e-a547bb2d31c3",
+            "version_id": "0ac85cfa-690b-4280-ba12-3bf98a081721",
+            "raw_object_id": "2f46f055-5e7a-4d71-83db-67eb6e1423a3",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "现代服务业"
+              },
+              {
+                "type": "industry",
+                "value": "生产性服务业"
+              },
+              {
+                "type": "industry",
+                "value": "生活性服务业"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2026-2030"
+              },
+              {
+                "type": "topic",
+                "value": "9611现代服务业体系"
+              },
+              {
+                "type": "topic",
+                "value": "服务业扩能提质"
+              },
+              {
+                "type": "topic",
+                "value": "重庆服务"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/2f46f055-5e7a-4d71-83db-67eb6e1423a3/download-url",
+            "business_metadata": {
+              "title": "重庆市人民政府关于印发《重庆市“十五五”现代服务业发展规划（2026—2030 年）》的通知",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": "2026-07-15",
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          }
+        ],
+        "meta": {
+          "trace_id": "e1616332-491c-4f1e-bee3-fcda814420be",
+          "page": 1,
+          "page_size": 100,
+          "total": 7
+        },
+        "aggregations": null
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case": "S1_REVISED",
+      "label": "重庆市_undated",
+      "tool": "find_documents",
+      "method": "GET",
+      "path": "/open/v1/assets",
+      "query": {
+        "resource_type": "industry_policy",
+        "topic": "low_altitude",
+        "region": "重庆市",
+        "pageSize": 100
+      },
+      "body": null,
+      "auth_mode": "api_key",
+      "http_status": 200,
+      "duration_ms": 170.57,
+      "trace_id": "00e34db9-c83e-4de8-9d1b-42323b6787d6",
+      "response": {
+        "data": [
+          {
+            "id": "e97cae5d-327a-4e16-a337-7b5c6a4fd7af",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:c98ebeffb4261bb382211b2bb34d5da643e4714a4701532d3437eb0f7bd26a87",
+            "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号) - 重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号)",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T06:30:28.797872Z",
+            "updated_at": "2026-10-22T06:31:47.433012Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "deca899e-5e54-42d6-8a77-1b53ab1a1b8f",
+            "version_id": "a431857b-85b4-40d3-8822-bf8bc26c38ae",
+            "raw_object_id": "d808f7f9-8571-4036-b28e-b5ce1af5d59b",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "农村电商"
+              },
+              {
+                "type": "industry",
+                "value": "数字经济"
+              },
+              {
+                "type": "industry",
+                "value": "电子商务"
+              },
+              {
+                "type": "industry",
+                "value": "直播电商"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2026-2028"
+              },
+              {
+                "type": "topic",
+                "value": "商务高质量发展"
+              },
+              {
+                "type": "topic",
+                "value": "数字消费"
+              },
+              {
+                "type": "topic",
+                "value": "电商主体培育"
+              },
+              {
+                "type": "topic",
+                "value": "网货产业带"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/d808f7f9-8571-4036-b28e-b5ce1af5d59b/download-url",
+            "business_metadata": {
+              "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号)",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "d29fbdd5-22d6-40d0-a9ad-88b433dcae85",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:200d5a969bb7366d25a761be5d1119720d2d7f4b181040ecfb6b6472da764579",
+            "title": "重庆市人民政府关于加快电子商务产业发展的意见 - [ 索引号 ] | 11500000MB0W8117XN/2023-00684  | [ 发文字号 ] | 渝府发〔2019〕17号",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T06:30:28.780919Z",
+            "updated_at": "2026-10-22T06:31:33.211610Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "f01857bc-f027-4a0f-a701-78f58b430168",
+            "version_id": "82743c88-9741-4db5-9d4e-f259e9323edb",
+            "raw_object_id": "c67bd482-8f12-4bf7-be68-d5ccbd7bb32e",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "农村电子商务"
+              },
+              {
+                "type": "industry",
+                "value": "数字商务经济"
+              },
+              {
+                "type": "industry",
+                "value": "电子商务"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电子商务"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2019-2022"
+              },
+              {
+                "type": "topic",
+                "value": "乡村振兴"
+              },
+              {
+                "type": "topic",
+                "value": "创新创业"
+              },
+              {
+                "type": "topic",
+                "value": "脱贫攻坚"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/c67bd482-8f12-4bf7-be68-d5ccbd7bb32e/download-url",
+            "business_metadata": {
+              "title": "重庆市人民政府关于加快电子商务产业发展的意见 - [ 索引号 ] | 11500000MB0W8117XN/2023-00684  | [ 发文字号 ] | 渝府发〔2019〕17号",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "90327837-a62c-48af-8173-32b51527ce0e",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:c771fa4f1b202ed5f1a8a632b0ee0ce67394a13da52bf56a6b90e7d41731ed5b",
+            "title": "推动内陆开放国际合作引领区建设，重庆今年这样干-上游新闻 汇聚向上的力量",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T04:03:51.870363Z",
+            "updated_at": "2026-10-22T04:05:13.065709Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "95803ca7-ad02-4680-988b-db2ae77ba032",
+            "version_id": "559f85ec-b3f5-4916-9d78-8969dda2ae22",
+            "raw_object_id": "61383cf6-9fac-46e8-815a-193a13d8624e",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "国际物流"
+              },
+              {
+                "type": "industry",
+                "value": "数字贸易"
+              },
+              {
+                "type": "industry",
+                "value": "服务业"
+              },
+              {
+                "type": "industry",
+                "value": "汽车产业"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "两江新区"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "region",
+                "value": "重庆高新区"
+              },
+              {
+                "type": "time_range",
+                "value": "2025"
+              },
+              {
+                "type": "topic",
+                "value": "内陆开放国际合作引领区建设"
+              },
+              {
+                "type": "topic",
+                "value": "制度型开放"
+              },
+              {
+                "type": "topic",
+                "value": "国际化营商环境"
+              },
+              {
+                "type": "topic",
+                "value": "多式联运集疏运体系"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/61383cf6-9fac-46e8-815a-193a13d8624e/download-url",
+            "business_metadata": {
+              "title": "推动内陆开放国际合作引领区建设，重庆今年这样干-上游新闻 汇聚向上的力量",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null,
+              "institution_name": "国际学校"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "c8f54c7d-0d83-4ca7-92ec-a39cfa1b3159",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:b220e64b40a9e03603d1b02d2a9a71bb44e187f070f4a4b96b77e206c53cd136",
+            "title": "推动内陆开放国际合作引领区建设 重庆今年这样干！",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T04:03:22.347857Z",
+            "updated_at": "2026-10-22T04:04:33.732577Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "829f8529-3465-411a-9cdf-9a26d1a75d73",
+            "version_id": "29d70928-aa6c-4587-b482-4640690efee4",
+            "raw_object_id": "3acf87d5-dbd9-4897-8e2f-18fba85dd272",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字经济"
+              },
+              {
+                "type": "industry",
+                "value": "数字贸易"
+              },
+              {
+                "type": "industry",
+                "value": "汽车产业"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "两江新区"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "region",
+                "value": "重庆高新区"
+              },
+              {
+                "type": "time_range",
+                "value": "2025"
+              },
+              {
+                "type": "topic",
+                "value": "内陆开放国际合作引领区建设"
+              },
+              {
+                "type": "topic",
+                "value": "制度型开放"
+              },
+              {
+                "type": "topic",
+                "value": "国际化营商环境"
+              },
+              {
+                "type": "topic",
+                "value": "多式联运集疏运体系"
+              },
+              {
+                "type": "topic",
+                "value": "数据跨境流动"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/3acf87d5-dbd9-4897-8e2f-18fba85dd272/download-url",
+            "business_metadata": {
+              "title": "推动内陆开放国际合作引领区建设 重庆今年这样干！",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null,
+              "institution_name": "国际学校"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "42ac044e-2ed3-4c8a-aea1-c6fdede52910",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:b5622245e72c86c9f3d30087644feaa1c74946d03c2634f47972fdf68d0bd1b5",
+            "title": "推动内陆开放国际合作引领区建设，重庆今年这样干！ - 推动内陆开放国际合作引领区建设，重庆今年这样干！",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T04:02:37.414559Z",
+            "updated_at": "2026-10-22T04:04:04.986063Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "d487296e-b4b1-4a6a-9e55-c9bdf71573d2",
+            "version_id": "0ac9c1e3-17c6-41d4-801a-f33a83577401",
+            "raw_object_id": "025c904b-e90c-4c69-8fa3-e76f3d2d1723",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字贸易"
+              },
+              {
+                "type": "industry",
+                "value": "服务业"
+              },
+              {
+                "type": "industry",
+                "value": "汽车产业"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "两江新区"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "region",
+                "value": "重庆高新区"
+              },
+              {
+                "type": "time_range",
+                "value": "2025"
+              },
+              {
+                "type": "topic",
+                "value": "内陆开放国际合作引领区建设"
+              },
+              {
+                "type": "topic",
+                "value": "内陆开放综合枢纽"
+              },
+              {
+                "type": "topic",
+                "value": "制度型开放"
+              },
+              {
+                "type": "topic",
+                "value": "国际消费中心城市"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/025c904b-e90c-4c69-8fa3-e76f3d2d1723/download-url",
+            "business_metadata": {
+              "title": "推动内陆开放国际合作引领区建设，重庆今年这样干！",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null,
+              "institution_name": "国际学校"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "02ea9f6c-b9f2-4162-b3f0-84290ebc32fb",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:6c9c6e9a0e5f10a14ad7159bcd14ab92a9d5e9283c066e9992d4c11e3c0f64a1",
+            "title": "重庆全面融入共建“一带一路”蓝皮书（2013—2023） - 全面深化服务贸易创新发展试点，不断扩大服务贸易规模，建设全国重要的服务贸易基地",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T04:02:25.453457Z",
+            "updated_at": "2026-10-22T06:37:21.273588Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "4887605c-70b7-49aa-9991-8f97f925890e",
+            "version_id": "d5323134-16e6-4e89-8e2e-9a1677e5efdf",
+            "raw_object_id": "577e1f12-2538-46ed-b5c8-32125f82b8b9",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "加工贸易"
+              },
+              {
+                "type": "industry",
+                "value": "服务贸易"
+              },
+              {
+                "type": "industry",
+                "value": "货物贸易"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆"
+              },
+              {
+                "type": "time_range",
+                "value": "2013-2023"
+              },
+              {
+                "type": "topic",
+                "value": "year_range"
+              },
+              {
+                "type": "topic",
+                "value": "共建“一带一路”"
+              },
+              {
+                "type": "topic",
+                "value": "共建“一带一路”"
+              },
+              {
+                "type": "topic",
+                "value": "加工贸易"
+              },
+              {
+                "type": "topic",
+                "value": "外商投资"
+              },
+              {
+                "type": "topic",
+                "value": "外商投资"
+              },
+              {
+                "type": "topic",
+                "value": "服务贸易"
+              },
+              {
+                "type": "topic",
+                "value": "营商环境优化升级"
+              },
+              {
+                "type": "topic",
+                "value": "营商环境优化升级"
+              },
+              {
+                "type": "topic",
+                "value": "货物贸易"
+              },
+              {
+                "type": "topic",
+                "value": "跨境电商"
+              },
+              {
+                "type": "topic",
+                "value": "重庆"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/577e1f12-2538-46ed-b5c8-32125f82b8b9/download-url",
+            "business_metadata": {
+              "title": "重庆全面融入共建“一带一路”蓝皮书（2013—2023） - 全面深化服务贸易创新发展试点，不断扩大服务贸易规模，建设全国重要的服务贸易基地",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null,
+              "institution_name": "示范学校"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "423eca46-17f8-48f5-ab11-525bd22ba5eb",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:c7e5531e6193b9496ded631bbb64906fa1081c1417209326d93be03e607136b2",
+            "title": "重庆：15条政策措施推进跨境电商高质量发展",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T04:01:51.553630Z",
+            "updated_at": "2026-10-22T04:03:08.920769Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "384271d9-1e1b-48f5-9a85-4bea33b3b997",
+            "version_id": "85c90eee-0038-4f65-857b-85bad744a330",
+            "raw_object_id": "219a293b-f0ec-4909-a09b-27a8c05ddce1",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2023"
+              },
+              {
+                "type": "topic",
+                "value": "中欧班列"
+              },
+              {
+                "type": "topic",
+                "value": "市场主体引育"
+              },
+              {
+                "type": "topic",
+                "value": "西部陆海新通道"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/219a293b-f0ec-4909-a09b-27a8c05ddce1/download-url",
+            "business_metadata": {
+              "title": "重庆：15条政策措施推进跨境电商高质量发展",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null,
+              "institution_name": "汉森商学院"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "3b295478-103e-428d-af8c-2f5fa993f884",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:2944f5f45a55c1e959c870cfddf1b7dfcbe4657230b6dc2978410d3db7f30fb7",
+            "title": "政策与产业共振 助“重庆造”产品高效“出海”",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T04:00:32.049100Z",
+            "updated_at": "2026-10-22T04:01:56.744596Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "f431d448-5ba3-4fe7-9d4b-9314fb671b1e",
+            "version_id": "a1bf383e-74bc-4cd1-bb33-c8641a0d32b0",
+            "raw_object_id": "c8c339b7-2f2d-4a64-938c-d5e01271fe62",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字贸易"
+              },
+              {
+                "type": "industry",
+                "value": "智能网联新能源汽车"
+              },
+              {
+                "type": "industry",
+                "value": "服务贸易"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2023"
+              },
+              {
+                "type": "time_range",
+                "value": "2025"
+              },
+              {
+                "type": "time_range",
+                "value": "2025-2029"
+              },
+              {
+                "type": "time_range",
+                "value": "2027"
+              },
+              {
+                "type": "topic",
+                "value": "DTC品牌"
+              },
+              {
+                "type": "topic",
+                "value": "RCEP"
+              },
+              {
+                "type": "topic",
+                "value": "中欧班列"
+              },
+              {
+                "type": "topic",
+                "value": "产品出海"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/c8c339b7-2f2d-4a64-938c-d5e01271fe62/download-url",
+            "business_metadata": {
+              "title": "政策与产业共振 助“重庆造”产品高效“出海”",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "bdf97fc4-f7f6-4d99-bce8-988176c981e6",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:ffa518c1b6c8cfad2b681eb9b981401889a97786c4bb7bf89816fb4fbf863b0e",
+            "title": "会计视野法规库:重庆市人民政府办公厅关于印发《重庆市数字贸易和服务贸易高质量发展行动方案》的通知",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T04:00:25.064868Z",
+            "updated_at": "2026-10-22T04:01:50.780173Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "dbeb3e98-d288-4cc0-9e0d-14fd75e79ac9",
+            "version_id": "79e8a454-89f1-4510-9728-d7ef1e06c2a4",
+            "raw_object_id": "428b3083-b1a4-41ea-bbd9-adc1cb0579ab",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字贸易"
+              },
+              {
+                "type": "industry",
+                "value": "服务贸易"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2025-2029"
+              },
+              {
+                "type": "topic",
+                "value": "产业数字化转型"
+              },
+              {
+                "type": "topic",
+                "value": "品牌培育"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/428b3083-b1a4-41ea-bbd9-adc1cb0579ab/download-url",
+            "business_metadata": {
+              "title": "会计视野法规库:重庆市人民政府办公厅关于印发《重庆市数字贸易和服务贸易高质量发展行动方案》的通知",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null,
+              "institution_name": "加快建设环大学"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "3ad1f4e6-6aec-4b76-9c2a-149bd3817a96",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:5fbb808308091f8309d79a896035e4ea8b9bf783a6b536fdaa799bc64e5abbf0",
+            "title": "重庆市数字贸易和服务贸易高质量发展行动方案 - 2025年重庆市人民政府办公厅印发的行动方案",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T03:59:58.482487Z",
+            "updated_at": "2026-10-22T04:00:56.349813Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "1c9a5294-b7db-45c5-88b0-6e9fb0bbb37c",
+            "version_id": "883c8fe0-71bf-43e1-986c-226b4ed3ee38",
+            "raw_object_id": "7be052a3-e097-4e49-825b-39095603ed0c",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字贸易"
+              },
+              {
+                "type": "industry",
+                "value": "服务贸易"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2025-2029"
+              },
+              {
+                "type": "topic",
+                "value": "产业数字化转型"
+              },
+              {
+                "type": "topic",
+                "value": "国际经贸枢纽"
+              },
+              {
+                "type": "topic",
+                "value": "知识产权保护"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/7be052a3-e097-4e49-825b-39095603ed0c/download-url",
+            "business_metadata": {
+              "title": "重庆市数字贸易和服务贸易高质量发展行动方案",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null,
+              "institution_name": "加快建设环大学"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "df34e67f-35c7-4c53-947e-76cd261f8380",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:7861f828df164d2bcaff99fae881f247274a87b6a9235127cc1d256aa1254ead",
+            "title": "重庆出台15条政策推动跨境电商发展",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T03:59:12.553501Z",
+            "updated_at": "2026-10-22T04:00:24.237668Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "19c91ab7-7185-4fb4-81f2-4b2608a58905",
+            "version_id": "3fb24f8b-4eca-42cb-827b-15472d810024",
+            "raw_object_id": "cc37dcd9-5c7e-44c2-95fe-392716bffbf6",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2024-2027"
+              },
+              {
+                "type": "topic",
+                "value": "中欧班列"
+              },
+              {
+                "type": "topic",
+                "value": "西部陆海新通道"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/cc37dcd9-5c7e-44c2-95fe-392716bffbf6/download-url",
+            "business_metadata": {
+              "title": "重庆出台15条政策推动跨境电商发展",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null,
+              "institution_name": "汉森商学院"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "5c9b326d-bd76-4c59-9f1b-b1103495985c",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:3122e8e5cd0a7e0e9257be7c5f1e16f5010fc5047655b964197bb6aeeb0eead1",
+            "title": "重庆外资企业智慧服务云平台",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T03:58:39.447508Z",
+            "updated_at": "2026-10-22T04:00:30.886189Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "5f28592f-7850-4014-8e94-3bb4883a994d",
+            "version_id": "716e5bc8-becb-44bb-93eb-a1cabb44b34a",
+            "raw_object_id": "9dc2cdfa-dc91-4974-b7cf-2c4628b10263",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字贸易"
+              },
+              {
+                "type": "industry",
+                "value": "服务贸易"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2025-2029"
+              },
+              {
+                "type": "topic",
+                "value": "产业数字化转型"
+              },
+              {
+                "type": "topic",
+                "value": "国际经贸枢纽建设"
+              },
+              {
+                "type": "topic",
+                "value": "贸易高质量发展"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/9dc2cdfa-dc91-4974-b7cf-2c4628b10263/download-url",
+            "business_metadata": {
+              "title": "重庆外资企业智慧服务云平台",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": "2025-05-23",
+              "language": null,
+              "institution_name": "加快建设环大学"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "0a24312b-8101-4f8e-869a-2b49122d7e07",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:1567010f941bc33031191848dee335e2829bfe6392e8eed70bbad0d8df715e03",
+            "title": "重庆：2025年到2029年全市数字贸易年均递增10%",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T03:58:37.254547Z",
+            "updated_at": "2026-10-22T03:59:56.734695Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "b7a9528b-d0b2-4942-8e7b-63ff3c490372",
+            "version_id": "e36522c6-64fc-426c-bad9-697ff106a4fb",
+            "raw_object_id": "a86170c5-4987-42aa-9c97-b4a65eeb1f79",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字贸易"
+              },
+              {
+                "type": "industry",
+                "value": "服务贸易"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "industry",
+                "value": "高端制造业"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2025-2027"
+              },
+              {
+                "type": "time_range",
+                "value": "2025-2029"
+              },
+              {
+                "type": "topic",
+                "value": "产业数字化转型"
+              },
+              {
+                "type": "topic",
+                "value": "外贸发展新动能"
+              },
+              {
+                "type": "topic",
+                "value": "数据贸易产业链"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/a86170c5-4987-42aa-9c97-b4a65eeb1f79/download-url",
+            "business_metadata": {
+              "title": "重庆：2025年到2029年全市数字贸易年均递增10%",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null,
+              "institution_name": "加快建设环大学"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "e95c3689-de61-497f-b284-a26868e53829",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:146f83314f95eef9965ec93dea6b0eddfa2267f509cbef1e9a28026a189ffc06",
+            "title": "权威发布｜事关数字贸易和服务贸易高质量发展，重庆出台行动方案→-重庆日报",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T03:57:30.850073Z",
+            "updated_at": "2026-10-22T03:58:36.030656Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "dbf725cc-9d48-45d8-9ecb-dfbee540d150",
+            "version_id": "21538a96-d49a-446a-a2ba-d786e9c1ce25",
+            "raw_object_id": "a9c8d6b4-b972-40ae-96fb-a00d45f88d2c",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字贸易"
+              },
+              {
+                "type": "industry",
+                "value": "服务贸易"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2025-2029"
+              },
+              {
+                "type": "topic",
+                "value": "产业数字化转型"
+              },
+              {
+                "type": "topic",
+                "value": "品牌建设运营"
+              },
+              {
+                "type": "topic",
+                "value": "知识产权保护"
+              },
+              {
+                "type": "topic",
+                "value": "统计监测分析体系"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/a9c8d6b4-b972-40ae-96fb-a00d45f88d2c/download-url",
+            "business_metadata": {
+              "title": "权威发布｜事关数字贸易和服务贸易高质量发展，重庆出台行动方案→-重庆日报",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": "2025-05-23",
+              "language": null,
+              "institution_name": "加快建设环大学"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "6cb23c81-a266-400e-aab0-c3959d5c88b1",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:aea7f6fc23fed5c1ff26c571b409a8fac8331eeda70c898ab1456cf96212ccd3",
+            "title": "重庆：2025年到2029年全市数字贸易年均递增10% - 重庆：2025年到2029年全市数字贸易年均递增10%",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T03:56:49.137929Z",
+            "updated_at": "2026-10-22T03:58:38.125125Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "685d0968-b71a-4d23-bd4c-7c9e082871b0",
+            "version_id": "f66cfa3c-46cd-488c-988d-9295b52be2ea",
+            "raw_object_id": "11cbb616-6ba8-4042-a42e-32e2499c43f2",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "动漫游戏产业"
+              },
+              {
+                "type": "industry",
+                "value": "数字出版"
+              },
+              {
+                "type": "industry",
+                "value": "数字贸易"
+              },
+              {
+                "type": "industry",
+                "value": "服务贸易"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2025-2027"
+              },
+              {
+                "type": "time_range",
+                "value": "2025-2029"
+              },
+              {
+                "type": "topic",
+                "value": "产业数字化转型"
+              },
+              {
+                "type": "topic",
+                "value": "数据要素升级"
+              },
+              {
+                "type": "topic",
+                "value": "知识产权保护"
+              },
+              {
+                "type": "topic",
+                "value": "跨境产业链供应链"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/11cbb616-6ba8-4042-a42e-32e2499c43f2/download-url",
+            "business_metadata": {
+              "title": "重庆：2025年到2029年全市数字贸易年均递增10%",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null,
+              "institution_name": "加快建设环大学"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "5d8fafd5-9bf1-4dc7-a6bf-b1c613626669",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:17b7773c8c7670504d8f3f387ab689c29ad2ee3d04e728c7d6e845f9386e9cd3",
+            "title": "重庆市人民政府办公厅关于印发《重庆市数字贸易和服务贸易高质量发展行动方案》的通知",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T03:56:35.583925Z",
+            "updated_at": "2026-10-22T03:58:02.045964Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+            "version_id": "6162886c-42d6-4ad0-85fb-66bf335fb7b9",
+            "raw_object_id": "0343722f-8c35-458a-9d9e-642a7915ec67",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字贸易"
+              },
+              {
+                "type": "industry",
+                "value": "服务贸易"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "industry",
+                "value": "高端制造业"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2025-2029"
+              },
+              {
+                "type": "topic",
+                "value": "产业数字化转型"
+              },
+              {
+                "type": "topic",
+                "value": "知识产权保护"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/0343722f-8c35-458a-9d9e-642a7915ec67/download-url",
+            "business_metadata": {
+              "title": "重庆市人民政府办公厅关于印发《重庆市数字贸易和服务贸易高质量发展行动方案》的通知",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": "2025-05-23",
+              "language": null,
+              "institution_name": "加快建设环大学"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "01ed2ed6-ddef-4756-bdd2-44c6fcaec91b",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:23a44d02837bbb6e5f692bf072bd2e374c18c506a3bca2dca12c7b743fe517d0",
+            "title": "重庆市人民政府办公厅关于印发《重庆市数字贸易和服务贸易高质量发展行动方案》的通知",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T03:55:29.231108Z",
+            "updated_at": "2026-10-22T03:57:16.839461Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "b0cc0e54-b861-46ff-b433-f02d40a83e88",
+            "version_id": "4b3f969e-fd3b-4287-93d4-03e302d5fcc5",
+            "raw_object_id": "d6213e75-358e-4e3e-a8fa-7ab3494f12a7",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字贸易"
+              },
+              {
+                "type": "industry",
+                "value": "服务贸易"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2025-2029"
+              },
+              {
+                "type": "topic",
+                "value": "国际经贸枢纽"
+              },
+              {
+                "type": "topic",
+                "value": "知识产权保护"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/d6213e75-358e-4e3e-a8fa-7ab3494f12a7/download-url",
+            "business_metadata": {
+              "title": "重庆市人民政府办公厅关于印发《重庆市数字贸易和服务贸易高质量发展行动方案》的通知",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null,
+              "institution_name": "加快建设环大学"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "4fb7f08e-bda2-42ee-8428-da0ec2652792",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:71440a1bdb3ae864c4ca1fec9ff2e3ae49b0f526b83d41f930d7acef6ca9478f",
+            "title": "重庆市推进跨境电商高质量发展若干措施",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T03:55:27.765991Z",
+            "updated_at": "2026-10-22T03:56:48.404068Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "e894fa96-699a-4e78-8f6d-c12c8cfe8e84",
+            "version_id": "e582b9f2-145f-44f9-b5e8-c018cb8c9a5c",
+            "raw_object_id": "dcb0e00c-0008-456f-87b6-435ef21435ab",
+            "tags": [
+              {
+                "type": "ability",
+                "value": "数据分析"
+              },
+              {
+                "type": "ability",
+                "value": "法律支持"
+              },
+              {
+                "type": "ability",
+                "value": "知识产权代理"
+              },
+              {
+                "type": "ability",
+                "value": "营销推广"
+              },
+              {
+                "type": "ability",
+                "value": "软件开发"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2023"
+              },
+              {
+                "type": "time_range",
+                "value": "2023-2027"
+              },
+              {
+                "type": "topic",
+                "value": "完善跨境电商专业服务体系"
+              },
+              {
+                "type": "topic",
+                "value": "引育壮大跨境电商主体"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/dcb0e00c-0008-456f-87b6-435ef21435ab/download-url",
+            "business_metadata": {
+              "title": "重庆市推进跨境电商高质量发展若干措施",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "bcde6c5b-a972-4145-a1d8-b163f6b0e8f1",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:7e45f48a3dbbe7e2a0f7cd59825293e01de443a5c70b9bdecb1371508d2b99dd",
+            "title": "重庆市人民政府办公厅关于印发《重庆市推进跨境电商高质量发展若干措施》的通知 (渝府办发〔2023〕92号) - 重庆市人民政府办公厅关于印发《重庆市推进跨境电商高质量发展若干措施》的通知 (渝府办发〔2023〕92号)",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T03:54:08.361357Z",
+            "updated_at": "2026-10-22T03:55:26.458321Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "d7c2a1d4-09ef-4a88-9f60-08c8fc01a70f",
+            "version_id": "6dab0fff-6769-4fef-8635-5b8599099eb8",
+            "raw_object_id": "e8dfa894-e748-4fe5-8610-3080988af920",
+            "tags": [
+              {
+                "type": "ability",
+                "value": "数据分析"
+              },
+              {
+                "type": "ability",
+                "value": "营销推广"
+              },
+              {
+                "type": "ability",
+                "value": "软件开发"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2023-2027"
+              },
+              {
+                "type": "topic",
+                "value": "产业园区建设"
+              },
+              {
+                "type": "topic",
+                "value": "产业带建设"
+              },
+              {
+                "type": "topic",
+                "value": "品牌建设"
+              },
+              {
+                "type": "topic",
+                "value": "知识产权保护"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/e8dfa894-e748-4fe5-8610-3080988af920/download-url",
+            "business_metadata": {
+              "title": "重庆市人民政府办公厅关于印发《重庆市推进跨境电商高质量发展若干措施》的通知 (渝府办发〔2023〕92号)",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "0e4cce6e-6bbf-464e-b470-3fe7007c9fa4",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:2dfde11f3950b2cb2a9e77ae25956284f56548613b4d512153f8e5e611bcca67",
+            "title": "重庆市推进跨境电商高质量发展若干措施 - 2023年12月4日重庆市人民政府办公厅印发的文件",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T03:54:05.185696Z",
+            "updated_at": "2026-10-22T03:55:12.833325Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "9af6085f-e92e-4118-aa23-55a1e9ca35e2",
+            "version_id": "b784b7c3-6a03-452c-a5e9-754d7c3376ec",
+            "raw_object_id": "09ebcf4b-d0a5-4a17-ae7b-fa8793585edc",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2023-2027"
+              },
+              {
+                "type": "topic",
+                "value": "跨境电商产业园区建设"
+              },
+              {
+                "type": "topic",
+                "value": "跨境电商产业带"
+              },
+              {
+                "type": "topic",
+                "value": "跨境电商品牌建设"
+              },
+              {
+                "type": "topic",
+                "value": "跨境电商新业态"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/09ebcf4b-d0a5-4a17-ae7b-fa8793585edc/download-url",
+            "business_metadata": {
+              "title": "重庆市推进跨境电商高质量发展若干措施",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "644c799e-b683-42d9-a70d-a6513484bbc4",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:4daddb0a818460a84877bf9ed58c46b3f5b64c37d46d0218b48138b694d93641",
+            "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号) - 重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号)",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-21T09:45:11.819370Z",
+            "updated_at": "2026-10-21T09:46:30.287216Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "5e6a5808-4ac3-4cae-8b96-dac632ae7242",
+            "version_id": "644a5184-c380-44f0-929d-b8a005a99301",
+            "raw_object_id": "93301039-0579-4c1b-a6ab-b8bf8cb721a9",
+            "tags": [
+              {
+                "type": "ability",
+                "value": "品牌建设"
+              },
+              {
+                "type": "ability",
+                "value": "数字化转型升级"
+              },
+              {
+                "type": "ability",
+                "value": "数智赋能"
+              },
+              {
+                "type": "ability",
+                "value": "诚信合规"
+              },
+              {
+                "type": "ability",
+                "value": "质量管理"
+              },
+              {
+                "type": "industry",
+                "value": "数字经济"
+              },
+              {
+                "type": "industry",
+                "value": "电子商务"
+              },
+              {
+                "type": "industry",
+                "value": "直播电商"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2026-2028"
+              },
+              {
+                "type": "topic",
+                "value": "公共服务平台"
+              },
+              {
+                "type": "topic",
+                "value": "数字消费"
+              },
+              {
+                "type": "topic",
+                "value": "网货产业带"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/93301039-0579-4c1b-a6ab-b8bf8cb721a9/download-url",
+            "business_metadata": {
+              "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号) - 重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号)",
+              "publisher": null,
+              "authors": [
+                "发布单位：重庆市商务委员会",
+                "重庆市商务委员会"
+              ],
+              "chief_editors": [],
+              "publish_date": "2026-08-24",
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "df184104-c798-4ea0-9166-3f91d3696a2d",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:2050de40bfffca10f29c2f6042949716c51c26b63fea58f74d0bcb15c22c5385",
+            "title": "重庆市“十四五”电子商务发展规划",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-21T09:44:47.038330Z",
+            "updated_at": "2026-10-21T09:46:20.187066Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "2189acbc-4e80-4f5b-9ebf-bf6c8285fbbe",
+            "version_id": "b64d80e2-88f6-4b10-9d70-4ee844f00573",
+            "raw_object_id": "30350909-1674-49e5-83a2-82449ecd8301",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "产业电商"
+              },
+              {
+                "type": "industry",
+                "value": "数字经济"
+              },
+              {
+                "type": "industry",
+                "value": "电子商务"
+              },
+              {
+                "type": "industry",
+                "value": "直播电商"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2021-2025"
+              },
+              {
+                "type": "topic",
+                "value": "乡村振兴"
+              },
+              {
+                "type": "topic",
+                "value": "数商兴农"
+              },
+              {
+                "type": "topic",
+                "value": "数字消费"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/30350909-1674-49e5-83a2-82449ecd8301/download-url",
+            "business_metadata": {
+              "title": "重庆市“十四五”电子商务发展规划",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null,
+              "institution_name": "高校建设电商产业学院"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "7b253d7e-b37b-4d54-8b91-9c1cbc490b9f",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:94c6b98a9ad38785a22a1a91f2de07b9966c774b60e59e16a1882b0ff71194d4",
+            "title": "3.2=关于印发加快发展新型消费释放消费潜力若干措施的通知",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-21T09:44:43.498196Z",
+            "updated_at": "2026-10-21T09:46:03.665231Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "2752577c-bbe0-4d4f-a131-e3823937c1a6",
+            "version_id": "30f66c19-81b6-482d-beea-a70de696ff4e",
+            "raw_object_id": "e7798f4e-1b6f-4ac0-a991-66d1f99e3dab",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "夜间经济"
+              },
+              {
+                "type": "industry",
+                "value": "新型消费"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "industry",
+                "value": "零售餐饮业"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2021-2023"
+              },
+              {
+                "type": "topic",
+                "value": "优化营商环境"
+              },
+              {
+                "type": "topic",
+                "value": "促消费举措"
+              },
+              {
+                "type": "topic",
+                "value": "消费新模式创新"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/e7798f4e-1b6f-4ac0-a991-66d1f99e3dab/download-url",
+            "business_metadata": {
+              "title": "3.2=关于印发加快发展新型消费释放消费潜力若干措施的通知",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null,
+              "institution_name": "四川农业大学"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "5ef07684-659c-4ab0-9c43-c8a87d4a2eba",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:ec87d9748e13a456d281054691765c1782935a82fdb591fe589e8a61ded5a0b5",
+            "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划 （2026-2028年）》的通知 - - [ 索引号 ] 11500229660853981Q/2026-00009",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-21T09:43:32.597930Z",
+            "updated_at": "2026-10-21T09:45:06.053424Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "0ee8a187-22dc-417e-bc29-841b29026d8a",
+            "version_id": "cec63b2d-c6ee-44f4-bf9b-94c81974f623",
+            "raw_object_id": "43f9213f-329e-4580-aa83-db3eb358e74c",
+            "tags": [
+              {
+                "type": "ability",
+                "value": "品牌建设"
+              },
+              {
+                "type": "ability",
+                "value": "数字化转型升级"
+              },
+              {
+                "type": "ability",
+                "value": "数智技术赋能"
+              },
+              {
+                "type": "ability",
+                "value": "诚信合规"
+              },
+              {
+                "type": "ability",
+                "value": "质量管理"
+              },
+              {
+                "type": "industry",
+                "value": "农村电商"
+              },
+              {
+                "type": "industry",
+                "value": "数字经济"
+              },
+              {
+                "type": "industry",
+                "value": "电子商务"
+              },
+              {
+                "type": "industry",
+                "value": "直播电商"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2026-2028"
+              },
+              {
+                "type": "topic",
+                "value": "丝路电商"
+              },
+              {
+                "type": "topic",
+                "value": "数字消费"
+              },
+              {
+                "type": "topic",
+                "value": "网货产业带"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/43f9213f-329e-4580-aa83-db3eb358e74c/download-url",
+            "business_metadata": {
+              "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划 （2026-2028年）》的通知",
+              "publisher": null,
+              "authors": [
+                "重庆市商务委员会"
+              ],
+              "chief_editors": [],
+              "publish_date": "2026-08-24",
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "f33a3d47-5383-4f86-b95d-e91e51e5e673",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:f293749f2d81431db6960cfdcb90e34ce7773a66a722a965402892ea9bca81a1",
+            "title": "重庆外资企业智慧服务云平台",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-21T09:43:31.546722Z",
+            "updated_at": "2026-10-21T09:45:08.394701Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "df51b114-d0e1-447a-8892-0d4ea269e606",
+            "version_id": "b7a5e677-71c7-492d-bf1a-851b880f3661",
+            "raw_object_id": "d0f92aaf-411c-43f9-b34f-f747ad1a66e4",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字经济"
+              },
+              {
+                "type": "industry",
+                "value": "电子商务"
+              },
+              {
+                "type": "industry",
+                "value": "直播电商"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2026-2028"
+              },
+              {
+                "type": "topic",
+                "value": "数商兴农"
+              },
+              {
+                "type": "topic",
+                "value": "数字消费"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/d0f92aaf-411c-43f9-b34f-f747ad1a66e4/download-url",
+            "business_metadata": {
+              "title": "重庆外资企业智慧服务云平台",
+              "publisher": null,
+              "authors": [
+                "来源: 重庆市商务委员会",
+                "重庆市商务委员会"
+              ],
+              "chief_editors": [],
+              "publish_date": "2026-08-24",
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "ea5595e7-1059-4d26-82b0-b38ccdcc8db4",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:5414b4f7611d5ea5427a1fa323b4ae55ab235dc1d4cc4207033daca34b077098",
+            "title": "重庆市商务委员会行政规范性文件 - 重庆市商务委员会行政规范性文件",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-21T09:43:27.151465Z",
+            "updated_at": "2026-10-21T09:45:12.130646Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "852bc4f8-2efc-4f18-bda9-6204acf50756",
+            "version_id": "c8bcc42d-30d8-421c-870b-d80743a58c6e",
+            "raw_object_id": "1cd6f89e-cfcf-4433-aed6-842f8c00bedc",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字经济"
+              },
+              {
+                "type": "industry",
+                "value": "电子商务"
+              },
+              {
+                "type": "industry",
+                "value": "直播电商"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2026-2028"
+              },
+              {
+                "type": "topic",
+                "value": "数字消费"
+              },
+              {
+                "type": "topic",
+                "value": "电商生态"
+              },
+              {
+                "type": "topic",
+                "value": "网货产业带"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/1cd6f89e-cfcf-4433-aed6-842f8c00bedc/download-url",
+            "business_metadata": {
+              "title": "重庆市商务委员会行政规范性文件 - 重庆市商务委员会行政规范性文件",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "9708a4c5-4921-45c2-88c4-71c4a3ccb415",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:66c506a9965e2a5a75293a171b344d65b351dc4ccb9c565f73782f3d8ffb8ef5",
+            "title": "重庆市加快发展直播带货行动计划 - 2020年重庆市发布的文件",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-21T09:43:25.684171Z",
+            "updated_at": "2026-10-21T09:44:46.249524Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "cec7cebc-7047-4fb6-9a73-7c4154cf1b5f",
+            "version_id": "740e7699-8303-443a-886c-868065bd1166",
+            "raw_object_id": "c6598835-4961-4095-986c-8294237a5d68",
+            "tags": [
+              {
+                "type": "ability",
+                "value": "主播个性化包装设计"
+              },
+              {
+                "type": "ability",
+                "value": "直播电商消费数据分析"
+              },
+              {
+                "type": "ability",
+                "value": "直播电商运营能力"
+              },
+              {
+                "type": "industry",
+                "value": "数字经济"
+              },
+              {
+                "type": "industry",
+                "value": "电子商务"
+              },
+              {
+                "type": "industry",
+                "value": "直播电商"
+              },
+              {
+                "type": "occupation",
+                "value": "主播"
+              },
+              {
+                "type": "occupation",
+                "value": "直播带货达人"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2020-2022"
+              },
+              {
+                "type": "topic",
+                "value": "C2M超级工厂计划"
+              },
+              {
+                "type": "topic",
+                "value": "包容审慎监管体系"
+              },
+              {
+                "type": "topic",
+                "value": "电商直播带货“2111”工程"
+              },
+              {
+                "type": "topic",
+                "value": "直播电商供应链"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/c6598835-4961-4095-986c-8294237a5d68/download-url",
+            "business_metadata": {
+              "title": "重庆市加快发展直播带货行动计划 - 2020年重庆市发布的文件",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "507a7635-1845-464c-96c5-62e3009fae65",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:3029aa40a884368070f2dcae17a55387e9d535608f2b8d3ba90439678e30ec4c",
+            "title": "《重庆电子商务腾飞计划（2026—2028年）》 政策解读",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-21T09:43:24.230353Z",
+            "updated_at": "2026-10-21T09:44:38.584250Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "76672541-d826-43d0-b944-9c4cb5119cab",
+            "version_id": "ca1e0c25-b0c3-4c83-b8e1-415e5842b3cf",
+            "raw_object_id": "2658fd29-a83d-4319-93f3-743d17a57dba",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "农村电商"
+              },
+              {
+                "type": "industry",
+                "value": "电子商务"
+              },
+              {
+                "type": "industry",
+                "value": "直播电商"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2026-2028"
+              },
+              {
+                "type": "topic",
+                "value": "丝路电商"
+              },
+              {
+                "type": "topic",
+                "value": "数商兴农"
+              },
+              {
+                "type": "topic",
+                "value": "数字消费"
+              },
+              {
+                "type": "topic",
+                "value": "渝品云集"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/2658fd29-a83d-4319-93f3-743d17a57dba/download-url",
+            "business_metadata": {
+              "title": "《重庆电子商务腾飞计划（2026—2028年）》 政策解读",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "d4a52b3b-4248-42e8-a82a-c6f30ea2a5cd",
+            "data_source_id": "ad7597ac-5d39-47a6-8dd8-aa536d23c413",
+            "source_object_key": "websearch_url:sha256:e12f41edd44ba10dc2af7539b0347e31c45de5f606f7b5f0c29438abbe83c753",
+            "title": "筑牢数字经济发展的基础设施底座",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-15T03:50:07.877598Z",
+            "updated_at": "2026-10-15T03:51:42.089669Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "cda6d2ee-176a-4684-923a-a6971d5d27a5",
+            "version_id": "aa298e0d-ca80-4e63-93b8-47724113da6a",
+            "raw_object_id": "f2719d8d-e5f0-4c46-b7a6-d7743b4d444c",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字经济"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2025"
+              },
+              {
+                "type": "time_range",
+                "value": "2026"
+              },
+              {
+                "type": "topic",
+                "value": "信息基础设施"
+              },
+              {
+                "type": "topic",
+                "value": "数字基础设施"
+              },
+              {
+                "type": "topic",
+                "value": "算力基础设施"
+              },
+              {
+                "type": "topic",
+                "value": "重庆市数字经济促进条例"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/f2719d8d-e5f0-4c46-b7a6-d7743b4d444c/download-url",
+            "business_metadata": {
+              "title": "筑牢数字经济发展的基础设施底座",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "a93e1b70-a9de-4c57-a440-8e5e200a8594",
+            "data_source_id": "ad7597ac-5d39-47a6-8dd8-aa536d23c413",
+            "source_object_key": "websearch_url:sha256:2a616a44459033524deb098c5cfa725703ccfb2a3ad7edf7b976ca76977e517a",
+            "title": "中国人民银行 国家发展改革委 财政部 交通运输部 商务部 金融监管总局 中国证监会 国家外汇局联合发布《关于金融支持加快西部陆海新通道建设的意见》_国务院部门文件_中国政府网",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-14T10:32:19.476916Z",
+            "updated_at": "2026-10-14T10:33:55.365220Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "a54a68d7-d1d9-4953-99ce-4bd63bb82837",
+            "version_id": "ac5b74d5-8427-421a-8395-1a5ada47c670",
+            "raw_object_id": "b44fc687-b8ec-4a10-8cc2-b1ce46098689",
+            "tags": [
+              {
+                "type": "ability",
+                "value": "跨境贸易结算"
+              },
+              {
+                "type": "ability",
+                "value": "跨境金融要素配置"
+              },
+              {
+                "type": "ability",
+                "value": "金融风险防控"
+              },
+              {
+                "type": "industry",
+                "value": "物流产业"
+              },
+              {
+                "type": "industry",
+                "value": "金融业"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2025"
+              },
+              {
+                "type": "topic",
+                "value": "对外开放"
+              },
+              {
+                "type": "topic",
+                "value": "数字金融"
+              },
+              {
+                "type": "topic",
+                "value": "绿色金融"
+              },
+              {
+                "type": "topic",
+                "value": "西部陆海新通道建设"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/b44fc687-b8ec-4a10-8cc2-b1ce46098689/download-url",
+            "business_metadata": {
+              "title": "中国人民银行 国家发展改革委 财政部 交通运输部 商务部 金融监管总局 中国证监会 国家外汇局联合发布《关于金融支持加快西部陆海新通道建设的意见》_国务院部门文件_中国政府网",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "5b89eaf1-1b1c-4980-a2d7-323066f775d7",
+            "data_source_id": "ad7597ac-5d39-47a6-8dd8-aa536d23c413",
+            "source_object_key": "websearch_url:sha256:ec34c086aa63cd7c38ed4e01fc141d76e6764b6d306647040121113329afb5f3",
+            "title": "重庆市人民政府关于印发《重庆市“十五五”现代服务业发展规划（2026—2030 年）》的通知",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-14T06:34:34.470262Z",
+            "updated_at": "2026-10-14T06:36:01.362624Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "533f1174-233a-42f9-a82e-a547bb2d31c3",
+            "version_id": "0ac85cfa-690b-4280-ba12-3bf98a081721",
+            "raw_object_id": "2f46f055-5e7a-4d71-83db-67eb6e1423a3",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "现代服务业"
+              },
+              {
+                "type": "industry",
+                "value": "生产性服务业"
+              },
+              {
+                "type": "industry",
+                "value": "生活性服务业"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2026-2030"
+              },
+              {
+                "type": "topic",
+                "value": "9611现代服务业体系"
+              },
+              {
+                "type": "topic",
+                "value": "服务业扩能提质"
+              },
+              {
+                "type": "topic",
+                "value": "重庆服务"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/2f46f055-5e7a-4d71-83db-67eb6e1423a3/download-url",
+            "business_metadata": {
+              "title": "重庆市人民政府关于印发《重庆市“十五五”现代服务业发展规划（2026—2030 年）》的通知",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": "2026-07-15",
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "c9f72d10-eefc-46f9-8663-eb964db8643d",
+            "data_source_id": "ad7597ac-5d39-47a6-8dd8-aa536d23c413",
+            "source_object_key": "websearch_url:sha256:a9fbfcc9c6b491108c140e778e880181f82712a382c5e90b975c34564c30ace8",
+            "title": "《重庆市“十五五”现代服务业发展规划(2026—2030年)》政策解读_政策解读_重庆市发展和改革委员会",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-14T06:23:55.747087Z",
+            "updated_at": "2026-10-14T06:25:31.033621Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "a6ae4beb-28cb-47ff-b5ed-16ec516d3134",
+            "version_id": "bcc5728f-bc0c-4a69-8fc4-0c142447ee03",
+            "raw_object_id": "3a5e7b57-14de-496b-8167-b9081caf8044",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "现代服务业"
+              },
+              {
+                "type": "industry",
+                "value": "生产性服务业"
+              },
+              {
+                "type": "industry",
+                "value": "生活性服务业"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2026-2027"
+              },
+              {
+                "type": "time_range",
+                "value": "2026-2030"
+              },
+              {
+                "type": "topic",
+                "value": "服务业扩能提质"
+              },
+              {
+                "type": "topic",
+                "value": "重庆服务品牌"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/3a5e7b57-14de-496b-8167-b9081caf8044/download-url",
+            "business_metadata": {
+              "title": "《重庆市“十五五”现代服务业发展规划(2026—2030年)》政策解读_政策解读_重庆市发展和改革委员会",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "607b6b80-641f-4020-8f7e-47fa1204d102",
+            "data_source_id": "087ff50a-2919-4c4e-a0f5-3047c0a6571b",
+            "source_object_key": "firecrawl_document:sha256:dd7e0aa038cd8a7cc8eaa67091e86793fb1f6e6319cbe13cf4fe480b7910a83b",
+            "title": "5月低空经济重要政策-低空经济资源网-dd7e0aa038cd.html",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-10T19:03:21.247218Z",
+            "updated_at": "2026-10-10T19:05:15.619867Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "8ac108dc-8f75-47df-8337-af7e17c673ed",
+            "version_id": "6e47dbba-9ce0-4c46-8acc-cfd4e12a95e1",
+            "raw_object_id": "103db056-afa9-4098-9c15-74bce2ed1fe6",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "低空经济"
+              },
+              {
+                "type": "occupation",
+                "value": "咖啡加工工"
+              },
+              {
+                "type": "occupation",
+                "value": "旅拍定制师"
+              },
+              {
+                "type": "occupation",
+                "value": "无人机群飞行规划员"
+              },
+              {
+                "type": "occupation",
+                "value": "智慧仓运维员"
+              },
+              {
+                "type": "occupation",
+                "value": "服务犬驯养师"
+              },
+              {
+                "type": "occupation",
+                "value": "消防救援无人机操控员"
+              },
+              {
+                "type": "occupation",
+                "value": "生成式人工智能系统测试员"
+              },
+              {
+                "type": "occupation",
+                "value": "电子电路设计师"
+              },
+              {
+                "type": "occupation",
+                "value": "睡眠健康管理师"
+              },
+              {
+                "type": "occupation",
+                "value": "航空油料电气仪表员"
+              },
+              {
+                "type": "occupation",
+                "value": "装修管家"
+              },
+              {
+                "type": "occupation",
+                "value": "跨境电商运营管理师"
+              },
+              {
+                "type": "occupation",
+                "value": "黄金鉴定估价师"
+              },
+              {
+                "type": "region",
+                "value": "四川"
+              },
+              {
+                "type": "region",
+                "value": "宁夏"
+              },
+              {
+                "type": "region",
+                "value": "安阳"
+              },
+              {
+                "type": "region",
+                "value": "山东"
+              },
+              {
+                "type": "region",
+                "value": "广东"
+              },
+              {
+                "type": "region",
+                "value": "新疆"
+              },
+              {
+                "type": "region",
+                "value": "江苏"
+              },
+              {
+                "type": "region",
+                "value": "河南"
+              },
+              {
+                "type": "region",
+                "value": "浙江"
+              },
+              {
+                "type": "region",
+                "value": "湖北"
+              },
+              {
+                "type": "region",
+                "value": "福建"
+              },
+              {
+                "type": "region",
+                "value": "郑州"
+              },
+              {
+                "type": "region",
+                "value": "重庆"
+              },
+              {
+                "type": "time_range",
+                "value": "2025"
+              },
+              {
+                "type": "time_range",
+                "value": "2025-2027"
+              },
+              {
+                "type": "topic",
+                "value": "低空空域管理"
+              },
+              {
+                "type": "topic",
+                "value": "低空飞行安全"
+              },
+              {
+                "type": "topic",
+                "value": "应用场景拓展"
+              },
+              {
+                "type": "topic",
+                "value": "航空旅游融合"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/103db056-afa9-4098-9c15-74bce2ed1fe6/download-url",
+            "business_metadata": {
+              "title": "产品详情",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "38b8b07b-05c1-45b9-aa29-ec4df14da54a",
+            "data_source_id": "087ff50a-2919-4c4e-a0f5-3047c0a6571b",
+            "source_object_key": "firecrawl_document:sha256:1518dffaa2bb18b43c968f6d0e1d4d3beb76eff1037c9d82bf58c3596e8b9445",
+            "title": "重庆市实验室建设与运行管理办法-1518dffaa2bb.pdf",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-08-24T01:32:56.387110Z",
+            "updated_at": "2026-08-24T01:34:15.954841Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "6d8cfe40-9e38-462f-be42-f03882e271b0",
+            "version_id": "ee0ed3f1-936b-4ef2-b209-384a7e15d86b",
+            "raw_object_id": "42e83f31-4a0f-4009-8b8b-84306c520fe2",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "科技创新"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2021-2030"
+              },
+              {
+                "type": "topic",
+                "value": "实验室建设"
+              },
+              {
+                "type": "topic",
+                "value": "实验室运行管理"
+              },
+              {
+                "type": "topic",
+                "value": "考核评估制度"
+              },
+              {
+                "type": "topic",
+                "value": "财政支持政策"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/42e83f31-4a0f-4009-8b8b-84306c520fe2/download-url",
+            "business_metadata": {
+              "title": "重庆市实验室建设与运行管理办法",
+              "publisher": null,
+              "authors": [],
+              "publish_date": null,
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "6fbc7827-7f6b-4d07-a047-009bbe6602d7",
+            "data_source_id": "087ff50a-2919-4c4e-a0f5-3047c0a6571b",
+            "source_object_key": "firecrawl_document:sha256:fd352330836ce4618a7dccfe37a390b934dda1b0c6dfab67cae14535dc26e373",
+            "title": "关于重庆市2025年国民经济和社会发展计划执行情况与2026年计划草案的报告_重庆市人民政府网-fd352330836c.html",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-08-19T01:53:30.210340Z",
+            "updated_at": "2026-08-19T01:54:43.200292Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "a625c9b8-f181-48f6-91ab-748b02e50936",
+            "version_id": "c8807b0b-e174-4bd6-8872-05cfbb16583c",
+            "raw_object_id": "fd78c423-3724-4d89-b8a6-c6428a68a717",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "低空经济"
+              },
+              {
+                "type": "industry",
+                "value": "战略性新兴产业"
+              },
+              {
+                "type": "industry",
+                "value": "数字经济"
+              },
+              {
+                "type": "industry",
+                "value": "智能网联新能源汽车"
+              },
+              {
+                "type": "industry",
+                "value": "现代制造业"
+              },
+              {
+                "type": "region",
+                "value": "成渝地区"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2025-2026"
+              },
+              {
+                "type": "topic",
+                "value": "新质生产力"
+              },
+              {
+                "type": "topic",
+                "value": "现代化新重庆建设"
+              },
+              {
+                "type": "topic",
+                "value": "西部陆海新通道"
+              },
+              {
+                "type": "topic",
+                "value": "长江经济带高质量发展"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/fd78c423-3724-4d89-b8a6-c6428a68a717/download-url",
+            "business_metadata": {
+              "title": "关于重庆市2025年国民经济和社会发展计划执行情况与2026年计划草案的报告_重庆市人民政府网",
+              "publisher": null,
+              "authors": [],
+              "publish_date": null,
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          }
+        ],
+        "meta": {
+          "trace_id": "00e34db9-c83e-4de8-9d1b-42323b6787d6",
+          "page": 1,
+          "page_size": 100,
+          "total": 35
+        },
+        "aggregations": null
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case": "S1_REVISED",
+      "label": "重庆市_finance_commerce_dated",
+      "tool": "find_documents",
+      "method": "GET",
+      "path": "/open/v1/assets",
+      "query": {
+        "resource_type": "industry_policy",
+        "topic": "finance_commerce",
+        "region": "重庆市",
+        "published_from": "2024-10-22",
+        "published_to": "2026-10-22",
+        "pageSize": 100
+      },
+      "body": null,
+      "auth_mode": "api_key",
+      "http_status": 200,
+      "duration_ms": 74.01,
+      "trace_id": "453e5073-5fd2-4619-ae6c-edef82543df8",
+      "response": {
+        "data": [
+          {
+            "id": "5c9b326d-bd76-4c59-9f1b-b1103495985c",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:3122e8e5cd0a7e0e9257be7c5f1e16f5010fc5047655b964197bb6aeeb0eead1",
+            "title": "重庆外资企业智慧服务云平台",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T03:58:39.447508Z",
+            "updated_at": "2026-10-22T04:00:30.886189Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "5f28592f-7850-4014-8e94-3bb4883a994d",
+            "version_id": "716e5bc8-becb-44bb-93eb-a1cabb44b34a",
+            "raw_object_id": "9dc2cdfa-dc91-4974-b7cf-2c4628b10263",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字贸易"
+              },
+              {
+                "type": "industry",
+                "value": "服务贸易"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2025-2029"
+              },
+              {
+                "type": "topic",
+                "value": "产业数字化转型"
+              },
+              {
+                "type": "topic",
+                "value": "国际经贸枢纽建设"
+              },
+              {
+                "type": "topic",
+                "value": "贸易高质量发展"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/9dc2cdfa-dc91-4974-b7cf-2c4628b10263/download-url",
+            "business_metadata": {
+              "title": "重庆外资企业智慧服务云平台",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": "2025-05-23",
+              "language": null,
+              "institution_name": "加快建设环大学"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "e95c3689-de61-497f-b284-a26868e53829",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:146f83314f95eef9965ec93dea6b0eddfa2267f509cbef1e9a28026a189ffc06",
+            "title": "权威发布｜事关数字贸易和服务贸易高质量发展，重庆出台行动方案→-重庆日报",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T03:57:30.850073Z",
+            "updated_at": "2026-10-22T03:58:36.030656Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "dbf725cc-9d48-45d8-9ecb-dfbee540d150",
+            "version_id": "21538a96-d49a-446a-a2ba-d786e9c1ce25",
+            "raw_object_id": "a9c8d6b4-b972-40ae-96fb-a00d45f88d2c",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字贸易"
+              },
+              {
+                "type": "industry",
+                "value": "服务贸易"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2025-2029"
+              },
+              {
+                "type": "topic",
+                "value": "产业数字化转型"
+              },
+              {
+                "type": "topic",
+                "value": "品牌建设运营"
+              },
+              {
+                "type": "topic",
+                "value": "知识产权保护"
+              },
+              {
+                "type": "topic",
+                "value": "统计监测分析体系"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/a9c8d6b4-b972-40ae-96fb-a00d45f88d2c/download-url",
+            "business_metadata": {
+              "title": "权威发布｜事关数字贸易和服务贸易高质量发展，重庆出台行动方案→-重庆日报",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": "2025-05-23",
+              "language": null,
+              "institution_name": "加快建设环大学"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "5d8fafd5-9bf1-4dc7-a6bf-b1c613626669",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:17b7773c8c7670504d8f3f387ab689c29ad2ee3d04e728c7d6e845f9386e9cd3",
+            "title": "重庆市人民政府办公厅关于印发《重庆市数字贸易和服务贸易高质量发展行动方案》的通知",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-22T03:56:35.583925Z",
+            "updated_at": "2026-10-22T03:58:02.045964Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+            "version_id": "6162886c-42d6-4ad0-85fb-66bf335fb7b9",
+            "raw_object_id": "0343722f-8c35-458a-9d9e-642a7915ec67",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字贸易"
+              },
+              {
+                "type": "industry",
+                "value": "服务贸易"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "industry",
+                "value": "高端制造业"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2025-2029"
+              },
+              {
+                "type": "topic",
+                "value": "产业数字化转型"
+              },
+              {
+                "type": "topic",
+                "value": "知识产权保护"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/0343722f-8c35-458a-9d9e-642a7915ec67/download-url",
+            "business_metadata": {
+              "title": "重庆市人民政府办公厅关于印发《重庆市数字贸易和服务贸易高质量发展行动方案》的通知",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": "2025-05-23",
+              "language": null,
+              "institution_name": "加快建设环大学"
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "644c799e-b683-42d9-a70d-a6513484bbc4",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:4daddb0a818460a84877bf9ed58c46b3f5b64c37d46d0218b48138b694d93641",
+            "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号) - 重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号)",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-21T09:45:11.819370Z",
+            "updated_at": "2026-10-21T09:46:30.287216Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "5e6a5808-4ac3-4cae-8b96-dac632ae7242",
+            "version_id": "644a5184-c380-44f0-929d-b8a005a99301",
+            "raw_object_id": "93301039-0579-4c1b-a6ab-b8bf8cb721a9",
+            "tags": [
+              {
+                "type": "ability",
+                "value": "品牌建设"
+              },
+              {
+                "type": "ability",
+                "value": "数字化转型升级"
+              },
+              {
+                "type": "ability",
+                "value": "数智赋能"
+              },
+              {
+                "type": "ability",
+                "value": "诚信合规"
+              },
+              {
+                "type": "ability",
+                "value": "质量管理"
+              },
+              {
+                "type": "industry",
+                "value": "数字经济"
+              },
+              {
+                "type": "industry",
+                "value": "电子商务"
+              },
+              {
+                "type": "industry",
+                "value": "直播电商"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2026-2028"
+              },
+              {
+                "type": "topic",
+                "value": "公共服务平台"
+              },
+              {
+                "type": "topic",
+                "value": "数字消费"
+              },
+              {
+                "type": "topic",
+                "value": "网货产业带"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/93301039-0579-4c1b-a6ab-b8bf8cb721a9/download-url",
+            "business_metadata": {
+              "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号) - 重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号)",
+              "publisher": null,
+              "authors": [
+                "发布单位：重庆市商务委员会",
+                "重庆市商务委员会"
+              ],
+              "chief_editors": [],
+              "publish_date": "2026-08-24",
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "5ef07684-659c-4ab0-9c43-c8a87d4a2eba",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:ec87d9748e13a456d281054691765c1782935a82fdb591fe589e8a61ded5a0b5",
+            "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划 （2026-2028年）》的通知 - - [ 索引号 ] 11500229660853981Q/2026-00009",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-21T09:43:32.597930Z",
+            "updated_at": "2026-10-21T09:45:06.053424Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "0ee8a187-22dc-417e-bc29-841b29026d8a",
+            "version_id": "cec63b2d-c6ee-44f4-bf9b-94c81974f623",
+            "raw_object_id": "43f9213f-329e-4580-aa83-db3eb358e74c",
+            "tags": [
+              {
+                "type": "ability",
+                "value": "品牌建设"
+              },
+              {
+                "type": "ability",
+                "value": "数字化转型升级"
+              },
+              {
+                "type": "ability",
+                "value": "数智技术赋能"
+              },
+              {
+                "type": "ability",
+                "value": "诚信合规"
+              },
+              {
+                "type": "ability",
+                "value": "质量管理"
+              },
+              {
+                "type": "industry",
+                "value": "农村电商"
+              },
+              {
+                "type": "industry",
+                "value": "数字经济"
+              },
+              {
+                "type": "industry",
+                "value": "电子商务"
+              },
+              {
+                "type": "industry",
+                "value": "直播电商"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2026-2028"
+              },
+              {
+                "type": "topic",
+                "value": "丝路电商"
+              },
+              {
+                "type": "topic",
+                "value": "数字消费"
+              },
+              {
+                "type": "topic",
+                "value": "网货产业带"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/43f9213f-329e-4580-aa83-db3eb358e74c/download-url",
+            "business_metadata": {
+              "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划 （2026-2028年）》的通知",
+              "publisher": null,
+              "authors": [
+                "重庆市商务委员会"
+              ],
+              "chief_editors": [],
+              "publish_date": "2026-08-24",
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "f33a3d47-5383-4f86-b95d-e91e51e5e673",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:f293749f2d81431db6960cfdcb90e34ce7773a66a722a965402892ea9bca81a1",
+            "title": "重庆外资企业智慧服务云平台",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-21T09:43:31.546722Z",
+            "updated_at": "2026-10-21T09:45:08.394701Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "df51b114-d0e1-447a-8892-0d4ea269e606",
+            "version_id": "b7a5e677-71c7-492d-bf1a-851b880f3661",
+            "raw_object_id": "d0f92aaf-411c-43f9-b34f-f747ad1a66e4",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "数字经济"
+              },
+              {
+                "type": "industry",
+                "value": "电子商务"
+              },
+              {
+                "type": "industry",
+                "value": "直播电商"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2026-2028"
+              },
+              {
+                "type": "topic",
+                "value": "数商兴农"
+              },
+              {
+                "type": "topic",
+                "value": "数字消费"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/d0f92aaf-411c-43f9-b34f-f747ad1a66e4/download-url",
+            "business_metadata": {
+              "title": "重庆外资企业智慧服务云平台",
+              "publisher": null,
+              "authors": [
+                "来源: 重庆市商务委员会",
+                "重庆市商务委员会"
+              ],
+              "chief_editors": [],
+              "publish_date": "2026-08-24",
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "5b89eaf1-1b1c-4980-a2d7-323066f775d7",
+            "data_source_id": "ad7597ac-5d39-47a6-8dd8-aa536d23c413",
+            "source_object_key": "websearch_url:sha256:ec34c086aa63cd7c38ed4e01fc141d76e6764b6d306647040121113329afb5f3",
+            "title": "重庆市人民政府关于印发《重庆市“十五五”现代服务业发展规划（2026—2030 年）》的通知",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-14T06:34:34.470262Z",
+            "updated_at": "2026-10-14T06:36:01.362624Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "533f1174-233a-42f9-a82e-a547bb2d31c3",
+            "version_id": "0ac85cfa-690b-4280-ba12-3bf98a081721",
+            "raw_object_id": "2f46f055-5e7a-4d71-83db-67eb6e1423a3",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "现代服务业"
+              },
+              {
+                "type": "industry",
+                "value": "生产性服务业"
+              },
+              {
+                "type": "industry",
+                "value": "生活性服务业"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2026-2030"
+              },
+              {
+                "type": "topic",
+                "value": "9611现代服务业体系"
+              },
+              {
+                "type": "topic",
+                "value": "服务业扩能提质"
+              },
+              {
+                "type": "topic",
+                "value": "重庆服务"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/2f46f055-5e7a-4d71-83db-67eb6e1423a3/download-url",
+            "business_metadata": {
+              "title": "重庆市人民政府关于印发《重庆市“十五五”现代服务业发展规划（2026—2030 年）》的通知",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": "2026-07-15",
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          }
+        ],
+        "meta": {
+          "trace_id": "453e5073-5fd2-4619-ae6c-edef82543df8",
+          "page": 1,
+          "page_size": 100,
+          "total": 7
+        },
+        "aggregations": null
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case": "S1_REVISED",
+      "label": "成都市_dated",
+      "tool": "find_documents",
+      "method": "GET",
+      "path": "/open/v1/assets",
+      "query": {
+        "resource_type": "industry_policy",
+        "topic": "low_altitude",
+        "region": "成都市",
+        "pageSize": 100,
+        "published_from": "2024-10-22",
+        "published_to": "2026-10-22"
+      },
+      "body": null,
+      "auth_mode": "api_key",
+      "http_status": 200,
+      "duration_ms": 23.81,
+      "trace_id": "37655448-98d8-41a9-8ad8-c71093acd91d",
+      "response": {
+        "data": [],
+        "meta": {
+          "trace_id": "37655448-98d8-41a9-8ad8-c71093acd91d",
+          "page": 1,
+          "page_size": 100,
+          "total": 0
+        },
+        "aggregations": null
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case": "S1_REVISED",
+      "label": "成都市_undated",
+      "tool": "find_documents",
+      "method": "GET",
+      "path": "/open/v1/assets",
+      "query": {
+        "resource_type": "industry_policy",
+        "topic": "low_altitude",
+        "region": "成都市",
+        "pageSize": 100
+      },
+      "body": null,
+      "auth_mode": "api_key",
+      "http_status": 200,
+      "duration_ms": 66.26,
+      "trace_id": "508ce9d1-f9c5-4a5a-8438-6dbf523c6fbd",
+      "response": {
+        "data": [
+          {
+            "id": "a7f9be7b-b25a-4165-8430-0b855adda265",
+            "data_source_id": "1d7d4bfb-3904-4b50-8357-5c62d387c649",
+            "source_object_key": "rc-upload-1792652249252-2",
+            "title": "成都市推动跨境电商高质量发展政策措施实施细则.docx",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "file_upload"
+            },
+            "created_at": "2026-10-22T06:58:17.232993Z",
+            "updated_at": "2026-10-22T07:00:04.701226Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "d1341485-ce94-428b-9906-56b3a20b5f28",
+            "version_id": "bc113d6e-a242-419d-a7b5-6157a1cb67ef",
+            "raw_object_id": "9aef8d82-9909-4941-ae94-2f0fa9046e7b",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "成都市"
+              },
+              {
+                "type": "time_range",
+                "value": "2023-2025"
+              },
+              {
+                "type": "topic",
+                "value": "专项资金申报"
+              },
+              {
+                "type": "topic",
+                "value": "公共海外仓建设"
+              },
+              {
+                "type": "topic",
+                "value": "资金奖励"
+              },
+              {
+                "type": "topic",
+                "value": "跨境电商产业园区建设"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/9aef8d82-9909-4941-ae94-2f0fa9046e7b/download-url",
+            "business_metadata": {
+              "title": null,
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "3cdbb0df-5532-4d7c-bc8a-b58082b57872",
+            "data_source_id": "ad7597ac-5d39-47a6-8dd8-aa536d23c413",
+            "source_object_key": "websearch_url:sha256:9f79d329ded5e47d9a659732457cb2a71f5157454355df5d299ef7d58c87526b",
+            "title": "中央企业低空经济产业发展专题推进会召开 更好发挥支撑带动作用 推动低空经济产业安全健康有序发展-国务院国有资产监督管理委员会",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-12T06:56:36.352589Z",
+            "updated_at": "2026-10-12T06:58:02.027223Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "4bb11a1a-5673-485a-a31b-899e677beb0e",
+            "version_id": "44aad7b1-5a9d-4b41-9f19-5e7d2ccea6a9",
+            "raw_object_id": "90e7581e-87ca-4767-836e-eca6d8cae2b7",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "低空经济"
+              },
+              {
+                "type": "region",
+                "value": "广州市"
+              },
+              {
+                "type": "region",
+                "value": "成都市"
+              },
+              {
+                "type": "time_range",
+                "value": "2026"
+              },
+              {
+                "type": "topic",
+                "value": "中央企业"
+              },
+              {
+                "type": "topic",
+                "value": "产业生态"
+              },
+              {
+                "type": "topic",
+                "value": "国家安全"
+              },
+              {
+                "type": "topic",
+                "value": "新质生产力"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/90e7581e-87ca-4767-836e-eca6d8cae2b7/download-url",
+            "business_metadata": {
+              "title": "中央企业低空经济产业发展专题推进会召开 更好发挥支撑带动作用 推动低空经济产业安全健康有序发展-国务院国有资产监督管理委员会",
+              "publisher": null,
+              "authors": [],
+              "chief_editors": [],
+              "publish_date": null,
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "ecda1f42-3eec-46d6-9abc-e17446d4aeb5",
+            "data_source_id": "087ff50a-2919-4c4e-a0f5-3047c0a6571b",
+            "source_object_key": "firecrawl_document:sha256:1047ada2bd4a74c37bba507c723359c6ba4077f724950e3ea86b3fbde460ff82",
+            "title": "关于印发-成都市加快培育和开放场景资源管理办法-的通知-1047ada2bd4a.pdf",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-08-24T01:35:02.482017Z",
+            "updated_at": "2026-08-24T01:36:33.998408Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "3e761c28-0673-402e-b158-55ee1888ba68",
+            "version_id": "07ad6378-6ade-4e86-a84f-b6d8fe91f43e",
+            "raw_object_id": "a8396686-b102-4e46-95f3-e835a9ab6d63",
+            "tags": [
+              {
+                "type": "industry",
+                "value": "新业态"
+              },
+              {
+                "type": "industry",
+                "value": "未来产业"
+              },
+              {
+                "type": "region",
+                "value": "成都市"
+              },
+              {
+                "type": "time_range",
+                "value": "2026-2028"
+              },
+              {
+                "type": "topic",
+                "value": "区域场景协同"
+              },
+              {
+                "type": "topic",
+                "value": "场景创新"
+              },
+              {
+                "type": "topic",
+                "value": "场景资源管理"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/a8396686-b102-4e46-95f3-e835a9ab6d63/download-url",
+            "business_metadata": {
+              "title": "成都市发展和改革委员会 成都市经济和信息化局 成品 者 都 阝市 科 技 局文件 都市财政局 成都市国有资产监督管理委员会",
+              "publisher": null,
+              "authors": [],
+              "publish_date": null,
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          }
+        ],
+        "meta": {
+          "trace_id": "508ce9d1-f9c5-4a5a-8438-6dbf523c6fbd",
+          "page": 1,
+          "page_size": 100,
+          "total": 3
+        },
+        "aggregations": null
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case": "S1_REVISED",
+      "label": "成都市_finance_commerce_dated",
+      "tool": "find_documents",
+      "method": "GET",
+      "path": "/open/v1/assets",
+      "query": {
+        "resource_type": "industry_policy",
+        "topic": "finance_commerce",
+        "region": "成都市",
+        "published_from": "2024-10-22",
+        "published_to": "2026-10-22",
+        "pageSize": 100
+      },
+      "body": null,
+      "auth_mode": "api_key",
+      "http_status": 200,
+      "duration_ms": 32.76,
+      "trace_id": "b78cdc74-c4ba-4b14-909c-09058bd2cbb2",
+      "response": {
+        "data": [],
+        "meta": {
+          "trace_id": "b78cdc74-c4ba-4b14-909c-09058bd2cbb2",
+          "page": 1,
+          "page_size": 100,
+          "total": 0
+        },
+        "aggregations": null
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,238 @@
+[
+  {
+    "case": "S1",
+    "label": "policy_sections",
+    "tool": "list_document_sections",
+    "query": {
+      "limit": 100,
+      "max_chars": 1000
+    },
+    "path": {
+      "ref_id": "686fdbf1-4202-4606-8cbe-d3d068de23d1"
+    }
+  },
+  {
+    "case": "S1",
+    "label": "policy_scoped_search",
+    "tool": "search_evidence",
+    "query": {
+      "q": "低空经济 产教融合 人才培养",
+      "normalized_ref_ids": [
+        "686fdbf1-4202-4606-8cbe-d3d068de23d1"
+      ],
+      "resource_type": "industry_policy",
+      "topic": "low_altitude",
+      "region": "浙江",
+      "published_from": "2024-10-22",
+      "published_to": "2026-10-22",
+      "top_k": 10,
+      "similarity_threshold": 0
+    }
+  },
+  {
+    "case": "S1",
+    "label": "policy_date_mismatch",
+    "tool": "find_documents",
+    "query": {
+      "title": "浙江省人民政府关于印发“十五五”数字浙江建设规划的通知",
+      "published_from": "2024-10-22",
+      "published_to": "2025-10-22"
+    },
+    "checks": [
+      {
+        "name": "formal 2026 date excluded",
+        "path": "meta.total",
+        "op": "eq",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "case": "S2",
+    "label": "standard_detail",
+    "tool": "get_teaching_standard",
+    "query": {},
+    "path": {
+      "library_id": "359fa704-488e-4829-9952-a7038c343f08"
+    }
+  },
+  {
+    "case": "S2",
+    "label": "standard_core_courses",
+    "tool": "query_standard_courses",
+    "query": {
+      "library_id": "359fa704-488e-4829-9952-a7038c343f08",
+      "course_type": "core",
+      "pageSize": 100
+    }
+  },
+  {
+    "case": "S2",
+    "label": "standard_sections",
+    "tool": "list_document_sections",
+    "query": {
+      "limit": 100,
+      "max_chars": 500
+    },
+    "path": {
+      "ref_id": "b289c57a-0aad-4513-b1a8-827e9529c850"
+    }
+  },
+  {
+    "case": "S3",
+    "label": "theory_detail",
+    "tool": "get_textbook",
+    "query": {},
+    "path": {
+      "profile_id": "3d81d039-524a-47c7-9746-2e9edff7c7b5"
+    }
+  },
+  {
+    "case": "S3",
+    "label": "theory_knowledge_outline",
+    "tool": "get_knowledge_outline",
+    "query": {
+      "limit": 50
+    },
+    "path": {
+      "ref_id": "18940e50-cd19-4c1c-b896-4543e38a13d2"
+    }
+  },
+  {
+    "case": "S3",
+    "label": "theory_task_outline",
+    "tool": "get_task_outline",
+    "query": {
+      "limit": 50
+    },
+    "path": {
+      "ref_id": "18940e50-cd19-4c1c-b896-4543e38a13d2"
+    }
+  },
+  {
+    "case": "S3",
+    "label": "training_detail",
+    "tool": "get_textbook",
+    "query": {},
+    "path": {
+      "profile_id": "d4fe9315-bdda-410b-a94e-f77828f71baf"
+    }
+  },
+  {
+    "case": "S3",
+    "label": "training_knowledge_outline",
+    "tool": "get_knowledge_outline",
+    "query": {
+      "limit": 50
+    },
+    "path": {
+      "ref_id": "be6079d7-4ac8-43c3-b182-3558bb7344de"
+    }
+  },
+  {
+    "case": "S3",
+    "label": "training_task_outline",
+    "tool": "get_task_outline",
+    "query": {
+      "limit": 50
+    },
+    "path": {
+      "ref_id": "be6079d7-4ac8-43c3-b182-3558bb7344de"
+    }
+  },
+  {
+    "case": "S3",
+    "label": "textbooks_all",
+    "tool": "find_textbooks",
+    "query": {
+      "pageSize": 200
+    }
+  },
+  {
+    "case": "S4",
+    "label": "jobs_same_filter",
+    "tool": "query_market_jobs",
+    "query": {
+      "industry": "互联网电商",
+      "collected_from": "2026-10-22T00:00:00Z",
+      "collected_to": "2026-10-22T09:39:00Z",
+      "pageSize": 5
+    }
+  },
+  {
+    "case": "S4",
+    "label": "education_distribution",
+    "tool": "aggregate_market_jobs",
+    "query": {
+      "industry": "互联网电商",
+      "collected_from": "2026-10-22T00:00:00Z",
+      "collected_to": "2026-10-22T09:39:00Z",
+      "group_by": [
+        "education"
+      ],
+      "pageSize": 200
+    }
+  },
+  {
+    "case": "S5",
+    "label": "ecommerce_parks",
+    "tool": "query_industrial_parks",
+    "query": {
+      "industry": "电商",
+      "pageSize": 20
+    }
+  },
+  {
+    "case": "S6",
+    "label": "all_major_introductions",
+    "tool": "find_major_profile_documents",
+    "query": {
+      "pageSize": 100
+    }
+  },
+  {
+    "case": "S6",
+    "label": "all_training_plans",
+    "tool": "list_open_talent_training_plans",
+    "query": {
+      "pageSize": 100
+    }
+  },
+  {
+    "case": "BOUNDARY",
+    "label": "invalid_date_range",
+    "tool": "find_documents",
+    "query": {
+      "published_from": "2026-10-22",
+      "published_to": "2024-10-22"
+    },
+    "expect_status": 422
+  },
+  {
+    "case": "BOUNDARY",
+    "label": "duplicate_aggregate_dimensions",
+    "tool": "aggregate_market_jobs",
+    "query": {
+      "group_by": [
+        "education",
+        "education"
+      ]
+    },
+    "expect_status": 422
+  },
+  {
+    "case": "BOUNDARY",
+    "label": "missing_batch_evidence",
+    "tool": "get_evidence_bundle",
+    "query": {},
+    "body": {
+      "references": [
+        {
+          "kind": "normalized_ref",
+          "id": "00000000-0000-0000-0000-000000000000"
+        }
+      ],
+      "max_chars": 100
+    }
+  }
+]

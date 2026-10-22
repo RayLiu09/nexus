@@ -1,0 +1,531 @@
+{
+  "executed_at_utc": "2026-10-22T09:42:22.309264+00:00",
+  "transaction": "REPEATABLE READ READ ONLY",
+  "table_snapshots": {
+    "asset": {
+      "count": 3024,
+      "latest_update": "2026-10-22 07:18:17.813326+00:00"
+    },
+    "asset_version": {
+      "count": 3134,
+      "latest_update": "2026-10-22 07:18:17.813609+00:00"
+    },
+    "normalized_asset_ref": {
+      "count": 3090,
+      "latest_update": "2026-10-22 07:18:17.811248+00:00"
+    },
+    "governance_result": {
+      "count": 3325,
+      "latest_update": "2026-10-22 07:18:17.808530+00:00"
+    },
+    "job": {
+      "count": 12978,
+      "latest_update": "2026-10-22 07:18:18.463806+00:00"
+    },
+    "knowledge_outline_node": {
+      "count": 58578,
+      "latest_update": "2026-10-21 08:21:48.929758+00:00"
+    },
+    "task_outline_node": {
+      "count": 542,
+      "latest_update": "2026-07-04 09:04:30.345211+00:00"
+    },
+    "knowledge_graph_build": {
+      "count": 1336,
+      "latest_update": "2026-10-22 07:29:10.908665+00:00"
+    },
+    "capability_graph_staging_build": {
+      "count": 126,
+      "latest_update": "2026-10-21 03:58:41.331172+00:00"
+    },
+    "raw_jobs": {
+      "count": 87102,
+      "latest_update": "2026-10-22 09:27:38.886269+00:00"
+    },
+    "raw_job_provenance": {
+      "count": 87102,
+      "latest_update": "2026-10-22 09:27:38.886695+00:00"
+    },
+    "industrial_park": {
+      "count": 11373,
+      "latest_update": "2026-10-12 08:16:57.511814+00:00"
+    },
+    "enterprise": {
+      "count": 76031,
+      "latest_update": "2026-10-12 08:16:57.510730+00:00"
+    },
+    "teaching_standard_library": {
+      "count": 144,
+      "latest_update": "2026-10-19 09:53:24.273590+00:00"
+    },
+    "teaching_standard_course": {
+      "count": 3300,
+      "latest_update": "2026-10-19 09:53:24.274576+00:00"
+    },
+    "course_textbook": {
+      "count": 172,
+      "latest_update": "2026-10-21 08:21:48.891144+00:00"
+    },
+    "talent_training_plan": {
+      "count": 85,
+      "latest_update": "2026-10-21 06:41:04.013179+00:00"
+    }
+  },
+  "independent_job_education_counts": [
+    {
+      "education": "大专",
+      "record_count": 160
+    },
+    {
+      "education": "本科",
+      "record_count": 118
+    },
+    {
+      "education": "学历不限",
+      "record_count": 116
+    },
+    {
+      "education": "中专/中技",
+      "record_count": 48
+    },
+    {
+      "education": "高中",
+      "record_count": 15
+    }
+  ],
+  "jobs_sorted_by_actual_collection": [
+    {
+      "id": "0056c972-3c3a-48cb-bd73-f09c7008a5ba",
+      "collected_at": "2026-10-22 09:26:42.460046+00:00",
+      "created_at": "2026-10-22 09:27:38.867020+00:00"
+    },
+    {
+      "id": "0cff7465-7510-4c3f-9633-67054bb90cad",
+      "collected_at": "2026-10-22 09:26:38.818267+00:00",
+      "created_at": "2026-10-22 09:27:38.882767+00:00"
+    },
+    {
+      "id": "d0aece27-9a8b-4e51-94a2-bb65f838bc16",
+      "collected_at": "2026-10-22 09:26:32.218130+00:00",
+      "created_at": "2026-10-22 09:27:38.863476+00:00"
+    },
+    {
+      "id": "69132d80-7aa2-4250-8d58-0ed17c4f276b",
+      "collected_at": "2026-10-22 09:26:13.775237+00:00",
+      "created_at": "2026-10-22 09:27:38.875512+00:00"
+    },
+    {
+      "id": "ca6bf77f-8699-48c2-b452-58efcea2cae9",
+      "collected_at": "2026-10-22 09:22:22.078715+00:00",
+      "created_at": "2026-10-22 09:27:38.698688+00:00"
+    }
+  ],
+  "non_available_ref_samples": [
+    {
+      "id": "dac250d0-d06b-4723-9675-db8d9d5bc583",
+      "version_id": "8020cafb-1467-40c4-9db9-31f7ade12dd1",
+      "version_status": "review_required",
+      "status": "generated"
+    },
+    {
+      "id": "1139f04f-3000-49ed-aa38-2f48bfa796f1",
+      "version_id": "b48d9fd0-2d4a-4e44-9474-6df86fbcdbfb",
+      "version_status": "review_required",
+      "status": "generated"
+    },
+    {
+      "id": "637a4aaf-2c86-4314-9a0b-78a5e8afa716",
+      "version_id": "f160332a-cd1a-437d-bdd6-90c3182f3140",
+      "version_status": "review_required",
+      "status": "generated"
+    }
+  ],
+  "public_read_audits": [
+    {
+      "trace_id": "5d1be422-215f-4dff-b77e-cd80a5f86b03",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "data_resources",
+      "summary": {
+        "route": "data_resources",
+        "caller_type": "api_caller",
+        "result_count": 15
+      },
+      "created_at": "2026-10-22 09:40:04.345033+00:00"
+    },
+    {
+      "trace_id": "70d2067c-df9e-407a-8d75-9db3010fefdc",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "data_resources",
+      "summary": {
+        "route": "data_resources",
+        "caller_type": "api_caller",
+        "result_count": 15
+      },
+      "created_at": "2026-10-22 09:40:04.525219+00:00"
+    },
+    {
+      "trace_id": "c692a102-b1fa-4f2c-8106-a7bc8150001e",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "assets",
+      "summary": {
+        "route": "assets",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "total": 1
+      },
+      "created_at": "2026-10-22 09:40:04.676390+00:00"
+    },
+    {
+      "trace_id": "26e58808-85e0-4891-a9b7-2e4a93bfb778",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "assets",
+      "summary": {
+        "route": "assets",
+        "caller_type": "api_caller",
+        "result_count": 10,
+        "total": 708
+      },
+      "created_at": "2026-10-22 09:40:04.782802+00:00"
+    },
+    {
+      "trace_id": "bdd69102-21b8-4134-9173-570afde99903",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "teaching_standards",
+      "summary": {
+        "route": "teaching_standards",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "total": 1
+      },
+      "created_at": "2026-10-22 09:40:04.813494+00:00"
+    },
+    {
+      "trace_id": "4ec478fb-f61b-4180-846f-3e5c1ddd2f03",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "course_textbooks",
+      "summary": {
+        "route": "course_textbooks",
+        "caller_type": "api_caller",
+        "result_count": 20,
+        "total": 164
+      },
+      "created_at": "2026-10-22 09:40:05.118565+00:00"
+    },
+    {
+      "trace_id": "c94ca399-776a-47ab-8801-1111aef91206",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "market_jobs",
+      "summary": {
+        "route": "market_jobs",
+        "caller_type": "api_caller",
+        "result_count": 5,
+        "total": 87102
+      },
+      "created_at": "2026-10-22 09:40:05.258054+00:00"
+    },
+    {
+      "trace_id": "9772cf91-ebb7-473a-983b-d0de0693071c",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "market_jobs_aggregate",
+      "summary": {
+        "route": "market_jobs_aggregate",
+        "caller_type": "api_caller",
+        "result_count": 200,
+        "total": 5624
+      },
+      "created_at": "2026-10-22 09:40:05.362459+00:00"
+    },
+    {
+      "trace_id": "85fe4413-98f9-41cc-9556-97650f029640",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "industrial_parks",
+      "summary": {
+        "route": "industrial_parks",
+        "caller_type": "api_caller",
+        "result_count": 20,
+        "total": 11373
+      },
+      "created_at": "2026-10-22 09:40:05.512707+00:00"
+    },
+    {
+      "trace_id": "826d92d0-43c3-4a9d-8173-b5ef9f9a2e15",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "major_profile_documents",
+      "summary": {
+        "route": "major_profile_documents",
+        "caller_type": "api_caller",
+        "result_count": 20,
+        "total": 85
+      },
+      "created_at": "2026-10-22 09:40:05.822088+00:00"
+    },
+    {
+      "trace_id": "5ce3b30a-5183-45db-a162-e670fcf08424",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "talent_training_plans",
+      "summary": {
+        "route": "talent_training_plans",
+        "caller_type": "api_caller",
+        "result_count": 20
+      },
+      "created_at": "2026-10-22 09:40:06.066062+00:00"
+    },
+    {
+      "trace_id": "3d1e0854-3df5-4457-9be8-6652f5e35a18",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "assets",
+      "summary": {
+        "route": "assets",
+        "caller_type": "api_caller",
+        "result_count": 0,
+        "total": 0
+      },
+      "created_at": "2026-10-22 09:40:06.119698+00:00"
+    },
+    {
+      "trace_id": "78870212-8b4c-410f-873f-4888bfd66bec",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_sections",
+      "summary": {
+        "route": "document_sections",
+        "caller_type": "api_caller",
+        "result_count": 100,
+        "normalized_ref_id": "686fdbf1-4202-4606-8cbe-d3d068de23d1"
+      },
+      "created_at": "2026-10-22 09:41:44.422551+00:00"
+    },
+    {
+      "trace_id": "af089690-527b-441d-b5fb-a8d0213e2669",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "assets",
+      "summary": {
+        "route": "assets",
+        "caller_type": "api_caller",
+        "result_count": 0,
+        "total": 0
+      },
+      "created_at": "2026-10-22 09:41:48.421788+00:00"
+    },
+    {
+      "trace_id": "49dcf3a9-bd8d-4f5e-a16a-5ccfd52d7da4",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "teaching_standard",
+      "summary": {
+        "route": "teaching_standard",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "library_id": "359fa704-488e-4829-9952-a7038c343f08"
+      },
+      "created_at": "2026-10-22 09:41:48.490358+00:00"
+    },
+    {
+      "trace_id": "ceeeb8e1-96b5-44bb-a9e2-851722e34900",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "standard_courses",
+      "summary": {
+        "route": "standard_courses",
+        "caller_type": "api_caller",
+        "result_count": 11,
+        "total": 11
+      },
+      "created_at": "2026-10-22 09:41:48.663055+00:00"
+    },
+    {
+      "trace_id": "fadc173d-78d2-4c8e-9d20-e4365f6ec7eb",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_sections",
+      "summary": {
+        "route": "document_sections",
+        "caller_type": "api_caller",
+        "result_count": 100,
+        "normalized_ref_id": "b289c57a-0aad-4513-b1a8-827e9529c850"
+      },
+      "created_at": "2026-10-22 09:41:48.721613+00:00"
+    },
+    {
+      "trace_id": "2838c8dd-96d7-4b3b-b09f-25add9573b07",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "course_textbook",
+      "summary": {
+        "route": "course_textbook",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "normalized_ref_id": "18940e50-cd19-4c1c-b896-4543e38a13d2"
+      },
+      "created_at": "2026-10-22 09:41:48.742307+00:00"
+    },
+    {
+      "trace_id": "0e9597ef-abd5-4730-8ae7-e8fad81a7e43",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "knowledge_outline",
+      "summary": {
+        "route": "knowledge_outline",
+        "caller_type": "api_caller",
+        "result_count": 50,
+        "normalized_ref_id": "18940e50-cd19-4c1c-b896-4543e38a13d2"
+      },
+      "created_at": "2026-10-22 09:41:48.765945+00:00"
+    },
+    {
+      "trace_id": "79db0633-dd38-4b74-93ac-4621d46d5d06",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "task_outline",
+      "summary": {
+        "route": "task_outline",
+        "caller_type": "api_caller",
+        "result_count": 0,
+        "normalized_ref_id": "18940e50-cd19-4c1c-b896-4543e38a13d2"
+      },
+      "created_at": "2026-10-22 09:41:48.787149+00:00"
+    },
+    {
+      "trace_id": "54c2b7cd-cd93-404b-8574-c533ff1bd969",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "course_textbook",
+      "summary": {
+        "route": "course_textbook",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "normalized_ref_id": "be6079d7-4ac8-43c3-b182-3558bb7344de"
+      },
+      "created_at": "2026-10-22 09:41:48.807696+00:00"
+    },
+    {
+      "trace_id": "e05b35ce-a951-4dc1-9c32-7d9a11408baa",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "knowledge_outline",
+      "summary": {
+        "route": "knowledge_outline",
+        "caller_type": "api_caller",
+        "result_count": 0,
+        "normalized_ref_id": "be6079d7-4ac8-43c3-b182-3558bb7344de"
+      },
+      "created_at": "2026-10-22 09:41:48.828984+00:00"
+    },
+    {
+      "trace_id": "18c4f820-c942-4537-9152-b3ff4f839976",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "task_outline",
+      "summary": {
+        "route": "task_outline",
+        "caller_type": "api_caller",
+        "result_count": 50,
+        "normalized_ref_id": "be6079d7-4ac8-43c3-b182-3558bb7344de"
+      },
+      "created_at": "2026-10-22 09:41:48.853054+00:00"
+    },
+    {
+      "trace_id": "ddc250e2-b78f-4232-90f2-e3216911bb33",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "course_textbooks",
+      "summary": {
+        "route": "course_textbooks",
+        "caller_type": "api_caller",
+        "result_count": 164,
+        "total": 164
+      },
+      "created_at": "2026-10-22 09:41:50.494672+00:00"
+    },
+    {
+      "trace_id": "5745048a-9512-44f3-891f-9c7408669283",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "market_jobs",
+      "summary": {
+        "route": "market_jobs",
+        "caller_type": "api_caller",
+        "result_count": 5,
+        "total": 457
+      },
+      "created_at": "2026-10-22 09:41:50.546858+00:00"
+    },
+    {
+      "trace_id": "4f181a2c-f47e-4ebb-97f2-0180036e82ab",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "market_jobs_aggregate",
+      "summary": {
+        "route": "market_jobs_aggregate",
+        "caller_type": "api_caller",
+        "result_count": 5,
+        "total": 5
+      },
+      "created_at": "2026-10-22 09:41:50.616988+00:00"
+    },
+    {
+      "trace_id": "dbfab422-dafd-4fa0-99ba-7e17b41d518a",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "industrial_parks",
+      "summary": {
+        "route": "industrial_parks",
+        "caller_type": "api_caller",
+        "result_count": 20,
+        "total": 489
+      },
+      "created_at": "2026-10-22 09:41:50.922939+00:00"
+    },
+    {
+      "trace_id": "58daaa44-6614-4a89-a600-22d3111117a6",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "major_profile_documents",
+      "summary": {
+        "route": "major_profile_documents",
+        "caller_type": "api_caller",
+        "result_count": 85,
+        "total": 85
+      },
+      "created_at": "2026-10-22 09:41:51.373206+00:00"
+    },
+    {
+      "trace_id": "5dd56288-ddfd-47ae-8db7-c1e0a9ec0d63",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "talent_training_plans",
+      "summary": {
+        "route": "talent_training_plans",
+        "caller_type": "api_caller",
+        "result_count": 22
+      },
+      "created_at": "2026-10-22 09:41:51.397501+00:00"
+    },
+    {
+      "trace_id": "3e0c8796-1c05-49b3-9df5-f3f72dddcb33",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "evidence_resolutions",
+      "summary": {
+        "route": "evidence_resolutions",
+        "caller_type": "api_caller",
+        "result_count": 0,
+        "requested_count": 1
+      },
+      "created_at": "2026-10-22 09:41:51.421015+00:00"
+    }
+  ]
+}

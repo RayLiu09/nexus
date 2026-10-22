@@ -1,0 +1,3466 @@
+{
+  "executed_at_utc": "2026-10-22T09:50:03.241108+00:00",
+  "base_url": "http://127.0.0.1:8000",
+  "transport": "actual HTTP; no mocks or fixtures",
+  "results": [
+    {
+      "case": "S1_REVISED",
+      "label": "cq_search_actual_index_type",
+      "tool": "search_evidence",
+      "method": "GET",
+      "path": "/open/v1/search",
+      "query": {
+        "q": "低空经济 产教融合 人才培养",
+        "kb": "industry_research_kb",
+        "normalized_ref_ids": [
+          "5f28592f-7850-4014-8e94-3bb4883a994d",
+          "dbf725cc-9d48-45d8-9ecb-dfbee540d150",
+          "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+          "5e6a5808-4ac3-4cae-8b96-dac632ae7242",
+          "0ee8a187-22dc-417e-bc29-841b29026d8a",
+          "df51b114-d0e1-447a-8892-0d4ea269e606",
+          "533f1174-233a-42f9-a82e-a547bb2d31c3"
+        ],
+        "resource_type": "industry_policy",
+        "topic": "low_altitude",
+        "region": "重庆市",
+        "published_from": "2024-10-22",
+        "published_to": "2026-10-22",
+        "top_k": 10,
+        "similarity_threshold": 0
+      },
+      "body": null,
+      "auth_mode": "api_key",
+      "http_status": 200,
+      "duration_ms": 1032.72,
+      "trace_id": "efba015a-7bda-4068-b003-fedb385720a8",
+      "response": {
+        "data": {
+          "query": "低空经济 产教融合 人才培养",
+          "kb": "industry_research_kb",
+          "knowledge_types": [
+            "industry_research_kb"
+          ],
+          "results": [
+            {
+              "nexus_chunk_id": "737747bc-ef87-43f2-9522-4dc87e3c75cb",
+              "normalized_ref_id": "5f28592f-7850-4014-8e94-3bb4883a994d",
+              "score": 0.5567211176919755,
+              "content": "（二十）提高人力资源驱动力。推动高校开设数字贸易、服务贸易相关专业。加强服务贸易人才培训基地建设，增加数字贸易培训相关内容，扩大培训规模。充分发挥人力资源服务出口基地作用，加大高端人才引进力度，对符合条件的高层次人才提供住房、子女就学、医疗等方面的政策支持，动态调整重点领域境外职业资格认可清单。（责任单位：市人力社保局、市商务委、市委组织部、市教委、市住房城乡建委）",
+              "snippet": "（二十）提高人力资源驱动力。推动高校开设数字贸易、服务贸易相关专业。加强服务贸易人才培训基地建设，增加数字贸易培训相关内容，扩大培训规模。充分发挥人力资源服务出口基地作用，加大高端人才引进力度，对符合条件的高层次人才提供住房、子女就学、医疗等方面的政策支持，动态调整重点领域境外职业资格认可清单。（责任单位：市人力社保局、市商务委、市委组织部、市教委、市住房城乡建委）",
+              "metadata": {
+                "asset": {
+                  "tags": [],
+                  "level": null,
+                  "title": "重庆外资企业智慧服务云平台",
+                  "asset_id": "5c9b326d-bd76-4c59-9f1b-b1103495985c",
+                  "org_scope": [],
+                  "classification": null,
+                  "asset_version_id": "716e5bc8-becb-44bb-93eb-a1cabb44b34a"
+                },
+                "chunk": {
+                  "chunk_id": "737747bc-ef87-43f2-9522-4dc87e3c75cb",
+                  "chunk_type": "semantic_block",
+                  "chunk_index": 24,
+                  "domain_model": null,
+                  "heading_path": [],
+                  "domain_profile": null,
+                  "section_profile": null,
+                  "source_block_ids": [
+                    "web-block-0045"
+                  ],
+                  "chunking_strategy": "semantic_repack",
+                  "knowledge_type_code": "industry_research_kb"
+                },
+                "index": {
+                  "collection_key": "industry_research_kb.document.bge_m3_latest.v1",
+                  "distance_metric": "cosine",
+                  "embedding_model": "bge-m3:latest",
+                  "asset_domain_type": "industry_research_kb",
+                  "embedding_provider": "litellm",
+                  "embedding_dimension": 1024,
+                  "metadata_schema_version": "v1"
+                },
+                "locator": {
+                  "page_end": null,
+                  "page_start": null
+                },
+                "normalized_ref": {
+                  "title": "重庆外资企业智慧服务云平台",
+                  "lineage": {
+                    "image_uris": {},
+                    "raw_object_id": "9dc2cdfa-dc91-4974-b7cf-2c4628b10263",
+                    "raw_object_uri": "s3://nexus-dev-objects/raw/crawler/ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f/2026/10/22/f5dca797-cf2f-4ae5-9cb5-329178fb3dc2-0019/75d40c95936d/websearch-75d40c95936d.json",
+                    "parse_artifact_id": "fcf3aa75-566a-46e9-9c7f-25440d8f7c1b",
+                    "parse_artifact_uri": "s3://nexus-dev-objects/parsed/716e5bc8-becb-44bb-93eb-a1cabb44b34a/fcf3aa75-566a-46e9-9c7f-25440d8f7c1b/mineru-result.json"
+                  },
+                  "quality": {
+                    "parse_score": null,
+                    "anomaly_items": [],
+                    "normalize_score": null,
+                    "normalize_issues": [
+                      {
+                        "code": "missing_required",
+                        "field": "primary_key",
+                        "message": "required field 'primary_key' is missing or empty"
+                      },
+                      {
+                        "code": "missing_required",
+                        "field": "columns",
+                        "message": "required field 'columns' is missing or empty"
+                      }
+                    ],
+                    "normalize_llm_used": true,
+                    "manual_review_status": "not_required",
+                    "normalize_contract_key": "crawler|application/json",
+                    "normalize_schema_version": "1.0"
+                  },
+                  "language": "zh-CN",
+                  "governance": {
+                    "org_scope": [],
+                    "version_status": "processing",
+                    "sensitivity_level": null
+                  },
+                  "source_type": "crawler",
+                  "content_type": "document",
+                  "domain_profile": null,
+                  "normalized_type": "document",
+                  "normalized_ref_id": "5f28592f-7850-4014-8e94-3bb4883a994d"
+                },
+                "schema_version": "v1"
+              },
+              "knowledge_type_code": "industry_research_kb",
+              "collection_key": "industry_research_kb.document.bge_m3_latest.v1",
+              "version_id": "716e5bc8-becb-44bb-93eb-a1cabb44b34a",
+              "asset_id": "5c9b326d-bd76-4c59-9f1b-b1103495985c",
+              "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+              "locator": {
+                "page_start": null,
+                "page_end": null,
+                "bbox_union": null,
+                "block_start_order": 45,
+                "block_end_order": 45,
+                "source_url": "https://gzfw.cqcidc.cn/escms/html/web/wzhqzc/cqzc/2008437690830594049.html",
+                "section_id": "sec-0001",
+                "section_key": "1d499a4d217fa80b28eabca4",
+                "blocks": [
+                  {
+                    "block_id": "web-block-0045",
+                    "block_type": "paragraph",
+                    "page": null,
+                    "bbox": null,
+                    "md_char_range": [
+                      5853,
+                      6037
+                    ],
+                    "source_url": "https://gzfw.cqcidc.cn/escms/html/web/wzhqzc/cqzc/2008437690830594049.html",
+                    "dom_path": null,
+                    "dom_index": 45,
+                    "locator_type": "markdown_range",
+                    "section_id": "sec-0001",
+                    "block_order": 45
+                  }
+                ],
+                "md_char_range": [
+                  5853,
+                  6037
+                ],
+                "md_spans": null,
+                "heading_path": [
+                  {
+                    "level": 1,
+                    "title": "重庆外资企业智慧服务云平台"
+                  },
+                  {
+                    "level": 2,
+                    "title": "六、加快构建全要素生态体系"
+                  }
+                ]
+              },
+              "source_block_ids": [
+                "web-block-0045"
+              ],
+              "raw_object_id": "9dc2cdfa-dc91-4974-b7cf-2c4628b10263",
+              "raw_object_uri": "s3://nexus-dev-objects/raw/crawler/ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f/2026/10/22/f5dca797-cf2f-4ae5-9cb5-329178fb3dc2-0019/75d40c95936d/websearch-75d40c95936d.json"
+            },
+            {
+              "nexus_chunk_id": "9be1afef-a52a-420c-9d2f-e531c0d0bda0",
+              "normalized_ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+              "score": 0.5567211176919755,
+              "content": "（二十）提高人力资源驱动力。推动高校开设数字贸易、服务贸易相关专业。加强服务贸易人才培训基地建设，增加数字贸易培训相关内容，扩大培训规模。充分发挥人力资源服务出口基地作用，加大高端人才引进力度，对符合条件的高层次人才提供住房、子女就学、医疗等方面的政策支持，动态调整重点领域境外职业资格认可清单。（责任单位：市人力社保局、市商务委、市委组织部、市教委、市住房城乡建委）",
+              "snippet": "（二十）提高人力资源驱动力。推动高校开设数字贸易、服务贸易相关专业。加强服务贸易人才培训基地建设，增加数字贸易培训相关内容，扩大培训规模。充分发挥人力资源服务出口基地作用，加大高端人才引进力度，对符合条件的高层次人才提供住房、子女就学、医疗等方面的政策支持，动态调整重点领域境外职业资格认可清单。（责任单位：市人力社保局、市商务委、市委组织部、市教委、市住房城乡建委）",
+              "metadata": {
+                "asset": {
+                  "tags": [],
+                  "level": null,
+                  "title": "重庆市人民政府办公厅关于印发《重庆市数字贸易和服务贸易高质量发展行动方案》的通知",
+                  "asset_id": "5d8fafd5-9bf1-4dc7-a6bf-b1c613626669",
+                  "org_scope": [],
+                  "classification": null,
+                  "asset_version_id": "6162886c-42d6-4ad0-85fb-66bf335fb7b9"
+                },
+                "chunk": {
+                  "chunk_id": "9be1afef-a52a-420c-9d2f-e531c0d0bda0",
+                  "chunk_type": "semantic_block",
+                  "chunk_index": 25,
+                  "domain_model": null,
+                  "heading_path": [],
+                  "domain_profile": null,
+                  "section_profile": null,
+                  "source_block_ids": [
+                    "web-block-0038"
+                  ],
+                  "chunking_strategy": "semantic_repack",
+                  "knowledge_type_code": "industry_research_kb"
+                },
+                "index": {
+                  "collection_key": "industry_research_kb.document.bge_m3_latest.v1",
+                  "distance_metric": "cosine",
+                  "embedding_model": "bge-m3:latest",
+                  "asset_domain_type": "industry_research_kb",
+                  "embedding_provider": "litellm",
+                  "embedding_dimension": 1024,
+                  "metadata_schema_version": "v1"
+                },
+                "locator": {
+                  "page_end": null,
+                  "page_start": null
+                },
+                "normalized_ref": {
+                  "title": "重庆市人民政府办公厅关于印发《重庆市数字贸易和服务贸易高质量发展行动方案》的通知",
+                  "lineage": {
+                    "image_uris": {},
+                    "raw_object_id": "0343722f-8c35-458a-9d9e-642a7915ec67",
+                    "raw_object_uri": "s3://nexus-dev-objects/raw/crawler/ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f/2026/10/22/f5dca797-cf2f-4ae5-9cb5-329178fb3dc2-0013/797d0758e9e4/websearch-797d0758e9e4.json",
+                    "parse_artifact_id": "a0951171-49d9-4ab9-baf6-0f04edd93ccd",
+                    "parse_artifact_uri": "s3://nexus-dev-objects/parsed/6162886c-42d6-4ad0-85fb-66bf335fb7b9/a0951171-49d9-4ab9-baf6-0f04edd93ccd/mineru-result.json"
+                  },
+                  "quality": {
+                    "parse_score": null,
+                    "anomaly_items": [],
+                    "normalize_score": null,
+                    "normalize_issues": [
+                      {
+                        "code": "missing_required",
+                        "field": "primary_key",
+                        "message": "required field 'primary_key' is missing or empty"
+                      },
+                      {
+                        "code": "missing_required",
+                        "field": "columns",
+                        "message": "required field 'columns' is missing or empty"
+                      }
+                    ],
+                    "normalize_llm_used": true,
+                    "manual_review_status": "not_required",
+                    "normalize_contract_key": "crawler|application/json",
+                    "normalize_schema_version": "1.0"
+                  },
+                  "language": "zh-CN",
+                  "governance": {
+                    "org_scope": [],
+                    "version_status": "processing",
+                    "sensitivity_level": null
+                  },
+                  "source_type": "crawler",
+                  "content_type": "document",
+                  "domain_profile": null,
+                  "normalized_type": "document",
+                  "normalized_ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226"
+                },
+                "schema_version": "v1"
+              },
+              "knowledge_type_code": "industry_research_kb",
+              "collection_key": "industry_research_kb.document.bge_m3_latest.v1",
+              "version_id": "6162886c-42d6-4ad0-85fb-66bf335fb7b9",
+              "asset_id": "5d8fafd5-9bf1-4dc7-a6bf-b1c613626669",
+              "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+              "locator": {
+                "page_start": null,
+                "page_end": null,
+                "bbox_union": null,
+                "block_start_order": 38,
+                "block_end_order": 38,
+                "source_url": "http://bdb.shandong.gov.cn/art/2025/11/28/art_329234_10337526.html#1#1",
+                "section_id": "sec-0001",
+                "section_key": "35d7bc360e43c50b4e1f622a",
+                "blocks": [
+                  {
+                    "block_id": "web-block-0038",
+                    "block_type": "paragraph",
+                    "page": null,
+                    "bbox": null,
+                    "md_char_range": [
+                      5769,
+                      5953
+                    ],
+                    "source_url": "http://bdb.shandong.gov.cn/art/2025/11/28/art_329234_10337526.html#1#1",
+                    "dom_path": null,
+                    "dom_index": 38,
+                    "locator_type": "markdown_range",
+                    "section_id": "sec-0001",
+                    "block_order": 38
+                  }
+                ],
+                "md_char_range": [
+                  5769,
+                  5953
+                ],
+                "md_spans": null,
+                "heading_path": [
+                  {
+                    "level": 1,
+                    "title": "重庆市人民政府办公厅关于印发《重庆市数字贸易和服务贸易高质量发展行动方案》的通知"
+                  },
+                  {
+                    "level": 2,
+                    "title": "六、加快构建全要素生态体系"
+                  }
+                ]
+              },
+              "source_block_ids": [
+                "web-block-0038"
+              ],
+              "raw_object_id": "0343722f-8c35-458a-9d9e-642a7915ec67",
+              "raw_object_uri": "s3://nexus-dev-objects/raw/crawler/ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f/2026/10/22/f5dca797-cf2f-4ae5-9cb5-329178fb3dc2-0013/797d0758e9e4/websearch-797d0758e9e4.json"
+            },
+            {
+              "nexus_chunk_id": "e6befe76-4fc9-4e05-a3c8-ee8ba8e63bef",
+              "normalized_ref_id": "dbf725cc-9d48-45d8-9ecb-dfbee540d150",
+              "score": 0.5567211176919755,
+              "content": "（二十）提高人力资源驱动力。推动高校开设数字贸易、服务贸易相关专业。加强服务贸易人才培训基地建设，增加数字贸易培训相关内容，扩大培训规模。充分发挥人力资源服务出口基地作用，加大高端人才引进力度，对符合条件的高层次人才提供住房、子女就学、医疗等方面的政策支持，动态调整重点领域境外职业资格认可清单。（责任单位：市人力社保局、市商务委、市委组织部、市教委、市住房城乡建委）",
+              "snippet": "（二十）提高人力资源驱动力。推动高校开设数字贸易、服务贸易相关专业。加强服务贸易人才培训基地建设，增加数字贸易培训相关内容，扩大培训规模。充分发挥人力资源服务出口基地作用，加大高端人才引进力度，对符合条件的高层次人才提供住房、子女就学、医疗等方面的政策支持，动态调整重点领域境外职业资格认可清单。（责任单位：市人力社保局、市商务委、市委组织部、市教委、市住房城乡建委）",
+              "metadata": {
+                "asset": {
+                  "tags": [],
+                  "level": null,
+                  "title": "权威发布｜事关数字贸易和服务贸易高质量发展，重庆出台行动方案→-重庆日报",
+                  "asset_id": "e95c3689-de61-497f-b284-a26868e53829",
+                  "org_scope": [],
+                  "classification": null,
+                  "asset_version_id": "21538a96-d49a-446a-a2ba-d786e9c1ce25"
+                },
+                "chunk": {
+                  "chunk_id": "e6befe76-4fc9-4e05-a3c8-ee8ba8e63bef",
+                  "chunk_type": "semantic_block",
+                  "chunk_index": 24,
+                  "domain_model": null,
+                  "heading_path": [],
+                  "domain_profile": null,
+                  "section_profile": null,
+                  "source_block_ids": [
+                    "web-block-0044"
+                  ],
+                  "chunking_strategy": "semantic_repack",
+                  "knowledge_type_code": "industry_research_kb"
+                },
+                "index": {
+                  "collection_key": "industry_research_kb.document.bge_m3_latest.v1",
+                  "distance_metric": "cosine",
+                  "embedding_model": "bge-m3:latest",
+                  "asset_domain_type": "industry_research_kb",
+                  "embedding_provider": "litellm",
+                  "embedding_dimension": 1024,
+                  "metadata_schema_version": "v1"
+                },
+                "locator": {
+                  "page_end": null,
+                  "page_start": null
+                },
+                "normalized_ref": {
+                  "title": "权威发布｜事关数字贸易和服务贸易高质量发展，重庆出台行动方案→-重庆日报",
+                  "lineage": {
+                    "image_uris": {},
+                    "raw_object_id": "a9c8d6b4-b972-40ae-96fb-a00d45f88d2c",
+                    "raw_object_uri": "s3://nexus-dev-objects/raw/crawler/ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f/2026/10/22/f5dca797-cf2f-4ae5-9cb5-329178fb3dc2-0016/e1353aeafd35/websearch-e1353aeafd35.json",
+                    "parse_artifact_id": "480d32fd-2952-48e2-8781-08ae234e5b6c",
+                    "parse_artifact_uri": "s3://nexus-dev-objects/parsed/21538a96-d49a-446a-a2ba-d786e9c1ce25/480d32fd-2952-48e2-8781-08ae234e5b6c/mineru-result.json"
+                  },
+                  "quality": {
+                    "parse_score": null,
+                    "anomaly_items": [],
+                    "normalize_score": null,
+                    "normalize_issues": [
+                      {
+                        "code": "missing_required",
+                        "field": "primary_key",
+                        "message": "required field 'primary_key' is missing or empty"
+                      },
+                      {
+                        "code": "missing_required",
+                        "field": "columns",
+                        "message": "required field 'columns' is missing or empty"
+                      }
+                    ],
+                    "normalize_llm_used": true,
+                    "manual_review_status": "not_required",
+                    "normalize_contract_key": "crawler|application/json",
+                    "normalize_schema_version": "1.0"
+                  },
+                  "language": "zh-CN",
+                  "governance": {
+                    "org_scope": [],
+                    "version_status": "processing",
+                    "sensitivity_level": null
+                  },
+                  "source_type": "crawler",
+                  "content_type": "document",
+                  "domain_profile": null,
+                  "normalized_type": "document",
+                  "normalized_ref_id": "dbf725cc-9d48-45d8-9ecb-dfbee540d150"
+                },
+                "schema_version": "v1"
+              },
+              "knowledge_type_code": "industry_research_kb",
+              "collection_key": "industry_research_kb.document.bge_m3_latest.v1",
+              "version_id": "21538a96-d49a-446a-a2ba-d786e9c1ce25",
+              "asset_id": "e95c3689-de61-497f-b284-a26868e53829",
+              "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+              "locator": {
+                "page_start": null,
+                "page_end": null,
+                "bbox_union": null,
+                "block_start_order": 44,
+                "block_end_order": 44,
+                "source_url": "https://cqrb.cn/shishi/2025-05-28/2292308_pc.html#1",
+                "section_id": "sec-0001",
+                "section_key": "5f69dbae96dd21880216b025",
+                "blocks": [
+                  {
+                    "block_id": "web-block-0044",
+                    "block_type": "paragraph",
+                    "page": null,
+                    "bbox": null,
+                    "md_char_range": [
+                      5848,
+                      6032
+                    ],
+                    "source_url": "https://cqrb.cn/shishi/2025-05-28/2292308_pc.html#1",
+                    "dom_path": null,
+                    "dom_index": 44,
+                    "locator_type": "markdown_range",
+                    "section_id": "sec-0001",
+                    "block_order": 44
+                  }
+                ],
+                "md_char_range": [
+                  5848,
+                  6032
+                ],
+                "md_spans": null,
+                "heading_path": [
+                  {
+                    "level": 1,
+                    "title": "权威发布｜事关数字贸易和服务贸易高质量发展，重庆出台行动方案→-重庆日报"
+                  },
+                  {
+                    "level": 2,
+                    "title": "六、加快构建全要素生态体系"
+                  }
+                ]
+              },
+              "source_block_ids": [
+                "web-block-0044"
+              ],
+              "raw_object_id": "a9c8d6b4-b972-40ae-96fb-a00d45f88d2c",
+              "raw_object_uri": "s3://nexus-dev-objects/raw/crawler/ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f/2026/10/22/f5dca797-cf2f-4ae5-9cb5-329178fb3dc2-0016/e1353aeafd35/websearch-e1353aeafd35.json"
+            },
+            {
+              "nexus_chunk_id": "7dbae926-1163-4e22-9110-e8b3c8040c76",
+              "normalized_ref_id": "5e6a5808-4ac3-4cae-8b96-dac632ae7242",
+              "score": 0.5418794216765375,
+              "content": "19．建设电商人才高地。构建“市区培训+校企共育+企业实战”三级人才培养体系，优化“星未来电商训练营”“数字商务高质量培训”等课程资源。推动区县开展电商人才梯度培育，通过以赛代训加大人才挖掘和实训力度。鼓励电商平台在渝落地人才培育计划，通过专题课程、深度陪跑等形式强化培训效能。支持院校深化产教融合，与电商平台共建高校电商实训基地，开设微专业、微课堂等特色教育。打造“山城推荐官”达人矩阵，形成“头部引领、腰部支撑、新人跟进”的良性达人发展生态。",
+              "snippet": "19．建设电商人才高地。构建“市区培训+校企共育+企业实战”三级人才培养体系，优化“星未来电商训练营”“数字商务高质量培训”等课程资源。推动区县开展电商人才梯度培育，通过以赛代训加大人才挖掘和实训力度。鼓励电商平台在渝落地人才培育计划，通过专题课程、深度陪跑等形式强化培训效能。支持院校深化产教融合，与电商平台共建高校电商实训基地，开设微专业、微课堂等特色教育。打造“山城推荐官”达人矩阵，形成“头部引领、腰部支撑、新人跟进”的良性达人发展生态。",
+              "metadata": {
+                "asset": {
+                  "tags": [],
+                  "level": null,
+                  "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号) - 重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号)",
+                  "asset_id": "644c799e-b683-42d9-a70d-a6513484bbc4",
+                  "org_scope": [],
+                  "classification": null,
+                  "asset_version_id": "644a5184-c380-44f0-929d-b8a005a99301"
+                },
+                "chunk": {
+                  "chunk_id": "7dbae926-1163-4e22-9110-e8b3c8040c76",
+                  "chunk_type": "semantic_block",
+                  "chunk_index": 23,
+                  "domain_model": null,
+                  "heading_path": [],
+                  "domain_profile": null,
+                  "section_profile": null,
+                  "source_block_ids": [
+                    "web-block-0047"
+                  ],
+                  "chunking_strategy": "semantic_repack",
+                  "knowledge_type_code": "industry_research_kb"
+                },
+                "index": {
+                  "collection_key": "industry_research_kb.document.bge_m3_latest.v1",
+                  "distance_metric": "cosine",
+                  "embedding_model": "bge-m3:latest",
+                  "asset_domain_type": "industry_research_kb",
+                  "embedding_provider": "litellm",
+                  "embedding_dimension": 1024,
+                  "metadata_schema_version": "v1"
+                },
+                "locator": {
+                  "page_end": null,
+                  "page_start": null
+                },
+                "normalized_ref": {
+                  "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号) - 重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号)",
+                  "lineage": {
+                    "image_uris": {},
+                    "raw_object_id": "93301039-0579-4c1b-a6ab-b8bf8cb721a9",
+                    "raw_object_uri": "s3://nexus-dev-objects/raw/crawler/ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f/2026/10/21/ca791cdf-c093-41c6-9ef7-5ff09a9b97ff-0011/592f199a1967/websearch-592f199a1967.json",
+                    "parse_artifact_id": "640fc2fa-1749-43dc-bac3-f1f52c5d2db9",
+                    "parse_artifact_uri": "s3://nexus-dev-objects/parsed/644a5184-c380-44f0-929d-b8a005a99301/640fc2fa-1749-43dc-bac3-f1f52c5d2db9/mineru-result.json"
+                  },
+                  "quality": {
+                    "parse_score": null,
+                    "anomaly_items": [],
+                    "normalize_score": null,
+                    "normalize_issues": [
+                      {
+                        "code": "missing_required",
+                        "field": "primary_key",
+                        "message": "required field 'primary_key' is missing or empty"
+                      },
+                      {
+                        "code": "missing_required",
+                        "field": "columns",
+                        "message": "required field 'columns' is missing or empty"
+                      }
+                    ],
+                    "normalize_llm_used": true,
+                    "manual_review_status": "not_required",
+                    "normalize_contract_key": "crawler|application/json",
+                    "normalize_schema_version": "1.0"
+                  },
+                  "language": "zh-CN",
+                  "governance": {
+                    "org_scope": [],
+                    "version_status": "processing",
+                    "sensitivity_level": null
+                  },
+                  "source_type": "crawler",
+                  "content_type": "document",
+                  "domain_profile": null,
+                  "normalized_type": "document",
+                  "normalized_ref_id": "5e6a5808-4ac3-4cae-8b96-dac632ae7242"
+                },
+                "schema_version": "v1"
+              },
+              "knowledge_type_code": "industry_research_kb",
+              "collection_key": "industry_research_kb.document.bge_m3_latest.v1",
+              "version_id": "644a5184-c380-44f0-929d-b8a005a99301",
+              "asset_id": "644c799e-b683-42d9-a70d-a6513484bbc4",
+              "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+              "locator": {
+                "page_start": null,
+                "page_end": null,
+                "bbox_union": null,
+                "block_start_order": 47,
+                "block_end_order": 47,
+                "source_url": "https://law.foodmate.net/mobile/index.php?moduleid=23&itemid=238963#1",
+                "section_id": "sec-0001",
+                "section_key": "d1fac1a964748afb0f04bd18",
+                "blocks": [
+                  {
+                    "block_id": "web-block-0047",
+                    "block_type": "paragraph",
+                    "page": null,
+                    "bbox": null,
+                    "md_char_range": [
+                      4504,
+                      4727
+                    ],
+                    "source_url": "https://law.foodmate.net/mobile/index.php?moduleid=23&itemid=238963#1",
+                    "dom_path": null,
+                    "dom_index": 47,
+                    "locator_type": "markdown_range",
+                    "section_id": "sec-0001",
+                    "block_order": 47
+                  }
+                ],
+                "md_char_range": [
+                  4504,
+                  4727
+                ],
+                "md_spans": null,
+                "heading_path": [
+                  {
+                    "level": 1,
+                    "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号) - 重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号)"
+                  },
+                  {
+                    "level": 2,
+                    "title": "二、重点工作"
+                  },
+                  {
+                    "level": 3,
+                    "title": "（七）“数智赋能”电商生态优化行动"
+                  }
+                ]
+              },
+              "source_block_ids": [
+                "web-block-0047"
+              ],
+              "raw_object_id": "93301039-0579-4c1b-a6ab-b8bf8cb721a9",
+              "raw_object_uri": "s3://nexus-dev-objects/raw/crawler/ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f/2026/10/21/ca791cdf-c093-41c6-9ef7-5ff09a9b97ff-0011/592f199a1967/websearch-592f199a1967.json"
+            },
+            {
+              "nexus_chunk_id": "9b92ea97-46ac-4de0-89d7-4472f49fcaaa",
+              "normalized_ref_id": "df51b114-d0e1-447a-8892-0d4ea269e606",
+              "score": 0.5418794216765375,
+              "content": "19．建设电商人才高地。构建“市区培训+校企共育+企业实战”三级人才培养体系，优化“星未来电商训练营”“数字商务高质量培训”等课程资源。推动区县开展电商人才梯度培育，通过以赛代训加大人才挖掘和实训力度。鼓励电商平台在渝落地人才培育计划，通过专题课程、深度陪跑等形式强化培训效能。支持院校深化产教融合，与电商平台共建高校电商实训基地，开设微专业、微课堂等特色教育。打造“山城推荐官”达人矩阵，形成“头部引领、腰部支撑、新人跟进”的良性达人发展生态。",
+              "snippet": "19．建设电商人才高地。构建“市区培训+校企共育+企业实战”三级人才培养体系，优化“星未来电商训练营”“数字商务高质量培训”等课程资源。推动区县开展电商人才梯度培育，通过以赛代训加大人才挖掘和实训力度。鼓励电商平台在渝落地人才培育计划，通过专题课程、深度陪跑等形式强化培训效能。支持院校深化产教融合，与电商平台共建高校电商实训基地，开设微专业、微课堂等特色教育。打造“山城推荐官”达人矩阵，形成“头部引领、腰部支撑、新人跟进”的良性达人发展生态。",
+              "metadata": {
+                "asset": {
+                  "tags": [],
+                  "level": null,
+                  "title": "重庆外资企业智慧服务云平台",
+                  "asset_id": "f33a3d47-5383-4f86-b95d-e91e51e5e673",
+                  "org_scope": [],
+                  "classification": null,
+                  "asset_version_id": "b7a5e677-71c7-492d-bf1a-851b880f3661"
+                },
+                "chunk": {
+                  "chunk_id": "9b92ea97-46ac-4de0-89d7-4472f49fcaaa",
+                  "chunk_type": "semantic_block",
+                  "chunk_index": 22,
+                  "domain_model": null,
+                  "heading_path": [],
+                  "domain_profile": null,
+                  "section_profile": null,
+                  "source_block_ids": [
+                    "web-block-0045"
+                  ],
+                  "chunking_strategy": "semantic_repack",
+                  "knowledge_type_code": "industry_research_kb"
+                },
+                "index": {
+                  "collection_key": "industry_research_kb.document.bge_m3_latest.v1",
+                  "distance_metric": "cosine",
+                  "embedding_model": "bge-m3:latest",
+                  "asset_domain_type": "industry_research_kb",
+                  "embedding_provider": "litellm",
+                  "embedding_dimension": 1024,
+                  "metadata_schema_version": "v1"
+                },
+                "locator": {
+                  "page_end": null,
+                  "page_start": null
+                },
+                "normalized_ref": {
+                  "title": "重庆外资企业智慧服务云平台",
+                  "lineage": {
+                    "image_uris": {},
+                    "raw_object_id": "d0f92aaf-411c-43f9-b34f-f747ad1a66e4",
+                    "raw_object_uri": "s3://nexus-dev-objects/raw/crawler/ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f/2026/10/21/ca791cdf-c093-41c6-9ef7-5ff09a9b97ff-0007/7c5971e33334/websearch-7c5971e33334.json",
+                    "parse_artifact_id": "e46f2c0f-147d-48a0-abb9-8a5f14e6c8a3",
+                    "parse_artifact_uri": "s3://nexus-dev-objects/parsed/b7a5e677-71c7-492d-bf1a-851b880f3661/e46f2c0f-147d-48a0-abb9-8a5f14e6c8a3/mineru-result.json"
+                  },
+                  "quality": {
+                    "parse_score": null,
+                    "anomaly_items": [],
+                    "normalize_score": null,
+                    "normalize_issues": [
+                      {
+                        "code": "missing_required",
+                        "field": "primary_key",
+                        "message": "required field 'primary_key' is missing or empty"
+                      },
+                      {
+                        "code": "missing_required",
+                        "field": "columns",
+                        "message": "required field 'columns' is missing or empty"
+                      }
+                    ],
+                    "normalize_llm_used": true,
+                    "manual_review_status": "not_required",
+                    "normalize_contract_key": "crawler|application/json",
+                    "normalize_schema_version": "1.0"
+                  },
+                  "language": "zh-CN",
+                  "governance": {
+                    "org_scope": [],
+                    "version_status": "processing",
+                    "sensitivity_level": null
+                  },
+                  "source_type": "crawler",
+                  "content_type": "document",
+                  "domain_profile": null,
+                  "normalized_type": "document",
+                  "normalized_ref_id": "df51b114-d0e1-447a-8892-0d4ea269e606"
+                },
+                "schema_version": "v1"
+              },
+              "knowledge_type_code": "industry_research_kb",
+              "collection_key": "industry_research_kb.document.bge_m3_latest.v1",
+              "version_id": "b7a5e677-71c7-492d-bf1a-851b880f3661",
+              "asset_id": "f33a3d47-5383-4f86-b95d-e91e51e5e673",
+              "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+              "locator": {
+                "page_start": null,
+                "page_end": null,
+                "bbox_union": null,
+                "block_start_order": 45,
+                "block_end_order": 45,
+                "source_url": "https://gzfw.cqcidc.cn/escms/html/web/wzhqzc/cqzc/2095697340461920258.html",
+                "section_id": "sec-0001",
+                "section_key": "6704727e77a7e37725bdefa8",
+                "blocks": [
+                  {
+                    "block_id": "web-block-0045",
+                    "block_type": "paragraph",
+                    "page": null,
+                    "bbox": null,
+                    "md_char_range": [
+                      4343,
+                      4566
+                    ],
+                    "source_url": "https://gzfw.cqcidc.cn/escms/html/web/wzhqzc/cqzc/2095697340461920258.html",
+                    "dom_path": null,
+                    "dom_index": 45,
+                    "locator_type": "markdown_range",
+                    "section_id": "sec-0001",
+                    "block_order": 45
+                  }
+                ],
+                "md_char_range": [
+                  4343,
+                  4566
+                ],
+                "md_spans": null,
+                "heading_path": [
+                  {
+                    "level": 1,
+                    "title": "重庆外资企业智慧服务云平台"
+                  },
+                  {
+                    "level": 2,
+                    "title": "二、重点工作"
+                  },
+                  {
+                    "level": 3,
+                    "title": "（七）“数智赋能”电商生态优化行动"
+                  }
+                ]
+              },
+              "source_block_ids": [
+                "web-block-0045"
+              ],
+              "raw_object_id": "d0f92aaf-411c-43f9-b34f-f747ad1a66e4",
+              "raw_object_uri": "s3://nexus-dev-objects/raw/crawler/ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f/2026/10/21/ca791cdf-c093-41c6-9ef7-5ff09a9b97ff-0007/7c5971e33334/websearch-7c5971e33334.json"
+            },
+            {
+              "nexus_chunk_id": "ee85fc7e-4801-4719-85c0-0c28fec637ba",
+              "normalized_ref_id": "0ee8a187-22dc-417e-bc29-841b29026d8a",
+              "score": 0.5418794216765375,
+              "content": "19．建设电商人才高地。构建“市区培训+校企共育+企业实战”三级人才培养体系，优化“星未来电商训练营”“数字商务高质量培训”等课程资源。推动区县开展电商人才梯度培育，通过以赛代训加大人才挖掘和实训力度。鼓励电商平台在渝落地人才培育计划，通过专题课程、深度陪跑等形式强化培训效能。支持院校深化产教融合，与电商平台共建高校电商实训基地，开设微专业、微课堂等特色教育。打造“山城推荐官”达人矩阵，形成“头部引领、腰部支撑、新人跟进”的良性达人发展生态。",
+              "snippet": "19．建设电商人才高地。构建“市区培训+校企共育+企业实战”三级人才培养体系，优化“星未来电商训练营”“数字商务高质量培训”等课程资源。推动区县开展电商人才梯度培育，通过以赛代训加大人才挖掘和实训力度。鼓励电商平台在渝落地人才培育计划，通过专题课程、深度陪跑等形式强化培训效能。支持院校深化产教融合，与电商平台共建高校电商实训基地，开设微专业、微课堂等特色教育。打造“山城推荐官”达人矩阵，形成“头部引领、腰部支撑、新人跟进”的良性达人发展生态。",
+              "metadata": {
+                "asset": {
+                  "tags": [],
+                  "level": null,
+                  "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划 （2026-2028年）》的通知 - - [ 索引号 ] 11500229660853981Q/2026-00009",
+                  "asset_id": "5ef07684-659c-4ab0-9c43-c8a87d4a2eba",
+                  "org_scope": [],
+                  "classification": null,
+                  "asset_version_id": "cec63b2d-c6ee-44f4-bf9b-94c81974f623"
+                },
+                "chunk": {
+                  "chunk_id": "ee85fc7e-4801-4719-85c0-0c28fec637ba",
+                  "chunk_type": "semantic_block",
+                  "chunk_index": 24,
+                  "domain_model": null,
+                  "heading_path": [],
+                  "domain_profile": null,
+                  "section_profile": null,
+                  "source_block_ids": [
+                    "web-block-0043"
+                  ],
+                  "chunking_strategy": "semantic_repack",
+                  "knowledge_type_code": "industry_research_kb"
+                },
+                "index": {
+                  "collection_key": "industry_research_kb.document.bge_m3_latest.v1",
+                  "distance_metric": "cosine",
+                  "embedding_model": "bge-m3:latest",
+                  "asset_domain_type": "industry_research_kb",
+                  "embedding_provider": "litellm",
+                  "embedding_dimension": 1024,
+                  "metadata_schema_version": "v1"
+                },
+                "locator": {
+                  "page_end": null,
+                  "page_start": null
+                },
+                "normalized_ref": {
+                  "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划 （2026-2028年）》的通知 - - [ 索引号 ] 11500229660853981Q/2026-00009",
+                  "lineage": {
+                    "image_uris": {},
+                    "raw_object_id": "43f9213f-329e-4580-aa83-db3eb358e74c",
+                    "raw_object_uri": "s3://nexus-dev-objects/raw/crawler/ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f/2026/10/21/ca791cdf-c093-41c6-9ef7-5ff09a9b97ff-0008/07f083246f56/websearch-07f083246f56.json",
+                    "parse_artifact_id": "b4d0e8b4-0e4f-4bc5-b662-c0120c8a8ea5",
+                    "parse_artifact_uri": "s3://nexus-dev-objects/parsed/cec63b2d-c6ee-44f4-bf9b-94c81974f623/b4d0e8b4-0e4f-4bc5-b662-c0120c8a8ea5/mineru-result.json"
+                  },
+                  "quality": {
+                    "parse_score": null,
+                    "anomaly_items": [],
+                    "normalize_score": null,
+                    "normalize_issues": [
+                      {
+                        "code": "missing_required",
+                        "field": "primary_key",
+                        "message": "required field 'primary_key' is missing or empty"
+                      },
+                      {
+                        "code": "missing_required",
+                        "field": "columns",
+                        "message": "required field 'columns' is missing or empty"
+                      }
+                    ],
+                    "normalize_llm_used": true,
+                    "manual_review_status": "not_required",
+                    "normalize_contract_key": "crawler|application/json",
+                    "normalize_schema_version": "1.0"
+                  },
+                  "language": "zh-CN",
+                  "governance": {
+                    "org_scope": [],
+                    "version_status": "processing",
+                    "sensitivity_level": null
+                  },
+                  "source_type": "crawler",
+                  "content_type": "document",
+                  "domain_profile": null,
+                  "normalized_type": "document",
+                  "normalized_ref_id": "0ee8a187-22dc-417e-bc29-841b29026d8a"
+                },
+                "schema_version": "v1"
+              },
+              "knowledge_type_code": "industry_research_kb",
+              "collection_key": "industry_research_kb.document.bge_m3_latest.v1",
+              "version_id": "cec63b2d-c6ee-44f4-bf9b-94c81974f623",
+              "asset_id": "5ef07684-659c-4ab0-9c43-c8a87d4a2eba",
+              "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+              "locator": {
+                "page_start": null,
+                "page_end": null,
+                "bbox_union": null,
+                "block_start_order": 43,
+                "block_end_order": 43,
+                "source_url": "http://www.cqck.gov.cn/bm/sww/zwgk_70831/fdzdgknr_70834/lzyj_70835/xzgfxwj_70836/202609/t20260907_16041362.html#1",
+                "section_id": "sec-0001",
+                "section_key": "292f52430b79ba3acc6b0c07",
+                "blocks": [
+                  {
+                    "block_id": "web-block-0043",
+                    "block_type": "paragraph",
+                    "page": null,
+                    "bbox": null,
+                    "md_char_range": [
+                      4516,
+                      4739
+                    ],
+                    "source_url": "http://www.cqck.gov.cn/bm/sww/zwgk_70831/fdzdgknr_70834/lzyj_70835/xzgfxwj_70836/202609/t20260907_16041362.html#1",
+                    "dom_path": null,
+                    "dom_index": 43,
+                    "locator_type": "markdown_range",
+                    "section_id": "sec-0001",
+                    "block_order": 43
+                  }
+                ],
+                "md_char_range": [
+                  4516,
+                  4739
+                ],
+                "md_spans": null,
+                "heading_path": [
+                  {
+                    "level": 1,
+                    "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划 （2026-2028年）》的通知"
+                  },
+                  {
+                    "level": 2,
+                    "title": "二、重点工作"
+                  },
+                  {
+                    "level": 3,
+                    "title": "（七）“数智赋能”电商生态优化行动"
+                  }
+                ]
+              },
+              "source_block_ids": [
+                "web-block-0043"
+              ],
+              "raw_object_id": "43f9213f-329e-4580-aa83-db3eb358e74c",
+              "raw_object_uri": "s3://nexus-dev-objects/raw/crawler/ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f/2026/10/21/ca791cdf-c093-41c6-9ef7-5ff09a9b97ff-0008/07f083246f56/websearch-07f083246f56.json"
+            },
+            {
+              "nexus_chunk_id": "ddfc9a07-4a99-44f6-bafd-005b30df8a40",
+              "normalized_ref_id": "533f1174-233a-42f9-a82e-a547bb2d31c3",
+              "score": 0.5283520941419914,
+              "content": "提升专业物流服务供给能力。做强大宗物资生产性物流服务，深度融入西南农资骨干流通走廊与西部矿产品骨干流通走廊建设。强化国家骨干冷链物流基地集聚辐射作用，布局一批产销衔接型冷链集配中心，推广“中央厨房+冷链配送”“生鲜电商+冷链宅配”等新业态。推进“平急两用”城郊大仓基地建设，搭建应急物流综合指挥调度平台，构建“空中+地面”立体应急投送网络。推进布局低空干支物流网络，开展跨区域干支低空物流运输，加密低空末端配送网络。支持两江新区、永川区、梁平区、万州区等有条件的区域探索打造低空物流港。提升订购—交付一体化国际供应链服务能力，做强“双主轴”运营组织。",
+              "snippet": "提升专业物流服务供给能力。做强大宗物资生产性物流服务，深度融入西南农资骨干流通走廊与西部矿产品骨干流通走廊建设。强化国家骨干冷链物流基地集聚辐射作用，布局一批产销衔接型冷链集配中心，推广“中央厨房+冷链配送”“生鲜电商+冷链宅配”等新业态。推进“平急两用”城郊大仓基地建设，搭建应急物流综合指挥调度平台，构建“空中+地面”立体应急投送网络。推进布局低空干支物流网络，开展跨区域干支低空物流运输，加密低空末端配送网络。支持两江新区、永川区、梁平区、万州区等有条件的区域探索打造低空物流港。提升订购—交付一体化国际供应链服务能力，做强“双主轴”运营组织。",
+              "metadata": {
+                "asset": {
+                  "tags": [],
+                  "level": null,
+                  "title": "重庆市人民政府关于印发《重庆市“十五五”现代服务业发展规划（2026—2030 年）》的通知",
+                  "asset_id": "5b89eaf1-1b1c-4980-a2d7-323066f775d7",
+                  "org_scope": [],
+                  "classification": null,
+                  "asset_version_id": "0ac85cfa-690b-4280-ba12-3bf98a081721"
+                },
+                "chunk": {
+                  "chunk_id": "ddfc9a07-4a99-44f6-bafd-005b30df8a40",
+                  "chunk_type": "semantic_block",
+                  "chunk_index": 35,
+                  "domain_model": null,
+                  "heading_path": [],
+                  "domain_profile": null,
+                  "section_profile": null,
+                  "source_block_ids": [
+                    "web-block-0057"
+                  ],
+                  "chunking_strategy": "semantic_repack",
+                  "knowledge_type_code": "industry_research_kb"
+                },
+                "index": {
+                  "collection_key": "industry_research_kb.document.bge_m3_latest.v1",
+                  "distance_metric": "cosine",
+                  "embedding_model": "bge-m3:latest",
+                  "asset_domain_type": "industry_research_kb",
+                  "embedding_provider": "litellm",
+                  "embedding_dimension": 1024,
+                  "metadata_schema_version": "v1"
+                },
+                "locator": {
+                  "page_end": null,
+                  "page_start": null
+                },
+                "normalized_ref": {
+                  "title": "重庆市人民政府关于印发《重庆市“十五五”现代服务业发展规划（2026—2030 年）》的通知",
+                  "lineage": {
+                    "image_uris": {},
+                    "raw_object_id": "2f46f055-5e7a-4d71-83db-67eb6e1423a3",
+                    "raw_object_uri": "s3://nexus-dev-objects/raw/crawler/ad7597ac-5d39-47a6-8dd8-aa536d23c413/2026/10/14/ee2f01d6-e474-4939-86c2-42df2b5c21d8-0037/759cdf674233/websearch-759cdf674233.json",
+                    "parse_artifact_id": "3a527afa-9f97-4f93-95bf-32a6ee14dc69",
+                    "parse_artifact_uri": "s3://nexus-dev-objects/parsed/0ac85cfa-690b-4280-ba12-3bf98a081721/3a527afa-9f97-4f93-95bf-32a6ee14dc69/mineru-result.json"
+                  },
+                  "quality": {
+                    "parse_score": null,
+                    "anomaly_items": [],
+                    "normalize_score": null,
+                    "normalize_issues": [
+                      {
+                        "code": "missing_required",
+                        "field": "primary_key",
+                        "message": "required field 'primary_key' is missing or empty"
+                      },
+                      {
+                        "code": "missing_required",
+                        "field": "columns",
+                        "message": "required field 'columns' is missing or empty"
+                      }
+                    ],
+                    "normalize_llm_used": true,
+                    "manual_review_status": "not_required",
+                    "normalize_contract_key": "crawler|application/json",
+                    "normalize_schema_version": "1.0"
+                  },
+                  "language": "zh-CN",
+                  "governance": {
+                    "org_scope": [],
+                    "version_status": "processing",
+                    "sensitivity_level": null
+                  },
+                  "source_type": "crawler",
+                  "content_type": "document",
+                  "domain_profile": null,
+                  "normalized_type": "document",
+                  "normalized_ref_id": "533f1174-233a-42f9-a82e-a547bb2d31c3"
+                },
+                "schema_version": "v1"
+              },
+              "knowledge_type_code": "industry_research_kb",
+              "collection_key": "industry_research_kb.document.bge_m3_latest.v1",
+              "version_id": "0ac85cfa-690b-4280-ba12-3bf98a081721",
+              "asset_id": "5b89eaf1-1b1c-4980-a2d7-323066f775d7",
+              "data_source_id": "ad7597ac-5d39-47a6-8dd8-aa536d23c413",
+              "locator": {
+                "page_start": null,
+                "page_end": null,
+                "bbox_union": null,
+                "block_start_order": 57,
+                "block_end_order": 57,
+                "source_url": "https://fzggw.cq.gov.cn/zwgk/zfxxgkml/zcwj/qtwj/202608/t20260805_15895638.html",
+                "section_id": "sec-0007",
+                "section_key": "b7fc3758ca714747ea1f357c",
+                "blocks": [
+                  {
+                    "block_id": "web-block-0057",
+                    "block_type": "paragraph",
+                    "page": null,
+                    "bbox": null,
+                    "md_char_range": [
+                      5953,
+                      6228
+                    ],
+                    "source_url": "https://fzggw.cq.gov.cn/zwgk/zfxxgkml/zcwj/qtwj/202608/t20260805_15895638.html",
+                    "dom_path": null,
+                    "dom_index": 57,
+                    "locator_type": "markdown_range",
+                    "section_id": "sec-0007",
+                    "block_order": 57
+                  }
+                ],
+                "md_char_range": [
+                  5953,
+                  6228
+                ],
+                "md_spans": null,
+                "heading_path": [
+                  {
+                    "level": 1,
+                    "title": "重庆市人民政府关于印发《重庆市“十五五”现代服务业发展规划（2026—2030 年）》的通知"
+                  },
+                  {
+                    "level": 2,
+                    "title": "二、全链条补强薄弱环节，聚力打造优势生产性服务业"
+                  },
+                  {
+                    "level": 3,
+                    "title": "（三）构建现代物流网络与供应链组织体系"
+                  }
+                ]
+              },
+              "source_block_ids": [
+                "web-block-0057"
+              ],
+              "raw_object_id": "2f46f055-5e7a-4d71-83db-67eb6e1423a3",
+              "raw_object_uri": "s3://nexus-dev-objects/raw/crawler/ad7597ac-5d39-47a6-8dd8-aa536d23c413/2026/10/14/ee2f01d6-e474-4939-86c2-42df2b5c21d8-0037/759cdf674233/websearch-759cdf674233.json"
+            },
+            {
+              "nexus_chunk_id": "38d2e834-3257-439d-9906-41e36091ae3c",
+              "normalized_ref_id": "533f1174-233a-42f9-a82e-a547bb2d31c3",
+              "score": 0.5167844831522204,
+              "content": "迭代推进软件“满天星”行动计划。以“人工智能+软件”为主攻方向促进信息服务价值提升，推动软件信息服务深度赋能重点产业发展。聚焦操作系统、数据库、中间件等基础软件关键领域，推动关键核心技术攻关。重点发展研发设计类和生产控制类工业软件，研发兼具通用性、易用性与可扩展性的工业软件产品。深化整车企业与软信企业合作，重点发展智能座舱、智能辅助驾驶和车载应用软件等汽车软件。推动软信企业融入卫星互联网产业发展与北斗规模化应用生态，在交通、物流等关键领域开展北斗应用软件创新。建设开源生态，强化与开源鸿蒙等操作系统的适配，以开源模式推动资源汇聚和供需对接。",
+              "snippet": "迭代推进软件“满天星”行动计划。以“人工智能+软件”为主攻方向促进信息服务价值提升，推动软件信息服务深度赋能重点产业发展。聚焦操作系统、数据库、中间件等基础软件关键领域，推动关键核心技术攻关。重点发展研发设计类和生产控制类工业软件，研发兼具通用性、易用性与可扩展性的工业软件产品。深化整车企业与软信企业合作，重点发展智能座舱、智能辅助驾驶和车载应用软件等汽车软件。推动软信企业融入卫星互联网产业发展与北斗规模化应用生态，在交通、物流等关键领域开展北斗应用软件创新。建设开源生态，强化与开源鸿蒙等操作系统的适配，以开源模式推动资源汇聚和供需对接。",
+              "metadata": {
+                "asset": {
+                  "tags": [],
+                  "level": null,
+                  "title": "重庆市人民政府关于印发《重庆市“十五五”现代服务业发展规划（2026—2030 年）》的通知",
+                  "asset_id": "5b89eaf1-1b1c-4980-a2d7-323066f775d7",
+                  "org_scope": [],
+                  "classification": null,
+                  "asset_version_id": "0ac85cfa-690b-4280-ba12-3bf98a081721"
+                },
+                "chunk": {
+                  "chunk_id": "38d2e834-3257-439d-9906-41e36091ae3c",
+                  "chunk_type": "semantic_block",
+                  "chunk_index": 21,
+                  "domain_model": null,
+                  "heading_path": [],
+                  "domain_profile": null,
+                  "section_profile": null,
+                  "source_block_ids": [
+                    "web-block-0039"
+                  ],
+                  "chunking_strategy": "semantic_repack",
+                  "knowledge_type_code": "industry_research_kb"
+                },
+                "index": {
+                  "collection_key": "industry_research_kb.document.bge_m3_latest.v1",
+                  "distance_metric": "cosine",
+                  "embedding_model": "bge-m3:latest",
+                  "asset_domain_type": "industry_research_kb",
+                  "embedding_provider": "litellm",
+                  "embedding_dimension": 1024,
+                  "metadata_schema_version": "v1"
+                },
+                "locator": {
+                  "page_end": null,
+                  "page_start": null
+                },
+                "normalized_ref": {
+                  "title": "重庆市人民政府关于印发《重庆市“十五五”现代服务业发展规划（2026—2030 年）》的通知",
+                  "lineage": {
+                    "image_uris": {},
+                    "raw_object_id": "2f46f055-5e7a-4d71-83db-67eb6e1423a3",
+                    "raw_object_uri": "s3://nexus-dev-objects/raw/crawler/ad7597ac-5d39-47a6-8dd8-aa536d23c413/2026/10/14/ee2f01d6-e474-4939-86c2-42df2b5c21d8-0037/759cdf674233/websearch-759cdf674233.json",
+                    "parse_artifact_id": "3a527afa-9f97-4f93-95bf-32a6ee14dc69",
+                    "parse_artifact_uri": "s3://nexus-dev-objects/parsed/0ac85cfa-690b-4280-ba12-3bf98a081721/3a527afa-9f97-4f93-95bf-32a6ee14dc69/mineru-result.json"
+                  },
+                  "quality": {
+                    "parse_score": null,
+                    "anomaly_items": [],
+                    "normalize_score": null,
+                    "normalize_issues": [
+                      {
+                        "code": "missing_required",
+                        "field": "primary_key",
+                        "message": "required field 'primary_key' is missing or empty"
+                      },
+                      {
+                        "code": "missing_required",
+                        "field": "columns",
+                        "message": "required field 'columns' is missing or empty"
+                      }
+                    ],
+                    "normalize_llm_used": true,
+                    "manual_review_status": "not_required",
+                    "normalize_contract_key": "crawler|application/json",
+                    "normalize_schema_version": "1.0"
+                  },
+                  "language": "zh-CN",
+                  "governance": {
+                    "org_scope": [],
+                    "version_status": "processing",
+                    "sensitivity_level": null
+                  },
+                  "source_type": "crawler",
+                  "content_type": "document",
+                  "domain_profile": null,
+                  "normalized_type": "document",
+                  "normalized_ref_id": "533f1174-233a-42f9-a82e-a547bb2d31c3"
+                },
+                "schema_version": "v1"
+              },
+              "knowledge_type_code": "industry_research_kb",
+              "collection_key": "industry_research_kb.document.bge_m3_latest.v1",
+              "version_id": "0ac85cfa-690b-4280-ba12-3bf98a081721",
+              "asset_id": "5b89eaf1-1b1c-4980-a2d7-323066f775d7",
+              "data_source_id": "ad7597ac-5d39-47a6-8dd8-aa536d23c413",
+              "locator": {
+                "page_start": null,
+                "page_end": null,
+                "bbox_union": null,
+                "block_start_order": 39,
+                "block_end_order": 39,
+                "source_url": "https://fzggw.cq.gov.cn/zwgk/zfxxgkml/zcwj/qtwj/202608/t20260805_15895638.html",
+                "section_id": "sec-0005",
+                "section_key": "05f93dae3475d592219e845c",
+                "blocks": [
+                  {
+                    "block_id": "web-block-0039",
+                    "block_type": "paragraph",
+                    "page": null,
+                    "bbox": null,
+                    "md_char_range": [
+                      3462,
+                      3734
+                    ],
+                    "source_url": "https://fzggw.cq.gov.cn/zwgk/zfxxgkml/zcwj/qtwj/202608/t20260805_15895638.html",
+                    "dom_path": null,
+                    "dom_index": 39,
+                    "locator_type": "markdown_range",
+                    "section_id": "sec-0005",
+                    "block_order": 39
+                  }
+                ],
+                "md_char_range": [
+                  3462,
+                  3734
+                ],
+                "md_spans": null,
+                "heading_path": [
+                  {
+                    "level": 1,
+                    "title": "重庆市人民政府关于印发《重庆市“十五五”现代服务业发展规划（2026—2030 年）》的通知"
+                  },
+                  {
+                    "level": 2,
+                    "title": "二、全链条补强薄弱环节，聚力打造优势生产性服务业"
+                  },
+                  {
+                    "level": 3,
+                    "title": "（一）创新发展数智信息服务"
+                  }
+                ]
+              },
+              "source_block_ids": [
+                "web-block-0039"
+              ],
+              "raw_object_id": "2f46f055-5e7a-4d71-83db-67eb6e1423a3",
+              "raw_object_uri": "s3://nexus-dev-objects/raw/crawler/ad7597ac-5d39-47a6-8dd8-aa536d23c413/2026/10/14/ee2f01d6-e474-4939-86c2-42df2b5c21d8-0037/759cdf674233/websearch-759cdf674233.json"
+            },
+            {
+              "nexus_chunk_id": "c63bcb1e-227b-4a3f-a884-89a9c4805864",
+              "normalized_ref_id": "533f1174-233a-42f9-a82e-a547bb2d31c3",
+              "score": 0.5128432145363738,
+              "content": "2．物流枢纽经济区。培育物流枢纽经济新形态，推动“通道+枢纽+网络+产业”一体化建设，依托两江新区、沙坪坝区、九龙坡区、江津区及西部科学城重庆高新区等，建设若干功能突出、分工明确、辐射力强的物流枢纽经济区，创新构建“产业集群+物流枢纽+通道共建”融合发展新模式。",
+              "snippet": "2．物流枢纽经济区。培育物流枢纽经济新形态，推动“通道+枢纽+网络+产业”一体化建设，依托两江新区、沙坪坝区、九龙坡区、江津区及西部科学城重庆高新区等，建设若干功能突出、分工明确、辐射力强的物流枢纽经济区，创新构建“产业集群+物流枢纽+通道共建”融合发展新模式。",
+              "metadata": {
+                "asset": {
+                  "tags": [],
+                  "level": null,
+                  "title": "重庆市人民政府关于印发《重庆市“十五五”现代服务业发展规划（2026—2030 年）》的通知",
+                  "asset_id": "5b89eaf1-1b1c-4980-a2d7-323066f775d7",
+                  "org_scope": [],
+                  "classification": null,
+                  "asset_version_id": "0ac85cfa-690b-4280-ba12-3bf98a081721"
+                },
+                "chunk": {
+                  "chunk_id": "c63bcb1e-227b-4a3f-a884-89a9c4805864",
+                  "chunk_type": "semantic_block",
+                  "chunk_index": 38,
+                  "domain_model": null,
+                  "heading_path": [],
+                  "domain_profile": null,
+                  "section_profile": null,
+                  "source_block_ids": [
+                    "web-block-0061"
+                  ],
+                  "chunking_strategy": "semantic_repack",
+                  "knowledge_type_code": "industry_research_kb"
+                },
+                "index": {
+                  "collection_key": "industry_research_kb.document.bge_m3_latest.v1",
+                  "distance_metric": "cosine",
+                  "embedding_model": "bge-m3:latest",
+                  "asset_domain_type": "industry_research_kb",
+                  "embedding_provider": "litellm",
+                  "embedding_dimension": 1024,
+                  "metadata_schema_version": "v1"
+                },
+                "locator": {
+                  "page_end": null,
+                  "page_start": null
+                },
+                "normalized_ref": {
+                  "title": "重庆市人民政府关于印发《重庆市“十五五”现代服务业发展规划（2026—2030 年）》的通知",
+                  "lineage": {
+                    "image_uris": {},
+                    "raw_object_id": "2f46f055-5e7a-4d71-83db-67eb6e1423a3",
+                    "raw_object_uri": "s3://nexus-dev-objects/raw/crawler/ad7597ac-5d39-47a6-8dd8-aa536d23c413/2026/10/14/ee2f01d6-e474-4939-86c2-42df2b5c21d8-0037/759cdf674233/websearch-759cdf674233.json",
+                    "parse_artifact_id": "3a527afa-9f97-4f93-95bf-32a6ee14dc69",
+                    "parse_artifact_uri": "s3://nexus-dev-objects/parsed/0ac85cfa-690b-4280-ba12-3bf98a081721/3a527afa-9f97-4f93-95bf-32a6ee14dc69/mineru-result.json"
+                  },
+                  "quality": {
+                    "parse_score": null,
+                    "anomaly_items": [],
+                    "normalize_score": null,
+                    "normalize_issues": [
+                      {
+                        "code": "missing_required",
+                        "field": "primary_key",
+                        "message": "required field 'primary_key' is missing or empty"
+                      },
+                      {
+                        "code": "missing_required",
+                        "field": "columns",
+                        "message": "required field 'columns' is missing or empty"
+                      }
+                    ],
+                    "normalize_llm_used": true,
+                    "manual_review_status": "not_required",
+                    "normalize_contract_key": "crawler|application/json",
+                    "normalize_schema_version": "1.0"
+                  },
+                  "language": "zh-CN",
+                  "governance": {
+                    "org_scope": [],
+                    "version_status": "processing",
+                    "sensitivity_level": null
+                  },
+                  "source_type": "crawler",
+                  "content_type": "document",
+                  "domain_profile": null,
+                  "normalized_type": "document",
+                  "normalized_ref_id": "533f1174-233a-42f9-a82e-a547bb2d31c3"
+                },
+                "schema_version": "v1"
+              },
+              "knowledge_type_code": "industry_research_kb",
+              "collection_key": "industry_research_kb.document.bge_m3_latest.v1",
+              "version_id": "0ac85cfa-690b-4280-ba12-3bf98a081721",
+              "asset_id": "5b89eaf1-1b1c-4980-a2d7-323066f775d7",
+              "data_source_id": "ad7597ac-5d39-47a6-8dd8-aa536d23c413",
+              "locator": {
+                "page_start": null,
+                "page_end": null,
+                "bbox_union": null,
+                "block_start_order": 61,
+                "block_end_order": 61,
+                "source_url": "https://fzggw.cq.gov.cn/zwgk/zfxxgkml/zcwj/qtwj/202608/t20260805_15895638.html",
+                "section_id": "sec-0007",
+                "section_key": "932dd7b01749e86c2db624e3",
+                "blocks": [
+                  {
+                    "block_id": "web-block-0061",
+                    "block_type": "paragraph",
+                    "page": null,
+                    "bbox": null,
+                    "md_char_range": [
+                      6608,
+                      6739
+                    ],
+                    "source_url": "https://fzggw.cq.gov.cn/zwgk/zfxxgkml/zcwj/qtwj/202608/t20260805_15895638.html",
+                    "dom_path": null,
+                    "dom_index": 61,
+                    "locator_type": "markdown_range",
+                    "section_id": "sec-0007",
+                    "block_order": 61
+                  }
+                ],
+                "md_char_range": [
+                  6608,
+                  6739
+                ],
+                "md_spans": null,
+                "heading_path": [
+                  {
+                    "level": 1,
+                    "title": "重庆市人民政府关于印发《重庆市“十五五”现代服务业发展规划（2026—2030 年）》的通知"
+                  },
+                  {
+                    "level": 2,
+                    "title": "二、全链条补强薄弱环节，聚力打造优势生产性服务业"
+                  },
+                  {
+                    "level": 3,
+                    "title": "（三）构建现代物流网络与供应链组织体系"
+                  }
+                ]
+              },
+              "source_block_ids": [
+                "web-block-0061"
+              ],
+              "raw_object_id": "2f46f055-5e7a-4d71-83db-67eb6e1423a3",
+              "raw_object_uri": "s3://nexus-dev-objects/raw/crawler/ad7597ac-5d39-47a6-8dd8-aa536d23c413/2026/10/14/ee2f01d6-e474-4939-86c2-42df2b5c21d8-0037/759cdf674233/websearch-759cdf674233.json"
+            },
+            {
+              "nexus_chunk_id": "4f91e33a-529b-49c4-9d7b-0307e8a58a5b",
+              "normalized_ref_id": "533f1174-233a-42f9-a82e-a547bb2d31c3",
+              "score": 0.5112451247900017,
+              "content": "4．科技成果转化平台。争创全国高校区域技术转移转化中心（成渝地区），做强国家技术转移人才培养基地（重庆）、重庆技术转移学院。培育打造生物医药、量子信息、新材料、低空飞行器、长时储能等中试验证平台。",
+              "snippet": "4．科技成果转化平台。争创全国高校区域技术转移转化中心（成渝地区），做强国家技术转移人才培养基地（重庆）、重庆技术转移学院。培育打造生物医药、量子信息、新材料、低空飞行器、长时储能等中试验证平台。",
+              "metadata": {
+                "asset": {
+                  "tags": [],
+                  "level": null,
+                  "title": "重庆市人民政府关于印发《重庆市“十五五”现代服务业发展规划（2026—2030 年）》的通知",
+                  "asset_id": "5b89eaf1-1b1c-4980-a2d7-323066f775d7",
+                  "org_scope": [],
+                  "classification": null,
+                  "asset_version_id": "0ac85cfa-690b-4280-ba12-3bf98a081721"
+                },
+                "chunk": {
+                  "chunk_id": "4f91e33a-529b-49c4-9d7b-0307e8a58a5b",
+                  "chunk_type": "semantic_block",
+                  "chunk_index": 33,
+                  "domain_model": null,
+                  "heading_path": [],
+                  "domain_profile": null,
+                  "section_profile": null,
+                  "source_block_ids": [
+                    "web-block-0054"
+                  ],
+                  "chunking_strategy": "semantic_repack",
+                  "knowledge_type_code": "industry_research_kb"
+                },
+                "index": {
+                  "collection_key": "industry_research_kb.document.bge_m3_latest.v1",
+                  "distance_metric": "cosine",
+                  "embedding_model": "bge-m3:latest",
+                  "asset_domain_type": "industry_research_kb",
+                  "embedding_provider": "litellm",
+                  "embedding_dimension": 1024,
+                  "metadata_schema_version": "v1"
+                },
+                "locator": {
+                  "page_end": null,
+                  "page_start": null
+                },
+                "normalized_ref": {
+                  "title": "重庆市人民政府关于印发《重庆市“十五五”现代服务业发展规划（2026—2030 年）》的通知",
+                  "lineage": {
+                    "image_uris": {},
+                    "raw_object_id": "2f46f055-5e7a-4d71-83db-67eb6e1423a3",
+                    "raw_object_uri": "s3://nexus-dev-objects/raw/crawler/ad7597ac-5d39-47a6-8dd8-aa536d23c413/2026/10/14/ee2f01d6-e474-4939-86c2-42df2b5c21d8-0037/759cdf674233/websearch-759cdf674233.json",
+                    "parse_artifact_id": "3a527afa-9f97-4f93-95bf-32a6ee14dc69",
+                    "parse_artifact_uri": "s3://nexus-dev-objects/parsed/0ac85cfa-690b-4280-ba12-3bf98a081721/3a527afa-9f97-4f93-95bf-32a6ee14dc69/mineru-result.json"
+                  },
+                  "quality": {
+                    "parse_score": null,
+                    "anomaly_items": [],
+                    "normalize_score": null,
+                    "normalize_issues": [
+                      {
+                        "code": "missing_required",
+                        "field": "primary_key",
+                        "message": "required field 'primary_key' is missing or empty"
+                      },
+                      {
+                        "code": "missing_required",
+                        "field": "columns",
+                        "message": "required field 'columns' is missing or empty"
+                      }
+                    ],
+                    "normalize_llm_used": true,
+                    "manual_review_status": "not_required",
+                    "normalize_contract_key": "crawler|application/json",
+                    "normalize_schema_version": "1.0"
+                  },
+                  "language": "zh-CN",
+                  "governance": {
+                    "org_scope": [],
+                    "version_status": "processing",
+                    "sensitivity_level": null
+                  },
+                  "source_type": "crawler",
+                  "content_type": "document",
+                  "domain_profile": null,
+                  "normalized_type": "document",
+                  "normalized_ref_id": "533f1174-233a-42f9-a82e-a547bb2d31c3"
+                },
+                "schema_version": "v1"
+              },
+              "knowledge_type_code": "industry_research_kb",
+              "collection_key": "industry_research_kb.document.bge_m3_latest.v1",
+              "version_id": "0ac85cfa-690b-4280-ba12-3bf98a081721",
+              "asset_id": "5b89eaf1-1b1c-4980-a2d7-323066f775d7",
+              "data_source_id": "ad7597ac-5d39-47a6-8dd8-aa536d23c413",
+              "locator": {
+                "page_start": null,
+                "page_end": null,
+                "bbox_union": null,
+                "block_start_order": 54,
+                "block_end_order": 54,
+                "source_url": "https://fzggw.cq.gov.cn/zwgk/zfxxgkml/zcwj/qtwj/202608/t20260805_15895638.html",
+                "section_id": "sec-0006",
+                "section_key": "1398f9af159f2858b6bbd9a3",
+                "blocks": [
+                  {
+                    "block_id": "web-block-0054",
+                    "block_type": "paragraph",
+                    "page": null,
+                    "bbox": null,
+                    "md_char_range": [
+                      5584,
+                      5682
+                    ],
+                    "source_url": "https://fzggw.cq.gov.cn/zwgk/zfxxgkml/zcwj/qtwj/202608/t20260805_15895638.html",
+                    "dom_path": null,
+                    "dom_index": 54,
+                    "locator_type": "markdown_range",
+                    "section_id": "sec-0006",
+                    "block_order": 54
+                  }
+                ],
+                "md_char_range": [
+                  5584,
+                  5682
+                ],
+                "md_spans": null,
+                "heading_path": [
+                  {
+                    "level": 1,
+                    "title": "重庆市人民政府关于印发《重庆市“十五五”现代服务业发展规划（2026—2030 年）》的通知"
+                  },
+                  {
+                    "level": 2,
+                    "title": "二、全链条补强薄弱环节，聚力打造优势生产性服务业"
+                  },
+                  {
+                    "level": 3,
+                    "title": "（二）提升科技创新服务能力"
+                  }
+                ]
+              },
+              "source_block_ids": [
+                "web-block-0054"
+              ],
+              "raw_object_id": "2f46f055-5e7a-4d71-83db-67eb6e1423a3",
+              "raw_object_uri": "s3://nexus-dev-objects/raw/crawler/ad7597ac-5d39-47a6-8dd8-aa536d23c413/2026/10/14/ee2f01d6-e474-4939-86c2-42df2b5c21d8-0037/759cdf674233/websearch-759cdf674233.json"
+            }
+          ],
+          "count": 10,
+          "caller_id": "adb0313d-e067-4223-a52d-b07a0df0b6c8"
+        },
+        "meta": {
+          "trace_id": "efba015a-7bda-4068-b003-fedb385720a8"
+        }
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        },
+        {
+          "assertion": "existing indexed evidence is returned",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case": "S1_REVISED",
+      "label": "cq_low_altitude_clause",
+      "tool": "read_document_section",
+      "method": "GET",
+      "path": "/open/v1/normalized-refs/fdaaa8e2-5ba0-4829-a5fe-6e8570b17226/sections/web-block-0019",
+      "query": {
+        "max_chars": 2000
+      },
+      "body": null,
+      "auth_mode": "api_key",
+      "http_status": 200,
+      "duration_ms": 32.48,
+      "trace_id": "7e39da29-3750-4669-a613-0ac0fefec98c",
+      "response": {
+        "data": {
+          "id": "web-block-0019",
+          "normalized_ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+          "title": null,
+          "content": "（四）全力推进产业数字化转型促出口。立足“33618”现代制造业集群体系，应用人工智能等新技术推动数字化转型，对企业“智改数转”提升予以补助，支持出口数字化车间、智能工厂整体解决方案，推动工业数字化出海。到2027年，全市累计新建智能工厂30家和数字化车间300个。面向“一带一路”及RCEP（区域全面经济伙伴关系协定）市场，重点推进智能网联新能源汽车、低空飞行器、电子信息制造、云计算、智能装备等领域产品升级和出口，提升对外贸易高技术附加值。深化中老泰“三国三园”国际合作，构建跨境产业链、供应链服务枢纽，实现从产品出口向“产品+技术+标准”输出转型。（责任单位：市经济信息委、市商务委）",
+          "source_block_ids": [
+            "web-block-0019"
+          ],
+          "locator": {
+            "md_char_range": [
+              1288,
+              1583
+            ],
+            "context_blocks": [
+              {
+                "id": "web-block-0019",
+                "locator": {
+                  "md_char_range": [
+                    1288,
+                    1583
+                  ]
+                }
+              }
+            ]
+          },
+          "offset": 0,
+          "total_chars": 295,
+          "truncated": false,
+          "next_offset": null
+        },
+        "meta": {
+          "trace_id": "7e39da29-3750-4669-a613-0ac0fefec98c",
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case": "S1_REVISED",
+      "label": "cq_talent_clause",
+      "tool": "read_document_section",
+      "method": "GET",
+      "path": "/open/v1/normalized-refs/fdaaa8e2-5ba0-4829-a5fe-6e8570b17226/sections/web-block-0038",
+      "query": {
+        "max_chars": 2000
+      },
+      "body": null,
+      "auth_mode": "api_key",
+      "http_status": 200,
+      "duration_ms": 34.77,
+      "trace_id": "ccaaae0a-15c2-48d8-abc7-83a843d24144",
+      "response": {
+        "data": {
+          "id": "web-block-0038",
+          "normalized_ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+          "title": null,
+          "content": "（二十）提高人力资源驱动力。推动高校开设数字贸易、服务贸易相关专业。加强服务贸易人才培训基地建设，增加数字贸易培训相关内容，扩大培训规模。充分发挥人力资源服务出口基地作用，加大高端人才引进力度，对符合条件的高层次人才提供住房、子女就学、医疗等方面的政策支持，动态调整重点领域境外职业资格认可清单。（责任单位：市人力社保局、市商务委、市委组织部、市教委、市住房城乡建委）",
+          "source_block_ids": [
+            "web-block-0038"
+          ],
+          "locator": {
+            "md_char_range": [
+              5769,
+              5953
+            ],
+            "context_blocks": [
+              {
+                "id": "web-block-0038",
+                "locator": {
+                  "md_char_range": [
+                    5769,
+                    5953
+                  ]
+                }
+              }
+            ]
+          },
+          "offset": 0,
+          "total_chars": 184,
+          "truncated": false,
+          "next_offset": null
+        },
+        "meta": {
+          "trace_id": "ccaaae0a-15c2-48d8-abc7-83a843d24144",
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case": "S1_REVISED",
+      "label": "cq_ecommerce_talent_clause",
+      "tool": "read_document_section",
+      "method": "GET",
+      "path": "/open/v1/normalized-refs/5e6a5808-4ac3-4cae-8b96-dac632ae7242/sections/web-block-0047",
+      "query": {
+        "max_chars": 2000
+      },
+      "body": null,
+      "auth_mode": "api_key",
+      "http_status": 200,
+      "duration_ms": 54.26,
+      "trace_id": "626da395-6284-43d8-8085-e3678e2d65a2",
+      "response": {
+        "data": {
+          "id": "web-block-0047",
+          "normalized_ref_id": "5e6a5808-4ac3-4cae-8b96-dac632ae7242",
+          "title": null,
+          "content": "19．建设电商人才高地。构建“市区培训+校企共育+企业实战”三级人才培养体系，优化“星未来电商训练营”“数字商务高质量培训”等课程资源。推动区县开展电商人才梯度培育，通过以赛代训加大人才挖掘和实训力度。鼓励电商平台在渝落地人才培育计划，通过专题课程、深度陪跑等形式强化培训效能。支持院校深化产教融合，与电商平台共建高校电商实训基地，开设微专业、微课堂等特色教育。打造“山城推荐官”达人矩阵，形成“头部引领、腰部支撑、新人跟进”的良性达人发展生态。",
+          "source_block_ids": [
+            "web-block-0047"
+          ],
+          "locator": {
+            "md_char_range": [
+              4504,
+              4727
+            ],
+            "context_blocks": [
+              {
+                "id": "web-block-0047",
+                "locator": {
+                  "md_char_range": [
+                    4504,
+                    4727
+                  ]
+                }
+              }
+            ]
+          },
+          "offset": 0,
+          "total_chars": 223,
+          "truncated": false,
+          "next_offset": null
+        },
+        "meta": {
+          "trace_id": "626da395-6284-43d8-8085-e3678e2d65a2",
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case": "S1_REVISED",
+      "label": "topic_false_positive_control",
+      "tool": "find_documents",
+      "method": "GET",
+      "path": "/open/v1/assets",
+      "query": {
+        "resource_type": "industry_policy",
+        "topic": "low_altitude",
+        "region": "重庆市",
+        "title": "重庆电子商务腾飞计划",
+        "published_from": "2024-10-22",
+        "published_to": "2026-10-22",
+        "pageSize": 20
+      },
+      "body": null,
+      "auth_mode": "api_key",
+      "http_status": 200,
+      "duration_ms": 63.09,
+      "trace_id": "227c864b-13bc-4f85-8708-12a4fab3b9b3",
+      "response": {
+        "data": [
+          {
+            "id": "644c799e-b683-42d9-a70d-a6513484bbc4",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:4daddb0a818460a84877bf9ed58c46b3f5b64c37d46d0218b48138b694d93641",
+            "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号) - 重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号)",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-21T09:45:11.819370Z",
+            "updated_at": "2026-10-21T09:46:30.287216Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "5e6a5808-4ac3-4cae-8b96-dac632ae7242",
+            "version_id": "644a5184-c380-44f0-929d-b8a005a99301",
+            "raw_object_id": "93301039-0579-4c1b-a6ab-b8bf8cb721a9",
+            "tags": [
+              {
+                "type": "ability",
+                "value": "品牌建设"
+              },
+              {
+                "type": "ability",
+                "value": "数字化转型升级"
+              },
+              {
+                "type": "ability",
+                "value": "数智赋能"
+              },
+              {
+                "type": "ability",
+                "value": "诚信合规"
+              },
+              {
+                "type": "ability",
+                "value": "质量管理"
+              },
+              {
+                "type": "industry",
+                "value": "数字经济"
+              },
+              {
+                "type": "industry",
+                "value": "电子商务"
+              },
+              {
+                "type": "industry",
+                "value": "直播电商"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2026-2028"
+              },
+              {
+                "type": "topic",
+                "value": "公共服务平台"
+              },
+              {
+                "type": "topic",
+                "value": "数字消费"
+              },
+              {
+                "type": "topic",
+                "value": "网货产业带"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/93301039-0579-4c1b-a6ab-b8bf8cb721a9/download-url",
+            "business_metadata": {
+              "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号) - 重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号)",
+              "publisher": null,
+              "authors": [
+                "发布单位：重庆市商务委员会",
+                "重庆市商务委员会"
+              ],
+              "chief_editors": [],
+              "publish_date": "2026-08-24",
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          },
+          {
+            "id": "5ef07684-659c-4ab0-9c43-c8a87d4a2eba",
+            "data_source_id": "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f",
+            "source_object_key": "websearch_url:sha256:ec87d9748e13a456d281054691765c1782935a82fdb591fe589e8a61ded5a0b5",
+            "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划 （2026-2028年）》的通知 - - [ 索引号 ] 11500229660853981Q/2026-00009",
+            "asset_kind": "document",
+            "status": "available",
+            "org_scope": [],
+            "metadata_summary": {
+              "source_type": "crawler"
+            },
+            "created_at": "2026-10-21T09:43:32.597930Z",
+            "updated_at": "2026-10-21T09:45:06.053424Z",
+            "domain": "industry_policy",
+            "normalized_ref_id": "0ee8a187-22dc-417e-bc29-841b29026d8a",
+            "version_id": "cec63b2d-c6ee-44f4-bf9b-94c81974f623",
+            "raw_object_id": "43f9213f-329e-4580-aa83-db3eb358e74c",
+            "tags": [
+              {
+                "type": "ability",
+                "value": "品牌建设"
+              },
+              {
+                "type": "ability",
+                "value": "数字化转型升级"
+              },
+              {
+                "type": "ability",
+                "value": "数智技术赋能"
+              },
+              {
+                "type": "ability",
+                "value": "诚信合规"
+              },
+              {
+                "type": "ability",
+                "value": "质量管理"
+              },
+              {
+                "type": "industry",
+                "value": "农村电商"
+              },
+              {
+                "type": "industry",
+                "value": "数字经济"
+              },
+              {
+                "type": "industry",
+                "value": "电子商务"
+              },
+              {
+                "type": "industry",
+                "value": "直播电商"
+              },
+              {
+                "type": "industry",
+                "value": "跨境电商"
+              },
+              {
+                "type": "region",
+                "value": "重庆市"
+              },
+              {
+                "type": "time_range",
+                "value": "2026-2028"
+              },
+              {
+                "type": "topic",
+                "value": "丝路电商"
+              },
+              {
+                "type": "topic",
+                "value": "数字消费"
+              },
+              {
+                "type": "topic",
+                "value": "网货产业带"
+              }
+            ],
+            "download_url_endpoint": "/open/v1/raw-objects/43f9213f-329e-4580-aa83-db3eb358e74c/download-url",
+            "business_metadata": {
+              "title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划 （2026-2028年）》的通知",
+              "publisher": null,
+              "authors": [
+                "重庆市商务委员会"
+              ],
+              "chief_editors": [],
+              "publish_date": "2026-08-24",
+              "language": null
+            },
+            "capabilities": [
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ]
+          }
+        ],
+        "meta": {
+          "trace_id": "227c864b-13bc-4f85-8708-12a4fab3b9b3",
+          "page": 1,
+          "page_size": 20,
+          "total": 2
+        },
+        "aggregations": null
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        },
+        {
+          "assertion": "low-altitude filter excludes documents without topic title/tags",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "case": "S5_REVISED",
+      "label": "cq_ecommerce_parks",
+      "tool": "query_industrial_parks",
+      "method": "GET",
+      "path": "/open/v1/industrial-parks",
+      "query": {
+        "industry": "电商",
+        "q": "重庆",
+        "pageSize": 100
+      },
+      "body": null,
+      "auth_mode": "api_key",
+      "http_status": 200,
+      "duration_ms": 393.58,
+      "trace_id": "373c4a25-9331-4c4c-a0cb-6c32d97a64fb",
+      "response": {
+        "data": [
+          {
+            "id": "a2b0cee3-eb63-4199-bd73-5b3f9b5929a5",
+            "park_name": "平溪县电商物流园",
+            "industry_tags": "物流园、电商物流",
+            "introduction": "平溪县电商物流园位于重庆市巫溪县，重庆市巫溪县万溪公路(巫溪县亿联建材家居五金城西侧约10米)。本数据来自前瞻产业研究院产业园区数据库，前瞻产业研究院20年持续聚焦全国细分产业研究、产业规划、产业园区规划、产业地产规划、特色小镇规划、产业新城规划及产业园区招商引资等，助力地方产业发展，促进产城融合。",
+            "enterprise_count": 10,
+            "source_url": "https://y.qianzhan.com/yuanqu/item/4fb7f908fc27b904.html",
+            "created_at": "2026-10-12T08:16:35.420725Z",
+            "updated_at": "2026-10-12T08:16:35.420726Z"
+          },
+          {
+            "id": "ee9705f5-ef19-4956-a8ed-75ab4650bef7",
+            "park_name": "新华电商物流微企孵化园",
+            "industry_tags": "电商物流",
+            "introduction": "新华电商物流微企孵化园位于重庆市九龙坡区，重庆市九龙坡区华建路与华岩立交交叉路口往东约90米，面积约66.03亩。本数据来自前瞻产业研究院产业园区数据库，前瞻产业研究院20年持续聚焦全国细分产业研究、产业规划、产业园区规划、产业地产规划、特色小镇规划、产业新城规划及产业园区招商引资等，助力地方产业发展，促进产城融合。",
+            "enterprise_count": 10,
+            "source_url": "https://y.qianzhan.com/yuanqu/item/422b22ef3469e323.html",
+            "created_at": "2026-10-12T08:16:45.376429Z",
+            "updated_at": "2026-10-12T08:16:45.376430Z"
+          },
+          {
+            "id": "b744480e-8ca7-4fd7-9da0-1c10b51cf3b0",
+            "park_name": "电商物流产业园",
+            "industry_tags": "物流园、电商物流",
+            "introduction": "电商物流产业园位于重庆市沙坪坝区，重庆市沙坪坝区曾安路16号，面积约26.88亩。本数据来自前瞻产业研究院产业园区数据库，前瞻产业研究院20年持续聚焦全国细分产业研究、产业规划、产业园区规划、产业地产规划、特色小镇规划、产业新城规划及产业园区招商引资等，助力地方产业发展，促进产城融合。",
+            "enterprise_count": 3,
+            "source_url": "https://y.qianzhan.com/yuanqu/item/9fb803fd3cfed6f7.html",
+            "created_at": "2026-10-12T08:16:35.414815Z",
+            "updated_at": "2026-10-12T08:16:35.414817Z"
+          },
+          {
+            "id": "a330f526-3b90-4c4f-8b46-a36407408439",
+            "park_name": "跨境电商产业园",
+            "industry_tags": "电子商务、跨境电商",
+            "introduction": "跨境电商产业园位于重庆市渝中区，重庆市渝中区龙隐路18号附近。本数据来自前瞻产业研究院产业园区数据库，前瞻产业研究院20年持续聚焦全国细分产业研究、产业规划、产业园区规划、产业地产规划、特色小镇规划、产业新城规划及产业园区招商引资等，助力地方产业发展，促进产城融合。",
+            "enterprise_count": 10,
+            "source_url": "https://y.qianzhan.com/yuanqu/item/87a19a8c6b6a57a9.html",
+            "created_at": "2026-10-12T08:16:44.554718Z",
+            "updated_at": "2026-10-12T08:16:44.554721Z"
+          },
+          {
+            "id": "616700c3-aeb8-4090-b448-6d3bd8718d72",
+            "park_name": "重庆市梁平区亿联天华电商物流园",
+            "industry_tags": "电商物流",
+            "introduction": "重庆市梁平区亿联天华电商物流园位于重庆市梁平区，高新大道与柚乡路交叉口西北240米，面积约343.24亩。本数据来自前瞻产业研究院产业园区数据库，前瞻产业研究院20年持续聚焦全国细分产业研究、产业规划、产业园区规划、产业地产规划、特色小镇规划、产业新城规划及产业园区招商引资等，助力地方产业发展，促进产城融合。",
+            "enterprise_count": 5,
+            "source_url": "https://y.qianzhan.com/yuanqu/item/857b24a65af7713d.html",
+            "created_at": "2026-10-12T08:16:45.374194Z",
+            "updated_at": "2026-10-12T08:16:45.374195Z"
+          },
+          {
+            "id": "791815d2-05eb-49d8-81bc-5ffdd895b9c1",
+            "park_name": "重庆跨境电子商务台湾产业园(通用时代)",
+            "industry_tags": "电子商务、跨境电商",
+            "introduction": "重庆跨境电子商务台湾产业园(通用时代)位于重庆市江北区，重庆市江北区金源路53号通用时代群楼三层，面积约17.16亩。本数据来自前瞻产业研究院产业园区数据库，前瞻产业研究院20年持续聚焦全国细分产业研究、产业规划、产业园区规划、产业地产规划、特色小镇规划、产业新城规划及产业园区招商引资等，助力地方产业发展，促进产城融合。",
+            "enterprise_count": 10,
+            "source_url": "https://y.qianzhan.com/yuanqu/item/1b8fe50d65af2f53.html",
+            "created_at": "2026-10-12T08:16:44.500694Z",
+            "updated_at": "2026-10-12T08:16:44.500696Z"
+          }
+        ],
+        "meta": {
+          "trace_id": "373c4a25-9331-4c4c-a0cb-6c32d97a64fb",
+          "page": 1,
+          "page_size": 100,
+          "total": 6
+        },
+        "aggregations": null
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case": "S6",
+      "label": "introduction_scoped_search",
+      "tool": "search_evidence",
+      "method": "GET",
+      "path": "/open/v1/search",
+      "query": {
+        "q": "跨境电子商务专业 培养目标 核心课程",
+        "kb": "major_profile_knowledge",
+        "normalized_ref_ids": [
+          "a8fbbb03-0c69-421e-bcd9-822a34e96a03"
+        ],
+        "institution_name": "湖州职业技术学院",
+        "major_code": "530702",
+        "top_k": 5,
+        "similarity_threshold": 0
+      },
+      "body": null,
+      "auth_mode": "api_key",
+      "http_status": 200,
+      "duration_ms": 689.48,
+      "trace_id": "71e2ac99-86ff-4af9-9a63-9d72310a592a",
+      "response": {
+        "data": {
+          "query": "跨境电子商务专业 培养目标 核心课程",
+          "kb": "major_profile_knowledge",
+          "knowledge_types": [
+            "major_profile_knowledge"
+          ],
+          "results": [
+            {
+              "nexus_chunk_id": "f3989174-6048-43a2-96d5-ca82020d8140",
+              "normalized_ref_id": "a8fbbb03-0c69-421e-bcd9-822a34e96a03",
+              "score": 0.7800280380182175,
+              "content": "④ 主干课程 跨境电子商务专业开设跨境电商基础、跨境电商多平台运营、跨境电商营销、视觉营销设计、跨境电商供应链管理、跨境电商物流、跨境电商英语、跨境电商选品、跨境电商短视频营销、跨境电商支付与结算、跨境电商数据分析、跨境电商客服等课程。",
+              "snippet": "④ 主干课程 跨境电子商务专业开设跨境电商基础、跨境电商多平台运营、跨境电商营销、视觉营销设计、跨境电商供应链管理、跨境电商物流、跨境电商英语、跨境电商选品、跨境电商短视频营销、跨境电商支付与结算、跨境电商数据分析、跨境电商客服等课程。",
+              "metadata": {
+                "asset": {
+                  "tags": [],
+                  "level": null,
+                  "title": "湖州职业技术学院 跨境电子商务专业介绍.docx",
+                  "asset_id": "f05b0f89-fbc0-4899-8901-ec18a5fd3e38",
+                  "org_scope": [],
+                  "classification": null,
+                  "asset_version_id": "50c3e147-4c57-4bb1-b59f-68e85dada71b"
+                },
+                "chunk": {
+                  "chunk_id": "f3989174-6048-43a2-96d5-ca82020d8140",
+                  "chunk_type": "semantic_block",
+                  "chunk_index": 11,
+                  "domain_model": null,
+                  "heading_path": [],
+                  "domain_profile": null,
+                  "section_profile": null,
+                  "source_block_ids": [
+                    "block-p00-022",
+                    "block-p00-023"
+                  ],
+                  "chunking_strategy": "semantic_repack",
+                  "knowledge_type_code": "major_profile_knowledge"
+                },
+                "index": {
+                  "collection_key": "major_profile_knowledge.document.bge_m3_latest.v1",
+                  "distance_metric": "cosine",
+                  "embedding_model": "bge-m3:latest",
+                  "asset_domain_type": "major_profile_knowledge",
+                  "embedding_provider": "litellm",
+                  "embedding_dimension": 1024,
+                  "metadata_schema_version": "v1"
+                },
+                "locator": {
+                  "page_end": 0,
+                  "page_start": 0
+                },
+                "normalized_ref": {
+                  "title": "湖州职业技术学院 跨境电子商务专业介绍.docx",
+                  "lineage": {
+                    "image_uris": {
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/048112399c0d1acb0df6187d3f46b9074a6f5c13119bec45cc1ffaf3e147784f.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/d77d542f7d3d-048112399c0d1acb0df6187d3f46b9074a6f5c13119bec45cc1ffaf3e147784f.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/2d90d4f4108c1375f8b4fed2fef491f64efe8cf1206e47b1424489b5fa065dc1.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/ff07f4222a61-2d90d4f4108c1375f8b4fed2fef491f64efe8cf1206e47b1424489b5fa065dc1.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/45871cf09e92e51f71104575da4aea55d0f94d8c2ef90c22d335a464a1743bb3.png": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/a06d536bf0bf-45871cf09e92e51f71104575da4aea55d0f94d8c2ef90c22d335a464a1743bb3.png",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/6a49443163e1d58535217a86326818b35ce095c15de82624bf118347997dc2e4.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/d0d59f0fe217-6a49443163e1d58535217a86326818b35ce095c15de82624bf118347997dc2e4.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/7473ce8e8164afc045d925ed13b4eb861fa2c001f02315ad88e97d4d1688dd5d.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/641058b293f3-7473ce8e8164afc045d925ed13b4eb861fa2c001f02315ad88e97d4d1688dd5d.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/882cd5b91872fa298219a7941c105438ef3681ccad5cb6d9b0d7742a533f4262.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/deda91ed1935-882cd5b91872fa298219a7941c105438ef3681ccad5cb6d9b0d7742a533f4262.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/bc33e5ef529315d3bc7b0d162315b0934f225843fefd2a83fca56cfec84e4d8f.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/c86faaecfb8f-bc33e5ef529315d3bc7b0d162315b0934f225843fefd2a83fca56cfec84e4d8f.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/bced62e07d05e35dca9842ba424239c2249788f3202923b2a1a8eb777c36bf99.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/2b3ebe684341-bced62e07d05e35dca9842ba424239c2249788f3202923b2a1a8eb777c36bf99.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/bd9b74a2fd7c9b36e2ba7334c10918087819e5e7029a851b3b5b6b35c310d30f.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/68e75889ff80-bd9b74a2fd7c9b36e2ba7334c10918087819e5e7029a851b3b5b6b35c310d30f.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/becef1c79f83156521d448bc4007f34fd78ffb902b0742cffbf4d66d4ce85f71.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/c6eaddfbb246-becef1c79f83156521d448bc4007f34fd78ffb902b0742cffbf4d66d4ce85f71.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/c4dabf4e3b484cf4c6e87afc252c6daf07cc5f493e02eddf19995c733a81ae8f.png": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/3f2cb1ce33ab-c4dabf4e3b484cf4c6e87afc252c6daf07cc5f493e02eddf19995c733a81ae8f.png",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/e55265393d475f78a2acc78450f556bf5ad7efaf8ed3ec39ac82d6a60c098bfc.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/502070ef8f5c-e55265393d475f78a2acc78450f556bf5ad7efaf8ed3ec39ac82d6a60c098bfc.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/ea6ba43365012131f85f1920ec273de6a2bc0ecc66b7f86e19e839578adcb03b.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/7eb5c0120f0a-ea6ba43365012131f85f1920ec273de6a2bc0ecc66b7f86e19e839578adcb03b.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/fa6f81453e0ef74329fd23431ee6db5c4a794cae156a867009406b8185913be1.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/40f50aa9877e-fa6f81453e0ef74329fd23431ee6db5c4a794cae156a867009406b8185913be1.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/ffab44aa19ee4da0a4dc0fa54405cb52975224ea96462c7cd92c534a637e602a.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/1d1c953cd293-ffab44aa19ee4da0a4dc0fa54405cb52975224ea96462c7cd92c534a637e602a.jpg"
+                    },
+                    "raw_object_id": "0787305a-aad5-4d30-aeaf-c9bdf19c8f80",
+                    "raw_object_uri": "s3://nexus-dev-objects/raw/file_upload/4de93945-8289-4f54-81e8-95a61e6c5c25/2026/08/19/rc-upload-1787125912611-9/2fd1a18d99e1/湖州职业技术学院-跨境电子商务专业介绍.docx",
+                    "parse_artifact_id": "68559bbe-8ce1-47d9-9a39-5d15843aeb59",
+                    "parse_artifact_uri": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/mineru-result.json"
+                  },
+                  "quality": {
+                    "parse_score": null,
+                    "office_parse": {
+                      "is_office": true,
+                      "block_count": 39,
+                      "image_count": 15,
+                      "output_shape": {
+                        "has_blocks": false,
+                        "has_markdown": false,
+                        "has_pdf_info": true
+                      },
+                      "anomaly_items": [],
+                      "source_format": "docx",
+                      "text_block_count": 39,
+                      "table_block_count": 0,
+                      "title_block_count": 0,
+                      "markdown_char_count": 4218,
+                      "manual_review_required": false
+                    },
+                    "anomaly_items": [],
+                    "normalize_score": null,
+                    "normalize_issues": [
+                      {
+                        "code": "missing_required",
+                        "field": "content_blocks",
+                        "message": "required field 'content_blocks' is missing or empty"
+                      }
+                    ],
+                    "normalize_llm_used": true,
+                    "manual_review_status": "not_required",
+                    "normalize_contract_key": "file_upload|application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "normalize_schema_version": "1.0"
+                  },
+                  "language": "zh-CN",
+                  "governance": {
+                    "org_scope": [],
+                    "version_status": "processing",
+                    "sensitivity_level": null
+                  },
+                  "source_type": "file_upload",
+                  "content_type": "document",
+                  "domain_profile": null,
+                  "normalized_type": "document",
+                  "normalized_ref_id": "a8fbbb03-0c69-421e-bcd9-822a34e96a03"
+                },
+                "schema_version": "v1"
+              },
+              "knowledge_type_code": "major_profile_knowledge",
+              "collection_key": "major_profile_knowledge.document.bge_m3_latest.v1",
+              "version_id": "50c3e147-4c57-4bb1-b59f-68e85dada71b",
+              "asset_id": "f05b0f89-fbc0-4899-8901-ec18a5fd3e38",
+              "data_source_id": "4de93945-8289-4f54-81e8-95a61e6c5c25",
+              "locator": {
+                "page_start": 0,
+                "page_end": 0,
+                "bbox_union": null,
+                "block_start_order": 22,
+                "block_end_order": 23,
+                "source_url": null,
+                "section_id": null,
+                "section_key": "16cb2c613974ec85f82c7a05",
+                "blocks": [
+                  {
+                    "block_id": "block-p00-022",
+                    "block_type": "paragraph",
+                    "page": 0,
+                    "bbox": [],
+                    "md_char_range": [
+                      2568,
+                      2575
+                    ],
+                    "source_url": null,
+                    "dom_path": null,
+                    "dom_index": null,
+                    "locator_type": null,
+                    "section_id": null,
+                    "block_order": 22
+                  },
+                  {
+                    "block_id": "block-p00-023",
+                    "block_type": "paragraph",
+                    "page": 0,
+                    "bbox": [],
+                    "md_char_range": [
+                      2577,
+                      2688
+                    ],
+                    "source_url": null,
+                    "dom_path": null,
+                    "dom_index": null,
+                    "locator_type": null,
+                    "section_id": null,
+                    "block_order": 23
+                  }
+                ],
+                "md_char_range": [
+                  2568,
+                  2688
+                ],
+                "md_spans": [
+                  {
+                    "start": 2568,
+                    "end": 2575,
+                    "block_id": "block-p00-022"
+                  },
+                  {
+                    "start": 2577,
+                    "end": 2688,
+                    "block_id": "block-p00-023"
+                  }
+                ],
+                "heading_path": [
+                  {
+                    "level": 1,
+                    "title": "湖州职业技术学院2025年跨境电子商务专业介绍"
+                  }
+                ]
+              },
+              "source_block_ids": [
+                "block-p00-022",
+                "block-p00-023"
+              ],
+              "raw_object_id": "0787305a-aad5-4d30-aeaf-c9bdf19c8f80",
+              "raw_object_uri": "s3://nexus-dev-objects/raw/file_upload/4de93945-8289-4f54-81e8-95a61e6c5c25/2026/08/19/rc-upload-1787125912611-9/2fd1a18d99e1/湖州职业技术学院-跨境电子商务专业介绍.docx"
+            },
+            {
+              "nexus_chunk_id": "1446fec7-faaa-432a-941a-d600867b2a69",
+              "normalized_ref_id": "a8fbbb03-0c69-421e-bcd9-822a34e96a03",
+              "score": 0.7187765836715903,
+              "content": "- 跨境电子商务基础\n- 跨境电子商务物流\n- 跨境电商营销\n- 跨境电子商务实务\n- 国际贸易实务",
+              "snippet": "- 跨境电子商务基础\n- 跨境电子商务物流\n- 跨境电商营销\n- 跨境电子商务实务\n- 国际贸易实务",
+              "metadata": {
+                "asset": {
+                  "tags": [],
+                  "level": null,
+                  "title": "湖州职业技术学院 跨境电子商务专业介绍.docx",
+                  "asset_id": "f05b0f89-fbc0-4899-8901-ec18a5fd3e38",
+                  "org_scope": [],
+                  "classification": null,
+                  "asset_version_id": "50c3e147-4c57-4bb1-b59f-68e85dada71b"
+                },
+                "chunk": {
+                  "chunk_id": "1446fec7-faaa-432a-941a-d600867b2a69",
+                  "chunk_type": "semantic_block",
+                  "chunk_index": 12,
+                  "domain_model": null,
+                  "heading_path": [],
+                  "domain_profile": null,
+                  "section_profile": null,
+                  "source_block_ids": [
+                    "block-p00-024"
+                  ],
+                  "chunking_strategy": "semantic_repack",
+                  "knowledge_type_code": "major_profile_knowledge"
+                },
+                "index": {
+                  "collection_key": "major_profile_knowledge.document.bge_m3_latest.v1",
+                  "distance_metric": "cosine",
+                  "embedding_model": "bge-m3:latest",
+                  "asset_domain_type": "major_profile_knowledge",
+                  "embedding_provider": "litellm",
+                  "embedding_dimension": 1024,
+                  "metadata_schema_version": "v1"
+                },
+                "locator": {
+                  "page_end": 0,
+                  "page_start": 0
+                },
+                "normalized_ref": {
+                  "title": "湖州职业技术学院 跨境电子商务专业介绍.docx",
+                  "lineage": {
+                    "image_uris": {
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/048112399c0d1acb0df6187d3f46b9074a6f5c13119bec45cc1ffaf3e147784f.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/d77d542f7d3d-048112399c0d1acb0df6187d3f46b9074a6f5c13119bec45cc1ffaf3e147784f.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/2d90d4f4108c1375f8b4fed2fef491f64efe8cf1206e47b1424489b5fa065dc1.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/ff07f4222a61-2d90d4f4108c1375f8b4fed2fef491f64efe8cf1206e47b1424489b5fa065dc1.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/45871cf09e92e51f71104575da4aea55d0f94d8c2ef90c22d335a464a1743bb3.png": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/a06d536bf0bf-45871cf09e92e51f71104575da4aea55d0f94d8c2ef90c22d335a464a1743bb3.png",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/6a49443163e1d58535217a86326818b35ce095c15de82624bf118347997dc2e4.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/d0d59f0fe217-6a49443163e1d58535217a86326818b35ce095c15de82624bf118347997dc2e4.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/7473ce8e8164afc045d925ed13b4eb861fa2c001f02315ad88e97d4d1688dd5d.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/641058b293f3-7473ce8e8164afc045d925ed13b4eb861fa2c001f02315ad88e97d4d1688dd5d.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/882cd5b91872fa298219a7941c105438ef3681ccad5cb6d9b0d7742a533f4262.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/deda91ed1935-882cd5b91872fa298219a7941c105438ef3681ccad5cb6d9b0d7742a533f4262.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/bc33e5ef529315d3bc7b0d162315b0934f225843fefd2a83fca56cfec84e4d8f.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/c86faaecfb8f-bc33e5ef529315d3bc7b0d162315b0934f225843fefd2a83fca56cfec84e4d8f.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/bced62e07d05e35dca9842ba424239c2249788f3202923b2a1a8eb777c36bf99.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/2b3ebe684341-bced62e07d05e35dca9842ba424239c2249788f3202923b2a1a8eb777c36bf99.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/bd9b74a2fd7c9b36e2ba7334c10918087819e5e7029a851b3b5b6b35c310d30f.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/68e75889ff80-bd9b74a2fd7c9b36e2ba7334c10918087819e5e7029a851b3b5b6b35c310d30f.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/becef1c79f83156521d448bc4007f34fd78ffb902b0742cffbf4d66d4ce85f71.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/c6eaddfbb246-becef1c79f83156521d448bc4007f34fd78ffb902b0742cffbf4d66d4ce85f71.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/c4dabf4e3b484cf4c6e87afc252c6daf07cc5f493e02eddf19995c733a81ae8f.png": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/3f2cb1ce33ab-c4dabf4e3b484cf4c6e87afc252c6daf07cc5f493e02eddf19995c733a81ae8f.png",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/e55265393d475f78a2acc78450f556bf5ad7efaf8ed3ec39ac82d6a60c098bfc.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/502070ef8f5c-e55265393d475f78a2acc78450f556bf5ad7efaf8ed3ec39ac82d6a60c098bfc.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/ea6ba43365012131f85f1920ec273de6a2bc0ecc66b7f86e19e839578adcb03b.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/7eb5c0120f0a-ea6ba43365012131f85f1920ec273de6a2bc0ecc66b7f86e19e839578adcb03b.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/fa6f81453e0ef74329fd23431ee6db5c4a794cae156a867009406b8185913be1.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/40f50aa9877e-fa6f81453e0ef74329fd23431ee6db5c4a794cae156a867009406b8185913be1.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/ffab44aa19ee4da0a4dc0fa54405cb52975224ea96462c7cd92c534a637e602a.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/1d1c953cd293-ffab44aa19ee4da0a4dc0fa54405cb52975224ea96462c7cd92c534a637e602a.jpg"
+                    },
+                    "raw_object_id": "0787305a-aad5-4d30-aeaf-c9bdf19c8f80",
+                    "raw_object_uri": "s3://nexus-dev-objects/raw/file_upload/4de93945-8289-4f54-81e8-95a61e6c5c25/2026/08/19/rc-upload-1787125912611-9/2fd1a18d99e1/湖州职业技术学院-跨境电子商务专业介绍.docx",
+                    "parse_artifact_id": "68559bbe-8ce1-47d9-9a39-5d15843aeb59",
+                    "parse_artifact_uri": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/mineru-result.json"
+                  },
+                  "quality": {
+                    "parse_score": null,
+                    "office_parse": {
+                      "is_office": true,
+                      "block_count": 39,
+                      "image_count": 15,
+                      "output_shape": {
+                        "has_blocks": false,
+                        "has_markdown": false,
+                        "has_pdf_info": true
+                      },
+                      "anomaly_items": [],
+                      "source_format": "docx",
+                      "text_block_count": 39,
+                      "table_block_count": 0,
+                      "title_block_count": 0,
+                      "markdown_char_count": 4218,
+                      "manual_review_required": false
+                    },
+                    "anomaly_items": [],
+                    "normalize_score": null,
+                    "normalize_issues": [
+                      {
+                        "code": "missing_required",
+                        "field": "content_blocks",
+                        "message": "required field 'content_blocks' is missing or empty"
+                      }
+                    ],
+                    "normalize_llm_used": true,
+                    "manual_review_status": "not_required",
+                    "normalize_contract_key": "file_upload|application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "normalize_schema_version": "1.0"
+                  },
+                  "language": "zh-CN",
+                  "governance": {
+                    "org_scope": [],
+                    "version_status": "processing",
+                    "sensitivity_level": null
+                  },
+                  "source_type": "file_upload",
+                  "content_type": "document",
+                  "domain_profile": null,
+                  "normalized_type": "document",
+                  "normalized_ref_id": "a8fbbb03-0c69-421e-bcd9-822a34e96a03"
+                },
+                "schema_version": "v1"
+              },
+              "knowledge_type_code": "major_profile_knowledge",
+              "collection_key": "major_profile_knowledge.document.bge_m3_latest.v1",
+              "version_id": "50c3e147-4c57-4bb1-b59f-68e85dada71b",
+              "asset_id": "f05b0f89-fbc0-4899-8901-ec18a5fd3e38",
+              "data_source_id": "4de93945-8289-4f54-81e8-95a61e6c5c25",
+              "locator": {
+                "page_start": 0,
+                "page_end": 0,
+                "bbox_union": null,
+                "block_start_order": 24,
+                "block_end_order": 24,
+                "source_url": null,
+                "section_id": null,
+                "section_key": "ae8414fc7cdbc0d98b1bdb0f",
+                "blocks": [
+                  {
+                    "block_id": "block-p00-024",
+                    "block_type": "image",
+                    "page": 0,
+                    "bbox": [],
+                    "md_char_range": [
+                      2690,
+                      2750
+                    ],
+                    "source_url": null,
+                    "dom_path": null,
+                    "dom_index": null,
+                    "locator_type": null,
+                    "section_id": null,
+                    "block_order": 24
+                  }
+                ],
+                "md_char_range": [
+                  2690,
+                  2750
+                ],
+                "md_spans": null,
+                "heading_path": [
+                  {
+                    "level": 1,
+                    "title": "湖州职业技术学院2025年跨境电子商务专业介绍"
+                  }
+                ]
+              },
+              "source_block_ids": [
+                "block-p00-024"
+              ],
+              "raw_object_id": "0787305a-aad5-4d30-aeaf-c9bdf19c8f80",
+              "raw_object_uri": "s3://nexus-dev-objects/raw/file_upload/4de93945-8289-4f54-81e8-95a61e6c5c25/2026/08/19/rc-upload-1787125912611-9/2fd1a18d99e1/湖州职业技术学院-跨境电子商务专业介绍.docx"
+            },
+            {
+              "nexus_chunk_id": "dc99a88e-653a-43f4-a97a-a5703fa16b06",
+              "normalized_ref_id": "a8fbbb03-0c69-421e-bcd9-822a34e96a03",
+              "score": 0.6773223069522063,
+              "content": "③ 师资团队跨境电子商务专业现有专任教师8人，其中高级职称4人，博士5人。专业教师均为职业教育“双师型”教师。团队在地校合作工作表现突出，被评为优秀集体。专业还聘请10余名来自行业和企业的专家和技术能手作为兼职教师，开展跨境电商从业人员培训、跨境电商类资格证书考试培训工作。",
+              "snippet": "③ 师资团队跨境电子商务专业现有专任教师8人，其中高级职称4人，博士5人。专业教师均为职业教育“双师型”教师。团队在地校合作工作表现突出，被评为优秀集体。专业还聘请10余名来自行业和企业的专家和技术能手作为兼职教师，开展跨境电商从业人员培训、跨境电商类资格证书考试培训工作。",
+              "metadata": {
+                "asset": {
+                  "tags": [],
+                  "level": null,
+                  "title": "湖州职业技术学院 跨境电子商务专业介绍.docx",
+                  "asset_id": "f05b0f89-fbc0-4899-8901-ec18a5fd3e38",
+                  "org_scope": [],
+                  "classification": null,
+                  "asset_version_id": "50c3e147-4c57-4bb1-b59f-68e85dada71b"
+                },
+                "chunk": {
+                  "chunk_id": "dc99a88e-653a-43f4-a97a-a5703fa16b06",
+                  "chunk_type": "semantic_block",
+                  "chunk_index": 9,
+                  "domain_model": null,
+                  "heading_path": [],
+                  "domain_profile": null,
+                  "section_profile": null,
+                  "source_block_ids": [
+                    "block-p00-018",
+                    "block-p00-019"
+                  ],
+                  "chunking_strategy": "semantic_repack",
+                  "knowledge_type_code": "major_profile_knowledge"
+                },
+                "index": {
+                  "collection_key": "major_profile_knowledge.document.bge_m3_latest.v1",
+                  "distance_metric": "cosine",
+                  "embedding_model": "bge-m3:latest",
+                  "asset_domain_type": "major_profile_knowledge",
+                  "embedding_provider": "litellm",
+                  "embedding_dimension": 1024,
+                  "metadata_schema_version": "v1"
+                },
+                "locator": {
+                  "page_end": 0,
+                  "page_start": 0
+                },
+                "normalized_ref": {
+                  "title": "湖州职业技术学院 跨境电子商务专业介绍.docx",
+                  "lineage": {
+                    "image_uris": {
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/048112399c0d1acb0df6187d3f46b9074a6f5c13119bec45cc1ffaf3e147784f.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/d77d542f7d3d-048112399c0d1acb0df6187d3f46b9074a6f5c13119bec45cc1ffaf3e147784f.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/2d90d4f4108c1375f8b4fed2fef491f64efe8cf1206e47b1424489b5fa065dc1.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/ff07f4222a61-2d90d4f4108c1375f8b4fed2fef491f64efe8cf1206e47b1424489b5fa065dc1.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/45871cf09e92e51f71104575da4aea55d0f94d8c2ef90c22d335a464a1743bb3.png": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/a06d536bf0bf-45871cf09e92e51f71104575da4aea55d0f94d8c2ef90c22d335a464a1743bb3.png",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/6a49443163e1d58535217a86326818b35ce095c15de82624bf118347997dc2e4.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/d0d59f0fe217-6a49443163e1d58535217a86326818b35ce095c15de82624bf118347997dc2e4.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/7473ce8e8164afc045d925ed13b4eb861fa2c001f02315ad88e97d4d1688dd5d.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/641058b293f3-7473ce8e8164afc045d925ed13b4eb861fa2c001f02315ad88e97d4d1688dd5d.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/882cd5b91872fa298219a7941c105438ef3681ccad5cb6d9b0d7742a533f4262.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/deda91ed1935-882cd5b91872fa298219a7941c105438ef3681ccad5cb6d9b0d7742a533f4262.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/bc33e5ef529315d3bc7b0d162315b0934f225843fefd2a83fca56cfec84e4d8f.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/c86faaecfb8f-bc33e5ef529315d3bc7b0d162315b0934f225843fefd2a83fca56cfec84e4d8f.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/bced62e07d05e35dca9842ba424239c2249788f3202923b2a1a8eb777c36bf99.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/2b3ebe684341-bced62e07d05e35dca9842ba424239c2249788f3202923b2a1a8eb777c36bf99.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/bd9b74a2fd7c9b36e2ba7334c10918087819e5e7029a851b3b5b6b35c310d30f.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/68e75889ff80-bd9b74a2fd7c9b36e2ba7334c10918087819e5e7029a851b3b5b6b35c310d30f.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/becef1c79f83156521d448bc4007f34fd78ffb902b0742cffbf4d66d4ce85f71.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/c6eaddfbb246-becef1c79f83156521d448bc4007f34fd78ffb902b0742cffbf4d66d4ce85f71.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/c4dabf4e3b484cf4c6e87afc252c6daf07cc5f493e02eddf19995c733a81ae8f.png": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/3f2cb1ce33ab-c4dabf4e3b484cf4c6e87afc252c6daf07cc5f493e02eddf19995c733a81ae8f.png",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/e55265393d475f78a2acc78450f556bf5ad7efaf8ed3ec39ac82d6a60c098bfc.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/502070ef8f5c-e55265393d475f78a2acc78450f556bf5ad7efaf8ed3ec39ac82d6a60c098bfc.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/ea6ba43365012131f85f1920ec273de6a2bc0ecc66b7f86e19e839578adcb03b.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/7eb5c0120f0a-ea6ba43365012131f85f1920ec273de6a2bc0ecc66b7f86e19e839578adcb03b.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/fa6f81453e0ef74329fd23431ee6db5c4a794cae156a867009406b8185913be1.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/40f50aa9877e-fa6f81453e0ef74329fd23431ee6db5c4a794cae156a867009406b8185913be1.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/ffab44aa19ee4da0a4dc0fa54405cb52975224ea96462c7cd92c534a637e602a.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/1d1c953cd293-ffab44aa19ee4da0a4dc0fa54405cb52975224ea96462c7cd92c534a637e602a.jpg"
+                    },
+                    "raw_object_id": "0787305a-aad5-4d30-aeaf-c9bdf19c8f80",
+                    "raw_object_uri": "s3://nexus-dev-objects/raw/file_upload/4de93945-8289-4f54-81e8-95a61e6c5c25/2026/08/19/rc-upload-1787125912611-9/2fd1a18d99e1/湖州职业技术学院-跨境电子商务专业介绍.docx",
+                    "parse_artifact_id": "68559bbe-8ce1-47d9-9a39-5d15843aeb59",
+                    "parse_artifact_uri": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/mineru-result.json"
+                  },
+                  "quality": {
+                    "parse_score": null,
+                    "office_parse": {
+                      "is_office": true,
+                      "block_count": 39,
+                      "image_count": 15,
+                      "output_shape": {
+                        "has_blocks": false,
+                        "has_markdown": false,
+                        "has_pdf_info": true
+                      },
+                      "anomaly_items": [],
+                      "source_format": "docx",
+                      "text_block_count": 39,
+                      "table_block_count": 0,
+                      "title_block_count": 0,
+                      "markdown_char_count": 4218,
+                      "manual_review_required": false
+                    },
+                    "anomaly_items": [],
+                    "normalize_score": null,
+                    "normalize_issues": [
+                      {
+                        "code": "missing_required",
+                        "field": "content_blocks",
+                        "message": "required field 'content_blocks' is missing or empty"
+                      }
+                    ],
+                    "normalize_llm_used": true,
+                    "manual_review_status": "not_required",
+                    "normalize_contract_key": "file_upload|application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "normalize_schema_version": "1.0"
+                  },
+                  "language": "zh-CN",
+                  "governance": {
+                    "org_scope": [],
+                    "version_status": "processing",
+                    "sensitivity_level": null
+                  },
+                  "source_type": "file_upload",
+                  "content_type": "document",
+                  "domain_profile": null,
+                  "normalized_type": "document",
+                  "normalized_ref_id": "a8fbbb03-0c69-421e-bcd9-822a34e96a03"
+                },
+                "schema_version": "v1"
+              },
+              "knowledge_type_code": "major_profile_knowledge",
+              "collection_key": "major_profile_knowledge.document.bge_m3_latest.v1",
+              "version_id": "50c3e147-4c57-4bb1-b59f-68e85dada71b",
+              "asset_id": "f05b0f89-fbc0-4899-8901-ec18a5fd3e38",
+              "data_source_id": "4de93945-8289-4f54-81e8-95a61e6c5c25",
+              "locator": {
+                "page_start": 0,
+                "page_end": 0,
+                "bbox_union": null,
+                "block_start_order": 18,
+                "block_end_order": 19,
+                "source_url": null,
+                "section_id": null,
+                "section_key": "c3c1e19b3a2966a8c663582d",
+                "blocks": [
+                  {
+                    "block_id": "block-p00-018",
+                    "block_type": "paragraph",
+                    "page": 0,
+                    "bbox": [],
+                    "md_char_range": [
+                      2292,
+                      2298
+                    ],
+                    "source_url": null,
+                    "dom_path": null,
+                    "dom_index": null,
+                    "locator_type": null,
+                    "section_id": null,
+                    "block_order": 18
+                  },
+                  {
+                    "block_id": "block-p00-019",
+                    "block_type": "paragraph",
+                    "page": 0,
+                    "bbox": [],
+                    "md_char_range": [
+                      2300,
+                      2431
+                    ],
+                    "source_url": null,
+                    "dom_path": null,
+                    "dom_index": null,
+                    "locator_type": null,
+                    "section_id": null,
+                    "block_order": 19
+                  }
+                ],
+                "md_char_range": [
+                  2292,
+                  2431
+                ],
+                "md_spans": [
+                  {
+                    "start": 2292,
+                    "end": 2298,
+                    "block_id": "block-p00-018"
+                  },
+                  {
+                    "start": 2300,
+                    "end": 2431,
+                    "block_id": "block-p00-019"
+                  }
+                ],
+                "heading_path": [
+                  {
+                    "level": 1,
+                    "title": "湖州职业技术学院2025年跨境电子商务专业介绍"
+                  }
+                ]
+              },
+              "source_block_ids": [
+                "block-p00-018",
+                "block-p00-019"
+              ],
+              "raw_object_id": "0787305a-aad5-4d30-aeaf-c9bdf19c8f80",
+              "raw_object_uri": "s3://nexus-dev-objects/raw/file_upload/4de93945-8289-4f54-81e8-95a61e6c5c25/2026/08/19/rc-upload-1787125912611-9/2fd1a18d99e1/湖州职业技术学院-跨境电子商务专业介绍.docx"
+            },
+            {
+              "nexus_chunk_id": "54219c3b-0e11-4624-98b9-84a807dabc08",
+              "normalized_ref_id": "a8fbbb03-0c69-421e-bcd9-822a34e96a03",
+              "score": 0.6762013242365019,
+              "content": "发布者：经济管理与电商发布时间：2025-06-20浏览次数：203专业代码：530702① 专业解读跨境电子商务专业紧密结合湖州新兴产业布局，充分发挥区域经济优势，打造“跨境电商+产业带”融合发展的特色路径。专业依托湖州绿色生态和创新驱动的产业特色，以数字技术赋能为核心，聚焦绿色家居、纺织服装等优势产业带，培养学生掌握跨境电商平台运营、国际市场拓展、数字化营销等核心技能，同时注重培养学生的可持续发展理念和国际化视野，助力湖州新兴产业产品和服务的全球化推广，为湖州新兴产业在全球市场中构建竞争优势提供高素质跨境电商人才支撑。",
+              "snippet": "发布者：经济管理与电商发布时间：2025-06-20浏览次数：203专业代码：530702① 专业解读跨境电子商务专业紧密结合湖州新兴产业布局，充分发挥区域经济优势，打造“跨境电商+产业带”融合发展的特色路径。专业依托湖州绿色生态和创新驱动的产业特色，以数字技术赋能为核心，聚焦绿色家居、纺织服装等优势产业带，培养学生掌握跨境电商平台运营、国际市场拓展、数字化营销等核心技能，同时注重培养学生的可持续发展理念和国际化视野，助力湖州新兴产业产品和服务的全球化推广，为湖州新兴产业在全球市场中构建竞争优势提供高素质跨境电商人才支撑。",
+              "metadata": {
+                "asset": {
+                  "tags": [],
+                  "level": null,
+                  "title": "湖州职业技术学院 跨境电子商务专业介绍.docx",
+                  "asset_id": "f05b0f89-fbc0-4899-8901-ec18a5fd3e38",
+                  "org_scope": [],
+                  "classification": null,
+                  "asset_version_id": "50c3e147-4c57-4bb1-b59f-68e85dada71b"
+                },
+                "chunk": {
+                  "chunk_id": "54219c3b-0e11-4624-98b9-84a807dabc08",
+                  "chunk_type": "semantic_block",
+                  "chunk_index": 0,
+                  "domain_model": null,
+                  "heading_path": [],
+                  "domain_profile": null,
+                  "section_profile": null,
+                  "source_block_ids": [
+                    "block-p00-002",
+                    "block-p00-003",
+                    "block-p00-004",
+                    "block-p00-005"
+                  ],
+                  "chunking_strategy": "semantic_repack",
+                  "knowledge_type_code": "major_profile_knowledge"
+                },
+                "index": {
+                  "collection_key": "major_profile_knowledge.document.bge_m3_latest.v1",
+                  "distance_metric": "cosine",
+                  "embedding_model": "bge-m3:latest",
+                  "asset_domain_type": "major_profile_knowledge",
+                  "embedding_provider": "litellm",
+                  "embedding_dimension": 1024,
+                  "metadata_schema_version": "v1"
+                },
+                "locator": {
+                  "page_end": 0,
+                  "page_start": 0
+                },
+                "normalized_ref": {
+                  "title": "湖州职业技术学院 跨境电子商务专业介绍.docx",
+                  "lineage": {
+                    "image_uris": {
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/048112399c0d1acb0df6187d3f46b9074a6f5c13119bec45cc1ffaf3e147784f.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/d77d542f7d3d-048112399c0d1acb0df6187d3f46b9074a6f5c13119bec45cc1ffaf3e147784f.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/2d90d4f4108c1375f8b4fed2fef491f64efe8cf1206e47b1424489b5fa065dc1.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/ff07f4222a61-2d90d4f4108c1375f8b4fed2fef491f64efe8cf1206e47b1424489b5fa065dc1.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/45871cf09e92e51f71104575da4aea55d0f94d8c2ef90c22d335a464a1743bb3.png": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/a06d536bf0bf-45871cf09e92e51f71104575da4aea55d0f94d8c2ef90c22d335a464a1743bb3.png",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/6a49443163e1d58535217a86326818b35ce095c15de82624bf118347997dc2e4.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/d0d59f0fe217-6a49443163e1d58535217a86326818b35ce095c15de82624bf118347997dc2e4.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/7473ce8e8164afc045d925ed13b4eb861fa2c001f02315ad88e97d4d1688dd5d.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/641058b293f3-7473ce8e8164afc045d925ed13b4eb861fa2c001f02315ad88e97d4d1688dd5d.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/882cd5b91872fa298219a7941c105438ef3681ccad5cb6d9b0d7742a533f4262.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/deda91ed1935-882cd5b91872fa298219a7941c105438ef3681ccad5cb6d9b0d7742a533f4262.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/bc33e5ef529315d3bc7b0d162315b0934f225843fefd2a83fca56cfec84e4d8f.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/c86faaecfb8f-bc33e5ef529315d3bc7b0d162315b0934f225843fefd2a83fca56cfec84e4d8f.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/bced62e07d05e35dca9842ba424239c2249788f3202923b2a1a8eb777c36bf99.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/2b3ebe684341-bced62e07d05e35dca9842ba424239c2249788f3202923b2a1a8eb777c36bf99.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/bd9b74a2fd7c9b36e2ba7334c10918087819e5e7029a851b3b5b6b35c310d30f.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/68e75889ff80-bd9b74a2fd7c9b36e2ba7334c10918087819e5e7029a851b3b5b6b35c310d30f.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/becef1c79f83156521d448bc4007f34fd78ffb902b0742cffbf4d66d4ce85f71.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/c6eaddfbb246-becef1c79f83156521d448bc4007f34fd78ffb902b0742cffbf4d66d4ce85f71.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/c4dabf4e3b484cf4c6e87afc252c6daf07cc5f493e02eddf19995c733a81ae8f.png": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/3f2cb1ce33ab-c4dabf4e3b484cf4c6e87afc252c6daf07cc5f493e02eddf19995c733a81ae8f.png",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/e55265393d475f78a2acc78450f556bf5ad7efaf8ed3ec39ac82d6a60c098bfc.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/502070ef8f5c-e55265393d475f78a2acc78450f556bf5ad7efaf8ed3ec39ac82d6a60c098bfc.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/ea6ba43365012131f85f1920ec273de6a2bc0ecc66b7f86e19e839578adcb03b.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/7eb5c0120f0a-ea6ba43365012131f85f1920ec273de6a2bc0ecc66b7f86e19e839578adcb03b.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/fa6f81453e0ef74329fd23431ee6db5c4a794cae156a867009406b8185913be1.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/40f50aa9877e-fa6f81453e0ef74329fd23431ee6db5c4a794cae156a867009406b8185913be1.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/ffab44aa19ee4da0a4dc0fa54405cb52975224ea96462c7cd92c534a637e602a.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/1d1c953cd293-ffab44aa19ee4da0a4dc0fa54405cb52975224ea96462c7cd92c534a637e602a.jpg"
+                    },
+                    "raw_object_id": "0787305a-aad5-4d30-aeaf-c9bdf19c8f80",
+                    "raw_object_uri": "s3://nexus-dev-objects/raw/file_upload/4de93945-8289-4f54-81e8-95a61e6c5c25/2026/08/19/rc-upload-1787125912611-9/2fd1a18d99e1/湖州职业技术学院-跨境电子商务专业介绍.docx",
+                    "parse_artifact_id": "68559bbe-8ce1-47d9-9a39-5d15843aeb59",
+                    "parse_artifact_uri": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/mineru-result.json"
+                  },
+                  "quality": {
+                    "parse_score": null,
+                    "office_parse": {
+                      "is_office": true,
+                      "block_count": 39,
+                      "image_count": 15,
+                      "output_shape": {
+                        "has_blocks": false,
+                        "has_markdown": false,
+                        "has_pdf_info": true
+                      },
+                      "anomaly_items": [],
+                      "source_format": "docx",
+                      "text_block_count": 39,
+                      "table_block_count": 0,
+                      "title_block_count": 0,
+                      "markdown_char_count": 4218,
+                      "manual_review_required": false
+                    },
+                    "anomaly_items": [],
+                    "normalize_score": null,
+                    "normalize_issues": [
+                      {
+                        "code": "missing_required",
+                        "field": "content_blocks",
+                        "message": "required field 'content_blocks' is missing or empty"
+                      }
+                    ],
+                    "normalize_llm_used": true,
+                    "manual_review_status": "not_required",
+                    "normalize_contract_key": "file_upload|application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "normalize_schema_version": "1.0"
+                  },
+                  "language": "zh-CN",
+                  "governance": {
+                    "org_scope": [],
+                    "version_status": "processing",
+                    "sensitivity_level": null
+                  },
+                  "source_type": "file_upload",
+                  "content_type": "document",
+                  "domain_profile": null,
+                  "normalized_type": "document",
+                  "normalized_ref_id": "a8fbbb03-0c69-421e-bcd9-822a34e96a03"
+                },
+                "schema_version": "v1"
+              },
+              "knowledge_type_code": "major_profile_knowledge",
+              "collection_key": "major_profile_knowledge.document.bge_m3_latest.v1",
+              "version_id": "50c3e147-4c57-4bb1-b59f-68e85dada71b",
+              "asset_id": "f05b0f89-fbc0-4899-8901-ec18a5fd3e38",
+              "data_source_id": "4de93945-8289-4f54-81e8-95a61e6c5c25",
+              "locator": {
+                "page_start": 0,
+                "page_end": 0,
+                "bbox_union": null,
+                "block_start_order": 2,
+                "block_end_order": 5,
+                "source_url": null,
+                "section_id": null,
+                "section_key": "73a8c8d6009e11da92e2efa9",
+                "blocks": [
+                  {
+                    "block_id": "block-p00-002",
+                    "block_type": "paragraph",
+                    "page": 0,
+                    "bbox": [],
+                    "md_char_range": [
+                      27,
+                      61
+                    ],
+                    "source_url": null,
+                    "dom_path": null,
+                    "dom_index": null,
+                    "locator_type": null,
+                    "section_id": null,
+                    "block_order": 2
+                  },
+                  {
+                    "block_id": "block-p00-003",
+                    "block_type": "paragraph",
+                    "page": 0,
+                    "bbox": [],
+                    "md_char_range": [
+                      63,
+                      74
+                    ],
+                    "source_url": null,
+                    "dom_path": null,
+                    "dom_index": null,
+                    "locator_type": null,
+                    "section_id": null,
+                    "block_order": 3
+                  },
+                  {
+                    "block_id": "block-p00-004",
+                    "block_type": "paragraph",
+                    "page": 0,
+                    "bbox": [],
+                    "md_char_range": [
+                      76,
+                      82
+                    ],
+                    "source_url": null,
+                    "dom_path": null,
+                    "dom_index": null,
+                    "locator_type": null,
+                    "section_id": null,
+                    "block_order": 4
+                  },
+                  {
+                    "block_id": "block-p00-005",
+                    "block_type": "paragraph",
+                    "page": 0,
+                    "bbox": [],
+                    "md_char_range": [
+                      84,
+                      297
+                    ],
+                    "source_url": null,
+                    "dom_path": null,
+                    "dom_index": null,
+                    "locator_type": null,
+                    "section_id": null,
+                    "block_order": 5
+                  }
+                ],
+                "md_char_range": [
+                  27,
+                  297
+                ],
+                "md_spans": [
+                  {
+                    "start": 27,
+                    "end": 61,
+                    "block_id": "block-p00-002"
+                  },
+                  {
+                    "start": 63,
+                    "end": 74,
+                    "block_id": "block-p00-003"
+                  },
+                  {
+                    "start": 76,
+                    "end": 82,
+                    "block_id": "block-p00-004"
+                  },
+                  {
+                    "start": 84,
+                    "end": 297,
+                    "block_id": "block-p00-005"
+                  }
+                ],
+                "heading_path": [
+                  {
+                    "level": 1,
+                    "title": "湖州职业技术学院2025年跨境电子商务专业介绍"
+                  }
+                ]
+              },
+              "source_block_ids": [
+                "block-p00-002",
+                "block-p00-003",
+                "block-p00-004",
+                "block-p00-005"
+              ],
+              "raw_object_id": "0787305a-aad5-4d30-aeaf-c9bdf19c8f80",
+              "raw_object_uri": "s3://nexus-dev-objects/raw/file_upload/4de93945-8289-4f54-81e8-95a61e6c5c25/2026/08/19/rc-upload-1787125912611-9/2fd1a18d99e1/湖州职业技术学院-跨境电子商务专业介绍.docx"
+            },
+            {
+              "nexus_chunk_id": "d01c61d7-8e65-46dd-bab5-87d652fed057",
+              "normalized_ref_id": "a8fbbb03-0c69-421e-bcd9-822a34e96a03",
+              "score": 0.6704209643351564,
+              "content": "② 专业荣誉                    专业依托教育部骨干专业国际经济与贸易，建设基础扎实，建设成果突出。跨境电商人才培养项目《“五维度标准”引导跨境电商人才培养探索与实践》获浙江省教学成果奖一等奖；入选2024年度浙江省高校重大人文社科攻关计划项目一个；获评全国AI跨境电商行业产教融合共同体副理事长单位。教师和学生在各类专业和创新创业竞赛中成绩突出。",
+              "snippet": "② 专业荣誉                    专业依托教育部骨干专业国际经济与贸易，建设基础扎实，建设成果突出。跨境电商人才培养项目《“五维度标准”引导跨境电商人才培养探索与实践》获浙江省教学成果奖一等奖；入选2024年度浙江省高校重大人文社科攻关计划项目一个；获评全国AI跨境电商行业产教融合共同体副理事长单位。教师和学生在各类专业和创新创业竞赛中成绩突出。",
+              "metadata": {
+                "asset": {
+                  "tags": [],
+                  "level": null,
+                  "title": "湖州职业技术学院 跨境电子商务专业介绍.docx",
+                  "asset_id": "f05b0f89-fbc0-4899-8901-ec18a5fd3e38",
+                  "org_scope": [],
+                  "classification": null,
+                  "asset_version_id": "50c3e147-4c57-4bb1-b59f-68e85dada71b"
+                },
+                "chunk": {
+                  "chunk_id": "d01c61d7-8e65-46dd-bab5-87d652fed057",
+                  "chunk_type": "semantic_block",
+                  "chunk_index": 2,
+                  "domain_model": null,
+                  "heading_path": [],
+                  "domain_profile": null,
+                  "section_profile": null,
+                  "source_block_ids": [
+                    "block-p00-007",
+                    "block-p00-008"
+                  ],
+                  "chunking_strategy": "semantic_repack",
+                  "knowledge_type_code": "major_profile_knowledge"
+                },
+                "index": {
+                  "collection_key": "major_profile_knowledge.document.bge_m3_latest.v1",
+                  "distance_metric": "cosine",
+                  "embedding_model": "bge-m3:latest",
+                  "asset_domain_type": "major_profile_knowledge",
+                  "embedding_provider": "litellm",
+                  "embedding_dimension": 1024,
+                  "metadata_schema_version": "v1"
+                },
+                "locator": {
+                  "page_end": 0,
+                  "page_start": 0
+                },
+                "normalized_ref": {
+                  "title": "湖州职业技术学院 跨境电子商务专业介绍.docx",
+                  "lineage": {
+                    "image_uris": {
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/048112399c0d1acb0df6187d3f46b9074a6f5c13119bec45cc1ffaf3e147784f.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/d77d542f7d3d-048112399c0d1acb0df6187d3f46b9074a6f5c13119bec45cc1ffaf3e147784f.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/2d90d4f4108c1375f8b4fed2fef491f64efe8cf1206e47b1424489b5fa065dc1.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/ff07f4222a61-2d90d4f4108c1375f8b4fed2fef491f64efe8cf1206e47b1424489b5fa065dc1.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/45871cf09e92e51f71104575da4aea55d0f94d8c2ef90c22d335a464a1743bb3.png": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/a06d536bf0bf-45871cf09e92e51f71104575da4aea55d0f94d8c2ef90c22d335a464a1743bb3.png",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/6a49443163e1d58535217a86326818b35ce095c15de82624bf118347997dc2e4.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/d0d59f0fe217-6a49443163e1d58535217a86326818b35ce095c15de82624bf118347997dc2e4.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/7473ce8e8164afc045d925ed13b4eb861fa2c001f02315ad88e97d4d1688dd5d.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/641058b293f3-7473ce8e8164afc045d925ed13b4eb861fa2c001f02315ad88e97d4d1688dd5d.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/882cd5b91872fa298219a7941c105438ef3681ccad5cb6d9b0d7742a533f4262.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/deda91ed1935-882cd5b91872fa298219a7941c105438ef3681ccad5cb6d9b0d7742a533f4262.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/bc33e5ef529315d3bc7b0d162315b0934f225843fefd2a83fca56cfec84e4d8f.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/c86faaecfb8f-bc33e5ef529315d3bc7b0d162315b0934f225843fefd2a83fca56cfec84e4d8f.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/bced62e07d05e35dca9842ba424239c2249788f3202923b2a1a8eb777c36bf99.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/2b3ebe684341-bced62e07d05e35dca9842ba424239c2249788f3202923b2a1a8eb777c36bf99.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/bd9b74a2fd7c9b36e2ba7334c10918087819e5e7029a851b3b5b6b35c310d30f.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/68e75889ff80-bd9b74a2fd7c9b36e2ba7334c10918087819e5e7029a851b3b5b6b35c310d30f.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/becef1c79f83156521d448bc4007f34fd78ffb902b0742cffbf4d66d4ce85f71.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/c6eaddfbb246-becef1c79f83156521d448bc4007f34fd78ffb902b0742cffbf4d66d4ce85f71.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/c4dabf4e3b484cf4c6e87afc252c6daf07cc5f493e02eddf19995c733a81ae8f.png": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/3f2cb1ce33ab-c4dabf4e3b484cf4c6e87afc252c6daf07cc5f493e02eddf19995c733a81ae8f.png",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/e55265393d475f78a2acc78450f556bf5ad7efaf8ed3ec39ac82d6a60c098bfc.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/502070ef8f5c-e55265393d475f78a2acc78450f556bf5ad7efaf8ed3ec39ac82d6a60c098bfc.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/ea6ba43365012131f85f1920ec273de6a2bc0ecc66b7f86e19e839578adcb03b.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/7eb5c0120f0a-ea6ba43365012131f85f1920ec273de6a2bc0ecc66b7f86e19e839578adcb03b.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/fa6f81453e0ef74329fd23431ee6db5c4a794cae156a867009406b8185913be1.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/40f50aa9877e-fa6f81453e0ef74329fd23431ee6db5c4a794cae156a867009406b8185913be1.jpg",
+                      "湖州职业技术学院 跨境电子商务专业介绍/office/images/ffab44aa19ee4da0a4dc0fa54405cb52975224ea96462c7cd92c534a637e602a.jpg": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/images/1d1c953cd293-ffab44aa19ee4da0a4dc0fa54405cb52975224ea96462c7cd92c534a637e602a.jpg"
+                    },
+                    "raw_object_id": "0787305a-aad5-4d30-aeaf-c9bdf19c8f80",
+                    "raw_object_uri": "s3://nexus-dev-objects/raw/file_upload/4de93945-8289-4f54-81e8-95a61e6c5c25/2026/08/19/rc-upload-1787125912611-9/2fd1a18d99e1/湖州职业技术学院-跨境电子商务专业介绍.docx",
+                    "parse_artifact_id": "68559bbe-8ce1-47d9-9a39-5d15843aeb59",
+                    "parse_artifact_uri": "s3://nexus-dev-objects/parsed/50c3e147-4c57-4bb1-b59f-68e85dada71b/68559bbe-8ce1-47d9-9a39-5d15843aeb59/mineru-result.json"
+                  },
+                  "quality": {
+                    "parse_score": null,
+                    "office_parse": {
+                      "is_office": true,
+                      "block_count": 39,
+                      "image_count": 15,
+                      "output_shape": {
+                        "has_blocks": false,
+                        "has_markdown": false,
+                        "has_pdf_info": true
+                      },
+                      "anomaly_items": [],
+                      "source_format": "docx",
+                      "text_block_count": 39,
+                      "table_block_count": 0,
+                      "title_block_count": 0,
+                      "markdown_char_count": 4218,
+                      "manual_review_required": false
+                    },
+                    "anomaly_items": [],
+                    "normalize_score": null,
+                    "normalize_issues": [
+                      {
+                        "code": "missing_required",
+                        "field": "content_blocks",
+                        "message": "required field 'content_blocks' is missing or empty"
+                      }
+                    ],
+                    "normalize_llm_used": true,
+                    "manual_review_status": "not_required",
+                    "normalize_contract_key": "file_upload|application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "normalize_schema_version": "1.0"
+                  },
+                  "language": "zh-CN",
+                  "governance": {
+                    "org_scope": [],
+                    "version_status": "processing",
+                    "sensitivity_level": null
+                  },
+                  "source_type": "file_upload",
+                  "content_type": "document",
+                  "domain_profile": null,
+                  "normalized_type": "document",
+                  "normalized_ref_id": "a8fbbb03-0c69-421e-bcd9-822a34e96a03"
+                },
+                "schema_version": "v1"
+              },
+              "knowledge_type_code": "major_profile_knowledge",
+              "collection_key": "major_profile_knowledge.document.bge_m3_latest.v1",
+              "version_id": "50c3e147-4c57-4bb1-b59f-68e85dada71b",
+              "asset_id": "f05b0f89-fbc0-4899-8901-ec18a5fd3e38",
+              "data_source_id": "4de93945-8289-4f54-81e8-95a61e6c5c25",
+              "locator": {
+                "page_start": 0,
+                "page_end": 0,
+                "bbox_union": null,
+                "block_start_order": 7,
+                "block_end_order": 8,
+                "source_url": null,
+                "section_id": null,
+                "section_key": "45f180e1768bafe27e128b71",
+                "blocks": [
+                  {
+                    "block_id": "block-p00-007",
+                    "block_type": "paragraph",
+                    "page": 0,
+                    "bbox": [],
+                    "md_char_range": [
+                      499,
+                      525
+                    ],
+                    "source_url": null,
+                    "dom_path": null,
+                    "dom_index": null,
+                    "locator_type": null,
+                    "section_id": null,
+                    "block_order": 7
+                  },
+                  {
+                    "block_id": "block-p00-008",
+                    "block_type": "paragraph",
+                    "page": 0,
+                    "bbox": [],
+                    "md_char_range": [
+                      527,
+                      684
+                    ],
+                    "source_url": null,
+                    "dom_path": null,
+                    "dom_index": null,
+                    "locator_type": null,
+                    "section_id": null,
+                    "block_order": 8
+                  }
+                ],
+                "md_char_range": [
+                  499,
+                  684
+                ],
+                "md_spans": [
+                  {
+                    "start": 499,
+                    "end": 525,
+                    "block_id": "block-p00-007"
+                  },
+                  {
+                    "start": 527,
+                    "end": 684,
+                    "block_id": "block-p00-008"
+                  }
+                ],
+                "heading_path": [
+                  {
+                    "level": 1,
+                    "title": "湖州职业技术学院2025年跨境电子商务专业介绍"
+                  }
+                ]
+              },
+              "source_block_ids": [
+                "block-p00-007",
+                "block-p00-008"
+              ],
+              "raw_object_id": "0787305a-aad5-4d30-aeaf-c9bdf19c8f80",
+              "raw_object_uri": "s3://nexus-dev-objects/raw/file_upload/4de93945-8289-4f54-81e8-95a61e6c5c25/2026/08/19/rc-upload-1787125912611-9/2fd1a18d99e1/湖州职业技术学院-跨境电子商务专业介绍.docx"
+            }
+          ],
+          "count": 5,
+          "caller_id": "adb0313d-e067-4223-a52d-b07a0df0b6c8"
+        },
+        "meta": {
+          "trace_id": "71e2ac99-86ff-4af9-9a63-9d72310a592a"
+        }
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        },
+        {
+          "assertion": "introduction source search returns evidence",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case": "BOUNDARY",
+      "label": "oversize_evidence_batch",
+      "tool": "get_evidence_bundle",
+      "method": "POST",
+      "path": "/open/v1/evidence-resolutions",
+      "query": {},
+      "body": {
+        "references": [
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          },
+          {
+            "kind": "normalized_ref",
+            "id": "00000000-0000-0000-0000-000000000000"
+          }
+        ],
+        "max_chars": 100
+      },
+      "auth_mode": "api_key",
+      "http_status": 422,
+      "duration_ms": 7.85,
+      "trace_id": "d122c8d5-9f6e-489c-824e-c0f0c402930a",
+      "response": {
+        "error": {
+          "code": "VALIDATION_ERROR",
+          "message": "Request validation failed",
+          "details": [
+            {
+              "type": "too_long",
+              "loc": [
+                "body",
+                "references"
+              ],
+              "msg": "List should have at most 30 items after validation, not 31",
+              "input": [
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                  "kind": "normalized_ref",
+                  "id": "00000000-0000-0000-0000-000000000000"
+                }
+              ],
+              "ctx": {
+                "field_type": "List",
+                "max_length": 30,
+                "actual_length": 31
+              }
+            }
+          ]
+        },
+        "meta": {
+          "trace_id": "d122c8d5-9f6e-489c-824e-c0f0c402930a",
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case": "BOUNDARY",
+      "label": "oversize_section_budget",
+      "tool": "read_document_section",
+      "method": "GET",
+      "path": "/open/v1/normalized-refs/fdaaa8e2-5ba0-4829-a5fe-6e8570b17226/sections/web-block-0019",
+      "query": {
+        "max_chars": 20001
+      },
+      "body": null,
+      "auth_mode": "api_key",
+      "http_status": 422,
+      "duration_ms": 5.63,
+      "trace_id": "4ae32af8-2406-4dc4-9895-600cd556a323",
+      "response": {
+        "error": {
+          "code": "VALIDATION_ERROR",
+          "message": "Request validation failed",
+          "details": [
+            {
+              "type": "less_than_equal",
+              "loc": [
+                "query",
+                "max_chars"
+              ],
+              "msg": "Input should be less than or equal to 20000",
+              "input": "20001",
+              "ctx": {
+                "le": 20000
+              }
+            }
+          ]
+        },
+        "meta": {
+          "trace_id": "4ae32af8-2406-4dc4-9895-600cd556a323",
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case": "BOUNDARY",
+      "label": "standard_major_intersection",
+      "tool": "query_standard_courses",
+      "method": "GET",
+      "path": "/open/v1/teaching-standard-courses",
+      "query": {
+        "library_id": "359fa704-488e-4829-9952-a7038c343f08",
+        "major_code": "__NONEXISTENT__"
+      },
+      "body": null,
+      "auth_mode": "api_key",
+      "http_status": 200,
+      "duration_ms": 235.6,
+      "trace_id": "122b1349-9aae-481c-a7c0-f0365217750d",
+      "response": {
+        "data": [],
+        "meta": {
+          "trace_id": "122b1349-9aae-481c-a7c0-f0365217750d",
+          "page": 1,
+          "page_size": 20,
+          "total": 0
+        },
+        "aggregations": null
+      },
+      "checks": [
+        {
+          "assertion": "expected HTTP status",
+          "passed": true
+        },
+        {
+          "assertion": "trace ID present",
+          "passed": true
+        },
+        {
+          "assertion": "library and major filters intersect",
+          "passed": true
+        }
+      ]
+    }
+  ]
+}

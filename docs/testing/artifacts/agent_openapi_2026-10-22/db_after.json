@@ -1,0 +1,4903 @@
+{
+  "executed_at_utc": "2026-10-22T09:52:52.370193+00:00",
+  "transaction": "REPEATABLE READ READ ONLY",
+  "table_snapshots": {
+    "asset": {
+      "count": 3024,
+      "latest_update": "2026-10-22 07:18:17.813326+00:00"
+    },
+    "asset_version": {
+      "count": 3134,
+      "latest_update": "2026-10-22 07:18:17.813609+00:00"
+    },
+    "normalized_asset_ref": {
+      "count": 3090,
+      "latest_update": "2026-10-22 07:18:17.811248+00:00"
+    },
+    "governance_result": {
+      "count": 3325,
+      "latest_update": "2026-10-22 07:18:17.808530+00:00"
+    },
+    "job": {
+      "count": 12978,
+      "latest_update": "2026-10-22 07:18:18.463806+00:00"
+    },
+    "knowledge_outline_node": {
+      "count": 58578,
+      "latest_update": "2026-10-21 08:21:48.929758+00:00"
+    },
+    "task_outline_node": {
+      "count": 542,
+      "latest_update": "2026-07-04 09:04:30.345211+00:00"
+    },
+    "knowledge_graph_build": {
+      "count": 1336,
+      "latest_update": "2026-10-22 07:29:10.908665+00:00"
+    },
+    "capability_graph_staging_build": {
+      "count": 126,
+      "latest_update": "2026-10-21 03:58:41.331172+00:00"
+    },
+    "raw_jobs": {
+      "count": 87371,
+      "latest_update": "2026-10-22 09:44:40.828545+00:00"
+    },
+    "raw_job_provenance": {
+      "count": 87371,
+      "latest_update": "2026-10-22 09:44:40.828912+00:00"
+    },
+    "industrial_park": {
+      "count": 11373,
+      "latest_update": "2026-10-12 08:16:57.511814+00:00"
+    },
+    "enterprise": {
+      "count": 76031,
+      "latest_update": "2026-10-12 08:16:57.510730+00:00"
+    },
+    "teaching_standard_library": {
+      "count": 144,
+      "latest_update": "2026-10-19 09:53:24.273590+00:00"
+    },
+    "teaching_standard_course": {
+      "count": 3300,
+      "latest_update": "2026-10-19 09:53:24.274576+00:00"
+    },
+    "course_textbook": {
+      "count": 172,
+      "latest_update": "2026-10-21 08:21:48.891144+00:00"
+    },
+    "talent_training_plan": {
+      "count": 85,
+      "latest_update": "2026-10-21 06:41:04.013179+00:00"
+    }
+  },
+  "independent_job_education_counts": [
+    {
+      "education": "大专",
+      "record_count": 165
+    },
+    {
+      "education": "本科",
+      "record_count": 126
+    },
+    {
+      "education": "学历不限",
+      "record_count": 119
+    },
+    {
+      "education": "中专/中技",
+      "record_count": 49
+    },
+    {
+      "education": "高中",
+      "record_count": 15
+    }
+  ],
+  "jobs_sorted_by_actual_collection": [
+    {
+      "id": "76f7e529-ed07-4b4e-920e-dc3442b8fdc4",
+      "collected_at": "2026-10-22 09:38:58.086319+00:00",
+      "created_at": "2026-10-22 09:44:40.452758+00:00"
+    },
+    {
+      "id": "454458d4-a715-48ab-8251-404f751c74e8",
+      "collected_at": "2026-10-22 09:38:05.341711+00:00",
+      "created_at": "2026-10-22 09:44:40.421992+00:00"
+    },
+    {
+      "id": "20a21121-08fd-4df5-977d-4864f6b00ed5",
+      "collected_at": "2026-10-22 09:38:01.381645+00:00",
+      "created_at": "2026-10-22 09:44:40.435803+00:00"
+    },
+    {
+      "id": "689de9ef-58d5-40b7-8aec-b2c8ca1ac537",
+      "collected_at": "2026-10-22 09:34:58.596970+00:00",
+      "created_at": "2026-10-22 09:44:40.352220+00:00"
+    },
+    {
+      "id": "a37b4984-d629-4230-8738-21551acb1635",
+      "collected_at": "2026-10-22 09:34:54.211349+00:00",
+      "created_at": "2026-10-22 09:44:40.367692+00:00"
+    }
+  ],
+  "non_available_ref_samples": [
+    {
+      "id": "dac250d0-d06b-4723-9675-db8d9d5bc583",
+      "version_id": "8020cafb-1467-40c4-9db9-31f7ade12dd1",
+      "version_status": "review_required",
+      "status": "generated"
+    },
+    {
+      "id": "1139f04f-3000-49ed-aa38-2f48bfa796f1",
+      "version_id": "b48d9fd0-2d4a-4e44-9474-6df86fbcdbfb",
+      "version_status": "review_required",
+      "status": "generated"
+    },
+    {
+      "id": "637a4aaf-2c86-4314-9a0b-78a5e8afa716",
+      "version_id": "f160332a-cd1a-437d-bdd6-90c3182f3140",
+      "version_status": "review_required",
+      "status": "generated"
+    }
+  ],
+  "public_read_audits": [
+    {
+      "trace_id": "5d1be422-215f-4dff-b77e-cd80a5f86b03",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "data_resources",
+      "summary": {
+        "route": "data_resources",
+        "caller_type": "api_caller",
+        "result_count": 15
+      },
+      "created_at": "2026-10-22 09:40:04.345033+00:00"
+    },
+    {
+      "trace_id": "70d2067c-df9e-407a-8d75-9db3010fefdc",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "data_resources",
+      "summary": {
+        "route": "data_resources",
+        "caller_type": "api_caller",
+        "result_count": 15
+      },
+      "created_at": "2026-10-22 09:40:04.525219+00:00"
+    },
+    {
+      "trace_id": "c692a102-b1fa-4f2c-8106-a7bc8150001e",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "assets",
+      "summary": {
+        "route": "assets",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "total": 1
+      },
+      "created_at": "2026-10-22 09:40:04.676390+00:00"
+    },
+    {
+      "trace_id": "26e58808-85e0-4891-a9b7-2e4a93bfb778",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "assets",
+      "summary": {
+        "route": "assets",
+        "caller_type": "api_caller",
+        "result_count": 10,
+        "total": 708
+      },
+      "created_at": "2026-10-22 09:40:04.782802+00:00"
+    },
+    {
+      "trace_id": "bdd69102-21b8-4134-9173-570afde99903",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "teaching_standards",
+      "summary": {
+        "route": "teaching_standards",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "total": 1
+      },
+      "created_at": "2026-10-22 09:40:04.813494+00:00"
+    },
+    {
+      "trace_id": "4ec478fb-f61b-4180-846f-3e5c1ddd2f03",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "course_textbooks",
+      "summary": {
+        "route": "course_textbooks",
+        "caller_type": "api_caller",
+        "result_count": 20,
+        "total": 164
+      },
+      "created_at": "2026-10-22 09:40:05.118565+00:00"
+    },
+    {
+      "trace_id": "c94ca399-776a-47ab-8801-1111aef91206",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "market_jobs",
+      "summary": {
+        "route": "market_jobs",
+        "caller_type": "api_caller",
+        "result_count": 5,
+        "total": 87102
+      },
+      "created_at": "2026-10-22 09:40:05.258054+00:00"
+    },
+    {
+      "trace_id": "9772cf91-ebb7-473a-983b-d0de0693071c",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "market_jobs_aggregate",
+      "summary": {
+        "route": "market_jobs_aggregate",
+        "caller_type": "api_caller",
+        "result_count": 200,
+        "total": 5624
+      },
+      "created_at": "2026-10-22 09:40:05.362459+00:00"
+    },
+    {
+      "trace_id": "85fe4413-98f9-41cc-9556-97650f029640",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "industrial_parks",
+      "summary": {
+        "route": "industrial_parks",
+        "caller_type": "api_caller",
+        "result_count": 20,
+        "total": 11373
+      },
+      "created_at": "2026-10-22 09:40:05.512707+00:00"
+    },
+    {
+      "trace_id": "826d92d0-43c3-4a9d-8173-b5ef9f9a2e15",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "major_profile_documents",
+      "summary": {
+        "route": "major_profile_documents",
+        "caller_type": "api_caller",
+        "result_count": 20,
+        "total": 85
+      },
+      "created_at": "2026-10-22 09:40:05.822088+00:00"
+    },
+    {
+      "trace_id": "5ce3b30a-5183-45db-a162-e670fcf08424",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "talent_training_plans",
+      "summary": {
+        "route": "talent_training_plans",
+        "caller_type": "api_caller",
+        "result_count": 20
+      },
+      "created_at": "2026-10-22 09:40:06.066062+00:00"
+    },
+    {
+      "trace_id": "3d1e0854-3df5-4457-9be8-6652f5e35a18",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "assets",
+      "summary": {
+        "route": "assets",
+        "caller_type": "api_caller",
+        "result_count": 0,
+        "total": 0
+      },
+      "created_at": "2026-10-22 09:40:06.119698+00:00"
+    },
+    {
+      "trace_id": "78870212-8b4c-410f-873f-4888bfd66bec",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_sections",
+      "summary": {
+        "route": "document_sections",
+        "caller_type": "api_caller",
+        "result_count": 100,
+        "normalized_ref_id": "686fdbf1-4202-4606-8cbe-d3d068de23d1"
+      },
+      "created_at": "2026-10-22 09:41:44.422551+00:00"
+    },
+    {
+      "trace_id": "af089690-527b-441d-b5fb-a8d0213e2669",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "assets",
+      "summary": {
+        "route": "assets",
+        "caller_type": "api_caller",
+        "result_count": 0,
+        "total": 0
+      },
+      "created_at": "2026-10-22 09:41:48.421788+00:00"
+    },
+    {
+      "trace_id": "49dcf3a9-bd8d-4f5e-a16a-5ccfd52d7da4",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "teaching_standard",
+      "summary": {
+        "route": "teaching_standard",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "library_id": "359fa704-488e-4829-9952-a7038c343f08"
+      },
+      "created_at": "2026-10-22 09:41:48.490358+00:00"
+    },
+    {
+      "trace_id": "ceeeb8e1-96b5-44bb-a9e2-851722e34900",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "standard_courses",
+      "summary": {
+        "route": "standard_courses",
+        "caller_type": "api_caller",
+        "result_count": 11,
+        "total": 11
+      },
+      "created_at": "2026-10-22 09:41:48.663055+00:00"
+    },
+    {
+      "trace_id": "fadc173d-78d2-4c8e-9d20-e4365f6ec7eb",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_sections",
+      "summary": {
+        "route": "document_sections",
+        "caller_type": "api_caller",
+        "result_count": 100,
+        "normalized_ref_id": "b289c57a-0aad-4513-b1a8-827e9529c850"
+      },
+      "created_at": "2026-10-22 09:41:48.721613+00:00"
+    },
+    {
+      "trace_id": "2838c8dd-96d7-4b3b-b09f-25add9573b07",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "course_textbook",
+      "summary": {
+        "route": "course_textbook",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "normalized_ref_id": "18940e50-cd19-4c1c-b896-4543e38a13d2"
+      },
+      "created_at": "2026-10-22 09:41:48.742307+00:00"
+    },
+    {
+      "trace_id": "0e9597ef-abd5-4730-8ae7-e8fad81a7e43",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "knowledge_outline",
+      "summary": {
+        "route": "knowledge_outline",
+        "caller_type": "api_caller",
+        "result_count": 50,
+        "normalized_ref_id": "18940e50-cd19-4c1c-b896-4543e38a13d2"
+      },
+      "created_at": "2026-10-22 09:41:48.765945+00:00"
+    },
+    {
+      "trace_id": "79db0633-dd38-4b74-93ac-4621d46d5d06",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "task_outline",
+      "summary": {
+        "route": "task_outline",
+        "caller_type": "api_caller",
+        "result_count": 0,
+        "normalized_ref_id": "18940e50-cd19-4c1c-b896-4543e38a13d2"
+      },
+      "created_at": "2026-10-22 09:41:48.787149+00:00"
+    },
+    {
+      "trace_id": "54c2b7cd-cd93-404b-8574-c533ff1bd969",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "course_textbook",
+      "summary": {
+        "route": "course_textbook",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "normalized_ref_id": "be6079d7-4ac8-43c3-b182-3558bb7344de"
+      },
+      "created_at": "2026-10-22 09:41:48.807696+00:00"
+    },
+    {
+      "trace_id": "e05b35ce-a951-4dc1-9c32-7d9a11408baa",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "knowledge_outline",
+      "summary": {
+        "route": "knowledge_outline",
+        "caller_type": "api_caller",
+        "result_count": 0,
+        "normalized_ref_id": "be6079d7-4ac8-43c3-b182-3558bb7344de"
+      },
+      "created_at": "2026-10-22 09:41:48.828984+00:00"
+    },
+    {
+      "trace_id": "18c4f820-c942-4537-9152-b3ff4f839976",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "task_outline",
+      "summary": {
+        "route": "task_outline",
+        "caller_type": "api_caller",
+        "result_count": 50,
+        "normalized_ref_id": "be6079d7-4ac8-43c3-b182-3558bb7344de"
+      },
+      "created_at": "2026-10-22 09:41:48.853054+00:00"
+    },
+    {
+      "trace_id": "ddc250e2-b78f-4232-90f2-e3216911bb33",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "course_textbooks",
+      "summary": {
+        "route": "course_textbooks",
+        "caller_type": "api_caller",
+        "result_count": 164,
+        "total": 164
+      },
+      "created_at": "2026-10-22 09:41:50.494672+00:00"
+    },
+    {
+      "trace_id": "5745048a-9512-44f3-891f-9c7408669283",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "market_jobs",
+      "summary": {
+        "route": "market_jobs",
+        "caller_type": "api_caller",
+        "result_count": 5,
+        "total": 457
+      },
+      "created_at": "2026-10-22 09:41:50.546858+00:00"
+    },
+    {
+      "trace_id": "4f181a2c-f47e-4ebb-97f2-0180036e82ab",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "market_jobs_aggregate",
+      "summary": {
+        "route": "market_jobs_aggregate",
+        "caller_type": "api_caller",
+        "result_count": 5,
+        "total": 5
+      },
+      "created_at": "2026-10-22 09:41:50.616988+00:00"
+    },
+    {
+      "trace_id": "dbfab422-dafd-4fa0-99ba-7e17b41d518a",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "industrial_parks",
+      "summary": {
+        "route": "industrial_parks",
+        "caller_type": "api_caller",
+        "result_count": 20,
+        "total": 489
+      },
+      "created_at": "2026-10-22 09:41:50.922939+00:00"
+    },
+    {
+      "trace_id": "58daaa44-6614-4a89-a600-22d3111117a6",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "major_profile_documents",
+      "summary": {
+        "route": "major_profile_documents",
+        "caller_type": "api_caller",
+        "result_count": 85,
+        "total": 85
+      },
+      "created_at": "2026-10-22 09:41:51.373206+00:00"
+    },
+    {
+      "trace_id": "5dd56288-ddfd-47ae-8db7-c1e0a9ec0d63",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "talent_training_plans",
+      "summary": {
+        "route": "talent_training_plans",
+        "caller_type": "api_caller",
+        "result_count": 22
+      },
+      "created_at": "2026-10-22 09:41:51.397501+00:00"
+    },
+    {
+      "trace_id": "3e0c8796-1c05-49b3-9df5-f3f72dddcb33",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "evidence_resolutions",
+      "summary": {
+        "route": "evidence_resolutions",
+        "caller_type": "api_caller",
+        "result_count": 0,
+        "requested_count": 1
+      },
+      "created_at": "2026-10-22 09:41:51.421015+00:00"
+    },
+    {
+      "trace_id": "a077d279-12d1-4d3e-b4e4-40d70b13465a",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_sections",
+      "summary": {
+        "route": "document_sections",
+        "caller_type": "api_caller",
+        "result_count": 29,
+        "normalized_ref_id": "686fdbf1-4202-4606-8cbe-d3d068de23d1"
+      },
+      "created_at": "2026-10-22 09:43:52.830607+00:00"
+    },
+    {
+      "trace_id": "a1e57d34-4887-4630-b45c-c5bf4c7e7604",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_section",
+      "summary": {
+        "route": "document_section",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "normalized_ref_id": "686fdbf1-4202-4606-8cbe-d3d068de23d1",
+        "section_id": "web-block-0073"
+      },
+      "created_at": "2026-10-22 09:43:52.864787+00:00"
+    },
+    {
+      "trace_id": "aea16653-2454-4f63-9ec5-dbea121ef204",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "assets",
+      "summary": {
+        "route": "assets",
+        "caller_type": "api_caller",
+        "result_count": 0,
+        "total": 0
+      },
+      "created_at": "2026-10-22 09:43:52.901241+00:00"
+    },
+    {
+      "trace_id": "86b528a9-cef6-4ef3-9a9b-856ed07ef683",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "assets",
+      "summary": {
+        "route": "assets",
+        "caller_type": "api_caller",
+        "result_count": 4,
+        "total": 4
+      },
+      "created_at": "2026-10-22 09:43:52.992196+00:00"
+    },
+    {
+      "trace_id": "8f1a336d-1b1a-41bb-bdbe-40f57d60cfd3",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "standard_course",
+      "summary": {
+        "route": "standard_course",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "course_id": "08ad245f-d569-435d-a483-c89479e030cf"
+      },
+      "created_at": "2026-10-22 09:43:53.009678+00:00"
+    },
+    {
+      "trace_id": "b73f3f76-02c9-402a-9655-d2f960f9acce",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_section",
+      "summary": {
+        "route": "document_section",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "normalized_ref_id": "b289c57a-0aad-4513-b1a8-827e9529c850",
+        "section_id": "block-p03-050"
+      },
+      "created_at": "2026-10-22 09:43:53.044093+00:00"
+    },
+    {
+      "trace_id": "035228b9-d38a-490d-a2fd-6d3e6603fe36",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "evidence_resolutions",
+      "summary": {
+        "route": "evidence_resolutions",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "requested_count": 1
+      },
+      "created_at": "2026-10-22 09:43:53.083768+00:00"
+    },
+    {
+      "trace_id": "b20764df-18ae-4938-afbe-75ac31d81c7f",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "outline_node_context",
+      "summary": {
+        "route": "outline_node_context",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "normalized_ref_id": "18940e50-cd19-4c1c-b896-4543e38a13d2",
+        "node_id": "12714963-6036-4b24-babd-ef17505f405f"
+      },
+      "created_at": "2026-10-22 09:43:53.143476+00:00"
+    },
+    {
+      "trace_id": "2336c395-87a9-4f02-9a58-0509822e1c31",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "outline_node_context",
+      "summary": {
+        "route": "outline_node_context",
+        "caller_type": "api_caller",
+        "result_count": 95,
+        "normalized_ref_id": "18940e50-cd19-4c1c-b896-4543e38a13d2",
+        "node_id": "12714963-6036-4b24-babd-ef17505f405f"
+      },
+      "created_at": "2026-10-22 09:43:53.182477+00:00"
+    },
+    {
+      "trace_id": "4cf86866-089a-4562-b370-68f8c23700ab",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "outline_node_context",
+      "summary": {
+        "route": "outline_node_context",
+        "caller_type": "api_caller",
+        "result_count": 2,
+        "normalized_ref_id": "be6079d7-4ac8-43c3-b182-3558bb7344de",
+        "node_id": "node-task-6b4c72329d28"
+      },
+      "created_at": "2026-10-22 09:43:53.247304+00:00"
+    },
+    {
+      "trace_id": "490a0ef2-733e-443e-9f87-a25cfcbfba8c",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "outline_node_context",
+      "summary": {
+        "route": "outline_node_context",
+        "caller_type": "api_caller",
+        "result_count": 25,
+        "normalized_ref_id": "be6079d7-4ac8-43c3-b182-3558bb7344de",
+        "node_id": "node-task-6b4c72329d28"
+      },
+      "created_at": "2026-10-22 09:43:53.278669+00:00"
+    },
+    {
+      "trace_id": "009ee3d1-d274-4d35-85d9-95da5d9ecf83",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "knowledge_outline",
+      "summary": {
+        "route": "knowledge_outline",
+        "caller_type": "api_caller",
+        "result_count": 50,
+        "normalized_ref_id": "18940e50-cd19-4c1c-b896-4543e38a13d2"
+      },
+      "created_at": "2026-10-22 09:43:53.300234+00:00"
+    },
+    {
+      "trace_id": "c9932bb3-6094-4c70-a7ee-ccfc3311fa13",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "existing_graph",
+      "summary": {
+        "route": "existing_graph",
+        "caller_type": "api_caller",
+        "result_count": 0,
+        "normalized_ref_id": "18940e50-cd19-4c1c-b896-4543e38a13d2"
+      },
+      "created_at": "2026-10-22 09:43:53.321789+00:00"
+    },
+    {
+      "trace_id": "11945645-378a-4055-8a06-e08eea17d97b",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "market_job",
+      "summary": {
+        "route": "market_job",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "record_id": "0cff7465-7510-4c3f-9633-67054bb90cad"
+      },
+      "created_at": "2026-10-22 09:43:53.333138+00:00"
+    },
+    {
+      "trace_id": "a9d73a7d-05a0-4955-8b08-b39e30fa1f6d",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "market_job",
+      "summary": {
+        "route": "market_job",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "record_id": "69132d80-7aa2-4250-8d58-0ed17c4f276b"
+      },
+      "created_at": "2026-10-22 09:43:53.343318+00:00"
+    },
+    {
+      "trace_id": "da5eb9f9-65c7-4d7c-ab22-3adf454b4aea",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "market_jobs_aggregate",
+      "summary": {
+        "route": "market_jobs_aggregate",
+        "caller_type": "api_caller",
+        "result_count": 5,
+        "total": 5
+      },
+      "created_at": "2026-10-22 09:43:53.412108+00:00"
+    },
+    {
+      "trace_id": "963aa272-07db-40af-ba1f-16fc85744631",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "industrial_park",
+      "summary": {
+        "route": "industrial_park",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "record_id": "fef7ea30-1356-4a18-a3e1-2b7eb6cab1cc"
+      },
+      "created_at": "2026-10-22 09:43:53.423633+00:00"
+    },
+    {
+      "trace_id": "eff3df5c-225c-4a77-ad5b-12dbb3dc3cde",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "enterprises",
+      "summary": {
+        "route": "enterprises",
+        "caller_type": "api_caller",
+        "result_count": 10,
+        "total": 10
+      },
+      "created_at": "2026-10-22 09:43:53.438556+00:00"
+    },
+    {
+      "trace_id": "32b1da53-6064-4cc9-a59c-7a540a192afe",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "major_profile_documents",
+      "summary": {
+        "route": "major_profile_documents",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "total": 1
+      },
+      "created_at": "2026-10-22 09:43:54.270492+00:00"
+    },
+    {
+      "trace_id": "78765e42-e3f7-4a4d-bfbc-0f6a26455ad4",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "talent_training_plans",
+      "summary": {
+        "route": "talent_training_plans",
+        "caller_type": "api_caller",
+        "result_count": 1
+      },
+      "created_at": "2026-10-22 09:43:54.290946+00:00"
+    },
+    {
+      "trace_id": "554b5e11-e632-4b2c-bf54-fbe037dabee3",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "training_plan_detail",
+      "summary": {
+        "route": "training_plan_detail",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "plan_id": "dd91dbd4-bb1a-4fcf-93ea-8384be728ad9",
+        "normalized_ref_id": "5d82fef8-87f3-4fe9-bb94-3ff1828442e0"
+      },
+      "created_at": "2026-10-22 09:43:54.318126+00:00"
+    },
+    {
+      "trace_id": "44ee6ed0-0e1f-4dfa-a600-5c61eeae03c7",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_sections",
+      "summary": {
+        "route": "document_sections",
+        "caller_type": "api_caller",
+        "result_count": 39,
+        "normalized_ref_id": "a8fbbb03-0c69-421e-bcd9-822a34e96a03"
+      },
+      "created_at": "2026-10-22 09:43:54.344051+00:00"
+    },
+    {
+      "trace_id": "2ff3acb9-e453-42ef-96d6-797dd79c4a7c",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "training_plan_courses",
+      "summary": {
+        "route": "training_plan_courses",
+        "caller_type": "api_caller",
+        "result_count": 12,
+        "total": 12
+      },
+      "created_at": "2026-10-22 09:43:54.391170+00:00"
+    },
+    {
+      "trace_id": "d16e01fa-9d01-40e4-8440-0304aa1be1da",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_sections",
+      "summary": {
+        "route": "document_sections",
+        "caller_type": "api_caller",
+        "result_count": 100,
+        "normalized_ref_id": "5d82fef8-87f3-4fe9-bb94-3ff1828442e0"
+      },
+      "created_at": "2026-10-22 09:43:54.428617+00:00"
+    },
+    {
+      "trace_id": "97230b8f-3aa0-4c1d-9491-0d6ab39e55b4",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "evidence_resolutions",
+      "summary": {
+        "route": "evidence_resolutions",
+        "caller_type": "api_caller",
+        "result_count": 2,
+        "requested_count": 2
+      },
+      "created_at": "2026-10-22 09:43:54.490611+00:00"
+    },
+    {
+      "trace_id": "c8948369-d883-405e-ab8b-f7dec12b2460",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "evidence_resolutions",
+      "summary": {
+        "route": "evidence_resolutions",
+        "caller_type": "api_caller",
+        "result_count": 3,
+        "requested_count": 5
+      },
+      "created_at": "2026-10-22 09:43:54.546730+00:00"
+    },
+    {
+      "trace_id": "e1616332-491c-4f1e-bee3-fcda814420be",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "assets",
+      "summary": {
+        "route": "assets",
+        "caller_type": "api_caller",
+        "result_count": 7,
+        "total": 7
+      },
+      "created_at": "2026-10-22 09:44:16.929737+00:00"
+    },
+    {
+      "trace_id": "00e34db9-c83e-4de8-9d1b-42323b6787d6",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "assets",
+      "summary": {
+        "route": "assets",
+        "caller_type": "api_caller",
+        "result_count": 35,
+        "total": 35
+      },
+      "created_at": "2026-10-22 09:44:17.100148+00:00"
+    },
+    {
+      "trace_id": "453e5073-5fd2-4619-ae6c-edef82543df8",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "assets",
+      "summary": {
+        "route": "assets",
+        "caller_type": "api_caller",
+        "result_count": 7,
+        "total": 7
+      },
+      "created_at": "2026-10-22 09:44:17.174918+00:00"
+    },
+    {
+      "trace_id": "37655448-98d8-41a9-8ad8-c71093acd91d",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "assets",
+      "summary": {
+        "route": "assets",
+        "caller_type": "api_caller",
+        "result_count": 0,
+        "total": 0
+      },
+      "created_at": "2026-10-22 09:44:17.198314+00:00"
+    },
+    {
+      "trace_id": "508ce9d1-f9c5-4a5a-8438-6dbf523c6fbd",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "assets",
+      "summary": {
+        "route": "assets",
+        "caller_type": "api_caller",
+        "result_count": 3,
+        "total": 3
+      },
+      "created_at": "2026-10-22 09:44:17.265221+00:00"
+    },
+    {
+      "trace_id": "b78cdc74-c4ba-4b14-909c-09058bd2cbb2",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "assets",
+      "summary": {
+        "route": "assets",
+        "caller_type": "api_caller",
+        "result_count": 0,
+        "total": 0
+      },
+      "created_at": "2026-10-22 09:44:17.297791+00:00"
+    },
+    {
+      "trace_id": "9196b797-0c3f-4881-8657-ef94758401c4",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "outline_node_context",
+      "summary": {
+        "route": "outline_node_context",
+        "caller_type": "api_caller",
+        "result_count": 95,
+        "normalized_ref_id": "18940e50-cd19-4c1c-b896-4543e38a13d2",
+        "node_id": "12714963-6036-4b24-babd-ef17505f405f"
+      },
+      "created_at": "2026-10-22 09:46:53.249006+00:00"
+    },
+    {
+      "trace_id": "d2fba50d-57e0-4efe-a0a5-98cc3dd5f3a7",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "outline_node_context",
+      "summary": {
+        "route": "outline_node_context",
+        "caller_type": "api_caller",
+        "result_count": 24,
+        "normalized_ref_id": "be6079d7-4ac8-43c3-b182-3558bb7344de",
+        "node_id": "node-task-6b4c72329d28"
+      },
+      "created_at": "2026-10-22 09:46:53.280792+00:00"
+    },
+    {
+      "trace_id": "032d747b-7c1a-45c6-ae1b-0c6b6f1cf199",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "enterprise",
+      "summary": {
+        "route": "enterprise",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "record_id": "e908bfe7-6cd3-4f21-8b6b-9e8fcbc76785"
+      },
+      "created_at": "2026-10-22 09:46:54.136534+00:00"
+    },
+    {
+      "trace_id": "67b64baf-d04c-48d1-9772-3fdc84e384ed",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "enterprise",
+      "summary": {
+        "route": "enterprise",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "record_id": "975690c6-248a-4125-b982-aa2e866f4050"
+      },
+      "created_at": "2026-10-22 09:46:54.156090+00:00"
+    },
+    {
+      "trace_id": "71f9b79e-f236-437a-bcab-c097b2dbccf9",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "enterprise",
+      "summary": {
+        "route": "enterprise",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "record_id": "e8acf093-2c5d-4eae-b99c-ea47d59b9d22"
+      },
+      "created_at": "2026-10-22 09:46:54.171016+00:00"
+    },
+    {
+      "trace_id": "5e170d74-b6bd-4f9d-bc49-312c9fa22d67",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_section",
+      "summary": {
+        "route": "document_section",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "normalized_ref_id": "a8fbbb03-0c69-421e-bcd9-822a34e96a03",
+        "section_id": "block-p00-005"
+      },
+      "created_at": "2026-10-22 09:46:54.198180+00:00"
+    },
+    {
+      "trace_id": "cdc42702-67e9-4c3b-bc47-c929677bbd5b",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_section",
+      "summary": {
+        "route": "document_section",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "normalized_ref_id": "5d82fef8-87f3-4fe9-bb94-3ff1828442e0",
+        "section_id": "block-p00-017"
+      },
+      "created_at": "2026-10-22 09:46:54.233811+00:00"
+    },
+    {
+      "trace_id": "713f7f29-d61e-40e7-9f33-4fff73ec5cc2",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_sections",
+      "summary": {
+        "route": "document_sections",
+        "caller_type": "api_caller",
+        "result_count": 47,
+        "normalized_ref_id": "5f28592f-7850-4014-8e94-3bb4883a994d"
+      },
+      "created_at": "2026-10-22 09:46:54.259503+00:00"
+    },
+    {
+      "trace_id": "ac23f56e-1a15-4944-b3d0-404186a8ed3d",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_sections",
+      "summary": {
+        "route": "document_sections",
+        "caller_type": "api_caller",
+        "result_count": 51,
+        "normalized_ref_id": "dbf725cc-9d48-45d8-9ecb-dfbee540d150"
+      },
+      "created_at": "2026-10-22 09:46:54.285952+00:00"
+    },
+    {
+      "trace_id": "1d20de4b-b0aa-403d-bd1b-61c7fdb088e9",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_sections",
+      "summary": {
+        "route": "document_sections",
+        "caller_type": "api_caller",
+        "result_count": 41,
+        "normalized_ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226"
+      },
+      "created_at": "2026-10-22 09:46:54.310974+00:00"
+    },
+    {
+      "trace_id": "6dcb8380-3cce-481f-bcbf-232fa7b28c7b",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_sections",
+      "summary": {
+        "route": "document_sections",
+        "caller_type": "api_caller",
+        "result_count": 55,
+        "normalized_ref_id": "5e6a5808-4ac3-4cae-8b96-dac632ae7242"
+      },
+      "created_at": "2026-10-22 09:46:54.337121+00:00"
+    },
+    {
+      "trace_id": "59181b1d-06c7-4e94-830d-5a8a1313d6ca",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_sections",
+      "summary": {
+        "route": "document_sections",
+        "caller_type": "api_caller",
+        "result_count": 51,
+        "normalized_ref_id": "0ee8a187-22dc-417e-bc29-841b29026d8a"
+      },
+      "created_at": "2026-10-22 09:46:54.362297+00:00"
+    },
+    {
+      "trace_id": "c702401c-dbba-41d8-95c8-c7a6523daead",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_sections",
+      "summary": {
+        "route": "document_sections",
+        "caller_type": "api_caller",
+        "result_count": 52,
+        "normalized_ref_id": "df51b114-d0e1-447a-8892-0d4ea269e606"
+      },
+      "created_at": "2026-10-22 09:46:54.389067+00:00"
+    },
+    {
+      "trace_id": "b29c3d3d-ba61-465b-bd7b-03856f0ff06d",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_sections",
+      "summary": {
+        "route": "document_sections",
+        "caller_type": "api_caller",
+        "result_count": 88,
+        "normalized_ref_id": "533f1174-233a-42f9-a82e-a547bb2d31c3"
+      },
+      "created_at": "2026-10-22 09:46:54.427358+00:00"
+    },
+    {
+      "trace_id": "7e39da29-3750-4669-a613-0ac0fefec98c",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_section",
+      "summary": {
+        "route": "document_section",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "normalized_ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+        "section_id": "web-block-0019"
+      },
+      "created_at": "2026-10-22 09:50:01.750044+00:00"
+    },
+    {
+      "trace_id": "ccaaae0a-15c2-48d8-abc7-83a843d24144",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_section",
+      "summary": {
+        "route": "document_section",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "normalized_ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+        "section_id": "web-block-0038"
+      },
+      "created_at": "2026-10-22 09:50:01.779111+00:00"
+    },
+    {
+      "trace_id": "626da395-6284-43d8-8085-e3678e2d65a2",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_section",
+      "summary": {
+        "route": "document_section",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "normalized_ref_id": "5e6a5808-4ac3-4cae-8b96-dac632ae7242",
+        "section_id": "web-block-0047"
+      },
+      "created_at": "2026-10-22 09:50:01.813930+00:00"
+    },
+    {
+      "trace_id": "227c864b-13bc-4f85-8708-12a4fab3b9b3",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "assets",
+      "summary": {
+        "route": "assets",
+        "caller_type": "api_caller",
+        "result_count": 2,
+        "total": 2
+      },
+      "created_at": "2026-10-22 09:50:01.901255+00:00"
+    },
+    {
+      "trace_id": "373c4a25-9331-4c4c-a0cb-6c32d97a64fb",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "industrial_parks",
+      "summary": {
+        "route": "industrial_parks",
+        "caller_type": "api_caller",
+        "result_count": 6,
+        "total": 6
+      },
+      "created_at": "2026-10-22 09:50:02.123133+00:00"
+    },
+    {
+      "trace_id": "122b1349-9aae-481c-a7c0-f0365217750d",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "standard_courses",
+      "summary": {
+        "route": "standard_courses",
+        "caller_type": "api_caller",
+        "result_count": 0,
+        "total": 0
+      },
+      "created_at": "2026-10-22 09:50:03.156204+00:00"
+    },
+    {
+      "trace_id": "bb3b25db-0666-4ebc-ad84-c10b118402a8",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "industrial_park",
+      "summary": {
+        "route": "industrial_park",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "record_id": "791815d2-05eb-49d8-81bc-5ffdd895b9c1"
+      },
+      "created_at": "2026-10-22 09:51:28.146002+00:00"
+    },
+    {
+      "trace_id": "3f7e4a4c-7270-4ad8-8a9d-3a2a8771c75f",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "enterprises",
+      "summary": {
+        "route": "enterprises",
+        "caller_type": "api_caller",
+        "result_count": 10,
+        "total": 10
+      },
+      "created_at": "2026-10-22 09:51:28.157817+00:00"
+    },
+    {
+      "trace_id": "237da0a6-03b4-4994-beab-4ec64cb421ac",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "evidence_resolutions",
+      "summary": {
+        "route": "evidence_resolutions",
+        "caller_type": "api_caller",
+        "result_count": 4,
+        "requested_count": 4
+      },
+      "created_at": "2026-10-22 09:51:28.193832+00:00"
+    },
+    {
+      "trace_id": "8cd58799-129f-4c46-b476-8d3440c9e1e4",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_section",
+      "summary": {
+        "route": "document_section",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "normalized_ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+        "section_id": "web-block-0019"
+      },
+      "created_at": "2026-10-22 09:51:28.220502+00:00"
+    },
+    {
+      "trace_id": "e46c0ec3-cd0f-47cf-ba48-f6338f62879e",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "document_section",
+      "summary": {
+        "route": "document_section",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "normalized_ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+        "section_id": "web-block-0019"
+      },
+      "created_at": "2026-10-22 09:51:28.249134+00:00"
+    },
+    {
+      "trace_id": "4e00ef14-05ac-4807-979c-b249cdfe3b26",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "entity_resolutions",
+      "summary": {
+        "route": "entity_resolutions",
+        "caller_type": "api_caller",
+        "result_count": 30,
+        "entity_type": "major"
+      },
+      "created_at": "2026-10-22 09:51:28.306095+00:00"
+    },
+    {
+      "trace_id": "a23385ab-5d6b-4919-bfbd-b02c171d65f0",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "enterprise",
+      "summary": {
+        "route": "enterprise",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "record_id": "91df77d0-91dc-4d9a-899c-f66aff332b09"
+      },
+      "created_at": "2026-10-22 09:51:45.731183+00:00"
+    },
+    {
+      "trace_id": "8dd12319-1ef8-4290-a6b3-e24f8d074729",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "enterprise",
+      "summary": {
+        "route": "enterprise",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "record_id": "75a9540a-e48a-4828-a3d0-709e035a4c6c"
+      },
+      "created_at": "2026-10-22 09:51:45.783670+00:00"
+    },
+    {
+      "trace_id": "2f24ecbf-e4e6-4ec9-b5c9-a002a3c1b0c7",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "enterprise",
+      "summary": {
+        "route": "enterprise",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "record_id": "784acec7-2202-4067-802e-692b65273b34"
+      },
+      "created_at": "2026-10-22 09:51:45.794621+00:00"
+    },
+    {
+      "trace_id": "bb44306d-ab38-4562-b1a2-90179c5abb71",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "enterprise",
+      "summary": {
+        "route": "enterprise",
+        "caller_type": "api_caller",
+        "result_count": 1,
+        "record_id": "5e267a70-f1c2-487a-a080-d89084732359"
+      },
+      "created_at": "2026-10-22 09:52:37.058098+00:00"
+    },
+    {
+      "trace_id": "3aac067c-1efb-4112-81b1-1a7021219f1f",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "market_jobs",
+      "summary": {
+        "route": "market_jobs",
+        "caller_type": "api_caller",
+        "result_count": 200,
+        "total": 474
+      },
+      "created_at": "2026-10-22 09:52:37.217545+00:00"
+    },
+    {
+      "trace_id": "1f41ad19-20d4-4f1f-bba4-0bde932f3fa3",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "market_jobs",
+      "summary": {
+        "route": "market_jobs",
+        "caller_type": "api_caller",
+        "result_count": 200,
+        "total": 474
+      },
+      "created_at": "2026-10-22 09:52:37.375441+00:00"
+    },
+    {
+      "trace_id": "33cbd1bf-acdc-4077-ba8c-4aef64429aec",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "market_jobs",
+      "summary": {
+        "route": "market_jobs",
+        "caller_type": "api_caller",
+        "result_count": 74,
+        "total": 474
+      },
+      "created_at": "2026-10-22 09:52:37.467566+00:00"
+    },
+    {
+      "trace_id": "082db68a-d4da-436e-9fcb-f1b4f7dbc4a8",
+      "event_type": "SearchQueryExecuted",
+      "target_type": "public_data_read",
+      "target_id": "market_jobs_aggregate",
+      "summary": {
+        "route": "market_jobs_aggregate",
+        "caller_type": "api_caller",
+        "result_count": 5,
+        "total": 5
+      },
+      "created_at": "2026-10-22 09:52:37.540692+00:00"
+    }
+  ],
+  "returned_ref_verification": [
+    {
+      "id": "00164fee-ce8a-425a-9325-65a64622c737",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "00164fee-ce8a-425a-9325-65a64622c737",
+      "classification": "major_profile",
+      "chunk_count": 30,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江工贸职业技术学院 跨境电子商务专业简介.docx"
+    },
+    {
+      "id": "00c31d19-dd4d-497b-8ea0-691832db3648",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "00c31d19-dd4d-497b-8ea0-691832db3648",
+      "classification": "course_textbook",
+      "chunk_count": 29,
+      "low_altitude_tag_count": 0,
+      "asset_title": "跨境电商之速卖通_宁波城市职业技术学院_中国大学MOOC-慕课-b328a195c985.html"
+    },
+    {
+      "id": "0125af5c-6969-4587-835c-198d1f8ce647",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "0125af5c-6969-4587-835c-198d1f8ce647",
+      "classification": "major_profile",
+      "chunk_count": 30,
+      "low_altitude_tag_count": 0,
+      "asset_title": "Electronic-Commerce--Digital-Operation-and-Innovation--北京外国语大学国际商学院-Internationa-9ca598ca52f8.html"
+    },
+    {
+      "id": "03358772-7538-439e-b65e-571736fc546e",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "03358772-7538-439e-b65e-571736fc546e",
+      "classification": "course_textbook",
+      "chunk_count": 699,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网店运营》教材.docx"
+    },
+    {
+      "id": "03971048-7836-425a-abf9-35e57fc8bd4e",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "03971048-7836-425a-abf9-35e57fc8bd4e",
+      "classification": "course_textbook",
+      "chunk_count": 1359,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《数据采集与处理》教材（内容升级）2023-11-27-刷格式.docx"
+    },
+    {
+      "id": "03ddaa48-90cf-404c-8d24-404972b95aa2",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "03ddaa48-90cf-404c-8d24-404972b95aa2",
+      "classification": "major_profile",
+      "chunk_count": 4,
+      "low_altitude_tag_count": 0,
+      "asset_title": "跨境电子商务专业介绍-贵州工贸职业学院-9149d7369fd1.html"
+    },
+    {
+      "id": "06b72162-b788-42fc-927e-c59575f3dce1",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "06b72162-b788-42fc-927e-c59575f3dce1",
+      "classification": "course_textbook",
+      "chunk_count": 1087,
+      "low_altitude_tag_count": 0,
+      "asset_title": "南宁六职《网络营销实务》统稿-0329-刷格式.docx"
+    },
+    {
+      "id": "07288004-e136-4a3e-9673-853aa00b1012",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "07288004-e136-4a3e-9673-853aa00b1012",
+      "classification": "course_textbook",
+      "chunk_count": 1165,
+      "low_altitude_tag_count": 0,
+      "asset_title": "电子商务基础.pdf"
+    },
+    {
+      "id": "073befc2-3c3a-41d2-bc3e-75477d997032",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "073befc2-3c3a-41d2-bc3e-75477d997032",
+      "classification": "major_profile",
+      "chunk_count": 5,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江机电职业技术大学 电子商务专业介绍.docx"
+    },
+    {
+      "id": "07b7eb2e-3c36-4ced-9248-31c57c34248c",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "07b7eb2e-3c36-4ced-9248-31c57c34248c",
+      "classification": "major_profile",
+      "chunk_count": 21,
+      "low_altitude_tag_count": 0,
+      "asset_title": "义乌工商职业技术学院 商务数据分析与应用专业简介.docx"
+    },
+    {
+      "id": "08c545ab-f2df-4596-939a-fcbbd6bd6f91",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "08c545ab-f2df-4596-939a-fcbbd6bd6f91",
+      "classification": "talent_training_plan",
+      "chunk_count": 17,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江经济职业技术学院-跨境电子商务专业人才培养方案.pdf"
+    },
+    {
+      "id": "0a2156e9-cea8-4a19-9543-e6a21fbbe8d1",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "0a2156e9-cea8-4a19-9543-e6a21fbbe8d1",
+      "classification": "course_textbook",
+      "chunk_count": 1644,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《AI+跨境电商商品编辑与发布》电子稿.pdf"
+    },
+    {
+      "id": "0c6c2fc3-7da0-4ed3-8c63-93fee0d9d23b",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "0c6c2fc3-7da0-4ed3-8c63-93fee0d9d23b",
+      "classification": "major_profile",
+      "chunk_count": 7,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江旅游职业学院 电子商务专业介绍.docx"
+    },
+    {
+      "id": "0c92553c-e527-4e52-9b78-3e82e396d659",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "0c92553c-e527-4e52-9b78-3e82e396d659",
+      "classification": "course_textbook",
+      "chunk_count": 1261,
+      "low_altitude_tag_count": 0,
+      "asset_title": "实训教材《商务谈判》.pdf"
+    },
+    {
+      "id": "0eb37586-cc53-495d-b350-7d56eb19d044",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "0eb37586-cc53-495d-b350-7d56eb19d044",
+      "classification": "course_textbook",
+      "chunk_count": 1940,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《旅游新媒体营销》统稿教材.docx"
+    },
+    {
+      "id": "0ee8a187-22dc-417e-bc29-841b29026d8a",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "0ee8a187-22dc-417e-bc29-841b29026d8a",
+      "classification": "industry_policy",
+      "chunk_count": 32,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划 （2026-2028年）》的通知 - - [ 索引号 ] 11500229660853981Q/2026-00009"
+    },
+    {
+      "id": "0f6604d6-456d-489d-8b9e-159671bbc803",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "0f6604d6-456d-489d-8b9e-159671bbc803",
+      "classification": "course_textbook",
+      "chunk_count": 737,
+      "low_altitude_tag_count": 0,
+      "asset_title": "网络营销-刷格式.docx"
+    },
+    {
+      "id": "0f759d4a-7828-44b5-a14e-1f6a6252df8f",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "0f759d4a-7828-44b5-a14e-1f6a6252df8f",
+      "classification": "course_textbook",
+      "chunk_count": 478,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《社区电商》统稿1.10-韩.docx"
+    },
+    {
+      "id": "0fa6f704-a6cc-4f99-96c2-55c06b9a4b16",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "0fa6f704-a6cc-4f99-96c2-55c06b9a4b16",
+      "classification": "course_textbook",
+      "chunk_count": 681,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《商品认知》教材统稿.docx"
+    },
+    {
+      "id": "11091c39-9f77-499e-9be4-ec8fc83241a4",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "11091c39-9f77-499e-9be4-ec8fc83241a4",
+      "classification": "major_profile",
+      "chunk_count": 15,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江商业职业技术学院 商务数据分析与应用专业简介.docx"
+    },
+    {
+      "id": "121d15ba-a497-4754-aa89-6d9b900de9e9",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "121d15ba-a497-4754-aa89-6d9b900de9e9",
+      "classification": "major_profile",
+      "chunk_count": 17,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江商业职业技术学院 跨境电子商务专业简介.docx"
+    },
+    {
+      "id": "1279af25-afa2-44e4-b11f-df2dc1a19af3",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "1279af25-afa2-44e4-b11f-df2dc1a19af3",
+      "classification": "talent_training_plan",
+      "chunk_count": 42,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江经济职业技术学院-电子商务专业人才培养方案.pdf"
+    },
+    {
+      "id": "13f716fc-958a-4162-87ad-7f8897326f0d",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "13f716fc-958a-4162-87ad-7f8897326f0d",
+      "classification": "course_textbook",
+      "chunk_count": 336,
+      "low_altitude_tag_count": 0,
+      "asset_title": "A20261157 AIGC视觉设计（智慧学习版 慕课版）三改_第001-055页.pdf"
+    },
+    {
+      "id": "14330b2f-cf47-4fd2-9aa0-c7f3346ea9c3",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "14330b2f-cf47-4fd2-9aa0-c7f3346ea9c3",
+      "classification": "course_textbook",
+      "chunk_count": 1737,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《直播电商》教材统稿_无损压缩.docx"
+    },
+    {
+      "id": "1444cf96-2d6f-4dde-a5a3-b461dc741046",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "1444cf96-2d6f-4dde-a5a3-b461dc741046",
+      "classification": "major_profile",
+      "chunk_count": 11,
+      "low_altitude_tag_count": 0,
+      "asset_title": "绍兴职业技术学院 跨境电子商务专业简介.docx"
+    },
+    {
+      "id": "176943bb-b2b6-4eac-80b5-94eb0fd15bb7",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "176943bb-b2b6-4eac-80b5-94eb0fd15bb7",
+      "classification": "major_profile",
+      "chunk_count": 33,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江长征职业技术学院-电子商务专业简介.pdf"
+    },
+    {
+      "id": "18275354-40f1-49fa-857b-f95fb0069655",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "18275354-40f1-49fa-857b-f95fb0069655",
+      "classification": "course_textbook",
+      "chunk_count": 1290,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江经贸《电子商务数据分析》教材-刷格式.docx"
+    },
+    {
+      "id": "18940e50-cd19-4c1c-b896-4543e38a13d2",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "18940e50-cd19-4c1c-b896-4543e38a13d2",
+      "classification": "course_textbook",
+      "chunk_count": 563,
+      "low_altitude_tag_count": 0,
+      "asset_title": "01 新零售教材.docx"
+    },
+    {
+      "id": "192dcaa8-a5c7-41bc-8e84-10368fb0ae42",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "192dcaa8-a5c7-41bc-8e84-10368fb0ae42",
+      "classification": "major_profile",
+      "chunk_count": 5,
+      "low_altitude_tag_count": 0,
+      "asset_title": "跨境电子商务-a6e2ca6333ee.html"
+    },
+    {
+      "id": "19c91ab7-7185-4fb4-81f2-4b2608a58905",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "19c91ab7-7185-4fb4-81f2-4b2608a58905",
+      "classification": "industry_policy",
+      "chunk_count": 8,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆出台15条政策推动跨境电商发展"
+    },
+    {
+      "id": "1a02601b-80c3-4a22-9caf-5e355452abe7",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "1a02601b-80c3-4a22-9caf-5e355452abe7",
+      "classification": "course_textbook",
+      "chunk_count": 1170,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《电商云平台部署与运维》教材.docx"
+    },
+    {
+      "id": "1b2bef04-0c0f-4026-9d7c-609689d87fb3",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "1b2bef04-0c0f-4026-9d7c-609689d87fb3",
+      "classification": "program_profile",
+      "chunk_count": 76,
+      "low_altitude_tag_count": 0,
+      "asset_title": "（中职电子商务类专业简介）7307 电子商务类.pdf"
+    },
+    {
+      "id": "1b774b0c-b8fc-4a71-8a2d-13e8f9685093",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "1b774b0c-b8fc-4a71-8a2d-13e8f9685093",
+      "classification": "major_profile",
+      "chunk_count": 78,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江育英职业技术学院 网络营销与直播电商专业介绍.docx"
+    },
+    {
+      "id": "1bad59bd-95e5-459f-8fd0-48e96b25984f",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "1bad59bd-95e5-459f-8fd0-48e96b25984f",
+      "classification": "major_profile",
+      "chunk_count": 16,
+      "low_altitude_tag_count": 0,
+      "asset_title": "_跨境电子商务_深城职-商贸学院-7d75fcb63ea3.html"
+    },
+    {
+      "id": "1bb8f58c-463b-4679-b68f-d9fae94e093d",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "1bb8f58c-463b-4679-b68f-d9fae94e093d",
+      "classification": "course_textbook",
+      "chunk_count": 1028,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网络营销工具与使用方法》-李.docx"
+    },
+    {
+      "id": "1c9a5294-b7db-45c5-88b0-6e9fb0bbb37c",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "1c9a5294-b7db-45c5-88b0-6e9fb0bbb37c",
+      "classification": "industry_policy",
+      "chunk_count": 35,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆市数字贸易和服务贸易高质量发展行动方案 - 2025年重庆市人民政府办公厅印发的行动方案"
+    },
+    {
+      "id": "1cc5fac5-2410-4081-b9eb-085e412d6ae6",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "1cc5fac5-2410-4081-b9eb-085e412d6ae6",
+      "classification": "course_textbook",
+      "chunk_count": 1381,
+      "low_altitude_tag_count": 0,
+      "asset_title": "北京商校《新媒体营销》教材-白.docx"
+    },
+    {
+      "id": "1ce7584a-b155-4a8c-94d5-83239ab607cc",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "1ce7584a-b155-4a8c-94d5-83239ab607cc",
+      "classification": "course_textbook",
+      "chunk_count": 847,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《直播电商 》教材 -修改版-刷格式.docx"
+    },
+    {
+      "id": "1cea38d8-99d4-4fc4-acf1-9c724e387f26",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "1cea38d8-99d4-4fc4-acf1-9c724e387f26",
+      "classification": "course_textbook",
+      "chunk_count": 1378,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网络营销实务》.docx"
+    },
+    {
+      "id": "1d2ec59f-057a-4da7-843d-5600e200b05e",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "1d2ec59f-057a-4da7-843d-5600e200b05e",
+      "classification": "course_textbook",
+      "chunk_count": 20,
+      "low_altitude_tag_count": 0,
+      "asset_title": "2.现代零售行业的关键特征.pdf"
+    },
+    {
+      "id": "1db8e25c-d61b-44bf-a34e-cf0eab87a07e",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "1db8e25c-d61b-44bf-a34e-cf0eab87a07e",
+      "classification": "course_textbook",
+      "chunk_count": 1264,
+      "low_altitude_tag_count": 0,
+      "asset_title": "实训教材《海外仓管理》.pdf"
+    },
+    {
+      "id": "1dcac26a-2895-45c8-aeeb-a73ac8fc667d",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "1dcac26a-2895-45c8-aeeb-a73ac8fc667d",
+      "classification": "course_textbook",
+      "chunk_count": 195,
+      "low_altitude_tag_count": 0,
+      "asset_title": "A20261157 AIGC视觉设计（智慧学习版 慕课版）三改_第166-192页.pdf"
+    },
+    {
+      "id": "1e441579-1b18-4d9d-84d7-7cbd2c219071",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "1e441579-1b18-4d9d-84d7-7cbd2c219071",
+      "classification": "major_profile",
+      "chunk_count": 8,
+      "low_altitude_tag_count": 0,
+      "asset_title": "跨境电子商务专业介绍---华南师范大学商学院-835c735dfa3c.html"
+    },
+    {
+      "id": "1f411f69-8adb-45f0-a10b-444cec0203d2",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "1f411f69-8adb-45f0-a10b-444cec0203d2",
+      "classification": "course_textbook",
+      "chunk_count": 1509,
+      "low_altitude_tag_count": 0,
+      "asset_title": "59466-00电子商务数据分析基础（第二版）-初级.pdf"
+    },
+    {
+      "id": "1f467476-37e1-4070-a1df-37d19e2682cd",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "1f467476-37e1-4070-a1df-37d19e2682cd",
+      "classification": "course_textbook",
+      "chunk_count": 1934,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《数据可视化》教材.pdf"
+    },
+    {
+      "id": "2189acbc-4e80-4f5b-9ebf-bf6c8285fbbe",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "2189acbc-4e80-4f5b-9ebf-bf6c8285fbbe",
+      "classification": "industry_policy",
+      "chunk_count": 1,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆市“十四五”电子商务发展规划"
+    },
+    {
+      "id": "21ffb14a-039a-407f-a6f0-a5e997baf899",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "21ffb14a-039a-407f-a6f0-a5e997baf899",
+      "classification": "course_textbook",
+      "chunk_count": 808,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网络营销实务》教材终审后修改20190807-李.docx"
+    },
+    {
+      "id": "224ba35f-c7a5-4ae0-8680-7a7859549ee4",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "224ba35f-c7a5-4ae0-8680-7a7859549ee4",
+      "classification": "course_textbook",
+      "chunk_count": 1335,
+      "low_altitude_tag_count": 0,
+      "asset_title": "武鸣职校《新媒体营销》 - 刷格式.pdf"
+    },
+    {
+      "id": "227a9a8e-e179-45b8-a5b0-8140085cb10c",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "227a9a8e-e179-45b8-a5b0-8140085cb10c",
+      "classification": "talent_training_plan",
+      "chunk_count": 21,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江纺织服装职业技术学院 跨境电子商务人才培养方案.pdf"
+    },
+    {
+      "id": "23246cd9-bb16-47d4-9b2d-ff8c25456a16",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "23246cd9-bb16-47d4-9b2d-ff8c25456a16",
+      "classification": "talent_training_plan",
+      "chunk_count": 12,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江育英职业技术学院-电子商务专业人才培养方案.pdf"
+    },
+    {
+      "id": "23f7bb77-7f1f-4534-8e17-790df286548b",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "23f7bb77-7f1f-4534-8e17-790df286548b",
+      "classification": "major_profile",
+      "chunk_count": 51,
+      "low_altitude_tag_count": 0,
+      "asset_title": "跨境电子商务-中国普通高等学校高等职业教育专科专业-_百度百科-432477481f10.html"
+    },
+    {
+      "id": "2479d9fe-1998-4095-a423-0024eccaab11",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "2479d9fe-1998-4095-a423-0024eccaab11",
+      "classification": "course_textbook",
+      "chunk_count": 1543,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《互联网产品开发》教材.docx"
+    },
+    {
+      "id": "24e2cc69-4b85-460e-8c01-9f9831c7bcdd",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "24e2cc69-4b85-460e-8c01-9f9831c7bcdd",
+      "classification": "course_textbook",
+      "chunk_count": 1343,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《互联网销售》教材统稿20250327.pdf"
+    },
+    {
+      "id": "2509efb8-8018-48b6-b4fe-891de48ec50f",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "2509efb8-8018-48b6-b4fe-891de48ec50f",
+      "classification": "course_textbook",
+      "chunk_count": 2479,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《电商数据分析》教材20250509-出版社要求优化版.docx"
+    },
+    {
+      "id": "2545e153-391e-4a42-a7a8-b9640d94850a",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "2545e153-391e-4a42-a7a8-b9640d94850a",
+      "classification": "course_textbook",
+      "chunk_count": 336,
+      "low_altitude_tag_count": 0,
+      "asset_title": "A20261157 AIGC视觉设计（智慧学习版 慕课版）三改_第056-110页.pdf"
+    },
+    {
+      "id": "25a94631-d71c-4b5e-80ec-879a8f0a78c6",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "25a94631-d71c-4b5e-80ec-879a8f0a78c6",
+      "classification": "major_profile",
+      "chunk_count": 5,
+      "low_altitude_tag_count": 0,
+      "asset_title": "跨境电子商务专业主要学什么-专业课程有哪些_大学生必备网-de0f4c56c5f7.html"
+    },
+    {
+      "id": "26571758-36c8-4ace-9396-9a297ca54a5d",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "26571758-36c8-4ace-9396-9a297ca54a5d",
+      "classification": "course_textbook",
+      "chunk_count": 3642,
+      "low_altitude_tag_count": 0,
+      "asset_title": "英语.pdf"
+    },
+    {
+      "id": "26a644fb-6f2f-4807-8528-610f84ef4233",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "26a644fb-6f2f-4807-8528-610f84ef4233",
+      "classification": "major_profile",
+      "chunk_count": 18,
+      "low_altitude_tag_count": 0,
+      "asset_title": "专业介绍-跨境电子商务专业-创业学院-义乌工商学院-dacaa4fbd226.html"
+    },
+    {
+      "id": "2752577c-bbe0-4d4f-a131-e3823937c1a6",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "2752577c-bbe0-4d4f-a131-e3823937c1a6",
+      "classification": "industry_policy",
+      "chunk_count": 1,
+      "low_altitude_tag_count": 0,
+      "asset_title": "3.2=关于印发加快发展新型消费释放消费潜力若干措施的通知"
+    },
+    {
+      "id": "2766d383-00be-492c-84c3-2663acc55b42",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "2766d383-00be-492c-84c3-2663acc55b42",
+      "classification": "course_textbook",
+      "chunk_count": 809,
+      "low_altitude_tag_count": 0,
+      "asset_title": "江西现代《网店运营》教材.docx"
+    },
+    {
+      "id": "283dd06a-b226-4113-9ce2-f6214224a07f",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "283dd06a-b226-4113-9ce2-f6214224a07f",
+      "classification": "major_profile",
+      "chunk_count": 5,
+      "low_altitude_tag_count": 0,
+      "asset_title": "衢州职业技术学院 跨境电子商务专业简介.docx"
+    },
+    {
+      "id": "28d855b3-fb55-47a9-8333-08b31bc2f565",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "28d855b3-fb55-47a9-8333-08b31bc2f565",
+      "classification": "major_profile",
+      "chunk_count": 6,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江农业商贸职业学院 跨境电子商务专业简介.docx"
+    },
+    {
+      "id": "2984e379-09bf-40db-b896-1ead7c7ef76f",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "2984e379-09bf-40db-b896-1ead7c7ef76f",
+      "classification": "industry_policy",
+      "chunk_count": 2,
+      "low_altitude_tag_count": 3,
+      "asset_title": "关于公开征求《浙江省有序拓展低空经济应用场景行动方案(征求意见稿)》意见的结果反馈"
+    },
+    {
+      "id": "29a55a76-73d5-4a87-a624-4c4455a59b4a",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "29a55a76-73d5-4a87-a624-4c4455a59b4a",
+      "classification": "course_textbook",
+      "chunk_count": 19,
+      "low_altitude_tag_count": 0,
+      "asset_title": "5.零售门店O2O运营平台架构.docx"
+    },
+    {
+      "id": "2a28e009-1dfd-4f28-a5b1-68c40208a1b6",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "2a28e009-1dfd-4f28-a5b1-68c40208a1b6",
+      "classification": "talent_training_plan",
+      "chunk_count": 28,
+      "low_altitude_tag_count": 0,
+      "asset_title": "PDF--跨境电子商务专业人才培养方案-2023-级----淄博师范高等专科学校-fc4f7a63b6a8.pdf"
+    },
+    {
+      "id": "2bdf8992-f46b-48f0-bb5f-e477dce64dfa",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "2bdf8992-f46b-48f0-bb5f-e477dce64dfa",
+      "classification": "major_profile",
+      "chunk_count": 28,
+      "low_altitude_tag_count": 0,
+      "asset_title": "北京交通运输职业学院-北京地铁三大公司主要人才供给校-b9372aa68c6c.html"
+    },
+    {
+      "id": "2ccc4451-f308-41f2-80eb-92c4198bc112",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "2ccc4451-f308-41f2-80eb-92c4198bc112",
+      "classification": "major_profile",
+      "chunk_count": 7,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江工商职业技术学院 商务数据分析与应用专业简介.docx"
+    },
+    {
+      "id": "2d13e026-8a35-45f0-b323-cd0e3156a516",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "2d13e026-8a35-45f0-b323-cd0e3156a516",
+      "classification": "course_textbook",
+      "chunk_count": 1728,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《客户服务》教材统稿（定稿）.docx"
+    },
+    {
+      "id": "2e80d0ae-eb7d-4ba0-9469-7f8d480cf05d",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "2e80d0ae-eb7d-4ba0-9469-7f8d480cf05d",
+      "classification": "course_textbook",
+      "chunk_count": 579,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《O2O电子商务》教材初稿.docx"
+    },
+    {
+      "id": "2eb4ce3a-f3c9-4c4b-a022-6d7b3e7e90fb",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "2eb4ce3a-f3c9-4c4b-a022-6d7b3e7e90fb",
+      "classification": "course_textbook",
+      "chunk_count": 597,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网络营销》教材-甘肃农垦-白.docx"
+    },
+    {
+      "id": "2f744354-8c42-4dca-a7f0-fcd4035522d3",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "2f744354-8c42-4dca-a7f0-fcd4035522d3",
+      "classification": "industry_policy",
+      "chunk_count": 27,
+      "low_altitude_tag_count": 1,
+      "asset_title": "《浙江省人民政府关于高水平建设民航强省 打造低空经济发展高地的若干意见》解读-在线访谈-中华人民共和国交通运输部"
+    },
+    {
+      "id": "2fd11d6f-5c64-4a81-aa2e-aead8324ffd5",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "2fd11d6f-5c64-4a81-aa2e-aead8324ffd5",
+      "classification": "course_textbook",
+      "chunk_count": 1505,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江商业《UI界面设计》教材统稿3.28-刷格式.docx"
+    },
+    {
+      "id": "2ffbd2a5-8036-4489-a323-11588306a98a",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "2ffbd2a5-8036-4489-a323-11588306a98a",
+      "classification": "course_textbook",
+      "chunk_count": 943,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《世界经济文化》教材统稿-20230228_上传版_无损.docx"
+    },
+    {
+      "id": "30e35442-77af-41cd-9b01-733a8f19a1df",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "30e35442-77af-41cd-9b01-733a8f19a1df",
+      "classification": "talent_training_plan",
+      "chunk_count": 8,
+      "low_altitude_tag_count": 0,
+      "asset_title": "湖州职业技术学院 电子商务专业人才培养方案.docx"
+    },
+    {
+      "id": "311e15c9-38ee-4223-8ec3-02f6fb481ddf",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "311e15c9-38ee-4223-8ec3-02f6fb481ddf",
+      "classification": "course_textbook",
+      "chunk_count": 427,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江商业《互联网思维与大数据》-终稿-刷格式.docx"
+    },
+    {
+      "id": "31921dd3-cec8-41cc-aabc-a51b6ca5a17e",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "31921dd3-cec8-41cc-aabc-a51b6ca5a17e",
+      "classification": "course_textbook",
+      "chunk_count": 759,
+      "low_altitude_tag_count": 0,
+      "asset_title": "20221122网络推广实务-教材-刷格式.docx"
+    },
+    {
+      "id": "337085c6-2606-4efb-bf29-9a1834944215",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "337085c6-2606-4efb-bf29-9a1834944215",
+      "classification": "talent_training_plan",
+      "chunk_count": 11,
+      "low_altitude_tag_count": 0,
+      "asset_title": "义乌工商职业技术学院 跨境电子商务专业2024级人才培养方案.pdf"
+    },
+    {
+      "id": "33bffab0-9426-4bfc-a95b-a144a7ef98dd",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "33bffab0-9426-4bfc-a95b-a144a7ef98dd",
+      "classification": "course_textbook",
+      "chunk_count": 800,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《客户服务与管理》教材.docx"
+    },
+    {
+      "id": "34ab1ec0-d5a1-4314-811c-3c245cac0bd0",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "34ab1ec0-d5a1-4314-811c-3c245cac0bd0",
+      "classification": "major_profile",
+      "chunk_count": 12,
+      "low_altitude_tag_count": 0,
+      "asset_title": "嘉兴职业技术学院 电子商务专业简介.docx"
+    },
+    {
+      "id": "34c88a06-6f9b-4eb0-a736-b305466ce624",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "34c88a06-6f9b-4eb0-a736-b305466ce624",
+      "classification": "course_textbook",
+      "chunk_count": 2751,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《互联网销售》教材.pdf"
+    },
+    {
+      "id": "3737af90-9b9f-44aa-a4bc-60c7f7a1b834",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "3737af90-9b9f-44aa-a4bc-60c7f7a1b834",
+      "classification": "course_textbook",
+      "chunk_count": 1359,
+      "low_altitude_tag_count": 0,
+      "asset_title": "实训教材《客户服务》.pdf"
+    },
+    {
+      "id": "384271d9-1e1b-48f5-9a85-4bea33b3b997",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "384271d9-1e1b-48f5-9a85-4bea33b3b997",
+      "classification": "industry_policy",
+      "chunk_count": 9,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆：15条政策措施推进跨境电商高质量发展"
+    },
+    {
+      "id": "39581be3-57e9-40aa-b5de-dbbadd42773c",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "39581be3-57e9-40aa-b5de-dbbadd42773c",
+      "classification": "course_textbook",
+      "chunk_count": 1344,
+      "low_altitude_tag_count": 0,
+      "asset_title": "义乌城镇《电商运营数据分析》教材-刷格式.docx"
+    },
+    {
+      "id": "39d286bb-a781-43d9-a485-dc2a430abcef",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "39d286bb-a781-43d9-a485-dc2a430abcef",
+      "classification": "course_textbook",
+      "chunk_count": 611,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《直播运营实务》教材-刷格式 .docx"
+    },
+    {
+      "id": "3bc71c3d-630c-4c83-aca6-6159b1c3893f",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "3bc71c3d-630c-4c83-aca6-6159b1c3893f",
+      "classification": "industry_policy",
+      "chunk_count": 8,
+      "low_altitude_tag_count": 1,
+      "asset_title": "关于加快推进农业农村领域低空经济高质量发展的建议"
+    },
+    {
+      "id": "3c28c2ed-8805-4219-acc1-5139fdf115dd",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "3c28c2ed-8805-4219-acc1-5139fdf115dd",
+      "classification": "course_textbook",
+      "chunk_count": 787,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《数字化零售运营》出版社版本_第001-122页.pdf"
+    },
+    {
+      "id": "3cf08a8d-32d1-45bb-9fd7-ed666dc1c5d3",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "3cf08a8d-32d1-45bb-9fd7-ed666dc1c5d3",
+      "classification": "course_textbook",
+      "chunk_count": 913,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《电子商务数据分析与应用》教材2020.0409-刷格式.docx"
+    },
+    {
+      "id": "3db6a5c1-ac72-4041-9135-f81ae89a5f8d",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "3db6a5c1-ac72-4041-9135-f81ae89a5f8d",
+      "classification": "course_textbook",
+      "chunk_count": 1378,
+      "low_altitude_tag_count": 0,
+      "asset_title": "汕头林百欣《跨境电子商务实务》.docx"
+    },
+    {
+      "id": "3e5698fa-8492-453d-97c7-c00338248fdd",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "3e5698fa-8492-453d-97c7-c00338248fdd",
+      "classification": "course_textbook",
+      "chunk_count": 1031,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《新媒体运营与营销》教材-韩.docx"
+    },
+    {
+      "id": "3e761c28-0673-402e-b158-55ee1888ba68",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "3e761c28-0673-402e-b158-55ee1888ba68",
+      "classification": "industry_policy",
+      "chunk_count": 31,
+      "low_altitude_tag_count": 0,
+      "asset_title": "关于印发-成都市加快培育和开放场景资源管理办法-的通知-1047ada2bd4a.pdf"
+    },
+    {
+      "id": "3e847573-bf25-4d02-b3a8-4aaf6386531e",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "3e847573-bf25-4d02-b3a8-4aaf6386531e",
+      "classification": "course_textbook",
+      "chunk_count": 1706,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网店运营》教材.pdf"
+    },
+    {
+      "id": "3ea55277-42f7-4deb-beb6-44edc1fdd1e6",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "3ea55277-42f7-4deb-beb6-44edc1fdd1e6",
+      "classification": "major_profile",
+      "chunk_count": 12,
+      "low_altitude_tag_count": 0,
+      "asset_title": "台州职业技术学院 电子商务专业简介.docx"
+    },
+    {
+      "id": "408772b3-eba2-477c-a4c7-6642db38f1b8",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "408772b3-eba2-477c-a4c7-6642db38f1b8",
+      "classification": "course_textbook",
+      "chunk_count": 1260,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江商业《视觉营销设计》统稿20230421-刷格式.docx"
+    },
+    {
+      "id": "41c448c4-7246-474e-9b53-7b029205dd08",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "41c448c4-7246-474e-9b53-7b029205dd08",
+      "classification": "course_textbook",
+      "chunk_count": 551,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《电子商务美工实训》教材统稿-刷格式.docx"
+    },
+    {
+      "id": "433ef2a8-67a1-4aa2-b5a4-f8391b9bb89b",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "433ef2a8-67a1-4aa2-b5a4-f8391b9bb89b",
+      "classification": "major_profile",
+      "chunk_count": 4,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江农业商贸职业学院 电子商务专业简介.docx"
+    },
+    {
+      "id": "4469b7d4-9768-420f-9173-b4a4cef26796",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "4469b7d4-9768-420f-9173-b4a4cef26796",
+      "classification": "talent_training_plan",
+      "chunk_count": 22,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江纺织服装职业技术学院 电子商务人才培养方案.pdf"
+    },
+    {
+      "id": "45c5c2dd-d01d-4bad-aec3-2cd253da35ff",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "45c5c2dd-d01d-4bad-aec3-2cd253da35ff",
+      "classification": "course_textbook",
+      "chunk_count": 1403,
+      "low_altitude_tag_count": 0,
+      "asset_title": "实训教材《报关报检》.pdf"
+    },
+    {
+      "id": "46ee1819-56ef-4e05-89f5-f0cb218e9524",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "46ee1819-56ef-4e05-89f5-f0cb218e9524",
+      "classification": "talent_training_plan",
+      "chunk_count": 17,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江广厦职业技术学院-电子商务专业人才培养方案.pdf"
+    },
+    {
+      "id": "470a14e2-bcb2-42ac-aa5e-746586208599",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "470a14e2-bcb2-42ac-aa5e-746586208599",
+      "classification": "course_textbook",
+      "chunk_count": 328,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《农产品电商创业实践》教材.docx"
+    },
+    {
+      "id": "47157044-4664-438b-9a6d-d885ce400f34",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "47157044-4664-438b-9a6d-d885ce400f34",
+      "classification": "course_textbook",
+      "chunk_count": 1313,
+      "low_altitude_tag_count": 0,
+      "asset_title": "实训教材《门店经营》教材统稿0729.pdf"
+    },
+    {
+      "id": "47f8659d-3d5a-4669-8f05-8cf8341eed09",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "47f8659d-3d5a-4669-8f05-8cf8341eed09",
+      "classification": "course_textbook",
+      "chunk_count": 1660,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《黄酒数智营销》统稿教材.pdf"
+    },
+    {
+      "id": "4843398f-554d-411b-8e81-2456cd13fad8",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "4843398f-554d-411b-8e81-2456cd13fad8",
+      "classification": "major_profile",
+      "chunk_count": 13,
+      "low_altitude_tag_count": 0,
+      "asset_title": "跨境电子商务专业-财商文旅学院-188b1c9f54d6.html"
+    },
+    {
+      "id": "4887605c-70b7-49aa-9991-8f97f925890e",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "4887605c-70b7-49aa-9991-8f97f925890e",
+      "classification": "industry_policy",
+      "chunk_count": 10,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆全面融入共建“一带一路”蓝皮书（2013—2023） - 全面深化服务贸易创新发展试点，不断扩大服务贸易规模，建设全国重要的服务贸易基地"
+    },
+    {
+      "id": "497c3211-d4d2-45d9-ac64-190c0012f0aa",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "497c3211-d4d2-45d9-ac64-190c0012f0aa",
+      "classification": "course_textbook",
+      "chunk_count": 1338,
+      "low_altitude_tag_count": 0,
+      "asset_title": "电子商务数据分析导论202000923修改(内部使用，不可外传) -高级.pdf"
+    },
+    {
+      "id": "4990484d-6956-411f-beb2-c8879f886337",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "4990484d-6956-411f-beb2-c8879f886337",
+      "classification": "major_profile",
+      "chunk_count": 21,
+      "low_altitude_tag_count": 0,
+      "asset_title": "跨境电子商务专业是本科还是专科--掌上高考_中国教育在线-5af25c02d357.html"
+    },
+    {
+      "id": "4b169836-edd6-4a23-a4c5-d9edf1363074",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "4b169836-edd6-4a23-a4c5-d9edf1363074",
+      "classification": "course_textbook",
+      "chunk_count": 786,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《商务数据分析》教材-刷格式.docx"
+    },
+    {
+      "id": "4bb11a1a-5673-485a-a31b-899e677beb0e",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "4bb11a1a-5673-485a-a31b-899e677beb0e",
+      "classification": "industry_policy",
+      "chunk_count": 6,
+      "low_altitude_tag_count": 1,
+      "asset_title": "中央企业低空经济产业发展专题推进会召开 更好发挥支撑带动作用 推动低空经济产业安全健康有序发展-国务院国有资产监督管理委员会"
+    },
+    {
+      "id": "4bfd5a10-ad7c-420a-9be9-2e2a20c1b5ad",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "4bfd5a10-ad7c-420a-9be9-2e2a20c1b5ad",
+      "classification": "course_textbook",
+      "chunk_count": 652,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《O2O电子商务》教材初稿.pdf"
+    },
+    {
+      "id": "4cb193ca-48f0-415b-ad97-992a9ebadcd6",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "4cb193ca-48f0-415b-ad97-992a9ebadcd6",
+      "classification": "major_profile",
+      "chunk_count": 5,
+      "low_altitude_tag_count": 0,
+      "asset_title": "电子商务专业-沧州交通学院-原北京交通大学海滨学院-招生信息网-f4144abb19a0.html"
+    },
+    {
+      "id": "4cb787a7-b177-4f40-a34e-6ebd81cbc76a",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "4cb787a7-b177-4f40-a34e-6ebd81cbc76a",
+      "classification": "major_profile",
+      "chunk_count": 17,
+      "low_altitude_tag_count": 0,
+      "asset_title": "台州职业技术学院 商务数据分析与应用专业简介.docx"
+    },
+    {
+      "id": "4dc9e9c4-85c9-4621-be75-dbb0b35304b0",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "4dc9e9c4-85c9-4621-be75-dbb0b35304b0",
+      "classification": "major_profile",
+      "chunk_count": 1,
+      "low_altitude_tag_count": 0,
+      "asset_title": "专业介绍-北京外国语大学国际商学院-International-Business-School-BFSU-本硕博-北外留学-来华留学Solbridge-EDP-0c79c83a2c14.html"
+    },
+    {
+      "id": "4ddc889a-77fc-4014-a24a-cc4de31d8ab1",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "4ddc889a-77fc-4014-a24a-cc4de31d8ab1",
+      "classification": "course_textbook",
+      "chunk_count": 916,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江商业《网络消费者行为分析》教材统稿-刷格式.docx"
+    },
+    {
+      "id": "4efe5684-7fbb-4d73-b212-8e24d8e74609",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "4efe5684-7fbb-4d73-b212-8e24d8e74609",
+      "classification": "course_textbook",
+      "chunk_count": 483,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网络信息安全基础》教材定稿-0625改.docx"
+    },
+    {
+      "id": "5083789b-6cd9-4e9c-91fc-c85e4d0adb47",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "5083789b-6cd9-4e9c-91fc-c85e4d0adb47",
+      "classification": "course_textbook",
+      "chunk_count": 1586,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《商品拍摄与美化》教材-刷格式.pdf"
+    },
+    {
+      "id": "52837df0-1cba-4eef-bb2f-7b13fabbc9d1",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "52837df0-1cba-4eef-bb2f-7b13fabbc9d1",
+      "classification": "major_profile",
+      "chunk_count": 9,
+      "low_altitude_tag_count": 0,
+      "asset_title": "专业介绍-fc52caee66b5.html"
+    },
+    {
+      "id": "533f1174-233a-42f9-a82e-a547bb2d31c3",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "533f1174-233a-42f9-a82e-a547bb2d31c3",
+      "classification": "industry_policy",
+      "chunk_count": 58,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆市人民政府关于印发《重庆市“十五五”现代服务业发展规划（2026—2030 年）》的通知"
+    },
+    {
+      "id": "53c21833-1260-4e38-8d60-d723ba47ae3a",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "53c21833-1260-4e38-8d60-d723ba47ae3a",
+      "classification": "course_textbook",
+      "chunk_count": 660,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江商业《网络客户服务与管理》教材.docx"
+    },
+    {
+      "id": "57c14d49-0c2a-48c2-93d5-0f2da11c285a",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "57c14d49-0c2a-48c2-93d5-0f2da11c285a",
+      "classification": "major_profile",
+      "chunk_count": 22,
+      "low_altitude_tag_count": 0,
+      "asset_title": "金华职业技术大学 电子商务专业简介.docx"
+    },
+    {
+      "id": "59d47a09-5a2a-458e-9b74-ab637a2a32f3",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "59d47a09-5a2a-458e-9b74-ab637a2a32f3",
+      "classification": "course_textbook",
+      "chunk_count": 1027,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网店客服》终稿-20190328.docx"
+    },
+    {
+      "id": "5bbc863b-b538-4a44-8f10-9ddca1bae8c8",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "5bbc863b-b538-4a44-8f10-9ddca1bae8c8",
+      "classification": "major_profile",
+      "chunk_count": 11,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江越秀外国语学院 跨境电子商务专业介绍.docx"
+    },
+    {
+      "id": "5d82fef8-87f3-4fe9-bb94-3ff1828442e0",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "5d82fef8-87f3-4fe9-bb94-3ff1828442e0",
+      "classification": "talent_training_plan",
+      "chunk_count": 18,
+      "low_altitude_tag_count": 0,
+      "asset_title": "湖州职业技术学院 跨境电子商务专业人才培养方案.docx"
+    },
+    {
+      "id": "5dfdb369-3c77-4a34-a6c5-d3de3f9634f1",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "5dfdb369-3c77-4a34-a6c5-d3de3f9634f1",
+      "classification": "course_textbook",
+      "chunk_count": 1495,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《零售门店O2O运营》-教材.pdf"
+    },
+    {
+      "id": "5e6a5808-4ac3-4cae-8b96-dac632ae7242",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "5e6a5808-4ac3-4cae-8b96-dac632ae7242",
+      "classification": "industry_policy",
+      "chunk_count": 31,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号) - 重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号)"
+    },
+    {
+      "id": "5f28592f-7850-4014-8e94-3bb4883a994d",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "5f28592f-7850-4014-8e94-3bb4883a994d",
+      "classification": "industry_policy",
+      "chunk_count": 26,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆外资企业智慧服务云平台"
+    },
+    {
+      "id": "5fa7e050-693a-4231-8e92-f00073ac68b2",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "5fa7e050-693a-4231-8e92-f00073ac68b2",
+      "classification": "major_profile",
+      "chunk_count": 19,
+      "low_altitude_tag_count": 0,
+      "asset_title": "跨境电子商务-a1c22e9f0577.html"
+    },
+    {
+      "id": "5ff6786d-f3fe-4da9-b248-396a4e83b409",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "5ff6786d-f3fe-4da9-b248-396a4e83b409",
+      "classification": "major_profile",
+      "chunk_count": 5,
+      "low_altitude_tag_count": 0,
+      "asset_title": "杭州科技职业技术学院 电子商务专业简介.docx"
+    },
+    {
+      "id": "626901cc-ee0d-4124-b693-247a34733f23",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "626901cc-ee0d-4124-b693-247a34733f23",
+      "classification": "major_profile",
+      "chunk_count": 23,
+      "low_altitude_tag_count": 0,
+      "asset_title": "嘉兴职业技术学院 跨境电子商务专业简介.docx"
+    },
+    {
+      "id": "63190990-3a3d-4a99-8fb6-d195b7dce916",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "63190990-3a3d-4a99-8fb6-d195b7dce916",
+      "classification": "course_textbook",
+      "chunk_count": 624,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《新媒体运营》教材-白.docx"
+    },
+    {
+      "id": "642167c8-47f0-49a6-9538-b1dfa8c610b1",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "642167c8-47f0-49a6-9538-b1dfa8c610b1",
+      "classification": "course_textbook",
+      "chunk_count": 750,
+      "low_altitude_tag_count": 0,
+      "asset_title": "南宁六职《新媒体营销》终稿-白.docx"
+    },
+    {
+      "id": "64a7fb11-da4b-47b2-9c55-4876e4d47efe",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "64a7fb11-da4b-47b2-9c55-4876e4d47efe",
+      "classification": "course_textbook",
+      "chunk_count": 1586,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《数据分析》教材统稿0807.pdf"
+    },
+    {
+      "id": "6513f2ff-986c-4821-a4b8-6e5bcf607fee",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "6513f2ff-986c-4821-a4b8-6e5bcf607fee",
+      "classification": "course_textbook",
+      "chunk_count": 942,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《商务运营数据分析》教材-刷格式.docx"
+    },
+    {
+      "id": "6640c6cf-830c-41a6-ba84-df91a84180fb",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "6640c6cf-830c-41a6-ba84-df91a84180fb",
+      "classification": "course_textbook",
+      "chunk_count": 803,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《电子商务基础与实务》教材修改稿-20190125.docx"
+    },
+    {
+      "id": "67168067-7697-4046-9112-0f4939a6eb08",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "67168067-7697-4046-9112-0f4939a6eb08",
+      "classification": "course_textbook",
+      "chunk_count": 211,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《生活数学》教材统稿.docx"
+    },
+    {
+      "id": "671ed333-65d9-4f5c-bc41-7d25bcf7222b",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "671ed333-65d9-4f5c-bc41-7d25bcf7222b",
+      "classification": "major_profile",
+      "chunk_count": 13,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江商业职业技术学院 移动商务专业简介.docx"
+    },
+    {
+      "id": "67576da3-947e-43a4-85a0-cc7c6d1679f1",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "67576da3-947e-43a4-85a0-cc7c6d1679f1",
+      "classification": "course_textbook",
+      "chunk_count": 1981,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《电商Web前端基础》教材.docx"
+    },
+    {
+      "id": "67e24d67-8822-471e-acf1-02c4ea727711",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "67e24d67-8822-471e-acf1-02c4ea727711",
+      "classification": "course_textbook",
+      "chunk_count": 891,
+      "low_altitude_tag_count": 0,
+      "asset_title": "20190618《网店视觉营销与设计》教材(修改)-刷格式.docx"
+    },
+    {
+      "id": "685d0968-b71a-4d23-bd4c-7c9e082871b0",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "685d0968-b71a-4d23-bd4c-7c9e082871b0",
+      "classification": "industry_policy",
+      "chunk_count": 29,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆：2025年到2029年全市数字贸易年均递增10% - 重庆：2025年到2029年全市数字贸易年均递增10%"
+    },
+    {
+      "id": "686fdbf1-4202-4606-8cbe-d3d068de23d1",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "686fdbf1-4202-4606-8cbe-d3d068de23d1",
+      "classification": "industry_policy",
+      "chunk_count": 99,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江省人民政府关于印发“十五五”数字浙江建设规划的通知"
+    },
+    {
+      "id": "69421e00-7508-4a38-b3c5-51cb19f41999",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "69421e00-7508-4a38-b3c5-51cb19f41999",
+      "classification": "major_profile",
+      "chunk_count": 16,
+      "low_altitude_tag_count": 0,
+      "asset_title": "高职生教育-天津中德应用技术大学-7ec498c8a3b0.html"
+    },
+    {
+      "id": "6952a305-e981-4c7d-be62-18acd4c32862",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "6952a305-e981-4c7d-be62-18acd4c32862",
+      "classification": "course_textbook",
+      "chunk_count": 813,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《1+X电子商务数据分析》教材-刷格式.docx"
+    },
+    {
+      "id": "696447f2-7b77-4efa-85ef-fac529b09307",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "696447f2-7b77-4efa-85ef-fac529b09307",
+      "classification": "course_textbook",
+      "chunk_count": 1035,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网站建设与安全管理》教材统稿.docx"
+    },
+    {
+      "id": "698c7751-ba74-4688-b251-9c06d5cc71f0",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "698c7751-ba74-4688-b251-9c06d5cc71f0",
+      "classification": "course_textbook",
+      "chunk_count": 687,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《电商视觉设计》教材统稿-1101-刷格式.docx"
+    },
+    {
+      "id": "6997f8d9-1106-41e1-ad4a-fdae379cb833",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "6997f8d9-1106-41e1-ad4a-fdae379cb833",
+      "classification": "major_profile",
+      "chunk_count": 8,
+      "low_altitude_tag_count": 9,
+      "asset_title": "迎低空经济风口 育技能人才-红河哈尼族彝族自治州人民政府"
+    },
+    {
+      "id": "6c2bbbc1-9008-4efe-a98c-84b8066de2a3",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "6c2bbbc1-9008-4efe-a98c-84b8066de2a3",
+      "classification": "course_textbook",
+      "chunk_count": 1391,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《农产品电商运营》教材统稿.docx"
+    },
+    {
+      "id": "6c7f893a-4ff8-4a98-9840-af519616c6af",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "6c7f893a-4ff8-4a98-9840-af519616c6af",
+      "classification": "course_textbook",
+      "chunk_count": 158,
+      "low_altitude_tag_count": 0,
+      "asset_title": "电商web前端基础-教材样章.docx"
+    },
+    {
+      "id": "6cc9448a-cd3e-4789-acb7-5794bb17d269",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "6cc9448a-cd3e-4789-acb7-5794bb17d269",
+      "classification": "major_profile",
+      "chunk_count": 25,
+      "low_altitude_tag_count": 0,
+      "asset_title": "贵州电子商务职业技术学院五年制大专电子商务专业-6fd33a36d3c5.html"
+    },
+    {
+      "id": "6d8cfe40-9e38-462f-be42-f03882e271b0",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "6d8cfe40-9e38-462f-be42-f03882e271b0",
+      "classification": "industry_policy",
+      "chunk_count": 51,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆市实验室建设与运行管理办法-1518dffaa2bb.pdf"
+    },
+    {
+      "id": "6df745e0-8af4-410d-a7d2-e3759df74594",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "6df745e0-8af4-410d-a7d2-e3759df74594",
+      "classification": "course_textbook",
+      "chunk_count": 1732,
+      "low_altitude_tag_count": 0,
+      "asset_title": "59465-00 电子商务数据分析概论（第二版）-中级.pdf"
+    },
+    {
+      "id": "6f3afa66-665d-4a1e-bd5b-dea181ba3973",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "6f3afa66-665d-4a1e-bd5b-dea181ba3973",
+      "classification": "major_profile",
+      "chunk_count": 13,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江商业职业技术学院 电子商务专业简介.docx"
+    },
+    {
+      "id": "6f8d216c-5d8f-4435-b545-0bd90aeb7998",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "6f8d216c-5d8f-4435-b545-0bd90aeb7998",
+      "classification": "major_profile",
+      "chunk_count": 20,
+      "low_altitude_tag_count": 0,
+      "asset_title": "绍兴职业技术学院 电子商务专业简介.docx"
+    },
+    {
+      "id": "6fc7d2fd-1b02-4a65-98ae-fd707c1a9bfd",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "6fc7d2fd-1b02-4a65-98ae-fd707c1a9bfd",
+      "classification": "talent_training_plan",
+      "chunk_count": 24,
+      "low_altitude_tag_count": 0,
+      "asset_title": "杭州万向职业技术学院 跨境电子商务专业人才培养方案.pdf"
+    },
+    {
+      "id": "70294cf0-16ac-4f47-82ad-98df0c517d1b",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "70294cf0-16ac-4f47-82ad-98df0c517d1b",
+      "classification": "course_textbook",
+      "chunk_count": 851,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《视觉营销》教材_第1部分.docx"
+    },
+    {
+      "id": "70a8928f-526f-4932-a04b-5670d92e1db6",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "70a8928f-526f-4932-a04b-5670d92e1db6",
+      "classification": "major_profile",
+      "chunk_count": 3,
+      "low_altitude_tag_count": 0,
+      "asset_title": "衢州职业技术学院 网络营销与直播电商专业简介.docx"
+    },
+    {
+      "id": "70ef4a6e-2052-4240-96d2-c84608cde816",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "70ef4a6e-2052-4240-96d2-c84608cde816",
+      "classification": "course_textbook",
+      "chunk_count": 648,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网页设计与制作》统稿0328修改.docx"
+    },
+    {
+      "id": "727492cc-b59c-4a1d-9219-9e9bf9adbad7",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "727492cc-b59c-4a1d-9219-9e9bf9adbad7",
+      "classification": "course_textbook",
+      "chunk_count": 1409,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江商业《网店运营与管理》教材统稿.docx"
+    },
+    {
+      "id": "7314482d-6d0c-4cc2-b10e-66b986a16adb",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "7314482d-6d0c-4cc2-b10e-66b986a16adb",
+      "classification": "course_textbook",
+      "chunk_count": 921,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《跨境电商商品编辑与发布》校本教材.docx"
+    },
+    {
+      "id": "74aa98b9-fb80-4548-9a00-90607a59b90c",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "74aa98b9-fb80-4548-9a00-90607a59b90c",
+      "classification": "major_profile",
+      "chunk_count": 19,
+      "low_altitude_tag_count": 0,
+      "asset_title": "跨境电子商务-65c07e925048.html"
+    },
+    {
+      "id": "74f59854-7048-4646-8f7b-919f8c787a16",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "74f59854-7048-4646-8f7b-919f8c787a16",
+      "classification": "course_textbook",
+      "chunk_count": 173,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《金牌客服》教材统稿0412.docx"
+    },
+    {
+      "id": "757969fc-d9fb-4775-9f25-9ef4acb01dee",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "757969fc-d9fb-4775-9f25-9ef4acb01dee",
+      "classification": "major_profile",
+      "chunk_count": 53,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江育英职业技术学院 跨境电商专业简介.docx"
+    },
+    {
+      "id": "76672541-d826-43d0-b944-9c4cb5119cab",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "76672541-d826-43d0-b944-9c4cb5119cab",
+      "classification": "industry_policy",
+      "chunk_count": 1,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《重庆电子商务腾飞计划（2026—2028年）》 政策解读"
+    },
+    {
+      "id": "79983cdd-ff24-4eb3-8a61-c0813dc38be8",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "79983cdd-ff24-4eb3-8a61-c0813dc38be8",
+      "classification": "major_profile",
+      "chunk_count": 39,
+      "low_altitude_tag_count": 0,
+      "asset_title": "义乌工商职业技术学院 网络营销与直播电商专业简介.docx"
+    },
+    {
+      "id": "79acfe61-b864-41b6-a958-3d0cceff130a",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "79acfe61-b864-41b6-a958-3d0cceff130a",
+      "classification": "course_textbook",
+      "chunk_count": 849,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《社交电商》教材-白.docx"
+    },
+    {
+      "id": "79dec339-92b2-4f72-95aa-7686fd392937",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "79dec339-92b2-4f72-95aa-7686fd392937",
+      "classification": "course_textbook",
+      "chunk_count": 1508,
+      "low_altitude_tag_count": 0,
+      "asset_title": "跨境电子商务B2B运营实务-阿里巴巴国际站.docx"
+    },
+    {
+      "id": "7a1a4fb7-f294-43a7-90be-c83bd69964df",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "7a1a4fb7-f294-43a7-90be-c83bd69964df",
+      "classification": "major_profile",
+      "chunk_count": 17,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江工商职业技术学院 电子商务专业简介.docx"
+    },
+    {
+      "id": "7d173de7-3936-481b-84b9-ca20119c9bf6",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "7d173de7-3936-481b-84b9-ca20119c9bf6",
+      "classification": "course_textbook",
+      "chunk_count": 406,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《直播电商话术实践》教材-2023.5.6-刷格式.docx"
+    },
+    {
+      "id": "7d4049f6-efbc-4670-9a58-ffeacc0271cc",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "7d4049f6-efbc-4670-9a58-ffeacc0271cc",
+      "classification": "course_textbook",
+      "chunk_count": 632,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江经贸《电商视觉设计》教材-2022.9.8-刷格式.docx"
+    },
+    {
+      "id": "7e6c1f51-1b41-403b-a046-74ff179e6539",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "7e6c1f51-1b41-403b-a046-74ff179e6539",
+      "classification": "program_profile",
+      "chunk_count": 85,
+      "low_altitude_tag_count": 0,
+      "asset_title": "（高职电子商务类专业简介）5307  电子商务类.pdf"
+    },
+    {
+      "id": "7f4a1bff-4ee5-4d68-a2a8-121ebc7a4578",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "7f4a1bff-4ee5-4d68-a2a8-121ebc7a4578",
+      "classification": "course_textbook",
+      "chunk_count": 1346,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《直播运营实务》教材电子稿.docx"
+    },
+    {
+      "id": "819250f6-f0be-475e-b633-1b21ac07f10b",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "819250f6-f0be-475e-b633-1b21ac07f10b",
+      "classification": "course_textbook",
+      "chunk_count": 953,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江商业《智慧供应链》.docx"
+    },
+    {
+      "id": "829f8529-3465-411a-9cdf-9a26d1a75d73",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "829f8529-3465-411a-9cdf-9a26d1a75d73",
+      "classification": "industry_policy",
+      "chunk_count": 15,
+      "low_altitude_tag_count": 0,
+      "asset_title": "推动内陆开放国际合作引领区建设 重庆今年这样干！"
+    },
+    {
+      "id": "852bc4f8-2efc-4f18-bda9-6204acf50756",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "852bc4f8-2efc-4f18-bda9-6204acf50756",
+      "classification": "industry_policy",
+      "chunk_count": 1,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆市商务委员会行政规范性文件 - 重庆市商务委员会行政规范性文件"
+    },
+    {
+      "id": "85893d56-697e-455b-9c09-fae8978cccd2",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "85893d56-697e-455b-9c09-fae8978cccd2",
+      "classification": "course_textbook",
+      "chunk_count": 999,
+      "low_altitude_tag_count": 0,
+      "asset_title": "武鸣职校《新媒体营销》 - 韩.docx"
+    },
+    {
+      "id": "85fffdee-9f00-4143-b207-89ad774476e8",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "85fffdee-9f00-4143-b207-89ad774476e8",
+      "classification": "course_textbook",
+      "chunk_count": 815,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《图形图像处理》教材-刷格式 .docx"
+    },
+    {
+      "id": "8648ff2a-a744-4be3-ad2c-c1826524b739",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "8648ff2a-a744-4be3-ad2c-c1826524b739",
+      "classification": "talent_training_plan",
+      "chunk_count": 17,
+      "low_altitude_tag_count": 0,
+      "asset_title": "绍兴职业技术学院 电子商务专业人才培养方案.pdf"
+    },
+    {
+      "id": "887b5b35-40a8-4744-a930-782f55f622a3",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "887b5b35-40a8-4744-a930-782f55f622a3",
+      "classification": "talent_training_plan",
+      "chunk_count": 29,
+      "low_altitude_tag_count": 0,
+      "asset_title": "河南省商务中等职业学校2022年跨境电子商务专业人才培养方案.pdf"
+    },
+    {
+      "id": "897e872e-5573-445b-ad81-08eb7462a053",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "897e872e-5573-445b-ad81-08eb7462a053",
+      "classification": "course_textbook",
+      "chunk_count": 1387,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《新媒体视觉营销》教材统稿.pdf"
+    },
+    {
+      "id": "8a08e4ff-918e-409b-b2ff-28cbb57e93e5",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "8a08e4ff-918e-409b-b2ff-28cbb57e93e5",
+      "classification": "major_profile",
+      "chunk_count": 35,
+      "low_altitude_tag_count": 0,
+      "asset_title": "杭州职业技术学院 电子商务专业简介.pdf"
+    },
+    {
+      "id": "8ac108dc-8f75-47df-8337-af7e17c673ed",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "8ac108dc-8f75-47df-8337-af7e17c673ed",
+      "classification": "industry_policy",
+      "chunk_count": 66,
+      "low_altitude_tag_count": 3,
+      "asset_title": "5月低空经济重要政策-低空经济资源网-dd7e0aa038cd.html"
+    },
+    {
+      "id": "8b001952-784a-4721-b4e5-6997c77d2bc5",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "8b001952-784a-4721-b4e5-6997c77d2bc5",
+      "classification": "course_textbook",
+      "chunk_count": 1080,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网店运营》教材.pdf"
+    },
+    {
+      "id": "8b036caa-7da2-4911-aca9-61f7945ac8ff",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "8b036caa-7da2-4911-aca9-61f7945ac8ff",
+      "classification": "course_textbook",
+      "chunk_count": 907,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网店运营》终稿-20190310.docx"
+    },
+    {
+      "id": "8c1235a5-fecf-427a-9be9-27ecb460d55f",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "8c1235a5-fecf-427a-9be9-27ecb460d55f",
+      "classification": "major_profile",
+      "chunk_count": 12,
+      "low_altitude_tag_count": 0,
+      "asset_title": "金华职业技术大学 商务数据分析与应用专业简介.docx"
+    },
+    {
+      "id": "8c193bd8-9059-49ff-bd1b-59b2dbb2c1be",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "8c193bd8-9059-49ff-bd1b-59b2dbb2c1be",
+      "classification": "course_textbook",
+      "chunk_count": 751,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网店运营》.docx"
+    },
+    {
+      "id": "8c2f22b1-86ea-437e-adcd-4f393506d2fb",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "8c2f22b1-86ea-437e-adcd-4f393506d2fb",
+      "classification": "major_profile",
+      "chunk_count": 8,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江工贸职业技术学院 国际经济与贸易专业简介.docx"
+    },
+    {
+      "id": "8edaeb08-40fe-441b-a0aa-59785c6d158c",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "8edaeb08-40fe-441b-a0aa-59785c6d158c",
+      "classification": "industry_policy",
+      "chunk_count": 30,
+      "low_altitude_tag_count": 0,
+      "asset_title": "广州市关于推动电子商务高质量发展的若干措施（征求意见稿）-2024年.pdf"
+    },
+    {
+      "id": "8f4059b0-1467-4503-822a-8425b692926f",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "8f4059b0-1467-4503-822a-8425b692926f",
+      "classification": "course_textbook",
+      "chunk_count": 1017,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《跨境电商平台运营》-教材定稿.docx"
+    },
+    {
+      "id": "8f4b1c39-f4d4-4ddd-8019-f1efe8711b58",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "8f4b1c39-f4d4-4ddd-8019-f1efe8711b58",
+      "classification": "course_textbook",
+      "chunk_count": 1065,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《全媒体运营》教材.docx"
+    },
+    {
+      "id": "9121c611-bfa5-4527-97c1-1098b0daff44",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "9121c611-bfa5-4527-97c1-1098b0daff44",
+      "classification": "course_textbook",
+      "chunk_count": 1077,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《世界经济文化》教材统稿-20230228.pdf"
+    },
+    {
+      "id": "956f4273-f498-44c4-9007-58faba803223",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "956f4273-f498-44c4-9007-58faba803223",
+      "classification": "course_textbook",
+      "chunk_count": 778,
+      "low_altitude_tag_count": 0,
+      "asset_title": "电子商务美工设计-统稿-刷格式.docx"
+    },
+    {
+      "id": "95803ca7-ad02-4680-988b-db2ae77ba032",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "95803ca7-ad02-4680-988b-db2ae77ba032",
+      "classification": "industry_policy",
+      "chunk_count": 12,
+      "low_altitude_tag_count": 0,
+      "asset_title": "推动内陆开放国际合作引领区建设，重庆今年这样干-上游新闻 汇聚向上的力量"
+    },
+    {
+      "id": "95c3f76d-9437-4601-a022-6ddd9df56dbb",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "95c3f76d-9437-4601-a022-6ddd9df56dbb",
+      "classification": "course_textbook",
+      "chunk_count": 1189,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网络营销》终稿-20190306-白.docx"
+    },
+    {
+      "id": "96d22528-20d7-4931-b820-7a6c191dfed2",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "96d22528-20d7-4931-b820-7a6c191dfed2",
+      "classification": "course_textbook",
+      "chunk_count": 459,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《直播销售》统稿-刷格式.docx"
+    },
+    {
+      "id": "97250372-78d2-432f-9716-ed71c03d036b",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "97250372-78d2-432f-9716-ed71c03d036b",
+      "classification": "course_textbook",
+      "chunk_count": 1907,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网络营销》教材.pdf"
+    },
+    {
+      "id": "97b3ff64-1d09-463b-9bc7-7ceb6eecdba3",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "97b3ff64-1d09-463b-9bc7-7ceb6eecdba3",
+      "classification": "major_profile",
+      "chunk_count": 6,
+      "low_altitude_tag_count": 0,
+      "asset_title": "电子商务-跨境电商-专业介绍-北京外国语大学国际商学院-International-Business-School-BFSU-本硕博-北外留学-来华留学Solb-4840e132be94.html"
+    },
+    {
+      "id": "98b10503-33e4-4de5-a552-42e4c455102f",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "98b10503-33e4-4de5-a552-42e4c455102f",
+      "classification": "major_profile",
+      "chunk_count": 6,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江工贸职业技术学院 电子商务专业简介.docx"
+    },
+    {
+      "id": "9a5b0b83-8878-40c7-a14b-8fa53b7660c1",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "9a5b0b83-8878-40c7-a14b-8fa53b7660c1",
+      "classification": "course_textbook",
+      "chunk_count": 1193,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《跨境电子商务》教材 2020.6.5（最终版）.docx"
+    },
+    {
+      "id": "9af6085f-e92e-4118-aa23-55a1e9ca35e2",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "9af6085f-e92e-4118-aa23-55a1e9ca35e2",
+      "classification": "industry_policy",
+      "chunk_count": 25,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆市推进跨境电商高质量发展若干措施 - 2023年12月4日重庆市人民政府办公厅印发的文件"
+    },
+    {
+      "id": "9c120869-0c73-496d-a0b8-ac8296c4031b",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "9c120869-0c73-496d-a0b8-ac8296c4031b",
+      "classification": "major_profile",
+      "chunk_count": 13,
+      "low_altitude_tag_count": 0,
+      "asset_title": "电子商务-跨境电商方向----长江职业学院---开设专业---浙江高考志愿填报网-a330f3c1e40c.html"
+    },
+    {
+      "id": "9c2a5d46-1203-48a0-a4ea-beec4834603a",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "9c2a5d46-1203-48a0-a4ea-beec4834603a",
+      "classification": "course_textbook",
+      "chunk_count": 163,
+      "low_altitude_tag_count": 0,
+      "asset_title": "A20261157 AIGC视觉设计（智慧学习版 慕课版）三改_第193-220页.pdf"
+    },
+    {
+      "id": "9c612205-9d33-45d9-8c47-815b37d5e006",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "9c612205-9d33-45d9-8c47-815b37d5e006",
+      "classification": "major_profile",
+      "chunk_count": 14,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江工业职业技术学院 跨境电子商务专业简介.docx"
+    },
+    {
+      "id": "9caa0697-d208-4b2c-8a66-6c04fd353628",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "9caa0697-d208-4b2c-8a66-6c04fd353628",
+      "classification": "course_textbook",
+      "chunk_count": 1574,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《商务数据分析》教材.docx"
+    },
+    {
+      "id": "9da186fa-2c63-40e4-bd08-66c05772bd78",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "9da186fa-2c63-40e4-bd08-66c05772bd78",
+      "classification": "course_textbook",
+      "chunk_count": 1412,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《AI+短视频创作》教材统稿.pdf"
+    },
+    {
+      "id": "9da6ba1c-a3c9-4877-bcce-aff79ea44c8c",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "9da6ba1c-a3c9-4877-bcce-aff79ea44c8c",
+      "classification": "major_profile",
+      "chunk_count": 20,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江东方职业技术学院 跨境电子商务专业简介.docx"
+    },
+    {
+      "id": "9de5877e-94dd-4faa-866a-84876cc83b77",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "9de5877e-94dd-4faa-866a-84876cc83b77",
+      "classification": "major_profile",
+      "chunk_count": 17,
+      "low_altitude_tag_count": 0,
+      "asset_title": "跨境电子商务--做连接全球的数字化弄潮儿-86333eb5277c.html"
+    },
+    {
+      "id": "9ea94152-e029-4b42-97da-26a6a89c51d3",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "9ea94152-e029-4b42-97da-26a6a89c51d3",
+      "classification": "major_profile",
+      "chunk_count": 5,
+      "low_altitude_tag_count": 0,
+      "asset_title": "杭州科技职业技术学院 跨境电子商务专业简介.docx"
+    },
+    {
+      "id": "a0df3840-47f3-4109-8b29-249d812b622b",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "a0df3840-47f3-4109-8b29-249d812b622b",
+      "classification": "course_textbook",
+      "chunk_count": 641,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《电商创业》教材统稿.docx"
+    },
+    {
+      "id": "a16cf28e-45a4-4f87-8ea0-e9b1a0c0340c",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "a16cf28e-45a4-4f87-8ea0-e9b1a0c0340c",
+      "classification": "course_textbook",
+      "chunk_count": 920,
+      "low_altitude_tag_count": 0,
+      "asset_title": "实训教材《直播销售》.pdf"
+    },
+    {
+      "id": "a2811cf5-0404-44d2-bc94-ee3c36dc8d34",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "a2811cf5-0404-44d2-bc94-ee3c36dc8d34",
+      "classification": "major_profile",
+      "chunk_count": 25,
+      "low_altitude_tag_count": 0,
+      "asset_title": "跨境电子商务主要学什么--中国教育在线-dc0f89e15ef5.html"
+    },
+    {
+      "id": "a3be720c-5977-4756-95c8-592a4ebef242",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "a3be720c-5977-4756-95c8-592a4ebef242",
+      "classification": "course_textbook",
+      "chunk_count": 1299,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《农村电子商务》教材统稿_无损压缩.docx"
+    },
+    {
+      "id": "a445b7d1-70a0-455d-9950-2bc6b3905d0e",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "a445b7d1-70a0-455d-9950-2bc6b3905d0e",
+      "classification": "talent_training_plan",
+      "chunk_count": 51,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江安防职业技术学院 电子商务专业（跨境电子商务方向）人才培养方案（三年制）.pdf"
+    },
+    {
+      "id": "a54a68d7-d1d9-4953-99ce-4bd63bb82837",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "a54a68d7-d1d9-4953-99ce-4bd63bb82837",
+      "classification": "industry_policy",
+      "chunk_count": 39,
+      "low_altitude_tag_count": 0,
+      "asset_title": "中国人民银行 国家发展改革委 财政部 交通运输部 商务部 金融监管总局 中国证监会 国家外汇局联合发布《关于金融支持加快西部陆海新通道建设的意见》_国务院部门文件_中国政府网"
+    },
+    {
+      "id": "a625c9b8-f181-48f6-91ab-748b02e50936",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "a625c9b8-f181-48f6-91ab-748b02e50936",
+      "classification": "industry_policy",
+      "chunk_count": 127,
+      "low_altitude_tag_count": 1,
+      "asset_title": "关于重庆市2025年国民经济和社会发展计划执行情况与2026年计划草案的报告_重庆市人民政府网-fd352330836c.html"
+    },
+    {
+      "id": "a6ae4beb-28cb-47ff-b5ed-16ec516d3134",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "a6ae4beb-28cb-47ff-b5ed-16ec516d3134",
+      "classification": "industry_policy",
+      "chunk_count": 14,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《重庆市“十五五”现代服务业发展规划(2026—2030年)》政策解读_政策解读_重庆市发展和改革委员会"
+    },
+    {
+      "id": "a6bc0871-041f-46b3-a1c4-2713bf97b8b9",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "a6bc0871-041f-46b3-a1c4-2713bf97b8b9",
+      "classification": "talent_training_plan",
+      "chunk_count": 16,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江金华科贸职业技术学院2024级跨境电子商务专业人才培养方案.pdf"
+    },
+    {
+      "id": "a6e72b34-68e4-4972-8ad0-3de3bd22539f",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "a6e72b34-68e4-4972-8ad0-3de3bd22539f",
+      "classification": "course_textbook",
+      "chunk_count": 992,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《脚本技术》教材.docx"
+    },
+    {
+      "id": "a71a22e2-468d-4650-b061-a5bbda616f8a",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "a71a22e2-468d-4650-b061-a5bbda616f8a",
+      "classification": "major_profile",
+      "chunk_count": 1,
+      "low_altitude_tag_count": 0,
+      "asset_title": "专业介绍-跨境电子商务-数字经济与贸易学院-e64d26d4c6e7.html"
+    },
+    {
+      "id": "a7f10f64-5504-445e-b9e7-2c8558c5c93c",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "a7f10f64-5504-445e-b9e7-2c8558c5c93c",
+      "classification": "course_textbook",
+      "chunk_count": 1238,
+      "low_altitude_tag_count": 0,
+      "asset_title": "实训教材《仓储管理》.pdf"
+    },
+    {
+      "id": "a80aaef3-25e9-459d-9592-e0c0fa85bff8",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "a80aaef3-25e9-459d-9592-e0c0fa85bff8",
+      "classification": "major_profile",
+      "chunk_count": 3,
+      "low_altitude_tag_count": 0,
+      "asset_title": "跨境电子商务专业简介-ecfd1e6208df.html"
+    },
+    {
+      "id": "a81e6baf-05cc-49b2-b5b9-d5ff2ca930c4",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "a81e6baf-05cc-49b2-b5b9-d5ff2ca930c4",
+      "classification": "major_profile",
+      "chunk_count": 15,
+      "low_altitude_tag_count": 0,
+      "asset_title": "杭州职业技术学院 跨境电子商务专业简介.pdf"
+    },
+    {
+      "id": "a8fbbb03-0c69-421e-bcd9-822a34e96a03",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "a8fbbb03-0c69-421e-bcd9-822a34e96a03",
+      "classification": "major_profile",
+      "chunk_count": 23,
+      "low_altitude_tag_count": 0,
+      "asset_title": "湖州职业技术学院 跨境电子商务专业介绍.docx"
+    },
+    {
+      "id": "aa6a4f24-d468-49f0-879e-dbee100494e3",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "aa6a4f24-d468-49f0-879e-dbee100494e3",
+      "classification": "course_textbook",
+      "chunk_count": 2006,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《市场营销基础》统稿2.28.docx"
+    },
+    {
+      "id": "aa889dd6-228f-4076-aee3-480b141c4f30",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "aa889dd6-228f-4076-aee3-480b141c4f30",
+      "classification": "course_textbook",
+      "chunk_count": 893,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《电商Web前端进阶》教材-0325技术再修订.docx"
+    },
+    {
+      "id": "aba1bbce-ba71-4699-a3ea-96ce6eaca97a",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "aba1bbce-ba71-4699-a3ea-96ce6eaca97a",
+      "classification": "course_textbook",
+      "chunk_count": 860,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《数字化零售运营》出版社版本_第123-244页.pdf"
+    },
+    {
+      "id": "ae9807c1-6e90-4653-8526-01d70783e674",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "ae9807c1-6e90-4653-8526-01d70783e674",
+      "classification": "talent_training_plan",
+      "chunk_count": 15,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江金华科贸职业技术学院2024级电子商务专业人才培养方案.pdf"
+    },
+    {
+      "id": "af28aae2-cb89-4f28-a59d-57e275d9f6cf",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "af28aae2-cb89-4f28-a59d-57e275d9f6cf",
+      "classification": "major_profile",
+      "chunk_count": 25,
+      "low_altitude_tag_count": 0,
+      "asset_title": "跨境电子商务主要学什么--中国教育在线-17cc5d73c5f8.html"
+    },
+    {
+      "id": "afb9ba61-de29-4726-8010-912d04ee4279",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "afb9ba61-de29-4726-8010-912d04ee4279",
+      "classification": "major_profile",
+      "chunk_count": 12,
+      "low_altitude_tag_count": 0,
+      "asset_title": "宁波职业技术大学-跨境电子商务专业简介.docx"
+    },
+    {
+      "id": "b00a21d1-26c8-44d4-bf13-16c96203dcfa",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "b00a21d1-26c8-44d4-bf13-16c96203dcfa",
+      "classification": "course_textbook",
+      "chunk_count": 1630,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《跨境电子商务B2C运营实务-速卖通》教材.docx"
+    },
+    {
+      "id": "b0322ae1-01c1-4893-8cf5-9ea4c985b7e9",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "b0322ae1-01c1-4893-8cf5-9ea4c985b7e9",
+      "classification": "major_profile",
+      "chunk_count": 32,
+      "low_altitude_tag_count": 0,
+      "asset_title": "义乌工商职业技术学院 跨境电子商务专业简介.docx"
+    },
+    {
+      "id": "b0bb2214-a47d-43f3-87fa-d7fd5c965677",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "b0bb2214-a47d-43f3-87fa-d7fd5c965677",
+      "classification": "course_textbook",
+      "chunk_count": 896,
+      "low_altitude_tag_count": 0,
+      "asset_title": "电子商务基础+二维码.docx"
+    },
+    {
+      "id": "b0cc0e54-b861-46ff-b433-f02d40a83e88",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "b0cc0e54-b861-46ff-b433-f02d40a83e88",
+      "classification": "industry_policy",
+      "chunk_count": 27,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆市人民政府办公厅关于印发《重庆市数字贸易和服务贸易高质量发展行动方案》的通知"
+    },
+    {
+      "id": "b289c57a-0aad-4513-b1a8-827e9529c850",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "b289c57a-0aad-4513-b1a8-827e9529c850",
+      "classification": "teaching_standard",
+      "chunk_count": 83,
+      "low_altitude_tag_count": 0,
+      "asset_title": "电子商务专业教学标准（高等职业教育本科）.pdf"
+    },
+    {
+      "id": "b67cff56-6229-4047-8000-70dcb1e606c4",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "b67cff56-6229-4047-8000-70dcb1e606c4",
+      "classification": "major_profile",
+      "chunk_count": 15,
+      "low_altitude_tag_count": 0,
+      "asset_title": "宁波职业技术大学-电子商务专业简介.docx"
+    },
+    {
+      "id": "b7147821-c7fe-438f-b143-29b7829ce5d9",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "b7147821-c7fe-438f-b143-29b7829ce5d9",
+      "classification": "course_textbook",
+      "chunk_count": 2108,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江经贸《电商运营》教材.docx"
+    },
+    {
+      "id": "b7279e71-2078-41c7-849f-6233b7aa379e",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "b7279e71-2078-41c7-849f-6233b7aa379e",
+      "classification": "course_textbook",
+      "chunk_count": 1484,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网络客户服务》终稿.docx"
+    },
+    {
+      "id": "b7a9528b-d0b2-4942-8e7b-63ff3c490372",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "b7a9528b-d0b2-4942-8e7b-63ff3c490372",
+      "classification": "industry_policy",
+      "chunk_count": 33,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆：2025年到2029年全市数字贸易年均递增10%"
+    },
+    {
+      "id": "b7ced618-cfaa-48d6-b393-0c1549dbfae2",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "b7ced618-cfaa-48d6-b393-0c1549dbfae2",
+      "classification": "major_profile",
+      "chunk_count": 1,
+      "low_altitude_tag_count": 0,
+      "asset_title": "临沂市工程学校专业设置与专业建设信息-费县人民政府"
+    },
+    {
+      "id": "b7f1c032-e83b-4012-a6bb-5fb31f90c8e3",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "b7f1c032-e83b-4012-a6bb-5fb31f90c8e3",
+      "classification": "course_textbook",
+      "chunk_count": 1000,
+      "low_altitude_tag_count": 0,
+      "asset_title": "农产品电商运营（教材）.docx"
+    },
+    {
+      "id": "b858805d-ea25-4483-9192-c51e73ef62ab",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "b858805d-ea25-4483-9192-c51e73ef62ab",
+      "classification": "talent_training_plan",
+      "chunk_count": 31,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江机电职业技术大学 跨境电子商务专业人才培养方案.docx"
+    },
+    {
+      "id": "b8f71142-3b89-4974-8ffb-f48ac86d6902",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "b8f71142-3b89-4974-8ffb-f48ac86d6902",
+      "classification": "course_textbook",
+      "chunk_count": 1005,
+      "low_altitude_tag_count": 0,
+      "asset_title": "义乌城镇《电商创业》教材初稿.docx"
+    },
+    {
+      "id": "ba761fb5-11ce-4d92-a80d-f5a31e0a0250",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "ba761fb5-11ce-4d92-a80d-f5a31e0a0250",
+      "classification": "major_profile",
+      "chunk_count": 8,
+      "low_altitude_tag_count": 0,
+      "asset_title": "电子商务专业群_昆明信息港-3df21a4a0677.html"
+    },
+    {
+      "id": "ba8471e3-308f-41f8-beba-791693781d67",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "ba8471e3-308f-41f8-beba-791693781d67",
+      "classification": "major_profile",
+      "chunk_count": 19,
+      "low_altitude_tag_count": 0,
+      "asset_title": "电子商务专业介绍-南昌大学科学技术学院财经学科部-93a37b009ecd.html"
+    },
+    {
+      "id": "baf06b69-defd-49d3-b07d-7607ee2eb174",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "baf06b69-defd-49d3-b07d-7607ee2eb174",
+      "classification": "course_textbook",
+      "chunk_count": 1311,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《数据化电商运营》教材-刷格式.docx"
+    },
+    {
+      "id": "bba5a1ca-e497-4d7f-9ba3-494341af6489",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "bba5a1ca-e497-4d7f-9ba3-494341af6489",
+      "classification": "major_profile",
+      "chunk_count": 6,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江金融职业技术学院 电子商务专业简介.docx"
+    },
+    {
+      "id": "be6079d7-4ac8-43c3-b182-3558bb7344de",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "be6079d7-4ac8-43c3-b182-3558bb7344de",
+      "classification": "course_textbook",
+      "chunk_count": 1416,
+      "low_altitude_tag_count": 0,
+      "asset_title": "47411-A0电子商务数据分析实践（初级）.pdf"
+    },
+    {
+      "id": "c05be834-9679-46c9-99c5-798a09344e64",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "c05be834-9679-46c9-99c5-798a09344e64",
+      "classification": "course_textbook",
+      "chunk_count": 1173,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《社群营销》教材完整稿20190705-白.docx"
+    },
+    {
+      "id": "c06c5f54-acf1-4fb6-8a00-74cbd25ecef9",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "c06c5f54-acf1-4fb6-8a00-74cbd25ecef9",
+      "classification": "course_textbook",
+      "chunk_count": 1478,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《跨境电商物流实务》教材20230612.docx"
+    },
+    {
+      "id": "c21a7d86-b04e-4df1-b936-4c5ee0bffa05",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "c21a7d86-b04e-4df1-b936-4c5ee0bffa05",
+      "classification": "industry_policy",
+      "chunk_count": 19,
+      "low_altitude_tag_count": 0,
+      "asset_title": "商务部等9部门关于拓展跨境电商出口推进海外仓建设的意见_国务院部门文件_中国政府网.pdf"
+    },
+    {
+      "id": "c2436601-1d1f-4107-97d7-705a23b326f2",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "c2436601-1d1f-4107-97d7-705a23b326f2",
+      "classification": "course_textbook",
+      "chunk_count": 1548,
+      "low_altitude_tag_count": 0,
+      "asset_title": "实训教材《产品开发》教材统稿.pdf"
+    },
+    {
+      "id": "c26f26ac-8120-416d-b642-db44724b6cea",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "c26f26ac-8120-416d-b642-db44724b6cea",
+      "classification": "course_textbook",
+      "chunk_count": 939,
+      "low_altitude_tag_count": 0,
+      "asset_title": "短视频拍摄与剪辑.pdf"
+    },
+    {
+      "id": "c33379b5-9ddc-4149-b42e-2ea31f94ad12",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "c33379b5-9ddc-4149-b42e-2ea31f94ad12",
+      "classification": "course_textbook",
+      "chunk_count": 673,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网店美工》终稿-20190308-刷格式.docx"
+    },
+    {
+      "id": "c41426de-26b1-4b44-8c4d-ab0974d4fc48",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "c41426de-26b1-4b44-8c4d-ab0974d4fc48",
+      "classification": "major_profile",
+      "chunk_count": 14,
+      "low_altitude_tag_count": 0,
+      "asset_title": "电子商务专业---贵州航空工业技师学院-c0b890773668.html"
+    },
+    {
+      "id": "c4e83c05-53d9-443b-ad7b-7a6a9b5b9423",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "c4e83c05-53d9-443b-ad7b-7a6a9b5b9423",
+      "classification": "talent_training_plan",
+      "chunk_count": 47,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江经贸职业技术学院 跨境电子商务专业人才培养方案.pdf"
+    },
+    {
+      "id": "c59e5018-9df4-4123-920f-556ce89e51a1",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "c59e5018-9df4-4123-920f-556ce89e51a1",
+      "classification": "course_textbook",
+      "chunk_count": 1262,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网络营销》教材-白.docx"
+    },
+    {
+      "id": "c5b001d4-c1f8-4109-af2f-6bc0ad1cbfa9",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "c5b001d4-c1f8-4109-af2f-6bc0ad1cbfa9",
+      "classification": "course_textbook",
+      "chunk_count": 1385,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《农产品电商运营》修改稿.docx"
+    },
+    {
+      "id": "c65d9f7b-0a62-4e07-9743-1882f617cc15",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "c65d9f7b-0a62-4e07-9743-1882f617cc15",
+      "classification": "course_textbook",
+      "chunk_count": 887,
+      "low_altitude_tag_count": 0,
+      "asset_title": "广西横县《网络营销》教材-刷格式.docx"
+    },
+    {
+      "id": "c8455889-aa94-4ec3-aeba-d195e4749c42",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "c8455889-aa94-4ec3-aeba-d195e4749c42",
+      "classification": "course_textbook",
+      "chunk_count": 740,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网络营销工具与使用方法》-李.docx"
+    },
+    {
+      "id": "c8a70a37-c994-4908-9593-e1c7fedf0e0f",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "c8a70a37-c994-4908-9593-e1c7fedf0e0f",
+      "classification": "course_textbook",
+      "chunk_count": 911,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《特色农产品营销技巧》.docx"
+    },
+    {
+      "id": "cae5ae8d-55ec-43f6-9c91-71ff07a028f3",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "cae5ae8d-55ec-43f6-9c91-71ff07a028f3",
+      "classification": "course_textbook",
+      "chunk_count": 776,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《电子商务视觉营销》教材定稿20190531-刷格式.docx"
+    },
+    {
+      "id": "cbbb9d9e-fa5c-4e6b-b74e-d25ab5ecd0f5",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "cbbb9d9e-fa5c-4e6b-b74e-d25ab5ecd0f5",
+      "classification": "course_textbook",
+      "chunk_count": 1256,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江商业《互联网营销与策划》教材-刷格式.docx"
+    },
+    {
+      "id": "cbd6b9b1-bbe2-4b4d-862b-ab3a39545284",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "cbd6b9b1-bbe2-4b4d-862b-ab3a39545284",
+      "classification": "course_textbook",
+      "chunk_count": 658,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江经贸《网络营销》教材-刷格式.docx"
+    },
+    {
+      "id": "cc08f8e7-83a0-40d5-9f7d-c77eeca59e72",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "cc08f8e7-83a0-40d5-9f7d-c77eeca59e72",
+      "classification": "talent_training_plan",
+      "chunk_count": 45,
+      "low_altitude_tag_count": 0,
+      "asset_title": "（高职网络营销与直播电商专业人才培养方案）高职网络营销与直播电商专业人才培养方案.pdf"
+    },
+    {
+      "id": "cc5a91a4-b168-4c13-8a3e-de3c11c663bb",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "cc5a91a4-b168-4c13-8a3e-de3c11c663bb",
+      "classification": "talent_training_plan",
+      "chunk_count": 26,
+      "low_altitude_tag_count": 0,
+      "asset_title": "台州科技职业学院 电子商务专业人才培养方案.pdf"
+    },
+    {
+      "id": "ccf7f9d7-0d13-4285-9406-460b23ec7bd2",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "ccf7f9d7-0d13-4285-9406-460b23ec7bd2",
+      "classification": "major_profile",
+      "chunk_count": 2,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江旅游职业学院 网络营销与直播电商专业介绍.docx"
+    },
+    {
+      "id": "cda6d2ee-176a-4684-923a-a6971d5d27a5",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "cda6d2ee-176a-4684-923a-a6971d5d27a5",
+      "classification": "industry_policy",
+      "chunk_count": 14,
+      "low_altitude_tag_count": 0,
+      "asset_title": "筑牢数字经济发展的基础设施底座"
+    },
+    {
+      "id": "ceb90759-3636-4854-8fec-2cff60960f0c",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "ceb90759-3636-4854-8fec-2cff60960f0c",
+      "classification": "course_textbook",
+      "chunk_count": 1549,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《AI+网店运营》教材.pdf"
+    },
+    {
+      "id": "cec7cebc-7047-4fb6-9a73-7c4154cf1b5f",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "cec7cebc-7047-4fb6-9a73-7c4154cf1b5f",
+      "classification": "industry_policy",
+      "chunk_count": 1,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆市加快发展直播带货行动计划 - 2020年重庆市发布的文件"
+    },
+    {
+      "id": "cf4d3393-23b1-4540-814c-4ff1173ad7f0",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "cf4d3393-23b1-4540-814c-4ff1173ad7f0",
+      "classification": "course_textbook",
+      "chunk_count": 1092,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《商务数据分析》教材2-刷格式.docx"
+    },
+    {
+      "id": "cf4e3dfa-b118-4f2c-96e6-9be27da88285",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "cf4e3dfa-b118-4f2c-96e6-9be27da88285",
+      "classification": "course_textbook",
+      "chunk_count": 1083,
+      "low_altitude_tag_count": 0,
+      "asset_title": "南宁六职《直播销售》教材-1013-刷格式.docx"
+    },
+    {
+      "id": "d01e8626-e806-499a-9d73-431683ef454b",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "d01e8626-e806-499a-9d73-431683ef454b",
+      "classification": "major_profile",
+      "chunk_count": 6,
+      "low_altitude_tag_count": 0,
+      "asset_title": "带你了解-跨境电子商务-专业-数字商务学院-广州华商职业学院-113971740cdf.html"
+    },
+    {
+      "id": "d08f27a3-7839-4703-9aca-6f0acd637b52",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "d08f27a3-7839-4703-9aca-6f0acd637b52",
+      "classification": "course_textbook",
+      "chunk_count": 968,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《跨境电子商务》.docx"
+    },
+    {
+      "id": "d1341485-ce94-428b-9906-56b3a20b5f28",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "d1341485-ce94-428b-9906-56b3a20b5f28",
+      "classification": "industry_policy",
+      "chunk_count": 32,
+      "low_altitude_tag_count": 0,
+      "asset_title": "成都市推动跨境电商高质量发展政策措施实施细则.docx"
+    },
+    {
+      "id": "d3962cad-8cfa-462b-a863-07308020fec7",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "d3962cad-8cfa-462b-a863-07308020fec7",
+      "classification": "course_textbook",
+      "chunk_count": 940,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《社群运营》教材20250318.pdf"
+    },
+    {
+      "id": "d487296e-b4b1-4a6a-9e55-c9bdf71573d2",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "d487296e-b4b1-4a6a-9e55-c9bdf71573d2",
+      "classification": "industry_policy",
+      "chunk_count": 23,
+      "low_altitude_tag_count": 0,
+      "asset_title": "推动内陆开放国际合作引领区建设，重庆今年这样干！ - 推动内陆开放国际合作引领区建设，重庆今年这样干！"
+    },
+    {
+      "id": "d7c2a1d4-09ef-4a88-9f60-08c8fc01a70f",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "d7c2a1d4-09ef-4a88-9f60-08c8fc01a70f",
+      "classification": "industry_policy",
+      "chunk_count": 19,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆市人民政府办公厅关于印发《重庆市推进跨境电商高质量发展若干措施》的通知 (渝府办发〔2023〕92号) - 重庆市人民政府办公厅关于印发《重庆市推进跨境电商高质量发展若干措施》的通知 (渝府办发〔2023〕92号)"
+    },
+    {
+      "id": "d7c90711-b8ef-4717-935f-46ae9750e6b5",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "d7c90711-b8ef-4717-935f-46ae9750e6b5",
+      "classification": "course_textbook",
+      "chunk_count": 187,
+      "low_altitude_tag_count": 0,
+      "asset_title": "A20261157 AIGC视觉设计（智慧学习版 慕课版）三改_第138-165页.pdf"
+    },
+    {
+      "id": "d82256a8-bc05-464e-9f8e-6bc5dc7f07e4",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "d82256a8-bc05-464e-9f8e-6bc5dc7f07e4",
+      "classification": "course_textbook",
+      "chunk_count": 1403,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《跨境电子商务B2C运营实务-亚马逊》教材.docx"
+    },
+    {
+      "id": "d9740880-ea1c-4cf6-b1c8-ce0a67808c06",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "d9740880-ea1c-4cf6-b1c8-ce0a67808c06",
+      "classification": "talent_training_plan",
+      "chunk_count": 40,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江安防职业技术学院 电子商务专业人才培养方案.docx"
+    },
+    {
+      "id": "d9a7c420-5308-44df-8634-37046c768297",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "d9a7c420-5308-44df-8634-37046c768297",
+      "classification": "course_textbook",
+      "chunk_count": 775,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网店美工》教材2020.04.08-刷格式.docx"
+    },
+    {
+      "id": "da57c76b-c759-47bd-8b9b-9c2e31960d23",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "da57c76b-c759-47bd-8b9b-9c2e31960d23",
+      "classification": "major_profile",
+      "chunk_count": 21,
+      "low_altitude_tag_count": 0,
+      "asset_title": "义乌工商职业技术学院 电子商务专业简介.docx"
+    },
+    {
+      "id": "dbeb3e98-d288-4cc0-9e0d-14fd75e79ac9",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "dbeb3e98-d288-4cc0-9e0d-14fd75e79ac9",
+      "classification": "industry_policy",
+      "chunk_count": 1,
+      "low_altitude_tag_count": 0,
+      "asset_title": "会计视野法规库:重庆市人民政府办公厅关于印发《重庆市数字贸易和服务贸易高质量发展行动方案》的通知"
+    },
+    {
+      "id": "dbf725cc-9d48-45d8-9ecb-dfbee540d150",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "dbf725cc-9d48-45d8-9ecb-dfbee540d150",
+      "classification": "industry_policy",
+      "chunk_count": 28,
+      "low_altitude_tag_count": 0,
+      "asset_title": "权威发布｜事关数字贸易和服务贸易高质量发展，重庆出台行动方案→-重庆日报"
+    },
+    {
+      "id": "dc7cbbf3-dd55-4971-a223-cace463197bf",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "dc7cbbf3-dd55-4971-a223-cace463197bf",
+      "classification": "course_textbook",
+      "chunk_count": 1200,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《跨境客服实务》校本教材.docx"
+    },
+    {
+      "id": "deca899e-5e54-42d6-8a77-1b53ab1a1b8f",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "deca899e-5e54-42d6-8a77-1b53ab1a1b8f",
+      "classification": "industry_policy",
+      "chunk_count": 31,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号) - 重庆市商务委员会关于印发《重庆电子商务腾飞计划（2026-2028年）》的通知 (渝商务发〔2026〕35号)"
+    },
+    {
+      "id": "dece2d96-c739-4d71-b7f6-98a6e0a89b03",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "dece2d96-c739-4d71-b7f6-98a6e0a89b03",
+      "classification": "course_textbook",
+      "chunk_count": 1148,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《跨国际文化》教材.docx"
+    },
+    {
+      "id": "df4d10bd-434b-476d-8fd1-a436a9f93e86",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "df4d10bd-434b-476d-8fd1-a436a9f93e86",
+      "classification": "major_profile",
+      "chunk_count": 11,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江金融职业技术学院 跨境电子商务专业简介.docx"
+    },
+    {
+      "id": "df51b114-d0e1-447a-8892-0d4ea269e606",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "df51b114-d0e1-447a-8892-0d4ea269e606",
+      "classification": "industry_policy",
+      "chunk_count": 29,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆外资企业智慧服务云平台"
+    },
+    {
+      "id": "e19e84c1-a0ad-4eee-be75-d974502ffd44",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "e19e84c1-a0ad-4eee-be75-d974502ffd44",
+      "classification": "course_textbook",
+      "chunk_count": 1037,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《移动营销》教材2020.3.31-李.docx"
+    },
+    {
+      "id": "e2b1abae-d6f6-48a7-9b0a-447a55f2311c",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "e2b1abae-d6f6-48a7-9b0a-447a55f2311c",
+      "classification": "major_profile",
+      "chunk_count": 15,
+      "low_altitude_tag_count": 0,
+      "asset_title": "2025年北京城市学院拟招生专业介绍--跨境电子商务-北京城市学院招生网-0b9ec3eb0449.html"
+    },
+    {
+      "id": "e3164e6d-381b-4fae-93b2-bafd90678589",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "e3164e6d-381b-4fae-93b2-bafd90678589",
+      "classification": "industry_policy",
+      "chunk_count": 9,
+      "low_altitude_tag_count": 0,
+      "asset_title": "海关总署关于进一步促进跨境电商出口发展的公告.pdf"
+    },
+    {
+      "id": "e31b5cf5-4e0d-4492-82d9-415f442d932a",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "e31b5cf5-4e0d-4492-82d9-415f442d932a",
+      "classification": "major_profile",
+      "chunk_count": 21,
+      "low_altitude_tag_count": 0,
+      "asset_title": "跨境电子商务E-commerce--EC---国教学院-ce8022c60307.html"
+    },
+    {
+      "id": "e4409df0-0a00-448d-b385-5de777874311",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "e4409df0-0a00-448d-b385-5de777874311",
+      "classification": "major_profile",
+      "chunk_count": 13,
+      "low_altitude_tag_count": 0,
+      "asset_title": "跨境电子商务专业-b68c2a79e4e9.html"
+    },
+    {
+      "id": "e5b222d2-1dce-427c-bb13-29c5cdb4600e",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "e5b222d2-1dce-427c-bb13-29c5cdb4600e",
+      "classification": "major_profile",
+      "chunk_count": 19,
+      "low_altitude_tag_count": 0,
+      "asset_title": "跨境电子商务-金融与经济学院-9d84644bd11f.html"
+    },
+    {
+      "id": "e60c6658-cdec-4404-be61-cbcfd2c1181e",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "e60c6658-cdec-4404-be61-cbcfd2c1181e",
+      "classification": "course_textbook",
+      "chunk_count": 1021,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网络营销》-白.docx"
+    },
+    {
+      "id": "e894fa96-699a-4e78-8f6d-c12c8cfe8e84",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "e894fa96-699a-4e78-8f6d-c12c8cfe8e84",
+      "classification": "industry_policy",
+      "chunk_count": 7,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆市推进跨境电商高质量发展若干措施"
+    },
+    {
+      "id": "e91dd90e-1afb-4aca-aa37-cc53c6b01965",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "e91dd90e-1afb-4aca-aa37-cc53c6b01965",
+      "classification": "course_textbook",
+      "chunk_count": 794,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《跨境电子商务》教材-修改.docx"
+    },
+    {
+      "id": "ea9a3024-1333-434c-9659-6d2a22a03d46",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "ea9a3024-1333-434c-9659-6d2a22a03d46",
+      "classification": "course_textbook",
+      "chunk_count": 968,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江商业《电子商务基础实务》教材.docx"
+    },
+    {
+      "id": "ebbda6d3-9ca3-473c-8865-8a2f163e2f29",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "ebbda6d3-9ca3-473c-8865-8a2f163e2f29",
+      "classification": "course_textbook",
+      "chunk_count": 652,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《视觉营销》-刷格式.docx"
+    },
+    {
+      "id": "ecd5199c-1fef-493b-8c6a-8c77bea87022",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "ecd5199c-1fef-493b-8c6a-8c77bea87022",
+      "classification": "course_textbook",
+      "chunk_count": 1568,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《零售门店全渠道运营》教材20250318.pdf"
+    },
+    {
+      "id": "ed840ef1-c385-47f6-98c5-ddeeede10470",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "ed840ef1-c385-47f6-98c5-ddeeede10470",
+      "classification": "course_textbook",
+      "chunk_count": 807,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《直播电商》教材-刷格式.docx"
+    },
+    {
+      "id": "ee17a3a3-75d4-4495-9416-98986966a14a",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "ee17a3a3-75d4-4495-9416-98986966a14a",
+      "classification": "course_textbook",
+      "chunk_count": 900,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《视觉营销》教材_第2部分.docx"
+    },
+    {
+      "id": "ee44a8f9-519f-4eed-8911-59c7f45f03ce",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "ee44a8f9-519f-4eed-8911-59c7f45f03ce",
+      "classification": "course_textbook",
+      "chunk_count": 4137,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《电商web云平台开发》活页式教材.docx"
+    },
+    {
+      "id": "ee8a26ff-4d6d-4805-a329-0be045e7f155",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "ee8a26ff-4d6d-4805-a329-0be045e7f155",
+      "classification": "major_profile",
+      "chunk_count": 27,
+      "low_altitude_tag_count": 0,
+      "asset_title": "湖州职业技术学院 电子商务专业介绍.docx"
+    },
+    {
+      "id": "ef220da3-8ecd-4e73-80cf-03fdedae4d62",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "ef220da3-8ecd-4e73-80cf-03fdedae4d62",
+      "classification": "major_profile",
+      "chunk_count": 6,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江越秀外国语学院 电子商务专业介绍.docx"
+    },
+    {
+      "id": "ef792a0d-1ff5-4202-8c85-a74c7d9799d3",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "ef792a0d-1ff5-4202-8c85-a74c7d9799d3",
+      "classification": "talent_training_plan",
+      "chunk_count": 45,
+      "low_altitude_tag_count": 0,
+      "asset_title": "（中职电子商务专业人才培养方案）中职电子商务专业人才培养方案.pdf"
+    },
+    {
+      "id": "f01857bc-f027-4a0f-a701-78f58b430168",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "f01857bc-f027-4a0f-a701-78f58b430168",
+      "classification": "industry_policy",
+      "chunk_count": 18,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆市人民政府关于加快电子商务产业发展的意见 - [ 索引号 ] | 11500000MB0W8117XN/2023-00684  | [ 发文字号 ] | 渝府发〔2019〕17号"
+    },
+    {
+      "id": "f075364c-267d-48f7-8ea2-414040a0a14e",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "f075364c-267d-48f7-8ea2-414040a0a14e",
+      "classification": "course_textbook",
+      "chunk_count": 192,
+      "low_altitude_tag_count": 0,
+      "asset_title": "A20261157 AIGC视觉设计（智慧学习版 慕课版）三改_第111-137页.pdf"
+    },
+    {
+      "id": "f355deb0-8dfa-484e-9161-3f521c41a3b8",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "f355deb0-8dfa-484e-9161-3f521c41a3b8",
+      "classification": "major_profile",
+      "chunk_count": 16,
+      "low_altitude_tag_count": 0,
+      "asset_title": "中国-伟德国际1946源自英国-股份-有限公司-Official-Platform-621c3e693219.html"
+    },
+    {
+      "id": "f431d448-5ba3-4fe7-9d4b-9314fb671b1e",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "f431d448-5ba3-4fe7-9d4b-9314fb671b1e",
+      "classification": "industry_policy",
+      "chunk_count": 14,
+      "low_altitude_tag_count": 0,
+      "asset_title": "政策与产业共振 助“重庆造”产品高效“出海”"
+    },
+    {
+      "id": "f4f45b77-a314-4a38-a1dd-21027e938ac3",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "f4f45b77-a314-4a38-a1dd-21027e938ac3",
+      "classification": "major_profile",
+      "chunk_count": 51,
+      "low_altitude_tag_count": 0,
+      "asset_title": "跨境电子商务-中国普通高等学校高等职业教育专科专业-_百度百科-03b69fac39c2.html"
+    },
+    {
+      "id": "f50f2151-57c4-4877-9a01-ecd472400494",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "f50f2151-57c4-4877-9a01-ecd472400494",
+      "classification": "course_textbook",
+      "chunk_count": 1041,
+      "low_altitude_tag_count": 0,
+      "asset_title": "浙江商业《图形图像处理》教材统稿0803-刷格式.docx"
+    },
+    {
+      "id": "f6373ae2-31a2-494c-a0fd-5814d4d4b6ed",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "f6373ae2-31a2-494c-a0fd-5814d4d4b6ed",
+      "classification": "course_textbook",
+      "chunk_count": 1009,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《店铺运营》教材统稿.pdf"
+    },
+    {
+      "id": "f6799c22-d0ba-4da5-ab09-2c70f4c28d7f",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "f6799c22-d0ba-4da5-ab09-2c70f4c28d7f",
+      "classification": "course_textbook",
+      "chunk_count": 859,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《网店运营》教材.docx"
+    },
+    {
+      "id": "f70b4c19-b96a-45a0-b1d6-cdc0a2b62e82",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "f70b4c19-b96a-45a0-b1d6-cdc0a2b62e82",
+      "classification": "course_textbook",
+      "chunk_count": 996,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《电子商务数据分析概论》教材-刷格式.docx"
+    },
+    {
+      "id": "fb99d7f2-2ef2-468e-bf43-49c0f9e61332",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "fb99d7f2-2ef2-468e-bf43-49c0f9e61332",
+      "classification": "course_textbook",
+      "chunk_count": 843,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《农产品电商运营》统稿(20230211).docx"
+    },
+    {
+      "id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+      "classification": "industry_policy",
+      "chunk_count": 28,
+      "low_altitude_tag_count": 0,
+      "asset_title": "重庆市人民政府办公厅关于印发《重庆市数字贸易和服务贸易高质量发展行动方案》的通知"
+    },
+    {
+      "id": "fdb0fa30-9a96-4add-a116-2fd99c32481a",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "fdb0fa30-9a96-4add-a116-2fd99c32481a",
+      "classification": "course_textbook",
+      "chunk_count": 2070,
+      "low_altitude_tag_count": 0,
+      "asset_title": "《销售管理》教材统稿.docx"
+    },
+    {
+      "id": "fe373690-2660-4b0a-82f9-74237d43ddbd",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "fe373690-2660-4b0a-82f9-74237d43ddbd",
+      "classification": "course_textbook",
+      "chunk_count": 835,
+      "low_altitude_tag_count": 0,
+      "asset_title": "短视频运营实务.docx"
+    },
+    {
+      "id": "ff0d0115-c110-422f-9f22-3f085f073d7f",
+      "status": "generated",
+      "version_status": "available",
+      "current_generated_ref_id": "ff0d0115-c110-422f-9f22-3f085f073d7f",
+      "classification": "major_profile",
+      "chunk_count": 5,
+      "low_altitude_tag_count": 0,
+      "asset_title": "温州职业技术学院-商务数据分析与应用专业简介.docx"
+    }
+  ],
+  "returned_ref_chunk_types": [
+    {
+      "knowledge_type_code": "industry_research_kb",
+      "count": 1147
+    },
+    {
+      "knowledge_type_code": "major_profile_knowledge",
+      "count": 1509
+    },
+    {
+      "knowledge_type_code": "course_standard_authoring_process",
+      "count": 83
+    },
+    {
+      "knowledge_type_code": "talent_training_dataset",
+      "count": 582
+    },
+    {
+      "knowledge_type_code": "course_textbook",
+      "count": 177234
+    }
+  ],
+  "search_audits": [
+    {
+      "trace_id": null,
+      "target_id": "162dd0fdcec2006f",
+      "summary": {
+        "query_hash": "162dd0fdcec2006f",
+        "kb": "course_textbook",
+        "knowledge_types": [
+          "course_textbook"
+        ],
+        "hit_count": 0,
+        "hit_normalized_ref_ids": [],
+        "cited_chunk_ids": [],
+        "cited_locators": [],
+        "data_source_ids": [],
+        "top_k": 10,
+        "similarity_threshold": 0.0,
+        "caller_type": "api_caller",
+        "route": "search"
+      },
+      "created_at": "2026-10-22 09:41:47.843849+00:00"
+    },
+    {
+      "trace_id": null,
+      "target_id": "162dd0fdcec2006f",
+      "summary": {
+        "query_hash": "162dd0fdcec2006f",
+        "kb": "course_textbook",
+        "knowledge_types": [
+          "industry_policy"
+        ],
+        "hit_count": 0,
+        "hit_normalized_ref_ids": [],
+        "cited_chunk_ids": [],
+        "cited_locators": [],
+        "data_source_ids": [],
+        "top_k": 10,
+        "similarity_threshold": 0.0,
+        "caller_type": "api_caller",
+        "route": "search"
+      },
+      "created_at": "2026-10-22 09:43:52.793252+00:00"
+    },
+    {
+      "trace_id": null,
+      "target_id": "9e182f035c331f64",
+      "summary": {
+        "query_hash": "9e182f035c331f64",
+        "kb": "course_textbook",
+        "knowledge_types": [
+          "industry_policy"
+        ],
+        "hit_count": 0,
+        "hit_normalized_ref_ids": [],
+        "cited_chunk_ids": [],
+        "cited_locators": [],
+        "data_source_ids": [],
+        "top_k": 5,
+        "similarity_threshold": 0.0,
+        "caller_type": "api_caller",
+        "route": "search"
+      },
+      "created_at": "2026-10-22 09:43:55.107912+00:00"
+    },
+    {
+      "trace_id": null,
+      "target_id": "0ea068d314b42fb6",
+      "summary": {
+        "query_hash": "0ea068d314b42fb6",
+        "kb": "course_textbook",
+        "knowledge_types": [
+          "course_textbook"
+        ],
+        "hit_count": 5,
+        "hit_normalized_ref_ids": [
+          "18940e50-cd19-4c1c-b896-4543e38a13d2",
+          "18940e50-cd19-4c1c-b896-4543e38a13d2",
+          "18940e50-cd19-4c1c-b896-4543e38a13d2",
+          "18940e50-cd19-4c1c-b896-4543e38a13d2",
+          "18940e50-cd19-4c1c-b896-4543e38a13d2"
+        ],
+        "cited_chunk_ids": [
+          "fe1ccc9d-0097-4a44-85cd-2f9040e78e05",
+          "c63a92fe-80ca-4750-8384-4d02e88055aa",
+          "7d7a8024-00fd-4cce-8144-8b346523dd62",
+          "9fd55c4d-8cbb-496e-9572-829f6be0ba22",
+          "169f9122-01bc-4a51-bbba-57214267a542"
+        ],
+        "cited_locators": [
+          {
+            "chunk_id": "fe1ccc9d-0097-4a44-85cd-2f9040e78e05",
+            "page_start": 0,
+            "page_end": 0
+          },
+          {
+            "chunk_id": "c63a92fe-80ca-4750-8384-4d02e88055aa",
+            "page_start": 0,
+            "page_end": 0
+          },
+          {
+            "chunk_id": "7d7a8024-00fd-4cce-8144-8b346523dd62",
+            "page_start": 0,
+            "page_end": 0
+          },
+          {
+            "chunk_id": "9fd55c4d-8cbb-496e-9572-829f6be0ba22",
+            "page_start": 0,
+            "page_end": 0
+          },
+          {
+            "chunk_id": "169f9122-01bc-4a51-bbba-57214267a542",
+            "page_start": 0,
+            "page_end": 0
+          }
+        ],
+        "data_source_ids": [
+          "1d7d4bfb-3904-4b50-8357-5c62d387c649"
+        ],
+        "top_k": 5,
+        "similarity_threshold": 0.0,
+        "caller_type": "api_caller",
+        "route": "search"
+      },
+      "created_at": "2026-10-22 09:46:54.090086+00:00"
+    },
+    {
+      "trace_id": null,
+      "target_id": "162dd0fdcec2006f",
+      "summary": {
+        "query_hash": "162dd0fdcec2006f",
+        "kb": "industry_policy",
+        "knowledge_types": [
+          "industry_policy"
+        ],
+        "hit_count": 0,
+        "hit_normalized_ref_ids": [],
+        "cited_chunk_ids": [],
+        "cited_locators": [],
+        "data_source_ids": [],
+        "top_k": 10,
+        "similarity_threshold": 0.0,
+        "caller_type": "api_caller",
+        "route": "search"
+      },
+      "created_at": "2026-10-22 09:46:54.915336+00:00"
+    },
+    {
+      "trace_id": null,
+      "target_id": "162dd0fdcec2006f",
+      "summary": {
+        "query_hash": "162dd0fdcec2006f",
+        "kb": "industry_research_kb",
+        "knowledge_types": [
+          "industry_research_kb"
+        ],
+        "hit_count": 10,
+        "hit_normalized_ref_ids": [
+          "5f28592f-7850-4014-8e94-3bb4883a994d",
+          "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+          "dbf725cc-9d48-45d8-9ecb-dfbee540d150",
+          "5e6a5808-4ac3-4cae-8b96-dac632ae7242",
+          "df51b114-d0e1-447a-8892-0d4ea269e606",
+          "0ee8a187-22dc-417e-bc29-841b29026d8a",
+          "533f1174-233a-42f9-a82e-a547bb2d31c3",
+          "533f1174-233a-42f9-a82e-a547bb2d31c3",
+          "533f1174-233a-42f9-a82e-a547bb2d31c3",
+          "533f1174-233a-42f9-a82e-a547bb2d31c3"
+        ],
+        "cited_chunk_ids": [
+          "737747bc-ef87-43f2-9522-4dc87e3c75cb",
+          "9be1afef-a52a-420c-9d2f-e531c0d0bda0",
+          "e6befe76-4fc9-4e05-a3c8-ee8ba8e63bef",
+          "7dbae926-1163-4e22-9110-e8b3c8040c76",
+          "9b92ea97-46ac-4de0-89d7-4472f49fcaaa",
+          "ee85fc7e-4801-4719-85c0-0c28fec637ba",
+          "ddfc9a07-4a99-44f6-bafd-005b30df8a40",
+          "38d2e834-3257-439d-9906-41e36091ae3c",
+          "c63bcb1e-227b-4a3f-a884-89a9c4805864",
+          "4f91e33a-529b-49c4-9d7b-0307e8a58a5b"
+        ],
+        "cited_locators": [
+          {
+            "chunk_id": "737747bc-ef87-43f2-9522-4dc87e3c75cb",
+            "page_start": null,
+            "page_end": null
+          },
+          {
+            "chunk_id": "9be1afef-a52a-420c-9d2f-e531c0d0bda0",
+            "page_start": null,
+            "page_end": null
+          },
+          {
+            "chunk_id": "e6befe76-4fc9-4e05-a3c8-ee8ba8e63bef",
+            "page_start": null,
+            "page_end": null
+          },
+          {
+            "chunk_id": "7dbae926-1163-4e22-9110-e8b3c8040c76",
+            "page_start": null,
+            "page_end": null
+          },
+          {
+            "chunk_id": "9b92ea97-46ac-4de0-89d7-4472f49fcaaa",
+            "page_start": null,
+            "page_end": null
+          },
+          {
+            "chunk_id": "ee85fc7e-4801-4719-85c0-0c28fec637ba",
+            "page_start": null,
+            "page_end": null
+          },
+          {
+            "chunk_id": "ddfc9a07-4a99-44f6-bafd-005b30df8a40",
+            "page_start": null,
+            "page_end": null
+          },
+          {
+            "chunk_id": "38d2e834-3257-439d-9906-41e36091ae3c",
+            "page_start": null,
+            "page_end": null
+          },
+          {
+            "chunk_id": "c63bcb1e-227b-4a3f-a884-89a9c4805864",
+            "page_start": null,
+            "page_end": null
+          },
+          {
+            "chunk_id": "4f91e33a-529b-49c4-9d7b-0307e8a58a5b",
+            "page_start": null,
+            "page_end": null
+          }
+        ],
+        "data_source_ids": [
+          "ad7597ac-5d39-47a6-8dd8-aa536d23c413",
+          "ff6ae1f2-7efd-43f3-a8f4-7aa98eab8c2f"
+        ],
+        "top_k": 10,
+        "similarity_threshold": 0.0,
+        "caller_type": "api_caller",
+        "route": "search"
+      },
+      "created_at": "2026-10-22 09:50:01.672497+00:00"
+    },
+    {
+      "trace_id": null,
+      "target_id": "f73068528d5c0f8f",
+      "summary": {
+        "query_hash": "f73068528d5c0f8f",
+        "kb": "major_profile_knowledge",
+        "knowledge_types": [
+          "major_profile_knowledge"
+        ],
+        "hit_count": 5,
+        "hit_normalized_ref_ids": [
+          "a8fbbb03-0c69-421e-bcd9-822a34e96a03",
+          "a8fbbb03-0c69-421e-bcd9-822a34e96a03",
+          "a8fbbb03-0c69-421e-bcd9-822a34e96a03",
+          "a8fbbb03-0c69-421e-bcd9-822a34e96a03",
+          "a8fbbb03-0c69-421e-bcd9-822a34e96a03"
+        ],
+        "cited_chunk_ids": [
+          "f3989174-6048-43a2-96d5-ca82020d8140",
+          "1446fec7-faaa-432a-941a-d600867b2a69",
+          "dc99a88e-653a-43f4-a97a-a5703fa16b06",
+          "54219c3b-0e11-4624-98b9-84a807dabc08",
+          "d01c61d7-8e65-46dd-bab5-87d652fed057"
+        ],
+        "cited_locators": [
+          {
+            "chunk_id": "f3989174-6048-43a2-96d5-ca82020d8140",
+            "page_start": 0,
+            "page_end": 0
+          },
+          {
+            "chunk_id": "1446fec7-faaa-432a-941a-d600867b2a69",
+            "page_start": 0,
+            "page_end": 0
+          },
+          {
+            "chunk_id": "dc99a88e-653a-43f4-a97a-a5703fa16b06",
+            "page_start": 0,
+            "page_end": 0
+          },
+          {
+            "chunk_id": "54219c3b-0e11-4624-98b9-84a807dabc08",
+            "page_start": 0,
+            "page_end": 0
+          },
+          {
+            "chunk_id": "d01c61d7-8e65-46dd-bab5-87d652fed057",
+            "page_start": 0,
+            "page_end": 0
+          }
+        ],
+        "data_source_ids": [
+          "4de93945-8289-4f54-81e8-95a61e6c5c25"
+        ],
+        "top_k": 5,
+        "similarity_threshold": 0.0,
+        "caller_type": "api_caller",
+        "route": "search"
+      },
+      "created_at": "2026-10-22 09:50:02.841665+00:00"
+    }
+  ]
+}

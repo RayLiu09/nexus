@@ -1,0 +1,92 @@
+[
+  {
+    "case": "S5_REVISED",
+    "label": "cq_supply_chain_candidate_detail",
+    "tool": "get_enterprise",
+    "path": {
+      "enterprise_id": "5e267a70-f1c2-487a-a080-d89084732359"
+    }
+  },
+  {
+    "case": "S4",
+    "label": "jobs_full_page_1",
+    "tool": "query_market_jobs",
+    "query": {
+      "industry": "互联网电商",
+      "collected_from": "2026-10-22T00:00:00Z",
+      "collected_to": "2026-10-22T09:39:00Z",
+      "page": 1,
+      "pageSize": 200
+    },
+    "checks": [
+      {
+        "name": "same bounded source sample",
+        "path": "meta.total",
+        "op": "eq",
+        "value": 457
+      }
+    ]
+  },
+  {
+    "case": "S4",
+    "label": "jobs_full_page_2",
+    "tool": "query_market_jobs",
+    "query": {
+      "industry": "互联网电商",
+      "collected_from": "2026-10-22T00:00:00Z",
+      "collected_to": "2026-10-22T09:39:00Z",
+      "page": 2,
+      "pageSize": 200
+    },
+    "checks": [
+      {
+        "name": "same bounded source sample",
+        "path": "meta.total",
+        "op": "eq",
+        "value": 457
+      }
+    ]
+  },
+  {
+    "case": "S4",
+    "label": "jobs_full_page_3",
+    "tool": "query_market_jobs",
+    "query": {
+      "industry": "互联网电商",
+      "collected_from": "2026-10-22T00:00:00Z",
+      "collected_to": "2026-10-22T09:39:00Z",
+      "page": 3,
+      "pageSize": 200
+    },
+    "checks": [
+      {
+        "name": "same bounded source sample",
+        "path": "meta.total",
+        "op": "eq",
+        "value": 457
+      }
+    ]
+  },
+  {
+    "case": "S4",
+    "label": "aggregate_final_snapshot_check",
+    "tool": "aggregate_market_jobs",
+    "query": {
+      "industry": "互联网电商",
+      "collected_from": "2026-10-22T00:00:00Z",
+      "collected_to": "2026-10-22T09:39:00Z",
+      "group_by": [
+        "education"
+      ],
+      "pageSize": 200
+    },
+    "checks": [
+      {
+        "name": "same sample across test window",
+        "path": "aggregations.sample_count",
+        "op": "eq",
+        "value": 457
+      }
+    ]
+  }
+]

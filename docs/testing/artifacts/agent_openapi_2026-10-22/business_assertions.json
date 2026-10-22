@@ -1,0 +1,537 @@
+{
+  "assertions": [
+    {
+      "case": "COMMON",
+      "assertion": "15 visible resource types",
+      "passed": true,
+      "observed": 15,
+      "evidence": [
+        "resource_discovery"
+      ]
+    },
+    {
+      "case": "COMMON",
+      "assertion": "all HTTP status expectations satisfied",
+      "passed": true,
+      "observed": 112,
+      "evidence": [
+        "all *_results.json"
+      ]
+    },
+    {
+      "case": "COMMON",
+      "assertion": "all HTTP responses carry trace IDs",
+      "passed": true,
+      "observed": 112,
+      "evidence": [
+        "all *_results.json"
+      ]
+    },
+    {
+      "case": "BOUNDARY",
+      "assertion": "returned document refs are current generated refs on available versions",
+      "passed": true,
+      "observed": {
+        "checked": 317,
+        "violations": []
+      },
+      "evidence": [
+        "db_after.json"
+      ]
+    },
+    {
+      "case": "BOUNDARY",
+      "assertion": "batch evidence separates available records and hides unavailable refs",
+      "passed": true,
+      "observed": [
+        "available",
+        "not_found",
+        "not_found",
+        "available",
+        "available"
+      ],
+      "evidence": [
+        "mixed_visibility_evidence"
+      ]
+    },
+    {
+      "case": "BOUNDARY",
+      "assertion": "hidden and unknown refs have identical public item shape",
+      "passed": true,
+      "observed": [
+        "not_found",
+        "not_found"
+      ],
+      "evidence": [
+        "mixed_visibility_evidence"
+      ]
+    },
+    {
+      "case": "BOUNDARY",
+      "assertion": "section continuation reconstructs source exactly",
+      "passed": true,
+      "observed": 100,
+      "evidence": [
+        "section_initial100",
+        "section_resume100",
+        "cq_low_altitude_clause"
+      ]
+    },
+    {
+      "case": "S1",
+      "assertion": "stored source dates fall within requested two years",
+      "passed": true,
+      "observed": [
+        "2025-05-23",
+        "2025-05-23",
+        "2025-05-23",
+        "2026-08-24",
+        "2026-08-24",
+        "2026-08-24",
+        "2026-07-15"
+      ],
+      "evidence": [
+        "重庆市_dated"
+      ]
+    },
+    {
+      "case": "S1",
+      "assertion": "low-altitude candidate matches declared title/tag topic rule",
+      "passed": false,
+      "observed": [
+        "5f28592f-7850-4014-8e94-3bb4883a994d",
+        "dbf725cc-9d48-45d8-9ecb-dfbee540d150",
+        "fdaaa8e2-5ba0-4829-a5fe-6e8570b17226",
+        "5e6a5808-4ac3-4cae-8b96-dac632ae7242",
+        "0ee8a187-22dc-417e-bc29-841b29026d8a",
+        "df51b114-d0e1-447a-8892-0d4ea269e606",
+        "533f1174-233a-42f9-a82e-a547bb2d31c3"
+      ],
+      "evidence": [
+        "重庆市_dated",
+        "db_after.json",
+        "topic_false_positive_control"
+      ]
+    },
+    {
+      "case": "S1",
+      "assertion": "indexed policy search is scoped to selected refs and retains block citations",
+      "passed": true,
+      "observed": 10,
+      "evidence": [
+        "cq_search_actual_index_type"
+      ]
+    },
+    {
+      "case": "S1",
+      "assertion": "chunk batch resolution preserves availability and source blocks",
+      "passed": true,
+      "observed": 4,
+      "evidence": [
+        "cq_chunk_reference_bundle"
+      ]
+    },
+    {
+      "case": "S1",
+      "assertion": "discovery supplies policy semantic index type for Agent calls",
+      "passed": false,
+      "observed": "resource code industry_policy is not indexed type industry_research_kb; no mapping field",
+      "evidence": [
+        "resource_discovery",
+        "cq_policy_scoped_search",
+        "cq_search_actual_index_type"
+      ]
+    },
+    {
+      "case": "S2",
+      "assertion": "all core courses belong to selected standard and professional code",
+      "passed": true,
+      "observed": 11,
+      "evidence": [
+        "standard_detail",
+        "standard_core_courses"
+      ]
+    },
+    {
+      "case": "S2",
+      "assertion": "suggested hours and derived tags are explicitly distinguished from source facts",
+      "passed": true,
+      "observed": [
+        "suggested",
+        "suggested",
+        "suggested",
+        "suggested",
+        "suggested",
+        "suggested",
+        "suggested",
+        "suggested",
+        "suggested",
+        "suggested",
+        "suggested"
+      ],
+      "evidence": [
+        "standard_core_courses"
+      ]
+    },
+    {
+      "case": "S2",
+      "assertion": "courses retain page, section, and source block bindings",
+      "passed": true,
+      "observed": 11,
+      "evidence": [
+        "standard_core_courses",
+        "source_standard_table"
+      ]
+    },
+    {
+      "case": "DATA",
+      "assertion": "core course projection has no duplicate names after whitespace normalization",
+      "passed": false,
+      "observed": [
+        "互联网产品设计"
+      ],
+      "evidence": [
+        "standard_core_courses"
+      ]
+    },
+    {
+      "case": "S3",
+      "assertion": "theory outline kind is available and opposite kind is explicitly absent",
+      "passed": true,
+      "observed": {
+        "existing": 188,
+        "opposite": 0
+      },
+      "evidence": [
+        "theory_knowledge_outline",
+        "theory_task_outline"
+      ]
+    },
+    {
+      "case": "S3",
+      "assertion": "theory continuation preserves all chunk characters without loss or duplication",
+      "passed": true,
+      "observed": {
+        "chunks": 95,
+        "initial_char_budget": 100
+      },
+      "evidence": [
+        "theory_node_context_small",
+        "theory_node_context_full",
+        "theory_context_continue"
+      ]
+    },
+    {
+      "case": "S3",
+      "assertion": "training outline kind is available and opposite kind is explicitly absent",
+      "passed": true,
+      "observed": {
+        "existing": 542,
+        "opposite": 0
+      },
+      "evidence": [
+        "training_task_outline",
+        "training_knowledge_outline"
+      ]
+    },
+    {
+      "case": "S3",
+      "assertion": "training continuation preserves all chunk characters without loss or duplication",
+      "passed": true,
+      "observed": {
+        "chunks": 25,
+        "initial_char_budget": 100
+      },
+      "evidence": [
+        "training_node_context_small",
+        "training_node_context_full",
+        "training_context_continue"
+      ]
+    },
+    {
+      "case": "S3",
+      "assertion": "missing graph differs from an empty filtered query",
+      "passed": true,
+      "observed": "not_generated",
+      "evidence": [
+        "theory_existing_graph",
+        "empty_query"
+      ]
+    },
+    {
+      "case": "S3",
+      "assertion": "job count/latest_update unchanged across outline and graph reads",
+      "passed": true,
+      "observed": {
+        "count": 12978,
+        "latest_update": "2026-10-22 07:18:18.463806+00:00"
+      },
+      "evidence": [
+        "db_before.json",
+        "db_after.json"
+      ]
+    },
+    {
+      "case": "S3",
+      "assertion": "knowledge_outline_node count/latest_update unchanged across outline and graph reads",
+      "passed": true,
+      "observed": {
+        "count": 58578,
+        "latest_update": "2026-10-21 08:21:48.929758+00:00"
+      },
+      "evidence": [
+        "db_before.json",
+        "db_after.json"
+      ]
+    },
+    {
+      "case": "S3",
+      "assertion": "task_outline_node count/latest_update unchanged across outline and graph reads",
+      "passed": true,
+      "observed": {
+        "count": 542,
+        "latest_update": "2026-07-04 09:04:30.345211+00:00"
+      },
+      "evidence": [
+        "db_before.json",
+        "db_after.json"
+      ]
+    },
+    {
+      "case": "S3",
+      "assertion": "knowledge_graph_build count/latest_update unchanged across outline and graph reads",
+      "passed": true,
+      "observed": {
+        "count": 1336,
+        "latest_update": "2026-10-22 07:29:10.908665+00:00"
+      },
+      "evidence": [
+        "db_before.json",
+        "db_after.json"
+      ]
+    },
+    {
+      "case": "S3",
+      "assertion": "capability_graph_staging_build count/latest_update unchanged across outline and graph reads",
+      "passed": true,
+      "observed": {
+        "count": 126,
+        "latest_update": "2026-10-21 03:58:41.331172+00:00"
+      },
+      "evidence": [
+        "db_before.json",
+        "db_after.json"
+      ]
+    },
+    {
+      "case": "S4",
+      "assertion": "initial aggregate independently matches raw_jobs SQL",
+      "passed": true,
+      "observed": 457,
+      "evidence": [
+        "education_distribution",
+        "db_before.json"
+      ]
+    },
+    {
+      "case": "S4",
+      "assertion": "final aggregate independently matches raw_jobs SQL",
+      "passed": true,
+      "observed": 474,
+      "evidence": [
+        "aggregate_final_snapshot_check",
+        "db_after.json"
+      ]
+    },
+    {
+      "case": "S4",
+      "assertion": "complete final pagination and aggregate agree, with no duplicate record IDs",
+      "passed": true,
+      "observed": 474,
+      "evidence": [
+        "jobs_full_page_1",
+        "jobs_full_page_2",
+        "jobs_full_page_3",
+        "aggregate_final_snapshot_check"
+      ]
+    },
+    {
+      "case": "S4",
+      "assertion": "aggregate covers whole source population rather than first five records",
+      "passed": true,
+      "observed": {
+        "first_page": 5,
+        "aggregate": 457
+      },
+      "evidence": [
+        "jobs_same_filter",
+        "education_distribution"
+      ]
+    },
+    {
+      "case": "S4",
+      "assertion": "default first page is ordered by collection time descending",
+      "passed": false,
+      "observed": [
+        "2026-10-22T09:26:38.818267Z",
+        "2026-10-22T09:26:13.775237Z",
+        "2026-10-22T09:26:42.460046Z",
+        "2026-10-22T09:26:32.218130Z",
+        "2026-10-22T09:22:22.078715Z"
+      ],
+      "evidence": [
+        "jobs_same_filter",
+        "db_before.json"
+      ]
+    },
+    {
+      "case": "S4",
+      "assertion": "same collection cutoff preserves a stable sample over the test window",
+      "passed": false,
+      "observed": {
+        "initial": 457,
+        "final": 474
+      },
+      "evidence": [
+        "education_distribution",
+        "education_distribution_repeat",
+        "aggregate_final_snapshot_check"
+      ]
+    },
+    {
+      "case": "S4",
+      "assertion": "source provenance and collection time retained without invented publication date",
+      "passed": true,
+      "observed": 474,
+      "evidence": [
+        "09_full_population_results.json"
+      ]
+    },
+    {
+      "case": "S5",
+      "assertion": "Chongqing park and all enterprises preserve actual park foreign key",
+      "passed": true,
+      "observed": {
+        "park": "重庆跨境电子商务台湾产业园(通用时代)",
+        "enterprise_count": 10
+      },
+      "evidence": [
+        "cq_selected_park",
+        "cq_park_enterprises"
+      ]
+    },
+    {
+      "case": "S5",
+      "assertion": "cq_enterprise_784acec7 detail retains stored relation and source URL",
+      "passed": true,
+      "observed": "斯里普文化传播（重庆）有限公司",
+      "evidence": [
+        "cq_enterprise_784acec7"
+      ]
+    },
+    {
+      "case": "S5",
+      "assertion": "cq_supply_chain_candidate_detail detail retains stored relation and source URL",
+      "passed": true,
+      "observed": "纵帆供应链管理（重庆）有限公司",
+      "evidence": [
+        "cq_supply_chain_candidate_detail"
+      ]
+    },
+    {
+      "case": "S5",
+      "assertion": "records do not assert existing school-enterprise cooperation",
+      "passed": true,
+      "observed": "Only candidate matching is supported; business scope may already be truncated upstream",
+      "evidence": [
+        "cq_park_enterprises"
+      ]
+    },
+    {
+      "case": "S6",
+      "assertion": "introduction and training plan match institution, professional name, and code",
+      "passed": true,
+      "observed": {
+        "institution_name": "湖州职业技术学院",
+        "major_name": "跨境电子商务",
+        "major_code": "530702"
+      },
+      "evidence": [
+        "matched_introduction",
+        "matched_plan_detail"
+      ]
+    },
+    {
+      "case": "S6",
+      "assertion": "comparison preserves two independent normalized document references",
+      "passed": true,
+      "observed": [
+        "a8fbbb03-0c69-421e-bcd9-822a34e96a03",
+        "5d82fef8-87f3-4fe9-bb94-3ff1828442e0"
+      ],
+      "evidence": [
+        "comparison_evidence_bundle"
+      ]
+    },
+    {
+      "case": "S6",
+      "assertion": "all 12 plan courses retain their own plan/ref and source block evidence",
+      "passed": true,
+      "observed": 12,
+      "evidence": [
+        "plan_courses"
+      ]
+    },
+    {
+      "case": "S6",
+      "assertion": "scoped introduction semantic search retains correct document reference",
+      "passed": true,
+      "observed": 5,
+      "evidence": [
+        "introduction_scoped_search"
+      ]
+    },
+    {
+      "case": "AUDIT",
+      "assertion": "semantic search audit automatically shares response trace IDs",
+      "passed": false,
+      "observed": {
+        "search_audits": 7,
+        "missing_trace": 7
+      },
+      "evidence": [
+        "db_after.json"
+      ]
+    },
+    {
+      "case": "AUDIT",
+      "assertion": "new successful data tools have persisted trace-linked public read audits",
+      "passed": true,
+      "observed": {
+        "checked": 96,
+        "missing": []
+      },
+      "evidence": [
+        "db_after.json",
+        "all *_results.json"
+      ]
+    }
+  ],
+  "summary": {
+    "total": 43,
+    "passed": 37,
+    "failed": 6
+  },
+  "http_summary": {
+    "requests": 112,
+    "tools": 28,
+    "status_counts": {
+      "200": 103,
+      "401": 2,
+      "422": 5,
+      "404": 2
+    },
+    "plan_checks": 234,
+    "failed_plan_checks": 5
+  }
+}
