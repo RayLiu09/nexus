@@ -248,7 +248,9 @@ const PlanGraphChart = forwardRef<
   return (
     <div
       ref={containerRef}
-      className={`w-full ${fullscreen ? "h-full min-h-[520px]" : "h-[620px] min-h-[420px]"}`}
+      className={`w-full ${
+        fullscreen ? "h-full min-h-0" : "h-[clamp(280px,calc(100dvh-200px),1000px)]"
+      }`}
     />
   );
 });

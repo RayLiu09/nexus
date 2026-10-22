@@ -277,6 +277,7 @@ export function TeachingStandardsTable({
             buildType="teaching_standard"
             title="专业 → 职业领域 → 典型工作任务 / 主要教学内容与要求"
             embedded
+            viewportHeight
           />
         ) : null}
       </Drawer>
