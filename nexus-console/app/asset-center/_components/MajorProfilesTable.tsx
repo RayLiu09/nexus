@@ -4,15 +4,17 @@ import { useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { App, Button, Drawer, Form, Input, Space, Table, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { BookOpen, Download, FileText, Pencil, Search, X } from "lucide-react";
+import { BookOpen, Download, FileText, Pencil } from "lucide-react";
 
 import { ApiState } from "@/components/ApiState";
 import { patchApiData, type MajorProfileDocument } from "@/lib/api";
+import { documentIdentityQuery, type DocumentIdentityFilters } from "@/lib/asset-center/document-filters";
+import { DocumentIdentitySearch } from "./DocumentIdentitySearch";
 import type { RawDownloadResponse } from "@/lib/chunkTypes";
 import { ChunkListSection } from "@/app/assets/[assetId]/_components/ChunkListSection";
 import { SourcePreviewSection } from "@/app/assets/[assetId]/_components/SourcePreviewSection";
 
-export type MajorProfileFilters = { q?: string };
+export type MajorProfileFilters = DocumentIdentityFilters;
 
 type Props = {
   canEdit: boolean;
@@ -77,9 +79,8 @@ export function MajorProfilesTable({ rows, total, page, pageSize, filters, ok, e
     }
   }
 
-  function navigate(q: string | undefined, nextPage = 1, nextPageSize = pageSize) {
-    const search = new URLSearchParams();
-    if (q?.trim()) search.set("q", q.trim());
+  function navigate(values: MajorProfileFilters, nextPage = 1, nextPageSize = pageSize) {
+    const search = new URLSearchParams(documentIdentityQuery(values));
     if (nextPage > 1) search.set("page", String(nextPage));
     if (nextPageSize !== 20) search.set("pageSize", String(nextPageSize));
     startTransition(() => router.replace(`${pathname}${search.size ? `?${search}` : ""}`));
@@ -147,18 +148,10 @@ export function MajorProfilesTable({ rows, total, page, pageSize, filters, ok, e
     <>
       <ApiState ok={ok} error={error} traceId={traceId} />
       <section className="border-line bg-surface border-y">
-        <Form layout="inline" initialValues={filters} className="border-line flex gap-2 border-b px-4 py-3"
-          onFinish={(values: MajorProfileFilters) => navigate(values.q)}>
-          <Form.Item name="q" className="!mb-0">
-            <Input allowClear placeholder="资产名称" className="w-64" />
-          </Form.Item>
-          <Form.Item className="!mb-0">
-            <Space size={8}>
-              <Button htmlType="submit" type="primary" icon={<Search size={15} />}>查询</Button>
-              <Button icon={<X size={15} />} onClick={() => navigate(undefined)}>重置</Button>
-            </Space>
-          </Form.Item>
-        </Form>
+        <div className="border-line flex flex-wrap justify-end border-b px-4 py-3">
+          <DocumentIdentitySearch key={JSON.stringify(filters)} filters={filters} pending={pending}
+            onSearch={(values) => navigate(values)} />
+        </div>
         <Table<MajorProfileDocument>
           rowKey="id" size="small" columns={columns}
           dataSource={rows.map((row) => overrides[row.id] ?? row)} loading={pending}
@@ -166,7 +159,7 @@ export function MajorProfilesTable({ rows, total, page, pageSize, filters, ok, e
           pagination={{ current: page, pageSize, total, showSizeChanger: true,
             showTotal: (count) => `共 ${count} 条` }}
           locale={{ emptyText: ok ? "暂无专业简介" : "数据加载失败" }}
-          onChange={(pagination) => navigate(filters.q, pagination.current ?? 1, pagination.pageSize ?? pageSize)}
+          onChange={(pagination) => navigate(filters, pagination.current ?? 1, pagination.pageSize ?? pageSize)}
         />
       </section>
       <Drawer open={drawer !== null} onClose={() => setDrawer(null)} destroyOnHidden

@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 
 from nexus_api.api.internal.assets import get_catalog_tag_embedding_client
 from nexus_api.api.internal.assets import (
+    DocumentIdentityFilters,
+    DocumentTagFilters,
     MajorProfileMetadataPatch,
     list_major_profile_documents,
     update_major_profile_document_metadata,
@@ -335,6 +337,7 @@ def test_major_profile_document_list_and_metadata_edit_use_catalog_ref(session, 
     session.commit()
     response = list_major_profile_documents(
         request=fake_request, q=None, pagination=Pagination(page=1, page_size=20), session=session,
+        filters=DocumentTagFilters(), identity=DocumentIdentityFilters(),
     )
     body = response.model_dump(mode="json")
     assert body["meta"]["total"] == 1
@@ -355,6 +358,7 @@ def test_major_profile_document_list_and_metadata_edit_use_catalog_ref(session, 
     assert patched.model_dump(mode="json")["data"]["institution_name"] == "浙江商学院"
     refreshed = list_major_profile_documents(
         request=fake_request, q=None, pagination=Pagination(page=1, page_size=20), session=session,
+        filters=DocumentTagFilters(), identity=DocumentIdentityFilters(),
     )
     assert refreshed.model_dump(mode="json")["data"][0]["education_level"] == "高职本科"
     assert any(log.event_type.value == "MajorProfileMetadataUpdated" for log in session.query(models.AuditLog))

@@ -20,6 +20,13 @@ import {
   type TeachingStandardLibrary,
 } from "@/lib/api";
 import { findAssetCenterDomain, findAssetCenterResource } from "@/lib/asset-center/catalog";
+import {
+  documentIdentityFilters,
+  documentIdentityQuery,
+  reportDocumentQuery,
+  documentTagFilters,
+  documentTagQuery,
+} from "@/lib/asset-center/document-filters";
 import { getServerSession } from "@/lib/auth/serverSession";
 import { DEFAULT_PAGE_SIZE, parsePaginationParams } from "@/lib/pagination";
 import { normalizePolicyLevel } from "../../_components/PolicyLevelNav";
@@ -77,37 +84,59 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
   if (!resource) notFound();
 
   const query = await searchParams;
+  const tagFilters = documentTagFilters(query);
+  const tagQuery = documentTagQuery(tagFilters);
   const pagination = parsePaginationParams(query);
   const page = pagination.page ?? 1;
   const pageSize = pagination.pageSize ?? DEFAULT_PAGE_SIZE;
 
   if (domain.slug === "teaching-resources" && resource.path === "cases") {
-    const result = await getApiData<TeachingCase[]>(
-      "/internal/v1/teaching-cases", [],
-      { page: String(page), pageSize: String(pageSize) },
-    );
+    const result = await getApiData<TeachingCase[]>("/internal/v1/teaching-cases", [], {
+      page: String(page),
+      pageSize: String(pageSize),
+      ...tagQuery,
+    });
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader eyebrow={domain.name} title={resource.name} description={resource.description} />
+        <PageHeader
+          eyebrow={domain.name}
+          title={resource.name}
+          description={resource.description}
+        />
         <TeachingCasesTable
-          rows={result.data} total={result.total ?? result.data.length}
-          page={page} pageSize={pageSize} ok={result.ok}
-          error={result.error} traceId={result.traceId}
+          filters={tagFilters}
+          rows={result.data}
+          total={result.total ?? result.data.length}
+          page={page}
+          pageSize={pageSize}
+          ok={result.ok}
+          error={result.error}
+          traceId={result.traceId}
         />
       </div>
     );
   }
 
   if (domain.slug === "major" && resource.path === "talent-demand-reports") {
+    const filters = {
+      ...documentIdentityFilters(query),
+      ...(tagFilters.content_tag ? { content_tag: tagFilters.content_tag } : {}),
+    };
     const session = await getServerSession();
     const result = await getApiData<TalentDemandReport[]>(
-      "/internal/v1/talent-demand-reports", [],
-      { page: String(page), pageSize: String(pageSize) },
+      "/internal/v1/talent-demand-reports",
+      [],
+      { page: String(page), pageSize: String(pageSize), ...reportDocumentQuery(filters) },
     );
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader eyebrow={domain.name} title={resource.name} description={resource.description} />
+        <PageHeader
+          eyebrow={domain.name}
+          title={resource.name}
+          description={resource.description}
+        />
         <TalentDemandReportsTable
+          filters={filters}
           canEdit={session?.role === "business_expert"}
           rows={result.data}
           total={result.total ?? result.data.length}
@@ -123,12 +152,16 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
 
   if (domain.slug === "major" && resource.path === "profiles") {
     const session = await getServerSession();
-    const filters: MajorProfileFilters = { q: first(query.q) };
-    const result = await getApiData<MajorProfileDocument[]>("/internal/v1/major-profile-documents", [], {
-      page: String(page),
-      pageSize: String(pageSize),
-      ...(filters.q ? { q: filters.q } : {}),
-    });
+    const filters: MajorProfileFilters = documentIdentityFilters(query);
+    const result = await getApiData<MajorProfileDocument[]>(
+      "/internal/v1/major-profile-documents",
+      [],
+      {
+        page: String(page),
+        pageSize: String(pageSize),
+        ...documentIdentityQuery(filters),
+      },
+    );
     return (
       <div className="flex flex-col gap-6">
         <PageHeader
@@ -151,19 +184,36 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
     );
   }
 
-  if (domain.slug === "policy" && ["industry-policies", "industry-reports", "sector-reports"].includes(resource.path)) {
+  if (
+    domain.slug === "policy" &&
+    ["industry-policies", "industry-reports", "sector-reports"].includes(resource.path)
+  ) {
     const topicValue = first(query.topic);
-    const topic = topicValue === "finance_commerce" || topicValue === "low_altitude"
-      ? topicValue
-      : undefined;
+    const topic =
+      topicValue === "finance_commerce" || topicValue === "low_altitude" ? topicValue : undefined;
     const endpoint = `/internal/v1/${resource.path}`;
     const [result, allResult, financeResult, lowAltitudeResult] = await Promise.all([
       getApiData<IndustryPolicy[]>(endpoint, [], {
-        page: String(page), pageSize: String(pageSize), ...(topic ? { topic } : {}),
+        page: String(page),
+        pageSize: String(pageSize),
+        ...tagQuery,
+        ...(topic ? { topic } : {}),
       }),
-      topic ? getApiData<IndustryPolicy[]>(endpoint, [], { page: "1", pageSize: "1" }) : null,
-      getApiData<IndustryPolicy[]>(endpoint, [], { page: "1", pageSize: "1", topic: "finance_commerce" }),
-      getApiData<IndustryPolicy[]>(endpoint, [], { page: "1", pageSize: "1", topic: "low_altitude" }),
+      topic
+        ? getApiData<IndustryPolicy[]>(endpoint, [], { page: "1", pageSize: "1", ...tagQuery })
+        : null,
+      getApiData<IndustryPolicy[]>(endpoint, [], {
+        page: "1",
+        pageSize: "1",
+        ...tagQuery,
+        topic: "finance_commerce",
+      }),
+      getApiData<IndustryPolicy[]>(endpoint, [], {
+        page: "1",
+        pageSize: "1",
+        ...tagQuery,
+        topic: "low_altitude",
+      }),
     ]);
     const isReport = resource.path !== "industry-policies";
     return (
@@ -174,6 +224,7 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
           description={resource.description}
         />
         <IndustryPoliciesTable
+          filters={tagFilters}
           rows={result.data}
           total={result.total ?? result.data.length}
           page={page}
@@ -182,10 +233,10 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
           error={result.error}
           traceId={result.traceId}
           topic={topic}
-          allCount={(allResult ?? result).ok ? (allResult ?? result).total ?? 0 : null}
+          allCount={(allResult ?? result).ok ? ((allResult ?? result).total ?? 0) : null}
           topicCounts={{
-            finance_commerce: financeResult.ok ? financeResult.total ?? 0 : null,
-            low_altitude: lowAltitudeResult.ok ? lowAltitudeResult.total ?? 0 : null,
+            finance_commerce: financeResult.ok ? (financeResult.total ?? 0) : null,
+            low_altitude: lowAltitudeResult.ok ? (lowAltitudeResult.total ?? 0) : null,
           }}
           showRegion={!isReport}
           emptyText={`暂无${resource.name}`}

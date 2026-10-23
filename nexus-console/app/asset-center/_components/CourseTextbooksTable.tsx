@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { App, Button, Drawer, Form, Input, InputNumber, Select, Space, Table, Tag } from "antd";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
@@ -89,7 +89,7 @@ export function CourseTextbooksTable({
 
   useEffect(() => form.setFieldsValue({ ...EMPTY_FILTERS, ...filters }), [filters, form]);
 
-  async function download(row: CourseTextbookSummary) {
+  const download = useCallback(async (row: CourseTextbookSummary) => {
     if (!row.raw_object_id) return;
     setDownloadingId(row.profile_id);
     try {
@@ -109,7 +109,7 @@ export function CourseTextbooksTable({
     } finally {
       setDownloadingId(null);
     }
-  }
+  }, [message]);
 
   const replaceQuery = (next: CourseTextbookFilters, nextPage = 1, nextPageSize = pageSize) => {
     const search = new URLSearchParams();
@@ -239,7 +239,7 @@ export function CourseTextbooksTable({
         ),
       },
     ],
-    [downloadingId],
+    [download, downloadingId],
   );
 
   const handleTableChange = (pagination: TablePaginationConfig) => {
@@ -254,7 +254,7 @@ export function CourseTextbooksTable({
           form={form}
           layout="inline"
           initialValues={filters}
-          className="border-line flex gap-2 border-b px-4 py-3"
+          className="border-line flex flex-wrap justify-end gap-x-2 gap-y-2 border-b px-4 py-3"
           onFinish={(values) => replaceQuery(values)}
         >
           <Form.Item name="title" className="!mb-0">
@@ -289,7 +289,7 @@ export function CourseTextbooksTable({
           <Form.Item className="!mb-0">
             <Space size={8}>
               <Button htmlType="submit" type="primary" icon={<Search size={15} />}>
-                查询
+                检索
               </Button>
               <Button
                 icon={<X size={15} />}

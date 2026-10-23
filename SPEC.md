@@ -178,6 +178,23 @@ Asset Center IA-1:
 
 - The overview hides the course-standard entry under teaching resources;
   its existing route and resource definition remain available.
+- The policy, report, and teaching-case
+  document lists expose a responsive upper-right filter bar for `region`,
+  `industry`, and `content_tag`. The three values are trimmed, matched as
+  case-insensitive literal substrings against the selected normalized reference's
+  official tags, and combined with AND before server pagination. Content tags
+  fall back to the latest official governance tags when no non-region/industry
+  index tags exist. Search, reset, and topic changes return to page one while
+  pagination preserves the filters.
+- Major-profile documents expose only professional name, professional code, and
+  institution name filters. Talent-demand reports add content tags to these
+  three fields. Each list has one upper-right `检索`/reset form. Identity filters
+  match the selected reference's displayed metadata, including manual override
+  precedence and explicit profile-field clearing, before COUNT and pagination.
+- Professional teaching standards, the standard course library, talent
+  training plans, and course textbooks retain their existing filter fields in
+  one responsive toolbar at the top right of the list; the submit button is
+  labeled `检索`.
 - **产业政策数据**: industry policy, education policy, industry report, and
   sector report. Industry/education policy pages reserve all, national,
   provincial, and regional dimensions. Policy level is not encoded as six

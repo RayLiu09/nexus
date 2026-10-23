@@ -10,7 +10,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from nexus_api import schemas
@@ -139,6 +139,123 @@ _DOCUMENT_TOPIC_TERMS: dict[str, tuple[str, ...]] = {
         "空域", "飞行器", "航空器", "直升机", "城市空中交通",
     ),
 }
+
+
+class DocumentTagFilters(BaseModel):
+    region: str | None = None
+    industry: str | None = None
+    content_tag: str | None = None
+
+
+class DocumentIdentityFilters(BaseModel):
+    major_name: str | None = None
+    major_code: str | None = None
+    institution_name: str | None = None
+
+
+def document_identity_filters(
+    major_name: str | None = Query(None, max_length=128),
+    major_code: str | None = Query(None, max_length=128),
+    institution_name: str | None = Query(None, max_length=128),
+) -> DocumentIdentityFilters:
+    return DocumentIdentityFilters(**{
+        key: (value.strip() or None) if value else None
+        for key, value in {
+            "major_name": major_name, "major_code": major_code,
+            "institution_name": institution_name,
+        }.items()
+    })
+
+
+def _document_identity_predicate(session: Session, catalog_ref_id, filters: DocumentIdentityFilters, domain: str):
+    """Use the same source and manual override precedence as the displayed row."""
+    profile = domain == "major_profile"
+    classifications = ("major_profile", "program_profile") if profile else (domain,)
+    # Documents in other domains can contain very large metadata JSON. Bound
+    # the JSON scan to refs ever officially classified in this domain first.
+    candidates = select(
+        models.NormalizedAssetRef.id,
+        models.NormalizedAssetRef.document_metadata,
+        models.NormalizedAssetRef.metadata_summary,
+    ).where(models.NormalizedAssetRef.id.in_(select(
+        models.GovernanceResult.normalized_ref_id,
+    ).where(models.GovernanceResult.classification.in_(classifications))))
+    candidates = candidates.cte().prefix_with("MATERIALIZED", dialect="postgresql")
+    ref = aliased(models.NormalizedAssetRef, candidates)
+    source_key = "major_profile" if profile else "talent_demand_report"
+    manual_key = _PROFILE_MANUAL_KEY if profile else _REPORT_MANUAL_KEY
+    predicates = []
+    for field, keyword in filters.model_dump(exclude_none=True).items():
+        if not keyword:
+            continue
+        source = ref.document_metadata[source_key][field].as_string()
+        manual = ref.metadata_summary[manual_key][field].as_string()
+        if profile:
+            # A present manual null deliberately clears a profile field;
+            # an absent key falls back to the normalized source field.
+            present = (
+                func.json_typeof(ref.metadata_summary[manual_key][field])
+                if session.get_bind().dialect.name == "postgresql"
+                else func.json_type(ref.metadata_summary, f"$.{manual_key}.{field}")
+            ).is_not(None)
+            value = case((present, manual), else_=source)
+        else:
+            value = func.coalesce(func.nullif(manual, ""), source)
+        predicates.append(value.icontains(keyword, autoescape=True))
+    # Keep JSON matching independent of each outer asset. PostgreSQL can hash
+    # the matching ref ids once instead of re-evaluating a correlated ref scan.
+    return catalog_ref_id.in_(select(ref.id).where(*predicates))
+
+
+def document_tag_filters(
+    region: str | None = Query(None, max_length=128),
+    industry: str | None = Query(None, max_length=128),
+    content_tag: str | None = Query(None, max_length=128),
+) -> DocumentTagFilters:
+    return DocumentTagFilters(**{
+        key: value.strip() or None if value else None
+        for key, value in {"region": region, "industry": industry, "content_tag": content_tag}.items()
+    })
+
+
+def _document_tag_predicates(session: Session, catalog_ref_id, filters: DocumentTagFilters):
+    """Match the selected ref's displayed tags before COUNT and pagination."""
+    def indexed(tag_type=None, keyword=None):
+        tag = aliased(models.TagAssetIndex)
+        stmt = select(tag.id).where(
+            tag.target_type == TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
+            tag.target_id == catalog_ref_id,
+            tag.tag_type == tag_type if tag_type else tag.tag_type.not_in(("region", "industry")),
+        )
+        if keyword:
+            stmt = stmt.where(tag.tag_value.icontains(keyword, autoescape=True))
+        return stmt.correlate(models.Asset).exists()
+
+    predicates = []
+    for tag_type in ("region", "industry"):
+        if value := getattr(filters, tag_type):
+            predicates.append(indexed(tag_type, value))
+    if filters.content_tag:
+        latest_result_id = select(models.GovernanceResult.id).where(
+            models.GovernanceResult.normalized_ref_id == catalog_ref_id,
+        ).order_by(models.GovernanceResult.created_at.desc()).limit(1).correlate(models.Asset).scalar_subquery()
+        # PostgreSQL stores this column as JSON. SQLite's JSON iterator keeps
+        # equivalent Unicode/literal matching in isolated API tests.
+        iterator = (func.json_array_elements_text if session.get_bind().dialect.name == "postgresql"
+                    else func.json_each)(models.GovernanceResult.tags).table_valued("value", joins_implicitly=True)
+        if session.get_bind().dialect.name == "postgresql":
+            iterator = iterator.render_derived()
+        official_fallback = select(models.GovernanceResult.id).select_from(
+            models.GovernanceResult, iterator,
+        ).where(
+            models.GovernanceResult.id == latest_result_id,
+            iterator.c.value.icontains(filters.content_tag, autoescape=True),
+        ).correlate(models.Asset).exists()
+        predicates.append(or_(
+            indexed(keyword=filters.content_tag),
+            ~indexed() & official_fallback,
+        ))
+    return predicates
 
 
 def _document_topic_predicate(topic: DocumentTopic, catalog_ref_id):
@@ -443,6 +560,8 @@ def _catalog_candidate_ids(
     status: str | None,
     matching_ref_ids: set[str] | None,
     document_topic: DocumentTopic | None = None,
+    tag_filters: DocumentTagFilters | None = None,
+    identity_filters: DocumentIdentityFilters | None = None,
     title_query: str | None = None,
     limit: int | None = None,
     offset: int | None = None,
@@ -551,6 +670,18 @@ def _catalog_candidate_ids(
         predicates.append(catalog_ref_id.in_(matching_ref_ids))
     if document_topic is not None:
         predicates.append(_document_topic_predicate(document_topic, catalog_ref_id))
+    if tag_filters is not None:
+        predicates.extend(_document_tag_predicates(session, catalog_ref_id, tag_filters))
+    if identity_filters is not None and any(identity_filters.model_dump().values()):
+        classifications = ("major_profile", "program_profile") if domain == "major_profile" else (domain,)
+        # Bound catalog relation resolution too; the final predicates below
+        # still require the selected ref's latest official classification.
+        predicates.append(models.Asset.id.in_(select(models.AssetVersion.asset_id).join(
+            models.NormalizedAssetRef, models.NormalizedAssetRef.version_id == models.AssetVersion.id,
+        ).join(
+            models.GovernanceResult, models.GovernanceResult.normalized_ref_id == models.NormalizedAssetRef.id,
+        ).where(models.GovernanceResult.classification.in_(classifications))))
+        predicates.append(_document_identity_predicate(session, catalog_ref_id, identity_filters, domain))
     if title_query:
         predicates.append(models.Asset.title.ilike(f"%{title_query}%"))
     if domain:
@@ -645,6 +776,8 @@ def _list_industry_documents(
     include_report_identity: bool = False,
     teaching_case: bool = False,
     title_query: str | None = None,
+    tag_filters: DocumentTagFilters | None = None,
+    identity_filters: DocumentIdentityFilters | None = None,
 ):
     """Build a report/policy list projection from catalog and normalized refs."""
     asset_ids, total = _catalog_candidate_ids(
@@ -655,6 +788,8 @@ def _list_industry_documents(
         matching_ref_ids=None,
         document_topic=topic,
         title_query=title_query,
+        tag_filters=tag_filters,
+        identity_filters=identity_filters,
         limit=pagination.limit,
         offset=pagination.offset,
     )
@@ -764,10 +899,13 @@ def list_major_profile_documents(
     q: str | None = Query(default=None, max_length=200),
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
+    filters: DocumentTagFilters = Depends(document_tag_filters),
+    identity: DocumentIdentityFilters = Depends(document_identity_filters),
 ):
     return _list_industry_documents(
         request, pagination, session,
-        classification="major_profile", title_query=q.strip() if q else None,
+        classification="major_profile", title_query=q.strip() if q else None, tag_filters=filters,
+        identity_filters=identity,
     )
 
 
@@ -823,6 +961,8 @@ def list_talent_demand_reports(
     request: Request,
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
+    filters: DocumentTagFilters = Depends(document_tag_filters),
+    identity: DocumentIdentityFilters = Depends(document_identity_filters),
 ):
     # Start with refs ever classified as reports. The catalog predicate below
     # still checks the selected ref's latest official governance result.
@@ -836,6 +976,8 @@ def list_talent_demand_reports(
         session, domain="talent_demand_report", level=None, status="visible",
         matching_ref_ids=None, limit=pagination.limit, offset=pagination.offset,
         candidate_asset_ids=report_asset_ids,
+        tag_filters=filters,
+        identity_filters=identity,
     )
     if not asset_ids:
         return list_response([], request, page=pagination.page, page_size=pagination.page_size, total=total)
@@ -931,10 +1073,11 @@ def list_teaching_cases(
     request: Request,
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
+    filters: DocumentTagFilters = Depends(document_tag_filters),
 ):
     return _list_industry_documents(
         request, pagination, session,
-        classification="teaching_case", teaching_case=True,
+        classification="teaching_case", teaching_case=True, tag_filters=filters,
     )
 
 
@@ -995,10 +1138,11 @@ def list_industry_policies(
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
     topic: DocumentTopic | None = Query(default=None),
+    filters: DocumentTagFilters = Depends(document_tag_filters),
 ):
     """Business list view for industry-policy documents."""
     return _list_industry_documents(
-        request, pagination, session, classification="industry_policy", topic=topic
+        request, pagination, session, classification="industry_policy", topic=topic, tag_filters=filters,
     )
 
 
@@ -1008,10 +1152,11 @@ def list_industry_reports(
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
     topic: DocumentTopic | None = Query(default=None),
+    filters: DocumentTagFilters = Depends(document_tag_filters),
 ):
     """Business list view for industry reports."""
     return _list_industry_documents(
-        request, pagination, session, classification="industry_report", topic=topic
+        request, pagination, session, classification="industry_report", topic=topic, tag_filters=filters,
     )
 
 
@@ -1021,10 +1166,11 @@ def list_sector_reports(
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
     topic: DocumentTopic | None = Query(default=None),
+    filters: DocumentTagFilters = Depends(document_tag_filters),
 ):
     """Business list view for sector reports (行业报告)."""
     return _list_industry_documents(
-        request, pagination, session, classification="sector_report", topic=topic
+        request, pagination, session, classification="sector_report", topic=topic, tag_filters=filters,
     )
 
 

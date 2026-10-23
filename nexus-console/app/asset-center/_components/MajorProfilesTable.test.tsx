@@ -79,3 +79,26 @@ it("hides editing when the current role lacks permission", () => {
   renderTable(false);
   expect(screen.queryByRole("button", { name: "编辑" })).not.toBeInTheDocument();
 });
+
+it("has one identity-only search toolbar and preserves its filters through pagination", async () => {
+  const user = userEvent.setup();
+  const filters = { major_name: "商务", major_code: "5307", institution_name: "重庆" };
+  render(<App><MajorProfilesTable rows={[]} total={120} page={3} pageSize={20}
+    filters={filters} canEdit={false} ok error={null} traceId={null} /></App>);
+  expect(screen.getAllByRole("form")).toHaveLength(1);
+  for (const label of ["区域", "行业", "内容标签"]) {
+    expect(screen.queryByRole("textbox", { name: label })).not.toBeInTheDocument();
+  }
+  expect(screen.queryByPlaceholderText("资产名称")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "查询" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("listitem", { name: "2" }));
+  let query = new URL(replaceMock.mock.lastCall![0], "http://localhost").searchParams;
+  expect(Object.fromEntries(query)).toEqual({ ...filters, page: "2" });
+  await user.clear(screen.getByRole("textbox", { name: "专业名称" }));
+  await user.type(screen.getByRole("textbox", { name: "专业名称" }), " 会计 {Enter}");
+  query = new URL(replaceMock.mock.lastCall![0], "http://localhost").searchParams;
+  expect(Object.fromEntries(query)).toEqual({ ...filters, major_name: "会计" });
+  await user.click(screen.getByRole("button", { name: /重\s*置/ }));
+  expect(screen.getByRole("textbox", { name: "专业代码" })).toHaveValue("");
+  expect(replaceMock).toHaveBeenLastCalledWith("/asset-center/major/profiles");
+});

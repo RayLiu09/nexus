@@ -2,7 +2,7 @@ from fastapi import Request
 from fastapi.testclient import TestClient
 from sqlalchemy import event
 
-from nexus_api.api.internal.assets import _list_industry_documents, list_talent_demand_reports
+from nexus_api.api.internal.assets import DocumentIdentityFilters, DocumentTagFilters, _list_industry_documents, list_talent_demand_reports
 from nexus_api.dependencies import Pagination
 from nexus_api.dependencies import require_user
 from nexus_app import models
@@ -37,7 +37,7 @@ def test_talent_demand_report_page_matches_catalog_projection_with_bounded_queri
         statements.append(args[0])
     event.listen(engine, "before_cursor_execute", count_queries)
     try:
-        optimized = list_talent_demand_reports(request, pagination, session)
+        optimized = list_talent_demand_reports(request, pagination, session, DocumentTagFilters(), DocumentIdentityFilters())
     finally:
         event.remove(engine, "before_cursor_execute", count_queries)
 
@@ -52,7 +52,7 @@ def test_talent_demand_report_uses_latest_official_classification(session):
     session.commit()
     request = Request({"type": "http", "method": "GET", "path": "/internal/v1/talent-demand-reports", "headers": []})
     page = Pagination(page=1, page_size=20)
-    assert list_talent_demand_reports(request, page, session).meta.total == 1
+    assert list_talent_demand_reports(request, page, session, DocumentTagFilters(), DocumentIdentityFilters()).meta.total == 1
 
     session.add(models.GovernanceResult(
         normalized_ref_id=seeded["ref"].id,
@@ -63,7 +63,7 @@ def test_talent_demand_report_uses_latest_official_classification(session):
         status=seeded["result"].status,
     ))
     session.commit()
-    assert list_talent_demand_reports(request, page, session).meta.total == 0
+    assert list_talent_demand_reports(request, page, session, DocumentTagFilters(), DocumentIdentityFilters()).meta.total == 0
 
 
 def test_industry_policy_list_is_available_without_pipeline_specific_tables(app):

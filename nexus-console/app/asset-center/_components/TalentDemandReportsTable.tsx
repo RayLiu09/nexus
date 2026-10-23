@@ -8,11 +8,14 @@ import { BookOpen, Download, FileText, Pencil } from "lucide-react";
 
 import { ApiState } from "@/components/ApiState";
 import { patchApiData, type TalentDemandReport } from "@/lib/api";
+import { reportDocumentQuery, type ReportDocumentFilters } from "@/lib/asset-center/document-filters";
+import { DocumentIdentitySearch } from "./DocumentIdentitySearch";
 import type { RawDownloadResponse } from "@/lib/chunkTypes";
 import { ChunkListSection } from "@/app/assets/[assetId]/_components/ChunkListSection";
 import { SourcePreviewSection } from "@/app/assets/[assetId]/_components/SourcePreviewSection";
 
 type Props = {
+  filters?: ReportDocumentFilters;
   canEdit: boolean;
   rows: TalentDemandReport[];
   total: number;
@@ -23,7 +26,7 @@ type Props = {
   traceId: string | null;
 };
 
-export function TalentDemandReportsTable({ rows, total, page, pageSize, ok, error, traceId, canEdit }: Props) {
+export function TalentDemandReportsTable({ filters = {}, rows, total, page, pageSize, ok, error, traceId, canEdit }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const { message } = App.useApp();
@@ -34,6 +37,13 @@ export function TalentDemandReportsTable({ rows, total, page, pageSize, ok, erro
   const [saving, setSaving] = useState(false);
   const [overrides, setOverrides] = useState<Record<string, TalentDemandReport>>({});
   const [form] = Form.useForm<Pick<TalentDemandReport, "major_name" | "major_code" | "institution_name">>();
+
+  function navigate(values: ReportDocumentFilters, nextPage = 1, nextPageSize = pageSize) {
+    const search = new URLSearchParams(reportDocumentQuery(values));
+    if (nextPage > 1) search.set("page", String(nextPage));
+    if (nextPageSize !== 20) search.set("pageSize", String(nextPageSize));
+    startTransition(() => router.replace(`${pathname}${search.size ? `?${search}` : ""}`));
+  }
 
   function edit(row: TalentDemandReport) {
     form.setFieldsValue({
@@ -143,23 +153,22 @@ export function TalentDemandReportsTable({ rows, total, page, pageSize, ok, erro
   return (
     <>
       <ApiState ok={ok} error={error} traceId={traceId} />
+      <div className="mb-3 flex flex-wrap justify-end">
+        <DocumentIdentitySearch withContentTag key={JSON.stringify(filters)} filters={filters} pending={pending}
+          onSearch={(values) => navigate(values)} />
+      </div>
       <Table<TalentDemandReport>
         rowKey="id" columns={columns} dataSource={rows.map((row) => overrides[row.id] ?? row)} loading={pending}
         scroll={{ x: 1400 }} locale={{ emptyText: ok ? "暂无人才需求调研" : "暂无数据" }}
         pagination={{
           current: page, pageSize, total, showSizeChanger: true,
           showTotal: (value) => `共 ${value} 条`,
-          onChange: (nextPage, nextPageSize) => {
-            const search = new URLSearchParams();
-            if (nextPage > 1) search.set("page", String(nextPage));
-            if (nextPageSize !== 20) search.set("pageSize", String(nextPageSize));
-            startTransition(() => router.replace(`${pathname}${search.size ? `?${search}` : ""}`));
-          },
+          onChange: (nextPage, nextPageSize) => navigate(filters, nextPage, nextPageSize),
         }}
       />
       <Drawer
-        open={drawer !== null} onClose={() => setDrawer(null)} destroyOnClose
-        width="min(960px, calc(100vw - 32px))"
+        open={drawer !== null} onClose={() => setDrawer(null)} destroyOnHidden
+        size="min(960px, calc(100vw - 32px))"
         title={drawer ? `${drawer.view === "preview" ? "解析预览" : "RAG知识块"} · ${drawer.row.asset_name}` : undefined}
       >
         {drawer?.view === "preview" && <SourcePreviewSection refId={drawer.row.normalized_ref_id} />}

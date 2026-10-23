@@ -90,6 +90,8 @@ describe("StandardCourseLibraryTable", () => {
 
   it("expands all requested course details and exposes evidence provenance", () => {
     const { container } = renderTable();
+    expect(screen.getAllByRole("button", { name: "检索" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "查询" })).not.toBeInTheDocument();
     const expandButton = container.querySelector<HTMLButtonElement>(".ant-table-row-expand-icon");
     expect(expandButton).not.toBeNull();
     fireEvent.click(expandButton as HTMLButtonElement);

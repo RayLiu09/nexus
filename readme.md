@@ -37,6 +37,16 @@ bindings. Regenerate offline with
 `nexus-api/.venv/bin/python scripts/generate_public_function_tools.py`; append
 `--check` to verify drift. C/change-feed interfaces are outside this extension.
 
+The Console document views for policies, reports, and teaching cases provide a
+right-aligned, responsive filter bar for
+region, industry, and content-tag substring matching. Filters are evaluated by
+the internal catalog before pagination, so totals and topic counts use the same
+scope as the displayed rows.
+Major profiles instead use professional name/code and institution name;
+talent-demand reports add content tags to those three fields. Professional
+teaching standards, standard courses, training plans, and course textbooks retain
+their domain filters in the same top-right layout with a single `检索` button.
+
 ```text
 .
 ├── AGENTS.md       # Codex coding-agent contract

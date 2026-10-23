@@ -1,0 +1,306 @@
+{
+  "date": "2026-10-23",
+  "environment": "Local Next.js development server and nexus-api; Chromium headless, desktop 1440x900 and textbook tablet 768x1024",
+  "scope": "Read-only list browsing and opening/closing detail, preview, chunks, edit and graph views; no business changes submitted",
+  "page_count": 16,
+  "interaction_count": 26,
+  "console_warning_error_count": 0,
+  "page_error_count": 0,
+  "course_textbook_layout": {
+    "desktop": {
+      "justifyContent": "flex-end",
+      "flexWrap": "wrap"
+    },
+    "tabletPageOverflow": false
+  },
+  "results": [
+    {
+      "route": "",
+      "heading": [
+        "资产中心"
+      ],
+      "rows": 0,
+      "actions": [],
+      "interactions": [],
+      "fontPreloads": 0,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "route": "/policy/industry-policies",
+      "heading": [
+        "产教政策"
+      ],
+      "rows": 20,
+      "actions": [
+        "知识块视图",
+        "解析预览",
+        "原文下载"
+      ],
+      "interactions": [
+        "知识块视图",
+        "解析预览"
+      ],
+      "fontPreloads": 0,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "route": "/policy/industry-reports",
+      "heading": [
+        "产业报告"
+      ],
+      "rows": 20,
+      "actions": [
+        "知识块视图",
+        "解析预览",
+        "原文下载"
+      ],
+      "interactions": [
+        "知识块视图",
+        "解析预览"
+      ],
+      "fontPreloads": 0,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "route": "/policy/sector-reports",
+      "heading": [
+        "行业报告"
+      ],
+      "rows": 20,
+      "actions": [
+        "知识块视图",
+        "解析预览",
+        "原文下载"
+      ],
+      "interactions": [
+        "知识块视图",
+        "解析预览"
+      ],
+      "fontPreloads": 0,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "route": "/major/profiles",
+      "heading": [
+        "专业简介"
+      ],
+      "rows": 20,
+      "actions": [
+        "编辑",
+        "解析预览",
+        "RAG知识块",
+        "原文下载"
+      ],
+      "interactions": [
+        "编辑",
+        "解析预览",
+        "RAG知识块"
+      ],
+      "fontPreloads": 0,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "route": "/major/talent-demand-reports",
+      "heading": [
+        "人才需求调研"
+      ],
+      "rows": 20,
+      "actions": [
+        "编辑",
+        "解析预览",
+        "RAG知识块",
+        "原文下载"
+      ],
+      "interactions": [
+        "编辑",
+        "解析预览",
+        "RAG知识块"
+      ],
+      "fontPreloads": 0,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "route": "/major/teaching-standards",
+      "heading": [
+        "专业教学标准"
+      ],
+      "rows": 20,
+      "actions": [
+        "课程库",
+        "职业领域图谱",
+        "原文下载"
+      ],
+      "interactions": [
+        "职业领域图谱"
+      ],
+      "fontPreloads": 0,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "route": "/major/standard-course-library",
+      "heading": [
+        "标准课程库"
+      ],
+      "rows": 20,
+      "actions": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "更新",
+        "激活",
+        "血缘追溯"
+      ],
+      "interactions": [
+        "血缘追溯"
+      ],
+      "fontPreloads": 0,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "route": "/major/occupation-analyses",
+      "heading": [
+        "职业能力分析"
+      ],
+      "rows": 14,
+      "actions": [
+        "能力条目",
+        "能力树",
+        "能力图谱",
+        "原文下载"
+      ],
+      "interactions": [
+        "能力条目",
+        "能力树",
+        "能力图谱"
+      ],
+      "fontPreloads": 0,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "route": "/major/training-plans",
+      "heading": [
+        "人才培养方案"
+      ],
+      "rows": 20,
+      "actions": [
+        "",
+        "课程知识图谱",
+        "岗位能力图谱",
+        "原文下载"
+      ],
+      "interactions": [
+        "课程知识图谱",
+        "岗位能力图谱"
+      ],
+      "fontPreloads": 0,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "route": "/major/distributions",
+      "heading": [
+        "专业布点数据"
+      ],
+      "rows": 20,
+      "actions": [
+        "编辑",
+        "删除"
+      ],
+      "interactions": [
+        "编辑"
+      ],
+      "fontPreloads": 0,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "route": "/market/job-demands",
+      "heading": [
+        "市场岗位"
+      ],
+      "rows": 20,
+      "actions": [],
+      "interactions": [],
+      "fontPreloads": 0,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "route": "/market/industrial-parks",
+      "heading": [
+        "产业园区"
+      ],
+      "rows": 20,
+      "actions": [],
+      "interactions": [],
+      "fontPreloads": 0,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "route": "/market/enterprises",
+      "heading": [
+        "企业数据"
+      ],
+      "rows": 20,
+      "actions": [],
+      "interactions": [],
+      "fontPreloads": 0,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "route": "/teaching-resources/course-textbooks",
+      "heading": [
+        "课程教材"
+      ],
+      "rows": 20,
+      "actions": [
+        "知识大纲径向图",
+        "知识大纲树",
+        "解析预览",
+        "RAG知识块",
+        "原文下载"
+      ],
+      "interactions": [
+        "知识大纲径向图",
+        "知识大纲树",
+        "解析预览",
+        "RAG知识块"
+      ],
+      "fontPreloads": 0,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "route": "/teaching-resources/cases",
+      "heading": [
+        "教学案例"
+      ],
+      "rows": 20,
+      "actions": [
+        "解析预览",
+        "RAG知识块",
+        "原文下载"
+      ],
+      "interactions": [
+        "解析预览",
+        "RAG知识块"
+      ],
+      "fontPreloads": 0,
+      "warnings": [],
+      "errors": []
+    }
+  ]
+}

@@ -78,6 +78,8 @@ describe("TeachingStandardsTable", () => {
       />,
     );
 
+    expect(screen.getAllByRole("button", { name: "检索" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "查询" })).not.toBeInTheDocument();
     expect(screen.getByText("530701")).toBeInTheDocument();
     expect(screen.getByText("财经商贸大类 (53)")).toBeInTheDocument();
     expect(screen.getByText("电子商务类 (5307)")).toBeInTheDocument();

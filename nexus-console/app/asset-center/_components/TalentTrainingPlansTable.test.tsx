@@ -72,6 +72,8 @@ describe("TalentTrainingPlansTable", () => {
 
   it("renders plan identity and the requested expandable career dimensions", () => {
     renderTable();
+    expect(screen.getAllByRole("button", { name: "检索" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "查询" })).not.toBeInTheDocument();
 
     for (const heading of ["专业名称", "专业代码", "修业年限", "培养层次", "院校名称", "操作"]) {
       expect(screen.getByRole("columnheader", { name: heading })).toBeInTheDocument();

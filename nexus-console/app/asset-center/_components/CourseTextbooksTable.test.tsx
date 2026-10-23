@@ -103,6 +103,9 @@ describe("CourseTextbooksTable", () => {
   it("renders the frozen columns and type-specific actions", () => {
     renderTable();
 
+    expect(screen.getAllByRole("button", { name: "检索" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "查询" })).not.toBeInTheDocument();
+
     for (const heading of ["教材名称", "类型", "出版社", "主编", "出版年份", "操作"]) {
       expect(screen.getByRole("columnheader", { name: heading })).toBeInTheDocument();
     }

@@ -4,12 +4,14 @@ import { AppShell } from "@/components/AppShell";
 import { Providers } from "./providers";
 import "./globals.css";
 
+// 字体按需加载，避免全局预加载造成未使用资源告警。
 // 全局 sans —— 比 Inter 略紧凑，工程感更强；提供 400/500/600/700 四档
 const interTight = Inter_Tight({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-sans-loaded",
   display: "swap",
+  preload: false,
 });
 
 // Mono —— 仅供 code/ID 等场景；数值列用 .text-num（sans + tabular-nums）
@@ -18,6 +20,7 @@ const jetbrainsMono = JetBrains_Mono({
   weight: ["400", "500", "600"],
   variable: "--font-mono-loaded",
   display: "swap",
+  preload: false,
 });
 
 export const metadata: Metadata = {

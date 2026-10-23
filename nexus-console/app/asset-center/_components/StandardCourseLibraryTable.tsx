@@ -436,7 +436,7 @@ export function StandardCourseLibraryTable({
           form={form}
           layout="inline"
           initialValues={filters}
-          className="border-line flex gap-2 border-b px-4 py-3"
+          className="border-line flex flex-wrap justify-end gap-x-2 gap-y-2 border-b px-4 py-3"
           onFinish={(values) => replaceQuery({ ...values, libraryId: filters.libraryId })}
         >
           <Form.Item name="course_name" className="!mb-0">
@@ -465,7 +465,7 @@ export function StandardCourseLibraryTable({
           <Form.Item className="!mb-0">
             <Space size={8}>
               <Button htmlType="submit" type="primary" icon={<Search size={15} />}>
-                查询
+                检索
               </Button>
               <Button
                 icon={<X size={15} />}

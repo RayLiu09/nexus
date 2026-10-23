@@ -8,11 +8,14 @@ import { BookOpen, Download, FileText } from "lucide-react";
 
 import { ApiState } from "@/components/ApiState";
 import type { TeachingCase } from "@/lib/api";
+import { documentTagQuery, type DocumentTagFilters } from "@/lib/asset-center/document-filters";
+import { DocumentTagSearch } from "./DocumentTagSearch";
 import type { RawDownloadResponse } from "@/lib/chunkTypes";
 import { ChunkListSection } from "@/app/assets/[assetId]/_components/ChunkListSection";
 import { SourcePreviewSection } from "@/app/assets/[assetId]/_components/SourcePreviewSection";
 
 type Props = {
+  filters?: DocumentTagFilters;
   rows: TeachingCase[];
   total: number;
   page: number;
@@ -22,13 +25,20 @@ type Props = {
   traceId: string | null;
 };
 
-export function TeachingCasesTable({ rows, total, page, pageSize, ok, error, traceId }: Props) {
+export function TeachingCasesTable({ filters = {}, rows, total, page, pageSize, ok, error, traceId }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const { message } = App.useApp();
   const [pending, startTransition] = useTransition();
   const [drawer, setDrawer] = useState<{ row: TeachingCase; view: "preview" | "chunks" } | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  function navigate(values: DocumentTagFilters, nextPage = 1, nextPageSize = pageSize) {
+    const search = new URLSearchParams(documentTagQuery(values));
+    if (nextPage > 1) search.set("page", String(nextPage));
+    if (nextPageSize !== 20) search.set("pageSize", String(nextPageSize));
+    startTransition(() => router.replace(`${pathname}${search.size ? `?${search}` : ""}`));
+  }
 
   async function download(row: TeachingCase) {
     if (!row.raw_object_id) return;
@@ -85,18 +95,17 @@ export function TeachingCasesTable({ rows, total, page, pageSize, ok, error, tra
   return (
     <>
       <ApiState ok={ok} error={error} traceId={traceId} />
+      <div className="mb-3 flex flex-wrap justify-end">
+        <DocumentTagSearch key={JSON.stringify(filters)} filters={filters} pending={pending}
+          onSearch={(values) => navigate(values)} />
+      </div>
       <Table<TeachingCase>
         rowKey="id" columns={columns} dataSource={rows} loading={pending}
         scroll={{ x: 1080 }} locale={{ emptyText: ok ? "暂无教学案例" : "暂无数据" }}
         pagination={{
           current: page, pageSize, total, showSizeChanger: true,
           showTotal: (value) => `共 ${value} 条`,
-          onChange: (nextPage, nextPageSize) => {
-            const search = new URLSearchParams();
-            if (nextPage > 1) search.set("page", String(nextPage));
-            if (nextPageSize !== 20) search.set("pageSize", String(nextPageSize));
-            startTransition(() => router.replace(`${pathname}${search.size ? `?${search}` : ""}`));
-          },
+          onChange: (nextPage, nextPageSize) => navigate(filters, nextPage, nextPageSize),
         }}
       />
       <Drawer
