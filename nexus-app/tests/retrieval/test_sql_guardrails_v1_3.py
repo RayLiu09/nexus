@@ -22,11 +22,7 @@ from nexus_app.retrieval.domain_registry import (
     QueryProfile,
     get_query_profile,
 )
-from nexus_app.retrieval.schemas import (
-    BusinessDomain,
-    RetrievalChannel,
-    StructuredPlan,
-)
+from nexus_app.retrieval.schemas import BusinessDomain, RetrievalChannel, StructuredPlan
 from nexus_app.retrieval.sql_guardrails import (
     TARGET_ID_IN_KEY,
     StructuredPlanGuardrailError,
@@ -43,63 +39,55 @@ from nexus_app.retrieval.tag_schemas import TAG_BUCKET_NAMES, TagFilter
 
 class TestProfileAllowedTagTypes:
     def test_default_dataclass_field_empty(self) -> None:
-        """A profile constructed without allowed_tag_types (backwards-
-        compat surface) starts with the empty tuple."""
-        p = QueryProfile(
+        profile = QueryProfile(
             key="minimal",
             channel=RetrievalChannel.STRUCTURED,
             description="d",
             executor_key="x",
         )
-        assert p.allowed_tag_types == ()
-        assert p.id_in_supported is True
+        assert profile.allowed_tag_types == ()
+        assert profile.id_in_supported is True
 
-    def test_structured_domain_declares_tag_types(self) -> None:
-        # major_distribution — expected regions / majors / time_ranges
-        for profile in DOMAIN_REGISTRY[BusinessDomain.MAJOR_DISTRIBUTION].query_profiles:
-            assert set(profile.allowed_tag_types) == {"regions", "majors", "time_ranges"}
-            assert profile.id_in_supported is True
+    @pytest.mark.parametrize(
+        "domain",
+        [
+            BusinessDomain.MAJOR_DISTRIBUTION,
+            BusinessDomain.JOB_DEMAND,
+            BusinessDomain.COMPETENCY_ANALYSIS,
+        ],
+    )
+    def test_structured_profiles_disable_tag_index(self, domain):
+        for profile in DOMAIN_REGISTRY[domain].query_profiles:
+            assert profile.allowed_tag_types == ()
+            assert profile.tag_target_type is None
+        if domain == BusinessDomain.MAJOR_DISTRIBUTION:
+            assert all(
+                not p.id_in_supported for p in DOMAIN_REGISTRY[domain].query_profiles
+            )
 
-    def test_job_demand_record_list_expected_buckets(self) -> None:
-        p = get_query_profile(BusinessDomain.JOB_DEMAND, "job_demand.record_list")
-        assert set(p.allowed_tag_types) == {
-            "regions", "industries", "occupations", "time_ranges",
+    @pytest.mark.parametrize("key", ["semantic_chunk", "task_outline_context"])
+    def test_document_profiles_retain_canonical_tag_buckets(self, key):
+        profile = get_query_profile(BusinessDomain.COURSE_TEXTBOOK, key)
+        assert set(profile.allowed_tag_types) == {"majors", "abilities", "topics"}
+        assert profile.tag_target_type is not None
+        assert not profile.id_in_supported
+
+    def test_major_profile_hybrid(self):
+        profile = get_query_profile(
+            BusinessDomain.MAJOR_PROFILE, "major_profile_semantic"
+        )
+        assert set(profile.allowed_tag_types) == {
+            "majors",
+            "occupations",
+            "abilities",
+            "topics",
         }
+        assert not profile.id_in_supported
 
-    def test_job_demand_requirement_keyword_expands_to_abilities(self) -> None:
-        """requirement_keyword profile flows into the ability / topic
-        buckets via item_type=professional_skill conditional projection."""
-        p = get_query_profile(BusinessDomain.JOB_DEMAND, "job_demand.requirement_keyword")
-        assert "abilities" in p.allowed_tag_types
-        assert "topics" in p.allowed_tag_types
-
-    def test_competency_profiles(self) -> None:
-        for profile in DOMAIN_REGISTRY[BusinessDomain.COMPETENCY_ANALYSIS].query_profiles:
-            assert set(profile.allowed_tag_types) == {"occupations", "abilities", "majors"}
-
-    def test_course_textbook_semantic_chunk_no_id_in(self) -> None:
-        p = get_query_profile(BusinessDomain.COURSE_TEXTBOOK, "semantic_chunk")
-        assert p.id_in_supported is False
-        assert set(p.allowed_tag_types) == {"majors", "abilities", "topics"}
-
-    def test_major_profile_hybrid(self) -> None:
-        p = get_query_profile(BusinessDomain.MAJOR_PROFILE, "major_profile_semantic")
-        assert p.id_in_supported is False
-        assert set(p.allowed_tag_types) == {
-            "majors", "occupations", "abilities", "topics",
-        }
-
-    def test_all_registered_buckets_are_canonical_names(self) -> None:
-        """No stray singular / renamed bucket names.  Every allowed_tag_types
-        entry across every domain must come from TAG_BUCKET_NAMES."""
-        canonical = set(TAG_BUCKET_NAMES)
-        for domain_def in DOMAIN_REGISTRY.values():
-            for profile in domain_def.query_profiles:
-                for bucket in profile.allowed_tag_types:
-                    assert bucket in canonical, (
-                        f"profile {profile.key} declared unknown bucket "
-                        f"{bucket!r}"
-                    )
+    def test_all_registered_buckets_are_canonical_names(self):
+        for definition in DOMAIN_REGISTRY.values():
+            for profile in definition.query_profiles:
+                assert set(profile.allowed_tag_types) <= set(TAG_BUCKET_NAMES)
 
 
 # ---------------------------------------------------------------------------
@@ -116,18 +104,21 @@ class TestValidateTagFilters:
         )
         assert result.key == "job_demand.record_list"
 
-    def test_allowed_buckets_pass(self) -> None:
-        # Regions + industries are on the allowed list for
-        # job_demand.record_list.
-        result = validate_tag_filters(
-            domain=BusinessDomain.JOB_DEMAND,
-            tag_filters={
-                "regions": TagFilter(tags=["北京市"]),
-                "industries": TagFilter(tags=["直播电商"]),
-            },
-            query_profile_key="job_demand.record_list",
+    def test_structured_buckets_rejected(self):
+        with pytest.raises(StructuredPlanGuardrailError, match="not allowed"):
+            validate_tag_filters(
+                domain=BusinessDomain.JOB_DEMAND,
+                tag_filters={"regions": {}},
+                query_profile_key="job_demand.record_list",
+            )
+        assert (
+            validate_tag_filters(
+                domain=BusinessDomain.COURSE_TEXTBOOK,
+                tag_filters={"majors": {}, "topics": {}},
+                query_profile_key="semantic_chunk",
+            ).key
+            == "semantic_chunk"
         )
-        assert result.key == "job_demand.record_list"
 
     def test_disallowed_bucket_rejected(self) -> None:
         # job_demand does not accept "majors".
@@ -154,13 +145,13 @@ class TestValidateTagFilters:
             )
         assert "occupations" in str(exc_info.value)
 
-    def test_domain_str_accepted(self) -> None:
-        result = validate_tag_filters(
-            domain="job_demand",
-            tag_filters={"regions": TagFilter(tags=["北京市"])},
-            query_profile_key="job_demand.record_list",
-        )
-        assert result.key == "job_demand.record_list"
+    def test_domain_str_enforces_same_structured_boundary(self):
+        with pytest.raises(StructuredPlanGuardrailError, match="not allowed"):
+            validate_tag_filters(
+                domain="job_demand",
+                tag_filters={"regions": {}},
+                query_profile_key="job_demand.record_list",
+            )
 
     def test_profile_with_no_allowed_tag_types_rejects_all(self) -> None:
         """A profile that hasn't been enrolled in the tag pipeline

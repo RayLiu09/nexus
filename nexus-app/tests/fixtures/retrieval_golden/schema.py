@@ -111,9 +111,15 @@ class GoldenQuery(BaseModel):
     # where a tag_filter should have excluded a specific record.
     expected_record_ids_disjoint: dict[str, list[str]] = Field(default_factory=dict)
     # qid → minimum number of records the executor must return.  Useful
-    # for xlsx-bootstrap fixtures where individual UUIDs are unstable
-    # but structural cardinality is guaranteed by the sample content.
+    # for seeded fixtures where the content guarantees a lower bound.
     expected_records_at_least: dict[str, int] = Field(default_factory=dict)
+
+    # Exact cardinality, errors and aggregation payloads keep migrated cases meaningful.
+    expected_record_counts: dict[str, int] = Field(default_factory=dict)
+    expected_errors_contains: dict[str, list[str]] = Field(default_factory=dict)
+    expected_aggregation_series: dict[str, list[dict[str, Any]]] = Field(
+        default_factory=dict
+    )
 
     # ---- Rerank expectations (WEIGHTED cases) ----
 

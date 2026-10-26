@@ -1,20 +1,11 @@
-"""PR-13 guards for WEIGHTED combine op rerank pipeline.
+"""Rerank contracts at helper and supported document executor boundaries.
 
-Coverage:
-
-* Phase A ``target_scores`` aggregation — sum-of-max-per-bucket.
-* ``apply_weighted_rerank`` unit — score inject + reorder + kill switch
-  + explicit ``order_by`` suppression.
-* Executor integration (job_demand.record_list +
-  job_demand.requirement_keyword + major_distribution.record_list) with
-  the kill switch flipped both ways.
-* Aggregation profiles never rerank (records carry group_value shape).
+Document refs exercise tag score aggregation, WEIGHTED/LINEAR/RRF ordering
+and the rerank switch. Structured field queries preserve SQL order without
+tag scores; pure rerank helper tests retain order_by and kill-switch coverage.
 """
 
 from __future__ import annotations
-
-from dataclasses import dataclass
-from typing import Any
 
 import pytest
 
@@ -27,29 +18,22 @@ from nexus_app.enums import (
     NormalizedAssetRefStatus,
     NormalizedType,
     RawObjectStatus,
-    TagAssetIndexSource,
-    TagAssetIndexTargetType,
 )
+from nexus_app.retrieval.domain_registry import get_query_profile
 from nexus_app.retrieval.executors.job_demand import JobDemandRetrievalExecutor
-from nexus_app.retrieval.executors.major_distribution import (
-    MajorDistributionRetrievalExecutor,
+from nexus_app.retrieval.executors.unstructured import UnstructuredRetrievalExecutor
+from nexus_app.retrieval.rerank import apply_weighted_rerank
+from nexus_app.retrieval.schemas import QueryOrder, RetrievalSubQuery, StructuredPlan
+from nexus_app.retrieval.tag_filter_execution import TagFilterExecutionResult
+from nexus_app.retrieval.tag_filter_execution import execute_tag_filters
+from nexus_app.retrieval.tag_resolver import TagAssetIndexResolver
+
+from tests.fixtures.retrieval_documents import (
+    seed_documents,
+    add_tag,
+    document_query,
+    DocumentSearchAdapter,
 )
-from nexus_app.retrieval.rerank import (
-    RerankDecision,
-    apply_weighted_rerank,
-)
-from nexus_app.retrieval.schemas import (
-    BusinessDomain,
-    QueryOrder,
-    RetrievalChannel,
-    RetrievalSubQuery,
-    StepStatus,
-    StructuredPlan,
-)
-from nexus_app.retrieval.tag_filter_execution import (
-    TagFilterExecutionResult,
-)
-from nexus_app.retrieval.tag_schemas import TagFilter
 
 
 # ---------------------------------------------------------------------------
@@ -136,28 +120,6 @@ def _seed_job_demand(session) -> dict[str, str]:
         "item_bj": "item-bj",
         "item_sh": "item-sh",
     }
-
-
-def _seed_tag(
-    session,
-    *,
-    target_type: TagAssetIndexTargetType,
-    target_id: str,
-    asset_version_id: str,
-    tag_type: str,
-    tag_value: str,
-) -> None:
-    session.add(models.TagAssetIndex(
-        tag_type=tag_type,
-        tag_value=tag_value,
-        tag_value_normalized=tag_value,
-        target_type=target_type,
-        target_id=target_id,
-        asset_version_id=asset_version_id,
-        source=TagAssetIndexSource.FIELD_PROJECTION,
-        tag_embedding=None,
-    ))
-    session.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -261,120 +223,34 @@ class TestApplyWeightedRerank:
 
 
 class TestTargetScoreAggregation:
-    def test_and_intersection_sums_contributing_buckets(self, session):
-        # target 'x' matches both buckets: score = 1.0 + 1.0 = 2.0
-        # target 'y' matches only regions: filtered out by AND
-        from nexus_app.retrieval.domain_registry import get_query_profile
-        from nexus_app.retrieval.tag_filter_execution import execute_tag_filters
-        from nexus_app.retrieval.tag_resolver import TagAssetIndexResolver
 
-        seeded = _seed_job_demand(session)
-        _seed_tag(
-            session,
-            target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-            target_id=seeded["record_bj"],
-            asset_version_id=seeded["version_id"],
-            tag_type="region", tag_value="北京",
+    @pytest.mark.parametrize("combine", ["AND", "OR", "WEIGHTED", "LINEAR", "RRF"])
+    def test_document_target_scores_follow_combine(self, session, combine):
+        a, b = seed_documents(session)
+        add_tag(session, a, "majors", "直播")
+        add_tag(session, b, "majors", "直播")
+        add_tag(session, a, "topics", "运营")
+        query = document_query(
+            {"majors": ["直播"], "topics": ["运营"]}, combine=combine
         )
-        _seed_tag(
-            session,
-            target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-            target_id=seeded["record_bj"],
-            asset_version_id=seeded["version_id"],
-            tag_type="industry", tag_value="直播电商",
-        )
-        # record_sh only matches regions (not industries)
-        _seed_tag(
-            session,
-            target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-            target_id=seeded["record_sh"],
-            asset_version_id=seeded["version_id"],
-            tag_type="region", tag_value="上海",
-        )
-        profile = get_query_profile(
-            BusinessDomain.JOB_DEMAND, "job_demand.record_list",
-        )
-        sub_query = RetrievalSubQuery.model_validate({
-            "query_id": "q1", "channel": "structured",
-            "domain": "job_demand", "purpose": "t",
-            "query_text": "t",
-            "structured_plan": {
-                "table_profile": "job_demand.v1",
-                "query_profile": "job_demand.record_list",
-            },
-            "tag_filters": {
-                "regions": TagFilter(
-                    tags=["北京", "上海"], match_strategy="l1|l1.5",
-                ).model_dump(),
-                "industries": TagFilter(
-                    tags=["直播电商"], match_strategy="l1|l1.5",
-                ).model_dump(),
-            },
-            "combine": "AND",
-        })
+        if combine == "LINEAR":
+            query.combine_weights = {"majors": 1.0, "topics": 3.0}
         result = execute_tag_filters(
-            sub_query=sub_query, profile=profile,
+            sub_query=query,
+            profile=get_query_profile("course_textbook", "semantic_chunk"),
             resolver=TagAssetIndexResolver(session),
         )
-        # Only record_bj in intersection; score = 1.0 (region) + 1.0 (industry)
-        assert result.target_ids == {seeded["record_bj"]}
-        assert result.target_scores == {seeded["record_bj"]: 2.0}
-
-    def test_or_union_sums_across_buckets(self, session):
-        from nexus_app.retrieval.domain_registry import get_query_profile
-        from nexus_app.retrieval.tag_filter_execution import execute_tag_filters
-        from nexus_app.retrieval.tag_resolver import TagAssetIndexResolver
-
-        seeded = _seed_job_demand(session)
-        _seed_tag(
-            session,
-            target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-            target_id=seeded["record_bj"],
-            asset_version_id=seeded["version_id"],
-            tag_type="region", tag_value="北京",
-        )
-        _seed_tag(
-            session,
-            target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-            target_id=seeded["record_bj"],
-            asset_version_id=seeded["version_id"],
-            tag_type="industry", tag_value="直播电商",
-        )
-        _seed_tag(
-            session,
-            target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-            target_id=seeded["record_sh"],
-            asset_version_id=seeded["version_id"],
-            tag_type="region", tag_value="上海",
-        )
-        profile = get_query_profile(
-            BusinessDomain.JOB_DEMAND, "job_demand.record_list",
-        )
-        sub_query = RetrievalSubQuery.model_validate({
-            "query_id": "q1", "channel": "structured",
-            "domain": "job_demand", "purpose": "t",
-            "query_text": "t",
-            "structured_plan": {
-                "table_profile": "job_demand.v1",
-                "query_profile": "job_demand.record_list",
-            },
-            "tag_filters": {
-                "regions": TagFilter(
-                    tags=["北京", "上海"], match_strategy="l1|l1.5",
-                ).model_dump(),
-                "industries": TagFilter(
-                    tags=["直播电商"], match_strategy="l1|l1.5",
-                ).model_dump(),
-            },
-            "combine": "WEIGHTED",
-        })
-        result = execute_tag_filters(
-            sub_query=sub_query, profile=profile,
-            resolver=TagAssetIndexResolver(session),
-        )
-        # BJ scores 2.0 (region + industry), SH scores 1.0 (region only)
-        assert result.target_scores[seeded["record_bj"]] == 2.0
-        assert result.target_scores[seeded["record_sh"]] == 1.0
+        assert result.target_ids == ({a} if combine == "AND" else {a, b})
+        assert result.target_scores[a] > result.target_scores.get(b, 0)
+        if combine in {"AND", "OR", "WEIGHTED"}:
+            assert result.target_scores[a] == 2.0
+            if combine != "AND":
+                assert result.target_scores[b] == 1.0
+        elif combine == "LINEAR":
+            assert result.target_scores == {a: 4.0, b: 1.0}
+        else:
+            assert result.target_scores[a] == pytest.approx(2 / 61)
+            assert result.target_scores[b] == pytest.approx(1 / 62)
 
 
 # ---------------------------------------------------------------------------
@@ -383,195 +259,69 @@ class TestTargetScoreAggregation:
 
 
 class TestExecutorIntegration:
-    def test_weighted_reorder_when_switch_on(self, session):
+
+    @pytest.mark.parametrize("enabled", [True, False])
+    def test_document_rerank_and_kill_switch(self, session, enabled):
+        a, b = seed_documents(session)
+        add_tag(session, a, "majors", "直播")
+        add_tag(session, b, "majors", "直播")
+        add_tag(session, a, "topics", "运营")
+        # Search deliberately puts the lower tag score first.
+        query = document_query(
+            {"majors": ["直播"], "topics": ["运营"]}, combine="WEIGHTED"
+        )
+        executor = UnstructuredRetrievalExecutor(
+            search_adapter=DocumentSearchAdapter([b, a]), rerank_enabled=enabled
+        )
+        result = executor.execute(session, query)
+        assert [i.normalized_ref_id for i in result.items] == (
+            [a, b] if enabled else [b, a]
+        )
+        assert [i.score for i in result.items] == (
+            [1.25, 0.75] if enabled else [0.5, 0.5]
+        )
+        assert (
+            "unstructured_rerank_applied"
+            if enabled
+            else "unstructured_rerank_disabled_by_config"
+        ) in result.warnings
+
+    @pytest.mark.parametrize(
+        "profile, prefix",
+        [
+            ("job_demand.record_list", "record"),
+            ("job_demand.requirement_keyword", "item"),
+        ],
+    )
+    def test_structured_order_is_domain_order_without_tag_scores(
+        self, session, profile, prefix
+    ):
         seeded = _seed_job_demand(session)
-        # BJ matches two buckets, SH one.
-        _seed_tag(
-            session,
-            target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-            target_id=seeded["record_bj"],
-            asset_version_id=seeded["version_id"],
-            tag_type="region", tag_value="北京",
-        )
-        _seed_tag(
-            session,
-            target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-            target_id=seeded["record_bj"],
-            asset_version_id=seeded["version_id"],
-            tag_type="industry", tag_value="直播电商",
-        )
-        _seed_tag(
-            session,
-            target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-            target_id=seeded["record_sh"],
-            asset_version_id=seeded["version_id"],
-            tag_type="region", tag_value="上海",
-        )
-        executor = JobDemandRetrievalExecutor(rerank_enabled=True)
-        sub_query = RetrievalSubQuery.model_validate({
-            "query_id": "q1", "channel": "structured",
-            "domain": "job_demand", "purpose": "t",
-            "query_text": "t",
-            "structured_plan": {
-                "table_profile": "job_demand.v1",
-                "query_profile": "job_demand.record_list",
-            },
-            "tag_filters": {
-                "regions": TagFilter(
-                    tags=["北京", "上海"], match_strategy="l1|l1.5",
-                ).model_dump(),
-                "industries": TagFilter(
-                    tags=["直播电商"], match_strategy="l1|l1.5",
-                ).model_dump(),
-            },
-            "combine": "WEIGHTED",
-        })
-        result = executor.execute(session, sub_query)
+        query = _make_sub_query(order_by=[QueryOrder(field="city", direction="desc")])
+        query.structured_plan.query_profile = profile
+        result = JobDemandRetrievalExecutor(rerank_enabled=True).execute(session, query)
         assert [r["id"] for r in result.records] == [
-            seeded["record_bj"], seeded["record_sh"],
+            seeded[f"{prefix}_bj"],
+            seeded[f"{prefix}_sh"],
         ]
-        assert result.records[0]["score"] == 2.0
-        assert result.records[1]["score"] == 1.0
-        assert "weighted_rerank_applied" in result.warnings
+        assert all("score" not in r for r in result.records)
+        assert not any("rerank" in w for w in result.warnings)
 
-    def test_switch_off_keeps_sql_order_but_injects_scores(self, session):
-        seeded = _seed_job_demand(session)
-        # SH gets higher score than BJ but rerank is disabled.
-        _seed_tag(
-            session,
-            target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-            target_id=seeded["record_bj"],
-            asset_version_id=seeded["version_id"],
-            tag_type="region", tag_value="北京",
+    def test_aggregation_profile_never_injects_scores(self, session):
+        _seed_job_demand(session)
+        query = _make_sub_query()
+        query.structured_plan = StructuredPlan(
+            table_profile="job_demand.v1",
+            query_profile="job_demand.count_by_city",
+            filters={"city": "北京市"},
+            group_by=["city"],
+            metrics=[{"field": "record", "function": "count"}],
         )
-        _seed_tag(
-            session,
-            target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-            target_id=seeded["record_sh"],
-            asset_version_id=seeded["version_id"],
-            tag_type="region", tag_value="上海",
-        )
-        _seed_tag(
-            session,
-            target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-            target_id=seeded["record_sh"],
-            asset_version_id=seeded["version_id"],
-            tag_type="industry", tag_value="直播电商",
-        )
-        executor = JobDemandRetrievalExecutor(rerank_enabled=False)
-        sub_query = RetrievalSubQuery.model_validate({
-            "query_id": "q1", "channel": "structured",
-            "domain": "job_demand", "purpose": "t",
-            "query_text": "t",
-            "structured_plan": {
-                "table_profile": "job_demand.v1",
-                "query_profile": "job_demand.record_list",
-            },
-            "tag_filters": {
-                "regions": TagFilter(
-                    tags=["北京", "上海"], match_strategy="l1|l1.5",
-                ).model_dump(),
-                "industries": TagFilter(
-                    tags=["直播电商"], match_strategy="l1|l1.5",
-                ).model_dump(),
-            },
-            "combine": "WEIGHTED",
-        })
-        result = executor.execute(session, sub_query)
-        # Scores injected regardless of switch
-        scores_by_id = {r["id"]: r["score"] for r in result.records}
-        assert scores_by_id[seeded["record_bj"]] == 1.0
-        assert scores_by_id[seeded["record_sh"]] == 2.0
-        assert "weighted_rerank_disabled_by_config" in result.warnings
-
-    def test_requirement_keyword_reranks_by_item_id(self, session):
-        seeded = _seed_job_demand(session)
-        # Item bj matches two ability buckets (dedup within bucket: max)
-        _seed_tag(
-            session,
-            target_type=TagAssetIndexTargetType.JOB_DEMAND_REQUIREMENT_ITEM,
-            target_id=seeded["item_bj"],
-            asset_version_id=seeded["version_id"],
-            tag_type="ability", tag_value="直播运营",
-        )
-        _seed_tag(
-            session,
-            target_type=TagAssetIndexTargetType.JOB_DEMAND_REQUIREMENT_ITEM,
-            target_id=seeded["item_bj"],
-            asset_version_id=seeded["version_id"],
-            tag_type="topic", tag_value="电商",
-        )
-        # Item sh matches one
-        _seed_tag(
-            session,
-            target_type=TagAssetIndexTargetType.JOB_DEMAND_REQUIREMENT_ITEM,
-            target_id=seeded["item_sh"],
-            asset_version_id=seeded["version_id"],
-            tag_type="ability", tag_value="用户增长",
-        )
-        executor = JobDemandRetrievalExecutor(rerank_enabled=True)
-        sub_query = RetrievalSubQuery.model_validate({
-            "query_id": "q1", "channel": "structured",
-            "domain": "job_demand", "purpose": "t",
-            "query_text": "t",
-            "structured_plan": {
-                "table_profile": "job_demand.v1",
-                "query_profile": "job_demand.requirement_keyword",
-            },
-            "tag_filters": {
-                "abilities": TagFilter(
-                    tags=["直播运营", "用户增长"], match_strategy="l1|l1.5",
-                ).model_dump(),
-                "topics": TagFilter(
-                    tags=["电商"], match_strategy="l1|l1.5",
-                ).model_dump(),
-            },
-            "combine": "WEIGHTED",
-        })
-        result = executor.execute(session, sub_query)
-        assert [r["id"] for r in result.records] == [
-            seeded["item_bj"], seeded["item_sh"],
-        ]
-        assert result.records[0]["score"] == 2.0
-        assert result.records[1]["score"] == 1.0
-
-    def test_aggregation_profile_skips_rerank_entirely(self, session):
-        seeded = _seed_job_demand(session)
-        _seed_tag(
-            session,
-            target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-            target_id=seeded["record_bj"],
-            asset_version_id=seeded["version_id"],
-            tag_type="region", tag_value="北京",
-        )
-        executor = JobDemandRetrievalExecutor(rerank_enabled=True)
-        sub_query = RetrievalSubQuery.model_validate({
-            "query_id": "q1", "channel": "structured",
-            "domain": "job_demand", "purpose": "t",
-            "query_text": "t",
-            "structured_plan": {
-                "table_profile": "job_demand.v1",
-                "query_profile": "job_demand.count_by_city",
-                "group_by": ["city"],
-                "metrics": [{"field": "record", "function": "count"}],
-            },
-            "tag_filters": {
-                "regions": TagFilter(
-                    tags=["北京"], match_strategy="l1|l1.5",
-                ).model_dump(),
-            },
-            "combine": "WEIGHTED",
-        })
-        result = executor.execute(session, sub_query)
-        # Aggregation results don't have record ids → no score injection
-        # and no rerank warning.
-        rerank_warnings = [
-            w for w in result.warnings if "rerank" in w or "weighted" in w
-        ]
-        assert rerank_warnings == []
-        # Records are group_value payloads; if any exist they carry no score
-        for row in result.aggregations[0].series:
-            assert "score" not in row
+        result = JobDemandRetrievalExecutor(rerank_enabled=True).execute(session, query)
+        assert len(result.aggregations[0].series) == 1
+        assert result.aggregations[0].series[0]["value"] == 1
+        assert "score" not in result.aggregations[0].series[0]
+        assert not any("rerank" in w for w in result.warnings)
 
 
 # ---------------------------------------------------------------------------

@@ -31,98 +31,6 @@ from nexus_app.enums import (
 # ---------------------------------------------------------------------------
 
 
-def _isolate_pipeline_b_scope(session) -> None:
-    """Delete any pre-existing Pipeline-B data the retrieval query would see.
-
-    Rationale — the shared dev Postgres (used by ``NEXUS_GOLDEN_USE_POSTGRES``)
-    carries leftover ``job_demand_dataset`` / ``major_distribution_dataset``
-    rows plus their descendants and 250+ ``tag_asset_index`` projections
-    from PR-6b backfill work and earlier ad-hoc pipeline runs.  The M-C.3
-    xlsx tag_filter golden cases use ``expected_record_ids_disjoint`` to
-    prove the tag_filter narrowed the result — but the executor's Phase A
-    resolver scans all ``tag_asset_index`` rows for the given
-    (``tag_type``, ``tag_value_normalized``), so any pre-existing row with
-    a matching value gets returned alongside the fixture's fresh rows and
-    breaks the disjoint check.
-
-    Because the enclosing test runs inside the ``create_savepoint`` outer
-    transaction (see ``tests/conftest.py``), every DELETE here is undone
-    on teardown — the shared dev DB is unchanged.  This is a no-op on the
-    SQLite in-memory backend (fresh schema per test), so we don't need to
-    branch on the backend explicitly.
-
-    Cascade note — ``job_demand_record`` /
-    ``job_demand_requirement_item`` / ``major_distribution_record`` all
-    ondelete=CASCADE off their dataset, so deleting the two dataset rows
-    is enough to sweep their descendants.  ``tag_asset_index`` is
-    polymorphic (no FK back to source tables), so its rows are deleted
-    explicitly by ``target_type``.
-    """
-    from sqlalchemy import delete
-    from nexus_app.enums import TagAssetIndexTargetType
-
-    # Sweep tag_asset_index rows for every target_type the xlsx pipelines
-    # feed into.  Ability-item rows aren't touched by these fixtures but
-    # keeping the set complete guards against future domain additions
-    # sharing this helper.
-    session.execute(
-        delete(models.TagAssetIndex).where(
-            models.TagAssetIndex.target_type.in_([
-                TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-                TagAssetIndexTargetType.JOB_DEMAND_REQUIREMENT_ITEM,
-                TagAssetIndexTargetType.MAJOR_DISTRIBUTION_RECORD,
-            ])
-        )
-    )
-    session.execute(delete(models.JobDemandDataset))
-    session.execute(delete(models.MajorDistributionDataset))
-    session.flush()
-
-
-def _run_pipeline_without_live_llm(execute_job, *args, **kwargs) -> None:
-    """Invoke ``execute_job`` with every LiteLLM entry point neutralised.
-
-    The M-C.3 xlsx bootstrap fixtures need the full B0-B4 pipeline to run
-    end-to-end so ``project_writer_records`` populates ``tag_asset_index``,
-    but the pipeline also fires body_markdown / requirement_extraction /
-    task_structuring / governance_multi stages that reach for
-    ``_create_default_litellm_client`` and hang against the real dev
-    LiteLLM endpoint (Postgres session sat ``idle in transaction`` while
-    Python blocked on httpx).  The golden xlsx cases assert on
-    tag_asset_index rows and record ordering — nothing that needs a real
-    LLM response — so we patch the factory to return a stub whose
-    ``.call()`` raises ``LiteLLMCallError``.  Every stage's defensive
-    ``except`` swallows that error and audits it as skipped, matching
-    what happens in a fresh dev environment without LiteLLM credentials.
-    """
-    from unittest.mock import patch
-
-    from nexus_app.ai_governance.litellm_client import (
-        LiteLLMCallError,
-        LiteLLMErrorType,
-    )
-
-    class _StubLiteLLMClient:
-        def call(self, *_args, **_kwargs):  # pragma: no cover - test stub
-            raise LiteLLMCallError(
-                "litellm disabled in xlsx fixture (M-C.3 pipeline unlock)",
-                LiteLLMErrorType.UNKNOWN,
-            )
-
-    def _stub_factory(*_args, **_kwargs):
-        return _StubLiteLLMClient()
-
-    # ``_create_default_litellm_client`` is looked up on the services
-    # module by every stage (late import inside runner._build_* helpers +
-    # module-scope reference inside AIGovernanceService).  Patching the
-    # attribute on that module covers both.
-    with patch(
-        "nexus_app.ai_governance.services._create_default_litellm_client",
-        _stub_factory,
-    ):
-        execute_job(*args, **kwargs)
-
-
 def _seed_asset_scaffold(
     session,
     *,
@@ -294,20 +202,6 @@ def seed_major_distribution_zj_js(session) -> dict[str, Any]:
     }
 
 
-def seed_major_distribution_with_region_tags(session) -> dict[str, Any]:
-    """浙江 record carries a region tag row on tag_asset_index."""
-    seeded = seed_major_distribution_zj_js(session)
-    _seed_tag(
-        session,
-        target_type=TagAssetIndexTargetType.MAJOR_DISTRIBUTION_RECORD,
-        target_id=seeded["record_zj"],
-        asset_version_id=seeded["asset_version_id"],
-        tag_type="region", tag_value="浙江",
-    )
-    session.commit()
-    return seeded
-
-
 def seed_job_demand_bj_sh(session) -> dict[str, Any]:
     """北京 + 上海 job_demand records + 2 requirement items."""
     scaffold = _seed_asset_scaffold(
@@ -369,47 +263,6 @@ def seed_job_demand_bj_sh(session) -> dict[str, Any]:
         "item_bj": item_bj.id,
         "item_sh": item_sh.id,
     }
-
-
-def seed_job_demand_with_region_tags(session) -> dict[str, Any]:
-    seeded = seed_job_demand_bj_sh(session)
-    _seed_tag(
-        session,
-        target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-        target_id=seeded["record_bj"],
-        asset_version_id=seeded["asset_version_id"],
-        tag_type="region", tag_value="北京",
-    )
-    session.commit()
-    return seeded
-
-
-def seed_job_demand_weighted_rerank(session) -> dict[str, Any]:
-    """BJ hits regions + industries; SH hits only regions."""
-    seeded = seed_job_demand_bj_sh(session)
-    _seed_tag(
-        session,
-        target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-        target_id=seeded["record_bj"],
-        asset_version_id=seeded["asset_version_id"],
-        tag_type="region", tag_value="北京",
-    )
-    _seed_tag(
-        session,
-        target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-        target_id=seeded["record_bj"],
-        asset_version_id=seeded["asset_version_id"],
-        tag_type="industry", tag_value="直播电商",
-    )
-    _seed_tag(
-        session,
-        target_type=TagAssetIndexTargetType.JOB_DEMAND_RECORD,
-        target_id=seeded["record_sh"],
-        asset_version_id=seeded["asset_version_id"],
-        tag_type="region", tag_value="上海",
-    )
-    session.commit()
-    return seeded
 
 
 def _seed_pgvector_embedding_for_chunk(
@@ -900,221 +753,6 @@ def seed_course_textbook_outline_no_chunks(session) -> dict[str, Any]:
     }
 
 
-def seed_job_demand_from_xlsx_sample(session) -> dict[str, Any]:
-    """M-C.3 Step 2 — bootstrap job_demand records from the real sample
-    workbook.
-
-    Runs the whole B0-B4 pipeline (submit_file_bytes → execute_job) on
-    ``docs/samples/1.（岗位需求）电子商务岗位招聘数据.xlsx`` and returns
-    the persisted IDs so golden cases can reference production-shape
-    data with two Beijing/Tianjin-flavored records.
-
-    After the pipeline lands ``JobDemandDataset`` + ``JobDemandRecord``,
-    this fixture manually invokes the projection engine to seed
-    ``tag_asset_index`` (source=FIELD_PROJECTION).  The B4 writer does
-    NOT auto-project — wiring it into ``dispatch_domain_normalize`` is
-    a separate governance-level PR.  For M-C.3 Step 2 we accept the
-    coupling here in the fixture layer.
-
-    Sample content (fixed at commit time):
-    - Row 2: 城市=天津滨海新区, 岗位名称=无人机飞手, 薪资=4千-7千
-    - Row 3: 城市=天津静海区, 岗位名称=平面设计师助理, 薪资=4千-8千
-
-    Returns a dict with (all values are runtime-generated UUIDs unless
-    noted):
-    - ``dataset_id`` — the persisted JobDemandDataset row
-    - ``record_ids`` — list of record IDs in xlsx row order
-    - ``asset_version_id`` — the anchoring version
-    - ``ref_id`` — the normalized_asset_ref (governance anchor)
-
-    Because IDs are random UUIDs, golden cases assert content /
-    structural properties (``record_ids_at_least`` in the harness)
-    rather than specific IDs.
-    """
-    from pathlib import Path
-    from sqlalchemy import select
-
-    from nexus_app import services
-    from nexus_app.config import Settings
-    from nexus_app.ingest.gateway import submit_file_bytes
-    from nexus_app.mineru import FakeMinerUAdapter
-    from nexus_app.schemas import DataSourceCreate
-    from nexus_app.storage import InMemoryObjectStorage
-    from nexus_app.worker.runner import execute_job
-
-    _REPO_ROOT = Path(__file__).resolve().parents[3].parent
-    sample = _REPO_ROOT / "docs" / "samples" / "1.（岗位需求）电子商务岗位招聘数据.xlsx"
-    if not sample.exists():
-        raise FileNotFoundError(f"xlsx sample not found: {sample}")
-
-    _isolate_pipeline_b_scope(session)
-
-    storage = InMemoryObjectStorage()
-    xlsx_mime = (
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-    xlsx_settings = Settings(pipeline_b_xlsx_enabled=True)
-
-    source = services.create_data_source(
-        session,
-        DataSourceCreate(
-            code="golden-xlsx-jd",
-            name="golden-xlsx-jd",
-            source_type="file_upload",
-        ),
-    )
-    accepted = submit_file_bytes(
-        session,
-        data_source_id=source.id,
-        idempotency_key="golden-xlsx-jd-key",
-        content=sample.read_bytes(),
-        filename=sample.name,
-        content_type=xlsx_mime,
-        storage=storage,
-        settings=xlsx_settings,
-        trace_id="trace-golden-xlsx-jd",
-    )
-    session.refresh(accepted.job)
-    _run_pipeline_without_live_llm(
-        execute_job,
-        accepted.job, session, storage, FakeMinerUAdapter(), xlsx_settings,
-    )
-    session.refresh(accepted.job)
-
-    ref = session.scalar(select(models.NormalizedAssetRef))
-    dataset = session.scalar(select(models.JobDemandDataset))
-    # Ordering by ``source_record_key`` (encodes xlsx sheet+row) so
-    # ``record_ids[0]`` reliably corresponds to the first data row of
-    # the sample workbook across runs.  Ordering by ``id`` is not
-    # stable (random UUIDs).
-    records = list(session.scalars(
-        select(models.JobDemandRecord)
-        .order_by(models.JobDemandRecord.source_record_key)
-    ))
-    items = list(session.scalars(
-        select(models.JobDemandRequirementItem)
-        .order_by(models.JobDemandRequirementItem.item_name)
-    ))
-
-    if dataset is None or not records:
-        # B4 writer skipped (pipeline stage variance) — golden case
-        # aggregation must still succeed but reports zero records.
-        return {
-            "dataset_id": None,
-            "record_ids": [],
-            "asset_version_id": ref.version_id if ref else None,
-            "ref_id": ref.id if ref else None,
-            "requirement_item_ids": [],
-        }
-
-    # PR-6b — tag_asset_index projection now runs inside the B4 writer
-    # (dispatch_domain_normalize → job_demand_writer.write →
-    # project_writer_records).  The fixture used to do this manually
-    # before PR-6b; now it just observes the resulting rows.
-    session.commit()
-
-    return {
-        "dataset_id": dataset.id,
-        "record_ids": [r.id for r in records],
-        "asset_version_id": dataset.asset_version_id,
-        "ref_id": ref.id if ref else dataset.normalized_ref_id,
-        "requirement_item_ids": [i.id for i in items],
-    }
-
-
-def seed_major_distribution_from_xlsx_sample(session) -> dict[str, Any]:
-    """M-C.3 Step 3 — bootstrap major_distribution records from the
-    real sample workbook.
-
-    Runs the whole B0-B4 pipeline on ``docs/samples/2.（专业布点数）
-    专业布点数.xlsx`` and returns the persisted IDs.  PR-6b wired the
-    B4 writer to auto-project onto ``tag_asset_index``, so this
-    fixture (unlike M-C.3 Step 2's job_demand xlsx bootstrap in its
-    original form) does no manual projection.
-
-    Sample content (fixed at commit time):
-    - Row 2: 网络营销与直播电商 (530704) 北京市 高职 布点数=4 2026年
-    - Row 3: 跨境电子商务 (530702) 北京市 高职 布点数=3 2026年
-    - Row 4: placeholder row (dropped by writer)
-
-    Returns:
-    - ``dataset_id`` — the MajorDistributionDataset id
-    - ``record_ids`` — persisted record ids, ordered by
-      ``source_record_key`` for stability
-    - ``asset_version_id`` / ``ref_id`` — governance anchors
-    """
-    from pathlib import Path
-    from sqlalchemy import select
-
-    from nexus_app import services
-    from nexus_app.config import Settings
-    from nexus_app.ingest.gateway import submit_file_bytes
-    from nexus_app.mineru import FakeMinerUAdapter
-    from nexus_app.schemas import DataSourceCreate
-    from nexus_app.storage import InMemoryObjectStorage
-    from nexus_app.worker.runner import execute_job
-
-    _REPO_ROOT = Path(__file__).resolve().parents[3].parent
-    sample = _REPO_ROOT / "docs" / "samples" / "2.（专业布点数）专业布点数.xlsx"
-    if not sample.exists():
-        raise FileNotFoundError(f"xlsx sample not found: {sample}")
-
-    _isolate_pipeline_b_scope(session)
-
-    storage = InMemoryObjectStorage()
-    xlsx_mime = (
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-    xlsx_settings = Settings(pipeline_b_xlsx_enabled=True)
-
-    source = services.create_data_source(
-        session,
-        DataSourceCreate(
-            code="golden-xlsx-md",
-            name="golden-xlsx-md",
-            source_type="file_upload",
-        ),
-    )
-    accepted = submit_file_bytes(
-        session,
-        data_source_id=source.id,
-        idempotency_key="golden-xlsx-md-key",
-        content=sample.read_bytes(),
-        filename=sample.name,
-        content_type=xlsx_mime,
-        storage=storage,
-        settings=xlsx_settings,
-        trace_id="trace-golden-xlsx-md",
-    )
-    session.refresh(accepted.job)
-    _run_pipeline_without_live_llm(
-        execute_job,
-        accepted.job, session, storage, FakeMinerUAdapter(), xlsx_settings,
-    )
-    session.refresh(accepted.job)
-
-    ref = session.scalar(select(models.NormalizedAssetRef))
-    dataset = session.scalar(select(models.MajorDistributionDataset))
-    records = list(session.scalars(
-        select(models.MajorDistributionRecord)
-        .order_by(models.MajorDistributionRecord.source_record_key)
-    ))
-    if dataset is None or not records:
-        return {
-            "dataset_id": None,
-            "record_ids": [],
-            "asset_version_id": ref.version_id if ref else None,
-            "ref_id": ref.id if ref else None,
-        }
-    session.commit()
-    return {
-        "dataset_id": dataset.id,
-        "record_ids": [r.id for r in records],
-        "asset_version_id": dataset.asset_version_id,
-        "ref_id": ref.id if ref else dataset.normalized_ref_id,
-    }
-
-
 def seed_ability_analysis_from_synthetic(session) -> dict[str, Any]:
     """M-C.3 Step 4 — bootstrap ability_analysis data via a synthetic
     record_body instead of the full xlsx→B5→B6 pipeline.
@@ -1124,9 +762,8 @@ def seed_ability_analysis_from_synthetic(session) -> dict[str, Any]:
     profile + prompt profile seeds.  The value / complexity ratio for
     a golden fixture is poor.  We instead hand-craft a minimal
     ``record_body`` and call ``ability_analysis_writer.write()``
-    directly — this still exercises PR-6b's write-side tag_projection
-    hook (OccupationalAbilityItem → ability tag) end-to-end, just
-    without the B5 LLM detour.
+    directly, exercising the current structured read model without
+    a live model or structured tag projection.
 
     Seeds a minimal PGSD profile (analogous to
     tests/e2e/pipeline_b/conftest.py::_seed_pipeline_b_runtime_rows
@@ -1195,7 +832,7 @@ def seed_ability_analysis_from_synthetic(session) -> dict[str, Any]:
 
     # Hand-crafted record_body: 1 task, 1 work_content, 2 P-abilities
     # under it + 1 G-ability directly on the task.  Exercises both
-    # code patterns and the tag_projection hook.
+    # code patterns and relational persistence.
     record_body = {
         "analysis": {
             "analysis_model": "PGSD",
@@ -1254,18 +891,148 @@ def seed_ability_analysis_from_synthetic(session) -> dict[str, Any]:
     }
 
 
+def seed_job_demand_and_textbooks(session) -> dict[str, Any]:
+    """Job requirements flow through DAG bindings into document ability tags."""
+    jobs = seed_job_demand_bj_sh(session)
+    docs = seed_course_textbook_semantic_two_refs(session)
+    for slug, ability in (("dl", "直播运营"), ("wl", "用户增长")):
+        ref_id = f"ref-ct-{slug}"
+        ref = session.get(models.NormalizedAssetRef, ref_id)
+        _seed_tag(
+            session,
+            target_type=TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
+            target_id=ref_id,
+            asset_version_id=ref.version_id,
+            tag_type="ability",
+            tag_value=ability,
+        )
+    session.commit()
+    return {**jobs, **docs}
+
+
+def seed_course_textbook_rerank_equal_semantics(session) -> dict[str, Any]:
+    """Equal semantic vectors isolate the tag contribution, including RRF."""
+    from sqlalchemy import select
+    from nexus_app.index.embedding_client import _fake_vector, _hash_text
+
+    ids = seed_course_textbook_rerank_uneven_tags(session)
+    content = "直播运营方法论"
+    for chunk in session.scalars(select(models.KnowledgeChunk)):
+        chunk.content = content
+    for vector in session.scalars(select(models.KnowledgeEmbeddingPgvector)):
+        vector.embedding = _fake_vector(content, vector.embedding_dimension)
+        vector.embedding_hash = _hash_text(content)
+        vector.content_hash = _hash_text(content)
+    session.commit()
+    return ids
+
+
+def seed_major_offering_api_sample(session) -> dict[str, Any]:
+    """Exercise public API decoding, direct intake and duplicate skipping."""
+    from types import SimpleNamespace
+    import httpx
+    from sqlalchemy import select
+    from nexus_app.data_sync.adapters.moe_major_offering import MoeMajorOfferingProvider
+    from nexus_app.data_sync.major_offering_intake import MajorOfferingResultHandler
+
+    ids = []
+    for index, (code, name) in enumerate(
+        (
+            ("530704", "网络营销与直播电商"),
+            ("530702", "跨境电子商务"),
+        )
+    ):
+        query = {"year": 2026, "province": "BJ", "major_code": code, "major_name": name}
+        plan = models.DataSyncConfig(
+            name=f"golden-moe-{code}",
+            provider_code="moe_major_offering",
+            frequency="1_year",
+            query_config=query,
+            created_by="golden",
+            idempotency_key=code,
+            request_hash=code,
+        )
+        session.add(plan)
+        session.flush()
+        run = models.DataSyncRun(
+            data_sync_config_id=plan.id,
+            provider_code="moe_major_offering",
+            adapter_version="1",
+            query_snapshot=query,
+            query_hash=code,
+            trace_id=f"golden-moe-{code}",
+        )
+        session.add(run)
+        session.flush()
+        record = {
+            "prov_name": "北京市",
+            "major_code": code,
+            "major_name": name,
+            "school_code": f"school-{index}",
+            "school_name": f"北京测试学校{index}",
+            "school_system": "3",
+            "remark": None,
+        }
+        rows = [record, {**record, "school_system": "4", "remark": "重复项不覆盖"}]
+
+        def respond(request):
+            assert "authorization" not in request.headers
+            assert request.url.params["majorCode"] == code
+            return httpx.Response(
+                200,
+                json={
+                    "success": True,
+                    "data": {
+                        "total": "2",
+                        "list": rows,
+                        "currentPage": 1,
+                        "pageSize": 50,
+                    },
+                },
+            )
+
+        with httpx.Client(transport=httpx.MockTransport(respond)) as client:
+            page = MoeMajorOfferingProvider().fetch_pull_page(
+                SimpleNamespace(api_server_url="https://zwfw.moe.gov.cn"),
+                query,
+                None,
+                client,
+            )
+        assert page["next_cursor"] is None
+        handler = MajorOfferingResultHandler()
+        counts = handler.accept_page(session, run, page["records"])
+        assert (counts.accepted, counts.duplicate) == (1, 1)
+        repeated = handler.accept_page(session, run, page["records"])
+        assert (repeated.accepted, repeated.duplicate) == (0, 2)
+        row = session.scalar(
+            select(models.MajorOfferingRecord).where(
+                models.MajorOfferingRecord.sync_run_id == run.id,
+            )
+        )
+        assert (row.study_duration, row.remark) == ("3", None)
+        ids.append(row.id)
+    for model in (
+        models.Asset,
+        models.AssetVersion,
+        models.NormalizedAssetRef,
+        models.AIGovernanceRun,
+        models.KnowledgeChunk,
+    ):
+        assert session.scalar(select(model)) is None
+    session.commit()
+    return {"record_ids": ids}
+
+
 FIXTURE_REGISTRY: dict[str, Callable] = {
+    "major_offering_api_sample": seed_major_offering_api_sample,
+    "job_demand_and_textbooks": seed_job_demand_and_textbooks,
+    "course_textbook_rerank_equal_semantics": seed_course_textbook_rerank_equal_semantics,
     "major_distribution_zj_js": seed_major_distribution_zj_js,
-    "major_distribution_with_region_tags": seed_major_distribution_with_region_tags,
     "job_demand_bj_sh": seed_job_demand_bj_sh,
-    "job_demand_with_region_tags": seed_job_demand_with_region_tags,
-    "job_demand_weighted_rerank": seed_job_demand_weighted_rerank,
     "course_textbook_outline_topic": seed_course_textbook_outline_topic,
     "course_textbook_semantic_two_refs": seed_course_textbook_semantic_two_refs,
     "course_textbook_rerank_uneven_tags": seed_course_textbook_rerank_uneven_tags,
     "course_textbook_outline_no_chunks": seed_course_textbook_outline_no_chunks,
-    "job_demand_from_xlsx_sample": seed_job_demand_from_xlsx_sample,
-    "major_distribution_from_xlsx_sample": seed_major_distribution_from_xlsx_sample,
     "ability_analysis_from_synthetic": seed_ability_analysis_from_synthetic,
 }
 

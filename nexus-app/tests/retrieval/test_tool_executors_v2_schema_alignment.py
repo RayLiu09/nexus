@@ -13,7 +13,9 @@ audit found ``query_ability_analysis`` had the same class of drift
 This test scans ``tool_executors_v2.py`` with the Python AST module,
 extracts every ``arguments["key"]`` (required-style) and
 ``arguments.get("key")`` (optional-style) access, and cross-checks
-against every scenario's declared schema. Any future schema tweak
+against every scenario's declared schema. Internal-only executors
+use explicit callable contracts and must remain hidden from all scenarios.
+Any future schema tweak
 without the matching executor change trips the test.
 
 Rules:
@@ -32,9 +34,9 @@ Rules:
 """
 from __future__ import annotations
 
+from pathlib import Path
 import ast
 import inspect
-from pathlib import Path
 
 import pytest
 
@@ -60,14 +62,35 @@ LEGACY_ALIAS_ALLOWLIST: dict[str, set[str]] = {
 EXECUTOR_FN_BY_TOOL: dict[str, tuple[str, str | None]] = {
     "internal.search_chunks_by_semantic": ("make_search_chunks_executor", "_run"),
     "internal.query_major_information": ("query_major_information", None),
-    "internal.query_capability_graph_by_major":
-        ("query_capability_graph_by_major", None),
+    "internal.query_capability_graph_by_major": (
+        "query_capability_graph_by_major",
+        None,
+    ),
     "internal.get_evidence_graph_by_ref": ("get_evidence_graph_by_ref", None),
     "internal.query_job_demand": ("query_job_demand", None),
     "internal.get_job_demand_role_graph": ("get_job_demand_role_graph", None),
     "internal.query_ability_analysis": ("query_ability_analysis", None),
     "internal.query_major_distribution": ("query_major_distribution", None),
     "internal.get_outline_subtree": ("get_outline_subtree", None),
+}
+
+
+# Internal-only callable contracts are distinct from the LLM scenario allowlist.
+INTERNAL_ONLY_SCHEMAS = {
+    "internal.get_evidence_graph_by_ref": {
+        "type": "object",
+        "properties": {"normalized_ref_id": {"type": "string"}},
+        "required": ["normalized_ref_id"],
+    },
+    "internal.get_outline_subtree": {
+        "type": "object",
+        "properties": {
+            "node_id": {"type": "string"},
+            "include_chunks": {"type": "boolean"},
+            "max_depth": {"type": "integer"},
+        },
+        "required": ["node_id"],
+    },
 }
 
 
@@ -159,6 +182,11 @@ def _schema_shapes_for(tool_name: str) -> tuple[set[str], set[str]]:
         for tool in registry.for_scenario(scenario_id):
             if tool.name == tool_name:
                 schemas.append(tool.parameters)
+    if tool_name in INTERNAL_ONLY_SCHEMAS:
+        assert (
+            not schemas
+        ), f"internal-only tool {tool_name!r} leaked into LLM scenarios"
+        schemas.append(INTERNAL_ONLY_SCHEMAS[tool_name])
     if not schemas:
         raise AssertionError(
             f"tool {tool_name!r} is registered as an executor but "
@@ -260,4 +288,14 @@ def test_every_registered_executor_has_a_contract_row():
     assert not orphan, (
         f"EXECUTOR_FN_BY_TOOL declares {sorted(orphan)} which are no "
         f"longer in default_v2_executor_registry(). Remove the stale rows."
+    )
+
+
+@pytest.mark.parametrize("tool_name", sorted(INTERNAL_ONLY_SCHEMAS))
+def test_internal_only_tools_are_not_exposed_to_llm(tool_name):
+    registry = get_default_tool_registry()
+    assert all(
+        tool.name != tool_name
+        for scenario in registry.scenarios
+        for tool in registry.for_scenario(scenario)
     )

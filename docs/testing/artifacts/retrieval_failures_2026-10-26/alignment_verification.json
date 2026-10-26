@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-26",
+  "command": ".venv/bin/pytest -o addopts='' -q --tb=short tests/retrieval --junitxml=/tmp/nexus-retrieval-alignment-final.xml",
+  "cwd": "nexus-app",
+  "baseline": {
+    "passed": 625,
+    "failed": 57,
+    "skipped": 12
+  },
+  "final": {
+    "passed": 693,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 12,
+    "duration_seconds": 14.41
+  },
+  "original_failure_mappings_verified_against_junit": 57,
+  "skipped": [
+    {
+      "node": "tests/retrieval/test_golden_baseline.py::test_golden_query[gq_p2_pending_rerank_mmr]",
+      "reason": "gq_p2_pending_rerank_mmr: neither prebuilt_plan nor llm_cassette_id — case deferred to a later milestone"
+    },
+    {
+      "node": "tests/retrieval/test_golden_baseline.py::test_golden_query[gq_p2_pending_flagship_cross_5_domain]",
+      "reason": "gq_p2_pending_flagship_cross_5_domain: neither prebuilt_plan nor llm_cassette_id — case deferred to a later milestone"
+    },
+    {
+      "node": "tests/retrieval/test_golden_baseline.py::test_golden_query[gq_p2_pending_lc_ambiguous]",
+      "reason": "gq_p2_pending_lc_ambiguous: neither prebuilt_plan nor llm_cassette_id — case deferred to a later milestone"
+    },
+    {
+      "node": "tests/retrieval/test_golden_baseline.py::test_golden_query[gq_p2_pending_lc_missing_region]",
+      "reason": "gq_p2_pending_lc_missing_region: neither prebuilt_plan nor llm_cassette_id — case deferred to a later milestone"
+    },
+    {
+      "node": "tests/retrieval/test_golden_baseline.py::test_golden_query[gq_p2_pending_lc_missing_metric]",
+      "reason": "gq_p2_pending_lc_missing_metric: neither prebuilt_plan nor llm_cassette_id — case deferred to a later milestone"
+    },
+    {
+      "node": "tests/retrieval/test_golden_baseline.py::test_golden_query[gq_p2_pending_permission_all_assets]",
+      "reason": "gq_p2_pending_permission_all_assets: neither prebuilt_plan nor llm_cassette_id — case deferred to a later milestone"
+    },
+    {
+      "node": "tests/retrieval/test_golden_baseline.py::test_golden_query[gq_p2_pending_permission_narrower_scope]",
+      "reason": "gq_p2_pending_permission_narrower_scope: neither prebuilt_plan nor llm_cassette_id — case deferred to a later milestone"
+    },
+    {
+      "node": "tests/retrieval/test_golden_baseline.py::test_golden_query[gq_p2_pending_ct_docx_real_livestream]",
+      "reason": "gq_p2_pending_ct_docx_real_livestream: neither prebuilt_plan nor llm_cassette_id — case deferred to a later milestone"
+    },
+    {
+      "node": "tests/retrieval/test_golden_baseline.py::test_golden_query[gq_p2_pending_ct_pdf_real_teaching_standard]",
+      "reason": "gq_p2_pending_ct_pdf_real_teaching_standard: neither prebuilt_plan nor llm_cassette_id — case deferred to a later milestone"
+    },
+    {
+      "node": "tests/retrieval/test_golden_baseline.py::test_golden_query[gq_p2_pending_occupation_l4_semantic]",
+      "reason": "gq_p2_pending_occupation_l4_semantic: neither prebuilt_plan nor llm_cassette_id — case deferred to a later milestone"
+    },
+    {
+      "node": "tests/retrieval/test_golden_baseline.py::test_golden_query[gq_p2_pending_occupation_l4_rerank_forced]",
+      "reason": "gq_p2_pending_occupation_l4_rerank_forced: neither prebuilt_plan nor llm_cassette_id — case deferred to a later milestone"
+    },
+    {
+      "node": "tests/retrieval/test_golden_baseline.py::test_golden_query[gq_p2_pending_embedding_missing_l4_skip]",
+      "reason": "gq_p2_pending_embedding_missing_l4_skip: neither prebuilt_plan nor llm_cassette_id — case deferred to a later milestone"
+    }
+  ],
+  "production_behavior_changes": false,
+  "live_ministry_api_or_litellm_calls": false,
+  "database_migration": false
+}

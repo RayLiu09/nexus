@@ -228,11 +228,16 @@ def _make_dispatch(executor_map):
 def _record_ids_for(result: RetrievalResult) -> list[str]:
     """Extract record IDs from either structured records or unstructured items."""
     if result.records:
-        return [
-            str(r.get("id"))
-            for r in result.records
-            if isinstance(r, dict) and r.get("id") is not None
-        ]
+        ids = []
+        for record in result.records:
+            if not isinstance(record, dict):
+                continue
+            record_id = record.get("id")
+            if record_id is None and isinstance(record.get("ability_item"), dict):
+                record_id = record["ability_item"].get("id")
+            if record_id is not None:
+                ids.append(str(record_id))
+        return ids
     if result.items:
         return [str(item.chunk_id) for item in result.items if item.chunk_id]
     return []
@@ -290,9 +295,7 @@ def _apply_expectations(
             if s not in actual_shapes:
                 failures.append(f"result_shape_missing: {s}")
 
-    # Cardinality-only assertion for xlsx-bootstrap cases where the
-    # per-record UUID is random but the sample content guarantees a
-    # minimum row count.
+    # Lower-bound assertion for cases with a guaranteed minimum row count.
     for qid, minimum in golden.expected_records_at_least.items():
         result = result_by_qid.get(qid)
         if result is None:
@@ -307,6 +310,30 @@ def _apply_expectations(
             failures.append(
                 f"records_at_least: qid={qid} expected>={minimum} "
                 f"actual={count}"
+            )
+
+    for qid, expected in golden.expected_record_counts.items():
+        result = result_by_qid.get(qid)
+        actual = len(result.records or result.items) if result else None
+        if actual != expected:
+            failures.append(
+                f"record_count: qid={qid} expected={expected} actual={actual}"
+            )
+    for qid, fragments in golden.expected_errors_contains.items():
+        result = result_by_qid.get(qid)
+        for fragment in fragments:
+            if result is None or fragment not in (result.error_message or ""):
+                failures.append(f"error_missing: qid={qid} fragment={fragment!r}")
+    for qid, expected in golden.expected_aggregation_series.items():
+        result = result_by_qid.get(qid)
+        actual = (
+            [row for agg in result.aggregations for row in agg.series]
+            if result
+            else None
+        )
+        if actual != expected:
+            failures.append(
+                f"aggregation_series: qid={qid} expected={expected} actual={actual}"
             )
 
     # Warnings — flattened across all sub_queries.
@@ -464,23 +491,21 @@ def _run_cassette(
 
     # RetrievalOrchestrator expects an executor per (channel, domain) —
     # the constructor accepts the individual executor overrides, so we
-    # unpack the map.  Unstructured executor is left as the default
-    # (create_unstructured_retrieval_executor) since M-C.2 cases don't
-    # exercise the pgvector path yet (that's M-C.3 territory).
+    # unpack the map, including the deterministic embedding adapter.
     orchestrator = RetrievalOrchestrator(
         intent_service=intent_service,
         planner_service=planner_service,
         major_distribution_executor=executor_map[
-            (str(RetrievalChannel.STRUCTURED),
-             str(BusinessDomain.MAJOR_DISTRIBUTION))
+            (str(RetrievalChannel.STRUCTURED), str(BusinessDomain.MAJOR_DISTRIBUTION))
         ],
         job_demand_executor=executor_map[
-            (str(RetrievalChannel.STRUCTURED),
-             str(BusinessDomain.JOB_DEMAND))
+            (str(RetrievalChannel.STRUCTURED), str(BusinessDomain.JOB_DEMAND))
+        ],
+        unstructured_executor=executor_map[
+            (str(RetrievalChannel.UNSTRUCTURED), str(BusinessDomain.COURSE_TEXTBOOK))
         ],
         competency_executor=executor_map[
-            (str(RetrievalChannel.STRUCTURED),
-             str(BusinessDomain.COMPETENCY_ANALYSIS))
+            (str(RetrievalChannel.STRUCTURED), str(BusinessDomain.COMPETENCY_ANALYSIS))
         ],
     )
     context_pack = orchestrator.run(session, golden.question)
