@@ -75,6 +75,15 @@ class EnterpriseRead(BaseModel):
     updated_at: datetime | None
 
 
+class StandardOccupationRead(BaseModel):
+    dimension_type: Literal["applied_industry", "occupation_type", "primary_position", "certificate_type"]
+    source_code: str | None
+    source_name: str
+    source_text: str | None
+    evidence_block_ids: list[str]
+    locator: dict[str, Any]
+
+
 class StandardRead(BaseModel):
     id: str
     normalized_ref_id: str
@@ -89,7 +98,8 @@ class StandardRead(BaseModel):
     major_class_name: str | None
     educational_level: str | None
     basic_study_years: str | None
-    status: Literal["active"]
+    status: Literal["review", "active", "superseded"]
+    career_orientation: list[StandardOccupationRead] = Field(default_factory=list)
     course_count: int
     updated_at: datetime | None
 
@@ -102,7 +112,7 @@ class StandardCourseRead(BaseModel):
     major_code: str | None
     major_name: str | None
     educational_level: str | None
-    library_status: Literal["active"]
+    library_status: Literal["review", "active", "superseded"]
     course_type: Literal["foundation", "core", "extension"]
     suggested_total_hours: int | None
     suggested_practice_hours: int | None

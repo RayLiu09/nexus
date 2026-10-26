@@ -99,3 +99,21 @@ def test_latest_asset_tools_have_accurate_ministry_and_occupation_contracts():
     # All exported operations need usable intent descriptions, not title-cased function names.
     for tool in tools.values():
         assert len(tool["description"]) > 25, tool["name"]
+
+
+def test_career_and_region_filters_and_non_active_statuses_are_exported():
+    catalog = generate_catalog(create_app().openapi())
+    tools = {item["name"]: item for item in catalog["tools"]}
+    bindings = {item["name"]: item for item in catalog["bindings"]}
+    for name in ("query_market_jobs", "aggregate_market_jobs"):
+        query = tools[name]["parameters"]["properties"]["query"]["properties"]
+        assert "region" in query
+        assert "采集范围" in query["region"]["description"]
+    query = tools["query_teaching_standards"]["parameters"]["properties"]["query"]["properties"]
+    assert "occupation" in query
+    assert "职业面向" in query["occupation"]["description"]
+    for name in ("query_teaching_standards", "get_teaching_standard"):
+        data = bindings[name]["response_schemas"]["200"]["properties"]["data"]
+        fields = data.get("items", data)["properties"]
+        assert set(fields["status"]["enum"]) == {"review", "active", "superseded"}
+        assert {"evidence_block_ids", "locator", "source_name", "source_code"} <= fields["career_orientation"]["items"]["properties"].keys()

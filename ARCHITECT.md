@@ -589,8 +589,14 @@ Agent consumption extensions stay in `nexus-api` under `/open/v1` and reuse
 existing fact tables and normalized documents without migrations or a second
 knowledge pipeline. Shared current-ref selection gates the new document tools;
 domain projections additionally require their latest official classification,
-and teaching-standard libraries require `active`. Raw jobs, parks, enterprises
+while teaching-standard lifecycle status does not gate public reads. Raw jobs, parks, enterprises
 and existing structured records retain independent record boundaries.
+Market job `region` filters source addresses before list pagination and aggregation;
+collection scope is never inferred as workplace. Teaching-standard `occupation`
+filters source-scoped industry/occupation/position facts with an EXISTS query
+and returns `career_orientation` with block locators. Vertical and horizontal
+source tables are supported; deterministic career-only backfill never invokes AI
+or alters lifecycle, courses, or derived tags.
 Scoped retrieval intersects document/metadata/node filters before pgvector
 ranking. Sections, outlines, existing graphs and batch evidence are bounded
 read adapters and never trigger knowledge production. Public reads authenticate

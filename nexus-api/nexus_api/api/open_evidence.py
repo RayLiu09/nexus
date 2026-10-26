@@ -200,14 +200,15 @@ def graph(ref_id: str, request: Request,
           max_nodes: int = Query(100, ge=1, le=500), max_edges: int = Query(200, ge=1, le=1000),
           caller=Depends(require_api_caller), session: Session = Depends(get_db)):
     """Read an existing exact-ref graph or bounded neighborhood. Generated relations remain derived assertions with evidence."""
-    require_ref(session, ref_id)
+    ref = require_ref(session, ref_id)
     classification = session.scalar(select(classification_for(ref_id)))
     result = {"normalized_ref_id": ref_id, "graph_type": graph_type, "available": False,
               "nodes": [], "edges": [], "facts": [], "truncated": False, "reason": "not_generated"}
-    active_standard = graph_type != "teaching_standard" or (classification == "teaching_standard" and session.scalar(select(models.TeachingStandardLibrary.id).where(
-        models.TeachingStandardLibrary.normalized_ref_id == ref_id, models.TeachingStandardLibrary.status == "active").limit(1)))
-    if not active_standard:
-        result["reason"] = "standard_library_not_active"
+    standard_matches = graph_type != "teaching_standard" or (classification == "teaching_standard" and session.scalar(select(models.TeachingStandardLibrary.id).where(
+        models.TeachingStandardLibrary.normalized_ref_id == ref_id,
+        models.TeachingStandardLibrary.asset_version_id == ref.version_id).limit(1)))
+    if not standard_matches:
+        result["reason"] = "standard_library_not_available"
     elif classification in ("talent_demand_report", "teaching_case"):
         result["reason"] = "semantic_only_resource"
     else:

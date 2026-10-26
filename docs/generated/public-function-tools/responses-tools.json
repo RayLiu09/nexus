@@ -1482,7 +1482,7 @@
   {
     "type": "function",
     "name": "query_market_jobs",
-    "description": "Query current raw_jobs postings. Collection time is not publication time; salary is source text.",
+    "description": "Query current raw_jobs postings, including region substring matching on source addresses before pagination. Collection time is not publication time; salary is source text.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -1566,6 +1566,20 @@
                 }
               ],
               "title": "Experience"
+            },
+            "region": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "工作地区关键词，按原始岗位地址做字面子串检索；不使用采集范围推断工作地点。",
+              "title": "Region"
             },
             "collected_from": {
               "anyOf": [
@@ -1720,6 +1734,20 @@
                 }
               ],
               "title": "Experience"
+            },
+            "region": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "工作地区关键词，按原始岗位地址做字面子串检索；不使用采集范围推断工作地点。",
+              "title": "Region"
             },
             "collected_from": {
               "anyOf": [
@@ -3768,7 +3796,7 @@
   {
     "type": "function",
     "name": "get_standard_course",
-    "description": "读取标准课程及所属专业教学标准、建议学时、派生知识/技能/工具/素养标签和证据。所属标准须 active 且来源文档当前可用；不触发生成，不可用返回 404。",
+    "description": "读取标准课程及所属标准、建议学时、派生标签和证据，不受所属标准生命周期状态限制。来源文档须当前可用且分类匹配；不触发生成，不可用返回 404。",
     "parameters": {
       "type": "object",
       "properties": {
@@ -3796,7 +3824,7 @@
   {
     "type": "function",
     "name": "query_teaching_standards",
-    "description": "Read active standards backed by current available documents; no activation side effect.",
+    "description": "按专业、层次和职业面向检索当前可读教学标准。职业面向匹配对应行业、职业类别/代码或主要岗位的原文事实；分页前过滤、同一标准不重复。标准 review/active/superseded 状态不限制公开读取，不触发激活。",
     "parameters": {
       "type": "object",
       "properties": {
@@ -3839,6 +3867,20 @@
               ],
               "title": "Education Level"
             },
+            "occupation": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "职业面向关键词：对应行业、职业类别/代码、主要岗位的来源内容；与专业和层次条件按 AND 组合。",
+              "title": "Occupation"
+            },
             "page": {
               "type": "integer",
               "maximum": 10000,
@@ -3864,7 +3906,7 @@
   {
     "type": "function",
     "name": "get_teaching_standard",
-    "description": "读取单个已激活专业教学标准及课程数量、专业身份和来源锚点。来源须为当前 available 且正式分类为教学标准的文档；不触发激活或图谱生成，不可用返回 404。",
+    "description": "读取专业教学标准、职业面向证据、课程数量及来源锚点，不受标准生命周期状态限制。来源须为当前 available 且正式分类为教学标准的文档；不触发激活或图谱生成，不可用返回 404。",
     "parameters": {
       "type": "object",
       "properties": {

@@ -16,6 +16,8 @@
 
 专业布点使用 list_major_offerings / aggregate_major_offerings，来源为教育部政务服务平台同步或控制台 Excel 导入数据，直接入库且无 AI 治理；不可用专业简介或培养方案统计替代。职业分类大典使用 query_occupation_dictionary，支持职业大类、小类、名称组合过滤，返回定义与工作任务。两类数据仅表示已入库覆盖。
 
+市场岗位 query_market_jobs / aggregate_market_jobs 支持 region，按来源岗位地址字面子串过滤，不以采集范围推断工作地。query_teaching_standards 支持 occupation 匹配来源行业、职业类别/代码和岗位，返回 career_orientation 原文及定位。标准与课程读取不受库 review/active/superseded 状态限制，仍要求当前 available 文档及正式分类。
+
 专业布点 Excel 下载由 /v1/major-offerings/export 及内部 Console 接口提供，属于二进制下载，不列为 JSON function tool。完整资源与接口映射见 [公开消费合同](../../api/public_agent_data_api.md)。
 
 重新生成：`nexus-api/.venv/bin/python scripts/generate_public_function_tools.py`；检查漂移：追加 `--check`。无需启动服务或读取数据库。

@@ -15,7 +15,7 @@
 | A 专业简介 | `GET /major-profile-documents` | 当前文档及四项专业身份元数据，遵循人工修改和清空值；不依赖已退役 MajorProfile 投影 |
 | A 市场岗位 | `GET /market-jobs`、`/{job_id}` | 同页面读取 raw_jobs + provenance；岗位/企业/行业/学历/经验/采集时间查询，保留源字段、provider/upstream ID、来源链接 |
 | A 园区与企业 | `GET /industrial-parks`、`/{park_id}`；`GET /enterprises`、`/{enterprise_id}` | 名称/行业、经营范围、所属园区查询；园区企业数量及真实关系 |
-| A 教学标准 | `GET /teaching-standard-libraries`、`/{library_id}` | 专业代码/名称、层次、修业年限、课程数量、引用锚点；active 库 + 当前 available 文档 + 正式分类 |
+| A 教学标准 | `GET /teaching-standard-libraries`、`/{library_id}` | 专业代码/名称、层次、修业年限、课程数量、引用锚点；职业面向及正文定位；当前 available 文档 + 正式分类，不限制库状态 |
 | A 标准课程 | `GET /teaching-standard-courses`、`/{course_id}` | 跨标准检索课程名、专业、类型及标签；学时语义 suggested，标签语义 derived；返回章节页码和证据绑定 |
 | A 教材 | `GET /course-textbooks`、`/{profile_id}` | 教材名、理论/实训类型、出版社、主编、出版年；返回已有知识/任务大纲能力 |
 | A 限定范围检索 | 增强 `GET /search` | asset_ids、normalized_ref_ids、多 knowledge_types 及文档元数据；在向量排序/top_k 前取范围交集；保留 chunk/block/locator 引用 |
@@ -45,12 +45,12 @@
 - 章节列表 `offset/limit` 是块列表偏移，limit 上限 100；每块预览 max_chars 上限 1000。片段详情 `offset` 为 Unicode 字符偏移，max_chars 上限 20000，adjacent_blocks 为两侧各 0–3 个块；邻接块的原始定位放在 locator.context_blocks。内容不注入锚点标记。
 - 大纲 `offset/limit` 对节点列表分页，limit 上限 500；parent_node_id 返回包含父节点的子树。节点内容预览最多 4000 字符并带 content_truncated。
 - 节点上下文 limit 上限 100、总 max_chars 上限 20000。续读同时传返回的 next_offset 与 next_char_offset；后一字段用于继续同一 chunk 的剩余字符，不跳过被截断尾部。chunk 带 content_offset、content_total_chars、truncated。
-- 图谱 graph_type 支持 evidence_grounded_kg、teaching_standard、ability_analysis、job_demand、combined；只选该 ref 对应类型最新成功/生成结果。node_id 指定邻域；depth 为 0–5 的无向连接跳数，边仍保持原方向；节点与关系类型为重复参数。max_nodes≤500、max_edges≤1000，超限返回 truncated。证据图谱返回已有事实及每个节点/边最多三项证据；长证据文本、属性/限定词对象带截断标记。教学标准图谱还要求 active 库；talent_demand_report、teaching_case 返回 semantic_only_resource。
+- 图谱 graph_type 支持 evidence_grounded_kg、teaching_standard、ability_analysis、job_demand、combined；只选该 ref 对应类型最新成功/生成结果。node_id 指定邻域；depth 为 0–5 的无向连接跳数，边仍保持原方向；节点与关系类型为重复参数。max_nodes≤500、max_edges≤1000，超限返回 truncated。证据图谱返回已有事实及每个节点/边最多三项证据；长证据文本、属性/限定词对象带截断标记。教学标准图谱要求同 ref、同版本的标准库，不限制库状态；talent_demand_report、teaching_case 返回 semantic_only_resource。
 - 批量证据 max_chars 为每项预算（100–10000），结果保持输入顺序。业务记录遵循独立公开边界，不因其存在一个 ref 就绕过文档正文准入；不为 raw_jobs/园区/企业制造 ref。
 
 ## 权限、只读与审计
 
-文档新读取及目录/检索限定为 available 版本的最新 generated ref。教材、标准、培养方案领域读取还需当前正式分类匹配，标准还需自身 active。当前 API Caller 权限为 `open:*`，组织过滤仍为 P0 noop，本次没有引入或宣称组织级数据隔离。
+文档新读取及目录/检索限定为 available 版本的最新 generated ref。教材、标准、培养方案领域读取还需当前正式分类匹配，标准库的 review/active/superseded 均可读取。当前 API Caller 权限为 `open:*`，组织过滤仍为 P0 noop，本次没有引入或宣称组织级数据隔离。
 
 所有新增读取经 API Key 认证，新增消费接口记录 SEARCH_QUERY_EXECUTED、actor、资源/ID、数量和 trace_id，摘要不记录原文、自由检索文本、来源 URL 或 API Key。持久化 caller 在返回前重新校验撤销/过期状态，防止对象存储读取等较长请求继续返回数据。已有正文/chunk/下载沿用原有 lineage 审计。只读接口仅为审计提交事务，不写业务、图谱、大纲、治理或 job 表。
 
@@ -121,3 +121,16 @@ nexus-api/.venv/bin/python scripts/generate_public_function_tools.py --check
 脚本只读取应用 Schema，不启动 lifespan、不查询数据库、不调用存储、嵌入、LLM 或第三方搜索。也支持 `--openapi <exported.json>` 使用导出的公开合同。
 
 专业布点列表支持业务专家或数据管理员通过内部 `POST /internal/v1/major-offerings/import` 上传 .xlsx，下载 `/internal/v1/major-offerings/import-template` 空模板；不开放公开写入工具。列表来源字段 `sync_run_id` / `import_id` 二选一，记录可来自 API 同步或 Excel 导入；查询与聚合统计覆盖两者。
+
+## 岗位地区与教学标准职业面向
+
+- `query_market_jobs` 与 `aggregate_market_jobs` 的 `query.region` 对 `address_raw` 做转义的字面子串匹配，分页和聚合前过滤，与岗位名、学历、时间等条件 AND。空地址不命中；不将采集的 `query_region` 当作真实工作地，不自动将省份扩展成城市。
+- `query_teaching_standards` 的 `query.occupation` 匹配 `career_orientation` 中 `applied_industry`、`occupation_type`、`primary_position` 的 `source_name` 或 `source_code`；证书项不参与职业面向过滤。多个事实命中同一库仍只计一个标准，且与 `major_code`、`major_name`、`education_level` 条件 AND。
+- 标准列表和详情返回 `career_orientation`：维度、原文名称/代码、原文、`evidence_block_ids` 和 `locator`。职业面向从标准正文横向/纵向表规则提取；历史数据可使用专项脚本 dry-run/`--apply` 补录，不调用 AI，不修改课程、摘要、标签或库生命周期。
+- 公开标准、课程、资源发现计数/候选及 exact-ref 标准图谱统一去掉 active 准入；仍要求当前 available 文档、最新 generated ref、正式教学标准分类与投影版本一致。未发布或旧 ref 不会因此公开。
+
+```json
+{"query":{"region":"杭州","job_title":"电商","page":1,"pageSize":20}}
+```
+
+上例用于岗位列表；查标准可用 `{"query":{"occupation":"电子商务师","page":1,"pageSize":20}}` 或职业代码 `4-01-06-01`。

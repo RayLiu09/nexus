@@ -1,0 +1,419 @@
+{
+  "checked_on": "2026-10-26",
+  "base_url": "http://127.0.0.1:8000",
+  "scope": "Existing read endpoints only; normal API read audits may be written. No business mutation, external search, or PGSD generation. Credentials omitted.",
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/open/v1/data-resources",
+      "status": 200,
+      "trace_id": "268b6836-4b4f-4ce9-964e-58092b202a61",
+      "total": null,
+      "returned_items": 16,
+      "response_data_keys": null
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/occupation-dictionary",
+      "status": 200,
+      "trace_id": "16fca93c-18ef-4617-9a60-944fcfac3dd5",
+      "total": 1,
+      "returned_items": 1,
+      "response_data_keys": null
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/teaching-standard-libraries",
+      "status": 200,
+      "trace_id": "a766414d-6f8b-41ff-9fd8-9629f3cf140b",
+      "total": 2,
+      "returned_items": 2,
+      "response_data_keys": null
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/market-jobs",
+      "status": 200,
+      "trace_id": "045b494c-b14c-4761-93de-42f9eb5a6a30",
+      "total": 9458,
+      "returned_items": 20,
+      "response_data_keys": null
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/record-assets/ability-analyses",
+      "status": 200,
+      "trace_id": "ad85c8a8-151f-43a4-8b46-efd8797f9fb3",
+      "total": 14,
+      "returned_items": 14,
+      "response_data_keys": null
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/assets",
+      "status": 200,
+      "trace_id": "7b3d2597-d98a-409a-89d0-2e62f85e578b",
+      "total": 131,
+      "returned_items": 20,
+      "response_data_keys": null
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/assets",
+      "status": 200,
+      "trace_id": "60337e14-7dad-4004-92ab-985d30cf830a",
+      "total": 10,
+      "returned_items": 10,
+      "response_data_keys": null
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/teaching-standard-libraries/359fa704-488e-4829-9952-a7038c343f08",
+      "status": 200,
+      "trace_id": "c7c60dfb-5927-4a34-8e39-7002f3786e8b",
+      "total": null,
+      "returned_items": null,
+      "response_data_keys": [
+        "id",
+        "normalized_ref_id",
+        "asset_version_id",
+        "raw_object_id",
+        "standard_title",
+        "major_code",
+        "major_name",
+        "major_category_code",
+        "major_category_name",
+        "major_class_code",
+        "major_class_name",
+        "educational_level",
+        "basic_study_years",
+        "status",
+        "course_count",
+        "updated_at"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/normalized-refs/b289c57a-0aad-4513-b1a8-827e9529c850/sections",
+      "status": 200,
+      "trace_id": "57d6fd24-b6ec-48c3-b34f-143cf4a80abc",
+      "total": null,
+      "returned_items": null,
+      "response_data_keys": [
+        "items",
+        "total",
+        "next_offset"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/normalized-refs/b289c57a-0aad-4513-b1a8-827e9529c850/sections/block-p00-001",
+      "status": 200,
+      "trace_id": "733ca158-1862-40c7-b4a8-7a007280ac5c",
+      "total": null,
+      "returned_items": null,
+      "response_data_keys": [
+        "id",
+        "normalized_ref_id",
+        "title",
+        "content",
+        "source_block_ids",
+        "locator",
+        "offset",
+        "total_chars",
+        "truncated",
+        "next_offset"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/normalized-refs/b289c57a-0aad-4513-b1a8-827e9529c850/sections/block-p00-002",
+      "status": 200,
+      "trace_id": "3d75ec8f-0c2d-42b6-bde2-55f131e47648",
+      "total": null,
+      "returned_items": null,
+      "response_data_keys": [
+        "id",
+        "normalized_ref_id",
+        "title",
+        "content",
+        "source_block_ids",
+        "locator",
+        "offset",
+        "total_chars",
+        "truncated",
+        "next_offset"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/teaching-standard-courses",
+      "status": 200,
+      "trace_id": "a7ff578d-d920-4047-b349-def727349663",
+      "total": 36,
+      "returned_items": 1,
+      "response_data_keys": null
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/record-assets/ability-analyses/4a026f92-252b-46af-a19b-91f497cbc399/tasks",
+      "status": 200,
+      "trace_id": "7039077f-f2f8-43b1-bb4b-981309229313",
+      "total": null,
+      "returned_items": null,
+      "response_data_keys": [
+        "analysis_id",
+        "analysis_model",
+        "major_name",
+        "tasks"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/record-assets/ability-items",
+      "status": 200,
+      "trace_id": "2dfe7214-3841-47ff-9722-761e42c1fbcb",
+      "total": 47,
+      "returned_items": 1,
+      "response_data_keys": null
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/market-jobs/9d4273a2-24d0-462c-8296-474a5d696121",
+      "status": 200,
+      "trace_id": "86df7f85-9132-4090-8095-455d42bae31b",
+      "total": null,
+      "returned_items": null,
+      "response_data_keys": [
+        "id",
+        "job_title",
+        "job_responsibilities",
+        "experience_requirement",
+        "education",
+        "salary_range",
+        "industry",
+        "company_name",
+        "company_size",
+        "address",
+        "source_url",
+        "collected_at",
+        "created_at",
+        "provider_code",
+        "upstream_record_id",
+        "source_type",
+        "raw_fields",
+        "source_name",
+        "source_job_id",
+        "received_at"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/open/v1/evidence-resolutions",
+      "status": 200,
+      "trace_id": "229cf197-ce91-45bf-b09d-4adf744a938c",
+      "total": null,
+      "returned_items": 2,
+      "response_data_keys": null
+    },
+    {
+      "method": "POST",
+      "path": "/open/v1/entity-resolutions",
+      "status": 200,
+      "trace_id": "60f8b785-8ef6-4abb-a739-4f8e1b35b472",
+      "total": null,
+      "returned_items": 10,
+      "response_data_keys": null
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/normalized-refs/b289c57a-0aad-4513-b1a8-827e9529c850/knowledge-graph",
+      "status": 200,
+      "trace_id": "2abcc8dd-2f44-42bf-abd0-320f8c87d040",
+      "total": null,
+      "returned_items": null,
+      "response_data_keys": [
+        "normalized_ref_id",
+        "available",
+        "build_id",
+        "graph_type",
+        "nodes",
+        "edges",
+        "facts",
+        "truncated",
+        "reason"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/normalized-refs/b289c57a-0aad-4513-b1a8-827e9529c850",
+      "status": 200,
+      "trace_id": "5cf55e42-7a13-4134-b093-02c67adb5fc0",
+      "total": null,
+      "returned_items": null,
+      "response_data_keys": [
+        "id",
+        "version_id",
+        "normalized_type",
+        "object_uri",
+        "schema_version",
+        "checksum",
+        "status",
+        "block_count",
+        "record_count",
+        "source_type",
+        "content_type",
+        "title",
+        "language",
+        "governance",
+        "quality",
+        "lineage",
+        "metadata_summary",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/normalized-refs/b289c57a-0aad-4513-b1a8-827e9529c850/sections",
+      "status": 200,
+      "trace_id": "bc489f4e-c4f1-4c42-9713-3dce1baa036b",
+      "total": null,
+      "returned_items": null,
+      "response_data_keys": [
+        "items",
+        "total",
+        "next_offset"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/normalized-refs/b289c57a-0aad-4513-b1a8-827e9529c850/sections/block-p00-003",
+      "status": 200,
+      "trace_id": "b1b6f376-1bb5-41e9-bd02-a2390afb25bc",
+      "total": null,
+      "returned_items": null,
+      "response_data_keys": [
+        "id",
+        "normalized_ref_id",
+        "title",
+        "content",
+        "source_block_ids",
+        "locator",
+        "offset",
+        "total_chars",
+        "truncated",
+        "next_offset"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/normalized-refs/b289c57a-0aad-4513-b1a8-827e9529c850/sections/block-p00-003",
+      "status": 200,
+      "trace_id": "08a345cb-e1e5-40bb-a89e-caf16cbd369b",
+      "total": null,
+      "returned_items": null,
+      "response_data_keys": [
+        "id",
+        "normalized_ref_id",
+        "title",
+        "content",
+        "source_block_ids",
+        "locator",
+        "offset",
+        "total_chars",
+        "truncated",
+        "next_offset"
+      ]
+    }
+  ],
+  "database_read_only_supplement": {
+    "available_classifications": {
+      "teaching_standard": 131,
+      "industry_report": 292,
+      "industry_policy": 709,
+      "course_textbook": 176,
+      "sector_report": 194,
+      "teaching_case": 193,
+      "major_profile": 83,
+      "program_profile": 2,
+      "job_demand": 2,
+      "talent_demand_report": 19,
+      "talent_training_plan": 24,
+      "competency_analysis": 13,
+      "vocational_certificate": 4,
+      "major_distribution": 3
+    },
+    "standard_document_metadata_present": {
+      "publisher": 0,
+      "publish_date": 0,
+      "doc_number": 0,
+      "version": 0
+    },
+    "standard_raw_source_types": {
+      "file_upload": 131
+    },
+    "standard_raw_source_http_url": 0,
+    "standard_original_from_nonempty": 144,
+    "standard_projection_source_evidence_keys": {
+      "title": 144,
+      "source_block_ids": 144,
+      "training_goal_source": 144,
+      "training_specification_source": 144
+    },
+    "standard_projection_missing_code": 11,
+    "standard_projection_level_counts": {
+      "中等职业教育": 44,
+      "高等职业教育专科": 71,
+      "高等职业教育本科": 17,
+      "职业本科": 6,
+      "None": 6
+    },
+    "occupation_dimensions": {},
+    "available_occupation_standard_title_matches": [
+      {
+        "title": "无人机驾驶员国家职业技能标准2021年版_4-02-04-06.pdf",
+        "classification": "vocational_certificate"
+      },
+      {
+        "title": "中国就业培训技术指导中心关于印发《国家职业标准开发计划》的通知",
+        "classification": "industry_policy"
+      }
+    ]
+  },
+  "confirmed_counts": {
+    "occupation_dictionary": 1329,
+    "occupation_dictionary_supplemented_entries": 241,
+    "teaching_standard_library_total": 144,
+    "teaching_standard_library_review": 142,
+    "teaching_standard_library_active": 2,
+    "public_standard_documents": 131,
+    "public_standard_courses_current_active_filter": 67,
+    "raw_jobs": 96607,
+    "distinct_nonempty_employer_names": 22167,
+    "distinct_job_source_urls": 43931,
+    "raw_job_sources": {
+      "zhaopin": 96607
+    },
+    "job_collected_at_min": "2026-10-08T08:36:51.961836+00:00",
+    "job_collected_at_max": "2026-10-23T14:43:24.469750+00:00",
+    "job_nonempty_description": 91859,
+    "job_nonempty_responsibilities": 57450,
+    "job_nonempty_skills": 90855
+  },
+  "user_constraints": [
+    "Certificates use web search; all other source dependencies come from NEXUS.",
+    "Teaching standards must not require active status. Existing active filters are a behavior gap.",
+    "The SKILL generates new PGSD files and does not depend on existing PGSD records."
+  ],
+  "section_read_check": {
+    "normalized_ref_id": "b289c57a-0aad-4513-b1a8-827e9529c850",
+    "total_sections": 114,
+    "section_list_next_offset": 100,
+    "sample_section_id": "block-p00-003",
+    "total_chars": 226,
+    "first_slice_next_offset": 100,
+    "second_slice_offset": 100,
+    "second_slice_chars": 100
+  }
+}

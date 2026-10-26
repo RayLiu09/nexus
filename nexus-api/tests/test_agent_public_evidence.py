@@ -114,6 +114,20 @@ def test_graph_exact_ref_subgraph_and_no_build(app, session):
     assert client.get(f"/open/v1/normalized-refs/{semantic.id}/knowledge-graph").json()["data"]["reason"] == "semantic_only_resource"
 
 
+def test_standard_graph_read_allows_review_library_without_activating(app, session):
+    from test_teaching_standard_library_api import _seed_library
+    ref = seed_document(session, "review", "teaching_standard")
+    library, _ = _seed_library(session)
+    session.add(models.CapabilityGraphStagingBuild(id="standard-build", normalized_ref_id=ref.id,
+        domain="standard", build_type="teaching_standard", status="generated", schema_version="1"))
+    session.commit()
+    result = TestClient(app).get(f"/open/v1/normalized-refs/{ref.id}/knowledge-graph?graph_type=teaching_standard")
+    assert result.status_code == 200, result.text
+    assert result.json()["data"]["available"] is True
+    session.refresh(library)
+    assert library.status == "review"
+
+
 def test_search_scope_is_intersected_before_retrieval_and_multikb(app, session, stub_api_caller, monkeypatch):
     session.add(stub_api_caller)
     selected = seed_document(session, "selected", "industry_policy")

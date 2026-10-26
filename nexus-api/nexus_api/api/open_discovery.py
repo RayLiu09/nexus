@@ -57,9 +57,9 @@ def discover(request: Request, caller=Depends(require_api_caller), session: Sess
         ["edition_2022", "imported_verified_entries_only", "no_ai_governance", "no_asset_version_or_normalized_ref"])
     add("teaching_standard", "专业教学标准", "projection", "teaching_standard", standard_statement(),
         "/open/v1/teaching-standard-libraries", ["list", "detail", "courses", "existing_graph"],
-        "active_library_and_available_current_document", ["no_implicit_activation"], "standards")
+        "available_current_document", ["library_status_does_not_gate_reads", "no_implicit_activation"], "standards")
     add("standard_course", "标准课程库", "projection", "teaching_standard", course_statement(),
-        "/open/v1/teaching-standard-courses", ["list", "detail", "evidence"], "active_library_and_available_current_document",
+        "/open/v1/teaching-standard-courses", ["list", "detail", "evidence"], "available_current_document",
         ["hours_are_suggested", "tags_are_derived"], "courses")
     add("course_textbook", "课程教材", "projection", "course_textbook", textbook_statement(),
         "/open/v1/course-textbooks", ["list", "detail", "existing_knowledge_outline", "existing_task_outline", "node_context", "scoped_search"],

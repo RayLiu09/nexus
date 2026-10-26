@@ -41,7 +41,16 @@ bindings. Regenerate offline with
 `--check` to verify drift. C/change-feed interfaces are outside this extension.
 The catalog covers all 16 visible resource types, including the read-only
 occupation dictionary and Ministry-synchronized major offerings. Retired
-major-distribution Pipeline B endpoints are excluded. Ministry registration
+major-distribution Pipeline B endpoints are excluded. Market jobs accept `region` on both list and aggregate; teaching standards accept
+`occupation` for source career orientation and expose `career_orientation` evidence.
+Public standard/course reads retain available/current-ref/classification gates
+without requiring an active library. Existing career facts can be repaired with
+`nexus-app/scripts/backfill_teaching_standard_career_orientation.py` (dry-run by
+default; `--apply` updates career facts only, no AI). The occupational competency
+skill uses NEXUS assets and DeepSeek certificate search to generate new PGSD/KSA
+outputs; platform sources need no external publisher/date verification.
+API sync plan lists control page and page size and reset on provider/deleted filters.
+Ministry registration
 aggregation is separate from document-sample course coverage statistics.
 The professional-offering list uses `检索`, omits the school-code filter and
 source explanatory paragraph, and exports all matching rows to Excel through

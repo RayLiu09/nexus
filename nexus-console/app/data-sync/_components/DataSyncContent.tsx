@@ -159,6 +159,8 @@ export function DataSyncContent({
   const [runPage, setRunPage] = useState(1);
   const [showDeleted, setShowDeleted] = useState(false);
   const [providerFilter, setProviderFilter] = useState<string | undefined>();
+  const [planPage, setPlanPage] = useState(1);
+  const [planPageSize, setPlanPageSize] = useState(10);
   const [runIdInput, setRunIdInput] = useState("");
   const [runStatusInput, setRunStatusInput] = useState<string | undefined>();
   const [timeRange, setTimeRange] = useState<[string, string] | null>(null);
@@ -181,6 +183,8 @@ export function DataSyncContent({
   const { message } = App.useApp();
   const [form] = Form.useForm();
   const selectedCategory = catalog.find((item) => item.id === categoryId);
+  const filteredPlans = plans.filter((plan) => !providerFilter || plan.provider_code === providerFilter);
+  const currentPlanPage = Math.min(planPage, Math.max(1, Math.ceil(filteredPlans.length / planPageSize)));
 
   async function loadRuns(plan: SyncPlan, page: number, filters: RunFilters) {
     const requestSeq = ++runRequestSeq.current;
@@ -243,6 +247,7 @@ export function DataSyncContent({
 
   async function toggleDeleted(checked: boolean) {
     setShowDeleted(checked);
+    setPlanPage(1);
     const result = await getApiData<SyncPlan[]>("/api/data-sync/plans", [], {
       include_deleted: String(checked),
     });
@@ -493,7 +498,7 @@ export function DataSyncContent({
               placeholder="全部 Provider"
               allowClear
               value={providerFilter}
-              onChange={setProviderFilter}
+              onChange={(value) => { setProviderFilter(value); setPlanPage(1); }}
               options={providers.map((provider) => ({
                 value: provider.provider_code,
                 label: provider.display_name,
@@ -510,11 +515,18 @@ export function DataSyncContent({
         <Table
           rowKey="id"
           size="small"
-          dataSource={plans.filter(
-            (plan) => !providerFilter || plan.provider_code === providerFilter,
-          )}
+          dataSource={filteredPlans}
           scroll={{ x: 900 }}
-          pagination={{ pageSize: 10 }}
+          pagination={{
+            current: currentPlanPage,
+            pageSize: planPageSize,
+            total: filteredPlans.length,
+            showSizeChanger: true,
+            onChange: (page, pageSize) => {
+              setPlanPage(pageSize === planPageSize ? page : 1);
+              setPlanPageSize(pageSize);
+            },
+          }}
           locale={{ emptyText: "暂无同步计划" }}
           columns={[
             {

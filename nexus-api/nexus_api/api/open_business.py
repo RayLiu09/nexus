@@ -38,6 +38,7 @@ class JobFilters(BaseModel):
     industry: str | None
     education: str | None
     experience: str | None
+    region: str | None = None
     collected_from: datetime | None
     collected_to: datetime | None
 
@@ -49,6 +50,8 @@ def job_filters(
     industry: str | None = Query(None, min_length=1, max_length=128),
     education: str | None = Query(None, min_length=1, max_length=128),
     experience: str | None = Query(None, min_length=1, max_length=128),
+    region: str | None = Query(None, min_length=1, max_length=128,
+                              description="工作地区关键词，按原始岗位地址做字面子串检索；不使用采集范围推断工作地点。"),
     collected_from: datetime | None = Query(None),
     collected_to: datetime | None = Query(None),
 ) -> JobFilters:
@@ -69,6 +72,7 @@ def job_statement(filters):
         "job_title": job.title_raw, "company_name": job.company_name_raw,
         "industry": job.company_industry_raw, "education": job.degree_raw,
         "experience": job.experience_raw,
+        "region": job.address_raw,
     }.items():
         if value := getattr(filters, field):
             stmt = stmt.where(column.icontains(value, autoescape=True))
@@ -94,7 +98,7 @@ def job_payload(job, provenance):
 def list_market_jobs(request: Request, filters: JobFilters = Depends(job_filters),
                      pagination: Pagination = Depends(pagination_params),
                      caller=Depends(require_api_caller), session: Session = Depends(get_db)):
-    """Query current raw_jobs postings. Collection time is not publication time; salary is source text."""
+    """Query current raw_jobs postings, including region substring matching on source addresses before pagination. Collection time is not publication time; salary is source text."""
     rows, total = page_rows(session, job_statement(filters).order_by(
         models.RawJob.created_at.desc(), models.RawJob.id.desc()), pagination)
     return finish_list([job_payload(*row) for row in rows], total, request, session,
@@ -220,25 +224,46 @@ def get_enterprise(enterprise_id: str, request: Request, caller=Depends(require_
 def standard_statement():
     library = models.TeachingStandardLibrary
     return select(library).join(models.NormalizedAssetRef, models.NormalizedAssetRef.id == library.normalized_ref_id).where(
-        library.status == "active", library.asset_version_id == models.NormalizedAssetRef.version_id,
+        library.asset_version_id == models.NormalizedAssetRef.version_id,
         library.normalized_ref_id.in_(available_refs(("teaching_standard",))))
 
 
 def library_payload(session, library, course_count):
     from nexus_api.api.internal.teaching_standard_library import _serialize_library
     version = session.get(models.AssetVersion, library.asset_version_id)
-    return _serialize_library(library, course_count=course_count, raw_object_id=version.raw_object_id if version else None)
+    return {**_serialize_library(library, course_count=course_count, raw_object_id=version.raw_object_id if version else None),
+            "career_orientation": orientation_payloads(session, [library.id]).get(library.id, [])}
+
+
+def orientation_payloads(session, library_ids):
+    result = {}
+    if library_ids:
+        for fact in session.scalars(select(models.TeachingStandardOccupation).where(
+            models.TeachingStandardOccupation.library_id.in_(library_ids),
+        ).order_by(models.TeachingStandardOccupation.dimension_type, models.TeachingStandardOccupation.item_index)):
+            result.setdefault(fact.library_id, []).append({key: getattr(fact, key) for key in dto.StandardOccupationRead.model_fields})
+    return result
 
 
 @router.get("/teaching-standard-libraries", operation_id="query_teaching_standards", response_model=schemas.ListResponse[dto.StandardRead])
 def list_standards(request: Request, major_code: str | None = Query(None, max_length=64),
                    major_name: str | None = Query(None, max_length=256),
                    education_level: str | None = Query(None, max_length=128),
+                   occupation: str | None = Query(None, min_length=1, max_length=256,
+                                                  description="职业面向关键词：对应行业、职业类别/代码、主要岗位的来源内容；与专业和层次条件按 AND 组合。"),
                    pagination: Pagination = Depends(pagination_params), caller=Depends(require_api_caller),
                    session: Session = Depends(get_db)):
-    """Read active standards backed by current available documents; no activation side effect."""
+    """按专业、层次和职业面向检索当前可读教学标准。职业面向匹配对应行业、职业类别/代码或主要岗位的原文事实；分页前过滤、同一标准不重复。标准 review/active/superseded 状态不限制公开读取，不触发激活。"""
     library, course = models.TeachingStandardLibrary, models.TeachingStandardCourse
     stmt = standard_statement()
+    if occupation:
+        fact = models.TeachingStandardOccupation
+        stmt = stmt.where(select(fact.id).where(
+            fact.library_id == library.id,
+            fact.dimension_type.in_(("applied_industry", "occupation_type", "primary_position")),
+            or_(*(column.icontains(occupation, autoescape=True) for column in
+                  (fact.source_name, fact.source_code))),
+        ).exists())
     for value, column, exact in [(major_code, library.major_code, True), (major_name, library.major_name, False),
                                   (education_level, library.education_level, True)]:
         if value:
@@ -252,14 +277,16 @@ def list_standards(request: Request, major_code: str | None = Query(None, max_le
         models.AssetVersion.id.in_([row[0].asset_version_id for row in rows]),
     ))} if rows else {}
     from nexus_api.api.internal.teaching_standard_library import _serialize_library
-    items = [_serialize_library(row[0], course_count=counts.get(row[0].id, 0),
-                               raw_object_id=versions[row[0].asset_version_id].raw_object_id) for row in rows]
+    orientations = orientation_payloads(session, [row[0].id for row in rows])
+    items = [{**_serialize_library(row[0], course_count=counts.get(row[0].id, 0),
+                               raw_object_id=versions[row[0].asset_version_id].raw_object_id),
+              "career_orientation": orientations.get(row[0].id, [])} for row in rows]
     return finish_list(items, total, request, session, caller, pagination, "teaching_standards")
 
 
 @router.get("/teaching-standard-libraries/{library_id}", operation_id="get_teaching_standard", response_model=schemas.ApiResponse[dto.StandardRead])
 def get_standard(library_id: str, request: Request, caller=Depends(require_api_caller), session: Session = Depends(get_db)):
-    """读取单个已激活专业教学标准及课程数量、专业身份和来源锚点。来源须为当前 available 且正式分类为教学标准的文档；不触发激活或图谱生成，不可用返回 404。"""
+    """读取专业教学标准、职业面向证据、课程数量及来源锚点，不受标准生命周期状态限制。来源须为当前 available 且正式分类为教学标准的文档；不触发激活或图谱生成，不可用返回 404。"""
     library = session.scalar(standard_statement().where(models.TeachingStandardLibrary.id == library_id))
     if library is None:
         raise HTTPException(404, "teaching_standard_not_available")
@@ -310,7 +337,7 @@ def list_courses(
 
 @router.get("/teaching-standard-courses/{course_id}", operation_id="get_standard_course", response_model=schemas.ApiResponse[dto.StandardCourseRead])
 def get_course(course_id: str, request: Request, caller=Depends(require_api_caller), session: Session = Depends(get_db)):
-    """读取标准课程及所属专业教学标准、建议学时、派生知识/技能/工具/素养标签和证据。所属标准须 active 且来源文档当前可用；不触发生成，不可用返回 404。"""
+    """读取标准课程及所属标准、建议学时、派生标签和证据，不受所属标准生命周期状态限制。来源文档须当前可用且分类匹配；不触发生成，不可用返回 404。"""
     row = session.execute(course_statement().where(models.TeachingStandardCourse.id == course_id)).first()
     if row is None:
         raise HTTPException(404, "standard_course_not_available")

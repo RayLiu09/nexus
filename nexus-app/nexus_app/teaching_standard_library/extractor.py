@@ -10,7 +10,7 @@ from nexus_app.knowledge.semantic_repack import _parse_markdown_table
 from nexus_app.major_catalog import complete_major_identity
 from nexus_app.teaching_standard_library.schema import DOMAIN_PROFILE, validate_payload
 
-EXTRACTOR_VERSION = "teaching_standard_library_extractor.v1"
+EXTRACTOR_VERSION = "teaching_standard_library_extractor.v2"
 
 _SECTION_DIMENSIONS = {
     "适用行业": "applied_industry",
@@ -84,7 +84,7 @@ _RULES = (
 def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
     if not isinstance(payload, dict) or payload.get("content_type") != "document":
         return None
-    blocks = [block for block in payload.get("blocks", []) if isinstance(block, dict)]
+    blocks = _source_blocks(payload)
     if not blocks:
         return None
     title = _clean(payload.get("title"))
@@ -152,6 +152,19 @@ def _sections(blocks: list[dict[str, Any]]) -> list[tuple[str, list[dict[str, An
     return result
 
 
+def _source_blocks(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    body = payload.get("body_markdown") or ""
+    blocks = []
+    for block in payload.get("blocks", []):
+        if not isinstance(block, dict):
+            continue
+        span = block.get("md_char_range")
+        if not _text(block) and isinstance(span, list) and len(span) == 2 and all(isinstance(x, int) for x in span):
+            block = {**block, "text": body[max(0, span[0]):max(0, span[1])]}
+        blocks.append(block)
+    return blocks
+
+
 def _occupations(
     sections: list[tuple[str, list[dict[str, Any]]]]
 ) -> list[dict[str, Any]]:
@@ -201,20 +214,40 @@ def _occupation_table_facts(
     parsed = _parse_markdown_table(_text(block))
     if not parsed:
         return []
-    columns: dict[int, str] = {}
-    for index, header in enumerate(parsed["headers"]):
-        normalized = re.sub(r"\s+|[（(][^）)]*[）)]", "", header)
-        dimension = next(
-            (
-                value
-                for alias, value in _OCCUPATION_COLUMNS.items()
-                if alias in normalized
-            ),
+    def dimension_for(label: str) -> str | None:
+        normalized = re.sub(r"\s+|[（(][^）)]*[）)]", "", label)
+        return next(
+            (value for alias, value in _OCCUPATION_COLUMNS.items() if alias in normalized),
             None,
         )
-        if dimension:
-            columns[index] = dimension
+
+    columns = {
+        index: dimension
+        for index, header in enumerate(parsed["headers"])
+        if (dimension := dimension_for(header))
+    }
     facts: list[dict[str, Any]] = []
+    # A dimension outside column zero identifies a horizontal header table.
+    # Otherwise interpret first-column labels as field/value declarations.
+    if not any(index > 0 for index in columns):
+        rows = [parsed["headers"], *[row.get("cells") or [] for row in parsed["data_rows"]]]
+        for row_index, cells in enumerate(rows):
+            if len(cells) < 2 or not (dimension := dimension_for(cells[0])):
+                continue
+            for source_name, source_code in _coded_items("；".join(cells[1:])):
+                facts.append({
+                    "dimension_type": dimension,
+                    "source_code": source_code,
+                    "source_name": source_name,
+                    "source_text": " | ".join(cells),
+                    "evidence_block_ids": _ids([block]),
+                    "locator": {
+                        **_locator([block], heading),
+                        "table_row_index": row_index,
+                        "table_column_index": 1,
+                    },
+                })
+        return facts
     for row_index, row in enumerate(parsed["data_rows"], start=1):
         cells = row.get("cells") or []
         for column_index, dimension in columns.items():
@@ -239,7 +272,7 @@ def _occupation_table_facts(
 
 
 def _coded_items(value: str) -> list[tuple[str, str | None]]:
-    values = re.split(r"(?:<br\s*/?>|[\n；;])", value, flags=re.I)
+    values = re.split(r"(?:<br\s*/?>|[\n；;、])", value, flags=re.I)
     output: list[tuple[str, str | None]] = []
     for item in values:
         item = item.strip(" 、，,。")

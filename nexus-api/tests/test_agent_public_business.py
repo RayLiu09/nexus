@@ -58,9 +58,10 @@ def test_market_jobs_same_source_filters_and_full_aggregate(app, session):
     assert "example.test" not in json.dumps([row.summary for row in audits])
 
 
-def test_standards_require_active_and_current_available_classified_document(app, session):
-    ref = seed_document(session, "active", "teaching_standard")
-    library, course = _seed_library(session, status="active")
+@pytest.mark.parametrize("status", ["review", "active", "superseded"])
+def test_standards_ignore_lifecycle_but_require_current_available_classified_document(app, session, status):
+    ref = seed_document(session, status, "teaching_standard")
+    library, course = _seed_library(session, status=status)
     client = TestClient(app)
     response = client.get("/open/v1/teaching-standard-courses", params={"major_code": "530701", "tag": "网店运营"})
     assert response.status_code == 200, response.text
@@ -70,12 +71,65 @@ def test_standards_require_active_and_current_available_classified_document(app,
     assert client.get(f"/open/v1/teaching-standard-libraries/{library.id}").json()["data"]["course_count"] == 1
     library.status = "review"
     session.commit()
-    assert client.get(f"/open/v1/teaching-standard-courses/{course.id}").status_code == 404
-    library.status = "active"
+    assert client.get(f"/open/v1/teaching-standard-courses/{course.id}").status_code == 200
+    discovered = {r["code"]: r for r in client.get("/open/v1/data-resources").json()["data"]}
+    assert discovered["teaching_standard"]["count"] == 1
+    assert discovered["standard_course"]["count"] == 1
+    assert client.post("/open/v1/entity-resolutions", json={"entity_type":"major", "query":"530701"}).json()["data"]
     session.get(models.AssetVersion, ref.version_id).version_status = AssetVersionStatus.REVIEW_REQUIRED
     session.commit()
     assert client.get("/open/v1/teaching-standard-libraries").json()["meta"]["total"] == 0
     assert client.get(f"/open/v1/teaching-standard-courses/{course.id}").status_code == 404
+
+
+def test_market_region_is_applied_before_pagination_and_aggregation(app, session):
+    session.add_all([
+        models.RawJob(id="hz-1", title_raw="电商运营", address_raw="杭州·滨江", degree_raw="专科"),
+        models.RawJob(id="hz-2", title_raw="电商运营", address_raw="杭州·西湖", degree_raw="专科"),
+        models.RawJob(id="bj", title_raw="电商运营", address_raw="北京", degree_raw="本科"),
+        models.RawJob(id="literal", title_raw="电商运营", address_raw="园区100%"),
+        models.RawJob(id="no-address", title_raw="电商运营"),
+    ])
+    session.commit()
+    client = TestClient(app)
+    params = {"job_title":"电商", "region":"杭州", "pageSize":1}
+    first = client.get("/open/v1/market-jobs", params=params).json()
+    second = client.get("/open/v1/market-jobs", params={**params,"page":2}).json()
+    assert first["meta"]["total"] == second["meta"]["total"] == 2
+    assert first["data"][0]["id"] != second["data"][0]["id"]
+    aggregate = client.get("/open/v1/market-jobs/aggregate", params={**params,"group_by":"education"}).json()
+    assert aggregate["aggregations"]["sample_count"] == 2
+    assert aggregate["aggregations"]["filters"]["region"] == "杭州"
+    assert aggregate["data"][0]["record_count"] == 2
+    assert client.get("/open/v1/market-jobs",params={"region":"%"}).json()["meta"]["total"] == 1
+    assert client.get("/open/v1/market-jobs",params={"region":"杭州","education":"本科"}).json()["meta"]["total"] == 0
+
+
+def test_career_orientation_search_filters_facts_without_duplicates_or_certificate_matches(app, session):
+    ref = seed_document(session, "review", "teaching_standard")
+    library, _ = _seed_library(session)
+    session.add_all([
+        models.TeachingStandardOccupation(library_id=library.id, dimension_type="occupation_type", item_index=1,
+            source_name="电子商务师",source_code="4-01-06-01",source_text="电子商务师 | 培训证书",evidence_block_ids=["b1"],locator={"page":1}),
+        models.TeachingStandardOccupation(library_id=library.id, dimension_type="primary_position", item_index=1,
+            source_name="电子商务运营",evidence_block_ids=["b1"],locator={"page":1}),
+        models.TeachingStandardOccupation(library_id=library.id, dimension_type="certificate_type", item_index=1,
+            source_name="培训证书",evidence_block_ids=["b1"],locator={"page":1}),
+    ])
+    session.commit()
+    client = TestClient(app)
+    result = client.get("/open/v1/teaching-standard-libraries",params={"occupation":"电子商务","pageSize":1}).json()
+    assert result["meta"]["total"] == 1
+    assert len(result["data"][0]["career_orientation"]) == 3
+    assert result["data"][0]["career_orientation"][0]["evidence_block_ids"] == ["b1"]
+    assert client.get("/open/v1/teaching-standard-libraries",params={"occupation":"4-01-06-01"}).json()["meta"]["total"] == 1
+    assert client.get("/open/v1/teaching-standard-libraries",params={"occupation":"培训证书"}).json()["meta"]["total"] == 0
+    assert client.get("/open/v1/teaching-standard-libraries",params={"occupation":"%"}).json()["meta"]["total"] == 0
+    assert client.get("/open/v1/teaching-standard-libraries",params={"occupation":"电子商务","major_code":"999999"}).json()["meta"]["total"] == 0
+    assert client.get(f"/open/v1/teaching-standard-libraries/{library.id}").json()["data"]["career_orientation"]
+    session.get(models.AssetVersion,ref.version_id).version_status = AssetVersionStatus.REVIEW_REQUIRED
+    session.commit()
+    assert client.get("/open/v1/teaching-standard-libraries",params={"occupation":"电子商务"}).json()["meta"]["total"] == 0
 
 
 def test_parks_enterprises_entity_candidates_keep_ambiguity(app, session):

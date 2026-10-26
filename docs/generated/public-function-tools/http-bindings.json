@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "source": "public OpenAPI /open/v1",
-  "sha256": "5ac2c94ed734f2a54a04085043e1326ba4b9614bc5681a06690cefa37cd3f6b7",
+  "sha256": "0573619e275b6ff7769ee7f1986ef9459a02f92b5a34aac9fb19d262a60ed8c6",
   "bindings": [
     {
       "name": "find_documents",
@@ -5131,6 +5131,13 @@
           "explode": true
         },
         {
+          "argument": "query.region",
+          "in": "query",
+          "name": "region",
+          "style": "form",
+          "explode": true
+        },
+        {
           "argument": "query.collected_from",
           "in": "query",
           "name": "collected_from",
@@ -5769,6 +5776,13 @@
           "argument": "query.experience",
           "in": "query",
           "name": "experience",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.region",
+          "in": "query",
+          "name": "region",
           "style": "form",
           "explode": true
         },
@@ -12733,7 +12747,11 @@
                   },
                   "library_status": {
                     "type": "string",
-                    "const": "active",
+                    "enum": [
+                      "review",
+                      "active",
+                      "superseded"
+                    ],
                     "title": "Library Status"
                   },
                   "course_type": {
@@ -13161,7 +13179,11 @@
                 },
                 "library_status": {
                   "type": "string",
-                  "const": "active",
+                  "enum": [
+                    "review",
+                    "active",
+                    "superseded"
+                  ],
                   "title": "Library Status"
                 },
                 "course_type": {
@@ -13526,6 +13548,13 @@
           "explode": true
         },
         {
+          "argument": "query.occupation",
+          "in": "query",
+          "name": "occupation",
+          "style": "form",
+          "explode": true
+        },
+        {
           "argument": "query.page",
           "in": "query",
           "name": "page",
@@ -13676,8 +13705,78 @@
                   },
                   "status": {
                     "type": "string",
-                    "const": "active",
+                    "enum": [
+                      "review",
+                      "active",
+                      "superseded"
+                    ],
                     "title": "Status"
+                  },
+                  "career_orientation": {
+                    "items": {
+                      "properties": {
+                        "dimension_type": {
+                          "type": "string",
+                          "enum": [
+                            "applied_industry",
+                            "occupation_type",
+                            "primary_position",
+                            "certificate_type"
+                          ],
+                          "title": "Dimension Type"
+                        },
+                        "source_code": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "title": "Source Code"
+                        },
+                        "source_name": {
+                          "type": "string",
+                          "title": "Source Name"
+                        },
+                        "source_text": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "title": "Source Text"
+                        },
+                        "evidence_block_ids": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array",
+                          "title": "Evidence Block Ids"
+                        },
+                        "locator": {
+                          "additionalProperties": true,
+                          "type": "object",
+                          "title": "Locator"
+                        }
+                      },
+                      "type": "object",
+                      "required": [
+                        "dimension_type",
+                        "source_code",
+                        "source_name",
+                        "source_text",
+                        "evidence_block_ids",
+                        "locator"
+                      ],
+                      "title": "StandardOccupationRead"
+                    },
+                    "type": "array",
+                    "title": "Career Orientation"
                   },
                   "course_count": {
                     "type": "integer",
@@ -13989,8 +14088,78 @@
                 },
                 "status": {
                   "type": "string",
-                  "const": "active",
+                  "enum": [
+                    "review",
+                    "active",
+                    "superseded"
+                  ],
                   "title": "Status"
+                },
+                "career_orientation": {
+                  "items": {
+                    "properties": {
+                      "dimension_type": {
+                        "type": "string",
+                        "enum": [
+                          "applied_industry",
+                          "occupation_type",
+                          "primary_position",
+                          "certificate_type"
+                        ],
+                        "title": "Dimension Type"
+                      },
+                      "source_code": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "title": "Source Code"
+                      },
+                      "source_name": {
+                        "type": "string",
+                        "title": "Source Name"
+                      },
+                      "source_text": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "title": "Source Text"
+                      },
+                      "evidence_block_ids": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Evidence Block Ids"
+                      },
+                      "locator": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Locator"
+                      }
+                    },
+                    "type": "object",
+                    "required": [
+                      "dimension_type",
+                      "source_code",
+                      "source_name",
+                      "source_text",
+                      "evidence_block_ids",
+                      "locator"
+                    ],
+                    "title": "StandardOccupationRead"
+                  },
+                  "type": "array",
+                  "title": "Career Orientation"
                 },
                 "course_count": {
                   "type": "integer",

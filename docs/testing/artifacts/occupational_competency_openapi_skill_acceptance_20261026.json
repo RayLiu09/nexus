@@ -1,0 +1,123 @@
+{
+  "date": "2026-10-26",
+  "environment": "local development",
+  "live_openapi": {
+    "standards": {
+      "total": 131,
+      "sample_status": "review"
+    },
+    "courses": {
+      "total": 3300,
+      "sample_library_status": "review"
+    },
+    "电子商务师": {
+      "total": 12,
+      "states": {
+        "active": 1,
+        "review": 11
+      },
+      "evidence_present": true
+    },
+    "4-01-06-01": {
+      "total": 12,
+      "states": {
+        "active": 1,
+        "review": 11
+      },
+      "evidence_present": true
+    },
+    "运营经理": {
+      "total": 2,
+      "states": {
+        "active": 1,
+        "review": 1
+      },
+      "evidence_present": true
+    },
+    "region_杭州": {
+      "total": 4889,
+      "aggregate_consistent": true
+    },
+    "region_昆明": {
+      "total": 3150,
+      "aggregate_consistent": true
+    },
+    "discovery_counts_consistent": true
+  },
+  "career_backfill": {
+    "applied": {
+      "updated": 131,
+      "no_source_facts": 13
+    },
+    "facts": 1858,
+    "repeat_dry_run": {
+      "unchanged": 131,
+      "no_source_facts": 13
+    },
+    "ai_called": false
+  },
+  "browser": {
+    "planPagination": {
+      "page2": true,
+      "pageSize20": true,
+      "providerReset": true,
+      "rows": 5,
+      "realPlansCreated": 0,
+      "errors": []
+    },
+    "skillOutput": {
+      "bothModes": true,
+      "sourceLocator": true,
+      "escapedHtml": true,
+      "exportReopened": true,
+      "files": [
+        {
+          "kind": "table",
+          "bytes": 16052,
+          "file": "nexus-competency-export.xlsx"
+        },
+        {
+          "kind": "pdf",
+          "bytes": 382276,
+          "file": "nexus-competency-export.pdf"
+        },
+        {
+          "kind": "html",
+          "bytes": 74925,
+          "file": "nexus-competency-export.html"
+        }
+      ],
+      "httpRequests": 0,
+      "errors": []
+    }
+  },
+  "exports": {
+    "xlsx_sheets": [
+      "工作内容与能力",
+      "能力明细",
+      "分析范围与依据"
+    ],
+    "xlsx_and_csv_locator_preserved": true,
+    "pdf_pages": 2,
+    "pdf_chinese_visually_checked": true,
+    "pdf_type": "raster"
+  },
+  "checks": {
+    "public_business_evidence_tests": "passed",
+    "function_tool_tests": 6,
+    "teaching_standard_domain_suite": "passed",
+    "console_sync_tests": 12,
+    "generator_contract_tests": 11,
+    "typecheck": "passed",
+    "next_typescript_scoped_lint": "passed",
+    "repository_eslint": "blocked: existing missing eslint-plugin-testing-library and eslint-plugin-vitest dependencies",
+    "generated_tools_check": "passed",
+    "skill_quick_validate": "passed",
+    "diff_check": "passed"
+  },
+  "limits": [
+    "No live certificate search or paid model call in this implementation verification.",
+    "Fixture output verifies rendering and file formats, not occupational conclusions.",
+    "Human Review Gates not claimed as approved."
+  ]
+}

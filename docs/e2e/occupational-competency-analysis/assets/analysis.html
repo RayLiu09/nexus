@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>{{TITLE}} · 职业能力分析</title>
+    <style>
+      {{STYLE}}
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#overview"
+        ><svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m3 7 9-5 9 5-9 5ZM3 12l9 5 9-5M3 17l9 5 9-5" /></svg
+        >职业能力分析</a
+      >
+      <span class="draft">分析初稿</span><span id="date" class="meta"></span>
+      <div class="exports">
+        <button id="export-html">下载 HTML</button><button id="export-table">导出表格</button
+        ><button id="export-pdf" class="primary">下载 PDF</button>
+      </div>
+    </header>
+    <main class="page">
+      <section id="overview" class="overview">
+        <div class="overline">岗位研究与职业行动分析</div>
+        <div class="hero-row">
+          <div>
+            <h1>{{TITLE}}</h1>
+            <p id="scope" class="scope"></p>
+          </div>
+          <div id="stats" class="stats"></div>
+        </div>
+        <p id="summary" class="summary"></p>
+        <p id="print-context" class="print-context"></p>
+        <div class="roles-heading"><span>相关岗位</span><small>明确协作接口与职责边界</small></div>
+        <div id="roles" class="roles"></div>
+      </section>
+      <section class="workspace" aria-label="职业能力分析工作区">
+        <aside class="sidebar">
+          <div class="nav-heading">典型工作任务 <span id="task-count"></span></div>
+          <nav id="task-nav" aria-label="选择典型工作任务"></nav>
+          <div class="nav-note">先看工作过程，再看能力要求。<br />两种模式共用同一份分析。</div>
+          <button id="all-sources" class="sources-button">查看全部依据</button>
+        </aside>
+        <div class="main-panel">
+          <div class="mode-bar">
+            <div class="modes" role="group" aria-label="能力分类模式">
+              <button data-mode="ksa" aria-pressed="true">知识 · 技能 · 素养</button
+              ><button data-mode="pgsd" aria-pressed="false">职业 · 通用 · 社会 · 发展</button>
+            </div>
+            <div class="filters">
+              <label class="search"
+                ><svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="10" cy="10" r="6" />
+                  <path d="m15 15 5 5" /></svg
+                ><input
+                  id="search"
+                  type="search"
+                  aria-label="搜索任务、工作内容或能力"
+                  placeholder="搜索工作内容或能力…" /></label
+              ><label class="pending-filter"
+                ><input id="pending-only" type="checkbox" />仅看待确认</label
+              >
+            </div>
+          </div>
+          <div class="view-caption">
+            <span id="mode-description"></span><span id="visible-count"></span>
+          </div>
+          <div id="results" aria-live="polite"></div>
+          <p id="export-status" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+      <details class="scope-details">
+        <summary>分析范围与资料说明 <span id="limits-count"></span></summary>
+        <div id="scope-notes"></div>
+      </details>
+      <section id="print-sources" class="print-sources"></section>
+      <footer>职业能力分析初稿 · 供岗位研究、教学设计与专家审核使用</footer>
+    </main>
+    <dialog id="source-dialog" aria-labelledby="source-dialog-title">
+      <div class="dialog-top">
+        <h2 id="source-dialog-title">资料依据</h2>
+        <button id="close-sources" aria-label="关闭资料依据">关闭</button>
+      </div>
+      <div id="source-content"></div>
+    </dialog>
+    <dialog id="export-dialog" aria-labelledby="export-title">
+      <div class="dialog-top">
+        <h2 id="export-title">导出结果</h2>
+        <button id="close-export" aria-label="关闭导出结果">关闭</button>
+      </div>
+      <p id="export-message" role="status" aria-live="polite"></p>
+      <p id="export-range" class="source-meta"></p>
+      <div id="export-links" class="export-links"></div>
+      <p class="export-help">
+        已生成文件并发起下载。如未出现保存提示，可点击文件链接再次下载；预览环境限制下载时，请在系统浏览器中打开
+        HTML。
+      </p>
+      <button id="copy-table" hidden>复制表格到 Excel</button>
+      <textarea id="copy-content" aria-label="可复制的表格内容" readonly hidden></textarea>
+    </dialog>
+    <noscript>此页面需要启用 JavaScript 才能切换分类模式并查看分析数据。</noscript>
+    <script id="analysis-data" type="application/json">
+      {{DATA}}
+    </script>
+    <!-- prettier-ignore -->
+    <script>{{EXPORTS}}</script>
+    <!-- prettier-ignore -->
+    <script>{{RUNTIME}}</script>
+  </body>
+</html>

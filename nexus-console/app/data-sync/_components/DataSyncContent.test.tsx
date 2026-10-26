@@ -1,5 +1,5 @@
 import { App } from "antd";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 
 import { getApiData, postApiData, putApiData } from "@/lib/api";
@@ -54,6 +54,58 @@ const catalog: JobCollectionCategory[] = [{
   name: "财经商贸类",
   titles: [{ id: "job-1", name: "数据化运营助理" }],
 }];
+
+it("paginates plans, changes page size, and resets the page for provider filters", async () => {
+  const plans = Array.from({ length: 65 }, (_, i): SyncPlan => ({
+    ...mockPlan, id: `plan-${i + 1}`, name: `同步计划 ${i + 1}`,
+    provider_code: i < 60 ? "crawler_engine" : "moe_major_offering",
+  }));
+  render(<App><DataSyncContent initialProviders={[provider("crawler_engine"), { ...provider("moe_major_offering"), display_name: "教育部政务服务平台" }]}
+    initialPlans={plans} initialCatalog={catalog} initialError={null} /></App>);
+  const list = within(screen.getByRole("region", { name: "同步计划" }));
+  expect(list.getByText("同步计划 1")).toBeInTheDocument();
+  expect(list.queryByText("同步计划 11")).not.toBeInTheDocument();
+  fireEvent.click(list.getByTitle("2"));
+  expect(list.getByText("同步计划 11")).toBeInTheDocument();
+  expect(list.queryByText("同步计划 1")).not.toBeInTheDocument();
+  fireEvent.mouseDown(list.getByRole("combobox", { name: "Page Size" }));
+  fireEvent.click(screen.getByRole("option", { name: "20 / page" }));
+  await waitFor(() => expect(list.getByText("同步计划 1")).toBeInTheDocument());
+  expect(list.getByText("同步计划 20")).toBeInTheDocument();
+  expect(list.queryByText("同步计划 21")).not.toBeInTheDocument();
+  fireEvent.click(list.getByTitle("3"));
+  expect(list.getByText("同步计划 41")).toBeInTheDocument();
+  fireEvent.mouseDown(list.getByRole("combobox", { name: "按 Provider 筛选计划" }));
+  // The second provider contains only five plans and must return to page one.
+  fireEvent.click(screen.getAllByText("教育部政务服务平台").find(
+    (element) => element.classList.contains("ant-select-item-option-content"),
+  )!);
+  await waitFor(() => expect(list.getByText("同步计划 61")).toBeInTheDocument());
+  expect(list.getByText("同步计划 65")).toBeInTheDocument();
+  expect(list.queryByText("同步计划 41")).not.toBeInTheDocument();
+});
+
+it("clamps the plan page after refresh and resets when including deleted plans", async () => {
+  const plans = Array.from({ length: 21 }, (_, i): SyncPlan => ({
+    ...mockPlan, id: `plan-${i + 1}`, name: `同步计划 ${i + 1}`, provider_code: "crawler_engine",
+  }));
+  vi.mocked(getApiData).mockImplementation(async (path) => ({
+    data: path.includes("/providers") ? [provider("crawler_engine")] : path.includes("/job-catalog") ? catalog : plans.slice(0, 15),
+    ok: true, error: null, traceId: null, total: 15,
+  }));
+  render(<App><DataSyncContent initialProviders={[provider("crawler_engine")]}
+    initialPlans={plans} initialCatalog={catalog} initialError={null} /></App>);
+  const list = within(screen.getByRole("region", { name: "同步计划" }));
+  fireEvent.click(list.getByTitle("3"));
+  expect(list.getByText("同步计划 21")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "刷新数据" }));
+  await waitFor(() => expect(list.getByText("同步计划 11")).toBeInTheDocument());
+  expect(list.getByText("同步计划 15")).toBeInTheDocument();
+  expect(list.queryByText("同步计划 21")).not.toBeInTheDocument();
+  fireEvent.click(list.getByRole("checkbox", { name: "包含已删除计划" }));
+  await waitFor(() => expect(list.getByText("同步计划 1")).toBeInTheDocument());
+  expect(getApiData).toHaveBeenCalledWith("/api/data-sync/plans", [], { include_deleted: "true" });
+});
 
 it("shows only the real provider and opens the job-collection plan controls", () => {
   render(

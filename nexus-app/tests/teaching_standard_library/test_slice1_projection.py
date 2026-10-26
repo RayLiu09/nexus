@@ -245,6 +245,65 @@ def test_occupation_table_columns_create_separate_source_scoped_dimensions() -> 
     assert ("primary_position", "网络营销") in facts
     assert ("certificate_type", "网店运营推广职业技能等级证书") in facts
     assert facts[("primary_position", "网店运营")]["locator"]["table_row_index"] == 1
+    assert len(facts) == 8  # Five table facts plus three original narrative fragments.
+    assert all("代码" not in fact["source_name"] for fact in facts.values())
+
+
+def _vertical_payload() -> dict:
+    payload = _payload()
+    payload["blocks"][3] = _block(
+        "career-table", "table",
+        "| 所属专业大类（代码） | 财经商贸大类（53） |\n"
+        "| --- | --- |\n"
+        "| 对应行业（代码） | 互联网和相关服务（64）、零售业（52） |\n"
+        "| 主要职业类别（代码） | 电子商务师（4-01-06-01） |\n"
+        "| 主要岗位（群）或技术领域 | 网店运营、网络营销 |\n"
+        "| 职业类证书 | 网店运营推广职业技能等级证书 |", 1,
+    )
+    return payload
+
+
+def test_vertical_occupation_table_and_body_range_preserve_source_facts() -> None:
+    payload = _vertical_payload()
+    table = payload["blocks"][3]
+    payload["body_markdown"] = table.pop("text")
+    table["md_char_range"] = [0, len(payload["body_markdown"])]
+    facts = extract(payload)["occupations"]
+    assert len(facts) == 6
+    by_name = {fact["source_name"]: fact for fact in facts}
+    assert "财经商贸大类" not in by_name
+    assert by_name["电子商务师"]["source_code"] == "4-01-06-01"
+    assert by_name["零售业"]["source_code"] == "52"
+    assert by_name["网络营销"]["dimension_type"] == "primary_position"
+    assert by_name["电子商务师"]["evidence_block_ids"] == ["career-table"]
+    assert by_name["电子商务师"]["locator"]["table_row_index"] == 2
+
+
+def test_career_backfill_is_scoped_audited_and_idempotent(session) -> None:
+    from nexus_app.teaching_standard_library.career_orientation import refresh_career_orientation
+
+    ref = _seed_ref(session)
+    library = write(session, ref, extract(_payload()))
+    library.training_goal_summary = "保留人工摘要"
+    before = (library.status, library.training_goal_summary, [row.id for row in library.rules])
+    previous_ids = [row.id for row in library.occupations]
+    payload = _vertical_payload()
+    assert refresh_career_orientation(session, library, payload)["status"] == "would_update"
+    assert [row.id for row in library.occupations] == previous_ids
+    assert refresh_career_orientation(session, library, payload, apply_changes=True)["status"] == "updated"
+    repaired_ids = [row.id for row in library.occupations]
+    assert len(repaired_ids) == 6
+    assert refresh_career_orientation(session, library, payload, apply_changes=True)["status"] == "unchanged"
+    assert [row.id for row in library.occupations] == repaired_ids
+    assert (library.status, library.training_goal_summary, [row.id for row in library.rules]) == before
+    audits = list(session.scalars(select(models.AuditLog).where(
+        models.AuditLog.actor_id == "career_orientation_backfill")))
+    assert len(audits) == 1
+    assert audits[0].summary["ai_called"] is False
+    empty = _payload()
+    empty["blocks"] = [empty["blocks"][0]]
+    assert refresh_career_orientation(session, library, empty, apply_changes=True)["status"] == "no_source_facts"
+    assert [row.id for row in library.occupations] == repaired_ids
 
 
 def test_writer_replaces_children_and_keeps_review_status(session) -> None:

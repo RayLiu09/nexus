@@ -475,11 +475,16 @@ The Agent A/B consumption extension covers the 16 visible Asset Center resource
 types through `/open/v1/data-resources`, current professional-introduction
 documents, same-source raw market jobs and aggregation, parks/enterprises,
 Ministry-synchronized major offerings, the read-only occupation dictionary,
-active teaching standards/courses, textbooks, scoped multi-KB retrieval,
+teaching standards/courses independent of library lifecycle status, textbooks, scoped multi-KB retrieval,
 bounded sections, existing knowledge/task outlines, node contexts, existing
 graphs, batch evidence and ambiguity-preserving entity candidates. Catalog
 filters add business resource type, multiple classifications, topic, identity,
 region/industry, source publication date and explicit tag `any/all` semantics.
+Market jobs support literal source-address `region` filtering in lists and
+aggregates. Teaching standards support `occupation` matching on source industry,
+occupation names/codes and positions, with source-bound career orientation in
+the response. Current available documents and official classification still gate
+standard/course reads; review/active/superseded library states do not.
 Training-plan courses are paginated and ability items can be searched across
 analyses by professional code. All new reads authenticate, preserve source
 anchors and audit without raw-content logging. Missing outlines/graphs never
