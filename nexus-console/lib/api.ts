@@ -1192,6 +1192,18 @@ export type MajorDistributionDataset = {
   updated_at: string;
 };
 
+export type OccupationDictionaryRecord = {
+  id: string;
+  edition: number;
+  occupation_code: string;
+  occupation_category: string;
+  major_group: string;
+  minor_group: string | null;
+  occupation_name: string;
+  definition: string;
+  work_tasks: string;
+};
+
 export type MajorOfferingRecord = {
   id: string;
   sync_run_id: string;

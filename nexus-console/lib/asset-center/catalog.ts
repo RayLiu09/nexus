@@ -98,6 +98,11 @@ export const ASSET_CENTER_DOMAINS = [
         classificationCode: "talent_training_plan",
       },
       {
+        path: "occupation-dictionary",
+        name: "职业分类大典",
+        description: "职业分类大典职业名录、定义与工作任务",
+      },
+      {
         path: "occupation-analyses",
         name: "职业能力分析",
         description: "职业任务和能力要求分析",

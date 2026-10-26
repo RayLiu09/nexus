@@ -29,6 +29,7 @@ _RESOURCE_KEYS = (
     "major/talent-demand-reports",
     "major/training-plans",
     "major/occupation-analyses",
+    "major/occupation-dictionary",
     "market/job-demands",
     "market/industrial-parks",
     "market/enterprises",
@@ -152,6 +153,10 @@ def _classification_counts(session: Session) -> dict[str, int]:
 def _projection_counts(session: Session) -> dict[str, int]:
     """Count existing cross-asset/domain records in one fixed UNION query."""
     statements = (
+        select(
+            literal("major/occupation-dictionary").label("resource_key"),
+            func.count(models.OccupationDictionary.id).label("count"),
+        ),
         select(
             literal("major/distributions").label("resource_key"),
             func.count(models.MajorDistributionRecord.id).label("count"),

@@ -52,6 +52,14 @@ describe("Asset Center catalogue", () => {
     expect(findAssetCenterResource(market!, "enterprises")?.classificationCode).toBeUndefined();
   });
 
+  it("keeps the occupation dictionary as independent reference data", () => {
+    const major = findAssetCenterDomain("major")!;
+    expect(findAssetCenterResource(major, "occupation-dictionary")?.name).toBe("职业分类大典");
+    expect(
+      findAssetCenterResource(major, "occupation-dictionary")?.classificationCode,
+    ).toBeUndefined();
+  });
+
   it("keeps occupational analysis under professional data", () => {
     const major = findAssetCenterDomain("major");
     const market = findAssetCenterDomain("market");

@@ -27,8 +27,7 @@ formal-document authority and content-quality gates before raw-object ingestion.
 
 ## Repository Map
 
-Agent applications can consume all 15 visible Asset Center resource types
-through the public OpenAPI surface. The A/B extension adds current business
+Agent applications can consume asset data through the public OpenAPI surface. The A/B extension adds current business
 records, document metadata filters, scoped retrieval and bounded evidence reads.
 See [the API contract and coverage](docs/api/public_agent_data_api.md) and
 [基于公开 OpenAPI 生成 function tools 清单](docs/generated/public-function-tools/README.md).
@@ -204,6 +203,15 @@ Root documents are distilled implementation contracts:
   include the public `moe_major_offering` entry from the bundled Catalog.
   [Design and feasibility](docs/moe_major_offering_api_feasibility_and_design.md)
   and [implementation evidence](docs/review/wk_moe_major_offering_implementation_evidence.md).
+- The occupation dictionary is available under 专业数据 → 职业分类大典 at
+  `/asset-center/major/occupation-dictionary`. It displays category, major/minor
+  groups, occupation name, definition, and tasks, with three filters and pagination.
+  Migration `20261026_0122` imports 1,329 validated 2022 entries from bundled JSON;
+  it merges 71 duplicate workbook rows, repairs missing fields on 241 records using
+  the supplied same-code PDF text, and excludes 10 still lacking work tasks.
+  It is independent read-only reference data with no AI governance stage.
+  [API/import contract](docs/api/occupation_dictionary.md) and
+  [verification evidence](docs/review/wk_occupation_dictionary_evidence.md).
 - Occupational-ability analyses are browsed at
   `/asset-center/major/occupation-analyses` as a paginated list with exact
   task and P/G/S/D counts. Row Drawers host the migrated ability-item, tree,

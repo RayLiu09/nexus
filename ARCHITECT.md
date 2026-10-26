@@ -327,6 +327,15 @@ Stages: ingest → `ingest_validate` → `assetize` → structured parse/profile
 
 Produces: `normalized_asset_ref(type=record)`.
 
+`occupation_dictionary` is independent system reference data imported from the supplied
+2022 occupation workbook and enriched by same-code bodies in its accompanying PDF.
+Edition + occupation code is unique. Name, definition, and work tasks are required;
+records still missing any required field after deterministic enrichment are excluded.
+Versioned package data is imported transactionally by Alembic, with idempotent repeats
+and an import audit. This read-only domain creates no asset/version/normalized ref,
+AI governance run, or knowledge chunks. The API and Console query the same table;
+source row numbers and PDF page locators remain internal provenance.
+
 P0 active Pipeline B profiles include occupational ability analysis. Job demand and major distribution are independent API-synchronized domains. Major distribution uses the Education Ministry public registration API (`moe_major_offering`), `auth_mode=none`, `execution_mode=paged_pull`, and writes `major_offering_record` directly. It creates no asset/version/normalized reference, invokes no AI governance, and creates no knowledge chunks. This domain is explicitly outside the Asset Pipeline stage/status requirements above.
 
 The direct sync transaction accepts one complete page together with its cursor and counters; HTTP and pacing occur outside transactions. Worker leases/heartbeats and bounded retries reuse the PostgreSQL sync-run framework. Provider claims serialize public paged pulls across workers. A fact is unique by year + school + major code, using school code when available and normalized school name as fallback; DB constraints and conflict-safe inserts skip existing facts without overwriting them. Source page numbers, raw row JSON and content hashes are absent from this domain. Retired legacy tables remain historical only; active read/aggregate/retrieval paths use the new domain and report ingested coverage.

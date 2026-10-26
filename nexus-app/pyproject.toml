@@ -43,3 +43,6 @@ target-version = "py311"
 
 [tool.setuptools.packages.find]
 include = ["nexus_app*"]
+
+[tool.setuptools.package-data]
+"nexus_app.reference_data" = ["*.json"]

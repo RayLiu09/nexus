@@ -9,6 +9,7 @@ describe("AssetCenterOverview", () => {
       <AssetCenterOverview
         counts={{
           "major/standard-course-library": 128,
+          "major/occupation-dictionary": 1329,
           "market/industrial-parks": 0,
           "teaching-resources/course-textbooks": 7,
         }}
@@ -49,6 +50,7 @@ describe("AssetCenterOverview", () => {
       "href",
       "/asset-center/teaching-resources/cases",
     );
+    expect(screen.getByRole("link", { name: "职业分类大典，1,329 条" })).toHaveAttribute("href", "/asset-center/major/occupation-dictionary");
     expect(screen.queryByText("产业画像")).not.toBeInTheDocument();
     expect(screen.queryByText(/进入产业数据/)).not.toBeInTheDocument();
   });

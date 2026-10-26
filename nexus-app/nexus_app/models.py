@@ -1852,8 +1852,38 @@ class JobDemandRequirementItem(TimestampMixin, Base):
 
 
 # ---------------------------------------------------------------------------
-# Pipeline B PD — major_distribution domain tables
+# System reference data and direct domain facts
 # ---------------------------------------------------------------------------
+
+
+class OccupationDictionary(TimestampMixin, Base):
+    """Versioned national occupation reference data, independent of asset pipelines."""
+
+    __tablename__ = "occupation_dictionary"
+    __table_args__ = (
+        UniqueConstraint(
+            "edition", "occupation_code", name="uq_occupation_dictionary_code"
+        ),
+        CheckConstraint(
+            "length(trim(occupation_name)) > 0 AND length(trim(definition)) > 0 AND length(trim(work_tasks)) > 0",
+            name="ck_occupation_dictionary_required_text",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    edition: Mapped[int] = mapped_column(Integer, nullable=False)
+    occupation_code: Mapped[str] = mapped_column(String(16), nullable=False)
+    occupation_category: Mapped[str] = mapped_column(Text, nullable=False)
+    major_group: Mapped[str] = mapped_column(Text, nullable=False)
+    minor_group: Mapped[str | None] = mapped_column(Text, nullable=True)
+    occupation_name: Mapped[str] = mapped_column(Text, nullable=False)
+    definition: Mapped[str] = mapped_column(Text, nullable=False)
+    work_tasks: Mapped[str] = mapped_column(Text, nullable=False)
+    source_file: Mapped[str] = mapped_column(Text, nullable=False)
+    supplement_file: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_rows: Mapped[list[int]] = mapped_column(JSON, nullable=False)
+    pdf_pages: Mapped[list[int]] = mapped_column(JSON, nullable=False)
+    supplemented_fields: Mapped[list[str]] = mapped_column(JSON, nullable=False)
 
 
 class MajorOfferingRecord(TimestampMixin, Base):

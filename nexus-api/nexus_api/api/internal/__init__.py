@@ -51,6 +51,7 @@ from nexus_api.api.internal.knowledge_retrieval import router as _knowledge_retr
 from nexus_api.api.internal.query_router import router as _query_router_v2_router
 from nexus_api.api.internal.crawler import router as _crawler_router
 from nexus_api.api.internal.data_sync import router as _data_sync_router
+from nexus_api.api.occupation_dictionary import internal_router as _occupation_dictionary_router
 from nexus_api.api.major_offerings import internal_router as _major_offerings_router
 from nexus_api.api.internal.raw_jobs import router as _raw_jobs_router
 from nexus_api.api.internal.industrial_park_enterprise import router as _industrial_park_enterprise_router
@@ -203,6 +204,7 @@ router.include_router(_query_router_v2_router)
 router.include_router(_crawler_router)
 router.include_router(_data_sync_router)
 router.include_router(_major_offerings_router)
+router.include_router(_occupation_dictionary_router)
 router.include_router(_raw_jobs_router)
 router.include_router(_industrial_park_enterprise_router)
 

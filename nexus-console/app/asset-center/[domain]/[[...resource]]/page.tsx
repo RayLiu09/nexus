@@ -8,6 +8,7 @@ import {
   type CourseTextbookSummary,
   getApiData,
   type MajorOfferingRecord,
+  type OccupationDictionaryRecord,
   type MajorProfileDocument,
   type IndustryPolicy,
   type RawJob,
@@ -62,6 +63,11 @@ import { TeachingCasesTable } from "../../_components/TeachingCasesTable";
 import { JobDemandTable, type JobDemandFilters } from "../../_components/JobDemandTable";
 import { IndustrialParksTable } from "../../_components/IndustrialParksTable";
 import { EnterprisesTable } from "../../_components/EnterprisesTable";
+
+import {
+  OccupationDictionaryTable,
+  type OccupationDictionaryFilters,
+} from "../../_components/OccupationDictionaryTable";
 
 type AssetCenterRouteProps = {
   params: Promise<{ domain: string; resource?: string[] }>;
@@ -395,6 +401,44 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
       <div className="flex flex-col gap-6">
         <PageHeader eyebrow={domain.name} title="职业能力分析" description={resource.description} />
         <OccupationalAnalysisTable
+          rows={result.data}
+          total={result.total ?? result.data.length}
+          page={page}
+          pageSize={pageSize}
+          filters={filters}
+          ok={result.ok}
+          error={result.error}
+          traceId={result.traceId}
+        />
+      </div>
+    );
+  }
+
+  if (domain.slug === "major" && resource.path === "occupation-dictionary") {
+    const filters: OccupationDictionaryFilters = {
+      major_group: first(query.major_group)?.trim() || undefined,
+      minor_group: first(query.minor_group)?.trim() || undefined,
+      occupation_name: first(query.occupation_name)?.trim() || undefined,
+    };
+    const result = await getApiData<OccupationDictionaryRecord[]>(
+      "/internal/v1/occupation-dictionary",
+      [],
+      {
+        page: String(page),
+        pageSize: String(pageSize),
+        ...Object.fromEntries(
+          Object.entries(filters).filter((entry): entry is [string, string] => Boolean(entry[1])),
+        ),
+      },
+    );
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          eyebrow={domain.name}
+          title={resource.name}
+          description={resource.description}
+        />
+        <OccupationDictionaryTable
           rows={result.data}
           total={result.total ?? result.data.length}
           page={page}

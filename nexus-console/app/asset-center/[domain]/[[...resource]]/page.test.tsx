@@ -78,3 +78,28 @@ it.each([
     pageSize: "50",
   });
 });
+
+vi.mock("../../_components/OccupationDictionaryTable", () => ({
+  OccupationDictionaryTable: () => null,
+}));
+it("loads the occupation dictionary through its paginated reference API", async () => {
+  render(
+    await AssetCenterRoute({
+      params: Promise.resolve({ domain: "major", resource: ["occupation-dictionary"] }),
+      searchParams: Promise.resolve({
+        major_group: " 工程 ",
+        minor_group: "通信",
+        occupation_name: "技术",
+        page: "2",
+        pageSize: "50",
+      }),
+    }),
+  );
+  expect(getApiData).toHaveBeenCalledExactlyOnceWith("/internal/v1/occupation-dictionary", [], {
+    major_group: "工程",
+    minor_group: "通信",
+    occupation_name: "技术",
+    page: "2",
+    pageSize: "50",
+  });
+});

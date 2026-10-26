@@ -205,7 +205,7 @@ Asset Center IA-1:
   topics may overlap and do not replace official document classification.
 - **专业数据**: major profile, major-distribution records, professional
   teaching standards, a standard-course-library view, talent-demand reports,
-  talent-training plans, and occupational analysis. The course-library entry
+  talent-training plans, occupational analysis, and the occupation dictionary. The course-library entry
   reads `teaching_standard_course` records and is not a governance
   classification. Existing
   `competency_analysis` is presented under this domain rather than market data.
@@ -223,6 +223,22 @@ Asset Center IA-1:
   and nullable remark. Filters and pagination run server-side. The list has
   no edit/delete actions and no business mutation API. No historical dataset
   fallback or sum of old distribution counts is allowed.
+- **职业分类大典业务视图**: `/asset-center/major/occupation-dictionary` reads the
+  independent `occupation_dictionary` reference table. Columns are 职业类别、
+  职业大类、职业小类、职业名称、职业定义、工作任务; names also show occupation
+  codes. The source workbook's 所属大类(中类) maps to 职业大类. Three optional
+  filters (`major_group`, `minor_group`, `occupation_name`) use literal substring
+  matching with AND semantics before count/pagination; group filters also match
+  code prefixes. The view is read-only, includes full multiline text, and has
+  search/reset controls and server-side pagination.
+- **职业分类大典导入与 API**: import only workbook occupation codes, merge duplicate
+  placeholders into their formal records, and enrich missing/damaged fields from
+  same-code PDF bodies. Drop records whose name, definition, or tasks remain empty.
+  Import is versioned, transactional, idempotent, and audited. Authenticated GET
+  `/v1/occupation-dictionary` and `/internal/v1/occupation-dictionary` share the
+  standard list envelope; no mutation endpoint or AI governance stage is provided.
+  The supplied PDF identifies itself as the 2022 社会公示稿; the result is the
+  usable supplied-workbook subset, without a claim of complete national coverage.
 - **专业布点同步计划**: select `moe_major_offering`, then enter year, province,
   major name and six-digit major code. Year/province options come from the
   Ministry dictionaries; province codes preserve their case (e.g. `HeB`).
