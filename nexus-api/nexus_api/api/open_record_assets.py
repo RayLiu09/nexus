@@ -346,6 +346,7 @@ def get_ability_analysis(
     request: Request,
     session: Session = Depends(get_db),
 ):
+    """读取职业能力分析及其分析模板。职业能力分析为独立领域记录，返回源分析与模板信息，不触发 AI 分析；不存在返回 404。"""
     analysis = _get_analysis_or_404(session, analysis_id)
     profile = session.get(models.AbilityAnalysisProfile, analysis.profile_id)
     payload = {
@@ -526,6 +527,7 @@ def list_ability_relations(
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
 ):
+    """分页读取指定职业能力分析中已存储的关系，支持 source_type、relation_type 过滤，不推断或新建关系；分析不存在返回 404。"""
     _get_analysis_or_404(session, analysis_id)
     stmt = select(models.OccupationalAbilityRelation).where(
         models.OccupationalAbilityRelation.analysis_id == analysis_id
@@ -789,7 +791,7 @@ def _major_distribution_filters(
     return clauses
 
 
-@router.get("/major-distribution-records", dependencies=[Depends(retired_endpoint)], response_model=schemas.ListResponse[dict])
+@router.get("/major-distribution-records", deprecated=True, dependencies=[Depends(retired_endpoint)], response_model=schemas.ListResponse[dict])
 def list_major_distribution_records(
     request: Request,
     year: int | None = Query(None, ge=1900, le=2200),
@@ -828,7 +830,7 @@ _MAJOR_DISTRIBUTION_GROUP_COLUMNS = {
 }
 
 
-@router.get("/major-distribution-records/aggregate", dependencies=[Depends(retired_endpoint)], response_model=schemas.ListResponse[dict])
+@router.get("/major-distribution-records/aggregate", deprecated=True, dependencies=[Depends(retired_endpoint)], response_model=schemas.ListResponse[dict])
 def aggregate_major_distribution_records(
     request: Request,
     group_by: list[str] = Query(["year", "province_name", "major_name", "major_code"]),
@@ -986,6 +988,7 @@ def get_occupational_capability_graph(
     caller: models.ApiCaller = Depends(require_api_caller),
     session: Session = Depends(get_db),
 ):
+    """按专业名称或代码读取最新已生成的职业能力分析图谱。只消费已有节点与关系，不触发构建；专业无已生成图谱时返回 404。"""
     build = _generated_graph_by_major_or_404(session, build_type=BuildType.ABILITY_ANALYSIS, major_name=major_name, major_code=major_code)
     payload = _full_graph_payload(session, build)
     _audit_open_record_read(session, request=request, caller=caller, route="occupational_capability_graph", result_count=len(payload["nodes"]))
@@ -1000,6 +1003,7 @@ def get_teaching_standard_knowledge_graph(
     caller: models.ApiCaller = Depends(require_api_caller),
     session: Session = Depends(get_db),
 ):
+    """按专业名称或代码读取最新已生成的专业教学标准知识图谱。只消费已有节点与关系，不触发构建；无已生成图谱时返回 404。"""
     build = _generated_graph_by_major_or_404(session, build_type=BuildType.TEACHING_STANDARD, major_name=major_name, major_code=major_code)
     payload = _full_graph_payload(session, build)
     _audit_open_record_read(session, request=request, caller=caller, route="teaching_standard_knowledge_graph", result_count=len(payload["nodes"]))

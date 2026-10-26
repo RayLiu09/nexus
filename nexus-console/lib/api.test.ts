@@ -1,9 +1,49 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   formatDateTime,
   shortId,
   textValue,
+  putApiData,
 } from "./api";
+
+describe("PUT mutation headers", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("adds a fresh idempotency key to each sync plan edit", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => Response.json({ data: {} }));
+    vi.stubGlobal("fetch", fetchMock);
+    await putApiData("/api/data-sync/plans/plan-1", { name: "年度备案" });
+    await putApiData("/api/data-sync/plans/plan-1", { name: "修改备案" });
+    const first = fetchMock.mock.calls[0][1];
+    const second = fetchMock.mock.calls[1][1];
+    expect(first.method).toBe("PUT");
+    expect(first.headers["idempotency-key"]).toEqual(expect.any(String));
+    expect(first.headers["idempotency-key"].length).toBeGreaterThan(0);
+    expect(second.headers["idempotency-key"]).not.toBe(first.headers["idempotency-key"]);
+    expect(JSON.parse(first.body)).toEqual({ name: "年度备案" });
+  });
+
+  it("preserves a caller-supplied key and If-Match", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => Response.json({ data: {} }));
+    vi.stubGlobal("fetch", fetchMock);
+    await putApiData("/api/data-sync/plans/plan-1", {}, { idempotencyKey: "edit-1", etag: '"v1"' });
+    expect(fetchMock.mock.calls[0][1].headers).toMatchObject({
+      "idempotency-key": "edit-1", "if-match": '"v1"',
+    });
+  });
+
+  it("reuses the generated key when retrying after an authentication refresh", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(Response.json({}, { status: 401 }))
+      .mockResolvedValueOnce(Response.json({ data: {} }))
+      .mockResolvedValueOnce(Response.json({ data: {} }));
+    vi.stubGlobal("fetch", fetchMock);
+    await putApiData("/api/data-sync/plans/plan-1", { name: "年度备案" });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[2][1].headers["idempotency-key"])
+      .toBe(fetchMock.mock.calls[0][1].headers["idempotency-key"]);
+  });
+});
 
 describe("formatDateTime", () => {
   it("returns '-' for null", () => {

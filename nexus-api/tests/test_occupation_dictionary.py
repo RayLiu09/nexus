@@ -31,7 +31,7 @@ def seed_rows(session):
 
 
 @pytest.mark.parametrize(
-    "path", ["/v1/occupation-dictionary", "/internal/v1/occupation-dictionary"]
+    "path", ["/v1/occupation-dictionary", "/open/v1/occupation-dictionary", "/internal/v1/occupation-dictionary"]
 )
 def test_combined_filters_pagination_literal_wildcard_and_audit(app, session, path):
     seed_rows(session)
@@ -77,7 +77,7 @@ def test_combined_filters_pagination_literal_wildcard_and_audit(app, session, pa
 
 
 @pytest.mark.parametrize(
-    "path", ["/v1/occupation-dictionary", "/internal/v1/occupation-dictionary"]
+    "path", ["/v1/occupation-dictionary", "/open/v1/occupation-dictionary", "/internal/v1/occupation-dictionary"]
 )
 def test_occupation_dictionary_requires_authentication(app_no_auth_override, path):
     with TestClient(app_no_auth_override) as client:

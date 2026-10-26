@@ -95,7 +95,11 @@ def test_parks_enterprises_entity_candidates_keep_ambiguity(app, session):
     assert [item["match_type"] for item in result] == ["exact", "substring"]
 
 
-def test_discovery_has_15_resources_and_public_counts(app, session):
+def test_discovery_has_16_resources_and_public_counts(app, session):
+    from test_occupation_dictionary import seed_rows
+    from nexus_api.function_tools import generate_catalog
+
+    seed_rows(session)
     seed_document(session, "policy", "industry_policy")
     seed_document(session, "hidden", "industry_policy", status=AssetVersionStatus.REVIEW_REQUIRED)
     session.add(models.RawJob(id="job", title_raw="运营"))
@@ -103,11 +107,17 @@ def test_discovery_has_15_resources_and_public_counts(app, session):
     result = TestClient(app).get("/open/v1/data-resources")
     assert result.status_code == 200, result.text
     data = {item["code"]: item for item in result.json()["data"]}
-    assert len(data) == 15
+    assert len(data) == 16
     assert data["industry_policy"]["count"] == 1
     assert data["market_job"]["count"] == 1
     assert "tags_match" in data["industry_policy"]["filter_parameters"]
     assert all("/internal/" not in item["endpoint"] for item in data.values())
+    assert data["occupation_dictionary"]["count"] == 3
+    assert data["occupation_dictionary"]["name"] == "职业分类大典"
+    assert {"major_group", "minor_group", "occupation_name"} <= set(data["occupation_dictionary"]["filter_parameters"])
+    bindings = generate_catalog(app.openapi())["bindings"]
+    get_paths = {item["path"] for item in bindings if item["method"] == "GET"}
+    assert all(item["endpoint"] in get_paths for item in data.values())
 
 
 def test_major_documents_use_metadata_overrides_filters_and_no_retired_projection(app, session):

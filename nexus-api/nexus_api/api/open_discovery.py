@@ -26,7 +26,7 @@ def count_statement(session, stmt):
 
 @router.get("/data-resources", operation_id="discover_data_resources", response_model=schemas.ApiResponse[list[dto.ResourceRead]])
 def discover(request: Request, caller=Depends(require_api_caller), session: Session = Depends(get_db)):
-    """Discover the 15 visible Asset Center resource types and counts within public consumption boundaries. Counts are ingested coverage."""
+    """发现资产中心 16 类可见资源及其公开接口、过滤参数、能力与数量。包含教育部同步专业布点及职业分类大典；数量仅代表已入库覆盖。"""
     from nexus_api.api.open_business import standard_statement, course_statement, textbook_statement
     # Derive supported filters from the actual HTTP schema rather than a second registry.
     paths = request.app.openapi()["paths"]
@@ -52,6 +52,9 @@ def discover(request: Request, caller=Depends(require_api_caller), session: Sess
     ]
     for code, name, model, endpoint, capabilities, limitations in specs:
         add(code, name, "record", None, select(model.id), endpoint, capabilities, "independent_domain_records", limitations)
+    add("occupation_dictionary", "职业分类大典", "record", None, select(models.OccupationDictionary.id),
+        "/open/v1/occupation-dictionary", ["list"], "read_only_reference_data",
+        ["edition_2022", "imported_verified_entries_only", "no_ai_governance", "no_asset_version_or_normalized_ref"])
     add("teaching_standard", "专业教学标准", "projection", "teaching_standard", standard_statement(),
         "/open/v1/teaching-standard-libraries", ["list", "detail", "courses", "existing_graph"],
         "active_library_and_available_current_document", ["no_implicit_activation"], "standards")

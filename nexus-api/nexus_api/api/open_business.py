@@ -138,6 +138,7 @@ def aggregate_market_jobs(
 
 @router.get("/market-jobs/{job_id}", operation_id="get_market_job", response_model=schemas.ApiResponse[dto.MarketJobRead])
 def get_market_job(job_id: str, request: Request, caller=Depends(require_api_caller), session: Session = Depends(get_db)):
+    """读取单条市场岗位及采集来源。薪资、学历、经验等保持来源文本；数据来自 raw_jobs，不读取旧岗位需求治理投影。不存在返回 404。"""
     row = session.execute(select(models.RawJob, models.RawJobProvenance).outerjoin(
         models.RawJobProvenance, models.RawJobProvenance.raw_job_id == models.RawJob.id,
     ).where(models.RawJob.id == job_id)).first()
@@ -152,6 +153,7 @@ def list_parks(request: Request, q: str | None = Query(None, max_length=256),
                industry: str | None = Query(None, max_length=128),
                pagination: Pagination = Depends(pagination_params), caller=Depends(require_api_caller),
                session: Session = Depends(get_db)):
+    """分页检索产业园区。q 匹配园区名称或介绍，industry 匹配行业标签，条件按 AND 组合。返回园区介绍、行业标签、真实关联企业数及来源；仅代表已入库覆盖。"""
     park = models.IndustrialPark
     stmt = select(park)
     if q:
@@ -169,6 +171,7 @@ def list_parks(request: Request, q: str | None = Query(None, max_length=256),
 
 @router.get("/industrial-parks/{park_id}", operation_id="get_industrial_park", response_model=schemas.ApiResponse[dto.ParkRead])
 def get_park(park_id: str, request: Request, caller=Depends(require_api_caller), session: Session = Depends(get_db)):
+    """读取单个产业园区及数据库真实关联企业数量。通过 query_enterprises 的 park_id 可分页读取园区企业；不推断合作关系。不存在返回 404。"""
     row = session.get(models.IndustrialPark, park_id)
     if row is None:
         raise HTTPException(404, "industrial_park_not_found")
@@ -184,6 +187,7 @@ def list_enterprises(request: Request, q: str | None = Query(None, max_length=25
                      park_id: str | None = Query(None, max_length=36),
                      pagination: Pagination = Depends(pagination_params), caller=Depends(require_api_caller),
                      session: Session = Depends(get_db)):
+    """分页检索企业数据。q 匹配企业名称、经营范围或所属园区名称；business_scope 匹配经营范围，park_id 精确限定园区。返回企业与已有园区关联，不推断合作关系。"""
     enterprise, park = models.Enterprise, models.IndustrialPark
     stmt = select(enterprise, park).outerjoin(park, park.id == enterprise.industrial_park_id)
     if q:
@@ -202,6 +206,7 @@ def list_enterprises(request: Request, q: str | None = Query(None, max_length=25
 
 @router.get("/enterprises/{enterprise_id}", operation_id="get_enterprise", response_model=schemas.ApiResponse[dto.EnterpriseRead])
 def get_enterprise(enterprise_id: str, request: Request, caller=Depends(require_api_caller), session: Session = Depends(get_db)):
+    """读取单个企业的名称、经营范围、真实所属园区及来源锚点，不推断合作关系。不存在返回 404。"""
     row = session.execute(select(models.Enterprise, models.IndustrialPark).outerjoin(
         models.IndustrialPark, models.IndustrialPark.id == models.Enterprise.industrial_park_id,
     ).where(models.Enterprise.id == enterprise_id)).first()
@@ -254,6 +259,7 @@ def list_standards(request: Request, major_code: str | None = Query(None, max_le
 
 @router.get("/teaching-standard-libraries/{library_id}", operation_id="get_teaching_standard", response_model=schemas.ApiResponse[dto.StandardRead])
 def get_standard(library_id: str, request: Request, caller=Depends(require_api_caller), session: Session = Depends(get_db)):
+    """读取单个已激活专业教学标准及课程数量、专业身份和来源锚点。来源须为当前 available 且正式分类为教学标准的文档；不触发激活或图谱生成，不可用返回 404。"""
     library = session.scalar(standard_statement().where(models.TeachingStandardLibrary.id == library_id))
     if library is None:
         raise HTTPException(404, "teaching_standard_not_available")
@@ -304,6 +310,7 @@ def list_courses(
 
 @router.get("/teaching-standard-courses/{course_id}", operation_id="get_standard_course", response_model=schemas.ApiResponse[dto.StandardCourseRead])
 def get_course(course_id: str, request: Request, caller=Depends(require_api_caller), session: Session = Depends(get_db)):
+    """读取标准课程及所属专业教学标准、建议学时、派生知识/技能/工具/素养标签和证据。所属标准须 active 且来源文档当前可用；不触发生成，不可用返回 404。"""
     row = session.execute(course_statement().where(models.TeachingStandardCourse.id == course_id)).first()
     if row is None:
         raise HTTPException(404, "standard_course_not_available")
@@ -333,6 +340,7 @@ def list_textbooks(
     chief_editor: str | None = Query(None, max_length=128), publication_year: int | None = Query(None, ge=1800, le=2199),
     pagination: Pagination = Depends(pagination_params), caller=Depends(require_api_caller), session: Session = Depends(get_db),
 ):
+    """分页检索课程教材，支持教材名、理论/实训类型、出版社、主编、出版年组合过滤。只读取当前 available 且正式分类为教材的文档，返回源锚点及已有知识/任务大纲能力；不触发构建。"""
     stmt = textbook_statement()
     metadata = models.NormalizedAssetRef.document_metadata
     if title:
@@ -360,6 +368,7 @@ def list_textbooks(
 
 @router.get("/course-textbooks/{profile_id}", operation_id="get_textbook", response_model=schemas.ApiResponse[dto.TextbookRead])
 def get_textbook(profile_id: str, request: Request, caller=Depends(require_api_caller), session: Session = Depends(get_db)):
+    """读取单个课程教材的书目信息、源文档锚点及已有知识/任务大纲类型。仅当前 available 且正式分类为教材的文档可消费，不触发大纲生成；不可用返回 404。"""
     row = session.execute(textbook_statement().where(models.CourseTextbook.id == profile_id)).first()
     if row is None:
         raise HTTPException(404, "textbook_not_available")

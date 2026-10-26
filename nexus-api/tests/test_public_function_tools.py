@@ -20,6 +20,7 @@ def test_generated_tools_match_public_contract_and_exclude_internal_legacy_strea
     assert all(binding["path"].startswith("/open/v1/") for binding in catalog["bindings"])
     assert all("changes" not in binding["path"] for binding in catalog["bindings"])
     assert all("/major-profiles" not in binding["path"] and "/job-demand-records" not in binding["path"] and not binding["path"].endswith("/stream") for binding in catalog["bindings"])
+    assert all("/major-distribution-records" not in binding["path"] for binding in catalog["bindings"])
     assert '"$ref"' not in json.dumps(catalog)
     for tool in catalog["tools"]:
         assert tool["strict"] is False
@@ -65,3 +66,30 @@ def test_schema_resolver_rejects_remote_and_recursive_refs():
     document = {"components": {"schemas": {"Loop": {"$ref": "#/components/schemas/Loop"}}}}
     with pytest.raises(ValueError):
         resolve_schema({"$ref": "#/components/schemas/Loop"}, document)
+
+
+def test_latest_asset_tools_have_accurate_ministry_and_occupation_contracts():
+    from fastapi.routing import APIRoute
+    app = create_app()
+    routes = [(method, route.path) for route in app.routes if isinstance(route, APIRoute)
+              and route.path.startswith("/open/v1/") for method in route.methods]
+    assert len(routes) == len(set(routes)), "Duplicate public routes can overwrite the runtime contract in OpenAPI"
+    catalog = generate_catalog(app.openapi())
+    tools = {item["name"]: item for item in catalog["tools"]}
+    bindings = {item["name"]: item for item in catalog["bindings"]}
+    assert bindings["list_major_offerings"]["path"] == "/open/v1/major-offerings"
+    aggregate = tools["aggregate_major_offerings"]
+    query = aggregate["parameters"]["properties"]["query"]["properties"]
+    assert {"year", "school_name", "school_code", "province_code", "group_by"} <= query.keys()
+    assert "institution_name" not in query and "education_level" not in query
+    assert query["group_by"]["items"]["enum"] == ["year", "province_code", "province_name", "major_code", "major_name"]
+    response = bindings["aggregate_major_offerings"]["response_schemas"]["200"]
+    fields = response["properties"]["data"]["items"]["properties"]
+    assert {"record_count", "institution_count", "year"} <= fields.keys()
+    assert "教育部" in aggregate["description"]
+    assert bindings["query_occupation_dictionary"]["path"] == "/open/v1/occupation-dictionary"
+    fields = tools["query_occupation_dictionary"]["parameters"]["properties"]["query"]["properties"]
+    assert {"major_group", "minor_group", "occupation_name", "page", "pageSize"} <= fields.keys()
+    # All exported operations need usable intent descriptions, not title-cased function names.
+    for tool in tools.values():
+        assert len(tool["description"]) > 25, tool["name"]

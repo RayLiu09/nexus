@@ -95,7 +95,7 @@ def test_authentication_is_required(app_no_auth_override):
         assert client.get(path).status_code in (401, 403)
 
 
-def test_public_provider_options_and_required_plan_parameters(app, monkeypatch):
+def test_public_provider_options_and_optional_plan_parameters(app, monkeypatch):
     from nexus_app.data_sync.catalog import DEFAULT_CATALOG_PATH
     from nexus_app.data_sync.adapters.moe_major_offering import MoeMajorOfferingProvider
 
@@ -103,15 +103,24 @@ def test_public_provider_options_and_required_plan_parameters(app, monkeypatch):
     monkeypatch.setattr(
         MoeMajorOfferingProvider,
         "get_options",
-        lambda *_: {"years": [2026, 2025], "provinces": [{"code": "HeB", "name": "河北省"}]},
+        lambda *_: {
+            "years": [2026, 2025],
+            "provinces": [{"code": "HeB", "name": "河北省"}],
+        },
     )
     client = TestClient(app)
     data = client.get("/internal/v1/data-sync/providers").json()["data"]
     provider = next(p for p in data if p["provider_code"] == "moe_major_offering")
-    assert provider["auth_mode"] == "none" and provider["credential_status"] == "not_required"
+    assert (
+        provider["auth_mode"] == "none"
+        and provider["credential_status"] == "not_required"
+    )
     assert provider.get("tenant_name") is None and "tenant_key" not in provider
     options = client.get("/internal/v1/data-sync/providers/moe_major_offering/options")
-    assert options.status_code == 200 and options.json()["data"]["provinces"][0]["code"] == "HeB"
+    assert (
+        options.status_code == 200
+        and options.json()["data"]["provinces"][0]["code"] == "HeB"
+    )
     body = {
         "name": "备案同步",
         "provider_code": "moe_major_offering",
@@ -124,30 +133,64 @@ def test_public_provider_options_and_required_plan_parameters(app, monkeypatch):
         },
     }
     response = client.post(
-        "/internal/v1/data-sync/plans", json=body, headers={"Idempotency-Key": "ministry-valid"}
+        "/internal/v1/data-sync/plans",
+        json=body,
+        headers={"Idempotency-Key": "ministry-valid"},
     )
     assert response.status_code == 201, response.text
-    for key in body["query_config"]:
-        invalid = {
-            **body,
-            "query_config": {k: v for k, v in body["query_config"].items() if k != key},
-        }
+    assert provider["query_schema"]["required"] == ["year"]
+    assert provider["query_schema"]["properties"]["year"]["maximum"] == 2035
+    assert (
+        provider["query_schema"]["properties"]["year"]["default"] == datetime.now().year
+    )
+    for i, query in enumerate(
+        [
+            {"year": 2026},
+            {"year": 2026, "province": "", "major_code": " ", "major_name": None},
+            {"year": 2026, "province": "HeB"},
+            {"year": 2026, "major_code": "530701"},
+            {"year": 2026, "major_name": "电子商务"},
+        ]
+    ):
+        response = client.post(
+            "/internal/v1/data-sync/plans",
+            json={**body, "query_config": query},
+            headers={"Idempotency-Key": f"optional-{i}"},
+        )
+        assert response.status_code == 201, response.text
+        assert all(
+            value is not None and value != ""
+            for value in response.json()["data"]["query_config"].values()
+        )
+    for i, query in enumerate(
+        [
+            {},
+            {"year": 2026, "province": "HEB"},
+            {"year": 2026, "major_code": "53070"},
+            {"year": 2036},
+        ]
+    ):
         assert (
             client.post(
                 "/internal/v1/data-sync/plans",
-                json=invalid,
-                headers={"Idempotency-Key": "missing-" + key},
+                json={**body, "query_config": query},
+                headers={"Idempotency-Key": f"invalid-{i}"},
             ).status_code
             == 422
         )
 
 
-def test_evidence_resolution_reads_new_domain_without_legacy_asset_reference(app, session):
+def test_evidence_resolution_reads_new_domain_without_legacy_asset_reference(
+    app, session
+):
     seed(session)
     client = TestClient(app)
     result = client.post(
         "/open/v1/evidence-resolutions",
-        json={"references": [{"kind": "major_distribution", "id": "1"}], "max_chars": 2000},
+        json={
+            "references": [{"kind": "major_distribution", "id": "1"}],
+            "max_chars": 2000,
+        },
     )
     assert result.status_code == 200, result.text
     item = result.json()["data"][0]

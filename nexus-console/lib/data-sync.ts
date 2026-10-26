@@ -99,3 +99,137 @@ export type SyncRunLogs = {
   audit_total: number;
   audit_events: SyncAuditEvent[];
 };
+
+// Province dictionary verified on 2026-10-26; user-approved years extend to 2035.
+// Fixed options: no runtime dictionary request.
+export const MOE_YEARS = [2035, 2034, 2033, 2032, 2031, 2030, 2029, 2028, 2027, 2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015, 2014, 2013];
+export const MOE_PROVINCES = [
+  {
+    "code": "BJ",
+    "name": "北京市"
+  },
+  {
+    "code": "TJ",
+    "name": "天津市"
+  },
+  {
+    "code": "HeB",
+    "name": "河北省"
+  },
+  {
+    "code": "SX",
+    "name": "山西省"
+  },
+  {
+    "code": "NM",
+    "name": "内蒙古自治区"
+  },
+  {
+    "code": "LN",
+    "name": "辽宁省"
+  },
+  {
+    "code": "JL",
+    "name": "吉林省"
+  },
+  {
+    "code": "HLJ",
+    "name": "黑龙江省"
+  },
+  {
+    "code": "SH",
+    "name": "上海市"
+  },
+  {
+    "code": "JS",
+    "name": "江苏省"
+  },
+  {
+    "code": "ZJ",
+    "name": "浙江省"
+  },
+  {
+    "code": "AH",
+    "name": "安徽省"
+  },
+  {
+    "code": "FJ",
+    "name": "福建省"
+  },
+  {
+    "code": "JX",
+    "name": "江西省"
+  },
+  {
+    "code": "SD",
+    "name": "山东省"
+  },
+  {
+    "code": "HeN",
+    "name": "河南省"
+  },
+  {
+    "code": "HuB",
+    "name": "湖北省"
+  },
+  {
+    "code": "HuN",
+    "name": "湖南省"
+  },
+  {
+    "code": "GD",
+    "name": "广东省"
+  },
+  {
+    "code": "GX",
+    "name": "广西壮族自治区"
+  },
+  {
+    "code": "HN",
+    "name": "海南省"
+  },
+  {
+    "code": "CQ",
+    "name": "重庆市"
+  },
+  {
+    "code": "SC",
+    "name": "四川省"
+  },
+  {
+    "code": "GZ",
+    "name": "贵州省"
+  },
+  {
+    "code": "YN",
+    "name": "云南省"
+  },
+  {
+    "code": "XZ",
+    "name": "西藏自治区"
+  },
+  {
+    "code": "SXS",
+    "name": "陕西省"
+  },
+  {
+    "code": "GS",
+    "name": "甘肃省"
+  },
+  {
+    "code": "QH",
+    "name": "青海省"
+  },
+  {
+    "code": "NX",
+    "name": "宁夏回族自治区"
+  },
+  {
+    "code": "XJ",
+    "name": "新疆维吾尔自治区"
+  },
+  {
+    "code": "XJBT",
+    "name": "新疆生产建设兵团"
+  }
+];

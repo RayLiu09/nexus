@@ -557,6 +557,7 @@ def list_open_talent_training_plans(
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
 ):
+    """分页检索人才培养方案，支持院校、专业、教育层次、修业年限、岗位、技能、证书、课程和来源发布日期组合过滤。仅公开当前 available 且正式分类为培养方案的文档投影；日期不使用入库时间替代。"""
     result = _list(
         request, session, pagination, True, public_current_only=True, institution_name=institution_name,
         major_name=major_name, major_code=major_code, education_level=education_level,
@@ -581,6 +582,7 @@ def _open_plan(session, item_id):
 def get_open_course_knowledge_graph(
     item_id: str, request: Request, caller=Depends(require_api_caller), session: Session = Depends(get_db)
 ):
+    """读取当前可用人才培养方案中课程和已有知识要求的关系视图；不是标准课程库，不触发新图谱生成。不可用返回 404。"""
     plan = _open_plan(session, item_id)
     result = _course_knowledge_graph(plan)
     audit_read(session, request, caller, "training_plan_course_graph", 1, plan_id=item_id, normalized_ref_id=plan.normalized_ref_id)
@@ -591,6 +593,7 @@ def get_open_course_knowledge_graph(
 def get_open_position_capability_graph(
     item_id: str, request: Request, caller=Depends(require_api_caller), session: Session = Depends(get_db)
 ):
+    """读取当前可用人才培养方案中岗位和已有能力要求的关系视图；不将其作为市场招聘统计，不触发新图谱生成。不可用返回 404。"""
     plan = _open_plan(session, item_id)
     result = _position_capability_graph(plan)
     audit_read(session, request, caller, "training_plan_position_graph", 1, plan_id=item_id, normalized_ref_id=plan.normalized_ref_id)
@@ -601,6 +604,7 @@ def get_open_position_capability_graph(
 def get_open_talent_training_plan(
     item_id: str, request: Request, caller=Depends(require_api_caller), session: Session = Depends(get_db)
 ):
+    """读取单个人才培养方案详情与课程声明。须由当前 available 且正式分类为培养方案的文档支撑；不可用返回 404，不触发抽取或治理。"""
     plan = _open_plan(session, item_id)
     result = _detail(plan)
     audit_read(session, request, caller, "training_plan_detail", 1, plan_id=item_id, normalized_ref_id=plan.normalized_ref_id)

@@ -1,13 +1,15 @@
 {
   "schema_version": "1.0",
   "source": "public OpenAPI /open/v1",
-  "sha256": "1ea54c9296f0489639ac5b85a6d020a84d58a02064c069d774a1f06765a735d3",
+  "sha256": "8666f9e926e0c94bbca4a80039f6f29ef01960de01e731291369c4a9cca94730",
   "bindings": [
     {
       "name": "find_documents",
       "method": "GET",
       "path": "/open/v1/assets",
-      "tags": [],
+      "tags": [
+        "assets"
+      ],
       "arguments": [
         {
           "argument": "query.domain",
@@ -408,7 +410,9 @@
       "name": "get_available_asset",
       "method": "GET",
       "path": "/open/v1/assets/{asset_id}",
-      "tags": [],
+      "tags": [
+        "assets"
+      ],
       "arguments": [
         {
           "argument": "path.asset_id",
@@ -1326,7 +1330,9 @@
       "name": "list_available_asset_versions",
       "method": "GET",
       "path": "/open/v1/assets/{asset_id}/versions",
-      "tags": [],
+      "tags": [
+        "assets"
+      ],
       "arguments": [
         {
           "argument": "path.asset_id",
@@ -3185,7 +3191,9 @@
       "name": "search_firecrawl",
       "method": "POST",
       "path": "/open/v1/external-search/firecrawl",
-      "tags": [],
+      "tags": [
+        "external-search"
+      ],
       "arguments": [
         {
           "argument": "body",
@@ -3319,7 +3327,9 @@
       "name": "search_web_search",
       "method": "POST",
       "path": "/open/v1/external-search/web-search",
-      "tags": [],
+      "tags": [
+        "external-search"
+      ],
       "arguments": [
         {
           "argument": "body",
@@ -3894,7 +3904,9 @@
       "name": "get_public_knowledge_chunk",
       "method": "GET",
       "path": "/open/v1/knowledge-chunks/{chunk_id}",
-      "tags": [],
+      "tags": [
+        "knowledge-chunks"
+      ],
       "arguments": [
         {
           "argument": "path.chunk_id",
@@ -3968,7 +3980,9 @@
       "name": "aggregate_major_courses",
       "method": "GET",
       "path": "/open/v1/major-courses/aggregate",
-      "tags": [],
+      "tags": [
+        "major-courses"
+      ],
       "arguments": [
         {
           "argument": "query.province_name",
@@ -4095,15 +4109,31 @@
       }
     },
     {
-      "name": "aggregate_major_offerings",
+      "name": "list_major_offerings",
       "method": "GET",
-      "path": "/open/v1/major-offerings/aggregate",
-      "tags": [],
+      "path": "/open/v1/major-offerings",
+      "tags": [
+        "major-offerings"
+      ],
       "arguments": [
+        {
+          "argument": "query.year",
+          "in": "query",
+          "name": "year",
+          "style": "form",
+          "explode": true
+        },
         {
           "argument": "query.province_name",
           "in": "query",
           "name": "province_name",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.province_code",
+          "in": "query",
+          "name": "province_code",
           "style": "form",
           "explode": true
         },
@@ -4122,16 +4152,16 @@
           "explode": true
         },
         {
-          "argument": "query.education_level",
+          "argument": "query.school_name",
           "in": "query",
-          "name": "education_level",
+          "name": "school_name",
           "style": "form",
           "explode": true
         },
         {
-          "argument": "query.institution_name",
+          "argument": "query.school_code",
           "in": "query",
-          "name": "institution_name",
+          "name": "school_code",
           "style": "form",
           "explode": true
         },
@@ -4157,7 +4187,460 @@
       "executor_defaults": {},
       "potential_ingest_side_effect": false,
       "response_schemas": {
-        "200": {},
+        "200": {
+          "properties": {
+            "data": {
+              "items": {
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "title": "Id"
+                  },
+                  "year": {
+                    "type": "integer",
+                    "title": "Year"
+                  },
+                  "province_code": {
+                    "type": "string",
+                    "title": "Province Code"
+                  },
+                  "province_name": {
+                    "type": "string",
+                    "title": "Province Name"
+                  },
+                  "major_code": {
+                    "type": "string",
+                    "title": "Major Code"
+                  },
+                  "major_name": {
+                    "type": "string",
+                    "title": "Major Name"
+                  },
+                  "school_code": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "School Code"
+                  },
+                  "school_name": {
+                    "type": "string",
+                    "title": "School Name"
+                  },
+                  "study_duration": {
+                    "type": "string",
+                    "title": "Study Duration"
+                  },
+                  "remark": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Remark"
+                  },
+                  "source_url": {
+                    "type": "string",
+                    "title": "Source Url"
+                  },
+                  "provider_code": {
+                    "type": "string",
+                    "title": "Provider Code"
+                  },
+                  "sync_run_id": {
+                    "type": "string",
+                    "title": "Sync Run Id"
+                  },
+                  "fetched_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "title": "Fetched At"
+                  },
+                  "created_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "title": "Created At"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "id",
+                  "year",
+                  "province_code",
+                  "province_name",
+                  "major_code",
+                  "major_name",
+                  "school_code",
+                  "school_name",
+                  "study_duration",
+                  "remark",
+                  "source_url",
+                  "provider_code",
+                  "sync_run_id",
+                  "fetched_at",
+                  "created_at"
+                ],
+                "title": "MajorOfferingRead"
+              },
+              "type": "array",
+              "title": "Data"
+            },
+            "meta": {
+              "properties": {
+                "trace_id": {
+                  "type": "string",
+                  "title": "Trace Id"
+                },
+                "page": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Page"
+                },
+                "page_size": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Page Size"
+                },
+                "total": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Total"
+                }
+              },
+              "type": "object",
+              "required": [
+                "trace_id"
+              ],
+              "title": "ResponseMeta"
+            },
+            "aggregations": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Aggregations"
+            }
+          },
+          "type": "object",
+          "required": [
+            "data",
+            "meta"
+          ],
+          "title": "ListResponse[MajorOfferingRead]"
+        },
+        "422": {
+          "properties": {
+            "detail": {
+              "items": {
+                "properties": {
+                  "loc": {
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "type": "array",
+                    "title": "Location"
+                  },
+                  "msg": {
+                    "type": "string",
+                    "title": "Message"
+                  },
+                  "type": {
+                    "type": "string",
+                    "title": "Error Type"
+                  },
+                  "input": {
+                    "title": "Input"
+                  },
+                  "ctx": {
+                    "type": "object",
+                    "title": "Context"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "loc",
+                  "msg",
+                  "type"
+                ],
+                "title": "ValidationError"
+              },
+              "type": "array",
+              "title": "Detail"
+            }
+          },
+          "type": "object",
+          "title": "HTTPValidationError"
+        }
+      }
+    },
+    {
+      "name": "aggregate_major_offerings",
+      "method": "GET",
+      "path": "/open/v1/major-offerings/aggregate",
+      "tags": [
+        "major-offerings"
+      ],
+      "arguments": [
+        {
+          "argument": "query.group_by",
+          "in": "query",
+          "name": "group_by",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.year",
+          "in": "query",
+          "name": "year",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.province_name",
+          "in": "query",
+          "name": "province_name",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.province_code",
+          "in": "query",
+          "name": "province_code",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.major_name",
+          "in": "query",
+          "name": "major_name",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.major_code",
+          "in": "query",
+          "name": "major_code",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.school_name",
+          "in": "query",
+          "name": "school_name",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.school_code",
+          "in": "query",
+          "name": "school_code",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.page",
+          "in": "query",
+          "name": "page",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.pageSize",
+          "in": "query",
+          "name": "pageSize",
+          "style": "form",
+          "explode": true
+        }
+      ],
+      "authentication": {
+        "header": "X-API-Key",
+        "injected_by": "executor"
+      },
+      "executor_defaults": {},
+      "potential_ingest_side_effect": false,
+      "response_schemas": {
+        "200": {
+          "properties": {
+            "data": {
+              "items": {
+                "properties": {
+                  "year": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Year"
+                  },
+                  "province_code": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Province Code"
+                  },
+                  "province_name": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Province Name"
+                  },
+                  "major_code": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Major Code"
+                  },
+                  "major_name": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Major Name"
+                  },
+                  "record_count": {
+                    "type": "integer",
+                    "title": "Record Count"
+                  },
+                  "institution_count": {
+                    "type": "integer",
+                    "title": "Institution Count"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "record_count",
+                  "institution_count"
+                ],
+                "title": "MajorOfferingGroup"
+              },
+              "type": "array",
+              "title": "Data"
+            },
+            "meta": {
+              "properties": {
+                "trace_id": {
+                  "type": "string",
+                  "title": "Trace Id"
+                },
+                "page": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Page"
+                },
+                "page_size": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Page Size"
+                },
+                "total": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Total"
+                }
+              },
+              "type": "object",
+              "required": [
+                "trace_id"
+              ],
+              "title": "ResponseMeta"
+            },
+            "aggregations": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Aggregations"
+            }
+          },
+          "type": "object",
+          "required": [
+            "data",
+            "meta"
+          ],
+          "title": "ListResponse[MajorOfferingGroup]"
+        },
         "422": {
           "properties": {
             "detail": {
@@ -6018,7 +6501,9 @@
       "name": "get_available_normalized_ref",
       "method": "GET",
       "path": "/open/v1/normalized-refs/{ref_id}",
-      "tags": [],
+      "tags": [
+        "normalized-refs"
+      ],
       "arguments": [
         {
           "argument": "path.ref_id",
@@ -6289,7 +6774,9 @@
       "name": "list_chunks_for_normalized_ref",
       "method": "GET",
       "path": "/open/v1/normalized-refs/{ref_id}/chunks",
-      "tags": [],
+      "tags": [
+        "normalized-refs"
+      ],
       "arguments": [
         {
           "argument": "path.ref_id",
@@ -6377,7 +6864,9 @@
       "name": "get_normalized_ref_content",
       "method": "GET",
       "path": "/open/v1/normalized-refs/{ref_id}/content",
-      "tags": [],
+      "tags": [
+        "normalized-refs"
+      ],
       "arguments": [
         {
           "argument": "path.ref_id",
@@ -6451,7 +6940,9 @@
       "name": "get_public_governance_result_for_ref",
       "method": "GET",
       "path": "/open/v1/normalized-refs/{ref_id}/governance-result",
-      "tags": [],
+      "tags": [
+        "normalized-refs"
+      ],
       "arguments": [
         {
           "argument": "path.ref_id",
@@ -8509,10 +9000,247 @@
       }
     },
     {
+      "name": "query_occupation_dictionary",
+      "method": "GET",
+      "path": "/open/v1/occupation-dictionary",
+      "tags": [
+        "occupation-dictionary"
+      ],
+      "arguments": [
+        {
+          "argument": "query.major_group",
+          "in": "query",
+          "name": "major_group",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.minor_group",
+          "in": "query",
+          "name": "minor_group",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.occupation_name",
+          "in": "query",
+          "name": "occupation_name",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.page",
+          "in": "query",
+          "name": "page",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.pageSize",
+          "in": "query",
+          "name": "pageSize",
+          "style": "form",
+          "explode": true
+        }
+      ],
+      "authentication": {
+        "header": "X-API-Key",
+        "injected_by": "executor"
+      },
+      "executor_defaults": {},
+      "potential_ingest_side_effect": false,
+      "response_schemas": {
+        "200": {
+          "properties": {
+            "data": {
+              "items": {
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "title": "Id"
+                  },
+                  "edition": {
+                    "type": "integer",
+                    "title": "Edition"
+                  },
+                  "occupation_code": {
+                    "type": "string",
+                    "title": "Occupation Code"
+                  },
+                  "occupation_category": {
+                    "type": "string",
+                    "title": "Occupation Category"
+                  },
+                  "major_group": {
+                    "type": "string",
+                    "title": "Major Group"
+                  },
+                  "minor_group": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Minor Group"
+                  },
+                  "occupation_name": {
+                    "type": "string",
+                    "title": "Occupation Name"
+                  },
+                  "definition": {
+                    "type": "string",
+                    "title": "Definition"
+                  },
+                  "work_tasks": {
+                    "type": "string",
+                    "title": "Work Tasks"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "id",
+                  "edition",
+                  "occupation_code",
+                  "occupation_category",
+                  "major_group",
+                  "minor_group",
+                  "occupation_name",
+                  "definition",
+                  "work_tasks"
+                ],
+                "title": "OccupationRead"
+              },
+              "type": "array",
+              "title": "Data"
+            },
+            "meta": {
+              "properties": {
+                "trace_id": {
+                  "type": "string",
+                  "title": "Trace Id"
+                },
+                "page": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Page"
+                },
+                "page_size": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Page Size"
+                },
+                "total": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Total"
+                }
+              },
+              "type": "object",
+              "required": [
+                "trace_id"
+              ],
+              "title": "ResponseMeta"
+            },
+            "aggregations": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Aggregations"
+            }
+          },
+          "type": "object",
+          "required": [
+            "data",
+            "meta"
+          ],
+          "title": "ListResponse[OccupationRead]"
+        },
+        "422": {
+          "properties": {
+            "detail": {
+              "items": {
+                "properties": {
+                  "loc": {
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "type": "array",
+                    "title": "Location"
+                  },
+                  "msg": {
+                    "type": "string",
+                    "title": "Message"
+                  },
+                  "type": {
+                    "type": "string",
+                    "title": "Error Type"
+                  },
+                  "input": {
+                    "title": "Input"
+                  },
+                  "ctx": {
+                    "type": "object",
+                    "title": "Context"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "loc",
+                  "msg",
+                  "type"
+                ],
+                "title": "ValidationError"
+              },
+              "type": "array",
+              "title": "Detail"
+            }
+          },
+          "type": "object",
+          "title": "HTTPValidationError"
+        }
+      }
+    },
+    {
       "name": "qa_knowledge",
       "method": "GET",
       "path": "/open/v1/qa",
-      "tags": [],
+      "tags": [
+        "qa"
+      ],
       "arguments": [
         {
           "argument": "query.q",
@@ -8600,7 +9328,9 @@
       "name": "run_query_router_v2_open",
       "method": "POST",
       "path": "/open/v1/query",
-      "tags": [],
+      "tags": [
+        "query"
+      ],
       "arguments": [
         {
           "argument": "body",
@@ -8802,7 +9532,9 @@
       "name": "get_raw_object_download_url",
       "method": "GET",
       "path": "/open/v1/raw-objects/{raw_object_id}/download-url",
-      "tags": [],
+      "tags": [
+        "raw-objects"
+      ],
       "arguments": [
         {
           "argument": "path.raw_object_id",
@@ -10425,389 +11157,12 @@
       }
     },
     {
-      "name": "list_major_distribution_records",
-      "method": "GET",
-      "path": "/open/v1/record-assets/major-distribution-records",
-      "tags": [
-        "record-assets"
-      ],
-      "arguments": [
-        {
-          "argument": "query.year",
-          "in": "query",
-          "name": "year",
-          "style": "form",
-          "explode": true
-        },
-        {
-          "argument": "query.province_name",
-          "in": "query",
-          "name": "province_name",
-          "style": "form",
-          "explode": true
-        },
-        {
-          "argument": "query.major_name",
-          "in": "query",
-          "name": "major_name",
-          "style": "form",
-          "explode": true
-        },
-        {
-          "argument": "query.major_code",
-          "in": "query",
-          "name": "major_code",
-          "style": "form",
-          "explode": true
-        },
-        {
-          "argument": "query.page",
-          "in": "query",
-          "name": "page",
-          "style": "form",
-          "explode": true
-        },
-        {
-          "argument": "query.pageSize",
-          "in": "query",
-          "name": "pageSize",
-          "style": "form",
-          "explode": true
-        }
-      ],
-      "authentication": {
-        "header": "X-API-Key",
-        "injected_by": "executor"
-      },
-      "executor_defaults": {},
-      "potential_ingest_side_effect": false,
-      "response_schemas": {
-        "200": {
-          "properties": {
-            "data": {
-              "items": {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              "type": "array",
-              "title": "Data"
-            },
-            "meta": {
-              "properties": {
-                "trace_id": {
-                  "type": "string",
-                  "title": "Trace Id"
-                },
-                "page": {
-                  "anyOf": [
-                    {
-                      "type": "integer"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "title": "Page"
-                },
-                "page_size": {
-                  "anyOf": [
-                    {
-                      "type": "integer"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "title": "Page Size"
-                },
-                "total": {
-                  "anyOf": [
-                    {
-                      "type": "integer"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "title": "Total"
-                }
-              },
-              "type": "object",
-              "required": [
-                "trace_id"
-              ],
-              "title": "ResponseMeta"
-            },
-            "aggregations": {
-              "anyOf": [
-                {
-                  "additionalProperties": true,
-                  "type": "object"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Aggregations"
-            }
-          },
-          "type": "object",
-          "required": [
-            "data",
-            "meta"
-          ],
-          "title": "ListResponse[dict]"
-        },
-        "422": {
-          "properties": {
-            "detail": {
-              "items": {
-                "properties": {
-                  "loc": {
-                    "items": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "integer"
-                        }
-                      ]
-                    },
-                    "type": "array",
-                    "title": "Location"
-                  },
-                  "msg": {
-                    "type": "string",
-                    "title": "Message"
-                  },
-                  "type": {
-                    "type": "string",
-                    "title": "Error Type"
-                  },
-                  "input": {
-                    "title": "Input"
-                  },
-                  "ctx": {
-                    "type": "object",
-                    "title": "Context"
-                  }
-                },
-                "type": "object",
-                "required": [
-                  "loc",
-                  "msg",
-                  "type"
-                ],
-                "title": "ValidationError"
-              },
-              "type": "array",
-              "title": "Detail"
-            }
-          },
-          "type": "object",
-          "title": "HTTPValidationError"
-        }
-      }
-    },
-    {
-      "name": "aggregate_major_distribution_records",
-      "method": "GET",
-      "path": "/open/v1/record-assets/major-distribution-records/aggregate",
-      "tags": [
-        "record-assets"
-      ],
-      "arguments": [
-        {
-          "argument": "query.group_by",
-          "in": "query",
-          "name": "group_by",
-          "style": "form",
-          "explode": true
-        },
-        {
-          "argument": "query.year",
-          "in": "query",
-          "name": "year",
-          "style": "form",
-          "explode": true
-        },
-        {
-          "argument": "query.province_name",
-          "in": "query",
-          "name": "province_name",
-          "style": "form",
-          "explode": true
-        },
-        {
-          "argument": "query.major_name",
-          "in": "query",
-          "name": "major_name",
-          "style": "form",
-          "explode": true
-        },
-        {
-          "argument": "query.major_code",
-          "in": "query",
-          "name": "major_code",
-          "style": "form",
-          "explode": true
-        },
-        {
-          "argument": "query.page",
-          "in": "query",
-          "name": "page",
-          "style": "form",
-          "explode": true
-        },
-        {
-          "argument": "query.pageSize",
-          "in": "query",
-          "name": "pageSize",
-          "style": "form",
-          "explode": true
-        }
-      ],
-      "authentication": {
-        "header": "X-API-Key",
-        "injected_by": "executor"
-      },
-      "executor_defaults": {},
-      "potential_ingest_side_effect": false,
-      "response_schemas": {
-        "200": {
-          "properties": {
-            "data": {
-              "items": {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              "type": "array",
-              "title": "Data"
-            },
-            "meta": {
-              "properties": {
-                "trace_id": {
-                  "type": "string",
-                  "title": "Trace Id"
-                },
-                "page": {
-                  "anyOf": [
-                    {
-                      "type": "integer"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "title": "Page"
-                },
-                "page_size": {
-                  "anyOf": [
-                    {
-                      "type": "integer"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "title": "Page Size"
-                },
-                "total": {
-                  "anyOf": [
-                    {
-                      "type": "integer"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "title": "Total"
-                }
-              },
-              "type": "object",
-              "required": [
-                "trace_id"
-              ],
-              "title": "ResponseMeta"
-            },
-            "aggregations": {
-              "anyOf": [
-                {
-                  "additionalProperties": true,
-                  "type": "object"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Aggregations"
-            }
-          },
-          "type": "object",
-          "required": [
-            "data",
-            "meta"
-          ],
-          "title": "ListResponse[dict]"
-        },
-        "422": {
-          "properties": {
-            "detail": {
-              "items": {
-                "properties": {
-                  "loc": {
-                    "items": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "integer"
-                        }
-                      ]
-                    },
-                    "type": "array",
-                    "title": "Location"
-                  },
-                  "msg": {
-                    "type": "string",
-                    "title": "Message"
-                  },
-                  "type": {
-                    "type": "string",
-                    "title": "Error Type"
-                  },
-                  "input": {
-                    "title": "Input"
-                  },
-                  "ctx": {
-                    "type": "object",
-                    "title": "Context"
-                  }
-                },
-                "type": "object",
-                "required": [
-                  "loc",
-                  "msg",
-                  "type"
-                ],
-                "title": "ValidationError"
-              },
-              "type": "array",
-              "title": "Detail"
-            }
-          },
-          "type": "object",
-          "title": "HTTPValidationError"
-        }
-      }
-    },
-    {
       "name": "search_evidence",
       "method": "GET",
       "path": "/open/v1/search",
-      "tags": [],
+      "tags": [
+        "search"
+      ],
       "arguments": [
         {
           "argument": "query.q",
@@ -11295,7 +11650,9 @@
       "name": "list_open_talent_training_plans",
       "method": "GET",
       "path": "/open/v1/talent-training-plans",
-      "tags": [],
+      "tags": [
+        "talent-training-plans"
+      ],
       "arguments": [
         {
           "argument": "query.institution_name",
@@ -11528,7 +11885,9 @@
       "name": "get_open_talent_training_plan",
       "method": "GET",
       "path": "/open/v1/talent-training-plans/{item_id}",
-      "tags": [],
+      "tags": [
+        "talent-training-plans"
+      ],
       "arguments": [
         {
           "argument": "path.item_id",
@@ -11662,7 +12021,9 @@
       "name": "get_open_course_knowledge_graph",
       "method": "GET",
       "path": "/open/v1/talent-training-plans/{item_id}/course-knowledge-graph",
-      "tags": [],
+      "tags": [
+        "talent-training-plans"
+      ],
       "arguments": [
         {
           "argument": "path.item_id",
@@ -11796,7 +12157,9 @@
       "name": "get_open_position_capability_graph",
       "method": "GET",
       "path": "/open/v1/talent-training-plans/{item_id}/position-capability-graph",
-      "tags": [],
+      "tags": [
+        "talent-training-plans"
+      ],
       "arguments": [
         {
           "argument": "path.item_id",
@@ -13789,6 +14152,16 @@
     {
       "method": "GET",
       "path": "/open/v1/record-assets/job-demand-records/{record_id}/requirement-items",
+      "reason": "deprecated_or_streaming"
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/record-assets/major-distribution-records",
+      "reason": "deprecated_or_streaming"
+    },
+    {
+      "method": "GET",
+      "path": "/open/v1/record-assets/major-distribution-records/aggregate",
       "reason": "deprecated_or_streaming"
     }
   ]

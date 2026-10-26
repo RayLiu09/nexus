@@ -388,10 +388,14 @@ def list_available_assets(
     filters: DocumentFilters = Depends(document_filters),
     embedding_client_factory=Depends(get_open_tag_embedding_client),
 ):
-    """List available assets, optionally filtered by domain and governance tags.
+    """分页检索当前可用文档资产：产教政策、产业报告、行业报告、专业简介、人才需求调研、人才培养方案和教学案例等。
+
+    resource_type/domain(s) 限定业务类型；支持标题、主题、专业/院校/层次、区域、行业及来源发布日期组合过滤。
+    专业布点、市场岗位、职业分类大典等独立记录使用各自专用 API，不通过此文档目录查询。
 
     `domain` is the official governance classification. `tags` is a repeated
-    semantic-query parameter with `ANY` recall semantics. Set
+    semantic-query parameter; tags_match=any (default) takes the union and
+    tags_match=all takes the intersection of matched references. Set
     `is_exact_matched=true` to compare normalized tag values exactly instead.
     `tag_type` is optional: without it, each tag searches every controlled tag
     type. Results do not contain a presigned URL; use each item's stable
@@ -520,6 +524,7 @@ def list_available_asset_versions(
     caller: models.ApiCaller = Depends(require_api_caller),
     session: Session = Depends(get_db),
 ):
+    """读取指定资产中 available 版本的列表，不公开 processing、review_required、archived、disabled 或 failed 版本。"""
     services.get_row(session, models.Asset, asset_id, "asset")
     # SQL-side filter — pipeline.list_asset_versions returns all states.
     versions = list(

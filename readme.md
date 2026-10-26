@@ -35,6 +35,13 @@ The generated directory contains Responses/Chat Completions definitions and HTTP
 bindings. Regenerate offline with
 `nexus-api/.venv/bin/python scripts/generate_public_function_tools.py`; append
 `--check` to verify drift. C/change-feed interfaces are outside this extension.
+The catalog covers all 16 visible resource types, including the read-only
+occupation dictionary and Ministry-synchronized major offerings. Retired
+major-distribution Pipeline B endpoints are excluded. Ministry registration
+aggregation is separate from document-sample course coverage statistics.
+The professional-offering list uses `检索`, omits the school-code filter and
+source explanatory paragraph, and exports all matching rows to Excel through
+the authenticated `/v1/major-offerings/export` API or Console identity alias.
 
 The Console document views for policies, reports, and teaching cases provide a
 right-aligned, responsive filter bar for
@@ -156,7 +163,7 @@ Root documents are distilled implementation contracts:
   criteria. Recent activity remains bounded and is not used to infer totals.
 - MinerU parsing (auto model_version, OCR, image extraction) and standardization into `normalized_document` / `normalized_record` with full `normalized_asset_ref` fields.
 - Console 解析预览 reads unchanged normalized Markdown and authenticated, block-linked extracted images; 原文下载 reads the retained raw object.
-- Pipeline B structured record assets for occupational ability analysis and professional major-distribution tables with domain read models. Crawler job postings persist directly in `raw_jobs` with provenance; the legacy job-demand Pipeline B and AI-governance path is retired for new data.
+- Pipeline B structured record assets for occupational ability analysis with domain read models. Professional major offerings synchronize directly from the Ministry API; the old major-distribution Pipeline B is retired. Crawler job postings persist directly in `raw_jobs` with provenance; the legacy job-demand Pipeline B and AI-governance path is retired for new data.
 - Asset Center market job-demand list reads crawler-intake `raw_jobs` directly; the retired Pipeline B `job_demand_*` projection is not used by this view.
 - A business-task Asset Center at `/asset-center` organizes data through five
   fixed domains: industry-policy, professional, market, teaching resources,
@@ -194,7 +201,9 @@ Root documents are distilled implementation contracts:
   migration; raw and normalized source documents remain traceable.
 - Professional major-distribution records at `/asset-center/major/distributions`
   are read-only Ministry API facts (`major_offering_record`). Create a plan in
-  Data Sync using 教育部政务服务平台 with year, province, major name and code;
+  Data Sync using 教育部政务服务平台: year defaults to the current year;
+  province, major name and code are optional. Years 2013–2035 and the verified
+  province dictionary are fixed Console data with no dynamic dictionary call;
   no credentials are required. Records go directly to the domain DB without
   AI governance. Same year/school/major duplicates are skipped. Legacy major
   Pipeline B is retired; migration `20261023_0121` preserves rule history while

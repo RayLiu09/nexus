@@ -3,7 +3,7 @@
     "type": "function",
     "function": {
       "name": "find_documents",
-      "description": "List available assets, optionally filtered by domain and governance tags.\n\n`domain` is the official governance classification. `tags` is a repeated\nsemantic-query parameter with `ANY` recall semantics. Set\n`is_exact_matched=true` to compare normalized tag values exactly instead.\n`tag_type` is optional: without it, each tag searches every controlled tag\ntype. Results do not contain a presigned URL; use each item's stable\n`download_url_endpoint` to mint one on demand.",
+      "description": "分页检索当前可用文档资产：产教政策、产业报告、行业报告、专业简介、人才需求调研、人才培养方案和教学案例等。\n\nresource_type/domain(s) 限定业务类型；支持标题、主题、专业/院校/层次、区域、行业及来源发布日期组合过滤。\n专业布点、市场岗位、职业分类大典等独立记录使用各自专用 API，不通过此文档目录查询。\n\n`domain` is the official governance classification. `tags` is a repeated\nsemantic-query parameter; tags_match=any (default) takes the union and\ntags_match=all takes the intersection of matched references. Set\n`is_exact_matched=true` to compare normalized tag values exactly instead.\n`tag_type` is optional: without it, each tag searches every controlled tag\ntype. Results do not contain a presigned URL; use each item's stable\n`download_url_endpoint` to mint one on demand.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -291,7 +291,7 @@
     "type": "function",
     "function": {
       "name": "list_available_asset_versions",
-      "description": "List Available Asset Versions",
+      "description": "读取指定资产中 available 版本的列表，不公开 processing、review_required、archived、disabled 或 failed 版本。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -321,7 +321,7 @@
     "type": "function",
     "function": {
       "name": "find_textbooks",
-      "description": "List Textbooks",
+      "description": "分页检索课程教材，支持教材名、理论/实训类型、出版社、主编、出版年组合过滤。只读取当前 available 且正式分类为教材的文档，返回源锚点及已有知识/任务大纲能力；不触发构建。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -419,7 +419,7 @@
     "type": "function",
     "function": {
       "name": "get_textbook",
-      "description": "Get Textbook",
+      "description": "读取单个课程教材的书目信息、源文档锚点及已有知识/任务大纲类型。仅当前 available 且正式分类为教材的文档可消费，不触发大纲生成；不可用返回 404。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -449,7 +449,7 @@
     "type": "function",
     "function": {
       "name": "discover_data_resources",
-      "description": "Discover the 15 visible Asset Center resource types and counts within public consumption boundaries. Counts are ingested coverage.",
+      "description": "发现资产中心 16 类可见资源及其公开接口、过滤参数、能力与数量。包含教育部同步专业布点及职业分类大典；数量仅代表已入库覆盖。",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -462,7 +462,7 @@
     "type": "function",
     "function": {
       "name": "query_enterprises",
-      "description": "List Enterprises",
+      "description": "分页检索企业数据。q 匹配企业名称、经营范围或所属园区名称；business_scope 匹配经营范围，park_id 精确限定园区。返回企业与已有园区关联，不推断合作关系。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -532,7 +532,7 @@
     "type": "function",
     "function": {
       "name": "get_enterprise",
-      "description": "Get Enterprise",
+      "description": "读取单个企业的名称、经营范围、真实所属园区及来源锚点，不推断合作关系。不存在返回 404。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -811,7 +811,7 @@
     "type": "function",
     "function": {
       "name": "query_industrial_parks",
-      "description": "List Parks",
+      "description": "分页检索产业园区。q 匹配园区名称或介绍，industry 匹配行业标签，条件按 AND 组合。返回园区介绍、行业标签、真实关联企业数及来源；仅代表已入库覆盖。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -869,7 +869,7 @@
     "type": "function",
     "function": {
       "name": "get_industrial_park",
-      "description": "Get Park",
+      "description": "读取单个产业园区及数据库真实关联企业数量。通过 query_enterprises 的 park_id 可分页读取园区企业；不推断合作关系。不存在返回 404。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -929,7 +929,7 @@
     "type": "function",
     "function": {
       "name": "aggregate_major_courses",
-      "description": "Aggregate Major Courses",
+      "description": "按省份汇总已入库、可用文档投影的院校课程覆盖。相同院校/专业/层次/省份优先采用培养方案，兼容已有专业简介课程行。\n\n返回课程、院校数、院校专业数、样本院校数及覆盖率；未解析省份的来源单独计数。\n仅代表已入库文档样本，不是教育部专业布点登记数据，也不代表全国课程覆盖。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1039,68 +1039,254 @@
   {
     "type": "function",
     "function": {
-      "name": "aggregate_major_offerings",
-      "description": "Aggregate Major Offerings",
+      "name": "list_major_offerings",
+      "description": "查询教育部政务服务平台同步入库的职业院校专业布点登记数据，支持年份、省份、专业和学校组合过滤与分页。\n\n返回省份、专业代码/名称、学校标识（可空）、学校名称、修业年限、备注及来源信息。\n同一年份、同一学校、同一专业去重；同步直接入库，无 AI 治理或资产版本准入。\n仅表示已同步覆盖，不代表全国总体，不读取已废弃的专业布点 Pipeline B 投影。",
       "parameters": {
         "type": "object",
         "properties": {
           "query": {
             "type": "object",
             "properties": {
-              "province_name": {
+              "year": {
                 "anyOf": [
                   {
-                    "type": "string"
+                    "type": "integer",
+                    "maximum": 2200,
+                    "minimum": 2013
                   },
                   {
                     "type": "null"
                   }
                 ],
+                "description": "登记年份，精确匹配；查询已入库数据，不触发同步",
+                "title": "Year"
+              },
+              "province_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "省份名称，行政区名称归一化后精确匹配",
                 "title": "Province Name"
+              },
+              "province_code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 16
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "教育部省份编码，区分大小写，精确匹配，如 BJ、HeB",
+                "title": "Province Code"
               },
               "major_name": {
                 "anyOf": [
                   {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 200
                   },
                   {
                     "type": "null"
                   }
                 ],
+                "description": "专业名称，字面子串匹配",
                 "title": "Major Name"
               },
               "major_code": {
                 "anyOf": [
                   {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 64
                   },
                   {
                     "type": "null"
                   }
                 ],
+                "description": "专业代码，精确匹配",
                 "title": "Major Code"
               },
-              "education_level": {
+              "school_name": {
                 "anyOf": [
                   {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 256
                   },
                   {
                     "type": "null"
                   }
                 ],
-                "title": "Education Level"
+                "description": "学校名称，字面子串匹配",
+                "title": "School Name"
               },
-              "institution_name": {
+              "school_code": {
                 "anyOf": [
                   {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 64
                   },
                   {
                     "type": "null"
                   }
                 ],
-                "title": "Institution Name"
+                "description": "学校标识，精确匹配；来源可能未提供该字段",
+                "title": "School Code"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "aggregate_major_offerings",
+      "description": "对教育部同步专业布点按白名单维度统计全量筛选结果，再对分组结果分页。\n\n返回选定维度、record_count（登记记录数）、institution_count（学校标识优先、缺失时按归一化学校名称去重的学校数）。\nmeta.total 为分组数；跨年分组时登记记录数可大于学校数。\n数据仅代表已同步职业院校登记覆盖，不使用专业简介或培养方案推导布点，不触发同步或 AI 治理。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "group_by": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "year",
+                    "province_code",
+                    "province_name",
+                    "major_code",
+                    "major_name"
+                  ],
+                  "type": "string"
+                },
+                "minItems": 1,
+                "maxItems": 5,
+                "description": "分组维度（不能重复），使用重复 query key 传数组；不传时按年份、省份名称、专业代码/名称分组",
+                "default": [
+                  "year",
+                  "province_name",
+                  "major_code",
+                  "major_name"
+                ],
+                "title": "Group By"
+              },
+              "year": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "maximum": 2200,
+                    "minimum": 2013
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "登记年份，精确匹配；查询已入库数据，不触发同步",
+                "title": "Year"
+              },
+              "province_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "省份名称，行政区名称归一化后精确匹配",
+                "title": "Province Name"
+              },
+              "province_code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 16
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "教育部省份编码，区分大小写，精确匹配，如 BJ、HeB",
+                "title": "Province Code"
+              },
+              "major_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "专业名称，字面子串匹配",
+                "title": "Major Name"
+              },
+              "major_code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "专业代码，精确匹配",
+                "title": "Major Code"
+              },
+              "school_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "学校名称，字面子串匹配",
+                "title": "School Name"
+              },
+              "school_code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "学校标识，精确匹配；来源可能未提供该字段",
+                "title": "School Code"
               },
               "page": {
                 "type": "integer",
@@ -1625,7 +1811,7 @@
     "type": "function",
     "function": {
       "name": "get_market_job",
-      "description": "Get Market Job",
+      "description": "读取单条市场岗位及采集来源。薪资、学历、经验等保持来源文本；数据来自 raw_jobs，不读取旧岗位需求治理投影。不存在返回 404。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -2220,6 +2406,79 @@
   {
     "type": "function",
     "function": {
+      "name": "query_occupation_dictionary",
+      "description": "查询职业分类大典（2022 年版）基础表，按职业大类、小类、名称组合过滤（AND），支持分页。\n\n返回职业编码、职业类别、职业大类、职业小类、职业名称、职业定义和工作任务。\n数据来自本地名录及大典 PDF 核验补齐，仅表示已导入条目覆盖；不经过 AI 治理，\n不依赖资产版本或 normalized_ref，不提供编辑、删除或自动生成内容。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "major_group": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "职业大类名称或编码前缀，按字面子串匹配",
+                "title": "Major Group"
+              },
+              "minor_group": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "职业小类名称或编码前缀，按字面子串匹配",
+                "title": "Minor Group"
+              },
+              "occupation_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "职业名称，按字面子串匹配",
+                "title": "Occupation Name"
+              },
+              "page": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 1,
+                "default": 1,
+                "title": "Page"
+              },
+              "pageSize": {
+                "type": "integer",
+                "maximum": 200,
+                "minimum": 1,
+                "default": 20,
+                "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
       "name": "qa_knowledge",
       "description": "Question answering with pgvector-retrieved source citations.\n\nArgs:\n    q: Question (1–2048 chars)\n    kb: Knowledge type code. If omitted, uses default KB.\n    top_k: Max source chunks to retrieve, 1–50",
       "parameters": {
@@ -2430,7 +2689,7 @@
     "type": "function",
     "function": {
       "name": "get_ability_analysis",
-      "description": "Get Ability Analysis",
+      "description": "读取职业能力分析及其分析模板。职业能力分析为独立领域记录，返回源分析与模板信息，不触发 AI 分析；不存在返回 404。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -2547,7 +2806,7 @@
     "type": "function",
     "function": {
       "name": "list_ability_relations",
-      "description": "List Ability Relations",
+      "description": "分页读取指定职业能力分析中已存储的关系，支持 source_type、relation_type 过滤，不推断或新建关系；分析不存在返回 404。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -2778,7 +3037,7 @@
     "type": "function",
     "function": {
       "name": "get_occupational_capability_graph",
-      "description": "Get Occupational Capability Graph",
+      "description": "按专业名称或代码读取最新已生成的职业能力分析图谱。只消费已有节点与关系，不触发构建；专业无已生成图谱时返回 404。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -2824,7 +3083,7 @@
     "type": "function",
     "function": {
       "name": "get_teaching_standard_knowledge_graph",
-      "description": "Get Teaching Standard Knowledge Graph",
+      "description": "按专业名称或代码读取最新已生成的专业教学标准知识图谱。只消费已有节点与关系，不触发构建；无已生成图谱时返回 404。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -2856,191 +3115,6 @@
                   }
                 ],
                 "title": "Major Code"
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      "strict": false
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "list_major_distribution_records",
-      "description": "Search professional-distribution facts across every dataset.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "query": {
-            "type": "object",
-            "properties": {
-              "year": {
-                "anyOf": [
-                  {
-                    "type": "integer",
-                    "maximum": 2200,
-                    "minimum": 1900
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Year"
-              },
-              "province_name": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 128
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Province Name"
-              },
-              "major_name": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 256
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Major Name"
-              },
-              "major_code": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 64
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Major Code"
-              },
-              "page": {
-                "type": "integer",
-                "maximum": 10000,
-                "minimum": 1,
-                "default": 1,
-                "title": "Page"
-              },
-              "pageSize": {
-                "type": "integer",
-                "maximum": 200,
-                "minimum": 1,
-                "default": 20,
-                "title": "Pagesize"
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      "strict": false
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "aggregate_major_distribution_records",
-      "description": "Return server-side professional-distribution totals grouped by dimensions.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "query": {
-            "type": "object",
-            "properties": {
-              "group_by": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "default": [
-                  "year",
-                  "province_name",
-                  "major_name",
-                  "major_code"
-                ],
-                "title": "Group By"
-              },
-              "year": {
-                "anyOf": [
-                  {
-                    "type": "integer",
-                    "maximum": 2200,
-                    "minimum": 1900
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Year"
-              },
-              "province_name": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 128
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Province Name"
-              },
-              "major_name": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 256
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Major Name"
-              },
-              "major_code": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 64
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Major Code"
-              },
-              "page": {
-                "type": "integer",
-                "maximum": 10000,
-                "minimum": 1,
-                "default": 1,
-                "title": "Page"
-              },
-              "pageSize": {
-                "type": "integer",
-                "maximum": 200,
-                "minimum": 1,
-                "default": 20,
-                "title": "Pagesize"
               }
             },
             "additionalProperties": false
@@ -3354,7 +3428,7 @@
     "type": "function",
     "function": {
       "name": "list_open_talent_training_plans",
-      "description": "List Open Talent Training Plans",
+      "description": "分页检索人才培养方案，支持院校、专业、教育层次、修业年限、岗位、技能、证书、课程和来源发布日期组合过滤。仅公开当前 available 且正式分类为培养方案的文档投影；日期不使用入库时间替代。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -3511,7 +3585,7 @@
     "type": "function",
     "function": {
       "name": "get_open_talent_training_plan",
-      "description": "Get Open Talent Training Plan",
+      "description": "读取单个人才培养方案详情与课程声明。须由当前 available 且正式分类为培养方案的文档支撑；不可用返回 404，不触发抽取或治理。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -3541,7 +3615,7 @@
     "type": "function",
     "function": {
       "name": "get_open_course_knowledge_graph",
-      "description": "Get Open Course Knowledge Graph",
+      "description": "读取当前可用人才培养方案中课程和已有知识要求的关系视图；不是标准课程库，不触发新图谱生成。不可用返回 404。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -3571,7 +3645,7 @@
     "type": "function",
     "function": {
       "name": "get_open_position_capability_graph",
-      "description": "Get Open Position Capability Graph",
+      "description": "读取当前可用人才培养方案中岗位和已有能力要求的关系视图；不将其作为市场招聘统计，不触发新图谱生成。不可用返回 404。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -3797,7 +3871,7 @@
     "type": "function",
     "function": {
       "name": "get_standard_course",
-      "description": "Get Course",
+      "description": "读取标准课程及所属专业教学标准、建议学时、派生知识/技能/工具/素养标签和证据。所属标准须 active 且来源文档当前可用；不触发生成，不可用返回 404。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -3897,7 +3971,7 @@
     "type": "function",
     "function": {
       "name": "get_teaching_standard",
-      "description": "Get Standard",
+      "description": "读取单个已激活专业教学标准及课程数量、专业身份和来源锚点。来源须为当前 available 且正式分类为教学标准的文档；不触发激活或图谱生成，不可用返回 404。",
       "parameters": {
         "type": "object",
         "properties": {

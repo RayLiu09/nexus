@@ -89,7 +89,7 @@ describe("MajorDistributionTable", () => {
 
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText("专业名称"), "电子商务");
-    await user.click(screen.getByRole("button", { name: /查询/ }));
+    await user.click(screen.getByRole("button", { name: /检索/ }));
 
     await waitFor(() =>
       expect(replaceMock).toHaveBeenCalledWith(
@@ -127,7 +127,21 @@ describe("MajorDistributionTable", () => {
     expect(screen.queryByRole("button", { name: /编辑|删除/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "操作" })).not.toBeInTheDocument();
     expect(screen.getByText("浙江某学院")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "学校标识码" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/来源：教育部政务服务平台/)).not.toBeInTheDocument();
     expect(patchMock).not.toHaveBeenCalled();
     expect(deleteMock).not.toHaveBeenCalled();
+  });
+
+  it("exports all rows matching applied filters without list pagination or unsaved inputs", async () => {
+    const user = userEvent.setup();
+    render(<MajorDistributionTable rows={[row]} total={201} page={2} pageSize={100}
+      filters={{ year: "2025", major_name: "电子商务", school_name: "浙江" }} ok error={null} traceId={null} />);
+    const link = screen.getByRole("link", { name: /导出 Excel/ });
+    const url = new URL(link.getAttribute("href")!, "http://localhost");
+    expect(url.pathname).toBe("/api/asset-center/major-offerings/export");
+    expect(Object.fromEntries(url.searchParams)).toEqual({ year: "2025", major_name: "电子商务", school_name: "浙江" });
+    await user.type(screen.getByRole("textbox", { name: "专业名称" }), "草稿");
+    expect(link.getAttribute("href")).toBe(url.pathname + url.search);
   });
 });

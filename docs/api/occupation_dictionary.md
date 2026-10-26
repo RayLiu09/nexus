@@ -23,6 +23,7 @@
 ## 接口
 
 - `GET /v1/occupation-dictionary`：沿用 `require_api_caller` 的 API caller 认证。
+- `GET /open/v1/occupation-dictionary`：相同认证与只读查询的公开消费别名，工具名 `query_occupation_dictionary`；资源发现包含本基础表。
 - `GET /internal/v1/occupation-dictionary`：沿用 `require_user` 的 Console 用户认证。
 - 仅提供读取，不提供创建、编辑、删除接口。
 

@@ -86,7 +86,7 @@ def generate_catalog(document):
             outputs = {code: resolve_schema(value.get("content", {}).get("application/json", {}).get("schema", {}), document)
                        for code, value in operation.get("responses", {}).items()}
             bindings.append({"name": name, "method": method.upper(), "path": path,
-                "tags": operation.get("tags", []), "arguments": locations,
+                "tags": operation.get("tags") or [path.split("/")[3]], "arguments": locations,
                 "authentication": {"header": "X-API-Key", "injected_by": "executor"},
                 "executor_defaults": forced, "potential_ingest_side_effect": side_effect,
                 "response_schemas": outputs})

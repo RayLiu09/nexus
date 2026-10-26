@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   Alert,
   App,
@@ -33,6 +33,7 @@ import {
 } from "@ant-design/icons";
 
 import { deleteApiData, getApiData, postApiData, putApiData } from "@/lib/api";
+import { MOE_PROVINCES, MOE_YEARS } from "@/lib/data-sync";
 import type { JobCollectionCategory, QueryField, SyncPlan, SyncProvider, SyncRun, SyncRunLogs } from "@/lib/data-sync";
 import { formatTime } from "@/lib/format-time";
 import dayjs from "dayjs";
@@ -112,11 +113,11 @@ function ProviderLogo({ name, code }: { name: string; code: string }) {
   );
 }
 
-function QueryInput({ field }: { field: QueryField }) {
+function queryInput(field: QueryField, required: boolean) {
   const type = fieldType(field);
   if (field.enum)
-    return <Select showSearch options={field.enum.map((value, index) => ({ label: field["x-enum-labels"]?.[index] ?? String(value), value }))} optionFilterProp="label" />;
-  if (type === "string") return <Input maxLength={field.maxLength} />;
+    return <Select showSearch allowClear={!required} placeholder={required ? undefined : "不限"} options={field.enum.map((value, index) => ({ label: field["x-enum-labels"]?.[index] ?? String(value), value }))} optionFilterProp="label" />;
+  if (type === "string") return <Input allowClear={!required} placeholder={required ? undefined : "不限"} maxLength={field.maxLength} />;
   if (type === "integer" || type === "number")
     return (
       <InputNumber
@@ -169,8 +170,6 @@ export function DataSyncContent({
   const [error, setError] = useState(initialError);
   const [busy, setBusy] = useState<string | null>(null);
   const [selectedProvider, setSelectedProvider] = useState<SyncProvider | null>(null);
-  const [ministryOptions, setMinistryOptions] = useState<{ years: number[]; provinces: { code: string; name: string }[] } | null>(null);
-  const [optionsLoading, setOptionsLoading] = useState(false);
   const [editingPlan, setEditingPlan] = useState<SyncPlan | null>(null);
   const [copyingPlan, setCopyingPlan] = useState<SyncPlan | null>(null);
   const [categoryId, setCategoryId] = useState<string | undefined>();
@@ -182,30 +181,6 @@ export function DataSyncContent({
   const { message } = App.useApp();
   const [form] = Form.useForm();
   const selectedCategory = catalog.find((item) => item.id === categoryId);
-
-  useEffect(() => {
-    if (selectedProvider?.provider_code !== "moe_major_offering") return;
-    let cancelled = false;
-    void getApiData<{ years: number[]; provinces: { code: string; name: string }[] } | null>(
-      "/api/data-sync/providers/moe_major_offering/options", null,
-    ).then((result) => {
-      if (cancelled) return;
-      setOptionsLoading(false);
-      if (!result.ok || !result.data) {
-        setError(result.error ?? "教育部年份、省份字典加载失败，请重新打开计划重试");
-        return;
-      }
-      setMinistryOptions(result.data);
-      if (!form.getFieldValue(["query_config", "year"]))
-        form.setFieldValue(["query_config", "year"], result.data.years[0]);
-    }).catch(() => {
-      if (!cancelled) {
-        setOptionsLoading(false);
-        setError("教育部年份、省份字典加载失败，请重新打开计划重试");
-      }
-    });
-    return () => { cancelled = true; };
-  }, [selectedProvider, form]);
 
   async function loadRuns(plan: SyncPlan, page: number, filters: RunFilters) {
     const requestSeq = ++runRequestSeq.current;
@@ -297,8 +272,6 @@ export function DataSyncContent({
   }
 
   function selectProvider(provider: SyncProvider) {
-    setOptionsLoading(provider.provider_code === "moe_major_offering");
-    setMinistryOptions(null);
     setSelectedProvider(provider);
   }
 
@@ -323,6 +296,7 @@ export function DataSyncContent({
         .filter(([, field]) => field.default !== undefined)
         .map(([name, field]) => [name, field.default]),
     );
+    if (provider.provider_code === "moe_major_offering") defaults.year = new Date().getFullYear();
     form.setFieldsValue({ frequency: provider.provider_code === "moe_major_offering" ? "1_year" : "1_month", query_config: defaults });
     selectProvider(provider);
   }
@@ -392,10 +366,6 @@ export function DataSyncContent({
     query_config?: Record<string, unknown>;
   }) {
     if (!selectedProvider) return;
-    if (selectedProvider.provider_code === "moe_major_offering" && !ministryOptions) {
-      setError("请等待教育部年份、省份字典加载成功后再保存");
-      return;
-    }
     if (selectedProvider.provider_code === "crawler_engine") {
       const names = values.query_config?.keywords;
       const regions = values.query_config?.regions;
@@ -420,9 +390,9 @@ export function DataSyncContent({
 
   const required = selectedProvider?.query_schema.required ?? [];
   const fields = Object.entries(selectedProvider?.query_schema.properties ?? {}).map(([name, field]): [string, QueryField] => {
-    if (selectedProvider?.provider_code !== "moe_major_offering" || !ministryOptions) return [name, field];
-    if (name === "year") return [name, { ...field, enum: ministryOptions.years }];
-    if (name === "province") return [name, { ...field, enum: ministryOptions.provinces.map((p) => p.code), "x-enum-labels": ministryOptions.provinces.map((p) => p.name) }];
+    if (selectedProvider?.provider_code !== "moe_major_offering") return [name, field];
+    if (name === "year") return [name, { ...field, enum: MOE_YEARS }];
+    if (name === "province") return [name, { ...field, enum: MOE_PROVINCES.map((p) => p.code), "x-enum-labels": MOE_PROVINCES.map((p) => p.name) }];
     return [name, field];
   });
   const isJobCollection = selectedProvider?.provider_code === "crawler_engine";
@@ -685,7 +655,7 @@ export function DataSyncContent({
         extra={
           <Button
             type="primary"
-            disabled={unsupported || (selectedProvider?.provider_code === "moe_major_offering" && (!ministryOptions || optionsLoading))}
+            disabled={unsupported}
             loading={busy === "create" || (editingPlan ? busy === `edit-${editingPlan.id}` : false)}
             onClick={() => form.submit()}
           >
@@ -789,7 +759,7 @@ export function DataSyncContent({
                 ...(field.minLength ? [{ min: field.minLength }] : []),
               ]}
             >
-              <QueryInput field={field} />
+              {queryInput(field, required.includes(name))}
             </Form.Item>
           ))}
           {unsupported && (

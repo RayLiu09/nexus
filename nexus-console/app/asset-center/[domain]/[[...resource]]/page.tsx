@@ -459,7 +459,6 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
       major_name: first(query.major_name),
       major_code: first(query.major_code),
       school_name: first(query.school_name),
-      school_code: first(query.school_code),
     };
     const result = await getApiData<MajorOfferingRecord[]>(
       "/internal/v1/major-offerings",

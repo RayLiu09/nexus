@@ -50,13 +50,13 @@ def body(rows, page=1, total=None, size=50):
     }
 
 
-def make_run(session, suffix="1"):
+def make_run(session, suffix="1", query=None):
     plan = create_plan(
         session,
         name=f"教育部-{suffix}",
         provider_code="moe_major_offering",
         frequency="1_year",
-        query_config=QUERY,
+        query_config=QUERY if query is None else query,
         actor_id="admin",
         idempotency_key=f"plan-{suffix}",
         trace_id="moe-test",
@@ -311,8 +311,139 @@ def test_ambiguous_code_and_name_match_fails_without_overwriting(session, monkey
     worker.close()
     session.expire_all()
     assert session.get(models.DataSyncRun, run.id).status == "failed"
-    assert session.get(models.DataSyncRun, run.id).failure_summary == "school_identity_conflict"
-    assert {row.school_name for row in session.scalars(select(models.MajorOfferingRecord))} == {
+    assert (
+        session.get(models.DataSyncRun, run.id).failure_summary
+        == "school_identity_conflict"
+    )
+    assert {
+        row.school_name for row in session.scalars(select(models.MajorOfferingRecord))
+    } == {
         "学校甲",
         "学校乙",
     }
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        {"year": 2026},
+        {"year": 2026, "province": "", "major_name": "  ", "major_code": None},
+    ],
+)
+def test_unrestricted_pull_omits_empty_filters_and_uses_compatible_headers(query):
+    adapter = MoeMajorOfferingProvider()
+
+    def handle(request):
+        assert dict(request.url.params) == {
+            "year": "2026",
+            "page": "1",
+            "pageSize": "50",
+        }
+        assert request.headers["user-agent"].startswith("Mozilla/5.0")
+        assert (
+            request.headers["referer"] == "https://zwfw.moe.gov.cn/zyyxzy/result.html"
+        )
+        assert "authorization" not in request.headers
+        return httpx.Response(200, json=body([]))
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+        assert (
+            adapter.fetch_pull_page(
+                SimpleNamespace(api_server_url="https://example.org"),
+                query,
+                None,
+                client,
+            )["total"]
+            == 0
+        )
+
+
+def test_dictionary_requests_share_compatible_public_headers():
+    def handle(request):
+        assert request.headers["user-agent"].startswith("Mozilla/5.0")
+        assert "authorization" not in request.headers
+        data = (
+            ["2026", "2025"]
+            if request.url.path.endswith("years")
+            else [{"code": "BJ", "name": "北京市"}]
+        )
+        return httpx.Response(200, json={"success": True, "data": data})
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+        options = MoeMajorOfferingProvider().get_options(
+            SimpleNamespace(api_server_url="https://example.org"), client
+        )
+    assert options["years"] == [2026, 2025]
+
+
+def test_unrestricted_run_uses_each_records_province_and_major_and_skips_duplicates(
+    session, monkeypatch
+):
+    rows = [
+        record(),
+        record(code="2", name="江苏学校", prov_name="江苏省"),
+        record(major_code="530702", major_name="跨境电子商务"),
+        record(duration="3"),
+    ]
+    run = make_run(session, query={"year": 2026})
+    worker = executor(
+        session, monkeypatch, lambda _: httpx.Response(200, json=body(rows))
+    )
+    worker.run_once()
+    session.expire_all()
+    current = session.get(models.DataSyncRun, run.id)
+    assert (current.status, current.success_count, current.skipped_count) == (
+        "succeeded",
+        3,
+        1,
+    )
+    stored = list(session.scalars(select(models.MajorOfferingRecord)))
+    assert {(r.province_code, r.major_code) for r in stored} == {
+        ("BJ", "530701"),
+        ("JS", "530701"),
+        ("BJ", "530702"),
+    }
+    repeated = make_run(
+        session, suffix="repeat", query={"year": 2026, "major_name": "电子商务"}
+    )
+    worker.run_once()
+    worker.close()
+    session.expire_all()
+    assert session.get(models.DataSyncRun, repeated.id).skipped_count == 4
+
+
+@pytest.mark.parametrize(
+    "query, invalid",
+    [
+        ({"year": 2026}, {"prov_name": "不存在的省份"}),
+        ({"year": 2026}, {"major_code": "abc"}),
+        ({"year": 2026, "major_code": "530701"}, {"major_code": "530702"}),
+        ({"year": 2026, "major_name": "电子商务"}, {"major_name": "会计"}),
+    ],
+)
+def test_optional_scope_rejects_invalid_or_out_of_scope_rows_atomically(
+    session, monkeypatch, query, invalid
+):
+    run = make_run(session, query=query)
+    worker = executor(
+        session,
+        monkeypatch,
+        lambda _: httpx.Response(
+            200, json=body([record(), record(code="2", **invalid)])
+        ),
+    )
+    worker.run_once()
+    worker.close()
+    session.expire_all()
+    assert session.get(models.DataSyncRun, run.id).status == "failed"
+    assert not list(session.scalars(select(models.MajorOfferingRecord)))
+
+
+def test_year_boundaries_are_independent_of_dynamic_dictionary_cache():
+    adapter = MoeMajorOfferingProvider()
+    _options_cache["https://example.org"] = (float("inf"), {"years": [2026]})
+    assert adapter.validate_query({"year": 2035}) == {"year": 2035}
+    assert adapter.validate_query({"year": 2013}) == {"year": 2013}
+    for year in (2012, 2036, "2026", True):
+        with pytest.raises(ValueError):
+            adapter.validate_query({"year": year})

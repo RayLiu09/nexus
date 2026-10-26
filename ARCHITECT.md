@@ -337,6 +337,12 @@ AI governance run, or knowledge chunks. The API and Console query the same table
 source row numbers and PDF page locators remain internal provenance.
 
 P0 active Pipeline B profiles include occupational ability analysis. Job demand and major distribution are independent API-synchronized domains. Major distribution uses the Education Ministry public registration API (`moe_major_offering`), `auth_mode=none`, `execution_mode=paged_pull`, and writes `major_offering_record` directly. It creates no asset/version/normalized reference, invokes no AI governance, and creates no knowledge chunks. This domain is explicitly outside the Asset Pipeline stage/status requirements above.
+The Ministry adapter uses compatible public HTTP request headers. The Console keeps
+verified year/province options locally; plan creation does not depend on dictionary
+availability. Year allows 2013–2035 and defaults to the current year; province and major
+filters are optional. Each returned row determines its own province and major facts,
+with non-empty query filters validated before the existing transactional dedupe/write.
+
 
 The direct sync transaction accepts one complete page together with its cursor and counters; HTTP and pacing occur outside transactions. Worker leases/heartbeats and bounded retries reuse the PostgreSQL sync-run framework. Provider claims serialize public paged pulls across workers. A fact is unique by year + school + major code, using school code when available and normalized school name as fallback; DB constraints and conflict-safe inserts skip existing facts without overwriting them. Source page numbers, raw row JSON and content hashes are absent from this domain. Retired legacy tables remain historical only; active read/aggregate/retrieval paths use the new domain and report ingested coverage.
 
@@ -893,10 +899,17 @@ Single-node capacity (16 Core / 64 GB / 48 GB GPU):
   granting the complete `/open/v1/*` surface; per-route restricted scopes and
   quota enforcement are future extensions. Keys retain `expired_at` revocation
   and audit coverage.
-- Pipeline-B job-demand and major-distribution records are separately governed
-  domain facts. Their cross-dataset `/open/v1/record-assets/*` reads do not
-  join or gate on `asset_version.available`; dataset/ref identifiers are
-  returned only for lineage. Generated capability-graph staging projections
+- Current market jobs, Ministry-synchronized major offerings and occupation
+  dictionary entries are independent read models, without asset-version or
+  AI-governance admission. Legacy major-distribution record APIs return 410;
+  legacy job-demand projections remain deprecated. Generated public tools
+  exclude both legacy groups. The occupation dictionary has an authenticated
+  `/open/v1/occupation-dictionary` alias, and resource discovery covers all
+  16 visible Asset Center types. Ministry aggregation has one public route
+  registration, without document-derived schema shadowing. Major-offering
+  Excel export shares list filters/order, reads in batches and records audit;
+  binary downloads stay outside the JSON function-tool catalog.
+  Generated capability-graph staging projections
   are exposed through bounded, read-only open adapters while `/internal/v1`
   retains build, preview, and operational control APIs.
 - Rule expressions cannot execute arbitrary code.

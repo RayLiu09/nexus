@@ -4,7 +4,7 @@ import { useEffect, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Button, Form, Input, Space, Table } from "antd";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
-import { Search, X } from "lucide-react";
+import { Download, Search, X } from "lucide-react";
 
 import { ApiState } from "@/components/ApiState";
 import type { MajorOfferingRecord } from "@/lib/api";
@@ -15,7 +15,6 @@ export type MajorDistributionFilters = {
   major_name?: string;
   major_code?: string;
   school_name?: string;
-  school_code?: string;
 };
 
 type Props = {
@@ -31,7 +30,7 @@ type Props = {
 
 const filterFields = [
   ["year", "年份"], ["province_name", "省份"], ["major_code", "专业代码"],
-  ["major_name", "专业名称"], ["school_code", "学校标识码"], ["school_name", "学校名称"],
+  ["major_name", "专业名称"], ["school_name", "学校名称"],
 ] as const;
 const emptyFilters = Object.fromEntries(filterFields.map(([key]) => [key, undefined]));
 
@@ -41,6 +40,12 @@ export function MajorDistributionTable({ rows, total, page, pageSize, filters, o
   const [pending, startTransition] = useTransition();
   const [filterForm] = Form.useForm<MajorDistributionFilters>();
   useEffect(() => filterForm.setFieldsValue({ ...emptyFilters, ...filters }), [filterForm, filters]);
+  const exportSearch = new URLSearchParams();
+  for (const [key] of filterFields) {
+    const value = filters[key]?.trim();
+    if (value) exportSearch.set(key, value);
+  }
+  const exportUrl = `/api/asset-center/major-offerings/export${exportSearch.size ? `?${exportSearch}` : ""}`;
 
   const replaceQuery = (next: MajorDistributionFilters, nextPage = 1, nextSize = pageSize) => {
     const search = new URLSearchParams();
@@ -67,9 +72,6 @@ export function MajorDistributionTable({ rows, total, page, pageSize, filters, o
   return (
     <>
       <ApiState ok={ok} error={error} traceId={traceId} />
-      <p className="text-muted mb-3 text-sm">
-        来源：教育部政务服务平台 · 高职专科拟招生专业设置备案。仅展示已同步范围，同年同校同专业计一个布点。
-      </p>
       <section className="border-line bg-surface border-y">
         <Form form={filterForm} layout="inline" initialValues={filters}
           className="border-line flex flex-wrap justify-end gap-2 border-b px-4 py-3"
@@ -81,11 +83,12 @@ export function MajorDistributionTable({ rows, total, page, pageSize, filters, o
           ))}
           <Form.Item className="!mb-0">
             <Space size={8}>
-              <Button htmlType="submit" type="primary" icon={<Search size={15} />}>查询</Button>
+              <Button htmlType="submit" type="primary" icon={<Search size={15} />}>检索</Button>
               <Button icon={<X size={15} />} onClick={() => {
                 filterForm.setFieldsValue(emptyFilters);
                 replaceQuery({});
               }}>重置</Button>
+              <Button icon={<Download size={15} />} href={exportUrl} target="_blank">导出 Excel</Button>
             </Space>
           </Form.Item>
         </Form>

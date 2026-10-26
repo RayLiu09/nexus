@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from datetime import datetime, timezone
 
@@ -10,7 +11,11 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from nexus_app import models
-from nexus_app.data_sync.adapters.moe_major_offering import MoeQuery, PROVINCES, SOURCE_URL
+from nexus_app.data_sync.adapters.moe_major_offering import (
+    MoeQuery,
+    PROVINCES,
+    SOURCE_URL,
+)
 from nexus_app.data_sync.job_posting_intake import IntakeCounts
 from nexus_app.data_sync.runtime import SyncRuntimeError
 
@@ -25,13 +30,40 @@ class MajorOfferingResultHandler:
         accepted = 0
         for record in records:
             if not isinstance(record, dict):
-                raise SyncRuntimeError("invalid school fact", code="invalid_major_offering")
-            required = ("prov_name", "major_code", "major_name", "school_name", "school_system")
-            if any(not isinstance(record.get(k), str) or not record[k].strip() for k in required):
-                raise SyncRuntimeError("missing school fact field", code="invalid_major_offering")
+                raise SyncRuntimeError(
+                    "invalid school fact", code="invalid_major_offering"
+                )
+            required = (
+                "prov_name",
+                "major_code",
+                "major_name",
+                "school_name",
+                "school_system",
+            )
+            if any(
+                not isinstance(record.get(k), str) or not record[k].strip()
+                for k in required
+            ):
+                raise SyncRuntimeError(
+                    "missing school fact field", code="invalid_major_offering"
+                )
+            province_name = record["prov_name"].strip()
+            province_code = next(
+                (code for code, name in PROVINCES.items() if name == province_name),
+                None,
+            )
+            major_code = record["major_code"].strip()
+            if province_code is None or not re.fullmatch(r"\d{6}", major_code):
+                raise SyncRuntimeError(
+                    "invalid province or major code", code="invalid_major_offering"
+                )
             if (
-                record["prov_name"].strip() != PROVINCES[query.province]
-                or record["major_code"].strip() != query.major_code
+                (query.province is not None and province_code != query.province)
+                or (query.major_code is not None and major_code != query.major_code)
+                or (
+                    query.major_name is not None
+                    and query.major_name not in record["major_name"].strip()
+                )
             ):
                 raise SyncRuntimeError(
                     "source scope mismatch", code="major_offering_scope_mismatch"
@@ -39,7 +71,9 @@ class MajorOfferingResultHandler:
             code = record.get("school_code")
             remark = record.get("remark")
             if any(v is not None and not isinstance(v, str) for v in (code, remark)):
-                raise SyncRuntimeError("invalid optional field", code="invalid_major_offering")
+                raise SyncRuntimeError(
+                    "invalid optional field", code="invalid_major_offering"
+                )
             code = code.strip() or None if code is not None else None
             name_key = school_name_key(record["school_name"])
             predicates = [models.MajorOfferingRecord.school_name_key == name_key]
@@ -47,12 +81,14 @@ class MajorOfferingResultHandler:
                 predicates.append(models.MajorOfferingRecord.school_code == code)
             statement = select(models.MajorOfferingRecord).where(
                 models.MajorOfferingRecord.year == query.year,
-                models.MajorOfferingRecord.major_code == query.major_code,
+                models.MajorOfferingRecord.major_code == major_code,
                 or_(*predicates),
             )
             matches = list(session.scalars(statement))
             if len(matches) > 1:
-                raise SyncRuntimeError("ambiguous school identity", code="school_identity_conflict")
+                raise SyncRuntimeError(
+                    "ambiguous school identity", code="school_identity_conflict"
+                )
             existing = matches[0] if matches else None
             if existing:
                 if code and existing.school_code and existing.school_code != code:
@@ -60,16 +96,20 @@ class MajorOfferingResultHandler:
                         "school identity conflict", code="school_identity_conflict"
                     )
                 continue
-            insert = pg_insert if session.get_bind().dialect.name == "postgresql" else sqlite_insert
+            insert = (
+                pg_insert
+                if session.get_bind().dialect.name == "postgresql"
+                else sqlite_insert
+            )
             result = session.execute(
                 insert(models.MajorOfferingRecord)
                 .values(
                     sync_run_id=run.id,
                     provider_code=run.provider_code,
                     year=query.year,
-                    province_code=query.province,
-                    province_name=record["prov_name"].strip(),
-                    major_code=record["major_code"].strip(),
+                    province_code=province_code,
+                    province_name=province_name,
+                    major_code=major_code,
                     major_name=record["major_name"].strip(),
                     school_code=code,
                     school_name=record["school_name"].strip(),
@@ -93,7 +133,8 @@ class MajorOfferingResultHandler:
                 existing = matches[0] if matches else None
                 if existing is None:
                     raise SyncRuntimeError(
-                        "unresolved uniqueness conflict", code="school_identity_conflict"
+                        "unresolved uniqueness conflict",
+                        code="school_identity_conflict",
                     )
                 if code and existing.school_code and existing.school_code != code:
                     raise SyncRuntimeError(

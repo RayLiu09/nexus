@@ -842,9 +842,11 @@ export async function putApiData<T>(
   payload: Record<string, unknown>,
   options?: { etag?: string; idempotencyKey?: string },
 ): Promise<ApiEnvelope<T>> {
-  const headers: Record<string, string> = { "content-type": "application/json" };
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    "idempotency-key": options?.idempotencyKey ?? generateIdempotencyKey(),
+  };
   if (options?.etag) headers["if-match"] = options.etag;
-  if (options?.idempotencyKey) headers["idempotency-key"] = options.idempotencyKey;
   return requestApi<T>(path, {
     method: "PUT",
     headers,

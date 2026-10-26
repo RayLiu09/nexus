@@ -122,7 +122,8 @@ def _source_rows(
     return rows, unresolved
 
 
-@router.get("/major-offerings/aggregate")
+# Legacy in-process calculation only. This must not shadow the Ministry-backed
+# /major-offerings/aggregate route or replace its schema in OpenAPI.
 def aggregate_major_offerings(request: Request, province_name: str | None = None, major_name: str | None = None, major_code: str | None = None, education_level: str | None = None, institution_name: str | None = None, pagination: Pagination = Depends(pagination_params), session: Session = Depends(get_db)):
     rows, unresolved = _source_rows(session, include_courses=False, province_name=province_name, major_name=major_name, major_code=major_code, education_level=education_level, institution_name=institution_name)
     grouped: dict[tuple[str, str, str, str], set[str]] = defaultdict(set)
@@ -136,6 +137,11 @@ def aggregate_major_offerings(request: Request, province_name: str | None = None
 
 @router.get("/major-courses/aggregate")
 def aggregate_major_courses(request: Request, province_name: str | None = None, major_name: str | None = None, major_code: str | None = None, education_level: str | None = None, institution_name: str | None = None, course: str | None = None, min_coverage_ratio: float | None = None, pagination: Pagination = Depends(pagination_params), session: Session = Depends(get_db)):
+    """按省份汇总已入库、可用文档投影的院校课程覆盖。相同院校/专业/层次/省份优先采用培养方案，兼容已有专业简介课程行。
+
+    返回课程、院校数、院校专业数、样本院校数及覆盖率；未解析省份的来源单独计数。
+    仅代表已入库文档样本，不是教育部专业布点登记数据，也不代表全国课程覆盖。
+    """
     rows, unresolved = _source_rows(session, include_courses=True, province_name=province_name, major_name=major_name, major_code=major_code, education_level=education_level, institution_name=institution_name)
     eligible = {(row.province_name, _norm(row.institution_name)) for _, row in rows.values()}
     eligible_by_province = Counter(province for province, _ in eligible)

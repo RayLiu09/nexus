@@ -1,6 +1,6 @@
 # Agent 公开用数接口与 A/B 缺口交付
 
-本次实现以 `agent_openapi_gap_analysis_2026-10-22.md` 的 A/B 类建议和资产中心 15 类可见入口为范围。C 类资源变更/增量同步接口不在本次交付内。公开接口统一由 `nexus-api` 提供，前缀 `/open/v1`；内部 Console API 不进入工具清单。
+本次实现以 `agent_openapi_gap_analysis_2026-10-22.md` 的 A/B 类建议和资产中心最新 16 类可见入口为范围（2026-10-26 补充职业分类大典及教育部布点同步口径）。C 类资源变更/增量同步接口不在本次交付内。公开消费别名由 `nexus-api` 提供，前缀 `/open/v1`；业务 API 保持 `/v1`，内部 Console API 不进入工具清单。
 
 ## A/B 覆盖
 
@@ -8,7 +8,9 @@
 
 | 缺口 | 接口 | 行为和数据口径 |
 | --- | --- | --- |
-| A 资源发现 | `GET /data-resources` | 15 类入口的编码、来源类型、可消费数量、数量单位、能力、实际查询参数及限制；计数遵循公开边界 |
+| A 资源发现 | `GET /data-resources` | 16 类入口的编码、来源类型、可消费数量、数量单位、能力、实际查询参数及限制；计数遵循公开边界 |
+| 专业布点 | `GET /major-offerings`、`/aggregate` | 教育部同步的职业院校备案事实直接入库，无 AI 治理；同年同校同专业去重，仅代表已同步覆盖；与专业简介、培养方案课程统计无关 |
+| 职业分类大典 | `GET /occupation-dictionary` | 2022 年版已核验导入基础表，职业大类/小类/名称 AND 检索，返回类别、层级、编码、职业名称、定义、工作任务；只读、无 AI 治理、不依赖资产版本或 ref |
 | A 文档发现 | 增强 `GET /assets` | 标题、resource_type、多 domains、主题、区域/行业、专业/院校/层次、源发布日期；tags_match 显式 any/all；返回白名单业务元数据 |
 | A 专业简介 | `GET /major-profile-documents` | 当前文档及四项专业身份元数据，遵循人工修改和清空值；不依赖已退役 MajorProfile 投影 |
 | A 市场岗位 | `GET /market-jobs`、`/{job_id}` | 同页面读取 raw_jobs + provenance；岗位/企业/行业/学历/经验/采集时间查询，保留源字段、provider/upstream ID、来源链接 |
@@ -31,6 +33,8 @@
 
 ## 参数合同
 
+- 专业布点 `year`、`province_code`、`major_code`、`school_code` 精确匹配，`province_name` 行政区名称归一化后精确匹配，`major_name`、`school_name` 按转义字面子串匹配，条件按 AND 组合。聚合 `group_by` 支持 year、province_code、province_name、major_code、major_name，最多 5 项且不可重复，数组使用 repeated keys。返回选定维度、record_count、institution_count；学校按标识优先、名称兜底去重，跨年记录数可大于学校数，meta.total 为分组数。
+- 职业分类大典 `major_group`、`minor_group`、`occupation_name` 均按字面子串匹配且组合为 AND，前两项可传编码前缀；返回 edition、occupation_code、occupation_category、major_group、minor_group（可空）、occupation_name、definition、work_tasks。数据来自名录及同版 PDF 补齐，所附 PDF 为社会公示稿，不声明全国完整名录。
 - 列表沿用 `page`（默认 1）与 `pageSize`（默认 20，上限 200）；`meta.total` 来自全量过滤后 COUNT，排序末项包含稳定 ID。分组聚合的 total 是分组数，sample_count 是岗位记录样本量。
 - 文档 `domain` 为单一正式治理分类；`domains` 是重复参数并在内部取 OR，与其他筛选条件取 AND；`major_profile` 多分类筛选兼容 `program_profile`。`resource_type` 用于文档业务类型，记录类资源应走专用 API。
 - `topic=finance_commerce|low_altitude` 使用现有资产中心的主题条件，主题可重叠。`region`、`industry` 采用已有标签归一化后的精确匹配。专业/院校名称是转义后的子串匹配，专业代码/层次为精确匹配；适用身份来自文档元数据及对应方案/标准投影。
@@ -52,7 +56,9 @@
 
 认证缺失/无效为 401，撤销/过期为 403，不可消费/不存在的单项为 404，参数/上下限/组合错误为 422；对象存储临时不可用为 503。批量证据以逐项 not_found 表达不可读取，不区分隐藏与未知 ID。
 
-旧 `/major-profiles` 以及 `/job-demand-records`（含 record-assets 下的同名路径）保留 HTTP 兼容，OpenAPI 标记 deprecated；推荐简介走文档接口，当前市场岗位走 market-jobs。院校统计仅表示已入库且符合口径的来源覆盖，不代表全国总体。旧底层文档读取保持既有 available 合同，新增确定性证据工具使用更严格的 current-ref 边界。
+旧 `/major-profiles` 以及 `/job-demand-records`（含 record-assets 下的同名路径）保留 HTTP 兼容，OpenAPI 标记 deprecated；推荐简介走文档接口，当前市场岗位走 market-jobs。旧 `/record-assets/major-distribution-records` 及其 `/aggregate` 返回 410，并标记 deprecated，不进入工具清单。`/major-offerings/aggregate` 唯一绑定教育部同步事实；同路径旧文档聚合注册已移除。院校课程统计 `/major-courses/aggregate` 保留文档样本覆盖口径，不代表全国总体。旧底层文档读取保持既有 available 合同，新增确定性证据工具使用更严格的 current-ref 边界。
+
+专业布点 Excel 下载使用 `GET /v1/major-offerings/export`（API caller）或 `/internal/v1/major-offerings/export`（Console 用户）。应用同一筛选与排序，导出全部匹配记录而非当前页；八列与列表一致，记录读取审计，不写业务数据。该二进制接口不列为 JSON function tool。
 
 ## Function tools 与使用示例
 

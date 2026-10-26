@@ -60,15 +60,16 @@ def serialize(row):
 def list_records(session, *, offset=0, limit=20, **filters):
     stmt = statement(**filters)
     total = session.scalar(select(func.count()).select_from(stmt.subquery())) or 0
-    rows = session.scalars(
-        stmt.order_by(
-            models.MajorOfferingRecord.year.desc(),
-            models.MajorOfferingRecord.province_code,
-            models.MajorOfferingRecord.major_code,
-            models.MajorOfferingRecord.school_name,
-            models.MajorOfferingRecord.id,
-        )
-        .offset(offset)
-        .limit(limit)
-    ).all()
+    rows = session.scalars(ordered(stmt).offset(offset).limit(limit)).all()
     return [serialize(row) for row in rows], total
+
+
+def ordered(stmt):
+    """Keep paginated lists and complete exports in the same stable order."""
+    return stmt.order_by(
+        models.MajorOfferingRecord.year.desc(),
+        models.MajorOfferingRecord.province_code,
+        models.MajorOfferingRecord.major_code,
+        models.MajorOfferingRecord.school_name,
+        models.MajorOfferingRecord.id,
+    )

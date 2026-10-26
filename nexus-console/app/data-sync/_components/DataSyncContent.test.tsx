@@ -2,11 +2,11 @@ import { App } from "antd";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 
-import { getApiData, postApiData } from "@/lib/api";
+import { getApiData, postApiData, putApiData } from "@/lib/api";
 import type { JobCollectionCategory, SyncPlan, SyncProvider, SyncRun } from "@/lib/data-sync";
 import { DataSyncContent } from "./DataSyncContent";
 
-vi.mock("@/lib/api", () => ({ getApiData: vi.fn(), postApiData: vi.fn(), deleteApiData: vi.fn() }));
+vi.mock("@/lib/api", () => ({ getApiData: vi.fn(), postApiData: vi.fn(), putApiData: vi.fn(), deleteApiData: vi.fn() }));
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -256,23 +256,74 @@ it("blocks a fully selected collection plan above the upstream combination limit
   await waitFor(() => expect(postApiData).not.toHaveBeenCalled());
 });
 
-it("creates Ministry plans using public API options and the four required fields", async () => {
-  const ministry: SyncProvider = {
-    ...provider("moe_major_offering"), display_name: "教育部政务服务平台",
-    tenant_name: null, auth_mode: "none", execution_mode: "paged_pull", credential_status: "not_required",
-    query_schema: { type: "object", required: ["year", "province", "major_name", "major_code"], properties: {
-      year: { type: "integer", title: "年份" }, province: { type: "string", title: "省份/地区" },
-      major_name: { type: "string", title: "专业名称" }, major_code: { type: "string", title: "专业代码" },
-    } },
-  };
-  vi.mocked(getApiData).mockResolvedValue({ ok: true, error: null, traceId: null, total: null, data: { years: [2026, 2025], provinces: [{ code: "HeB", name: "河北省" }] } });
+const ministry: SyncProvider = {
+  ...provider("moe_major_offering"), display_name: "教育部政务服务平台",
+  tenant_name: null, auth_mode: "none", execution_mode: "paged_pull", credential_status: "not_required",
+  query_schema: { type: "object", required: ["year"], properties: {
+    year: { type: "integer", title: "年份", default: 2026 }, province: { anyOf: [{ type: "string" }, { type: "null" }], title: "省份/地区" },
+    major_name: { anyOf: [{ type: "string" }, { type: "null" }], title: "专业名称" }, major_code: { anyOf: [{ type: "string" }, { type: "null" }], title: "专业代码" },
+  } },
+};
+
+it("creates a Ministry plan with the current year and empty optional filters without requesting dictionaries", async () => {
+  vi.mocked(getApiData).mockResolvedValue({ ok: true, error: null, traceId: null, total: null, data: [] });
+  vi.mocked(postApiData).mockResolvedValue({ data: {} });
   render(<App><DataSyncContent initialProviders={[ministry]} initialPlans={[]} initialCatalog={[]} initialError={null} /></App>);
   expect(screen.getByText("无需认证")).toBeInTheDocument();
+  const currentYear = new Date().getFullYear();
   fireEvent.click(screen.getByRole("button", { name: /新建同步计划/ }));
-  await waitFor(() => expect(getApiData).toHaveBeenCalledWith("/api/data-sync/providers/moe_major_offering/options", null));
-  expect(screen.getByText("年份")).toBeInTheDocument();
-  expect(screen.getByText("省份/地区")).toBeInTheDocument();
-  expect(screen.getByText("专业名称")).toBeInTheDocument();
-  expect(screen.getByText("专业代码")).toBeInTheDocument();
+  expect(await screen.findByText(String(currentYear))).toBeInTheDocument();
+  for (const label of ["省份/地区", "专业名称", "专业代码"]) {
+    expect(screen.getByText(label).closest("label")).not.toHaveClass("ant-form-item-required");
+  }
   expect(screen.queryByLabelText(/Token|API Key|租户/)).not.toBeInTheDocument();
+  expect(getApiData).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByRole("textbox", { name: "计划名称" }), { target: { value: "年度备案" } });
+  fireEvent.click(screen.getByRole("button", { name: "创建计划" }));
+  await waitFor(() => expect(postApiData).toHaveBeenCalled());
+  const payload = vi.mocked(postApiData).mock.calls[0][1] as { query_config: Record<string, unknown>; frequency: string };
+  expect(payload.frequency).toBe("1_year");
+  expect(Object.fromEntries(Object.entries(payload.query_config).filter(([, value]) => value !== undefined))).toEqual({ year: currentYear });
+  expect(vi.mocked(getApiData).mock.calls.every(([path]) => !path.endsWith("/options"))).toBe(true);
+});
+
+it("uses fixed Ministry province codes and preserves the year of an existing plan", async () => {
+  const existing: SyncPlan = { ...mockPlan, id: "ministry", name: "历史备案", provider_code: "moe_major_offering", query_config: { year: 2025, province: "HeB", major_name: "电子商务", major_code: "530701" } };
+  render(<App><DataSyncContent initialProviders={[ministry]} initialPlans={[existing]} initialCatalog={[]} initialError={null} /></App>);
+  fireEvent.click(screen.getByRole("button", { name: "编辑计划 历史备案" }));
+  expect(await screen.findByText("2025")).toBeInTheDocument();
+  expect(screen.getByText("河北省")).toBeInTheDocument();
+  expect(screen.getByRole("textbox", { name: "专业代码" })).toHaveValue("530701");
+  expect(getApiData).not.toHaveBeenCalled();
+  fireEvent.mouseDown(screen.getByRole("combobox", { name: "省份/地区" }));
+  expect(await screen.findByText("北京市")).toBeInTheDocument();
+});
+
+it("saves an edited Ministry plan through the PUT mutation helper", async () => {
+  vi.mocked(getApiData).mockResolvedValue({ ok: true, error: null, traceId: null, total: null, data: [] });
+  vi.mocked(putApiData).mockResolvedValue({ data: {} });
+  const existing: SyncPlan = { ...mockPlan, id: "ministry", name: "历史备案", provider_code: "moe_major_offering", frequency: "1_year", query_config: { year: 2025 } };
+  render(<App><DataSyncContent initialProviders={[ministry]} initialPlans={[existing]} initialCatalog={[]} initialError={null} /></App>);
+  fireEvent.click(screen.getByRole("button", { name: "编辑计划 历史备案" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "计划名称" }), { target: { value: "修改备案" } });
+  fireEvent.click(screen.getByRole("button", { name: "保存修改" }));
+  await waitFor(() => expect(putApiData).toHaveBeenCalledWith("/api/data-sync/plans/ministry", expect.objectContaining({ name: "修改备案", query_config: { year: 2025 } })));
+});
+
+it("submits year 2035 and the selected optional Ministry filters using original province codes", async () => {
+  vi.mocked(getApiData).mockResolvedValue({ ok: true, error: null, traceId: null, total: null, data: [] });
+  vi.mocked(postApiData).mockResolvedValue({ data: {} });
+  render(<App><DataSyncContent initialProviders={[ministry]} initialPlans={[]} initialCatalog={[]} initialError={null} /></App>);
+  fireEvent.click(screen.getByRole("button", { name: /新建同步计划/ }));
+  fireEvent.mouseDown(await screen.findByRole("combobox", { name: "年份" }));
+  fireEvent.click(await screen.findByText("2035"));
+  fireEvent.mouseDown(screen.getByRole("combobox", { name: "省份/地区" }));
+  fireEvent.click(await screen.findByText("河北省"));
+  fireEvent.change(screen.getByRole("textbox", { name: "计划名称" }), { target: { value: "选填备案" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "专业名称" }), { target: { value: "电子商务" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "专业代码" }), { target: { value: "530701" } });
+  fireEvent.click(screen.getByRole("button", { name: "创建计划" }));
+  await waitFor(() => expect(postApiData).toHaveBeenCalledWith("/api/data-sync/plans", expect.objectContaining({
+    query_config: { year: 2035, province: "HeB", major_name: "电子商务", major_code: "530701" },
+  })));
 });

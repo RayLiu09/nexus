@@ -235,13 +235,16 @@ Asset Center IA-1:
   placeholders into their formal records, and enrich missing/damaged fields from
   same-code PDF bodies. Drop records whose name, definition, or tasks remain empty.
   Import is versioned, transactional, idempotent, and audited. Authenticated GET
-  `/v1/occupation-dictionary` and `/internal/v1/occupation-dictionary` share the
+  `/v1/occupation-dictionary`, `/open/v1/occupation-dictionary`, and `/internal/v1/occupation-dictionary` share the
   standard list envelope; no mutation endpoint or AI governance stage is provided.
   The supplied PDF identifies itself as the 2022 社会公示稿; the result is the
   usable supplied-workbook subset, without a claim of complete national coverage.
-- **专业布点同步计划**: select `moe_major_offering`, then enter year, province,
-  major name and six-digit major code. Year/province options come from the
-  Ministry dictionaries; province codes preserve their case (e.g. `HeB`).
+- **专业布点同步计划**: select `moe_major_offering`; year is required and defaults
+  to the current year. Province, major name, and six-digit major code are optional;
+  omitted/blank conditions do not restrict that dimension. Year/province options
+  are fixed Console data: years 2013–2035 per user configuration and
+  32 provinces/regions from the verified Ministry dictionary, with no runtime
+  dictionary request. Province codes preserve their case (e.g. `HeB`). Existing plans retain their saved year when edited.
   Default frequency is one year. Public APIs require no tenant credentials.
   Runs support local pause/resume/cancel and per-page retry. Duplicate facts
   (same year/school/major) are skipped across runs/plans, never overwritten.
@@ -251,6 +254,10 @@ Asset Center IA-1:
 - **专业布点 API**: authenticated read-only `GET /v1/major-offerings` and
   `/v1/major-offerings/aggregate`; `/open/v1/major-offerings` is the existing
   API-key entry alias and `/internal/v1/major-offerings` uses Console identity.
+  Excel export at `/v1/major-offerings/export` and its internal alias exports
+  all matching rows using the list filters and ordering, with read audit.
+  The Console uses a `检索` button and year/province/major code/major name/school
+  name filters; it omits the school-code filter and source explanatory paragraph.
   Filters: `year`, `province_code/name`, `major_code/name`, `school_code/name`.
   Aggregation whitelists year/province/major fields and returns record and
   distinct institution counts. Read access is audited. Old major-distribution
@@ -448,9 +455,10 @@ Search and QA:
 
 ## Public API Groups
 
-The Agent A/B consumption extension covers the 15 visible Asset Center resource
+The Agent A/B consumption extension covers the 16 visible Asset Center resource
 types through `/open/v1/data-resources`, current professional-introduction
 documents, same-source raw market jobs and aggregation, parks/enterprises,
+Ministry-synchronized major offerings, the read-only occupation dictionary,
 active teaching standards/courses, textbooks, scoped multi-KB retrieval,
 bounded sections, existing knowledge/task outlines, node contexts, existing
 graphs, batch evidence and ambiguity-preserving entity candidates. Catalog
@@ -483,22 +491,19 @@ P0 API groups include:
   `is_exact_matched=true` instead applies normalized exact tag matching.
   Items expose the stable relative `download_url_endpoint` for on-demand URL
   minting, never a presigned URL in the list response.
-- Pipeline-B structured records are public business facts, not asset-version
-  projections: API callers query job-demand and major-distribution records
-  across datasets without an `available`-version prerequisite. `dataset_id`
-  remains response lineage only, never a required public route hierarchy.
-- Public record endpoints include `GET /open/v1/record-assets/job-demand-records`
-  (job title, company, city, education, industry, and experience filters),
-  `GET /open/v1/record-assets/major-distribution-records`, and
-  `GET /open/v1/record-assets/major-distribution-records/aggregate` (grouped
-  server-side totals by year, province, major name, and major code).
-- Public institutional-statistics endpoints include
-  `GET /open/v1/major-offerings/aggregate` and
-  `GET /open/v1/major-courses/aggregate`. They aggregate only available
-  `talent_training_plan.v1` projections by `province_name`; unresolved province
-  facts are reported as exclusions. Retired `major_profile.v1` course rows no
-  longer contribute statistical facts. Course equality is deterministic
-  formatting-only, never an LLM or low-confidence semantic merge.
+- Public independent records include current `raw_jobs` at `/open/v1/market-jobs`,
+  Ministry registration facts at `/open/v1/major-offerings` and `/aggregate`,
+  and reference entries at `/open/v1/occupation-dictionary`. These reads do
+  not require an `available` asset version. Legacy job-demand projections are
+  deprecated; legacy major-distribution record endpoints return 410 and are
+  deprecated. Neither legacy group belongs in generated function tools.
+- `GET /open/v1/major-offerings/aggregate` groups Ministry registration facts
+  only. Its schema exposes year/province/major grouping with record and school
+  counts; there is no competing document-derived route registration.
+  `GET /open/v1/major-courses/aggregate` retains document-sample course coverage,
+  preferring training-plan rows for the same institution/major/level/province
+  and reporting unresolved province exclusions. It is separate from Ministry
+  registration statistics; course equality uses deterministic formatting only.
 - Read-only public graph adapters expose generated projections only:
   `GET /open/v1/record-assets/graphs/job-capability?job_title=`,
   `GET /open/v1/record-assets/graphs/occupational-capability?major_name|major_code=`,

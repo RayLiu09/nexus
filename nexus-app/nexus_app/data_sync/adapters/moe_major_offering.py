@@ -15,6 +15,12 @@ from nexus_app.data_sync.runtime import SyncRuntimeError, _classify_http
 
 
 SOURCE_URL = "https://zwfw.moe.gov.cn/zyyxzy/result.html"
+# The public website rejects httpx's default User-Agent with HTTP 403.
+PUBLIC_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; NEXUS/0.1)",
+    "Accept": "application/json, text/plain, */*",
+    "Referer": SOURCE_URL,
+}
 PROVINCES = dict(
     zip(
         "BJ TJ HeB SX NM LN JL HLJ SH JS ZJ AH FJ JX SD HeN HuB HuN GD GX HN CQ SC GZ YN XZ SXS GS QH NX XJ XJBT".split(),
@@ -28,15 +34,20 @@ _options_lock = threading.Lock()
 class MoeQuery(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    year: int = Field(ge=2013, le=datetime.now().year, strict=True, title="年份")
-    province: str = Field(min_length=1, title="省份/地区")
-    major_name: str = Field(min_length=1, max_length=200, title="专业名称")
-    major_code: str = Field(pattern=r"^\d{6}$", title="专业代码")
+    year: int = Field(ge=2013, le=2035, strict=True, title="年份")
+    province: str | None = Field(default=None, title="省份/地区")
+    major_name: str | None = Field(default=None, max_length=200, title="专业名称")
+    major_code: str | None = Field(default=None, pattern=r"^\d{6}$", title="专业代码")
+
+    @field_validator("province", "major_name", "major_code", mode="before")
+    @classmethod
+    def blank_is_unrestricted(cls, value):
+        return value.strip() or None if isinstance(value, str) else value
 
     @field_validator("province")
     @classmethod
-    def known_province(cls, value: str) -> str:
-        if value not in PROVINCES:
+    def known_province(cls, value: str | None) -> str | None:
+        if value is not None and value not in PROVINCES:
             raise ValueError("unknown Ministry province code")
         return value
 
@@ -46,9 +57,17 @@ def _body(response: httpx.Response) -> dict[str, Any]:
     try:
         body = response.json()
     except ValueError as exc:
-        raise SyncRuntimeError("Ministry response is not JSON", code="invalid_response") from exc
+        raise SyncRuntimeError(
+            "Ministry response is not JSON", code="invalid_response"
+        ) from exc
     if not isinstance(body, dict) or body.get("success") is not True:
-        retryable = isinstance(body, dict) and body.get("code") in {429, 500, 502, 503, 504}
+        retryable = isinstance(body, dict) and body.get("code") in {
+            429,
+            500,
+            502,
+            503,
+            504,
+        }
         raise SyncRuntimeError(
             "Ministry query failed", retryable=retryable, code="moe_business_error"
         )
@@ -66,6 +85,7 @@ class MoeMajorOfferingProvider:
 
     def get_query_schema(self) -> dict[str, Any]:
         schema = MoeQuery.model_json_schema()
+        schema["properties"]["year"].update(default=datetime.now().year)
         schema["properties"]["province"].update(
             enum=list(PROVINCES),
             **{"x-enum-labels": list(PROVINCES.values())},
@@ -73,24 +93,33 @@ class MoeMajorOfferingProvider:
         return schema
 
     def validate_query(self, query: dict[str, Any]) -> dict[str, Any]:
-        result = MoeQuery.model_validate(query).model_dump()
-        # When dictionaries have been fetched, reject years the source does not offer.
-        for expires, options in _options_cache.values():
-            if expires > time.monotonic() and result["year"] not in options["years"]:
-                raise ValueError("year is not available from the Ministry")
-        return result
+        return MoeQuery.model_validate(query).model_dump(exclude_none=True)
 
     def get_options(self, context: Any, client: httpx.Client) -> dict[str, Any]:
         with _options_lock:
             cached = _options_cache.get(context.api_server_url)
             if cached and cached[0] > time.monotonic():
                 return cached[1]
-            years = _body(client.get(f"{context.api_server_url}/eduSearch/api/years"))["data"]
-            provinces = _body(client.get(f"{context.api_server_url}/eduSearch/api/provinces"))[
-                "data"
-            ]
-            if not isinstance(years, list) or not years or not all(str(y).isdigit() for y in years):
-                raise SyncRuntimeError("invalid year dictionary", code="invalid_dictionary")
+            years = _body(
+                client.get(
+                    f"{context.api_server_url}/eduSearch/api/years",
+                    headers=PUBLIC_HEADERS,
+                )
+            )["data"]
+            provinces = _body(
+                client.get(
+                    f"{context.api_server_url}/eduSearch/api/provinces",
+                    headers=PUBLIC_HEADERS,
+                )
+            )["data"]
+            if (
+                not isinstance(years, list)
+                or not years
+                or not all(str(y).isdigit() for y in years)
+            ):
+                raise SyncRuntimeError(
+                    "invalid year dictionary", code="invalid_dictionary"
+                )
             if (
                 not isinstance(provinces, list)
                 or not provinces
@@ -101,7 +130,9 @@ class MoeMajorOfferingProvider:
                     for p in provinces
                 )
             ):
-                raise SyncRuntimeError("invalid province dictionary", code="invalid_dictionary")
+                raise SyncRuntimeError(
+                    "invalid province dictionary", code="invalid_dictionary"
+                )
             options = {"years": [int(y) for y in years], "provinces": provinces}
             _options_cache[context.api_server_url] = (time.monotonic() + 3600, options)
             return options
@@ -121,17 +152,27 @@ class MoeMajorOfferingProvider:
             if not isinstance(page, int) or page < 1:
                 raise ValueError("invalid page")
         except (ValueError, KeyError, TypeError) as exc:
-            raise SyncRuntimeError("invalid pull cursor", code="invalid_cursor") from exc
+            raise SyncRuntimeError(
+                "invalid pull cursor", code="invalid_cursor"
+            ) from exc
         params = {
             "year": query["year"],
-            "province": query["province"],
-            "majorCode": query["major_code"],
-            "majorName": query["major_name"],
             "page": page,
             "pageSize": 50,
         }
+        for field, parameter in (
+            ("province", "province"),
+            ("major_code", "majorCode"),
+            ("major_name", "majorName"),
+        ):
+            if field in query:
+                params[parameter] = query[field]
         data = _body(
-            client.get(f"{context.api_server_url}/eduSearch/api/major-register", params=params)
+            client.get(
+                f"{context.api_server_url}/eduSearch/api/major-register",
+                params=params,
+                headers=PUBLIC_HEADERS,
+            )
         ).get("data")
         try:
             if not isinstance(data, dict) or not isinstance(data.get("list"), list):
@@ -143,7 +184,9 @@ class MoeMajorOfferingProvider:
             if data["currentPage"] != page:
                 raise ValueError("page mismatch")
             if cursor and (total != state["total"] or page_size != state["page_size"]):
-                raise SyncRuntimeError("source total changed", code="pagination_changed")
+                raise SyncRuntimeError(
+                    "source total changed", code="pagination_changed"
+                )
             records = data["list"]
             expected = min(page_size, max(0, total - (page - 1) * page_size))
             if len(records) != expected:
