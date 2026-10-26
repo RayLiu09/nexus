@@ -13,7 +13,7 @@ describe("Asset Center catalogue", () => {
       "产业数据",
       "专业数据",
       "市场数据",
-      "教材数据",
+      "教学资源",
       "用户行为数据",
     ]);
     const resourceNames = ASSET_CENTER_DOMAINS.reduce<string[]>(

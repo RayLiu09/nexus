@@ -51,6 +51,7 @@ def serialize(row):
             "source_url",
             "provider_code",
             "sync_run_id",
+            "import_id",
             "fetched_at",
             "created_at",
         )

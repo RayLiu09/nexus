@@ -144,7 +144,7 @@ export const ASSET_CENTER_DOMAINS = [
   },
   {
     slug: "teaching-resources",
-    name: "教材数据",
+    name: "教学资源",
     description: "教材与教学案例资源",
     icon: BookOpenText,
     accent: "#9f1239",

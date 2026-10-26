@@ -159,7 +159,7 @@ def _projection_counts(session: Session) -> dict[str, int]:
         ),
         select(
             literal("major/distributions").label("resource_key"),
-            func.count(models.MajorDistributionRecord.id).label("count"),
+            func.count(models.MajorOfferingRecord.id).label("count"),
         ),
         select(
             literal("major/teaching-standards").label("resource_key"),

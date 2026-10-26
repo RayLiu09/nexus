@@ -453,6 +453,7 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
   }
 
   if (domain.slug === "major" && resource.path === "distributions") {
+    const session = await getServerSession();
     const filters: MajorDistributionFilters = {
       year: first(query.year),
       province_name: first(query.province_name),
@@ -479,6 +480,7 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
           description={resource.description}
         />
         <MajorDistributionTable
+          canImport={session?.role === "business_expert" || session?.role === "platform_data_admin"}
           rows={result.data}
           total={result.total ?? result.data.length}
           page={page}

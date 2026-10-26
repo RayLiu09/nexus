@@ -9,7 +9,7 @@
 | 缺口 | 接口 | 行为和数据口径 |
 | --- | --- | --- |
 | A 资源发现 | `GET /data-resources` | 16 类入口的编码、来源类型、可消费数量、数量单位、能力、实际查询参数及限制；计数遵循公开边界 |
-| 专业布点 | `GET /major-offerings`、`/aggregate` | 教育部同步的职业院校备案事实直接入库，无 AI 治理；同年同校同专业去重，仅代表已同步覆盖；与专业简介、培养方案课程统计无关 |
+| 专业布点 | `GET /major-offerings`、`/aggregate` | 教育部 API 同步与控制台 Excel 导入事实直接入库，无 AI 治理；同年同校同专业跨来源去重，仅代表已入库覆盖；与专业简介、培养方案课程统计无关 |
 | 职业分类大典 | `GET /occupation-dictionary` | 2022 年版已核验导入基础表，职业大类/小类/名称 AND 检索，返回类别、层级、编码、职业名称、定义、工作任务；只读、无 AI 治理、不依赖资产版本或 ref |
 | A 文档发现 | 增强 `GET /assets` | 标题、resource_type、多 domains、主题、区域/行业、专业/院校/层次、源发布日期；tags_match 显式 any/all；返回白名单业务元数据 |
 | A 专业简介 | `GET /major-profile-documents` | 当前文档及四项专业身份元数据，遵循人工修改和清空值；不依赖已退役 MajorProfile 投影 |
@@ -56,7 +56,7 @@
 
 认证缺失/无效为 401，撤销/过期为 403，不可消费/不存在的单项为 404，参数/上下限/组合错误为 422；对象存储临时不可用为 503。批量证据以逐项 not_found 表达不可读取，不区分隐藏与未知 ID。
 
-旧 `/major-profiles` 以及 `/job-demand-records`（含 record-assets 下的同名路径）保留 HTTP 兼容，OpenAPI 标记 deprecated；推荐简介走文档接口，当前市场岗位走 market-jobs。旧 `/record-assets/major-distribution-records` 及其 `/aggregate` 返回 410，并标记 deprecated，不进入工具清单。`/major-offerings/aggregate` 唯一绑定教育部同步事实；同路径旧文档聚合注册已移除。院校课程统计 `/major-courses/aggregate` 保留文档样本覆盖口径，不代表全国总体。旧底层文档读取保持既有 available 合同，新增确定性证据工具使用更严格的 current-ref 边界。
+旧 `/major-profiles` 以及 `/job-demand-records`（含 record-assets 下的同名路径）保留 HTTP 兼容，OpenAPI 标记 deprecated；推荐简介走文档接口，当前市场岗位走 market-jobs。旧 `/record-assets/major-distribution-records` 及其 `/aggregate` 返回 410，并标记 deprecated，不进入工具清单。`/major-offerings/aggregate` 唯一绑定 API 同步与 Excel 导入的新领域事实；同路径旧文档聚合注册已移除。院校课程统计 `/major-courses/aggregate` 保留文档样本覆盖口径，不代表全国总体。旧底层文档读取保持既有 available 合同，新增确定性证据工具使用更严格的 current-ref 边界。
 
 专业布点 Excel 下载使用 `GET /v1/major-offerings/export`（API caller）或 `/internal/v1/major-offerings/export`（Console 用户）。应用同一筛选与排序，导出全部匹配记录而非当前页；八列与列表一致，记录读取审计，不写业务数据。该二进制接口不列为 JSON function tool。
 
@@ -119,3 +119,5 @@ nexus-api/.venv/bin/python scripts/generate_public_function_tools.py --check
 ```
 
 脚本只读取应用 Schema，不启动 lifespan、不查询数据库、不调用存储、嵌入、LLM 或第三方搜索。也支持 `--openapi <exported.json>` 使用导出的公开合同。
+
+专业布点列表支持业务专家或数据管理员通过内部 `POST /internal/v1/major-offerings/import` 上传 .xlsx，下载 `/internal/v1/major-offerings/import-template` 空模板；不开放公开写入工具。列表来源字段 `sync_run_id` / `import_id` 二选一，记录可来自 API 同步或 Excel 导入；查询与聚合统计覆盖两者。

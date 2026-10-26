@@ -23,7 +23,7 @@ describe("AssetCenterOverview", () => {
     expect(screen.getByRole("heading", { name: "产业数据" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "专业数据" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "市场数据" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "教材数据" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "教学资源" })).toBeInTheDocument();
     expect(screen.getByText("教材与教学案例资源")).toBeInTheDocument();
     expect(screen.queryByText(/课程标准/)).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "用户行为数据" })).not.toBeInTheDocument();

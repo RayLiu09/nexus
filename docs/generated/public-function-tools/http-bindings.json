@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "source": "public OpenAPI /open/v1",
-  "sha256": "7c065e438ce8cb7319f367d59b4970bf8e38477956a3b342afba5b008b837089",
+  "sha256": "5ac2c94ed734f2a54a04085043e1326ba4b9614bc5681a06690cefa37cd3f6b7",
   "bindings": [
     {
       "name": "find_documents",
@@ -4255,8 +4255,26 @@
                     "title": "Provider Code"
                   },
                   "sync_run_id": {
-                    "type": "string",
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
                     "title": "Sync Run Id"
+                  },
+                  "import_id": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Import Id"
                   },
                   "fetched_at": {
                     "type": "string",
@@ -4284,6 +4302,7 @@
                   "source_url",
                   "provider_code",
                   "sync_run_id",
+                  "import_id",
                   "fetched_at",
                   "created_at"
                 ],

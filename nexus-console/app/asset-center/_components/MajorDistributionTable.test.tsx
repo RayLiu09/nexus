@@ -79,13 +79,13 @@ describe("MajorDistributionTable", () => {
       "学校标识码",
       "学校名称",
       "年限",
-      "备注",
     ]) {
       expect(screen.getByRole("columnheader", { name: heading })).toBeInTheDocument();
     }
     expect(screen.getByText("浙江省")).toBeInTheDocument();
     expect(screen.getByText("电子商务")).toBeInTheDocument();
     expect(screen.getByText("530701")).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "备注" })).not.toBeInTheDocument();
 
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText("专业名称"), "电子商务");
@@ -131,6 +131,13 @@ describe("MajorDistributionTable", () => {
     expect(screen.queryByText(/来源：教育部政务服务平台/)).not.toBeInTheDocument();
     expect(patchMock).not.toHaveBeenCalled();
     expect(deleteMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "导入布点数据" })).not.toBeInTheDocument();
+  });
+
+  it("shows the import action for authorized Console users", () => {
+    render(<MajorDistributionTable rows={[]} total={0} page={1} pageSize={20}
+      filters={{}} ok error={null} traceId={null} canImport />);
+    expect(screen.getByRole("button", { name: "导入布点数据" })).toBeInTheDocument();
   });
 
   it("exports all rows matching applied filters without list pagination or unsaved inputs", async () => {

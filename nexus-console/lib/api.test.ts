@@ -4,6 +4,7 @@ import {
   shortId,
   textValue,
   putApiData,
+  postFormApiData,
 } from "./api";
 
 describe("PUT mutation headers", () => {
@@ -42,6 +43,26 @@ describe("PUT mutation headers", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[2][1].headers["idempotency-key"])
       .toBe(fetchMock.mock.calls[0][1].headers["idempotency-key"]);
+  });
+});
+
+describe("multipart mutation headers", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("preserves multipart content and the operation key after session refresh", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(Response.json({}, { status: 401 }))
+      .mockResolvedValueOnce(Response.json({ data: {} }))
+      .mockResolvedValueOnce(Response.json({ data: {} }));
+    vi.stubGlobal("fetch", fetchMock);
+    const form = new FormData();
+    form.set("file", new File(["excel"], "布点.xlsx"));
+    await postFormApiData("/api/asset-center/major-offerings/import", form, { idempotencyKey: "import-1" });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    for (const index of [0, 2]) {
+      expect(fetchMock.mock.calls[index][1].headers).toEqual({ "idempotency-key": "import-1" });
+      expect(fetchMock.mock.calls[index][1].body).toBe(form);
+    }
   });
 });
 

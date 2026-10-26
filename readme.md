@@ -46,6 +46,12 @@ aggregation is separate from document-sample course coverage statistics.
 The professional-offering list uses `检索`, omits the school-code filter and
 source explanatory paragraph, and exports all matching rows to Excel through
 the authenticated `/v1/major-offerings/export` API or Console identity alias.
+Business experts can use `导入布点数据` in this list to download a template and
+import .xlsx facts directly (10 MiB / 10,000 rows). Validation is transactional;
+same year/school/major duplicates across API sync and files are skipped. Import
+receipts are independent of sync runs, and no AI governance is invoked. Apply
+migration `20261026_0123` before restarting the API. Asset Center counts use the
+same offering table as the list. Its teaching domain is now labeled `教学资源`.
 
 The Console document views for policies, reports, and teaching cases provide a
 right-aligned, responsive filter bar for
@@ -204,7 +210,8 @@ Root documents are distilled implementation contracts:
   `major_profile.v1` domain rows and section-derived chunks are removed by
   migration; raw and normalized source documents remain traceable.
 - Professional major-distribution records at `/asset-center/major/distributions`
-  are read-only Ministry API facts (`major_offering_record`). Create a plan in
+  display Ministry API and Console Excel facts (`major_offering_record`),
+  with no edit/delete actions. Create a plan in
   Data Sync using 教育部政务服务平台: year defaults to the current year;
   province, major name and code are optional. Years 2013–2035 and the verified
   province dictionary are fixed Console data with no dynamic dictionary call;

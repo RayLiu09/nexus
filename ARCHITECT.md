@@ -345,6 +345,14 @@ AI governance run, or knowledge chunks. The API and Console query the same table
 source row numbers and PDF page locators remain internal provenance.
 
 P0 active Pipeline B profiles include occupational ability analysis. Job demand and major distribution are independent API-synchronized domains. Major distribution uses the Education Ministry public registration API (`moe_major_offering`), `auth_mode=none`, `execution_mode=paged_pull`, and writes `major_offering_record` directly. It creates no asset/version/normalized reference, invokes no AI governance, and creates no knowledge chunks. This domain is explicitly outside the Asset Pipeline stage/status requirements above.
+
+Console Excel imports also write `major_offering_record` directly, sharing
+the API intake's year/school/major identity and uniqueness protection. The
+transactional `major_offering_import` receipt stores actor, filename, request
+idempotency and counts; the request digest is only for mutation replay, not a
+per-record source hash. Each fact references exactly one of `sync_run_id` or
+`import_id`. Imports create no sync run, asset pipeline or AI governance work.
+Asset Center offering counts count this table, without reading retired projections.
 The Ministry adapter uses compatible public HTTP request headers. The Console keeps
 verified year/province options locally; plan creation does not depend on dictionary
 availability. Year allows 2013–2035 and defaults to the current year; province and major

@@ -1886,8 +1886,24 @@ class OccupationDictionary(TimestampMixin, Base):
     supplemented_fields: Mapped[list[str]] = mapped_column(JSON, nullable=False)
 
 
+class MajorOfferingImport(TimestampMixin, Base):
+    """Transactional receipt for a Console user's Excel import."""
+
+    __tablename__ = "major_offering_import"
+    __table_args__ = (
+        UniqueConstraint("created_by", "idempotency_key", name="uq_major_offering_import_actor_key"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    created_by: Mapped[str] = mapped_column(String(36), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(256), nullable=False)
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    filename: Mapped[str] = mapped_column(String(256), nullable=False)
+    result_summary: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+
+
 class MajorOfferingRecord(TimestampMixin, Base):
-    """One year/school/major fact received directly from an open API."""
+    """One year/school/major fact received from an API or Excel import."""
 
     __tablename__ = "major_offering_record"
     __table_args__ = (
@@ -1895,10 +1911,14 @@ class MajorOfferingRecord(TimestampMixin, Base):
         Index("uq_major_offering_school_code", "year", "school_code", "major_code", unique=True,
               postgresql_where=text("school_code IS NOT NULL"), sqlite_where=text("school_code IS NOT NULL")),
         Index("ix_major_offering_scope", "year", "province_code", "major_code"),
+        CheckConstraint("(sync_run_id IS NOT NULL AND import_id IS NULL) OR "
+                        "(sync_run_id IS NULL AND import_id IS NOT NULL)",
+                        name="ck_major_offering_one_source"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
-    sync_run_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_sync_run.id"), nullable=False)
+    sync_run_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("data_sync_run.id"), nullable=True)
+    import_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("major_offering_import.id"), nullable=True)
     provider_code: Mapped[str] = mapped_column(String(64), nullable=False)
     year: Mapped[int] = mapped_column(Integer, nullable=False)
     province_code: Mapped[str] = mapped_column(String(16), nullable=False)

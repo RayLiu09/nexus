@@ -22,7 +22,7 @@ export async function GET(
       await upstream.json().catch(() => ({ error: { message: "请求失败" } })),
       { status: upstream.status },
     );
-  if (suffix.endsWith("/export"))
+  if (suffix.endsWith("/export") || suffix === "major-offerings/import-template")
     return new Response(upstream.body, {
       headers: {
         "content-type": upstream.headers.get("content-type") ?? "application/octet-stream",

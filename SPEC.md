@@ -218,10 +218,17 @@ Asset Center IA-1:
   parsed preview, generic RAG chunks, and original download; there is no
   expanded domain-detail panel or `major_profile.v1` row requirement.
 - **专业布点业务视图**: `/asset-center/major/distributions` reads only
-  `major_offering_record`, synchronized from 教育部政务服务平台. Columns are year,
+  `major_offering_record`, populated by 教育部政务服务平台 API sync or Console Excel import. Columns are year,
   province, major code/name, optional school code, school name, study duration,
-  and nullable remark. Filters and pagination run server-side. The list has
-  no edit/delete actions and no business mutation API. No historical dataset
+  without the remark column (nullable remarks remain in imports, exports and APIs).
+  Filters and pagination run server-side. The list has
+  no edit/delete actions. The business-expert `导入布点数据` action provides
+  a template and accepts .xlsx files (10 MiB / 10,000 rows). Required columns:
+  年份、省份、专业代码、专业名称、学校名称、年限; 学校标识码 and 备注 are optional.
+  All rows are validated before a transactional import; errors report row/field,
+  duplicates across API/files are skipped without overwriting. Receipts and
+  audit record counts; no AI governance or legacy pipeline runs. Homepage
+  counts use the same new table as the list, including both sources. No historical dataset
   fallback or sum of old distribution counts is allowed.
 - **职业分类大典业务视图**: `/asset-center/major/occupation-dictionary` reads the
   independent `occupation_dictionary` reference table. Columns are 职业类别、
@@ -262,6 +269,15 @@ Asset Center IA-1:
   Aggregation whitelists year/province/major fields and returns record and
   distinct institution counts. Read access is audited. Old major-distribution
   endpoints return 410 with the replacement resource; historical rows remain in DB.
+- **专业布点 Excel 导入 API**: business-expert/data-admin internal
+  `POST /internal/v1/major-offerings/import` accepts multipart field `file` and
+  requires `Idempotency-Key`. Returns `import_id`, `total_count`, `imported_count`,
+  `skipped_count`. Same actor/key/file returns its original receipt; a changed
+  file with the same key returns 409. Invalid input returns 422, oversized
+  file 413, missing key 428, unauthenticated/unsupported-role 401/403. Template:
+  `GET /internal/v1/major-offerings/import-template`. Import does not create an
+  API sync run. Records have exactly one source: nullable `sync_run_id` or
+  `import_id`, with a database constraint. No public import mutation is exposed.
 - **专业教学标准业务视图**: the paginated list exposes professional code/name,
   category/class names with codes, education level, and study years. `课程库`
   opens the standard-course list scoped by parent library. `职业领域图谱` opens
@@ -326,7 +342,7 @@ Asset Center IA-1:
   selected outline. Every row also offers lazy parsed preview, RAG chunks, and
   original download from its selected asset version. The technical asset detail no longer duplicates these
   textbook-specific views.
-- **教材数据**: course textbooks, teaching cases, and course standards.
+- **教学资源**: course textbooks, teaching cases, and course standards.
   `/asset-center/teaching-resources/cases` lists current, catalog-visible
   `teaching_case` documents with asset name and governed content tags. The name
   prefers the extracted document title and removes a leading `教学案例——`.

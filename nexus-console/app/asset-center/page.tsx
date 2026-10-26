@@ -19,7 +19,7 @@ export default function AssetCenterPage() {
       <PageHeader
         eyebrow="业务任务视图"
         title="资产中心"
-        description="产业、专业、市场与教材数据"
+        description="产业数据、专业数据、市场数据与教学资源"
       />
       <Suspense fallback={<AssetCenterOverview counts={null} loading />}>
         <AssetCenterCounts />

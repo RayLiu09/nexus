@@ -75,69 +75,56 @@ class MajorOfferingResultHandler:
                     "invalid optional field", code="invalid_major_offering"
                 )
             code = code.strip() or None if code is not None else None
-            name_key = school_name_key(record["school_name"])
-            predicates = [models.MajorOfferingRecord.school_name_key == name_key]
-            if code:
-                predicates.append(models.MajorOfferingRecord.school_code == code)
-            statement = select(models.MajorOfferingRecord).where(
-                models.MajorOfferingRecord.year == query.year,
-                models.MajorOfferingRecord.major_code == major_code,
-                or_(*predicates),
-            )
-            matches = list(session.scalars(statement))
-            if len(matches) > 1:
-                raise SyncRuntimeError(
-                    "ambiguous school identity", code="school_identity_conflict"
-                )
-            existing = matches[0] if matches else None
-            if existing:
-                if code and existing.school_code and existing.school_code != code:
-                    raise SyncRuntimeError(
-                        "school identity conflict", code="school_identity_conflict"
-                    )
-                continue
-            insert = (
-                pg_insert
-                if session.get_bind().dialect.name == "postgresql"
-                else sqlite_insert
-            )
-            result = session.execute(
-                insert(models.MajorOfferingRecord)
-                .values(
-                    sync_run_id=run.id,
-                    provider_code=run.provider_code,
-                    year=query.year,
-                    province_code=province_code,
-                    province_name=province_name,
-                    major_code=major_code,
-                    major_name=record["major_name"].strip(),
-                    school_code=code,
-                    school_name=record["school_name"].strip(),
-                    school_name_key=name_key,
-                    study_duration=record["school_system"].strip(),
-                    remark=remark,
-                    source_url=SOURCE_URL,
-                    fetched_at=datetime.now(timezone.utc),
-                )
-                .on_conflict_do_nothing()
-                .returning(models.MajorOfferingRecord.id)
-            ).scalar_one_or_none()
-            if result is not None:
-                accepted += 1
-            else:
-                matches = list(session.scalars(statement))
-                if len(matches) > 1:
-                    raise SyncRuntimeError(
-                        "ambiguous school identity", code="school_identity_conflict"
-                    )
-                existing = matches[0] if matches else None
-                if existing is None:
-                    raise SyncRuntimeError(
-                        "unresolved uniqueness conflict",
-                        code="school_identity_conflict",
-                    )
-                if code and existing.school_code and existing.school_code != code:
-                    raise SyncRuntimeError(
-                        "school identity conflict", code="school_identity_conflict"
-                    )
+            accepted += insert_offering(session, {
+                "sync_run_id": run.id,
+                "provider_code": run.provider_code,
+                "year": query.year,
+                "province_code": province_code,
+                "province_name": province_name,
+                "major_code": major_code,
+                "major_name": record["major_name"].strip(),
+                "school_code": code,
+                "school_name": record["school_name"].strip(),
+                "study_duration": record["school_system"].strip(),
+                "remark": remark,
+                "source_url": SOURCE_URL,
+            })
         return IntakeCounts(accepted=accepted, duplicate=len(records) - accepted)
+
+
+def insert_offering(session, values: dict) -> int:
+    """Shared API/Excel identity check and concurrent insert protection."""
+    code = values.get("school_code")
+    name_key = school_name_key(values["school_name"])
+    model = models.MajorOfferingRecord
+    predicates = [model.school_name_key == name_key]
+    if code:
+        predicates.append(model.school_code == code)
+    statement = select(model).where(
+        model.year == values["year"],
+        model.major_code == values["major_code"],
+        or_(*predicates),
+    )
+
+    def duplicate():
+        matches = list(session.scalars(statement))
+        if len(matches) > 1:
+            raise SyncRuntimeError("ambiguous school identity", code="school_identity_conflict")
+        existing = matches[0] if matches else None
+        if existing and code and existing.school_code and existing.school_code != code:
+            raise SyncRuntimeError("school identity conflict", code="school_identity_conflict")
+        return existing is not None
+
+    if duplicate():
+        return 0
+    insert = pg_insert if session.get_bind().dialect.name == "postgresql" else sqlite_insert
+    inserted = session.execute(
+        insert(model).values(
+            **values, school_name_key=name_key, fetched_at=datetime.now(timezone.utc),
+        ).on_conflict_do_nothing().returning(model.id)
+    ).scalar_one_or_none()
+    if inserted is not None:
+        return 1
+    if not duplicate():
+        raise SyncRuntimeError("unresolved uniqueness conflict", code="school_identity_conflict")
+    return 0

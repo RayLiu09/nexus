@@ -190,6 +190,7 @@ class AIGovernanceRunAdoptionStatus(StrEnum):
 
 
 class AuditEventType(StrEnum):
+    MAJOR_OFFERINGS_IMPORTED = "MajorOfferingsImported"
     OCCUPATION_DICTIONARY_IMPORTED = "OccupationDictionaryImported"
     # Ingest pipeline
     INGEST_BATCH_SUBMITTED          = "IngestBatchSubmitted"

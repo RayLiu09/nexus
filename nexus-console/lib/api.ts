@@ -837,6 +837,18 @@ export async function postApiData<T>(
   });
 }
 
+export async function postFormApiData<T>(
+  path: string,
+  payload: FormData,
+  options: { idempotencyKey: string },
+): Promise<ApiEnvelope<T>> {
+  return requestApi<T>(path, {
+    method: "POST",
+    headers: { "idempotency-key": options.idempotencyKey },
+    body: payload,
+  });
+}
+
 export async function putApiData<T>(
   path: string,
   payload: Record<string, unknown>,
@@ -1208,7 +1220,8 @@ export type OccupationDictionaryRecord = {
 
 export type MajorOfferingRecord = {
   id: string;
-  sync_run_id: string;
+  sync_run_id: string | null;
+  import_id?: string | null;
   provider_code: string;
   year: number;
   province_code: string;

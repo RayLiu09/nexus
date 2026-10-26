@@ -1042,7 +1042,7 @@
     "type": "function",
     "function": {
       "name": "list_major_offerings",
-      "description": "查询教育部政务服务平台同步入库的职业院校专业布点登记数据，支持年份、省份、专业和学校组合过滤与分页。\n\n返回省份、专业代码/名称、学校标识（可空）、学校名称、修业年限、备注及来源信息。\n同一年份、同一学校、同一专业去重；同步直接入库，无 AI 治理或资产版本准入。\n仅表示已同步覆盖，不代表全国总体，不读取已废弃的专业布点 Pipeline B 投影。",
+      "description": "查询教育部政务服务平台同步及控制台 Excel 导入的专业布点数据，支持年份、省份、专业和学校组合过滤与分页。\n\n返回省份、专业代码/名称、学校标识（可空）、学校名称、修业年限、备注及来源信息。\n同一年份、同一学校、同一专业去重；同步直接入库，无 AI 治理或资产版本准入。\nsync_run_id 和 import_id 分别标识 API 同步和 Excel 导入来源，二者仅有一个非空。\n仅表示已入库覆盖，不代表全国总体，不读取已废弃的专业布点 Pipeline B 投影。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1168,7 +1168,7 @@
     "type": "function",
     "function": {
       "name": "aggregate_major_offerings",
-      "description": "对教育部同步专业布点按白名单维度统计全量筛选结果，再对分组结果分页。\n\n返回选定维度、record_count（登记记录数）、institution_count（学校标识优先、缺失时按归一化学校名称去重的学校数）。\nmeta.total 为分组数；跨年分组时登记记录数可大于学校数。\n数据仅代表已同步职业院校登记覆盖，不使用专业简介或培养方案推导布点，不触发同步或 AI 治理。",
+      "description": "对教育部 API 同步及 Excel 导入专业布点按白名单维度统计全量筛选结果，再对分组结果分页。\n\n返回选定维度、record_count（登记记录数）、institution_count（学校标识优先、缺失时按归一化学校名称去重的学校数）。\nmeta.total 为分组数；跨年分组时登记记录数可大于学校数。\n数据仅代表已入库覆盖，不使用专业简介或培养方案推导布点，不触发同步或 AI 治理。",
       "parameters": {
         "type": "object",
         "properties": {

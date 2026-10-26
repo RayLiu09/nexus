@@ -2,6 +2,7 @@ import { render } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 
 import { getApiData } from "@/lib/api";
+import { getServerSession } from "@/lib/auth/serverSession";
 import AssetCenterRoute from "./page";
 
 vi.mock("@/lib/api", () => ({ getApiData: vi.fn() }));
@@ -12,11 +13,15 @@ vi.mock("../../_components/TalentDemandReportsTable", () => ({
   TalentDemandReportsTable: () => null,
 }));
 vi.mock("../../_components/TeachingCasesTable", () => ({ TeachingCasesTable: () => null }));
+const { distributionTable } = vi.hoisted(() => ({ distributionTable: vi.fn(() => null) }));
+vi.mock("../../_components/MajorDistributionTable", () => ({ MajorDistributionTable: distributionTable }));
 
 const filters = { region: "重庆市", industry: "电子商务", content_tag: "融合" };
 const identity = { major_name: "电子商务", major_code: "530701", institution_name: "重庆职业学院" };
 
 beforeEach(() => {
+  vi.mocked(getServerSession).mockResolvedValue(null);
+  distributionTable.mockClear();
   vi.mocked(getApiData).mockReset();
   vi.mocked(getApiData).mockResolvedValue({
     ok: true,
@@ -25,6 +30,18 @@ beforeEach(() => {
     error: null,
     traceId: null,
   });
+});
+
+it.each(["business_expert", "platform_data_admin"] as const)("allows %s to import from the offering list", async (role) => {
+  vi.mocked(getServerSession).mockResolvedValue({
+    id: "user", username: "user", displayName: "用户", role,
+    orgUnit: { id: "org", name: "部门" }, env: "demo", loggedInAt: 0,
+  });
+  render(await AssetCenterRoute({
+    params: Promise.resolve({ domain: "major", resource: ["distributions"] }),
+    searchParams: Promise.resolve({}),
+  }));
+  expect(distributionTable).toHaveBeenCalledWith(expect.objectContaining({ canImport: true }), undefined);
 });
 
 it.each(["industry-policies", "industry-reports", "sector-reports"])(

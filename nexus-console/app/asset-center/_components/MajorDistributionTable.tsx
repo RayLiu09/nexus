@@ -8,6 +8,7 @@ import { Download, Search, X } from "lucide-react";
 
 import { ApiState } from "@/components/ApiState";
 import type { MajorOfferingRecord } from "@/lib/api";
+import { MajorOfferingImport } from "./MajorOfferingImport";
 
 export type MajorDistributionFilters = {
   year?: string;
@@ -18,6 +19,7 @@ export type MajorDistributionFilters = {
 };
 
 type Props = {
+  canImport?: boolean;
   rows: MajorOfferingRecord[];
   total: number;
   page: number;
@@ -34,7 +36,7 @@ const filterFields = [
 ] as const;
 const emptyFilters = Object.fromEntries(filterFields.map(([key]) => [key, undefined]));
 
-export function MajorDistributionTable({ rows, total, page, pageSize, filters, ok, error, traceId }: Props) {
+export function MajorDistributionTable({ rows, total, page, pageSize, filters, ok, error, traceId, canImport = false }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
@@ -64,7 +66,6 @@ export function MajorDistributionTable({ rows, total, page, pageSize, filters, o
     { title: "学校标识码", dataIndex: "school_code", width: 150, render: (v) => v || "-" },
     { title: "学校名称", dataIndex: "school_name", width: 220 },
     { title: "年限", dataIndex: "study_duration", width: 88 },
-    { title: "备注", dataIndex: "remark", width: 220, render: (v) => v || "-" },
   ];
   const handleTableChange = (pagination: TablePaginationConfig) =>
     replaceQuery(filters, pagination.current ?? 1, pagination.pageSize ?? pageSize);
@@ -89,11 +90,12 @@ export function MajorDistributionTable({ rows, total, page, pageSize, filters, o
                 replaceQuery({});
               }}>重置</Button>
               <Button icon={<Download size={15} />} href={exportUrl} target="_blank">导出 Excel</Button>
+              {canImport && <MajorOfferingImport onImported={() => router.refresh()} />}
             </Space>
           </Form.Item>
         </Form>
         <Table<MajorOfferingRecord> rowKey="id" size="small" columns={columns} dataSource={rows}
-          loading={pending} scroll={{ x: 1184 }}
+          loading={pending} scroll={{ x: 964 }}
           pagination={{ current: page, pageSize, total, showSizeChanger: true, showTotal: (count) => `共 ${count} 条` }}
           locale={{ emptyText: ok ? "暂无专业布点记录" : "数据加载失败" }} onChange={handleTableChange} />
       </section>

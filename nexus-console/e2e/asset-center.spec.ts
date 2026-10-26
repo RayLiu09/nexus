@@ -20,7 +20,7 @@ test.describe("Asset Center IA-1", () => {
     await expect(page.getByRole("heading", { name: "产业政策数据" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "专业数据" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "市场数据" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "教材数据" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "教学资源" })).toBeVisible();
     await expect(page.getByText("教材与教学案例资源")).toBeVisible();
     await expect(page.getByText(/课程标准/)).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "用户行为数据" })).toHaveCount(0);
