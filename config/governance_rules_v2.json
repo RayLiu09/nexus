@@ -676,94 +676,6 @@
       "co_emission_rules": []
     },
     {
-      "code": "major_distribution",
-      "name": "专业布点数",
-      "parent_type": "专业数据",
-      "description": "高等职业教育专科专业设置备案结果查询",
-      "application_scenarios": [
-        "专业建设方案",
-        "实训基地规划",
-        "设备采购论证",
-        "调研报告"
-      ],
-      "title_keywords": [
-        "专业布点数",
-        "专业设置备案",
-        "专业备案结果",
-        "专业设置",
-        "院校布点",
-        "招生专业",
-        "专业目录",
-        "专业开设情况",
-        "区域布点",
-        "高职专业备案"
-      ],
-      "content_keywords": [
-        "专业名称",
-        "专业代码",
-        "专业类",
-        "层次",
-        "省份",
-        "城市",
-        "学校名称",
-        "布点数",
-        "备案年份",
-        "设置年份",
-        "招生状态",
-        "区域分布",
-        "院校类型",
-        "统计口径",
-        "数据来源"
-      ],
-      "tagging_basis": {
-        "professional_domain": [],
-        "education_level": ""
-      },
-      "geo_scope": "全国适用",
-      "timeliness": [
-        {
-          "value": "年度有效",
-          "criteria": "备案年份、统计年份、招生年度"
-        },
-        {
-          "value": "最新年度有效",
-          "criteria": "当前最新备案数据"
-        },
-        {
-          "value": "历史对比",
-          "criteria": "跨年度布点变化分析"
-        },
-        {
-          "value": "需复核",
-          "criteria": "年份缺失或学校/专业状态不明"
-        }
-      ],
-      "data_source": [
-        {
-          "value": "官方发布",
-          "criteria": "教育主管部门、备案系统、统计公报"
-        },
-        {
-          "value": "院校内部",
-          "criteria": "学校专业设置材料"
-        },
-        {
-          "value": "公开网络资料",
-          "criteria": "院校官网、招生网页"
-        },
-        {
-          "value": "第三方平台",
-          "criteria": "专业数据库或采集平台"
-        }
-      ],
-      "quality_dimensions": [],
-      "decomposition_note": "结构清晰",
-      "structure_description": "",
-      "primary_knowledge_type": "structured_record_table",
-      "default_level": "L1",
-      "co_emission_rules": []
-    },
-    {
       "code": "talent_demand_report",
       "name": "人才需求调研",
       "parent_type": "专业数据",
@@ -1777,32 +1689,6 @@
       "co_emission_rules": [],
       "implementation_tier": "A",
       "kb_name": "nexus-kb-teaching-case"
-    },
-    {
-      "code": "structured_record_table",
-      "name": "结构化记录表",
-      "description": "岗位需求、专业布点数等结构清晰的表格记录；按记录行切片，每条作为独立检索单元。",
-      "applicable_classifications": [
-        "major_distribution"
-      ],
-      "default_level": "L2",
-      "source_kind": "extracted_from_normalized",
-      "chunking_mode": "row_per_chunk",
-      "rag_pipeline": "pipeline_1",
-      "source_criteria": [
-        "数据呈表格形态，行=记录、列=字段",
-        "记录可独立成意，无强跨行依赖",
-        "适合精确字段检索"
-      ],
-      "chunking_strategy": "row_decompose",
-      "chunking_config": {
-        "row_size_target": 1,
-        "include_header_in_chunk": true
-      },
-      "chunk_type": "structured",
-      "co_emission_rules": [],
-      "implementation_tier": "A",
-      "kb_name": "nexus-kb-structured-records"
     }
   ],
   "quality_scoring": {

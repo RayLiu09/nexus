@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, field_validator, model_validator
 
 from nexus_app.config import get_settings
 
@@ -31,9 +31,11 @@ class ProviderConfig(BaseModel):
     provider_code: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
     display_name: str = Field(min_length=1)
     api_server_url: str = Field(pattern=r"^https?://[^/\s]+")
-    tenant_id: str = Field(min_length=1)
-    tenant_name: str = Field(min_length=1)
-    tenant_key: SecretStr
+    auth_mode: Literal["none", "tenant_token"] = "tenant_token"
+    execution_mode: Literal["paged_pull", "external_job"] = "external_job"
+    tenant_id: str | None = Field(default=None, min_length=1)
+    tenant_name: str | None = Field(default=None, min_length=1)
+    tenant_key: SecretStr | None = None
     adapter_factory: str
     adapter_version: str = Field(min_length=1)
     status: Literal["enabled", "disabled"]
@@ -54,10 +56,19 @@ class ProviderConfig(BaseModel):
 
     @field_validator("tenant_key")
     @classmethod
-    def nonempty_tenant_key(cls, value: SecretStr) -> SecretStr:
-        if not value.get_secret_value():
+    def nonempty_tenant_key(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is not None and not value.get_secret_value():
             raise ValueError("tenant_key must not be empty")
         return value
+
+    @model_validator(mode="after")
+    def validate_auth(self):
+        credentials = (self.tenant_id, self.tenant_name, self.tenant_key)
+        if self.auth_mode == "tenant_token" and not all(credentials):
+            raise ValueError("tenant_token requires tenant_id, tenant_name and tenant_key")
+        if self.auth_mode == "none" and any(value is not None for value in credentials):
+            raise ValueError("unauthenticated Providers must not contain tenant credentials")
+        return self
 
     @field_validator("adapter_factory")
     @classmethod
@@ -74,7 +85,7 @@ def _load_adapter(ref: str) -> Any:
         adapter = adapter_type()
     except (AttributeError, ImportError, TypeError) as exc:
         raise CatalogError(f"adapter_factory cannot be loaded: {ref}") from exc
-    for method in ("get_query_schema", "validate_query", "get_access_token"):
+    for method in ("get_query_schema", "validate_query"):
         if not callable(getattr(adapter, method, None)):
             raise CatalogError(f"adapter_factory lacks {method}: {ref}")
     schema = adapter.get_query_schema()
@@ -104,7 +115,13 @@ def load_catalog(path: Path | None = None) -> list[ProviderConfig]:
     if len(codes) != len(set(codes)):
         raise CatalogError("duplicate Provider Catalog provider_code")
     for provider in providers:
-        _load_adapter(provider.adapter_factory)
+        adapter = _load_adapter(provider.adapter_factory)
+        required = ["fetch_pull_page"] if provider.execution_mode == "paged_pull" else ["submit", "get_status", "fetch_page"]
+        if provider.auth_mode == "tenant_token":
+            required.append("get_access_token")
+        for method in required:
+            if not callable(getattr(adapter, method, None)):
+                raise CatalogError(f"adapter_factory lacks {method}: {provider.adapter_factory}")
     return providers
 
 
@@ -115,7 +132,9 @@ def list_provider_views(path: Path | None = None) -> list[dict[str, Any]]:
             "display_name": provider.display_name,
             "api_server_url": provider.api_server_url,
             "tenant_name": provider.tenant_name,
-            "credential_status": "available",
+            "auth_mode": provider.auth_mode,
+            "execution_mode": provider.execution_mode,
+            "credential_status": "not_required" if provider.auth_mode == "none" else "available",
             "adapter_version": provider.adapter_version,
             "status": provider.status,
             "query_schema": _load_adapter(provider.adapter_factory).get_query_schema(),

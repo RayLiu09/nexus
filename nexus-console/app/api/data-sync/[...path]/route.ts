@@ -15,7 +15,12 @@ function pathFor(parts: string[], method: string): string | null {
   if (parts.some((part) => !part || part === "." || part === "..")) return null;
   const [resource, id, action] = parts;
   if (!allowed.test(resource ?? "")) return null;
-  if (resource === "providers") return method === "GET" && parts.length === 1 ? "providers" : null;
+  if (resource === "providers") {
+    if (method === "GET" && parts.length === 1) return "providers";
+    if (method === "GET" && parts.length === 3 && id && action === "options")
+      return `providers/${encodeURIComponent(id)}/options`;
+    return null;
+  }
   if (resource === "job-catalog")
     return method === "GET" && parts.length === 1 ? "job-catalog" : null;
   if (parts.length === 1)

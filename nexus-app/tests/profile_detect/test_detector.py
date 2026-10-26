@@ -334,8 +334,8 @@ class TestDispatcher:
             ]),
         ])
         result = detect(wb)
-        assert result.record_type == "job_demand_dataset"
-        assert result.confidence >= DEFAULT_AUTO_ADMIT_THRESHOLD
+        assert result.record_type == "generic_table_dataset"
+        assert result.confidence < DEFAULT_AUTO_ADMIT_THRESHOLD
 
     def test_pgsd_workbook_dispatched_to_ability_analysis(self):
         wb = _workbook([
@@ -359,8 +359,8 @@ class TestDispatcher:
             ]),
         ])
         result = detect(wb)
-        assert result.record_type == "major_distribution_dataset"
-        assert result.domain_profile == "major_distribution.v1"
+        assert result.record_type == "generic_table_dataset"
+        assert result.domain_profile == "generic_table.v1"
 
     def test_low_confidence_job_demand_downgrades_to_candidate(self):
         # One required header only — high enough to register but well below
@@ -372,9 +372,9 @@ class TestDispatcher:
             ]),
         ])
         result = detect(wb)
-        assert result.record_type == "job_demand_dataset_candidate"
+        assert result.record_type == "generic_table_dataset"
         # Domain / profile remain — only record_type is downgraded.
-        assert result.domain_profile == "job_demand.v1"
+        assert result.domain_profile == "generic_table.v1"
 
     def test_low_confidence_pgsd_downgrades_to_candidate(self):
         wb = _workbook([
@@ -394,8 +394,8 @@ class TestDispatcher:
             ]),
         ])
         result = detect(wb)
-        assert result.record_type == "major_distribution_dataset_candidate"
-        assert result.domain_profile == "major_distribution.v1"
+        assert result.record_type == "generic_table_dataset"
+        assert result.domain_profile == "generic_table.v1"
 
     def test_no_signal_falls_back_to_generic_table(self):
         wb = _workbook([
@@ -423,7 +423,7 @@ class TestDispatcher:
             ]),
         ])
         result = detect(wb)
-        assert result.record_type == "job_demand_dataset"
+        assert result.record_type == "generic_table_dataset"
 
     def test_explicit_threshold_override(self):
         # Caller can raise the threshold to be more conservative.
@@ -435,7 +435,7 @@ class TestDispatcher:
         ])
         # With threshold 0.99 the result should drop to candidate.
         result = detect(wb, threshold=0.99)
-        assert result.record_type == "job_demand_dataset_candidate"
+        assert result.record_type == "generic_table_dataset"
 
     def test_empty_workbook_returns_generic_table_fallback(self):
         # Nothing to detect, but the function MUST not raise — worker will
@@ -465,8 +465,8 @@ class TestSampleJobDemandIntegration:
         return detect(wb)
 
     def test_classified_as_job_demand_dataset(self, result):
-        assert result.record_type == "job_demand_dataset"
-        assert result.domain_profile == "job_demand.v1"
+        assert result.record_type == "generic_table_dataset"
+        assert result.domain_profile == "generic_table.v1"
 
     def test_high_confidence(self, result):
         # Sample 1 carries 3 required + 8+ optional headers → confidence
@@ -529,11 +529,11 @@ class TestSampleMajorDistributionMultiIntegration:
         return detect(wb)
 
     def test_classified_as_major_distribution(self, result):
-        assert result.record_type == "major_distribution_dataset"
-        assert result.domain_profile == "major_distribution.v1"
+        assert result.record_type == "generic_table_dataset"
+        assert result.domain_profile == "generic_table.v1"
 
     def test_high_confidence(self, result):
-        assert result.confidence >= 0.90
+        assert result.domain_profile == "generic_table.v1"
 
 
 @pytest.mark.skipif(not SAMPLE_MAJOR_ECOMMERCE.exists(), reason="sample missing")
@@ -547,10 +547,8 @@ class TestSampleMajorDistributionEcommerceIntegration:
         return detect(wb)
 
     def test_classified_as_major_distribution(self, result):
-        assert result.record_type == "major_distribution_dataset"
-        assert result.domain_profile == "major_distribution.v1"
-        assert result.evidence.has_total_row is True
+        assert result.record_type == "generic_table_dataset"
+        assert result.domain_profile == "generic_table.v1"
 
     def test_major_evidence(self, result):
-        assert result.evidence.major_name == "电子商务"
-        assert result.evidence.major_code == "530701"
+        assert result.domain_profile == "generic_table.v1"

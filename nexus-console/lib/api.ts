@@ -1192,6 +1192,24 @@ export type MajorDistributionDataset = {
   updated_at: string;
 };
 
+export type MajorOfferingRecord = {
+  id: string;
+  sync_run_id: string;
+  provider_code: string;
+  year: number;
+  province_code: string;
+  province_name: string;
+  major_code: string;
+  major_name: string;
+  school_code: string | null;
+  school_name: string;
+  study_duration: string;
+  remark: string | null;
+  source_url: string;
+  fetched_at: string;
+  created_at: string;
+};
+
 export type MajorDistributionRecord = {
   id: string;
   dataset_id: string;

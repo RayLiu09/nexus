@@ -72,6 +72,10 @@ class TestPerFixture:
         self, fixture_path: Path, valid_classification_codes: set[str],
     ) -> None:
         data = self._load(fixture_path)
+        # Professional offerings are now direct API facts, outside AI governance.
+        if data["classification"] in {"major_distribution", "program_distribution"}:
+            assert data["classification"] not in valid_classification_codes
+            return
         assert data["classification"] in valid_classification_codes
 
     def test_expected_shape(self, fixture_path: Path) -> None:

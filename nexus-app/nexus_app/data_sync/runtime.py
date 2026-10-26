@@ -7,10 +7,11 @@ import threading
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any, Protocol
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from nexus_app import models
@@ -27,10 +28,11 @@ logger = logging.getLogger(__name__)
 class SyncRuntimeError(Exception):
     """Provider runtime error with an explicit retry classification."""
 
-    def __init__(self, message: str, *, retryable: bool = False, code: str = "runtime_error"):
+    def __init__(self, message: str, *, retryable: bool = False, code: str = "runtime_error", retry_after: float | None = None):
         super().__init__(message)
         self.retryable = retryable
         self.code = code
+        self.retry_after = retry_after
 
 
 class DataSyncProvider(Protocol):
@@ -98,7 +100,17 @@ def _provider_code(provider_code: str):
 def _classify_http(response: Any) -> None:
     status = getattr(response, "status_code", None)
     if status in RETRYABLE_HTTP:
-        raise SyncRuntimeError(f"provider HTTP {status}", retryable=True, code=f"http_{status}")
+        retry_after = None
+        header = getattr(response, "headers", {}).get("retry-after")
+        if header:
+            try:
+                retry_after = max(0.0, float(header))
+            except (TypeError, ValueError):
+                try:
+                    retry_after = max(0.0, (parsedate_to_datetime(header) - _utcnow()).total_seconds())
+                except (TypeError, ValueError, OverflowError):
+                    pass
+        raise SyncRuntimeError(f"provider HTTP {status}", retryable=True, code=f"http_{status}", retry_after=retry_after)
     if status == 422:
         raise SyncRuntimeError("provider rejected request", code="http_422")
     if status == 409:
@@ -108,6 +120,16 @@ def _classify_http(response: Any) -> None:
 
 
 def _invoke_with_token(tokens: TokenManager, provider: Any, adapter: DataSyncProvider, operation):
+    if getattr(provider, "auth_mode", "tenant_token") == "none":
+        try:
+            result = operation(None)
+            _classify_http(result)
+            return result
+        except httpx.HTTPStatusError as exc:
+            _classify_http(exc.response)
+            raise
+        except (httpx.TimeoutException, httpx.RequestError) as exc:
+            raise SyncRuntimeError("provider request unavailable", retryable=True, code="network_error") from exc
     token = tokens.get_token(provider, adapter)
     for attempt in range(2):
         try:
@@ -238,6 +260,23 @@ def claim_run(session: Session, worker_id: str, *, lease_seconds: int = 120) -> 
     )
     if run is None:
         return None
+    try:
+        provider, _ = _provider_code(run.provider_code)
+        pull_mode = getattr(provider, "execution_mode", "external_job") == "paged_pull"
+    except SyncRuntimeError:
+        pull_mode = False  # Let the executor persist the configuration failure.
+    if pull_mode:
+        if session.get_bind().dialect.name == "postgresql":
+            session.execute(text("SELECT pg_advisory_xact_lock(hashtext(:provider))"), {"provider": "data_sync:" + run.provider_code})
+        busy = session.scalar(select(models.DataSyncRun.id).where(
+            models.DataSyncRun.provider_code == run.provider_code,
+            models.DataSyncRun.id != run.id,
+            models.DataSyncRun.status == "running",
+            models.DataSyncRun.claim_owner.is_not(None),
+        ).limit(1))
+        if busy:
+            session.rollback()
+            return None
     if run.status == DataSyncRunStatus.QUEUED.value:
         _set_status(session, run, DataSyncRunStatus.RUNNING.value)
     run.claim_owner = worker_id
@@ -274,7 +313,14 @@ def recover_expired_runs(session: Session, *, now: datetime | None = None, max_a
         run.claim_owner = None
         run.lease_expires_at = None
         run.heartbeat_at = None
-        if run.attempt_count >= max_attempts and run.external_task_id is not None:
+        pull_mode = False
+        if run.external_task_id is None:
+            try:
+                provider, _ = _provider_code(run.provider_code)
+                pull_mode = getattr(provider, "execution_mode", "external_job") == "paged_pull"
+            except SyncRuntimeError:
+                pass
+        if run.attempt_count >= max_attempts and (run.external_task_id is not None or pull_mode):
             _set_status(session, run, DataSyncRunStatus.FAILED.value, reason="lease_expired")
             run.finished_at = now
             run.failure_summary = "worker lease expired after maximum attempts"
@@ -344,6 +390,9 @@ class DataSyncExecutor:
             external_task_id = run.external_task_id
             query_snapshot = dict(run.query_snapshot)
         provider, adapter = _provider_code(provider_code)
+        if getattr(provider, "execution_mode", "external_job") == "paged_pull":
+            self._pull_pages(run_id, provider, adapter, query_snapshot)
+            return
         if not external_task_id:
             try:
                 submitted = _invoke_with_token(
@@ -369,6 +418,50 @@ class DataSyncExecutor:
                 run.request_id = result.request_id
                 session.commit()
         self._poll_pages(run_id, provider, adapter)
+
+    def _pull_pages(self, run_id: str, provider: Any, adapter: Any, query: dict[str, Any]) -> None:
+        """Direct reads have no external task; commit each page with its cursor."""
+        while True:
+            with self._session_factory() as session:
+                run = session.get(models.DataSyncRun, run_id)
+                if run is None or run.status != "running" or run.claim_owner != self.worker_id:
+                    return
+                cursor = run.last_cursor
+            page = _invoke_with_token(
+                self._tokens, provider, adapter,
+                lambda token: adapter.fetch_pull_page(provider, query, cursor, self._client, token),
+            )
+            if not isinstance(page, dict) or not isinstance(page.get("records"), list):
+                raise SyncRuntimeError("invalid pull response", code="invalid_page")
+            with self._session_factory() as session:
+                run = session.scalar(select(models.DataSyncRun).where(
+                    models.DataSyncRun.id == run_id,
+                ).with_for_update())
+                if run is None or run.status != "running" or run.claim_owner != self.worker_id:
+                    return
+                if run.last_cursor != cursor:
+                    return
+                intake = adapter.result_handler.accept_page(session, run, page["records"])
+                run.processed_count += len(page["records"])
+                run.success_count += intake.accepted
+                run.skipped_count += intake.duplicate
+                run.last_cursor = page.get("next_cursor")
+                run.last_polled_at = _utcnow()
+                run.result_summary = {"upstream_total": page["total"], "source": provider.display_name}
+                if run.last_cursor is None:
+                    if run.processed_count != page["total"]:
+                        raise SyncRuntimeError("pull total changed", retryable=True, code="pagination_incomplete")
+                    _set_status(session, run, "succeeded")
+                    run.finished_at = _utcnow()
+                    run.failure_summary = None
+                    run.claim_owner = None
+                    run.lease_expires_at = None
+                    run.heartbeat_at = None
+                session.commit()
+                if run.last_cursor is None:
+                    return
+            # Provider pacing never holds a DB transaction or row lock.
+            threading.Event().wait(getattr(adapter, "page_interval", 1.0))
 
     def _poll_pages(self, run_id: str, provider: Any, adapter: DataSyncProvider) -> None:
         handler = getattr(adapter, "result_handler", None)
@@ -484,6 +577,8 @@ class DataSyncExecutor:
             elif retryable and (unconfirmed_submit or run.attempt_count < self.max_attempts):
                 delay = min(300, 2 ** min(max(0, run.attempt_count - 1), 6) * 5)
                 _set_status(session, run, DataSyncRunStatus.QUEUED.value, reason="retry")
+                if isinstance(exc, SyncRuntimeError) and exc.retry_after is not None:
+                    delay = max(delay, min(86400, exc.retry_after))
                 run.next_retry_at = _utcnow() + timedelta(seconds=delay)
             else:
                 _set_status(session, run, DataSyncRunStatus.FAILED.value, reason="execution_error")

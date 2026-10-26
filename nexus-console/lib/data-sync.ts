@@ -4,6 +4,7 @@ export type QueryField = {
   description?: string;
   default?: unknown;
   enum?: unknown[];
+  "x-enum-labels"?: string[];
   minimum?: number;
   maximum?: number;
   minLength?: number;
@@ -28,7 +29,9 @@ export type SyncProvider = {
   provider_code: string;
   display_name: string;
   api_server_url: string;
-  tenant_name: string;
+  tenant_name: string | null;
+  auth_mode?: "none" | "tenant_token";
+  execution_mode?: "paged_pull" | "external_job";
   credential_status: string;
   adapter_version: string;
   status: string;

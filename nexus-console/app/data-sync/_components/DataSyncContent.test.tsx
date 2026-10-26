@@ -255,3 +255,24 @@ it("blocks a fully selected collection plan above the upstream combination limit
   fireEvent.click(screen.getByRole("button", { name: "创建计划" }));
   await waitFor(() => expect(postApiData).not.toHaveBeenCalled());
 });
+
+it("creates Ministry plans using public API options and the four required fields", async () => {
+  const ministry: SyncProvider = {
+    ...provider("moe_major_offering"), display_name: "教育部政务服务平台",
+    tenant_name: null, auth_mode: "none", execution_mode: "paged_pull", credential_status: "not_required",
+    query_schema: { type: "object", required: ["year", "province", "major_name", "major_code"], properties: {
+      year: { type: "integer", title: "年份" }, province: { type: "string", title: "省份/地区" },
+      major_name: { type: "string", title: "专业名称" }, major_code: { type: "string", title: "专业代码" },
+    } },
+  };
+  vi.mocked(getApiData).mockResolvedValue({ ok: true, error: null, traceId: null, total: null, data: { years: [2026, 2025], provinces: [{ code: "HeB", name: "河北省" }] } });
+  render(<App><DataSyncContent initialProviders={[ministry]} initialPlans={[]} initialCatalog={[]} initialError={null} /></App>);
+  expect(screen.getByText("无需认证")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /新建同步计划/ }));
+  await waitFor(() => expect(getApiData).toHaveBeenCalledWith("/api/data-sync/providers/moe_major_offering/options", null));
+  expect(screen.getByText("年份")).toBeInTheDocument();
+  expect(screen.getByText("省份/地区")).toBeInTheDocument();
+  expect(screen.getByText("专业名称")).toBeInTheDocument();
+  expect(screen.getByText("专业代码")).toBeInTheDocument();
+  expect(screen.queryByLabelText(/Token|API Key|租户/)).not.toBeInTheDocument();
+});

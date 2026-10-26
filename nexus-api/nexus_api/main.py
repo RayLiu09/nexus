@@ -13,6 +13,7 @@ from nexus_api.api.open_business import router as open_business_router
 from nexus_api.api.open_evidence import router as open_evidence_router
 from nexus_api.api.open_discovery import router as open_discovery_router
 from nexus_api.api.open_record_assets import router as open_record_assets_router
+from nexus_api.api.major_offerings import open_router as major_offerings_open_router, business_router as major_offerings_business_router
 from nexus_api.api.major_profiles import open_router as open_major_profiles_router
 from nexus_api.api.talent_training_plans import open_router as open_talent_training_plans_router
 from nexus_api.api.institutional_statistics import router as institutional_statistics_router
@@ -234,6 +235,8 @@ def create_app() -> FastAPI:
     # `/record-assets/job-demand-records/aggregate` are matched ahead of
     # `open_router`'s `/record-assets/job-demand-records/{record_id}`.
     app.include_router(open_record_assets_router)
+    app.include_router(major_offerings_open_router)
+    app.include_router(major_offerings_business_router)
     app.include_router(open_router)
     app.include_router(open_business_router)
     app.include_router(open_evidence_router)

@@ -83,7 +83,6 @@ def detect(
     """
     candidates = [
         detect_ability_analysis_pgsd(workbook),
-        detect_major_distribution(workbook),
         # Job-demand assets are crawler/raw-intake data now. They are not a
         # Pipeline B structured-record profile and must not be AI-governed.
     ]

@@ -1155,83 +1155,16 @@ def query_major_distribution(
     tool_call_id: str,
     chart_registry: ChartRegistry,
 ) -> dict[str, Any]:
-    # Read every optional arg through `.get()` up-front so the
-    # schema-alignment contract test can statically distinguish
-    # required from optional access — a mixed `arguments[X]` inside an
-    # `if arguments.get(X):` guard reads as required to AST scanners
-    # even though it's safe.
-    major_code = arguments.get("major_code")
-    major_name = arguments.get("major_name")
-    year = arguments.get("year")
-    province_name = normalize_province_name(arguments.get("province_name"))
-    education_level = arguments.get("education_level")
-    region_scope = arguments.get("region_scope")
-    min_count = arguments.get("min_count")
-    max_count = arguments.get("max_count")
-
-    stmt = (
-        select(
-            models.MajorDistributionRecord, models.MajorDistributionDataset,
-        )
-        .join(
-            models.MajorDistributionDataset,
-            models.MajorDistributionRecord.dataset_id
-            == models.MajorDistributionDataset.id,
-        )
+    from nexus_app.major_offerings import list_records
+    records, total = list_records(
+        session, limit=100, year=arguments.get("year"),
+        province_name=arguments.get("province_name"),
+        province_code=arguments.get("province_code"),
+        major_code=arguments.get("major_code"), major_name=arguments.get("major_name"),
+        school_name=arguments.get("school_name"), school_code=arguments.get("school_code"),
     )
-    if major_code:
-        stmt = stmt.where(
-            models.MajorDistributionRecord.major_code == major_code,
-        )
-    if major_name:
-        stmt = stmt.where(
-            models.MajorDistributionRecord.major_name.ilike(f"%{major_name}%"),
-        )
-    if year is not None:
-        # Records carry their own `year` — filter directly rather than
-        # via dataset year_min/year_max envelope which spans multiple years.
-        stmt = stmt.where(models.MajorDistributionRecord.year == year)
-    if province_name:
-        stmt = stmt.where(
-            models.MajorDistributionRecord.province_name == province_name,
-        )
-    if education_level:
-        stmt = stmt.where(
-            models.MajorDistributionRecord.education_level == education_level,
-        )
-    if region_scope:
-        stmt = stmt.where(
-            models.MajorDistributionRecord.region_scope == region_scope,
-        )
-    if min_count is not None:
-        stmt = stmt.where(
-            models.MajorDistributionRecord.distribution_count >= min_count,
-        )
-    if max_count is not None:
-        stmt = stmt.where(
-            models.MajorDistributionRecord.distribution_count <= max_count,
-        )
-    stmt = stmt.limit(100)
-
-    records = []
-    for rec, ds in session.execute(stmt):
-        records.append({
-            "id": rec.id,
-            "major_code": rec.major_code,
-            "major_name": rec.major_name,
-            "province_name": rec.province_name,
-            "education_level": rec.education_level,
-            "region_scope": rec.region_scope,
-            "distribution_count": rec.distribution_count,
-            "year": rec.year,
-            "dataset_year_min": ds.year_min,
-            "dataset_year_max": ds.year_max,
-            "normalized_ref_id": rec.normalized_ref_id,
-        })
-    return {
-        "records": records,
-        "count": len(records),
-    }
+    return {"records": records, "count": len(records), "total": total,
+            "coverage": "仅统计已同步的高职专科拟招生专业备案记录"}
 
 
 # ---------------------------------------------------------------------------

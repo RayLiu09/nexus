@@ -172,44 +172,8 @@ class TestJobDemandWriterProjection:
 
 
 class TestMajorDistributionWriterProjection:
-    def test_records_land_tag_asset_index_rows(self, session):
-        ref = _seed_scaffold(
-            session, ref_id="ref-md-proj",
-            asset_kind=AssetKind.RECORD,
-            normalized_type=NormalizedType.RECORD,
-            domain_profile="major_distribution.v1",
-        )
-        record_body = {
-            "dataset": {
-                "dataset_name": "布点",
-                "source_channel": "xlsx",
-                "major_scope": "single_major",
-                "major_name": "电子商务", "major_code": "530701",
-                "education_level": "高职",
-                "year_min": 2024, "year_max": 2024,
-                "province_count": 1, "record_count": 1,
-                "placeholder_count": 0, "ignored_summary_count": 0,
-                "invalid_count": 0, "schema_version": "major_distribution.v1",
-                "quality_summary": {},
-            },
-            "records": [{
-                "source_record_key": "2024-zj",
-                "year": 2024, "province_name": "浙江",
-                "major_name": "电子商务", "major_code": "530701",
-                "education_level": "高职", "distribution_count": 3,
-                "trace": {},
-            }],
-        }
-        result = major_distribution_writer.write(session, ref, record_body)
-        assert not result.skipped
-        assert result.records_written == 1
-        tag_rows = list(session.scalars(
-            select(models.TagAssetIndex).where(
-                models.TagAssetIndex.target_type
-                == TagAssetIndexTargetType.MAJOR_DISTRIBUTION_RECORD,
-                models.TagAssetIndex.source
-                == TagAssetIndexSource.FIELD_PROJECTION,
-            )
-        ).all())
-        assert tag_rows == []
-        assert "tag_projection" not in result.quality_summary
+    def test_retired_writer_creates_no_domain_or_tag_rows(self, session):
+        with pytest.raises(ValueError, match="retired"):
+            major_distribution_writer.write(session, None, {"dataset": {}, "records": []})
+        assert list(session.scalars(select(models.MajorDistributionRecord))) == []
+        assert list(session.scalars(select(models.TagAssetIndex))) == []

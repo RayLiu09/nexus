@@ -37,10 +37,11 @@ def test_major_distribution_registry_exposes_structured_query_profiles():
 
     assert definition.default_channel == RetrievalChannel.STRUCTURED
     assert definition.executor_key == "major_distribution_sql"
-    assert trend.table_profile == "major_distribution.v1"
+    assert trend.table_profile == "major_offering.v1"
     assert "year" in trend.allowed_group_by
     assert "major_name" in trend.allowed_filters
-    assert "sum:distribution_count" in trend.allowed_metrics
+    assert "count:record" in trend.allowed_metrics
+    assert trend.id_in_supported is False
 
 
 def test_job_demand_registry_exposes_structured_query_profiles():
@@ -54,8 +55,12 @@ def test_job_demand_registry_exposes_structured_query_profiles():
 
 
 def test_competency_registry_exposes_structured_query_profiles():
-    category = get_query_profile("competency_analysis", "competency.ability_items_by_category")
-    relations = get_query_profile("competency_analysis", "competency.relations_by_ability")
+    category = get_query_profile(
+        "competency_analysis", "competency.ability_items_by_category"
+    )
+    relations = get_query_profile(
+        "competency_analysis", "competency.relations_by_ability"
+    )
 
     assert category.table_profile == "ability_analysis.pgsd.v1"
     assert "ability_major_category_code" in category.allowed_group_by
@@ -64,8 +69,12 @@ def test_competency_registry_exposes_structured_query_profiles():
 
 
 def test_domains_for_channel_includes_hybrid_major_profile():
-    structured_domains = {definition.domain for definition in domains_for_channel("structured")}
-    hybrid_domains = {definition.domain for definition in domains_for_channel(RetrievalChannel.HYBRID)}
+    structured_domains = {
+        definition.domain for definition in domains_for_channel("structured")
+    }
+    hybrid_domains = {
+        definition.domain for definition in domains_for_channel(RetrievalChannel.HYBRID)
+    }
 
     assert "major_distribution" in structured_domains
     assert "job_demand" in structured_domains

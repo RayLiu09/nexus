@@ -154,7 +154,7 @@
         },
         {
           "name": "internal.query_major_distribution",
-          "description": "检索专业布点数据",
+          "description": "检索教育部高职专科拟招生专业备案明细，仅覆盖已同步年份、省份及专业；同年同校同专业计一个布点",
           "parameters": {
             "type": "object",
             "properties": {
@@ -162,10 +162,9 @@
               "major_name": { "type": "string" },
               "year": { "type": "integer" },
               "province_name": { "type": "string" },
-              "education_level": { "type": "string" },
-              "region_scope": { "type": "string" },
-              "min_count": { "type": "integer" },
-              "max_count": { "type": "integer" }
+              "province_code": { "type": "string" },
+              "school_name": { "type": "string" },
+              "school_code": { "type": "string" }
             }
           }
         }

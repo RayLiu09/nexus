@@ -22,6 +22,16 @@
       "adapter_factory": "nexus_app.data_sync.adapters.crawler_engine:CrawlerEngineDataSyncProvider",
       "adapter_version": "0.2.0",
       "status": "disabled"
+    },
+    {
+      "provider_code": "moe_major_offering",
+      "display_name": "教育部政务服务平台",
+      "api_server_url": "https://zwfw.moe.gov.cn",
+      "auth_mode": "none",
+      "execution_mode": "paged_pull",
+      "adapter_factory": "nexus_app.data_sync.adapters.moe_major_offering:MoeMajorOfferingProvider",
+      "adapter_version": "1.0.0",
+      "status": "enabled"
     }
   ]
 }

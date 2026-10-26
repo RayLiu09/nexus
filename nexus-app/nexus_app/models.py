@@ -1856,6 +1856,34 @@ class JobDemandRequirementItem(TimestampMixin, Base):
 # ---------------------------------------------------------------------------
 
 
+class MajorOfferingRecord(TimestampMixin, Base):
+    """One year/school/major fact received directly from an open API."""
+
+    __tablename__ = "major_offering_record"
+    __table_args__ = (
+        UniqueConstraint("year", "school_name_key", "major_code", name="uq_major_offering_school_name"),
+        Index("uq_major_offering_school_code", "year", "school_code", "major_code", unique=True,
+              postgresql_where=text("school_code IS NOT NULL"), sqlite_where=text("school_code IS NOT NULL")),
+        Index("ix_major_offering_scope", "year", "province_code", "major_code"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    sync_run_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_sync_run.id"), nullable=False)
+    provider_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    province_code: Mapped[str] = mapped_column(String(16), nullable=False)
+    province_name: Mapped[str] = mapped_column(Text, nullable=False)
+    major_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    major_name: Mapped[str] = mapped_column(Text, nullable=False)
+    school_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    school_name: Mapped[str] = mapped_column(Text, nullable=False)
+    school_name_key: Mapped[str] = mapped_column(Text, nullable=False)
+    study_duration: Mapped[str] = mapped_column(Text, nullable=False)
+    remark: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
 class MajorDistributionDataset(TimestampMixin, Base):
     """One major-distribution dataset per normalized_asset_ref."""
 

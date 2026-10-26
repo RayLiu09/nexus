@@ -193,11 +193,17 @@ Root documents are distilled implementation contracts:
   generic semantic RAG chunks, and original download. The retired
   `major_profile.v1` domain rows and section-derived chunks are removed by
   migration; raw and normalized source documents remain traceable.
-- Professional major-distribution records are browsed across datasets at
-  `/asset-center/major/distributions`, with server-side filtering, pagination,
-  and audited record corrections/deletion. The former asset-detail
-  `专业布点列表` is removed, and `/assets/{asset_id}` does not expose a
-  `结构化图谱` tab for this record type.
+- Professional major-distribution records at `/asset-center/major/distributions`
+  are read-only Ministry API facts (`major_offering_record`). Create a plan in
+  Data Sync using 教育部政务服务平台 with year, province, major name and code;
+  no credentials are required. Records go directly to the domain DB without
+  AI governance. Same year/school/major duplicates are skipped. Legacy major
+  Pipeline B is retired; migration `20261023_0121` preserves rule history while
+  versioning active configuration. Apply `cd nexus-app && uv run alembic upgrade head`
+  and restart API/workers. Deployments using a private Provider Catalog must
+  include the public `moe_major_offering` entry from the bundled Catalog.
+  [Design and feasibility](docs/moe_major_offering_api_feasibility_and_design.md)
+  and [implementation evidence](docs/review/wk_moe_major_offering_implementation_evidence.md).
 - Occupational-ability analyses are browsed at
   `/asset-center/major/occupation-analyses` as a paginated list with exact
   task and P/G/S/D counts. Row Drawers host the migrated ability-item, tree,

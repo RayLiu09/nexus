@@ -327,7 +327,11 @@ Stages: ingest → `ingest_validate` → `assetize` → structured parse/profile
 
 Produces: `normalized_asset_ref(type=record)`.
 
-P0 record profiles include job demand, occupational ability analysis, and major distribution (`major_distribution.v1`) tables. Major distribution rows are normalized into `major_distribution_dataset` / `major_distribution_record`; source summary rows such as `全部` / `全国` / `合计` are ignored because totals are derived from detail records.
+P0 active Pipeline B profiles include occupational ability analysis. Job demand and major distribution are independent API-synchronized domains. Major distribution uses the Education Ministry public registration API (`moe_major_offering`), `auth_mode=none`, `execution_mode=paged_pull`, and writes `major_offering_record` directly. It creates no asset/version/normalized reference, invokes no AI governance, and creates no knowledge chunks. This domain is explicitly outside the Asset Pipeline stage/status requirements above.
+
+The direct sync transaction accepts one complete page together with its cursor and counters; HTTP and pacing occur outside transactions. Worker leases/heartbeats and bounded retries reuse the PostgreSQL sync-run framework. Provider claims serialize public paged pulls across workers. A fact is unique by year + school + major code, using school code when available and normalized school name as fallback; DB constraints and conflict-safe inserts skip existing facts without overwriting them. Source page numbers, raw row JSON and content hashes are absent from this domain. Retired legacy tables remain historical only; active read/aggregate/retrieval paths use the new domain and report ingested coverage.
+
+Migration `20261023_0121` creates the new table and retires dedicated major-distribution governance configuration. It archives active rule content and creates a cleaned successor preserving unrelated deployment customizations. Historical prompts/rules/audits are retained; dedicated active prompts and analysis rules are disabled. Seeds and config-save validation prevent reactivation. Explicit old jobs/routes and recognized legacy spreadsheets are refused before AI; the old domain writer is disabled. Restart API/workers after upgrade to reload process caches.
 
 **Shared by both pipelines:**
 

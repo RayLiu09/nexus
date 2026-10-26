@@ -7,7 +7,7 @@ from nexus_app.ai_governance.seed_data import _build_code
 
 
 def test_major_distribution_seed_code() -> None:
-    assert _build_code("专业布点数") == "major_distribution"
+    assert _build_code("专业布点数") != "major_distribution"
 
 
 def test_governance_rules_v2_uses_major_distribution_code() -> None:
@@ -16,9 +16,10 @@ def test_governance_rules_v2_uses_major_distribution_code() -> None:
     rules = json.loads(rules_path.read_text())
 
     classification_codes = {item["code"] for item in rules["classifications"]}
-    assert "major_distribution" in classification_codes
+    assert "major_distribution" not in classification_codes
     assert "program_distribution" not in classification_codes
 
     for knowledge_type in rules.get("knowledge_types", []):
         applicable = knowledge_type.get("applicable_classifications", [])
         assert "program_distribution" not in applicable
+        assert "major_distribution" not in applicable

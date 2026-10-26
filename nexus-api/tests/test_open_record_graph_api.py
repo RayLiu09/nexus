@@ -121,9 +121,9 @@ def test_open_major_distribution_aggregate_is_cross_dataset(app, session):
             "year": 2025, "province_name": "浙江", "major_code": "530701", "group_by": "province_name",
         })
 
-    assert result.status_code == 200
-    assert result.json()["meta"]["total"] == 1
-    assert result.json()["data"] == [{"province_name": "浙江省", "distribution_total": 30, "record_count": 2}]
+    assert result.status_code == 410
+    assert "/v1/major-offerings" in result.text
+    assert session.get(models.MajorDistributionRecord, "major-1") is not None
 
 
 def test_open_graph_adapters_only_return_generated_graphs(app, session):

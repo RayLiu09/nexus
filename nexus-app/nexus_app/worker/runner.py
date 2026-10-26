@@ -669,7 +669,6 @@ def _run_structured_parse_csv(
 # here so any future record_type added to the catalog has to be classified by
 # the worker integrator (not silently fall through).
 _REVIEW_REQUIRED_RECORD_TYPES: frozenset[str] = frozenset({
-    "major_distribution_dataset_candidate",
     "occupational_ability_analysis_candidate",
     "generic_table_dataset",
 })
@@ -714,6 +713,15 @@ def _run_profile_detect(
     try:
         workbook = ParsedWorkbook.model_validate(raw_payload)
         result = detect(workbook)
+        # This detector is retained only to refuse the retired import route.
+        from nexus_app.profile_detect.detector import detect_major_distribution
+        legacy = detect_major_distribution(workbook)
+        if legacy.confidence >= 0.85:
+            raise NonRetryableError("major_distribution pipeline retired; use Ministry API synchronization", "major_distribution_pipeline_retired")
+    except NonRetryableError as exc:
+        _mark_job_outcome(session, job, str(exc), trace_id, exc)
+        session.commit()
+        raise
     except Exception:  # noqa: BLE001  defensive — detector contract is no-raise
         logger.exception(
             "profile_detect failed unexpectedly for job=%s; falling back to generic_table",
@@ -1672,6 +1680,25 @@ def execute_job(
     After assetize succeeds, failures are persisted without rollback so that
     the partial state (asset, version) is preserved in the failed-state record.
     """
+    trace_id = job.trace_id
+    from nexus_app.ai_governance.retired_major_distribution import has_retired_profile
+    routing = [job.payload, job.metadata_summary]
+    if job.raw_object is not None:
+        routing.append(job.raw_object.metadata_summary)
+    ref_id = (job.payload or {}).get("normalized_ref_id")
+    if ref_id:
+        ref = session.get(models.NormalizedAssetRef, ref_id)
+        if ref is not None:
+            routing.extend([ref.metadata_summary, ref.governance])
+    if any(has_retired_profile(item) for item in routing):
+        job.status = JobStatus.DEAD_LETTERED
+        job.failure_reason = "major_distribution pipeline retired; use Ministry API synchronization"
+        job.last_error_code = "major_distribution_pipeline_retired"
+        _release_lock(job)
+        write_audit(session, AuditEventType.PIPELINE_FAILED, "job", job.id, trace_id,
+                    {"error_code": job.last_error_code})
+        session.commit()
+        return
     settings = settings or get_settings()
     storage = storage or get_object_storage(settings)
 
@@ -1778,6 +1805,12 @@ def execute_job(
                 raw_payload = _load_record_payload(
                     job, raw_object, storage, session, trace_id
                 )
+
+            if has_retired_profile(raw_payload):
+                exc = NonRetryableError("major_distribution pipeline retired; use Ministry API synchronization", "major_distribution_pipeline_retired")
+                _mark_job_outcome(session, job, str(exc), trace_id, exc)
+                session.commit()
+                raise exc
 
             # B2.3 profile_detect — only the structured_parse branch produces a
             # ParsedWorkbook-shaped dict that the detector can consume. JSON

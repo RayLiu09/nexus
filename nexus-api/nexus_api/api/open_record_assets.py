@@ -28,6 +28,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
+from nexus_api.api.major_offerings import retired_endpoint
 from nexus_api.dependencies import Pagination, pagination_params, require_api_caller
 from nexus_api.responses import list_response, response
 from nexus_app import models
@@ -788,7 +789,7 @@ def _major_distribution_filters(
     return clauses
 
 
-@router.get("/major-distribution-records", response_model=schemas.ListResponse[dict])
+@router.get("/major-distribution-records", dependencies=[Depends(retired_endpoint)], response_model=schemas.ListResponse[dict])
 def list_major_distribution_records(
     request: Request,
     year: int | None = Query(None, ge=1900, le=2200),
@@ -827,7 +828,7 @@ _MAJOR_DISTRIBUTION_GROUP_COLUMNS = {
 }
 
 
-@router.get("/major-distribution-records/aggregate", response_model=schemas.ListResponse[dict])
+@router.get("/major-distribution-records/aggregate", dependencies=[Depends(retired_endpoint)], response_model=schemas.ListResponse[dict])
 def aggregate_major_distribution_records(
     request: Request,
     group_by: list[str] = Query(["year", "province_name", "major_name", "major_code"]),

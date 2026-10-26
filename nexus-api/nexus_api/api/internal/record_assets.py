@@ -13,6 +13,7 @@ from sqlalchemy import extract, func, or_, select
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
+from nexus_api.api.major_offerings import retired_endpoint
 from nexus_api.dependencies import Pagination, pagination_params
 from nexus_api.dependencies.user import require_user
 from nexus_api.responses import list_response, response
@@ -1014,6 +1015,7 @@ def list_requirement_items_for_record(
 
 @router.get(
     "/record-assets/major-distribution-datasets",
+    dependencies=[Depends(retired_endpoint)],
     response_model=schemas.ListResponse[dict],
 )
 def list_major_distribution_datasets(
@@ -1064,6 +1066,7 @@ def list_major_distribution_datasets(
 
 @router.get(
     "/record-assets/major-distribution-datasets/{dataset_id}",
+    dependencies=[Depends(retired_endpoint)],
     response_model=schemas.ApiResponse[dict],
 )
 def get_major_distribution_dataset(
@@ -1082,6 +1085,7 @@ def get_major_distribution_dataset(
 
 @router.get(
     "/record-assets/major-distribution-datasets/{dataset_id}/records",
+    dependencies=[Depends(retired_endpoint)],
     response_model=schemas.ListResponse[dict],
 )
 def list_major_distribution_records_for_dataset(
@@ -1157,6 +1161,7 @@ def list_major_distribution_records_for_dataset(
 
 @router.get(
     "/record-assets/major-distribution-records",
+    dependencies=[Depends(retired_endpoint)],
     response_model=schemas.ListResponse[dict],
 )
 def list_major_distribution_records(
@@ -1222,6 +1227,7 @@ def list_major_distribution_records(
 
 @router.get(
     "/record-assets/major-distribution-records/{record_id}",
+    dependencies=[Depends(retired_endpoint)],
     response_model=schemas.ApiResponse[dict],
 )
 def get_major_distribution_record(
@@ -1236,121 +1242,6 @@ def get_major_distribution_record(
             detail=f"major_distribution_record '{record_id}' not found",
         )
     return response(_serialize_major_distribution_record(record), request)
-
-
-@router.patch(
-    "/record-assets/major-distribution-records/{record_id}",
-    response_model=schemas.ApiResponse[dict],
-)
-def update_major_distribution_record(
-    record_id: str,
-    payload: MajorDistributionRecordPatch,
-    request: Request,
-    operator: models.UserAccount = Depends(require_user),
-    session: Session = Depends(get_db),
-):
-    record = session.get(models.MajorDistributionRecord, record_id)
-    if record is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"major_distribution_record '{record_id}' not found",
-        )
-    dataset = session.get(models.MajorDistributionDataset, record.dataset_id)
-    if dataset is None:
-        raise HTTPException(
-            status_code=409,
-            detail=f"major_distribution_dataset '{record.dataset_id}' not found",
-        )
-
-    before = _major_distribution_record_snapshot(record)
-    updates = payload.model_dump(exclude_unset=True)
-    for field, value in updates.items():
-        if isinstance(value, str):
-            value = value.strip()
-        if field == "province_name":
-            value = normalize_province_name(value)
-        setattr(record, field, value)
-    if "year" in updates:
-        record.year_text = f"{record.year}年"
-
-    _recompute_major_distribution_dataset_summary(session, dataset)
-    after = _major_distribution_record_snapshot(record)
-    write_audit(
-        session,
-        AuditEventType.MAJOR_DISTRIBUTION_RECORD_UPDATED,
-        target_type="major_distribution_record",
-        target_id=record.id,
-        trace_id=str(getattr(request.state, "trace_id", "")),
-        actor_type="user",
-        actor_id=operator.id,
-        summary={
-            "dataset_id": dataset.id,
-            "normalized_ref_id": record.normalized_ref_id,
-            "before": before,
-            "after": after,
-            "dataset_summary": {
-                "record_count": dataset.record_count,
-                "province_count": dataset.province_count,
-                "year_min": dataset.year_min,
-                "year_max": dataset.year_max,
-            },
-        },
-    )
-    session.commit()
-    session.refresh(record)
-    return response(_serialize_major_distribution_record(record), request)
-
-
-@router.delete(
-    "/record-assets/major-distribution-records/{record_id}",
-    response_model=schemas.ApiResponse[dict],
-)
-def delete_major_distribution_record(
-    record_id: str,
-    request: Request,
-    operator: models.UserAccount = Depends(require_user),
-    session: Session = Depends(get_db),
-):
-    record = session.get(models.MajorDistributionRecord, record_id)
-    if record is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"major_distribution_record '{record_id}' not found",
-        )
-    dataset = session.get(models.MajorDistributionDataset, record.dataset_id)
-    if dataset is None:
-        raise HTTPException(
-            status_code=409,
-            detail=f"major_distribution_dataset '{record.dataset_id}' not found",
-        )
-
-    snapshot = _serialize_major_distribution_record(record)
-    session.delete(record)
-    session.flush()
-    _recompute_major_distribution_dataset_summary(session, dataset)
-    write_audit(
-        session,
-        AuditEventType.MAJOR_DISTRIBUTION_RECORD_DELETED,
-        target_type="major_distribution_record",
-        target_id=record_id,
-        trace_id=str(getattr(request.state, "trace_id", "")),
-        actor_type="user",
-        actor_id=operator.id,
-        summary={
-            "dataset_id": dataset.id,
-            "normalized_ref_id": snapshot["normalized_ref_id"],
-            "deleted_record": snapshot,
-            "dataset_summary": {
-                "record_count": dataset.record_count,
-                "province_count": dataset.province_count,
-                "year_min": dataset.year_min,
-                "year_max": dataset.year_max,
-            },
-        },
-    )
-    session.commit()
-    return response({"id": record_id, "deleted": True}, request)
-
 
 
 _ABILITY_CATEGORY_COUNT_FIELDS = {

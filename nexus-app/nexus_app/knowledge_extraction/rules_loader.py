@@ -122,6 +122,9 @@ def seed_ai_analysis_rules(
     now = datetime.now(timezone.utc)
 
     for rule in rule_sets:
+        from nexus_app.ai_governance.retired_major_distribution import retired_config
+        if retired_config(rule.rule_set_code, rule.scenario):
+            continue
         # `(rule_set_code, version)` is the freeze's unique key. Skip if
         # already present — re-runs must NEVER mutate existing rows.
         existing = bind.execute(

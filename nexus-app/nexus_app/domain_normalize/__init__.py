@@ -42,7 +42,6 @@ logger = logging.getLogger(__name__)
 # alphabetical by profile to make merge conflicts predictable.
 _WRITER_REGISTRY: dict[str, tuple[str, str]] = {
     "ability_analysis.pgsd.v1": ("nexus_app.domain_normalize.ability_analysis_writer", "write"),
-    "major_distribution.v1": ("nexus_app.domain_normalize.major_distribution_writer", "write"),
 }
 
 
@@ -69,6 +68,8 @@ def dispatch_domain_normalize(
             reason="missing_domain_profile",
         )
 
+    if domain_profile.startswith(("major_distribution", "program_distribution")):
+        raise ValueError("major_distribution pipeline is retired; use Ministry API synchronization")
     entry = _WRITER_REGISTRY.get(domain_profile)
     if entry is None:
         return DomainNormalizeResult(

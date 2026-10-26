@@ -159,7 +159,7 @@ class TestTagFilterAuditStructured:
             "domain": "major_distribution", "purpose": "test",
             "query_text": "test",
             "structured_plan": {
-                "table_profile": "major_distribution.v1",
+                "table_profile": "major_offering.v1",
                 "query_profile": "major_distribution.record_list",
             },
             "tag_filters": {
@@ -193,7 +193,7 @@ class TestTagFilterAuditStructured:
             "domain": "major_distribution", "purpose": "test",
             "query_text": "test",
             "structured_plan": {
-                "table_profile": "major_distribution.v1",
+                "table_profile": "major_offering.v1",
                 "query_profile": "major_distribution.record_list",
             },
         })
@@ -215,7 +215,7 @@ class TestTagFilterAuditStructured:
             "domain": "major_distribution", "purpose": "test",
             "query_text": "test",
             "structured_plan": {
-                "table_profile": "major_distribution.v1",
+                "table_profile": "major_offering.v1",
                 "query_profile": "major_distribution.record_list",
             },
             "tag_filters": {
@@ -444,7 +444,7 @@ class TestAuditFailureIsolation:
             "domain": "major_distribution", "purpose": "test",
             "query_text": "test",
             "structured_plan": {
-                "table_profile": "major_distribution.v1",
+                "table_profile": "major_offering.v1",
                 "query_profile": "major_distribution.record_list",
             },
             "tag_filters": {

@@ -242,6 +242,49 @@ def seed_major_distribution_zj_js(session) -> dict[str, Any]:
     session.add(dataset)
     session.flush()
     session.add_all([record_zj, record_js])
+    # Keep old rows as fixtures proving that active retrieval reads direct facts.
+    from datetime import datetime, timezone
+
+    plan = models.DataSyncConfig(
+        id="moe-golden-plan",
+        name="MOE",
+        provider_code="moe_major_offering",
+        frequency="1_year",
+        query_config={},
+        created_by="test",
+        idempotency_key="golden",
+        request_hash="golden",
+    )
+    run = models.DataSyncRun(
+        id="moe-golden-run",
+        data_sync_config_id=plan.id,
+        provider_code=plan.provider_code,
+        adapter_version="1",
+        query_snapshot={},
+        query_hash="golden",
+        trace_id="golden",
+        status="succeeded",
+    )
+    session.add_all([plan, run])
+    session.flush()
+    for record, code in ((record_zj, "ZJ"), (record_js, "JS")):
+        session.add(
+            models.MajorOfferingRecord(
+                id=record.id,
+                sync_run_id=run.id,
+                provider_code=plan.provider_code,
+                year=record.year,
+                province_code=code,
+                province_name=record.province_name + "省",
+                major_name=record.major_name,
+                major_code=record.major_code,
+                school_name=record.province_name + "学校",
+                school_name_key=record.province_name + "学校",
+                study_duration="3",
+                source_url="https://zwfw.moe.gov.cn/zyyxzy/result.html",
+                fetched_at=datetime.now(timezone.utc),
+            )
+        )
     session.commit()
     return {
         "asset_version_id": scaffold["version_id"],

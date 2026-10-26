@@ -1,0 +1,52 @@
+{
+  "date": "2026-10-26",
+  "environment": "development",
+  "database": "nexus_dev",
+  "revision_before": "20261021_0120",
+  "revision_after": "20261023_0121",
+  "active_rule_version_before": 14,
+  "active_rule_version_after": 15,
+  "old_rule_bodies_preserved": true,
+  "unrelated_prompts_and_analysis_unchanged": true,
+  "retired_active_configuration_remaining": false,
+  "major_offering_records": 0,
+  "unique_indexes": [
+    "uq_major_offering_school_code",
+    "uq_major_offering_school_name"
+  ],
+  "migration_audit": [
+    {
+      "event_type": "GovernanceRulesVersionCreated",
+      "target_type": "governance_rules_version",
+      "count": 1
+    },
+    {
+      "event_type": "GovernanceRulesVersionArchived",
+      "target_type": "governance_rules_version",
+      "count": 1
+    }
+  ],
+  "existing_pipeline_counts_before": {
+    "asset": 3091,
+    "asset_version": 3217,
+    "normalized_asset_ref": 3173,
+    "ai_governance_run": 3238,
+    "knowledge_chunk": 261098
+  },
+  "existing_pipeline_counts_after": {
+    "asset": 3091,
+    "asset_version": 3217,
+    "normalized_asset_ref": 3173,
+    "ai_governance_run": 3238,
+    "knowledge_chunk": 261098
+  },
+  "backup_location": "/tmp/nexus-dev-before-moe-20261026-003221.json",
+  "backup_permissions": "0600",
+  "full_database_backup": false,
+  "real_sync_plan_created": false,
+  "runtime_services_restarted": false,
+  "delivery_targeted_regression": {
+    "passed": 16,
+    "scope": "tests/data_sync/test_moe_major_offering.py; tests/ai_governance/test_retire_major_distribution.py"
+  }
+}

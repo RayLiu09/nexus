@@ -7,7 +7,7 @@ import {
   type AbilityAnalysis,
   type CourseTextbookSummary,
   getApiData,
-  type MajorDistributionRecord,
+  type MajorOfferingRecord,
   type MajorProfileDocument,
   type IndustryPolicy,
   type RawJob,
@@ -414,11 +414,11 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
       province_name: first(query.province_name),
       major_name: first(query.major_name),
       major_code: first(query.major_code),
-      education_level: first(query.education_level),
-      region_scope: first(query.region_scope),
+      school_name: first(query.school_name),
+      school_code: first(query.school_code),
     };
-    const result = await getApiData<MajorDistributionRecord[]>(
-      "/internal/v1/record-assets/major-distribution-records",
+    const result = await getApiData<MajorOfferingRecord[]>(
+      "/internal/v1/major-offerings",
       [],
       {
         page: String(page),

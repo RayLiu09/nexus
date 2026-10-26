@@ -92,6 +92,10 @@ class TestPerFixtureStructuralGuards:
     ) -> None:
         data = self._load(fixture_path)
         code = data["input"]["classification"]
+        # Professional offerings are now direct API facts, outside AI governance.
+        if code in {"major_distribution", "program_distribution"}:
+            assert code not in valid_classification_codes
+            return
         assert code in valid_classification_codes, (
             f"classification {code!r} not registered in governance_rules_v2. "
             f"Known: {sorted(valid_classification_codes)}"

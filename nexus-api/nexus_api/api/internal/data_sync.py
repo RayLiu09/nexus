@@ -2,6 +2,7 @@
 
 from datetime import datetime
 import json
+import httpx
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, select
@@ -12,7 +13,8 @@ from nexus_api.dependencies import Pagination, pagination_params, require_idempo
 from nexus_api.responses import list_response, response
 from nexus_app import models, schemas as domain_schemas
 from nexus_app.audit import sanitize_audit_summary
-from nexus_app.data_sync.catalog import list_provider_views
+from nexus_app.data_sync.catalog import list_provider_views, load_catalog, _load_adapter
+from nexus_app.data_sync.runtime import SyncRuntimeError
 from nexus_app.data_sync.job_catalog import list_job_catalog
 from nexus_app.data_sync import controls, plans, runs
 from nexus_app.database import get_db
@@ -32,6 +34,22 @@ router = APIRouter(prefix="/data-sync", dependencies=[Depends(require_data_sync_
 def list_data_sync_providers(request: Request):
     items = list_provider_views()
     return list_response(items, request, page=1, page_size=max(len(items), 1), total=len(items))
+
+
+@router.get("/providers/{provider_code}/options", response_model=schemas.ApiResponse[dict])
+def provider_options(provider_code: str, request: Request):
+    provider = next((p for p in load_catalog() if p.provider_code == provider_code and p.status == "enabled"), None)
+    if provider is None:
+        raise HTTPException(404, "Provider unavailable")
+    adapter = _load_adapter(provider.adapter_factory)
+    if not callable(getattr(adapter, "get_options", None)):
+        raise HTTPException(404, "Provider has no dictionaries")
+    try:
+        with httpx.Client(timeout=20.0) as client:
+            options = adapter.get_options(provider, client)
+    except (SyncRuntimeError, httpx.HTTPError, KeyError) as exc:
+        raise HTTPException(502, "数据源字典暂不可用，请重试") from exc
+    return response(options, request)
 
 
 @router.get("/job-catalog", response_model=schemas.ListResponse[dict])

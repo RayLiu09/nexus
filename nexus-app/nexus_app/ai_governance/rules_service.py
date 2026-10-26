@@ -86,6 +86,9 @@ class GovernanceRulesService:
         GovernanceRulesVersion
             The newly created active version.
         """
+        from nexus_app.ai_governance.retired_major_distribution import clean_rules
+        if clean_rules(rules_content) != rules_content:
+            raise ValueError("major_distribution governance is retired; use Ministry API synchronization")
         # 1. Lock current active row
         current = session.scalars(
             select(models.GovernanceRulesVersion)

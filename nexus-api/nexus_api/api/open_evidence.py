@@ -292,13 +292,14 @@ def graph(ref_id: str, request: Request,
 def evidence_bundle(body: dto.EvidenceRequest, request: Request, caller=Depends(require_api_caller), session: Session = Depends(get_db)):
     """Batch read-only resolution. Every item is independently checked; hidden and unknown IDs both return not_found."""
     from nexus_api.api.open_business import job_payload
-    from nexus_api.api.open_record_assets import _serialize_ability_item, _serialize_major_distribution_record
+    from nexus_api.api.open_record_assets import _serialize_ability_item
+    from nexus_app.major_offerings import serialize as serialize_offering
     result = []
     for reference in body.references:
         item = {"kind": reference.kind, "id": reference.id, "status": "not_found"}
         model = {"chunk": models.KnowledgeChunk, "normalized_ref": models.NormalizedAssetRef,
             "market_job": models.RawJob, "enterprise": models.Enterprise, "industrial_park": models.IndustrialPark,
-            "major_distribution": models.MajorDistributionRecord, "ability_item": models.OccupationalAbilityItem}[reference.kind]
+            "major_distribution": models.MajorOfferingRecord, "ability_item": models.OccupationalAbilityItem}[reference.kind]
         row = session.get(model, reference.id)
         if row is not None:
             if reference.kind in ("chunk", "normalized_ref"):
@@ -332,7 +333,7 @@ def evidence_bundle(body: dto.EvidenceRequest, request: Request, caller=Depends(
                     (("enterprise_name", "business_scope", "industrial_park_id") if reference.kind == "enterprise" else ("park_name", "industry_tags", "introduction"))}, ensure_ascii=False)
                 item["source_url"] = row.source_url
             else:
-                data = _serialize_major_distribution_record(row) if reference.kind == "major_distribution" else _serialize_ability_item(row)
+                data = serialize_offering(row) if reference.kind == "major_distribution" else _serialize_ability_item(row)
                 text = json.dumps(data, ensure_ascii=False, default=str)
                 # These are independent domain records, not document-read permission bypasses.
             item.update(status="available", content=text[:body.max_chars], truncated=len(text) > body.max_chars)

@@ -469,6 +469,9 @@ class PromptProfileService:
         )
 
         errors: list[str] = []
+        from nexus_app.ai_governance.retired_major_distribution import retired_config
+        if retired_config(candidate.get("profile_name", ""), candidate.get("scenario", "")):
+            errors.append("major_distribution pipeline is retired")
         warnings: list[str] = []
         template = str(candidate.get("prompt_template") or "")
         profile_name = str(candidate.get("profile_name") or "")
@@ -1848,6 +1851,9 @@ class AIGovernanceService:
 
     @staticmethod
     def _build_ref_dict(ref: models.NormalizedAssetRef) -> dict[str, Any]:
+        from nexus_app.ai_governance.retired_major_distribution import has_retired_profile
+        if has_retired_profile(ref.metadata_summary) or has_retired_profile(ref.governance):
+            raise AIGovernanceError("major_distribution pipeline is retired; use Ministry API synchronization")
         metadata_summary = ref.metadata_summary or {}
         summary = metadata_summary.get("summary", "")
         content_snippet = metadata_summary.get("content_snippet", "")

@@ -94,14 +94,22 @@ def control_run(
     expected_status = run.status
     session.rollback()
 
-    if external_task_id is None and action != "cancel":
+    local_pull = False
+    if external_task_id is None and not (expected_status == "queued" and action == "cancel"):
+        try:
+            provider, adapter = _provider_code(provider_code)
+            local_pull = getattr(provider, "execution_mode", "external_job") == "paged_pull"
+        except Exception as exc:
+            raise ControlUnavailable("Provider unavailable") from exc
+
+    if not local_pull and external_task_id is None and action != "cancel":
         raise ControlConflict("run has no external task")
-    if external_task_id is None and expected_status != "queued":
+    if not local_pull and external_task_id is None and expected_status != "queued":
         raise ControlConflict("run has no external task")
 
     control_result = None
     has_result_handler = False
-    if external_task_id is not None:
+    if external_task_id is not None and not local_pull:
         try:
             provider, adapter = _provider_code(provider_code)
             method = getattr(adapter, action, None)
@@ -185,6 +193,11 @@ def control_run(
                 run.claim_owner = None
                 run.lease_expires_at = None
                 run.heartbeat_at = None
+            if local_pull and action == "resume":
+                run.claim_owner = None
+                run.lease_expires_at = None
+                run.heartbeat_at = None
+                run.next_retry_at = None
             if action == "cancel" and not pending:
                 run.finished_at = datetime.now(timezone.utc)
             _write_control_audit(

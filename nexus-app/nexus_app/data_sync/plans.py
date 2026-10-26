@@ -69,7 +69,7 @@ def create_plan(
         raise PlanError("Provider is unavailable")
     try:
         normalized_query = _load_adapter(provider.adapter_factory).validate_query(query_config)
-    except ValidationError as exc:
+    except (ValidationError, ValueError) as exc:
         raise PlanError("query_config is invalid for this Provider") from exc
     if not isinstance(normalized_query, dict):
         raise PlanError("Provider query validation must return an object")
@@ -212,7 +212,7 @@ def update_plan(
         raise PlanError("Provider is unavailable")
     try:
         normalized_query = _load_adapter(provider.adapter_factory).validate_query(query_config)
-    except ValidationError as exc:
+    except (ValidationError, ValueError) as exc:
         raise PlanError("query_config is invalid for this Provider") from exc
     if not isinstance(normalized_query, dict):
         raise PlanError("Provider query validation must return an object")

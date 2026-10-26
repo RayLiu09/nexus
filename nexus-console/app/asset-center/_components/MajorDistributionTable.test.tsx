@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { MajorDistributionRecord } from "@/lib/api";
+import type { MajorOfferingRecord } from "@/lib/api";
 
 vi.stubGlobal(
   "ResizeObserver",
@@ -36,23 +36,13 @@ vi.mock("@/lib/api", async (importOriginal) => {
 
 import { MajorDistributionTable } from "./MajorDistributionTable";
 
-const row: MajorDistributionRecord = {
-  id: "record-1",
-  dataset_id: "dataset-1",
-  normalized_ref_id: "ref-1",
-  source_record_key: "sheet-1:2",
-  source_row_no: 2,
-  year: 2025,
-  year_text: "2025年",
-  province_name: "浙江省",
-  region_scope: "province",
-  major_name: "电子商务",
-  major_code: "530701",
-  education_level: "高等职业教育专科",
-  distribution_count: 36,
-  quality_flags: {},
-  trace: {},
-  created_at: "2026-09-08T00:00:00Z",
+const row: MajorOfferingRecord = {
+  id: "record-1", sync_run_id: "run-1", provider_code: "moe_major_offering",
+  year: 2025, province_code: "ZJ", province_name: "浙江省",
+  major_name: "电子商务", major_code: "530701", school_code: null,
+  school_name: "浙江某学院", study_duration: "3", remark: null,
+  source_url: "https://zwfw.moe.gov.cn/zyyxzy/result.html",
+  fetched_at: "2026-10-23T00:00:00Z", created_at: "2026-10-23T00:00:00Z",
 };
 
 function renderTable() {
@@ -86,10 +76,10 @@ describe("MajorDistributionTable", () => {
       "省份",
       "专业名称",
       "专业代码",
-      "培养层次",
-      "区域",
-      "布点数",
-      "操作",
+      "学校标识码",
+      "学校名称",
+      "年限",
+      "备注",
     ]) {
       expect(screen.getByRole("columnheader", { name: heading })).toBeInTheDocument();
     }
@@ -132,35 +122,12 @@ describe("MajorDistributionTable", () => {
     expect(replaceMock).toHaveBeenCalledWith("/asset-center/major/distributions");
   });
 
-  it("updates and deletes records through the existing audited proxy routes", async () => {
-    const user = userEvent.setup();
-    patchMock.mockResolvedValue({ data: { ...row, distribution_count: 40 }, meta: {} });
-    deleteMock.mockResolvedValue({ data: { id: row.id, deleted: true }, meta: {} });
+  it("is read only and exposes neither edit nor delete actions", () => {
     renderTable();
-
-    await user.click(screen.getByRole("button", { name: /编辑/ }));
-    const countInput = screen.getByRole("spinbutton", { name: "布点数" });
-    await user.clear(countInput);
-    await user.type(countInput, "40");
-    await user.click(screen.getByRole("button", { name: "保 存" }));
-
-    await waitFor(() =>
-      expect(patchMock).toHaveBeenCalledWith(
-        "/api/record-assets/major-distribution-records/record-1",
-        expect.objectContaining({ distribution_count: 40 }),
-      ),
-    );
-    expect(await screen.findByText("40")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: /删除/ }));
-    await user.click(screen.getByRole("button", { name: "删 除" }));
-
-    await waitFor(() =>
-      expect(deleteMock).toHaveBeenCalledWith(
-        "/api/record-assets/major-distribution-records/record-1",
-      ),
-    );
-    expect(await screen.findByText("暂无专业布点记录")).toBeInTheDocument();
-    expect(refreshMock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("button", { name: /编辑|删除/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "操作" })).not.toBeInTheDocument();
+    expect(screen.getByText("浙江某学院")).toBeInTheDocument();
+    expect(patchMock).not.toHaveBeenCalled();
+    expect(deleteMock).not.toHaveBeenCalled();
   });
 });

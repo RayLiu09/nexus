@@ -1458,28 +1458,17 @@ def test_get_job_demand_role_graph_returns_not_found_when_no_match(session):
 
 
 def test_query_major_distribution_filters_by_year_and_province(session):
-    ref_id = _seed_normalized_ref(session)
-    ds = models.MajorDistributionDataset(
-        id="mdd-1", normalized_ref_id=ref_id, asset_version_id="ver-1",
-        source_channel="excel", major_scope="scope",
-        major_name="跨境电商", major_code="5301",
-        year_min=2024, year_max=2024, schema_version="v1",
-    )
-    rec1 = models.MajorDistributionRecord(
-        id="mr-1", dataset_id=ds.id, normalized_ref_id=ref_id,
-        source_record_key="1", year=2024,
-        province_name="上海市", region_scope="华东",
-        major_name="跨境电商", major_code="5301",
-        distribution_count=10,
-    )
-    rec2 = models.MajorDistributionRecord(
-        id="mr-2", dataset_id=ds.id, normalized_ref_id=ref_id,
-        source_record_key="2", year=2023,
-        province_name="上海市", region_scope="华东",
-        major_name="跨境电商", major_code="5301",
-        distribution_count=8,
-    )
-    session.add_all([ds, rec1, rec2])
+    from datetime import datetime, timezone
+    plan = models.DataSyncConfig(id="plan-md", name="MOE", provider_code="moe_major_offering",
+        frequency="1_year", query_config={}, created_by="admin", idempotency_key="md", request_hash="md")
+    run = models.DataSyncRun(id="run-md", data_sync_config_id=plan.id, provider_code=plan.provider_code,
+        adapter_version="1", query_snapshot={}, query_hash="md", trace_id="md", status="succeeded")
+    session.add_all([plan, run]); session.flush()
+    for i, year in enumerate((2024, 2023)):
+        session.add(models.MajorOfferingRecord(id=f"md-{i}", sync_run_id=run.id, provider_code=plan.provider_code,
+            year=year, province_code="SH", province_name="上海市", major_name="跨境电商", major_code="530702",
+            school_name="学校甲", school_name_key="学校甲", study_duration="3",
+            source_url="https://zwfw.moe.gov.cn/zyyxzy/result.html", fetched_at=datetime.now(timezone.utc)))
     session.flush()
 
     result = query_major_distribution(

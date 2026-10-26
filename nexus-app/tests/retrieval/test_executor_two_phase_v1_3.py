@@ -518,14 +518,15 @@ class TestApplyTargetIdInHelper:
 
 class TestMajorDistributionTwoPhase:
     def test_no_tag_filter_behaves_as_pre_v1_3(self, session):
-        seeded = _seed_major_distribution_min(session)
+        from tests.fixtures.retrieval_golden.fixture_registry import seed_major_distribution_zj_js
+        seeded = seed_major_distribution_zj_js(session)
         executor = MajorDistributionRetrievalExecutor()
         sub_query = RetrievalSubQuery.model_validate({
             "query_id": "q1", "channel": "structured",
             "domain": "major_distribution", "purpose": "test",
             "query_text": "test",
             "structured_plan": {
-                "table_profile": "major_distribution.v1",
+                "table_profile": "major_offering.v1",
                 "query_profile": "major_distribution.record_list",
             },
         })
@@ -534,7 +535,7 @@ class TestMajorDistributionTwoPhase:
         assert {r["id"] for r in result.records} == {
             seeded["record_zj"], seeded["record_js"]
         }
-        assert result.warnings == []
+        assert "ingested_coverage_only" in result.warnings
 
     def test_tag_filter_narrows_to_resolved_ids(self, session):
         seeded = _seed_major_distribution_min(session)
@@ -551,7 +552,7 @@ class TestMajorDistributionTwoPhase:
             "domain": "major_distribution", "purpose": "test",
             "query_text": "test",
             "structured_plan": {
-                "table_profile": "major_distribution.v1",
+                "table_profile": "major_offering.v1",
                 "query_profile": "major_distribution.record_list",
             },
             "tag_filters": {
@@ -589,7 +590,7 @@ class TestMajorDistributionTwoPhase:
             "domain": "major_distribution", "purpose": "test",
             "query_text": "test",
             "structured_plan": {
-                "table_profile": "major_distribution.v1",
+                "table_profile": "major_offering.v1",
                 "query_profile": "major_distribution.record_list",
             },
             "tag_filters": {
@@ -604,14 +605,15 @@ class TestMajorDistributionTwoPhase:
         assert "tag_filters_empty_intersection" in result.warnings
 
     def test_structured_filters_folded_into_plan(self, session):
-        seeded = _seed_major_distribution_min(session)
+        from tests.fixtures.retrieval_golden.fixture_registry import seed_major_distribution_zj_js
+        seeded = seed_major_distribution_zj_js(session)
         executor = MajorDistributionRetrievalExecutor()
         sub_query = RetrievalSubQuery.model_validate({
             "query_id": "q1", "channel": "structured",
             "domain": "major_distribution", "purpose": "test",
             "query_text": "test",
             "structured_plan": {
-                "table_profile": "major_distribution.v1",
+                "table_profile": "major_offering.v1",
                 "query_profile": "major_distribution.record_list",
                 "filters": {},
             },

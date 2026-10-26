@@ -217,14 +217,28 @@ Asset Center IA-1:
   normalization and can be changed in an audited edit Drawer. Rows offer
   parsed preview, generic RAG chunks, and original download; there is no
   expanded domain-detail panel or `major_profile.v1` row requirement.
-- **专业布点业务视图**: `/asset-center/major/distributions` reads
-  `major_distribution_record` facts across datasets and exposes year,
-  province, professional name/code, education level, region scope, and count.
-  Its filters and pagination execute server-side; record corrections and
-  deletion reuse the existing audited internal endpoints. Because these are
-  boundary-free record facts, the business list is no longer mounted in an
-  individual `/assets/{asset_id}` detail, and professional-distribution asset
-  details do not expose the `结构化图谱` tab.
+- **专业布点业务视图**: `/asset-center/major/distributions` reads only
+  `major_offering_record`, synchronized from 教育部政务服务平台. Columns are year,
+  province, major code/name, optional school code, school name, study duration,
+  and nullable remark. Filters and pagination run server-side. The list has
+  no edit/delete actions and no business mutation API. No historical dataset
+  fallback or sum of old distribution counts is allowed.
+- **专业布点同步计划**: select `moe_major_offering`, then enter year, province,
+  major name and six-digit major code. Year/province options come from the
+  Ministry dictionaries; province codes preserve their case (e.g. `HeB`).
+  Default frequency is one year. Public APIs require no tenant credentials.
+  Runs support local pause/resume/cancel and per-page retry. Duplicate facts
+  (same year/school/major) are skipped across runs/plans, never overwritten.
+  Duration and remark do not affect uniqueness. The source covers higher
+  vocational college proposed admissions registrations only; statistics
+  describe ingested coverage, not nationwide completeness.
+- **专业布点 API**: authenticated read-only `GET /v1/major-offerings` and
+  `/v1/major-offerings/aggregate`; `/open/v1/major-offerings` is the existing
+  API-key entry alias and `/internal/v1/major-offerings` uses Console identity.
+  Filters: `year`, `province_code/name`, `major_code/name`, `school_code/name`.
+  Aggregation whitelists year/province/major fields and returns record and
+  distinct institution counts. Read access is audited. Old major-distribution
+  endpoints return 410 with the replacement resource; historical rows remain in DB.
 - **专业教学标准业务视图**: the paginated list exposes professional code/name,
   category/class names with codes, education level, and study years. `课程库`
   opens the standard-course list scoped by parent library. `职业领域图谱` opens
@@ -535,7 +549,7 @@ P0 end-to-end cases:
 - HTML file ingestion: `model_version = MinerU-HTML` auto-selected; parse succeeds and images stored alongside JSON.
 - Image/scanned PDF ingestion: `ocr_enable = true` auto-set; parse succeeds.
 - Crawler Firecrawl document batch: `ingest_validate` passes → `assetize` (Pipeline A) → HTML uses the crawler `trafilatura` Markdown extractor with deterministic `markdown_range` locators, Markdown uses the markdown adapter, PDF stays on MinerU → normalize into `normalized_document` with full `normalized_asset_ref` fields → queryable and searchable after governance/index admission.
-- Professional major-distribution XLSX: `ingest_validate` passes → Pipeline B structured parse/profile detect (`major_distribution.v1`) → `normalized_record` → domain tables; summary rows such as `全部` are ignored, `新疆生产建设兵团` is stored as `province`, and missing education level stays empty unless explicit source/file/context evidence exists.
+- Professional major distribution: Ministry public API → validated page → direct domain DB. Verify duplicate skip, page/counter atomicity, bounded retry, lease recovery and no AI calls; old specialized XLSX/Pipeline B intake is retired. Migration 0121 versions the governance configuration while retaining historical contents and unrelated customizations.
 - Occupational-ability-analysis XLSX: the normalized-record projection keeps
   explicit professional identity when present and otherwise derives it only
   from a source filename carrying a recognized ability-analysis suffix; task
