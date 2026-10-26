@@ -1,12 +1,14 @@
 """Request-scoped public-web search endpoints for API callers.
 
-Firecrawl discovery and the configured Web Search provider deliberately expose
+Firecrawl discovery and DeepSeek Search deliberately expose
 separate contracts. Qualifying results are queued through the existing crawler
 ingest pipeline; neither endpoint writes governed assets synchronously.
 """
 from __future__ import annotations
 
 import hashlib
+from datetime import date, datetime, timedelta, timezone
+import re
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -23,14 +25,12 @@ from nexus_app.crawler.firecrawl_client import (
     FirecrawlDocumentClient,
     create_default_firecrawl_document_client,
 )
-from nexus_app.crawler.websearch_custom_client import (
-    HttpWebSearchCustomClient,
-    WebSearchCustomError,
-)
+from nexus_app.crawler.deepseek_search_client import HttpDeepSeekSearchClient
 from nexus_app.crawler.open_search_ingest import (
     ingest_firecrawl_snapshots,
     ingest_websearch_items,
 )
+from nexus_app.crawler.websearch_custom_client import WebSearchCustomError
 from nexus_app.database import get_db
 from nexus_app.enums import AuditEventType
 from nexus_app.retrieval.web_search import _has_sensitive_outbound_content
@@ -69,16 +69,41 @@ class FirecrawlExternalSearchRequest(_ExternalSearchRequest):
 
 
 class WebSearchExternalSearchRequest(_ExternalSearchRequest):
+    query: str = Field(..., min_length=1, max_length=90,
+                       description="DeepSeek 搜索词，最多 90 字符；服务端追加日期条件，不发送内部检索材料。")
     count: int = Field(default=10, ge=1, le=50)
-    time_range: str = Field(default="OneYear", min_length=1, max_length=64)
+    time_range: str = Field(default="OneYear", max_length=64,
+        pattern=r"^(OneDay|OneWeek|OneMonth|OneYear|\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2})$",
+        description="UTC 日期范围：OneDay/OneWeek/OneMonth/OneYear（分别近 1/7/30/365 天）或 YYYY-MM-DD..YYYY-MM-DD；起始日期不得晚于结束日期。")
+
+    @field_validator("time_range")
+    @classmethod
+    def validate_time_range(cls, value: str) -> str:
+        _deepseek_time_range(value)
+        return value
+
+
+def _deepseek_time_range(value: str, *, today: date | None = None) -> str:
+    days = {"OneDay": 1, "OneWeek": 7, "OneMonth": 30, "OneYear": 365}
+    if value in days:
+        end = today or datetime.now(timezone.utc).date()
+        start = end - timedelta(days=days[value])
+    else:
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2}", value):
+            raise ValueError("unsupported time_range")
+        start_text, end_text = value.split("..", 1)
+        start, end = date.fromisoformat(start_text), date.fromisoformat(end_text)
+        if start > end:
+            raise ValueError("time_range start must not be after end")
+    return f"{start.isoformat()}..{end.isoformat()}"
 
 
 def get_firecrawl_document_client() -> FirecrawlDocumentClient:
     return create_default_firecrawl_document_client()
 
 
-def get_web_search_custom_client() -> HttpWebSearchCustomClient:
-    return HttpWebSearchCustomClient()
+def get_deepseek_search_client() -> HttpDeepSeekSearchClient:
+    return HttpDeepSeekSearchClient()
 
 
 def get_external_search_storage() -> ObjectStorage:
@@ -240,15 +265,22 @@ def search_web_search(
     request: Request,
     caller: models.ApiCaller = Depends(require_api_caller),
     session: Session = Depends(get_db),
-    client: HttpWebSearchCustomClient = Depends(get_web_search_custom_client),
+    client: HttpDeepSeekSearchClient = Depends(get_deepseek_search_client),
     storage: ObjectStorage = Depends(get_external_search_storage),
 ):
-    """Retrieve, quality-check, and queue qualifying Web Search documents."""
+    """使用 DeepSeek Search 联网搜索，返回带来源链接的正文结果，支持结果数量及日期范围。
+
+    服务端请求 need_content=true；query 最长 90 字符，日期预设会转换为 UTC 起止日期。
+    凭证由服务器配置，未配置或上游失败返回 503，不切换其他供应商。
+    auto_ingest=true 时，经 URL/正文质量及正式文件 authority>=3 检查后排队进入文档管道；
+    rerank_score 仅作诊断。auto_ingest=false 时只返回临时搜索结果，不入库。
+    """
+    resolved_time_range = _deepseek_time_range(payload.time_range)
     try:
         outcome = client.search(
             query=payload.query,
             count=payload.count,
-            time_range=payload.time_range,
+            time_range=resolved_time_range,
         )
     except WebSearchCustomError as exc:
         raise _provider_unavailable() from exc
@@ -258,15 +290,17 @@ def search_web_search(
         ingestion = ingest_websearch_items(
             session,
             outcome.items,
+            connector_version="deepseek",
             trace_id=getattr(request.state, "trace_id", None),
             storage=storage,
         )
     data = {
-        "provider": "web_search",
+        "provider": "deepseek_search",
         "query": payload.query,
         "request": {
             "count": payload.count,
             "time_range": payload.time_range,
+            "resolved_time_range": resolved_time_range,
             "auto_ingest": payload.auto_ingest,
         },
         "results": [
@@ -293,7 +327,7 @@ def search_web_search(
         session,
         caller=caller,
         query=payload.query,
-        provider="web_search",
+        provider="deepseek_search",
         result_count=len(outcome.items),
         request=request,
         provider_meta={

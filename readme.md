@@ -24,6 +24,10 @@ The current P0 target covers D1-D4 pilot domains and focuses on an end-to-end us
 Crawler WebSearch plans support Custom and DeepSeek Search providers. DeepSeek uses
 server-only `BASE_URL_DEEPSEEK` and `API_KEY_DEEPSEEK` settings and applies
 formal-document authority and content-quality gates before raw-object ingestion.
+OpenAPI `POST /open/v1/external-search/web-search` also uses DeepSeek Search
+with the same server configuration and admission rules. Its generated
+`search_web_search` tool returns source-linked results and defaults to read-only
+execution through the tool executor's `auto_ingest=false` injection.
 
 ## Repository Map
 

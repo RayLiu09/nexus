@@ -50,6 +50,14 @@ Admitted content is retained as a raw object and follows Pipeline A; search JSON
 never enters governance directly. Existing URL identity and content fingerprint
 rules continue to apply within each provider's source.
 
+Public `POST /open/v1/external-search/web-search` uses this existing DeepSeek
+Search client with server-only `BASE_URL_DEEPSEEK` / `API_KEY_DEEPSEEK` and
+`need_content=true`. It translates date presets to UTC intervals and reports
+`provider=deepseek_search`. Opt-in ingestion uses a dedicated Open API DeepSeek
+source, the same quality/authority gates and Pipeline A; raw packages identify
+`connector_version=deepseek` and `content_format=text`. Read-only searches
+remain ephemeral. Provider failure is a redacted 503 without provider fallback.
+
 ## Design Principles
 
 - Control plane and execution plane are separated.

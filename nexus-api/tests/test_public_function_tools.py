@@ -42,6 +42,12 @@ def test_http_bindings_preserve_required_path_query_arrays_body_and_ingest_defau
             assert binding["executor_defaults"] == {"body.auto_ingest": False}
             assert tools[name]["parameters"]["properties"]["body"]["properties"]["auto_ingest"]["default"] is False
             assert "ingest" in tools[name]["description"]
+    web_search = tools["search_web_search"]
+    assert "DeepSeek" in web_search["description"]
+    body = web_search["parameters"]["properties"]["body"]["properties"]
+    assert body["query"]["maxLength"] == 90
+    assert body["time_range"]["default"] == "OneYear"
+    assert "OneMonth" in body["time_range"]["pattern"]
     # The HTTP API compatibility default itself remains true.
     schema = create_app().openapi()
     operation = schema["paths"]["/open/v1/external-search/web-search"]["post"]

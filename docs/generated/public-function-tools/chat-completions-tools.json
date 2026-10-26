@@ -759,7 +759,7 @@
     "type": "function",
     "function": {
       "name": "search_web_search",
-      "description": "External search can ingest data when auto_ingest=true. This consumption tool defaults auto_ingest=false; the executor MUST inject false if omitted. Retrieve, quality-check, and queue qualifying Web Search documents.",
+      "description": "External search can ingest data when auto_ingest=true. This consumption tool defaults auto_ingest=false; the executor MUST inject false if omitted. 使用 DeepSeek Search 联网搜索，返回带来源链接的正文结果，支持结果数量及日期范围。\n\n服务端请求 need_content=true；query 最长 90 字符，日期预设会转换为 UTC 起止日期。\n凭证由服务器配置，未配置或上游失败返回 503，不切换其他供应商。\nauto_ingest=true 时，经 URL/正文质量及正式文件 authority>=3 检查后排队进入文档管道；\nrerank_score 仅作诊断。auto_ingest=false 时只返回临时搜索结果，不入库。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -767,9 +767,10 @@
             "properties": {
               "query": {
                 "type": "string",
-                "maxLength": 1024,
+                "maxLength": 90,
                 "minLength": 1,
-                "title": "Query"
+                "title": "Query",
+                "description": "DeepSeek 搜索词，最多 90 字符；服务端追加日期条件，不发送内部检索材料。"
               },
               "auto_ingest": {
                 "type": "boolean",
@@ -787,8 +788,9 @@
               "time_range": {
                 "type": "string",
                 "maxLength": 64,
-                "minLength": 1,
+                "pattern": "^(OneDay|OneWeek|OneMonth|OneYear|\\d{4}-\\d{2}-\\d{2}\\.\\.\\d{4}-\\d{2}-\\d{2})$",
                 "title": "Time Range",
+                "description": "UTC 日期范围：OneDay/OneWeek/OneMonth/OneYear（分别近 1/7/30/365 天）或 YYYY-MM-DD..YYYY-MM-DD；起始日期不得晚于结束日期。",
                 "default": "OneYear"
               }
             },

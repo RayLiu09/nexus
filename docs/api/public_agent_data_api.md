@@ -88,6 +88,29 @@
 
 外部搜索现行 HTTP 默认 auto_ingest=true 保持兼容。生成的消费工具将默认值设为 false；执行器必须在模型省略该字段时注入 false，显式 true 会启用既有入库逻辑。JSON Schema 的 default 本身不会执行参数注入。
 
+### DeepSeek 联网搜索（2026-10-26）
+
+`POST /open/v1/external-search/web-search` 的后端使用 DeepSeek Search，工具名保持 `search_web_search`。服务端通过 `BASE_URL_DEEPSEEK` 和 `API_KEY_DEEPSEEK` 访问 `/v1/tools/search`，使用 Bearer 认证及 `need_content=true`；调用方不提交供应商凭证。
+
+请求 `query` 最多 90 字符，预留日期条件后的上游 128 字符限制；`count` 为 1–50，默认 10。`time_range` 默认 OneYear，支持 OneDay/OneWeek/OneMonth/OneYear（近 1/7/30/365 天）或 `YYYY-MM-DD..YYYY-MM-DD`；后者须为真实日期且起始不晚于结束。预设按 UTC 当前日解析，实际范围放在 `request.resolved_time_range`。响应 `provider=deepseek_search`，结果保留正文、来源 URL 和元数据；上游不提供的 request/log/time-cost ID 为 null。
+
+工具调用示例：
+
+```json
+{
+  "body": {
+    "query": "电子商务产业发展报告",
+    "count": 10,
+    "time_range": "OneYear",
+    "auto_ingest": false
+  }
+}
+```
+
+只读搜索不创建业务数据源、原始对象或作业，仅记录脱敏查询审计。启用入库时，URL/正文质量检查及正式文件 authority>=3 规则通过后才进入文档管道；rerank_score 不阻断准入。新来源代码 `ds_open_external_deepseek`，原始包标记 DeepSeek provider、connector_version 和 text 正文格式，重复结果复用已保留的原始对象。原始 JSON 不直接进入 AI 治理。
+
+未配置 DeepSeek 或上游失败返回 503 `external_search_unavailable`，不暴露服务器配置及凭证，不切换其他供应商。Firecrawl 专用发现接口及 Query Router 独立实时回退配置仍分别遵循各自接口合同。
+
 从仓库根目录重新生成或检查：
 
 ```bash

@@ -5,7 +5,7 @@ import hashlib
 import json
 import unicodedata
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlsplit, urlunsplit
 
 from sqlalchemy.orm import Session
@@ -24,6 +24,7 @@ from nexus_app.worker.notify import notify_job_ready
 _ORIGIN = "open_external_search"
 _FIRECRAWL_SOURCE_CODE = "ds_open_external_firecrawl"
 _WEBSEARCH_SOURCE_CODE = "ds_open_external_websearch"
+_DEEPSEEK_SOURCE_CODE = "ds_open_external_deepseek"
 
 
 def ingest_firecrawl_snapshots(
@@ -64,11 +65,13 @@ def ingest_websearch_items(
     session: Session,
     items: Iterable[WebSearchCustomItem],
     *,
+    connector_version: Literal["custom", "deepseek"] = "custom",
     trace_id: str | None,
     storage: ObjectStorage | None = None,
     settings: Settings | None = None,
 ) -> dict[str, Any]:
-    """Quality-check Web Search items and submit accepted documents."""
+    """Quality-check Web Search items and submit documents with actual provider lineage."""
+    is_deepseek = connector_version == "deepseek"
     item_list = list(items)
     accepted: list[WebSearchCustomItem] = []
     filtered: dict[str, int] = {}
@@ -78,20 +81,24 @@ def ingest_websearch_items(
             url=item.url,
             content=item.content,
         )
-        if decision.accepted:
+        reason = decision.reason
+        if decision.accepted and is_deepseek:
+            from nexus_app.crawler.service import _deepseek_filter_reason
+            reason = _deepseek_filter_reason(item)
+        if decision.accepted and reason is None:
             accepted.append(item)
         else:
-            _count_reason(filtered, decision.reason)
+            _count_reason(filtered, reason)
 
     return _append_documents(
         session,
-        provider="web_search",
-        source_code=_WEBSEARCH_SOURCE_CODE,
-        source_name="Open API Web Search Source",
+        provider="deepseek_search" if is_deepseek else "web_search",
+        source_code=_DEEPSEEK_SOURCE_CODE if is_deepseek else _WEBSEARCH_SOURCE_CODE,
+        source_name="Open API DeepSeek Search Source" if is_deepseek else "Open API Web Search Source",
         candidate_count=len(item_list),
         accepted=accepted,
         filtered=filtered,
-        build_document=_websearch_document,
+        build_document=lambda item: _websearch_document(item, connector_version=connector_version),
         trace_id=trace_id,
         storage=storage,
         settings=settings,
@@ -216,17 +223,19 @@ def _firecrawl_document(snapshot: FirecrawlDocumentSnapshot) -> dict[str, Any]:
     }
 
 
-def _websearch_document(item: WebSearchCustomItem) -> dict[str, Any]:
+def _websearch_document(item: WebSearchCustomItem, *, connector_version: str = "custom") -> dict[str, Any]:
+    content_format = "text" if connector_version == "deepseek" else "markdown"
     package = {
         "schema_version": "websearch-custom-document.v1",
         "connector_type": "websearch",
-        "connector_version": "custom",
+        "connector_version": connector_version,
+        **({"provider": "deepseek_search"} if connector_version == "deepseek" else {}),
         "result_id": item.result_id,
         "source_url": item.url,
         "title": item.title,
         "content": item.content,
         "content_source": item.content_source,
-        "content_format": "markdown",
+        "content_format": content_format,
         **item.metadata,
     }
     content = json.dumps(package, ensure_ascii=False, sort_keys=True).encode("utf-8")
@@ -249,7 +258,9 @@ def _websearch_document(item: WebSearchCustomItem) -> dict[str, Any]:
             "asset_identity": asset_identity,
             "asset_content_fingerprint": _websearch_content_fingerprint(item),
             "content_length": len(item.content),
-            "content_format": "markdown",
+            "content_format": content_format,
+            **({"connector_version": "deepseek", "provider": "deepseek_search"}
+               if connector_version == "deepseek" else {}),
             "content_source": item.content_source,
             "origin": _ORIGIN,
             **item.metadata,

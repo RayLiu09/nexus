@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "source": "public OpenAPI /open/v1",
-  "sha256": "8666f9e926e0c94bbca4a80039f6f29ef01960de01e731291369c4a9cca94730",
+  "sha256": "7c065e438ce8cb7319f367d59b4970bf8e38477956a3b342afba5b008b837089",
   "bindings": [
     {
       "name": "find_documents",

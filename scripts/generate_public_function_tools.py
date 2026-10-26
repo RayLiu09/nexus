@@ -19,6 +19,7 @@ def artifacts(document):
         "调用方按资源标签按需加载工具；使用 `responses-tools.json` 的 Responses function 格式，或 `chat-completions-tools.json` 的 Chat Completions 格式。", "",
         "参数按 `path`、`query`、`body` 分组。HTTP 执行器依据 `http-bindings.json` 调用接口，重复数组查询参数使用 repeated keys；API Key 由执行器注入，不能作为模型参数。", "",
         "`strict=false` 保留公开 OpenAPI 的可选参数、默认值和自由证据对象；执行器仍须按 OpenAPI 校验参数。外部搜索省略 auto_ingest 时，执行器必须注入 false，显式 true 可能触发入库。", "",
+        "联网搜索工具 search_web_search 使用 DeepSeek Search，query 最长 90 字符，支持结果数量及日期范围；供应商凭证由服务器配置。time_range 支持 OneDay/OneWeek/OneMonth/OneYear 或 YYYY-MM-DD..YYYY-MM-DD，默认 OneYear。", "",
         "文档只读准入沿用 available/current-ref；当前 open:* 权限不提供组织过滤。业务记录按独立领域边界公开。", "",
         "当前覆盖资产中心 16 类可见资源：产教政策、产业报告、行业报告、专业简介、专业布点数据、专业教学标准、标准课程库、人才需求调研、人才培养方案、职业分类大典、职业能力分析、市场岗位、产业园区、企业数据、课程教材、教学案例。共享文档类通过 find_documents 的 resource_type/domain(s) 筛选；独立记录和投影使用各自专用工具。", "",
         "专业布点使用 list_major_offerings / aggregate_major_offerings，来源为教育部政务服务平台直接同步数据，无 AI 治理；不可用专业简介或培养方案统计替代。职业分类大典使用 query_occupation_dictionary，支持职业大类、小类、名称组合过滤，返回定义与工作任务。两类数据仅表示已入库覆盖。", "",

@@ -479,6 +479,15 @@ external-search tools default to `auto_ingest=false` without changing the HTTP
 compatibility default. Artifacts and regeneration instructions are in
 [the generated function tools catalog](docs/generated/public-function-tools/README.md).
 
+`POST /open/v1/external-search/web-search` uses DeepSeek Search and retains
+the stable `search_web_search` tool name. Queries are 1–90 characters and count
+is 1–50. `time_range` accepts OneDay/OneWeek/OneMonth/OneYear (1/7/30/365 days)
+or an ordered ISO date interval `YYYY-MM-DD..YYYY-MM-DD`; the default is OneYear.
+Results identify `deepseek_search` and include the resolved date interval.
+Provider credentials stay server-side; missing configuration or provider
+failure returns redacted 503. Eligible auto-ingest results use DeepSeek
+provenance and text format, with existing document quality/authority gates.
+
 P0 API groups include:
 
 - Identity/org/API caller management.

@@ -1,6 +1,9 @@
 """Tests for Open API external-search crawler ingestion."""
 from __future__ import annotations
 
+from dataclasses import replace
+import json
+
 from nexus_app import models
 from nexus_app.crawler.firecrawl_client import FirecrawlDocumentSnapshot
 from nexus_app.crawler.open_search_ingest import ingest_websearch_items
@@ -136,3 +139,36 @@ def test_open_websearch_ingest_reuses_same_source_content(session):
     assert second["duplicate_count"] == 1
     assert session.query(models.RawObject).count() == 1
     assert session.query(models.Job).count() == 2
+
+
+def test_deepseek_ingest_uses_authority_gate_text_and_distinct_source(session):
+    storage = InMemoryObjectStorage()
+    base = _qualified_item()
+    summary = ingest_websearch_items(session, [
+        replace(base, title="产业行动方案", metadata={"AuthInfoLevel": 2}),
+        replace(base, result_id="good", url="https://example.gov.cn/policy/2", title="产业行动方案",
+                metadata={"AuthInfoLevel": 3, "RankScore": 0.01}),
+        replace(base, result_id="report", url="https://example.com/reports/3", metadata={"RankScore": 0.01}),
+    ], connector_version="deepseek", trace_id="deepseek-open", storage=storage)
+    assert summary["filter_reasons"] == {"low_authority": 1}
+    assert summary["submitted_count"] == 2
+    source = session.query(models.DataSource).one()
+    assert source.code == "ds_open_external_deepseek"
+    assert source.connection_config["provider"] == "deepseek_search"
+    for raw in session.query(models.RawObject):
+        package = json.loads(storage.get_bytes(raw.object_uri.split("/", 3)[-1]))
+        assert package["provider"] == "deepseek_search"
+        assert package["connector_version"] == "deepseek"
+        assert package["content_format"] == "text"
+        from nexus_app.pipeline.stages import _websearch_package_header
+        assert _websearch_package_header(json.dumps(package).encode()) is not None
+    assert all(job.payload["pipeline_type"] == "document" for job in session.query(models.Job))
+
+
+def test_deepseek_duplicate_results_reuse_retained_raw_object(session):
+    storage = InMemoryObjectStorage()
+    for index in range(2):
+        summary = ingest_websearch_items(session, [_qualified_item()], connector_version="deepseek",
+            trace_id=f"deepseek-repeat-{index}", storage=storage)
+        assert summary["duplicate_count"] == index
+    assert session.query(models.RawObject).count() == 1
