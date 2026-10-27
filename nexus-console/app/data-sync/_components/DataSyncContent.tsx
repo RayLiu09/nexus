@@ -438,7 +438,7 @@ export function DataSyncContent({
             {providers.map((provider) => (
               <div
                 key={provider.provider_code}
-                className="border-line bg-surface rounded-md border p-4"
+                className="border-line bg-surface flex flex-col rounded-md border p-4"
               >
                 <div className="mb-4 flex items-center gap-3">
                   <ProviderLogo name={provider.display_name} code={provider.provider_code} />
@@ -473,6 +473,7 @@ export function DataSyncContent({
                   ]}
                 />
                 <Button
+                  className="mt-auto self-start"
                   type="primary"
                   icon={<PlusOutlined />}
                   disabled={provider.status !== "enabled" || (provider.provider_code === "crawler_engine" && catalog.length === 0)}
