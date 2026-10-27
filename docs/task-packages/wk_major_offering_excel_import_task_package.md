@@ -1,5 +1,7 @@
 # Task Package: 资产中心命名、专业布点计数与 Excel 导入
 
+2026-10-27 后继修正：本文保留当时实施记录；现行唯一性为年份＋学校＋专业代码＋年限，不同年限独立保留，见 `docs/task-packages/wk_major_offering_duration_identity_task_package.md`。
+
 日期：2026-10-26。单 Agent 顺序实施。
 
 依据：用户最新要求、ARCHITECT.md 直接入库专业布点边界、SPEC.md 资产中心与专业布点视图、Prototype v2.2、WORKFLOWS.md。

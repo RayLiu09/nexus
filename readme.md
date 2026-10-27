@@ -57,9 +57,9 @@ source explanatory paragraph, and exports all matching rows to Excel through
 the authenticated `/v1/major-offerings/export` API or Console identity alias.
 Business experts can use `导入布点数据` in this list to download a template and
 import .xlsx facts directly (10 MiB / 10,000 rows). Validation is transactional;
-same year/school/major duplicates across API sync and files are skipped. Import
+same year/school/major/study-duration duplicates across API sync and files are skipped; different durations remain independent offerings. Import
 receipts are independent of sync runs, and no AI governance is invoked. Apply
-migration `20261026_0123` before restarting the API. Asset Center counts use the
+migrations through `20261027_0124` before restarting the API/workers. Asset Center counts use the
 same offering table as the list. Its teaching domain is now labeled `教学资源`.
 
 The Console document views for policies, reports, and teaching cases provide a

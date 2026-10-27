@@ -44,7 +44,7 @@ def discover(request: Request, caller=Depends(require_api_caller), session: Sess
             ["list", "detail", "content", "chunks", "sections", "scoped_search"], "available_current_generated_ref",
             ["counts_cover_ingested_documents_only", "organization_filter_is_P0_noop"], "documents")
     specs = [
-        ("major_distribution", "专业布点数据", models.MajorOfferingRecord, "/open/v1/major-offerings", ["list", "aggregate"], ["year_school_major_unique", "api_sync_and_excel_import", "ingested_coverage_only"]),
+        ("major_distribution", "专业布点数据", models.MajorOfferingRecord, "/open/v1/major-offerings", ["list", "aggregate"], ["year_school_major_duration_unique", "api_sync_and_excel_import", "ingested_coverage_only"]),
         ("occupational_ability_analysis", "职业能力分析", models.OccupationalAbilityAnalysis, "/open/v1/record-assets/ability-analyses", ["list", "detail", "tasks", "items", "relations", "graphs"], ["independent_domain_records"]),
         ("market_job", "市场岗位", models.RawJob, "/open/v1/market-jobs", ["list", "detail", "aggregate"], ["raw_jobs_not_legacy_job_demand_records", "collection_time_not_publication_time", "salary_is_source_text"]),
         ("industrial_park", "产业园区", models.IndustrialPark, "/open/v1/industrial-parks", ["list", "detail", "enterprises"], ["ingested_coverage_only"]),

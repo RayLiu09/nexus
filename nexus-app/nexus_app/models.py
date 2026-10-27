@@ -1903,12 +1903,12 @@ class MajorOfferingImport(TimestampMixin, Base):
 
 
 class MajorOfferingRecord(TimestampMixin, Base):
-    """One year/school/major fact received from an API or Excel import."""
+    """One year/school/major/duration fact received from an API or Excel import."""
 
     __tablename__ = "major_offering_record"
     __table_args__ = (
-        UniqueConstraint("year", "school_name_key", "major_code", name="uq_major_offering_school_name"),
-        Index("uq_major_offering_school_code", "year", "school_code", "major_code", unique=True,
+        UniqueConstraint("year", "school_name_key", "major_code", "study_duration", name="uq_major_offering_school_name"),
+        Index("uq_major_offering_school_code", "year", "school_code", "major_code", "study_duration", unique=True,
               postgresql_where=text("school_code IS NOT NULL"), sqlite_where=text("school_code IS NOT NULL")),
         Index("ix_major_offering_scope", "year", "province_code", "major_code"),
         CheckConstraint("(sync_run_id IS NOT NULL AND import_id IS NULL) OR "

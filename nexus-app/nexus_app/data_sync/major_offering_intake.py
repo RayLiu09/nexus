@@ -1,4 +1,4 @@
-"""Insert new school/year/major facts; repeated facts never overwrite values."""
+"""Insert school/year/major/duration facts; repeated facts never overwrite values."""
 
 from __future__ import annotations
 
@@ -103,6 +103,7 @@ def insert_offering(session, values: dict) -> int:
     statement = select(model).where(
         model.year == values["year"],
         model.major_code == values["major_code"],
+        model.study_duration == values["study_duration"],
         or_(*predicates),
     )
 

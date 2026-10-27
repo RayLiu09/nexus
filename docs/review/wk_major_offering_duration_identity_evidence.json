@@ -1,0 +1,155 @@
+{
+  "trace_id": "major-offering-duration-repair-20261027",
+  "backup": "/tmp/nexus-major-offering-duration-backup.json",
+  "repairs": [
+    {
+      "id": "053d7e28-cc46-4050-b0cc-f7f8dc30ed90",
+      "status": "succeeded",
+      "processed_count": 37,
+      "success_count": 17,
+      "skipped_count": 20,
+      "failure_summary": null,
+      "original_run_id": "00a64e12-05b2-4d4a-bedc-dcd5e06044a0",
+      "coverage_count": 37,
+      "replay_check": {
+        "accepted": 0,
+        "duplicate": 37
+      },
+      "audit_events": [
+        {
+          "event_type": "DataSyncRunQueued",
+          "summary": {
+            "plan_id": "a6f10c37-773f-4a24-8d6e-3c4dd5fd8b69",
+            "provider_code": "moe_major_offering",
+            "query_hash": "61d38729b40a40f2e27c305514edc7eb098c972c4f62a961e6579b71d3670d0b"
+          },
+          "trace_id": "major-offering-duration-repair-20261027"
+        },
+        {
+          "event_type": "DataSyncRunStatusChanged",
+          "summary": {
+            "from": "queued",
+            "to": "running"
+          },
+          "trace_id": "major-offering-duration-repair-20261027"
+        },
+        {
+          "event_type": "DataSyncRunStatusChanged",
+          "summary": {
+            "from": "running",
+            "to": "succeeded"
+          },
+          "trace_id": "major-offering-duration-repair-20261027"
+        }
+      ]
+    },
+    {
+      "id": "f1daa4d4-8ed9-46a3-abd8-9fcf77371b1f",
+      "status": "succeeded",
+      "processed_count": 29,
+      "success_count": 9,
+      "skipped_count": 20,
+      "failure_summary": null,
+      "original_run_id": "d3a58df0-680c-423f-b7ca-edfb3dda45fa",
+      "coverage_count": 29,
+      "replay_check": {
+        "accepted": 0,
+        "duplicate": 29
+      },
+      "audit_events": [
+        {
+          "event_type": "DataSyncRunQueued",
+          "summary": {
+            "plan_id": "22866f63-f796-4468-9c6f-f7bec26c1924",
+            "provider_code": "moe_major_offering",
+            "query_hash": "96c94cede0905ac5252901d86dcf8921ab2496d7e856103d4a8af827a1b94816"
+          },
+          "trace_id": "major-offering-duration-repair-20261027"
+        },
+        {
+          "event_type": "DataSyncRunStatusChanged",
+          "summary": {
+            "from": "queued",
+            "to": "running"
+          },
+          "trace_id": "major-offering-duration-repair-20261027"
+        },
+        {
+          "event_type": "DataSyncRunStatusChanged",
+          "summary": {
+            "from": "running",
+            "to": "succeeded"
+          },
+          "trace_id": "major-offering-duration-repair-20261027"
+        }
+      ]
+    }
+  ],
+  "migration": "20261027_0124",
+  "before_count": 54,
+  "after_count": 80,
+  "existing_facts_unchanged": true,
+  "historical_runs_unchanged": true,
+  "unique_constraints": [
+    {
+      "column_names": [
+        "year",
+        "school_name_key",
+        "major_code",
+        "study_duration"
+      ],
+      "name": "uq_major_offering_school_name",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": [],
+        "postgresql_nulls_not_distinct": false
+      }
+    }
+  ],
+  "indexes": [
+    {
+      "name": "ix_major_offering_scope",
+      "unique": false,
+      "column_names": [
+        "year",
+        "province_code",
+        "major_code"
+      ],
+      "include_columns": [],
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    {
+      "name": "uq_major_offering_school_code",
+      "unique": true,
+      "column_names": [
+        "year",
+        "school_code",
+        "major_code",
+        "study_duration"
+      ],
+      "include_columns": [],
+      "dialect_options": {
+        "postgresql_where": "(school_code IS NOT NULL)",
+        "postgresql_include": []
+      }
+    },
+    {
+      "name": "uq_major_offering_school_name",
+      "unique": true,
+      "column_names": [
+        "year",
+        "school_name_key",
+        "major_code",
+        "study_duration"
+      ],
+      "duplicates_constraint": "uq_major_offering_school_name",
+      "include_columns": [],
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    }
+  ],
+  "health_check": "GET /v1/health 200"
+}

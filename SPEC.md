@@ -254,8 +254,8 @@ Asset Center IA-1:
   dictionary request. Province codes preserve their case (e.g. `HeB`). Existing plans retain their saved year when edited.
   Default frequency is one year. Public APIs require no tenant credentials.
   Runs support local pause/resume/cancel and per-page retry. Duplicate facts
-  (same year/school/major) are skipped across runs/plans, never overwritten.
-  Duration and remark do not affect uniqueness. The source covers higher
+  (same year/school/major/study duration) are skipped across runs/plans, never overwritten.
+  Different study durations are independent offering records; remarks do not affect uniqueness. The source covers higher
   vocational college proposed admissions registrations only; statistics
   describe ingested coverage, not nationwide completeness.
 - **专业布点 API**: authenticated read-only `GET /v1/major-offerings` and

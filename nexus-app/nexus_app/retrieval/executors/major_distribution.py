@@ -128,7 +128,7 @@ class MajorDistributionRetrievalExecutor:
             warnings=["ingested_coverage_only", "vocational_college_registration_only"],
             retrieval_meta={
                 "source": "教育部政务服务平台",
-                "count_semantics": "year_school_major",
+                "count_semantics": "year_school_major_duration",
             },
         )
         if guarded.query_profile.key in AGGREGATION_PROFILES:

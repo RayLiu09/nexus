@@ -1,5 +1,7 @@
 # Task Package: 教育部专业布点 API 同步实施
 
+2026-10-27 后继修正：本文保留当时实施记录；现行唯一性为年份＋学校＋专业代码＋年限，不同年限独立保留，见 `docs/task-packages/wk_major_offering_duration_identity_task_package.md`。
+
 状态：C1–C4 代码与专项验证已完成；证据见 `docs/review/wk_moe_major_offering_implementation_evidence.md`。2026-10-26 已按用户授权完成开发库 PostgreSQL 升级（治理规则 v14 → v15）；本轮继续完成提交与推送，运行服务发布不在本轮范围。单 Agent 顺序实施；用户于本轮明确授权开始实施已确认方案。
 
 ## 契约与范围

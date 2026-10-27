@@ -72,6 +72,7 @@ def test_count_facts_and_trace_direct_source(session):
     result = MajorDistributionRetrievalExecutor().execute(
         session, query(group_by=["year"], metrics=[{"field": "record", "function": "count"}])
     )
+    assert result.retrieval_meta["count_semantics"] == "year_school_major_duration"
     assert result.aggregations[0].series == [
         {"year": 2025, "value": 1, "record_count": 1},
         {"year": 2026, "value": 2, "record_count": 2},

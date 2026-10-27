@@ -47,9 +47,9 @@ def test_import_deduplicates_api_and_excel_and_updates_asset_center_counts(app, 
     assert result.status_code == 200, result.text
     summary = result.json()["data"]
     assert {k: summary[k] for k in ("total_count", "imported_count", "skipped_count")} == {
-        "total_count": 5, "imported_count": 3, "skipped_count": 2,
+        "total_count": 5, "imported_count": 4, "skipped_count": 1,
     }
-    assert count(session, models.MajorOfferingRecord) == 6
+    assert count(session, models.MajorOfferingRecord) == 7
     assert count(session, models.MajorOfferingImport) == 1
     assert all(count(session, model) == before for model, before in counts_before.items())
     assert session.get(models.MajorOfferingRecord, "1").study_duration == "3"
@@ -58,14 +58,19 @@ def test_import_deduplicates_api_and_excel_and_updates_asset_center_counts(app, 
     assert all(row["sync_run_id"] is None and row["import_id"] == summary["import_id"] for row in listed["data"])
     assert all(row["school_code"] == "00123" and row["province_code"] == "YN" for row in listed["data"])
     stats = client.get("/internal/v1/asset-center/counts").json()["data"]["counts"]
-    assert stats["major/distributions"] == client.get("/v1/major-offerings").json()["meta"]["total"] == 6
+    assert stats["major/distributions"] == client.get("/v1/major-offerings").json()["meta"]["total"] == 7
     audits = list(session.scalars(select(models.AuditLog).where(models.AuditLog.event_type == AuditEventType.MAJOR_OFFERINGS_IMPORTED)))
     assert len(audits) == 1 and audits[0].actor_id and audits[0].trace_id
-    assert audits[0].summary["imported_count"] == 3
+    assert audits[0].summary["imported_count"] == 4
     assert upload(client, content).json()["data"] == summary
     assert upload(client, excel([ROW])).status_code == 409
     assert upload(client, content, key="import-2").json()["data"]["skipped_count"] == 5
-    assert count(session, models.MajorOfferingRecord) == 6
+    assert count(session, models.MajorOfferingRecord) == 7
+    facts = client.get("/v1/major-offerings", params={"year": 2026, "school_name": "学校甲"}).json()["data"]
+    assert {r["study_duration"] for r in facts} == {"3", "5"}
+    assert client.get("/v1/major-offerings/aggregate", params={"year": 2026, "school_name": "学校甲", "group_by": "year"}).json()["data"] == [
+        {"year": 2026, "record_count": 2, "institution_count": 1},
+    ]
 
 
 def test_code_identity_and_transactional_conflict(app, session):

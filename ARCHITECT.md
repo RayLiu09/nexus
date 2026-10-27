@@ -347,7 +347,7 @@ source row numbers and PDF page locators remain internal provenance.
 P0 active Pipeline B profiles include occupational ability analysis. Job demand and major distribution are independent API-synchronized domains. Major distribution uses the Education Ministry public registration API (`moe_major_offering`), `auth_mode=none`, `execution_mode=paged_pull`, and writes `major_offering_record` directly. It creates no asset/version/normalized reference, invokes no AI governance, and creates no knowledge chunks. This domain is explicitly outside the Asset Pipeline stage/status requirements above.
 
 Console Excel imports also write `major_offering_record` directly, sharing
-the API intake's year/school/major identity and uniqueness protection. The
+the API intake's year/school/major/study-duration identity and uniqueness protection. The
 transactional `major_offering_import` receipt stores actor, filename, request
 idempotency and counts; the request digest is only for mutation replay, not a
 per-record source hash. Each fact references exactly one of `sync_run_id` or
@@ -360,7 +360,7 @@ filters are optional. Each returned row determines its own province and major fa
 with non-empty query filters validated before the existing transactional dedupe/write.
 
 
-The direct sync transaction accepts one complete page together with its cursor and counters; HTTP and pacing occur outside transactions. Worker leases/heartbeats and bounded retries reuse the PostgreSQL sync-run framework. Provider claims serialize public paged pulls across workers. A fact is unique by year + school + major code, using school code when available and normalized school name as fallback; DB constraints and conflict-safe inserts skip existing facts without overwriting them. Source page numbers, raw row JSON and content hashes are absent from this domain. Retired legacy tables remain historical only; active read/aggregate/retrieval paths use the new domain and report ingested coverage.
+The direct sync transaction accepts one complete page together with its cursor and counters; HTTP and pacing occur outside transactions. Worker leases/heartbeats and bounded retries reuse the PostgreSQL sync-run framework. Provider claims serialize public paged pulls across workers. A fact is unique by year + school + major code + study duration, using school code when available and normalized school name as fallback; DB constraints and conflict-safe inserts skip existing facts without overwriting them. Source page numbers, raw row JSON and content hashes are absent from this domain. Different study durations are independent offerings; only the same duration is skipped on replay. Migration `20261027_0124` expands both unique keys without rewriting existing facts. Retired legacy tables remain historical only; active read/aggregate/retrieval paths use the new domain and report ingested coverage.
 
 Migration `20261023_0121` creates the new table and retires dedicated major-distribution governance configuration. It archives active rule content and creates a cleaned successor preserving unrelated deployment customizations. Historical prompts/rules/audits are retained; dedicated active prompts and analysis rules are disabled. Seeds and config-save validation prevent reactivation. Explicit old jobs/routes and recognized legacy spreadsheets are refused before AI; the old domain writer is disabled. Restart API/workers after upgrade to reload process caches.
 

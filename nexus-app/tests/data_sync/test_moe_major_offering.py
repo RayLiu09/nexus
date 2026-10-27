@@ -110,12 +110,15 @@ def test_unauthenticated_catalog_requires_no_credentials():
         ProviderConfig.model_validate({**item.model_dump(), "tenant_key": "fake"})
 
 
-def test_duration_remark_and_repeat_runs_are_skipped_without_overwrite(session, monkeypatch):
+def test_distinct_durations_are_kept_and_repeat_facts_skip_without_overwrite(session, monkeypatch):
     _options_cache.clear()
 
     def get(request):
         assert "authorization" not in request.headers
-        return httpx.Response(200, json=body([record(), record(duration="3", remark="different")]))
+        return httpx.Response(200, json=body([
+            record(), record(duration="3", remark="different"),
+            record(remark="do not overwrite"),
+        ]))
 
     first = make_run(session)
     worker = executor(session, monkeypatch, get)
@@ -124,8 +127,8 @@ def test_duration_remark_and_repeat_runs_are_skipped_without_overwrite(session, 
     run = session.get(models.DataSyncRun, first.id)
     assert (run.status, run.processed_count, run.success_count, run.skipped_count) == (
         "succeeded",
+        3,
         2,
-        1,
         1,
     )
     second = make_run(session, "2")
@@ -133,15 +136,16 @@ def test_duration_remark_and_repeat_runs_are_skipped_without_overwrite(session, 
     worker.close()
     session.expire_all()
     assert session.get(models.DataSyncRun, second.id).success_count == 0
-    assert session.get(models.DataSyncRun, second.id).skipped_count == 2
+    assert session.get(models.DataSyncRun, second.id).skipped_count == 3
     rows = list(session.scalars(select(models.MajorOfferingRecord)))
-    assert len(rows) == 1
-    assert (rows[0].study_duration, rows[0].remark, rows[0].sync_run_id) == ("2", None, first.id)
+    assert {(r.study_duration, r.remark, r.sync_run_id) for r in rows} == {
+        ("2", None, first.id), ("3", "different", first.id),
+    }
     assert "source_page" not in models.MajorOfferingRecord.__table__.c
     assert "payload_hash" not in models.MajorOfferingRecord.__table__.c
 
 
-def test_missing_code_then_same_school_with_code_is_skipped(session, monkeypatch):
+def test_missing_code_then_same_school_keeps_duration_identity(session, monkeypatch):
     make_run(session)
     worker = executor(
         session,
@@ -152,6 +156,8 @@ def test_missing_code_then_same_school_with_code_is_skipped(session, monkeypatch
                 [
                     record(code=None, name=" 北京物资学院 "),
                     record(),
+                    record(duration="3"),
+                    record(code=None, duration="3"),
                 ]
             ),
         ),
@@ -159,7 +165,9 @@ def test_missing_code_then_same_school_with_code_is_skipped(session, monkeypatch
     assert worker.run_once()
     worker.close()
     session.expire_all()
-    assert len(list(session.scalars(select(models.MajorOfferingRecord)))) == 1
+    rows = list(session.scalars(select(models.MajorOfferingRecord)))
+    assert {r.study_duration for r in rows} == {"2", "3"}
+    assert len(rows) == 2
 
 
 def test_retry_resumes_after_last_committed_page(session, monkeypatch):
@@ -384,6 +392,7 @@ def test_unrestricted_run_uses_each_records_province_and_major_and_skips_duplica
         record(code="2", name="江苏学校", prov_name="江苏省"),
         record(major_code="530702", major_name="跨境电子商务"),
         record(duration="3"),
+        record(remark="duplicate"),
     ]
     run = make_run(session, query={"year": 2026})
     worker = executor(
@@ -394,7 +403,7 @@ def test_unrestricted_run_uses_each_records_province_and_major_and_skips_duplica
     current = session.get(models.DataSyncRun, run.id)
     assert (current.status, current.success_count, current.skipped_count) == (
         "succeeded",
-        3,
+        4,
         1,
     )
     stored = list(session.scalars(select(models.MajorOfferingRecord)))
@@ -409,7 +418,7 @@ def test_unrestricted_run_uses_each_records_province_and_major_and_skips_duplica
     worker.run_once()
     worker.close()
     session.expire_all()
-    assert session.get(models.DataSyncRun, repeated.id).skipped_count == 4
+    assert session.get(models.DataSyncRun, repeated.id).skipped_count == 5
 
 
 @pytest.mark.parametrize(
