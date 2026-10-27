@@ -295,22 +295,32 @@ Asset Center IA-1:
 - **职业能力分析业务视图**: `/asset-center/major/occupation-analyses` exposes a
   paginated analysis list with professional name, six-digit professional code, analysis model, task count,
   and exact P/G/S/D category counts. `能力条目` uses server-side pagination and
-  shows only category, description, and corresponding task name; ability items
-  and graph default to the first typical work task and offer a task selector;
-  `能力树` and
-  `能力图谱` preserve the existing structured views in right Drawers. Category
-  counts are projected for the current page in one grouped query and are not
-  persisted. Rows also offer original download from the selected asset version;
-  the graph Drawer and canvas adapt to the viewport. The migrated views and `结构化图谱` tab are no longer present in
-  the technical asset detail.
+  shows only category, description, and corresponding task name. The operation
+  column contains `能力条目`, `能力图谱`, and `原文下载`; the former standalone
+  `能力树` action has moved into the graph Drawer. `能力图谱` contains four
+  fixed-order views: `树图`, `旭日图`, `矩形树图`, `关系图`. All four consume
+  one source-bound hierarchy rooted at the major and filtered consistently by
+  typical work task. The hierarchy is `专业根 → 典型工作任务 → G/S/D 能力分组
+  或工作内容 → 能力`; 岗位类层在源数据未提供时省略。
+  P abilities are children of work content, while G/S/D abilities are children
+  of their task category group. Category colors are fixed by the console
+  contract (`P #2563eb`, `G #7c3aed`, `S #0d9488`, `D #0891b2`, task `#94a3b8`,
+  edge `#bfdbfe`, root `#025eff`). Category counts are projected for the current
+  page in one grouped query and are not persisted. Rows also offer original
+  download from the selected asset version; the graph Drawer and canvas adapt
+  to the viewport. The migrated views and `结构化图谱` tab are no longer present
+  in the technical asset detail.
   PGSD workbook projection accepts numeric and letter-coded task sheets when
-  P/G/S/D ability rows provide structural evidence; cross-sheet P-code
-  collisions require review before domain writing.
+  P/G/S/D ability rows provide structural evidence; task descriptions, explicit
+  work-content headers and source coordinates are retained. Ability identity
+  uses a source-item key scoped by task and source location, so repeated display
+  codes across tasks remain addressable and same-task conflicts are marked for
+  review.
   Missing professional identity fields in finance-commerce asset parsing can
-  be completed from the confirmed 52-code catalog. A name shared across
-  levels requires a level to resolve its code; explicit source values are
-  never overwritten. Occupational ability analyses retain the completed
-  education level in their domain row and internal API.
+  be completed from the confirmed 52-code catalog. A name shared across levels
+  requires a level to resolve its code; explicit source values are never
+  overwritten. Occupational ability analyses retain the completed education level
+  in their domain row and internal API.
 - **人才培养方案业务视图**: `/asset-center/major/training-plans` exposes an
   expandable, server-paginated list with professional name/code, study
   duration, education level, and institution. The expanded non-table

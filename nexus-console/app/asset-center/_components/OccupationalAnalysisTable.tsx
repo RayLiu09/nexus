@@ -15,13 +15,11 @@ import {
   Space,
   Table,
   Tag,
-  Tree,
 } from "antd";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
-import type { DataNode } from "antd/es/tree";
-import { Download, GitBranch, List, Network, Search, X } from "lucide-react";
+import { Download, List, Network, Search, X } from "lucide-react";
 
-import { CapabilityGraphView } from "@/app/assets/[assetId]/_components/CapabilityGraphView";
+import { OccupationalAbilityGraph } from "./OccupationalAbilityGraph";
 import { ApiState } from "@/components/ApiState";
 import type { RawDownloadResponse } from "@/lib/chunkTypes";
 import {
@@ -46,7 +44,7 @@ type Props = {
   traceId: string | null;
 };
 
-type DrawerMode = "items" | "tree" | "graph";
+type DrawerMode = "items" | "graph";
 type DrawerState = { mode: DrawerMode; analysis: AbilityAnalysis } | null;
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -160,7 +158,7 @@ export function OccupationalAnalysisTable({
       {
         title: "操作",
         key: "actions",
-        width: 400,
+        width: 310,
         fixed: "right",
         render: (_, analysis) => (
           <Space size={2}>
@@ -171,14 +169,6 @@ export function OccupationalAnalysisTable({
               onClick={() => openDrawer("items", analysis)}
             >
               能力条目
-            </Button>
-            <Button
-              type="link"
-              size="small"
-              icon={<GitBranch size={14} />}
-              onClick={() => openDrawer("tree", analysis)}
-            >
-              能力树
             </Button>
             <Button
               type="link"
@@ -211,7 +201,7 @@ export function OccupationalAnalysisTable({
 
   const drawerTitle = drawer
     ? `${drawer.analysis.major_name || "职业能力分析"} · ${
-        drawer.mode === "items" ? "能力条目" : drawer.mode === "tree" ? "能力树" : "能力图谱"
+        drawer.mode === "items" ? "能力条目" : "能力图谱"
       }`
     : "职业能力分析";
 
@@ -278,9 +268,8 @@ export function OccupationalAnalysisTable({
         onClose={() => setDrawer(null)}
       >
         {drawer?.mode === "items" ? <AbilityItemsView analysisId={drawer.analysis.id} /> : null}
-        {drawer?.mode === "tree" ? <AbilityTreeView analysisId={drawer.analysis.id} /> : null}
         {drawer?.mode === "graph" ? (
-          <AbilityTaskGraphView analysis={drawer.analysis} />
+          <OccupationalAbilityGraph analysis={drawer.analysis} />
         ) : null}
       </Drawer>
     </>
@@ -418,195 +407,6 @@ function AbilityItemsView({ analysisId }: { analysisId: string }) {
       />
     </div>
   );
-}
-
-function AbilityTaskGraphView({ analysis }: { analysis: AbilityAnalysis }) {
-  const [tasks, setTasks] = useState<{
-    loading: boolean;
-    rows: OccupationalWorkTask[];
-    error: string | null;
-  }>({ loading: true, rows: [], error: null });
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    fetchAllPages<OccupationalWorkTask>(
-      `/api/record-assets/ability-analyses/${analysis.id}/tasks`,
-    ).then((result) => {
-      if (!active) return;
-      setTasks({ loading: false, rows: result.data, error: result.error });
-      setSelectedTaskId(result.data[0]?.id ?? null);
-    });
-    return () => { active = false; };
-  }, [analysis.id]);
-
-  return (
-    <div className="flex flex-col gap-3">
-      <Select
-        aria-label="典型工作任务"
-        className="w-full max-w-md"
-        placeholder="选择典型工作任务"
-        loading={tasks.loading}
-        value={selectedTaskId}
-        options={tasks.rows.map((task) => ({ label: task.task_name, value: task.id }))}
-        onChange={setSelectedTaskId}
-      />
-      {tasks.error ? <Alert type="error" showIcon title="加载典型工作任务失败" description={tasks.error} /> : null}
-      {!tasks.loading && !tasks.error && !selectedTaskId ? <Empty description="暂无典型工作任务" /> : null}
-      {selectedTaskId ? (
-        <CapabilityGraphView
-          normalizedRefId={analysis.normalized_ref_id}
-          buildType="ability_analysis"
-          title="能力图谱"
-          taskId={selectedTaskId}
-          embedded
-          viewportHeight
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function AbilityTreeView({ analysisId }: { analysisId: string }) {
-  const [state, setState] = useState<{
-    loading: boolean;
-    tasks: OccupationalWorkTask[];
-    abilities: OccupationalAbilityItem[];
-    error: string | null;
-  }>({ loading: true, tasks: [], abilities: [], error: null });
-
-  useEffect(() => {
-    let active = true;
-    Promise.all([
-      fetchAllPages<OccupationalWorkTask>(
-        `/api/record-assets/ability-analyses/${analysisId}/tasks`,
-      ),
-      fetchAllPages<OccupationalAbilityItem>(
-        `/api/record-assets/ability-analyses/${analysisId}/ability-items`,
-      ),
-    ]).then(([tasks, abilities]) => {
-      if (!active) return;
-      setState({
-        loading: false,
-        tasks: tasks.data,
-        abilities: abilities.data,
-        error: tasks.error ?? abilities.error,
-      });
-    });
-    return () => {
-      active = false;
-    };
-  }, [analysisId]);
-
-  const treeData = useMemo(
-    () => buildAbilityTree(state.tasks, state.abilities),
-    [state.abilities, state.tasks],
-  );
-
-  if (state.loading) return <Skeleton active paragraph={{ rows: 8 }} />;
-  if (state.error) {
-    return <Alert type="error" showIcon title="加载能力树失败" description={state.error} />;
-  }
-  if (treeData.length === 0) {
-    return <Empty description="暂无能力树数据" image={Empty.PRESENTED_IMAGE_SIMPLE} />;
-  }
-  return (
-    <Tree
-      treeData={treeData}
-      defaultExpandAll={treeData.length <= 3}
-      showLine
-      selectable={false}
-      aria-label="能力分析任务树"
-    />
-  );
-}
-
-function buildAbilityTree(
-  tasks: OccupationalWorkTask[],
-  abilities: OccupationalAbilityItem[],
-): DataNode[] {
-  return tasks.map((task) => {
-    const taskAbilities = abilities.filter((ability) => ability.task_id === task.id);
-    const workContents = (task.work_contents ?? []).map((content) => {
-      const contentAbilities = taskAbilities.filter(
-        (ability) => ability.work_content_id === content.id,
-      );
-      return {
-        key: `work-content:${content.id}`,
-        title: (
-          <span>
-            <Tag color="purple">{content.content_code}</Tag>
-            {content.content_name}
-            <span className="text-text-muted ml-2 text-xs">{contentAbilities.length} 条</span>
-          </span>
-        ),
-        children: contentAbilities.map(abilityTreeNode),
-        disabled: contentAbilities.length === 0,
-      } satisfies DataNode;
-    });
-    const categoryGroups: DataNode[] = [];
-    for (const category of ["G", "S", "D"]) {
-      const categoryAbilities = taskAbilities.filter(
-        (ability) => ability.ability_major_category_code === category && !ability.work_content_id,
-      );
-      if (categoryAbilities.length > 0) {
-        categoryGroups.push({
-          key: `task:${task.id}:category:${category}`,
-          title: (
-            <span>
-              <Tag color={CATEGORY_COLORS[category]}>{CATEGORY_LABELS[category]}</Tag>
-              <span className="text-text-muted ml-2 text-xs">{categoryAbilities.length} 条</span>
-            </span>
-          ),
-          children: categoryAbilities.map(abilityTreeNode),
-        });
-      }
-    }
-    const children: DataNode[] = [];
-    if (workContents.length > 0) {
-      children.push({
-        key: `task:${task.id}:category:P`,
-        title: (
-          <span>
-            <Tag color={CATEGORY_COLORS.P}>{CATEGORY_LABELS.P}</Tag>
-            <span className="text-text-muted ml-2 text-xs">
-              {
-                taskAbilities.filter((ability) => ability.ability_major_category_code === "P")
-                  .length
-              }
-              条
-            </span>
-          </span>
-        ),
-        children: workContents,
-      });
-    }
-    children.push(...categoryGroups);
-    return {
-      key: `task:${task.id}`,
-      title: (
-        <span>
-          <Tag color="blue">{task.task_code}</Tag>
-          {task.task_name}
-        </span>
-      ),
-      children,
-    };
-  });
-}
-
-function abilityTreeNode(ability: OccupationalAbilityItem): DataNode {
-  return {
-    key: `ability:${ability.id}`,
-    title: (
-      <span>
-        <Tag color={CATEGORY_COLORS[ability.ability_major_category_code] ?? "default"}>
-          {ability.ability_code}
-        </Tag>
-        {ability.ability_content}
-      </span>
-    ),
-  };
 }
 
 async function fetchAllPages<T>(path: string): Promise<{ data: T[]; error: string | null }> {

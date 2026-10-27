@@ -1164,10 +1164,12 @@ export type OccupationalAbilityItem = {
   ability_major_category_code: string;
   ability_major_category_name: string;
   ability_sequence: string;
+  source_item_key?: string;
   ability_content: string;
   normalized_terms: Record<string, unknown>;
   confidence: number | null;
   quality_flags: Record<string, unknown>;
+  trace?: Record<string, unknown>;
 };
 
 export type OccupationalAbilityRelation = {

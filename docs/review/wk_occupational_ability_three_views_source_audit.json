@@ -1,0 +1,2776 @@
+{
+  "scope": "read_only_source_structure_audit; not governance acceptance",
+  "analysis_count": 14,
+  "domain_task_count": 107,
+  "source_task_count": 109,
+  "source_tasks_with_description": 109,
+  "source_tasks_with_declared_work_contents": 109,
+  "analyses_with_explicit_job_category_headers": 2,
+  "analyses": [
+    {
+      "analysis_id": "4a026f92-252b-46af-a19b-91f497cbc399",
+      "normalized_ref_id": "b24cfebb-2747-44ca-9746-89b217214dbe",
+      "major_code": "330701",
+      "major_name": "电子商务",
+      "domain_tasks": 10,
+      "source_tasks": 10,
+      "task_count_matches_domain": true,
+      "source_task_codes_missing_from_normalized_record": [],
+      "domain_work_contents": 57,
+      "domain_abilities": 299,
+      "source_ability_rows": 300,
+      "source_distinct_codes_across_analysis": 299,
+      "source_distinct_codes_within_task": 299,
+      "tasks_with_description": 10,
+      "tasks_with_declared_work_contents": 10,
+      "explicit_job_category_headers": [],
+      "duplicate_codes_across_analysis": {
+        "G-2.2": 2
+      },
+      "same_task_duplicate_code_count": 1,
+      "tasks": [
+        {
+          "task_code": "1",
+          "sheet": "1.平台运营",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 25,
+          "distinct_ability_codes": 25,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "2",
+          "sheet": "2.渠道运营",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 28,
+          "distinct_ability_codes": 27,
+          "same_task_duplicate_codes": [
+            "G-2.2"
+          ]
+        },
+        {
+          "task_code": "3",
+          "sheet": "3.行业运营数据分析",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 42,
+          "distinct_ability_codes": 42,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "4",
+          "sheet": "4.品牌建设",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 29,
+          "distinct_ability_codes": 29,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "5",
+          "sheet": "5.营销推广",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 27,
+          "distinct_ability_codes": 27,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "6",
+          "sheet": "6.销售管理",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 33,
+          "distinct_ability_codes": 33,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "7",
+          "sheet": "7.供应链管理",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 33,
+          "distinct_ability_codes": 33,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "8",
+          "sheet": "8.智能客服",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 32,
+          "distinct_ability_codes": 32,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "9",
+          "sheet": "9.用户体验设计",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 28,
+          "distinct_ability_codes": 28,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "10",
+          "sheet": "10.互联网产品设计",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 23,
+          "distinct_ability_codes": 23,
+          "same_task_duplicate_codes": []
+        }
+      ]
+    },
+    {
+      "analysis_id": "570a9f82-9578-4cf1-985e-34b44ec2278d",
+      "normalized_ref_id": "c810b961-7941-40af-b62c-e0b85a98ee88",
+      "major_code": "330702",
+      "major_name": "跨境电子商务",
+      "domain_tasks": 9,
+      "source_tasks": 9,
+      "task_count_matches_domain": true,
+      "source_task_codes_missing_from_normalized_record": [],
+      "domain_work_contents": 33,
+      "domain_abilities": 180,
+      "source_ability_rows": 225,
+      "source_distinct_codes_across_analysis": 181,
+      "source_distinct_codes_within_task": 225,
+      "tasks_with_description": 9,
+      "tasks_with_declared_work_contents": 9,
+      "explicit_job_category_headers": [],
+      "duplicate_codes_across_analysis": {
+        "P-1.1.1": 4,
+        "P-1.1.2": 4,
+        "P-1.1.3": 2,
+        "P-1.2.1": 4,
+        "P-1.2.2": 4,
+        "P-1.2.3": 2,
+        "P-1.3.1": 4,
+        "P-1.3.2": 4,
+        "P-1.3.3": 2,
+        "G-1.1": 3,
+        "G-1.2": 3,
+        "G-1.3": 3,
+        "S-1.1": 3,
+        "S-1.2": 3,
+        "S-1.3": 3,
+        "D-1.1": 3,
+        "D-1.2": 3,
+        "D-1.3": 3,
+        "P-1.4.1": 2,
+        "P-1.5.1": 2,
+        "G-1.4": 2,
+        "S-1.4": 2,
+        "D-1.4": 2
+      },
+      "same_task_duplicate_code_count": 0,
+      "tasks": [
+        {
+          "task_code": "1",
+          "sheet": "1.跨境电商运营管理",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 18,
+          "distinct_ability_codes": 18,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "2",
+          "sheet": "2.产品开发与优化",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 20,
+          "distinct_ability_codes": 20,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "3",
+          "sheet": "3.店铺产品海外推广",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 26,
+          "distinct_ability_codes": 26,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "4",
+          "sheet": "4.跨境电商数据分析与决策",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 30,
+          "distinct_ability_codes": 30,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "5",
+          "sheet": "5.跨境电商客服",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 33,
+          "distinct_ability_codes": 33,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "6",
+          "sheet": "6.视觉营销与设计",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 28,
+          "distinct_ability_codes": 28,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "7",
+          "sheet": "7.跨境电商物流管理",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 27,
+          "distinct_ability_codes": 27,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "8",
+          "sheet": "8.跨境电商物流服务",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 20,
+          "distinct_ability_codes": 20,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "9",
+          "sheet": "9.采购供应链管理",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 23,
+          "distinct_ability_codes": 23,
+          "same_task_duplicate_codes": []
+        }
+      ]
+    },
+    {
+      "analysis_id": "b697b225-186a-44fa-9bc7-3938f4888306",
+      "normalized_ref_id": "dbc36f9d-bad8-465c-83c1-e72ff2531986",
+      "major_code": "330703",
+      "major_name": "全媒体电商运营",
+      "domain_tasks": 10,
+      "source_tasks": 10,
+      "task_count_matches_domain": true,
+      "source_task_codes_missing_from_normalized_record": [],
+      "domain_work_contents": 165,
+      "domain_abilities": 256,
+      "source_ability_rows": 257,
+      "source_distinct_codes_across_analysis": 256,
+      "source_distinct_codes_within_task": 256,
+      "tasks_with_description": 10,
+      "tasks_with_declared_work_contents": 10,
+      "explicit_job_category_headers": [],
+      "duplicate_codes_across_analysis": {
+        "G-H7": 2
+      },
+      "same_task_duplicate_code_count": 1,
+      "tasks": [
+        {
+          "task_code": "A",
+          "sheet": "职业能力分析表A",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 22,
+          "distinct_ability_codes": 22,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "B",
+          "sheet": "B",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 31,
+          "distinct_ability_codes": 31,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "C",
+          "sheet": "C",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 31,
+          "distinct_ability_codes": 31,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "D",
+          "sheet": "D",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 26,
+          "distinct_ability_codes": 26,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "E",
+          "sheet": "E",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 26,
+          "distinct_ability_codes": 26,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "F",
+          "sheet": "F",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 29,
+          "distinct_ability_codes": 29,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "G",
+          "sheet": "G",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 25,
+          "distinct_ability_codes": 25,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "H",
+          "sheet": "H",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 34,
+          "distinct_ability_codes": 33,
+          "same_task_duplicate_codes": [
+            "G-H7"
+          ]
+        },
+        {
+          "task_code": "I",
+          "sheet": "I",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 14,
+          "distinct_ability_codes": 14,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "J",
+          "sheet": "J",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 19,
+          "distinct_ability_codes": 19,
+          "same_task_duplicate_codes": []
+        }
+      ]
+    },
+    {
+      "analysis_id": "135229ae-454d-48bf-aad9-ad0aeb9cb91b",
+      "normalized_ref_id": "83e0fa3b-2b37-4e7d-9bc3-886cd4bdd78d",
+      "major_code": "530701",
+      "major_name": "电子商务",
+      "domain_tasks": 9,
+      "source_tasks": 9,
+      "task_count_matches_domain": true,
+      "source_task_codes_missing_from_normalized_record": [],
+      "domain_work_contents": 203,
+      "domain_abilities": 305,
+      "source_ability_rows": 305,
+      "source_distinct_codes_across_analysis": 305,
+      "source_distinct_codes_within_task": 305,
+      "tasks_with_description": 9,
+      "tasks_with_declared_work_contents": 9,
+      "explicit_job_category_headers": [],
+      "duplicate_codes_across_analysis": {},
+      "same_task_duplicate_code_count": 0,
+      "tasks": [
+        {
+          "task_code": "A",
+          "sheet": "A 行业运营",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 40,
+          "distinct_ability_codes": 40,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "B",
+          "sheet": "B 网店运营",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 42,
+          "distinct_ability_codes": 42,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "C",
+          "sheet": "C 社群运营",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 36,
+          "distinct_ability_codes": 36,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "D",
+          "sheet": "D 数据化运营",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 38,
+          "distinct_ability_codes": 38,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "E",
+          "sheet": "E 营销活动策划与执行",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 40,
+          "distinct_ability_codes": 40,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "F",
+          "sheet": "F 销售方案执行与优化",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 24,
+          "distinct_ability_codes": 24,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "G",
+          "sheet": "G 客户服务管理",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 30,
+          "distinct_ability_codes": 30,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "H",
+          "sheet": "H 视觉设计",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 27,
+          "distinct_ability_codes": 27,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "I",
+          "sheet": "I 互联网及电商产品开发",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            },
+            {
+              "row": 4,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 28,
+          "distinct_ability_codes": 28,
+          "same_task_duplicate_codes": []
+        }
+      ]
+    },
+    {
+      "analysis_id": "a2c1bdb0-e101-4a51-87b6-82266f5dc1cc",
+      "normalized_ref_id": "e4d77e77-fff5-4d5e-b473-bee0d09d7e0f",
+      "major_code": "530702",
+      "major_name": "跨境电子商务",
+      "domain_tasks": 7,
+      "source_tasks": 7,
+      "task_count_matches_domain": true,
+      "source_task_codes_missing_from_normalized_record": [],
+      "domain_work_contents": 33,
+      "domain_abilities": 189,
+      "source_ability_rows": 189,
+      "source_distinct_codes_across_analysis": 189,
+      "source_distinct_codes_within_task": 189,
+      "tasks_with_description": 7,
+      "tasks_with_declared_work_contents": 7,
+      "explicit_job_category_headers": [],
+      "duplicate_codes_across_analysis": {},
+      "same_task_duplicate_code_count": 0,
+      "tasks": [
+        {
+          "task_code": "1",
+          "sheet": "店铺运营PGSD能力分析表",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 27,
+          "distinct_ability_codes": 27,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "2",
+          "sheet": "选品分析 PGSD能力分析表",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 22,
+          "distinct_ability_codes": 22,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "3",
+          "sheet": "国际市场推广 PGSD能力分析表",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 22,
+          "distinct_ability_codes": 22,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "4",
+          "sheet": "数据采集分析 PGSD能力分析表",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 27,
+          "distinct_ability_codes": 27,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "5",
+          "sheet": "跨境客户服务 PGSD能力分析表",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 27,
+          "distinct_ability_codes": 27,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "6",
+          "sheet": "视觉营销设计 PGSD能力分析表",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 28,
+          "distinct_ability_codes": 28,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "7",
+          "sheet": "国际物流供应链管理PGSD能力分析表",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 36,
+          "distinct_ability_codes": 36,
+          "same_task_duplicate_codes": []
+        }
+      ]
+    },
+    {
+      "analysis_id": "92e17235-fc0e-404d-8b0f-2cebb68b8f33",
+      "normalized_ref_id": "7760a9b4-926d-45be-a627-df22afb0fd63",
+      "major_code": "530703",
+      "major_name": "移动商务",
+      "domain_tasks": 7,
+      "source_tasks": 7,
+      "task_count_matches_domain": true,
+      "source_task_codes_missing_from_normalized_record": [],
+      "domain_work_contents": 97,
+      "domain_abilities": 179,
+      "source_ability_rows": 179,
+      "source_distinct_codes_across_analysis": 179,
+      "source_distinct_codes_within_task": 179,
+      "tasks_with_description": 7,
+      "tasks_with_declared_work_contents": 7,
+      "explicit_job_category_headers": [
+        {
+          "sheet": "职业面向论证表",
+          "row": 2,
+          "column": 2
+        }
+      ],
+      "duplicate_codes_across_analysis": {},
+      "same_task_duplicate_code_count": 0,
+      "tasks": [
+        {
+          "task_code": "A",
+          "sheet": "A",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 26,
+          "distinct_ability_codes": 26,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "B",
+          "sheet": "B ",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 22,
+          "distinct_ability_codes": 22,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "C",
+          "sheet": "C",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 25,
+          "distinct_ability_codes": 25,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "D",
+          "sheet": "D",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 24,
+          "distinct_ability_codes": 24,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "E",
+          "sheet": "E",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 24,
+          "distinct_ability_codes": 24,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "F",
+          "sheet": "F",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 27,
+          "distinct_ability_codes": 27,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "G",
+          "sheet": "G",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 31,
+          "distinct_ability_codes": 31,
+          "same_task_duplicate_codes": []
+        }
+      ]
+    },
+    {
+      "analysis_id": "f67f6f08-a56a-4042-9cec-505bb1302c80",
+      "normalized_ref_id": "a79613d0-1dfa-4c43-a6dc-7597f11c5ab9",
+      "major_code": "530704",
+      "major_name": "网络营销与直播电商",
+      "domain_tasks": 6,
+      "source_tasks": 6,
+      "task_count_matches_domain": true,
+      "source_task_codes_missing_from_normalized_record": [],
+      "domain_work_contents": 112,
+      "domain_abilities": 180,
+      "source_ability_rows": 180,
+      "source_distinct_codes_across_analysis": 180,
+      "source_distinct_codes_within_task": 180,
+      "tasks_with_description": 6,
+      "tasks_with_declared_work_contents": 6,
+      "explicit_job_category_headers": [],
+      "duplicate_codes_across_analysis": {},
+      "same_task_duplicate_code_count": 0,
+      "tasks": [
+        {
+          "task_code": "A",
+          "sheet": "A渠道开拓与运维",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 26,
+          "distinct_ability_codes": 26,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "B",
+          "sheet": "B直播销售",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 30,
+          "distinct_ability_codes": 30,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "C",
+          "sheet": "C内容策划与编辑",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 28,
+          "distinct_ability_codes": 28,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "D",
+          "sheet": "D直播运营",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 39,
+          "distinct_ability_codes": 39,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "E",
+          "sheet": "E新媒体运营",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 29,
+          "distinct_ability_codes": 29,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "F",
+          "sheet": "F客户开发与管理",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 28,
+          "distinct_ability_codes": 28,
+          "same_task_duplicate_codes": []
+        }
+      ]
+    },
+    {
+      "analysis_id": "501e9939-e9f1-4d55-9cc4-e5862b7d23c3",
+      "normalized_ref_id": "15dedbaa-80fc-4548-8fcf-0470f1e283b3",
+      "major_code": "530705",
+      "major_name": "农村电子商务",
+      "domain_tasks": 8,
+      "source_tasks": 8,
+      "task_count_matches_domain": true,
+      "source_task_codes_missing_from_normalized_record": [],
+      "domain_work_contents": 44,
+      "domain_abilities": 259,
+      "source_ability_rows": 259,
+      "source_distinct_codes_across_analysis": 259,
+      "source_distinct_codes_within_task": 259,
+      "tasks_with_description": 8,
+      "tasks_with_declared_work_contents": 8,
+      "explicit_job_category_headers": [],
+      "duplicate_codes_across_analysis": {},
+      "same_task_duplicate_code_count": 0,
+      "tasks": [
+        {
+          "task_code": "1",
+          "sheet": "3.1农产品安全生产与品质控制",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 1
+            },
+            {
+              "row": 5,
+              "column": 1
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 3
+            },
+            {
+              "row": 5,
+              "column": 4
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 5,
+              "column": 3
+            }
+          ],
+          "ability_rows": 26,
+          "distinct_ability_codes": 26,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "2",
+          "sheet": "3.2农产品电商化开发",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 1
+            },
+            {
+              "row": 5,
+              "column": 1
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 3
+            },
+            {
+              "row": 5,
+              "column": 4
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 5,
+              "column": 3
+            }
+          ],
+          "ability_rows": 31,
+          "distinct_ability_codes": 31,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "3",
+          "sheet": "3.3网店运营",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 1
+            },
+            {
+              "row": 5,
+              "column": 1
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 3
+            },
+            {
+              "row": 5,
+              "column": 4
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 5,
+              "column": 3
+            }
+          ],
+          "ability_rows": 36,
+          "distinct_ability_codes": 36,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "4",
+          "sheet": "3.4新媒体运营",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 1
+            },
+            {
+              "row": 5,
+              "column": 1
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 3
+            },
+            {
+              "row": 5,
+              "column": 4
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 5,
+              "column": 3
+            }
+          ],
+          "ability_rows": 28,
+          "distinct_ability_codes": 28,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "5",
+          "sheet": "3.5营销推广",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 1
+            },
+            {
+              "row": 5,
+              "column": 1
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 3
+            },
+            {
+              "row": 5,
+              "column": 4
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 5,
+              "column": 3
+            }
+          ],
+          "ability_rows": 34,
+          "distinct_ability_codes": 34,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "6",
+          "sheet": "3.6视觉设计",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 1
+            },
+            {
+              "row": 5,
+              "column": 1
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 3
+            },
+            {
+              "row": 5,
+              "column": 4
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 5,
+              "column": 3
+            }
+          ],
+          "ability_rows": 30,
+          "distinct_ability_codes": 30,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "7",
+          "sheet": "3.7农产品供应链管理",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 1
+            },
+            {
+              "row": 5,
+              "column": 1
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 3
+            },
+            {
+              "row": 5,
+              "column": 4
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 5,
+              "column": 3
+            }
+          ],
+          "ability_rows": 47,
+          "distinct_ability_codes": 47,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "8",
+          "sheet": "3.8农村电商项目管理",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 1
+            },
+            {
+              "row": 5,
+              "column": 1
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 3
+            },
+            {
+              "row": 5,
+              "column": 4
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 5,
+              "column": 3
+            }
+          ],
+          "ability_rows": 27,
+          "distinct_ability_codes": 27,
+          "same_task_duplicate_codes": []
+        }
+      ]
+    },
+    {
+      "analysis_id": "ac2ce388-380b-4097-9566-b06b1654b591",
+      "normalized_ref_id": "cb8f9fa9-61e6-4d7a-a345-5736c4e2f985",
+      "major_code": "530706",
+      "major_name": "商务数据分析与应用",
+      "domain_tasks": 6,
+      "source_tasks": 8,
+      "task_count_matches_domain": false,
+      "source_task_codes_missing_from_normalized_record": [
+        "4",
+        "5"
+      ],
+      "domain_work_contents": 39,
+      "domain_abilities": 200,
+      "source_ability_rows": 282,
+      "source_distinct_codes_across_analysis": 282,
+      "source_distinct_codes_within_task": 282,
+      "tasks_with_description": 8,
+      "tasks_with_declared_work_contents": 8,
+      "explicit_job_category_headers": [],
+      "duplicate_codes_across_analysis": {},
+      "same_task_duplicate_code_count": 0,
+      "tasks": [
+        {
+          "task_code": "1",
+          "sheet": "1.数据采集与处理",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 33,
+          "distinct_ability_codes": 33,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "2",
+          "sheet": "2.数据结果呈现",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 26,
+          "distinct_ability_codes": 26,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "3",
+          "sheet": "3.销售数据分析",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 37,
+          "distinct_ability_codes": 37,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "4",
+          "sheet": "4市场数据分析",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 46,
+          "distinct_ability_codes": 46,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "5",
+          "sheet": "5产品数据分析",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 36,
+          "distinct_ability_codes": 36,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "6",
+          "sheet": "6.供应链数据分析",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 37,
+          "distinct_ability_codes": 37,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "7",
+          "sheet": "7.客户数据分析",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 33,
+          "distinct_ability_codes": 33,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "8",
+          "sheet": "8.运营数据分析",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 34,
+          "distinct_ability_codes": 34,
+          "same_task_duplicate_codes": []
+        }
+      ]
+    },
+    {
+      "analysis_id": "25c59d70-70ce-435e-bc48-1026b337064a",
+      "normalized_ref_id": "7a110f61-8309-40e6-82a6-6c3b3e7539aa",
+      "major_code": "730701",
+      "major_name": "电子商务",
+      "domain_tasks": 8,
+      "source_tasks": 8,
+      "task_count_matches_domain": true,
+      "source_task_codes_missing_from_normalized_record": [],
+      "domain_work_contents": 116,
+      "domain_abilities": 197,
+      "source_ability_rows": 209,
+      "source_distinct_codes_across_analysis": 197,
+      "source_distinct_codes_within_task": 209,
+      "tasks_with_description": 8,
+      "tasks_with_declared_work_contents": 8,
+      "explicit_job_category_headers": [
+        {
+          "sheet": "1.专业面向岗位群",
+          "row": 2,
+          "column": 1
+        }
+      ],
+      "duplicate_codes_across_analysis": {
+        "P-E4.2": 2,
+        "G-G1": 2,
+        "G-G2": 2,
+        "G-G3": 2,
+        "G-G4": 2,
+        "S-G1": 2,
+        "S-G2": 2,
+        "S-G3": 2,
+        "S-G4": 2,
+        "D-G1": 2,
+        "D-G2": 2,
+        "D-G3": 2
+      },
+      "same_task_duplicate_code_count": 0,
+      "tasks": [
+        {
+          "task_code": "A",
+          "sheet": "3-1.PGSD能力分析表-店铺运营辅助",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 27,
+          "distinct_ability_codes": 27,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "B",
+          "sheet": "3-2.PGSD能力分析表-新媒体运营辅助",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 25,
+          "distinct_ability_codes": 25,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "C",
+          "sheet": "3-3.PGSD能力分析表-网络推广",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 26,
+          "distinct_ability_codes": 26,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "D",
+          "sheet": "3-4.PGSD能力分析表-新媒体营销执行",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 3
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 26,
+          "distinct_ability_codes": 26,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "E",
+          "sheet": "3-5.PGSD能力分析表-直播销售",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 29,
+          "distinct_ability_codes": 29,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "F",
+          "sheet": "3-6.PGSD能力分析表-直播辅助",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 23,
+          "distinct_ability_codes": 23,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "G",
+          "sheet": "3-7.PGSD能力分析表-视觉设计",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 29,
+          "distinct_ability_codes": 29,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "H",
+          "sheet": "3-8.PGSD能力分析表-客户服务",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 24,
+          "distinct_ability_codes": 24,
+          "same_task_duplicate_codes": []
+        }
+      ]
+    },
+    {
+      "analysis_id": "0e1c8854-eef5-421d-a51d-be6911414471",
+      "normalized_ref_id": "c9f4681f-bd11-4405-8143-896abc0ec3c9",
+      "major_code": "730702",
+      "major_name": "跨境电子商务",
+      "domain_tasks": 7,
+      "source_tasks": 7,
+      "task_count_matches_domain": true,
+      "source_task_codes_missing_from_normalized_record": [],
+      "domain_work_contents": 92,
+      "domain_abilities": 160,
+      "source_ability_rows": 161,
+      "source_distinct_codes_across_analysis": 160,
+      "source_distinct_codes_within_task": 161,
+      "tasks_with_description": 7,
+      "tasks_with_declared_work_contents": 7,
+      "explicit_job_category_headers": [],
+      "duplicate_codes_across_analysis": {
+        "S-G1": 2
+      },
+      "same_task_duplicate_code_count": 0,
+      "tasks": [
+        {
+          "task_code": "A",
+          "sheet": "职业能力分析表A",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 21,
+          "distinct_ability_codes": 21,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "B",
+          "sheet": "B",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 24,
+          "distinct_ability_codes": 24,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "C",
+          "sheet": "C",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 21,
+          "distinct_ability_codes": 21,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "D",
+          "sheet": "D",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 22,
+          "distinct_ability_codes": 22,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "E",
+          "sheet": "E",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 25,
+          "distinct_ability_codes": 25,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "F",
+          "sheet": "F",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 24,
+          "distinct_ability_codes": 24,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "G",
+          "sheet": "G",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 24,
+          "distinct_ability_codes": 24,
+          "same_task_duplicate_codes": []
+        }
+      ]
+    },
+    {
+      "analysis_id": "2cfc5305-e029-4671-816b-eefabdedab3b",
+      "normalized_ref_id": "a3efc3f5-f610-4f65-8172-7e5823fd477e",
+      "major_code": "730704",
+      "major_name": "网络营销",
+      "domain_tasks": 8,
+      "source_tasks": 8,
+      "task_count_matches_domain": true,
+      "source_task_codes_missing_from_normalized_record": [],
+      "domain_work_contents": 136,
+      "domain_abilities": 224,
+      "source_ability_rows": 224,
+      "source_distinct_codes_across_analysis": 224,
+      "source_distinct_codes_within_task": 224,
+      "tasks_with_description": 8,
+      "tasks_with_declared_work_contents": 8,
+      "explicit_job_category_headers": [],
+      "duplicate_codes_across_analysis": {},
+      "same_task_duplicate_code_count": 0,
+      "tasks": [
+        {
+          "task_code": "A",
+          "sheet": "职业能力分析A",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 32,
+          "distinct_ability_codes": 32,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "B",
+          "sheet": "B",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 26,
+          "distinct_ability_codes": 26,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "C",
+          "sheet": "C",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 28,
+          "distinct_ability_codes": 28,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "D",
+          "sheet": "D",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 6,
+              "column": 2
+            },
+            {
+              "row": 7,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 21,
+          "distinct_ability_codes": 21,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "E",
+          "sheet": "E",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 27,
+          "distinct_ability_codes": 27,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "F",
+          "sheet": "F",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 4
+            }
+          ],
+          "ability_rows": 31,
+          "distinct_ability_codes": 31,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "G",
+          "sheet": "G",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 4
+            }
+          ],
+          "ability_rows": 30,
+          "distinct_ability_codes": 30,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "H",
+          "sheet": "H",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            },
+            {
+              "row": 5,
+              "column": 2
+            },
+            {
+              "row": 6,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 4
+            }
+          ],
+          "ability_rows": 29,
+          "distinct_ability_codes": 29,
+          "same_task_duplicate_codes": []
+        }
+      ]
+    },
+    {
+      "analysis_id": "f70957c0-1114-4472-ac8a-01b6e0c920d9",
+      "normalized_ref_id": "48979ce9-05f8-4908-bf9d-514d4542e3e2",
+      "major_code": "730705",
+      "major_name": "直播电商服务",
+      "domain_tasks": 8,
+      "source_tasks": 8,
+      "task_count_matches_domain": true,
+      "source_task_codes_missing_from_normalized_record": [],
+      "domain_work_contents": 122,
+      "domain_abilities": 186,
+      "source_ability_rows": 210,
+      "source_distinct_codes_across_analysis": 186,
+      "source_distinct_codes_within_task": 209,
+      "tasks_with_description": 8,
+      "tasks_with_declared_work_contents": 8,
+      "explicit_job_category_headers": [],
+      "duplicate_codes_across_analysis": {
+        "G-A1": 2,
+        "G-A2": 2,
+        "G-A3": 2,
+        "S-A1": 2,
+        "S-A2": 2,
+        "S-A3": 2,
+        "D-A1": 2,
+        "D-A2": 2,
+        "D-C2": 2,
+        "D-G1": 3,
+        "D-G2": 3,
+        "D-G3": 3,
+        "G-G1": 2,
+        "G-G2": 2,
+        "G-G3": 2,
+        "G-G4": 2,
+        "S-G1": 2,
+        "S-G2": 2,
+        "S-G3": 2,
+        "S-G4": 2,
+        "S-G5": 2
+      },
+      "same_task_duplicate_code_count": 1,
+      "tasks": [
+        {
+          "task_code": "A",
+          "sheet": "A 内容编辑与制作",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 22,
+          "distinct_ability_codes": 22,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "B",
+          "sheet": "B 短视频拍摄与剪辑",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 25,
+          "distinct_ability_codes": 25,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "C",
+          "sheet": "C直播商品运营",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 27,
+          "distinct_ability_codes": 26,
+          "same_task_duplicate_codes": [
+            "D-C2"
+          ]
+        },
+        {
+          "task_code": "D",
+          "sheet": "D直播推广计划执行",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 25,
+          "distinct_ability_codes": 25,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "E",
+          "sheet": "E 直播销售",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 26,
+          "distinct_ability_codes": 26,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "F",
+          "sheet": "F.直播数据分析",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 25,
+          "distinct_ability_codes": 25,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "G",
+          "sheet": "G直播间辅助",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 31,
+          "distinct_ability_codes": 31,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "H",
+          "sheet": "H直播客户服务",
+          "description_cells": [
+            {
+              "row": 4,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 29,
+          "distinct_ability_codes": 29,
+          "same_task_duplicate_codes": []
+        }
+      ]
+    },
+    {
+      "analysis_id": "1b5fe33e-2081-48d2-8938-1685535e6d6b",
+      "normalized_ref_id": "cee5927f-38e8-4037-86ac-10f66a6b9077",
+      "major_code": null,
+      "major_name": "大数据技术应用",
+      "domain_tasks": 4,
+      "source_tasks": 4,
+      "task_count_matches_domain": true,
+      "source_task_codes_missing_from_normalized_record": [],
+      "domain_work_contents": 21,
+      "domain_abilities": 113,
+      "source_ability_rows": 113,
+      "source_distinct_codes_across_analysis": 113,
+      "source_distinct_codes_within_task": 113,
+      "tasks_with_description": 4,
+      "tasks_with_declared_work_contents": 4,
+      "explicit_job_category_headers": [],
+      "duplicate_codes_across_analysis": {},
+      "same_task_duplicate_code_count": 0,
+      "tasks": [
+        {
+          "task_code": "1",
+          "sheet": "1.数据采集",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 27,
+          "distinct_ability_codes": 27,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "2",
+          "sheet": "2.数据标注",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 29,
+          "distinct_ability_codes": 29,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "3",
+          "sheet": "3.数据ETL处理",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 26,
+          "distinct_ability_codes": 26,
+          "same_task_duplicate_codes": []
+        },
+        {
+          "task_code": "4",
+          "sheet": "4.可视化图表制作",
+          "description_cells": [
+            {
+              "row": 3,
+              "column": 2
+            }
+          ],
+          "declared_work_content_headers": [
+            {
+              "row": 2,
+              "column": 3
+            }
+          ],
+          "ability_rows": 31,
+          "distinct_ability_codes": 31,
+          "same_task_duplicate_codes": []
+        }
+      ]
+    }
+  ]
+}

@@ -40,6 +40,7 @@ from nexus_app import models
 from nexus_app.audit import write_audit
 from nexus_app.domain_normalize.schemas import DomainNormalizeResult
 from nexus_app.enums import AuditEventType
+from nexus_app.structured_parse.ability_hierarchy import source_item_key
 
 
 if TYPE_CHECKING:
@@ -74,6 +75,7 @@ def write(
     record_body: dict[str, Any],
     *,
     settings: "Settings | None" = None,
+    reconcile: bool = False,
 ) -> DomainNormalizeResult:
     """Persist `record_body` into the ability_analysis domain tables.
 
@@ -145,7 +147,12 @@ def write(
             models.OccupationalAbilityAnalysis.normalized_ref_id == normalized_ref.id
         )
     )
-    if existing is not None:
+    old_rows = {}
+    if existing is not None and reconcile:
+        for cls in (models.OccupationalWorkTask, models.OccupationalWorkContent,
+                    models.OccupationalAbilityItem, models.OccupationalAbilityRelation):
+            old_rows[cls] = list(session.scalars(select(cls).where(cls.analysis_id == existing.id)))
+    if existing is not None and not reconcile:
         analysis_id_to_purge = existing.id
         session.execute(
             delete(models.OccupationalAbilityRelation).where(
@@ -180,7 +187,7 @@ def write(
     # ------------------------------------------------------------------ #
     # 3. Build the analysis row (counts filled after rows are written).
     # ------------------------------------------------------------------ #
-    analysis = models.OccupationalAbilityAnalysis(
+    analysis = _reuse(existing if reconcile else None, models.OccupationalAbilityAnalysis,
         normalized_ref_id=normalized_ref.id,
         asset_version_id=normalized_ref.version_id,
         profile_id=profile.id,
@@ -207,6 +214,15 @@ def write(
     work_content_objects: list[models.OccupationalWorkContent] = []
     ability_objects: list[models.OccupationalAbilityItem] = []
     relation_objects: list[models.OccupationalAbilityRelation] = []
+    old_tasks = {t.task_code: t for t in old_rows.get(models.OccupationalWorkTask, [])}
+    old_contents = {(w.task_id, w.content_code): w for w in old_rows.get(models.OccupationalWorkContent, [])}
+    old_items = {}
+    for item in old_rows.get(models.OccupationalAbilityItem, []):
+        task = next((t for t in old_tasks.values() if t.id == item.task_id), None)
+        if task:
+            key = source_item_key(task.task_code, {"trace": item.trace, "ability_code": item.ability_code,
+                                                  "ability_content": item.ability_content})
+            old_items[key] = item
     quality_summary: dict[str, int] = {}
     abilities_rejected_count = 0
     rejected_examples: list[dict[str, Any]] = []
@@ -231,7 +247,7 @@ def write(
             continue
         seen_task_codes.add(task_code)
         task_display_counter += 1
-        task_obj = models.OccupationalWorkTask(
+        task_obj = _reuse(old_tasks.get(task_code), models.OccupationalWorkTask,
             analysis_id=analysis.id,
             task_code=task_code,
             task_name=task_name,
@@ -258,13 +274,14 @@ def write(
             content_name = _str_or_none(wc_entry.get("content_name"))
             if not content_code or not content_name:
                 continue
-            if content_code in seen_content_codes:
+            content_identity = f"{task_code}:{content_code}"
+            if content_identity in seen_content_codes:
                 # No dedicated flag; cross_sheet_inconsistency covers the
                 # broader "structure conflicts" bucket (decision 17 lenient).
                 _bump(quality_summary, FLAG_CROSS_SHEET_INCONSISTENCY)
                 continue
-            seen_content_codes.add(content_code)
-            wc_obj = models.OccupationalWorkContent(
+            seen_content_codes.add(content_identity)
+            wc_obj = _reuse(old_contents.get((task_obj.id, content_code)), models.OccupationalWorkContent,
                 analysis_id=analysis.id,
                 task_id=task_obj.id,
                 content_code=content_code,
@@ -306,6 +323,7 @@ def write(
                     ability_objects=ability_objects,
                     relation_objects=relation_objects,
                     seen_ability_codes=seen_ability_codes,
+                    existing_items=old_items,
                 )
                 if rejection_reason is not None:
                     abilities_rejected_count += 1
@@ -344,6 +362,7 @@ def write(
                         ability_objects=ability_objects,
                         relation_objects=relation_objects,
                         seen_ability_codes=seen_ability_codes,
+                        existing_items=old_items,
                     )
                     if rejection_reason is not None:
                         abilities_rejected_count += 1
@@ -356,6 +375,23 @@ def write(
     # ------------------------------------------------------------------ #
     # 5. Flush relations + roll up counts + quality summary.
     # ------------------------------------------------------------------ #
+    if reconcile:
+        old_relations = {
+            (r.source_type, r.source_id, r.relation_type, r.target_type, r.target_id): r
+            for r in old_rows.get(models.OccupationalAbilityRelation, [])
+        }
+        relation_objects = [old_relations.get(
+            (r.source_type, r.source_id, r.relation_type, r.target_type, r.target_id), r
+        ) for r in relation_objects]
+        for cls, current in ((models.OccupationalAbilityRelation, relation_objects),
+                             (models.OccupationalAbilityItem, ability_objects),
+                             (models.OccupationalWorkContent, work_content_objects),
+                             (models.OccupationalWorkTask, task_objects)):
+            retained = {r.id for r in current if r.id}
+            for row in old_rows.get(cls, []):
+                if row.id not in retained:
+                    session.delete(row)
+            session.flush()
     session.add_all(relation_objects)
     session.flush()
 
@@ -450,6 +486,7 @@ def _persist_ability(
     ability_objects: list[models.OccupationalAbilityItem],
     relation_objects: list[models.OccupationalAbilityRelation],
     seen_ability_codes: set[str],
+    existing_items: dict | None = None,
 ) -> str | None:
     """Persist one ability entry. Returns None on success or the rejection
     reason key when the row was dropped (`abilities_rejected++`).
@@ -477,7 +514,8 @@ def _persist_ability(
         _bump(quality_summary, FLAG_WORK_CONTENT_MISSING_FOR_P_CATEGORY)
         return FLAG_WORK_CONTENT_MISSING_FOR_P_CATEGORY
 
-    if ability_code in seen_ability_codes:
+    item_key = ability_entry.get("source_item_key") or source_item_key(task_obj.task_code, ability_entry)
+    if item_key in seen_ability_codes:
         # Same code under the same analysis — reject silently as a
         # cross-sheet inconsistency (decision 17 = lenient). The unique
         # constraint would surface this anyway; we catch it earlier so the
@@ -486,7 +524,12 @@ def _persist_ability(
         return FLAG_CROSS_SHEET_INCONSISTENCY
 
     # Per-row quality flags (non-blocking).
-    per_row_flags: dict[str, Any] = {}
+    per_row_flags: dict[str, Any] = {
+        key: True for key in (ability_entry.get("quality_flags") or {})
+        if key == FLAG_CROSS_SHEET_INCONSISTENCY
+    }
+    if per_row_flags:
+        _bump(quality_summary, FLAG_CROSS_SHEET_INCONSISTENCY)
     regex_str = pattern_meta.get("regex")
     if isinstance(regex_str, str) and regex_str:
         try:
@@ -500,12 +543,13 @@ def _persist_ability(
 
     ability_sequence = _extract_sequence(ability_code, category_code)
 
-    item = models.OccupationalAbilityItem(
+    item = _reuse((existing_items or {}).get(item_key), models.OccupationalAbilityItem,
         analysis_id=analysis.id,
         task_id=task_obj.id,
         # NULL when requires_work_content=False (G/S/D in PGSD).
         work_content_id=work_content_obj.id if work_content_obj is not None else None,
         ability_code=ability_code,
+        source_item_key=item_key,
         ability_major_category_code=category_code,
         ability_major_category_name=category_name,
         ability_sequence=ability_sequence,
@@ -518,7 +562,7 @@ def _persist_ability(
     session.add(item)
     session.flush()
     ability_objects.append(item)
-    seen_ability_codes.add(ability_code)
+    seen_ability_codes.add(item_key)
 
     # WORK_CONTENT_REQUIRES_ABILITY relation — only when we actually have a
     # work_content parent (G/S/D abilities skip this and hang on the task).
@@ -546,6 +590,24 @@ def _build_category_lookup(category_schema: list[dict[str, Any]]) -> dict[str, d
         if isinstance(code, str) and code:
             lookup[code] = entry
     return lookup
+
+
+def _reuse(existing, cls, **values):
+    if existing is None:
+        return cls(**values)
+    # Structural repairs preserve existing enrichment and model judgments.
+    for key in ("confidence", "normalized_terms", "task_description_structured",
+                "source_job_demand_dataset_id"):
+        if hasattr(existing, key):
+            values.pop(key, None)
+    for key in ("major_name", "major_code", "education_level", "major_direction"):
+        if not values.get(key) and hasattr(existing, key):
+            values.pop(key, None)
+    if "quality_flags" in values:
+        values["quality_flags"] = {**(existing.quality_flags or {}), **values["quality_flags"]}
+    for key, value in values.items():
+        setattr(existing, key, value)
+    return existing
 
 
 def _extract_sequence(ability_code: str, category_code: str) -> str:

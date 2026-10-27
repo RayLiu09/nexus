@@ -315,7 +315,7 @@ test.describe("Asset Center IA-1", () => {
     await expect(page.getByText("专业布点列表")).toHaveCount(0);
   });
 
-  test("renders occupational analyses and the three migrated views", async ({ page }) => {
+  test("renders occupational analyses and the four shared hierarchy views", async ({ page }) => {
     const antdWarnings: string[] = [];
     page.on("console", (message) => {
       if (message.type() === "warning" && message.text().includes("[antd:")) {
@@ -354,14 +354,7 @@ test.describe("Asset Center IA-1", () => {
     }
     await dialog.getByRole("button", { name: "关闭" }).click();
 
-    await page
-      .getByRole("button", { name: /能力树/ })
-      .first()
-      .click();
-    dialog = page.getByRole("dialog");
-    await expect(dialog).toContainText("能力树");
-    await expect(dialog.getByRole("tree", { name: "能力分析任务树" })).toBeVisible();
-    await dialog.getByRole("button", { name: "关闭" }).click();
+    await expect(page.getByRole("button", { name: /能力树/ })).toHaveCount(0);
 
     await page
       .getByRole("button", { name: /能力图谱/ })
@@ -369,6 +362,12 @@ test.describe("Asset Center IA-1", () => {
       .click();
     dialog = page.getByRole("dialog");
     await expect(dialog).toContainText("能力图谱");
+    await expect(dialog.getByRole("radio")).toHaveText(["树图", "旭日图", "矩形树图", "关系图"]);
+    for (const view of ["树图", "旭日图", "矩形树图", "关系图"]) {
+      await dialog.getByRole("radio", { name: view, exact: true }).check();
+      await expect(dialog.getByRole("img", { name: `能力图谱${view}`, exact: true })).toBeVisible();
+      await expect(dialog.locator("canvas").first()).toBeVisible();
+    }
     const graphCanvas = dialog.locator("canvas").first();
     await expect(graphCanvas).toBeVisible({ timeout: 20_000 });
     await expect

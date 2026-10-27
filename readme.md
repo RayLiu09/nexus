@@ -97,7 +97,7 @@ Week 1 implementation baselines:
 
 Week 2 implementation baselines:
 
-- Occupational ability workbooks support numeric and letter-coded PGSD task sheets. A six-digit filename prefix and bounded professional-name segment supply identity when available. The Asset Center list exposes both fields; ability items and graph can be scoped by typical work task.
+- Occupational ability workbooks support numeric and letter-coded PGSD task sheets. A six-digit filename prefix and bounded professional-name segment supply identity when available. Parsing retains task descriptions, explicit work-content headers, source coordinates, and stable source-item identities for repeated display codes. The Asset Center list exposes both fields; ability items and the unified graph Drawer can be scoped by typical work task.
 - `nexus_app.major_catalog` holds 52 confirmed finance-commerce professional code/name/level tuples and supplies only missing identity fields during professional asset parsing.
 - Talent-training-plan projections also complete missing identity fields at write time from this catalog. The dry-run-first `nexus-app/scripts/backfill_talent_training_plan_identity.py` repairs historical list rows and reads explicit study duration from their normalized documents; ambiguous catalog matches and unsupported durations stay empty.
 
@@ -243,11 +243,14 @@ Root documents are distilled implementation contracts:
   [verification evidence](docs/review/wk_occupation_dictionary_evidence.md).
 - Occupational-ability analyses are browsed at
   `/asset-center/major/occupation-analyses` as a paginated list with exact
-  task and P/G/S/D counts. Row Drawers host the migrated ability-item, tree,
-  and graph views; the graph Drawer adapts to viewport width and height. Rows
-  provide original download. Ability-item page changes are server requests rather than
-  client-side slicing of a preloaded result. The corresponding technical asset
-  detail no longer exposes `结构化图谱`.
+  task and P/G/S/D counts. Row Drawers host the migrated ability-item view and
+  one unified graph view. Its fixed buttons are `树图`, `旭日图`, `矩形树图`,
+  and `关系图`; all four share a single root → task → G/S/D group or work
+  content → ability hierarchy. P/G/S/D, task, edge, and root colors follow the
+  capability-graph palette. A source workbook without 岗位类 omits that layer.
+  Rows provide original download. Ability-item page changes are server requests
+  rather than client-side slicing of a preloaded result. The corresponding
+  technical asset detail no longer exposes `结构化图谱`.
 - Job-demand projections and APIs remain intact, but their technical asset
   detail no longer exposes `结构化图谱` or loads the specialized job-demand
   record/graph view; its Asset Center business view remains a later task.

@@ -38,6 +38,9 @@ from nexus_app.capability_graph.major_normalizer import (
     normalize_major_name,
 )
 from nexus_app.major_catalog import complete_major_identity
+from nexus_app.structured_parse.ability_hierarchy import (
+    declared_work_contents, resolve_work_code, source_item_key, task_description,
+)
 from nexus_app.profile_detect.config import (
     JOB_DEMAND_HEADER_ALIASES,
     JOB_DEMAND_OPTIONAL_HEADERS,
@@ -296,6 +299,9 @@ def _ability_sheet_identity(sheet: dict[str, Any]) -> tuple[str, str] | None:
             continue
         value = str(cells[1].get("value") or "").strip()
         if value and not value.startswith(("工作", "能力")):
+            explicit = re.match(r"^([A-Z]|\d+)[.、\s]*([^\d].*)$", value, re.S)
+            if explicit:
+                return explicit.group(1), re.sub(r"\s+", "", explicit.group(2))
             name = re.sub(rf"^{re.escape(task_code)}[.、\s]*", "", value).strip()
             if name:
                 return task_code, name
@@ -322,8 +328,10 @@ def _project_ability_analysis_pgsd(
         rows = sheet.get("rows") or []
         # Build hierarchical structure: walk rows, maintain "current work content"
         # whenever we encounter an ability code that names a new content_code.
-        work_contents: dict[str, dict[str, Any]] = {}
+        work_contents: dict[str, dict[str, Any]] = declared_work_contents(sheet, task_code, raw_payload)
         general_abilities: dict[str, list[dict[str, Any]]] = {"G": [], "S": [], "D": []}
+        description, description_evidence = task_description(sheet)
+        source_entries: list[dict[str, Any]] = []
 
         for row in rows:
             if row.get("is_empty") or row.get("is_placeholder_candidate"):
@@ -333,43 +341,52 @@ def _project_ability_analysis_pgsd(
                 continue
             category = ability_code[0]  # 'P' | 'G' | 'S' | 'D'
             row_index = row.get("row_index")
+            entry = {
+                "ability_code": ability_code,
+                "ability_major_category_code": category,
+                "ability_content": ability_content,
+                "trace": {"sheet": sheet_name, "row": row_index},
+            }
+            entry["source_item_key"] = source_item_key(task_code, entry)
+            source_entries.append(entry)
 
             if category == "P":
                 # P-1.1.1 → content_code = "1.1" (first two segments after dash)
-                code_body = ability_code.split("-", 1)[1] if "-" in ability_code else ability_code
-                parts = code_body.split(".")
-                content_code = ".".join(parts[:2]) if len(parts) >= 2 else code_body
+                content_code, inconsistent = resolve_work_code(ability_code, task_code, work_contents)
+                if inconsistent:
+                    entry["quality_flags"] = {"cross_sheet_inconsistency": True}
+                    entry["trace"]["parent_resolution"] = "local_number_or_code_fallback"
                 wc = work_contents.setdefault(content_code, {
                     "content_code": content_code,
                     "content_name": content_code,
                     "content_description": None,
                     "abilities": [],
+                    "trace": {"sheet": sheet_name, "row": row_index, "name_source": "ability_fallback"},
                 })
                 if wc["content_name"] == content_code:
                     inferred_name = _infer_work_content_name(ability_content)
                     if inferred_name:
                         wc["content_name"] = inferred_name
                         wc["content_description"] = ability_content
-                wc["abilities"].append({
-                    "ability_code": ability_code,
-                    "ability_major_category_code": "P",
-                    "ability_content": ability_content,
-                    "trace": {"sheet": sheet_name, "row": row_index},
-                })
+                wc["abilities"].append(entry)
             elif category in ("G", "S", "D"):
-                general_abilities[category].append({
-                    "ability_code": ability_code,
-                    "ability_content": ability_content,
-                    "trace": {"sheet": sheet_name, "row": row_index},
-                })
+                general_abilities[category].append(entry)
+
+        code_counts: dict[str, int] = {}
+        for entry in source_entries:
+            code_counts[entry["ability_code"]] = code_counts.get(entry["ability_code"], 0) + 1
+        for entry in source_entries:
+            if code_counts[entry["ability_code"]] > 1:
+                entry["quality_flags"] = {**entry.get("quality_flags", {}), "cross_sheet_inconsistency": True}
+                entry["trace"]["duplicate_source_code"] = True
 
         tasks.append({
             "task_code": task_code,
             "task_name": task_name,
-            "task_description": None,
+            "task_description": description,
             "task_description_structured": None,
             "display_order": int(task_code) if task_code.isdigit() else 0,
-            "trace": {"sheet": sheet_name},
+            "trace": {"sheet": sheet_name, "description_evidence": description_evidence},
             "work_contents": list(work_contents.values()),
             "general_abilities": general_abilities,
         })

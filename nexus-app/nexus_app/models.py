@@ -2671,7 +2671,7 @@ class OccupationalWorkContent(TimestampMixin, Base):
     __table_args__ = (
         Index("ix_owc_task_id", "task_id"),
         UniqueConstraint(
-            "analysis_id", "content_code", name="uq_owc_analysis_content_code",
+            "task_id", "content_code", name="uq_owc_task_content_code",
         ),
     )
 
@@ -2709,7 +2709,7 @@ class OccupationalAbilityItem(TimestampMixin, Base):
         Index("ix_oai_work_content_id", "work_content_id"),
         Index("ix_oai_category", "ability_major_category_code"),
         UniqueConstraint(
-            "analysis_id", "ability_code", name="uq_oai_analysis_code",
+            "analysis_id", "source_item_key", name="uq_oai_analysis_source_item",
         ),
     )
 
@@ -2730,6 +2730,7 @@ class OccupationalAbilityItem(TimestampMixin, Base):
         nullable=True,
     )
     ability_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_item_key: Mapped[str] = mapped_column(String(128), nullable=False, default=new_uuid)
     ability_major_category_code: Mapped[str] = mapped_column(String(16), nullable=False)
     ability_major_category_name: Mapped[str] = mapped_column(String(64), nullable=False)
     ability_sequence: Mapped[str] = mapped_column(String(64), nullable=False)

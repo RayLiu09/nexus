@@ -198,10 +198,14 @@ asset ledger:
 - `/asset-center/major/occupation-analyses` reads occupational-ability
   projections as a paginated business list. P/G/S/D counts for all rows on the
   current page are computed by one grouped query rather than persisted or
-  loaded per row. Ability items retain server-side pagination, while the tree
-  explicitly walks bounded pages to assemble its complete hierarchy. The
-  item, tree, and existing staging-graph views are not duplicated in technical
-  asset detail.
+  loaded per row. Ability items retain server-side pagination. The graph Drawer
+  builds one source-bound hierarchy from complete task and ability-item pages and
+  renders the fixed sequence `树图 → 旭日图 → 矩形树图 → 关系图`; all views share
+  the same node IDs, weights, task filter, and parent-child edges. P abilities
+  hang under explicit work content and G/S/D abilities under task groups. A
+  岗位类 node is only added when source evidence is modeled; current historical
+  data therefore omits that level. The item, graph, and existing staging-graph
+  views are not duplicated in technical asset detail.
 - Job-demand records retain their domain projections and APIs, but technical
   Asset Detail no longer exposes the job-demand `结构化图谱` tab or loads its
   specialized record/graph presentation. A future Asset Center job-demand
@@ -778,7 +782,7 @@ Asset Pipeline → normalized_asset_ref (stable contract)
 **Pipeline B (Record):**
 `webhook / batch / file upload → raw_object (JSON/XLSX structured data) → ingest_validate → Job(pipeline_type="record") → assetize (asset/asset_version) → structured_parse/profile_detect when applicable → normalize (normalized_record) → normalized_asset_ref → AI governance → rules → governance_result → index`
 
-Occupational ability analysis rows persist nullable `major_code` and `major_name` from normalized-record evidence. A six-digit code and a bounded name can be extracted from the source workbook filename during structured parsing. PGSD detection and projection accept numeric and letter-coded task sheets with P/G/S/D ability rows; cross-sheet P-code collisions route the workbook to review before domain writing. Task-scoped Asset Center views consume the existing task, ability-item, and graph staging read APIs.
+Occupational ability analysis rows persist nullable `major_code` and `major_name` from normalized-record evidence. A six-digit code and a bounded name can be extracted from the source workbook filename during structured parsing. PGSD detection and projection accept numeric and letter-coded task sheets with P/G/S/D ability rows; task descriptions, explicit work-content names, and source coordinates are retained. Ability rows use a stable source-item identity scoped by task and source location, so repeated display codes across tasks are preserved and same-task conflicts are flagged for review. A checksum-verified repair replayed all 14 existing analyses, retained reusable IDs/enrichment, rebuilt normalized objects and ability staging, and restored the two missing tasks in 530706. Task-scoped Asset Center views consume the existing task and ability-item read APIs; the four graph views are a shared frontend projection and do not add new governance facts.
 
 Finance-commerce professional identity completion uses the read-only 52-code catalog in `nexus_app.major_catalog`. Parsers fill absent professional code, name, and education level only when code or name-plus-level identifies one entry; conflicting source facts and ambiguous names remain unchanged. Occupational ability analysis also persists the completed education level.
 

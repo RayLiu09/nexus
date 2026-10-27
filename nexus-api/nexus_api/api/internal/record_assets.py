@@ -1359,6 +1359,7 @@ def _serialize_ability_item(item: models.OccupationalAbilityItem) -> dict:
         "ability_major_category_code": item.ability_major_category_code,
         "ability_major_category_name": item.ability_major_category_name,
         "ability_sequence": item.ability_sequence,
+        "source_item_key": item.source_item_key,
         "ability_content": item.ability_content,
         "normalized_terms": item.normalized_terms or {},
         "confidence": float(item.confidence) if item.confidence is not None else None,
@@ -1673,26 +1674,29 @@ def list_ability_items(
             models.OccupationalAbilityItem.task_id == task_id
         )
     if work_content_code is not None:
-        wc_id = session.scalar(
+        wc_ids = list(session.scalars(
             select(models.OccupationalWorkContent.id).where(
                 models.OccupationalWorkContent.analysis_id == analysis_id,
                 models.OccupationalWorkContent.content_code == work_content_code,
             )
-        )
-        if wc_id is None:
+        ))
+        if not wc_ids:
             return list_response(
                 [], request,
                 page=pagination.page, page_size=pagination.page_size, total=0,
             )
-        stmt = stmt.where(models.OccupationalAbilityItem.work_content_id == wc_id)
+        stmt = stmt.where(models.OccupationalAbilityItem.work_content_id.in_(wc_ids))
         count_stmt = count_stmt.where(
-            models.OccupationalAbilityItem.work_content_id == wc_id
+            models.OccupationalAbilityItem.work_content_id.in_(wc_ids)
         )
 
     total = session.scalar(count_stmt) or 0
     rows = list(
         session.scalars(
-            stmt.order_by(models.OccupationalAbilityItem.ability_code)
+            stmt.order_by(
+                models.OccupationalAbilityItem.ability_code,
+                models.OccupationalAbilityItem.source_item_key,
+            )
             .offset(pagination.offset)
             .limit(pagination.limit)
         ).all()

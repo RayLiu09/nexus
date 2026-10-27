@@ -1,0 +1,301 @@
+{
+  "apply": false,
+  "analysis_count": 14,
+  "changed": 14,
+  "results": [
+    {
+      "analysis_id": "4a026f92-252b-46af-a19b-91f497cbc399",
+      "major_code": "330701",
+      "major_name": "电子商务",
+      "checksum_verified": true,
+      "changed": true,
+      "applied": false,
+      "before": {
+        "tasks": 10,
+        "work_contents": 57,
+        "abilities": 299
+      },
+      "after": {
+        "tasks": 10,
+        "work_contents": 57,
+        "abilities": 300
+      },
+      "flagged_source_rows": 2,
+      "description_count": 10,
+      "explicit_work_content_names": 57
+    },
+    {
+      "analysis_id": "570a9f82-9578-4cf1-985e-34b44ec2278d",
+      "major_code": "330702",
+      "major_name": "跨境电子商务",
+      "checksum_verified": true,
+      "changed": true,
+      "applied": false,
+      "before": {
+        "tasks": 9,
+        "work_contents": 33,
+        "abilities": 180
+      },
+      "after": {
+        "tasks": 9,
+        "work_contents": 44,
+        "abilities": 225
+      },
+      "flagged_source_rows": 26,
+      "description_count": 9,
+      "explicit_work_content_names": 44
+    },
+    {
+      "analysis_id": "b697b225-186a-44fa-9bc7-3938f4888306",
+      "major_code": "330703",
+      "major_name": "全媒体电商运营",
+      "checksum_verified": true,
+      "changed": true,
+      "applied": false,
+      "before": {
+        "tasks": 10,
+        "work_contents": 165,
+        "abilities": 256
+      },
+      "after": {
+        "tasks": 10,
+        "work_contents": 53,
+        "abilities": 257
+      },
+      "flagged_source_rows": 2,
+      "description_count": 10,
+      "explicit_work_content_names": 53
+    },
+    {
+      "analysis_id": "135229ae-454d-48bf-aad9-ad0aeb9cb91b",
+      "major_code": "530701",
+      "major_name": "电子商务",
+      "checksum_verified": true,
+      "changed": true,
+      "applied": false,
+      "before": {
+        "tasks": 9,
+        "work_contents": 203,
+        "abilities": 305
+      },
+      "after": {
+        "tasks": 9,
+        "work_contents": 56,
+        "abilities": 305
+      },
+      "flagged_source_rows": 0,
+      "description_count": 9,
+      "explicit_work_content_names": 56
+    },
+    {
+      "analysis_id": "a2c1bdb0-e101-4a51-87b6-82266f5dc1cc",
+      "major_code": "530702",
+      "major_name": "跨境电子商务",
+      "checksum_verified": true,
+      "changed": true,
+      "applied": false,
+      "before": {
+        "tasks": 7,
+        "work_contents": 33,
+        "abilities": 189
+      },
+      "after": {
+        "tasks": 7,
+        "work_contents": 33,
+        "abilities": 189
+      },
+      "flagged_source_rows": 0,
+      "description_count": 7,
+      "explicit_work_content_names": 33
+    },
+    {
+      "analysis_id": "92e17235-fc0e-404d-8b0f-2cebb68b8f33",
+      "major_code": "530703",
+      "major_name": "移动商务",
+      "checksum_verified": true,
+      "changed": true,
+      "applied": false,
+      "before": {
+        "tasks": 7,
+        "work_contents": 97,
+        "abilities": 179
+      },
+      "after": {
+        "tasks": 7,
+        "work_contents": 33,
+        "abilities": 179
+      },
+      "flagged_source_rows": 0,
+      "description_count": 7,
+      "explicit_work_content_names": 33
+    },
+    {
+      "analysis_id": "f67f6f08-a56a-4042-9cec-505bb1302c80",
+      "major_code": "530704",
+      "major_name": "网络营销与直播电商",
+      "checksum_verified": true,
+      "changed": true,
+      "applied": false,
+      "before": {
+        "tasks": 6,
+        "work_contents": 112,
+        "abilities": 180
+      },
+      "after": {
+        "tasks": 6,
+        "work_contents": 38,
+        "abilities": 180
+      },
+      "flagged_source_rows": 0,
+      "description_count": 6,
+      "explicit_work_content_names": 38
+    },
+    {
+      "analysis_id": "501e9939-e9f1-4d55-9cc4-e5862b7d23c3",
+      "major_code": "530705",
+      "major_name": "农村电子商务",
+      "checksum_verified": true,
+      "changed": true,
+      "applied": false,
+      "before": {
+        "tasks": 8,
+        "work_contents": 44,
+        "abilities": 259
+      },
+      "after": {
+        "tasks": 8,
+        "work_contents": 44,
+        "abilities": 259
+      },
+      "flagged_source_rows": 0,
+      "description_count": 8,
+      "explicit_work_content_names": 44
+    },
+    {
+      "analysis_id": "ac2ce388-380b-4097-9566-b06b1654b591",
+      "major_code": "530706",
+      "major_name": "商务数据分析与应用",
+      "checksum_verified": true,
+      "changed": true,
+      "applied": false,
+      "before": {
+        "tasks": 6,
+        "work_contents": 39,
+        "abilities": 200
+      },
+      "after": {
+        "tasks": 8,
+        "work_contents": 56,
+        "abilities": 282
+      },
+      "flagged_source_rows": 21,
+      "description_count": 8,
+      "explicit_work_content_names": 56
+    },
+    {
+      "analysis_id": "25c59d70-70ce-435e-bc48-1026b337064a",
+      "major_code": "730701",
+      "major_name": "电子商务",
+      "checksum_verified": true,
+      "changed": true,
+      "applied": false,
+      "before": {
+        "tasks": 8,
+        "work_contents": 116,
+        "abilities": 197
+      },
+      "after": {
+        "tasks": 8,
+        "work_contents": 40,
+        "abilities": 209
+      },
+      "flagged_source_rows": 1,
+      "description_count": 8,
+      "explicit_work_content_names": 40
+    },
+    {
+      "analysis_id": "0e1c8854-eef5-421d-a51d-be6911414471",
+      "major_code": "730702",
+      "major_name": "跨境电子商务",
+      "checksum_verified": true,
+      "changed": true,
+      "applied": false,
+      "before": {
+        "tasks": 7,
+        "work_contents": 92,
+        "abilities": 160
+      },
+      "after": {
+        "tasks": 7,
+        "work_contents": 34,
+        "abilities": 161
+      },
+      "flagged_source_rows": 0,
+      "description_count": 7,
+      "explicit_work_content_names": 34
+    },
+    {
+      "analysis_id": "2cfc5305-e029-4671-816b-eefabdedab3b",
+      "major_code": "730704",
+      "major_name": "网络营销",
+      "checksum_verified": true,
+      "changed": true,
+      "applied": false,
+      "before": {
+        "tasks": 8,
+        "work_contents": 136,
+        "abilities": 224
+      },
+      "after": {
+        "tasks": 8,
+        "work_contents": 49,
+        "abilities": 224
+      },
+      "flagged_source_rows": 0,
+      "description_count": 8,
+      "explicit_work_content_names": 49
+    },
+    {
+      "analysis_id": "f70957c0-1114-4472-ac8a-01b6e0c920d9",
+      "major_code": "730705",
+      "major_name": "直播电商服务",
+      "checksum_verified": true,
+      "changed": true,
+      "applied": false,
+      "before": {
+        "tasks": 8,
+        "work_contents": 122,
+        "abilities": 186
+      },
+      "after": {
+        "tasks": 8,
+        "work_contents": 43,
+        "abilities": 210
+      },
+      "flagged_source_rows": 2,
+      "description_count": 8,
+      "explicit_work_content_names": 43
+    },
+    {
+      "analysis_id": "1b5fe33e-2081-48d2-8938-1685535e6d6b",
+      "major_code": null,
+      "major_name": "大数据技术应用",
+      "checksum_verified": true,
+      "changed": true,
+      "applied": false,
+      "before": {
+        "tasks": 4,
+        "work_contents": 21,
+        "abilities": 113
+      },
+      "after": {
+        "tasks": 4,
+        "work_contents": 21,
+        "abilities": 113
+      },
+      "flagged_source_rows": 0,
+      "description_count": 4,
+      "explicit_work_content_names": 21
+    }
+  ]
+}

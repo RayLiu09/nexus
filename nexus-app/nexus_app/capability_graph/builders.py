@@ -347,8 +347,8 @@ def build_ability_analysis(
       different analyses can coexist if they later share a build.
     - One `WorkContent` per work_content; node_key includes task_code so
       "1.1" under different tasks doesn't collide.
-    - One `Ability` per ability_item; node_key = ability_code (already
-      unique per analysis).
+    - One `Ability` per ability_item; node_key includes task and the stable
+      source-item identity because display codes can repeat across tasks.
 
     Edge strategy:
     - `TASK_HAS_WORK_CONTENT`            task → work_content
@@ -401,7 +401,8 @@ def build_ability_analysis(
         task = next((t for t in tasks if t.id == ability.task_id), None)
         if task is None:
             continue  # task missing → graph layer skips silently; B7 flags it
-        ability_key = ability.ability_code
+        source_identity = ability.source_item_key or ability.id or ability.ability_code
+        ability_key = f"{analysis.id}:{task.task_code}:{source_identity}"
         nodes.append(NodeSpec(
             node_type=NodeType.ABILITY,
             node_key=ability_key,
@@ -411,6 +412,7 @@ def build_ability_analysis(
             properties={
                 "ability_code": ability.ability_code,
                 "category": ability.ability_major_category_code,
+                "source_item_key": ability.source_item_key or source_identity,
             },
             confidence=ability.confidence,
         ))

@@ -34,23 +34,9 @@ vi.mock("@/lib/api", async (importOriginal) => {
   return { ...original, getApiData: getApiDataMock };
 });
 
-vi.mock("@/app/assets/[assetId]/_components/CapabilityGraphView", () => ({
-  CapabilityGraphView: ({
-    normalizedRefId,
-    buildType,
-    embedded,
-    viewportHeight,
-    taskId,
-  }: {
-    normalizedRefId: string;
-    buildType: string;
-    embedded?: boolean;
-    viewportHeight?: boolean;
-    taskId?: string;
-  }) => (
-    <div data-embedded={embedded} data-viewport-height={viewportHeight} data-testid="ability-graph">
-      {`${normalizedRefId}:${buildType}:${taskId}`}
-    </div>
+vi.mock("./OccupationalAbilityGraph", () => ({
+  OccupationalAbilityGraph: ({ analysis }: { analysis: AbilityAnalysis }) => (
+    <div data-testid="ability-graph">{`${analysis.id}:${analysis.normalized_ref_id}`}</div>
   ),
 }));
 
@@ -158,7 +144,7 @@ describe("OccupationalAnalysisTable", () => {
     expect(screen.getByText("电子商务")).toBeInTheDocument();
     expect(screen.getByText("530701")).toBeInTheDocument();
     expect(screen.getByText("PGSD")).toBeInTheDocument();
-    for (const action of ["能力条目", "能力树", "能力图谱", "原文下载"]) {
+    for (const action of ["能力条目", "能力图谱", "原文下载"]) {
       expect(screen.getByRole("button", { name: new RegExp(action) })).toBeInTheDocument();
     }
   });
@@ -221,24 +207,11 @@ describe("OccupationalAnalysisTable", () => {
     expect(await screen.findByText("第二页能力")).toBeInTheDocument();
   });
 
-  it("opens the migrated ability tree and graph views", async () => {
-    const user = userEvent.setup();
-    const first = renderTable();
-
-    await user.click(screen.getByRole("button", { name: /能力树/ }));
-    expect(await screen.findByText("市场数据采集")).toBeInTheDocument();
-    expect(getApiDataMock).toHaveBeenCalledWith(
-      "/api/record-assets/ability-analyses/analysis-1/tasks",
-      [],
-      { page: "1", pageSize: "200" },
-    );
-    first.unmount();
-
+  it("opens the unified ability graph and removes the standalone tree action", async () => {
     renderTable();
-    await user.click(screen.getByRole("button", { name: /能力图谱/ }));
-    expect(await screen.findByTestId("ability-graph")).toHaveTextContent("ref-1:ability_analysis:task-1");
-    expect(screen.getByTestId("ability-graph")).toHaveAttribute("data-embedded", "true");
-    expect(screen.getByTestId("ability-graph")).toHaveAttribute("data-viewport-height", "true");
+    expect(screen.queryByRole("button", { name: /能力树/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /能力图谱/ }));
+    expect(await screen.findByTestId("ability-graph")).toHaveTextContent("analysis-1:ref-1");
   });
 
   it("changes the ability-item source when a typical task is selected", async () => {
