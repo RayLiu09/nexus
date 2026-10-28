@@ -81,6 +81,9 @@ describe("CourseTextbookKnowledgeOutlineView", () => {
     const option = setOption.mock.calls[0][0];
     expect(option.series[0].layout).toBe("radial");
     expect(option.series[0].orient).toBeUndefined();
+    expect(document.querySelector('[data-outline-layout="radial"]')).toHaveClass(
+      "h-[clamp(280px,calc(100dvh-200px),1000px)]",
+    );
     expect(screen.queryByText("2 节点")).not.toBeInTheDocument();
     expect(screen.queryByText("1 级深度")).not.toBeInTheDocument();
   });
@@ -92,6 +95,9 @@ describe("CourseTextbookKnowledgeOutlineView", () => {
     const option = setOption.mock.calls[0][0];
     expect(option.series[0].layout).toBe("orthogonal");
     expect(option.series[0].orient).toBe("LR");
+    expect(document.querySelector('[data-outline-layout="orthogonal"]')).toHaveClass(
+      "h-[clamp(280px,calc(100dvh-200px),1000px)]",
+    );
   });
 
   it("renders an explicit API error state", async () => {

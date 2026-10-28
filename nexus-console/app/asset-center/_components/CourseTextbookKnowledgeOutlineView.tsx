@@ -114,7 +114,7 @@ export function CourseTextbookKnowledgeOutlineView({ refId, mode }: Props) {
   const rootTitle = tree.nodes.find((node) => node.id === tree.root_id)?.title ?? "课程教材";
 
   return (
-    <section className="flex min-h-[620px] flex-col gap-3">
+    <section className="flex flex-col gap-3">
       <div className="flex min-h-8 items-center justify-end">
         <GraphViewportActions
           title={viewTitle}
@@ -203,7 +203,7 @@ function KnowledgeOutlineChart({
   return (
     <div
       className={`border-line bg-bg-subtle w-full overflow-hidden rounded border ${
-        fullscreen ? "h-full min-h-0" : "h-[620px] min-h-[520px]"
+        fullscreen ? "h-full min-h-0" : "h-[clamp(280px,calc(100dvh-200px),1000px)]"
       }`}
       data-outline-layout={
         (option.series as Array<{ layout?: string }> | undefined)?.[0]?.layout ?? "unknown"
