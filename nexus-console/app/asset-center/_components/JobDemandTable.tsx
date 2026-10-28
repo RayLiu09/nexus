@@ -127,7 +127,12 @@ export function JobDemandTable({
 
   return (
     <div className="flex flex-col gap-4">
-      <Form layout="inline" form={form} onFinish={(values) => replaceQuery(values)}>
+      <Form
+        layout="inline"
+        form={form}
+        className="flex w-full flex-wrap justify-end gap-2"
+        onFinish={(values) => replaceQuery(values)}
+      >
         <Form.Item name="q" label="关键词">
           <Input allowClear placeholder="岗位名称或公司名称" style={{ width: 240 }} />
         </Form.Item>
@@ -136,7 +141,7 @@ export function JobDemandTable({
         </Form.Item>
         <Space>
           <Button type="primary" htmlType="submit" icon={<Search size={15} />} loading={pending}>
-            查询
+            检索
           </Button>
           <Button
             icon={<X size={15} />}
