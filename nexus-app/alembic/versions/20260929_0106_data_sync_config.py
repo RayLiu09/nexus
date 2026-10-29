@@ -25,6 +25,7 @@ def upgrade() -> None:
                 "DataSyncPlanPaused",
                 "DataSyncPlanResumed",
                 "DataSyncPlanDeleted",
+                "DataSyncPlanUpdated",
             ):
                 op.execute(f"ALTER TYPE auditeventtype ADD VALUE IF NOT EXISTS '{event}'")
     op.create_table(

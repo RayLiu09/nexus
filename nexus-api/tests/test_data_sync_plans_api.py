@@ -78,6 +78,38 @@ def test_plan_create_rejects_invalid_query_and_requires_key(app):
         ).status_code == 428
 
 
+def test_plan_update_writes_update_audit(app, session):
+    with TestClient(app) as client:
+        created = _create(client)
+        assert created.status_code == 201
+        plan = created.json()["data"]
+        updated = client.put(
+            f"/internal/v1/data-sync/plans/{plan['id']}",
+            headers={"Idempotency-Key": "update-1"},
+            json={
+                "name": "Quarterly jobs",
+                "frequency": "3_months",
+                "query_config": {"keyword": "updated"},
+            },
+        )
+        assert updated.status_code == 200
+        assert updated.json()["data"]["name"] == "Quarterly jobs"
+        assert updated.json()["data"]["frequency"] == "3_months"
+        assert updated.json()["data"]["query_config"] == {
+            "keyword": "updated",
+            "page_size": 20,
+        }
+
+    audit = session.scalar(
+        select(models.AuditLog).where(
+            models.AuditLog.target_type == "data_sync_config",
+            models.AuditLog.target_id == plan["id"],
+            models.AuditLog.event_type == AuditEventType.DATA_SYNC_PLAN_UPDATED,
+        )
+    )
+    assert audit is not None
+
+
 def test_non_admin_cannot_read_catalog_or_create_plan(app, stub_user):
     stub_user.role = UserRole.BUSINESS_EXPERT
     app.dependency_overrides[require_user] = lambda: stub_user
