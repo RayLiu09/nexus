@@ -7,7 +7,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 from nexus_app import models
-from nexus_app.data_sync.adapters.moe_major_offering import MoeMajorOfferingProvider, _options_cache
+from nexus_app.data_sync.adapters.moe_major_offering import (
+    MoeMajorOfferingProvider, _body, _options_cache,
+)
 from nexus_app.data_sync.catalog import ProviderConfig
 from nexus_app.data_sync.controls import control_run
 from nexus_app.data_sync.plans import create_plan
@@ -306,6 +308,145 @@ def test_rate_limit_honors_retry_after_without_token_refresh(session, monkeypatc
     retry_at = current.next_retry_at.replace(tzinfo=timezone.utc)
     assert current.status == "queued" and current.failure_summary == "http_429"
     assert (retry_at - before).total_seconds() >= 59
+
+
+def test_business_error_persists_bounded_provider_diagnostics(session, monkeypatch):
+    run = make_run(session, "business-error")
+    worker = executor(
+        session,
+        monkeypatch,
+        lambda _: httpx.Response(
+            200,
+            json={
+                "success": False,
+                "code": "500",
+                "msg": "上游错误 " + "x" * 1000,
+            },
+        ),
+    )
+    worker.run_once()
+    worker.close()
+    session.expire_all()
+    current = session.get(models.DataSyncRun, run.id)
+    assert current.status == "queued"
+    assert current.failure_summary == "moe_business_error"
+    assert current.status_detail["error"]["code"] == "moe_business_error"
+    assert current.status_detail["error"]["provider_code"] == "500"
+    assert current.status_detail["error"]["provider_message"].startswith("上游错误 ")
+    assert len(current.status_detail["error"]["provider_message"]) == 256
+
+
+def test_business_error_detail_is_cleared_after_retry_succeeds(session, monkeypatch):
+    run = make_run(session, "business-error-recovery")
+    failed = True
+
+    def get(request):
+        nonlocal failed
+        if failed:
+            failed = False
+            return httpx.Response(200, json={"success": False, "code": 500, "msg": "temporary"})
+        return httpx.Response(200, json=body([record()]))
+
+    worker = executor(session, monkeypatch, get)
+    worker.run_once()
+    session.expire_all()
+    current = session.get(models.DataSyncRun, run.id)
+    assert current.status == "queued"
+    current.next_retry_at = None
+    session.commit()
+    assert worker.run_once()
+    worker.close()
+    session.expire_all()
+    current = session.get(models.DataSyncRun, run.id)
+    assert current.status == "succeeded"
+    assert current.failure_summary is None
+    assert "error" not in current.status_detail
+    retry_audit = session.scalar(select(models.AuditLog).where(
+        models.AuditLog.target_id == run.id,
+        models.AuditLog.summary["reason"].as_string() == "retry",
+    ))
+    assert retry_audit.summary["provider_error_code"] == "500"
+    assert retry_audit.summary["provider_error_message"] == "temporary"
+
+
+@pytest.mark.parametrize("code", [429, 500, 502, 503, 504, "429", "500", " 503 "])
+def test_business_error_numeric_and_string_codes_retry(code):
+    with pytest.raises(SyncRuntimeError) as caught:
+        _body(httpx.Response(200, json={"success": False, "code": code, "msg": "暂不可用"}))
+    assert caught.value.retryable is True
+
+
+@pytest.mark.parametrize("code", [400, "403", None, {}, [], True, 500.5])
+def test_business_rejections_and_malformed_codes_do_not_retry(code):
+    with pytest.raises(SyncRuntimeError) as caught:
+        _body(httpx.Response(200, json={"success": False, "code": code}))
+    assert caught.value.retryable is False
+
+
+def test_business_error_diagnostics_redact_credentials_and_drop_response_data(session, monkeypatch):
+    run = make_run(session, "redaction")
+    worker = executor(session, monkeypatch, lambda _: httpx.Response(200, json={
+        "code": 400,
+        "msg": (
+            'api_key=private-key password="private password" '
+            'authorization: Bearer abcdefghijklmnopqrstuvwxyz'
+        ),
+        "data": {"raw_content": "private-response"},
+        "tenant_key": "private-tenant",
+    }))
+    assert worker.run_once()
+    worker.close()
+    session.expire_all()
+    current = session.get(models.DataSyncRun, run.id)
+    assert current.status == "failed"
+    audit = session.scalar(select(models.AuditLog).where(
+        models.AuditLog.target_id == run.id,
+        models.AuditLog.summary["to"].as_string() == "failed",
+    ))
+    stored = json.dumps([current.status_detail, audit.summary])
+    for secret in (
+        "private-key", "private password", "abcdefghijklmnopqrstuvwxyz",
+        "private-response", "private-tenant",
+    ):
+        assert secret not in stored
+    assert "redacted" in stored
+
+
+def test_business_error_retries_preserve_committed_cursor_until_attempt_limit(session, monkeypatch):
+    run = make_run(session, "exhausted")
+    pages = []
+
+    def get(request):
+        page = int(request.url.params["page"])
+        pages.append(page)
+        if page == 2:
+            return httpx.Response(200, json={"code": "503", "msg": "服务繁忙"})
+        return httpx.Response(200, json=body([record()], page=1, total=2, size=1))
+
+    worker = executor(session, monkeypatch, get)
+    for attempt in range(1, 4):
+        assert worker.run_once()
+        session.expire_all()
+        current = session.get(models.DataSyncRun, run.id)
+        assert current.attempt_count == attempt
+        assert current.processed_count == 1
+        assert json.loads(current.last_cursor)["page"] == 2
+        assert current.status_detail["error"]["provider_code"] == "503"
+        assert current.status == ("queued" if attempt < 3 else "failed")
+        if attempt < 3:
+            current.next_retry_at = None
+            session.commit()
+    worker.close()
+    assert pages == [1, 2, 2, 2]
+
+
+def test_error_diagnostics_ignore_nested_messages_and_arbitrary_keys():
+    from nexus_app.data_sync.runtime import sanitize_sync_error_detail
+
+    assert sanitize_sync_error_detail({
+        "code": "moe_business_error", "provider_code": {"token": "private"},
+        "provider_message": ["raw content"], "raw_response": "private-response",
+    }) == {"code": "moe_business_error"}
 
 
 def test_ambiguous_code_and_name_match_fails_without_overwriting(session, monkeypatch):

@@ -379,6 +379,12 @@ P0 management pages:
 - **文件数据同步**: Console `/file-sync` directly accepts local file uploads using an automatically ensured backend `file_upload` data source. The NAS tab describes manual synchronization but remains unavailable until a filesystem scanner is implemented; no NAS schedule is offered. Data-source records remain backend lineage anchors. Crawler plans have a dedicated first-level Console page at `/crawler`; they support generic configuration (topic, target site URLs, execution plan) and one built-in quick-start plan backed by JSON configuration for national/provincial vocational-education policy, industry-education integration policy, ecommerce, digital-economy policy/report, and regional ecommerce/digital-economy data acquisition. Template and region whitelist sites are file-configured and are not maintained through Console.
 - WebSearch Crawler plans accept one to four unique query terms separated by spaces or common list punctuation. A run searches each ordered nonempty term combination (at most fifteen requests), merges results by normalized URL, and records per-query failures while retaining successful results. The configured result count applies to each provider request.
 - **数据接入**: single file, batch upload, directory import, ingestion policy.
+- **API 同步运行诊断**: administrator-only
+  `GET /internal/v1/data-sync/runs/{run_id}/logs` additionally returns nullable
+  `error_detail` with `code`, `provider_code`, `provider_message` (128/64/256
+  characters maximum, scalar values only, credentials redacted). The existing
+  run-log drawer displays upstream code/message, and retry/failure audits retain
+  safe historical diagnostics after recovery clears the current error.
 - **原始数据台账**: batch query, raw object query, checksum, replay entry.
 - **作业中心**: job list, stage progress (including ingest_validate / assetize / parse / normalize), failure reason, retry, reprocess, re-governance.
 - **全部资产台账**: `/assets` asset list, current version read model, versions,

@@ -14,7 +14,7 @@ from nexus_api.responses import list_response, response
 from nexus_app import models, schemas as domain_schemas
 from nexus_app.audit import sanitize_audit_summary
 from nexus_app.data_sync.catalog import list_provider_views, load_catalog, _load_adapter
-from nexus_app.data_sync.runtime import SyncRuntimeError
+from nexus_app.data_sync.runtime import SyncRuntimeError, sanitize_sync_error_detail
 from nexus_app.data_sync.job_catalog import list_job_catalog
 from nexus_app.data_sync import controls, plans, runs
 from nexus_app.database import get_db
@@ -226,6 +226,7 @@ def get_data_sync_run(run_id: str, request: Request, session: Session = Depends(
 _AUDIT_SUMMARY_FIELDS = frozenset({
     "action", "outcome", "error_code", "from", "to", "reason",
     "plan_id", "provider_code", "query_hash",
+    "provider_error_code", "provider_error_message",
 })
 
 
@@ -268,6 +269,9 @@ def get_data_sync_run_logs(
     failure_summary = sanitize_audit_summary(run.failure_summary)
     if isinstance(failure_summary, str) and len(failure_summary) > 500:
         failure_summary = failure_summary[:486] + "...[truncated]"
+    error_detail = sanitize_sync_error_detail(
+        run.status_detail.get("error") if isinstance(run.status_detail, dict) else None
+    ) or None
     return response({
         "run_id": run.id,
         "plan_id": run.data_sync_config_id,
@@ -282,6 +286,7 @@ def get_data_sync_run_logs(
         "failure_count": run.failure_count,
         "skipped_count": run.skipped_count,
         "failure_summary": failure_summary,
+        "error_detail": error_detail,
         "last_control_action": run.last_control_action,
         "last_control_requested_at": run.last_control_requested_at,
         "last_control_operator_id": run.last_control_operator_id,

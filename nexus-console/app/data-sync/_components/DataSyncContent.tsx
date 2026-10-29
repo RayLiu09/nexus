@@ -1057,6 +1057,22 @@ export function DataSyncContent({
                   children: `${runLogs.processed_count} / ${runLogs.success_count} / ${runLogs.failure_count} / ${runLogs.skipped_count}`,
                 },
                 { key: "failure", label: "失败摘要", children: runLogs.failure_summary ?? "-" },
+                ...(runLogs.error_detail
+                  ? [{
+                      key: "error-detail",
+                      label: "上游错误详情",
+                      children: (
+                        <code className="text-xs break-all">
+                          {[
+                            runLogs.error_detail.provider_code,
+                            runLogs.error_detail.provider_message,
+                            !runLogs.error_detail.provider_code &&
+                              !runLogs.error_detail.provider_message && runLogs.error_detail.code,
+                          ].filter(Boolean).join(" · ")}
+                        </code>
+                      ),
+                    }]
+                  : []),
                 {
                   key: "control",
                   label: "最近控制",

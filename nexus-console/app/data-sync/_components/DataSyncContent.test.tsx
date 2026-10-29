@@ -195,6 +195,32 @@ it("opens the paused run and its resume action after resuming a plan", async () 
   expect(postApiData).toHaveBeenCalledWith("/api/data-sync/plans/crawler-plan/resume", {});
 });
 
+it("shows upstream code and message in the run log drawer", async () => {
+  const plan: SyncPlan = { ...mockPlan, provider_code: "crawler_engine", name: "错误诊断计划" };
+  const run: SyncRun = {
+    id: "failed-run", data_sync_config_id: plan.id, provider_code: "crawler_engine",
+    adapter_version: "1", status: "failed", external_status: null, external_task_id: null,
+    processed_count: 1000, success_count: 771, failure_count: 0, skipped_count: 229,
+    failure_summary: "moe_business_error", queued_at: "2026-10-29T02:28:03Z",
+    updated_at: "2026-10-29T02:29:41Z",
+  };
+  vi.mocked(getApiData).mockImplementation(async (path) => ({
+    data: path.endsWith("/logs") ? {
+      ...run, run_id: run.id, plan_id: plan.id, query_hash: "hash", query_summary: "{}",
+      error_detail: { code: "moe_business_error", provider_code: "503", provider_message: "服务繁忙" },
+      audit_total: 0, audit_events: [],
+    } : path.includes("/runs") ? [run] : path.includes("/providers") ? [provider("crawler_engine")] :
+      path.includes("/job-catalog") ? catalog : [plan],
+    ok: true, error: null, traceId: null, total: 1,
+  }));
+  render(<App><DataSyncContent initialProviders={[provider("crawler_engine")]}
+    initialPlans={[plan]} initialCatalog={catalog} initialError={null} /></App>);
+  fireEvent.click(screen.getByRole("button", { name: `查看计划 ${plan.name} 的运行记录` }));
+  fireEvent.click(await screen.findByRole("button", { name: "查看运行 failed-run 日志" }));
+  expect(await screen.findByText("上游错误详情")).toBeInTheDocument();
+  expect(screen.getByText("503 · 服务繁忙")).toBeInTheDocument();
+});
+
 it("copies a sync plan into a new prefilled plan", async () => {
   const plan: SyncPlan = {
     ...mockPlan,

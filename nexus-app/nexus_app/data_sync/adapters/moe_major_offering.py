@@ -61,15 +61,22 @@ def _body(response: httpx.Response) -> dict[str, Any]:
             "Ministry response is not JSON", code="invalid_response"
         ) from exc
     if not isinstance(body, dict) or body.get("success") is not True:
-        retryable = isinstance(body, dict) and body.get("code") in {
-            429,
-            500,
-            502,
-            503,
-            504,
-        }
+        upstream_code = body.get("code") if isinstance(body, dict) else None
+        normalized_code = (
+            str(upstream_code).strip() if type(upstream_code) in (str, int) else None
+        )
+        retryable = normalized_code in {"429", "500", "502", "503", "504"}
+        detail: dict[str, Any] = {}
+        if isinstance(body, dict):
+            detail = {
+                "provider_code": upstream_code,
+                "provider_message": body.get("msg"),
+            }
         raise SyncRuntimeError(
-            "Ministry query failed", retryable=retryable, code="moe_business_error"
+            "Ministry query failed",
+            retryable=retryable,
+            code="moe_business_error",
+            detail=detail,
         )
     return body
 

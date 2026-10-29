@@ -91,6 +91,11 @@ export type SyncRunLogs = {
   failure_count: number;
   skipped_count: number;
   failure_summary: string | null;
+  error_detail: {
+    code?: string;
+    provider_code?: string;
+    provider_message?: string;
+  } | null;
   last_control_action: string | null;
   last_control_requested_at: string | null;
   last_control_operator_id: string | null;

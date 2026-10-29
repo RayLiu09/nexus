@@ -31,6 +31,14 @@ def test_run_log_filters_redacts_and_preserves_deleted_history(app, session):
             "notes": "x" * 1000,
         }
         run_row.failure_summary = "failure: " + "x" * 1000
+        run_row.status_detail = {
+            "error": {
+                "code": "moe_business_error",
+                "provider_code": "500",
+                "provider_message": "temporary upstream failure",
+                "secret": "must not be exposed",
+            }
+        }
         session.add(models.AuditLog(
             event_type=AuditEventType.DATA_SYNC_RUN_CONTROLLED,
             target_type="data_sync_run", target_id=run["id"],
@@ -61,12 +69,40 @@ def test_run_log_filters_redacts_and_preserves_deleted_history(app, session):
         assert "***redacted***" in data["query_summary"]
         assert len(data["query_summary"]) <= 600
         assert len(data["failure_summary"]) <= 500
+        assert data["error_detail"] == {
+            "code": "moe_business_error",
+            "provider_code": "500",
+            "provider_message": "temporary upstream failure",
+        }
+        assert "must not be exposed" not in logs.text
         assert "private-value" not in logs.text
         assert "hidden-hash" not in logs.text
         assert "hidden-key" not in logs.text
         assert "hidden-response" not in logs.text
         assert client.get(f"/internal/v1/data-sync/runs/{run['id']}/logs?page=2&pageSize=1").status_code == 200
         assert client.get("/internal/v1/data-sync/runs/missing/logs").status_code == 404
+
+
+def test_run_log_error_diagnostics_are_scrubbed_bounded_and_optional(app, session):
+    with TestClient(app) as client:
+        _, run = _create(client)
+        path = f"/internal/v1/data-sync/runs/{run['id']}/logs"
+        assert client.get(path).json()["data"]["error_detail"] is None
+        row = session.get(models.DataSyncRun, run["id"])
+        row.status_detail = {"error": {
+            "code": "moe_business_error",
+            "provider_code": "500",
+            "provider_message": 'api_key="hidden-api-key" ' + "x" * 1000,
+            "raw_response": "hidden-raw-response",
+        }}
+        session.commit()
+        response = client.get(path)
+        assert response.status_code == 200
+        detail = response.json()["data"]["error_detail"]
+        assert len(detail["provider_message"]) <= 256
+        assert "redacted" in detail["provider_message"]
+        assert "hidden-api-key" not in response.text
+        assert "hidden-raw-response" not in response.text
 
 
 def test_run_logs_require_admin(app, stub_user):

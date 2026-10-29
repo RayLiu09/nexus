@@ -50,6 +50,10 @@ default; `--apply` updates career facts only, no AI). The occupational competenc
 skill uses NEXUS assets and DeepSeek certificate search to generate new PGSD/KSA
 outputs; platform sources need no external publisher/date verification.
 API sync plan lists control page and page size and reset on provider/deleted filters.
+API sync run logs show bounded, redacted upstream error codes/messages. Retry
+and failure audits preserve these diagnostics; successful page commits clear
+the current error. Ministry string and integer business error codes share the
+same retry classification. This change requires no database migration.
 Ministry registration
 aggregation is separate from document-sample course coverage statistics.
 The professional-offering list uses `检索`, omits the school-code filter and

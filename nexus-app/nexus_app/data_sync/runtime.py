@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import uuid
 from dataclasses import dataclass
@@ -15,7 +16,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from nexus_app import models
-from nexus_app.audit import write_audit
+from nexus_app.audit import SENSITIVE_KEY_PATTERNS, sanitize_audit_summary, write_audit
 from nexus_app.data_sync.catalog import _load_adapter, load_catalog
 from nexus_app.data_sync.plans import next_run_time
 from nexus_app.data_sync.runs import RunConflict, create_scheduled_run
@@ -28,11 +29,20 @@ logger = logging.getLogger(__name__)
 class SyncRuntimeError(Exception):
     """Provider runtime error with an explicit retry classification."""
 
-    def __init__(self, message: str, *, retryable: bool = False, code: str = "runtime_error", retry_after: float | None = None):
+    def __init__(
+        self,
+        message: str,
+        *,
+        retryable: bool = False,
+        code: str = "runtime_error",
+        retry_after: float | None = None,
+        detail: dict[str, Any] | None = None,
+    ):
         super().__init__(message)
         self.retryable = retryable
         self.code = code
         self.retry_after = retry_after
+        self.detail = detail or {}
 
 
 class DataSyncProvider(Protocol):
@@ -75,7 +85,40 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _set_status(session: Session, run: models.DataSyncRun, status: str, *, reason: str | None = None) -> None:
+_CREDENTIAL_ASSIGNMENT = re.compile(
+    r"(?i)([\"']?(?:" + "|".join(re.escape(key) for key in SENSITIVE_KEY_PATTERNS)
+    + r")[\"']?\s*[:=]\s*)(?:Bearer\s+[^\s,;]+|\"[^\"]*\"|'[^']*'|[^\s,;]+)"
+)
+
+
+def sanitize_sync_error_detail(value: Any) -> dict[str, str]:
+    """Whitelist and scrub diagnostic scalars before persistence or return."""
+    if not isinstance(value, dict):
+        return {}
+    detail: dict[str, str] = {}
+    for key, limit in (("code", 128), ("provider_code", 64), ("provider_message", 256)):
+        item = value.get(key)
+        if type(item) not in (str, int):
+            continue
+        # Sanitize before truncation, including credentials echoed by upstream.
+        clean = _CREDENTIAL_ASSIGNMENT.sub(r"\1***redacted***", str(item))
+        clean = sanitize_audit_summary(clean)
+        detail[key] = " ".join(clean.split())[:limit]
+    return detail
+
+
+def _clear_error_detail(run: models.DataSyncRun) -> None:
+    if not run.status_detail or "error" not in run.status_detail:
+        return
+    status_detail = dict(run.status_detail)
+    status_detail.pop("error", None)
+    run.status_detail = status_detail
+
+
+def _set_status(
+    session: Session, run: models.DataSyncRun, status: str, *,
+    reason: str | None = None, error_detail: dict[str, str] | None = None,
+) -> None:
     previous = run.status
     if previous == status:
         return
@@ -83,6 +126,14 @@ def _set_status(session: Session, run: models.DataSyncRun, status: str, *, reaso
     summary = {"from": previous, "to": status}
     if reason:
         summary["reason"] = reason
+    if error_detail:
+        for key, audit_key in (
+            ("code", "error_code"),
+            ("provider_code", "provider_error_code"),
+            ("provider_message", "provider_error_message"),
+        ):
+            if key in error_detail:
+                summary[audit_key] = error_detail[key]
     write_audit(
         session, AuditEventType.DATA_SYNC_RUN_STATUS_CHANGED, "data_sync_run", run.id,
         run.trace_id, summary, actor_type="system",
@@ -441,6 +492,7 @@ class DataSyncExecutor:
                     return
                 if run.last_cursor != cursor:
                     return
+                _clear_error_detail(run)
                 intake = adapter.result_handler.accept_page(session, run, page["records"])
                 run.processed_count += len(page["records"])
                 run.success_count += intake.accepted
@@ -508,6 +560,7 @@ class DataSyncExecutor:
                     return
                 if run.last_cursor != cursor:
                     return
+                _clear_error_detail(run)
                 run.external_status = status.state
                 run.request_id = status.request_id or run.request_id
                 run.status_detail = {
@@ -570,18 +623,31 @@ class DataSyncExecutor:
                 isinstance(exc, SyncRuntimeError) and exc.code == "submit_unconfirmed"
                 and run.external_task_id is None
             )
+            error_detail = sanitize_sync_error_detail({
+                **(exc.detail if isinstance(exc, SyncRuntimeError) else {}),
+                "code": (
+                    exc.code if isinstance(exc, (SyncRuntimeError, TokenError))
+                    else type(exc).__name__
+                ),
+            })
             if waiting:
                 run.attempt_count = max(0, run.attempt_count - 1)
                 run.next_retry_at = _utcnow() + timedelta(seconds=5)
                 run.failure_summary = None
             elif retryable and (unconfirmed_submit or run.attempt_count < self.max_attempts):
                 delay = min(300, 2 ** min(max(0, run.attempt_count - 1), 6) * 5)
-                _set_status(session, run, DataSyncRunStatus.QUEUED.value, reason="retry")
+                _set_status(
+                    session, run, DataSyncRunStatus.QUEUED.value,
+                    reason="retry", error_detail=error_detail,
+                )
                 if isinstance(exc, SyncRuntimeError) and exc.retry_after is not None:
                     delay = max(delay, min(86400, exc.retry_after))
                 run.next_retry_at = _utcnow() + timedelta(seconds=delay)
             else:
-                _set_status(session, run, DataSyncRunStatus.FAILED.value, reason="execution_error")
+                _set_status(
+                    session, run, DataSyncRunStatus.FAILED.value,
+                    reason="execution_error", error_detail=error_detail,
+                )
                 run.finished_at = _utcnow()
             if not waiting:
                 run.failure_summary = (
@@ -589,6 +655,9 @@ class DataSyncExecutor:
                     else exc.code if isinstance(exc, TokenError)
                     else type(exc).__name__
                 )[:2000]
+                status_detail = dict(run.status_detail or {})
+                status_detail["error"] = error_detail
+                run.status_detail = status_detail
             run.claim_owner = None
             run.lease_expires_at = None
             run.heartbeat_at = None
