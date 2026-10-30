@@ -17,7 +17,7 @@ from nexus_app.data_sync.tokens import (
 )
 
 
-CORE_CITIES = (
+_CORE_CITY_NAMES = (
     "北京市", "上海市", "广州市", "深圳市", "杭州市", "南京市", "苏州市", "成都市",
     "重庆市", "武汉市", "西安市", "天津市", "长沙市", "郑州市", "青岛市", "宁波市",
     "东莞市", "佛山市", "无锡市", "合肥市", "福州市", "厦门市", "济南市", "大连市",
@@ -25,12 +25,25 @@ CORE_CITIES = (
     "石家庄市", "温州市", "常州市", "珠海市", "中山市", "惠州市", "大理市",
 )
 
+PROVINCE_NAMES = (
+    "广东省", "湖北省", "陕西省", "四川省", "辽宁省", "吉林省", "江苏省",
+    "山东省", "浙江省", "广西省", "安徽省", "河北省", "山西省", "内蒙古自治区",
+    "黑龙江省", "福建省", "江西省", "河南省", "湖南省", "海南省", "贵州省", "西藏",
+    "甘肃省", "青海省", "宁夏回族自治区", "新疆维吾尔自治区",
+)
+
+# Keep CORE_CITIES as a compatibility alias for callers that imported the old
+# constant; new code should use CORE_REGIONS because the list also contains
+# province-level options.
+CORE_REGIONS = _CORE_CITY_NAMES + PROVINCE_NAMES
+CORE_CITIES = CORE_REGIONS
+
 
 class CrawlerQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     keywords: list[str] = Field(min_length=1, max_length=100, title="岗位名称")
-    regions: list[str] = Field(min_length=1, max_length=len(CORE_CITIES), title="区域")
+    regions: list[str] = Field(min_length=1, max_length=len(CORE_REGIONS), title="区域")
     pageLimit: Literal[10, 30, 50, 100] = Field(default=30, title="页数")
 
     @model_validator(mode="before")
@@ -39,7 +52,7 @@ class CrawlerQuery(BaseModel):
         if isinstance(value, dict) and "keyword" not in value:
             regions = value.get("regions")
             if isinstance(regions, list) and "" in regions:
-                raise ValueError("region must be a supported city")
+                raise ValueError("region must be a supported region")
         if isinstance(value, dict) and "keyword" in value and "keywords" not in value:
             legacy = dict(value)
             legacy["keywords"] = [legacy.pop("keyword")]
@@ -129,7 +142,10 @@ class CrawlerEngineDataSyncProvider:
 
     def get_query_schema(self) -> dict[str, Any]:
         schema = CrawlerQuery.model_json_schema()
-        schema["properties"]["regions"]["items"] = {"type": "string", "enum": list(CORE_CITIES)}
+        schema["properties"]["regions"]["items"] = {
+            "type": "string",
+            "enum": list(CORE_REGIONS),
+        }
         return schema
 
     def validate_query(self, query: dict[str, Any]) -> dict[str, Any]:
@@ -165,7 +181,11 @@ class CrawlerEngineDataSyncProvider:
         request_id = f"nexus-data-sync:{idempotency_key}"
         validated = self.validate_query(query)
         queries = [
-            {"keyword": keyword, "region": region, "pageLimit": validated["pageLimit"]}
+            {
+                "keyword": keyword,
+                "region": region,
+                "pageLimit": validated["pageLimit"],
+            }
             for keyword in validated["keywords"] for region in validated["regions"]
         ]
         try:

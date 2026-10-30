@@ -738,7 +738,7 @@ export function DataSyncContent({
                 >全选</Checkbox><span className="text-text-muted text-xs">已选 {selectedRegions.length} 项</span></Space>}
                 rules={[
                   { required: true, type: "array", min: 1, message: "请选择区域" },
-                  { type: "array", max: 5, message: "最多输入 5 个城市" },
+                  { type: "array", max: 5, message: "最多输入 5 个区域" },
                 ]}
               >
                 <Select
@@ -748,13 +748,13 @@ export function DataSyncContent({
                   maxTagCount="responsive"
                   maxCount={5}
                   tokenSeparators={[",", "，"]}
-                  placeholder="选择或输入城市，多个城市用逗号分隔"
+                  placeholder="选择或输入区域，多个区域用逗号分隔"
                   options={regionOptions.map((value) => ({ value: String(value), label: String(value) }))}
                   onChange={setSelectedRegions}
                 />
               </Form.Item>
               {selectedKeywords.length * selectedRegions.length > 100 && (
-                <Alert type="warning" showIcon title="岗位与城市组合不能超过 100 组，请缩小选择范围" />
+                <Alert type="warning" showIcon title="岗位与区域组合不能超过 100 组，请缩小选择范围" />
               )}
               <Form.Item name={["query_config", "pageLimit"]} label="页数" rules={[{ required: true }]}>
                 <Select options={[10, 30, 50, 100].map((value) => ({ value, label: `${value} 页` }))} />

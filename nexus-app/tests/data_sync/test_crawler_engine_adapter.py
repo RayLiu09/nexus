@@ -6,7 +6,11 @@ import httpx
 import pytest
 from pydantic import SecretStr, ValidationError
 
-from nexus_app.data_sync.adapters.crawler_engine import CORE_CITIES, CrawlerEngineDataSyncProvider
+from nexus_app.data_sync.adapters.crawler_engine import (
+    CORE_CITIES,
+    PROVINCE_NAMES,
+    CrawlerEngineDataSyncProvider,
+)
 from nexus_app.data_sync.catalog import _load_adapter, list_provider_views, load_catalog
 from nexus_app.data_sync.runtime import SyncRuntimeError, _invoke_with_token
 from nexus_app.data_sync.tokens import (
@@ -65,8 +69,10 @@ def test_query_schema_and_catalog_loading():
         "贵阳市", "石家庄市", "温州市", "常州市", "珠海市", "中山市", "惠州市",
     }
     assert added_cities <= set(CORE_CITIES)
-    all_cities_query = {"keywords": ["数据化运营助理"], "regions": list(CORE_CITIES)}
-    assert adapter.validate_query(all_cities_query)["regions"] == list(CORE_CITIES)
+    assert set(PROVINCE_NAMES) <= set(CORE_CITIES)
+    assert schema["properties"]["regions"]["items"]["enum"][-len(PROVINCE_NAMES):] == list(PROVINCE_NAMES)
+    all_regions_query = {"keywords": ["数据化运营助理"], "regions": list(CORE_CITIES)}
+    assert adapter.validate_query(all_regions_query)["regions"] == list(CORE_CITIES)
     assert adapter.validate_query({"keywords": ["数据化运营助理"], "regions": ["杭州市"]}) == {
         "keywords": ["数据化运营助理"], "regions": ["杭州市"], "pageLimit": 30,
     }
@@ -219,6 +225,23 @@ def test_submit_expands_selected_titles_and_cities():
         for keyword in ("数据化运营助理", "电商运营助理")
         for region in ("杭州市", "上海市")
     ]
+
+
+def test_submit_preserves_selected_province_name():
+    def handler(request):
+        assert json.loads(request.content)["queries"] == [{
+            "keyword": "数据化运营助理", "region": "广东省", "pageLimit": 30,
+        }]
+        return httpx.Response(202, json={
+            "collectionJobId": JOB_ID,
+            "externalRequestId": "nexus-data-sync:run-1",
+            "status": "queued",
+        })
+
+    _adapter(handler).submit(
+        _provider(), {"keywords": ["数据化运营助理"], "regions": ["广东省"]},
+        "token", "run-1",
+    )
 
 
 def test_status_page_and_controls_keep_upstream_states_and_raw_records():

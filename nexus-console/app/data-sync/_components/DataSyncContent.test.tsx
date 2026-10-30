@@ -329,7 +329,7 @@ it("blocks a fully selected collection plan above the upstream combination limit
   fireEvent.click(screen.getByRole("checkbox", { name: "全选岗位名称" }));
   fireEvent.click(screen.getByRole("checkbox", { name: "全选区域" }));
 
-  expect(screen.getByText("岗位与城市组合不能超过 100 组，请缩小选择范围")).toBeInTheDocument();
+  expect(screen.getByText("岗位与区域组合不能超过 100 组，请缩小选择范围")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "创建计划" }));
   await waitFor(() => expect(postApiData).not.toHaveBeenCalled());
 });
