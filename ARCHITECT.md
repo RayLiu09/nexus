@@ -90,6 +90,12 @@ remain ephemeral. Provider failure is a redacted 503 without provider fallback.
   enterprise name and business scope and may reference a park through a
   nullable foreign key. Both projections expose paginated list reads and
   streamed Excel exports, separate from the technical asset ledger.
+- Ecommerce demonstration bases use the immutable, read-only
+  `ecommerce_demo_base` projection. National and provincial records are loaded
+  from verified source snapshots by the deterministic
+  `import_ecommerce_demo_bases.py` command, keyed by `(level, source_path)` and
+  queried from PostgreSQL. The projection has no Console CRUD, no online sync,
+  and does not enter Asset Pipeline, AI governance, or semantic indexing.
 - Right-size by scale: use minimum viable infrastructure in P0; each simplified capability has a documented upgrade trigger and migration path.
 - `raw_object` is the unified raw retention model for all sources (binary files and serialized JSON packages).
 - Processing pipeline is determined at job creation, not at runtime inference.

@@ -192,6 +192,7 @@ class AIGovernanceRunAdoptionStatus(StrEnum):
 class AuditEventType(StrEnum):
     MAJOR_OFFERINGS_IMPORTED = "MajorOfferingsImported"
     OCCUPATION_DICTIONARY_IMPORTED = "OccupationDictionaryImported"
+    ECOMMERCE_DEMO_BASES_IMPORTED = "EcommerceDemoBasesImported"
     # Ingest pipeline
     INGEST_BATCH_SUBMITTED          = "IngestBatchSubmitted"
     RAW_OBJECT_PERSISTED            = "RawObjectPersisted"

@@ -335,9 +335,12 @@ Asset Center IA-1:
   selected graph. These two plan-specific graph choices are removed from
   technical asset detail, which retains the generic RAG/document knowledge
   view.
-- **市场数据**: job-demand records, industrial parks, enterprises, and
-  certificates. Industrial parks and enterprises are future fixed-schema
-  imports from their own lists; IA-1 adds neither governance classification.
+- **市场数据**: job-demand records, industrial parks, enterprises, ecommerce
+  demonstration bases, and certificates. The demonstration-base entry has
+  national and provincial read-only views backed by the PostgreSQL
+  `ecommerce_demo_base` projection. Its source snapshot is initialized by a
+  deterministic idempotent command; no Console/API create, edit, or delete
+  operation is exposed.
   Job-demand domain records and APIs remain available, while their technical
   Asset Detail no longer exposes the `结构化图谱` tab; the business view itself
   is a later Asset Center task.
