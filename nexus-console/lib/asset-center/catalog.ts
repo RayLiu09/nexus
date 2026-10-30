@@ -130,6 +130,11 @@ export const ASSET_CENTER_DOMAINS = [
         description: "产业园区业务数据",
       },
       {
+        path: "ecommerce-demo-bases",
+        name: "电商示范基地",
+        description: "国家和省级电子商务示范基地名录",
+      },
+      {
         path: "enterprises",
         name: "企业数据",
         description: "企业主体与经营业务数据",

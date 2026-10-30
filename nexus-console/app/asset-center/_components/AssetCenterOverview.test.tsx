@@ -11,6 +11,7 @@ describe("AssetCenterOverview", () => {
           "major/standard-course-library": 128,
           "major/occupation-dictionary": 1329,
           "market/industrial-parks": 0,
+          "market/ecommerce-demo-bases": 312,
           "teaching-resources/course-textbooks": 7,
         }}
       />,
@@ -41,6 +42,10 @@ describe("AssetCenterOverview", () => {
     expect(screen.getByRole("link", { name: "产业园区，0 条" })).toHaveAttribute(
       "href",
       "/asset-center/market/industrial-parks",
+    );
+    expect(screen.getByRole("link", { name: "电商示范基地，312 条" })).toHaveAttribute(
+      "href",
+      "/asset-center/market/ecommerce-demo-bases",
     );
     expect(screen.getByRole("link", { name: "课程教材，7 条" })).toHaveAttribute(
       "href",

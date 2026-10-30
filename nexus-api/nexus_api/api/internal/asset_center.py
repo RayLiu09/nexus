@@ -32,6 +32,7 @@ _RESOURCE_KEYS = (
     "major/occupation-dictionary",
     "market/job-demands",
     "market/industrial-parks",
+    "market/ecommerce-demo-bases",
     "market/enterprises",
     "market/certificates",
     "teaching-resources/course-textbooks",
@@ -180,6 +181,10 @@ def _projection_counts(session: Session) -> dict[str, int]:
         select(
             literal("market/industrial-parks").label("resource_key"),
             func.count(models.IndustrialPark.id).label("count"),
+        ),
+        select(
+            literal("market/ecommerce-demo-bases").label("resource_key"),
+            func.count(models.EcommercePark.id).label("count"),
         ),
         select(
             literal("market/enterprises").label("resource_key"),

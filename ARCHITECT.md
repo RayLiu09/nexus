@@ -96,6 +96,10 @@ remain ephemeral. Provider failure is a redacted 503 without provider fallback.
   `import_ecommerce_demo_bases.py` command, keyed by `(level, source_path)` and
   queried from PostgreSQL. The projection has no Console CRUD, no online sync,
   and does not enter Asset Pipeline, AI governance, or semantic indexing.
+  JWT-authenticated `/internal/v1/ecommerce-demo-bases` list and aggregate
+  reads share database filters. The Asset Center uses these reads for the
+  national batch/chart/map view and provincial list; static province GeoJSON
+  ships with the Console and does not contain business facts.
 - Right-size by scale: use minimum viable infrastructure in P0; each simplified capability has a documented upgrade trigger and migration path.
 - `raw_object` is the unified raw retention model for all sources (binary files and serialized JSON packages).
 - Processing pipeline is determined at job creation, not at runtime inference.

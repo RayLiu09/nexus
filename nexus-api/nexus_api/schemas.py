@@ -1,4 +1,4 @@
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, Field
 
@@ -46,6 +46,64 @@ class HealthRead(BaseModel):
 
 class AssetCenterCountsRead(BaseModel):
     counts: dict[str, int]
+
+
+class EcommerceDemoBaseRead(BaseModel):
+    id: str
+    level: Literal["national", "provincial"]
+    title: str
+    province_code: str | None = None
+    province_name: str | None = None
+    batch_code: Literal["first", "second", "supplement"] | None = None
+    batch_name: str | None = None
+    recognized_period: str
+    recognized_year: int | None = None
+    recognized_month: int | None = None
+    source_publish_at: str | None = None
+    source_order: int
+    source_link_enabled: bool
+    source_url: str | None = None
+
+
+class EcommerceDemoBaseCountRead(BaseModel):
+    code: str
+    name: str
+    count: int
+
+
+class EcommerceDemoBaseProvinceCountRead(BaseModel):
+    province_code: str
+    province_name: str
+    count: int
+
+
+class EcommerceDemoBaseFilterOptionsRead(BaseModel):
+    batches: list[EcommerceDemoBaseCountRead] = Field(default_factory=list)
+    provinces: list[EcommerceDemoBaseProvinceCountRead] = Field(default_factory=list)
+    recognized_years: list[int] = Field(default_factory=list)
+
+
+class EcommerceDemoBaseSourceFileRead(BaseModel):
+    filename: str
+    coverage_kind: str
+    source_row_count: int
+    source_declared_total: int | None = None
+    source_declared_pages: int | None = None
+    source_current_page: int | None = None
+    imported_at: str | None = None
+
+
+class EcommerceDemoBaseCoverageRead(BaseModel):
+    imported_total: int
+    source_files: list[EcommerceDemoBaseSourceFileRead] = Field(default_factory=list)
+
+
+class EcommerceDemoBaseAggregateRead(BaseModel):
+    matched_total: int
+    batch_counts: list[EcommerceDemoBaseCountRead] = Field(default_factory=list)
+    province_counts: list[EcommerceDemoBaseProvinceCountRead] = Field(default_factory=list)
+    filter_options: EcommerceDemoBaseFilterOptionsRead
+    coverage: EcommerceDemoBaseCoverageRead
 
 
 class WorkbenchReviewItemRead(BaseModel):

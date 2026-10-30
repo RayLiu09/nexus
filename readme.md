@@ -134,7 +134,7 @@ Architecture v3.0 baseline:
 - `docs/task-packages/wk_job_collection_c7_submit_recovery_pause_task_package.md`: idempotent recovery of unconfirmed crawler submits and clear plan/run pause controls.
 - `docs/task-packages/wk_job_collection_c8_resume_visibility_task_package.md`: make paused-run controls visible after a plan resumes future scheduling.
 - `docs/task-packages/wk_industrial_park_industry_tags_text_task_package.md`: store park industry tags as readable text and filter the park list by Chinese industry names.
-- `docs/ecommerce_demo_bases_implementation_design.md`: read-only national and provincial ecommerce demonstration-base projection, complete source snapshot, PostgreSQL migration, and idempotent initializer.
+- `docs/ecommerce_demo_bases_implementation_design.md`: read-only national and provincial ecommerce demonstration-base projection, PostgreSQL migration, idempotent initializer, internal query API, and Asset Center dual-view Console page.
 
 - `docs/企业数据与知识资产平台技术选型和架构nexus_v3.0.md`
 - `docs/企业数据与知识资产平台nexus_v8.0.md`

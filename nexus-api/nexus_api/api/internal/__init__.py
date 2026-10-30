@@ -55,6 +55,7 @@ from nexus_api.api.occupation_dictionary import internal_router as _occupation_d
 from nexus_api.api.major_offerings import internal_router as _major_offerings_router
 from nexus_api.api.internal.raw_jobs import router as _raw_jobs_router
 from nexus_api.api.internal.industrial_park_enterprise import router as _industrial_park_enterprise_router
+from nexus_api.api.internal.ecommerce_demo_bases import router as _ecommerce_demo_bases_router
 
 # Auth router — separate top-level mount, no shared deps.
 from nexus_api.api.internal.auth import router as auth_router
@@ -207,6 +208,7 @@ router.include_router(_major_offerings_router)
 router.include_router(_occupation_dictionary_router)
 router.include_router(_raw_jobs_router)
 router.include_router(_industrial_park_enterprise_router)
+router.include_router(_ecommerce_demo_bases_router)
 
 
 __all__ = ["router", "auth_router"]

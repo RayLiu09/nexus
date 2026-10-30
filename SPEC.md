@@ -341,6 +341,12 @@ Asset Center IA-1:
   `ecommerce_parks` projection. Its source snapshot is initialized by a
   deterministic idempotent command; no Console/API create, edit, or delete
   operation is exposed.
+  `/asset-center/market/ecommerce-demo-bases` is labeled `电商示范基地`
+  with `国家` and `省份` tabs. The national tab provides batch selection,
+  a province count column chart and a province map linked to its list.
+  The provincial tab provides a paginated list. Both read database-backed
+  name/province/year filters, restore URL state and preserve submitted
+  filters during pagination. Failed reads show retry/trace information.
   Job-demand domain records and APIs remain available, while their technical
   Asset Detail no longer exposes the `结构化图谱` tab; the business view itself
   is a later Asset Center task.

@@ -1,7 +1,7 @@
 # 电子商务示范基地实施方案设计
 
-> 日期：2026-10-30。状态：数据库迁移、完整源文件和幂等初始化已实现；接口和 Console 页面仍待实施。
-> 本期目标：资产中心 → 市场数据 → 电子商务示范基地，包含国家、省级两个只读视图。
+> 日期：2026-10-30。状态：数据库迁移、完整源文件、幂等初始化、只读接口和 Console 双视图均已实现。
+> 本期目标：资产中心 → 市场数据 → 电商示范基地，包含“国家”“省份”两个只读视图。
 > 用户约束：数据持久化到数据库；后续检索查询数据库；不提供编辑、删除等操作。
 
 ## 1. 实施结论与边界
@@ -70,7 +70,7 @@ NEXUS 保留以上信息结构，使用现有页面样式、ECharts 和表格组
 
 ### 3.1 入口和路由
 
-在现有“市场数据”资源注册表中增加一项“电子商务示范基地”，建议放在产业园区之后。
+在现有“市场数据”资源注册表中增加一项“电商示范基地”，建议放在产业园区之后。
 不创建新的一级导航或市场数据汇总页。
 
 ```text
@@ -78,8 +78,8 @@ NEXUS 保留以上信息结构，使用现有页面样式、ECharts 和表格组
   市场数据
     市场岗位
     产业园区
-    电子商务示范基地
-      [国家电子商务示范基地] [省级电子商务示范基地]
+    电商示范基地
+      [国家] [省份]
     企业数据
 ```
 
@@ -100,7 +100,7 @@ NEXUS 保留以上信息结构，使用现有页面样式、ECharts 和表格组
 
 ```text
 电子商务示范基地
-国家电子商务示范基地 | 省级电子商务示范基地
+国家 | 省份
 
 整体情况 | 首批 | 第二批 | 增补
 当前条件匹配数量、批次数量（按已入库数据计算）
@@ -143,9 +143,8 @@ GeoJSON 在前端实现切片中选定、检查行政区代码与边界完整性
 | 来源发布时间 | `PUBLISH_TIME`，与认定年月分列 |
 | 操作 | 查看原文，按来源链接标志控制 |
 
-支持基地名称和认定年份检索，默认每页 20 条，可选 20/50/100。
-初次导入后显示“当前已收录 142 条；已补齐当前官网提供的 6 个省级地区入口”。
-来源说明可展开查看各省分页声明（江苏 79/4 页、山东 33/2 页等），不把来源声明值重复累计到列表总数。
+支持基地名称、省份和认定年份检索，默认每页 20 条，可选 20/50/100。
+页面以数据库计算并显示“已收录 142 条 · 覆盖 6 个省级地区”，不展示无法由领域表证明的分页声明。
 省份筛选只使用补齐脚本记录的请求省份元数据；不提供城市、批次筛选，也不通过 LLM 补齐这些字段。
 
 ### 3.4 只读与异常状态
@@ -162,7 +161,7 @@ GeoJSON 在前端实现切片中选定、检查行政区代码与边界完整性
 ### 4.1 业务事实表 `ecommerce_parks`
 
 采用新表与 Alembic 结构迁移，不改造已有园区、企业、技术资产或治理结果表。
-国家与省级同表，以下为待冻结字段契约：
+国家与省级同表，以下为已落地字段契约：
 
 | 字段 | 类型/约束 | 映射及含义 |
 | --- | --- | --- |
@@ -170,20 +169,22 @@ GeoJSON 在前端实现切片中选定、检查行政区代码与边界完整性
 | `level` | VARCHAR(16)，非空，CHECK | `national` / `provincial`，由导入文件类型确定 |
 | `source_path` | TEXT，非空 | 规范化后的 `PATH`；只允许固定原站的 `/news/...html` 相对路径 |
 | `title` | TEXT，非空 | `TITLE`，去首尾空白，保留原有名称 |
-| `province_code` | VARCHAR(6)，可空 | 国家数据 `PROVINCE_CDE`；省级样例为空 |
-| `province_name` | VARCHAR(128)，可空 | 国家数据外层 `provinceName`，与条目地区字段交叉校验 |
+| `province_code` | VARCHAR(16)，可空 | 国家数据 `PROVINCE_CDE`；省级使用已验证请求元数据 |
+| `province_name` | VARCHAR(128)，可空 | 国家数据外层 `provinceName`；省级使用已验证请求元数据 |
 | `batch_code` | VARCHAR(16)，可空，CHECK | `VERSION` 映射到 `first/second/supplement`；省级为空 |
 | `recognized_period` | VARCHAR(32)，非空 | 清理空白后的 `YEAR`，不补造具体日期 |
 | `recognized_year` | SMALLINT，可空 | 从有效 `YYYY年M月` 确定性解析，用于年份筛选 |
-| `recognized_month` | SMALLINT，可空，CHECK 1–12 | 与年份成对为空或有效；不存伪造的每月 1 日 |
+| `recognized_month` | SMALLINT，可空，CHECK 1–12 | 仅来源存在月份时解析；只含年份时允许为空 |
 | `source_publish_at` | TIMESTAMPTZ，可空 | 省级 `PUBLISH_TIME` 按 Asia/Shanghai 解析，再按统一时区存储 |
 | `source_link_enabled` | BOOLEAN，非空 | 严格解析 `LABEL`，不代表级别、记录有效性或链接可用性验证结果 |
 | `source_order` | INTEGER，非空 | 国家 `XH`、省级 `NO`；只作来源顺序 |
 | `source_locator` | TEXT，非空 | 原始 JSON Pointer，如 `/0/datalist/0`、`/datalist/0` |
+| `source_payload` | JSON，非空 | 保留单条来源记录，用于追踪，不通过只读展示 API 返回 |
 | `created_at` | TIMESTAMPTZ，非空 | 本地入库时间 |
+| `updated_at` | TIMESTAMPTZ，非空 | 本地记录更新时间 |
 
 唯一约束：`UNIQUE(level, source_path)`。名称不是唯一键；跨级同名不自动合并。
-CHECK 约束限制枚举，并要求国家记录包含有效地区与批次，省级允许相应字段为空。
+CHECK 约束限制级别、批次枚举与有效月份；初始化命令校验国家地区与批次、省级采集省份元数据。
 来源 URL 在返回时按 `https://dzswgf.mofcom.gov.cn` + `source_path` 派生，不另存重复列。
 不新增 `current_version_id`、业务编辑状态或治理状态字段。
 
@@ -201,34 +202,30 @@ CHECK 约束限制枚举，并要求国家记录包含有效地区与批次，�
 
 ## 5. 初始化与幂等规则
 
-新增 `nexus-app/scripts/import_ecommerce_demo_bases.py`，独立领域模块负责校验与写入。
+新增 `scripts/import_ecommerce_demo_bases.py`，独立领域命令负责校验与写入。
 命令支持明确的 `--national-file`、`--provincial-file` 和 `--apply`；默认 dry-run。
 发布流程显式执行初始化，应用启动和页面请求不执行隐式写库。
 
 ```text
 读取文件 → 校验整体结构、来源元数据与逐条字段 → 展平/确定性映射
   → dry-run：输出计划计数、覆盖说明、字段错误和冲突，不写数据库/对象存储
-  → apply：原始文件留存 → 开启领域写入事务
+  → apply：开启领域写入事务
       → 按 level + source_path 幂等插入/跳过
-      → 写入导入凭证和审计 → 一起提交
+      → 写入审计摘要 → 一起提交
 ```
 
-- 每个文件一笔领域事务；必需字段错误、地区冲突、重复键内容不一致时整个文件不导入。
-  两份文件分别报告结果，一个失败不得伪装成两级都已初始化成功。
+- 两份文件在同一领域事务中导入；必需字段错误、地区冲突或重复键内容不一致时回滚整个事务。
 - 国家地区使用 `provinceName` 和 `PROVINCE_CDE` 的经校验映射；`COUNTY` 仅交叉验证。
-  省级保持地区为空，不推断。
+  省级使用采集时已验证的请求省份元数据，不从名称推断。
 - `YEAR`、`PUBLISH_TIME` 的含义分别为认定年月、来源发布时间，不能互相覆盖。
 - `source_path` 先解析再校验，拒绝协议相对地址、站外地址、路径穿越和非预期页面路径。
   不提供任意 URL 拉取能力；文本按文本渲染，不作为 HTML 注入。
-- 事务内使用数据库唯一约束和冲突安全插入。相同键且业务字段相同跳过；相同键内容不同
-  报冲突，回滚该文件事务，不采用 upsert 更新。并发初始化同样遵循此规则。
+- 事务内使用数据库唯一约束。相同键且业务字段相同跳过；相同键内容不同报冲突，
+  回滚事务，不采用 upsert 更新。并发撞上唯一键时事务失败，可重新执行，不产生重复事实。
 - 无任何删除、缺失标记、清空重建或全量覆盖行为；后续接口页面变化不被自动解释为删除。
-- 一次文件导入成功后，事实、凭证和成功审计可见；失败不留下部分业务记录。
-  对象留存与数据库不能跨系统原子提交，使用内容摘要复用已上传文件，重试不重复上传；
-  留存成功而业务导入失败的原始证据可保留，不计入页面统计。
-- 新增审计事件建议为 `ECOMMERCE_DEMO_BASE_IMPORT_COMPLETED`，失败事件为
-  `ECOMMERCE_DEMO_BASE_IMPORT_FAILED`；按现有枚举持久化方式评审后接入。
-  审计只记操作者、文件摘要、计数、凭证 ID、安全错误码和 trace ID，不记录整份 JSON。
+- 导入成功后事实和 `EcommerceDemoBasesImported` 成功审计一起可见；失败不留下部分事实。
+  来源完整条目保存在事实表 `source_payload`，源快照由版本管理保存，不新增导入凭证或对象存储写入。
+  审计记录操作者、计数和 trace ID，文件摘要用于稳定审计标识，不记录整份 JSON。
 
 初始化工具是部署数据装载能力，不是用户编辑入口。业务 API、页面、Server Action
 不暴露任何事实新增/修改/删除能力；后续来源修订不在本期范围内。
@@ -248,7 +245,7 @@ CHECK 约束限制枚举，并要求国家记录包含有效地区与批次，�
 列表参数为 `level`（必填）、`q`（名称字面包含，最长 256 字符）、`batch`、
 `province_code`、`recognized_year`、`page`、`pageSize`。
 复用现有分页约束：默认 20，`pageSize` 最大 200；页面默认选项 20/50/100。
-省级请求携带批次、地区条件时返回明确的 422，不静默忽略。
+省级支持省份条件；省级请求携带国家批次条件时返回明确的 422，不静默忽略。
 默认排序为国家地区代码、来源序号、ID；省级为来源序号、ID，确保分页顺序稳定。
 
 列表遵循现有 `ListResponse`：`data` 为类型化记录数组，
@@ -273,9 +270,10 @@ coverage: {
 
 `matched_total/batch_counts/province_counts` 共用列表查询条件并对全量匹配记录聚合，
 不接收分页参数。`filter_options` 来自该 level 的已入库记录，独立于当前名称等筛选，
-避免选中条件后其他可选项消失。`coverage` 是该级别导入来源的说明，不随检索条件改变；
-其中 `imported_total` 来自该级别事实表 COUNT，不累计各次凭证的条数。
-省级的批次、地区统计数组为空，不能生成无依据分组。
+避免选中条件后其他可选项消失。`coverage` 是该级别数据库快照的说明，不随检索条件改变；
+其中 `imported_total` 和 `source_row_count` 来自事实表 COUNT，`imported_at` 是最早事实入库时间，
+不冒充来源更新时间。来源分页声明字段为空，因为领域表不保留分页凭证。
+省级的 `batch_counts/province_counts` 为空；`filter_options.provinces` 来自真实省份元数据。
 
 两个新接口只有 GET，无 POST/PATCH/PUT/DELETE，无导入接口或前端写入代理。
 未认证请求返回既有 401；无权限遵循既有 403；参数错误为 422；服务异常沿用
@@ -293,7 +291,7 @@ coverage: {
 
 | 切片 | 建议范围 | 交付与验收 |
 | --- | --- | --- |
-| A：模型与初始化，约 1 天 | `nexus-app` 新领域模块、两张模型、结构迁移、初始化命令、相关测试 | 170+20 入库，重复不增、冲突不覆盖、失败回滚、原始留存及审计；Data Model、Permission And Audit Gate |
+| A：模型与初始化，约 1 天 | `nexus-app` 领域模型、结构迁移、初始化命令、相关测试 | 国家 170 条、省级 142 条入库，重复不增、冲突不覆盖、失败回滚及审计；Data Model、Permission And Audit Gate |
 | B：只读接口，约 0.5–1 天 | `nexus-api` 类型化 Schema、新内部 router、路由注册、首页 counts、API 测试 | 数据库筛选/分页/聚合一致；拒绝写操作；API Contract Gate |
 | C：双视图，约 1–1.5 天 | Console 资源注册、现有资源路由分支、国家图表/地图、只读列表、静态地图和测试 | 国家参考展示、省级列表、URL 状态、只读/加载/错误态；Frontend UX、Acceptance Gate |
 
@@ -302,9 +300,8 @@ coverage: {
 
 建议主要文件：
 
-- `nexus-app/nexus_app/models.py` 与后续 Alembic revision，迁移编号以实施时链头为准。
-- `nexus-app/nexus_app/reference_data/ecommerce_demo_bases.py`。
-- `nexus-app/scripts/import_ecommerce_demo_bases.py`。
+- `nexus-app/nexus_app/models.py` 与已执行的 Alembic revision，迁移编号以实施时链头为准。
+- `scripts/import_ecommerce_demo_bases.py` 及 `docs/samples/` 快照。
 - `nexus-api/nexus_api/api/internal/ecommerce_demo_bases.py` 与 `internal/__init__.py`。
 - `nexus-api/nexus_api/api/internal/asset_center.py`，扩展现有固定聚合查询，不加首页 N+1 请求。
 - `nexus-console/lib/asset-center/catalog.ts`、`lib/api.ts`。
@@ -312,8 +309,9 @@ coverage: {
 - 新组件 `EcommerceDemoBasesView`、`NationalDemoBaseDistribution`、`DemoBasesTable` 及对应测试。
 
 实现前按 `nexus-console/AGENTS.md` 阅读实际安装 Next.js 的对应指南。
-实施阶段同步更新 `ARCHITECT.md`、`SPEC.md`、`readme.md` 和 Prototype v2.2。
-当前只新增方案与任务包，不把提案写成已上线能力。
+实施阶段已同步更新 `ARCHITECT.md`、`SPEC.md`、`readme.md` 和 Prototype v2.2。
+应用层与 Console 切片见 `docs/task-packages/wk_ecommerce_demo_bases_console_task_package.md`；
+实现验证和 Review Gate 状态见对应 review evidence，不将自动测试描述为人工批准或生产部署。
 
 仓库另有 `docs/ecommerce_big_data_implementation_plan.md` 初稿，涉及在线 Provider、
 交易指标和三个视图。本次用户要求更小：两个本地 JSON、示范基地、数据库只读查询。
@@ -336,8 +334,8 @@ coverage: {
    列表、聚合及分页前总数一致；特殊字符按字面匹配，分页顺序稳定。
 7. **页面**：两个视图可切换并刷新恢复；筛选变更回第一页；地图/柱状图联动；
    没有增删改控件；图形失效仍可使用列表；失败不显示伪造零值。
-8. **来源与审计**：事实可以由凭证、raw object 和 JSON Pointer 追溯到原始条目；
-   链接固定原站且服从 LABEL；成功/失败初始化有可追踪的操作者与安全摘要。
+8. **来源与审计**：事实可以由来源路径、`source_payload` 和 JSON Pointer 追溯到原始条目；
+   链接固定原站且服从 LABEL；成功初始化保留操作者、计数和 trace ID。
 
 实施验证建议：领域 importer/migration 测试；API 列表、聚合、认证和拒绝写方法的合同测试；
 Vitest 资源注册与交互测试；Console typecheck、改动文件 lint、生产 build；

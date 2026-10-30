@@ -13,6 +13,8 @@ import {
   type IndustryPolicy,
   type RawJob,
   type IndustrialPark,
+  type EcommerceDemoBase,
+  type EcommerceDemoBaseAggregate,
   type Enterprise,
   type TalentTrainingPlanSummary,
   type TalentDemandReport,
@@ -63,6 +65,7 @@ import { TeachingCasesTable } from "../../_components/TeachingCasesTable";
 import { JobDemandTable, type JobDemandFilters } from "../../_components/JobDemandTable";
 import { IndustrialParksTable } from "../../_components/IndustrialParksTable";
 import { EnterprisesTable } from "../../_components/EnterprisesTable";
+import { EcommerceDemoBasesView } from "../../_components/EcommerceDemoBasesView";
 
 import {
   OccupationDictionaryTable,
@@ -311,6 +314,76 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
           ok={result.ok}
           error={result.error}
           traceId={result.traceId}
+        />
+      </div>
+    );
+  }
+
+  if (domain.slug === "market" && resource.path === "ecommerce-demo-bases") {
+    const levelValue = first(query.level);
+    const level = levelValue === "provincial" ? "provincial" : "national";
+    const yearValue = first(query.recognized_year);
+    const parsedYear = yearValue ? Number.parseInt(yearValue, 10) : undefined;
+    const filters = {
+      q: first(query.q),
+      batch: level === "national" ? first(query.batch) : undefined,
+      province_code: first(query.province_code),
+      recognized_year:
+        yearValue && /^\d{4}$/.test(yearValue) && Number.isFinite(parsedYear)
+          ? parsedYear
+          : undefined,
+    };
+    const requestParams = {
+      level,
+      page: String(page),
+      pageSize: String(pageSize),
+      ...(filters.q ? { q: filters.q } : {}),
+      ...(filters.batch ? { batch: filters.batch } : {}),
+      ...(filters.province_code ? { province_code: filters.province_code } : {}),
+      ...(filters.recognized_year ? { recognized_year: String(filters.recognized_year) } : {}),
+    };
+    const aggregateParams = Object.fromEntries(
+      Object.entries(requestParams).filter(([key]) => key !== "page" && key !== "pageSize"),
+    );
+    const [result, aggregateResult] = await Promise.all([
+      getApiData<EcommerceDemoBase[]>("/internal/v1/ecommerce-demo-bases", [], requestParams),
+      getApiData<EcommerceDemoBaseAggregate>(
+        "/internal/v1/ecommerce-demo-bases/aggregate",
+        {
+          matched_total: 0,
+          batch_counts: [],
+          province_counts: [],
+          filter_options: { batches: [], provinces: [], recognized_years: [] },
+          coverage: { imported_total: 0, source_files: [] },
+        },
+        aggregateParams,
+      ),
+    ]);
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          eyebrow={domain.name}
+          title={resource.name}
+          description={resource.description}
+        />
+        <EcommerceDemoBasesView
+          key={JSON.stringify(requestParams)}
+          rows={result.data}
+          total={result.ok ? result.total ?? result.data.length : null}
+          page={page}
+          pageSize={pageSize}
+          level={level}
+          filters={filters}
+          aggregate={aggregateResult.ok ? aggregateResult.data : null}
+          ok={result.ok && aggregateResult.ok}
+          error={result.error ?? (aggregateResult.ok ? null : aggregateResult.error)}
+          traceId={
+            !result.ok
+              ? result.traceId
+              : !aggregateResult.ok
+                ? aggregateResult.traceId
+                : result.traceId
+          }
         />
       </div>
     );

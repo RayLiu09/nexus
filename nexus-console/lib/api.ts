@@ -83,6 +83,58 @@ export type IndustrialPark = {
   source_url: string | null;
 };
 
+export type EcommerceDemoBase = {
+  id: string;
+  level: "national" | "provincial";
+  title: string;
+  province_code: string | null;
+  province_name: string | null;
+  batch_code: "first" | "second" | "supplement" | null;
+  batch_name: string | null;
+  recognized_period: string;
+  recognized_year: number | null;
+  recognized_month: number | null;
+  source_publish_at: string | null;
+  source_order: number;
+  source_link_enabled: boolean;
+  source_url: string | null;
+};
+
+export type EcommerceDemoBaseCount = {
+  code: string;
+  name: string;
+  count: number;
+};
+
+export type EcommerceDemoBaseProvinceCount = {
+  province_code: string;
+  province_name: string;
+  count: number;
+};
+
+export type EcommerceDemoBaseAggregate = {
+  matched_total: number;
+  batch_counts: EcommerceDemoBaseCount[];
+  province_counts: EcommerceDemoBaseProvinceCount[];
+  filter_options: {
+    batches: EcommerceDemoBaseCount[];
+    provinces: EcommerceDemoBaseProvinceCount[];
+    recognized_years: number[];
+  };
+  coverage: {
+    imported_total: number;
+    source_files: Array<{
+      filename: string;
+      coverage_kind: string;
+      source_row_count: number;
+      source_declared_total: number | null;
+      source_declared_pages: number | null;
+      source_current_page: number | null;
+      imported_at: string | null;
+    }>;
+  };
+};
+
 export type Enterprise = {
   id: string;
   enterprise_name: string;

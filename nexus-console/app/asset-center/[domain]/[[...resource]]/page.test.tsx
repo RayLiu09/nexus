@@ -14,7 +14,13 @@ vi.mock("../../_components/TalentDemandReportsTable", () => ({
 }));
 vi.mock("../../_components/TeachingCasesTable", () => ({ TeachingCasesTable: () => null }));
 const { distributionTable } = vi.hoisted(() => ({ distributionTable: vi.fn(() => null) }));
-vi.mock("../../_components/MajorDistributionTable", () => ({ MajorDistributionTable: distributionTable }));
+vi.mock("../../_components/MajorDistributionTable", () => ({
+  MajorDistributionTable: distributionTable,
+}));
+const { ecommerceView } = vi.hoisted(() => ({ ecommerceView: vi.fn(() => null) }));
+vi.mock("../../_components/EcommerceDemoBasesView", () => ({
+  EcommerceDemoBasesView: ecommerceView,
+}));
 
 const filters = { region: "重庆市", industry: "电子商务", content_tag: "融合" };
 const identity = { major_name: "电子商务", major_code: "530701", institution_name: "重庆职业学院" };
@@ -22,6 +28,7 @@ const identity = { major_name: "电子商务", major_code: "530701", institution
 beforeEach(() => {
   vi.mocked(getServerSession).mockResolvedValue(null);
   distributionTable.mockClear();
+  ecommerceView.mockClear();
   vi.mocked(getApiData).mockReset();
   vi.mocked(getApiData).mockResolvedValue({
     ok: true,
@@ -119,4 +126,73 @@ it("loads the occupation dictionary through its paginated reference API", async 
     page: "2",
     pageSize: "50",
   });
+});
+
+it.each(["national", "provincial"])(
+  "loads %s ecommerce lists and aggregates with the same database scope",
+  async (level) => {
+    render(
+      await AssetCenterRoute({
+        params: Promise.resolve({ domain: "market", resource: ["ecommerce-demo-bases"] }),
+        searchParams: Promise.resolve({
+          level,
+          q: "商务",
+          province_code: "320000",
+          batch: "first",
+          recognized_year: "2020",
+          page: "2",
+        }),
+      }),
+    );
+    const scope = {
+      level,
+      q: "商务",
+      province_code: "320000",
+      ...(level === "national" ? { batch: "first" } : {}),
+      recognized_year: "2020",
+    };
+    expect(getApiData).toHaveBeenNthCalledWith(1, "/internal/v1/ecommerce-demo-bases", [], {
+      ...scope,
+      page: "2",
+      pageSize: "20",
+    });
+    expect(getApiData).toHaveBeenNthCalledWith(
+      2,
+      "/internal/v1/ecommerce-demo-bases/aggregate",
+      expect.any(Object),
+      scope,
+    );
+  },
+);
+
+it("shows aggregate failures instead of a successful empty visualization", async () => {
+  vi.mocked(getApiData).mockResolvedValueOnce({
+    data: [],
+    total: 0,
+    ok: true,
+    error: null,
+    traceId: "list",
+  });
+  vi.mocked(getApiData).mockResolvedValueOnce({
+    data: null,
+    total: null,
+    ok: false,
+    error: "统计读取失败",
+    traceId: "aggregate",
+  });
+  render(
+    await AssetCenterRoute({
+      params: Promise.resolve({ domain: "market", resource: ["ecommerce-demo-bases"] }),
+      searchParams: Promise.resolve({}),
+    }),
+  );
+  expect(ecommerceView).toHaveBeenCalledWith(
+    expect.objectContaining({
+      ok: false,
+      aggregate: null,
+      error: "统计读取失败",
+      traceId: "aggregate",
+    }),
+    undefined,
+  );
 });
