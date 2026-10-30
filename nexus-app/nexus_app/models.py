@@ -3397,60 +3397,27 @@ class DimTagAlias(TimestampMixin, Base):
         comment="Curator-facing free text (source, ambiguity notes, etc.)")
 
 
-class EcommerceDemoBaseImport(TimestampMixin, Base):
-    """Immutable receipt for a deterministic demonstration-base import."""
-
-    __tablename__ = "ecommerce_demo_base_import"
-    __table_args__ = (
-        UniqueConstraint(
-            "level", "file_sha256", "parser_version",
-            name="uq_ecommerce_demo_base_import_digest",
-        ),
-        Index("ix_ecommerce_demo_base_import_level", "level"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
-    level: Mapped[str] = mapped_column(String(16), nullable=False)
-    source_filename: Mapped[str] = mapped_column(Text, nullable=False)
-    file_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
-    parser_version: Mapped[str] = mapped_column(String(64), nullable=False)
-    source_row_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    inserted_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    skipped_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    source_declared_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    source_declared_pages: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    source_current_page: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    source_page_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    coverage_kind: Mapped[str] = mapped_column(String(32), nullable=False)
-    actor_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    trace_id: Mapped[str] = mapped_column(String(128), nullable=False)
-
-
-class EcommerceDemoBase(TimestampMixin, Base):
+class EcommercePark(TimestampMixin, Base):
     """Read-only national/provincial ecommerce demonstration-base fact."""
 
-    __tablename__ = "ecommerce_demo_base"
+    __tablename__ = "ecommerce_parks"
     __table_args__ = (
-        CheckConstraint("level IN ('national', 'provincial')", name="ck_ecommerce_demo_base_level"),
+        CheckConstraint("level IN ('national', 'provincial')", name="ck_ecommerce_parks_level"),
         CheckConstraint(
             "batch_code IS NULL OR batch_code IN ('first', 'second', 'supplement')",
-            name="ck_ecommerce_demo_base_batch",
+            name="ck_ecommerce_parks_batch",
         ),
         CheckConstraint(
             "recognized_month IS NULL OR recognized_month BETWEEN 1 AND 12",
-            name="ck_ecommerce_demo_base_month",
+            name="ck_ecommerce_parks_month",
         ),
-        UniqueConstraint("level", "source_path", name="uq_ecommerce_demo_base_source_path"),
-        Index("ix_ecommerce_demo_base_level_province", "level", "province_code"),
-        Index("ix_ecommerce_demo_base_level_batch", "level", "batch_code"),
-        Index("ix_ecommerce_demo_base_level_year", "level", "recognized_year"),
-        Index("ix_ecommerce_demo_base_import_id", "import_id"),
+        UniqueConstraint("level", "source_path", name="uq_ecommerce_parks_source_path"),
+        Index("ix_ecommerce_parks_level_province", "level", "province_code"),
+        Index("ix_ecommerce_parks_level_batch", "level", "batch_code"),
+        Index("ix_ecommerce_parks_level_year", "level", "recognized_year"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
-    import_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("ecommerce_demo_base_import.id"), nullable=False
-    )
     level: Mapped[str] = mapped_column(String(16), nullable=False)
     source_path: Mapped[str] = mapped_column(Text, nullable=False)
     title: Mapped[str] = mapped_column(Text, nullable=False)

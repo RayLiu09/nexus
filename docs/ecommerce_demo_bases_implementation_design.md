@@ -10,7 +10,7 @@
 JSON 是初始化数据源，页面运行时不读取样例文件，也不请求商务部接口。
 名称检索、条件筛选、分页、总数、批次统计和地区分布全部由数据库查询完成。
 
-国家和省级记录共用 `ecommerce_demo_base`，以 `level` 区分；不混入现有
+国家和省级记录共用 `ecommerce_parks`，以 `level` 区分；不混入现有
 `industrial_park`。数据库存储来源事实，不因为在资产中心展示而自动获得
 `available`、已治理、已索引等技术资产状态。
 
@@ -159,7 +159,7 @@ GeoJSON 在前端实现切片中选定、检查行政区代码与边界完整性
 
 ## 4. 数据持久化设计
 
-### 4.1 业务事实表 `ecommerce_demo_base`
+### 4.1 业务事实表 `ecommerce_parks`
 
 采用新表与 Alembic 结构迁移，不改造已有园区、企业、技术资产或治理结果表。
 国家与省级同表，以下为待冻结字段契约：
@@ -179,7 +179,6 @@ GeoJSON 在前端实现切片中选定、检查行政区代码与边界完整性
 | `source_publish_at` | TIMESTAMPTZ，可空 | 省级 `PUBLISH_TIME` 按 Asia/Shanghai 解析，再按统一时区存储 |
 | `source_link_enabled` | BOOLEAN，非空 | 严格解析 `LABEL`，不代表级别、记录有效性或链接可用性验证结果 |
 | `source_order` | INTEGER，非空 | 国家 `XH`、省级 `NO`；只作来源顺序 |
-| `import_id` | VARCHAR(36)，非空 FK | 指向首次写入该事实的导入凭证 |
 | `source_locator` | TEXT，非空 | 原始 JSON Pointer，如 `/0/datalist/0`、`/datalist/0` |
 | `created_at` | TIMESTAMPTZ，非空 | 本地入库时间 |
 
@@ -189,34 +188,16 @@ CHECK 约束限制枚举，并要求国家记录包含有效地区与批次，�
 不新增 `current_version_id`、业务编辑状态或治理状态字段。
 
 初始索引建议：`(level, province_code)`、`(level, batch_code)`、
-`(level, recognized_year)`、`import_id`。名称以参数化 `ILIKE` 做字面包含匹配，
+`(level, recognized_year)`。名称以参数化 `ILIKE` 做字面包含匹配，
 对用户输入的 `%`、`_` 做转义。当前 312 条不需要 Elasticsearch 或向量库；
 名称查询的普通 B-tree 不能加速任意包含匹配，不以此声称性能收益。
 数据规模增长后根据真实执行计划再评估 `pg_trgm`。
 
-### 4.2 导入凭证 `ecommerce_demo_base_import`
+### 4.2 来源追踪
 
-为避免将导入报告总数或文件路径硬编码到页面，新增一个轻量、只追加的导入凭证表：
-
-| 字段 | 含义 |
-| --- | --- |
-| `id`、`level` | 凭证主键、来源数据级别 |
-| `raw_object_id` | 指向已有 `raw_object` 的原始文件留存记录 |
-| `source_filename`、`file_sha256` | 文件名和原始字节摘要，不存机器绝对路径 |
-| `parser_version` | 本次确定性映射版本，如 `ecommerce-demo-base.v1` |
-| `source_row_count`、`inserted_count`、`skipped_count` | 实际文件条数、插入和重复跳过计数 |
-| `source_declared_total`、`source_declared_pages`、`source_current_page`、`source_page_size` | 可空；省级来自根对象，不作为业务事实条数 |
-| `coverage_kind` | `provided_snapshot` / `partial_page`；描述文件覆盖形式，不是资产状态 |
-| `actor_id`、`trace_id`、`created_at` | 初始化操作者和执行追踪 |
-
-凭证唯一键为 `(level, file_sha256, parser_version)`，只在事实导入成功的事务内写入。
-省级初始凭证为 `partial_page`；国家为 `provided_snapshot`，只表示提供的快照，
-不保证当下全网名录完整。同文件重复执行返回已有凭证，不创建第二份有效导入。
-
-原始文件复用现有 `data_source/ingest_batch/raw_object` 留存关系及对象存储，
-初始化服务显式执行“仅留存并校验 → 直接业务入库”，不调用会自动派发 Asset Pipeline
-的通用 JSON 提交路径。结构迁移本身不访问对象存储或读取工作目录中的样例。
-这条只读业务域初始化边界需与数据模型一起评审，并补充相应架构说明。
+事实表直接保留 `source_payload`、`source_locator` 和来源路径，足以从数据库记录追溯到
+完整 JSON 条目。初始化文件摘要只用于当前命令的日志和审计摘要，不建立额外的导入记录表。
+成功导入按级别写入审计事件，审计目标指向已持久化的 `ecommerce_parks` 记录。
 
 ## 5. 初始化与幂等规则
 

@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -27,8 +26,6 @@ from nexus_app import models  # noqa: E402
 from nexus_app.database import get_session_local  # noqa: E402
 from nexus_app.enums import AuditEventType  # noqa: E402
 
-PARSER_VERSION = "ecommerce-demo-base.v1"
-SOURCE_HOST = "https://dzswgf.mofcom.gov.cn"
 PATH_RE = re.compile(r"^/news/[0-9]+/[0-9]{4}/[0-9]{1,2}/[0-9]+\.html$")
 PERIOD_RE = re.compile(r"^(?P<year>[12][0-9]{3})年(?P<month>0?[1-9]|1[0-2])月$")
 BATCH_CODES = {"首批": "first", "第二批": "second", "增补": "supplement"}
@@ -172,29 +169,12 @@ def _import_file(session, *, path: Path, level: str, actor_id: str, apply: bool)
     payload = json.loads(path.read_text(encoding="utf-8"))
     if level == "national":
         rows = _national_rows(payload)
-        source_meta = {
-            "source_declared_total": len(rows), "source_declared_pages": 1,
-            "source_current_page": 1, "source_page_size": len(rows),
-        }
-        coverage_kind = "provided_snapshot"
     else:
-        rows, source_meta = _provincial_rows(payload)
-        coverage_kind = "provided_snapshot"
+        rows, _ = _provincial_rows(payload)
     _validate_unique(rows)
-    digest = _sha256(path)
-    import_id = str(uuid5(NAMESPACE_URL, f"nexus:ecommerce-demo-base-import:{level}:{digest}:{PARSER_VERSION}"))
-    existing_import = session.scalar(select(models.EcommerceDemoBaseImport).where(
-        models.EcommerceDemoBaseImport.level == level,
-        models.EcommerceDemoBaseImport.file_sha256 == digest,
-        models.EcommerceDemoBaseImport.parser_version == PARSER_VERSION,
-    ))
-    if existing_import:
-        result = {"level": level, "rows": len(rows), "inserted": 0, "skipped": len(rows), "already_imported": True}
-        print(json.dumps(result, ensure_ascii=False))
-        return result
     existing = {
-        row.source_path: row for row in session.scalars(select(models.EcommerceDemoBase).where(
-            models.EcommerceDemoBase.level == level
+        row.source_path: row for row in session.scalars(select(models.EcommercePark).where(
+            models.EcommercePark.level == level
         ))
     }
     conflicts: list[str] = []
@@ -208,33 +188,33 @@ def _import_file(session, *, path: Path, level: str, actor_id: str, apply: bool)
         inserted += 1
     if conflicts:
         raise ValueError(f"existing source records differ: {', '.join(conflicts[:5])}")
-    result = {"level": level, "rows": len(rows), "inserted": inserted, "skipped": len(rows) - inserted, "already_imported": False}
+    result = {
+        "level": level,
+        "rows": len(rows),
+        "inserted": inserted,
+        "skipped": len(rows) - inserted,
+        "already_imported": inserted == 0,
+    }
     print(json.dumps(result, ensure_ascii=False))
     if not apply:
         return result
-    now = datetime.now(timezone.utc)
-    receipt = models.EcommerceDemoBaseImport(
-        id=import_id, level=level, source_filename=path.name, file_sha256=digest,
-        parser_version=PARSER_VERSION, source_row_count=len(rows), inserted_count=inserted,
-        skipped_count=len(rows) - inserted, coverage_kind=coverage_kind,
-        actor_id=actor_id, trace_id=f"ecommerce-demo-base-import-{digest[:16]}", **source_meta,
-    )
-    session.add(receipt)
-    session.flush()
+    digest = _sha256(path)
+    inserted_ids: list[str] = []
     for row in rows:
         if row["source_path"] in existing:
             continue
-        session.add(models.EcommerceDemoBase(
-            id=str(uuid5(NAMESPACE_URL, f"nexus:ecommerce-demo-base:{level}:{row['source_path']}")),
-            import_id=receipt.id, **row,
-        ))
+        row_id = str(uuid5(NAMESPACE_URL, f"nexus:ecommerce-parks:{level}:{row['source_path']}"))
+        inserted_ids.append(row_id)
+        session.add(models.EcommercePark(id=row_id, **row))
     session.flush()
-    session.add(models.AuditLog(
-        id=str(uuid5(NAMESPACE_URL, f"nexus:ecommerce-demo-base-audit:{import_id}")),
-        event_type=AuditEventType.ECOMMERCE_DEMO_BASES_IMPORTED,
-        actor_type="system", actor_id=actor_id, target_type="ecommerce_demo_base",
-        target_id=receipt.id, trace_id=receipt.trace_id, summary=result,
-    ))
+    if inserted_ids:
+        session.add(models.AuditLog(
+            id=str(uuid5(NAMESPACE_URL, f"nexus:ecommerce-parks-audit:{level}:{digest}")),
+            event_type=AuditEventType.ECOMMERCE_DEMO_BASES_IMPORTED,
+            actor_type="system", actor_id=actor_id, target_type="ecommerce_parks",
+            target_id=inserted_ids[0], trace_id=f"ecommerce-parks-import-{digest[:16]}",
+            summary=result,
+        ))
     return result
 
 
@@ -242,7 +222,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--national-file", type=Path, default=ROOT / "docs/samples/国家电子商务示范基地.json")
     parser.add_argument("--provincial-file", type=Path, default=ROOT / "docs/samples/省级电子商务示范基地.json")
-    parser.add_argument("--actor-id", default="ecommerce-demo-base-import")
+    parser.add_argument("--actor-id", default="ecommerce-parks-import")
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
     for path in (args.national_file, args.provincial_file):

@@ -338,7 +338,7 @@ Asset Center IA-1:
 - **市场数据**: job-demand records, industrial parks, enterprises, ecommerce
   demonstration bases, and certificates. The demonstration-base entry has
   national and provincial read-only views backed by the PostgreSQL
-  `ecommerce_demo_base` projection. Its source snapshot is initialized by a
+  `ecommerce_parks` projection. Its source snapshot is initialized by a
   deterministic idempotent command; no Console/API create, edit, or delete
   operation is exposed.
   Job-demand domain records and APIs remain available, while their technical
