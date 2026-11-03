@@ -75,6 +75,9 @@ Major profiles instead use professional name/code and institution name;
 talent-demand reports add content tags to those three fields. Professional
 teaching standards, standard courses, training plans, and course textbooks retain
 their domain filters in the same top-right layout with a single `检索` button.
+Industrial-park and enterprise lists use this layout and button label as well.
+Professional teaching-standard graphs show full, wrapped leaf text directly
+in the canvas, fullscreen view, and exported image.
 
 ```text
 .

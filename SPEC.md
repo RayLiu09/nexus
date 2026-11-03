@@ -199,6 +199,8 @@ Asset Center IA-1:
   training plans, and course textbooks retain their existing filter fields in
   one responsive toolbar at the top right of the list; the submit button is
   labeled `检索`.
+- Industrial-park and enterprise lists use the same responsive upper-right
+  toolbar and `检索` label, retaining reset and Excel export controls.
 - **产业政策数据**: industry policy, education policy, industry report, and
   sector report. Industry/education policy pages reserve all, national,
   provincial, and regional dimensions. Policy level is not encoded as six
@@ -287,7 +289,9 @@ Asset Center IA-1:
   opens the standard-course list scoped by parent library. `职业领域图谱` opens
   the existing `teaching_standard` graph in place; it preserves the
   professional/occupational/task/requirement topology and never turns inferred
-  course tags into graph facts. Technical Asset Detail keeps the standard's
+  course tags into graph facts. Typical-work-task and teaching-requirement leaf
+  labels display their full text by default with wrapping, including fullscreen
+  and image export views. Technical Asset Detail keeps the standard's
   filtered knowledge chunks but no longer provides or loads a `目录` view.
 - **标准课程库业务视图**: the expandable outer table joins parent professional
   identity and exposes course identity/type plus directly editable suggested

@@ -50,7 +50,7 @@ export function EnterprisesTable({ rows, total, page, pageSize, q, ok, error, tr
     <>
       <ApiState ok={ok} error={error} traceId={traceId} />
       <section className="border-line bg-surface border-y">
-        <div className="border-line flex flex-wrap items-center gap-2 border-b px-4 py-3">
+        <div className="border-line flex flex-wrap items-center justify-end gap-2 border-b px-4 py-3">
           <Input
             placeholder="企业名称、经营范围或园区"
             value={value}
@@ -59,7 +59,7 @@ export function EnterprisesTable({ rows, total, page, pageSize, q, ok, error, tr
             className="w-72"
           />
           <Button type="primary" icon={<Search size={15} />} onClick={() => replace()}>
-            查询
+            检索
           </Button>
           <Button
             icon={<X size={15} />}

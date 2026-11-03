@@ -877,6 +877,9 @@ function buildGraphOption(
         type: "graph",
         layout: useFixedLayout ? "none" : "force",
         top: 38,
+        ...(buildType === "teaching_standard"
+          ? { left: 200, right: 200, top: 70, bottom: 60 }
+          : {}),
         roam: true,
         draggable: true,
         categories,
@@ -888,10 +891,13 @@ function buildGraphOption(
               gravity: 0.08,
             },
         label: {
-          show: buildType !== "teaching_standard",
+          show: true,
           position: "right",
           formatter: "{b}",
           fontSize: 11,
+          ...(buildType === "teaching_standard"
+            ? { width: 180, overflow: "breakAll" as const, lineHeight: 16 }
+            : {}),
         },
         edgeLabel: {
           show: showEdgeLabels,
@@ -915,7 +921,10 @@ function buildGraphOption(
           const categoryKey = graphCategoryKey(node);
           return {
             id: node.id,
-            name: truncateName(node.display_name),
+            name:
+              buildType === "teaching_standard"
+                ? node.display_name
+                : truncateName(node.display_name),
             category: categoryIndex.get(categoryKey) ?? 0,
             nodeType: node.node_type,
             categoryKey,
@@ -926,8 +935,13 @@ function buildGraphOption(
               borderWidth: 1,
             },
             ...(buildType === "teaching_standard" &&
-            (node.node_type === "Major" || node.node_type === "OccupationalDomain")
-              ? { label: { show: true } }
+            (node.node_type === "TypicalWorkTask" || node.node_type === "SkillKnowledgeRequirement")
+              ? {
+                  label: {
+                    position: (fixedPositions.get(node.id)?.x ?? 0) < 0 ? "left" : "right",
+                    align: (fixedPositions.get(node.id)?.x ?? 0) < 0 ? "right" : "left",
+                  },
+                }
               : {}),
             ...(fixedPositions.get(node.id) ?? {}),
           };

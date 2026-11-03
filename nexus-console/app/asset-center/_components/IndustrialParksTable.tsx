@@ -64,21 +64,23 @@ export function IndustrialParksTable({
     <>
       <ApiState ok={ok} error={error} traceId={traceId} />
       <section className="border-line bg-surface border-y">
-        <div className="border-line flex flex-wrap items-center gap-2 border-b px-4 py-3">
+        <div className="border-line flex flex-wrap items-center justify-end gap-2 border-b px-4 py-3">
           <Input
             placeholder="园区名称或介绍"
             value={filters.q}
             onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))}
+            onPressEnter={() => replace()}
             className="w-52"
           />
           <Input
             placeholder="行业标签"
             value={filters.industry}
             onChange={(event) => setFilters((old) => ({ ...old, industry: event.target.value }))}
+            onPressEnter={() => replace()}
             className="w-40"
           />
           <Button type="primary" icon={<Search size={15} />} onClick={() => replace()}>
-            查询
+            检索
           </Button>
           <Button
             icon={<X size={15} />}
