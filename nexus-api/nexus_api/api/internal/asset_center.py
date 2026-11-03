@@ -7,6 +7,7 @@ from sqlalchemy import case, func, literal, select, union_all
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
+from nexus_api.asset_center_cache import AssetCenterCountsCache
 from nexus_api.responses import response
 from nexus_api.api.internal.course_textbooks import (
     catalog_visible_course_textbook_ref_ids,
@@ -22,6 +23,7 @@ _RESOURCE_KEYS = (
     "policy/education-policies",
     "policy/industry-reports",
     "policy/sector-reports",
+    "policy/industry-regulation-standards",
     "major/profiles",
     "major/distributions",
     "major/teaching-standards",
@@ -49,6 +51,7 @@ _CLASSIFICATION_RESOURCE_KEYS = {
     "education_policy": "policy/education-policies",
     "industry_report": "policy/industry-reports",
     "sector_report": "policy/sector-reports",
+    "industry_regulation_standard": "policy/industry-regulation-standards",
     "major_profile": "major/profiles",
     "program_profile": "major/profiles",
     "talent_demand_report": "major/talent-demand-reports",
@@ -62,11 +65,34 @@ _CATALOG_VISIBLE_STATUSES = (
 )
 
 
+def _latest_rows(session: Session, columns, partition_by, order_by, *predicates):
+    """Select one stable latest row per group without repeated window joins.
+
+    PostgreSQL DISTINCT ON retains realistic group cardinality estimates. The
+    portable window fallback supports the isolated SQLite test/local backend.
+    """
+    statement = select(*columns).where(*predicates)
+    if session.get_bind().dialect.name == "postgresql":
+        return statement.distinct(partition_by).order_by(partition_by, *order_by).subquery()
+    ranked = statement.add_columns(
+        func.row_number().over(partition_by=partition_by, order_by=order_by).label("rank")
+    ).subquery()
+    return select(*(ranked.c[column.key] for column in columns)).where(
+        ranked.c.rank == 1
+    ).subquery()
+
+
 def _classification_counts(session: Session) -> dict[str, int]:
     """Count catalog-visible asset classifications in one query."""
-    version_rank = func.row_number().over(
-        partition_by=models.AssetVersion.asset_id,
-        order_by=(
+    versions = _latest_rows(
+        session,
+        (
+            models.AssetVersion.asset_id.label("asset_id"),
+            models.AssetVersion.id.label("version_id"),
+            models.AssetVersion.version_status.label("version_status"),
+        ),
+        models.AssetVersion.asset_id,
+        (
             case(
                 (models.AssetVersion.version_status == AssetVersionStatus.AVAILABLE, 0),
                 else_=1,
@@ -75,53 +101,28 @@ def _classification_counts(session: Session) -> dict[str, int]:
             models.AssetVersion.created_at.desc(),
             models.AssetVersion.id.desc(),
         ),
+        models.AssetVersion.version_status.notin_(
+            (AssetVersionStatus.ARCHIVED, AssetVersionStatus.DISABLED)
+        ),
     )
-    versions = (
-        select(
-            models.AssetVersion.asset_id.label("asset_id"),
-            models.AssetVersion.id.label("version_id"),
-            models.AssetVersion.version_status.label("version_status"),
-            version_rank.label("rank"),
-        )
-        .where(
-            models.AssetVersion.version_status.notin_(
-                (AssetVersionStatus.ARCHIVED, AssetVersionStatus.DISABLED)
-            )
-        )
-        .subquery()
-    )
-    refs = (
-        select(
+    refs = _latest_rows(
+        session,
+        (
             models.NormalizedAssetRef.id.label("ref_id"),
             models.NormalizedAssetRef.version_id.label("version_id"),
-            func.row_number()
-            .over(
-                partition_by=models.NormalizedAssetRef.version_id,
-                order_by=(
-                    models.NormalizedAssetRef.created_at.desc(),
-                    models.NormalizedAssetRef.id.desc(),
-                ),
-            )
-            .label("rank"),
-        )
-        .where(models.NormalizedAssetRef.status == NormalizedAssetRefStatus.GENERATED)
-        .subquery()
+        ),
+        models.NormalizedAssetRef.version_id,
+        (models.NormalizedAssetRef.created_at.desc(), models.NormalizedAssetRef.id.desc()),
+        models.NormalizedAssetRef.status == NormalizedAssetRefStatus.GENERATED,
     )
-    results = (
-        select(
+    results = _latest_rows(
+        session,
+        (
             models.GovernanceResult.normalized_ref_id.label("ref_id"),
             models.GovernanceResult.classification.label("classification"),
-            func.row_number()
-            .over(
-                partition_by=models.GovernanceResult.normalized_ref_id,
-                order_by=(
-                    models.GovernanceResult.created_at.desc(),
-                    models.GovernanceResult.id.desc(),
-                ),
-            )
-            .label("rank"),
-        )
-        .subquery()
+        ),
+        models.GovernanceResult.normalized_ref_id,
+        (models.GovernanceResult.created_at.desc(), models.GovernanceResult.id.desc()),
     )
 
     statement = (
@@ -129,15 +130,15 @@ def _classification_counts(session: Session) -> dict[str, int]:
         .select_from(models.Asset)
         .join(
             versions,
-            (versions.c.asset_id == models.Asset.id) & (versions.c.rank == 1),
+            versions.c.asset_id == models.Asset.id,
         )
         .join(
             refs,
-            (refs.c.version_id == versions.c.version_id) & (refs.c.rank == 1),
+            refs.c.version_id == versions.c.version_id,
         )
         .join(
             results,
-            (results.c.ref_id == refs.c.ref_id) & (results.c.rank == 1),
+            results.c.ref_id == refs.c.ref_id,
         )
         .where(versions.c.version_status.in_(_CATALOG_VISIBLE_STATUSES))
         .group_by(results.c.classification)
@@ -221,7 +222,10 @@ def build_asset_center_counts(session: Session) -> dict[str, int]:
     response_model=schemas.ApiResponse[schemas.AssetCenterCountsRead],
 )
 def asset_center_counts(request: Request, session: Session = Depends(get_db)):
+    cache: AssetCenterCountsCache = request.app.state.asset_center_counts_cache
     return response(
-        schemas.AssetCenterCountsRead(counts=build_asset_center_counts(session)),
+        schemas.AssetCenterCountsRead(
+            counts=cache.get_or_build(lambda: build_asset_center_counts(session))
+        ),
         request,
     )

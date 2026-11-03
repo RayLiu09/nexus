@@ -15,6 +15,7 @@ router = APIRouter(prefix="/open/v1", tags=["public-discovery"], dependencies=[D
 
 DOCUMENTS = [
     ("industry_policy", "产教政策"), ("industry_report", "产业报告"), ("sector_report", "行业报告"),
+    ("industry_regulation_standard", "行业法规标准"),
     ("major_profile", "专业简介"), ("talent_demand_report", "人才需求调研"),
     ("talent_training_plan", "人才培养方案"), ("teaching_case", "教学案例"),
 ]
@@ -26,7 +27,7 @@ def count_statement(session, stmt):
 
 @router.get("/data-resources", operation_id="discover_data_resources", response_model=schemas.ApiResponse[list[dto.ResourceRead]])
 def discover(request: Request, caller=Depends(require_api_caller), session: Session = Depends(get_db)):
-    """发现资产中心 16 类可见资源及其公开接口、过滤参数、能力与数量。包含教育部同步专业布点及职业分类大典；数量仅代表已入库覆盖。"""
+    """发现资产中心 17 类可见资源及其公开接口、过滤参数、能力与数量。包含教育部同步专业布点及职业分类大典；数量仅代表已入库覆盖。"""
     from nexus_api.api.open_business import standard_statement, course_statement, textbook_statement
     # Derive supported filters from the actual HTTP schema rather than a second registry.
     paths = request.app.openapi()["paths"]

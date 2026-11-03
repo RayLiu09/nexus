@@ -121,7 +121,7 @@ def infer_knowledge_emissions_for_classification(
         "co_emission_origin": None,
     }
     graph_profile = (
-        None if classification == "talent_demand_report"
+        None if classification in {"talent_demand_report", "industry_regulation_standard"}
         else cls_def.graph_profile or primary_kt_config.get("graph_profile")
     )
     if isinstance(graph_profile, str) and graph_profile.strip():

@@ -43,6 +43,7 @@ const CLASSIFICATION_LABELS: Record<string, string> = {
   industry_policy: "产业政策",
   industry_report: "产业报告",
   sector_report: "行业报告",
+  industry_regulation_standard: "行业法规标准",
   job_demand: "市场岗位",
   competency_analysis: "职业能力分析表",
   vocational_certificate: "职业类证书",

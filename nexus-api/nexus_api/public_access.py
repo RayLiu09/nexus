@@ -90,7 +90,7 @@ class DocumentFilters(BaseModel):
 
 def document_filters(
     title: str | None = Query(None, min_length=1, max_length=256),
-    resource_type: Literal["industry_policy", "industry_report", "sector_report", "major_profile", "teaching_standard", "talent_demand_report", "talent_training_plan", "competency_analysis", "course_textbook", "teaching_case"] | None = Query(None),
+    resource_type: Literal["industry_policy", "industry_report", "sector_report", "industry_regulation_standard", "major_profile", "teaching_standard", "talent_demand_report", "talent_training_plan", "competency_analysis", "course_textbook", "teaching_case"] | None = Query(None),
     domains: list[str] | None = Query(None, max_length=15),
     topic: Literal["finance_commerce", "low_altitude"] | None = Query(None),
     region: str | None = Query(None, min_length=1, max_length=128),

@@ -260,6 +260,15 @@ persisted, and never fall back to synthetic values. Trend, freshness, and review
 metrics remain absent. Domain-specific fields, permissions, and final list
 interactions are frozen only in later bounded tasks.
 
+The authenticated Asset Center count endpoint coalesces concurrent refreshes
+through a per-application, in-process 15-second TTL cache. Only successful
+aggregates are cached; expiry failures propagate normally. Authentication runs
+on every hit. These counts are currently global; future scoped aggregates must
+partition the cache by effective permissions. PostgreSQL latest-row aggregation
+uses DISTINCT ON with the existing stable version/ref/result ordering. The
+engine applies configured postgres_pool_size and postgres_max_overflow; SQLite
+keeps its separate connection options.
+
 ## Two Processing Pipelines
 
 Pipeline routing stored in `Job.payload.pipeline_type` at job creation. Workers read from payload; no runtime inference.
@@ -1051,3 +1060,9 @@ Activate Phase 2 when: governance or compliance requires downstream impact asses
 - P0 deployment does not require RabbitMQ or Redis.
 - Imported data sources default L1/L2 unless explicit L3/L4 exception evidence and audit.
 - Each simplified capability has a documented upgrade trigger and migration path.
+
+## Industry regulations and standards
+
+`industry_regulation_standard` identifies normative documents across industries using normalized-document identity, issuing/standard-number evidence, and normative clauses or standard structure. Topic keywords never determine this class. Development plans, support/subsidy policies, interpretation, news, standard project registries, and compilation explanations remain distinct. Standard covers with definitive identifiers can establish document type without asserting content completeness; draft effect status is independent of classification.
+
+The class uses `industry_research_kb` semantic chunks, with graph profiles suppressed even if inherited from a knowledge-type default. It adds no domain table or outline. The internal `/internal/v1/industry-regulation-standards` list uses the current catalog reference and latest official governance result; public document discovery uses the same `resource_type`. Historical repairs append governance snapshots preserving sensitivity, organization, quality, admission and version state. Active rules are extended through a new audited version; historical rules and results remain unchanged.

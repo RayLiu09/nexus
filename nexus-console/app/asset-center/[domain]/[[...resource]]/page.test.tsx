@@ -51,7 +51,7 @@ it.each(["business_expert", "platform_data_admin"] as const)("allows %s to impor
   expect(distributionTable).toHaveBeenCalledWith(expect.objectContaining({ canImport: true }), undefined);
 });
 
-it.each(["industry-policies", "industry-reports", "sector-reports"])(
+it.each(["industry-policies", "industry-reports", "sector-reports", "industry-regulation-standards"])(
   "%s sends the same tag scope to every topic count and paged request",
   async (resource) => {
     render(

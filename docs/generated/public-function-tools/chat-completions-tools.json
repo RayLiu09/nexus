@@ -98,6 +98,7 @@
                       "industry_policy",
                       "industry_report",
                       "sector_report",
+                      "industry_regulation_standard",
                       "major_profile",
                       "teaching_standard",
                       "talent_demand_report",
@@ -449,7 +450,7 @@
     "type": "function",
     "function": {
       "name": "discover_data_resources",
-      "description": "发现资产中心 16 类可见资源及其公开接口、过滤参数、能力与数量。包含教育部同步专业布点及职业分类大典；数量仅代表已入库覆盖。",
+      "description": "发现资产中心 17 类可见资源及其公开接口、过滤参数、能力与数量。包含教育部同步专业布点及职业分类大典；数量仅代表已入库覆盖。",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -1344,6 +1345,7 @@
                       "industry_policy",
                       "industry_report",
                       "sector_report",
+                      "industry_regulation_standard",
                       "major_profile",
                       "teaching_standard",
                       "talent_demand_report",
@@ -3289,6 +3291,7 @@
                       "industry_policy",
                       "industry_report",
                       "sector_report",
+                      "industry_regulation_standard",
                       "major_profile",
                       "teaching_standard",
                       "talent_demand_report",

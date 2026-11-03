@@ -33,6 +33,9 @@ COPY docker/bin/uv /usr/local/bin/uv
 
 COPY nexus-app/pyproject.toml nexus-app/uv.lock ./nexus-app/
 COPY nexus-api/pyproject.toml nexus-api/uv.lock ./nexus-api/
+COPY nexus-app ./nexus-app
+COPY nexus-api ./nexus-api
+COPY config ./config
 # `uv.lock` persists absolute PyPI artifact URLs. Rewrite only the copied
 # build inputs so frozen installs cannot bypass the domestic index via those
 # historical upstream URLs; package versions and integrity hashes stay intact.
@@ -40,9 +43,6 @@ RUN sed -i \
       -e "s#https://pypi.org/simple#${PYPI_INDEX_URL}#g" \
       -e "s#https://files.pythonhosted.org/packages/#${PYPI_PACKAGE_BASE_URL}#g" \
       ./nexus-app/uv.lock ./nexus-api/uv.lock
-COPY nexus-app ./nexus-app
-COPY nexus-api ./nexus-api
-COPY config ./config
 
 WORKDIR /app/nexus-api
 
@@ -50,7 +50,9 @@ RUN uv sync --frozen --no-dev
 
 EXPOSE 8000
 
-CMD ["uv", "run", "uvicorn", "nexus_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# The image already contains frozen production dependencies. Do not let `run`
+# synchronize the default dev group or require a registry during startup.
+CMD ["uv", "run", "--no-sync", "uvicorn", "nexus_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 
 # ---------------------------------------------------------------------------
@@ -67,14 +69,19 @@ COPY nexus-console/package.json nexus-console/package-lock.json ./
 # npm lockfiles also retain absolute registry.npmjs.org tarball URLs. Keep
 # the lockfile immutable in the repository, but rewrite its build copy before
 # `npm ci` so the production build does not fall back to the public registry.
-RUN sed -i 's#https://registry.npmjs.org/#https://registry.npmmirror.com/#g' package-lock.json \
-    && npm ci --registry=${NPM_REGISTRY}
+RUN sed -i "s#https://registry.npmjs.org/#${NPM_REGISTRY%/}/#g" package-lock.json \
+    && npm ci --registry=${NPM_REGISTRY} --no-audit
 
 COPY nexus-console ./
-RUN npm run build
+# Source COPY also copies package-lock.json. Reapply the registry rewrite so
+# the runtime stage's npm prune cannot follow restored upstream tarball URLs.
+RUN sed -i "s#https://registry.npmjs.org/#${NPM_REGISTRY%/}/#g" package-lock.json \
+    && npm run build
 
 
 FROM ${DOCKERHUB_MIRROR}/node:${NODE_VERSION} AS nexus-console
+
+ARG NPM_REGISTRY
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
@@ -93,7 +100,7 @@ COPY --from=nexus-console-builder /app/nexus-console/next.config.ts ./next.confi
 # `.next/cache`, diagnostics, generated type declarations, and dev-only npm
 # packages are Builder artifacts. The production server only needs the Next
 # runtime output and production dependencies.
-RUN npm prune --omit=dev --ignore-scripts \
+RUN npm prune --omit=dev --ignore-scripts --registry=${NPM_REGISTRY} --no-audit \
     && rm -rf .next/cache .next/diagnostics .next/types /root/.npm
 
 EXPOSE 3000

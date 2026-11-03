@@ -39,6 +39,8 @@ describe("Asset Center catalogue", () => {
 
   it("renames the industry policy view without changing policy routes", () => {
     const policy = findAssetCenterDomain("policy")!;
+    expect(findAssetCenterResource(policy, "industry-regulation-standards")?.name).toBe("法规标准");
+    expect(findAssetCenterResource(policy, "industry-regulation-standards")?.classificationCode).toBe("industry_regulation_standard");
     expect(findAssetCenterResource(policy, "industry-policies")?.name).toBe("产教政策");
     expect(findAssetCenterResource(policy, "education-policies")?.name).toBe("教育政策");
   });

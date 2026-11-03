@@ -1,6 +1,7 @@
 const GRAPH_HIDDEN_CLASSIFICATIONS = new Set([
   "industry_report",
   "sector_report",
+  "industry_regulation_standard",
   "talent_demand_report",
   "teaching_case",
 ]);

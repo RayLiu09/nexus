@@ -22,7 +22,7 @@ export const ASSET_CENTER_DOMAINS = [
   {
     slug: "policy",
     name: "产业数据",
-    description: "产教政策、产业报告和行业报告",
+    description: "产教政策、行业法规标准、产业报告和行业报告",
     icon: Landmark,
     accent: "#166534",
     accentBackground: "#f0fdf4",
@@ -32,6 +32,12 @@ export const ASSET_CENTER_DOMAINS = [
         name: "产教政策",
         description: "国家、省级和区域产教政策",
         classificationCode: "industry_policy",
+      },
+      {
+        path: "industry-regulation-standards",
+        name: "法规标准",
+        description: "各行业法律法规、标准规范和实施细则",
+        classificationCode: "industry_regulation_standard",
       },
       {
         path: "education-policies",
@@ -130,14 +136,14 @@ export const ASSET_CENTER_DOMAINS = [
         description: "产业园区业务数据",
       },
       {
-        path: "ecommerce-demo-bases",
-        name: "电商示范基地",
-        description: "国家和省级电子商务示范基地名录",
-      },
-      {
         path: "enterprises",
         name: "企业数据",
         description: "企业主体与经营业务数据",
+      },
+      {
+        path: "ecommerce-demo-bases",
+        name: "电商示范基地",
+        description: "国家和省级电子商务示范基地名录",
       },
       {
         path: "certificates",

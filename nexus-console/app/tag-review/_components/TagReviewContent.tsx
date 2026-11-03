@@ -60,6 +60,14 @@ const BUCKET_LABELS: Record<(typeof TAG_BUCKETS)[number], string> = {
   topics: "主题",
 };
 
+function orderedReviewClassifications(options: RuleOption[]): RuleOption[] {
+  const firstCodes = ["industry_policy", "industry_regulation_standard"];
+  return [
+    ...firstCodes.flatMap((code) => options.filter((option) => option.code === code)),
+    ...options.filter((option) => !firstCodes.includes(option.code)),
+  ];
+}
+
 function asText(tags: StructuredTags, bucket: (typeof TAG_BUCKETS)[number]): string {
   const values = Array.isArray(tags[bucket]) ? tags[bucket] : [];
   return values
@@ -446,7 +454,7 @@ export default function TagReviewContent({
               rules={[{ required: true, message: "请选择数据分类" }]}
             >
               <Select
-                options={(context?.rules.classifications ?? []).map((entry) => ({
+                options={orderedReviewClassifications(context?.rules.classifications ?? []).map((entry) => ({
                   value: entry.code,
                   label: entry.name ?? entry.label ?? entry.code,
                 }))}

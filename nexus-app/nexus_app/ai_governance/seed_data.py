@@ -217,6 +217,7 @@ def _build_code(name: str) -> str:
         "产业政策": "industry_policy",
         "产业报告": "industry_report",
         "行业报告": "sector_report",
+        "行业法规标准": "industry_regulation_standard",
         "职业能力分析表": "competency_analysis",
         "职业类证书": "vocational_certificate",
         "专业教学标准": "teaching_standard",
@@ -545,11 +546,18 @@ def build_rules_content(excel_path: str | Path | None = None) -> dict[str, Any]:
     """
     from nexus_app.ai_governance.tag_taxonomy import build_tag_taxonomy_seed
 
+    from copy import deepcopy
+    from nexus_app.ai_governance.industry_regulation_standard import CLASSIFICATION
+
+    classifications = parse_classifications(excel_path)
+    if not any(item["code"] == CLASSIFICATION["code"] for item in classifications):
+        classifications.append(deepcopy(CLASSIFICATION))
+
     return {
         "schema_version": "3.0",
         "tag_dimensions": parse_tag_dimensions(excel_path),
         "tag_taxonomy": build_tag_taxonomy_seed(),
-        "classifications": parse_classifications(excel_path),
+        "classifications": classifications,
         "levels": _BUILTIN_LEVELS,
         "quality_scoring": _DEFAULT_QUALITY_SCORING,
         "manual_review_triggers": [],

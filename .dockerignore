@@ -3,6 +3,7 @@
 .gitignore
 .env
 .env.*
+nexus-app/config/data_sync_providers.local.json
 
 # Local JavaScript build/install artifacts. Dependencies and .next are rebuilt
 # inside Docker's builder stage; only that stage's output reaches the runtime.

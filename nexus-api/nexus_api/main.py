@@ -7,6 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import IntegrityError
 
 from nexus_api import schemas
+from nexus_api.asset_center_cache import AssetCenterCountsCache
 from nexus_api.api.internal import auth_router as internal_auth_router, router as internal_router
 from nexus_api.api.open import router as open_router
 from nexus_api.api.open_business import router as open_business_router
@@ -202,6 +203,7 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
         lifespan=lifespan,
     )
+    app.state.asset_center_counts_cache = AssetCenterCountsCache()
     app.add_middleware(TraceIdMiddleware)
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)

@@ -11,6 +11,7 @@ from tests.test_asset_catalog_api import _seed_review_required_asset
 
 DOCUMENT_ROUTES = [
     ("industry-policies", "industry_policy"),
+    ("industry-regulation-standards", "industry_regulation_standard"),
     ("industry-reports", "industry_report"),
     ("sector-reports", "sector_report"),
     ("major-profile-documents", "major_profile"),

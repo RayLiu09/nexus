@@ -105,6 +105,7 @@ _CLASSIFICATION_LABELS: dict[str, str] = {
     "industry_policy": "产业政策",
     "industry_report": "产业报告",
     "sector_report": "行业报告",
+    "industry_regulation_standard": "行业法规标准",
     "job_demand": "市场岗位",
     "competency_analysis": "职业能力分析表",
     "vocational_certificate": "职业类证书",
@@ -1143,6 +1144,30 @@ def list_industry_policies(
     """Business list view for industry-policy documents."""
     return _list_industry_documents(
         request, pagination, session, classification="industry_policy", topic=topic, tag_filters=filters,
+    )
+
+
+@router.get("/industry-regulation-standards", response_model=schemas.ListResponse[dict])
+def list_industry_regulation_standards(
+    request: Request,
+    pagination: Pagination = Depends(pagination_params),
+    session: Session = Depends(get_db),
+    topic: DocumentTopic | None = Query(default=None),
+    filters: DocumentTagFilters = Depends(document_tag_filters),
+):
+    """List industry regulations and standards as a generic document view.
+
+    These assets intentionally use the same normalized-document projection as
+    policy/report documents.  They have no domain-model projection; consumers
+    use the row actions for chunks, normalized preview, and raw download.
+    """
+    return _list_industry_documents(
+        request,
+        pagination,
+        session,
+        classification="industry_regulation_standard",
+        topic=topic,
+        tag_filters=filters,
     )
 
 

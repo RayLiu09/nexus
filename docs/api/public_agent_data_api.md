@@ -134,3 +134,5 @@ nexus-api/.venv/bin/python scripts/generate_public_function_tools.py --check
 ```
 
 上例用于岗位列表；查标准可用 `{"query":{"occupation":"电子商务师","page":1,"pageSize":20}}` 或职业代码 `4-01-06-01`。
+
+`industry_regulation_standard`（行业法规标准，控制台入口“法规标准”）纳入公开资源发现与共享文档 `resource_type` 过滤。遵循现有 available/current-ref、API 权限与审计合同；支持 topic=finance_commerce/low_altitude 及文档标签筛选。通过已有知识块、解析预览和原文下载接口读取，不新增领域模型接口。

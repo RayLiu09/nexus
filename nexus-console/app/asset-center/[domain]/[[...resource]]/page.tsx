@@ -195,7 +195,7 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
 
   if (
     domain.slug === "policy" &&
-    ["industry-policies", "industry-reports", "sector-reports"].includes(resource.path)
+    ["industry-policies", "industry-reports", "sector-reports", "industry-regulation-standards"].includes(resource.path)
   ) {
     const topicValue = first(query.topic);
     const topic =
@@ -224,7 +224,7 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
         topic: "low_altitude",
       }),
     ]);
-    const isReport = resource.path !== "industry-policies";
+    const isReport = ["industry-reports", "sector-reports"].includes(resource.path);
     return (
       <div className="flex flex-col gap-6">
         <PageHeader

@@ -123,6 +123,10 @@ Role constraints:
   list their resource types with real on-demand counts and link directly to
   resource views; there are no intermediate domain-summary pages. IA-1 adds no
   persisted statistics model, permissions, or source-trace interaction.
+  Overview counts may lag committed changes by up to 15 seconds through a
+  process-local cache; concurrent refreshes share one calculation. Every
+  request authenticates before cache access. Expired refresh failures retain
+  the normal unavailable/error behavior rather than showing zero or stale data.
 - Search/QA source traceability to asset version, normalized ref (with image_uris), chunk, and raw object.
 - Basic maintainability: health checks, structured logs, trace IDs, job status, basic runtime state.
 
@@ -684,3 +688,9 @@ Go / No-Go:
 - Critical actions must be audited.
 - Platform must work without external IAM.
 - `normalized_asset_ref` must include full v3.0 fields (governance, quality, lineage, source_type, content_type, title, language).
+
+## Regulations and standards asset list
+
+The asset classification is **行业法规标准** (`industry_regulation_standard`); the Asset Center entry and page title are **法规标准**, under industry data at `/asset-center/policy/industry-regulation-standards`. Use a paginated list, with **全部 / 财经商贸类 / 低空经济类** filters and counts composed with region, industry and content-tag filters. Row actions are **知识块视图、解析预览、原文下载**. No domain model, outline or evidence graph is required.
+
+Classification covers laws, regulations, rules, standards, technical specifications, certification/approval procedures and authoritative operational guides across all industries. It uses the document purpose and normative evidence, not low-altitude topic matching. Consultation drafts retain a distinct draft effect status; reclassification must not imply enactment, content completeness, quality approval or availability. Development policies and reports remain in their respective classes even when they cite standards.

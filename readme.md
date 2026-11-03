@@ -196,6 +196,11 @@ Root documents are distilled implementation contracts:
   on-demand counts, and direct resource links without intermediate domain
   summary pages. IA-1 adds no persisted statistics, role redesign, or
   source-trace UI.
+  Overview counts use a per-app 15-second in-process cache with concurrent
+  refresh coalescing. Counts retain the same business scope; list reads stay
+  live. PostgreSQL classification aggregates select stable latest rows using
+  DISTINCT ON, and engine pooling honors POSTGRES_POOL_SIZE and
+  POSTGRES_MAX_OVERFLOW. No migration or Redis is needed.
 - The Asset Center overview currently hides the course-standard entry under
   teaching resources; its route and resource definition are retained.
 - The three policy/report business lists provide server-side `财经商贸类` and
@@ -368,3 +373,6 @@ Read in this order before building or changing behavior:
 4. The full `docs/` architecture v3.0 / v8.0 and product/prototype v2.2 files for details and page-level Prototype behavior.
 
 Any implementation that changes architecture, data model, API, UI behavior, or acceptance criteria should update the root contract documents and the relevant full design document.
+
+Industry regulations and standards use the generic `industry_regulation_standard` classification.
+Asset Center exposes them as **法规标准**, a paged document list with 财经商贸类 / 低空经济类 topic filters, knowledge chunks, parsed preview, and original download. They produce semantic chunks without a domain model or evidence graph.
