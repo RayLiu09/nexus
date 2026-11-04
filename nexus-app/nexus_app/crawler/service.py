@@ -531,6 +531,10 @@ def update_plan(
     row.execution_mode = payload.execution_mode
     row.schedule_cron = payload.schedule_cron
     if payload.execution_mode == "scheduled":
+        # ``schedule_paused`` is persisted plan state and is intentionally not
+        # part of the editable request payload.  Reading it from the request
+        # model raises ``AttributeError`` for every scheduled-plan edit and is
+        # surfaced by the API as an unhelpful 500 response.
         row.next_run_at = None if row.schedule_paused else _resolve_schedule_next_run(payload.execution_mode, payload.schedule_cron)
     else:
         row.next_run_at = None

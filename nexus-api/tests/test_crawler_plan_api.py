@@ -614,6 +614,76 @@ def test_deepseek_search_plan_keeps_provider_identity(app):
     assert updated.json()["data"]["connector_version"] == "deepseek"
 
 
+@pytest.mark.parametrize("connector_type,connector_version,extra", [
+    ("firecrawl", "v2", {"mode": "custom", "target_sites": [{"base_url": "https://example.gov.cn/policy"}]}),
+    ("websearch", "custom", {
+        "mode": "custom",
+        "search_policy": {"query": "低空经济 政策", "result_count": 10, "time_range_preset": "one_year"},
+    }),
+    ("websearch", "deepseek", {
+        "mode": "custom",
+        "search_policy": {"query": "低空经济 政策 site:gov.cn", "result_count": 10, "time_range_preset": "one_year"},
+    }),
+])
+def test_scheduled_crawler_plan_edit_does_not_return_internal_server_error(
+    app, connector_type, connector_version, extra
+):
+    client = TestClient(app)
+    payload = {
+        "name": f"定时 {connector_type} {connector_version}",
+        "connector_type": connector_type,
+        "connector_version": connector_version,
+        "execution_mode": "scheduled",
+        "schedule_cron": "0 2 * * 1",
+        **extra,
+    }
+    created = client.post(
+        "/internal/v1/crawler/plans",
+        headers={"Idempotency-Key": f"crawler-scheduled-edit-create-{connector_type}-{connector_version}"},
+        json=payload,
+    )
+    assert created.status_code == 201, created.text
+    plan = created.json()["data"]
+
+    updated = client.put(
+        f"/internal/v1/crawler/plans/{plan['id']}",
+        headers={"Idempotency-Key": f"crawler-scheduled-edit-update-{connector_type}-{connector_version}"},
+        json={**payload, "name": "定时计划已编辑"},
+    )
+
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["data"]["name"] == "定时计划已编辑"
+    assert updated.json()["data"]["next_run_at"] is not None
+
+
+def test_crawler_plan_edit_rejects_invalid_copied_configuration(app):
+    client = TestClient(app)
+    payload = {
+        "name": "WebSearch计划",
+        "connector_type": "websearch",
+        "connector_version": "custom",
+        "mode": "custom",
+        "execution_mode": "run_once",
+        "search_policy": {"query": "低空经济", "result_count": 10, "time_range_preset": "one_year"},
+    }
+    created = client.post(
+        "/internal/v1/crawler/plans",
+        headers={"Idempotency-Key": "crawler-invalid-edit-create"},
+        json=payload,
+    )
+    assert created.status_code == 201, created.text
+    plan = created.json()["data"]
+
+    updated = client.put(
+        f"/internal/v1/crawler/plans/{plan['id']}",
+        headers={"Idempotency-Key": "crawler-invalid-edit-update"},
+        json={**payload, "search_policy": {"query": "低空经济", "result_count": 999}},
+    )
+
+    assert updated.status_code == 422, updated.text
+    assert "result_count" in updated.json()["error"]["message"]
+
+
 @pytest.mark.parametrize("result_count", [None, "not-a-number", True])
 def test_websearch_plan_rejects_invalid_result_count_without_server_error(app, result_count):
     client = TestClient(app)
