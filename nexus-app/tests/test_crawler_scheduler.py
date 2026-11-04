@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from nexus_app import models
+from nexus_app.audit import write_audit
 from nexus_app.crawler.scheduler import CrawlerScheduler
 from nexus_app.crawler.scheduling import (
     InvalidCronError,
@@ -123,6 +124,7 @@ def test_tick_fires_due_plan_and_advances_next_run(db_factory):
         session.add(run)
         session.flush()
         fired_runs.append(run.id)
+        write_audit(session, AuditEventType.CRAWLER_RUN_COMPLETED, "crawler_run", run.id, None, {})
         return _StubRun(run.id)
 
     scheduler = CrawlerScheduler(db_factory, run_plan=fake_run_plan)
@@ -145,6 +147,9 @@ def test_tick_fires_due_plan_and_advances_next_run(db_factory):
             )
         ).all()
         assert len(audits) == 1
+        all_audits = session.scalars(select(models.AuditLog)).all()
+        assert len(all_audits) == 2
+        assert {(row.actor_type, row.actor_id) for row in all_audits} == {("system", "crawler-scheduler")}
 
     # A second tick without advancing the clock must not fire again.
     fired_again = scheduler.tick()
@@ -192,6 +197,7 @@ def test_tick_skips_when_previous_run_still_active(db_factory):
         ).all()
         assert len(skipped) == 1
         assert skipped[0].summary["reason"] == "previous_still_running"
+        assert (skipped[0].actor_type, skipped[0].actor_id) == ("system", "crawler-scheduler")
 
 
 def test_tick_ignores_paused_schedule(db_factory):

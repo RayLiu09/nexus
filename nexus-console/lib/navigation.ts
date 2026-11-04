@@ -151,7 +151,7 @@ export const navigation: Navigation = [
     id: "access-audit",
     label: "访问与审计",
     items: [
-      { href: "/iam-audit", label: "权限与审计", icon: ShieldCheck, allowedRoles: ADMIN_ONLY },
+      { href: "/iam-audit", label: "审计日志", icon: ShieldCheck, allowedRoles: ADMIN_ONLY },
       { href: "/api-callers", label: "API Caller", icon: KeyRound, allowedRoles: ADMIN_ONLY },
       { href: "/users", label: "用户管理", icon: Users2, allowedRoles: ADMIN_ONLY },
     ],

@@ -176,12 +176,14 @@ def control_run(
         else:
             if pending:
                 if run.status == "paused":
-                    _set_status(session, run, "running", reason=f"user_{action}_accepted")
+                    _set_status(session, run, "running", reason=f"user_{action}_accepted",
+                                actor_type="user", actor_id=actor_id)
                     run.claim_owner = None
                     run.lease_expires_at = None
                     run.heartbeat_at = None
             else:
-                _set_status(session, run, _TARGET[action], reason=f"user_{action}")
+                _set_status(session, run, _TARGET[action], reason=f"user_{action}",
+                            actor_type="user", actor_id=actor_id)
             if external_state is not None:
                 run.external_status = external_state
                 run.status_detail = {"desired_state": desired_state}

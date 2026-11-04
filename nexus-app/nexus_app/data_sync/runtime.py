@@ -16,7 +16,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from nexus_app import models
-from nexus_app.audit import SENSITIVE_KEY_PATTERNS, sanitize_audit_summary, write_audit
+from nexus_app.audit import SENSITIVE_KEY_PATTERNS, audit_actor, sanitize_audit_summary, write_audit
 from nexus_app.data_sync.catalog import _load_adapter, load_catalog
 from nexus_app.data_sync.plans import next_run_time
 from nexus_app.data_sync.runs import RunConflict, create_scheduled_run
@@ -118,6 +118,7 @@ def _clear_error_detail(run: models.DataSyncRun) -> None:
 def _set_status(
     session: Session, run: models.DataSyncRun, status: str, *,
     reason: str | None = None, error_detail: dict[str, str] | None = None,
+    actor_type: str = "system", actor_id: str | None = None,
 ) -> None:
     previous = run.status
     if previous == status:
@@ -134,9 +135,12 @@ def _set_status(
         ):
             if key in error_detail:
                 summary[audit_key] = error_detail[key]
+    if actor_type == "system" and actor_id is None:
+        actor_id = run.claim_owner or "data-sync-runtime"
     write_audit(
         session, AuditEventType.DATA_SYNC_RUN_STATUS_CHANGED, "data_sync_run", run.id,
-        run.trace_id, summary, actor_type="system",
+        run.trace_id, summary, actor_type=actor_type,
+        actor_id=actor_id,
     )
 
 
@@ -328,9 +332,9 @@ def claim_run(session: Session, worker_id: str, *, lease_seconds: int = 120) -> 
         if busy:
             session.rollback()
             return None
+    run.claim_owner = worker_id
     if run.status == DataSyncRunStatus.QUEUED.value:
         _set_status(session, run, DataSyncRunStatus.RUNNING.value)
-    run.claim_owner = worker_id
     run.heartbeat_at = now
     run.lease_expires_at = now + timedelta(seconds=lease_seconds)
     run.started_at = run.started_at or now
@@ -372,11 +376,13 @@ def recover_expired_runs(session: Session, *, now: datetime | None = None, max_a
             except SyncRuntimeError:
                 pass
         if run.attempt_count >= max_attempts and (run.external_task_id is not None or pull_mode):
-            _set_status(session, run, DataSyncRunStatus.FAILED.value, reason="lease_expired")
+            _set_status(session, run, DataSyncRunStatus.FAILED.value, reason="lease_expired",
+                        actor_id="data-sync-recovery")
             run.finished_at = now
             run.failure_summary = "worker lease expired after maximum attempts"
         else:
-            _set_status(session, run, DataSyncRunStatus.QUEUED.value, reason="lease_expired")
+            _set_status(session, run, DataSyncRunStatus.QUEUED.value, reason="lease_expired",
+                        actor_id="data-sync-recovery")
             run.next_retry_at = now
             run.failure_summary = "worker lease expired; requeued"
     if rows:
@@ -397,6 +403,10 @@ class DataSyncExecutor:
         self._client.close()
 
     def run_once(self) -> bool:
+        with audit_actor("system", self.worker_id):
+            return self._run_once()
+
+    def _run_once(self) -> bool:
         with self._session_factory() as session:
             run = claim_run(session, self.worker_id, lease_seconds=self.lease_seconds)
         if run is None:

@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas as api_schemas
-from nexus_api.dependencies import require_idempotency_key
+from nexus_api.dependencies import require_idempotency_key, require_user
 from nexus_api.dependencies import Pagination, pagination_params
 from nexus_api.responses import list_response, response
 from nexus_app import models, schemas as domain_schemas
@@ -60,12 +60,14 @@ def create_crawler_plan(
     payload: domain_schemas.CrawlerPlanCreate,
     request: Request,
     session: Session = Depends(get_db),
+    user: models.UserAccount = Depends(require_user),
 ):
     try:
         row = crawler_service.create_plan(
             session,
             payload,
             trace_id=str(getattr(request.state, "trace_id", "")),
+            actor_type="user", actor_id=user.id,
         )
     except (crawler_service.CrawlerPlanError, UnsafeCrawlerUrlError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -121,10 +123,14 @@ def get_crawler_plan(plan_id: str, request: Request, session: Session = Depends(
     dependencies=[Depends(require_idempotency_key)],
 )
 def update_crawler_plan(
-    plan_id: str, payload: domain_schemas.CrawlerPlanUpdate, request: Request, session: Session = Depends(get_db)
+    plan_id: str, payload: domain_schemas.CrawlerPlanUpdate, request: Request,
+    session: Session = Depends(get_db), user: models.UserAccount = Depends(require_user),
 ):
     try:
-        row = crawler_service.update_plan(session, plan_id, payload, trace_id=str(getattr(request.state, "trace_id", "")))
+        row = crawler_service.update_plan(
+            session, plan_id, payload, trace_id=str(getattr(request.state, "trace_id", "")),
+            actor_type="user", actor_id=user.id,
+        )
     except (crawler_service.CrawlerPlanError, UnsafeCrawlerUrlError) as exc:
         status = 404 if "not found" in str(exc) else 422
         raise HTTPException(status_code=status, detail=str(exc)) from exc
@@ -140,12 +146,14 @@ def archive_crawler_plan(
     plan_id: str,
     request: Request,
     session: Session = Depends(get_db),
+    user: models.UserAccount = Depends(require_user),
 ):
     try:
         row = crawler_service.archive_plan(
             session,
             plan_id,
             trace_id=str(getattr(request.state, "trace_id", "")),
+            actor_type="user", actor_id=user.id,
         )
     except crawler_service.CrawlerPlanError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -161,12 +169,14 @@ def pause_crawler_schedule(
     plan_id: str,
     request: Request,
     session: Session = Depends(get_db),
+    user: models.UserAccount = Depends(require_user),
 ):
     try:
         row = crawler_service.pause_schedule(
             session,
             plan_id,
             trace_id=str(getattr(request.state, "trace_id", "")),
+            actor_type="user", actor_id=user.id,
         )
     except crawler_service.CrawlerPlanError as exc:
         status = 404 if "not found" in str(exc) else 422
@@ -183,12 +193,14 @@ def resume_crawler_schedule(
     plan_id: str,
     request: Request,
     session: Session = Depends(get_db),
+    user: models.UserAccount = Depends(require_user),
 ):
     try:
         row = crawler_service.resume_schedule(
             session,
             plan_id,
             trace_id=str(getattr(request.state, "trace_id", "")),
+            actor_type="user", actor_id=user.id,
         )
     except crawler_service.CrawlerPlanError as exc:
         status = 404 if "not found" in str(exc) else 422
@@ -205,12 +217,14 @@ def run_crawler_plan(
     plan_id: str,
     request: Request,
     session: Session = Depends(get_db),
+    user: models.UserAccount = Depends(require_user),
 ):
     try:
         row = crawler_service.run_plan(
             session,
             plan_id,
             trace_id=str(getattr(request.state, "trace_id", "")),
+            actor_type="user", actor_id=user.id,
         )
     except crawler_service.CrawlerPlanError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

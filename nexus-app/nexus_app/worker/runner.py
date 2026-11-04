@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from nexus_app import models
-from nexus_app.audit import write_audit
+from nexus_app.audit import audit_actor, write_audit
 from nexus_app.config import Settings, get_settings
 from nexus_app.enums import (
     AssetVersionStatus,
@@ -1665,6 +1665,21 @@ def _build_extraction_llm_client(settings):
 # ---------------------------------------------------------------------------
 
 def execute_job(
+    job: models.Job,
+    session: Session,
+    storage: ObjectStorage | None = None,
+    mineru: MinerUAdapter | None = None,
+    settings: Settings | None = None,
+    image_analyzer: ImageAnalyzer | None = None,
+) -> None:
+    """Execute a job with a system identity covering all nested audit writes."""
+    # Capture the lease owner before success/failure paths clear locked_by.
+    # A user may submit the job, but the pipeline executor is the system.
+    with audit_actor("system", job.locked_by or "pipeline-worker"):
+        _execute_job(job, session, storage, mineru, settings, image_analyzer)
+
+
+def _execute_job(
     job: models.Job,
     session: Session,
     storage: ObjectStorage | None = None,

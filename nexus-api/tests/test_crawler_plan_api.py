@@ -14,7 +14,7 @@ from nexus_app.crawler.firecrawl_client import (
 )
 from nexus_app.crawler.quality_gate import is_pdf_candidate
 from nexus_app.crawler import runner as crawler_runner
-from nexus_app.enums import DataSourceStatus, DataSourceType, JobStatus
+from nexus_app.enums import AuditEventType, DataSourceStatus, DataSourceType, JobStatus
 from nexus_app.storage import InMemoryObjectStorage
 
 
@@ -262,7 +262,7 @@ def test_crawler_config_and_regions(app):
     assert any(site["base_url"] == "http://www.moe.gov.cn/" for site in national_sites)
 
 
-def test_create_quick_start_plan_defaults_and_unconfigured_run_fails(app, monkeypatch):
+def test_create_quick_start_plan_defaults_and_unconfigured_run_fails(app, monkeypatch, session):
     monkeypatch.setattr(
         crawler_runner,
         "create_default_firecrawl_document_client",
@@ -308,6 +308,11 @@ def test_create_quick_start_plan_defaults_and_unconfigured_run_fails(app, monkey
     assert plans_resp.status_code == 200
     assert plans_resp.json()["data"][0]["connector_type"] == "firecrawl"
     assert plans_resp.json()["data"][0]["connector_version"] == "v2"
+    audits = session.query(models.AuditLog).filter(models.AuditLog.event_type.in_([
+        AuditEventType.CRAWLER_PLAN_CREATED, AuditEventType.CRAWLER_RUN_COMPLETED,
+    ])).all()
+    assert len(audits) == 2
+    assert {(row.actor_type, row.actor_id) for row in audits} == {("user", "user-test-admin")}
 
 
 def test_crawler_run_count_summary_includes_websearch_result_count(session):
@@ -778,7 +783,10 @@ def test_scheduled_websearch_plan_sets_next_run_at(app):
     assert plan["next_run_at"] is not None
 
 
-def test_firecrawl_runner_with_fake_client_accepts_and_filters(session, monkeypatch):
+@pytest.mark.parametrize(("actor_type", "actor_id"), [
+    ("system", "crawler-scheduler"), ("user", "manual-operator"),
+])
+def test_firecrawl_runner_with_fake_client_accepts_and_filters(session, monkeypatch, actor_type, actor_id):
     monkeypatch.setenv("CRAWLER_FIRECRAWL_SCRAPE_LIMIT_ENABLED", "false")
     get_settings.cache_clear()
     source = services.create_data_source(
@@ -807,11 +815,21 @@ def test_firecrawl_runner_with_fake_client_accepts_and_filters(session, monkeypa
         session,
         plan.id,
         trace_id="trace-test",
+        actor_type=actor_type, actor_id=actor_id,
         client=fake,
         storage=storage,
     )
 
     assert run.status == "succeeded"
+    audits = session.query(models.AuditLog).filter(models.AuditLog.event_type.in_([
+        AuditEventType.CRAWLER_RUN_COMPLETED, AuditEventType.INGEST_BATCH_SUBMITTED,
+        AuditEventType.RAW_OBJECT_PERSISTED,
+    ])).all()
+    assert {row.event_type for row in audits} == {
+        AuditEventType.CRAWLER_RUN_COMPLETED, AuditEventType.INGEST_BATCH_SUBMITTED,
+        AuditEventType.RAW_OBJECT_PERSISTED,
+    }
+    assert {(row.actor_type, row.actor_id) for row in audits} == {(actor_type, actor_id)}
     assert run.summary["runner"] == "firecrawl_sync"
     assert run.summary["query"] == "职业教育 产教融合 电子商务 跨境电商 农村电商 直播电商 旅游电商 数字经济 区域经济 发展报告"
     assert run.summary["search_scope"] == {"scope_type": "national", "scope_name": "全国"}

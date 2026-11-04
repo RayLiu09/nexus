@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.orm import Session
@@ -44,6 +48,33 @@ _INLINE_SECRET_PATTERN = re.compile(
     r"(sk-[A-Za-z0-9_-]{20,}|ragflow-[A-Za-z0-9_-]{20,}|Bearer\s+[A-Za-z0-9._\-]{16,})",
     re.IGNORECASE,
 )
+
+
+@dataclass(frozen=True)
+class AuditActor:
+    actor_type: str
+    actor_id: str
+
+
+_AUDIT_ACTOR: ContextVar[AuditActor | None] = ContextVar("nexus_audit_actor", default=None)
+
+
+@contextmanager
+def audit_actor(actor_type: str, actor_id: str) -> Iterator[AuditActor]:
+    """Bind the actual executor for synchronous nested audit writes.
+
+    Set this at a trusted execution boundary, never based on event names or
+    user-supplied payloads. ContextVar isolates threads/async tasks; reset also
+    runs on early returns and exceptions. New threads need their own boundary.
+    """
+    if not actor_type.strip() or not actor_id.strip():
+        raise ValueError("audit actor type and id must be nonempty")
+    actor = AuditActor(actor_type, actor_id)
+    token = _AUDIT_ACTOR.set(actor)
+    try:
+        yield actor
+    finally:
+        _AUDIT_ACTOR.reset(token)
 
 
 def _is_sensitive_key(key: str) -> bool:
@@ -101,7 +132,19 @@ def write_audit(
     actor_id: str | None = None,
 ) -> models.AuditLog:
     """Persist an audit log row. The `summary` payload is sanitized before
-    storage to prevent secret leaks and bound payload size."""
+    storage to prevent secret leaks and bound payload size.
+
+    Explicit identities win. Only an entirely unspecified identity, or a type
+    matching the scoped identity with no id, inherits from the execution scope.
+    A partial explicit id is never combined with an unrelated scoped type.
+    Unknown operations outside a trusted scope remain unknown.
+    """
+    scoped = _AUDIT_ACTOR.get()
+    if scoped is not None:
+        if actor_type is None and actor_id is None:
+            actor_type, actor_id = scoped.actor_type, scoped.actor_id
+        elif actor_type == scoped.actor_type and actor_id is None:
+            actor_id = scoped.actor_id
     sanitized = sanitize_audit_summary(summary)
     audit = models.AuditLog(
         event_type=event_type,

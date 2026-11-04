@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from nexus_app import models
+from nexus_app.audit import audit_actor
 from nexus_app.config import Settings, get_settings
 from nexus_app.enums import JobStatus, JobType, PipelineType
 from nexus_app.mineru import MinerUAdapter, get_mineru_adapter
@@ -73,6 +74,7 @@ class _LeaseHeartbeat:
                 logger.exception("lease heartbeat failed for job %s", self._job_id)
 
 
+@audit_actor("system", "worker-lease-recovery")
 def recovery_sweep(session: Session, lease_seconds: int = 120) -> int:
     """Scan running jobs with expired leases, requeue or dead-letter them."""
     now = utcnow()
@@ -166,6 +168,10 @@ class WorkerLoop:
 
     def run_once(self) -> int:
         """Claim and execute one batch of jobs. Returns number of jobs processed."""
+        with audit_actor("system", self.worker_id):
+            return self._run_once()
+
+    def _run_once(self) -> int:
         with self._get_session() as session:
             jobs = claim_jobs(
                 session,

@@ -1,198 +1,192 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Card, Statistic, Table } from "antd";
-import type { TablePaginationConfig } from "antd/es/table";
-import { StatusLabel } from "@/components/StatusLabel";
+import { useTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { Card, Select, Table } from "antd";
+import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { formatTime } from "@/lib/format-time";
-import { shortId, type ApiCaller, type AuditLog } from "@/lib/api";
+import type { AuditLog } from "@/lib/api";
 import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 
-const IGNORED_EVENTS = new Set(["TokenRefreshed", "TokenRefreshFailed"]);
-const MAX_AGE_DAYS = 30;
+const TARGET_TYPE_LABELS: Record<string, string> = {
+  asset: "资产",
+  asset_version: "资产版本",
+  normalized_asset_ref: "标准化资产",
+  raw_object: "原始对象",
+  ingest_batch: "接入批次",
+  job: "作业",
+  parse_artifact: "解析产物",
+  governance_result: "治理结果",
+  ai_governance_run: "AI 治理任务",
+  knowledge_chunk: "知识切片",
+  data_source: "数据源",
+  crawler_plan: "Crawler 计划",
+  crawler_run: "Crawler 运行",
+  data_sync_config: "API 同步计划",
+  data_sync_run: "API 同步运行",
+  user_account: "用户",
+  api_caller: "API 调用方",
+  org_unit: "组织",
+  ai_prompt_profile: "Prompt 配置",
+  governance_prompt_template: "治理 Prompt 模板",
+};
 
-function isWithinDays(dateStr: string, days: number): boolean {
-  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-  return new Date(dateStr).getTime() >= cutoff;
+const SUMMARY_LABELS: Record<string, string> = {
+  reason: "原因",
+  status: "状态",
+  from_status: "原状态",
+  to_status: "新状态",
+  changed_fields: "变更字段",
+  asset_title: "资产名称",
+  filename: "文件名",
+  name: "名称",
+  mode: "模式",
+  execution_mode: "执行方式",
+  schedule_cron: "调度规则",
+  failed_count: "失败数",
+  submitted_count: "提交数",
+  accepted_count: "接收数",
+  duplicate_count: "重复数",
+};
+
+function summarize(summary: Record<string, unknown>): string {
+  return (
+    Object.entries(summary)
+      .map(
+        ([key, value]) =>
+          `${SUMMARY_LABELS[key] ?? key}：${
+            typeof value === "string" ? value : JSON.stringify(value)
+          }`,
+      )
+      .join("；") || "—"
+  );
 }
 
 interface IamAuditContentProps {
-  apiCallers: ApiCaller[];
   audits: AuditLog[];
-  orgCount: number;
-  userCount: number;
-  apiCallerCount: number;
-  auditTotal: number;
+  eventTypes: string[];
+  eventType?: string;
+  totalCount: number;
+  currentPage: number;
+  pageSize: number;
 }
 
 export function IamAuditContent({
-  apiCallers,
   audits,
-  orgCount,
-  userCount,
-  apiCallerCount,
-  auditTotal,
+  eventTypes,
+  eventType,
+  totalCount,
+  currentPage,
+  pageSize,
 }: IamAuditContentProps) {
-  const [pagination, setPagination] = useState<TablePaginationConfig>({
-    current: 1,
-    pageSize: DEFAULT_PAGE_SIZE,
-  });
+  const router = useRouter();
+  const pathname = usePathname();
+  const [pending, startTransition] = useTransition();
 
-  const filtered = useMemo(
-    () =>
-      audits.filter(
-        (a) => !IGNORED_EVENTS.has(a.event_type) && isWithinDays(a.created_at, MAX_AGE_DAYS),
+  function navigate(nextEvent: string | undefined, page: number, size: number) {
+    const params = new URLSearchParams();
+    if (nextEvent) params.set("event_type", nextEvent);
+    if (page > 1) params.set("page", String(page));
+    if (size !== DEFAULT_PAGE_SIZE) params.set("pageSize", String(size));
+    const query = params.toString();
+    startTransition(() => router.replace(query ? `${pathname}?${query}` : pathname));
+  }
+
+  const columns: ColumnsType<AuditLog> = [
+    {
+      title: "事件类型",
+      dataIndex: "event_type",
+      width: 220,
+    },
+    {
+      title: "操作目标类型",
+      dataIndex: "target_type",
+      width: 150,
+      render: (value: string) => TARGET_TYPE_LABELS[value] ?? value,
+    },
+    {
+      title: "目标名称",
+      width: 240,
+      render: (_, row) => <span title={row.target_id}>{row.target_name || row.target_id}</span>,
+    },
+    {
+      title: "操作者",
+      width: 150,
+      render: (_, row) => (
+        <span title={row.actor_id ?? undefined}>
+          {row.actor_name || row.actor_id || "未记录"}
+        </span>
       ),
-    [audits],
-  );
+    },
+    {
+      title: "摘要",
+      width: 360,
+      render: (_, row) => {
+        const text = summarize(row.summary);
+        return (
+          <span title={text} className="line-clamp-2 break-all">
+            {text}
+          </span>
+        );
+      },
+    },
+    {
+      title: "操作时间",
+      dataIndex: "created_at",
+      width: 180,
+      render: (value: string) => {
+        const time = formatTime(value);
+        return (
+          <time dateTime={time.iso} title={time.iso}>
+            {time.display}
+          </time>
+        );
+      },
+    },
+  ];
+
+  function onTableChange(pagination: TablePaginationConfig) {
+    const size = pagination.pageSize ?? pageSize;
+    navigate(eventType, size === pageSize ? (pagination.current ?? 1) : 1, size);
+  }
 
   return (
-    <>
-      {/* Count cards */}
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 mb-5">
-        <Card size="small">
-          <Statistic title="组织" value={orgCount} />
-        </Card>
-        <Card size="small">
-          <Statistic title="用户" value={userCount} />
-        </Card>
-        <Card size="small">
-          <Statistic title="API 调用方" value={apiCallerCount} />
-        </Card>
-        <Card size="small">
-          <Statistic title={`近${MAX_AGE_DAYS}天审计事件`} value={filtered.length} />
-        </Card>
+    <Card>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <span className="text-muted text-sm">共 {totalCount} 条审计日志</span>
+        <div className="flex items-center gap-2">
+          <label htmlFor="audit-event-type">事件类型</label>
+          <Select
+            id="audit-event-type"
+            aria-label="事件类型"
+            allowClear
+            showSearch
+            placeholder="全部事件类型"
+            value={eventType}
+            options={eventTypes.map((value) => ({ value, label: value }))}
+            onChange={(value) => navigate(value, 1, pageSize)}
+            style={{ width: 300 }}
+          />
+        </div>
       </div>
-
-      {/* API Callers */}
-      <Card title="API 调用方" className="mb-5">
-        {apiCallers.length ? (
-          <Table rowKey="id" dataSource={apiCallers} pagination={false} size="small">
-            <Table.Column
-              title="名称"
-              dataIndex="name"
-              render={(v: string) => <span style={{ fontWeight: 500 }}>{v}</span>}
-            />
-            <Table.Column
-              title="权限范围"
-              dataIndex="permission_scope"
-              render={(v: string[]) => (
-                <span className="text-muted text-sm">{v.join(", ") || "-"}</span>
-              )}
-            />
-            <Table.Column
-              title="组织范围"
-              dataIndex="org_scope"
-              render={(v: string[]) => (
-                <span className="text-muted text-sm">{v.map(shortId).join(", ") || "-"}</span>
-              )}
-            />
-            <Table.Column
-              title="状态"
-              dataIndex="status"
-              width={100}
-              render={(v: string) => <StatusLabel value={v} />}
-            />
-            <Table.Column
-              title="更新时间"
-              dataIndex="updated_at"
-              width={140}
-              render={(v: string) => {
-                const ft = formatTime(v);
-                return (
-                  <time dateTime={ft.iso} title={ft.iso} className="text-muted text-sm">
-                    {ft.display}
-                  </time>
-                );
-              }}
-            />
-          </Table>
-        ) : (
-          <EmptyState title="暂无 API 调用方" size="small" />
-        )}
-      </Card>
-
-      {/* Audit logs */}
-      <Card
-        title="审计日志"
-        extra={
-          <span className="text-muted text-xs">
-            {filtered.length} / {auditTotal} events
-          </span>
-        }
-      >
-        {filtered.length ? (
-          <Table
-            rowKey="id"
-            dataSource={filtered}
-            pagination={{
-              ...pagination,
-              total: filtered.length,
-              showSizeChanger: true,
-              showTotal: (total, range) => `${range[0]}-${range[1]} / ${total}`,
-              onChange: (page, pageSize) => setPagination({ current: page, pageSize }),
-            }}
-            size="small"
-          >
-            <Table.Column
-              title="事件类型"
-              dataIndex="event_type"
-              width={180}
-              render={(v: string) => <span style={{ fontWeight: 500 }}>{v}</span>}
-            />
-            <Table.Column
-              title="目标"
-              render={(_: unknown, r: AuditLog) => (
-                <span className="text-sm">
-                  {r.target_type} / <span className="mono-cell">{shortId(r.target_id)}</span>
-                </span>
-              )}
-            />
-            <Table.Column
-              title="操作者"
-              dataIndex="actor_id"
-              width={120}
-              render={(v: string | null) => (
-                <span className="mono-cell">{v ? shortId(v) : "-"}</span>
-              )}
-            />
-            <Table.Column
-              title="Trace ID"
-              dataIndex="trace_id"
-              width={140}
-              render={(v: string | null) => <span className="mono-cell">{v ?? "-"}</span>}
-            />
-            <Table.Column
-              title="摘要"
-              dataIndex="summary"
-              ellipsis
-              render={(v: Record<string, unknown>) => (
-                <span className="text-muted mono-cell text-sm">{JSON.stringify(v)}</span>
-              )}
-            />
-            <Table.Column
-              title="时间"
-              dataIndex="created_at"
-              width={140}
-              defaultSortOrder="descend"
-              sorter={(a: AuditLog, b: AuditLog) =>
-                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-              }
-              render={(v: string) => {
-                const ft = formatTime(v);
-                return (
-                  <time dateTime={ft.iso} title={ft.iso} className="text-muted text-sm">
-                    {ft.display}
-                  </time>
-                );
-              }}
-            />
-          </Table>
-        ) : (
-          <EmptyState title="暂无审计事件" size="small" hint={`近${MAX_AGE_DAYS}天内无审计日志`} />
-        )}
-      </Card>
-    </>
+      <Table<AuditLog>
+        rowKey="id"
+        dataSource={audits}
+        columns={columns}
+        loading={pending}
+        size="small"
+        scroll={{ x: 1300 }}
+        pagination={{
+          current: currentPage,
+          pageSize,
+          total: totalCount,
+          showSizeChanger: true,
+          showTotal: (total, range) => `${range[0]}-${range[1]} / ${total}`,
+        }}
+        onChange={onTableChange}
+        locale={{ emptyText: <EmptyState title="暂无审计日志" size="small" /> }}
+      />
+    </Card>
   );
 }

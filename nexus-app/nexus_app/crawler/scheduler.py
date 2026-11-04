@@ -27,7 +27,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from nexus_app import models
-from nexus_app.audit import write_audit
+from nexus_app.audit import audit_actor, write_audit
 from nexus_app.config import Settings, get_settings
 from nexus_app.enums import AuditEventType
 from nexus_app.crawler.scheduling import InvalidCronError, compute_next_run
@@ -171,6 +171,7 @@ class CrawlerScheduler:
             ).scalar_one_or_none()
         return status == "running"
 
+    @audit_actor("system", "crawler-scheduler")
     def _start_run(
         self, plan_id: str, seen_next: datetime, new_next: datetime
     ) -> bool:
@@ -206,6 +207,7 @@ class CrawlerScheduler:
             session.commit()
         return True
 
+    @audit_actor("system", "crawler-scheduler")
     def _audit_skip(
         self,
         plan_id: str,

@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 import unicodedata
+from contextlib import nullcontext
 from itertools import combinations
 from datetime import timedelta
 from datetime import datetime, timezone
@@ -17,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from nexus_app import models, schemas
-from nexus_app.audit import write_audit
+from nexus_app.audit import audit_actor, write_audit
 from nexus_app.config import Settings, get_settings
 from nexus_app.crawler.config_loader import (
     CrawlerConfigError,
@@ -648,6 +649,29 @@ def resume_schedule(
 
 
 def run_plan(
+    session: Session,
+    plan_id: str,
+    *,
+    trace_id: str | None = None,
+    actor_type: str | None = None,
+    actor_id: str | None = None,
+    client: FirecrawlDocumentClient | None = None,
+    pdf_downloader: PdfDownloader | None = None,
+    storage: ObjectStorage | None = None,
+    settings: Settings | None = None,
+) -> models.CrawlerRun:
+    # Keep the caller for nested ingest events and both connector branches.
+    # Scheduled calls inherit the scheduler scope; unknown callers stay unknown.
+    scope = audit_actor(actor_type, actor_id) if actor_type and actor_id else nullcontext()
+    with scope:
+        return _run_plan(
+            session, plan_id, trace_id=trace_id, actor_type=actor_type,
+            actor_id=actor_id, client=client, pdf_downloader=pdf_downloader,
+            storage=storage, settings=settings,
+        )
+
+
+def _run_plan(
     session: Session,
     plan_id: str,
     *,

@@ -410,7 +410,22 @@ P0 management pages:
 - **资产详情**: overview, versions, normalized refs, AI governance, quality score, governance result, decision tracking, generic chunks (with normalized_ref_id), index manifest, lineage (including image_uris), audit. Professional-profile, professional teaching-standard directory, job-demand structured, occupational-ability, talent-training-plan, and course-textbook domain views are not hosted by this technical ledger view.
 - **治理中心**: AI suggestions, AI quality score, AI Prompt config, review tasks, rule config, save-to-activate changes, decision tracking, quality review.
 - **规则配置**: structured editor for `config/governance_rules.json` (classifications, levels, tags, quality scoring, knowledge types); ETag-based concurrency control; save takes effect immediately for future governance runs.
-- **权限与审计**: local users, roles, API keys, org scopes, approvals, audit logs.
+- **审计日志**: administrator-only `/iam-audit` lists event type, operation target
+  type, target name, actor, summary and operation time. `event_type` filters
+  the entire retained log set before server pagination; choices come from
+  distinct recorded types. The page always excludes `TokenRefreshed` and
+  `TokenRefreshFailed` from rows, totals and choices. There is no implicit
+  30-day cutoff. Safe snapshot/current target names and user/API Caller names
+  are resolved by the internal read model; unknown targets use full IDs.
+  System operations display their recorded executor IDs (worker, scheduler,
+  connector or repair component), without substitution by `system`.
+  Missing historical actors display `未记录`. User and API Caller management
+  remain separate at `/users` and `/api-callers`.
+  Automated pipeline, worker/recovery, scheduled crawler and data-sync events
+  must persist `actor_type=system` and the executing worker/component ID.
+  Nested events inherit the execution identity unless explicitly attributed;
+  manual crawler/sync controls retain the authenticated user. Missing historical
+  identities remain unknown, with no blanket backfill to `system`.
 - **Prompt 提示词**: Prompt templates, versions, task/scenario, output schema,
   scoring weights, redaction policies, content hash, change summary,
   validation, history, and dry-run. Model alias and token-limit controls are

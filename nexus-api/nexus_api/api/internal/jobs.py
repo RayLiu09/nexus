@@ -8,18 +8,19 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
-from nexus_api.dependencies import Pagination, pagination_params, require_idempotency_key
+from nexus_api.audit_presentation import present_audits
+from nexus_api.dependencies import Pagination, pagination_params, require_idempotency_key, require_user
 from nexus_api.responses import list_response, response
 from nexus_app import models, pipeline, schemas as domain_schemas, services
 from nexus_app.audit import write_audit
 from nexus_app.database import get_db
-from nexus_app.enums import AssetVersionStatus, AuditEventType, JobStatus, JobType
+from nexus_app.enums import AssetVersionStatus, AuditEventType, JobStatus, JobType, UserRole
 from nexus_app.pipeline.payload_schema import JOB_PAYLOAD_SCHEMA_VERSION
 
 router = APIRouter()
@@ -424,17 +425,50 @@ def list_normalized_refs(
     )
 
 
-@router.get("/audit-logs", response_model=schemas.ListResponse[domain_schemas.AuditLogRead])
+def require_audit_admin(user: models.UserAccount = Depends(require_user)):
+    if user.role != UserRole.PLATFORM_DATA_ADMIN:
+        raise HTTPException(status_code=403, detail="audit logs require a platform data administrator")
+    return user
+
+
+_TOKEN_REFRESH_EVENTS = (AuditEventType.TOKEN_REFRESHED, AuditEventType.TOKEN_REFRESH_FAILED)
+
+
+@router.get("/audit-logs/event-types", response_model=schemas.ListResponse[str],
+            dependencies=[Depends(require_audit_admin)])
+def list_audit_event_types(
+    request: Request,
+    exclude_token_refresh: bool = Query(False),
+    session: Session = Depends(get_db),
+):
+    statement = select(models.AuditLog.event_type).distinct()
+    if exclude_token_refresh:
+        statement = statement.where(models.AuditLog.event_type.not_in(_TOKEN_REFRESH_EVENTS))
+    # Sort in Python: PostgreSQL enum ordering is declaration order, not lexical.
+    events = sorted(event.value for event in session.scalars(statement))
+    return list_response(events, request, page=1, page_size=max(len(events), 1), total=len(events))
+
+
+@router.get("/audit-logs", response_model=schemas.ListResponse[domain_schemas.AuditLogRead],
+            dependencies=[Depends(require_audit_admin)])
 def list_audit_logs(
     request: Request,
+    event_type: AuditEventType | None = Query(None),
+    exclude_token_refresh: bool = Query(False),
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
 ):
-    rows = services.list_rows(
-        session, models.AuditLog, limit=pagination.limit, offset=pagination.offset
-    )
-    total = services.count_rows(session, models.AuditLog)
+    statement = select(models.AuditLog)
+    if event_type is not None:
+        statement = statement.where(models.AuditLog.event_type == event_type)
+    if exclude_token_refresh:
+        statement = statement.where(models.AuditLog.event_type.not_in(_TOKEN_REFRESH_EVENTS))
+    total = int(session.scalar(select(func.count()).select_from(statement.subquery())) or 0)
+    rows = list(session.scalars(
+        statement.order_by(models.AuditLog.created_at.desc(), models.AuditLog.id.desc())
+        .offset(pagination.offset).limit(pagination.limit)
+    ))
     return list_response(
-        rows, request,
+        present_audits(session, rows), request,
         page=pagination.page, page_size=pagination.page_size, total=total,
     )

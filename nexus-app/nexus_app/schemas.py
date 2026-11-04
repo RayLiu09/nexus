@@ -556,6 +556,8 @@ class AuditLogRead(ORMModel):
     actor_id: str | None
     target_type: str
     target_id: str
+    target_name: str | None = None
+    actor_name: str | None = None
     trace_id: str | None
     summary: dict[str, Any]
     created_at: datetime

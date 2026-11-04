@@ -21,6 +21,16 @@ data source
 
 The current P0 target covers D1-D4 pilot domains and focuses on an end-to-end usable loop rather than a full operations center or advanced knowledge-graph/SFT production system.
 
+The data administrator's `审计日志` page (`/iam-audit`) is a dedicated list of
+event type, target type/name, actor, summary and operation time. Event filtering
+and Token-refresh exclusion run before server pagination, using the filtered
+total across all retained records. System actors display their recorded executor IDs;
+missing historical attribution stays `未记录`. Internal audit reads resolve
+safe names in batches and require a platform data administrator.
+Automated audit writes inherit `actor_type=system` and a worker/component ID
+from scoped pipeline, scheduler and worker execution. Manual crawler and sync
+controls retain the operator; historical unknown identities are not rewritten.
+
 Crawler WebSearch plans support Custom and DeepSeek Search providers. DeepSeek uses
 server-only `BASE_URL_DEEPSEEK` and `API_KEY_DEEPSEEK` settings and applies
 formal-document authority and content-quality gates before raw-object ingestion.

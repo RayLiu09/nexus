@@ -154,6 +154,7 @@ def test_worker_dead_letters_unsupported_version(session, seeded, monkeypatch):
         .all()
     )
     assert len(audit_rows) == 1
+    assert (audit_rows[0].actor_type, audit_rows[0].actor_id) == ("system", "worker-test")
     summary = audit_rows[0].summary or {}
     assert summary["error_code"] == "unsupported_payload_schema_version"
     assert summary["payload_schema_version"] == "vNEXT-impossible"

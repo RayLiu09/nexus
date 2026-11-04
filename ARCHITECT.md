@@ -708,6 +708,26 @@ Upgrade trigger: mime_type-based routing produces visibly degraded structure qua
 
 ## Audit Event Contract
 
+The administrator Console audit read model resolves safe target and actor names
+in bounded batches for the requested page. `GET /internal/v1/audit-logs` supports
+`event_type` and `exclude_token_refresh` before SQL count/pagination, and
+`GET /internal/v1/audit-logs/event-types` supplies distinct recorded types.
+These internal reads require `platform_data_admin`; they do not change audit
+storage. Actor display resolves user/API Caller names, then falls back to the
+recorded `actor_id`, including actual worker/scheduler/connector/repair IDs.
+System actor types are not substituted with a generic label; missing historical
+attribution is not inferred and displays `未记录`.
+
+Audit writes inherit a trusted execution identity through a ContextVar scope at
+pipeline/worker, lease-recovery, crawler-scheduler and data-sync-worker entry
+points. Automatic executions persist `actor_type=system` and a worker/component
+`actor_id`, captured before releasing a lease. Explicit user/API identities take
+precedence; unrelated partial identities are never merged. Scopes reset on
+errors/return and are isolated across concurrent executions. Manual crawler and
+sync controls record the authenticated operator. No global unknown-to-system
+fallback or historical actor rewrite is applied; existing redaction, trace and
+transaction behavior remain in force.
+
 | Event                          | Trigger                                                                                       | Pipelines |
 | ------------------------------ | --------------------------------------------------------------------------------------------- | --------- |
 | `IngestBatchSubmitted`         | Batch submitted                                                                               | A / B     |

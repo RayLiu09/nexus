@@ -43,6 +43,12 @@ describe("Console navigation", () => {
     expect(getActiveGroup("/assets/example")).toBe("data-management");
   });
 
+  it("labels the administrator audit route as 审计日志", () => {
+    const audits = navItems.find((item) => item.href === "/iam-audit");
+    expect(audits?.label).toBe("审计日志");
+    expect(audits?.allowedRoles).toEqual(["platform_data_admin"]);
+  });
+
   it("groups user management under access-audit and gates it to platform_data_admin", () => {
     const group = navigation.find((item) => item.id === "access-audit");
     expect(group?.items.map((item) => item.href)).toEqual([

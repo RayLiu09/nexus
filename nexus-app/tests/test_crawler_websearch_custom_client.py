@@ -8,6 +8,7 @@ import pytest
 from botocore.exceptions import EndpointConnectionError
 
 from nexus_app import models
+from nexus_app.audit import audit_actor
 from nexus_app.config import Settings
 from nexus_app.crawler import service as crawler_service
 from nexus_app.crawler import websearch_custom_client as module
@@ -89,7 +90,10 @@ def test_custom_client_classifies_api_errors(monkeypatch, code):
         module.HttpWebSearchCustomClient().search(query="电子商务", count=10, time_range="OneYear")
 
 
-def test_websearch_dedup_uses_stable_package_without_run_provenance(session, monkeypatch):
+@pytest.mark.parametrize(("actor_type", "actor_id"), [
+    ("user", "manual-operator"), ("system", "crawler-scheduler"), ("api_caller", "client-a"),
+])
+def test_websearch_dedup_uses_stable_package_without_run_provenance(session, monkeypatch, actor_type, actor_id):
     """The same result in a later run must reuse its existing raw object."""
     source = models.DataSource(
         code="websearch-dedup",
@@ -139,12 +143,22 @@ def test_websearch_dedup_uses_stable_package_without_run_provenance(session, mon
     storage = InMemoryObjectStorage()
     settings = Settings()
 
-    first = crawler_service._run_websearch_custom_plan(
-        session, plan, trace_id="trace-1", storage=storage, settings=settings,
+    first = crawler_service.run_plan(
+        session, plan.id, trace_id="trace-1", storage=storage, settings=settings,
+        actor_type=actor_type, actor_id=actor_id,
     )
-    second = crawler_service._run_websearch_custom_plan(
-        session, plan, trace_id="trace-2", storage=storage, settings=settings,
-    )
+    with audit_actor(actor_type, actor_id):
+        second = crawler_service.run_plan(
+            session, plan.id, trace_id="trace-2", storage=storage, settings=settings,
+        )
+
+    audits = session.query(models.AuditLog).all()
+    assert {row.event_type for row in audits} >= {
+        AuditEventType.CRAWLER_RUN_COMPLETED, AuditEventType.INGEST_BATCH_SUBMITTED,
+        AuditEventType.RAW_OBJECT_PERSISTED,
+    }
+    assert {(row.actor_type, row.actor_id) for row in audits} == {(actor_type, actor_id)}
+    assert {row.trace_id for row in audits} == {"trace-1", "trace-2"}
 
     assert first.summary["submitted"][0]["duplicate"] is False
     assert first.status == "succeeded"

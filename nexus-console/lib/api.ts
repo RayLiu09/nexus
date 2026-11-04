@@ -755,6 +755,8 @@ export type AuditLog = {
   actor_id: string | null;
   target_type: string;
   target_id: string;
+  target_name?: string | null;
+  actor_name?: string | null;
   trace_id: string | null;
   summary: Record<string, unknown>;
   created_at: string;

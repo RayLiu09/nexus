@@ -87,6 +87,12 @@ def test_sync_pause_resume_cancel_and_replay(app, session, monkeypatch):
     )))
     assert len(audits) == 3
     assert all(row.actor_id == "user-test-admin" and row.trace_id for row in audits)
+    transitions = list(session.scalars(select(models.AuditLog).where(
+        models.AuditLog.target_id == run_id,
+        models.AuditLog.event_type == AuditEventType.DATA_SYNC_RUN_STATUS_CHANGED,
+    )))
+    assert len(transitions) == 3
+    assert {(row.actor_type, row.actor_id) for row in transitions} == {("user", "user-test-admin")}
     assert all("pause-1" not in str(row.summary) and "token" not in str(row.summary) for row in audits)
 
 

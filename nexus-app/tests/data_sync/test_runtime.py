@@ -46,6 +46,13 @@ def test_claim_heartbeat_and_expired_run_recovery(session):
     session.commit()
     assert recover_expired_runs(session, max_attempts=3) == 1
     assert session.get(models.DataSyncRun, run.id).status == "queued"
+    transitions = list(session.scalars(select(models.AuditLog).where(
+        models.AuditLog.target_id == run.id,
+        models.AuditLog.event_type == AuditEventType.DATA_SYNC_RUN_STATUS_CHANGED,
+    )))
+    assert [(row.actor_type, row.actor_id) for row in transitions] == [
+        ("system", "runtime-worker"), ("system", "data-sync-recovery"),
+    ]
 
 
 def test_expired_unconfirmed_submit_can_replay_after_attempt_limit(session):
@@ -76,6 +83,11 @@ def test_scheduler_creates_due_run_and_advances_plan(session):
     )))
     assert len(runs) == 1
     assert runs[0].scheduled_slot is not None
+    audit = session.scalar(select(models.AuditLog).where(
+        models.AuditLog.target_id == runs[0].id,
+        models.AuditLog.event_type == AuditEventType.DATA_SYNC_RUN_QUEUED,
+    ))
+    assert (audit.actor_type, audit.actor_id) == ("system", "data-sync-scheduler")
     plan.status = "paused"
     plan.next_run_at = datetime.now(timezone.utc) - timedelta(minutes=1)
     session.commit()
@@ -127,6 +139,7 @@ def test_executor_persists_external_ids_page_counts_and_terminal_state(session, 
         models.AuditLog.event_type == AuditEventType.DATA_SYNC_RUN_STATUS_CHANGED,
     )))
     assert [row.summary["to"] for row in transitions] == ["running", "succeeded"]
+    assert {(row.actor_type, row.actor_id) for row in transitions} == {("system", "executor-worker")}
 
 
 def test_builtin_mock_provider_completes_two_page_run(session, monkeypatch):

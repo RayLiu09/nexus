@@ -167,7 +167,7 @@ def create_scheduled_run(
     write_audit(
         session, AuditEventType.DATA_SYNC_RUN_QUEUED, "data_sync_run", run.id, trace_id,
         {"plan_id": plan.id, "provider_code": plan.provider_code, "query_hash": run.query_hash},
-        actor_type="system",
+        actor_type="system", actor_id="data-sync-scheduler",
     )
     session.commit()
     session.refresh(run)

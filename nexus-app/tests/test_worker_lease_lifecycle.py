@@ -7,8 +7,9 @@ import pytest
 from sqlalchemy.orm import sessionmaker
 
 from nexus_app import models
+from nexus_app.audit import audit_actor, write_audit
 from nexus_app.config import Settings
-from nexus_app.enums import IndexManifestStatus, JobStatus, JobType, StageStatus
+from nexus_app.enums import AuditEventType, IndexManifestStatus, JobStatus, JobType, StageStatus
 from nexus_app.storage import InMemoryObjectStorage
 from nexus_app.worker import loop as worker_loop_module
 from nexus_app.worker.loop import WorkerLoop
@@ -126,8 +127,11 @@ def test_worker_loop_claims_one_job_per_serial_executor(session, monkeypatch):
     assert seen["batch_size"] == 1
 
 
-def test_dependency_initialization_failure_releases_running_job(session, monkeypatch):
+@pytest.mark.parametrize("max_attempts", [1, 3])
+def test_dependency_initialization_failure_releases_running_job(session, monkeypatch, max_attempts):
     job = _queued_job(session)
+    job.max_attempts = max_attempts
+    session.commit()
     loop = WorkerLoop(
         worker_id="dependency-failure",
         session_factory=_session_factory(session),
@@ -144,13 +148,59 @@ def test_dependency_initialization_failure_releases_running_job(session, monkeyp
     assert loop.run_once() == 1
     session.expire_all()
     persisted = session.get(models.Job, job.id)
-    assert persisted.status == JobStatus.QUEUED
+    assert persisted.status == (JobStatus.DEAD_LETTERED if max_attempts == 1 else JobStatus.QUEUED)
     assert persisted.locked_by is None
     assert persisted.lock_expires_at is None
     stage = session.query(models.JobStage).filter_by(
         job_id=job.id, stage_name="initializing_dependencies"
     ).one()
     assert stage.status == StageStatus.FAILED
+    audits = session.query(models.AuditLog).filter_by(
+        event_type=AuditEventType.PIPELINE_FAILED, target_id=job.id,
+    ).all()
+    if max_attempts == 1:
+        assert len(audits) == 1
+        assert (audits[0].actor_type, audits[0].actor_id) == ("system", "dependency-failure")
+    else:
+        assert audits == []  # A queued retry is not a terminal pipeline failure.
+
+
+def test_execute_job_scopes_nested_writes_and_restores_submitter(session, monkeypatch):
+    job = _queued_job(session)
+    job.status = JobStatus.RUNNING
+    job.locked_by = "continuation-worker"
+    session.commit()
+
+    def continuation(job, session, **_kwargs):
+        job.locked_by = None
+        write_audit(session, AuditEventType.VERSION_STATUS_CHANGED, "job", job.id, job.trace_id, {})
+        session.commit()
+
+    monkeypatch.setattr("nexus_app.worker.runner._execute_knowledge_continuation", continuation)
+    with audit_actor("user", "submitter"):
+        execute_job(job, session, storage=InMemoryObjectStorage(), settings=Settings(worker_pool_enabled=False))
+        manual = write_audit(session, AuditEventType.JOB_RETRIED, "job", job.id, None, {})
+        assert (manual.actor_type, manual.actor_id) == ("user", "submitter")
+    row = session.query(models.AuditLog).filter_by(event_type=AuditEventType.VERSION_STATUS_CHANGED).one()
+    assert (row.actor_type, row.actor_id) == ("system", "continuation-worker")
+
+
+def test_lease_recovery_records_recovery_executor(session):
+    from datetime import timedelta
+    from nexus_app.models import utcnow
+    from nexus_app.worker.loop import recovery_sweep
+
+    job = _queued_job(session)
+    job.status = JobStatus.RUNNING
+    job.locked_by = "expired-worker"
+    job.lock_expires_at = utcnow() - timedelta(seconds=1)
+    job.attempt_count = job.max_attempts
+    session.commit()
+    assert recovery_sweep(session) == 1
+    row = session.query(models.AuditLog).filter_by(
+        event_type=AuditEventType.PIPELINE_FAILED, target_id=job.id,
+    ).one()
+    assert (row.actor_type, row.actor_id) == ("system", "worker-lease-recovery")
 
 
 def test_direct_continuation_execution_does_not_construct_mineru(session, monkeypatch):

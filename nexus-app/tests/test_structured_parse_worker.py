@@ -308,6 +308,7 @@ class TestExecuteJobXlsxRecordPipeline:
         job, raw, batch = _seed_raw_object(
             session, storage, xlsx_bytes=_make_xlsx_bytes()
         )
+        pre_execution_audit_ids = set(session.scalars(select(models.AuditLog.id)))
 
         # FakeMinerUAdapter is only used by Pipeline A; the record pipeline
         # path won't touch it but execute_job still requires it.
@@ -316,6 +317,16 @@ class TestExecuteJobXlsxRecordPipeline:
         session.refresh(job)
         session.refresh(batch)
         assert job.status == JobStatus.SUCCEEDED, f"job failed: {job.failure_reason}"
+
+        audits = list(session.scalars(select(models.AuditLog).where(
+            models.AuditLog.id.not_in(pre_execution_audit_ids),
+        )))
+        assert {row.event_type for row in audits} >= {
+            AuditEventType.INGEST_VALIDATE_COMPLETED,
+            AuditEventType.STRUCTURED_PARSE_COMPLETED,
+            AuditEventType.VERSION_STATUS_CHANGED,
+        }
+        assert {(row.actor_type, row.actor_id) for row in audits} == {("system", "pipeline-worker")}
 
         # Stage rows must include 'structured_parse' BEFORE 'assetize' and 'normalize'.
         all_stages = _stages(session, job.id)
