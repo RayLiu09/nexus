@@ -22,6 +22,7 @@ _SENSITIVE_PATTERNS = (
     re.compile(r"(?i)\b(?:api[_ -]?key|secret|token|password)\s*[:=]"),
     re.compile(r"(?i)\bbearer\s+[a-z0-9._-]+"),
     re.compile(r"\bsk-[a-zA-Z0-9_-]{12,}\b"),
+    re.compile(r"\bnx_[a-zA-Z0-9_-]{20,}\b"),
     re.compile(r"(?:/home/|/Users/|[A-Za-z]:\\\\)"),
     re.compile(r"\b(?:身份证号?|手机号?|客户(?:名称|编号)|内部项目)\s*[:：]"),
     re.compile(r"\b1[3-9]\d{9}\b"),

@@ -14,13 +14,10 @@ Design red lines:
   ``RetrievalV2SummaryFields`` summary (§8.2). ``route`` is fixed to
   ``internal_query`` and ``caller_type`` to ``console_session``; the
   rest comes from ``RouterResult.audit_summary``.
-* **P0 no streaming**: response is a single JSON envelope carrying
-  the finished markdown. SSE / chunked streaming is deferred to
-  Batch B3b (frontend delivery). §7.3 chart replacement contract is
-  still respected — the router already does the swap before returning.
-* **No exposed tool selection**: the payload is intentionally query-
-  only; the LLM chooses which tools to call. Callers CANNOT force a
-  specific tool from outside (§4.2 dispatcher contract).
+* **Streaming**: the paired SSE endpoint reports bounded tool actions and answer chunks.
+* **Explicit web option**: strict ``web_search`` defaults false. Tool selection
+  remains server-controlled; enabled requests use the existing DeepSeek Search
+  tool alongside local retrieval, subject to scope and sensitive-query checks.
 """
 from __future__ import annotations
 
@@ -29,7 +26,7 @@ import logging
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 from sqlalchemy.orm import Session
 
 from nexus_api import schemas
@@ -51,6 +48,7 @@ router = APIRouter()
 
 class QueryRouterV2Request(BaseModel):
     query: str = Field(..., min_length=1, max_length=2048)
+    web_search: StrictBool = False
 
 
 class QueryRouterV2ResponseData(BaseModel):
@@ -63,6 +61,7 @@ class QueryRouterV2ResponseData(BaseModel):
     audit_summary: dict
     external_web_results: list[dict]
     section_contexts: list[dict]
+    citations: list[dict] = Field(default_factory=list)
 
 
 @router.post(
@@ -77,6 +76,8 @@ def run_query_router_v2(
     query_router: QueryRouterV2 = Depends(get_query_router_v2),
 ):
     """POST /internal/v1/query — console session entry to Query Router v2."""
+    if hasattr(query_router, "web_search_enabled"):
+        query_router.web_search_enabled = payload.web_search
     result: RouterResult = query_router.run(
         session,
         query=payload.query,
@@ -84,7 +85,7 @@ def run_query_router_v2(
         caller_type="console_session",
     )
 
-    trace_id = request.headers.get("x-trace-id")
+    trace_id = getattr(request.state, "trace_id", None) or request.headers.get("x-trace-id")
     query_hash = hashlib.sha256(
         payload.query.encode("utf-8"),
     ).hexdigest()[:16]
@@ -114,6 +115,7 @@ def run_query_router_v2(
             audit_summary=summary,
             external_web_results=list(getattr(result, "external_web_results", ())),
             section_contexts=list(getattr(result, "section_contexts", ())),
+            citations=list(getattr(result, "citations", ())),
         ),
         request,
     )
@@ -136,7 +138,9 @@ def run_query_router_v2_stream(
     query_router: QueryRouterV2 = Depends(get_query_router_v2),
 ) -> StreamingResponse:
     """POST /internal/v1/query/stream — SSE variant of /query."""
-    trace_id = request.headers.get("x-trace-id")
+    trace_id = getattr(request.state, "trace_id", None) or request.headers.get("x-trace-id")
+    if hasattr(query_router, "web_search_enabled"):
+        query_router.web_search_enabled = payload.web_search
     stream = serialise_router_stream(
         router=query_router,
         session=session,
@@ -149,6 +153,9 @@ def run_query_router_v2_stream(
     )
     # `X-Accel-Buffering: no` disables nginx / cloudfront proxy
     # buffering so chunks reach the browser as they're emitted.
+    if hasattr(query_router, "cancel"):
+        from nexus_api.query_router_v2_sse import cancellable_stream
+        stream = cancellable_stream(stream, request, query_router.cancel)
     return StreamingResponse(
         stream,
         media_type=SSE_MEDIA_TYPE,

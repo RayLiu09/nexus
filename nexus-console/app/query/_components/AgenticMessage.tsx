@@ -31,7 +31,8 @@ import type { KnowledgeChunkHit } from "@/lib/chunkTypes";
 import { AgenticStepTimeline } from "./AgenticStepTimeline";
 import { QueryRouterAnswer } from "./QueryRouterAnswer";
 import { StepDetailPanel } from "./StepDetailPanel";
-import type { ExternalWebResult, StepPayload } from "../_lib/queryTypes";
+import { ChatMessage } from "./ChatMessage";
+import type { ExternalWebResult, QueryCitation, StepPayload } from "../_lib/queryTypes";
 
 export interface AgenticTurnState {
   query: string;
@@ -47,6 +48,8 @@ export interface AgenticTurnState {
   isStreaming: boolean;
   error: string | null;
   externalWebResults?: ExternalWebResult[];
+  citations?: QueryCitation[];
+  cancelled?: boolean;
 }
 
 interface AgenticMessageProps {
@@ -54,6 +57,11 @@ interface AgenticMessageProps {
 }
 
 export function AgenticMessage({ turn }: AgenticMessageProps) {
+  if (turn.intent === "public_tools" || turn.intent === null) return <ChatMessage turn={turn} />;
+  return <LegacyAgenticMessage turn={turn} />;
+}
+
+function LegacyAgenticMessage({ turn }: AgenticMessageProps) {
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [selectedChunk, setSelectedChunk] = useState<KnowledgeChunkHit | null>(null);
   const selectedStep = selectedStepId
@@ -177,10 +185,17 @@ function FinalAnswerPanel({ turn, onSelectChunk }: FinalAnswerPanelProps) {
           <ul className="mt-2 space-y-2 text-sm">
             {turn.externalWebResults?.map((item) => (
               <li key={item.url} className="rounded border border-amber-100 bg-amber-50 px-3 py-2">
-                <a className="font-medium text-blue-700 hover:underline" href={item.url} target="_blank" rel="noreferrer">
+                <a
+                  className="font-medium text-blue-700 hover:underline"
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   {item.title}
                 </a>
-                <p className="mt-1 text-xs text-gray-600">{item.domain} · {item.retrieved_at}</p>
+                <p className="mt-1 text-xs text-gray-600">
+                  {item.domain} · {item.retrieved_at}
+                </p>
                 {item.snippet && <p className="mt-1 text-xs text-gray-700">{item.snippet}</p>}
               </li>
             ))}

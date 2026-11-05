@@ -41,6 +41,39 @@ execution through the tool executor's `auto_ingest=false` injection.
 
 ## Repository Map
 
+Console `智能检索` now uses generated public tools for business queries, aggregates
+and evidence completion, with an Ant Design X Chatbot, live SSE actions, stop/copy
+controls and clickable citation sources. External query compatibility retains the
+existing router. See [the phase-one technical plan](docs/intelligent_search_phase1_technical_plan.md).
+The chat and composer fill available width; source cards start collapsed and show
+readable business details without technical IDs or raw JSON. Enter sends,
+Shift+Enter inserts a newline, and IME composition is protected. Verification and
+remaining review items are in [the review evidence](docs/review/query_public_tools_chat_phase1_review.md).
+Execution actions distinguish query stages and show readable filters and per-call
+citation counts. Identical completed tool calls are reused within the same turn;
+empty calls do not display cumulative sources from earlier actions.
+The footer `联网搜索` switch defaults off; on requests 10 DeepSeek Search results
+through the existing public endpoint alongside platform retrieval. Final source
+cards include only IDs cited in the answer. Documents deduplicate across filters,
+body evidence enriches metadata, and the drawer previews normalized content via the
+existing authenticated Console proxy. Candidate and final citation counts are
+distinct. Topic tag matching is correlated per document to exclude unrelated assets.
+Expanded source excerpts clamp to six lines and short cards keep their natural
+height. The drawer retains content preview and `打开网络资源` links, omits platform
+asset navigation, and the composer no longer shows the page-history caption.
+Ordinary document queries skip redundant evidence planning and composition avoids
+duplicate evidence bodies; specialist evidence selection remains available. Safe
+stage timings are recorded in the existing query audit. See the
+[latency and UI verification](docs/review/query_latency_optimization_review.md)
+for measured results and remaining response-time variability.
+Server settings are `BUILDIN_API_BASE_URL` (default `http://127.0.0.1:8000`),
+`BUILDIN_API_CALLER` (secret, no code default), and `INGEST_SEARCH_RESULTS`
+(default false). Configure these in the ignored root `.env.dev` or process environment,
+then restart the API. In containers, set the API origin to the reachable service address.
+True ingestion requests still pass existing asset-pipeline admission/governance.
+The frontend never receives the caller key. Two versioned `ai_prompt_profile` seeds
+are initialized at API boot; initialization preserves existing active edits.
+
 Agent applications can consume asset data through the public OpenAPI surface. The A/B extension adds current business
 records, document metadata filters, scoped retrieval and bounded evidence reads.
 See [the API contract and coverage](docs/api/public_agent_data_api.md) and

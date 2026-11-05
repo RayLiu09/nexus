@@ -36,6 +36,7 @@ class LiteLLMConfig(BaseModel):
     api_key_ref: str = Field(description="Reference name for secret, not the actual key")
     timeout: float = Field(default=30.0, gt=0)
     retry_config: RetryConfig = Field(default_factory=RetryConfig)
+    sdk_max_retries: int = Field(default=2, ge=0)
 
 
 class LiteLLMCallSummary(BaseModel):
@@ -157,7 +158,7 @@ class RealLiteLLMClient:
 
         self._config = config
         self._client = OpenAI(base_url=config.base_url, api_key=api_key,
-                              timeout=config.timeout)
+                              timeout=config.timeout, max_retries=config.sdk_max_retries)
 
     def call(
         self,

@@ -322,3 +322,13 @@ def test_open_asset_catalog_rejects_unknown_tag_type(app):
 
     assert response.status_code == 422
     assert response.json()["error"]["message"] == "unsupported tag_type 'unknown'"
+
+
+def test_document_topic_does_not_match_tags_on_another_asset(session):
+    from nexus_api.public_access import DocumentFilters, document_ref_query
+
+    for suffix, tag in [("aviation", "低空经济"), ("commerce", "电子商务")]:
+        _seed_asset(session, suffix=suffix, classification="industry_policy",
+                    tag_type="topic", tag_value=tag, tag_value_normalized=tag)
+    refs = list(session.scalars(document_ref_query(DocumentFilters(topic="low_altitude"))))
+    assert refs == ["ref-aviation"]

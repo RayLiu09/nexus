@@ -8,9 +8,9 @@ export default function QueryRouterV2Page() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="Query Router v2"
+        eyebrow="NEXUS AI"
         title="智能检索"
-        description="三层 LLM 编排：意图分类 → 参数抽取 + 工具编排 → Markdown 汇总；来源引用、生成段落与图谱数据自动区分。"
+        description="用自然语言查询数据与知识，实时查看执行过程，追溯每一条回答的来源。"
       />
       <QueryPlayground />
     </div>

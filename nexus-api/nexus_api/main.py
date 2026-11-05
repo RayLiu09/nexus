@@ -42,6 +42,7 @@ from nexus_app.database import get_session_local
 from nexus_app.ingest.config_loader import get_ingest_validate_registry
 from nexus_app.normalize.config_loader import get_normalize_schemas_registry
 from nexus_app.retrieval.prompt_profiles_v2 import seed_retrieval_v2_prompts
+from nexus_app.retrieval.prompt_profiles_public_tools import seed_public_query_prompts
 from nexus_app.worker.pool import WorkerPool
 from nexus_app.data_sync.catalog import load_catalog
 
@@ -159,6 +160,7 @@ def _seed_v2_prompts_idempotent() -> None:
     session = get_session_local()()
     try:
         seed_retrieval_v2_prompts(session)
+        seed_public_query_prompts(session)
         session.commit()
     except Exception as exc:  # noqa: BLE001 - seed failure ≠ API failure
         logger.warning(

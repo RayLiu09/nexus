@@ -1,7 +1,7 @@
 /**
  * B8 (§10 Batch B3b) — proxy for POST /internal/v1/query.
  *
- * Query Router v2 entry point. Accepts `{ query: string }`, forwards
+ * Query Router v2 entry point. Accepts `{ query: string, web_search?: boolean }`, forwards
  * to nexus-api's /internal/v1/query, and returns the same envelope so
  * the client's fetcher can unwrap it. All auth (JWT cookie) is
  * handled by the underlying `proxy` helper — the frontend never
@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic";
 
 interface QueryRequestBody {
   query?: unknown;
+  web_search?: unknown;
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -42,9 +43,16 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
+  if (payload.web_search !== undefined && typeof payload.web_search !== "boolean") {
+    return NextResponse.json(
+      { ok: false, status: 400, message: "联网搜索 web_search 必须是布尔值" },
+      { status: 400 },
+    );
+  }
+
   const result = await proxy<unknown>("/internal/v1/query", {
     method: "POST",
-    body: { query },
+    body: { query, web_search: payload.web_search ?? false },
   });
 
   return NextResponse.json(result, {

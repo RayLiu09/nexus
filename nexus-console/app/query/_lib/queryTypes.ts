@@ -7,6 +7,7 @@
  */
 
 export type QueryRouterIntent =
+  | "public_tools"
   | "scenario_1"
   | "scenario_2"
   | "scenario_3"
@@ -15,19 +16,14 @@ export type QueryRouterIntent =
   | "unknown";
 
 export type QueryRouterFallbackReason =
+  | (string & {})
   | "unknown_fallback"
   | "scenario_5_template_not_implemented"
   | null;
 
-export type StepId =
-  | "intent_classify"
-  | "param_extract"
-  | "dispatch"
-  | "compose"
-  | "unknown_fallback"
-  | "scenario_5_placeholder";
+export type StepId = string;
 
-export type StepStatus = "running" | "completed" | "failed";
+export type StepStatus = "running" | "completed" | "failed" | "cancelled";
 
 export interface StepPayload {
   id: StepId;
@@ -38,6 +34,9 @@ export interface StepPayload {
   started_at_ms: number;
   completed_at_ms: number;
   error: string | null;
+  tool_name?: string | null;
+  action_type?: string | null;
+  parent_action_id?: string | null;
 }
 
 export interface QueryRouterAuditSummary {
@@ -48,7 +47,7 @@ export interface QueryRouterAuditSummary {
   invoked_tools?: string[];
   generated_ratio?: number;
   template_id?: string | null;
-  query_route?: "v2";
+  query_route?: "v2" | "public_tools_v1";
   chart_hallucination_ids?: string[];
   chart_unused_ids?: string[];
   query_hash?: string;
@@ -77,6 +76,29 @@ export interface QueryRouterResponse {
   warnings: string[];
   audit_summary: QueryRouterAuditSummary;
   external_web_results: ExternalWebResult[];
+  citations?: QueryCitation[];
+}
+
+export interface QueryCitation {
+  citation_id: string;
+  source_type: "document" | "record" | "aggregate" | "external_web";
+  title: string;
+  excerpt: string;
+  tool: string;
+  evidence_level?: "metadata" | "content" | "record" | "aggregate" | "external_web";
+  url?: string | null;
+  record_id?: string | null;
+  asset_id?: string | null;
+  version_id?: string | null;
+  normalized_ref_id?: string | null;
+  chunk_id?: string | null;
+  section_id?: string | null;
+  locator?: Record<string, unknown>;
+  scope?: Record<string, unknown>;
+  published_at?: string | null;
+  collected_at?: string | null;
+  truncated?: boolean;
+  next_offset?: number | null;
 }
 
 export interface ProxySuccessEnvelope<T> {

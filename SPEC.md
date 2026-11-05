@@ -4,6 +4,63 @@ This document is the concise product and requirement contract for implementation
 
 ## Product Goal
 
+The Console intelligent-search phase-one Chatbot reuses the existing query and
+stream entry points and covers generated public business queries, full-filtered-set
+aggregates and bounded evidence reads. It shows live execution actions, source-linked
+answers, copy and stop controls, and a source-detail drawer. The page keeps history
+only until refresh; each submitted question is independent in this phase. Persistent
+multi-turn reasoning is reserved for the next phase. Existing Console role navigation
+remains unchanged.
+
+The conversation and composer fill the available page width. Citation sources
+start collapsed; inline citations can open source details directly. Source details
+show business titles, readable excerpts, Chinese filter labels and original-source
+links, without UUIDs, internal keys or raw JSON. Enter sends, Shift+Enter inserts a
+newline, and IME composition does not accidentally submit a question.
+Expanded citation cards show at most six excerpt lines, with card height following
+content. The drawer previews asset content without a platform-asset navigation
+link; safe web-source links remain labelled `打开网络资源`. The composer omits the
+page-history caption while retaining its existing history behavior.
+Job-list/detail record citations omit `打开网络资源` even when they have a source URL;
+citations from web search retain their resource link.
+
+Execution actions distinguish initial query planning, supplemental queries and
+evidence checking. Repeated tool types show readable keywords/filters to explain
+their purpose. Source counts on an action refer to that call, with newly added
+citations distinguished from earlier ones; empty actions never show previous
+cumulative source counts. Identical successful/empty calls within one turn reuse
+their results, while different query scopes and retries after failure remain valid.
+Ordinary document questions can read relevant observed bodies directly instead of
+another model evidence-selection round. Specialist graph/chapter questions retain
+that round, and unavailable body content can fall back to observed sections within
+the existing budget. Performance audit distinguishes planning, tool and composition
+time; model/provider variability prevents a fixed completion-time promise.
+
+The composer footer provides a `联网搜索` switch, default off. Each internal query
+sends strict boolean `web_search`. On supplements platform retrieval with the existing
+DeepSeek Search API requesting 10 results, even when local results exist; off remains
+platform-only. Actual provider counts may be lower. Explicit local-only/asset scopes
+and sensitive-outbound restrictions remain enforced. Errors preserve local evidence
+and are distinguished from no data.
+Answers distinguish platform documents, business records, aggregates and webpages;
+source records retain actual IDs, locators, filter scopes, and available timestamps.
+The reference list contains only valid sources actually cited in the answer, while
+execution actions label retrieved sources as candidate materials. The same document
+keeps one reference across overlapping queries; actual body evidence enriches its
+metadata. The drawer lazily previews normalized document Markdown, with clear loading,
+permission/error and empty states. Web sources preview acquired content and link to
+the original page. The welcome copy does not promise automatic web fallback.
+Aggregates represent ingested coverage only. Source excerpts and continuation flags
+are visible; a valid citation ID is not a guarantee that every answer claim is true.
+
+Server environment `BUILDIN_API_CALLER` authenticates existing public API calls and
+`BUILDIN_API_BASE_URL` selects the fixed target origin. Search ingestion is controlled
+by `INGEST_SEARCH_RESULTS` (default false), overriding model arguments. True queues
+qualifying results into existing asset processing, without bypassing normalization,
+governance or availability gates. The two new tool/answer Prompts are editable in the
+existing Prompt management view with versioning, supported-variable validation and
+audits. No new business HTTP endpoints are required.
+
 Professional talent-demand reports appear in a paginated Asset Center list
 with asset name, major name/code, institution name when source-evidenced,
 governed content tags, parsed preview, RAG chunks, and original download.

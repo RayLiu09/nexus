@@ -475,6 +475,8 @@ class PromptProfileService:
         warnings: list[str] = []
         template = str(candidate.get("prompt_template") or "")
         profile_name = str(candidate.get("profile_name") or "")
+        from nexus_app.retrieval.prompt_profiles_public_tools import validate_public_prompt
+        errors.extend(validate_public_prompt(profile_name, template))
         task_type = str(candidate.get("task_type") or "")
         scenario = str(candidate.get("scenario") or "default")
         output_schema = candidate.get("output_schema") or {}
@@ -666,7 +668,7 @@ def _dry_run_payload(
     }
 
 
-def _create_default_litellm_client(settings: Settings | None = None) -> LiteLLMClientProtocol:
+def _create_default_litellm_client(settings: Settings | None = None, *, sdk_max_retries: int = 2) -> LiteLLMClientProtocol:
     current = settings or get_settings()
     if not current.litellm_endpoint:
         raise AIGovernanceError(
@@ -681,6 +683,7 @@ def _create_default_litellm_client(settings: Settings | None = None) -> LiteLLMC
             base_url=current.litellm_endpoint.rstrip("/"),
             api_key_ref="LITELLM_API_KEY",
             timeout=current.litellm_timeout,
+            sdk_max_retries=sdk_max_retries,
         ),
         current.litellm_api_key,
     )

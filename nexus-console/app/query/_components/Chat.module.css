@@ -1,0 +1,125 @@
+.welcome {
+  display: flex;
+  min-height: 100%;
+  align-items: center;
+  justify-content: center;
+  padding-block: 16px clamp(32px, 7dvh, 72px);
+}
+
+.sources {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.sourceCard,
+.suggestion {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: left;
+  transition:
+    border-color 150ms,
+    background 150ms;
+}
+
+.sourceCard:hover,
+.suggestion:hover {
+  border-color: var(--brand-300, #a5b4fc);
+  background: var(--brand-50);
+}
+
+.sourceCard > span {
+  display: block;
+  margin-top: 4px;
+}
+
+.sourceCard > .sourceExcerpt {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  line-height: 1.5;
+  max-height: 9em;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.answer {
+  line-height: 1.85;
+  overflow-wrap: anywhere;
+}
+
+.answer h1,
+.answer h2,
+.answer h3 {
+  margin: 18px 0 8px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.answer h1 {
+  font-size: 20px;
+}
+.answer h2 {
+  font-size: 18px;
+}
+.answer h3 {
+  font-size: 16px;
+}
+.answer p {
+  margin: 8px 0;
+}
+.answer ul {
+  list-style: disc;
+  padding-left: 22px;
+}
+.answer ol {
+  list-style: decimal;
+  padding-left: 22px;
+}
+.answer a {
+  color: var(--brand);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.answer a[href^="#citation-"] {
+  display: inline-flex;
+  margin-inline: 2px;
+  padding-inline: 4px;
+  border-radius: 4px;
+  background: #eef2ff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-decoration: none;
+  vertical-align: super;
+}
+.answer table {
+  display: block;
+  max-width: 100%;
+  overflow: auto;
+  border-collapse: collapse;
+  margin: 12px 0;
+}
+.answer th,
+.answer td {
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+  text-align: left;
+}
+.answer th {
+  background: var(--bg-alt);
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .sources {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

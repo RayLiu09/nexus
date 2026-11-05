@@ -15,13 +15,15 @@
  * Cancellation: ``reset()`` aborts the in-flight fetch via
  * ``AbortController`` so switching queries mid-stream doesn't leak.
  */
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { QueryRouterResponse, StepPayload } from "./queryTypes";
+import type { QueryCitation, QueryRouterResponse, StepPayload } from "./queryTypes";
 
-export type StreamStatus = "idle" | "running" | "success" | "error";
+export type StreamStatus = "idle" | "running" | "success" | "error" | "cancelled";
 
 interface StreamMeta {
+  citations?: QueryCitation[];
+  turn_id?: string;
   intent?: string;
   intent_confidence?: number;
   invoked_tools?: string[];
@@ -60,8 +62,9 @@ const INITIAL_STATE: UseQueryRouterStreamState = {
 
 export interface UseQueryRouterStream {
   state: UseQueryRouterStreamState;
-  start: (query: string) => Promise<void>;
+  start: (query: string, options?: { webSearch?: boolean }) => Promise<void>;
   reset: () => void;
+  stop: () => void;
 }
 
 const STREAM_ENDPOINT = "/api/query/stream";
@@ -69,6 +72,21 @@ const STREAM_ENDPOINT = "/api/query/stream";
 export function useQueryRouterStream(): UseQueryRouterStream {
   const [state, setState] = useState<UseQueryRouterStreamState>(INITIAL_STATE);
   const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const stop = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setState((prev) => ({
+      ...prev,
+      status: "cancelled",
+      steps: prev.steps.map((step) =>
+        step.status === "running"
+          ? { ...step, status: "cancelled", completed_at_ms: Date.now() }
+          : step,
+      ),
+    }));
+  }, []);
 
   const reset = useCallback(() => {
     abortRef.current?.abort();
@@ -76,7 +94,7 @@ export function useQueryRouterStream(): UseQueryRouterStream {
     setState(INITIAL_STATE);
   }, []);
 
-  const start = useCallback(async (query: string) => {
+  const start = useCallback(async (query: string, options: { webSearch?: boolean } = {}) => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -84,17 +102,25 @@ export function useQueryRouterStream(): UseQueryRouterStream {
     setState({ ...INITIAL_STATE, status: "running" });
 
     let response: Response;
+    let terminal = false;
+    let lastSequence = 0;
+    const update: ApplyFrame = (updater) => {
+      if (controller.signal.aborted || abortRef.current !== controller) return;
+      setState((prev) =>
+        controller.signal.aborted || abortRef.current !== controller ? prev : updater(prev),
+      );
+    };
     try {
       response = await fetch(STREAM_ENDPOINT, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query, web_search: options.webSearch ?? false }),
         signal: controller.signal,
         cache: "no-store",
       });
     } catch (err) {
       if (controller.signal.aborted) return;
-      setState((prev) => ({
+      update((prev) => ({
         ...prev,
         status: "error",
         error: err instanceof Error ? err.message : "网络错误",
@@ -104,7 +130,7 @@ export function useQueryRouterStream(): UseQueryRouterStream {
 
     if (!response.ok || !response.body) {
       const message = await safeErrorMessage(response);
-      setState((prev) => ({
+      update((prev) => ({
         ...prev,
         status: "error",
         error: message,
@@ -118,26 +144,40 @@ export function useQueryRouterStream(): UseQueryRouterStream {
     try {
       while (true) {
         const { value, done } = await reader.read();
+        if (controller.signal.aborted || abortRef.current !== controller) return;
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         const frames = extractFrames(buffer);
         buffer = frames.remainder;
         for (const frame of frames.parsed) {
-          applyFrame(frame, setState);
+          const payload = safeParseJson(frame.data);
+          const sequence = typeof payload?.sequence === "number" ? payload.sequence : 0;
+          if (sequence && sequence <= lastSequence) continue;
+          if (sequence) lastSequence = sequence;
+          if (frame.event === "done") terminal = true;
+          applyFrame(frame, update);
         }
       }
+      if (!terminal)
+        update((prev) => ({
+          ...prev,
+          status: "error",
+          error: "连接提前结束，请重试；已接收内容已保留。",
+        }));
     } catch (err) {
       if (controller.signal.aborted) return;
-      setState((prev) => ({
+      update((prev) => ({
         ...prev,
         status: "error",
         error: err instanceof Error ? err.message : "读取流失败",
       }));
       return;
+    } finally {
+      reader.releaseLock();
     }
   }, []);
 
-  return { state, start, reset };
+  return { state, start, reset, stop };
 }
 
 // ---------------------------------------------------------------------------
@@ -193,7 +233,7 @@ function applyFrame(frame: SseFrame, setState: ApplyFrame): void {
   const parsed = safeParseJson(frame.data);
   switch (frame.event) {
     case "meta":
-      setState((prev) => ({ ...prev, meta: parsed as StreamMeta }));
+      setState((prev) => ({ ...prev, meta: { ...prev.meta, ...parsed } as StreamMeta }));
       return;
     case "step": {
       const step = parsed as StepPayload | null;

@@ -42,6 +42,82 @@ describe("useQueryRouterStream", () => {
     vi.restoreAllMocks();
   });
 
+  it.each([false, true])("sends the explicit web search flag: %s", async (webSearch) => {
+    const fetcher = globalThis.fetch as ReturnType<typeof vi.fn>;
+    fetcher.mockResolvedValueOnce(buildStreamResponse([sse("done", { ok: true })]));
+    const { result } = renderHook(() => useQueryRouterStream());
+    await act(async () => { await result.current.start("重庆低空经济", { webSearch }); });
+    expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual({ query: "重庆低空经济", web_search: webSearch });
+  });
+
+  it("merges source metadata and ignores duplicate ordered events", async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      buildStreamResponse([
+        sse("meta", { sequence: 1, intent: "public_tools", turn_id: "turn-1" }),
+        sse("meta", { sequence: 2, citations: [{ citation_id: "1", title: "真实来源" }] }),
+        sse("chunk", { sequence: 3, text: "内容" }),
+        sse("chunk", { sequence: 3, text: "重复" }),
+        sse("final", { markdown: "内容", warnings: [] }),
+        sse("done", {}),
+      ]),
+    );
+    const { result } = renderHook(() => useQueryRouterStream());
+    await act(async () => {
+      await result.current.start("q");
+    });
+    expect(result.current.state.meta?.intent).toBe("public_tools");
+    expect(result.current.state.meta?.citations?.[0].title).toBe("真实来源");
+    expect(result.current.state.rawMarkdown).toBe("内容");
+  });
+
+  it("marks an abruptly closed stream as failed and preserves partial content", async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      buildStreamResponse([sse("chunk", { text: "部分回答" })]),
+    );
+    const { result } = renderHook(() => useQueryRouterStream());
+    await act(async () => {
+      await result.current.start("q");
+    });
+    expect(result.current.state.status).toBe("error");
+    expect(result.current.state.rawMarkdown).toBe("部分回答");
+    expect(result.current.state.error).toContain("连接提前结束");
+  });
+
+  it("stop marks running steps cancelled and ignores late responses from an old request", async () => {
+    let oldStream: ReadableStreamDefaultController<Uint8Array>;
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        oldStream = c;
+      },
+    });
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(new Response(stream));
+    const { result } = renderHook(() => useQueryRouterStream());
+    let running: Promise<void>;
+    act(() => {
+      running = result.current.start("old");
+    });
+    await act(async () => {
+      oldStream.enqueue(encoder.encode(sse("step", { id: "tool-1", status: "running" })));
+    });
+    act(() => result.current.stop());
+    expect(result.current.state.status).toBe("cancelled");
+    expect(result.current.state.steps[0].status).toBe("cancelled");
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      buildStreamResponse([sse("final", { markdown: "新回答", warnings: [] }), sse("done", {})]),
+    );
+    await act(async () => {
+      await result.current.start("new");
+    });
+    await act(async () => {
+      oldStream.enqueue(encoder.encode(sse("final", { markdown: "过期回答" })));
+      oldStream.close();
+      await running;
+    });
+    expect(result.current.state.result?.markdown).toBe("新回答");
+    expect(result.current.state.status).toBe("success");
+  });
+
   it("accumulates chunk text and swaps in final markdown on 'final'", async () => {
     const finalPayload = {
       markdown: "# 最终\n\n完整替换后",

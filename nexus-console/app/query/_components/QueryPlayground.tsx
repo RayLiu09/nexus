@@ -26,22 +26,26 @@
  * to the playground level so click-through interactions don't cancel
  * an in-flight request.
  */
-import { Alert, Button, Input, Space } from "antd";
+import { Sender } from "@ant-design/x";
+import { Button, Switch } from "antd";
+import { ArrowUp, Plus, Sparkles, Square } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AgenticMessage } from "./AgenticMessage";
 import type { AgenticTurnState } from "./AgenticMessage";
 import { useQueryRouterStream } from "../_lib/useQueryRouterStream";
 import type { UseQueryRouterStreamState } from "../_lib/useQueryRouterStream";
+import styles from "./Chat.module.css";
 
 const MAX_QUERY_LENGTH = 2048;
 
 export function QueryPlayground() {
   const [query, setQuery] = useState("");
+  const [webSearch, setWebSearch] = useState(false);
   const [history, setHistory] = useState<AgenticTurnState[]>([]);
   const [activeQuery, setActiveQuery] = useState<string | null>(null);
   const [activeCreatedAt, setActiveCreatedAt] = useState<Date | null>(null);
-  const { state, start, reset } = useQueryRouterStream();
+  const { state, start, reset, stop } = useQueryRouterStream();
   const feedRef = useRef<HTMLDivElement | null>(null);
   const snapshottedRef = useRef<string | null>(null);
 
@@ -57,8 +61,8 @@ export function QueryPlayground() {
     setActiveQuery(submittedQuery);
     setActiveCreatedAt(new Date());
     snapshottedRef.current = null;
-    await start(submittedQuery);
-  }, [canSubmit, query, start]);
+    await start(submittedQuery, { webSearch });
+  }, [canSubmit, query, start, webSearch]);
 
   const handleReset = useCallback(() => {
     setQuery("");
@@ -69,31 +73,13 @@ export function QueryPlayground() {
     snapshottedRef.current = null;
   }, [reset]);
 
-  const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (event.key !== "Enter") return;
-      // Skip while an IME composition is open — otherwise pressing
-      // Enter to confirm a Chinese/Japanese candidate would submit
-      // instead of committing the character.  `isComposing` is on the
-      // native event; React 19 also exposes `event.nativeEvent`.
-      if ((event.nativeEvent as KeyboardEvent).isComposing) return;
-      // Ctrl/Cmd + Enter OR Shift + Enter → newline (default
-      // textarea behaviour; don't preventDefault).
-      if (event.ctrlKey || event.metaKey || event.shiftKey) return;
-      // Plain Enter → submit.
-      event.preventDefault();
-      void handleSubmit();
-    },
-    [handleSubmit],
-  );
-
   // When streaming completes (success or error), freeze the hook's
   // state into a new turn, append to history, reset the hook. The
   // ref guard prevents double-appending if the hook state settles
   // across multiple renders.
   useEffect(() => {
     if (!activeQuery || activeCreatedAt === null) return;
-    if (state.status !== "success" && state.status !== "error") return;
+    if (!["success", "error", "cancelled"].includes(state.status)) return;
     if (snapshottedRef.current === activeQuery) return;
     snapshottedRef.current = activeQuery;
     const frozen = snapshotTurn(activeQuery, activeCreatedAt, state, false);
@@ -116,88 +102,115 @@ export function QueryPlayground() {
       : null;
 
   return (
-    <div className="flex h-[calc(100vh-220px)] flex-col gap-4">
+    <div className="flex h-[calc(100dvh-190px)] min-h-[420px] w-full min-w-0 flex-col gap-4">
       <div
         ref={feedRef}
-        className="border-line flex-1 space-y-6 overflow-y-auto rounded-lg border bg-gray-50/60 p-4"
+        className="min-w-0 flex-1 space-y-8 overflow-y-auto py-6"
         role="log"
         aria-live="polite"
       >
+        {history.length === 0 && !activeTurn ? (
+          <div className={styles.welcome}>
+            <div className="mx-auto flex w-full max-w-2xl flex-col items-center text-center">
+              <span className="rounded-2xl bg-indigo-50 p-4 text-indigo-600">
+                <Sparkles size={30} />
+              </span>
+              <h2 className="mt-5 text-2xl font-semibold tracking-tight">
+                从问题开始，找到有据可查的答案
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-gray-500">
+                查询业务数据、比较统计结果、查阅文档证据。
+              </p>
+              <div className="mt-7 grid w-full gap-3 sm:grid-cols-2">
+                {[
+                  "网络营销与直播电商专业有哪些核心课程？",
+                  "统计重庆市电子商务专业的院校布点",
+                  "市场岗位中直播运营的能力要求有哪些？",
+                  "查找职业教育产教融合的相关政策",
+                ].map((example) => (
+                  <button
+                    key={example}
+                    type="button"
+                    onClick={() => setQuery(example)}
+                    className={styles.suggestion}
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
         {history.map((turn, idx) => (
           <AgenticMessage key={`${turn.createdAt.getTime()}-${idx}`} turn={turn} />
         ))}
         {activeTurn && <AgenticMessage key="active" turn={activeTurn} />}
       </div>
-      <ComposerBar
-        query={query}
-        onChange={setQuery}
-        onKeyDown={handleKeyDown}
-        onSubmit={handleSubmit}
-        onReset={handleReset}
-        canSubmit={canSubmit}
-        isRunning={isRunning}
-      />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Composer bar
-// ---------------------------------------------------------------------------
-
-interface ComposerBarProps {
-  query: string;
-  onChange: (value: string) => void;
-  onKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
-  onSubmit: () => void;
-  onReset: () => void;
-  canSubmit: boolean;
-  isRunning: boolean;
-}
-
-function ComposerBar({
-  query,
-  onChange,
-  onKeyDown,
-  onSubmit,
-  onReset,
-  canSubmit,
-  isRunning,
-}: ComposerBarProps) {
-  return (
-    <div className="border-line bg-surface rounded-lg border p-3">
-      <Space orientation="vertical" size="small" style={{ display: "flex" }}>
-        <Input.TextArea
-          data-testid="query-composer-input"
-          value={query}
-          onChange={(event) => onChange(event.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="例如：跨境电商专业 2025 年岗位需求分布如何？（Enter 提交，Shift/Ctrl+Enter 换行）"
-          autoSize={{ minRows: 3, maxRows: 8 }}
-          maxLength={MAX_QUERY_LENGTH}
-          showCount
-          disabled={isRunning}
-        />
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-500">
-            {isRunning ? "正在处理上一条问题，请等待完成…" : "支持连续追问，历史仅本页可见。"}
-          </span>
-          <div className="flex items-center gap-2">
-            <Button onClick={onReset} disabled={isRunning}>
-              清空历史
-            </Button>
-            <Button
-              type="primary"
-              onClick={onSubmit}
-              loading={isRunning}
-              disabled={!canSubmit}
-              data-testid="query-composer-submit"
-            >
-              提交查询
-            </Button>
-          </div>
+      <div className="w-full min-w-0 pb-2" data-testid="query-composer">
+        <div className="mb-2 flex items-center justify-between text-xs text-gray-400">
+          <Button
+            type="text"
+            size="small"
+            onClick={handleReset}
+            disabled={isRunning}
+            icon={<Plus size={14} />}
+          >
+            新对话
+          </Button>
         </div>
-      </Space>
+        <Sender
+          value={query}
+          onChange={(value) => setQuery(value.slice(0, MAX_QUERY_LENGTH))}
+          placeholder="询问业务数据、文档或知识…"
+          autoSize={{ minRows: 2, maxRows: 7 }}
+          loading={isRunning}
+          readOnly={isRunning}
+          submitType="enter"
+          onSubmit={() => void handleSubmit()}
+          onCancel={stop}
+          suffix={false}
+          onKeyDown={(event) => {
+            if ((event.nativeEvent as KeyboardEvent).isComposing && event.key === "Enter")
+              return false;
+          }}
+          footer={(_, { components: { SendButton } }) => (
+            <div className="flex w-full items-center justify-between px-1 pb-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+                <label className="flex items-center gap-2 text-xs text-gray-600">
+                  <Switch
+                    size="small"
+                    aria-label="联网搜索"
+                    checked={webSearch}
+                    onChange={setWebSearch}
+                    disabled={isRunning}
+                  />
+                  联网搜索
+                </label>
+                <span className="text-xs text-gray-400">
+                  Enter 发送 · Shift + Enter 换行 · {query.length}/{MAX_QUERY_LENGTH}
+                </span>
+              </div>
+              {isRunning ? (
+                <Button onClick={stop} aria-label="停止生成" icon={<Square size={14} />}>
+                  停止
+                </Button>
+              ) : (
+                <SendButton
+                  type="primary"
+                  disabled={!canSubmit}
+                  data-testid="query-composer-submit"
+                  icon={<ArrowUp size={16} />}
+                >
+                  发送
+                </SendButton>
+              )}
+            </div>
+          )}
+        />
+        <p className="mt-2 text-center text-xs text-gray-400">
+          回答依据查询结果生成，请结合引用来源核对关键信息。
+        </p>
+      </div>
     </div>
   );
 }
@@ -232,5 +245,7 @@ function snapshotTurn(
     isStreaming,
     error: state.error,
     externalWebResults: state.result?.external_web_results ?? [],
+    citations: state.result?.citations ?? state.meta?.citations ?? [],
+    cancelled: state.status === "cancelled",
   };
 }

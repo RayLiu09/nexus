@@ -64,6 +64,7 @@ def _result_payload(result: RouterResult) -> dict[str, Any]:
         "audit_summary": result.audit_summary,
         "external_web_results": list(getattr(result, "external_web_results", ())),
         "section_contexts": list(getattr(result, "section_contexts", ())),
+        "citations": list(getattr(result, "citations", ())),
     }
 
 
@@ -98,6 +99,19 @@ def serialise_router_stream(
             route=route,   # type: ignore[arg-type]  # RouteType is a Literal
             caller_type=caller_type,   # type: ignore[arg-type]
         ):
+            if event.type == "meta" and (event.meta or {}).get("engine") == "public_tools_v1":
+                # Persist initiator attribution before any network tool begins,
+                # so a disconnected query still has a user-attributed trail.
+                write_audit(
+                    session, AuditEventType.SEARCH_QUERY_EXECUTED,
+                    target_type="query_router_v2", target_id=trace_id or query_hash,
+                    trace_id=trace_id, actor_type=actor_type, actor_id=actor_id,
+                    summary={"route": route, "caller_type": caller_type, "query_hash": query_hash,
+                             "query_route": "public_tools_v1", "phase": "started",
+                             "web_search_enabled": (event.meta or {}).get("web_search_enabled", False),
+                             "turn_id": (event.meta or {}).get("turn_id")},
+                )
+                session.commit()
             frame = _event_to_frame(event)
             if frame is None:
                 continue
@@ -138,11 +152,15 @@ def serialise_router_stream(
 
 def _event_to_frame(event: RouterStreamEvent) -> str | None:
     """Translate one RouterStreamEvent to an SSE frame body."""
+    def frame(kind, data):
+        context = {k: v for k, v in {"event_id": event.event_id, "sequence": event.sequence,
+                                    "turn_id": event.turn_id}.items() if v is not None}
+        return _format_sse(kind, {**data, **context})
     if event.type == "meta":
-        return _format_sse("meta", event.meta or {})
+        return frame("meta", event.meta or {})
     if event.type == "step" and event.step is not None:
         step = event.step
-        return _format_sse("step", {
+        return frame("step", {
             "id": step.id,
             "status": step.status,
             "label": step.label,
@@ -151,19 +169,56 @@ def _event_to_frame(event: RouterStreamEvent) -> str | None:
             "started_at_ms": step.started_at_ms,
             "completed_at_ms": step.completed_at_ms,
             "error": step.error,
+            "tool_name": step.tool_name,
+            "action_type": step.action_type,
+            "parent_action_id": step.parent_action_id,
         })
     if event.type == "chunk":
-        return _format_sse("chunk", {"text": event.text})
+        return frame("chunk", {"text": event.text})
     if event.type == "final" and event.result is not None:
-        return _format_sse("final", _result_payload(event.result))
+        return frame("final", _result_payload(event.result))
     if event.type == "error":
-        return _format_sse("error", {"reason": event.reason or "unknown"})
+        return frame("error", {"reason": event.reason or "unknown"})
     if event.type == "done":
         # `done` is emitted by the caller-side generator itself so we
         # can guarantee it fires after audit commit — return None here
         # to have the router's own `done` swallowed.
         return None
     return None
+
+
+async def cancellable_stream(stream, request, cancel):
+    """Watch disconnects during blocking work, and send proxy-safe heartbeats.
+
+    Only one next() is active. In-flight HTTP/model calls finish within their
+    own timeout; the cancellation flag prevents subsequent actions.
+    """
+    import asyncio
+    import anyio
+
+    sentinel = object()
+    def advance():
+        return next(stream, sentinel)
+
+    pending = None
+    try:
+        while True:
+            pending = asyncio.create_task(anyio.to_thread.run_sync(advance, abandon_on_cancel=True))
+            while not pending.done():
+                done, _ = await asyncio.wait({pending}, timeout=1)
+                if await request.is_disconnected():
+                    cancel()
+                    return
+                if not done:
+                    yield ": keep-alive\n\n"
+            item = pending.result()
+            if item is sentinel:
+                return
+            yield item
+    finally:
+        cancel()
+        if pending is not None and not pending.done():
+            pending.cancel()
 
 
 __all__ = [

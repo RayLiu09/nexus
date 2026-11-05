@@ -269,7 +269,9 @@ def _document_topic_predicate(topic: DocumentTopic, catalog_ref_id):
             models.TagAssetIndex.tag_type.in_(("industry", "topic")),
             or_(*(models.TagAssetIndex.tag_value.ilike(pattern) for pattern in patterns)),
         )
-        .correlate(models.Asset)
+        # Public queries pass a ref column; Console queries pass a scalar
+        # current-ref expression. Correlate both outer anchors in the EXISTS.
+        .correlate(models.Asset, models.NormalizedAssetRef)
         .exists()
     )
     return or_(

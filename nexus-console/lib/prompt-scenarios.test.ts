@@ -9,7 +9,7 @@ import {
 } from "./prompt-scenarios";
 
 describe("Prompt scenario registry", () => {
-  it("keeps the eight core scenarios in the frozen display order", () => {
+  it("keeps the core scenarios in the frozen display order", () => {
     expect(CORE_PROMPT_SCENARIOS.map((scenario) => scenario.displayName)).toEqual([
       "数据资产分类",
       "数据资产分级",
@@ -19,6 +19,8 @@ describe("Prompt scenario registry", () => {
       "检索意图识别",
       "检索参数提取",
       "检索结果答案组织",
+      "公开业务工具选择",
+      "证据引用回答",
     ]);
   });
 

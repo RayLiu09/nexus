@@ -84,7 +84,7 @@ RouterStreamEventType = Literal[
     "meta", "step", "chunk", "final", "done", "error",
 ]
 
-StepId = Literal[
+LegacyStepId = Literal[
     "intent_classify",
     "param_extract",
     "dispatch",
@@ -93,7 +93,8 @@ StepId = Literal[
     "scenario_5_placeholder",
 ]
 
-StepStatus = Literal["running", "completed", "failed"]
+StepId = str
+StepStatus = Literal["running", "completed", "failed", "cancelled"]
 
 
 @dataclass(frozen=True)
@@ -116,6 +117,9 @@ class StepPayload:
     started_at_ms: int = 0
     completed_at_ms: int = 0
     error: str | None = None
+    tool_name: str | None = None
+    action_type: str | None = None
+    parent_action_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -149,6 +153,9 @@ class RouterStreamEvent:
     meta: dict[str, Any] | None = None
     reason: str | None = None
     step: StepPayload | None = None
+    event_id: str | None = None
+    sequence: int | None = None
+    turn_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -181,6 +188,7 @@ class RouterResult:
     # Complete theory-textbook chapter contexts derived from the ranked hit
     # chunks.  The tool layer caps this at three distinct outline nodes.
     section_contexts: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+    citations: tuple[dict[str, Any], ...] = field(default_factory=tuple)
 
 
 # ---------------------------------------------------------------------------

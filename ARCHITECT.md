@@ -2,6 +2,74 @@
 
 This document is the concise architecture baseline for implementation. It is distilled from `docs/企业数据与知识资产平台技术选型和架构nexus_v3.0.md` (v2.6, v2.5, v2.4 archived).
 
+## Console intelligent search: public tools phase 1 (2026-11-04)
+
+The existing internal query and SSE endpoints now use a bounded public-tool runtime.
+The external `/open/v1/query` compatibility router is unchanged. The runtime derives
+its tool schemas/bindings from application OpenAPI, excludes recursive query/QA and
+raw-download tools, validates parameters using JSON Schema, and sends HTTP only to
+`BUILDIN_API_BASE_URL` (default `http://127.0.0.1:8000`). Server-only
+`BUILDIN_API_CALLER` supplies the public API key. Redirects and model-selected hosts
+are forbidden. User-session and API-caller audit actors remain distinct and share
+the request trace ID; existing public organization filtering remains P0 noop.
+
+Execution stages are discovery, up to two primary model selections, conditional evidence
+selection, explicit web search when enabled, bounded relevant-document content reads,
+and streaming composition. At most 16 tool calls are scheduled, with a 180-second
+scheduling budget, HTTP timeout 25 seconds, and model request timeout at most 45
+seconds with SDK retries disabled for this runtime. Disconnect stops future work;
+already submitted synchronous calls finish within their timeout. No Session is
+shared among parallel tool calls. SSE carries dynamic action IDs, event/turn IDs,
+sequence numbers, terminal statuses and source metadata.
+
+Ordinary document questions with relevant observed normalized references read up to
+three bodies directly, avoiding an extra evidence-planning model call. Graph,
+outline/chapter/context questions and other resources retain evidence selection.
+If direct reads yield no content, one observed directory/section fallback may run
+within the same 16-call budget. Composition carries tool outcomes/scopes and full
+aggregate results separately from a single source-evidence copy; ordinary body
+context retains up to 5,000 characters per source with explicit truncation. The
+existing query audit records monotonic stage/first-answer/total timings, HTTP/model
+counts and context sizes, without raw queries, source content or credentials.
+HTTP calls remain sequential; no provider, Prompt version or API contract change
+is needed for this optimization.
+
+Within a turn, identical tool names and canonical JSON arguments reuse completed
+success/empty results without another HTTP request or execution action; failures
+remain retryable. Reuse is counted in the query audit. Tool actions carry sanitized
+business-query summaries. Per-call `source_count`, `new_source_count` and explicitly
+cumulative `total_source_count` are distinct; citation IDs come only from the
+current response, including existing registry matches, never a tool/scope-wide scan.
+
+The two new Prompts `retrieval.public_tools_v1` and
+`retrieval.evidence_answer_v1` are seeded idempotently and read exclusively from
+active `ai_prompt_profile` rows. Actual API results populate a citation registry;
+document anchors, business record IDs, aggregate filters and external URLs remain
+distinct. Invalid numeric citations are removed, and missing citations are surfaced.
+The internal request adds strict boolean `web_search` (default false). Off remains
+platform-only; on invokes the existing `search_web_search` DeepSeek endpoint with
+`count=10` independently of local success, preserving explicit local/asset scopes
+and sensitive-outbound checks. Provider failures preserve local evidence. External
+facts never substitute for platform aggregate coverage; returned counts remain actual.
+
+The registry deduplicates a document by normalized reference across query scopes;
+body reads enrich the stable citation and preserve its asset anchor. Metadata/content
+evidence levels are explicit. Thirty local candidate slots and ten web slots bound
+context without starving explicit web results. Composition sees candidate evidence;
+final citations retain only valid IDs used in the answer (numbers are not reassigned).
+Candidate and final counts are audited separately. Console previews normalized
+Markdown lazily through its existing authenticated content proxy, with abort/stale
+protection and safe loading/denied/empty states. No new business API is introduced.
+The public document topic tag EXISTS correlates to the current normalized reference,
+so a tag on another document cannot satisfy the requested topic.
+
+`INGEST_SEARCH_RESULTS=false` is the default executor policy. When explicitly true,
+the executor requests ingestion through the existing external-search API pipeline
+and its admission rules. This is the user-approved exception to request-only web
+results for the new Console runtime. It does not alter legacy public query fallback
+or independent external-search consumers. Web sources never become governed asset
+citations merely because ingestion was queued.
+
 ## Key Changes in v3.0
 
 | Change                        | v2.6                                                   | v3.0                                                                                                                                                                                                          |

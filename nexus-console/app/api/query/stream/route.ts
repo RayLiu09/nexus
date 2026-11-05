@@ -19,6 +19,7 @@ export const dynamic = "force-dynamic";
 
 interface QueryRequestBody {
   query?: unknown;
+  web_search?: unknown;
 }
 
 const MAX_QUERY_LENGTH = 2048;
@@ -48,6 +49,13 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
+  if (payload.web_search !== undefined && typeof payload.web_search !== "boolean") {
+    return NextResponse.json(
+      { ok: false, status: 400, message: "联网搜索 web_search 必须是布尔值" },
+      { status: 400 },
+    );
+  }
+
   const headers: Record<string, string> = { "content-type": "application/json" };
   try {
     const store = await cookies();
@@ -62,8 +70,9 @@ export async function POST(request: Request): Promise<Response> {
     upstream = await fetch(`${apiBaseUrl()}/internal/v1/query/stream`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ query, web_search: payload.web_search ?? false }),
       cache: "no-store",
+      signal: request.signal,
     });
   } catch (err) {
     return NextResponse.json(

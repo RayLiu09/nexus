@@ -94,6 +94,26 @@ export const CORE_PROMPT_SCENARIOS: readonly PromptScenarioDefinition[] = [
     dryRunSupported: false,
     impactText: "保存后从下一次智能检索查询开始生效。",
   },
+  {
+    profileName: "retrieval.public_tools_v1",
+    displayName: "公开业务工具选择",
+    description: "选择公开业务查询、聚合与证据工具并生成参数。",
+    group: "core",
+    allowedVariables: ["{{QUERY}}", "{{RESOURCE_SUMMARY}}", "{{TOOL_RESULTS}}"],
+    requiredVariables: ["{{QUERY}}", "{{RESOURCE_SUMMARY}}", "{{TOOL_RESULTS}}"],
+    dryRunSupported: false,
+    impactText: "保存后从下一次智能检索查询开始生效。",
+  },
+  {
+    profileName: "retrieval.evidence_answer_v1",
+    displayName: "证据引用回答",
+    description: "依据工具结果与服务端来源注册表生成带引用的回答。",
+    group: "core",
+    allowedVariables: ["{{QUERY}}", "{{TOOL_RESULTS}}", "{{CITATIONS}}"],
+    requiredVariables: ["{{QUERY}}", "{{TOOL_RESULTS}}", "{{CITATIONS}}"],
+    dryRunSupported: false,
+    impactText: "保存后从下一次智能检索查询开始生效。",
+  },
 ];
 
 export const DOMAIN_PROMPT_SCENARIOS: readonly PromptScenarioDefinition[] = [

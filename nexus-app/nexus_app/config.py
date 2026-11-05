@@ -5,7 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 from urllib.parse import quote_plus
 
-from pydantic import Field, computed_field
+from pydantic import Field, SecretStr, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -126,6 +126,19 @@ class Settings(BaseSettings):
     litellm_api_key: str | None = None
     litellm_timeout: float = Field(default=30.0, alias="LITELLM_TIMEOUT")
     litellm_retry_attempts: int = Field(default=3, alias="LITELLM_RETRY_ATTEMPTS")
+    # Server-only credential for the phase-one public business tool executor.
+    # The environment spelling BUILDIN_API_CALLER is part of its contract.
+    buildin_api_caller: SecretStr | None = Field(
+        default=None, alias="BUILDIN_API_CALLER", repr=False,
+    )
+    buildin_api_base_url: str = Field(
+        default="http://127.0.0.1:8000", alias="BUILDIN_API_BASE_URL",
+    )
+    # The executor owns external-search auto_ingest; model arguments cannot
+    # override this deployment setting. Existing API consumers are unaffected.
+    ingest_search_results: bool = Field(
+        default=False, alias="INGEST_SEARCH_RESULTS",
+    )
     ai_web_search_provider: str = Field(
         default="firecrawl", alias="AI_WEB_SEARCH_PROVIDER",
     )

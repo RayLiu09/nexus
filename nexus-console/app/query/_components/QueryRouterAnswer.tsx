@@ -37,6 +37,7 @@ import { EchartsFence } from "./EchartsFence";
 interface QueryRouterAnswerProps {
   markdown: string;
   onSelectChunk?: (chunk: KnowledgeChunkHit) => void;
+  onSelectCitation?: (id: string) => void;
 }
 
 const CHART_LANG = "chart:echarts";
@@ -49,30 +50,44 @@ type MarkdownSection =
   | { type: "markdown"; markdown: string }
   | { type: "graph_relations"; markdown: string; relationCount: number };
 
-export function QueryRouterAnswer({ markdown, onSelectChunk }: QueryRouterAnswerProps) {
-  const handleAnchorClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement;
-    if (target.tagName !== "A") return;
-    const anchor = target as HTMLAnchorElement;
-    const href = anchor.getAttribute("href") || "";
-    if (!href.startsWith("#")) return;
-    const id = href.slice(1);
-    if (id.startsWith("chunk-preview-")) {
-      const chunkId = decodeURIComponent(id.slice("chunk-preview-".length));
-      if (!chunkId || !onSelectChunk) return;
+export function QueryRouterAnswer({
+  markdown,
+  onSelectChunk,
+  onSelectCitation,
+}: QueryRouterAnswerProps) {
+  const handleAnchorClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement;
+      if (target.tagName !== "A") return;
+      const anchor = target as HTMLAnchorElement;
+      const href = anchor.getAttribute("href") || "";
+      if (!href.startsWith("#")) return;
+      const id = href.slice(1);
+      if (id.startsWith("citation-") && onSelectCitation) {
+        event.preventDefault();
+        onSelectCitation(id.slice("citation-".length));
+        return;
+      }
+      if (id.startsWith("chunk-preview-")) {
+        const chunkId = decodeURIComponent(id.slice("chunk-preview-".length));
+        if (!chunkId || !onSelectChunk) return;
+        event.preventDefault();
+        onSelectChunk({ chunk_id: chunkId, nexus_chunk_id: chunkId, id: chunkId, content: "" });
+        return;
+      }
+      const el = document.getElementById(id);
+      if (!el) return;
       event.preventDefault();
-      onSelectChunk({ chunk_id: chunkId, nexus_chunk_id: chunkId, id: chunkId, content: "" });
-      return;
-    }
-    const el = document.getElementById(id);
-    if (!el) return;
-    event.preventDefault();
-    const footnotes = el.closest("details");
-    if (footnotes instanceof HTMLDetailsElement) footnotes.open = true;
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [onSelectChunk]);
+      const footnotes = el.closest("details");
+      if (footnotes instanceof HTMLDetailsElement) footnotes.open = true;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    },
+    [onSelectChunk, onSelectCitation],
+  );
 
-  const renderMarkdown = onSelectChunk ? addFootnotePreviewLinks(markdown) : markdown;
+  let renderMarkdown = onSelectChunk ? addFootnotePreviewLinks(markdown) : markdown;
+  if (onSelectCitation)
+    renderMarkdown = renderMarkdown.replace(/\[(\d+)\](?!\()/g, "[$1](#citation-$1)");
 
   return (
     <div
@@ -187,7 +202,9 @@ function splitGraphRelationSections(markdown: string): MarkdownSection[] {
     sections.push({
       type: "graph_relations",
       markdown: relationMarkdown,
-      relationCount: lines.slice(listStart, listEnd).filter((line) => MARKDOWN_LIST_ITEM_RE.test(line)).length,
+      relationCount: lines
+        .slice(listStart, listEnd)
+        .filter((line) => MARKDOWN_LIST_ITEM_RE.test(line)).length,
     });
     markdownStart = sectionEnd;
     index = sectionEnd;
@@ -200,7 +217,8 @@ function splitGraphRelationSections(markdown: string): MarkdownSection[] {
   return sections;
 }
 
-const FOOTNOTE_CHUNK_ID_RE = /(^\[\^[^\]]+\]:[^\n]*?\bchunk_id\s*[:：]\s*`?)([0-9a-f-]{36})(`?[^\n]*)$/gim;
+const FOOTNOTE_CHUNK_ID_RE =
+  /(^\[\^[^\]]+\]:[^\n]*?\bchunk_id\s*[:：]\s*`?)([0-9a-f-]{36})(`?[^\n]*)$/gim;
 
 function addFootnotePreviewLinks(markdown: string): string {
   return markdown.replace(
