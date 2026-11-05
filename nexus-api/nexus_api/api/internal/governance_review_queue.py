@@ -39,9 +39,12 @@ def pending_review_candidates():
     return (
         select(result.id).join(ref, ref.id == result.normalized_ref_id).join(
             version, version.id == ref.version_id
-        ).where(
+        ).join(models.Asset, models.Asset.id == version.asset_id).where(
             result.id == latest_result_id,
             result.status == GovernanceResultStatus.REVIEW_REQUIRED,
+            models.Asset.status.notin_(
+                (AssetVersionStatus.ARCHIVED, AssetVersionStatus.DISABLED)
+            ),
             ~newer_visible_version,
         ),
         result,

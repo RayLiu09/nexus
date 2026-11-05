@@ -110,8 +110,8 @@
 | Endpoint | Method | Status | 使用页面 | 备注 |
 |----------|--------|--------|----------|------|
 | `/internal/v1/governance-reviews/pending` | GET | `ready` | `/tag-review` | 最新 `review_required` 官方治理结果，每个 normalized ref 一条 |
-| `/internal/v1/governance-results/{id}/review-context` | GET | `ready` | `/tag-review` | 返回审核上下文、AI 证据和有效分类/分级规则 |
-| `/internal/v1/governance-results/{id}/review-decisions` | POST | `ready` | `/tag-review` | 要求 `Idempotency-Key`，提交不可变治理结论 |
+| `/internal/v1/governance-results/{id}/review-context` | GET | `ready` | `/tag-review` | 返回审核上下文、AI 证据和有效分类/分级规则；资产已人工归档/禁用时返回 409 |
+| `/internal/v1/governance-results/{id}/review-decisions` | POST | `ready` | `/tag-review` | 要求 `Idempotency-Key`，提交不可变治理结论；基准结果过期或资产已人工归档/禁用时返回 409 |
 | `/internal/v1/governance-reviews/history` | GET | `ready` | audit only | 审计读取接口，不在首版页面展示 |
 
 ---

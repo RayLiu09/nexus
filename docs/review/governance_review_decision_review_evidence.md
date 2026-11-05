@@ -1,5 +1,41 @@
 # Governance Review Decision Review Evidence
 
+## 2026-11-05: Retired Asset Review Guard
+
+- Pending review candidates now join the asset and exclude `archived` and
+  `disabled` assets before SQL pagination/counting. Latest-result and newer
+  visible-version filtering remain in place.
+- Review context and new decision submission reject retired assets with 409.
+  State-machine retirement errors are translated to the same conflict; the
+  endpoint rolls back the transaction. Other state-transition errors become
+  validation errors (422). Successful decision replay remains idempotent.
+- Version State/API Contract review: the existing state manager remains the
+  transition authority; no status enum, schema, migration, role boundary or
+  public business API changes. Historical decisions and AI evidence remain.
+- User requested committing and pushing this scoped fix on 2026-11-05.
+
+Validation (isolated SQLite; no production database access):
+
+```text
+cd nexus-api
+.venv/bin/python -m pytest tests/test_governance_review_pagination.py tests/test_governance_review_queue_performance.py -q
+7 passed (rerun outside sandbox: 3.11s)
+
+cd nexus-app
+.venv/bin/python -m pytest tests/governance/test_review_service.py tests/governance/test_version_state_smoke.py -q
+9 passed
+
+git diff --check
+```
+
+API TestClient execution stalled inside the sandbox after the two unit tests;
+the complete API selection passed outside the sandbox. New regressions cover
+archived-asset queue exclusion, HTTP 409 mapping and rejection before new
+decision/result writes. Existing tests also verify bounded queue queries,
+pagination/counts, stale-version filtering, review replay and continuation/audit
+behavior. Disabled-asset and concurrent-retirement branches were reviewed in
+code but do not have dedicated new regression cases in this patch.
+
 Date: 2026-07-28
 
 ## Delivered Scope

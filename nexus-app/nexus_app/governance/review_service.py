@@ -33,7 +33,7 @@ from nexus_app.enums import (
     TagAssetIndexTargetType,
 )
 from nexus_app.governance.schemas import DecisionTrailEntry
-from nexus_app.metadata.version_state import VersionStateManager
+from nexus_app.metadata.version_state import StateTransitionError, VersionStateManager
 from nexus_app.pipeline.payload_schema import JOB_PAYLOAD_SCHEMA_VERSION
 from nexus_app.worker.notify import notify_job_ready
 
@@ -44,6 +44,10 @@ class GovernanceReviewError(ValueError):
 
 class StaleGovernanceReviewError(GovernanceReviewError):
     """The submitted base result is no longer the latest result for its ref."""
+
+
+class RetiredAssetGovernanceReviewError(GovernanceReviewError):
+    """The source asset was manually retired while the review was open."""
 
 
 QualityDisposition = Literal["pass", "review_required"]
@@ -186,6 +190,14 @@ class GovernanceReviewService:
         version = session.get(models.AssetVersion, ref.version_id)
         if version is None:  # pragma: no cover - FK corruption guard
             raise GovernanceReviewError("normalized ref version is missing")
+        asset = session.get(models.Asset, version.asset_id)
+        if asset is not None and asset.status in {
+            AssetVersionStatus.ARCHIVED,
+            AssetVersionStatus.DISABLED,
+        }:
+            raise RetiredAssetGovernanceReviewError(
+                "asset is manually retired and cannot be published; restore the asset before reviewing"
+            )
 
         # Pipeline routing is a queue-time contract. A continuation must copy
         # that persisted value from the original ingest job, never re-infer it
@@ -256,14 +268,22 @@ class GovernanceReviewService:
 
         state_manager = VersionStateManager()
         target_status = state_manager.determine_version_status(session, result)
-        if target_status == AssetVersionStatus.AVAILABLE:
-            state_manager.transition_to_available(
-                session, version, result, user_id=reviewer_id, trace_id=trace_id
-            )
-        else:
-            state_manager.transition_to_review_required(
-                session, version, result, user_id=reviewer_id, trace_id=trace_id
-            )
+        try:
+            if target_status == AssetVersionStatus.AVAILABLE:
+                state_manager.transition_to_available(
+                    session, version, result, user_id=reviewer_id, trace_id=trace_id
+                )
+            else:
+                state_manager.transition_to_review_required(
+                    session, version, result, user_id=reviewer_id, trace_id=trace_id
+                )
+        except StateTransitionError as exc:
+            # A manual archive/disable can race with an already-open review.
+            # Keep the whole submission atomic and expose a conflict instead of
+            # leaking an unhandled 500 from the state machine.
+            if "manually retired" in str(exc) or "cannot be republished" in str(exc):
+                raise RetiredAssetGovernanceReviewError(str(exc)) from exc
+            raise GovernanceReviewError(str(exc)) from exc
 
         continuation_job: models.Job | None = None
         if version.version_status == AssetVersionStatus.AVAILABLE:

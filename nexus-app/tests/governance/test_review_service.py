@@ -19,6 +19,7 @@ from nexus_app.enums import (
 )
 from nexus_app.governance.review_service import (
     GovernanceReviewService,
+    RetiredAssetGovernanceReviewError,
     StaleGovernanceReviewError,
     parse_submission,
 )
@@ -96,6 +97,26 @@ def test_review_required_quality_does_not_queue_continuation(session, registry):
     outcome = GovernanceReviewService(registry).submit(session, base_result_id=base.id, submission=_submission("review_required"), reviewer_id=user.id, idempotency_key="review-2", trace_id="trace-review")
     assert outcome.version.version_status == AssetVersionStatus.REVIEW_REQUIRED
     assert outcome.continuation_job is None
+
+
+def test_retired_asset_review_is_rejected_before_writing_result(session, registry):
+    user, _version, _ref, base = _seed(session)
+    asset = session.get(models.Asset, base.normalized_ref.version.asset_id)
+    asset.status = AssetVersionStatus.ARCHIVED
+    session.commit()
+
+    with pytest.raises(RetiredAssetGovernanceReviewError, match="manually retired"):
+        GovernanceReviewService(registry).submit(
+            session,
+            base_result_id=base.id,
+            submission=_submission(),
+            reviewer_id=user.id,
+            idempotency_key="review-retired",
+            trace_id="trace-review-retired",
+        )
+
+    assert session.query(models.GovernanceReviewDecision).count() == 0
+    assert session.query(models.GovernanceResult).count() == 1
 
 
 def test_review_suppresses_stale_major_profile_presentation(session, registry):

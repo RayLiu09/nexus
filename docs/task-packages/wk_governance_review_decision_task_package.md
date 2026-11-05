@@ -1,5 +1,21 @@
 # Task Package: Immutable Governance Review Decision
 
+## 2026-11-05: Retired Asset Review Guard
+
+- Goal: exclude archived/disabled assets from the pending review list and count;
+  reject their review context and new decisions with HTTP 409 rather than 500.
+- Scope: existing internal review queue/context/submit endpoints, review domain
+  service, focused regression tests, Console API status notes and review evidence.
+- Preserve: immutable historical decisions, idempotent replay, current role and
+  audit boundaries, the existing version state machine and continuation routing.
+- Forbidden: migrations, new lifecycle actions, business/public API changes,
+  unrelated workspace edits and production build artifacts.
+- Acceptance: queue list/count exclude retired assets before pagination; review
+  submission creates no new result/decision for a retired asset; API returns 409;
+  existing review and lifecycle regressions pass against isolated SQLite.
+- Review focus: Version State and API Contract gates. User requested committing
+  and pushing this bounded fix on 2026-11-05; no merge is part of this task.
+
 ## Source Context
 
 - `AGENTS.md`: governance inputs and results target `normalized_asset_ref`;

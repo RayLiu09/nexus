@@ -16,10 +16,11 @@ from nexus_api.responses import list_response, response
 from nexus_app import models
 from nexus_app.ai_governance.tag_payload import normalize_to_structured
 from nexus_app.database import get_db
-from nexus_app.enums import GovernanceResultStatus, UserRole
+from nexus_app.enums import AssetVersionStatus, GovernanceResultStatus, UserRole
 from nexus_app.governance.review_service import (
     GovernanceReviewError,
     GovernanceReviewService,
+    RetiredAssetGovernanceReviewError,
     StaleGovernanceReviewError,
     parse_submission,
 )
@@ -141,6 +142,17 @@ def get_governance_review_context(
         raise HTTPException(status_code=404, detail=f"GovernanceResult '{result_id}' not found")
     if result.status != GovernanceResultStatus.REVIEW_REQUIRED:
         raise HTTPException(status_code=409, detail="governance result is no longer pending review")
+    ref = result.normalized_ref
+    version = ref.version if ref is not None else None
+    asset = version.asset if version is not None else None
+    if asset is not None and asset.status in {
+        AssetVersionStatus.ARCHIVED,
+        AssetVersionStatus.DISABLED,
+    }:
+        raise HTTPException(
+            status_code=409,
+            detail="asset is manually retired and cannot be published; restore the asset before reviewing",
+        )
     registry = rules_registry()
     return response(
         {
@@ -182,6 +194,9 @@ def submit_governance_review_decision(
         )
         session.commit()
     except StaleGovernanceReviewError as exc:
+        session.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except RetiredAssetGovernanceReviewError as exc:
         session.rollback()
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except GovernanceReviewError as exc:

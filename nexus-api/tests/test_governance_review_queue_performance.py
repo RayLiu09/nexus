@@ -175,3 +175,17 @@ def test_pending_queue_hides_old_version_after_reprocess(app, session):
     assert response.status_code == 200
     assert response.json()["meta"]["total"] == 0
     assert response.json()["data"] == []
+
+
+def test_pending_queue_hides_manually_retired_asset(app, session):
+    seeded = _seed_pending_review(session, suffix="retired")
+    ref = session.get(models.NormalizedAssetRef, seeded["ref_id"])
+    asset = session.get(models.Asset, ref.version.asset_id)
+    asset.status = AssetVersionStatus.ARCHIVED
+    session.commit()
+
+    response = TestClient(app).get("/internal/v1/governance-reviews/pending")
+
+    assert response.status_code == 200
+    assert response.json()["meta"]["total"] == 0
+    assert response.json()["data"] == []
