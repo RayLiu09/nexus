@@ -1,10 +1,13 @@
 from fastapi.testclient import TestClient
+from pathlib import Path
 from sqlalchemy import select
 
 from nexus_app import models
 from nexus_app.enums import AuditEventType
 from nexus_app.enums import UserRole
 from nexus_api.dependencies import require_user
+from nexus_app.data_sync import plans
+from nexus_app.data_sync.catalog import load_catalog
 
 
 def _create(client, *, key="create-1", keyword="jobs"):
@@ -116,3 +119,44 @@ def test_non_admin_cannot_read_catalog_or_create_plan(app, stub_user):
     with TestClient(app) as client:
         assert client.get("/internal/v1/data-sync/providers").status_code == 403
         assert _create(client).status_code == 403
+
+
+def test_job_plan_custom_input_roundtrip_limits_and_audit(app, session, monkeypatch):
+    provider = next(item for item in load_catalog(
+        Path(__file__).resolve().parents[2] / "nexus-app/config/data_sync_providers.json"
+    ) if item.provider_code == "crawler_engine").model_copy(update={"status": "enabled"})
+    monkeypatch.setattr(plans, "load_catalog", lambda: [provider])
+    payload = {"name": "自定义岗位计划", "provider_code": "crawler_engine", "frequency": "1_month",
+               "query_config": {"keywords": [f"自定义岗位{i}" for i in range(30)], "regions": ["杭州市"]}}
+    with TestClient(app) as client:
+        created = client.post("/internal/v1/data-sync/plans", headers={"Idempotency-Key": "custom-job-plan"}, json=payload)
+        assert created.status_code == 201
+        plan = created.json()["data"]
+        assert plan["query_config"] == {**payload["query_config"], "pageLimit": 30}
+        assert client.post("/internal/v1/data-sync/plans", headers={"Idempotency-Key": "custom-job-plan"}, json={
+            **payload, "query_config": {**payload["query_config"], "professional_category": "  "},
+        }).json()["data"]["id"] == plan["id"]
+        changed_query = {"keywords": ["低空运营专员"], "regions": ["杭州市"], "professional_category": "  低空经济类  "}
+        updated = client.put(f"/internal/v1/data-sync/plans/{plan['id']}", headers={"Idempotency-Key": "custom-edit"}, json={
+            "name": payload["name"], "frequency": "1_month", "query_config": changed_query,
+        })
+        assert updated.status_code == 200
+        query = {**changed_query, "professional_category": "低空经济类", "pageLimit": 30}
+        assert updated.json()["data"]["query_config"] == query
+        assert client.get(f"/internal/v1/data-sync/plans/{plan['id']}").json()["data"]["query_config"] == query
+        cleared = client.put(f"/internal/v1/data-sync/plans/{plan['id']}", headers={"Idempotency-Key": "custom-clear"}, json={
+            "name": payload["name"], "frequency": "1_month", "query_config": {**query, "professional_category": ""},
+        })
+        assert cleared.status_code == 200
+        assert "professional_category" not in cleared.json()["data"]["query_config"]
+        invalid_query = {**query, "keywords": [f"岗位{i}" for i in range(31)]}
+        assert client.post("/internal/v1/data-sync/plans", headers={"Idempotency-Key": "31-jobs"}, json={
+            **payload, "query_config": invalid_query,
+        }).status_code == 422
+        assert client.put(f"/internal/v1/data-sync/plans/{plan['id']}", headers={"Idempotency-Key": "31-edit"}, json={
+            "name": payload["name"], "frequency": "1_month", "query_config": invalid_query,
+        }).status_code == 422
+    audits = list(session.scalars(select(models.AuditLog).where(models.AuditLog.target_id == plan["id"])))
+    assert [audit.event_type for audit in audits] == [AuditEventType.DATA_SYNC_PLAN_CREATED,
+        AuditEventType.DATA_SYNC_PLAN_UPDATED, AuditEventType.DATA_SYNC_PLAN_UPDATED]
+    assert all(audit.actor_id == "user-test-admin" and audit.trace_id for audit in audits)

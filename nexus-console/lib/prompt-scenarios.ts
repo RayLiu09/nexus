@@ -65,36 +65,6 @@ export const CORE_PROMPT_SCENARIOS: readonly PromptScenarioDefinition[] = [
     impactText: "保存后用于后续治理、重新治理和 AI 重评分。",
   },
   {
-    profileName: "retrieval.intent_v2",
-    displayName: "检索意图识别",
-    description: "识别用户查询对应的唯一检索业务场景。",
-    group: "core",
-    allowedVariables: ["{{QUERY}}"],
-    requiredVariables: ["{{QUERY}}"],
-    dryRunSupported: false,
-    impactText: "保存后从下一次智能检索查询开始生效。",
-  },
-  {
-    profileName: "retrieval.param_extract_v2",
-    displayName: "检索参数提取",
-    description: "按命中意图的参数契约从用户查询中提取检索参数。",
-    group: "core",
-    allowedVariables: ["{{QUERY}}", "{{INTENT}}", "{{PARAMS_SCHEMA}}"],
-    requiredVariables: ["{{QUERY}}", "{{INTENT}}", "{{PARAMS_SCHEMA}}"],
-    dryRunSupported: false,
-    impactText: "保存后从下一次智能检索查询开始生效。",
-  },
-  {
-    profileName: "retrieval.compose_v2",
-    displayName: "检索结果答案组织",
-    description: "将检索结果、引用和图表占位组织为最终 Markdown 答案。",
-    group: "core",
-    allowedVariables: ["{{QUERY}}", "{{INTENT}}", "{{TOOL_RESULTS}}", "{{CHART_PLACEHOLDERS}}"],
-    requiredVariables: ["{{QUERY}}", "{{INTENT}}", "{{TOOL_RESULTS}}", "{{CHART_PLACEHOLDERS}}"],
-    dryRunSupported: false,
-    impactText: "保存后从下一次智能检索查询开始生效。",
-  },
-  {
     profileName: "retrieval.public_tools_v1",
     displayName: "公开业务工具选择",
     description: "选择公开业务查询、聚合与证据工具并生成参数。",
@@ -163,6 +133,8 @@ export const PROMPT_SCENARIOS = [...CORE_PROMPT_SCENARIOS, ...DOMAIN_PROMPT_SCEN
 
 export const HIDDEN_PROMPT_PROFILE_PATTERNS = [
   /\.body_markdown_render$/,
+  // Console uses public tools; the retained compatibility router still reads these profiles.
+  /^retrieval\.(?:intent|param_extract|compose)_v2$/,
   /^retrieval\.query_expansion_v2$/,
 ] as const;
 

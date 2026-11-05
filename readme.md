@@ -73,6 +73,10 @@ then restart the API. In containers, set the API origin to the reachable service
 True ingestion requests still pass existing asset-pipeline admission/governance.
 The frontend never receives the caller key. Two versioned `ai_prompt_profile` seeds
 are initialized at API boot; initialization preserves existing active edits.
+The Prompt workspace hides `检索意图识别`, `检索参数提取` and `检索结果答案组织`
+(`retrieval.intent_v2`, `retrieval.param_extract_v2`, `retrieval.compose_v2`),
+which current Console search no longer uses. The retained external compatibility
+router still reads these Profiles; their active configurations and history are preserved.
 
 Agent applications can consume asset data through the public OpenAPI surface. The A/B extension adds current business
 records, document metadata filters, scoped retrieval and bounded evidence reads.
@@ -176,6 +180,7 @@ Architecture v3.0 baseline:
 - `docs/contracts/job_collection_provider_contract.md`: crawler-api v0.2 wire contract, verified with a ten-page live Job.
 - `docs/contracts/job_collection_raw_intake_contract.md`: one raw job row and one provenance row per upstream record ID; no batch or observation table.
 - `docs/task-packages/wk_job_collection_c6_console_catalog_task_package.md`: database job-name catalog from the Excel name column, city/job multi-select plans, and the job-collection Console form.
+- `docs/task-packages/wk_job_collection_free_input_task_package.md`: job collection accepts comma-separated custom job names (1–30) and an optional free-text professional category, retaining catalog suggestions and existing region/combination limits.
 - `docs/task-packages/wk_job_collection_title_metadata_task_package.md`: 29 additional finance-commerce titles with job category and recruiting-site search keywords in the database catalog.
 - `docs/task-packages/wk_job_collection_c7_submit_recovery_pause_task_package.md`: idempotent recovery of unconfirmed crawler submits and clear plan/run pause controls.
 - `docs/task-packages/wk_job_collection_c8_resume_visibility_task_package.md`: make paused-run controls visible after a plan resumes future scheduling.

@@ -88,7 +88,22 @@ def test_query_schema_and_catalog_loading():
     with pytest.raises(ValidationError):
         adapter.validate_query({"keywords": ["x"], "regions": [""]})
     with pytest.raises(ValidationError):
-        adapter.validate_query({"keywords": [f"岗位{i}" for i in range(51)], "regions": ["杭州市", "北京市"]})
+        adapter.validate_query({"keywords": [f"岗位{i}" for i in range(26)], "regions": list(CORE_CITIES[:4])})
+
+
+def test_custom_keywords_and_optional_category_limits():
+    adapter = CrawlerEngineDataSyncProvider()
+    query = {"keywords": [f"自定义岗位{i}" for i in range(30)], "regions": ["杭州市"]}
+    assert adapter.get_query_schema()["properties"]["keywords"]["maxItems"] == 30
+    assert "professional_category" not in adapter.get_query_schema()["required"]
+    assert adapter.validate_query(query)["keywords"] == query["keywords"]
+    for category in (None, "", "  "):
+        assert "professional_category" not in adapter.validate_query({**query, "professional_category": category})
+    assert adapter.validate_query({**query, "professional_category": "  低空经济类  "})["professional_category"] == "低空经济类"
+    with pytest.raises(ValidationError):
+        adapter.validate_query({**query, "keywords": query["keywords"] + ["第31个岗位"]})
+    with pytest.raises(ValidationError):
+        adapter.validate_query({**query, "professional_category": "类" * 129})
 
 
 def test_file_catalog_loads_crawler_adapter_without_exposing_key(tmp_path):
@@ -217,6 +232,7 @@ def test_submit_expands_selected_titles_and_cities():
     adapter = _adapter(handler)
     adapter.submit(_provider(), {
         "keywords": ["数据化运营助理", "电商运营助理"],
+        "professional_category": "自定义专业类别",
         "regions": ["杭州市", "上海市"],
         "pageLimit": 50,
     }, "token", "run-1")

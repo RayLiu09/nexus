@@ -1,6 +1,7 @@
 import { App } from "antd";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
 
 import { getApiData, postApiData, putApiData } from "@/lib/api";
 import type { JobCollectionCategory, SyncPlan, SyncProvider, SyncRun } from "@/lib/data-sync";
@@ -307,7 +308,7 @@ it("selects every job title and region for a new collection plan", async () => {
 it("blocks a fully selected collection plan above the upstream combination limit", async () => {
   const largeCatalog: JobCollectionCategory[] = [{
     ...catalog[0],
-    titles: Array.from({ length: 51 }, (_, index) => ({
+    titles: Array.from({ length: 26 }, (_, index) => ({
       id: `job-${index}`,
       name: `岗位${index}`,
     })),
@@ -315,7 +316,9 @@ it("blocks a fully selected collection plan above the upstream combination limit
   render(
     <App>
       <DataSyncContent
-        initialProviders={[provider("crawler_engine")]}
+        initialProviders={[{ ...provider("crawler_engine"), query_schema: { ...querySchema, properties: {
+          ...querySchema.properties, regions: { type: "array", title: "区域", items: { enum: ["杭州市", "上海市", "北京市", "重庆市"] } },
+        } } }]}
         initialPlans={[]}
         initialCatalog={largeCatalog}
         initialError={null}
@@ -332,6 +335,55 @@ it("blocks a fully selected collection plan above the upstream combination limit
   expect(screen.getByText("岗位与区域组合不能超过 100 组，请缩小选择范围")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "创建计划" }));
   await waitFor(() => expect(postApiData).not.toHaveBeenCalled());
+});
+
+it("creates custom comma-separated job titles with an optional free-text category", async () => {
+  vi.mocked(postApiData).mockResolvedValue({ data: {} });
+  vi.mocked(getApiData).mockResolvedValue({ ok: true, data: [], total: 0, error: null, traceId: null });
+  render(<App><DataSyncContent initialProviders={[provider("crawler_engine")]} initialPlans={[]}
+    initialCatalog={catalog} initialError={null} /></App>);
+  fireEvent.click(screen.getByRole("button", { name: /新建同步计划/ }));
+  expect(screen.getByText("专业类别").closest("label")).not.toHaveClass("ant-form-item-required");
+  fireEvent.change(screen.getByRole("textbox", { name: "计划名称" }), { target: { value: "自定义岗位" } });
+  const jobs = screen.getByRole("combobox", { name: /岗位名称/ });
+  await userEvent.type(jobs, "低空运营专员,飞行器维修工程师，低空运营专员,{Enter}");
+  expect(screen.getByText("已选 2 项")).toBeInTheDocument();
+  const category = screen.getByRole("combobox", { name: "专业类别" });
+  await userEvent.type(category, "低空经济类");
+  // Changing and clearing the suggestion filter must preserve entered jobs.
+  await userEvent.clear(category);
+  expect(screen.getByText("已选 2 项")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("checkbox", { name: "全选区域" }));
+  fireEvent.click(screen.getByRole("button", { name: "创建计划" }));
+  await waitFor(() => expect(postApiData).toHaveBeenCalledWith("/api/data-sync/plans", {
+    name: "自定义岗位", provider_code: "crawler_engine", frequency: "1_month",
+    query_config: { keywords: ["低空运营专员", "飞行器维修工程师"], regions: ["杭州市", "上海市"], pageLimit: 30 },
+  }));
+});
+
+it("preserves a custom category and jobs when editing and copying, and blocks more than 30 jobs", async () => {
+  const plan: SyncPlan = { ...mockPlan, id: "custom-plan", name: "自定义计划", provider_code: "crawler_engine",
+    query_config: { professional_category: "低空经济类", keywords: ["低空运营专员"], regions: ["杭州市"], pageLimit: 30 } };
+  vi.mocked(putApiData).mockResolvedValue({ data: {} });
+  vi.mocked(getApiData).mockImplementation(async (path) => ({ ok: true, error: null, traceId: null, total: 1,
+    data: path.includes("providers") ? [provider("crawler_engine")] : path.includes("job-catalog") ? catalog : [plan],
+  }));
+  render(<App><DataSyncContent initialProviders={[provider("crawler_engine")]} initialPlans={[plan]}
+    initialCatalog={catalog} initialError={null} /></App>);
+  fireEvent.click(screen.getByRole("button", { name: "编辑计划 自定义计划" }));
+  expect(screen.getByRole("combobox", { name: "专业类别" })).toHaveValue("低空经济类");
+  fireEvent.click(screen.getByRole("button", { name: "保存修改" }));
+  await waitFor(() => expect(putApiData).toHaveBeenCalledWith("/api/data-sync/plans/custom-plan", {
+    name: plan.name, frequency: plan.frequency, query_config: plan.query_config,
+  }));
+  await waitFor(() => expect(screen.queryByText("编辑同步计划 · 岗位需求采集")).not.toBeInTheDocument());
+  fireEvent.click(screen.getByRole("button", { name: "复制计划 自定义计划" }));
+  expect(screen.getByRole("combobox", { name: "专业类别" })).toHaveValue("低空经济类");
+  const jobs = screen.getByRole("combobox", { name: /岗位名称/ });
+  fireEvent.change(jobs, { target: { value: Array.from({ length: 30 }, (_, i) => `新岗位${i}`).join(",") + "," } });
+  fireEvent.click(screen.getByRole("button", { name: "创建计划" }));
+  expect(await screen.findByText("一次最多支持 30 个岗位")).toBeInTheDocument();
+  expect(postApiData).not.toHaveBeenCalled();
 });
 
 const ministry: SyncProvider = {

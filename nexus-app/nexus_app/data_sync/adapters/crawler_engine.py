@@ -42,7 +42,8 @@ CORE_CITIES = CORE_REGIONS
 class CrawlerQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    keywords: list[str] = Field(min_length=1, max_length=100, title="岗位名称")
+    keywords: list[str] = Field(min_length=1, max_length=30, title="岗位名称")
+    professional_category: str | None = Field(default=None, max_length=128, title="专业类别")
     regions: list[str] = Field(min_length=1, max_length=len(CORE_REGIONS), title="区域")
     pageLimit: Literal[10, 30, 50, 100] = Field(default=30, title="页数")
 
@@ -69,6 +70,11 @@ class CrawlerQuery(BaseModel):
         if len(value) != len(set(value)):
             raise ValueError("duplicate job title")
         return value
+
+    @field_validator("professional_category", mode="before")
+    @classmethod
+    def normalize_professional_category(cls, value: Any) -> Any:
+        return value.strip() or None if isinstance(value, str) else value
 
     @field_validator("regions")
     @classmethod
@@ -149,7 +155,7 @@ class CrawlerEngineDataSyncProvider:
         return schema
 
     def validate_query(self, query: dict[str, Any]) -> dict[str, Any]:
-        return CrawlerQuery.model_validate(query).model_dump()
+        return CrawlerQuery.model_validate(query).model_dump(exclude_none=True)
 
     def get_access_token(self, context: TokenProviderConfig, client: httpx.Client) -> TokenGrant:
         try:

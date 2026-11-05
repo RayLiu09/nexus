@@ -16,9 +16,6 @@ describe("Prompt scenario registry", () => {
       "数据资产质量评估",
       "数据资产打标",
       "知识结构推理",
-      "检索意图识别",
-      "检索参数提取",
-      "检索结果答案组织",
       "公开业务工具选择",
       "证据引用回答",
     ]);
@@ -38,6 +35,11 @@ describe("Prompt scenario registry", () => {
     expect(isPromptProfileVisible("occupation.ability_analysis.body_markdown_render")).toBe(false);
     expect(isPromptProfileVisible("future.body_markdown_render")).toBe(false);
     expect(isPromptProfileVisible("retrieval.query_expansion_v2")).toBe(false);
+    expect(isPromptProfileVisible("retrieval.intent_v2")).toBe(false);
+    expect(isPromptProfileVisible("retrieval.param_extract_v2")).toBe(false);
+    expect(isPromptProfileVisible("retrieval.compose_v2")).toBe(false);
+    expect(isPromptProfileVisible("retrieval.public_tools_v1")).toBe(true);
+    expect(isPromptProfileVisible("retrieval.evidence_answer_v1")).toBe(true);
   });
 
   it("normalizes placeholders and rejects variables outside a scenario contract", () => {

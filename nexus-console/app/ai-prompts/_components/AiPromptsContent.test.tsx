@@ -52,6 +52,8 @@ const profiles = [
   makeProfile("governance.classification", 1, "## 分类模板\n\n{{RULES}}\n\n{{DOCUMENT}}"),
   makeProfile("governance.level_assessment", 2, "## 分级模板\n\n{{RULES}}\n\n{{DOCUMENT}}"),
   makeProfile("retrieval.intent_v2", 1, "## 意图模板\n\n{{QUERY}}"),
+  makeProfile("retrieval.param_extract_v2", 1, "## 参数模板\n\n{{QUERY}}"),
+  makeProfile("retrieval.compose_v2", 1, "## 旧答案模板\n\n{{QUERY}}"),
   makeProfile("occupation.job_demand.body_markdown_render", 1, "不应显示"),
 ];
 
@@ -93,9 +95,8 @@ describe("AiPromptsContent", () => {
       "数据资产质量评估",
       "数据资产打标",
       "知识结构推理",
-      "检索意图识别",
-      "检索参数提取",
-      "检索结果答案组织",
+      "公开业务工具选择",
+      "证据引用回答",
     ]);
     expect(screen.getByRole("button", { name: "数据资产分类" })).toHaveAttribute(
       "aria-current",
@@ -107,6 +108,10 @@ describe("AiPromptsContent", () => {
     expect(screen.queryByRole("button", { name: "编辑" })).not.toBeInTheDocument();
     expect(screen.queryByText("岗位需求 Markdown 组织")).not.toBeInTheDocument();
     expect(screen.queryByText("不应显示")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "检索意图识别" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "检索参数提取" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "检索结果答案组织" })).not.toBeInTheDocument();
+    expect(screen.queryByText("## 意图模板")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /领域场景/ })).toHaveAttribute(
       "aria-expanded",
       "false",

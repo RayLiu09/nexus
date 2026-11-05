@@ -52,6 +52,13 @@ platform-only; on invokes the existing `search_web_search` DeepSeek endpoint wit
 and sensitive-outbound checks. Provider failures preserve local evidence. External
 facts never substitute for platform aggregate coverage; returned counts remain actual.
 
+The Console Prompt workspace hides the legacy `retrieval.intent_v2`,
+`retrieval.param_extract_v2` and `retrieval.compose_v2` scenarios:
+internal public-tool queries do not read them. Their active rows, seeds and history
+remain available to the external QueryRouterV2 compatibility path, which still
+performs intent classification, parameter extraction and answer composition.
+Hiding these scenarios does not retire that API.
+
 The registry deduplicates a document by normalized reference across query scopes;
 body reads enrich the stable citation and preserve its asset anchor. Metadata/content
 evidence levels are explicit. Thirty local candidate slots and ten web slots bound
@@ -907,7 +914,7 @@ Rule change, Prompt update, parse failure, index failure, manual review, or scor
 
 ## Ingest Layer Architecture
 
-API Push data sync is a separate control-plane flow from `data_source` and the ingest pipelines. Provider definitions and tenant parameters are loaded from a validated system configuration file, never from a Provider table or hardcoded entries. The adapter owns its query schema, Token API protocol, paging, status mapping, and external controls. The deployment configuration holds `tenant_id`, `tenant_name`, and `tenant_key`; real keys stay out of version control, database rows, responses, logs, and audit. Users create immutable `data_sync_config` plans with frequency and query parameters; plans can be paused, resumed, or soft-deleted. The crawler-engine plan chooses database-backed job names under professional categories, supports fixed city options and comma-separated custom cities, and limits each plan to 5 cities; the adapter expands job/city combinations into upstream queries. The initial job catalog imports only the name column of `76个岗位.xlsx` (76 rows, 74 distinct names). `data_sync_run` records execution checkpoints. The crawler-engine adapter stores parsed job values in `raw_jobs` and the original response and collection metadata in one-to-one `raw_job_provenance`. It creates no sync batch or observation lifecycle; later job processing is independent of Pipeline B and generic AI governance. See `docs/contracts/job_collection_raw_intake_contract.md`.
+API Push data sync is a separate control-plane flow from `data_source` and the ingest pipelines. Provider definitions and tenant parameters are loaded from a validated system configuration file, never from a Provider table or hardcoded entries. The adapter owns its query schema, Token API protocol, paging, status mapping, and external controls. The deployment configuration holds `tenant_id`, `tenant_name`, and `tenant_key`; real keys stay out of version control, database rows, responses, logs, and audit. Users create immutable `data_sync_config` plans with frequency and query parameters; plans can be paused, resumed, or soft-deleted. The crawler-engine plan accepts 1–30 user-entered job names, with the database catalog retained as suggestions. Optional `query_config.professional_category` stores a trimmed category name (up to 128 characters); blank values are omitted and the field is not forwarded upstream. Console accepts Chinese/English comma-separated names and preserves selected jobs when category suggestions change. Each plan still permits at most 5 regions and 100 job/region combinations; the adapter expands the combinations into upstream queries. The initial job catalog imports only the name column of `76个岗位.xlsx` (76 rows, 74 distinct names). `data_sync_run` records execution checkpoints. The crawler-engine adapter stores parsed job values in `raw_jobs` and the original response and collection metadata in one-to-one `raw_job_provenance`. It creates no sync batch or observation lifecycle; later job processing is independent of Pipeline B and generic AI governance. See `docs/contracts/job_collection_raw_intake_contract.md`.
 
 The W4 runtime optionally starts with `DATA_SYNC_RUNTIME_ENABLED`: a PostgreSQL-backed scheduler creates due runs, and a separate leased worker calls the configured adapter. Provider Catalog and external Token/submit/status/page operations run outside database transactions; progress and status changes use short transactions with lease-owner checks and audit. The crawler-engine result handler writes raw job rows and the page checkpoint atomically.
 

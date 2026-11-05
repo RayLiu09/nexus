@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import {
   Alert,
   App,
+  AutoComplete,
   Button,
   Checkbox,
   DatePicker,
@@ -52,6 +53,9 @@ const activeRun = (run: SyncRun) => ["queued", "running", "paused"].includes(run
 type RunFilters = { run_id?: string; status?: string; created_from?: string; created_to?: string };
 const RUN_PAGE_SIZE = 20;
 const AUDIT_PAGE_SIZE = 10;
+const MAX_JOB_KEYWORDS = 30;
+const normalizeJobKeywords = (values: string[]) =>
+  [...new Set(values.flatMap((value) => value.split(/[,，]/)).map((value) => value.trim()).filter(Boolean))];
 const runStatuses = [
   "queued",
   "running",
@@ -283,14 +287,13 @@ export function DataSyncContent({
   function openCreate(provider: SyncProvider) {
     setEditingPlan(null);
     setCopyingPlan(null);
-    setCategoryId(catalog[0]?.id);
+    setCategoryId(undefined);
     setSelectedKeywords([]);
     setSelectedRegions([]);
     form.resetFields();
     if (provider.provider_code === "crawler_engine") {
       form.setFieldsValue({
         frequency: "1_month",
-        category_id: catalog[0]?.id,
         query_config: { keywords: [], regions: [], pageLimit: 30 },
       });
       selectProvider(provider);
@@ -311,12 +314,12 @@ export function DataSyncContent({
     if (!provider || plan.status === "deleted") return;
     form.resetFields();
     const category = plan.provider_code === "crawler_engine"
-      ? catalog.find((item) => (plan.query_config.keywords as string[] | undefined)?.every((name) => item.titles.some((title) => title.name === name)))
+      ? catalog.find((item) => item.name === plan.query_config.professional_category)
       : undefined;
     setCategoryId(category?.id);
     setSelectedKeywords(Array.isArray(plan.query_config.keywords) ? plan.query_config.keywords as string[] : []);
     setSelectedRegions(Array.isArray(plan.query_config.regions) ? plan.query_config.regions as string[] : []);
-    form.setFieldsValue({ name: plan.name, frequency: plan.frequency, query_config: plan.query_config, category_id: category?.id });
+    form.setFieldsValue({ name: plan.name, frequency: plan.frequency, query_config: plan.query_config });
     setEditingPlan(plan);
     setCopyingPlan(null);
     selectProvider(provider);
@@ -326,7 +329,7 @@ export function DataSyncContent({
     const provider = providers.find((item) => item.provider_code === plan.provider_code);
     if (!provider || provider.status !== "enabled") return;
     const category = plan.provider_code === "crawler_engine"
-      ? catalog.find((item) => (plan.query_config.keywords as string[] | undefined)?.every((name) => item.titles.some((title) => title.name === name)))
+      ? catalog.find((item) => item.name === plan.query_config.professional_category)
       : undefined;
     setCategoryId(category?.id);
     setSelectedKeywords(Array.isArray(plan.query_config.keywords) ? plan.query_config.keywords as string[] : []);
@@ -336,7 +339,6 @@ export function DataSyncContent({
       name: `${plan.name.slice(0, 125)} 副本`,
       frequency: plan.frequency,
       query_config: structuredClone(plan.query_config),
-      category_id: category?.id,
     });
     setEditingPlan(null);
     setCopyingPlan(plan);
@@ -372,6 +374,12 @@ export function DataSyncContent({
   }) {
     if (!selectedProvider) return;
     if (selectedProvider.provider_code === "crawler_engine") {
+      const category = String(values.query_config?.professional_category ?? "").trim();
+      if (values.query_config) {
+        values.query_config = { ...values.query_config };
+        if (category) values.query_config.professional_category = category;
+        else delete values.query_config.professional_category;
+      }
       const names = values.query_config?.keywords;
       const regions = values.query_config?.regions;
       if (Array.isArray(names) && Array.isArray(regions) && names.length * regions.length > 100) {
@@ -403,7 +411,8 @@ export function DataSyncContent({
   const isJobCollection = selectedProvider?.provider_code === "crawler_engine";
   const regionOptions = selectedProvider?.query_schema.properties?.regions?.items?.enum ?? [];
   const selectableRegionOptions = regionOptions.slice(0, 5).map(String);
-  const keywordOptions = selectedCategory?.titles.map((item) => item.name) ?? [];
+  const keywordOptions = [...new Set((selectedCategory ? [selectedCategory] : catalog).flatMap((item) => item.titles.map((title) => title.name)))];
+  const selectableKeywordOptions = keywordOptions.slice(0, MAX_JOB_KEYWORDS);
   const unsupported = fields.some(
     ([, field]) =>
       !isJobCollection && !field.enum && !["string", "integer", "number", "boolean"].includes(fieldType(field) ?? ""),
@@ -690,38 +699,47 @@ export function DataSyncContent({
           </Form.Item>
           {isJobCollection && (
             <>
-              <Form.Item name="category_id" label="专业类别" rules={[{ required: true, message: "请选择专业类别" }]}>
-                <Select
-                  options={catalog.map((item) => ({ value: item.id, label: item.name }))}
+              <Form.Item name={["query_config", "professional_category"]} label="专业类别" rules={[{ max: 128, message: "专业类别最多 128 个字符" }]}>
+                <AutoComplete
+                  allowClear
+                  placeholder="选择或输入专业类别（可留空）"
+                  options={catalog.map((item) => ({ value: item.name }))}
+                  filterOption={(input, option) => String(option?.value ?? "").includes(input)}
                   onChange={(value) => {
-                    setCategoryId(value);
-                    setSelectedKeywords([]);
-                    form.setFieldValue(["query_config", "keywords"], []);
+                    setCategoryId(catalog.find((item) => item.name === value)?.id);
                   }}
-                />
+                ><Input maxLength={128} /></AutoComplete>
               </Form.Item>
               <Form.Item
                 name={["query_config", "keywords"]}
                 label={<Space size={8}>岗位名称<Checkbox
                   aria-label="全选岗位名称"
-                  checked={keywordOptions.length > 0 && selectedKeywords.length === keywordOptions.length}
-                  indeterminate={selectedKeywords.length > 0 && selectedKeywords.length < keywordOptions.length}
+                  checked={selectableKeywordOptions.length > 0 && selectableKeywordOptions.every((name) => selectedKeywords.includes(name))}
+                  indeterminate={selectableKeywordOptions.some((name) => selectedKeywords.includes(name)) && !selectableKeywordOptions.every((name) => selectedKeywords.includes(name))}
                   onChange={(event) => {
-                    const values = event.target.checked ? keywordOptions : [];
+                    const values = event.target.checked ? selectableKeywordOptions : [];
                     setSelectedKeywords(values);
                     form.setFieldValue(["query_config", "keywords"], values);
                   }}
-                >全选</Checkbox><span className="text-text-muted text-xs">已选 {selectedKeywords.length} 项</span></Space>}
-                rules={[{ required: true, type: "array", min: 1, message: "请选择岗位名称" }]}
+                >{keywordOptions.length > MAX_JOB_KEYWORDS ? "选前 30 项" : "全选"}</Checkbox><span className="text-text-muted text-xs">已选 {selectedKeywords.length} 项</span></Space>}
+                normalize={normalizeJobKeywords}
+                extra="多个岗位用逗号分隔，最多 30 个岗位"
+                rules={[
+                  { required: true, type: "array", min: 1, message: "请选择或输入岗位名称" },
+                  { type: "array", max: MAX_JOB_KEYWORDS, message: "一次最多支持 30 个岗位" },
+                  { validator: (_, values: string[] = []) => values.some((name) => name.length > 120)
+                    ? Promise.reject(new Error("每个岗位名称最多 120 个字符")) : Promise.resolve() },
+                ]}
               >
                 <Select
-                  mode="multiple"
+                  mode="tags"
                   showSearch
                   optionFilterProp="label"
                   maxTagCount="responsive"
-                  placeholder="选择岗位名称"
+                  tokenSeparators={[",", "，"]}
+                  placeholder="选择或输入岗位名称，多个岗位用逗号分隔"
                   options={keywordOptions.map((name) => ({ value: name, label: name }))}
-                  onChange={setSelectedKeywords}
+                  onChange={(values) => setSelectedKeywords(normalizeJobKeywords(values))}
                 />
               </Form.Item>
               <Form.Item

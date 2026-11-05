@@ -16,7 +16,6 @@ from sqlalchemy.orm import Session
 from nexus_app import models
 from nexus_app.audit import write_audit
 from nexus_app.data_sync.catalog import _load_adapter, load_catalog
-from nexus_app.data_sync.job_catalog import titles_are_available
 from nexus_app.enums import AuditEventType
 
 
@@ -75,10 +74,6 @@ def create_plan(
         raise PlanError("Provider query validation must return an object")
     if provider_code == "crawler_engine" and len(normalized_query.get("regions", [])) > 5:
         raise PlanError("a sync plan can include at most 5 regions")
-    if provider_code == "crawler_engine" and not titles_are_available(
-        session, normalized_query["keywords"]
-    ):
-        raise PlanError("selected job titles are unavailable")
     digest = _request_hash(name, provider_code, frequency, normalized_query)
     existing = session.scalar(
         select(models.DataSyncConfig).where(
@@ -218,8 +213,6 @@ def update_plan(
         raise PlanError("Provider query validation must return an object")
     if plan.provider_code == "crawler_engine" and len(normalized_query.get("regions", [])) > 5:
         raise PlanError("a sync plan can include at most 5 regions")
-    if plan.provider_code == "crawler_engine" and not titles_are_available(session, normalized_query["keywords"]):
-        raise PlanError("selected job titles are unavailable")
     changed = (plan.name != name or plan.frequency != frequency or plan.query_config != normalized_query)
     if not changed:
         return plan

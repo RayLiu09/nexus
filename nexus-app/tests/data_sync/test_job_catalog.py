@@ -1,8 +1,6 @@
 import json
 from pathlib import Path
 
-import pytest
-
 from nexus_app import models
 from nexus_app.data_sync import plans
 from nexus_app.data_sync.catalog import load_catalog
@@ -33,7 +31,7 @@ def test_finance_commerce_extensions_contain_all_requested_metadata():
     }
 
 
-def test_catalog_deduplicates_names_and_plan_checks_database(session, monkeypatch):
+def test_catalog_deduplicates_names_and_plan_accepts_custom_titles(session, monkeypatch):
     category = models.JobCollectionCategory(name="财经商贸类")
     session.add(category)
     session.flush()
@@ -56,10 +54,11 @@ def test_catalog_deduplicates_names_and_plan_checks_database(session, monkeypatc
         actor_id="admin", idempotency_key="valid-crawler-plan", trace_id="trace",
     )
     assert plan.query_config["pageLimit"] == 30
-    with pytest.raises(plans.PlanError, match="job titles"):
-        plans.create_plan(
-            session,
-            name="无效岗位", provider_code="crawler_engine", frequency="1_month",
-            query_config={"keywords": ["不存在的岗位"], "regions": ["杭州市"]},
-            actor_id="admin", idempotency_key="invalid-crawler-plan", trace_id="trace",
-        )
+    custom = plans.create_plan(
+        session,
+        name="自定义岗位", provider_code="crawler_engine", frequency="1_month",
+        query_config={"keywords": ["低空飞行运营工程师"], "regions": ["杭州市"]},
+        actor_id="admin", idempotency_key="custom-crawler-plan", trace_id="trace",
+    )
+    assert custom.query_config["keywords"] == ["低空飞行运营工程师"]
+    assert list_job_catalog(session) == catalog

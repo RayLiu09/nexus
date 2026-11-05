@@ -96,7 +96,7 @@ Role constraints:
 
 ## P0 Scope
 
-- API Push data sync is a separate flow from `data_source`: read-only file-backed Provider Catalog, user-created editable sync plans, and provider-independent runs. Provider identity remains fixed after creation; name, frequency, and validated query parameters can be edited when no run is nonterminal. Plans support pause, resume, and soft delete; every edit is audited. Plan pause stops future scheduling; an existing run has a separate pause control. The opt-in scheduler and Worker execute runs with lease recovery and paged progress. An unconfirmed crawler-engine submit is replayed with the frozen query and the same run-derived identifiers; a 409 conflict is terminal. The crawler-engine adapter stores each original parsed job in `raw_jobs` and its collection provenance in a one-to-one table; repeated upstream record IDs are idempotent. No sync batch or observation table is used. Controls call the provider synchronously; transitional upstream states are confirmed by later polling. The administrator Console has a dedicated `/data-sync` page for Provider cards, plan editing and controls, and plan-level paginated run logs with redacted audit history. Its job-collection plan drawer filters database-backed job names by professional category, supports existing city options plus comma-separated custom city input, and limits each plan to 5 cities; it defaults to 30 pages. The initial database catalog uses only the name column of `76个岗位.xlsx`, with 74 distinct names across 76 rows. Job normalization and dictionary processing remain separate later work.
+- API Push data sync is a separate flow from `data_source`: read-only file-backed Provider Catalog, user-created editable sync plans, and provider-independent runs. Provider identity remains fixed after creation; name, frequency, and validated query parameters can be edited when no run is nonterminal. Plans support pause, resume, and soft delete; every edit is audited. Plan pause stops future scheduling; an existing run has a separate pause control. The opt-in scheduler and Worker execute runs with lease recovery and paged progress. An unconfirmed crawler-engine submit is replayed with the frozen query and the same run-derived identifiers; a 409 conflict is terminal. The crawler-engine adapter stores each original parsed job in `raw_jobs` and its collection provenance in a one-to-one table; repeated upstream record IDs are idempotent. No sync batch or observation table is used. Controls call the provider synchronously; transitional upstream states are confirmed by later polling. The administrator Console has a dedicated `/data-sync` page for Provider cards, plan editing and controls, and plan-level paginated run logs with redacted audit history. Its job-collection plan drawer supports free-text job names separated by Chinese/English commas, trimming whitespace and deduplicating entries; 1–30 names are accepted, including names outside the catalog. Professional category is optional free text (up to 128 characters), persisted in `query_config.professional_category` when nonblank. Existing categories/titles provide suggestions; changing or clearing the category preserves entered jobs. Create/edit/copy preserve these values. Existing city options and comma-separated custom city input remain supported, with at most 5 regions and 100 job/region combinations; pages default to 30. The initial database catalog uses only the name column of `76个岗位.xlsx`, with 74 distinct names across 76 rows. Job normalization and dictionary processing remain separate later work.
 - Local org/user/API caller management.
 - Crawler and API data sync plans can be copied into a prefilled new-plan form. Job collection plans support selecting titles in the current professional category and choosing or entering up to 5 cities; the existing 100 title-city combination limit still applies.
 - The `财经商贸类` job title catalog includes 29 additional market titles. `job_collection_title.name` is the suggested job name; optional `job_category` and `crawl_keywords` preserve the supplied job type and comma-separated recruiting-site search phrases. The internal catalog API exposes these fields, while existing plan queries continue to use the selected title name.
@@ -232,6 +232,11 @@ First-level navigation:
 - **治理管理**: governance review/tracking, rules, and one canonical
   `Prompt 提示词` entry at `/ai-prompts`. The historical
   `/governance-prompts` path is redirect-only.
+  The legacy `retrieval.intent_v2`, `retrieval.param_extract_v2` and
+  `retrieval.compose_v2` scenarios are hidden from this workspace even when
+  active Profiles exist. Current intelligent search uses public tool selection
+  and evidence-answer Prompts; the external compatibility API retains the legacy
+  Profiles and their history.
 - **访问与审计**: API callers and audit views.
 - **个人工作**: personal workspace.
 
@@ -486,10 +491,10 @@ P0 management pages:
 - **Prompt 提示词**: Prompt templates, versions, task/scenario, output schema,
   scoring weights, redaction policies, content hash, change summary,
   validation, history, and dry-run. Model alias and token-limit controls are
-  not exposed. The Console uses a split workspace: the left side lists eight
+  not exposed. The Console uses a split workspace: the left side lists seven
   core scenarios in fixed order (classification, level, quality, tagging,
-  knowledge inference, retrieval intent, retrieval parameter extraction, and
-  retrieval answer composition), and a collapsed domain group contains job
+  knowledge inference, public business tool selection, and evidence-based answers),
+  and a collapsed domain group contains job
   requirement extraction, occupational-task structuring, textbook-outline
   heading classification, and teaching-standard course derivation. The first
   core scenario is selected by default. The right side is immediately editable
