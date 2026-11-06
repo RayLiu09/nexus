@@ -493,6 +493,22 @@ Crawler plan 创建后不可编辑；需要调整配置时创建新计划，旧�
 
 Firecrawl Connector 使用 Firecrawl v2 的 Search、Scrape、Batch Scrape 和受控 Crawl 能力。NEXUS 使用方式：
 
+2026-11-05 计划搜索类别合同：`POST /internal/v1/crawler/plans` 和
+`PUT /internal/v1/crawler/plans/{id}` 通过已有 `crawl_policy.categories` 接受字符串数组，
+默认 `[]`；支持 `research`（研究报告）、`pdf`、`gov`。去重保序；Gov 不可与其他类别
+组合，错误类型、未知类别及非法组合均返回 422，不调用上游。编辑、复制和清空均保留
+其他 crawl_policy 和已有数据源绑定。Firecrawl 表单隐藏归属数据源，新计划自动使用内置源。
+
+例如 `"crawl_policy": {"categories": ["research", "pdf"]}` 在执行时转换为
+`"categories": [{"type": "research"}, {"type": "pdf"}]` 发送到 `/v2/search`。
+空数组或历史缺失字段不发送上游 categories；查询词与域名限制保持原有独立语义。
+计划创建/修改审计及 `crawler_run.summary.categories` 记录所选类别。
+这是提供方搜索控制，不替代 NEXUS 治理分类或 PDF 原件准入校验；公开 external-search
+及实时 WebSearch 的契约不在此次计划表单改动范围。
+
+依据：[Firecrawl 官方 v2 Schema](https://github.com/firecrawl/firecrawl/blob/main/apps/api/src/controllers/v2/types.ts)
+中的 `searchRequestSchema`（2026-11-05 核验，含 gov 独占校验）；部署端需支持对应类别。
+
 | Firecrawl 能力 | 使用方式 | 限制 |
 | --- | --- | --- |
 | Search | 候选 URL 发现；默认 `country=CN`、中文语言环境，可使用官方权威站点 host 作为优先来源或 `includeDomains` | 搜索摘要不入库；最终 URL 必须再次校验；官方站点配置不是全局搜索硬限制 |

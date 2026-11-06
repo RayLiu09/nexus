@@ -31,6 +31,11 @@ Automated audit writes inherit `actor_type=system` and a worker/component ID
 from scoped pipeline, scheduler and worker execution. Manual crawler and sync
 controls retain the operator; historical unknown identities are not rewritten.
 
+Firecrawl plan forms hide source ownership and support optional search categories
+`研究报告` / `PDF` / `Gov` above target URLs. Default is unfiltered; research and
+PDF may be combined, while Gov must be used alone. Categories survive edit/copy
+and are forwarded to Firecrawl v2 Search with audited plan changes.
+
 Crawler WebSearch plans support Custom and DeepSeek Search providers. DeepSeek uses
 server-only `BASE_URL_DEEPSEEK` and `API_KEY_DEEPSEEK` settings and applies
 formal-document authority and content-quality gates before raw-object ingestion.

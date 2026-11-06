@@ -394,6 +394,113 @@ def test_custom_plan_allows_no_target_sites_for_web_wide_search(app):
     assert plan["crawl_policy"]["discovery_mode"] == "search"
 
 
+@pytest.mark.parametrize("mode", ["custom", "quick_start"])
+def test_firecrawl_plan_categories_create_edit_copy_clear_and_run(app, session, mode):
+    client = TestClient(app)
+    payload = {
+        "name": "类别搜索", "mode": mode,
+        "data_source_id": "__builtin_firecrawl__",
+        "topic_keywords": ["产业研究报告"],
+        "crawl_policy": {"max_pages": 7, "categories": ["research", "pdf", "pdf"]},
+    }
+    created = client.post(
+        "/internal/v1/crawler/plans", json=payload,
+        headers={"Idempotency-Key": "categories-create"},
+    )
+    assert created.status_code == 201, created.text
+    plan = created.json()["data"]
+    assert plan["crawl_policy"]["categories"] == ["research", "pdf"]
+    source_id = plan["data_source_id"]
+    assert source_id
+    create_audit = session.query(models.AuditLog).filter_by(
+        event_type=AuditEventType.CRAWLER_PLAN_CREATED, target_id=plan["id"],
+    ).one()
+    assert create_audit.summary["categories"] == ["research", "pdf"]
+
+    edited_payload = {**payload, "data_source_id": source_id,
+                      "crawl_policy": {**plan["crawl_policy"], "categories": ["gov"]}}
+    updated = client.put(
+        f"/internal/v1/crawler/plans/{plan['id']}", json=edited_payload,
+        headers={"Idempotency-Key": "categories-update"},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["data"]["crawl_policy"]["categories"] == ["gov"]
+    update_audit = session.query(models.AuditLog).filter_by(
+        event_type=AuditEventType.CRAWLER_PLAN_UPDATED, target_id=plan["id"],
+    ).one()
+    assert update_audit.summary["categories"] == ["gov"]
+
+    copied = client.post(
+        "/internal/v1/crawler/plans", json={**edited_payload, "name": "类别搜索 副本"},
+        headers={"Idempotency-Key": "categories-copy"},
+    )
+    assert copied.status_code == 201, copied.text
+    copy = copied.json()["data"]
+    assert copy["id"] != plan["id"]
+    assert copy["data_source_id"] == source_id
+    assert copy["crawl_policy"]["categories"] == ["gov"]
+    assert copy["crawl_policy"]["max_pages"] == 7
+
+    class CategorySearchClient(EmptySearchFirecrawlClient):
+        def search(self, **kwargs):
+            self.kwargs = kwargs
+            return []
+
+    fake = CategorySearchClient()
+    run = crawler_service.run_plan(
+        session, copy["id"], client=fake, storage=InMemoryObjectStorage(),
+    )
+    assert fake.kwargs["categories"] == ["gov"]
+    assert fake.kwargs["query"] == "产业研究报告"
+    assert run.summary["categories"] == ["gov"]
+
+    cleared = client.put(
+        f"/internal/v1/crawler/plans/{plan['id']}",
+        json={**edited_payload, "crawl_policy": {**plan["crawl_policy"], "categories": []}},
+        headers={"Idempotency-Key": "categories-clear"},
+    )
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["data"]["crawl_policy"]["categories"] == []
+    assert cleared.json()["data"]["crawl_policy"]["max_pages"] == 7
+    assert cleared.json()["data"]["data_source_id"] == source_id
+    run = crawler_service.run_plan(
+        session, plan["id"], client=fake, storage=InMemoryObjectStorage(),
+    )
+    assert "categories" not in fake.kwargs
+    assert run.summary["categories"] == []
+
+
+@pytest.mark.parametrize("categories", [
+    ["unknown"], ["gov", "pdf"], ["research", "gov"], "pdf", None, [1], {},
+])
+def test_firecrawl_plan_rejects_invalid_categories_before_create_or_edit(app, session, categories):
+    client = TestClient(app)
+    payload = {"name": "类别测试", "mode": "custom"}
+    invalid = {**payload, "crawl_policy": {"categories": categories}}
+    rejected = client.post(
+        "/internal/v1/crawler/plans", json=invalid,
+        headers={"Idempotency-Key": "categories-invalid-create"},
+    )
+    assert rejected.status_code == 422, rejected.text
+    created = client.post(
+        "/internal/v1/crawler/plans", json=payload,
+        headers={"Idempotency-Key": "categories-valid-create"},
+    )
+    assert created.status_code == 201, created.text
+    plan = created.json()["data"]
+    assert plan["crawl_policy"]["categories"] == []
+    rejected = client.put(
+        f"/internal/v1/crawler/plans/{plan['id']}", json=invalid,
+        headers={"Idempotency-Key": "categories-invalid-edit"},
+    )
+    assert rejected.status_code == 422, rejected.text
+    session.expire_all()
+    assert session.get(models.CrawlerPlan, plan["id"]).crawl_policy["categories"] == []
+    assert not session.query(models.AuditLog).filter_by(
+        event_type=AuditEventType.CRAWLER_PLAN_UPDATED, target_id=plan["id"],
+    ).count()
+
+
 def test_builtin_firecrawl_source_is_resolved_for_plan(app):
     client = TestClient(app)
 

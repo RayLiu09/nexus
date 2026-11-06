@@ -46,6 +46,14 @@ type ApiProxyResult<T> =
   | { ok: true; data: T; total: number | null; traceId: string | null }
   | { ok: false; status: number; message: string };
 
+type FirecrawlSearchCategory = "research" | "pdf" | "gov";
+
+const FIRECRAWL_SEARCH_CATEGORIES: { value: FirecrawlSearchCategory; label: string }[] = [
+  { value: "research", label: "研究报告" },
+  { value: "pdf", label: "PDF" },
+  { value: "gov", label: "Gov" },
+];
+
 type PlanFormState = {
   connectorType: "firecrawl" | "websearch";
   websearchProvider: "custom" | "deepseek";
@@ -57,6 +65,7 @@ type PlanFormState = {
   scheduleCron: string;
   topicKeywords: string;
   targetUrls: string;
+  searchCategories: FirecrawlSearchCategory[];
   query: string;
   resultCount: number;
   timeRangePreset: string;
@@ -90,6 +99,7 @@ const INITIAL_FORM: PlanFormState = {
   scheduleCron: "",
   topicKeywords: "",
   targetUrls: "",
+  searchCategories: [],
   query: "电子商务产业(跨境电商和直播电商)政策和市场概况",
   resultCount: 10,
   timeRangePreset: "one_year",
@@ -201,6 +211,7 @@ function buildPayload(
   form: PlanFormState,
   dataSourceId: string,
   topicKeywordText: string,
+  crawlPolicy: Record<string, unknown> = {},
 ): Record<string, unknown> {
   const topicKeywords = splitLines(topicKeywordText);
   const base = {
@@ -228,10 +239,12 @@ function buildPayload(
     return {
       ...base,
       region_code: form.regionCode,
+      crawl_policy: { ...crawlPolicy, categories: form.searchCategories },
     };
   }
   return {
     ...base,
+    crawl_policy: { ...crawlPolicy, categories: form.searchCategories },
     target_sites: splitLines(form.targetUrls).map((url) => ({ base_url: url })),
   };
 }
@@ -262,16 +275,9 @@ export function CrawlerPlansPanel() {
   const [formDataLoading, setFormDataLoading] = useState(false);
 
   const activePlans = plans.filter((plan) => plan.status !== "archived");
-  const crawlerSourceOptions = [
-    {
-      value: BUILTIN_FIRECRAWL_SOURCE_ID,
-      label: "Firecrawl",
-    },
-    ...(form.dataSourceId && form.dataSourceId !== BUILTIN_FIRECRAWL_SOURCE_ID
-      ? [{ value: form.dataSourceId, label: "当前数据源" }]
-      : []),
-  ];
-  const effectiveDataSourceId = form.dataSourceId || BUILTIN_FIRECRAWL_SOURCE_ID;
+  const effectiveDataSourceId = editingPlan || copyingPlan
+    ? form.dataSourceId
+    : form.dataSourceId || BUILTIN_FIRECRAWL_SOURCE_ID;
   const defaultTopicKeywords = Array.isArray(config?.template.default_keywords)
     ? (config.template.default_keywords as string[]).join(", ")
     : "";
@@ -350,7 +356,25 @@ export function CrawlerPlansPanel() {
     const search = plan.search_policy ?? {};
     setEditingPlan(copy ? null : plan);
     setCopyingPlan(copy ? plan : null);
-    setForm({ connectorType: plan.connector_type as PlanFormState["connectorType"], websearchProvider: plan.connector_version === "deepseek" ? "deepseek" : "custom", mode: plan.mode as PlanFormState["mode"], name: copy ? `${plan.name.slice(0, 125)} 副本` : plan.name, dataSourceId: plan.data_source_id ?? "", regionCode: plan.region_code ?? "national", executionMode: plan.execution_mode as PlanFormState["executionMode"], scheduleCron: plan.schedule_cron ?? "", topicKeywords: plan.topic_keywords.join(", "), targetUrls: plan.target_sites.map((site) => site.base_url).join("\n"), query: typeof search.query === "string" ? search.query : INITIAL_FORM.query, resultCount: typeof search.result_count === "number" ? search.result_count : INITIAL_FORM.resultCount, timeRangePreset: typeof search.time_range_preset === "string" ? search.time_range_preset : INITIAL_FORM.timeRangePreset });
+    setForm({
+      connectorType: plan.connector_type as PlanFormState["connectorType"],
+      websearchProvider: plan.connector_version === "deepseek" ? "deepseek" : "custom",
+      mode: plan.mode,
+      name: copy ? `${plan.name.slice(0, 125)} 副本` : plan.name,
+      dataSourceId: plan.data_source_id ?? "",
+      regionCode: plan.region_code ?? "national",
+      executionMode: plan.execution_mode,
+      scheduleCron: plan.schedule_cron ?? "",
+      topicKeywords: plan.topic_keywords.join(", "),
+      targetUrls: plan.target_sites.map((site) => site.base_url).join("\n"),
+      searchCategories: Array.isArray(plan.crawl_policy.categories)
+        ? plan.crawl_policy.categories.filter((value): value is FirecrawlSearchCategory =>
+          FIRECRAWL_SEARCH_CATEGORIES.some((category) => category.value === value))
+        : [],
+      query: typeof search.query === "string" ? search.query : INITIAL_FORM.query,
+      resultCount: typeof search.result_count === "number" ? search.result_count : INITIAL_FORM.resultCount,
+      timeRangePreset: typeof search.time_range_preset === "string" ? search.time_range_preset : INITIAL_FORM.timeRangePreset,
+    });
     setDrawerOpen(true);
   };
 
@@ -372,23 +396,19 @@ export function CrawlerPlansPanel() {
       message.error("每组查询返回数量须为 10 至 50 的整数");
       return;
     }
-    if (!effectiveDataSourceId) {
-      message.error("请选择 Crawler 数据源");
-      return;
-    }
     if (form.executionMode === "scheduled" && !form.scheduleCron.trim()) {
       message.error("请填写定期执行计划");
       return;
     }
     setSaving(true);
-    const payload = buildPayload(form, effectiveDataSourceId, effectiveTopicKeywords);
-    if (copyingPlan && copyingPlan.connector_type === form.connectorType && copyingPlan.connector_version === (form.connectorType === "websearch" ? form.websearchProvider : "v2") && copyingPlan.mode === form.mode) {
-      payload.content_goals = copyingPlan.content_goals;
-      payload.classification_hints = copyingPlan.classification_hints;
-      payload.crawl_policy = copyingPlan.crawl_policy;
+    const originalPlan = editingPlan ?? copyingPlan;
+    const payload = buildPayload(form, effectiveDataSourceId, effectiveTopicKeywords, originalPlan?.crawl_policy);
+    if (originalPlan && originalPlan.connector_type === form.connectorType && originalPlan.connector_version === (form.connectorType === "websearch" ? form.websearchProvider : "v2") && originalPlan.mode === form.mode) {
+      payload.content_goals = originalPlan.content_goals;
+      payload.classification_hints = originalPlan.classification_hints;
       if (form.connectorType === "firecrawl" && form.mode === "custom") {
         payload.target_sites = splitLines(form.targetUrls).map((url) =>
-          copyingPlan.target_sites.find((site) => site.base_url === url) ?? { base_url: url },
+          originalPlan.target_sites.find((site) => site.base_url === url) ?? { base_url: url },
         );
       }
     }
@@ -773,7 +793,7 @@ export function CrawlerPlansPanel() {
                 width: 252,
                 render: (_, plan) => (
                   <Space size={6}>
-                    <Tooltip title="编辑计划"><Button size="small" icon={<EditOutlined />} onClick={() => openPlanForm(plan, false)} /></Tooltip>
+                    <Tooltip title="编辑计划"><Button size="small" aria-label={`编辑计划 ${plan.name}`} icon={<EditOutlined />} onClick={() => openPlanForm(plan, false)} /></Tooltip>
                     <Tooltip title="复制计划"><Button size="small" aria-label={`复制计划 ${plan.name}`} icon={<CopyOutlined />} onClick={() => openPlanForm(plan, true)} /></Tooltip>
                     <Tooltip title="执行历史">
                       <Button
@@ -851,8 +871,9 @@ export function CrawlerPlansPanel() {
             ]}
           />
           <Form layout="vertical" component="div">
-            <Form.Item label="数据源类型" required>
+            <Form.Item label="数据源类型" htmlFor="crawler-connector-type" required>
               <Select
+                id="crawler-connector-type"
                 value={form.connectorType}
                 onChange={(value) => update("connectorType", value)}
                 options={[
@@ -924,12 +945,24 @@ export function CrawlerPlansPanel() {
                     placeholder="例：浙江省政策报告采集"
                   />
                 </Form.Item>
-                <Form.Item label="归属数据源" required>
+                <Form.Item
+                  label="搜索类别"
+                  htmlFor="firecrawl-search-categories"
+                  extra="可多选，默认不限类别；Gov 必须单独使用。"
+                >
                   <Select
-                    value={effectiveDataSourceId || undefined}
-                    onChange={(value) => update("dataSourceId", value)}
-                    options={crawlerSourceOptions}
-                    disabled
+                    id="firecrawl-search-categories"
+                    mode="multiple"
+                    allowClear
+                    placeholder="不限类别"
+                    value={form.searchCategories}
+                    onChange={(value) => update("searchCategories", value)}
+                    options={FIRECRAWL_SEARCH_CATEGORIES.map((category) => ({
+                      ...category,
+                      disabled: category.value === "gov"
+                        ? form.searchCategories.some((value) => value !== "gov")
+                        : form.searchCategories.includes("gov"),
+                    }))}
                   />
                 </Form.Item>
                 {form.mode === "quick_start" ? (

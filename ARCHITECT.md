@@ -116,6 +116,17 @@ Console file upload at `/file-sync` uses an audited, idempotently ensured backen
 
 | Upper systems                    | Consume NEXUS APIs                                                                                                       | Direct calls to MinerU, retrieval backends, LiteLLM, or internal DBs  |
 
+Firecrawl plans store optional search categories in `crawl_policy.categories`
+(`research`, `pdf`, `gov`; default `[]`). Gov is exclusive; research and PDF
+may be combined. Plan validation rejects invalid values/combinations with 422.
+The document client sends nonempty selections as v2 Search
+`categories: [{"type": "research"}]`; empty/missing selections omit the filter.
+Categories remain provider search controls, independent of governance classification
+and PDF admission. Create/update audits and run summaries record the selection.
+Console hides source ownership, automatically binds new plans to the built-in
+Firecrawl source and preserves existing bindings during edit/copy. No migration
+or public external-search contract change is required.
+
 Crawler WebSearch plans distinguish `connector_version=custom` (existing provider)
 and `connector_version=deepseek`. DeepSeek Search uses a server-only Bearer key,
 requests page content, and admits results only after formal-document authority

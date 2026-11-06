@@ -12,6 +12,19 @@ class FirecrawlClientError(RuntimeError):
     pass
 
 
+def normalize_search_categories(value: Any) -> list[str]:
+    """Validate the NEXUS subset of Firecrawl v2 search categories."""
+    if not isinstance(value, list) or any(
+        not isinstance(item, str) or item not in {"research", "pdf", "gov"}
+        for item in value
+    ):
+        raise ValueError("categories must be a list containing only research, pdf or gov")
+    categories = list(dict.fromkeys(value))
+    if "gov" in categories and len(categories) > 1:
+        raise ValueError("Gov 搜索类别必须单独使用，不能与研究报告或 PDF 组合")
+    return categories
+
+
 @dataclass(frozen=True)
 class FirecrawlSearchResult:
     url: str
@@ -42,6 +55,7 @@ class FirecrawlDocumentClient(Protocol):
         include_domains: list[str] | None,
         country: str,
         languages: list[str],
+        categories: list[str] | None = None,
     ) -> list[FirecrawlSearchResult]: ...
 
     def batch_scrape(
@@ -75,8 +89,9 @@ class DisabledFirecrawlDocumentClient:
         include_domains: list[str] | None,
         country: str,
         languages: list[str],
+        categories: list[str] | None = None,
     ) -> list[FirecrawlSearchResult]:
-        del query, limit, include_domains, country, languages
+        del query, limit, include_domains, country, languages, categories
         raise FirecrawlClientError("firecrawl document client is not configured")
 
     def batch_scrape(
@@ -127,6 +142,7 @@ class HttpFirecrawlDocumentClient:
         include_domains: list[str] | None,
         country: str,
         languages: list[str],
+        categories: list[str] | None = None,
     ) -> list[FirecrawlSearchResult]:
         payload: dict[str, Any] = {
             "query": query,
@@ -140,6 +156,10 @@ class HttpFirecrawlDocumentClient:
         }
         if include_domains:
             payload["includeDomains"] = include_domains
+        if categories is not None:
+            selected = normalize_search_categories(categories)
+            if selected:
+                payload["categories"] = [{"type": category} for category in selected]
         data = self._post_json("/v2/search", payload)
         return _parse_search_results(data)
 

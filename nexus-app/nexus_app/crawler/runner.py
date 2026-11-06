@@ -63,6 +63,7 @@ def run_firecrawl_plan(
     only_main_content = bool(plan.crawl_policy.get("only_main_content", True))
     include_domains = _include_domains(plan)
     query = _build_query(plan, template)
+    categories = list(plan.crawl_policy.get("categories") or [])
 
     try:
         search_results = client.search(
@@ -71,6 +72,7 @@ def run_firecrawl_plan(
             include_domains=include_domains or None,
             country=str(firecrawl.get("country") or "CN"),
             languages=list(firecrawl.get("languages") or ["zh-CN"]),
+            **({"categories": categories} if categories else {}),
         )
         discovered = [
             {
@@ -223,6 +225,7 @@ def _base_summary(
     summary = {
         "runner": "firecrawl_sync",
         "query": query,
+        "categories": list(plan.crawl_policy.get("categories") or []),
         "search_scope": _query_scope(query),
         "web_wide_search": not bool(include_domains),
         "include_domains": include_domains,

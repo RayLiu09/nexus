@@ -29,7 +29,11 @@ from nexus_app.crawler.config_loader import (
     load_websearch_template,
 )
 from nexus_app.crawler.deepseek_search_client import HttpDeepSeekSearchClient
-from nexus_app.crawler.firecrawl_client import FirecrawlDocumentClient, FirecrawlDocumentSnapshot
+from nexus_app.crawler.firecrawl_client import (
+    FirecrawlDocumentClient,
+    FirecrawlDocumentSnapshot,
+    normalize_search_categories,
+)
 from nexus_app.crawler.quality_gate import evaluate_websearch_item, is_pdf_candidate
 from nexus_app.crawler.runner import run_firecrawl_plan
 from nexus_app.crawler.scheduling import InvalidCronError, compute_next_run
@@ -322,6 +326,10 @@ def _default_crawl_policy(template: dict[str, Any], overrides: dict[str, Any]) -
     }
     policy.update(overrides or {})
     policy["allow_external_links"] = False
+    try:
+        policy["categories"] = normalize_search_categories(policy.get("categories", []))
+    except ValueError as exc:
+        raise CrawlerPlanError(str(exc)) from exc
     if int(policy.get("max_discovery_depth") or 0) > 1:
         raise CrawlerPlanError("max_discovery_depth must be <= 1")
     if int(policy.get("max_pages") or 0) < 1:
@@ -455,6 +463,7 @@ def create_plan(
             "mode": row.mode,
             "region_code": row.region_code,
             "target_site_count": len(row.target_sites),
+            "categories": row.crawl_policy["categories"],
             "execution_mode": row.execution_mode,
             "template_config_hash": template_hash,
             "region_sites_config_hash": sites_hash,
@@ -540,9 +549,17 @@ def update_plan(
     else:
         row.next_run_at = None
         row.schedule_paused = False
-    write_audit(session, AuditEventType.CRAWLER_PLAN_UPDATED, "crawler_plan", row.id, trace_id,
-                {"execution_mode": row.execution_mode, "schedule_cron": row.schedule_cron, "mode": row.mode},
-                actor_type=actor_type, actor_id=actor_id)
+    summary = {
+        "execution_mode": row.execution_mode,
+        "schedule_cron": row.schedule_cron,
+        "mode": row.mode,
+    }
+    if row.connector_type == "firecrawl":
+        summary["categories"] = row.crawl_policy["categories"]
+    write_audit(
+        session, AuditEventType.CRAWLER_PLAN_UPDATED, "crawler_plan", row.id, trace_id,
+        summary, actor_type=actor_type, actor_id=actor_id,
+    )
     session.commit()
     session.refresh(row)
     return row

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import httpx
+import pytest
 
 from nexus_app.crawler.firecrawl_client import HttpFirecrawlDocumentClient
 
@@ -14,6 +15,29 @@ def _client(handler) -> HttpFirecrawlDocumentClient:
         timeout_seconds=1,
         transport=httpx.MockTransport(handler),
     )
+
+
+@pytest.mark.parametrize("categories", [None, [], ["research", "pdf"], ["gov"], ["pdf", "pdf"]])
+def test_search_serializes_selected_categories_and_omits_empty_filter(categories):
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v2/search"
+        payload = json.loads(request.content)
+        assert payload["query"] == "产业研究报告"
+        if categories:
+            assert payload["categories"] == [
+                {"type": category} for category in dict.fromkeys(categories)
+            ]
+        else:
+            assert "categories" not in payload
+        return httpx.Response(200, json={"data": {"web": [{
+            "url": "https://example.org/report.pdf", "title": "研究报告",
+        }]}})
+
+    results = _client(handler).search(
+        query="产业研究报告", limit=10, include_domains=None,
+        country="CN", languages=["zh-CN"], categories=categories,
+    )
+    assert results[0].url == "https://example.org/report.pdf"
 
 
 def test_batch_scrape_uses_firecrawl_v2_top_level_options():
