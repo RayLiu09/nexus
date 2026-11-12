@@ -1,9 +1,57 @@
+from datetime import datetime, timezone
 from io import BytesIO
 
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
 
 from nexus_app import models
+
+
+def test_raw_jobs_list_filters_by_created_range(app, session):
+    session.add_all(
+        [
+            models.RawJob(
+                id="raw-job-early",
+                title_raw="早期岗位",
+                created_at=datetime(2026, 1, 10, tzinfo=timezone.utc),
+            ),
+            models.RawJob(
+                id="raw-job-late",
+                title_raw="近期岗位",
+                created_at=datetime(2026, 3, 10, tzinfo=timezone.utc),
+            ),
+        ]
+    )
+    session.commit()
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/internal/v1/raw-jobs",
+            params={
+                "created_from": "2026-02-01T00:00:00+08:00",
+                "created_to": "2026-03-31T23:59:59.999+08:00",
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["meta"]["total"] == 1
+    assert [row["id"] for row in body["data"]] == ["raw-job-late"]
+
+
+def test_raw_jobs_list_rejects_invalid_created_range(app, session):
+    with TestClient(app) as client:
+        naive = client.get("/internal/v1/raw-jobs", params={"created_from": "2026-02-01T00:00:00"})
+        inverted = client.get(
+            "/internal/v1/raw-jobs",
+            params={
+                "created_from": "2026-03-01T00:00:00+08:00",
+                "created_to": "2026-02-01T00:00:00+08:00",
+            },
+        )
+
+    assert naive.status_code == 422
+    assert inverted.status_code == 422
 
 
 def test_raw_jobs_list_reads_raw_intake_fields_only(app, session):

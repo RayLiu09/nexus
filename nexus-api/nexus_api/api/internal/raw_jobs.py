@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from tempfile import SpooledTemporaryFile
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
 from sqlalchemy import func, or_, select
@@ -31,7 +32,19 @@ _EXPORT_COLUMNS = (
 )
 
 
-def _raw_job_filters(q: str | None, industry: str | None):
+def _validate_created_range(created_from: datetime | None, created_to: datetime | None) -> None:
+    if any(value.tzinfo is None or value.utcoffset() is None for value in (created_from, created_to) if value):
+        raise HTTPException(status_code=422, detail="created_from and created_to must include a timezone")
+    if created_from and created_to and created_from > created_to:
+        raise HTTPException(status_code=422, detail="created_from must not exceed created_to")
+
+
+def _raw_job_filters(
+    q: str | None,
+    industry: str | None,
+    created_from: datetime | None = None,
+    created_to: datetime | None = None,
+):
     clauses = []
     if q:
         pattern = f"%{q}%"
@@ -45,6 +58,10 @@ def _raw_job_filters(q: str | None, industry: str | None):
         )
     if industry:
         clauses.append(models.RawJob.company_industry_raw.ilike(f"%{industry}%"))
+    if created_from:
+        clauses.append(models.RawJob.created_at >= created_from)
+    if created_to:
+        clauses.append(models.RawJob.created_at <= created_to)
     return clauses
 
 
@@ -78,16 +95,19 @@ def list_raw_jobs(
     request: Request,
     q: str | None = Query(None, min_length=1, max_length=256),
     industry: str | None = Query(None, min_length=1, max_length=256),
+    created_from: datetime | None = None,
+    created_to: datetime | None = None,
     pagination: Pagination = Depends(pagination_params),
     session: Session = Depends(get_db),
 ):
     """List crawler-intake jobs. Pipeline B projections are intentionally ignored."""
+    _validate_created_range(created_from, created_to)
     stmt = select(models.RawJob, models.RawJobProvenance).outerjoin(
         models.RawJobProvenance,
         models.RawJobProvenance.raw_job_id == models.RawJob.id,
     )
     count_stmt = select(func.count(models.RawJob.id))
-    clauses = _raw_job_filters(q, industry)
+    clauses = _raw_job_filters(q, industry, created_from, created_to)
     if clauses:
         stmt = stmt.where(*clauses)
         count_stmt = count_stmt.where(*clauses)
@@ -111,13 +131,18 @@ def list_raw_jobs(
 def export_raw_jobs(
     q: str | None = Query(None, min_length=1, max_length=256),
     industry: str | None = Query(None, min_length=1, max_length=256),
+    created_from: datetime | None = None,
+    created_to: datetime | None = None,
     session: Session = Depends(get_db),
 ):
     """Export every matching raw job, independent of list pagination."""
+    _validate_created_range(created_from, created_to)
     workbook = Workbook(write_only=True)
     sheet = workbook.create_sheet("岗位数据")
     sheet.append([label for label, _ in _EXPORT_COLUMNS])
-    stmt = select(models.RawJob).where(*_raw_job_filters(q, industry)).order_by(
+    stmt = select(models.RawJob).where(
+        *_raw_job_filters(q, industry, created_from, created_to)
+    ).order_by(
         models.RawJob.created_at.desc(), models.RawJob.id.desc()
     )
     for job in session.scalars(stmt).yield_per(1000):

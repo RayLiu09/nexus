@@ -13,7 +13,7 @@ export async function GET(request: Request): Promise<Response> {
 
   const params = new URLSearchParams();
   const incoming = new URL(request.url).searchParams;
-  for (const key of ["q", "industry"]) {
+  for (const key of ["q", "industry", "created_from", "created_to"]) {
     const value = incoming.get(key)?.trim();
     if (value) params.set(key, value);
   }

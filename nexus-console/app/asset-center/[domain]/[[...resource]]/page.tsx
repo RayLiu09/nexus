@@ -259,6 +259,8 @@ export default async function AssetCenterRoute({ params, searchParams }: AssetCe
     const filters: JobDemandFilters = {
       q: first(query.q),
       industry: first(query.industry),
+      created_from: first(query.created_from),
+      created_to: first(query.created_to),
     };
     const result = await getApiData<RawJob[]>("/internal/v1/raw-jobs", [], {
       page: String(page),
