@@ -1,6 +1,16 @@
 # 典型调用流程
 
-所有命令都在 Skill 目录下执行，示例省略 `python3 scripts/nexus_call.py` 前缀。先用 `schema <tool>` 核对参数。
+所有命令都在 Skill 目录下执行，示例省略 `python3 scripts/nexus_call.py` 前缀。先用 `route` 选择资产形态和最小工具集合；只有陌生工具、Schema 变化或参数失败时再用 `schema <tool>`。
+
+## 0. 先选资产路由
+
+```bash
+route document
+route --resource-type industry_policy
+route market_jobs
+```
+
+路由输出包含推荐工具、资源分类、已知知识类型映射和默认预算。它不替代服务端权限校验，也不表示未映射资源类型已经有可用语义索引。
 
 ## 1. 文档发现 → 检索 → 原文证据
 
@@ -8,8 +18,9 @@
 # 1) 按业务类型/主题做目录检索；data.items[].normalized_ref_id 供后续限定范围
 call find_documents '{"query":{"topic":"low_altitude","resource_type":"industry_report","pageSize":5}}'
 
-# 2) 在选定资料范围内做语义检索，返回 chunk/ref 与 locator
-call search_evidence '{"query":{"q":"低空经济 产业规模 增速","normalized_ref_ids":["<ref-id>"],"top_k":8}}'
+# 2) 在选定资料范围内做语义检索，返回 chunk/ref 与 locator。
+#    industry_policy / industry_report / sector_report 必须显式使用 industry_research_kb。
+call search_evidence '{"query":{"q":"低空经济 产业规模 增速","kb":"industry_research_kb","normalized_ref_ids":["<ref-id>"],"top_k":8}}'
 
 # 3) 长文按章节读取（offset 是块列表偏移，max_chars 是字符预算）
 call list_document_sections '{"path":{"ref_id":"<ref-id>"},"query":{"limit":20}}'
@@ -24,7 +35,7 @@ call get_evidence_bundle '{"body":{"references":[{"kind":"chunk","id":"<chunk-id
 ## 2. 结构化业务数据
 
 ```bash
-# 市场岗位：region 按来源地址字面子串匹配，不推断工作地
+# 市场岗位：region 按来源地址字面子串匹配，不推断工作地；统计时优先 aggregate。
 call query_market_jobs '{"query":{"job_title":"电商","region":"杭州","pageSize":20}}'
 call aggregate_market_jobs '{"query":{"group_by":["education","experience"],"job_title":"电商"}}'
 
@@ -43,6 +54,8 @@ call query_enterprises '{"query":{"industry":"电子商务","pageSize":20}}'
 call query_industrial_parks '{"query":{"industry":"电商","pageSize":20}}'
 ```
 
+结构化岗位、企业、园区、专业布点、职业大典、教学标准、培养方案和能力分析应沿对应路由调用专用接口；只有用户明确要求某条记录的详情时，才继续调用其 get 接口。
+
 聚合的 `total` 是分组数；岗位样本量看 `sample_count`。数组参数直接传 JSON 数组，执行器会展开为 repeated keys。
 
 ## 3. 联网搜索
@@ -59,7 +72,8 @@ call search_web_search '{"body":{"query":"电子商务产业发展报告","count
 ## 4. 一句话路由与问答
 
 ```bash
-# 服务端自动选择工具并返回 markdown、intent、invoked_tools、fallback_reason
+# 服务端自动选择工具并返回 markdown、intent、invoked_tools、fallback_reason。
+# 这不是所有资产检索的默认入口；先按路由使用专用接口。
 call run_query_router_v2_open '{"body":{"query":"近一年电子商务岗位需求趋势"}}'
 
 # 直接知识问答（返回答案与引用）

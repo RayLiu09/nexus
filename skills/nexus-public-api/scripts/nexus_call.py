@@ -23,6 +23,7 @@ DEFAULT_TIMEOUT = 30
 ARG_GROUPS = ("path", "query", "body")
 API_KEY_ENV = "NEXUS_API_KEY"
 BASE_URL_ENV = "NEXUS_API_BASE_URL"
+ROUTES_FILE = ASSETS / "retrieval-routes.json"
 
 
 def load_catalog() -> tuple[dict, dict]:
@@ -38,6 +39,77 @@ def load_catalog() -> tuple[dict, dict]:
             "parameters": tool.get("parameters", {}),
         }
     return bindings_doc, catalog
+
+
+def load_routes() -> dict:
+    try:
+        routes_doc = json.loads(ROUTES_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Unable to load retrieval routes: {exc}") from exc
+    routes = routes_doc.get("routes")
+    if not isinstance(routes, dict) or not routes:
+        raise RuntimeError("Retrieval routes must contain a non-empty routes object.")
+    resource_type_routes = routes_doc.get("resource_type_routes", {})
+    if not isinstance(resource_type_routes, dict):
+        raise RuntimeError("Retrieval routes resource_type_routes must be an object.")
+    return routes_doc
+
+
+def validate_routes(routes_doc: dict, catalog: dict) -> None:
+    routes = routes_doc["routes"]
+    for route_name, route in routes.items():
+        if not isinstance(route, dict):
+            raise RuntimeError(f"Route {route_name!r} must be an object.")
+        tools = route.get("tools", [])
+        if not isinstance(tools, list) or not all(isinstance(tool, str) for tool in tools):
+            raise RuntimeError(f"Route {route_name!r} tools must be a list of names.")
+        missing = sorted(set(tools) - set(catalog))
+        if missing:
+            raise RuntimeError(
+                f"Route {route_name!r} references unknown tool(s): {', '.join(missing)}"
+            )
+    for resource_type, route_name in routes_doc.get("resource_type_routes", {}).items():
+        if route_name not in routes:
+            raise RuntimeError(
+                f"Resource type {resource_type!r} points to unknown route {route_name!r}."
+            )
+
+
+def command_route(routes_doc: dict, route_name: str | None, resource_type: str | None) -> int:
+    if route_name and resource_type:
+        print("Provide either a route name or --resource-type, not both.", file=sys.stderr)
+        return 2
+    resource_type_routes = routes_doc.get("resource_type_routes", {})
+    if resource_type:
+        route_name = resource_type_routes.get(resource_type)
+        if route_name is None:
+            known = ", ".join(sorted(resource_type_routes))
+            print(
+                f"Unknown resource type {resource_type!r}. Known resource types: {known}",
+                file=sys.stderr,
+            )
+            return 1
+    if route_name is None:
+        known = ", ".join(sorted(routes_doc["routes"]))
+        print(f"Provide a route name or --resource-type. Known routes: {known}", file=sys.stderr)
+        return 2
+    route = routes_doc["routes"].get(route_name)
+    if route is None:
+        known = ", ".join(sorted(routes_doc["routes"]))
+        print(f"Unknown route {route_name!r}. Known routes: {known}", file=sys.stderr)
+        return 1
+
+    output = {
+        "route": route_name,
+        "tools": route.get("tools", []),
+        "resource_types": route.get("resource_types", []),
+        "knowledge_types": route.get("knowledge_types", {}),
+        "default_limits": route.get("default_limits", {}),
+        "supports_batch_evidence": bool(route.get("supports_batch_evidence", False)),
+        "allow_external_search": bool(route.get("allow_external_search", False)),
+    }
+    print(json.dumps(output, ensure_ascii=False, indent=2))
+    return 0
 
 
 def first_line(text: str, width: int = 100) -> str:
@@ -214,6 +286,12 @@ def main() -> int:
     schema_parser = sub.add_parser("schema", help="Show one tool's parameters and bindings")
     schema_parser.add_argument("tool")
 
+    route_parser = sub.add_parser(
+        "route", help="Show the smallest tool set for an asset route or resource type"
+    )
+    route_parser.add_argument("route", nargs="?", help="Route name, such as document")
+    route_parser.add_argument("--resource-type", help="Resolve a resource type to its route")
+
     call_parser = sub.add_parser("call", help="Call one tool")
     call_parser.add_argument("tool")
     call_parser.add_argument("args", nargs="?", default="{}", help="JSON args grouped by path/query/body")
@@ -230,6 +308,14 @@ def main() -> int:
         return command_list(bindings_doc, catalog, args.tag)
     if args.command == "schema":
         return command_schema(catalog, args.tool)
+    if args.command == "route":
+        try:
+            routes_doc = load_routes()
+            validate_routes(routes_doc, catalog)
+        except RuntimeError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        return command_route(routes_doc, args.route, args.resource_type)
     return command_call(catalog, args)
 
 

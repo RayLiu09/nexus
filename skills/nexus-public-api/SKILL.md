@@ -7,8 +7,9 @@ description: Call NEXUS public /open/v1 data tools (55 read-only tools across 16
 
 通过 `/open/v1` 只读接口查询 NEXUS 资产中心公开数据。工具清单从公开 OpenAPI 生成，共 55 个工具、16 个资源标签；执行契约与参数 Schema 随 Skill 一起分发。
 
-- 工具索引：直接运行 `list`，不要凭记忆猜工具名。
-- 参数定义：调用前用 `schema <tool>` 查看，避免编造字段。
+- 检索路由：先运行 `route <route>` 或 `route --resource-type <type>`，只加载当前资产形态所需的最小工具集合。
+- 工具索引：仅在路由无法覆盖任务或需要探索时运行 `list`，不要凭记忆猜工具名。
+- 参数定义：陌生工具、Schema 版本变化或参数失败时用 `schema <tool>`；路由已列出的稳定工具不必每次重复读取 Schema。
 - 执行器：`scripts/nexus_call.py`（仅 Python 标准库，无第三方依赖）。
 
 ## 前置配置
@@ -28,10 +29,10 @@ API Key 只能来自环境变量。不要把它写进命令行参数、文件或
 SKILL=skills/nexus-public-api
 
 # 1. 按资源标签选最小工具集
-python3 "$SKILL/scripts/nexus_call.py" list
-python3 "$SKILL/scripts/nexus_call.py" list --tag public-business
+python3 "$SKILL/scripts/nexus_call.py" route document
+python3 "$SKILL/scripts/nexus_call.py" route --resource-type industry_policy
 
-# 2. 查看参数、执行器默认值与副作用
+# 2. 仅在需要时查看参数、执行器默认值与副作用
 python3 "$SKILL/scripts/nexus_call.py" schema find_documents
 
 # 3. 先 dry-run 核对 URL / body
@@ -68,6 +69,19 @@ python3 "$SKILL/scripts/nexus_call.py" call find_documents \
 | `external-search` | Firecrawl 与 DeepSeek 联网搜索 |
 
 只加载当前任务需要的标签，不要一次向模型传入全部 55 个工具。
+
+## 资产形态路由
+
+`assets/retrieval-routes.json` 是工具选择和知识类型映射的机器可读基线。`route` 输出只是一份选择提示，不能授予超出 Skill 或服务端权限的能力。
+
+- 文档、政策、报告、专业简介、教材和案例：使用 `document` 路由；先目录发现，再语义检索，最后批量解析证据。
+- 岗位、企业、园区、专业布点、职业大典、教学标准、培养方案和能力分析：优先使用对应结构化路由的 list/query/aggregate 工具，不用通用文档检索替代。
+- normalized ref、chunk、section 和图谱：必须先使用已返回的 ref 或节点锚点，再读取详情。
+- 外部搜索：只有内部证据不足或用户明确要求联网时使用 `external_search`，默认保持 `auto_ingest=false`。
+
+文档检索的知识类型必须遵循路由映射：`industry_policy`、`industry_report`、`sector_report` 使用 `kb=industry_research_kb`，`course_textbook` 使用 `kb=course_textbook`。路由输出中知识类型映射为空数组表示当前没有固化的语义索引，不要猜测 `kb`；先使用对应专用接口或报告数据缺口。
+
+不要把第一页列表当作全量统计；需要数量或分布时使用对应的 aggregate 工具。
 
 ## 调用约定
 

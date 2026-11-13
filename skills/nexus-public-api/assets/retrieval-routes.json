@@ -1,0 +1,174 @@
+{
+  "version": "1",
+  "description": "Asset-shape routes for selecting the smallest NEXUS public API tool set.",
+  "resource_type_routes": {
+    "industry_policy": "document",
+    "industry_report": "document",
+    "sector_report": "document",
+    "industry_regulation_standard": "document",
+    "major_profile": "document",
+    "teaching_standard": "document",
+    "talent_demand_report": "document",
+    "talent_training_plan": "document",
+    "competency_analysis": "document",
+    "course_textbook": "document",
+    "teaching_case": "document",
+    "market_job": "market_jobs",
+    "enterprise": "enterprises_parks",
+    "industrial_park": "enterprises_parks",
+    "major_offering": "major_offerings",
+    "occupation": "occupation_dictionary",
+    "teaching_standard_course": "teaching_standards",
+    "training_plan": "training_plans",
+    "ability_analysis": "ability_analysis",
+    "knowledge_outline": "outline_graph",
+    "task_outline": "outline_graph",
+    "knowledge_graph": "outline_graph",
+    "external_web": "external_search"
+  },
+  "routes": {
+    "document": {
+      "description": "Discover available document assets, search indexed evidence, then resolve only the returned evidence.",
+      "resource_types": [
+        "industry_policy",
+        "industry_report",
+        "sector_report",
+        "industry_regulation_standard",
+        "major_profile",
+        "teaching_standard",
+        "talent_demand_report",
+        "talent_training_plan",
+        "competency_analysis",
+        "course_textbook",
+        "teaching_case"
+      ],
+      "tools": [
+        "find_documents",
+        "search_evidence",
+        "get_evidence_bundle",
+        "list_document_sections",
+        "read_document_section"
+      ],
+      "knowledge_types": {
+        "industry_policy": ["industry_research_kb"],
+        "industry_report": ["industry_research_kb"],
+        "sector_report": ["industry_research_kb"],
+        "industry_regulation_standard": [],
+        "major_profile": [],
+        "teaching_standard": [],
+        "talent_demand_report": [],
+        "talent_training_plan": [],
+        "competency_analysis": [],
+        "course_textbook": ["course_textbook"],
+        "teaching_case": []
+      },
+      "default_limits": {
+        "candidate_page_size": 10,
+        "top_k": 8,
+        "max_evidence_items": 30,
+        "max_chars_per_evidence": 2000
+      },
+      "supports_batch_evidence": true,
+      "allow_external_search": false
+    },
+    "market_jobs": {
+      "description": "Query or aggregate structured market job records; fetch an individual job only when needed.",
+      "resource_types": ["market_job"],
+      "tools": ["query_market_jobs", "aggregate_market_jobs", "get_market_job"],
+      "default_limits": {"page_size": 20, "aggregate_page_size": 100},
+      "supports_batch_evidence": false,
+      "allow_external_search": false
+    },
+    "enterprises_parks": {
+      "description": "Query structured enterprise and industrial-park records and fetch details by returned identifier.",
+      "resource_types": ["enterprise", "industrial_park"],
+      "tools": [
+        "query_enterprises",
+        "get_enterprise",
+        "query_industrial_parks",
+        "get_industrial_park"
+      ],
+      "default_limits": {"page_size": 20},
+      "supports_batch_evidence": false,
+      "allow_external_search": false
+    },
+    "major_offerings": {
+      "description": "List or aggregate structured major offerings; use the aggregate endpoint for counts and distributions.",
+      "resource_types": ["major_offering"],
+      "tools": ["list_major_offerings", "aggregate_major_offerings"],
+      "default_limits": {"page_size": 20, "aggregate_page_size": 100},
+      "supports_batch_evidence": false,
+      "allow_external_search": false
+    },
+    "occupation_dictionary": {
+      "description": "Query the occupation dictionary by its structured classification fields.",
+      "resource_types": ["occupation"],
+      "tools": ["query_occupation_dictionary"],
+      "default_limits": {"page_size": 20},
+      "supports_batch_evidence": false,
+      "allow_external_search": false
+    },
+    "teaching_standards": {
+      "description": "Query teaching-standard libraries and their structured course records.",
+      "resource_types": ["teaching_standard_course"],
+      "tools": [
+        "query_teaching_standards",
+        "get_teaching_standard",
+        "query_standard_courses",
+        "get_standard_course"
+      ],
+      "default_limits": {"page_size": 20},
+      "supports_batch_evidence": false,
+      "allow_external_search": false
+    },
+    "training_plans": {
+      "description": "List and inspect structured talent-training plans and their course or capability graphs.",
+      "resource_types": ["training_plan"],
+      "tools": [
+        "list_open_talent_training_plans",
+        "get_open_talent_training_plan",
+        "list_training_plan_courses",
+        "get_open_course_knowledge_graph",
+        "get_open_position_capability_graph"
+      ],
+      "default_limits": {"page_size": 20},
+      "supports_batch_evidence": false,
+      "allow_external_search": false
+    },
+    "ability_analysis": {
+      "description": "Inspect ability analyses, items, relations, and tasks through their structured record endpoints.",
+      "resource_types": ["ability_analysis"],
+      "tools": [
+        "list_ability_analyses",
+        "get_ability_analysis",
+        "list_ability_items",
+        "list_ability_relations",
+        "get_ability_analysis_tasks"
+      ],
+      "default_limits": {"page_size": 20},
+      "supports_batch_evidence": false,
+      "allow_external_search": false
+    },
+    "outline_graph": {
+      "description": "Read an outline or graph only after a normalized reference or graph anchor is known.",
+      "resource_types": ["knowledge_outline", "task_outline", "knowledge_graph"],
+      "tools": [
+        "get_knowledge_outline",
+        "get_task_outline",
+        "read_existing_graph",
+        "get_outline_node_context"
+      ],
+      "default_limits": {"max_chars": 4000},
+      "supports_batch_evidence": false,
+      "allow_external_search": false
+    },
+    "external_search": {
+      "description": "Search outside NEXUS only after internal evidence is insufficient or the user explicitly requests web search.",
+      "resource_types": ["external_web"],
+      "tools": ["search_web_search", "search_firecrawl"],
+      "default_limits": {"count": 10, "auto_ingest": false},
+      "supports_batch_evidence": false,
+      "allow_external_search": true
+    }
+  }
+}
