@@ -8,12 +8,16 @@ repeated query arrays, and never accepts credentials as tool arguments.
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
+import re
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
@@ -268,9 +272,19 @@ def render_response(value, mode: str, max_content_chars: int,
 
 def print_result(status: int, headers, body: bytes, response_mode: str = "full",
                  max_content_chars: int = 2000,
-                 max_output_chars: int | None = None) -> int:
-    trace_id = headers.get("X-Trace-Id") or headers.get("x-trace-id") or ""
-    print(f"HTTP {status}" + (f" trace_id={trace_id}" if trace_id else ""), file=sys.stderr)
+                 max_output_chars: int | None = None,
+                 elapsed_ms: float | None = None,
+                 trace_id: str | None = None,
+                 response_bytes: int | None = None) -> int:
+    response_trace_id = headers.get("X-Trace-Id") or headers.get("x-trace-id") or trace_id or ""
+    metrics = f"HTTP {status}"
+    if response_trace_id:
+        metrics += f" trace_id={response_trace_id}"
+    if elapsed_ms is not None:
+        metrics += f" elapsed_ms={elapsed_ms}"
+    if response_bytes is not None:
+        metrics += f" response_bytes={response_bytes}"
+    print(metrics, file=sys.stderr)
     text = body.decode("utf-8", errors="replace")
     try:
         value = json.loads(text)
@@ -337,93 +351,313 @@ def validate_output_options(response_mode: str, max_content_chars: int,
         raise ValueError("max output chars must be at least 256.")
 
 
-def command_call(catalog: dict, args: argparse.Namespace) -> int:
+class ArgumentValidationError(ValueError):
+    """A local public-tool argument schema violation."""
+
+
+def _type_matches(value, expected: str) -> bool:
+    if expected == "null":
+        return value is None
+    if expected == "object":
+        return isinstance(value, dict)
+    if expected == "array":
+        return isinstance(value, list)
+    if expected == "string":
+        return isinstance(value, str)
+    if expected == "boolean":
+        return isinstance(value, bool)
+    if expected == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if expected == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    return True
+
+
+def validate_json_schema(value, schema: dict, path: str = "$", root_schema: dict | None = None) -> None:
+    """Validate the request subset used by generated public-tool schemas.
+
+    This intentionally implements only JSON Schema constraints emitted by the
+    OpenAPI generator. It stays dependency-free and reports the first useful
+    path instead of sending an avoidable invalid request to the API.
+    """
+    if not isinstance(schema, dict):
+        return
+    root_schema = root_schema or schema
+
+    any_of = schema.get("anyOf")
+    if any_of:
+        errors = []
+        for candidate in any_of:
+            try:
+                validate_json_schema(value, candidate, path, root_schema)
+                break
+            except ArgumentValidationError as exc:
+                errors.append(str(exc))
+        else:
+            detail = errors[0] if errors else "value did not match anyOf"
+            prefix = f"{path}: "
+            if detail.startswith(prefix):
+                detail = detail[len(prefix):]
+            raise ArgumentValidationError(f"{path}: {detail}")
+        return
+
+    one_of = schema.get("oneOf")
+    if one_of:
+        matches = 0
+        errors = []
+        for candidate in one_of:
+            try:
+                validate_json_schema(value, candidate, path, root_schema)
+                matches += 1
+            except ArgumentValidationError as exc:
+                errors.append(str(exc))
+        if matches != 1:
+            raise ArgumentValidationError(f"{path}: expected exactly one schema match")
+        return
+
+    if "const" in schema and value != schema["const"]:
+        raise ArgumentValidationError(f"{path}: expected {schema['const']!r}")
+    if "enum" in schema and value not in schema["enum"]:
+        raise ArgumentValidationError(
+            f"{path}: expected one of {', '.join(repr(item) for item in schema['enum'])}"
+        )
+
+    expected_type = schema.get("type")
+    if isinstance(expected_type, list):
+        if not any(_type_matches(value, item) for item in expected_type):
+            raise ArgumentValidationError(f"{path}: expected type {expected_type}")
+    elif isinstance(expected_type, str) and not _type_matches(value, expected_type):
+        raise ArgumentValidationError(f"{path}: expected type {expected_type}")
+
+    if isinstance(value, str):
+        if "minLength" in schema and len(value) < schema["minLength"]:
+            raise ArgumentValidationError(f"{path}: length must be >= {schema['minLength']}")
+        if "maxLength" in schema and len(value) > schema["maxLength"]:
+            raise ArgumentValidationError(f"{path}: length must be <= {schema['maxLength']}")
+        pattern = schema.get("pattern")
+        if pattern and re.search(pattern, value) is None:
+            raise ArgumentValidationError(f"{path}: value does not match the required pattern")
+
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if "minimum" in schema and value < schema["minimum"]:
+            raise ArgumentValidationError(f"{path}: value must be >= {schema['minimum']}")
+        if "maximum" in schema and value > schema["maximum"]:
+            raise ArgumentValidationError(f"{path}: value must be <= {schema['maximum']}")
+
+    if isinstance(value, list):
+        if "minItems" in schema and len(value) < schema["minItems"]:
+            raise ArgumentValidationError(f"{path}: item count must be >= {schema['minItems']}")
+        if "maxItems" in schema and len(value) > schema["maxItems"]:
+            raise ArgumentValidationError(f"{path}: item count must be <= {schema['maxItems']}")
+        item_schema = schema.get("items")
+        if isinstance(item_schema, dict):
+            for index, item in enumerate(value):
+                validate_json_schema(item, item_schema, f"{path}[{index}]", root_schema)
+
+    if isinstance(value, dict):
+        properties = schema.get("properties") or {}
+        for field in schema.get("required", []):
+            if field not in value:
+                raise ArgumentValidationError(f"{path}.{field}: field required")
+        if schema.get("additionalProperties") is False:
+            unknown = sorted(set(value) - set(properties))
+            if unknown:
+                raise ArgumentValidationError(
+                    f"{path}: extra fields not permitted: {', '.join(unknown)}"
+                )
+        for field, field_value in value.items():
+            field_schema = properties.get(field)
+            if isinstance(field_schema, dict):
+                validate_json_schema(field_value, field_schema, f"{path}.{field}", root_schema)
+
+
+class HttpConnectionPool:
+    """Small per-process HTTP/HTTPS connection cache for JSONL execution."""
+
+    def __init__(self):
+        self._connections: dict[tuple[str, str, int], http.client.HTTPConnection] = {}
+
+    def request(self, url: str, method: str, headers: dict[str, str], body: bytes | None,
+                timeout: float) -> tuple[int, dict[str, str], bytes]:
+        parsed = urllib.parse.urlsplit(url)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise ValueError("Connection reuse requires an http or https URL with a hostname.")
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        key = (parsed.scheme, parsed.hostname, port)
+        connection = self._connections.get(key)
+        if connection is None:
+            connection_type = http.client.HTTPSConnection if parsed.scheme == "https" else http.client.HTTPConnection
+            connection = connection_type(parsed.hostname, port, timeout=timeout)
+            self._connections[key] = connection
+        else:
+            connection.timeout = timeout
+        target = parsed.path or "/"
+        if parsed.query:
+            target += "?" + parsed.query
+        try:
+            connection.request(method, target, body=body, headers=headers)
+            response = connection.getresponse()
+            response_body = response.read()
+            return response.status, dict(response.getheaders()), response_body
+        except Exception:
+            self.close_key(key)
+            raise
+
+    def close_key(self, key: tuple[str, str, int]) -> None:
+        connection = self._connections.pop(key, None)
+        if connection is not None:
+            connection.close()
+
+    def close(self) -> None:
+        for key in list(self._connections):
+            self.close_key(key)
+
+
+def normalize_trace_id(value: str | None) -> str:
+    trace_id = uuid.uuid4().hex if value is None else value
+    if not isinstance(trace_id, str) or not 1 <= len(trace_id) <= 128:
+        raise ValueError("trace_id must be a non-empty string of at most 128 characters.")
+    if any(ord(char) < 32 or ord(char) == 127 for char in trace_id):
+        raise ValueError("trace_id cannot contain control characters.")
+    return trace_id
+
+
+def prepare_call(catalog: dict, args: argparse.Namespace):
     item = catalog.get(args.tool)
     if item is None:
-        print(f"Unknown tool {args.tool!r}. Run `list` to see available tools.", file=sys.stderr)
-        return 1
+        raise ValueError(f"Unknown tool {args.tool!r}. Run `list` to see available tools.")
 
     raw = args.args_file.read_text(encoding="utf-8") if args.args_file else args.args
     try:
         groups = json.loads(raw or "{}")
     except json.JSONDecodeError as exc:
-        print(f"Invalid JSON arguments: {exc}", file=sys.stderr)
-        return 2
+        raise ValueError(f"Invalid JSON arguments: {exc}") from exc
     if not isinstance(groups, dict):
-        print("Arguments must be a JSON object grouped by path/query/body.", file=sys.stderr)
-        return 2
+        raise ValueError("Arguments must be a JSON object grouped by path/query/body.")
     unknown = set(groups) - set(ARG_GROUPS)
     if unknown:
-        print(f"Unknown argument group(s): {', '.join(sorted(unknown))}", file=sys.stderr)
-        return 2
+        raise ValueError(f"Unknown argument group(s): {', '.join(sorted(unknown))}")
 
     apply_defaults(item, groups)
 
     body = groups.get("body")
     if body is not None and not isinstance(body, dict):
-        print("The body group must be a JSON object.", file=sys.stderr)
-        return 2
+        raise ValueError("The body group must be a JSON object.")
     if item.get("potential_ingest_side_effect") and isinstance(body, dict):
         if body.get("auto_ingest") is True and not args.allow_ingest:
-            print("Refusing auto_ingest=true without --allow-ingest.", file=sys.stderr)
-            return 2
+            raise ValueError("Refusing auto_ingest=true without --allow-ingest.")
 
     try:
         validate_output_options(args.response_mode, args.max_content_chars, args.max_output_chars)
     except ValueError as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
+        raise ValueError(str(exc)) from exc
+
+    if not getattr(args, "no_validate", False):
+        try:
+            validate_json_schema(groups, item.get("parameters", {}))
+        except ArgumentValidationError as exc:
+            raise ValueError(f"Invalid arguments for {item['name']}: {exc}") from exc
 
     base_url = args.base_url or os.environ.get(BASE_URL_ENV, DEFAULT_BASE_URL)
     try:
         url = build_url(item, groups, base_url)
     except SystemExit as exc:
-        print(exc, file=sys.stderr)
-        return 2
+        raise ValueError(str(exc)) from exc
 
     payload = json.dumps(body, ensure_ascii=False).encode("utf-8") if body is not None else None
+    trace_id = normalize_trace_id(getattr(args, "trace_id", None))
 
     if args.dry_run:
-        print(f"{item['method']} {url}")
-        print("X-API-Key: <redacted>")
-        if payload is not None:
-            print(f"Content-Type: application/json\n\n{payload.decode('utf-8')}")
-        return 0
+        return item, url, payload, {}, trace_id
 
     api_key = os.environ.get(API_KEY_ENV)
     if not api_key:
-        print(f"{API_KEY_ENV} is required for live calls.", file=sys.stderr)
-        return 2
+        raise ValueError(f"{API_KEY_ENV} is required for live calls.")
 
     header_name = (item.get("authentication") or {}).get("header", "X-API-Key")
-    request = urllib.request.Request(url, data=payload, method=item["method"])
-    request.add_header(header_name, api_key)
-    request.add_header("Accept", "application/json")
+    headers = {header_name: api_key, "Accept": "application/json", "X-Trace-ID": trace_id}
     if payload is not None:
-        request.add_header("Content-Type", "application/json")
+        headers["Content-Type"] = "application/json"
+    return item, url, payload, headers, trace_id
+
+
+def execute_http(prepared, args: argparse.Namespace) -> dict:
+    item, url, payload, headers, trace_id = prepared
+    started = time.perf_counter()
+    transport = getattr(args, "transport", None)
+    try:
+        if transport is not None:
+            status, response_headers, response_body = transport.request(
+                url, item["method"], headers, payload, args.timeout
+            )
+        else:
+            request = urllib.request.Request(url, data=payload, method=item["method"])
+            for name, value in headers.items():
+                request.add_header(name, value)
+            with urllib.request.urlopen(request, timeout=args.timeout) as response:
+                status = response.status
+                response_headers = response.headers
+                response_body = response.read()
+    except urllib.error.HTTPError as exc:
+        status = exc.code
+        response_headers = exc.headers
+        response_body = exc.read()
+    except (urllib.error.URLError, OSError, http.client.HTTPException, ValueError) as exc:
+        reason = getattr(exc, "reason", str(exc))
+        raise RuntimeError(f"Request failed: {reason}") from exc
+    elapsed_ms = round((time.perf_counter() - started) * 1000, 1)
+    response_trace_id = (
+        response_headers.get("X-Trace-Id")
+        or response_headers.get("x-trace-id")
+        or trace_id
+    )
+    return {
+        "status": status,
+        "headers": response_headers,
+        "body": response_body,
+        "trace_id": response_trace_id,
+        "elapsed_ms": elapsed_ms,
+        "response_bytes": len(response_body),
+    }
+
+
+def print_dry_run(prepared) -> None:
+    item, url, payload, _, trace_id = prepared
+    print(f"{item['method']} {url}")
+    print("X-API-Key: <redacted>")
+    print(f"X-Trace-ID: {trace_id}")
+    if payload is not None:
+        print(f"Content-Type: application/json\n\n{payload.decode('utf-8')}")
+
+
+def command_call(catalog: dict, args: argparse.Namespace) -> int:
+    try:
+        prepared = prepare_call(catalog, args)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    if args.dry_run:
+        print_dry_run(prepared)
+        return 0
 
     try:
-        with urllib.request.urlopen(request, timeout=args.timeout) as response:
-            return print_result(
-                response.status,
-                response.headers,
-                response.read(),
-                args.response_mode,
-                args.max_content_chars,
-                args.max_output_chars,
-            )
-    except urllib.error.HTTPError as exc:
-        return print_result(
-            exc.code,
-            exc.headers,
-            exc.read(),
-            args.response_mode,
-            args.max_content_chars,
-            args.max_output_chars,
-        )
-    except urllib.error.URLError as exc:
-        print(f"Request failed: {exc.reason}", file=sys.stderr)
+        result = execute_http(prepared, args)
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
         return 1
+    print_result(
+        result["status"],
+        result["headers"],
+        result["body"],
+        args.response_mode,
+        args.max_content_chars,
+        args.max_output_chars,
+        result["elapsed_ms"],
+        result["trace_id"],
+        result["response_bytes"],
+    )
+    return 0 if 200 <= result["status"] < 300 else 1
 
 
 def command_bundle(catalog: dict, args: argparse.Namespace) -> int:
@@ -443,8 +677,84 @@ def command_bundle(catalog: dict, args: argparse.Namespace) -> int:
         response_mode=args.response_mode,
         max_content_chars=args.max_content_chars,
         max_output_chars=args.max_output_chars,
+        no_validate=args.no_validate,
+        trace_id=args.trace_id,
+        transport=None,
     )
     return command_call(catalog, call_args)
+
+
+def command_serve(catalog: dict, args: argparse.Namespace) -> int:
+    """Process JSONL calls in one process and reuse HTTP connections."""
+    pool = HttpConnectionPool()
+    try:
+        for line_number, line in enumerate(sys.stdin, 1):
+            if not line.strip():
+                continue
+            tool = None
+            try:
+                request = json.loads(line)
+                if not isinstance(request, dict):
+                    raise ValueError("JSONL request must be an object.")
+                tool = request.get("tool")
+                if not isinstance(tool, str) or not tool:
+                    raise ValueError("JSONL request requires a non-empty tool.")
+                call_arguments = request.get("args", {})
+                if not isinstance(call_arguments, dict):
+                    raise ValueError("JSONL request args must be an object grouped by path/query/body.")
+                call_args = argparse.Namespace(
+                    tool=tool,
+                    args=json.dumps(call_arguments, ensure_ascii=False),
+                    args_file=None,
+                    base_url=args.base_url,
+                    timeout=args.timeout,
+                    dry_run=False,
+                    allow_ingest=args.allow_ingest,
+                    response_mode=args.response_mode,
+                    max_content_chars=args.max_content_chars,
+                    max_output_chars=args.max_output_chars,
+                    no_validate=args.no_validate,
+                    trace_id=request.get("trace_id", args.trace_id),
+                    transport=pool,
+                )
+                prepared = prepare_call(catalog, call_args)
+                result = execute_http(prepared, call_args)
+                response_text = result["body"].decode("utf-8", errors="replace")
+                try:
+                    response_value = json.loads(response_text)
+                    response_value = json.loads(
+                        render_response(
+                            response_value,
+                            args.response_mode,
+                            args.max_content_chars,
+                            args.max_output_chars,
+                        )
+                    )
+                except json.JSONDecodeError:
+                    response_value = {
+                        "body_type": "non_json",
+                        "response_bytes": result["response_bytes"],
+                    }
+                output = {
+                    "ok": 200 <= result["status"] < 300,
+                    "tool": tool,
+                    "status": result["status"],
+                    "trace_id": result["trace_id"],
+                    "elapsed_ms": result["elapsed_ms"],
+                    "response_bytes": result["response_bytes"],
+                    "response": response_value,
+                }
+            except (ValueError, RuntimeError) as exc:
+                output = {
+                    "ok": False,
+                    "tool": tool,
+                    "line": line_number,
+                    "error": {"message": str(exc)},
+                }
+            print(json.dumps(output, ensure_ascii=False, separators=(",", ":")), flush=True)
+    finally:
+        pool.close()
+    return 0
 
 
 def main() -> int:
@@ -479,6 +789,26 @@ def main() -> int:
                                help="Local per-field content budget for content mode")
     bundle_parser.add_argument("--max-output-chars", type=int,
                                help="Local serialized output budget; minimum 256")
+    bundle_parser.add_argument("--no-validate", action="store_true",
+                               help="Skip local JSON Schema validation")
+    bundle_parser.add_argument("--trace-id", help="Use an explicit X-Trace-ID")
+
+    serve_parser = sub.add_parser(
+        "serve", help="Read JSONL tool calls and reuse HTTP connections in one process"
+    )
+    serve_parser.add_argument("--base-url")
+    serve_parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
+    serve_parser.add_argument("--allow-ingest", action="store_true",
+                              help="Permit explicit auto_ingest=true on external search")
+    serve_parser.add_argument("--response-mode", choices=("full", "summary", "content"),
+                              default="summary")
+    serve_parser.add_argument("--max-content-chars", type=int, default=2000,
+                              help="Local per-field content budget for content mode")
+    serve_parser.add_argument("--max-output-chars", type=int,
+                              help="Local serialized output budget; minimum 256")
+    serve_parser.add_argument("--no-validate", action="store_true",
+                              help="Skip local JSON Schema validation")
+    serve_parser.add_argument("--trace-id", help="Use one X-Trace-ID for the session")
 
     call_parser = sub.add_parser("call", help="Call one tool")
     call_parser.add_argument("tool")
@@ -496,6 +826,9 @@ def main() -> int:
                              help="Local per-field content budget for content mode")
     call_parser.add_argument("--max-output-chars", type=int,
                              help="Local serialized output budget; minimum 256")
+    call_parser.add_argument("--no-validate", action="store_true",
+                             help="Skip local JSON Schema validation")
+    call_parser.add_argument("--trace-id", help="Use an explicit X-Trace-ID")
 
     args = parser.parse_args()
     bindings_doc, catalog = load_catalog()
@@ -513,6 +846,8 @@ def main() -> int:
         return command_route(routes_doc, args.route, args.resource_type)
     if args.command == "bundle":
         return command_bundle(catalog, args)
+    if args.command == "serve":
+        return command_serve(catalog, args)
     return command_call(catalog, args)
 
 

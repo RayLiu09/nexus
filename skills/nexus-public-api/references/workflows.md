@@ -36,6 +36,15 @@ bundle --args-file refs.json --response-mode content --max-content-chars 2000
 
 引用结论时保留 `normalized_ref_id`、chunk/block id 与 locator，不要改写原文事实。
 
+同一 Agent turn 需要连续调用多个公开工具时，可以把调用写成 JSONL 交给 `serve`，并传入同一个 `--trace-id`。每行返回独立的状态、耗时和响应字节数；执行器会复用同一服务 origin 的 HTTP 连接，并在本地先校验公开 Schema。
+
+```bash
+printf '%s\n' \
+  '{"tool":"find_documents","args":{"query":{"resource_type":"industry_policy","pageSize":5}}}' \
+  '{"tool":"search_evidence","args":{"query":{"q":"低空经济","kb":"industry_research_kb","top_k":8}}}' \
+  | serve --trace-id turn-001 --response-mode summary
+```
+
 ## 2. 结构化业务数据
 
 ```bash

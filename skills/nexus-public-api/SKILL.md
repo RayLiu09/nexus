@@ -51,6 +51,12 @@ python3 "$SKILL/scripts/nexus_call.py" bundle --args-file refs.json \
 # 6. 需要正文时显式切换 content，并限制每条正文字符数
 python3 "$SKILL/scripts/nexus_call.py" bundle --args-file refs.json \
   --response-mode content --max-content-chars 2000
+
+# 7. 同一 Agent turn 需要连续调用多个工具时，可用 JSONL 常驻执行器复用连接
+printf '%s\n' \
+  '{"tool":"find_documents","args":{"query":{"pageSize":5}}}' \
+  '{"tool":"search_evidence","args":{"query":{"q":"低空经济","kb":"industry_research_kb","top_k":8}}}' \
+  | python3 "$SKILL/scripts/nexus_call.py" serve --trace-id turn-001
 ```
 
 参数 JSON 按 `path`、`query`、`body` 三组组织：
@@ -93,6 +99,10 @@ python3 "$SKILL/scripts/nexus_call.py" bundle --args-file refs.json \
 不要把第一页列表当作全量统计；需要数量或分布时使用对应的 aggregate 工具。
 
 `call` 保持完整 JSON 输出兼容性；需要控制上下文时可显式使用 `--response-mode summary|content`。`summary` 保留状态、标识、locator、ref 和正文长度，不输出正文；`content` 按 `--max-content-chars` 截断常见正文字段。`--max-output-chars` 是执行器本地输出预算，超出时返回合法的截断说明 JSON，不改变服务端响应。
+
+`serve` 从 stdin 读取 JSONL，每行格式为 `{"tool":"<name>","args":{"path":{},"query":{},"body":{}},"trace_id":"<optional>"}`，每行返回一个带 `status`、`trace_id`、`elapsed_ms` 和 `response_bytes` 的 JSON。它在同一 origin 内复用 HTTP/HTTPS 连接，适合一个 Agent turn 的连续调用。普通 `call` 仍是单次进程调用。
+
+执行器默认在本地按公开工具 Schema 校验请求，错误会在发起 HTTP 请求前返回字段路径；只有确认服务端 Schema 暂时领先于随 Skill 分发的产物时，才显式使用 `--no-validate`。trace、状态、耗时和响应字节数不会包含 API Key、请求参数或完整响应正文。
 
 ## 调用约定
 
