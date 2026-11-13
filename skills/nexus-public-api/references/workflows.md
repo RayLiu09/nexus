@@ -26,8 +26,12 @@ call search_evidence '{"query":{"q":"低空经济 产业规模 增速","kb":"ind
 call list_document_sections '{"path":{"ref_id":"<ref-id>"},"query":{"limit":20}}'
 call read_document_section '{"path":{"ref_id":"<ref-id>","section_id":"<section-id>"},"query":{"max_chars":4000}}'
 
-# 4) 或一次性批量取证据（最多 30 个引用，逐项返回 not_found）
-call get_evidence_bundle '{"body":{"references":[{"kind":"chunk","id":"<chunk-id>"}],"max_chars":2000}}'
+# 4) 一次性批量取证据（最多 30 个引用，逐项返回 not_found）。先把搜索结果中的标识写入 refs.json：
+#    {"references":[{"kind":"chunk","id":"<chunk-id>"}],"max_chars":2000}
+bundle --args-file refs.json --response-mode summary --max-output-chars 12000
+
+# 5) 只有需要回答正文细节时才取正文，单条正文默认最多 2000 字符
+bundle --args-file refs.json --response-mode content --max-content-chars 2000
 ```
 
 引用结论时保留 `normalized_ref_id`、chunk/block id 与 locator，不要改写原文事实。

@@ -10,6 +10,7 @@ description: Call NEXUS public /open/v1 data tools (55 read-only tools across 16
 - 检索路由：先运行 `route <route>` 或 `route --resource-type <type>`，只加载当前资产形态所需的最小工具集合。
 - 工具索引：仅在路由无法覆盖任务或需要探索时运行 `list`，不要凭记忆猜工具名。
 - 参数定义：陌生工具、Schema 版本变化或参数失败时用 `schema <tool>`；路由已列出的稳定工具不必每次重复读取 Schema。
+- 证据读取：先收集搜索结果中的 chunk/ref 标识，再用 `bundle --args-file` 一次性批量取证；默认摘要模式不会把全部正文带入 Agent 上下文。
 - 执行器：`scripts/nexus_call.py`（仅 Python 标准库，无第三方依赖）。
 
 ## 前置配置
@@ -42,6 +43,14 @@ python3 "$SKILL/scripts/nexus_call.py" call find_documents \
 # 4. 正式调用（输出响应 JSON；HTTP 状态与 trace_id 在 stderr）
 python3 "$SKILL/scripts/nexus_call.py" call find_documents \
   '{"query":{"resource_type":"industry_policy","pageSize":5}}'
+
+# 5. 对搜索结果中的引用批量取证；refs.json 可是引用数组或 {"references":[...]} 对象
+python3 "$SKILL/scripts/nexus_call.py" bundle --args-file refs.json \
+  --response-mode summary --max-output-chars 12000
+
+# 6. 需要正文时显式切换 content，并限制每条正文字符数
+python3 "$SKILL/scripts/nexus_call.py" bundle --args-file refs.json \
+  --response-mode content --max-content-chars 2000
 ```
 
 参数 JSON 按 `path`、`query`、`body` 三组组织：
@@ -82,6 +91,8 @@ python3 "$SKILL/scripts/nexus_call.py" call find_documents \
 文档检索的知识类型必须遵循路由映射：`industry_policy`、`industry_report`、`sector_report` 使用 `kb=industry_research_kb`，`course_textbook` 使用 `kb=course_textbook`。路由输出中知识类型映射为空数组表示当前没有固化的语义索引，不要猜测 `kb`；先使用对应专用接口或报告数据缺口。
 
 不要把第一页列表当作全量统计；需要数量或分布时使用对应的 aggregate 工具。
+
+`call` 保持完整 JSON 输出兼容性；需要控制上下文时可显式使用 `--response-mode summary|content`。`summary` 保留状态、标识、locator、ref 和正文长度，不输出正文；`content` 按 `--max-content-chars` 截断常见正文字段。`--max-output-chars` 是执行器本地输出预算，超出时返回合法的截断说明 JSON，不改变服务端响应。
 
 ## 调用约定
 

@@ -24,6 +24,24 @@ ARG_GROUPS = ("path", "query", "body")
 API_KEY_ENV = "NEXUS_API_KEY"
 BASE_URL_ENV = "NEXUS_API_BASE_URL"
 ROUTES_FILE = ASSETS / "retrieval-routes.json"
+EVIDENCE_TOOL = "get_evidence_bundle"
+EVIDENCE_KINDS = {
+    "chunk",
+    "normalized_ref",
+    "market_job",
+    "enterprise",
+    "industrial_park",
+    "major_distribution",
+    "ability_item",
+}
+LARGE_RESPONSE_FIELDS = {
+    "answer",
+    "content",
+    "markdown",
+    "raw_text",
+    "snippet",
+    "text",
+}
 
 
 def load_catalog() -> tuple[dict, dict]:
@@ -196,15 +214,127 @@ def build_url(item: dict, groups: dict, base_url: str) -> str:
     return url
 
 
-def print_result(status: int, headers, body: bytes) -> int:
+def response_summary(value):
+    """Remove large response fields while retaining evidence identity and sizes."""
+    if isinstance(value, dict):
+        result = {}
+        for key, item in value.items():
+            if key in LARGE_RESPONSE_FIELDS and isinstance(item, str):
+                result[f"{key}_chars"] = len(item)
+                continue
+            result[key] = response_summary(item)
+        return result
+    if isinstance(value, list):
+        return [response_summary(item) for item in value]
+    return value
+
+
+def response_content(value, max_content_chars: int):
+    """Keep response metadata and cap fields that commonly contain source text."""
+    if isinstance(value, dict):
+        result = {}
+        for key, item in value.items():
+            if key in LARGE_RESPONSE_FIELDS and isinstance(item, str):
+                result[key] = item[:max_content_chars]
+                result[f"{key}_truncated"] = len(item) > max_content_chars
+                result[f"{key}_chars"] = len(item)
+                continue
+            result[key] = response_content(item, max_content_chars)
+        return result
+    if isinstance(value, list):
+        return [response_content(item, max_content_chars) for item in value]
+    return value
+
+
+def render_response(value, mode: str, max_content_chars: int,
+                    max_output_chars: int | None) -> str:
+    if mode == "summary":
+        projected = response_summary(value)
+    elif mode == "content":
+        projected = response_content(value, max_content_chars)
+    else:
+        projected = value
+    rendered = json.dumps(projected, ensure_ascii=False, indent=2)
+    if max_output_chars is not None and len(rendered) > max_output_chars:
+        compact = {
+            "truncated": True,
+            "original_chars": len(rendered),
+            "response_mode": mode,
+            "message": "Response exceeded the local output budget; rerun with a larger budget or summary mode.",
+        }
+        rendered = json.dumps(compact, ensure_ascii=False)
+    return rendered
+
+
+def print_result(status: int, headers, body: bytes, response_mode: str = "full",
+                 max_content_chars: int = 2000,
+                 max_output_chars: int | None = None) -> int:
     trace_id = headers.get("X-Trace-Id") or headers.get("x-trace-id") or ""
     print(f"HTTP {status}" + (f" trace_id={trace_id}" if trace_id else ""), file=sys.stderr)
     text = body.decode("utf-8", errors="replace")
     try:
-        print(json.dumps(json.loads(text), ensure_ascii=False, indent=2))
+        value = json.loads(text)
+        print(render_response(value, response_mode, max_content_chars, max_output_chars))
     except json.JSONDecodeError:
-        print(text)
+        if max_output_chars is not None and len(text) > max_output_chars:
+            print(text[:max_output_chars] + "\n[truncated by local output budget]")
+        else:
+            print(text)
     return 0 if 200 <= status < 300 else 1
+
+
+def load_bundle_arguments(args_file: Path | None, max_chars: int | None) -> dict:
+    if args_file is None:
+        raise ValueError("bundle requires --args-file containing references.")
+    try:
+        raw = json.loads(args_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Invalid bundle arguments file: {exc}") from exc
+    if isinstance(raw, list):
+        references = raw
+        file_max_chars = None
+    elif isinstance(raw, dict):
+        references = raw.get("references")
+        file_max_chars = raw.get("max_chars")
+    else:
+        raise ValueError("Bundle arguments must be a references array or an object with references.")
+    if not isinstance(references, list) or not references:
+        raise ValueError("Bundle references must be a non-empty array.")
+    if len(references) > 30:
+        raise ValueError("Bundle references cannot contain more than 30 items.")
+    for index, reference in enumerate(references):
+        if not isinstance(reference, dict):
+            raise ValueError(f"Bundle reference {index} must be an object.")
+        kind = reference.get("kind")
+        identifier = reference.get("id")
+        if kind not in EVIDENCE_KINDS:
+            raise ValueError(
+                f"Bundle reference {index} has invalid kind {kind!r}; "
+                f"expected one of: {', '.join(sorted(EVIDENCE_KINDS))}."
+            )
+        if not isinstance(identifier, str) or not 1 <= len(identifier) <= 64:
+            raise ValueError(f"Bundle reference {index} id must be 1-64 characters.")
+        extra = set(reference) - {"kind", "id"}
+        if extra:
+            raise ValueError(
+                f"Bundle reference {index} has unsupported field(s): {', '.join(sorted(extra))}."
+            )
+    selected_max_chars = max_chars if max_chars is not None else file_max_chars
+    if selected_max_chars is None:
+        selected_max_chars = 2000
+    if not isinstance(selected_max_chars, int) or not 100 <= selected_max_chars <= 10000:
+        raise ValueError("Bundle max_chars must be an integer between 100 and 10000.")
+    return {"body": {"references": references, "max_chars": selected_max_chars}}
+
+
+def validate_output_options(response_mode: str, max_content_chars: int,
+                            max_output_chars: int | None) -> None:
+    if response_mode not in {"full", "summary", "content"}:
+        raise ValueError("response mode must be full, summary, or content.")
+    if not 100 <= max_content_chars <= 10000:
+        raise ValueError("max content chars must be between 100 and 10000.")
+    if max_output_chars is not None and max_output_chars < 256:
+        raise ValueError("max output chars must be at least 256.")
 
 
 def command_call(catalog: dict, args: argparse.Namespace) -> int:
@@ -238,6 +368,12 @@ def command_call(catalog: dict, args: argparse.Namespace) -> int:
             print("Refusing auto_ingest=true without --allow-ingest.", file=sys.stderr)
             return 2
 
+    try:
+        validate_output_options(args.response_mode, args.max_content_chars, args.max_output_chars)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
     base_url = args.base_url or os.environ.get(BASE_URL_ENV, DEFAULT_BASE_URL)
     try:
         url = build_url(item, groups, base_url)
@@ -268,12 +404,47 @@ def command_call(catalog: dict, args: argparse.Namespace) -> int:
 
     try:
         with urllib.request.urlopen(request, timeout=args.timeout) as response:
-            return print_result(response.status, response.headers, response.read())
+            return print_result(
+                response.status,
+                response.headers,
+                response.read(),
+                args.response_mode,
+                args.max_content_chars,
+                args.max_output_chars,
+            )
     except urllib.error.HTTPError as exc:
-        return print_result(exc.code, exc.headers, exc.read())
+        return print_result(
+            exc.code,
+            exc.headers,
+            exc.read(),
+            args.response_mode,
+            args.max_content_chars,
+            args.max_output_chars,
+        )
     except urllib.error.URLError as exc:
         print(f"Request failed: {exc.reason}", file=sys.stderr)
         return 1
+
+
+def command_bundle(catalog: dict, args: argparse.Namespace) -> int:
+    try:
+        groups = load_bundle_arguments(args.args_file, args.max_chars)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    call_args = argparse.Namespace(
+        tool=EVIDENCE_TOOL,
+        args=json.dumps(groups, ensure_ascii=False),
+        args_file=None,
+        base_url=args.base_url,
+        timeout=args.timeout,
+        dry_run=args.dry_run,
+        allow_ingest=False,
+        response_mode=args.response_mode,
+        max_content_chars=args.max_content_chars,
+        max_output_chars=args.max_output_chars,
+    )
+    return command_call(catalog, call_args)
 
 
 def main() -> int:
@@ -292,6 +463,23 @@ def main() -> int:
     route_parser.add_argument("route", nargs="?", help="Route name, such as document")
     route_parser.add_argument("--resource-type", help="Resolve a resource type to its route")
 
+    bundle_parser = sub.add_parser(
+        "bundle", help="Batch-resolve evidence references through get_evidence_bundle"
+    )
+    bundle_parser.add_argument("--args-file", type=Path, required=True,
+                               help="JSON array or object containing references")
+    bundle_parser.add_argument("--max-chars", type=int,
+                               help="Override per-evidence server content budget (100-10000)")
+    bundle_parser.add_argument("--base-url")
+    bundle_parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
+    bundle_parser.add_argument("--dry-run", action="store_true")
+    bundle_parser.add_argument("--response-mode", choices=("full", "summary", "content"),
+                               default="summary")
+    bundle_parser.add_argument("--max-content-chars", type=int, default=2000,
+                               help="Local per-field content budget for content mode")
+    bundle_parser.add_argument("--max-output-chars", type=int,
+                               help="Local serialized output budget; minimum 256")
+
     call_parser = sub.add_parser("call", help="Call one tool")
     call_parser.add_argument("tool")
     call_parser.add_argument("args", nargs="?", default="{}", help="JSON args grouped by path/query/body")
@@ -301,6 +489,13 @@ def main() -> int:
     call_parser.add_argument("--dry-run", action="store_true")
     call_parser.add_argument("--allow-ingest", action="store_true",
                              help="Permit explicit auto_ingest=true on external search")
+    call_parser.add_argument("--response-mode", choices=("full", "summary", "content"),
+                             default="full",
+                             help="Project JSON response before printing")
+    call_parser.add_argument("--max-content-chars", type=int, default=2000,
+                             help="Local per-field content budget for content mode")
+    call_parser.add_argument("--max-output-chars", type=int,
+                             help="Local serialized output budget; minimum 256")
 
     args = parser.parse_args()
     bindings_doc, catalog = load_catalog()
@@ -316,6 +511,8 @@ def main() -> int:
             print(str(exc), file=sys.stderr)
             return 2
         return command_route(routes_doc, args.route, args.resource_type)
+    if args.command == "bundle":
+        return command_bundle(catalog, args)
     return command_call(catalog, args)
 
 
