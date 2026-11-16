@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 
 import pytest
@@ -56,6 +56,61 @@ def test_market_jobs_same_source_filters_and_full_aggregate(app, session):
     assert len(audits) == 4
     assert all(row.trace_id and row.actor_id for row in audits)
     assert "example.test" not in json.dumps([row.summary for row in audits])
+
+
+def test_market_jobs_order_by_collection_time_with_stable_ties(app, session):
+    received_base = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    collected_base = datetime(2026, 9, 1, tzinfo=timezone.utc)
+    jobs = [
+        # Inserted later but collected earlier: created_at ordering would put
+        # this row first and expose the old, misleading "latest" behavior.
+        ("job-collected-old", received_base + timedelta(days=2), collected_base),
+        ("job-collected-new", received_base, collected_base + timedelta(days=2)),
+        ("job-tie-a", received_base + timedelta(days=3), collected_base + timedelta(days=1)),
+        ("job-tie-b", received_base + timedelta(days=4), collected_base + timedelta(days=1)),
+    ]
+    for job_id, received_at, collected_at in jobs:
+        session.add(models.RawJob(
+            id=job_id,
+            title_raw=job_id,
+            created_at=received_at,
+            updated_at=received_at,
+        ))
+        session.add(models.RawJobProvenance(
+            raw_job_id=job_id,
+            provider_code="crawler",
+            upstream_record_id=f"upstream-{job_id}",
+            source_name="示例站点",
+            external_task_id="task-order",
+            source_page=1,
+            keyword="岗位",
+            collected_at=collected_at,
+            source_url=f"https://example.test/{job_id}",
+            upstream_payload_hash=f"payload-{job_id}",
+            raw_record_hash=f"record-{job_id}",
+            raw_record={},
+        ))
+    session.add(models.RawJob(
+        id="job-no-provenance",
+        title_raw="job-no-provenance",
+        created_at=received_base + timedelta(days=5),
+        updated_at=received_base + timedelta(days=5),
+    ))
+    session.commit()
+
+    response = TestClient(app).get(
+        "/open/v1/market-jobs",
+        params={"pageSize": 5},
+    )
+
+    assert response.status_code == 200, response.text
+    assert [row["id"] for row in response.json()["data"]] == [
+        "job-collected-new",
+        "job-tie-b",
+        "job-tie-a",
+        "job-collected-old",
+        "job-no-provenance",
+    ]
 
 
 @pytest.mark.parametrize("status", ["review", "active", "superseded"])

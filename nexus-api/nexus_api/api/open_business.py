@@ -6,7 +6,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
-from sqlalchemy import Text, cast, func, or_, select
+from sqlalchemy import Text, cast, func, nulls_last, or_, select
 from sqlalchemy.orm import Session
 
 from nexus_api import public_schemas as dto, schemas
@@ -100,7 +100,9 @@ def list_market_jobs(request: Request, filters: JobFilters = Depends(job_filters
                      caller=Depends(require_api_caller), session: Session = Depends(get_db)):
     """Query current raw_jobs postings, including region substring matching on source addresses before pagination. Collection time is not publication time; salary is source text."""
     rows, total = page_rows(session, job_statement(filters).order_by(
-        models.RawJob.created_at.desc(), models.RawJob.id.desc()), pagination)
+        nulls_last(models.RawJobProvenance.collected_at.desc()),
+        models.RawJob.id.desc(),
+    ), pagination)
     return finish_list([job_payload(*row) for row in rows], total, request, session,
                        caller, pagination, "market_jobs")
 
