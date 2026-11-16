@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -67,6 +68,11 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
             candidates.append(candidate)
 
     courses = _merge_logical_courses(candidates)
+    whitespace_duplicate_count = _whitespace_duplicate_count(candidates)
+    if whitespace_duplicate_count:
+        diagnostics["course_name_whitespace_duplicate_count"] = (
+            whitespace_duplicate_count
+        )
     if not courses:
         diagnostics["course_facts_missing"] = 1
     projection = validate_projection(
@@ -78,6 +84,24 @@ def extract(payload: dict[str, Any]) -> dict[str, Any] | None:
         }
     )
     return projection.model_dump(mode="json") if projection is not None else None
+
+
+def _whitespace_duplicate_count(candidates: list[dict[str, Any]]) -> int:
+    """Count extra source rows sharing a format-normalized course identity.
+
+    The source spelling remains unchanged and exact-key merging still owns the
+    persisted course rows. This diagnostic only identifies whitespace/Unicode
+    formatting variants so a reviewer can reconcile them with source order and
+    evidence without losing derived or manually corrected fields.
+    """
+    groups: dict[tuple[str, str], int] = {}
+    for candidate in candidates:
+        name = unicodedata.normalize(
+            "NFKC", candidate["standard_course_name"]
+        )
+        key = (candidate["course_type"], re.sub(r"\s+", "", name).strip())
+        groups[key] = groups.get(key, 0) + 1
+    return sum(count - 1 for count in groups.values() if count > 1)
 
 
 def _sections(blocks: list[dict[str, Any]]) -> list[Section]:

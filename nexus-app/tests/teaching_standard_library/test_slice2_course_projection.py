@@ -169,6 +169,30 @@ def test_extracts_structural_course_groups_and_merges_same_key_evidence() -> Non
     assert ("foundation", "思想道德与法治") not in courses
 
 
+def test_flags_whitespace_variants_without_merging_source_rows() -> None:
+    payload = _payload()
+    payload["blocks"][3]["text"] = payload["blocks"][3]["text"].replace(
+        "| 2 | 毕业设计项目 |",
+        "| 2 | 互联网产品 设计 |",
+    )
+    payload["blocks"][4]["text"] = payload["blocks"][4]["text"].replace(
+        "| 1 | 网络营销 |",
+        "| 1 | 互联网产品设计 |",
+    )
+
+    projection = extract(payload)
+
+    assert projection is not None
+    assert projection["diagnostics"]["course_name_whitespace_duplicate_count"] == 1
+    names = [
+        course["standard_course_name"]
+        for course in projection["courses"]
+        if course["course_type"] == "core"
+    ]
+    assert "互联网产品 设计" in names
+    assert "互联网产品设计" in names
+
+
 def test_merges_only_evidenced_cross_page_core_continuation() -> None:
     payload = _payload()
     payload["blocks"][4] = _block(
@@ -250,6 +274,27 @@ def test_writer_is_idempotent_preserves_ids_and_clears_changed_derivations(sessi
     assert {
         (course.course_type, course.standard_course_name): course.course_id for course in reduced
     } == {key: course_id for key, course_id in first_ids.items() if key[0] != "extension"}
+
+
+def test_writer_persists_whitespace_duplicate_quality_flag(session) -> None:
+    library = _library(session)
+    payload = _payload()
+    payload["blocks"][3]["text"] = payload["blocks"][3]["text"].replace(
+        "| 2 | 毕业设计项目 |",
+        "| 2 | 互联网产品 设计 |",
+    )
+    payload["blocks"][4]["text"] = payload["blocks"][4]["text"].replace(
+        "| 1 | 网络营销 |",
+        "| 1 | 互联网产品设计 |",
+    )
+
+    projection = extract(payload)
+    assert projection is not None
+    write(session, library, projection)
+    session.commit()
+    session.refresh(library)
+
+    assert library.quality_flags["course_name_whitespace_duplicate_count"] == 1
 
 
 def test_course_table_has_parent_context_only_on_library(session) -> None:

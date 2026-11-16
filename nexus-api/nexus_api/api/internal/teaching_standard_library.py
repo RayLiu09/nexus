@@ -70,6 +70,7 @@ def _serialize_library(
         "basic_study_years": library.basic_study_years,
         "status": library.status,
         "course_count": course_count,
+        "quality_flags": library.quality_flags or {},
         "updated_at": library.updated_at.isoformat() if library.updated_at else None,
     }
 

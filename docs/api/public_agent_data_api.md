@@ -16,7 +16,7 @@
 | A 市场岗位 | `GET /market-jobs`、`/{job_id}` | 同页面读取 raw_jobs + provenance；岗位/企业/行业/学历/经验/采集时间查询，保留源字段、provider/upstream ID、来源链接 |
 | A 园区与企业 | `GET /industrial-parks`、`/{park_id}`；`GET /enterprises`、`/{enterprise_id}` | 名称/行业、经营范围、所属园区查询；园区企业数量及真实关系 |
 | A 教学标准 | `GET /teaching-standard-libraries`、`/{library_id}` | 专业代码/名称、层次、修业年限、课程数量、引用锚点；职业面向及正文定位；当前 available 文档 + 正式分类，不限制库状态 |
-| A 标准课程 | `GET /teaching-standard-courses`、`/{course_id}` | 跨标准检索课程名、专业、类型及标签；学时语义 suggested，标签语义 derived；返回章节页码和证据绑定 |
+| A 标准课程 | `GET /teaching-standard-courses`、`/{course_id}` | 跨标准检索课程名、专业、类型及标签；学时语义 suggested，标签语义 derived；返回章节页码和证据绑定；标准目录 `quality_flags` 会标记去 Unicode/空白格式化后疑似重复的源课程行，源行和证据仍保留 |
 | A 教材 | `GET /course-textbooks`、`/{profile_id}` | 教材名、理论/实训类型、出版社、主编、出版年；返回已有知识/任务大纲能力 |
 | A 限定范围检索 | 增强 `GET /search` | asset_ids、normalized_ref_ids、多 knowledge_types 及文档元数据；在向量排序/top_k 前取范围交集；保留 chunk/block/locator 引用 |
 | A 长文片段 | `GET /normalized-refs/{ref_id}/sections`、`/sections/{section_id}` | 以持久化 block ID 定位，字符预算、相邻块、截断状态和续读偏移；无块时使用 body 锚点 |

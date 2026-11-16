@@ -19,6 +19,7 @@ _DIAGNOSTIC_KEYS = {
     "core_course_table_missing",
     "core_course_row_incomplete",
     "course_facts_missing",
+    "course_name_whitespace_duplicate_count",
 }
 
 
