@@ -12,6 +12,8 @@ route market_jobs
 
 路由输出包含推荐工具、资源分类、已知知识类型映射和默认预算。它不替代服务端权限校验，也不表示未映射资源类型已经有可用语义索引。
 
+需要以服务端当前状态为准时，再调用 `discover_data_resources`；其中 `knowledge_types` 和 `retrieval_capabilities` 是资源发现返回的动态检索映射。空知识类型不应被 Agent 自行替换成资源编码。
+
 ## 1. 文档发现 → 检索 → 原文证据
 
 ```bash

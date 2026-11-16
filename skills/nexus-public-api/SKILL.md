@@ -96,6 +96,8 @@ printf '%s\n' \
 
 文档检索的知识类型必须遵循路由映射：`industry_policy`、`industry_report`、`sector_report` 使用 `kb=industry_research_kb`，`course_textbook` 使用 `kb=course_textbook`。路由输出中知识类型映射为空数组表示当前没有固化的语义索引，不要猜测 `kb`；先使用对应专用接口或报告数据缺口。
 
+需要动态确认资源能力时调用 `discover_data_resources`：响应中的 `knowledge_types` 是可直接传给 `/search` 的实际类型，`retrieval_capabilities` 是公开通道能力，优先级高于资源名称或模型猜测。空的 `knowledge_types` 表示当前没有固化语义索引，应沿 `structured_query`、`catalog` 或其他明确能力继续。
+
 不要把第一页列表当作全量统计；需要数量或分布时使用对应的 aggregate 工具。
 
 `call` 保持完整 JSON 输出兼容性；需要控制上下文时可显式使用 `--response-mode summary|content`。`summary` 保留状态、标识、locator、ref 和正文长度，不输出正文；`content` 按 `--max-content-chars` 截断常见正文字段。`--max-output-chars` 是执行器本地输出预算，超出时返回合法的截断说明 JSON，不改变服务端响应。

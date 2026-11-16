@@ -1,6 +1,6 @@
 # Agent 公开用数接口与 A/B 缺口交付
 
-本次实现以 `agent_openapi_gap_analysis_2026-10-22.md` 的 A/B 类建议和资产中心最新 16 类可见入口为范围（2026-10-26 补充职业分类大典及教育部布点同步口径）。C 类资源变更/增量同步接口不在本次交付内。公开消费别名由 `nexus-api` 提供，前缀 `/open/v1`；业务 API 保持 `/v1`，内部 Console API 不进入工具清单。
+本次实现以 `agent_openapi_gap_analysis_2026-10-22.md` 的 A/B 类建议和资产中心最新 17 类可见入口为范围（2026-10-26 补充职业分类大典及教育部布点同步口径）。C 类资源变更/增量同步接口不在本次交付内。公开消费别名由 `nexus-api` 提供，前缀 `/open/v1`；业务 API 保持 `/v1`，内部 Console API 不进入工具清单。
 
 ## A/B 覆盖
 
@@ -8,7 +8,7 @@
 
 | 缺口 | 接口 | 行为和数据口径 |
 | --- | --- | --- |
-| A 资源发现 | `GET /data-resources` | 16 类入口的编码、来源类型、可消费数量、数量单位、能力、实际查询参数及限制；计数遵循公开边界 |
+| A 资源发现 | `GET /data-resources` | 17 类入口的编码、来源类型、可消费数量、数量单位、业务能力、检索知识类型、检索通道、实际查询参数及限制；计数遵循公开边界 |
 | 专业布点 | `GET /major-offerings`、`/aggregate` | 教育部 API 同步与控制台 Excel 导入事实直接入库，无 AI 治理；同年同校同专业跨来源去重，仅代表已入库覆盖；与专业简介、培养方案课程统计无关 |
 | 职业分类大典 | `GET /occupation-dictionary` | 2022 年版已核验导入基础表，职业大类/小类/名称 AND 检索，返回类别、层级、编码、职业名称、定义、工作任务；只读、无 AI 治理、不依赖资产版本或 ref |
 | A 文档发现 | 增强 `GET /assets` | 标题、resource_type、多 domains、主题、区域/行业、专业/院校/层次、源发布日期；tags_match 显式 any/all；返回白名单业务元数据 |
@@ -40,6 +40,7 @@
 - `topic=finance_commerce|low_altitude` 使用现有资产中心的主题条件，主题可重叠。`region`、`industry` 采用已有标签归一化后的精确匹配。专业/院校名称是转义后的子串匹配，专业代码/层次为精确匹配；适用身份来自文档元数据及对应方案/标准投影。
 - `tags_match` 默认为 any；all 表示每个查询标签召回的 ref 集合取交集，精确/语义由 `is_exact_matched` 控制。语义依赖不可用时保持 503，不静默降为文本匹配。
 - `published_from/to` 包含端点，仅比较标准化文档 `document_metadata.publish_date` 的完整 ISO 日期。仅有年份/月份或缺失日期时不参加此过滤；不使用入库时间冒充发布日期。
+- `/data-resources` 的 `knowledge_types` 是可直接传给 `/search` 的实际知识类型代码；当前 `industry_policy`、`industry_report`、`sector_report` 映射到 `industry_research_kb`，`course_textbook` 映射到 `course_textbook`。未建立语义索引的资源返回空数组。`retrieval_capabilities` 只描述公开通道：`catalog`、`structured_query`、`semantic_search`、`evidence_bundle`、`content`、`sections`、`outline`、`graph`；业务 `capabilities` 字段继续保留原有资源操作说明。
 - 招聘 `collected_from/to` 为采集时间；同时给出时须排序正确且时区表示一致。岗位字段保持源文本，不推导规范城市、数值薪资或技能频率。聚合白名单：job_title、company_name、industry、education、experience、company_size，最多三项且不可重复；缺失数包括 NULL 和空白文本。
 - `/search` 默认知识类型仍为 course_textbook；`kb` 与 `knowledge_types` 二选一。knowledge_types 最多 10 项，asset_ids 与 normalized_ref_ids 各最多 100 项。范围不相交或仅含不可用文档时直接返回空命中；不会回退全库。多知识库按 chunk ID 去重、取最高 score，再取全局 top_k。
 - 章节列表 `offset/limit` 是块列表偏移，limit 上限 100；每块预览 max_chars 上限 1000。片段详情 `offset` 为 Unicode 字符偏移，max_chars 上限 20000，adjacent_blocks 为两侧各 0–3 个块；邻接块的原始定位放在 locator.context_blocks。内容不注入锚点标记。

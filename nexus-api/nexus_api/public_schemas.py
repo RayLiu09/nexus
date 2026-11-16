@@ -314,6 +314,19 @@ class ResourceRead(BaseModel):
     visibility: str
     limitations: list[str]
     filter_parameters: list[str] = Field(default_factory=list)
+    knowledge_types: list[str] = Field(default_factory=list)
+    retrieval_capabilities: list[
+        Literal[
+            "catalog",
+            "structured_query",
+            "semantic_search",
+            "evidence_bundle",
+            "content",
+            "sections",
+            "outline",
+            "graph",
+        ]
+    ] = Field(default_factory=list)
 
 
 class SectionPage(BaseModel):

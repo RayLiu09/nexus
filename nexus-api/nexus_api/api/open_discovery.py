@@ -20,6 +20,40 @@ DOCUMENTS = [
     ("talent_training_plan", "人才培养方案"), ("teaching_case", "教学案例"),
 ]
 
+KNOWLEDGE_TYPES = {
+    "industry_policy": ["industry_research_kb"],
+    "industry_report": ["industry_research_kb"],
+    "sector_report": ["industry_research_kb"],
+    "course_textbook": ["course_textbook"],
+}
+
+RETRIEVAL_CAPABILITIES = {
+    "industry_policy": ["catalog", "semantic_search", "evidence_bundle", "content", "sections"],
+    "industry_report": ["catalog", "semantic_search", "evidence_bundle", "content", "sections"],
+    "sector_report": ["catalog", "semantic_search", "evidence_bundle", "content", "sections"],
+    "industry_regulation_standard": ["catalog", "evidence_bundle", "content", "sections"],
+    "major_profile": ["catalog", "evidence_bundle", "content", "sections"],
+    "talent_demand_report": ["catalog", "evidence_bundle", "content", "sections"],
+    "talent_training_plan": ["catalog", "evidence_bundle", "content", "sections"],
+    "teaching_case": ["catalog", "evidence_bundle", "content", "sections"],
+    "course_textbook": [
+        "catalog",
+        "semantic_search",
+        "evidence_bundle",
+        "content",
+        "sections",
+        "outline",
+    ],
+    "major_distribution": ["catalog", "structured_query", "evidence_bundle"],
+    "occupational_ability_analysis": ["catalog", "structured_query", "graph"],
+    "market_job": ["catalog", "structured_query", "evidence_bundle"],
+    "industrial_park": ["catalog", "structured_query", "evidence_bundle"],
+    "enterprise": ["catalog", "structured_query", "evidence_bundle"],
+    "occupation_dictionary": ["catalog", "structured_query"],
+    "teaching_standard": ["catalog", "structured_query", "graph"],
+    "standard_course": ["catalog", "structured_query"],
+}
+
 
 def count_statement(session, stmt):
     return session.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
@@ -38,7 +72,10 @@ def discover(request: Request, caller=Depends(require_api_caller), session: Sess
         result.append({"code": code, "name": name, "source_type": source_type, "classification": classification,
             "count": count_statement(session, stmt), "count_unit": unit, "endpoint": endpoint,
             "capabilities": capabilities, "visibility": visibility, "limitations": limitations,
-            "filter_parameters": parameters})
+            "filter_parameters": parameters,
+            "knowledge_types": KNOWLEDGE_TYPES.get(code, []),
+            "retrieval_capabilities": RETRIEVAL_CAPABILITIES.get(code, ["catalog"]),
+        })
     for code, name in DOCUMENTS:
         endpoint = "/open/v1/major-profile-documents" if code == "major_profile" else "/open/v1/assets"
         add(code, name, "document", code, document_ref_query(DocumentFilters(domains=[code])), endpoint,

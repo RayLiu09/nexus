@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "source": "public OpenAPI /open/v1",
-  "sha256": "e456b96d15732de59c4786a431c2069cfb2377572ed7846c9ee8753a403f4bab",
+  "sha256": "2882a55b9959923b23a0417ceee0a0b5e451578bd38f18bf93e71d8ee2e5ff72",
   "bindings": [
     {
       "name": "find_documents",
@@ -2153,6 +2153,30 @@
                     },
                     "type": "array",
                     "title": "Filter Parameters"
+                  },
+                  "knowledge_types": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "title": "Knowledge Types"
+                  },
+                  "retrieval_capabilities": {
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "catalog",
+                        "structured_query",
+                        "semantic_search",
+                        "evidence_bundle",
+                        "content",
+                        "sections",
+                        "outline",
+                        "graph"
+                      ]
+                    },
+                    "type": "array",
+                    "title": "Retrieval Capabilities"
                   }
                 },
                 "type": "object",

@@ -164,7 +164,12 @@ def test_discovery_has_17_resources_and_public_counts(app, session):
     assert len(data) == 17
     assert data["industry_regulation_standard"]["name"] == "行业法规标准"
     assert data["industry_policy"]["count"] == 1
+    assert data["industry_policy"]["knowledge_types"] == ["industry_research_kb"]
+    assert "semantic_search" in data["industry_policy"]["retrieval_capabilities"]
+    assert data["course_textbook"]["knowledge_types"] == ["course_textbook"]
     assert data["market_job"]["count"] == 1
+    assert data["market_job"]["knowledge_types"] == []
+    assert "structured_query" in data["market_job"]["retrieval_capabilities"]
     assert "tags_match" in data["industry_policy"]["filter_parameters"]
     assert all("/internal/" not in item["endpoint"] for item in data.values())
     assert data["occupation_dictionary"]["count"] == 3
