@@ -262,16 +262,18 @@ def _document_tag_predicates(session: Session, catalog_ref_id, filters: Document
 def _document_topic_predicate(topic: DocumentTopic, catalog_ref_id):
     patterns = tuple(f"%{term}%" for term in _DOCUMENT_TOPIC_TERMS[topic])
     matching_tag = (
-        select(models.TagAssetIndex.id)
+        select(1)
+        .select_from(models.TagAssetIndex)
         .where(
             models.TagAssetIndex.target_type == TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
             models.TagAssetIndex.target_id == catalog_ref_id,
             models.TagAssetIndex.tag_type.in_(("industry", "topic")),
             or_(*(models.TagAssetIndex.tag_value.ilike(pattern) for pattern in patterns)),
         )
-        # Public queries pass a ref column; Console queries pass a scalar
-        # current-ref expression. Correlate both outer anchors in the EXISTS.
-        .correlate(models.Asset, models.NormalizedAssetRef)
+        # Keep TagAssetIndex in the subquery FROM and correlate only the
+        # selected ref anchor. Public queries pass a ref column; Console
+        # queries pass a scalar current-ref expression.
+        .correlate_except(models.TagAssetIndex)
         .exists()
     )
     return or_(

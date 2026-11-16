@@ -1,6 +1,8 @@
 """Contract tests for public available-asset catalog filters."""
 from __future__ import annotations
 
+from datetime import timedelta
+
 from fastapi.testclient import TestClient
 from sqlalchemy import event
 
@@ -332,3 +334,52 @@ def test_document_topic_does_not_match_tags_on_another_asset(session):
                     tag_type="topic", tag_value=tag, tag_value_normalized=tag)
     refs = list(session.scalars(document_ref_query(DocumentFilters(topic="low_altitude"))))
     assert refs == ["ref-aviation"]
+
+
+def test_document_topic_ignores_historical_ref_tags_for_current_asset(session):
+    from nexus_api.public_access import DocumentFilters, document_ref_query
+
+    _seed_asset(
+        session,
+        suffix="topic-history",
+        classification="industry_policy",
+        tag_type="topic",
+        tag_value="数字经济",
+        tag_value_normalized="数字经济",
+    )
+    current_ref = session.get(models.NormalizedAssetRef, "ref-topic-history")
+    version = session.get(models.AssetVersion, "version-topic-history")
+    history = models.NormalizedAssetRef(
+        id="ref-topic-history-old",
+        version_id=version.id,
+        normalized_type=current_ref.normalized_type,
+        object_uri="s3://nexus/normalized/topic-history-old.json",
+        schema_version="1.0",
+        checksum="ref-checksum-topic-history-old",
+        status=NormalizedAssetRefStatus.GENERATED,
+        source_type="file_upload",
+        content_type="document",
+        title="历史引用",
+        language="zh-CN",
+        governance={},
+        quality={},
+        lineage={},
+        metadata_summary={},
+        created_at=current_ref.created_at - timedelta(days=1),
+    )
+    history_tag = models.TagAssetIndex(
+        id="tag-topic-history-old",
+        tag_type="topic",
+        tag_value="低空经济",
+        tag_value_normalized="低空经济",
+        target_type=TagAssetIndexTargetType.NORMALIZED_ASSET_REF,
+        target_id=history.id,
+        asset_version_id=version.id,
+        source=TagAssetIndexSource.GOVERNANCE_TAG,
+    )
+    session.add_all([history, history_tag])
+    session.commit()
+
+    refs = list(session.scalars(document_ref_query(DocumentFilters(topic="low_altitude"))))
+
+    assert refs == []

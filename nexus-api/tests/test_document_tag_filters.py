@@ -118,6 +118,40 @@ def test_filters_are_literal_case_insensitive_and_ignore_other_refs(app, session
         assert client.get(url, params=filters).json()["meta"]["total"] == 0
 
 
+def test_topic_filter_ignores_historical_ref_tags_for_current_asset(app, session):
+    seeded = _seed_review_required_asset(session, suffix="topic-history")
+    history = models.NormalizedAssetRef(
+        version_id=seeded["version"].id,
+        normalized_type=seeded["ref"].normalized_type,
+        object_uri="normalized/topic-history-old.json",
+        schema_version="1.0",
+        checksum="topic-history-old",
+        status=seeded["ref"].status,
+        source_type="file_upload",
+        content_type="document",
+        title="历史引用",
+        language="zh-CN",
+        governance={},
+        quality={},
+        lineage={},
+        created_at=seeded["ref"].created_at - timedelta(days=1),
+    )
+    session.add(history)
+    session.flush()
+    add_tag(session, seeded, "topic", "低空经济", ref_id=history.id)
+    session.commit()
+    session.expire_all()
+
+    client = TestClient(app)
+    response = client.get(
+        "/internal/v1/industry-reports",
+        params={"topic": "low_altitude"},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["meta"]["total"] == 0
+
+
 def test_topic_and_title_filters_compose_with_tag_filters(app, session):
     for suffix, title in [("ecommerce", "电商产业报告"), ("aviation", "低空产业报告")]:
         seeded = _seed_review_required_asset(session, suffix=suffix)
