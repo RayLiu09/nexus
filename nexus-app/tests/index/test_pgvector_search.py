@@ -17,6 +17,7 @@ from nexus_app.enums import (
 )
 from nexus_app.index.embedding_client import EmbeddingResult
 from nexus_app.index.pgvector_search import PgvectorSearchAdapter
+from nexus_app.index.query_embedding_cache import QueryEmbeddingCache
 
 
 class _StaticEmbeddingClient:
@@ -230,3 +231,35 @@ def test_pgvector_search_adapter_returns_empty_below_threshold(session):
     )
 
     assert hits == []
+
+
+def test_pgvector_search_reuses_embedding_for_repeated_query(session):
+    _seed_search_rows(session)
+
+    class CountingEmbeddingClient(_StaticEmbeddingClient):
+        calls = 0
+
+        def embed_texts(self, texts, *, model_alias=None, expected_dimension=None):
+            self.calls += 1
+            return super().embed_texts(
+                texts, model_alias=model_alias, expected_dimension=expected_dimension,
+            )
+
+    embedding_client = CountingEmbeddingClient([1.0, 0.0, 0.0])
+    adapter = PgvectorSearchAdapter(
+        settings=_settings(),
+        embedding_client=embedding_client,
+        embedding_cache=QueryEmbeddingCache(ttl_seconds=60, max_entries=4),
+    )
+
+    first = adapter.search(
+        session, query="重复查询", knowledge_type_code="course_textbook",
+        top_k=5, similarity_threshold=0.7,
+    )
+    second = adapter.search(
+        session, query="重复查询", knowledge_type_code="course_textbook",
+        top_k=5, similarity_threshold=0.7,
+    )
+
+    assert first == second
+    assert embedding_client.calls == 1

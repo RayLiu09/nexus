@@ -11,6 +11,10 @@ from sqlalchemy.orm import Session
 
 from nexus_app.config import Settings, get_settings
 from nexus_app.index.embedding_client import EmbeddingClientProtocol, create_embedding_client
+from nexus_app.index.query_embedding_cache import (
+    QueryEmbeddingCache,
+    get_default_query_embedding_cache,
+)
 from nexus_app.models import KnowledgeEmbeddingPgvector
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -48,9 +52,19 @@ class PgvectorSearchAdapter:
         *,
         settings: Settings | None = None,
         embedding_client: EmbeddingClientProtocol | None = None,
+        embedding_cache: QueryEmbeddingCache | None = None,
     ) -> None:
         self._settings = settings or get_settings()
         self._embedding_client = embedding_client or create_embedding_client(self._settings)
+        # Injected clients are generally test doubles or request-specific
+        # adapters; keeping their cache private prevents cross-test and
+        # cross-provider vector reuse. Production adapters share one bounded
+        # per-process cache across request instances.
+        self._embedding_cache = embedding_cache or (
+            get_default_query_embedding_cache()
+            if embedding_client is None
+            else QueryEmbeddingCache()
+        )
 
     def search(
         self,
@@ -141,14 +155,20 @@ class PgvectorSearchAdapter:
         normalized_ref_ids: "list[str] | tuple[str, ...] | set[str] | None",
         chunk_ids: "list[str] | tuple[str, ...] | set[str] | None",
     ) -> list[dict[str, Any]]:
-        embedding_result = self._embedding_client.embed_texts(
-            [query],
-            model_alias=self._settings.effective_embedding_model_alias,
-            expected_dimension=self._settings.default_embedding_dimension,
-        )
-        if not embedding_result.vectors:
-            return []
-        query_vector = embedding_result.vectors[0]
+        model_alias = self._settings.effective_embedding_model_alias
+        dimension = self._settings.default_embedding_dimension
+        cache_key = (model_alias, dimension, query)
+        query_vector = self._embedding_cache.get(cache_key)
+        if query_vector is None:
+            embedding_result = self._embedding_client.embed_texts(
+                [query],
+                model_alias=model_alias,
+                expected_dimension=dimension,
+            )
+            if not embedding_result.vectors:
+                return []
+            query_vector = embedding_result.vectors[0]
+            self._embedding_cache.put(cache_key, query_vector)
         dialect_name = session.bind.dialect.name if session.bind is not None else ""
         if dialect_name == "postgresql":
             hits = self._search_postgresql(

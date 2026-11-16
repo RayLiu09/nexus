@@ -29,6 +29,7 @@ at P0; the hook stays a noop).
 from __future__ import annotations
 
 import hashlib
+import json
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -665,14 +666,12 @@ def get_normalized_ref_content(
     contracted to render block-level DOM anchors from ``blocks[].md_char_range``
     without ever mutating the markdown text.
     """
-    import json as _json
-
     ref = session.get(models.NormalizedAssetRef, ref_id)
-    if ref is None or not _ref_anchors_available_version(session, ref):
+    version = session.get(models.AssetVersion, ref.version_id) if ref is not None else None
+    if ref is None or not _version_is_available(version):
         raise HTTPException(
             status_code=404, detail=f"normalized_ref '{ref_id}' not available",
         )
-    version = session.get(models.AssetVersion, ref.version_id)
 
     from nexus_app.storage import (
         ObjectNotFoundError,
@@ -680,29 +679,42 @@ def get_normalized_ref_content(
         get_object_storage,
     )
 
-    storage = get_object_storage()
     uri = ref.object_uri
     key = uri.split("/", 3)[-1] if uri.startswith("s3://") else uri
-    try:
-        raw_bytes = storage.get_bytes(key)
-    except ObjectNotFoundError:
-        raise HTTPException(
-            status_code=404,
-            detail=f"normalized_ref '{ref_id}' payload missing in object storage",
-        )
-    except ObjectStorageError:
-        raise HTTPException(
-            status_code=503,
-            detail="object storage temporarily unavailable",
-        )
 
-    try:
-        payload = _json.loads(raw_bytes.decode("utf-8"))
-    except (UnicodeDecodeError, _json.JSONDecodeError):
-        raise HTTPException(
-            status_code=500,
-            detail="normalized payload is not valid JSON",
-        )
+    def load_payload() -> dict:
+        storage = get_object_storage()
+        try:
+            raw_bytes = storage.get_bytes(key)
+        except ObjectNotFoundError:
+            raise HTTPException(
+                status_code=404,
+                detail=f"normalized_ref '{ref_id}' payload missing in object storage",
+            )
+        except ObjectStorageError:
+            raise HTTPException(
+                status_code=503,
+                detail="object storage temporarily unavailable",
+            )
+
+        try:
+            payload = json.loads(raw_bytes)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            raise HTTPException(
+                status_code=500,
+                detail="normalized payload is not valid JSON",
+            )
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=500, detail="normalized payload is not a JSON object")
+        return payload
+
+    cache = getattr(request.app.state, "normalized_payload_cache", None)
+    cache_key = (ref.id, str(ref.checksum or ""), uri)
+    if cache is None:
+        payload = load_payload()
+        cache_hit = False
+    else:
+        payload, cache_hit = cache.get_or_load(cache_key, load_payload)
 
     normalized_type = (
         ref.normalized_type.value
@@ -731,6 +743,9 @@ def get_normalized_ref_content(
         trace_id=_trace_id(request),
     )
     session.commit()
+    # Keep this as request-local diagnostic state; it is not part of the
+    # public response contract or audit payload.
+    request.state.normalized_payload_cache_hit = cache_hit
     return response(out, request)
 
 
@@ -1097,6 +1112,7 @@ def _enrich_with_nexus_refs(
         if ver is not None:
             item["version_id"] = ver.id
             item["asset_id"] = ver.asset_id
+            item["_available_version"] = _version_is_available(ver)
         if raw is not None:
             item["raw_object_id"] = raw.id
             item["raw_object_uri"] = raw.object_uri
@@ -1191,6 +1207,15 @@ def _filter_hits_to_available(
     """
     if not hits:
         return hits
+    # Enrichment already loaded the anchoring versions for normal NEXUS hits.
+    # Reuse that result instead of issuing a second version query per search.
+    # The marker is private and removed before response serialization.
+    if all("_available_version" in hit for hit in hits):
+        return [
+            {key: value for key, value in hit.items() if key != "_available_version"}
+            for hit in hits
+            if hit["_available_version"]
+        ]
     version_ids = {h.get("version_id") for h in hits if h.get("version_id")}
     if not version_ids:
         return hits
@@ -1202,11 +1227,16 @@ def _filter_hits_to_available(
             )
         ).all()
     )
-    return [
-        hit
-        for hit in hits
-        if not hit.get("version_id") or hit["version_id"] in available_ids
-    ]
+    filtered = []
+    for hit in hits:
+        available = hit.get("_available_version")
+        if available is None:
+            available = not hit.get("version_id") or hit["version_id"] in available_ids
+        if available:
+            filtered.append({
+                key: value for key, value in hit.items() if key != "_available_version"
+            })
+    return filtered
 
 
 def _hit_ref_ids(hits: list[dict]) -> list[str]:
@@ -1328,6 +1358,7 @@ def search_knowledge(
     if normalized_ref_ids is not None:
         scope = scope.where(models.NormalizedAssetRef.id.in_(normalized_ref_ids))
     scoped_refs = list(session.scalars(scope))
+    scoped_ref_set = set(scoped_refs)
     adapter = get_pgvector_search_adapter()
     results = []
     if scoped_refs:
@@ -1345,7 +1376,7 @@ def search_knowledge(
                 unique[key] = hit
         results = sorted(unique.values(), key=lambda hit: (-hit.get("score", 0), str(hit.get("nexus_chunk_id") or hit.get("chunk_id", ""))))[:top_k]
     results = _enrich_with_nexus_refs(session, results)
-    results = [hit for hit in results if hit.get("normalized_ref_id") in scoped_refs]
+    results = [hit for hit in results if hit.get("normalized_ref_id") in scoped_ref_set]
     results = _filter_hits_to_available(session, results)
     results = apply_permission_filter(caller, results)
 

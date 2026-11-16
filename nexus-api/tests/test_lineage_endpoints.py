@@ -469,6 +469,35 @@ class TestNormalizedRefContent:
         assert body["blocks"] is None
         assert body["record_body"] == {"name": "alice", "age": 30}
 
+    def test_reuses_cached_payload_for_repeated_content_reads(
+        self, app, session, monkeypatch,
+    ):
+        import json as _json
+
+        caller = _seed_caller(session)
+        _, _, _, _, ref = _seed_minimal_asset(session)
+        storage_calls = 0
+
+        class FakeStorage:
+            def get_bytes(self, key):  # noqa: ARG002
+                nonlocal storage_calls
+                storage_calls += 1
+                return _json.dumps({"body_markdown": "cached", "blocks": []}).encode("utf-8")
+
+        monkeypatch.setattr(
+            "nexus_app.storage.get_object_storage",
+            lambda settings=None: FakeStorage(),
+        )
+        _override_caller(app, caller)
+
+        client = TestClient(app)
+        first = client.get(f"/open/v1/normalized-refs/{ref.id}/content")
+        second = client.get(f"/open/v1/normalized-refs/{ref.id}/content")
+
+        assert first.status_code == second.status_code == 200
+        assert first.json()["data"] == second.json()["data"]
+        assert storage_calls == 1
+
     def test_404_when_ref_not_available(self, app, session):
         caller = _seed_caller(session)
         _override_caller(app, caller)

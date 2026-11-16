@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from nexus_api import schemas
 from nexus_api.asset_center_cache import AssetCenterCountsCache
+from nexus_api.normalized_payload_cache import NormalizedPayloadCache
 from nexus_api.api.internal import auth_router as internal_auth_router, router as internal_router
 from nexus_api.api.open import router as open_router
 from nexus_api.api.open_business import router as open_business_router
@@ -206,6 +207,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.state.asset_center_counts_cache = AssetCenterCountsCache()
+    app.state.normalized_payload_cache = NormalizedPayloadCache()
     app.add_middleware(TraceIdMiddleware)
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
