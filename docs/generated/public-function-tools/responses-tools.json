@@ -1607,6 +1607,19 @@
               ],
               "title": "Collected To"
             },
+            "received_to": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional inclusive upper bound on NEXUS receipt time. Fix this value to reproduce a collection window across calls.",
+              "title": "Received To"
+            },
             "page": {
               "type": "integer",
               "maximum": 10000,
@@ -1774,6 +1787,19 @@
                 }
               ],
               "title": "Collected To"
+            },
+            "received_to": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional inclusive upper bound on NEXUS receipt time. Fix this value to reproduce a collection window across calls.",
+              "title": "Received To"
             },
             "page": {
               "type": "integer",

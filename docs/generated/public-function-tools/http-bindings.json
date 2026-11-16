@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "source": "public OpenAPI /open/v1",
-  "sha256": "2882a55b9959923b23a0417ceee0a0b5e451578bd38f18bf93e71d8ee2e5ff72",
+  "sha256": "fca0f9af4e65a57cc289ab32d710ee2a8d8590f4e5d05e119bc304189961d1ab",
   "bindings": [
     {
       "name": "find_documents",
@@ -5176,6 +5176,13 @@
           "explode": true
         },
         {
+          "argument": "query.received_to",
+          "in": "query",
+          "name": "received_to",
+          "style": "form",
+          "explode": true
+        },
+        {
           "argument": "query.page",
           "in": "query",
           "name": "page",
@@ -5821,6 +5828,13 @@
           "argument": "query.collected_to",
           "in": "query",
           "name": "collected_to",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.received_to",
+          "in": "query",
+          "name": "received_to",
           "style": "form",
           "explode": true
         },

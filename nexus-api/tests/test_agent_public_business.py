@@ -113,6 +113,55 @@ def test_market_jobs_order_by_collection_time_with_stable_ties(app, session):
     ]
 
 
+def test_market_jobs_received_to_freezes_late_arrivals_for_list_and_aggregate(app, session):
+    collected_at = datetime(2026, 9, 1, 12, tzinfo=timezone.utc)
+    received_before_cutoff = datetime(2026, 10, 1, 12, tzinfo=timezone.utc)
+    received_after_cutoff = datetime(2026, 10, 3, 12, tzinfo=timezone.utc)
+    for job_id, received_at in [
+        ("job-window-early", received_before_cutoff),
+        ("job-window-late", received_after_cutoff),
+    ]:
+        session.add(models.RawJob(id=job_id, title_raw="电商运营"))
+        session.add(models.RawJobProvenance(
+            raw_job_id=job_id,
+            provider_code="crawler",
+            upstream_record_id=f"upstream-{job_id}",
+            source_name="示例站点",
+            external_task_id="task-window",
+            source_page=1,
+            keyword="电商",
+            collected_at=collected_at,
+            received_at=received_at,
+            source_url=f"https://example.test/{job_id}",
+            upstream_payload_hash=f"payload-{job_id}",
+            raw_record_hash=f"record-{job_id}",
+            raw_record={},
+        ))
+    session.commit()
+
+    params = {
+        "collected_from": "2026-09-01T00:00:00Z",
+        "collected_to": "2026-09-02T00:00:00Z",
+        "received_to": "2026-10-02T00:00:00Z",
+    }
+    client = TestClient(app)
+    listed = client.get("/open/v1/market-jobs", params=params)
+    aggregated = client.get(
+        "/open/v1/market-jobs/aggregate",
+        params={**params, "group_by": "job_title"},
+    )
+
+    assert listed.status_code == aggregated.status_code == 200
+    assert listed.json()["meta"]["total"] == 1
+    assert [row["id"] for row in listed.json()["data"]] == ["job-window-early"]
+    assert aggregated.json()["aggregations"]["sample_count"] == 1
+    assert aggregated.json()["data"][0]["record_count"] == 1
+    assert client.get(
+        "/open/v1/market-jobs",
+        params={k: v for k, v in params.items() if k != "received_to"},
+    ).json()["meta"]["total"] == 2
+
+
 @pytest.mark.parametrize("status", ["review", "active", "superseded"])
 def test_standards_ignore_lifecycle_but_require_current_available_classified_document(app, session, status):
     ref = seed_document(session, status, "teaching_standard")

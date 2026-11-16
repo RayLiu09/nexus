@@ -41,7 +41,7 @@
 - `tags_match` 默认为 any；all 表示每个查询标签召回的 ref 集合取交集，精确/语义由 `is_exact_matched` 控制。语义依赖不可用时保持 503，不静默降为文本匹配。
 - `published_from/to` 包含端点，仅比较标准化文档 `document_metadata.publish_date` 的完整 ISO 日期。仅有年份/月份或缺失日期时不参加此过滤；不使用入库时间冒充发布日期。
 - `/data-resources` 的 `knowledge_types` 是可直接传给 `/search` 的实际知识类型代码；当前 `industry_policy`、`industry_report`、`sector_report` 映射到 `industry_research_kb`，`course_textbook` 映射到 `course_textbook`。未建立语义索引的资源返回空数组。`retrieval_capabilities` 只描述公开通道：`catalog`、`structured_query`、`semantic_search`、`evidence_bundle`、`content`、`sections`、`outline`、`graph`；业务 `capabilities` 字段继续保留原有资源操作说明。
-- 招聘 `collected_from/to` 为采集时间；同时给出时须排序正确且时区表示一致。岗位字段保持源文本，不推导规范城市、数值薪资或技能频率。聚合白名单：job_title、company_name、industry、education、experience、company_size，最多三项且不可重复；缺失数包括 NULL 和空白文本。
+- 招聘 `collected_from/to` 为采集时间；同时给出时须排序正确且时区表示一致。`received_to` 是 NEXUS 接收时间的包含上界；固定它可以排除之后才入库的晚到记录，复现同一采集窗口，不能将其解释为岗位发布时间。岗位字段保持源文本，不推导规范城市、数值薪资或技能频率。聚合白名单：job_title、company_name、industry、education、experience、company_size，最多三项且不可重复；缺失数包括 NULL 和空白文本。
 - `/search` 默认知识类型仍为 course_textbook；`kb` 与 `knowledge_types` 二选一。knowledge_types 最多 10 项，asset_ids 与 normalized_ref_ids 各最多 100 项。范围不相交或仅含不可用文档时直接返回空命中；不会回退全库。多知识库按 chunk ID 去重、取最高 score，再取全局 top_k。
 - 章节列表 `offset/limit` 是块列表偏移，limit 上限 100；每块预览 max_chars 上限 1000。片段详情 `offset` 为 Unicode 字符偏移，max_chars 上限 20000，adjacent_blocks 为两侧各 0–3 个块；邻接块的原始定位放在 locator.context_blocks。内容不注入锚点标记。
 - 大纲 `offset/limit` 对节点列表分页，limit 上限 500；parent_node_id 返回包含父节点的子树。节点内容预览最多 4000 字符并带 content_truncated。

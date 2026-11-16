@@ -41,6 +41,7 @@ class JobFilters(BaseModel):
     region: str | None = None
     collected_from: datetime | None
     collected_to: datetime | None
+    received_to: datetime | None
 
 
 def job_filters(
@@ -54,6 +55,13 @@ def job_filters(
                               description="工作地区关键词，按原始岗位地址做字面子串检索；不使用采集范围推断工作地点。"),
     collected_from: datetime | None = Query(None),
     collected_to: datetime | None = Query(None),
+    received_to: datetime | None = Query(
+        None,
+        description=(
+            "Optional inclusive upper bound on NEXUS receipt time. "
+            "Fix this value to reproduce a collection window across calls."
+        ),
+    ),
 ) -> JobFilters:
     if collected_from and collected_to:
         if bool(collected_from.tzinfo) != bool(collected_to.tzinfo) or collected_from > collected_to:
@@ -80,6 +88,8 @@ def job_statement(filters):
         stmt = stmt.where(provenance.collected_at >= filters.collected_from)
     if filters.collected_to:
         stmt = stmt.where(provenance.collected_at <= filters.collected_to)
+    if filters.received_to:
+        stmt = stmt.where(provenance.received_at <= filters.received_to)
     return stmt
 
 
