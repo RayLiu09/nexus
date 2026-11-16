@@ -3284,6 +3284,9 @@ class TagAssetIndex(TimestampMixin, Base):
         ),
         # Reverse lookup — "which tags does this target carry".
         Index("ix_tai_target", "target_type", "target_id"),
+        # Catalog filters narrow a selected normalized ref by tag type before
+        # checking its value; keep that predicate in the index key.
+        Index("ix_tai_target_tag_type", "target_type", "target_id", "tag_type"),
         # Cache invalidation — flush all rows for a version in one sweep.
         Index("ix_tai_asset_version", "asset_version_id"),
         # Source projection auditability (small-cardinality axis).

@@ -102,8 +102,8 @@ class TestOrmShape:
         }
         assert expected.issubset(column_names)
 
-    def test_five_indexes_declared(self) -> None:
-        """v1.3 §2.2 spec: five composite/single indexes on the ORM.
+    def test_indexes_declared(self) -> None:
+        """v1.3 §2.2 indexes plus the catalog target/tag-type index.
         The HNSW pgvector index is created imperatively in migration
         0070 (not declared on __table_args__) so it stays PostgreSQL-only."""
         index_names = {
@@ -113,6 +113,7 @@ class TestOrmShape:
             "ix_tai_type_norm",
             "ix_tai_type_code",
             "ix_tai_target",
+            "ix_tai_target_tag_type",
             "ix_tai_asset_version",
             "ix_tai_source",
         ):
