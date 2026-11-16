@@ -1,0 +1,287 @@
+{
+  "generated_at": "2026-11-16T07:47:15.669191+00:00",
+  "base_url": "http://10.100.11.51:8000",
+  "method_scope": "GET plus read-only evidence POST; response bodies discarded after metadata extraction",
+  "requests_per_endpoint": 10,
+  "concurrency": 4,
+  "timeout_seconds": 30.0,
+  "total_requests": 170,
+  "elapsed_seconds": 2.788,
+  "throughput_rps": 60.98,
+  "corpus": {
+    "asset_id": "702681e6-6354-4c96-a18a-24e22077d44d",
+    "normalized_ref_id": "d02e497d-c818-4194-8793-c9fe555b62ad",
+    "textbook_knowledge_ref_id": "18940e50-cd19-4c1c-b896-4543e38a13d2",
+    "textbook_task_ref_id": "be6079d7-4ac8-43c3-b182-3558bb7344de",
+    "chunk_id": "f7592c05-45a0-4dd3-93ca-6b2ae2cbc0dd",
+    "section_id": "web-block-0001",
+    "knowledge_outline_node_id": "01722d82-63fd-43fe-86fc-312f80c8ae87",
+    "task_outline_node_id": "node-project-af9fe567b74e",
+    "graph_node_id": "884860f1-641d-4a63-b5a2-926e03525317"
+  },
+  "discovery": {
+    "chunk_count_seen": 9,
+    "section_count_seen": 20,
+    "knowledge_outline_available": true,
+    "task_outline_available": true,
+    "graph_available": true,
+    "graph_node_count_seen": 3
+  },
+  "endpoints": {
+    "get_available_asset": {
+      "method": "GET",
+      "samples": 10,
+      "successes": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "transport_errors": {},
+      "trace_id_present_count": 10,
+      "p50_ms": 23.472,
+      "p95_ms": 28.836,
+      "p99_ms": 28.836,
+      "response_bytes_p50": 27601.0,
+      "response_bytes_p95": 27601.0
+    },
+    "list_available_asset_versions": {
+      "method": "GET",
+      "samples": 10,
+      "successes": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "transport_errors": {},
+      "trace_id_present_count": 10,
+      "p50_ms": 14.028,
+      "p95_ms": 24.992,
+      "p99_ms": 24.992,
+      "response_bytes_p50": 719.0,
+      "response_bytes_p95": 719.0
+    },
+    "get_available_normalized_ref": {
+      "method": "GET",
+      "samples": 10,
+      "successes": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "transport_errors": {},
+      "trace_id_present_count": 10,
+      "p50_ms": 16.257,
+      "p95_ms": 45.082,
+      "p99_ms": 45.082,
+      "response_bytes_p50": 12890.0,
+      "response_bytes_p95": 12890.0
+    },
+    "get_public_governance_result_for_ref": {
+      "method": "GET",
+      "samples": 10,
+      "successes": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "transport_errors": {},
+      "trace_id_present_count": 10,
+      "p50_ms": 18.089,
+      "p95_ms": 32.103,
+      "p99_ms": 32.103,
+      "response_bytes_p50": 2511.0,
+      "response_bytes_p95": 2511.0
+    },
+    "get_normalized_ref_content": {
+      "method": "GET",
+      "samples": 10,
+      "successes": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "transport_errors": {},
+      "trace_id_present_count": 10,
+      "p50_ms": 137.131,
+      "p95_ms": 173.921,
+      "p99_ms": 173.921,
+      "response_bytes_p50": 302410.0,
+      "response_bytes_p95": 302410.0
+    },
+    "list_chunks_for_normalized_ref": {
+      "method": "GET",
+      "samples": 10,
+      "successes": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "transport_errors": {},
+      "trace_id_present_count": 10,
+      "p50_ms": 21.102,
+      "p95_ms": 39.144,
+      "p99_ms": 39.144,
+      "response_bytes_p50": 7820.0,
+      "response_bytes_p95": 7820.0
+    },
+    "get_public_knowledge_chunk": {
+      "method": "GET",
+      "samples": 10,
+      "successes": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "transport_errors": {},
+      "trace_id_present_count": 10,
+      "p50_ms": 17.842,
+      "p95_ms": 25.352,
+      "p99_ms": 25.352,
+      "response_bytes_p50": 1207.0,
+      "response_bytes_p95": 1207.0
+    },
+    "list_document_sections": {
+      "method": "GET",
+      "samples": 10,
+      "successes": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "transport_errors": {},
+      "trace_id_present_count": 10,
+      "p50_ms": 48.703,
+      "p95_ms": 53.98,
+      "p99_ms": 53.98,
+      "response_bytes_p50": 1634.0,
+      "response_bytes_p95": 1634.0
+    },
+    "read_document_section": {
+      "method": "GET",
+      "samples": 10,
+      "successes": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "transport_errors": {},
+      "trace_id_present_count": 10,
+      "p50_ms": 50.559,
+      "p95_ms": 54.452,
+      "p99_ms": 54.452,
+      "response_bytes_p50": 668.0,
+      "response_bytes_p95": 668.0
+    },
+    "read_existing_graph": {
+      "method": "GET",
+      "samples": 10,
+      "successes": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "transport_errors": {},
+      "trace_id_present_count": 10,
+      "p50_ms": 79.221,
+      "p95_ms": 100.405,
+      "p99_ms": 100.405,
+      "response_bytes_p50": 48285.0,
+      "response_bytes_p95": 48285.0
+    },
+    "read_existing_graph_node_scope": {
+      "method": "GET",
+      "samples": 10,
+      "successes": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "transport_errors": {},
+      "trace_id_present_count": 10,
+      "p50_ms": 36.824,
+      "p95_ms": 302.212,
+      "p99_ms": 302.212,
+      "response_bytes_p50": 41130.0,
+      "response_bytes_p95": 41130.0
+    },
+    "get_knowledge_outline": {
+      "method": "GET",
+      "samples": 10,
+      "successes": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "transport_errors": {},
+      "trace_id_present_count": 10,
+      "p50_ms": 18.631,
+      "p95_ms": 22.218,
+      "p99_ms": 22.218,
+      "response_bytes_p50": 1761.0,
+      "response_bytes_p95": 1761.0
+    },
+    "get_knowledge_outline_node_context": {
+      "method": "GET",
+      "samples": 10,
+      "successes": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "transport_errors": {},
+      "trace_id_present_count": 10,
+      "p50_ms": 22.018,
+      "p95_ms": 24.365,
+      "p99_ms": 24.365,
+      "response_bytes_p50": 579.0,
+      "response_bytes_p95": 579.0
+    },
+    "get_task_outline": {
+      "method": "GET",
+      "samples": 10,
+      "successes": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "transport_errors": {},
+      "trace_id_present_count": 10,
+      "p50_ms": 23.013,
+      "p95_ms": 28.787,
+      "p99_ms": 28.787,
+      "response_bytes_p50": 3416.0,
+      "response_bytes_p95": 3416.0
+    },
+    "get_task_outline_node_context": {
+      "method": "GET",
+      "samples": 10,
+      "successes": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "transport_errors": {},
+      "trace_id_present_count": 10,
+      "p50_ms": 36.855,
+      "p95_ms": 42.16,
+      "p99_ms": 42.16,
+      "response_bytes_p50": 4680.0,
+      "response_bytes_p95": 4680.0
+    },
+    "search_evidence": {
+      "method": "GET",
+      "samples": 10,
+      "successes": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "transport_errors": {},
+      "trace_id_present_count": 10,
+      "p50_ms": 427.531,
+      "p95_ms": 478.266,
+      "p99_ms": 478.266,
+      "response_bytes_p50": 211.0,
+      "response_bytes_p95": 211.0
+    },
+    "get_evidence_bundle": {
+      "method": "POST",
+      "samples": 10,
+      "successes": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "transport_errors": {},
+      "trace_id_present_count": 10,
+      "p50_ms": 42.392,
+      "p95_ms": 248.029,
+      "p99_ms": 248.029,
+      "response_bytes_p50": 3791.0,
+      "response_bytes_p95": 3791.0
+    }
+  }
+}
