@@ -1352,7 +1352,7 @@ def search_knowledge(
     # Caller may have been revoked while the retrieval round-trip was in flight.
     _assert_caller_still_active(session, caller)
 
-    trace_id = request.headers.get("x-trace-id")
+    trace_id = _trace_id(request)
     query_hash = hashlib.sha256(q.encode("utf-8")).hexdigest()[:16]
     write_audit(
         session,
@@ -1432,7 +1432,7 @@ def qa_knowledge(
     # consumption paths and most likely to outlive a revocation event.
     _assert_caller_still_active(session, caller)
 
-    trace_id = request.headers.get("x-trace-id")
+    trace_id = _trace_id(request)
     question_hash = hashlib.sha256(q.encode("utf-8")).hexdigest()[:16]
     write_audit(
         session,
@@ -2171,7 +2171,7 @@ def run_query_router_v2_open(
 
     _assert_caller_still_active(session, caller)
 
-    trace_id = request.headers.get("x-trace-id")
+    trace_id = _trace_id(request)
     query_hash = hashlib.sha256(
         payload.query.encode("utf-8"),
     ).hexdigest()[:16]
@@ -2223,7 +2223,7 @@ def run_query_router_v2_open_stream(
 ) -> StreamingResponse:
     """POST /open/v1/query/stream — external api_caller SSE variant."""
     _assert_caller_still_active(session, caller)
-    trace_id = request.headers.get("x-trace-id")
+    trace_id = _trace_id(request)
     stream = serialise_router_stream(
         router=query_router,
         session=session,

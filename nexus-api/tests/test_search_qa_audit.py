@@ -245,10 +245,13 @@ class TestSearchEndpoint:
         )
 
         client = TestClient(app)
-        client.get("/open/v1/search?q=hello&kb=textbook_kb")
+        response = client.get("/open/v1/search?q=hello&kb=textbook_kb")
+        assert response.status_code == 200
         events = _audits(session, AuditEventType.SEARCH_QUERY_EXECUTED)
         assert events
         last = events[-1]
+        assert response.json()["meta"]["trace_id"]
+        assert last.trace_id == response.json()["meta"]["trace_id"]
         assert last.actor_id == caller.id
         assert last.summary["kb"] == "textbook_kb"
         assert "query_hash" in last.summary
