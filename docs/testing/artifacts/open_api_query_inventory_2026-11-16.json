@@ -1,0 +1,482 @@
+{
+  "source": "local public OpenAPI",
+  "route_method": "GET",
+  "total_get_routes": 58,
+  "active_get_routes": 50,
+  "deprecated_get_routes": 8,
+  "tag_counts": {
+    "major-offerings": 2,
+    "occupation-dictionary": 1,
+    "public-business": 15,
+    "public-discovery": 2,
+    "public-evidence": 6,
+    "record-assets": 12,
+    "untagged": 20
+  },
+  "routes": [
+    {
+      "operation_id": "find_documents",
+      "path": "/open/v1/assets",
+      "deprecated": false,
+      "tags": [
+        "untagged"
+      ]
+    },
+    {
+      "operation_id": "get_available_asset",
+      "path": "/open/v1/assets/{asset_id}",
+      "deprecated": false,
+      "tags": [
+        "untagged"
+      ]
+    },
+    {
+      "operation_id": "list_available_asset_versions",
+      "path": "/open/v1/assets/{asset_id}/versions",
+      "deprecated": false,
+      "tags": [
+        "untagged"
+      ]
+    },
+    {
+      "operation_id": "find_textbooks",
+      "path": "/open/v1/course-textbooks",
+      "deprecated": false,
+      "tags": [
+        "public-business"
+      ]
+    },
+    {
+      "operation_id": "get_textbook",
+      "path": "/open/v1/course-textbooks/{profile_id}",
+      "deprecated": false,
+      "tags": [
+        "public-business"
+      ]
+    },
+    {
+      "operation_id": "discover_data_resources",
+      "path": "/open/v1/data-resources",
+      "deprecated": false,
+      "tags": [
+        "public-discovery"
+      ]
+    },
+    {
+      "operation_id": "query_enterprises",
+      "path": "/open/v1/enterprises",
+      "deprecated": false,
+      "tags": [
+        "public-business"
+      ]
+    },
+    {
+      "operation_id": "get_enterprise",
+      "path": "/open/v1/enterprises/{enterprise_id}",
+      "deprecated": false,
+      "tags": [
+        "public-business"
+      ]
+    },
+    {
+      "operation_id": "query_industrial_parks",
+      "path": "/open/v1/industrial-parks",
+      "deprecated": false,
+      "tags": [
+        "public-business"
+      ]
+    },
+    {
+      "operation_id": "get_industrial_park",
+      "path": "/open/v1/industrial-parks/{park_id}",
+      "deprecated": false,
+      "tags": [
+        "public-business"
+      ]
+    },
+    {
+      "operation_id": "get_public_knowledge_chunk",
+      "path": "/open/v1/knowledge-chunks/{chunk_id}",
+      "deprecated": false,
+      "tags": [
+        "untagged"
+      ]
+    },
+    {
+      "operation_id": "aggregate_major_courses",
+      "path": "/open/v1/major-courses/aggregate",
+      "deprecated": false,
+      "tags": [
+        "untagged"
+      ]
+    },
+    {
+      "operation_id": "list_major_offerings",
+      "path": "/open/v1/major-offerings",
+      "deprecated": false,
+      "tags": [
+        "major-offerings"
+      ]
+    },
+    {
+      "operation_id": "aggregate_major_offerings",
+      "path": "/open/v1/major-offerings/aggregate",
+      "deprecated": false,
+      "tags": [
+        "major-offerings"
+      ]
+    },
+    {
+      "operation_id": "find_major_profile_documents",
+      "path": "/open/v1/major-profile-documents",
+      "deprecated": false,
+      "tags": [
+        "public-discovery"
+      ]
+    },
+    {
+      "operation_id": "list_open_major_profiles",
+      "path": "/open/v1/major-profiles",
+      "deprecated": true,
+      "tags": [
+        "untagged"
+      ]
+    },
+    {
+      "operation_id": "get_open_major_profile",
+      "path": "/open/v1/major-profiles/{profile_id}",
+      "deprecated": true,
+      "tags": [
+        "untagged"
+      ]
+    },
+    {
+      "operation_id": "query_market_jobs",
+      "path": "/open/v1/market-jobs",
+      "deprecated": false,
+      "tags": [
+        "public-business"
+      ]
+    },
+    {
+      "operation_id": "aggregate_market_jobs",
+      "path": "/open/v1/market-jobs/aggregate",
+      "deprecated": false,
+      "tags": [
+        "public-business"
+      ]
+    },
+    {
+      "operation_id": "get_market_job",
+      "path": "/open/v1/market-jobs/{job_id}",
+      "deprecated": false,
+      "tags": [
+        "public-business"
+      ]
+    },
+    {
+      "operation_id": "get_available_normalized_ref",
+      "path": "/open/v1/normalized-refs/{ref_id}",
+      "deprecated": false,
+      "tags": [
+        "untagged"
+      ]
+    },
+    {
+      "operation_id": "list_chunks_for_normalized_ref",
+      "path": "/open/v1/normalized-refs/{ref_id}/chunks",
+      "deprecated": false,
+      "tags": [
+        "untagged"
+      ]
+    },
+    {
+      "operation_id": "get_normalized_ref_content",
+      "path": "/open/v1/normalized-refs/{ref_id}/content",
+      "deprecated": false,
+      "tags": [
+        "untagged"
+      ]
+    },
+    {
+      "operation_id": "get_public_governance_result_for_ref",
+      "path": "/open/v1/normalized-refs/{ref_id}/governance-result",
+      "deprecated": false,
+      "tags": [
+        "untagged"
+      ]
+    },
+    {
+      "operation_id": "read_existing_graph",
+      "path": "/open/v1/normalized-refs/{ref_id}/knowledge-graph",
+      "deprecated": false,
+      "tags": [
+        "public-evidence"
+      ]
+    },
+    {
+      "operation_id": "get_knowledge_outline",
+      "path": "/open/v1/normalized-refs/{ref_id}/knowledge-outline",
+      "deprecated": false,
+      "tags": [
+        "public-evidence"
+      ]
+    },
+    {
+      "operation_id": "get_outline_node_context",
+      "path": "/open/v1/normalized-refs/{ref_id}/outlines/{outline_type}/nodes/{node_id}/context",
+      "deprecated": false,
+      "tags": [
+        "public-evidence"
+      ]
+    },
+    {
+      "operation_id": "list_document_sections",
+      "path": "/open/v1/normalized-refs/{ref_id}/sections",
+      "deprecated": false,
+      "tags": [
+        "public-evidence"
+      ]
+    },
+    {
+      "operation_id": "read_document_section",
+      "path": "/open/v1/normalized-refs/{ref_id}/sections/{section_id}",
+      "deprecated": false,
+      "tags": [
+        "public-evidence"
+      ]
+    },
+    {
+      "operation_id": "get_task_outline",
+      "path": "/open/v1/normalized-refs/{ref_id}/task-outline",
+      "deprecated": false,
+      "tags": [
+        "public-evidence"
+      ]
+    },
+    {
+      "operation_id": "query_occupation_dictionary",
+      "path": "/open/v1/occupation-dictionary",
+      "deprecated": false,
+      "tags": [
+        "occupation-dictionary"
+      ]
+    },
+    {
+      "operation_id": "qa_knowledge",
+      "path": "/open/v1/qa",
+      "deprecated": false,
+      "tags": [
+        "untagged"
+      ]
+    },
+    {
+      "operation_id": "get_raw_object_download_url",
+      "path": "/open/v1/raw-objects/{raw_object_id}/download-url",
+      "deprecated": false,
+      "tags": [
+        "untagged"
+      ]
+    },
+    {
+      "operation_id": "list_ability_analyses",
+      "path": "/open/v1/record-assets/ability-analyses",
+      "deprecated": false,
+      "tags": [
+        "record-assets"
+      ]
+    },
+    {
+      "operation_id": "get_ability_analysis",
+      "path": "/open/v1/record-assets/ability-analyses/{analysis_id}",
+      "deprecated": false,
+      "tags": [
+        "record-assets"
+      ]
+    },
+    {
+      "operation_id": "list_ability_items",
+      "path": "/open/v1/record-assets/ability-analyses/{analysis_id}/ability-items",
+      "deprecated": false,
+      "tags": [
+        "record-assets"
+      ]
+    },
+    {
+      "operation_id": "list_ability_relations",
+      "path": "/open/v1/record-assets/ability-analyses/{analysis_id}/relations",
+      "deprecated": false,
+      "tags": [
+        "record-assets"
+      ]
+    },
+    {
+      "operation_id": "get_ability_analysis_tasks",
+      "path": "/open/v1/record-assets/ability-analyses/{analysis_id}/tasks",
+      "deprecated": false,
+      "tags": [
+        "record-assets"
+      ]
+    },
+    {
+      "operation_id": "find_ability_items",
+      "path": "/open/v1/record-assets/ability-items",
+      "deprecated": false,
+      "tags": [
+        "public-business"
+      ]
+    },
+    {
+      "operation_id": "get_job_capability_graph",
+      "path": "/open/v1/record-assets/graphs/job-capability",
+      "deprecated": false,
+      "tags": [
+        "record-assets"
+      ]
+    },
+    {
+      "operation_id": "get_occupational_capability_graph",
+      "path": "/open/v1/record-assets/graphs/occupational-capability",
+      "deprecated": false,
+      "tags": [
+        "record-assets"
+      ]
+    },
+    {
+      "operation_id": "get_teaching_standard_knowledge_graph",
+      "path": "/open/v1/record-assets/graphs/teaching-standard-knowledge",
+      "deprecated": false,
+      "tags": [
+        "record-assets"
+      ]
+    },
+    {
+      "operation_id": "list_job_demand_records",
+      "path": "/open/v1/record-assets/job-demand-records",
+      "deprecated": true,
+      "tags": [
+        "record-assets"
+      ]
+    },
+    {
+      "operation_id": "aggregate_job_demand_records",
+      "path": "/open/v1/record-assets/job-demand-records/aggregate",
+      "deprecated": true,
+      "tags": [
+        "record-assets"
+      ]
+    },
+    {
+      "operation_id": "get_job_demand_record",
+      "path": "/open/v1/record-assets/job-demand-records/{record_id}",
+      "deprecated": true,
+      "tags": [
+        "untagged"
+      ]
+    },
+    {
+      "operation_id": "list_requirement_items_for_record",
+      "path": "/open/v1/record-assets/job-demand-records/{record_id}/requirement-items",
+      "deprecated": true,
+      "tags": [
+        "untagged"
+      ]
+    },
+    {
+      "operation_id": "list_major_distribution_records",
+      "path": "/open/v1/record-assets/major-distribution-records",
+      "deprecated": true,
+      "tags": [
+        "record-assets"
+      ]
+    },
+    {
+      "operation_id": "aggregate_major_distribution_records",
+      "path": "/open/v1/record-assets/major-distribution-records/aggregate",
+      "deprecated": true,
+      "tags": [
+        "record-assets"
+      ]
+    },
+    {
+      "operation_id": "search_evidence",
+      "path": "/open/v1/search",
+      "deprecated": false,
+      "tags": [
+        "untagged"
+      ]
+    },
+    {
+      "operation_id": "list_open_talent_training_plans",
+      "path": "/open/v1/talent-training-plans",
+      "deprecated": false,
+      "tags": [
+        "untagged"
+      ]
+    },
+    {
+      "operation_id": "get_open_talent_training_plan",
+      "path": "/open/v1/talent-training-plans/{item_id}",
+      "deprecated": false,
+      "tags": [
+        "untagged"
+      ]
+    },
+    {
+      "operation_id": "get_open_course_knowledge_graph",
+      "path": "/open/v1/talent-training-plans/{item_id}/course-knowledge-graph",
+      "deprecated": false,
+      "tags": [
+        "untagged"
+      ]
+    },
+    {
+      "operation_id": "get_open_position_capability_graph",
+      "path": "/open/v1/talent-training-plans/{item_id}/position-capability-graph",
+      "deprecated": false,
+      "tags": [
+        "untagged"
+      ]
+    },
+    {
+      "operation_id": "list_training_plan_courses",
+      "path": "/open/v1/talent-training-plans/{plan_id}/courses",
+      "deprecated": false,
+      "tags": [
+        "public-business"
+      ]
+    },
+    {
+      "operation_id": "query_standard_courses",
+      "path": "/open/v1/teaching-standard-courses",
+      "deprecated": false,
+      "tags": [
+        "public-business"
+      ]
+    },
+    {
+      "operation_id": "get_standard_course",
+      "path": "/open/v1/teaching-standard-courses/{course_id}",
+      "deprecated": false,
+      "tags": [
+        "public-business"
+      ]
+    },
+    {
+      "operation_id": "query_teaching_standards",
+      "path": "/open/v1/teaching-standard-libraries",
+      "deprecated": false,
+      "tags": [
+        "public-business"
+      ]
+    },
+    {
+      "operation_id": "get_teaching_standard",
+      "path": "/open/v1/teaching-standard-libraries/{library_id}",
+      "deprecated": false,
+      "tags": [
+        "public-business"
+      ]
+    }
+  ]
+}

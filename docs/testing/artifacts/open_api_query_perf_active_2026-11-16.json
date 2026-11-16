@@ -1,0 +1,100 @@
+{
+  "generated_at": "2026-11-16T07:10:43.933886+00:00",
+  "base_url": "http://10.100.11.51:8000",
+  "method": "GET only; fixed list/aggregate query corpus",
+  "requests_per_endpoint": 20,
+  "concurrency": 4,
+  "total_requests": 160,
+  "elapsed_seconds": 1.746,
+  "throughput_rps": 91.62,
+  "endpoints": {
+    "asset_catalog": {
+      "samples": 20,
+      "successes": 20,
+      "status_counts": {
+        "200": 20
+      },
+      "transport_errors": {},
+      "p50_ms": 73.294,
+      "p95_ms": 162.189,
+      "p99_ms": 165.401
+    },
+    "major_profiles": {
+      "samples": 20,
+      "successes": 20,
+      "status_counts": {
+        "200": 20
+      },
+      "transport_errors": {},
+      "p50_ms": 14.951,
+      "p95_ms": 30.379,
+      "p99_ms": 32.425
+    },
+    "training_plans": {
+      "samples": 20,
+      "successes": 20,
+      "status_counts": {
+        "200": 20
+      },
+      "transport_errors": {},
+      "p50_ms": 51.54,
+      "p95_ms": 97.544,
+      "p99_ms": 100.862
+    },
+    "major_offerings": {
+      "samples": 20,
+      "successes": 20,
+      "status_counts": {
+        "200": 20
+      },
+      "transport_errors": {},
+      "p50_ms": 18.399,
+      "p95_ms": 43.666,
+      "p99_ms": 49.445
+    },
+    "major_courses": {
+      "samples": 20,
+      "successes": 20,
+      "status_counts": {
+        "200": 20
+      },
+      "transport_errors": {},
+      "p50_ms": 53.663,
+      "p95_ms": 259.148,
+      "p99_ms": 263.668
+    },
+    "ability_analyses": {
+      "samples": 20,
+      "successes": 20,
+      "status_counts": {
+        "200": 20
+      },
+      "transport_errors": {},
+      "p50_ms": 12.836,
+      "p95_ms": 23.3,
+      "p99_ms": 25.164
+    },
+    "job_demand_records": {
+      "samples": 20,
+      "successes": 20,
+      "status_counts": {
+        "200": 20
+      },
+      "transport_errors": {},
+      "p50_ms": 34.532,
+      "p95_ms": 76.273,
+      "p99_ms": 79.155
+    },
+    "job_demand_aggregate": {
+      "samples": 20,
+      "successes": 20,
+      "status_counts": {
+        "200": 20
+      },
+      "transport_errors": {},
+      "p50_ms": 21.301,
+      "p95_ms": 30.958,
+      "p99_ms": 31.85
+    }
+  }
+}

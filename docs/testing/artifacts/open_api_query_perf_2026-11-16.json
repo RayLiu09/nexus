@@ -1,0 +1,122 @@
+{
+  "generated_at": "2026-11-16T06:57:25.462258+00:00",
+  "base_url": "http://10.100.11.51:8000",
+  "method": "GET only; fixed list/aggregate query corpus",
+  "requests_per_endpoint": 20,
+  "concurrency": 4,
+  "total_requests": 200,
+  "elapsed_seconds": 2.654,
+  "throughput_rps": 75.35,
+  "endpoints": {
+    "asset_catalog": {
+      "samples": 20,
+      "successes": 20,
+      "status_counts": {
+        "200": 20
+      },
+      "transport_errors": {},
+      "p50_ms": 78.511,
+      "p95_ms": 176.326,
+      "p99_ms": 177.483
+    },
+    "major_profiles": {
+      "samples": 20,
+      "successes": 20,
+      "status_counts": {
+        "200": 20
+      },
+      "transport_errors": {},
+      "p50_ms": 13.861,
+      "p95_ms": 67.767,
+      "p99_ms": 115.117
+    },
+    "training_plans": {
+      "samples": 20,
+      "successes": 20,
+      "status_counts": {
+        "200": 20
+      },
+      "transport_errors": {},
+      "p50_ms": 36.19,
+      "p95_ms": 386.323,
+      "p99_ms": 386.507
+    },
+    "major_offerings": {
+      "samples": 20,
+      "successes": 20,
+      "status_counts": {
+        "200": 20
+      },
+      "transport_errors": {},
+      "p50_ms": 20.379,
+      "p95_ms": 51.518,
+      "p99_ms": 52.572
+    },
+    "major_courses": {
+      "samples": 20,
+      "successes": 20,
+      "status_counts": {
+        "200": 20
+      },
+      "transport_errors": {},
+      "p50_ms": 57.872,
+      "p95_ms": 291.748,
+      "p99_ms": 326.061
+    },
+    "ability_analyses": {
+      "samples": 20,
+      "successes": 20,
+      "status_counts": {
+        "200": 20
+      },
+      "transport_errors": {},
+      "p50_ms": 17.42,
+      "p95_ms": 24.813,
+      "p99_ms": 28.84
+    },
+    "job_demand_records": {
+      "samples": 20,
+      "successes": 20,
+      "status_counts": {
+        "200": 20
+      },
+      "transport_errors": {},
+      "p50_ms": 30.066,
+      "p95_ms": 307.494,
+      "p99_ms": 309.12
+    },
+    "job_demand_aggregate": {
+      "samples": 20,
+      "successes": 20,
+      "status_counts": {
+        "200": 20
+      },
+      "transport_errors": {},
+      "p50_ms": 30.3,
+      "p95_ms": 60.844,
+      "p99_ms": 62.027
+    },
+    "major_distribution_records": {
+      "samples": 20,
+      "successes": 0,
+      "status_counts": {
+        "410": 20
+      },
+      "transport_errors": {},
+      "p50_ms": null,
+      "p95_ms": null,
+      "p99_ms": null
+    },
+    "major_distribution_aggregate": {
+      "samples": 20,
+      "successes": 0,
+      "status_counts": {
+        "410": 20
+      },
+      "transport_errors": {},
+      "p50_ms": null,
+      "p95_ms": null,
+      "p99_ms": null
+    }
+  }
+}
