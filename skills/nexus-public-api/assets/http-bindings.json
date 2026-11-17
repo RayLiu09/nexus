@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "source": "public OpenAPI /open/v1",
-  "sha256": "2882a55b9959923b23a0417ceee0a0b5e451578bd38f18bf93e71d8ee2e5ff72",
+  "sha256": "21ee9508c5350a398b092e1dbc25450b50568178e6aa64a9ec0f9403c1e89530",
   "bindings": [
     {
       "name": "find_documents",
@@ -5176,6 +5176,13 @@
           "explode": true
         },
         {
+          "argument": "query.received_to",
+          "in": "query",
+          "name": "received_to",
+          "style": "form",
+          "explode": true
+        },
+        {
           "argument": "query.page",
           "in": "query",
           "name": "page",
@@ -5209,6 +5216,28 @@
                   "job_title": {
                     "type": "string",
                     "title": "Job Title"
+                  },
+                  "title_normalized": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Title Normalized"
+                  },
+                  "region": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Region"
                   },
                   "job_responsibilities": {
                     "anyOf": [
@@ -5605,6 +5634,8 @@
                 "required": [
                   "id",
                   "job_title",
+                  "title_normalized",
+                  "region",
                   "job_responsibilities",
                   "experience_requirement",
                   "education",
@@ -5825,6 +5856,13 @@
           "explode": true
         },
         {
+          "argument": "query.received_to",
+          "in": "query",
+          "name": "received_to",
+          "style": "form",
+          "explode": true
+        },
+        {
           "argument": "query.page",
           "in": "query",
           "name": "page",
@@ -6032,6 +6070,28 @@
                 "job_title": {
                   "type": "string",
                   "title": "Job Title"
+                },
+                "title_normalized": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Title Normalized"
+                },
+                "region": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Region"
                 },
                 "job_responsibilities": {
                   "anyOf": [
@@ -6428,6 +6488,8 @@
               "required": [
                 "id",
                 "job_title",
+                "title_normalized",
+                "region",
                 "job_responsibilities",
                 "experience_requirement",
                 "education",

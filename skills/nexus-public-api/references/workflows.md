@@ -1,6 +1,6 @@
 # 典型调用流程
 
-所有命令都在 Skill 目录下执行，示例省略 `python3 scripts/nexus_call.py` 前缀。先用 `route` 选择资产形态和最小工具集合；只有陌生工具、Schema 变化或参数失败时再用 `schema <tool>`。
+所有命令都在 Skill 目录下执行，示例省略 `python3 scripts/nexus_call.py` 前缀。先用 `route` 选择资产形态和最小工具集合；只有陌生工具、Schema 变化或参数失败时再用 `schema <tool>`。发现和检索默认使用 `--response-mode digest`，正文只在确有必要时使用 `content`。
 
 ## 0. 先选资产路由
 
@@ -18,13 +18,16 @@ route market_jobs
 
 ```bash
 # 1) 按业务类型/主题做目录检索；data.items[].normalized_ref_id 供后续限定范围
-call find_documents '{"query":{"topic":"low_altitude","resource_type":"industry_report","pageSize":5}}'
+call find_documents '{"query":{"topic":"low_altitude","resource_type":"industry_report","pageSize":10}}' \
+  --response-mode digest
 
 # 2) 在选定资料范围内做语义检索，返回 chunk/ref 与 locator。
 #    industry_policy / industry_report / sector_report 必须显式使用 industry_research_kb。
-call search_evidence '{"query":{"q":"低空经济 产业规模 增速","kb":"industry_research_kb","normalized_ref_ids":["<ref-id>"],"top_k":8}}'
+call search_evidence '{"query":{"q":"低空经济 产业规模 增速","kb":"industry_research_kb","normalized_ref_ids":["<ref-id>"],"top_k":8}}' \
+  --response-mode digest
 
-# 3) 长文按章节读取（offset 是块列表偏移，max_chars 是字符预算）
+# 3) 长文按章节读取。section_id 必须取自 list 返回的 data.items[].id，不能构造。
+#    list.offset 是 block 列表偏移；read.offset 是正文字符偏移。
 call list_document_sections '{"path":{"ref_id":"<ref-id>"},"query":{"limit":20}}'
 call read_document_section '{"path":{"ref_id":"<ref-id>","section_id":"<section-id>"},"query":{"max_chars":4000}}'
 
@@ -42,10 +45,12 @@ bundle --args-file refs.json --response-mode content --max-content-chars 2000
 
 ```bash
 printf '%s\n' \
-  '{"tool":"find_documents","args":{"query":{"resource_type":"industry_policy","pageSize":5}}}' \
-  '{"tool":"search_evidence","args":{"query":{"q":"低空经济","kb":"industry_research_kb","top_k":8}}}' \
-  | serve --trace-id turn-001 --response-mode summary
+  '{"tool":"find_documents","args":{"query":{"resource_type":"industry_policy","pageSize":10}},"response_mode":"digest"}' \
+  '{"tool":"search_evidence","args":{"query":{"q":"低空经济","kb":"industry_research_kb","top_k":8}},"response_mode":"digest"}' \
+  | serve --trace-id turn-001
 ```
+
+如果第二行参数依赖第一行返回的 ref 或 chunk，可以保持同一个 `serve` 进程，先写入第一行并读取输出，再写入第二行。不要在拿到标识前预先编造后续参数。
 
 ## 2. 结构化业务数据
 
@@ -101,3 +106,4 @@ call qa_knowledge '{"query":{"q":"电子商务专业教学标准有哪些核心�
 - 404 表示不可消费或不存在；422 表示参数越界/组合错误；503 表示检索、存储或上游暂不可用。
 - 当前权限为 `open:*`，没有组织过滤；公开记录按各自领域边界返回。
 - 不要用 `--dry-run` 的输出当作真实数据；它只用于核对 method、URL 和 body。
+- 需要文件结果时使用 `--out-file <path>`，不要依赖 PowerShell 5.1 的 `>`；文件使用 UTF-8 无 BOM。

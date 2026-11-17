@@ -11,6 +11,7 @@ description: Call NEXUS public /open/v1 data tools (55 read-only tools across 16
 - 工具索引：仅在路由无法覆盖任务或需要探索时运行 `list`，不要凭记忆猜工具名。
 - 参数定义：陌生工具、Schema 版本变化或参数失败时用 `schema <tool>`；路由已列出的稳定工具不必每次重复读取 Schema。
 - 证据读取：先收集搜索结果中的 chunk/ref 标识，再用 `bundle --args-file` 一次性批量取证；默认摘要模式不会把全部正文带入 Agent 上下文。
+- 配置诊断：使用 `doctor` 查看密钥来源、base URL、工具数量、路由和生成资产一致性，不输出密钥值。
 - 执行器：`scripts/nexus_call.py`（仅 Python 标准库，无第三方依赖）。
 
 ## 前置配置
@@ -20,7 +21,7 @@ export NEXUS_API_KEY=<api-key>                          # 必需，执行器注�
 export NEXUS_API_BASE_URL=http://127.0.0.1:8000          # 可选，默认本机 8000
 ```
 
-API Key 只能来自环境变量。不要把它写进命令行参数、文件或日志。
+API Key 默认从进程环境变量读取。Windows 需要显式读取用户或机器作用域时，使用 `--api-key-source windows-user|windows-machine`；`machine` 作用域通常可被同机其他账户读取，只应在明确接受该风险时使用。不要把它写进命令行参数、文件或日志。
 
 ## 使用流程
 
@@ -42,7 +43,8 @@ python3 "$SKILL/scripts/nexus_call.py" call find_documents \
 
 # 4. 正式调用（输出响应 JSON；HTTP 状态与 trace_id 在 stderr）
 python3 "$SKILL/scripts/nexus_call.py" call find_documents \
-  '{"query":{"resource_type":"industry_policy","pageSize":5}}'
+  '{"query":{"resource_type":"industry_policy","pageSize":5}}' \
+  --response-mode digest --max-output-chars 12000
 
 # 5. 对搜索结果中的引用批量取证；refs.json 可是引用数组或 {"references":[...]} 对象
 python3 "$SKILL/scripts/nexus_call.py" bundle --args-file refs.json \
@@ -54,9 +56,13 @@ python3 "$SKILL/scripts/nexus_call.py" bundle --args-file refs.json \
 
 # 7. 同一 Agent turn 需要连续调用多个工具时，可用 JSONL 常驻执行器复用连接
 printf '%s\n' \
-  '{"tool":"find_documents","args":{"query":{"pageSize":5}}}' \
-  '{"tool":"search_evidence","args":{"query":{"q":"低空经济","kb":"industry_research_kb","top_k":8}}}' \
+  '{"tool":"find_documents","args":{"query":{"pageSize":5}},"response_mode":"digest"}' \
+  '{"tool":"search_evidence","args":{"query":{"q":"低空经济","kb":"industry_research_kb","top_k":8}},"response_mode":"digest"}' \
   | python3 "$SKILL/scripts/nexus_call.py" serve --trace-id turn-001
+
+# 8. 输出到文件时不经过 shell 重定向，文件始终为 UTF-8 无 BOM
+python3 "$SKILL/scripts/nexus_call.py" call find_documents \
+  '{"query":{"pageSize":20}}' --response-mode digest --out-file result.json
 ```
 
 参数 JSON 按 `path`、`query`、`body` 三组组织：
@@ -100,9 +106,9 @@ printf '%s\n' \
 
 不要把第一页列表当作全量统计；需要数量或分布时使用对应的 aggregate 工具。
 
-`call` 保持完整 JSON 输出兼容性；需要控制上下文时可显式使用 `--response-mode summary|content`。`summary` 保留状态、标识、locator、ref 和正文长度，不输出正文；`content` 按 `--max-content-chars` 截断常见正文字段。`--max-output-chars` 是执行器本地输出预算，超出时返回合法的截断说明 JSON，不改变服务端响应。
+`call` 保持完整 JSON 输出兼容性；需要控制上下文时使用 `--response-mode digest|summary|content`。`digest` 是工具感知的决策投影：文档目录保留 ref/version/domain/发布日期和有限 tags，检索保留 chunk/ref/score/locator，章节和证据保留 block ID、续读信息与有限正文。`summary` 不输出 `body_markdown`、`record_body` 或常见正文，`content` 按 `--max-content-chars` 截断长文本。`--max-output-chars` 超限时会依次尝试 compact、digest、summary，最终仍返回合法 JSON 并尽量保留 `meta.trace_id`。
 
-`serve` 从 stdin 读取 JSONL，每行格式为 `{"tool":"<name>","args":{"path":{},"query":{},"body":{}},"trace_id":"<optional>"}`，每行返回一个带 `status`、`trace_id`、`elapsed_ms` 和 `response_bytes` 的 JSON。它在同一 origin 内复用 HTTP/HTTPS 连接，适合一个 Agent turn 的连续调用。普通 `call` 仍是单次进程调用。
+`serve` 从 stdin 读取 JSONL，每行格式为 `{"tool":"<name>","args":{"path":{},"query":{},"body":{}},"trace_id":"<optional>","response_mode":"<optional>","max_content_chars":2000,"max_output_chars":<optional>}`，每行返回一个带 `status`、`trace_id`、`elapsed_ms`、`response_bytes` 和实际 `response_mode` 的 JSON。它在同一 origin 内复用 HTTP/HTTPS 连接；可以预置多个独立调用，也可以交互式写入一行、读取结果后再写入依赖前序结果的一行。普通 `call` 仍是单次进程调用。
 
 执行器默认在本地按公开工具 Schema 校验请求，错误会在发起 HTTP 请求前返回字段路径；只有确认服务端 Schema 暂时领先于随 Skill 分发的产物时，才显式使用 `--no-validate`。trace、状态、耗时和响应字节数不会包含 API Key、请求参数或完整响应正文。
 
@@ -113,6 +119,7 @@ printf '%s\n' \
 - 外部搜索省略 `auto_ingest` 时执行器强制注入 `false`；显式 `true` 必须加 `--allow-ingest`，否则拒绝执行。
 - 不可消费或不存在为 404，认证问题为 401/403，参数错误为 422，上游搜索或存储不可用为 503。
 - 文档读取遵循 `available` + 最新 current ref；当前 `open:*` 权限不提供组织级过滤，不要声称已做组织隔离。
+- `read_document_section` 的 `section_id` 必须使用同一次 `list_document_sections` 返回的 `data.items[].id`，不能自行构造。list 的 `offset` 是 block 列表偏移；read 的 `offset` 是正文字符偏移。
 
 ## 安全边界
 
@@ -126,7 +133,7 @@ printf '%s\n' \
 
 ## 刷新资产
 
-生成产物更新后同步并检查漂移：
+生成产物更新后同步并检查漂移。`--check` 现在同时比较 docs 生成产物、Skill 内资产和 `retrieval-routes.json` 引用的工具名：
 
 ```bash
 cp docs/generated/public-function-tools/responses-tools.json \

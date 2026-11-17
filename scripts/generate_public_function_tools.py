@@ -6,6 +6,8 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+SKILL_ASSETS = ROOT / "skills" / "nexus-public-api" / "assets"
+ROUTES_FILE = SKILL_ASSETS / "retrieval-routes.json"
 sys.path[:0] = [str(ROOT / "nexus-api"), str(ROOT / "nexus-app")]
 
 from nexus_api.function_tools import chat_tools, generate_catalog
@@ -50,9 +52,19 @@ def main():
     output = artifacts(document)
     if args.check:
         drift = [name for name, text in output.items() if not (args.output / name).exists() or (args.output / name).read_text() != text]
+        for name in ("responses-tools.json", "http-bindings.json"):
+            if not (SKILL_ASSETS / name).exists() or (SKILL_ASSETS / name).read_text() != output[name]:
+                drift.append(f"skills/nexus-public-api/assets/{name}")
+        if ROUTES_FILE.exists():
+            routes_doc = json.loads(ROUTES_FILE.read_text())
+            known_tools = {tool["name"] for tool in json.loads(output["responses-tools.json"])}
+            for route_name, route in routes_doc.get("routes", {}).items():
+                missing = sorted(set(route.get("tools", [])) - known_tools)
+                if missing:
+                    drift.append(f"retrieval-routes:{route_name}:{','.join(missing)}")
         if drift:
             raise SystemExit("Generated artifacts differ: " + ", ".join(drift))
-        print("Function tools artifacts match public OpenAPI")
+        print("Function tools artifacts and Skill assets match public OpenAPI")
     else:
         args.output.mkdir(parents=True, exist_ok=True)
         for name, text in output.items():

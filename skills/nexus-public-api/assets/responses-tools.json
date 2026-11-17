@@ -1484,7 +1484,7 @@
   {
     "type": "function",
     "name": "query_market_jobs",
-    "description": "Query current raw_jobs postings, including region substring matching on source addresses before pagination. Collection time is not publication time; salary is source text.",
+    "description": "Query raw_jobs with simplified cleaned titles and collection-region substring filters before pagination. Region is the collection scope, not inferred work location; collection time is not publication time.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -1580,7 +1580,7 @@
                   "type": "null"
                 }
               ],
-              "description": "工作地区关键词，按原始岗位地址做字面子串检索；不使用采集范围推断工作地点。",
+              "description": "采集地区关键词，按 raw_jobs.region 做字面子串匹配；表示采集范围，不代表岗位实际工作地点，不匹配原始地址。",
               "title": "Region"
             },
             "collected_from": {
@@ -1607,6 +1607,19 @@
               ],
               "title": "Collected To"
             },
+            "received_to": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional inclusive upper bound on NEXUS receipt time. Fix this value to reproduce a collection window across calls.",
+              "title": "Received To"
+            },
             "page": {
               "type": "integer",
               "maximum": 10000,
@@ -1632,7 +1645,7 @@
   {
     "type": "function",
     "name": "aggregate_market_jobs",
-    "description": "Count current raw job records by stored text fields. No numeric salary or inferred city statistics.",
+    "description": "Count raw job records by stored text fields, filtered by collection region before grouping. Region is not actual work location; no numeric salary or inferred city statistics.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -1748,7 +1761,7 @@
                   "type": "null"
                 }
               ],
-              "description": "工作地区关键词，按原始岗位地址做字面子串检索；不使用采集范围推断工作地点。",
+              "description": "采集地区关键词，按 raw_jobs.region 做字面子串匹配；表示采集范围，不代表岗位实际工作地点，不匹配原始地址。",
               "title": "Region"
             },
             "collected_from": {
@@ -1774,6 +1787,19 @@
                 }
               ],
               "title": "Collected To"
+            },
+            "received_to": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional inclusive upper bound on NEXUS receipt time. Fix this value to reproduce a collection window across calls.",
+              "title": "Received To"
             },
             "page": {
               "type": "integer",

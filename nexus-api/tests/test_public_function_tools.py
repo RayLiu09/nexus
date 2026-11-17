@@ -64,6 +64,8 @@ def test_generated_artifacts_are_deterministic_and_checked_in():
     assert first == second
     for name, content in first.items():
         assert (ROOT / "docs/generated/public-function-tools" / name).read_text() == content
+    for name in ("responses-tools.json", "http-bindings.json"):
+        assert (ROOT / "skills/nexus-public-api/assets" / name).read_text() == first[name]
 
 
 def test_schema_resolver_rejects_remote_and_recursive_refs():
