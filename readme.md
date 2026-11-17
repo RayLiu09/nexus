@@ -245,6 +245,20 @@ Root documents are distilled implementation contracts:
 - Console 解析预览 reads unchanged normalized Markdown and authenticated, block-linked extracted images; 原文下载 reads the retained raw object.
 - Pipeline B structured record assets for occupational ability analysis with domain read models. Professional major offerings synchronize directly from the Ministry API; the old major-distribution Pipeline B is retired. Crawler job postings persist directly in `raw_jobs` with provenance; the legacy job-demand Pipeline B and AI-governance path is retired for new data.
 - Asset Center market job-demand list reads crawler-intake `raw_jobs` directly; the retired Pipeline B `job_demand_*` projection is not used by this view.
+- Raw jobs retain `title_raw`/`address_raw` and add a simplified cleaned
+  `title_normalized` plus the collection-time `region`. Public market job
+  list/aggregate and internal raw-job list/export filter this stored collection
+  region with literal substring matching; region no longer searches addresses
+  and does not claim actual workplace. Title cleaning is independent of future
+  occupation normalization. Apply migration `20261117_0132` before restarting
+  services, then preview historical repair with
+  `nexus-app/.venv/bin/python nexus-app/scripts/backfill_raw_job_title_region.py`;
+  add `--apply` to fill missing values in audited batches. No geographic parsing
+  or AI calls are involved. See the [raw-intake contract](docs/contracts/job_collection_raw_intake_contract.md).
+  Title rules `simple-v2` also remove explicit benefits, commute, schedules and
+  recruitment/remote-collaboration notes using existing job samples while
+  preserving semantic bracket content. Preview re-cleaning populated titles
+  with `--reclean-titles`; add `--apply` for audited updates from title_raw.
 - A business-task Asset Center at `/asset-center` organizes data through five
   fixed domains: industry-policy, professional, market, teaching resources,
   and user behavior. It is distinct from `/assets`, which remains the complete

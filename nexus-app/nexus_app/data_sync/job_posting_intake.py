@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from nexus_app import models
+from nexus_app.data_sync.job_title_cleaning import clean_job_title
 from nexus_app.data_sync.runtime import SyncRuntimeError
 
 
@@ -70,6 +71,11 @@ class JobPostingResultHandler:
                 raise SyncRuntimeError("invalid raw job title", code="invalid_job_record")
             if any(value is not None and not isinstance(value, str) for value in values.values()):
                 raise SyncRuntimeError("invalid raw job field", code="invalid_job_record")
+            region = record.get("region")
+            if region is not None and (not isinstance(region, str) or len(region) > 80):
+                raise SyncRuntimeError("invalid raw job region", code="invalid_job_record")
+            values["title_normalized"] = clean_job_title(values["title_raw"])
+            values["region"] = region
             digest = _canonical_hash(record)
             existing = _existing(session, run.provider_code, record_id)
             if existing is not None:
@@ -93,7 +99,7 @@ class JobPostingResultHandler:
                         external_task_id=record["taskId"],
                         source_page=record["page"],
                         keyword=record["keyword"],
-                        query_region=record.get("region"),
+                        query_region=region,
                         collected_at=collected_at,
                         upstream_payload_hash=record["payloadHash"],
                         raw_record_hash=digest,

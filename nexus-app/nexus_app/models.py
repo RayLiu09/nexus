@@ -432,6 +432,8 @@ class RawJob(TimestampMixin, Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     title_raw: Mapped[str] = mapped_column(Text, nullable=False)
+    title_normalized: Mapped[str | None] = mapped_column(Text)
+    region: Mapped[str | None] = mapped_column(String(80))
     company_name_raw: Mapped[str | None] = mapped_column(Text)
     address_raw: Mapped[str | None] = mapped_column(Text)
     salary_raw: Mapped[str | None] = mapped_column(Text)

@@ -108,7 +108,10 @@ def test_career_and_region_filters_and_non_active_statuses_are_exported():
     for name in ("query_market_jobs", "aggregate_market_jobs"):
         query = tools[name]["parameters"]["properties"]["query"]["properties"]
         assert "region" in query
-        assert "采集范围" in query["region"]["description"]
+        assert "raw_jobs.region" in query["region"]["description"]
+        assert "不代表岗位实际工作地点" in query["region"]["description"]
+    fields = bindings["query_market_jobs"]["response_schemas"]["200"]["properties"]["data"]["items"]["properties"]
+    assert {"title_normalized", "region"} <= fields.keys()
     query = tools["query_teaching_standards"]["parameters"]["properties"]["query"]["properties"]
     assert "occupation" in query
     assert "职业面向" in query["occupation"]["description"]

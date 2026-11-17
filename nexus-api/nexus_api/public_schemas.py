@@ -28,6 +28,8 @@ class MarketJobSourceFields(BaseModel):
 class MarketJobRead(BaseModel):
     id: str
     job_title: str
+    title_normalized: str | None
+    region: str | None
     job_responsibilities: str | None
     experience_requirement: str | None
     education: str | None

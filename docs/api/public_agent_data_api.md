@@ -125,7 +125,8 @@ nexus-api/.venv/bin/python scripts/generate_public_function_tools.py --check
 
 ## 岗位地区与教学标准职业面向
 
-- `query_market_jobs` 与 `aggregate_market_jobs` 的 `query.region` 对 `address_raw` 做转义的字面子串匹配，分页和聚合前过滤，与岗位名、学历、时间等条件 AND。空地址不命中；不将采集的 `query_region` 当作真实工作地，不自动将省份扩展成城市。
+- 自 2026-11-17 起，`query_market_jobs` 与 `aggregate_market_jobs` 的 `query.region` 对主表 `raw_jobs.region` 做转义、不区分大小写的字面子串匹配，分页和聚合前过滤，与岗位名、学历、时间等条件 AND。该字段直接保存采集时的上游 `region`，表示采集范围，不代表真实工作地；不再匹配 `address_raw`，不自动将省份扩展成城市，缺失地区不回退到地址。内部 `/internal/v1/raw-jobs` 与 `/export` 使用相同地区语义。历史数据需在迁移 `20261117_0132` 后通过 `backfill_raw_job_title_region.py` 补齐；补齐前 NULL 不命中地区查询。
+- 岗位响应新增 `title_normalized` 和 `region`。标题只做简化清洗，与后期岗位归一化独立；`job_title` 和 `raw_fields.title_raw` 保留原文，`q`/`job_title` 查询同时匹配原文和清洗值。既有聚合维度与计数口径保持不变。
 - `query_teaching_standards` 的 `query.occupation` 匹配 `career_orientation` 中 `applied_industry`、`occupation_type`、`primary_position` 的 `source_name` 或 `source_code`；证书项不参与职业面向过滤。多个事实命中同一库仍只计一个标准，且与 `major_code`、`major_name`、`education_level` 条件 AND。
 - 标准列表和详情返回 `career_orientation`：维度、原文名称/代码、原文、`evidence_block_ids` 和 `locator`。职业面向从标准正文横向/纵向表规则提取；历史数据可使用专项脚本 dry-run/`--apply` 补录，不调用 AI，不修改课程、摘要、标签或库生命周期。
 - 公开标准、课程、资源发现计数/候选及 exact-ref 标准图谱统一去掉 active 准入；仍要求当前 available 文档、最新 generated ref、正式教学标准分类与投影版本一致。未发布或旧 ref 不会因此公开。

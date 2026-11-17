@@ -700,8 +700,16 @@ knowledge pipeline. Shared current-ref selection gates the new document tools;
 domain projections additionally require their latest official classification,
 while teaching-standard lifecycle status does not gate public reads. Raw jobs, parks, enterprises
 and existing structured records retain independent record boundaries.
-Market job `region` filters source addresses before list pagination and aggregation;
-collection scope is never inferred as workplace. Teaching-standard `occupation`
+Market job `region` filters the main-table collection region using escaped literal
+substring matching before list pagination and aggregation; internal list/export
+use the same meaning. It never matches `address_raw` or infers actual workplace.
+`title_normalized` is a deterministic, simplified cleaned copy, independent of
+later occupation normalization; original titles/addresses and provenance remain.
+Sample-driven `simple-v2` rules remove explicit recruitment conditions and
+benefits, preserving semantic bracket fragments. An explicit audited re-clean
+option recomputes existing title projections from raw titles; it never infers
+occupations from salary-first source detail blocks.
+Teaching-standard `occupation`
 filters source-scoped industry/occupation/position facts with an EXISTS query
 and returns `career_orientation` with block locators. Vertical and horizontal
 source tables are supported; deterministic career-only backfill never invokes AI
@@ -927,7 +935,7 @@ Rule change, Prompt update, parse failure, index failure, manual review, or scor
 
 API Push data sync is a separate control-plane flow from `data_source` and the ingest pipelines. Provider definitions and tenant parameters are loaded from a validated system configuration file, never from a Provider table or hardcoded entries. The adapter owns its query schema, Token API protocol, paging, status mapping, and external controls. The deployment configuration holds `tenant_id`, `tenant_name`, and `tenant_key`; real keys stay out of version control, database rows, responses, logs, and audit. Users create immutable `data_sync_config` plans with frequency and query parameters; plans can be paused, resumed, or soft-deleted. The crawler-engine plan accepts 1–30 user-entered job names, with the database catalog retained as suggestions. Optional `query_config.professional_category` stores a trimmed category name (up to 128 characters); blank values are omitted and the field is not forwarded upstream. Console accepts Chinese/English comma-separated names and preserves selected jobs when category suggestions change. Each plan still permits at most 5 regions and 100 job/region combinations; the adapter expands the combinations into upstream queries. The initial job catalog imports only the name column of `76个岗位.xlsx` (76 rows, 74 distinct names). `data_sync_run` records execution checkpoints. The crawler-engine adapter stores parsed job values in `raw_jobs` and the original response and collection metadata in one-to-one `raw_job_provenance`. It creates no sync batch or observation lifecycle; later job processing is independent of Pipeline B and generic AI governance. See `docs/contracts/job_collection_raw_intake_contract.md`.
 
-The W4 runtime optionally starts with `DATA_SYNC_RUNTIME_ENABLED`: a PostgreSQL-backed scheduler creates due runs, and a separate leased worker calls the configured adapter. Provider Catalog and external Token/submit/status/page operations run outside database transactions; progress and status changes use short transactions with lease-owner checks and audit. The crawler-engine result handler writes raw job rows and the page checkpoint atomically.
+The W4 runtime optionally starts with `DATA_SYNC_RUNTIME_ENABLED`: a PostgreSQL-backed scheduler creates due runs, and a separate leased worker calls the configured adapter. Provider Catalog and external Token/submit/status/page operations run outside database transactions; progress and status changes use short transactions with lease-owner checks and audit. The crawler-engine result handler writes raw job rows and the page checkpoint atomically. It also fills nullable `raw_jobs.title_normalized` with local conservative cleaning and copies upstream collection `region` to the main table. These query fields do not invoke downstream occupation normalization, geographic parsing or AI. Migration `20261117_0132` adds the fields; a separate dry-run-first, keyset-batched repair fills missing historical values without altering provenance or collection timestamps.
 
 Runtime failures retain a bounded scalar diagnostic in the existing
 `data_sync_run.status_detail.error`: internal code, upstream code and message

@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "source": "public OpenAPI /open/v1",
-  "sha256": "fca0f9af4e65a57cc289ab32d710ee2a8d8590f4e5d05e119bc304189961d1ab",
+  "sha256": "21ee9508c5350a398b092e1dbc25450b50568178e6aa64a9ec0f9403c1e89530",
   "bindings": [
     {
       "name": "find_documents",
@@ -5217,6 +5217,28 @@
                     "type": "string",
                     "title": "Job Title"
                   },
+                  "title_normalized": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Title Normalized"
+                  },
+                  "region": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Region"
+                  },
                   "job_responsibilities": {
                     "anyOf": [
                       {
@@ -5612,6 +5634,8 @@
                 "required": [
                   "id",
                   "job_title",
+                  "title_normalized",
+                  "region",
                   "job_responsibilities",
                   "experience_requirement",
                   "education",
@@ -6047,6 +6071,28 @@
                   "type": "string",
                   "title": "Job Title"
                 },
+                "title_normalized": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Title Normalized"
+                },
+                "region": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Region"
+                },
                 "job_responsibilities": {
                   "anyOf": [
                     {
@@ -6442,6 +6488,8 @@
               "required": [
                 "id",
                 "job_title",
+                "title_normalized",
+                "region",
                 "job_responsibilities",
                 "experience_requirement",
                 "education",

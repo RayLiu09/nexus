@@ -52,7 +52,7 @@ def job_filters(
     education: str | None = Query(None, min_length=1, max_length=128),
     experience: str | None = Query(None, min_length=1, max_length=128),
     region: str | None = Query(None, min_length=1, max_length=128,
-                              description="工作地区关键词，按原始岗位地址做字面子串检索；不使用采集范围推断工作地点。"),
+                              description="采集地区关键词，按 raw_jobs.region 做字面子串匹配；表示采集范围，不代表岗位实际工作地点，不匹配原始地址。"),
     collected_from: datetime | None = Query(None),
     collected_to: datetime | None = Query(None),
     received_to: datetime | None = Query(
@@ -74,16 +74,19 @@ def job_statement(filters):
     stmt = select(job, provenance).outerjoin(provenance, provenance.raw_job_id == job.id)
     if filters.q:
         stmt = stmt.where(or_(*(column.icontains(filters.q, autoescape=True) for column in (
-            job.title_raw, job.company_name_raw, job.description_raw, job.responsibilities_raw,
+            job.title_raw, job.title_normalized, job.company_name_raw, job.description_raw, job.responsibilities_raw,
         ))))
     for field, column in {
         "job_title": job.title_raw, "company_name": job.company_name_raw,
         "industry": job.company_industry_raw, "education": job.degree_raw,
         "experience": job.experience_raw,
-        "region": job.address_raw,
+        "region": job.region,
     }.items():
         if value := getattr(filters, field):
-            stmt = stmt.where(column.icontains(value, autoescape=True))
+            condition = column.icontains(value, autoescape=True)
+            if field == "job_title":
+                condition = or_(condition, job.title_normalized.icontains(value, autoescape=True))
+            stmt = stmt.where(condition)
     if filters.collected_from:
         stmt = stmt.where(provenance.collected_at >= filters.collected_from)
     if filters.collected_to:
@@ -108,7 +111,7 @@ def job_payload(job, provenance):
 def list_market_jobs(request: Request, filters: JobFilters = Depends(job_filters),
                      pagination: Pagination = Depends(pagination_params),
                      caller=Depends(require_api_caller), session: Session = Depends(get_db)):
-    """Query current raw_jobs postings, including region substring matching on source addresses before pagination. Collection time is not publication time; salary is source text."""
+    """Query raw_jobs with simplified cleaned titles and collection-region substring filters before pagination. Region is the collection scope, not inferred work location; collection time is not publication time."""
     rows, total = page_rows(session, job_statement(filters).order_by(
         nulls_last(models.RawJobProvenance.collected_at.desc()),
         models.RawJob.id.desc(),
@@ -131,7 +134,7 @@ def aggregate_market_jobs(
     filters: JobFilters = Depends(job_filters), pagination: Pagination = Depends(pagination_params),
     caller=Depends(require_api_caller), session: Session = Depends(get_db),
 ):
-    """Count current raw job records by stored text fields. No numeric salary or inferred city statistics."""
+    """Count raw job records by stored text fields, filtered by collection region before grouping. Region is not actual work location; no numeric salary or inferred city statistics."""
     if len(set(group_by)) != len(group_by):
         raise HTTPException(422, "duplicate_group_by")
     base = job_statement(filters).subquery()

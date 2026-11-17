@@ -638,6 +638,24 @@ P0 API groups include:
   not require an `available` asset version. Legacy job-demand projections are
   deprecated; legacy major-distribution record endpoints return 410 and are
   deprecated. Neither legacy group belongs in generated function tools.
+- Market job responses add nullable `title_normalized` and `region`. The title is
+  cleaned locally for formatting and explicit recruiting noise; rank, specialty
+  and employment type remain, with no occupation/dictionary classification.
+  `region` copies the collection-time upstream region into `raw_jobs`; it is not
+  inferred from the preserved `address_raw`. Public list/aggregate and internal
+  `/internal/v1/raw-jobs` list/export accept escaped literal substring region
+  filters before pagination/grouping, combined with other filters by AND. This
+  replaces the former public region-on-address behavior. Missing regions never
+  fall back to address matching. Searches cover original and cleaned titles;
+  `job_title` responses and existing aggregation groups keep original text.
+  Excel export appends cleaned title and collection region. Historical fields
+  can be filled by the dry-run-first audited backfill after `20261117_0132`.
+  Sample-driven `simple-v2` title cleaning removes explicit benefits, commute,
+  schedules, recruiting-acceptance and remote-collaboration notes, including
+  mixed brackets while retaining their meaningful contents. Formal internship
+  roles, specialties and technical terms remain. Salary-first source detail
+  blocks do not invent a missing job title. `--reclean-titles` explicitly permits
+  audited re-cleaning of existing title projections from preserved title_raw.
 - `GET /open/v1/major-offerings/aggregate` groups Ministry registration facts
   only. Its schema exposes year/province/major grouping with record and school
   counts; there is no competing document-derived route registration.

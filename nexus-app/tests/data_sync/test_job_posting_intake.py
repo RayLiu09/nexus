@@ -78,12 +78,39 @@ def test_raw_job_fields_are_separate_from_provenance_and_replay_is_idempotent(se
     assert jobs[0].responsibilities_raw == "负责数据分析"
     assert jobs[0].requirements_raw == "熟悉 SQL"
     assert jobs[0].description_raw is None
+    assert jobs[0].title_normalized == "数据化运营助理"
+    assert jobs[0].region == "杭州市"
     provenance = session.scalar(select(models.RawJobProvenance).where(
         models.RawJobProvenance.upstream_record_id == record["recordId"]
     ))
     assert provenance.raw_record == record
     assert provenance.raw_record["fields"]["newField"] == {"retained": True}
     assert provenance.source_job_id == "source-1"
+
+
+def test_intake_cleans_title_and_copies_collection_region_without_address_inference(session):
+    record = _record("cleaned", title="【急聘】高级电商运营（MJ000966）")
+    record["fields"]["addressText"] = "北京市海淀区"
+    handler = JobPostingResultHandler()
+    run = _run(session, "cleaned")
+    assert handler.accept_page(session, run, [record]).accepted == 1
+    job = session.scalar(select(models.RawJob))
+    assert job.title_raw == record["fields"]["title"]
+    assert job.title_normalized == "高级电商运营"
+    assert job.region == "杭州市"
+    assert job.address_raw == "北京市海淀区"
+    assert handler.accept_page(session, run, [record]).duplicate == 1
+    provenance = session.scalar(select(models.RawJobProvenance))
+    assert provenance.query_region == job.region
+    assert provenance.raw_record == record
+
+
+def test_intake_missing_region_does_not_fall_back_to_address(session):
+    record = _record("no-region")
+    record.pop("region")
+    record["fields"]["addressText"] = "杭州市"
+    JobPostingResultHandler().accept_page(session, _run(session, "no-region"), [record])
+    assert session.scalar(select(models.RawJob)).region is None
 
 
 def test_changed_payload_for_same_upstream_id_rolls_back_page(session):

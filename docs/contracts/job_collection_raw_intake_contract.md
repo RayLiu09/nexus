@@ -2,7 +2,7 @@
 
 ## Storage Boundary
 
-The crawler-api response names the parsed job object `fields`. NEXUS stores its original business values in `raw_jobs`; a one-to-one `raw_job_provenance` row stores collection metadata and the complete upstream record. No `sync_batch` or observation table is created. This intake does not invoke Pipeline B, generic governance, cleaning, deduplication, or dictionary processing.
+The crawler-api response names the parsed job object `fields`. NEXUS stores its original business values in `raw_jobs`; a one-to-one `raw_job_provenance` row stores collection metadata and the complete upstream record. No `sync_batch` or observation table is created. Intake additionally performs simplified, deterministic title cleaning for queries. It does not invoke Pipeline B, generic governance, occupation normalization, deduplication, or dictionary processing.
 
 `raw_jobs` has one row per upstream `recordId` version. Its columns map directly from the verified `fields` keys: `title`, `companyName`, `addressText`, `salaryText`, `experienceText`, `degreeText`, `hiringText`, `description`, `skillsText`, `jobTagsText`, `jobResponsibilitiesText`, `jobRequirementsText`, `qualificationsText`, `otherMattersText`, `companyIndustryText`, `companyScaleText`, and `companyFinancingText`. Only `title` is required. Missing and explicit null optional values are stored as SQL NULL; the original distinction and unknown keys remain in `raw_job_provenance.raw_record`.
 
@@ -12,9 +12,50 @@ Raw rows count collected record versions, not distinct source jobs or deduplicat
 
 ## Intake And Replay
 
+New rows also save the query fields below in the same page transaction.
+
 1. Fetch and validate an upstream page outside a database transaction.
 2. Lock the `data_sync_run` row and verify worker ownership and fetched cursor.
 3. In one short transaction, write each new `raw_jobs` / `raw_job_provenance` pair and advance the cursor and existing run counters. If a record ID already exists with the same canonical hash, count a replay; a changed hash is a contract failure.
 4. A failed page rolls back its rows, counters, and cursor. A terminal upstream Job is required before a null cursor can complete the run, because a running Job can return an empty/null page.
 
 The existing `data_sync_run` is an execution checkpoint for the generic sync framework. NEXUS does not add a second collection state machine or batch/observation lifecycle for raw jobs.
+
+## Simplified Query Fields (2026-11-17)
+
+- Nullable `raw_jobs.title_normalized` is a local `simple-v2` cleaned copy of
+  `title_raw`: NFKC, whitespace/invisible-character cleanup, explicit recruitment
+  advertising markers, recognized trailing job IDs and whitespace-separated
+  salary decorations. Version 2 adds sample-driven benefit, commute, schedule,
+  explicit recruitment-acceptance and remote-collaboration cleanup. Mixed
+  brackets retain non-noise content, such as `(合同制+六险二金)` → `(合同制)`.
+  Preserve rank, specialty, semantic parentheses, platform,
+  employment type, geography and compound jobs. Empty cleaning falls back to
+  basic normalized text. No LLM, synonym inference or standard-job assignment.
+- Nullable `raw_jobs.region` copies upstream `record.region` verbatim (string,
+  up to 80 characters), just as provenance.query_region does. The main-table
+  copy supports queries; it is collection scope, not actual work location.
+  Missing region remains NULL even when address_raw contains a location.
+- Original fields, original record/hash and upstream-record uniqueness remain
+  unchanged. Replay does not refresh or change query fields.
+- Public `/open/v1/market-jobs` and `/aggregate`, internal
+  `/internal/v1/raw-jobs` and `/export` accept optional `region`: escaped,
+  case-insensitive literal substring matching against `raw_jobs.region` before
+  pagination/aggregation/export. NULL regions do not match. It no longer matches
+  address_raw, does not expand provinces into cities and combines other filters
+  with AND. Existing job_title responses retain title_raw; responses add
+  title_normalized and region. Title searches match raw and cleaned text.
+- Internal Excel export appends cleaned title and collection region, retaining
+  existing column positions. No new UI workflow is introduced.
+- Migration `20261117_0132` adds nullable columns only. Apply it before service
+  restart. Run `nexus-app/scripts/backfill_raw_job_title_region.py` for historical
+  data (dry-run default, `--apply` to persist, `--batch-size 500`, optional
+  `--after-id`). It fills missing values from title_raw/provenance.query_region,
+  commits each keyset batch with repair audits, preserves raw timestamps and
+  provenance, and can be rerun without rewriting already populated fields.
+  Missing provenance never triggers address-based region inference.
+- `--reclean-titles` explicitly recomputes populated titles from title_raw with
+  current rules; without it, only missing fields are filled. Dry-run remains the
+  default, only changed titles are written/audited and region stays unchanged
+  when already populated. Salary-first full-detail blocks are detected and kept
+  as basic text; a missing true job title is never inferred from other keywords.

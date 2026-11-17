@@ -188,11 +188,11 @@ def test_standards_ignore_lifecycle_but_require_current_available_classified_doc
 
 def test_market_region_is_applied_before_pagination_and_aggregation(app, session):
     session.add_all([
-        models.RawJob(id="hz-1", title_raw="电商运营", address_raw="杭州·滨江", degree_raw="专科"),
-        models.RawJob(id="hz-2", title_raw="电商运营", address_raw="杭州·西湖", degree_raw="专科"),
-        models.RawJob(id="bj", title_raw="电商运营", address_raw="北京", degree_raw="本科"),
-        models.RawJob(id="literal", title_raw="电商运营", address_raw="园区100%"),
-        models.RawJob(id="no-address", title_raw="电商运营"),
+        models.RawJob(id="hz-1", title_raw="电商运营", region="杭州市", address_raw="北京", degree_raw="专科"),
+        models.RawJob(id="hz-2", title_raw="电商运营", region="杭州市", degree_raw="专科"),
+        models.RawJob(id="bj", title_raw="电商运营", region="北京市", address_raw="杭州·西湖", degree_raw="本科"),
+        models.RawJob(id="literal", title_raw="电商运营", region="园区100%_A", address_raw="北京"),
+        models.RawJob(id="no-region", title_raw="电商运营", address_raw="杭州·滨江"),
     ])
     session.commit()
     client = TestClient(app)
@@ -201,12 +201,33 @@ def test_market_region_is_applied_before_pagination_and_aggregation(app, session
     second = client.get("/open/v1/market-jobs", params={**params,"page":2}).json()
     assert first["meta"]["total"] == second["meta"]["total"] == 2
     assert first["data"][0]["id"] != second["data"][0]["id"]
+    assert first["data"][0]["region"] == "杭州市"
     aggregate = client.get("/open/v1/market-jobs/aggregate", params={**params,"group_by":"education"}).json()
     assert aggregate["aggregations"]["sample_count"] == 2
     assert aggregate["aggregations"]["filters"]["region"] == "杭州"
     assert aggregate["data"][0]["record_count"] == 2
     assert client.get("/open/v1/market-jobs",params={"region":"%"}).json()["meta"]["total"] == 1
+    assert client.get("/open/v1/market-jobs",params={"region":"_"}).json()["meta"]["total"] == 1
+    assert client.get("/open/v1/market-jobs",params={"region":""}).status_code == 422
     assert client.get("/open/v1/market-jobs",params={"region":"杭州","education":"本科"}).json()["meta"]["total"] == 0
+
+
+def test_public_job_title_searches_raw_and_cleaned_values_and_keeps_raw_evidence(app, session):
+    session.add(models.RawJob(id="cleaned", title_raw="【急聘】ＡＩ运营", title_normalized="AI运营", region="昆明市"))
+    session.commit()
+    client = TestClient(app)
+    for params in ({"q": "AI运营"}, {"job_title": "AI运营"}, {"job_title": "ＡＩ"}):
+        result = client.get("/open/v1/market-jobs", params=params)
+        assert result.status_code == 200
+        assert result.json()["meta"]["total"] == 1
+        row = result.json()["data"][0]
+        assert row["title_normalized"] == "AI运营" and row["region"] == "昆明市"
+        assert row["job_title"] == row["raw_fields"]["title_raw"] == "【急聘】ＡＩ运营"
+        assert "region" not in row["raw_fields"]
+    detail = client.get("/open/v1/market-jobs/cleaned").json()["data"]
+    assert detail["title_normalized"] == "AI运营" and detail["region"] == "昆明市"
+    aggregate = client.get("/open/v1/market-jobs/aggregate", params={"job_title": "AI运营", "region": "昆明"})
+    assert aggregate.json()["aggregations"]["sample_count"] == 1
 
 
 def test_career_orientation_search_filters_facts_without_duplicates_or_certificate_matches(app, session):

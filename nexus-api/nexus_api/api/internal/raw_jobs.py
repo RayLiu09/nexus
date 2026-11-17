@@ -29,6 +29,8 @@ _EXPORT_COLUMNS = (
     ("公司名称", "company_name_raw"),
     ("规模", "company_scale_raw"),
     ("地址", "address_raw"),
+    ("标准化岗位名称", "title_normalized"),
+    ("采集地区", "region"),
 )
 
 
@@ -44,6 +46,7 @@ def _raw_job_filters(
     industry: str | None,
     created_from: datetime | None = None,
     created_to: datetime | None = None,
+    region: str | None = None,
 ):
     clauses = []
     if q:
@@ -51,6 +54,7 @@ def _raw_job_filters(
         clauses.append(
             or_(
                 models.RawJob.title_raw.ilike(pattern),
+                models.RawJob.title_normalized.ilike(pattern),
                 models.RawJob.company_name_raw.ilike(pattern),
                 models.RawJob.description_raw.ilike(pattern),
                 models.RawJob.responsibilities_raw.ilike(pattern),
@@ -58,6 +62,8 @@ def _raw_job_filters(
         )
     if industry:
         clauses.append(models.RawJob.company_industry_raw.ilike(f"%{industry}%"))
+    if region:
+        clauses.append(models.RawJob.region.icontains(region, autoescape=True))
     if created_from:
         clauses.append(models.RawJob.created_at >= created_from)
     if created_to:
@@ -76,6 +82,8 @@ def _serialize_raw_job(job: models.RawJob, provenance: models.RawJobProvenance |
     return {
         "id": job.id,
         "job_title": job.title_raw,
+        "title_normalized": job.title_normalized,
+        "region": job.region,
         "job_responsibilities": job.responsibilities_raw or job.description_raw,
         "experience_requirement": job.experience_raw,
         "education": job.degree_raw,
@@ -95,6 +103,8 @@ def list_raw_jobs(
     request: Request,
     q: str | None = Query(None, min_length=1, max_length=256),
     industry: str | None = Query(None, min_length=1, max_length=256),
+    region: str | None = Query(None, min_length=1, max_length=128,
+                              description="采集地区关键词，按 raw_jobs.region 做字面子串匹配；不匹配原始地址。"),
     created_from: datetime | None = None,
     created_to: datetime | None = None,
     pagination: Pagination = Depends(pagination_params),
@@ -107,7 +117,7 @@ def list_raw_jobs(
         models.RawJobProvenance.raw_job_id == models.RawJob.id,
     )
     count_stmt = select(func.count(models.RawJob.id))
-    clauses = _raw_job_filters(q, industry, created_from, created_to)
+    clauses = _raw_job_filters(q, industry, created_from, created_to, region)
     if clauses:
         stmt = stmt.where(*clauses)
         count_stmt = count_stmt.where(*clauses)
@@ -131,6 +141,8 @@ def list_raw_jobs(
 def export_raw_jobs(
     q: str | None = Query(None, min_length=1, max_length=256),
     industry: str | None = Query(None, min_length=1, max_length=256),
+    region: str | None = Query(None, min_length=1, max_length=128,
+                              description="采集地区关键词，按 raw_jobs.region 做字面子串匹配；不匹配原始地址。"),
     created_from: datetime | None = None,
     created_to: datetime | None = None,
     session: Session = Depends(get_db),
@@ -141,7 +153,7 @@ def export_raw_jobs(
     sheet = workbook.create_sheet("岗位数据")
     sheet.append([label for label, _ in _EXPORT_COLUMNS])
     stmt = select(models.RawJob).where(
-        *_raw_job_filters(q, industry, created_from, created_to)
+        *_raw_job_filters(q, industry, created_from, created_to, region)
     ).order_by(
         models.RawJob.created_at.desc(), models.RawJob.id.desc()
     )
