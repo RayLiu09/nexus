@@ -458,6 +458,12 @@ P0 management pages:
 - **文件数据同步**: Console `/file-sync` directly accepts local file uploads using an automatically ensured backend `file_upload` data source. The NAS tab describes manual synchronization but remains unavailable until a filesystem scanner is implemented; no NAS schedule is offered. Data-source records remain backend lineage anchors. Crawler plans have a dedicated first-level Console page at `/crawler`; they support generic configuration (topic, target site URLs, execution plan) and one built-in quick-start plan backed by JSON configuration for national/provincial vocational-education policy, industry-education integration policy, ecommerce, digital-economy policy/report, and regional ecommerce/digital-economy data acquisition. Template and region whitelist sites are file-configured and are not maintained through Console.
 - Firecrawl plan forms hide `归属数据源` and show optional `搜索类别` above `目标站点 URL` in generic configuration (also available in quick start). Options are `研究报告` → `research`, `PDF` → `pdf`, and `Gov` → `gov`; default empty means no category filter. Research and PDF may be selected together; Gov must be used alone, with incompatible options disabled until cleared. Create/edit/copy preserve categories in `crawl_policy.categories`, existing source bindings and other crawl settings. Invalid category values/combinations return 422. Runs forward categories to Firecrawl and record them in run summaries and plan mutation audits.
 - WebSearch Crawler plans accept one to four unique query terms separated by spaces or common list punctuation. A run searches each ordered nonempty term combination (at most fifteen requests), merges results by normalized URL, and records per-query failures while retaining successful results. The configured result count applies to each provider request.
+- Console new/copied Crawler plans use generic configuration (`custom`) and
+  hide quick-start creation. The WebSearch time-range dropdown offers only
+  1年 / 2年 / 3年 (default 1年). Copying an unsupported historical range defaults
+  the new copy to 1年. Existing plans retain their stored mode and time range;
+  editing keeps legacy values unless explicitly changed. Backend quick-start,
+  historical range support and execution behavior remain unchanged.
 - **数据接入**: single file, batch upload, directory import, ingestion policy.
 - **API 同步运行诊断**: administrator-only
   `GET /internal/v1/data-sync/runs/{run_id}/logs` additionally returns nullable

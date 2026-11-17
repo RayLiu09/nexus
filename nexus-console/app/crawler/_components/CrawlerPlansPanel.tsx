@@ -54,6 +54,17 @@ const FIRECRAWL_SEARCH_CATEGORIES: { value: FirecrawlSearchCategory; label: stri
   { value: "gov", label: "Gov" },
 ];
 
+const WEBSEARCH_TIME_RANGES = [
+  { value: "one_year", label: "1年" },
+  { value: "two_years", label: "2年" },
+  { value: "three_years", label: "3年" },
+];
+const LEGACY_TIME_RANGE_LABELS: Record<string, string> = {
+  three_months: "3月",
+  six_months: "6月",
+  five_years: "5年",
+};
+
 type PlanFormState = {
   connectorType: "firecrawl" | "websearch";
   websearchProvider: "custom" | "deepseek";
@@ -91,7 +102,7 @@ type CrawlerRunSummaryItem = {
 const INITIAL_FORM: PlanFormState = {
   connectorType: "firecrawl",
   websearchProvider: "deepseek",
-  mode: "quick_start",
+  mode: "custom",
   name: "",
   dataSourceId: "",
   regionCode: "national",
@@ -359,7 +370,7 @@ export function CrawlerPlansPanel() {
     setForm({
       connectorType: plan.connector_type as PlanFormState["connectorType"],
       websearchProvider: plan.connector_version === "deepseek" ? "deepseek" : "custom",
-      mode: plan.mode,
+      mode: copy ? "custom" : plan.mode,
       name: copy ? `${plan.name.slice(0, 125)} 副本` : plan.name,
       dataSourceId: plan.data_source_id ?? "",
       regionCode: plan.region_code ?? "national",
@@ -373,7 +384,9 @@ export function CrawlerPlansPanel() {
         : [],
       query: typeof search.query === "string" ? search.query : INITIAL_FORM.query,
       resultCount: typeof search.result_count === "number" ? search.result_count : INITIAL_FORM.resultCount,
-      timeRangePreset: typeof search.time_range_preset === "string" ? search.time_range_preset : INITIAL_FORM.timeRangePreset,
+      timeRangePreset: typeof search.time_range_preset === "string"
+        && (!copy || WEBSEARCH_TIME_RANGES.some((option) => option.value === search.time_range_preset))
+        ? search.time_range_preset : INITIAL_FORM.timeRangePreset,
     });
     setDrawerOpen(true);
   };
@@ -866,7 +879,8 @@ export function CrawlerPlansPanel() {
             activeKey={form.mode}
             onChange={(key) => update("mode", key as PlanFormState["mode"])}
             items={[
-              { key: "quick_start", label: "快速启动" },
+              ...(editingPlan?.mode === "quick_start"
+                ? [{ key: "quick_start", label: "快速启动" }] : []),
               { key: "custom", label: "通用配置" },
             ]}
           />
@@ -921,18 +935,13 @@ export function CrawlerPlansPanel() {
                     onChange={(event) => update("resultCount", Number(event.target.value))}
                   />
                 </Form.Item>
-                <Form.Item label="时间范围">
+                <Form.Item label="时间范围" htmlFor="crawler-time-range">
                   <Select
+                    id="crawler-time-range"
                     value={form.timeRangePreset}
                     onChange={(value) => update("timeRangePreset", value)}
-                    options={[
-                      { value: "three_months", label: "3月" },
-                      { value: "six_months", label: "6月" },
-                      { value: "one_year", label: "1年" },
-                      { value: "two_years", label: "2年" },
-                      { value: "three_years", label: "3年" },
-                      { value: "five_years", label: "5年" },
-                    ]}
+                    options={WEBSEARCH_TIME_RANGES}
+                    labelRender={({ value, label }) => LEGACY_TIME_RANGE_LABELS[String(value)] ?? label ?? String(value)}
                   />
                 </Form.Item>
               </>

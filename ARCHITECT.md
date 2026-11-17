@@ -136,6 +136,10 @@ Admitted content is retained as a raw object and follows Pipeline A; search JSON
 never enters governance directly. Existing URL identity and content fingerprint
 rules continue to apply within each provider's source.
 
+Console creation/copy exposes generic configuration only and WebSearch ranges
+of one/two/three years. These are frontend choices: existing plan modes/ranges
+and backend quick-start/time-range execution remain supported without migration.
+
 Public `POST /open/v1/external-search/web-search` uses this existing DeepSeek
 Search client with server-only `BASE_URL_DEEPSEEK` / `API_KEY_DEEPSEEK` and
 `need_content=true`. It translates date presets to UTC intervals and reports

@@ -75,6 +75,7 @@ it("copies a crawler plan through the create endpoint", async () => {
     const payload = JSON.parse(String(createCall?.[1]?.body));
     expect(payload).toMatchObject({
       name: "政策抓取 副本",
+      mode: "custom",
       topic_keywords: ["低空经济"],
       content_goals: ["政策正文"],
       classification_hints: ["industry_policy"],
@@ -120,6 +121,7 @@ it("defaults to no category, hides the data source and submits selected categori
     const request = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
     expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({
       data_source_id: "__builtin_firecrawl__",
+      mode: "custom",
       crawl_policy: { categories: ["research", "pdf"] },
     });
   });
@@ -180,14 +182,48 @@ it("clears categories without changing an unbound legacy plan's data source", as
   });
 });
 
-it("shows categories for quick start and hides them for WebSearch", async () => {
+it("creates generic plans without quick start and offers only annual WebSearch ranges", async () => {
   mockPlanForm();
   fireEvent.click(screen.getByRole("button", { name: /新增计划/ }));
-  expect(screen.getByRole("tab", { name: "快速启动" })).toHaveAttribute("aria-selected", "true");
+  expect(screen.queryByRole("tab", { name: "快速启动" })).not.toBeInTheDocument();
+  expect(screen.getByRole("tab", { name: "通用配置" })).toHaveAttribute("aria-selected", "true");
   expect(screen.getByRole("combobox", { name: "搜索类别" })).toBeInTheDocument();
   fireEvent.mouseDown(screen.getByRole("combobox", { name: "数据源类型" }));
   fireEvent.click(await screen.findByText("WebSearch", { selector: ".ant-select-item-option-content" }));
   expect(screen.queryByRole("combobox", { name: "搜索类别" })).not.toBeInTheDocument();
+  const range = screen.getByRole("combobox", { name: "时间范围" });
+  fireEvent.mouseDown(range);
+  const option = await screen.findByText("3年", { selector: ".ant-select-item-option-content" });
+  expect(Array.from(option.closest(".ant-select-dropdown")!.querySelectorAll(".ant-select-item-option-content"))
+    .map((item) => item.textContent)).toEqual(["1年", "2年", "3年"]);
+});
+
+it.each(["edit", "copy"])("preserves saved legacy data when opening %s and limits new copies to supported defaults", async (action) => {
+  const legacy: CrawlerPlan = {
+    ...plan, connector_type: "websearch", connector_version: "deepseek", mode: "quick_start",
+    search_policy: { query: "产业政策", result_count: 10, time_range_preset: "five_years" },
+  };
+  const fetchMock = mockPlanForm(legacy);
+  fireEvent.click(await screen.findByRole("button", { name: `${action === "edit" ? "编辑计划" : "复制计划"} 政策抓取` }));
+  expect(fetchMock.mock.calls.some(([, init]) => init?.method === "POST" || init?.method === "PUT")).toBe(false);
+  if (action === "copy") {
+    expect(screen.queryByRole("tab", { name: "快速启动" })).not.toBeInTheDocument();
+  } else {
+    expect(screen.getByRole("tab", { name: "快速启动" })).toHaveAttribute("aria-selected", "true");
+  }
+  const rangeField = screen.getByRole("combobox", { name: "时间范围" }).closest(".ant-form-item")!;
+  expect(rangeField).toHaveTextContent(action === "edit" ? "5年" : "1年");
+  fireEvent.click(screen.getByRole("button", { name: action === "edit" ? /保存修改/ : /创建计划/ }));
+  await waitFor(() => {
+    const request = fetchMock.mock.calls.find(([, init]) => init?.method === (action === "edit" ? "PUT" : "POST"));
+    expect(request).toBeDefined();
+    expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({
+      mode: action === "edit" ? "quick_start" : "custom",
+      search_policy: { query: "产业政策", time_range_preset: action === "edit" ? "five_years" : "one_year" },
+    });
+  });
+  expect(legacy.mode).toBe("quick_start");
+  expect(legacy.search_policy.time_range_preset).toBe("five_years");
 });
 
 it("requests crawler plan pages from the API with 20 rows by default", async () => {
