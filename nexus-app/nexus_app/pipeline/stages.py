@@ -2827,6 +2827,18 @@ def run_index_submit(
     - version is not available
     """
     started_at = _stage_started()
+    from nexus_app.index.semantic_policy import supports_semantic_index
+
+    if not supports_semantic_index(normalized_ref):
+        reason = "structured-only asset uses domain retrieval"
+        _add_stage(ctx, "index_submit", StageStatus.SKIPPED,
+                   {"reason": reason}, started_at=started_at)
+        write_audit(
+            ctx.session, AuditEventType.INDEX_SUBMIT_SKIPPED,
+            target_type="normalized_asset_ref", target_id=normalized_ref.id,
+            trace_id=ctx.trace_id, summary={"reason": reason},
+        )
+        return []
     if version.version_status != AssetVersionStatus.AVAILABLE:
         reason = f"version not available (status={version.version_status.value})"
         _add_stage(ctx, "index_submit", StageStatus.SKIPPED,

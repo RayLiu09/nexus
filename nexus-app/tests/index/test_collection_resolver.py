@@ -15,6 +15,7 @@ from nexus_app.index.collection_resolver import (
     resolve_asset_domain_type,
     resolve_collection,
 )
+from nexus_app.index.vector_metadata import STORAGE_KEY, compact_metadata, hydrate_metadata
 
 
 def _ref(**overrides) -> models.NormalizedAssetRef:
@@ -143,7 +144,9 @@ def test_build_vector_projection_includes_traceability_and_filter_metadata():
     assert metadata["asset"]["classification"] == "course_textbook"
     assert metadata["asset"]["level"] == "L2"
     assert metadata["normalized_ref"]["normalized_ref_id"] == "ref-1"
-    assert metadata["normalized_ref"]["lineage"]["raw_object_id"] == "raw-1"
+    assert "lineage" not in metadata["normalized_ref"]
+    assert hydrate_metadata(metadata, ref)["normalized_ref"]["lineage"]["raw_object_id"] == "raw-1"
+    assert metadata[STORAGE_KEY] == ["governance", "quality", "lineage"]
     assert metadata["chunk"]["source_block_ids"] == ["b1", "b2"]
     assert metadata["chunk"]["heading_path"] == ["项目一", "任务一"]
     assert metadata["locator"] == {"page_start": 3, "page_end": 4}
@@ -162,3 +165,64 @@ def test_build_vector_projection_requires_asset_id_when_version_not_loaded():
 
     with pytest.raises(ValueError, match="asset_id is required"):
         build_vector_projection(ref, chunk, resolution, embedding=[0.1])
+
+
+def test_compaction_uses_current_canonical_values_and_keeps_unknown_fields():
+    ref = _ref(governance={"classification": "course_textbook"})
+    old = {
+        "custom": {"preserved": True},
+        "normalized_ref": {
+            "normalized_ref_id": ref.id,
+            "governance": {"classification": "historical"},
+            "quality": {}, "lineage": {"raw_object_id": "raw-1"},
+        },
+    }
+    compact, fields = compact_metadata(old, ref)
+    assert fields == ("governance", "quality", "lineage")
+    assert "governance" not in compact["normalized_ref"]
+    expected = {**old, "normalized_ref": {**old["normalized_ref"], "governance": ref.governance}}
+    assert hydrate_metadata(compact, ref) == expected
+    assert compact_metadata(compact, ref) == (compact, ())
+    assert "lineage" in old["normalized_ref"]
+
+
+def test_compact_hydration_fails_closed_for_missing_or_wrong_sources():
+    metadata = {STORAGE_KEY: ["lineage"], "normalized_ref": {"normalized_ref_id": "ref-1"}}
+    with pytest.raises(ValueError, match="source"):
+        hydrate_metadata(metadata, None)
+    with pytest.raises(ValueError, match="identity"):
+        hydrate_metadata(metadata, _ref(id="wrong-ref"))
+    with pytest.raises(ValueError, match="source"):
+        hydrate_metadata({**metadata, STORAGE_KEY: ["secret_field"]}, _ref())
+
+
+def test_compaction_never_removes_fields_from_another_ref():
+    old = {"normalized_ref": {"normalized_ref_id": "other-ref", "lineage": {"raw_object_id": "raw-1"}}}
+    assert compact_metadata(old, _ref()) == (old, ())
+
+
+def test_compaction_reconciles_json_type_differences_to_canonical_value():
+    ref = _ref(quality={"admitted": True})
+    old = {"normalized_ref": {"normalized_ref_id": ref.id, "quality": {"admitted": 1}}}
+    compact, fields = compact_metadata(old, ref)
+    assert fields == ("quality",)
+    assert hydrate_metadata(compact, ref)["normalized_ref"]["quality"]["admitted"] is True
+
+
+def test_compaction_requires_available_canonical_copy():
+    ref = _ref(lineage=None)
+    old = {"normalized_ref": {"normalized_ref_id": ref.id, "lineage": {"raw_object_id": "raw-1"}}}
+    assert compact_metadata(old, ref) == (old, ())
+
+
+def test_hydration_refreshes_asset_governance_mirrors_without_changing_trace_identity():
+    ref = _ref(governance={"classification": "industry_regulation_standard", "level": "L3", "tags": [], "org_scope": ["current"]})
+    old = {
+        "asset": {"asset_id": "asset-1", "asset_version_id": "ver-1",
+                  "classification": None, "level": "L2", "tags": ["old"], "org_scope": ["old"]},
+        "normalized_ref": {"normalized_ref_id": ref.id, "governance": {"level": "L2"}},
+    }
+    compact, _ = compact_metadata(old, ref)
+    restored = hydrate_metadata(compact, ref)
+    assert restored["asset"] == {"asset_id": "asset-1", "asset_version_id": "ver-1", **ref.governance}
+    assert old["asset"]["level"] == "L2"

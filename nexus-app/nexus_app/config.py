@@ -207,6 +207,9 @@ class Settings(BaseSettings):
         alias="DEFAULT_EMBEDDING_DISTANCE_METRIC",
     )
     embedding_batch_size: int = Field(default=32, alias="EMBEDDING_BATCH_SIZE")
+    pgvector_exact_candidate_limit: int = Field(
+        default=1000, ge=0, le=10000, alias="PGVECTOR_EXACT_CANDIDATE_LIMIT",
+    )
     embedding_timeout: float = Field(default=60.0, alias="EMBEDDING_TIMEOUT")
     litellm_embedding_model_alias: str | None = Field(
         default=None,

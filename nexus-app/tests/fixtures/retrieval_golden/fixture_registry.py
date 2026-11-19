@@ -973,7 +973,9 @@ def seed_major_offering_api_sample(session) -> dict[str, Any]:
             "school_system": "3",
             "remark": None,
         }
-        rows = [record, {**record, "school_system": "4", "remark": "重复项不覆盖"}]
+        # A duplicate must retain the same study duration; the current domain
+        # identity intentionally preserves otherwise identical 3/4-year facts.
+        rows = [record, {**record, "school_system": "3", "remark": "重复项不覆盖"}]
 
         def respond(request):
             assert "authorization" not in request.headers

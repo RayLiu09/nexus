@@ -16,6 +16,7 @@ from nexus_app.index.collection_resolver import (
     resolve_collection,
 )
 from nexus_app.index.embedding_client import EmbeddingClientProtocol, create_embedding_client
+from nexus_app.index.semantic_policy import STRUCTURED_ONLY_ASSET_TYPES, supports_semantic_index
 from nexus_app.models import (
     AssetVersion,
     KnowledgeChunk,
@@ -51,6 +52,11 @@ def index_chunks_pgvector(
             failed_chunk_count=0,
             collection_keys=[],
         )
+
+    if not supports_semantic_index(normalized_ref) or any(
+        chunk.knowledge_type_code in STRUCTURED_ONLY_ASSET_TYPES for chunk in chunks
+    ):
+        raise ValueError("structured-only assets do not admit semantic vector indexing")
 
     current_settings = settings or get_settings()
     client = embedding_client or create_embedding_client(current_settings)

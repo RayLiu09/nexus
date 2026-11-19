@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+from sqlalchemy import event, func, select
+
 from nexus_app import models
 from nexus_app.config import Settings
 from nexus_app.enums import (
@@ -18,6 +21,10 @@ from nexus_app.enums import (
 from nexus_app.index.embedding_client import EmbeddingResult
 from nexus_app.index.pgvector_search import PgvectorSearchAdapter
 from nexus_app.index.query_embedding_cache import QueryEmbeddingCache
+from nexus_app.index.projection_maintenance import compact_batch, cleanup_retired_batch
+from nexus_app.index.collection_resolver import build_vector_metadata, resolve_collection
+from nexus_app.index.vector_metadata import STORAGE_KEY, hydrate_metadata
+from nexus_app.enums import IndexManifestStatus
 
 
 class _StaticEmbeddingClient:
@@ -263,3 +270,146 @@ def test_pgvector_search_reuses_embedding_for_repeated_query(session):
 
     assert first == second
     assert embedding_client.calls == 1
+
+
+@pytest.mark.parametrize("field,value", [
+    ("status", "disabled"), ("embedding_model", "another-model"),
+    ("embedding_dimension", 1024), ("distance_metric", "l2"),
+    ("normalized_type", "record"), ("asset_domain_type", "structured_record_table"),
+])
+def test_collection_admission_applies_to_broad_search_before_embedding(session, field, value):
+    _seed_search_rows(session)
+    collection = session.get(models.VectorCollection, "vc-search")
+    setattr(collection, field, value)
+    session.commit()
+
+    class NeverEmbed:
+        def embed_texts(self, *args, **kwargs):
+            raise AssertionError("ineligible collections must not call embedding")
+
+    adapter = PgvectorSearchAdapter(settings=_settings(), embedding_client=NeverEmbed())
+    assert adapter.search(session, query="query", knowledge_type_code=None) == []
+
+
+def test_collection_routing_keeps_ref_chunk_intersection(session):
+    _seed_search_rows(session)
+    adapter = PgvectorSearchAdapter(settings=_settings(), embedding_client=_StaticEmbeddingClient([1, 0, 0]))
+    assert adapter.search(session, query="query", knowledge_type_code="course_textbook",
+                          normalized_ref_ids=["another-ref"], similarity_threshold=0) == []
+    assert adapter.search(session, query="query", knowledge_type_code="course_textbook",
+                          chunk_ids=["chunk-search-2"], similarity_threshold=0) == []
+    assert adapter.search(session, query="query", knowledge_type_code="structured_record_table",
+                          similarity_threshold=0) == []
+
+
+def test_reclassified_refs_are_retrievable_from_legacy_collection_without_widening_scope(session):
+    _seed_search_rows(session)
+    ref = session.get(models.NormalizedAssetRef, "ref-search")
+    ref.governance = {"classification": "industry_regulation_standard", "level": "L2"}
+    collection = session.get(models.VectorCollection, "vc-search")
+    collection.asset_domain_type = "industry_research_kb"
+    for row in session.scalars(select(models.KnowledgeEmbeddingPgvector)):
+        row.knowledge_type_code = "industry_research_kb"
+        row.asset_domain_type = "industry_research_kb"
+    session.commit()
+    adapter = PgvectorSearchAdapter(settings=_settings(), embedding_client=_StaticEmbeddingClient([1, 0, 0]))
+    hits = adapter.search(session, query="规范", knowledge_type_code="industry_regulation_standard",
+                          similarity_threshold=0.7)
+    assert [hit["normalized_ref_id"] for hit in hits] == [ref.id]
+    assert adapter.search(session, query="规范", knowledge_type_code="industry_policy", similarity_threshold=0) == []
+    assert adapter.search(session, query="规范", knowledge_type_code="industry_regulation_standard",
+                          normalized_ref_ids=["different-ref"], similarity_threshold=0) == []
+    assert adapter.search(session, query="规范", knowledge_type_code="industry_research_kb", similarity_threshold=0.7)
+
+
+def _legacy_metadata(session):
+    ref = session.get(models.NormalizedAssetRef, "ref-search")
+    ref.lineage = {"raw_object_id": "raw-search", "processing": ["retained source " * 1000]}
+    chunk = session.get(models.KnowledgeChunk, "chunk-search-1")
+    resolution = resolve_collection(ref, chunk, embedding_model_alias="bge-m3:latest", embedding_dimension=3)
+    metadata = build_vector_metadata(ref, chunk, resolution,
+                                     asset_id="asset-search", asset_version_id="ver-search")
+    metadata["custom_legacy_key"] = {"keep": True}
+    row = session.get(models.KnowledgeEmbeddingPgvector, "emb-search-1")
+    row.vector_metadata = metadata
+    session.commit()
+    return metadata
+
+
+def test_metadata_backfill_preserves_search_response_sources_and_audit(session):
+    _seed_search_rows(session)
+    legacy = _legacy_metadata(session)
+    adapter = PgvectorSearchAdapter(settings=_settings(), embedding_client=_StaticEmbeddingClient([1, 0, 0]))
+    before = adapter.search(session, query="课程", knowledge_type_code="course_textbook")
+    dry_run = compact_batch(session)
+    assert dry_run["changed"] == 1
+    assert STORAGE_KEY not in session.get(models.KnowledgeEmbeddingPgvector, "emb-search-1").vector_metadata
+    result = compact_batch(session, apply=True, trace_id="test-compact")
+    session.commit()
+    assert result["json_bytes_after"] < result["json_bytes_before"] / 5
+    assert session.get(models.NormalizedAssetRef, "ref-search").lineage == legacy["normalized_ref"]["lineage"]
+
+    queries = []
+    def record_query(conn, cursor, statement, parameters, context, executemany):
+        queries.append(statement)
+    event.listen(session.bind, "before_cursor_execute", record_query)
+    try:
+        after = adapter.search(session, query="课程", knowledge_type_code="course_textbook")
+    finally:
+        event.remove(session.bind, "before_cursor_execute", record_query)
+    assert before == after
+    assert after[0]["metadata"] == legacy
+    assert len([q for q in queries if q.startswith("SELECT normalized_asset_ref.id,")]) == 1
+    assert compact_batch(session, apply=True)["changed"] == 0
+    assert session.scalar(select(func.count()).select_from(models.AuditLog)) == 1
+
+
+def test_metadata_backfill_reconciles_divergent_legacy_fields(session):
+    _seed_search_rows(session)
+    legacy = _legacy_metadata(session)
+    ref = session.get(models.NormalizedAssetRef, "ref-search")
+    ref.quality = {"quality_level": "newer-canonical-value"}
+    session.commit()
+    result = compact_batch(session, apply=True)
+    session.commit()
+    assert result["mismatched_fields"] == 1
+    stored = session.get(models.KnowledgeEmbeddingPgvector, "emb-search-1").vector_metadata
+    assert "quality" not in stored["normalized_ref"]
+    assert "quality" in stored[STORAGE_KEY]
+    assert hydrate_metadata(stored, ref)["normalized_ref"]["quality"] == ref.quality
+
+
+def test_retired_cleanup_preserves_assets_domain_sources_and_active_vectors(session):
+    _seed_search_rows(session)
+    retired = models.VectorCollection(
+        id="retired-collection", collection_key="structured_record_table.record.model.v1",
+        asset_domain_type="structured_record_table", normalized_type="record",
+        embedding_model="bge-m3:latest", embedding_dimension=3, distance_metric="cosine",
+    )
+    session.add(retired)
+    row = session.get(models.KnowledgeEmbeddingPgvector, "emb-search-2")
+    row.collection_id = retired.id
+    row.knowledge_type_code = "structured_record_table"
+    row.normalized_type = "record"
+    session.add_all([
+        models.IndexManifest(normalized_ref_id="ref-search", knowledge_type_code="structured_record_table",
+                             index_status=IndexManifestStatus.INDEXED, chunk_count=1),
+        models.IndexManifest(normalized_ref_id="ref-search", knowledge_type_code="course_textbook",
+                             index_status=IndexManifestStatus.INDEXED, chunk_count=1),
+    ])
+    session.commit()
+    assert cleanup_retired_batch(session)["vectors"] == 1
+    assert session.get(models.KnowledgeEmbeddingPgvector, "emb-search-2") is not None
+    result = cleanup_retired_batch(session, apply=True, trace_id="test-retirement")
+    session.commit()
+    assert result["vectors"] == 1 and result["collections"] == 1
+    assert session.get(models.VectorCollection, retired.id) is None
+    assert session.scalar(select(func.count()).select_from(models.KnowledgeChunk)) == 2
+    assert session.get(models.NormalizedAssetRef, "ref-search") is not None
+    assert session.get(models.Asset, "asset-search") is not None
+    manifests = {m.knowledge_type_code: m for m in session.scalars(select(models.IndexManifest))}
+    assert manifests["structured_record_table"].index_status == IndexManifestStatus.STALE
+    assert manifests["course_textbook"].index_status == IndexManifestStatus.INDEXED
+    again = cleanup_retired_batch(session, apply=True)
+    assert again["vectors"] == 0 and again["collections"] == 0
+    assert session.scalar(select(func.count()).select_from(models.AuditLog)) == 1

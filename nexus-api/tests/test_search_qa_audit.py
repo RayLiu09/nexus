@@ -203,6 +203,88 @@ def _auth_headers(caller_client_id: str) -> dict:
 
 
 class TestSearchEndpoint:
+    @pytest.mark.parametrize("classification_added_after_index", [False, True])
+    @pytest.mark.parametrize("level", ["L2", "L3"])
+    def test_compaction_preserves_full_search_payload_and_source_trace(
+        self, app, session, monkeypatch, classification_added_after_index, level,
+    ):
+        from copy import deepcopy
+
+        from nexus_app.index.collection_resolver import build_vector_metadata, resolve_collection
+        from nexus_app.index.projection_maintenance import compact_batch
+        from nexus_app.index.vector_metadata import STORAGE_KEY
+        from nexus_api.api import open as open_api
+        from nexus_api.auth import require_api_caller
+        from nexus_api.public_query_tools import safe_data
+
+        _seed_pgvector_search_chain(session, n=1)
+        caller = _seed_caller(session)
+        ref = session.get(models.NormalizedAssetRef, "search_ref")
+        chunk = session.get(models.KnowledgeChunk, "search_chunk_1")
+        row = session.get(models.KnowledgeEmbeddingPgvector, "search_embedding_1")
+        ref.governance = {
+            **ref.governance, "level": level,
+            "classification_name": "课程教材", "classification_confidence": 0.96,
+        }
+        resolution = resolve_collection(
+            ref, chunk, embedding_model_alias="bge-m3:latest", embedding_dimension=3,
+        )
+        original = build_vector_metadata(
+            ref, chunk, resolution, asset_id="search_asset", asset_version_id="search_version",
+        )
+        if classification_added_after_index:
+            # Reproduce the observed historical snapshot: only the canonical
+            # ref has the subsequently added classification fields.
+            for field in ("classification", "classification_name", "classification_confidence"):
+                original["normalized_ref"]["governance"].pop(field)
+            # build_vector_metadata exposes the ORM dictionaries; keep the
+            # historical snapshot and canonical value independently owned.
+            ref.governance = {
+                "level": level, "classification": "industry_regulation_standard",
+                "classification_name": "行业法规标准", "classification_confidence": 0.96,
+            }
+        row.vector_metadata = deepcopy(original)
+        session.commit()
+        app.dependency_overrides[require_api_caller] = lambda: caller
+        monkeypatch.setattr(open_api, "get_pgvector_search_adapter", lambda: PgvectorSearchAdapter(
+            settings=_search_settings(), embedding_client=_StaticEmbeddingClient([1.0, 0.0, 0.0]),
+        ))
+
+        with TestClient(app) as client:
+            before_response = client.get("/open/v1/search?q=trace&kb=textbook_kb&top_k=1")
+            assert before_response.status_code == 200
+            before = before_response.json()["data"]["results"]
+            assert len(before) == 1
+
+            result = compact_batch(session, batch_size=10, apply=True, trace_id="compact-trace-test")
+            session.commit()
+            assert result["changed"] == 1
+            stored = session.get(models.KnowledgeEmbeddingPgvector, row.id).vector_metadata
+            assert "lineage" in stored[STORAGE_KEY]
+            assert "governance" in stored[STORAGE_KEY]
+
+            after_response = client.get("/open/v1/search?q=trace&kb=textbook_kb&top_k=1")
+            assert after_response.status_code == 200
+            after = after_response.json()["data"]["results"]
+
+        expected = deepcopy(before)
+        expected[0]["metadata"]["normalized_ref"]["governance"] = ref.governance
+        for field in ("classification", "level", "tags", "org_scope"):
+            if field in ref.governance:
+                expected[0]["metadata"]["asset"][field] = ref.governance[field]
+        assert after == expected
+        assert after[0]["raw_object_id"] == "search_raw"
+        assert after[0]["raw_object_uri"] == "s3://nexus-raw/search/source.pdf"
+        assert after[0]["version_id"] == "search_version"
+        assert after[0]["asset_id"] == "search_asset"
+        assert after[0]["normalized_ref_id"] == "search_ref"
+        assert after[0]["nexus_chunk_id"] == "search_chunk_1"
+        assert after[0]["source_block_ids"] == ["b1"]
+        assert after[0]["locator"] == {"page_start": 1, "page_end": 1}
+        assert safe_data(after) == safe_data(expected)
+        if level == "L3":
+            assert safe_data(after)[0]["metadata"]["normalized_ref"]["restricted"] is True
+
     def test_search_returns_results_with_source_citation(self, app, session, monkeypatch):
         _seed_pgvector_search_chain(session, n=2)
         caller = _seed_caller(session)

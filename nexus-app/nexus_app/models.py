@@ -1541,6 +1541,7 @@ class KnowledgeEmbeddingPgvector(TimestampMixin, Base):
         Index("ix_kep_collection_model", "collection_id", "embedding_model"),
         Index("ix_kep_collection_domain", "collection_id", "asset_domain_type"),
         Index("ix_kep_normalized_ref_id", "normalized_ref_id"),
+        Index("ix_kep_ref_collection_route", "normalized_ref_id", "collection_id", "knowledge_type_code"),
         Index("ix_kep_asset_version_id", "asset_version_id"),
         Index("ix_kep_filter_common", "asset_domain_type", "content_type", "language"),
     )

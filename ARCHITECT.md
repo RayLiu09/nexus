@@ -535,6 +535,21 @@ Migration `20261023_0121` creates the new table and retires dedicated major-dist
   they store logical collectors, embeddings, vector metadata, and filter-ready
   columns anchored by `knowledge_chunk`; they do not own asset master data,
   governance, permissions, audit authority, or chunk semantics.
+- The pgvector adapter resolves eligible active collectors before ranking,
+  including model/dimension/distance isolation and legacy collectors containing
+  reclassified normalized assets. Ref/chunk scopes remain mandatory intersections.
+  A bounded candidate probe selects exact ranking for at most
+  `PGVECTOR_EXACT_CANDIDATE_LIMIT` candidates (default 1000); larger pools retain
+  HNSW-compatible ordering with collection membership inside the SQL filter.
+  Vector metadata references normalized-ref governance, quality and lineage
+  through a private field marker; batch hydration restores the public shape
+  using current canonical values, discarding obsolete vector snapshots.
+  Chunk locators, source blocks, version and raw-object links retain their
+  existing owners. Explicitly structured-only projections are excluded from
+  semantic indexing/search; narrative complements remain eligible.
+  A covering B-tree on `(normalized_ref_id, collection_id, knowledge_type_code)`
+  supports canonical-domain resolution of legacy collectors without reading
+  their embedding or metadata payloads.
 - Course textbooks: `course_textbook` is the master domain projection and
   `task_outline_node` stores the project/task/step/artifact tree for
   training-operation textbooks. The master row also gates theory/hybrid

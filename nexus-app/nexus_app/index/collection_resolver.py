@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from nexus_app.models import KnowledgeChunk, NormalizedAssetRef
+from nexus_app.index.vector_metadata import compact_metadata
 
 DEFAULT_METADATA_SCHEMA_VERSION = "v1"
 
@@ -97,13 +98,13 @@ def build_vector_projection(
     if not resolved_asset_id:
         raise ValueError("asset_id is required when normalized_ref.version is not loaded")
 
-    metadata = build_vector_metadata(
+    metadata, _ = compact_metadata(build_vector_metadata(
         normalized_ref,
         chunk,
         resolution,
         asset_id=resolved_asset_id,
         asset_version_id=resolved_asset_version_id,
-    )
+    ), normalized_ref)
     columns = {
         "collection_key": resolution.collection_key,
         "chunk_id": chunk.id,

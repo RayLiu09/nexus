@@ -373,6 +373,11 @@ Root documents are distilled implementation contracts:
 - Immutable business-expert governance review: experts finalize classification, level, structured tags, quality disposition, and org scope without overwriting AI evidence; admissible conclusions resume only knowledge chunking/indexing.
 - Configurable governance rules and decision tracking.
 - NEXUS-owned knowledge chunk construction and adapter-based semantic retrieval integration; P0 defaults to PostgreSQL pgvector for text chunk embeddings, with `vector_collection` separating logical collectors by asset domain type and `knowledge_embedding_pgvector` storing chunk-anchored embedding projections. The concrete search/index backend remains decoupled from the domain model and RAGFlow is no longer the platform's semantic retrieval baseline.
+- pgvector retrieval routes by eligible collectors, retains canonical-domain access to reclassified legacy projections, and uses exact ranking for bounded small pools while preserving HNSW for larger pools. Compact metadata hydrates current normalized governance/quality/lineage in batches and preserves the source citation contract. Structured-only retired vector projections have a bounded, audited cleanup path. See [the maintenance task package](docs/task-packages/wk_pgvector_collection_metadata_optimization_task_package.md) for rollout and index restoration.
+  Apply migration `20261118_0133` with the API/Worker upgrade for the covering
+  collection-route index; it also recognizes the verified index installed by
+  the authorized database maintenance. The maintenance does not stamp Alembic
+  revisions or execute unrelated migrations.
 - Course textbook Task Outline processing for D4 teaching materials:
   training-operation textbooks are detected from normalized documents,
   persisted as profile/tree rows, projected into unified `knowledge_chunk`

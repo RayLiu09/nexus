@@ -177,6 +177,22 @@ def test_index_chunks_pgvector_is_idempotent_on_retry(session):
     assert stored.content_hash != first_content_hash
 
 
+@pytest.mark.parametrize("classification,normalized_type", [
+    ("structured_record_table", NormalizedType.RECORD),
+    ("competency_analysis", NormalizedType.DOCUMENT),
+    ("enterprise", NormalizedType.DOCUMENT),
+])
+def test_structured_only_indexing_is_rejected_before_embedding(session, classification, normalized_type):
+    ref, chunks = _seed_ref_and_chunks(session, chunk_count=1)
+    ref.governance = {"classification": classification}
+    ref.normalized_type = normalized_type
+    client = _RecordingEmbeddingClient(dimension=8)
+    with pytest.raises(ValueError, match="structured-only"):
+        index_chunks_pgvector(session, ref, chunks, settings=_settings(), embedding_client=client)
+    assert client.calls == []
+    assert session.scalar(select(func.count()).select_from(models.VectorCollection)) == 0
+
+
 class _FailingEmbeddingClient:
     def embed_texts(self, texts, *, model_alias=None, expected_dimension=None):
         raise EmbeddingClientError("simulated failure")
