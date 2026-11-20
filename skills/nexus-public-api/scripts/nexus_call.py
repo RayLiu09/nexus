@@ -51,7 +51,14 @@ LARGE_RESPONSE_FIELDS = {
     "text",
 }
 LARGE_STRUCTURED_RESPONSE_FIELDS = {"record_body"}
-RESPONSE_MODES = ("full", "summary", "content", "digest")
+RESPONSE_MODES = ("full", "summary", "content", "digest", "answer")
+# Answer context is separate from the canonical, lazily resolved evidence.
+ANSWER_EVIDENCE_FIELDS = {
+    "metadata", "lineage", "locator", "source_block_ids", "primary_block_ids",
+    "evidence_block_ids", "evidence", "evidences", "evidence_spans",
+    "source_bindings", "evidence_bindings", "raw_object_uri", "object_uri", "image_uris",
+    "download_url_endpoint", "knowledge_outline", "match_text",
+}
 API_KEY_SOURCES = ("env", "windows-user", "windows-machine")
 
 
@@ -135,7 +142,11 @@ def command_route(routes_doc: dict, route_name: str | None, resource_type: str |
         "knowledge_types": route.get("knowledge_types", {}),
         "default_limits": route.get("default_limits", {}),
         "supports_batch_evidence": bool(route.get("supports_batch_evidence", False)),
-        "allow_external_search": bool(route.get("allow_external_search", False)),
+        "allow_external_search": bool(
+            route.get("allow_external_search", False) or routes_doc.get("external_fallback")
+        ),
+        "recommended_response_mode": "answer",
+        "external_fallback": routes_doc.get("external_fallback", {}),
     }
     print(json.dumps(output, ensure_ascii=False, indent=2))
     return 0
@@ -393,12 +404,22 @@ def _digest_search_hit(item):
             "primary_block_ids",
             "evidence_block_ids",
             "knowledge_outline",
-            "metadata",
         )
         if key in item
     }
     if "locator" in item:
         result["locator"] = _digest_locator(item["locator"])
+    # Full metadata/lineage is available via normalized-ref/chunk reads. Keeping
+    # arbitrary metadata here can repeat hundreds of image URIs per hit.
+    metadata = item.get("metadata")
+    if isinstance(metadata, dict):
+        result["metadata"] = {
+            key: {field: _digest_generic(value[field])
+                  for field in ("id", "title", "source_type", "content_type", "language")
+                  if field in value}
+            for key in ("asset", "normalized_ref")
+            if isinstance(value := metadata.get(key), dict)
+        }
     preview, truncated, chars = _digest_text(item.get("snippet"), 500)
     if item.get("snippet") is not None:
         result["snippet"] = preview
@@ -581,6 +602,119 @@ def response_digest(value, tool: str | None, max_content_chars: int):
     return _digest_generic(value)
 
 
+def _answer_value(value, content_limit: int):
+    """Retain business facts and bounded text; defer bulky source evidence."""
+    if isinstance(value, dict):
+        result = {}
+        for key, item in value.items():
+            if key in result:
+                continue
+            if key in ANSWER_EVIDENCE_FIELDS:
+                continue
+            if isinstance(item, str) and len(item) > content_limit and not (
+                key == "id" or key.endswith(("_id", "_url")) or key == "url"
+            ):
+                result[key] = item[:content_limit]
+                result[f"{key}_truncated"] = True
+                result[f"{key}_chars"] = len(item)
+            else:
+                result[key] = _answer_value(item, content_limit)
+        return result
+    if isinstance(value, list):
+        return [_answer_value(item, content_limit) for item in value]
+    return value
+
+
+def response_answer(value, tool: str | None, max_content_chars: int):
+    """Answer-oriented local view; IDs are continuation handles, not full citations."""
+    result = _answer_value(value, max_content_chars)
+    if not isinstance(result, dict):
+        return result
+    if tool == "search_evidence" and isinstance(value.get("data"), dict):
+        hits = value["data"].get("results")
+        if isinstance(hits, list):
+            projected = []
+            for hit in hits:
+                if not isinstance(hit, dict):
+                    continue
+                item = {key: hit[key] for key in (
+                    "nexus_chunk_id", "chunk_id", "id", "normalized_ref_id",
+                    "score", "title", "knowledge_type_code",
+                ) if key in hit}
+                metadata = hit.get("metadata")
+                if not item.get("title") and isinstance(metadata, dict):
+                    for section in ("normalized_ref", "asset"):
+                        section_value = metadata.get(section)
+                        if isinstance(section_value, dict) and section_value.get("title"):
+                            item["title"] = section_value["title"]
+                            break
+                text = hit.get("content") or hit.get("snippet")
+                if isinstance(text, str):
+                    item["content"] = text[:max_content_chars]
+                    # A server answer view may already have bounded the text.
+                    # Preserve its original size/continuation signal.
+                    chars = hit.get("content_chars")
+                    item["content_chars"] = max(chars, len(text)) if isinstance(chars, int) else len(text)
+                    item["content_truncated"] = bool(hit.get("content_truncated")) or len(text) > max_content_chars
+                projected.append(_answer_value(item, max_content_chars))
+            result["data"]["results"] = projected
+    if tool in {"search_web_search", "search_firecrawl"}:
+        result["source_kind"] = "web"
+        # DeepSeek exposes publisher/date inside provider metadata, rather than
+        # top-level fields. Preserve actual attribution without forwarding its
+        # arbitrary diagnostic payload or inventing missing dates.
+        raw_data = value.get("data")
+        projected_data = result.get("data")
+        if isinstance(raw_data, dict) and isinstance(projected_data, dict):
+            for field in ("results", "items"):
+                raw_items, projected_items = raw_data.get(field), projected_data.get(field)
+                if isinstance(raw_items, list) and isinstance(projected_items, list):
+                    for raw, item in zip(raw_items, projected_items):
+                        if not isinstance(raw, dict) or not isinstance(item, dict):
+                            continue
+                        metadata = raw.get("metadata")
+                        if isinstance(metadata, dict):
+                            item["metadata"] = _answer_value({
+                                key: metadata[key] for key in (
+                                    "PublishTime", "SiteName", "AuthInfoLevel", "published_at",
+                                    "published_date", "publish_date", "date", "publisher", "site_name",
+                                ) if key in metadata
+                            }, max_content_chars)
+    elif tool in {"run_query_router_v2_open", "qa_knowledge"} or tool is None:
+        result["source_kind"] = "mixed_or_unspecified"
+    else:
+        result["source_kind"] = "platform"
+    return result
+
+
+def _shrink_answer(value, list_limit: int, text_limit: int):
+    """Make any sampled arrays explicit; retain totals, IDs and web URLs."""
+    if isinstance(value, dict):
+        result = {}
+        for key, item in value.items():
+            if key in result:
+                continue
+            if isinstance(item, list):
+                result[key] = [_shrink_answer(v, list_limit, text_limit) for v in item[:list_limit]]
+                if len(item) > list_limit:
+                    result[f"{key}_returned_count"] = list_limit
+                    result[f"{key}_total_count"] = len(item)
+                    result[f"{key}_truncated"] = True
+            elif isinstance(item, str) and len(item) > text_limit and not (
+                key == "id" or key.endswith(("_id", "_url")) or key == "url"
+            ):
+                result[key] = item[:text_limit]
+                result[f"{key}_chars"] = value.get(f"{key}_chars", len(item))
+                result[f"{key}_truncated"] = True
+            else:
+                result[key] = _shrink_answer(item, list_limit, text_limit)
+        return result
+    if isinstance(value, list):
+        # Root arrays are wrapped by response_answer's normal API envelopes.
+        return [_shrink_answer(item, list_limit, text_limit) for item in value]
+    return value
+
+
 def _bounded_output_fallback(value, mode: str, original_chars: int, max_output_chars: int):
     meta = _digest_meta(value)
     data = value.get("data") if isinstance(value, dict) else None
@@ -616,6 +750,8 @@ def render_response(value, mode: str, max_content_chars: int,
         projected = response_content(value, max_content_chars)
     elif mode == "digest":
         projected = response_digest(value, tool, max_content_chars)
+    elif mode == "answer":
+        projected = response_answer(value, tool, max_content_chars)
     else:
         projected = value
     rendered = json.dumps(
@@ -630,6 +766,35 @@ def render_response(value, mode: str, max_content_chars: int,
     compact_requested = json.dumps(projected, ensure_ascii=False, separators=(",", ":"))
     if len(compact_requested) <= max_output_chars:
         return compact_requested
+
+    if mode == "answer":
+        # Shrink the answer view, never fall back to raw evidence metadata.
+        # Course lists often repeat long content/tags per source. Prefer the
+        # complete name/type directory before reducing the number of records.
+        data = projected.get("data") if isinstance(projected, dict) else None
+        if tool == "query_standard_courses" and isinstance(data, list):
+            directory = {
+                **projected,
+                "data": [{key: row[key] for key in ("id", "course_name", "course_type") if key in row}
+                         if isinstance(row, dict) else row for row in data],
+                "truncated_by_output_budget": True,
+                "projection": "course_directory",
+                "omitted_fields": "Course content, tags, hours and context; read get_standard_course by id when needed.",
+                "original_chars": len(rendered),
+            }
+            compact = json.dumps(directory, ensure_ascii=False, separators=(",", ":"))
+            if len(compact) <= max_output_chars:
+                return compact
+        for list_limit, text_limit in ((200, 1000), (100, 400), (50, 200),
+                                       (20, 160), (10, 120), (5, 100), (3, 80), (1, 60)):
+            candidate = _shrink_answer(projected, list_limit, text_limit)
+            if isinstance(candidate, dict):
+                candidate["truncated_by_output_budget"] = True
+                candidate["original_chars"] = len(rendered)
+            compact = json.dumps(candidate, ensure_ascii=False, separators=(",", ":"))
+            if len(compact) <= max_output_chars:
+                return compact
+        return _bounded_output_fallback(projected, mode, len(rendered), max_output_chars)
 
     if mode != "digest":
         digest = response_digest(value, tool, max_content_chars)
@@ -937,6 +1102,11 @@ class HttpConnectionPool:
             connection.request(method, target, body=body, headers=headers)
             response = connection.getresponse()
             response_body = response.read()
+            if response.status >= 400 or response.will_close:
+                # Error middleware/proxies may close after sending a complete
+                # response without a Connection header. Don't reuse that socket.
+                # Surface the original error; do not replay any request.
+                self.close_key(key)
             return response.status, dict(response.getheaders()), response_body
         except Exception:
             self.close_key(key)
@@ -1395,7 +1565,7 @@ def main() -> int:
     serve_parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
     serve_parser.add_argument("--allow-ingest", action="store_true",
                               help="Permit explicit auto_ingest=true on external search")
-    add_output_arguments(serve_parser, "summary", include_compact=False)
+    add_output_arguments(serve_parser, "answer", include_compact=False)
     serve_parser.add_argument("--no-validate", action="store_true",
                               help="Skip local JSON Schema validation")
     serve_parser.add_argument("--trace-id", help="Use one X-Trace-ID for the session")

@@ -1,0 +1,101 @@
+[
+  {
+    "ok": true,
+    "tool": "query_standard_courses",
+    "status": 200,
+    "trace_id": "slice1-course-directory-final-1",
+    "elapsed_ms": 59.2,
+    "response_bytes": 228658,
+    "response_mode": "answer",
+    "label": "course-directory-final",
+    "projected_bytes": 7195,
+    "projected_chars": 6507,
+    "wall_ms": 136.01,
+    "source_kind": "platform",
+    "requested_budget": 12000,
+    "item_count": 66,
+    "total": 66,
+    "list_truncated": false,
+    "original_list_count": null,
+    "projection": "course_directory",
+    "evidence_locators_present": false
+  },
+  {
+    "ok": true,
+    "tool": "get_standard_course",
+    "status": 200,
+    "trace_id": "slice1-course-detail-on-demand-2",
+    "elapsed_ms": 18.3,
+    "response_bytes": 2377,
+    "response_mode": "answer",
+    "label": "course-detail-on-demand",
+    "projected_bytes": 1683,
+    "projected_chars": 1341,
+    "wall_ms": 18.7,
+    "source_kind": "platform",
+    "requested_budget": 12000,
+    "count": null,
+    "item_count": 0,
+    "total": null,
+    "auto_ingest": null,
+    "continuation_handles": [],
+    "has_useful_text": false,
+    "locator_present": false
+  },
+  {
+    "ok": true,
+    "tool": "search_evidence",
+    "status": 200,
+    "trace_id": "slice1-textbook-final-3",
+    "elapsed_ms": 696.6,
+    "response_bytes": 411313,
+    "response_mode": "answer",
+    "label": "textbook-final",
+    "projected_bytes": 2309,
+    "projected_chars": 1461,
+    "wall_ms": 697.97,
+    "source_kind": "platform",
+    "requested_budget": 8000,
+    "count": 3,
+    "item_count": 3,
+    "total": null,
+    "auto_ingest": null,
+    "continuation_handles": [
+      {
+        "nexus_chunk_id": "9eaab5fd-0330-44f2-8610-cc088d9cf7e7",
+        "normalized_ref_id": "408772b3-eba2-477c-a4c7-6642db38f1b8"
+      },
+      {
+        "nexus_chunk_id": "b22601e4-ceb2-433e-b6cd-7b8421ca8df2",
+        "normalized_ref_id": "67e24d67-8822-471e-acf1-02c4ea727711"
+      },
+      {
+        "nexus_chunk_id": "4d32d1dc-0f03-4847-853a-680a1c365690",
+        "normalized_ref_id": "408772b3-eba2-477c-a4c7-6642db38f1b8"
+      }
+    ],
+    "has_useful_text": true,
+    "locator_present": false
+  },
+  {
+    "ok": true,
+    "tool": "get_evidence_bundle",
+    "status": 200,
+    "trace_id": "slice1-citation-on-demand-4",
+    "elapsed_ms": 11.4,
+    "response_bytes": 1798,
+    "response_mode": "digest",
+    "label": "citation-on-demand",
+    "projected_bytes": 1569,
+    "projected_chars": 1031,
+    "wall_ms": 11.79,
+    "source_kind": null,
+    "requested_budget": 12000,
+    "item_count": 1,
+    "total": null,
+    "list_truncated": false,
+    "original_list_count": null,
+    "projection": null,
+    "evidence_locators_present": true
+  }
+]

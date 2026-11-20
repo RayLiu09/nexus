@@ -5,12 +5,12 @@ description: Call NEXUS public /open/v1 data tools (55 read-only tools across 16
 
 # NEXUS Public API
 
-通过 `/open/v1` 只读接口查询 NEXUS 资产中心公开数据。工具清单从公开 OpenAPI 生成，共 55 个工具、16 个资源标签；执行契约与参数 Schema 随 Skill 一起分发。
+通过 `/open/v1` 只读接口查询 NEXUS 资产中心公开数据。工具清单从公开 OpenAPI 生成，共55个工具、16个资源标签，覆盖17类可见资产入口；执行契约与参数Schema随Skill一起分发。
 
 - 检索路由：先运行 `route <route>` 或 `route --resource-type <type>`，只加载当前资产形态所需的最小工具集合。
 - 工具索引：仅在路由无法覆盖任务或需要探索时运行 `list`，不要凭记忆猜工具名。
 - 参数定义：陌生工具、Schema 版本变化或参数失败时用 `schema <tool>`；路由已列出的稳定工具不必每次重复读取 Schema。
-- 证据读取：先收集搜索结果中的 chunk/ref 标识，再用 `bundle --args-file` 一次性批量取证；默认摘要模式不会把全部正文带入 Agent 上下文。
+- 作答内容：常驻`serve`默认`answer`，保留业务事实、相关正文和最小续查ID，省略完整血缘/定位数组。先用已返回内容分析；需要核对原文或输出精确引用时才用`bundle`/章节读取，避免每次检索后固定取证。
 - 配置诊断：使用 `doctor` 查看密钥来源、base URL、工具数量、路由和生成资产一致性，不输出密钥值。
 - 执行器：`scripts/nexus_call.py`（仅 Python 标准库，无第三方依赖）。
 
@@ -44,7 +44,7 @@ python3 "$SKILL/scripts/nexus_call.py" call find_documents \
 # 4. 正式调用（输出响应 JSON；HTTP 状态与 trace_id 在 stderr）
 python3 "$SKILL/scripts/nexus_call.py" call find_documents \
   '{"query":{"resource_type":"industry_policy","pageSize":5}}' \
-  --response-mode digest --max-output-chars 12000
+  --response-mode answer --max-output-chars 12000
 
 # 5. 对搜索结果中的引用批量取证；refs.json 可是引用数组或 {"references":[...]} 对象
 python3 "$SKILL/scripts/nexus_call.py" bundle --args-file refs.json \
@@ -89,16 +89,16 @@ python3 "$SKILL/scripts/nexus_call.py" call find_documents \
 | `major-courses` | 院校课程统计 |
 | `external-search` | Firecrawl 与 DeepSeek 联网搜索 |
 
-只加载当前任务需要的标签，不要一次向模型传入全部 55 个工具。
+只加载当前任务需要的标签，不要一次向模型传入全部55个工具。
 
 ## 资产形态路由
 
 `assets/retrieval-routes.json` 是工具选择和知识类型映射的机器可读基线。`route` 输出只是一份选择提示，不能授予超出 Skill 或服务端权限的能力。
 
-- 文档、政策、报告、专业简介、教材和案例：使用 `document` 路由；先目录发现，再语义检索，最后批量解析证据。
+- 文档、政策、报告、专业简介、教材和案例：使用 `document` 路由；先目录/标签发现，再按内容需求读取相关正文或限定范围语义检索。已知业务标签足够表达问题时，优先指定`tag_type`、`tags`和`is_exact_matched=true`；多个条件须全部满足时用`tags_match=all`。标签只证明资料匹配，目录本身不能支持正文结论。精确标签不足才根据问题转语义标签/内容检索，不全局强制改写匹配模式。
 - 岗位、企业、园区、专业布点、职业大典、教学标准、培养方案和能力分析：优先使用对应结构化路由的 list/query/aggregate 工具，不用通用文档检索替代。
 - normalized ref、chunk、section 和图谱：必须先使用已返回的 ref 或节点锚点，再读取详情。
-- 外部搜索：只有内部证据不足或用户明确要求联网时使用 `external_search`，默认保持 `auto_ingest=false`。
+- 外部搜索：内部数据不足以支撑问题（零命中、只有标题、正文缺失、时效/覆盖不足）时可使用`external_search`，无需为了这次只读补充再询问用户；用户限定仅本地/平台或问题涉及敏感材料时遵守其边界。不要把500/503直接解释为库内无数据。只发送公开问题词，不向外传内部正文；默认保持`auto_ingest=false`。答复区分`【平台资产】`、`【联网搜索】`和模型的`【分析归纳】`，网络来源注明真实标题、URL及可用的发布/访问时间；不得编造日期、把网页称为已入库资产，或把检索摘要写成已核实全文。
 
 文档检索的知识类型必须遵循路由映射：`industry_policy`、`industry_report`、`sector_report` 使用 `kb=industry_research_kb`，`course_textbook` 使用 `kb=course_textbook`。路由输出中知识类型映射为空数组表示当前没有固化的语义索引，不要猜测 `kb`；先使用对应专用接口或报告数据缺口。
 
@@ -106,11 +106,15 @@ python3 "$SKILL/scripts/nexus_call.py" call find_documents \
 
 不要把第一页列表当作全量统计；需要数量或分布时使用对应的 aggregate 工具。
 
-`call` 保持完整 JSON 输出兼容性；需要控制上下文时使用 `--response-mode digest|summary|content`。`digest` 是工具感知的决策投影：文档目录保留 ref/version/domain/发布日期和有限 tags，检索保留 chunk/ref/score/locator，章节和证据保留 block ID、续读信息与有限正文。`summary` 不输出 `body_markdown`、`record_body` 或常见正文，`content` 按 `--max-content-chars` 截断长文本。`--max-output-chars` 超限时会依次尝试 compact、digest、summary，最终仍返回合法 JSON 并尽量保留 `meta.trace_id`。
+`call` 默认full保持完整JSON兼容；skill普通检索显式使用`--response-mode answer --max-output-chars 12000`，`serve`默认answer。`answer`保留有助作答的正文/业务字段、分页/总量/缺失值及最小续查ID，不返回完整metadata/lineage/locator；网络检索保留标题、URL和时间字段，并标记`source_kind=web`，普通平台工具标记platform；可能混合来源的服务端问答/路由标记mixed_or_unspecified，应继续核对其逐项来源。该标记表示取数通道，不保证事实正确。
+
+按需取证用`digest|content|full`：`digest`保留chunk/ref/locator和有限正文，但不重复完整metadata图片数组；`content`按`--max-content-chars`截断文本；`summary`省略常见正文。answer预算不足时逐级缩减正文及返回数组，标记`*_truncated`、`*_total_count`和`*_returned_count`，原始meta.total/sample_count保留。截断列表不能视为完整分布；需要全量分析时分页或使用聚合并分批处理。极小预算可能只保留错误/trace，应缩小查询范围。以上为HTTP读取后的本地投影，本地模式本身不减少服务端响应体或下载耗时。
+
+标准课程列表超预算时先尝试完整保留本页课程ID、名称和类型（`projection=course_directory`），再考虑抽样；这时正文、标签、学时等省略字段需按返回ID用`get_standard_course`读取，不能将未返回字段解释为缺失。本页完整也不等于所有分页完整。
 
 `serve` 从 stdin 读取 JSONL，每行格式为 `{"tool":"<name>","args":{"path":{},"query":{},"body":{}},"trace_id":"<optional>","response_mode":"<optional>","max_content_chars":2000,"max_output_chars":<optional>}`，每行返回一个带 `status`、`trace_id`、`elapsed_ms`、`response_bytes` 和实际 `response_mode` 的 JSON。它在同一 origin 内复用 HTTP/HTTPS 连接；可以预置多个独立调用，也可以交互式写入一行、读取结果后再写入依赖前序结果的一行。普通 `call` 仍是单次进程调用。
 
-执行器默认在本地按公开工具 Schema 校验请求，错误会在发起 HTTP 请求前返回字段路径；只有确认服务端 Schema 暂时领先于随 Skill 分发的产物时，才显式使用 `--no-validate`。trace、状态、耗时和响应字节数不会包含 API Key、请求参数或完整响应正文。
+执行器默认在本地按公开工具Schema校验请求，错误会在发起HTTP请求前返回字段路径；只有确认服务端Schema暂时领先于随Skill分发的产物时，才显式使用`--no-validate`。HTTP错误/连接关闭后丢弃连接，下一条请求重新连接；不自动重试，不掩盖原始失败。trace、状态、耗时和响应字节数不会包含API Key、请求参数或完整响应正文。
 
 ## 调用约定
 

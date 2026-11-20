@@ -1,15 +1,21 @@
 {
   "version": "1",
   "description": "Asset-shape routes for selecting the smallest NEXUS public API tool set.",
+  "external_fallback": {
+    "route": "external_search",
+    "when": "Internal content is insufficient, not merely uncited; preserve local-only constraints and report service errors separately.",
+    "auto_ingest": false,
+    "source_label_required": true
+  },
   "resource_type_routes": {
     "industry_policy": "document",
     "industry_report": "document",
     "sector_report": "document",
     "industry_regulation_standard": "document",
     "major_profile": "document",
-    "teaching_standard": "document",
+    "teaching_standard": "teaching_standards",
     "talent_demand_report": "document",
-    "talent_training_plan": "document",
+    "talent_training_plan": "training_plans",
     "competency_analysis": "document",
     "course_textbook": "document",
     "teaching_case": "document",
@@ -17,10 +23,14 @@
     "enterprise": "enterprises_parks",
     "industrial_park": "enterprises_parks",
     "major_offering": "major_offerings",
+    "major_distribution": "major_offerings",
     "occupation": "occupation_dictionary",
+    "occupation_dictionary": "occupation_dictionary",
     "teaching_standard_course": "teaching_standards",
+    "standard_course": "teaching_standards",
     "training_plan": "training_plans",
     "ability_analysis": "ability_analysis",
+    "occupational_ability_analysis": "ability_analysis",
     "knowledge_outline": "outline_graph",
     "task_outline": "outline_graph",
     "knowledge_graph": "outline_graph",
@@ -28,7 +38,7 @@
   },
   "routes": {
     "document": {
-      "description": "Discover available document assets, search indexed evidence, then resolve only the returned evidence.",
+      "description": "Prefer explicit exact tags when sufficient; retrieve useful answer content, resolving citations only on demand.",
       "resource_types": [
         "industry_policy",
         "industry_report",
@@ -94,7 +104,7 @@
     },
     "major_offerings": {
       "description": "List or aggregate structured major offerings; use the aggregate endpoint for counts and distributions.",
-      "resource_types": ["major_offering"],
+      "resource_types": ["major_offering", "major_distribution"],
       "tools": ["list_major_offerings", "aggregate_major_offerings"],
       "default_limits": {"page_size": 20, "aggregate_page_size": 100},
       "supports_batch_evidence": false,
@@ -102,7 +112,7 @@
     },
     "occupation_dictionary": {
       "description": "Query the occupation dictionary by its structured classification fields.",
-      "resource_types": ["occupation"],
+      "resource_types": ["occupation", "occupation_dictionary"],
       "tools": ["query_occupation_dictionary"],
       "default_limits": {"page_size": 20},
       "supports_batch_evidence": false,
@@ -110,7 +120,7 @@
     },
     "teaching_standards": {
       "description": "Query teaching-standard libraries and their structured course records.",
-      "resource_types": ["teaching_standard_course"],
+      "resource_types": ["teaching_standard_course", "teaching_standard", "standard_course"],
       "tools": [
         "query_teaching_standards",
         "get_teaching_standard",
@@ -123,7 +133,7 @@
     },
     "training_plans": {
       "description": "List and inspect structured talent-training plans and their course or capability graphs.",
-      "resource_types": ["training_plan"],
+      "resource_types": ["training_plan", "talent_training_plan"],
       "tools": [
         "list_open_talent_training_plans",
         "get_open_talent_training_plan",
@@ -137,7 +147,7 @@
     },
     "ability_analysis": {
       "description": "Inspect ability analyses, items, relations, and tasks through their structured record endpoints.",
-      "resource_types": ["ability_analysis"],
+      "resource_types": ["ability_analysis", "occupational_ability_analysis"],
       "tools": [
         "list_ability_analyses",
         "get_ability_analysis",

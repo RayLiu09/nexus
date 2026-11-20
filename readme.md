@@ -95,7 +95,16 @@ The generated directory contains Responses/Chat Completions definitions and HTTP
 bindings. Regenerate offline with
 `nexus-api/.venv/bin/python scripts/generate_public_function_tools.py`; append
 `--check` to verify drift. C/change-feed interfaces are outside this extension.
-The catalog covers all 16 visible resource types, including the read-only
+The [nexus-public-api skill](skills/nexus-public-api/SKILL.md) uses an
+answer-oriented local projection for ordinary retrieval (`serve` defaults to
+`answer`; one-shot `call` still defaults to `full`). It keeps useful content,
+business facts and continuation IDs, reading full citation evidence on demand.
+Known exact tags take precedence when sufficient. Missing internal content can
+be supplemented through the existing read-only web-search tools, with explicit
+platform/web attribution and `auto_ingest=false`. Console's web-search switch
+retains its own behavior. Local projection reduces model context.
+The executor discards failed pooled connections without automatic replay.
+The catalog covers all 17 visible resource types, including the read-only
 occupation dictionary and Ministry-synchronized major offerings. Retired
 major-distribution Pipeline B endpoints are excluded. Market jobs accept `region` on both list and aggregate; teaching standards accept
 `occupation` for source career orientation and expose `career_orientation` evidence.

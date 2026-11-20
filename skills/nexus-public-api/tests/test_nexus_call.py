@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import copy
+import http.client
 import io
 import json
 import os
@@ -53,6 +55,113 @@ def catalog_response():
 
 
 class ResponseProjectionTests(unittest.TestCase):
+    def test_answer_large_search_keeps_useful_content_and_lazy_handles(self):
+        value = {
+            "data": {"count": 3, "results": [{
+                "nexus_chunk_id": f"chunk-{i}", "normalized_ref_id": "ref-1",
+                "score": .9, "content": "协调营销计划、文案和设计。" * 300,
+                "snippet": "重复摘要", "locator": {"page_start": 2},
+                "source_block_ids": ["block-1"],
+                "metadata": {"normalized_ref": {
+                    "title": "视觉营销教材",
+                    "lineage": {"image_uris": [f"s3://bucket/{j}.png" for j in range(423)]},
+                }},
+            } for i in range(3)]},
+            "meta": {"trace_id": "trace-big-search"},
+        }
+        original = copy.deepcopy(value)
+        for budget in (8000, 12000):
+            with self.subTest(budget=budget):
+                text = nexus_call.render_response(value, "answer", 2000, budget, "search_evidence")
+                result = json.loads(text)
+                self.assertLessEqual(len(text), budget)
+                self.assertEqual(result["source_kind"], "platform")
+                self.assertEqual(len(result["data"]["results"]), 3)
+                for i, hit in enumerate(result["data"]["results"]):
+                    self.assertEqual(hit["nexus_chunk_id"], f"chunk-{i}")
+                    self.assertEqual(hit["normalized_ref_id"], "ref-1")
+                    self.assertIn("协调营销计划", hit["content"])
+                    self.assertEqual(hit["title"], "视觉营销教材")
+                    self.assertTrue(hit["content_truncated"])
+                    self.assertNotIn("metadata", hit)
+                    self.assertNotIn("locator", hit)
+                    self.assertNotIn("source_block_ids", hit)
+        self.assertEqual(value, original)
+        # Explicit evidence views keep the canonical locator; full is unchanged.
+        digest = nexus_call.response_digest(value, "search_evidence", 2000)
+        self.assertEqual(digest["data"]["results"][0]["locator"], {"page_start": 2})
+        self.assertNotIn("lineage", digest["data"]["results"][0]["metadata"]["normalized_ref"])
+        full = json.loads(nexus_call.render_response(value, "full", 2000, None, "search_evidence"))
+        self.assertEqual(full, original)
+
+    def test_answer_budget_marks_samples_and_preserves_aggregate_scope(self):
+        value = {"data": {
+            "sample_count": 17595, "missing_counts": {"education": 303},
+            "received_to": "2026-11-19T03:33:54Z",
+            "items": [{"id": f"row-{i}", "education": f"level-{i}", "count": i,
+                       "description": "课程内容" * 300, "content_truncated": False}
+                      for i in range(100)],
+        }, "meta": {"trace_id": "trace-stats", "total": 100, "page": 1, "page_size": 100}}
+        result = json.loads(nexus_call.render_response(value, "answer", 2000, 2000, "aggregate_market_jobs"))
+        data = result["data"]
+        self.assertEqual(data["sample_count"], 17595)
+        self.assertEqual(data["missing_counts"], {"education": 303})
+        self.assertEqual(data["received_to"], "2026-11-19T03:33:54Z")
+        self.assertEqual(result["meta"]["total"], 100)
+        self.assertTrue(data["items_truncated"])
+        self.assertEqual(data["items_total_count"], 100)
+        self.assertEqual(data["items_returned_count"], len(data["items"]))
+        self.assertGreater(len(data["items"]), 0)
+        self.assertEqual(data["items"][0]["id"], "row-0")
+        self.assertTrue(data["items"][0]["description_truncated"])
+
+    def test_course_budget_prefers_complete_directory_before_sampling(self):
+        value = {"data": [{
+            "id": f"00000000-0000-0000-0000-{i:012}", "course_name": f"数据化运营{i}",
+            "course_type": "core", "teaching_content_requirement": "重要课程内容" * 1000,
+            "knowledge_tags": ["数据分析"] * 20,
+            "evidence_bindings": [{"block_id": "b1", "text": "原文" * 100}],
+        } for i in range(66)], "meta": {"total": 66, "trace_id": "trace-courses"}}
+        rendered = nexus_call.render_response(value, "answer", 2000, 12000, "query_standard_courses")
+        result = json.loads(rendered)
+        self.assertLessEqual(len(rendered), 12000)
+        self.assertEqual(len(result["data"]), 66)
+        self.assertEqual(result["meta"]["total"], 66)
+        self.assertEqual(result["projection"], "course_directory")
+        self.assertTrue(result["truncated_by_output_budget"])
+        self.assertIn("get_standard_course", result["omitted_fields"])
+        self.assertEqual(result["data"][65]["course_name"], "数据化运营65")
+
+    def test_answer_web_keeps_attribution_and_disambiguates_platform(self):
+        value = {"data": {"provider": "deepseek", "items": [{
+            "title": "公开政策发布", "url": "https://example.gov.cn/policy",
+            "metadata": {"PublishTime": "2026-01-01", "SiteName": "公开发布机构", "AuthInfoLevel": 3},
+            "content": "政策正文" * 2000,
+        }], "ingestion": {"enabled": False}}, "meta": {"trace_id": "trace-web"}}
+        result = json.loads(nexus_call.render_response(value, "answer", 2000, 3000, "search_web_search"))
+        self.assertEqual(result["source_kind"], "web")
+        item = result["data"]["items"][0]
+        self.assertEqual(item["url"], "https://example.gov.cn/policy")
+        self.assertEqual(item["metadata"]["PublishTime"], "2026-01-01")
+        self.assertEqual(item["metadata"]["SiteName"], "公开发布机构")
+        self.assertEqual(item["title"], "公开政策发布")
+        self.assertIn("政策正文", item["content"])
+        self.assertFalse(result["data"]["ingestion"]["enabled"])
+        mixed = nexus_call.response_answer(value, "run_query_router_v2_open", 2000)
+        self.assertEqual(mixed["source_kind"], "mixed_or_unspecified")
+
+    def test_answer_zero_and_error_do_not_invent_successful_content(self):
+        empty = nexus_call.response_answer({"data": {"results": [], "count": 0}}, "search_evidence", 2000)
+        self.assertEqual(empty["data"], {"results": [], "count": 0})
+        error = {"detail": "semantic tag retrieval is temporarily unavailable"}
+        self.assertEqual(nexus_call.response_answer(error, "find_documents", 2000)["detail"], error["detail"])
+
+    def test_answer_truncation_flags_cannot_be_overwritten_by_original_false(self):
+        value = {"data": {"content": "正文" * 5000, "content_truncated": False}}
+        result = json.loads(nexus_call.render_response(value, "answer", 2000, 800, "read_document_section"))
+        self.assertTrue(result["data"]["content_truncated"])
+        self.assertEqual(result["data"]["content_chars"], 10000)
+
     def test_summary_removes_document_and_record_bodies(self):
         value = {
             "data": {
@@ -139,6 +248,28 @@ class ResponseProjectionTests(unittest.TestCase):
 
 
 class FileAndConfigurationTests(unittest.TestCase):
+    def test_exact_tags_are_not_silently_rewritten_and_web_never_ingests_by_default(self):
+        _, catalog = nexus_call.load_catalog()
+        for tool, groups in [
+            ("find_documents", {"query": {"resource_type": "teaching_case", "tag_type": "topic",
+                                         "tags": ["数据安全"], "is_exact_matched": True, "tags_match": "all"}}),
+            ("search_web_search", {"body": {"query": "电子商务示范基地 官方认定"}}),
+        ]:
+            with self.subTest(tool=tool):
+                args = argparse.Namespace(tool=tool, args=json.dumps(groups), args_file=None,
+                    base_url=None, timeout=30, allow_ingest=False, no_validate=False, dry_run=False,
+                    response_mode="answer", max_content_chars=2000, max_output_chars=12000,
+                    trace_id=None, api_key_source="env")
+                with mock.patch.dict(os.environ, {"NEXUS_API_KEY": "test-only"}):
+                    _, url, body, _, _ = nexus_call.prepare_call(catalog, args)
+                if tool == "find_documents":
+                    query = nexus_call.urllib.parse.parse_qs(nexus_call.urllib.parse.urlsplit(url).query)
+                    self.assertEqual(query["is_exact_matched"], ["true"])
+                    self.assertEqual(query["tag_type"], ["topic"])
+                    self.assertEqual(query["tags"], ["数据安全"])
+                else:
+                    self.assertFalse(json.loads(body)["auto_ingest"])
+
     def test_atomic_output_is_utf8_without_bom(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "result.json"
@@ -179,6 +310,33 @@ class FileAndConfigurationTests(unittest.TestCase):
         _, catalog = nexus_call.load_catalog()
         routes = nexus_call.load_routes()
         nexus_call.validate_routes(routes, catalog)
+
+    def test_discovered_structured_types_use_structured_tools(self):
+        routes = nexus_call.load_routes()
+        expected = {
+            "major_distribution": "aggregate_major_offerings", "occupation_dictionary": "query_occupation_dictionary",
+            "standard_course": "query_standard_courses", "teaching_standard": "query_teaching_standards",
+            "talent_training_plan": "list_open_talent_training_plans", "occupational_ability_analysis": "list_ability_analyses",
+        }
+        for resource, tool in expected.items():
+            output = io.StringIO()
+            with redirect_stdout(output):
+                self.assertEqual(nexus_call.command_route(routes, None, resource), 0)
+            route = json.loads(output.getvalue())
+            self.assertIn(tool, route["tools"])
+            self.assertEqual(route["recommended_response_mode"], "answer")
+            self.assertTrue(route["allow_external_search"])
+            self.assertFalse(route["external_fallback"]["auto_ingest"])
+
+    def test_cli_defaults_answer_for_serve_and_preserves_full_for_call(self):
+        for argv, handler, expected in [
+            (["nexus_call.py", "serve"], "command_serve", "answer"),
+            (["nexus_call.py", "call", "find_documents"], "command_call", "full"),
+        ]:
+            with self.subTest(handler=handler), mock.patch.object(sys, "argv", argv), \
+                 mock.patch.object(nexus_call, handler, return_value=0) as command:
+                self.assertEqual(nexus_call.main(), 0)
+                self.assertEqual(command.call_args.args[1].response_mode, expected)
 
     def test_current_catalog_accepts_received_to(self):
         _, catalog = nexus_call.load_catalog()
@@ -277,6 +435,55 @@ class ServeTests(unittest.TestCase):
         self.assertTrue(lines[1]["response"].get("truncated"))
         self.assertFalse(lines[2]["ok"])
         self.assertIn("response mode", lines[2]["error"]["message"])
+
+
+class ConnectionRecoveryTests(unittest.TestCase):
+    def test_error_status_discards_socket_and_next_request_reconnects_without_retry(self):
+        for status in (401, 403, 429, 500, 503):
+            with self.subTest(status=status):
+                first, second = mock.Mock(), mock.Mock()
+                failed = mock.Mock(status=status, will_close=False)
+                failed.read.return_value = b'{"detail":"upstream failure"}'
+                failed.getheaders.return_value = [("X-Trace-ID", "failed-trace")]
+                recovered = mock.Mock(status=200, will_close=False)
+                recovered.read.return_value = b'{"data":[]}'
+                recovered.getheaders.return_value = []
+                first.getresponse.return_value = failed
+                second.getresponse.return_value = recovered
+                with mock.patch.object(nexus_call.http.client, "HTTPConnection", side_effect=[first, second]) as factory:
+                    pool = nexus_call.HttpConnectionPool()
+                    response = pool.request("http://example.test/data", "GET", {}, None, 30)
+                    self.assertEqual(response[0], status)
+                    self.assertEqual(response[2], b'{"detail":"upstream failure"}')
+                    first.close.assert_called_once()
+                    self.assertEqual(factory.call_count, 1)  # no replay on failure
+                    self.assertEqual(pool.request("http://example.test/data", "GET", {}, None, 30)[0], 200)
+                    self.assertEqual(factory.call_count, 2)
+                    pool.close()
+
+    def test_success_reuses_connection_but_explicit_close_and_transport_failure_do_not(self):
+        first, second, third = mock.Mock(), mock.Mock(), mock.Mock()
+        response = mock.Mock(status=200, will_close=False)
+        response.read.return_value = b'{}'
+        response.getheaders.return_value = []
+        closing = mock.Mock(status=200, will_close=True)
+        closing.read.return_value = b'{}'
+        closing.getheaders.return_value = []
+        first.getresponse.side_effect = [response, closing]
+        second.getresponse.side_effect = http.client.RemoteDisconnected("connection closed")
+        third.getresponse.return_value = response
+        with mock.patch.object(nexus_call.http.client, "HTTPConnection", side_effect=[first, second, third]) as factory:
+            pool = nexus_call.HttpConnectionPool()
+            for _ in range(2):
+                self.assertEqual(pool.request("http://example.test/data", "GET", {}, None, 30)[0], 200)
+            self.assertEqual(factory.call_count, 1)
+            first.close.assert_called_once()
+            with self.assertRaises(http.client.RemoteDisconnected):
+                pool.request("http://example.test/data", "GET", {}, None, 30)
+            second.close.assert_called_once()
+            self.assertEqual(pool.request("http://example.test/data", "GET", {}, None, 30)[0], 200)
+            self.assertEqual(factory.call_count, 3)
+            pool.close()
 
 
 if __name__ == "__main__":

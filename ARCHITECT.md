@@ -745,7 +745,14 @@ Stable operation IDs, resolved input/output schemas and trusted credential
 injection are shared by generated Responses/Chat Completions catalogs; internal,
 deprecated and streaming operations are excluded. External-search tool callers
 must inject `auto_ingest=false` when omitted. No C/change-feed API is added.
-See [Agent public API contract](docs/api/public_agent_data_api.md) and
+The standalone public-API skill separates answer context from evidence reads:
+its local `answer` projection retains business facts, useful text and minimal
+continuation IDs, deferring lineage/locators to explicit evidence tools.
+Bounded projections mark sampled arrays and retain original pagination/counts;
+web results retain actual publisher/date/URL when available and their external
+origin. HTTP error responses are returned without automatic replay; the pooled
+connection is discarded before the next request. Local projection alone does
+not reduce HTTP bytes. See [Agent public API contract](docs/api/public_agent_data_api.md) and
 [generated tools](docs/generated/public-function-tools/README.md).
 
 Two read endpoints added to support consumption-side traceability without exposing MinIO credentials to clients:

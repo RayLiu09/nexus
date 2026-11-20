@@ -1,0 +1,59 @@
+{
+  "date": "2026-11-19",
+  "base_url": "http://10.100.11.51:8000",
+  "deployed_revision": "not verified; no deployment performed",
+  "initial_run": {
+    "time": "2026-11-19T06:47:17.684757+00:00",
+    "base_url": "http://10.100.11.51:8000",
+    "calls": 9,
+    "exit_code": 0,
+    "stderr_present": false,
+    "script_sha256": "27350be5aad59e35051d424966a89cc3f6569ce3b08902072d884a38dbba022b"
+  },
+  "final_run": {
+    "time": "2026-11-19T06:49:54.476491+00:00",
+    "base_url": "http://10.100.11.51:8000",
+    "calls": 4,
+    "exit_code": 0,
+    "stderr_present": false,
+    "script_sha256": "e2c5245bc4ce42f9efe4d18dc88dfc1fa653264425bd8ab2f516dc6684bc02ee"
+  },
+  "network_successful_attempts": 13,
+  "network_failed_attempts": 0,
+  "sandbox_denied_attempts_excluded": 9,
+  "tests_passed": 25,
+  "unit_test_command": "python3 skills/nexus-public-api/tests/test_nexus_call.py",
+  "offline_captured_response_replays": 143,
+  "offline_minimal_fallbacks": 0,
+  "offline_budget_truncated_calls": 17,
+  "offline_top_level_sampled_calls": 7,
+  "textbook": {
+    "http_bytes": 411313,
+    "answer_bytes": 2309,
+    "answer_reduction_percent": 99.44,
+    "hits_retained": 3,
+    "budget_chars": 8000
+  },
+  "courses": {
+    "http_bytes": 228658,
+    "answer_bytes": 7195,
+    "answer_reduction_percent": 96.85,
+    "items_retained": 66,
+    "meta_total": 66,
+    "projection": "course_directory"
+  },
+  "web": {
+    "count": 3,
+    "source_kind": "web",
+    "auto_ingest": false,
+    "source_quality": "all returned pages were Baidu encyclopedic pages; not verified official designation evidence"
+  },
+  "limitations": [
+    "Local projection only: HTTP bytes/serialization remain unchanged.",
+    "No automatic retry. Error-after-connection recovery is verified by deterministic fault tests; remote 500/503 root causes remain unconfirmed.",
+    "No automatic LLM planning/composition benchmark or answer-accuracy gold standard.",
+    "Captured offline responses were bounded during baseline recording; not full source documents.",
+    "Live initial course projection sampled 5/66; final change retains all 66 and was rechecked separately."
+  ],
+  "executor_sha256": "e2c5245bc4ce42f9efe4d18dc88dfc1fa653264425bd8ab2f516dc6684bc02ee"
+}

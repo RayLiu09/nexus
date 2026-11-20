@@ -1,0 +1,283 @@
+[
+  {
+    "ok": true,
+    "tool": "search_evidence",
+    "status": 200,
+    "trace_id": "slice1-textbook-answer-1-1",
+    "elapsed_ms": 4535.8,
+    "response_bytes": 411316,
+    "response_mode": "answer",
+    "label": "textbook-answer-1",
+    "projected_bytes": 2312,
+    "projected_chars": 1464,
+    "wall_ms": 4611.14,
+    "source_kind": "platform",
+    "requested_budget": 8000,
+    "count": 3,
+    "item_count": 3,
+    "total": null,
+    "auto_ingest": null,
+    "continuation_handles": [
+      {
+        "nexus_chunk_id": "9eaab5fd-0330-44f2-8610-cc088d9cf7e7",
+        "normalized_ref_id": "408772b3-eba2-477c-a4c7-6642db38f1b8"
+      },
+      {
+        "nexus_chunk_id": "b22601e4-ceb2-433e-b6cd-7b8421ca8df2",
+        "normalized_ref_id": "67e24d67-8822-471e-acf1-02c4ea727711"
+      },
+      {
+        "nexus_chunk_id": "4d32d1dc-0f03-4847-853a-680a1c365690",
+        "normalized_ref_id": "408772b3-eba2-477c-a4c7-6642db38f1b8"
+      }
+    ],
+    "has_useful_text": true,
+    "locator_present": false
+  },
+  {
+    "ok": true,
+    "tool": "search_evidence",
+    "status": 200,
+    "trace_id": "slice1-textbook-answer-2-2",
+    "elapsed_ms": 73.8,
+    "response_bytes": 411316,
+    "response_mode": "answer",
+    "label": "textbook-answer-2",
+    "projected_bytes": 2312,
+    "projected_chars": 1464,
+    "wall_ms": 75.15,
+    "source_kind": "platform",
+    "requested_budget": 8000,
+    "count": 3,
+    "item_count": 3,
+    "total": null,
+    "auto_ingest": null,
+    "continuation_handles": [
+      {
+        "nexus_chunk_id": "9eaab5fd-0330-44f2-8610-cc088d9cf7e7",
+        "normalized_ref_id": "408772b3-eba2-477c-a4c7-6642db38f1b8"
+      },
+      {
+        "nexus_chunk_id": "b22601e4-ceb2-433e-b6cd-7b8421ca8df2",
+        "normalized_ref_id": "67e24d67-8822-471e-acf1-02c4ea727711"
+      },
+      {
+        "nexus_chunk_id": "4d32d1dc-0f03-4847-853a-680a1c365690",
+        "normalized_ref_id": "408772b3-eba2-477c-a4c7-6642db38f1b8"
+      }
+    ],
+    "has_useful_text": true,
+    "locator_present": false
+  },
+  {
+    "ok": true,
+    "tool": "search_evidence",
+    "status": 200,
+    "trace_id": "slice1-textbook-answer-3-3",
+    "elapsed_ms": 96.0,
+    "response_bytes": 411316,
+    "response_mode": "answer",
+    "label": "textbook-answer-3",
+    "projected_bytes": 2312,
+    "projected_chars": 1464,
+    "wall_ms": 97.38,
+    "source_kind": "platform",
+    "requested_budget": 8000,
+    "count": 3,
+    "item_count": 3,
+    "total": null,
+    "auto_ingest": null,
+    "continuation_handles": [
+      {
+        "nexus_chunk_id": "9eaab5fd-0330-44f2-8610-cc088d9cf7e7",
+        "normalized_ref_id": "408772b3-eba2-477c-a4c7-6642db38f1b8"
+      },
+      {
+        "nexus_chunk_id": "b22601e4-ceb2-433e-b6cd-7b8421ca8df2",
+        "normalized_ref_id": "67e24d67-8822-471e-acf1-02c4ea727711"
+      },
+      {
+        "nexus_chunk_id": "4d32d1dc-0f03-4847-853a-680a1c365690",
+        "normalized_ref_id": "408772b3-eba2-477c-a4c7-6642db38f1b8"
+      }
+    ],
+    "has_useful_text": true,
+    "locator_present": false
+  },
+  {
+    "ok": true,
+    "tool": "search_evidence",
+    "status": 200,
+    "trace_id": "slice1-textbook-digest-4",
+    "elapsed_ms": 72.7,
+    "response_bytes": 411314,
+    "response_mode": "digest",
+    "label": "textbook-digest",
+    "projected_bytes": 5688,
+    "projected_chars": 4394,
+    "wall_ms": 74.39,
+    "source_kind": null,
+    "requested_budget": 12000,
+    "count": 3,
+    "item_count": 3,
+    "total": null,
+    "auto_ingest": null,
+    "continuation_handles": [
+      {
+        "nexus_chunk_id": "9eaab5fd-0330-44f2-8610-cc088d9cf7e7",
+        "normalized_ref_id": "408772b3-eba2-477c-a4c7-6642db38f1b8"
+      },
+      {
+        "nexus_chunk_id": "b22601e4-ceb2-433e-b6cd-7b8421ca8df2",
+        "normalized_ref_id": "67e24d67-8822-471e-acf1-02c4ea727711"
+      },
+      {
+        "nexus_chunk_id": "4d32d1dc-0f03-4847-853a-680a1c365690",
+        "normalized_ref_id": "408772b3-eba2-477c-a4c7-6642db38f1b8"
+      }
+    ],
+    "has_useful_text": true,
+    "locator_present": true
+  },
+  {
+    "ok": true,
+    "tool": "query_standard_courses",
+    "status": 200,
+    "trace_id": "slice1-course-answer-5",
+    "elapsed_ms": 284.5,
+    "response_bytes": 228649,
+    "response_mode": "answer",
+    "label": "course-answer",
+    "projected_bytes": 7470,
+    "projected_chars": 5934,
+    "wall_ms": 291.25,
+    "source_kind": "platform",
+    "requested_budget": 12000,
+    "item_count": 5,
+    "total": 66,
+    "list_truncated": true,
+    "original_list_count": 66
+  },
+  {
+    "ok": true,
+    "tool": "find_documents",
+    "status": 200,
+    "trace_id": "slice1-exact-tags-1-6",
+    "elapsed_ms": 113.5,
+    "response_bytes": 6497,
+    "response_mode": "answer",
+    "label": "exact-tags-1",
+    "projected_bytes": 6134,
+    "projected_chars": 5322,
+    "wall_ms": 114.34,
+    "source_kind": "platform",
+    "requested_budget": 12000,
+    "item_count": 4,
+    "total": 4,
+    "list_truncated": false,
+    "original_list_count": null
+  },
+  {
+    "ok": true,
+    "tool": "find_documents",
+    "status": 200,
+    "trace_id": "slice1-exact-tags-2-7",
+    "elapsed_ms": 104.4,
+    "response_bytes": 6497,
+    "response_mode": "answer",
+    "label": "exact-tags-2",
+    "projected_bytes": 6134,
+    "projected_chars": 5322,
+    "wall_ms": 105.23,
+    "source_kind": "platform",
+    "requested_budget": 12000,
+    "item_count": 4,
+    "total": 4,
+    "list_truncated": false,
+    "original_list_count": null
+  },
+  {
+    "ok": true,
+    "tool": "find_documents",
+    "status": 200,
+    "trace_id": "slice1-exact-tags-3-8",
+    "elapsed_ms": 90.4,
+    "response_bytes": 6497,
+    "response_mode": "answer",
+    "label": "exact-tags-3",
+    "projected_bytes": 6134,
+    "projected_chars": 5322,
+    "wall_ms": 91.15,
+    "source_kind": "platform",
+    "requested_budget": 12000,
+    "item_count": 4,
+    "total": 4,
+    "list_truncated": false,
+    "original_list_count": null
+  },
+  {
+    "ok": true,
+    "tool": "search_web_search",
+    "status": 200,
+    "trace_id": "slice1-web-gap-supplement-9",
+    "elapsed_ms": 450.5,
+    "response_bytes": 76782,
+    "response_mode": "answer",
+    "label": "web-gap-supplement",
+    "projected_bytes": 17985,
+    "projected_chars": 8545,
+    "wall_ms": 451.36,
+    "source_kind": "web",
+    "requested_budget": 12000,
+    "count": 3,
+    "item_count": 3,
+    "total": null,
+    "auto_ingest": false,
+    "continuation_handles": [
+      {},
+      {},
+      {}
+    ],
+    "has_useful_text": true,
+    "locator_present": false,
+    "web_sources": [
+      {
+        "title": "国家电子商务示范基地 - 商务部开展的国家电子商务示范基地",
+        "url": "https://baike.baidu.com/item/%E5%9B%BD%E5%AE%B6%E7%94%B5%E5%AD%90%E5%95%86%E5%8A%A1%E7%A4%BA%E8%8C%83%E5%9F%BA%E5%9C%B0/1686641?fromModule=lemma_inlink&bst=1794328185.3e91eb922aeeb9f6#1",
+        "metadata": {
+          "PublishTime": "2026-10-05T16:00:00+00:00",
+          "SiteName": "百度百科",
+          "AuthInfoLevel": 3
+        }
+      },
+      {
+        "title": "国家电子商务示范基地",
+        "url": "https://baike.baidu.com/item/%E5%9B%BD%E5%AE%B6%E7%94%B5%E5%AD%90%E5%95%86%E5%8A%A1%E7%A4%BA%E8%8C%83%E5%9F%BA%E5%9C%B0/1686641?fromModule=lemma_inlink&bst=1790084424.f462960e3a84a182#1",
+        "metadata": {
+          "PublishTime": "2026-09-18T16:00:00+00:00",
+          "SiteName": "百度百科",
+          "AuthInfoLevel": 3
+        }
+      },
+      {
+        "title": "国家电子商务示范基地 - 搜词条",
+        "url": "https://wapbaike.baidu.com/item/%E5%9B%BD%E5%AE%B6%E7%94%B5%E5%AD%90%E5%95%86%E5%8A%A1%E7%A4%BA%E8%8C%83%E5%9F%BA%E5%9C%B0#1",
+        "metadata": {
+          "PublishTime": "2026-10-05T16:00:00+00:00",
+          "SiteName": "百度百科",
+          "AuthInfoLevel": 3
+        }
+      }
+    ],
+    "ingestion": {
+      "enabled": false,
+      "candidate_count": 0,
+      "accepted_count": 0,
+      "filtered_count": 0,
+      "submitted_count": 0,
+      "raw_persisted_count": 0,
+      "duplicate_count": 0,
+      "scrape_failed_count": 0
+    }
+  }
+]

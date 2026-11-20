@@ -50,6 +50,16 @@ keeps one reference across overlapping queries; actual body evidence enriches it
 metadata. The drawer lazily previews normalized document Markdown, with clear loading,
 permission/error and empty states. Web sources preview acquired content and link to
 the original page. The welcome copy does not promise automatic web fallback.
+The standalone `nexus-public-api` Agent skill uses a separate consumption
+policy: retrieve useful answer content first, prioritizing explicit exact tags
+when they satisfy the request, and resolve full citation evidence on demand.
+Insufficient internal content may be supplemented through existing public web
+search without ingestion; platform-only requests and sensitive-outbound limits
+remain binding. Answers distinguish platform facts, linked web sources and
+model synthesis. Actual web publisher/date/URL remain available when supplied;
+no date or internal coverage is inferred from an external page. The local
+`answer` response mode marks text/list truncation and preserves original totals
+and continuation IDs.
 Aggregates represent ingested coverage only. Source excerpts and continuation flags
 are visible; a valid citation ID is not a guarantee that every answer claim is true.
 
