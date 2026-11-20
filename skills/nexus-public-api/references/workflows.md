@@ -70,6 +70,13 @@ printf '%s\n' \
 # 市场岗位：region 按 raw_jobs.region 采集范围匹配，不推断工作地；统计优先 aggregate。
 call query_market_jobs '{"query":{"job_title":"电商","region":"杭州","pageSize":20}}'
 call aggregate_market_jobs '{"query":{"group_by":["education","experience"],"job_title":"电商"}}'
+# 采集区域×来源行业分布：不能推断为实际工作地或标准产业归属。
+call aggregate_market_jobs '{"query":{"group_by":["region","industry"],"job_title":"电商","pageSize":50}}' --response-mode answer
+# 高薪岗位 TOP＋月薪桶；默认只纳入显式月/年报价，可能没有可换算项。
+call analyze_market_job_salaries '{"query":{"job_title":"电商","top_n":10}}' --response-mode answer
+# 若需按未标周期报价为月薪的假设分析，显式传true并在答案披露假设影响数。
+call analyze_market_job_salaries '{"query":{"job_title":"电商","assume_monthly":true,"top_n":10}}' --response-mode answer
+
 
 # 专业布点：仅代表已入库覆盖，不等同全国总体
 call list_major_offerings '{"query":{"year":2025,"major_name":"电子商务","pageSize":20}}'
@@ -97,6 +104,8 @@ call get_ecommerce_demo_base '{"path":{"base_id":"<returned-base-id>"}}' --respo
 ```
 
 结构化岗位、企业、园区、专业布点、职业大典、教学标准、培养方案和能力分析应沿对应路由调用专用接口；只有用户明确要求某条记录的详情时，才继续调用其 get 接口。
+
+岗位连续比较应将同一个`received_to`传给列表、聚合和薪酬接口，避免新入库记录改变样本；它不是历史版本快照，不冻结后续修改/删除。薪酬`sample_count=eligible_count+excluded_count`，桶数和为eligible；exclusion_counts按原因计数。月薪TOP按下限、上限、ID依次降序；桶按未舍入中点左闭右开，边界3千/5千/8千/1万/1.5万/2万/3万。年薪除12；13薪等附加发放次数保留但不摊进月薪基数。日/时/周/计次、面议、开放区间、无币种单位/非法文本排除，不按假定工作天数换算。原始报价用salary_range，来源按需get_market_job；不默认取完整body或provenance。
 
 聚合的 `total` 是分组数；岗位样本量看 `sample_count`。数组参数直接传 JSON 数组，执行器会展开为 repeated keys。
 

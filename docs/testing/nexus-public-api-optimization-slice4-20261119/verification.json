@@ -1,0 +1,31 @@
+{
+  "recorded_at": "2026-11-19T09:18:04.940295+00:00",
+  "api_tests": {
+    "passed": 108,
+    "duration_seconds": 60.48,
+    "database": "isolated_sqlite"
+  },
+  "skill_tests": {
+    "passed": 26
+  },
+  "skill_http": {
+    "success": 21,
+    "total": 21,
+    "database": "isolated_sqlite_with_actual_readonly_projection"
+  },
+  "checks": {
+    "generated_assets": "pass",
+    "skill_quick_validate_system_python3": "pass",
+    "syntax": "pass",
+    "git_diff_check": "pass"
+  },
+  "artifacts": {
+    "baseline-profile.json": "2ee71bf142ed1081a078832964fd826e3b2257201a734a0af87ff5944e7285c6",
+    "compare_jobs.py": "c9cbc2f07da83c2d434c5d13d6da1cf692877a910693d82c05986e9f6b893068",
+    "comparison.json": "37b545b7f8b88c55c3b9e8f2fc1340ba5e1f9bfade96aaa1ecb3fe88d453c17e",
+    "profile_jobs.py": "8c3ab4bfd3c1496c42d3a1c075e02b70caf0f7a4d1390692d8677065f1734faa",
+    "run_job_question_set.py": "7c3ef1af5106da275b6663533702386db5ce0f1e3c6623482f6b3917b9b4af1c",
+    "salary-text-frequency.json": "7693f69bc9c18e9ea30bf00f8b15f7e32b33104e8cded67f6f50d914d2aa2ef3",
+    "skill-question-results.json": "18dd7a2822941e06e3b0c740281f1101b44b36b5f4f7c63ff23d26e7f09e0022"
+  }
+}

@@ -1,0 +1,1759 @@
+{
+  "source": {
+    "host": "10.100.11.182",
+    "database": "nexus_dev",
+    "transaction_read_only": "on",
+    "received_to": "2026-11-19 06:19:25.766004+00:00",
+    "filters": {
+      "job_title": "电商",
+      "received_to": "2026-11-19T06:19:25.766004Z"
+    },
+    "record_count": 18308,
+    "projection_sha256": "0c47f669e348f60cf31e91ac26a38ee0bb969d2ee316412499282212352deb58",
+    "omitted_columns": [
+      "description_raw",
+      "responsibilities_raw",
+      "raw_record",
+      "other_job_body_fields"
+    ],
+    "validation": "new_local_API_on_isolated_SQLite_not_remote_deployment"
+  },
+  "calls": [
+    {
+      "label": "education-experience-page1",
+      "tool": "aggregate_market_jobs",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "group_by": [
+          "education",
+          "experience"
+        ],
+        "pageSize": 50,
+        "page": 1
+      },
+      "status": 200,
+      "trace_id": "slice4-education-experience-page1-1",
+      "elapsed_ms": 39.1,
+      "http_bytes": 4486,
+      "answer_chars": 4427
+    },
+    {
+      "label": "education-experience-page2",
+      "tool": "aggregate_market_jobs",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "group_by": [
+          "education",
+          "experience"
+        ],
+        "pageSize": 50,
+        "page": 2
+      },
+      "status": 200,
+      "trace_id": "slice4-education-experience-page2-2",
+      "elapsed_ms": 77.3,
+      "http_bytes": 680,
+      "answer_chars": 737
+    },
+    {
+      "label": "industry-top10",
+      "tool": "aggregate_market_jobs",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "group_by": [
+          "industry"
+        ],
+        "pageSize": 10
+      },
+      "status": 200,
+      "trace_id": "slice4-industry-top10-3",
+      "elapsed_ms": 76.1,
+      "http_bytes": 1074,
+      "answer_chars": 1035
+    },
+    {
+      "label": "region-distribution",
+      "tool": "aggregate_market_jobs",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "group_by": [
+          "region"
+        ],
+        "pageSize": 50
+      },
+      "status": 200,
+      "trace_id": "slice4-region-distribution-4",
+      "elapsed_ms": 25.1,
+      "http_bytes": 2347,
+      "answer_chars": 2359
+    },
+    {
+      "label": "salary-explicit-periods",
+      "tool": "analyze_market_job_salaries",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "top_n": 10
+      },
+      "status": 200,
+      "trace_id": "slice4-salary-explicit-periods-5",
+      "elapsed_ms": 25.4,
+      "http_bytes": 1653,
+      "answer_chars": 1805
+    },
+    {
+      "label": "salary-assume-monthly",
+      "tool": "analyze_market_job_salaries",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "top_n": 10,
+        "assume_monthly": true
+      },
+      "status": 200,
+      "trace_id": "slice4-salary-assume-monthly-6",
+      "elapsed_ms": 30.3,
+      "http_bytes": 6142,
+      "answer_chars": 5619
+    },
+    {
+      "label": "hangzhou-education-experience",
+      "tool": "aggregate_market_jobs",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "region": "杭州",
+        "group_by": [
+          "education",
+          "experience"
+        ],
+        "pageSize": 50
+      },
+      "status": 200,
+      "trace_id": "slice4-hangzhou-education-experience-7",
+      "elapsed_ms": 17.6,
+      "http_bytes": 2969,
+      "answer_chars": 2974
+    },
+    {
+      "label": "education-experience-page1",
+      "tool": "aggregate_market_jobs",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "group_by": [
+          "education",
+          "experience"
+        ],
+        "pageSize": 50,
+        "page": 1
+      },
+      "status": 200,
+      "trace_id": "slice4-education-experience-page1-8",
+      "elapsed_ms": 29.6,
+      "http_bytes": 4486,
+      "answer_chars": 4427
+    },
+    {
+      "label": "education-experience-page2",
+      "tool": "aggregate_market_jobs",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "group_by": [
+          "education",
+          "experience"
+        ],
+        "pageSize": 50,
+        "page": 2
+      },
+      "status": 200,
+      "trace_id": "slice4-education-experience-page2-9",
+      "elapsed_ms": 69.6,
+      "http_bytes": 680,
+      "answer_chars": 737
+    },
+    {
+      "label": "industry-top10",
+      "tool": "aggregate_market_jobs",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "group_by": [
+          "industry"
+        ],
+        "pageSize": 10
+      },
+      "status": 200,
+      "trace_id": "slice4-industry-top10-10",
+      "elapsed_ms": 76.3,
+      "http_bytes": 1075,
+      "answer_chars": 1036
+    },
+    {
+      "label": "region-distribution",
+      "tool": "aggregate_market_jobs",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "group_by": [
+          "region"
+        ],
+        "pageSize": 50
+      },
+      "status": 200,
+      "trace_id": "slice4-region-distribution-11",
+      "elapsed_ms": 23.8,
+      "http_bytes": 2348,
+      "answer_chars": 2360
+    },
+    {
+      "label": "salary-explicit-periods",
+      "tool": "analyze_market_job_salaries",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "top_n": 10
+      },
+      "status": 200,
+      "trace_id": "slice4-salary-explicit-periods-12",
+      "elapsed_ms": 23.8,
+      "http_bytes": 1654,
+      "answer_chars": 1806
+    },
+    {
+      "label": "salary-assume-monthly",
+      "tool": "analyze_market_job_salaries",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "top_n": 10,
+        "assume_monthly": true
+      },
+      "status": 200,
+      "trace_id": "slice4-salary-assume-monthly-13",
+      "elapsed_ms": 28.6,
+      "http_bytes": 6143,
+      "answer_chars": 5620
+    },
+    {
+      "label": "hangzhou-education-experience",
+      "tool": "aggregate_market_jobs",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "region": "杭州",
+        "group_by": [
+          "education",
+          "experience"
+        ],
+        "pageSize": 50
+      },
+      "status": 200,
+      "trace_id": "slice4-hangzhou-education-experience-14",
+      "elapsed_ms": 15.7,
+      "http_bytes": 2970,
+      "answer_chars": 2975
+    },
+    {
+      "label": "education-experience-page1",
+      "tool": "aggregate_market_jobs",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "group_by": [
+          "education",
+          "experience"
+        ],
+        "pageSize": 50,
+        "page": 1
+      },
+      "status": 200,
+      "trace_id": "slice4-education-experience-page1-15",
+      "elapsed_ms": 28.4,
+      "http_bytes": 4487,
+      "answer_chars": 4428
+    },
+    {
+      "label": "education-experience-page2",
+      "tool": "aggregate_market_jobs",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "group_by": [
+          "education",
+          "experience"
+        ],
+        "pageSize": 50,
+        "page": 2
+      },
+      "status": 200,
+      "trace_id": "slice4-education-experience-page2-16",
+      "elapsed_ms": 68.3,
+      "http_bytes": 681,
+      "answer_chars": 738
+    },
+    {
+      "label": "industry-top10",
+      "tool": "aggregate_market_jobs",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "group_by": [
+          "industry"
+        ],
+        "pageSize": 10
+      },
+      "status": 200,
+      "trace_id": "slice4-industry-top10-17",
+      "elapsed_ms": 76.6,
+      "http_bytes": 1075,
+      "answer_chars": 1036
+    },
+    {
+      "label": "region-distribution",
+      "tool": "aggregate_market_jobs",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "group_by": [
+          "region"
+        ],
+        "pageSize": 50
+      },
+      "status": 200,
+      "trace_id": "slice4-region-distribution-18",
+      "elapsed_ms": 23.3,
+      "http_bytes": 2348,
+      "answer_chars": 2360
+    },
+    {
+      "label": "salary-explicit-periods",
+      "tool": "analyze_market_job_salaries",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "top_n": 10
+      },
+      "status": 200,
+      "trace_id": "slice4-salary-explicit-periods-19",
+      "elapsed_ms": 22.7,
+      "http_bytes": 1654,
+      "answer_chars": 1806
+    },
+    {
+      "label": "salary-assume-monthly",
+      "tool": "analyze_market_job_salaries",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "top_n": 10,
+        "assume_monthly": true
+      },
+      "status": 200,
+      "trace_id": "slice4-salary-assume-monthly-20",
+      "elapsed_ms": 27.8,
+      "http_bytes": 6143,
+      "answer_chars": 5620
+    },
+    {
+      "label": "hangzhou-education-experience",
+      "tool": "aggregate_market_jobs",
+      "query": {
+        "job_title": "电商",
+        "received_to": "2026-11-19 06:19:25.766004+00:00",
+        "region": "杭州",
+        "group_by": [
+          "education",
+          "experience"
+        ],
+        "pageSize": 50
+      },
+      "status": 200,
+      "trace_id": "slice4-hangzhou-education-experience-21",
+      "elapsed_ms": 16.9,
+      "http_bytes": 2970,
+      "answer_chars": 2975
+    }
+  ],
+  "answers": {
+    "education-experience-page1": {
+      "data": [
+        {
+          "dimensions": {
+            "education": "大专",
+            "experience": "1-3年"
+          },
+          "record_count": 4774
+        },
+        {
+          "dimensions": {
+            "education": "本科",
+            "experience": "1-3年"
+          },
+          "record_count": 2264
+        },
+        {
+          "dimensions": {
+            "education": "大专",
+            "experience": "3-5年"
+          },
+          "record_count": 2205
+        },
+        {
+          "dimensions": {
+            "education": "大专",
+            "experience": "经验不限"
+          },
+          "record_count": 1832
+        },
+        {
+          "dimensions": {
+            "education": "本科",
+            "experience": "3-5年"
+          },
+          "record_count": 1365
+        },
+        {
+          "dimensions": {
+            "education": "学历不限",
+            "experience": "经验不限"
+          },
+          "record_count": 1317
+        },
+        {
+          "dimensions": {
+            "education": "本科",
+            "experience": "经验不限"
+          },
+          "record_count": 908
+        },
+        {
+          "dimensions": {
+            "education": "学历不限",
+            "experience": "1-3年"
+          },
+          "record_count": 727
+        },
+        {
+          "dimensions": {
+            "education": "本科",
+            "experience": "5-10年"
+          },
+          "record_count": 471
+        },
+        {
+          "dimensions": {
+            "education": "大专",
+            "experience": "5-10年"
+          },
+          "record_count": 275
+        },
+        {
+          "dimensions": {
+            "education": "大专",
+            "experience": null
+          },
+          "record_count": 188
+        },
+        {
+          "dimensions": {
+            "education": null,
+            "experience": null
+          },
+          "record_count": 174
+        },
+        {
+          "dimensions": {
+            "education": "大专",
+            "experience": "1年以下"
+          },
+          "record_count": 170
+        },
+        {
+          "dimensions": {
+            "education": "高中",
+            "experience": "1-3年"
+          },
+          "record_count": 164
+        },
+        {
+          "dimensions": {
+            "education": "高中",
+            "experience": "经验不限"
+          },
+          "record_count": 159
+        },
+        {
+          "dimensions": {
+            "education": "学历不限",
+            "experience": "3-5年"
+          },
+          "record_count": 147
+        },
+        {
+          "dimensions": {
+            "education": "中专/中技",
+            "experience": "经验不限"
+          },
+          "record_count": 116
+        },
+        {
+          "dimensions": {
+            "education": "本科",
+            "experience": "在校/应届"
+          },
+          "record_count": 107
+        },
+        {
+          "dimensions": {
+            "education": "本科",
+            "experience": null
+          },
+          "record_count": 106
+        },
+        {
+          "dimensions": {
+            "education": null,
+            "experience": "1-3年"
+          },
+          "record_count": 104
+        },
+        {
+          "dimensions": {
+            "education": "中专/中技",
+            "experience": "1-3年"
+          },
+          "record_count": 100
+        },
+        {
+          "dimensions": {
+            "education": "大专",
+            "experience": "在校/应届"
+          },
+          "record_count": 88
+        },
+        {
+          "dimensions": {
+            "education": "大专",
+            "experience": "大专"
+          },
+          "record_count": 88
+        },
+        {
+          "dimensions": {
+            "education": "本科",
+            "experience": "1年以下"
+          },
+          "record_count": 68
+        },
+        {
+          "dimensions": {
+            "education": "本科",
+            "experience": "本科"
+          },
+          "record_count": 52
+        },
+        {
+          "dimensions": {
+            "education": "学历不限",
+            "experience": "在校/应届"
+          },
+          "record_count": 48
+        },
+        {
+          "dimensions": {
+            "education": "学历不限",
+            "experience": "1年以下"
+          },
+          "record_count": 47
+        },
+        {
+          "dimensions": {
+            "education": "高中",
+            "experience": "1年以下"
+          },
+          "record_count": 32
+        },
+        {
+          "dimensions": {
+            "education": "本科",
+            "experience": "10年以上"
+          },
+          "record_count": 30
+        },
+        {
+          "dimensions": {
+            "education": "学历不限",
+            "experience": "5-10年"
+          },
+          "record_count": 29
+        },
+        {
+          "dimensions": {
+            "education": null,
+            "experience": "3-5年"
+          },
+          "record_count": 23
+        },
+        {
+          "dimensions": {
+            "education": "高中",
+            "experience": "3-5年"
+          },
+          "record_count": 16
+        },
+        {
+          "dimensions": {
+            "education": "实习",
+            "experience": "学历不限"
+          },
+          "record_count": 15
+        },
+        {
+          "dimensions": {
+            "education": "中专/中技",
+            "experience": "1年以下"
+          },
+          "record_count": 14
+        },
+        {
+          "dimensions": {
+            "education": "实习",
+            "experience": "1-3年"
+          },
+          "record_count": 14
+        },
+        {
+          "dimensions": {
+            "education": "大专",
+            "experience": "10年以上"
+          },
+          "record_count": 13
+        },
+        {
+          "dimensions": {
+            "education": "中专/中技",
+            "experience": "3-5年"
+          },
+          "record_count": 10
+        },
+        {
+          "dimensions": {
+            "education": "中专/中技",
+            "experience": "在校/应届"
+          },
+          "record_count": 10
+        },
+        {
+          "dimensions": {
+            "education": null,
+            "experience": "5-10年"
+          },
+          "record_count": 8
+        },
+        {
+          "dimensions": {
+            "education": "大专",
+            "experience": "本科"
+          },
+          "record_count": 4
+        },
+        {
+          "dimensions": {
+            "education": "实习",
+            "experience": "大专"
+          },
+          "record_count": 4
+        },
+        {
+          "dimensions": {
+            "education": "初中及以下",
+            "experience": "1-3年"
+          },
+          "record_count": 3
+        },
+        {
+          "dimensions": {
+            "education": "初中及以下",
+            "experience": "1年以下"
+          },
+          "record_count": 3
+        },
+        {
+          "dimensions": {
+            "education": "实习",
+            "experience": "3-5年"
+          },
+          "record_count": 3
+        },
+        {
+          "dimensions": {
+            "education": "中专/中技",
+            "experience": "5-10年"
+          },
+          "record_count": 2
+        },
+        {
+          "dimensions": {
+            "education": "实习",
+            "experience": "本科"
+          },
+          "record_count": 2
+        },
+        {
+          "dimensions": {
+            "education": "本科",
+            "experience": "大专"
+          },
+          "record_count": 2
+        },
+        {
+          "dimensions": {
+            "education": "大专",
+            "experience": "中专/中技"
+          },
+          "record_count": 1
+        },
+        {
+          "dimensions": {
+            "education": "大专",
+            "experience": "学历不限"
+          },
+          "record_count": 1
+        },
+        {
+          "dimensions": {
+            "education": "学历不限",
+            "experience": "10年以上"
+          },
+          "record_count": 1
+        }
+      ],
+      "meta": {
+        "trace_id": "slice4-education-experience-page1-1",
+        "page": 1,
+        "page_size": 50,
+        "total": 54
+      },
+      "aggregations": {
+        "sample_count": 18308,
+        "missing_counts": {
+          "education": 309,
+          "experience": 469
+        },
+        "source": "raw_jobs",
+        "unit": "records",
+        "deduplication_key": "raw_jobs.id",
+        "coverage": "ingested_records_only",
+        "filters": {
+          "job_title": "电商",
+          "received_to": "2026-11-19T06:19:25.766004Z"
+        }
+      },
+      "source_kind": "platform"
+    },
+    "education-experience-page2": {
+      "data": [
+        {
+          "dimensions": {
+            "education": "实习",
+            "experience": "高中"
+          },
+          "record_count": 1
+        },
+        {
+          "dimensions": {
+            "education": "硕士",
+            "experience": null
+          },
+          "record_count": 1
+        },
+        {
+          "dimensions": {
+            "education": "硕士",
+            "experience": "1-3年"
+          },
+          "record_count": 1
+        },
+        {
+          "dimensions": {
+            "education": "硕士",
+            "experience": "3-5年"
+          },
+          "record_count": 1
+        }
+      ],
+      "meta": {
+        "trace_id": "slice4-education-experience-page2-2",
+        "page": 2,
+        "page_size": 50,
+        "total": 54
+      },
+      "aggregations": {
+        "sample_count": 18308,
+        "missing_counts": {
+          "education": 309,
+          "experience": 469
+        },
+        "source": "raw_jobs",
+        "unit": "records",
+        "deduplication_key": "raw_jobs.id",
+        "coverage": "ingested_records_only",
+        "filters": {
+          "job_title": "电商",
+          "received_to": "2026-11-19T06:19:25.766004Z"
+        }
+      },
+      "source_kind": "platform"
+    },
+    "industry-top10": {
+      "data": [
+        {
+          "dimensions": {
+            "industry": "互联网电商"
+          },
+          "record_count": 2218
+        },
+        {
+          "dimensions": {
+            "industry": null
+          },
+          "record_count": 1723
+        },
+        {
+          "dimensions": {
+            "industry": "综合商贸"
+          },
+          "record_count": 694
+        },
+        {
+          "dimensions": {
+            "industry": "软件/IT服务"
+          },
+          "record_count": 427
+        },
+        {
+          "dimensions": {
+            "industry": "食品/饮料/酒水批发/零售/贸易"
+          },
+          "record_count": 415
+        },
+        {
+          "dimensions": {
+            "industry": "产业互联网平台"
+          },
+          "record_count": 408
+        },
+        {
+          "dimensions": {
+            "industry": "互联网电商、互联网电商"
+          },
+          "record_count": 405
+        },
+        {
+          "dimensions": {
+            "industry": "食品/饮品/烟酒制造"
+          },
+          "record_count": 261
+        },
+        {
+          "dimensions": {
+            "industry": "广告/公关/营销"
+          },
+          "record_count": 192
+        },
+        {
+          "dimensions": {
+            "industry": "产业互联网平台、互联网电商"
+          },
+          "record_count": 172
+        }
+      ],
+      "meta": {
+        "trace_id": "slice4-industry-top10-3",
+        "page": 1,
+        "page_size": 10,
+        "total": 1534
+      },
+      "aggregations": {
+        "sample_count": 18308,
+        "missing_counts": {
+          "industry": 1723
+        },
+        "source": "raw_jobs",
+        "unit": "records",
+        "deduplication_key": "raw_jobs.id",
+        "coverage": "ingested_records_only",
+        "filters": {
+          "job_title": "电商",
+          "received_to": "2026-11-19T06:19:25.766004Z"
+        }
+      },
+      "source_kind": "platform"
+    },
+    "region-distribution": {
+      "data": [
+        {
+          "dimensions": {
+            "region": "北京市"
+          },
+          "record_count": 1781
+        },
+        {
+          "dimensions": {
+            "region": "深圳市"
+          },
+          "record_count": 1767
+        },
+        {
+          "dimensions": {
+            "region": "广州市"
+          },
+          "record_count": 1729
+        },
+        {
+          "dimensions": {
+            "region": "杭州市"
+          },
+          "record_count": 1652
+        },
+        {
+          "dimensions": {
+            "region": "上海市"
+          },
+          "record_count": 1592
+        },
+        {
+          "dimensions": {
+            "region": "南京市"
+          },
+          "record_count": 697
+        },
+        {
+          "dimensions": {
+            "region": "苏州市"
+          },
+          "record_count": 680
+        },
+        {
+          "dimensions": {
+            "region": "昆明市"
+          },
+          "record_count": 604
+        },
+        {
+          "dimensions": {
+            "region": "南宁市"
+          },
+          "record_count": 583
+        },
+        {
+          "dimensions": {
+            "region": "佛山市"
+          },
+          "record_count": 526
+        },
+        {
+          "dimensions": {
+            "region": "武汉市"
+          },
+          "record_count": 450
+        },
+        {
+          "dimensions": {
+            "region": "福州市"
+          },
+          "record_count": 439
+        },
+        {
+          "dimensions": {
+            "region": "郑州市"
+          },
+          "record_count": 437
+        },
+        {
+          "dimensions": {
+            "region": "成都市"
+          },
+          "record_count": 395
+        },
+        {
+          "dimensions": {
+            "region": "重庆市"
+          },
+          "record_count": 388
+        },
+        {
+          "dimensions": {
+            "region": "贵阳市"
+          },
+          "record_count": 377
+        },
+        {
+          "dimensions": {
+            "region": "厦门市"
+          },
+          "record_count": 364
+        },
+        {
+          "dimensions": {
+            "region": "青岛市"
+          },
+          "record_count": 358
+        },
+        {
+          "dimensions": {
+            "region": "济南市"
+          },
+          "record_count": 351
+        },
+        {
+          "dimensions": {
+            "region": "合肥市"
+          },
+          "record_count": 344
+        },
+        {
+          "dimensions": {
+            "region": "长沙市"
+          },
+          "record_count": 341
+        },
+        {
+          "dimensions": {
+            "region": "大连市"
+          },
+          "record_count": 330
+        },
+        {
+          "dimensions": {
+            "region": "沈阳市"
+          },
+          "record_count": 314
+        },
+        {
+          "dimensions": {
+            "region": "东莞市"
+          },
+          "record_count": 313
+        },
+        {
+          "dimensions": {
+            "region": "宁波市"
+          },
+          "record_count": 309
+        },
+        {
+          "dimensions": {
+            "region": "西安市"
+          },
+          "record_count": 284
+        },
+        {
+          "dimensions": {
+            "region": "天津市"
+          },
+          "record_count": 255
+        },
+        {
+          "dimensions": {
+            "region": "无锡市"
+          },
+          "record_count": 231
+        },
+        {
+          "dimensions": {
+            "region": "云南省"
+          },
+          "record_count": 190
+        },
+        {
+          "dimensions": {
+            "region": "大理市"
+          },
+          "record_count": 49
+        },
+        {
+          "dimensions": {
+            "region": "温州市"
+          },
+          "record_count": 44
+        },
+        {
+          "dimensions": {
+            "region": "长春市"
+          },
+          "record_count": 44
+        },
+        {
+          "dimensions": {
+            "region": "南昌市"
+          },
+          "record_count": 33
+        },
+        {
+          "dimensions": {
+            "region": "石家庄市"
+          },
+          "record_count": 33
+        },
+        {
+          "dimensions": {
+            "region": "哈尔滨市"
+          },
+          "record_count": 24
+        }
+      ],
+      "meta": {
+        "trace_id": "slice4-region-distribution-4",
+        "page": 1,
+        "page_size": 50,
+        "total": 35
+      },
+      "aggregations": {
+        "sample_count": 18308,
+        "missing_counts": {
+          "region": 0
+        },
+        "source": "raw_jobs",
+        "unit": "records",
+        "deduplication_key": "raw_jobs.id",
+        "coverage": "ingested_records_only",
+        "filters": {
+          "job_title": "电商",
+          "received_to": "2026-11-19T06:19:25.766004Z"
+        }
+      },
+      "source_kind": "platform"
+    },
+    "salary-explicit-periods": {
+      "data": {
+        "sample_count": 18308,
+        "eligible_count": 0,
+        "excluded_count": 18308,
+        "exclusion_counts": {
+          "negotiable": 23,
+          "open_range": 13,
+          "unspecified_period": 17745,
+          "unsupported_period": 527
+        },
+        "assumed_monthly_count": 0,
+        "annual_converted_count": 0,
+        "buckets": [
+          {
+            "code": "lt_3000",
+            "lower_inclusive": 0,
+            "upper_exclusive": 3000,
+            "record_count": 0
+          },
+          {
+            "code": "3000_5000",
+            "lower_inclusive": 3000,
+            "upper_exclusive": 5000,
+            "record_count": 0
+          },
+          {
+            "code": "5000_8000",
+            "lower_inclusive": 5000,
+            "upper_exclusive": 8000,
+            "record_count": 0
+          },
+          {
+            "code": "8000_10000",
+            "lower_inclusive": 8000,
+            "upper_exclusive": 10000,
+            "record_count": 0
+          },
+          {
+            "code": "10000_15000",
+            "lower_inclusive": 10000,
+            "upper_exclusive": 15000,
+            "record_count": 0
+          },
+          {
+            "code": "15000_20000",
+            "lower_inclusive": 15000,
+            "upper_exclusive": 20000,
+            "record_count": 0
+          },
+          {
+            "code": "20000_30000",
+            "lower_inclusive": 20000,
+            "upper_exclusive": 30000,
+            "record_count": 0
+          },
+          {
+            "code": "gte_30000",
+            "lower_inclusive": 30000,
+            "upper_exclusive": null,
+            "record_count": 0
+          }
+        ],
+        "top_jobs": [],
+        "top_n": 10,
+        "methodology": {
+          "currency": "CNY",
+          "unit": "yuan_per_month",
+          "assume_monthly": false,
+          "ranking": "monthly_lower_desc,monthly_upper_desc,id_desc",
+          "bucket_basis": "unrounded_monthly_range_midpoint",
+          "annual_conversion": "quoted_annual_range_divided_by_12",
+          "extra_payments": "preserved_but_not_included_in_monthly_base",
+          "source": "raw_jobs",
+          "deduplication_key": "raw_jobs.id",
+          "count_unit": "records",
+          "coverage": "ingested_records_only",
+          "region_semantics": "collection_scope_not_work_location",
+          "industry_semantics": "unmodified_source_industry_text",
+          "filters": {
+            "job_title": "电商",
+            "received_to": "2026-11-19T06:19:25.766004Z"
+          }
+        }
+      },
+      "meta": {
+        "trace_id": "slice4-salary-explicit-periods-5",
+        "page": null,
+        "page_size": null,
+        "total": null
+      },
+      "source_kind": "platform"
+    },
+    "salary-assume-monthly": {
+      "data": {
+        "sample_count": 18308,
+        "eligible_count": 17745,
+        "excluded_count": 563,
+        "exclusion_counts": {
+          "negotiable": 23,
+          "open_range": 13,
+          "unsupported_period": 527
+        },
+        "assumed_monthly_count": 17745,
+        "annual_converted_count": 0,
+        "buckets": [
+          {
+            "code": "lt_3000",
+            "lower_inclusive": 0,
+            "upper_exclusive": 3000,
+            "record_count": 176
+          },
+          {
+            "code": "3000_5000",
+            "lower_inclusive": 3000,
+            "upper_exclusive": 5000,
+            "record_count": 1392
+          },
+          {
+            "code": "5000_8000",
+            "lower_inclusive": 5000,
+            "upper_exclusive": 8000,
+            "record_count": 7355
+          },
+          {
+            "code": "8000_10000",
+            "lower_inclusive": 8000,
+            "upper_exclusive": 10000,
+            "record_count": 3359
+          },
+          {
+            "code": "10000_15000",
+            "lower_inclusive": 10000,
+            "upper_exclusive": 15000,
+            "record_count": 3617
+          },
+          {
+            "code": "15000_20000",
+            "lower_inclusive": 15000,
+            "upper_exclusive": 20000,
+            "record_count": 1082
+          },
+          {
+            "code": "20000_30000",
+            "lower_inclusive": 20000,
+            "upper_exclusive": 30000,
+            "record_count": 514
+          },
+          {
+            "code": "gte_30000",
+            "lower_inclusive": 30000,
+            "upper_exclusive": null,
+            "record_count": 250
+          }
+        ],
+        "top_jobs": [
+          {
+            "id": "ea416a4c-dfab-4f30-a760-d2d055f7670d",
+            "job_title": "电商总监（上市企业 内衣行业）",
+            "title_normalized": "电商总监(上市企业 内衣行业)",
+            "company_name": "智联猎头",
+            "region": "上海市",
+            "industry": "产业互联网平台",
+            "education": "本科",
+            "experience_requirement": "5-10年",
+            "salary_range": "5-10万",
+            "monthly_lower": 50000.0,
+            "monthly_upper": 100000.0,
+            "period_basis": "assumed_monthly",
+            "payments_per_year": null
+          },
+          {
+            "id": "7611066b-97ad-462b-90be-4995fe6af691",
+            "job_title": "农资农服电商运营总监",
+            "title_normalized": "农资农服电商运营总监",
+            "company_name": "北京农丰科技集团有限公司",
+            "region": "北京市",
+            "industry": "农业",
+            "education": "本科",
+            "experience_requirement": "5-10年",
+            "salary_range": "5-10万",
+            "monthly_lower": 50000.0,
+            "monthly_upper": 100000.0,
+            "period_basis": "assumed_monthly",
+            "payments_per_year": null
+          },
+          {
+            "id": "f5291ab5-081b-486b-b3e1-237a8a411a0f",
+            "job_title": "国内电商总监",
+            "title_normalized": "国内电商总监",
+            "company_name": "宁波渠成集团有限公司",
+            "region": "杭州市",
+            "industry": "互联网电商",
+            "education": "本科",
+            "experience_requirement": "5-10年",
+            "salary_range": "5-8万",
+            "monthly_lower": 50000.0,
+            "monthly_upper": 80000.0,
+            "period_basis": "assumed_monthly",
+            "payments_per_year": null
+          },
+          {
+            "id": "9f337f14-78b2-4fca-9720-9663d1441ab3",
+            "job_title": "国内电商总监",
+            "title_normalized": "国内电商总监",
+            "company_name": "宁波渠成集团有限公司",
+            "region": "杭州市",
+            "industry": "餐饮服务、餐饮服务、综合商贸、产业互联网平台",
+            "education": "本科",
+            "experience_requirement": "5-10年",
+            "salary_range": "5-8万",
+            "monthly_lower": 50000.0,
+            "monthly_upper": 80000.0,
+            "period_basis": "assumed_monthly",
+            "payments_per_year": null
+          },
+          {
+            "id": "947063ef-c1f7-43fc-b5df-4b1d80728bde",
+            "job_title": "国内电商总监",
+            "title_normalized": "国内电商总监",
+            "company_name": "宁波渠成集团有限公司",
+            "region": "杭州市",
+            "industry": null,
+            "education": "本科",
+            "experience_requirement": "5-10年",
+            "salary_range": "5-8万",
+            "monthly_lower": 50000.0,
+            "monthly_upper": 80000.0,
+            "period_basis": "assumed_monthly",
+            "payments_per_year": null
+          },
+          {
+            "id": "8d173492-0b2e-47fd-b175-8d23f50875b1",
+            "job_title": "国内电商总监",
+            "title_normalized": "国内电商总监",
+            "company_name": "宁波渠成集团有限公司",
+            "region": "宁波市",
+            "industry": "家具/家居/办公制造、家具/家居/办公制造",
+            "education": "本科",
+            "experience_requirement": "5-10年",
+            "salary_range": "5-8万",
+            "monthly_lower": 50000.0,
+            "monthly_upper": 80000.0,
+            "period_basis": "assumed_monthly",
+            "payments_per_year": null
+          },
+          {
+            "id": "80230ee4-80e5-4a83-b46d-7184542c3a26",
+            "job_title": "电商销售总监",
+            "title_normalized": "电商销售总监",
+            "company_name": "中寰医药有限公司",
+            "region": "上海市",
+            "industry": "广告/公关/营销",
+            "education": "本科",
+            "experience_requirement": "3-5年",
+            "salary_range": "5-8万",
+            "monthly_lower": 50000.0,
+            "monthly_upper": 80000.0,
+            "period_basis": "assumed_monthly",
+            "payments_per_year": null
+          },
+          {
+            "id": "7e999734-3cb6-4518-8306-78ffbbe36df9",
+            "job_title": "5-8万\n本科\n5-10年\n电商运营\n宁波渠成集团有限公司\n杭州 余杭 仓前",
+            "title_normalized": "5-8万 本科 5-10年 电商运营 宁波渠成集团有限公司 杭州 余杭 仓前",
+            "company_name": "宁波渠成集团有限公司",
+            "region": "杭州市",
+            "industry": "产业互联网平台、互联网电商",
+            "education": "本科",
+            "experience_requirement": "5-10年",
+            "salary_range": "5-8万",
+            "monthly_lower": 50000.0,
+            "monthly_upper": 80000.0,
+            "period_basis": "assumed_monthly",
+            "payments_per_year": null
+          },
+          {
+            "id": "79fb84b4-92fa-4b31-a101-7693b9942ada",
+            "job_title": "5-8万\n本科\n5-10年\n电商运营\n宁波渠成集团有限公司\n杭州 余杭 仓前",
+            "title_normalized": "5-8万 本科 5-10年 电商运营 宁波渠成集团有限公司 杭州 余杭 仓前",
+            "company_name": "宁波渠成集团有限公司",
+            "region": "杭州市",
+            "industry": "家具/家居/办公制造",
+            "education": "本科",
+            "experience_requirement": "5-10年",
+            "salary_range": "5-8万",
+            "monthly_lower": 50000.0,
+            "monthly_upper": 80000.0,
+            "period_basis": "assumed_monthly",
+            "payments_per_year": null
+          },
+          {
+            "id": "67e4ea5e-184d-4d01-9506-0bea25aacd9a",
+            "job_title": "国内电商总监",
+            "title_normalized": "国内电商总监",
+            "company_name": "宁波渠成集团有限公司",
+            "region": "杭州市",
+            "industry": "家具/家居/办公制造",
+            "education": "本科",
+            "experience_requirement": "5-10年",
+            "salary_range": "5-8万",
+            "monthly_lower": 50000.0,
+            "monthly_upper": 80000.0,
+            "period_basis": "assumed_monthly",
+            "payments_per_year": null
+          }
+        ],
+        "top_n": 10,
+        "methodology": {
+          "currency": "CNY",
+          "unit": "yuan_per_month",
+          "assume_monthly": true,
+          "ranking": "monthly_lower_desc,monthly_upper_desc,id_desc",
+          "bucket_basis": "unrounded_monthly_range_midpoint",
+          "annual_conversion": "quoted_annual_range_divided_by_12",
+          "extra_payments": "preserved_but_not_included_in_monthly_base",
+          "source": "raw_jobs",
+          "deduplication_key": "raw_jobs.id",
+          "count_unit": "records",
+          "coverage": "ingested_records_only",
+          "region_semantics": "collection_scope_not_work_location",
+          "industry_semantics": "unmodified_source_industry_text",
+          "filters": {
+            "job_title": "电商",
+            "received_to": "2026-11-19T06:19:25.766004Z"
+          }
+        }
+      },
+      "meta": {
+        "trace_id": "slice4-salary-assume-monthly-6",
+        "page": null,
+        "page_size": null,
+        "total": null
+      },
+      "source_kind": "platform"
+    },
+    "hangzhou-education-experience": {
+      "data": [
+        {
+          "dimensions": {
+            "education": "大专",
+            "experience": "1-3年"
+          },
+          "record_count": 393
+        },
+        {
+          "dimensions": {
+            "education": "大专",
+            "experience": "3-5年"
+          },
+          "record_count": 234
+        },
+        {
+          "dimensions": {
+            "education": "本科",
+            "experience": "1-3年"
+          },
+          "record_count": 215
+        },
+        {
+          "dimensions": {
+            "education": "大专",
+            "experience": "经验不限"
+          },
+          "record_count": 162
+        },
+        {
+          "dimensions": {
+            "education": "本科",
+            "experience": "经验不限"
+          },
+          "record_count": 136
+        },
+        {
+          "dimensions": {
+            "education": "本科",
+            "experience": "3-5年"
+          },
+          "record_count": 100
+        },
+        {
+          "dimensions": {
+            "education": "本科",
+            "experience": "5-10年"
+          },
+          "record_count": 95
+        },
+        {
+          "dimensions": {
+            "education": "学历不限",
+            "experience": "经验不限"
+          },
+          "record_count": 64
+        },
+        {
+          "dimensions": {
+            "education": "学历不限",
+            "experience": "1-3年"
+          },
+          "record_count": 46
+        },
+        {
+          "dimensions": {
+            "education": "高中",
+            "experience": "经验不限"
+          },
+          "record_count": 28
+        },
+        {
+          "dimensions": {
+            "education": "本科",
+            "experience": null
+          },
+          "record_count": 25
+        },
+        {
+          "dimensions": {
+            "education": "高中",
+            "experience": "1-3年"
+          },
+          "record_count": 24
+        },
+        {
+          "dimensions": {
+            "education": "学历不限",
+            "experience": "3-5年"
+          },
+          "record_count": 19
+        },
+        {
+          "dimensions": {
+            "education": null,
+            "experience": null
+          },
+          "record_count": 17
+        },
+        {
+          "dimensions": {
+            "education": "大专",
+            "experience": null
+          },
+          "record_count": 17
+        },
+        {
+          "dimensions": {
+            "education": null,
+            "experience": "1-3年"
+          },
+          "record_count": 14
+        },
+        {
+          "dimensions": {
+            "education": "大专",
+            "experience": "5-10年"
+          },
+          "record_count": 12
+        },
+        {
+          "dimensions": {
+            "education": "本科",
+            "experience": "1年以下"
+          },
+          "record_count": 7
+        },
+        {
+          "dimensions": {
+            "education": "本科",
+            "experience": "本科"
+          },
+          "record_count": 7
+        },
+        {
+          "dimensions": {
+            "education": "实习",
+            "experience": "1-3年"
+          },
+          "record_count": 6
+        },
+        {
+          "dimensions": {
+            "education": "本科",
+            "experience": "10年以上"
+          },
+          "record_count": 6
+        },
+        {
+          "dimensions": {
+            "education": null,
+            "experience": "3-5年"
+          },
+          "record_count": 4
+        },
+        {
+          "dimensions": {
+            "education": "中专/中技",
+            "experience": "1-3年"
+          },
+          "record_count": 4
+        },
+        {
+          "dimensions": {
+            "education": "中专/中技",
+            "experience": "经验不限"
+          },
+          "record_count": 4
+        },
+        {
+          "dimensions": {
+            "education": "初中及以下",
+            "experience": "1-3年"
+          },
+          "record_count": 3
+        },
+        {
+          "dimensions": {
+            "education": "本科",
+            "experience": "在校/应届"
+          },
+          "record_count": 3
+        },
+        {
+          "dimensions": {
+            "education": "高中",
+            "experience": "1年以下"
+          },
+          "record_count": 2
+        },
+        {
+          "dimensions": {
+            "education": "大专",
+            "experience": "在校/应届"
+          },
+          "record_count": 1
+        },
+        {
+          "dimensions": {
+            "education": "大专",
+            "experience": "学历不限"
+          },
+          "record_count": 1
+        },
+        {
+          "dimensions": {
+            "education": "实习",
+            "experience": "3-5年"
+          },
+          "record_count": 1
+        },
+        {
+          "dimensions": {
+            "education": "实习",
+            "experience": "学历不限"
+          },
+          "record_count": 1
+        },
+        {
+          "dimensions": {
+            "education": "实习",
+            "experience": "本科"
+          },
+          "record_count": 1
+        }
+      ],
+      "meta": {
+        "trace_id": "slice4-hangzhou-education-experience-7",
+        "page": 1,
+        "page_size": 50,
+        "total": 32
+      },
+      "aggregations": {
+        "sample_count": 1652,
+        "missing_counts": {
+          "education": 35,
+          "experience": 59
+        },
+        "source": "raw_jobs",
+        "unit": "records",
+        "deduplication_key": "raw_jobs.id",
+        "coverage": "ingested_records_only",
+        "filters": {
+          "job_title": "电商",
+          "region": "杭州",
+          "received_to": "2026-11-19T06:19:25.766004Z"
+        }
+      },
+      "source_kind": "platform"
+    }
+  },
+  "metrics": {
+    "region-distribution": {
+      "n": 3,
+      "p50_ms": 23.8,
+      "p95_ms": 25.1
+    },
+    "salary-explicit-periods": {
+      "n": 3,
+      "p50_ms": 23.8,
+      "p95_ms": 25.4
+    },
+    "hangzhou-education-experience": {
+      "n": 3,
+      "p50_ms": 16.9,
+      "p95_ms": 17.6
+    },
+    "industry-top10": {
+      "n": 3,
+      "p50_ms": 76.3,
+      "p95_ms": 76.6
+    },
+    "education-experience-page2": {
+      "n": 3,
+      "p50_ms": 69.6,
+      "p95_ms": 77.3
+    },
+    "salary-assume-monthly": {
+      "n": 3,
+      "p50_ms": 28.6,
+      "p95_ms": 30.3
+    },
+    "education-experience-page1": {
+      "n": 3,
+      "p50_ms": 29.6,
+      "p95_ms": 39.1
+    }
+  }
+}

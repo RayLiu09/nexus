@@ -27,6 +27,7 @@
 | B 已有图谱 | `GET /normalized-refs/{ref_id}/knowledge-graph` | exact ref，类型/节点/关系/深度与数量限制；已有证据图谱及生成能力图谱；保留存储事实、推导来源和证据；不触发构建/晋升 |
 | B 批量证据 | `POST /evidence-resolutions` | 最多 30 个 chunk/ref/岗位/企业/园区/布点/能力条目 ID，逐项校验可见性；不可用与不存在均 not_found；POST 为只读解析 |
 | B 同源岗位聚合 | `GET /market-jobs/aggregate` | raw_jobs 全部符合筛选记录的分组统计，非当前页；样本量、缺失值、去重键、来源和覆盖范围 |
+| B 岗位月薪分析 | `GET /market-jobs/salary-analysis` | 同源筛选的月薪区间与高薪岗位 TOP；换算假设、有效/排除样本及原因；轻量岗位 ID，详细来源按需读取 |
 | B 实体候选 | `POST /entity-resolutions` | 专业、课程、企业、园区候选及 exact/substring 依据；保留歧义与来源，不强行合并 |
 | B 职业能力增强 | 增强 `GET /record-assets/ability-analyses?major_code=...`；新增 `GET /record-assets/ability-items` | 专业代码过滤、跨分析能力条目检索，保留任务/工作内容/分析/ref 来源；沿用独立记录边界 |
 | B 培养方案增强 | 增强 `GET /talent-training-plans`；新增 `/{plan_id}/courses` | 按文档源发布日期筛选方案；课程分页读取；公开方案与两类方案图谱统一校验当前可用文档和正式分类 |
@@ -157,5 +158,29 @@ nexus-api/.venv/bin/python scripts/generate_public_function_tools.py --check
 ```
 
 上例用于岗位列表；查标准可用 `{"query":{"occupation":"电子商务师","page":1,"pageSize":20}}` 或职业代码 `4-01-06-01`。
+
+## 岗位分布与月薪分析（优化单元4）
+
+`aggregate_market_jobs` 的 `group_by` 支持 `job_title/company_name/industry/education/experience/company_size/region`，1–3项、不重复。学历×经验、区域×行业等均先过滤全部匹配事实再分组分页。`meta.total` 是分组数，`aggregations.sample_count` 是岗位记录数，`missing_counts` 是各所选维度 NULL 或 trim 后空文本的记录数；NULL、空串和空格原值仍分成不同组。空结果/越界页保留统计信息，数值保持 JSON integer。行业、学历和经验保留来源文本，包括连写行业和经验字段错位的学历值，不自动拆分、纠正或推断一二三产业。地区仅为采集范围，不能据此称为实际工作地分布。
+
+岗位名足以表达需求时使用 `job_title`（同时匹配原始/简化标题）；`q` 还匹配企业、描述、职责，语义更宽且成本更高，不自动等价替换。所有字符串条件转义 `%/_` 并按 AND 组合。连续查询可固定同一个 `received_to`（provenance.received_at，包含边界），不使用创建时间代替；它不冻结历史数据的后续修改或删除。
+
+新 GET `/open/v1/market-jobs/salary-analysis`（`analyze_market_job_salaries`）接受相同 JobFilters，以及 `top_n=10`（1–100）、`assume_monthly=false`。无页码：固定返回8个桶与最多 top_n 条轻量岗位。`data` 包含 `sample_count/eligible_count/excluded_count/exclusion_counts/assumed_monthly_count/annual_converted_count`、`buckets`、`top_jobs`、`methodology`。`meta.total` 不作为本接口样本量；取 `data.sample_count`。
+
+- 元、千、k、万的正数单值/闭合区间，支持不同端点单位。显式月薪直接换算人民币元/月；显式年薪除12。金额两位小数展示，排序/桶使用未舍入 Decimal。未标周期默认排除；显式 `assume_monthly=true` 才按月薪假设纳入，并返回影响条数。不得把默认模式无有效报价称为无岗位。
+- 日/时/周/次不假设工时或天数；面议、缺失、开放区间、无币种单位、未知格式、倒置/零区间和冲突周期等按原因排除。单条仅归一个原因，`sample_count=eligible_count+excluded_count`，`sum(exclusion_counts)=excluded_count`。
+- `TOP` 按月薪下限 DESC、上限 DESC、岗位 ID DESC；同金额不同原文报价按同一数值名次排序。不是按上限或区间中点排序，不代表实发/保证收入。13薪等后缀保留在 `payments_per_year` 与原文，不摊入月度基础报价。
+- 桶按月薪范围中点分布：`[0,3000)`、`[3000,5000)`、`[5000,8000)`、`[8000,10000)`、`[10000,15000)`、`[15000,20000)`、`[20000,30000)`、`[30000,+∞)`；每条合格记录只入一个桶，不拆分区间，桶数和等于 eligible_count。
+- TOP 返回 ID、标题、企业、采集区域、原始行业/学历/经验/薪酬、换算上下限及周期依据；不带完整正文、provenance JSON 或默认引用。需要来源时用已返回ID调用 `get_market_job`，原始薪酬与源字段不变。统计仅已入库记录（raw_jobs.id），不是去重招聘人数/全市场薪资调查。
+
+```json
+{"query":{"job_title":"电商","group_by":["region","education","experience"],"pageSize":50,"received_to":"2026-11-19T06:19:25.766004Z"}}
+```
+
+```json
+{"query":{"job_title":"电商","top_n":10,"assume_monthly":true,"received_to":"2026-11-19T06:19:25.766004Z"}}
+```
+
+分别用于聚合与薪酬分析。薪酬答案必须披露假设及有效/排除样本；按需取证。新接口与 region 分组需部署对应服务版本；旧版本404/422不是零样本。认证、过期/撤销复查、trace 与脱敏读取审计沿用现有合同；P0 Caller 为全公开面 `open:*`，本单元不新增逐路由/组织隔离。参数错误422，认证失败401，过期/撤销403，仅开放GET。无数据库迁移或实际业务数据重写。
 
 `industry_regulation_standard`（行业法规标准，控制台入口“法规标准”）纳入公开资源发现与共享文档 `resource_type` 过滤。遵循现有 available/current-ref、API 权限与审计合同；支持 topic=finance_commerce/low_altitude 及文档标签筛选。通过已有知识块、解析预览和原文下载接口读取，不新增领域模型接口。

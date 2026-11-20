@@ -1119,6 +1119,20 @@ Single-node capacity (16 Core / 64 GB / 48 GB GPU):
   registration, without document-derived schema shadowing. Major-offering
   Excel export shares list filters/order, reads in batches and records audit;
   binary downloads stay outside the JSON function-tool catalog.
+  Public job reads use narrow fact queries and fetch wide rows after page
+  selection. Aggregation shares a grouped CTE for page and scope counts;
+  no schema/index migration or new infrastructure is required. Education,
+  experience and industry remain unmodified source text; region groups are
+  collection scope, not inferred work location or a standardized sector map.
+  `/open/v1/market-jobs/salary-analysis` groups distinct source salary quotes
+  in SQL, parses explicit CNY month/year ranges with deterministic rules, and
+  fetches only lightweight TOP candidates. Unknown periods are excluded unless
+  `assume_monthly=true`; affected and excluded counts accompany results. Annual
+  ranges divide by 12; extra salary payments are preserved without changing
+  monthly base. TOP ranks by lower bound, upper bound and ID descending;
+  distribution uses unrounded range midpoint. Original source fields/provenance
+  remain readable by job ID. This derived view never rewrites raw facts or
+  introduces normalized-asset/governance/semantic-index dependencies.
   Generated capability-graph staging projections
   are exposed through bounded, read-only open adapters while `/internal/v1`
   retains build, preview, and operational control APIs.

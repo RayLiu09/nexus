@@ -124,6 +124,23 @@ def test_career_and_region_filters_and_non_active_statuses_are_exported():
         assert {"evidence_block_ids", "locator", "source_name", "source_code"} <= fields["career_orientation"]["items"]["properties"].keys()
 
 
+def test_job_distribution_and_salary_contract_is_discoverable():
+    catalog = generate_catalog(create_app().openapi())
+    tools = {item["name"]: item for item in catalog["tools"]}
+    bindings = {item["name"]: item for item in catalog["bindings"]}
+    groups = tools["aggregate_market_jobs"]["parameters"]["properties"]["query"]["properties"]["group_by"]
+    assert {"region", "industry", "education", "experience"} <= set(groups["items"]["enum"])
+    tool = tools["analyze_market_job_salaries"]
+    query = tool["parameters"]["properties"]["query"]["properties"]
+    assert query["assume_monthly"]["default"] is False
+    assert query["top_n"]["maximum"] == 100
+    assert {"received_to", "job_title", "region", "industry", "education", "experience"} <= query.keys()
+    binding = bindings[tool["name"]]
+    assert binding["method"] == "GET" and binding["path"] == "/open/v1/market-jobs/salary-analysis"
+    fields = binding["response_schemas"]["200"]["properties"]["data"]["properties"]
+    assert {"sample_count", "eligible_count", "excluded_count", "exclusion_counts", "assumed_monthly_count", "buckets", "top_jobs", "methodology"} <= fields.keys()
+
+
 def test_ecommerce_demo_base_tools_expose_only_readonly_registry_contracts():
     catalog = generate_catalog(create_app().openapi())
     tools = {item['name']: item for item in catalog['tools']}

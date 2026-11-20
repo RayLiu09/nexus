@@ -6,7 +6,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
-from sqlalchemy import Text, cast, func, nulls_last, or_, select
+from sqlalchemy import Text, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from nexus_api import public_schemas as dto, schemas
@@ -14,6 +14,8 @@ from nexus_api.auth import require_api_caller
 from nexus_api.dependencies import Pagination, pagination_params
 from nexus_api.public_access import audit_read, available_refs
 from nexus_api.responses import list_response, response
+from nexus_api.market_job_queries import job_facts, job_group_statement, job_page_statement
+from nexus_api.job_salary import analyze_salaries
 from nexus_app import models
 from nexus_app.database import get_db
 
@@ -70,30 +72,7 @@ def job_filters(
 
 
 def job_statement(filters):
-    job, provenance = models.RawJob, models.RawJobProvenance
-    stmt = select(job, provenance).outerjoin(provenance, provenance.raw_job_id == job.id)
-    if filters.q:
-        stmt = stmt.where(or_(*(column.icontains(filters.q, autoescape=True) for column in (
-            job.title_raw, job.title_normalized, job.company_name_raw, job.description_raw, job.responsibilities_raw,
-        ))))
-    for field, column in {
-        "job_title": job.title_raw, "company_name": job.company_name_raw,
-        "industry": job.company_industry_raw, "education": job.degree_raw,
-        "experience": job.experience_raw,
-        "region": job.region,
-    }.items():
-        if value := getattr(filters, field):
-            condition = column.icontains(value, autoescape=True)
-            if field == "job_title":
-                condition = or_(condition, job.title_normalized.icontains(value, autoescape=True))
-            stmt = stmt.where(condition)
-    if filters.collected_from:
-        stmt = stmt.where(provenance.collected_at >= filters.collected_from)
-    if filters.collected_to:
-        stmt = stmt.where(provenance.collected_at <= filters.collected_to)
-    if filters.received_to:
-        stmt = stmt.where(provenance.received_at <= filters.received_to)
-    return stmt
+    return job_facts(filters, models.RawJob, models.RawJobProvenance, with_provenance=True)
 
 
 def job_payload(job, provenance):
@@ -112,10 +91,8 @@ def list_market_jobs(request: Request, filters: JobFilters = Depends(job_filters
                      pagination: Pagination = Depends(pagination_params),
                      caller=Depends(require_api_caller), session: Session = Depends(get_db)):
     """Query raw_jobs with simplified cleaned titles and collection-region substring filters before pagination. Region is the collection scope, not inferred work location; collection time is not publication time."""
-    rows, total = page_rows(session, job_statement(filters).order_by(
-        nulls_last(models.RawJobProvenance.collected_at.desc()),
-        models.RawJob.id.desc(),
-    ), pagination)
+    total = session.scalar(job_facts(filters, func.count())) or 0
+    rows = session.execute(job_page_statement(filters, pagination)).all()
     return finish_list([job_payload(*row) for row in rows], total, request, session,
                        caller, pagination, "market_jobs")
 
@@ -124,35 +101,49 @@ JOB_GROUPS = {
     "job_title": models.RawJob.title_raw, "company_name": models.RawJob.company_name_raw,
     "industry": models.RawJob.company_industry_raw, "education": models.RawJob.degree_raw,
     "experience": models.RawJob.experience_raw, "company_size": models.RawJob.company_scale_raw,
+    "region": models.RawJob.region,
 }
 
 
 @router.get("/market-jobs/aggregate", operation_id="aggregate_market_jobs", response_model=schemas.ListResponse[dto.MarketJobGroup])
 def aggregate_market_jobs(
     request: Request,
-    group_by: list[Literal["job_title", "company_name", "industry", "education", "experience", "company_size"]] = Query(["job_title"], min_length=1, max_length=3),
+    group_by: list[Literal["job_title", "company_name", "industry", "education", "experience", "company_size", "region"]] = Query(["job_title"], min_length=1, max_length=3),
     filters: JobFilters = Depends(job_filters), pagination: Pagination = Depends(pagination_params),
     caller=Depends(require_api_caller), session: Session = Depends(get_db),
 ):
-    """Count raw job records by stored text fields, filtered by collection region before grouping. Region is not actual work location; no numeric salary or inferred city statistics."""
+    """Count all matching job records by 1–3 source dimensions, including education/experience/industry/region. Region is collection scope; industry is unmodified source text, not a standardized sector. NULL/blank values stay separate; missing_counts includes both. Salary analysis uses the separate salary-analysis endpoint."""
     if len(set(group_by)) != len(group_by):
         raise HTTPException(422, "duplicate_group_by")
-    base = job_statement(filters).subquery()
-    # Group the already filtered source, never a paginated list or the legacy projection.
-    columns = [base.c[JOB_GROUPS[key].key] for key in group_by]
-    count = func.count(base.c.id)
-    stmt = select(*columns, count.label("record_count")).group_by(*columns).order_by(count.desc(), *columns)
-    rows, total = page_rows(session, stmt, pagination)
-    sample_count = session.scalar(select(func.count()).select_from(base)) or 0
-    missing = {name: session.scalar(select(func.count()).select_from(base).where(or_(column.is_(None), func.trim(column) == ""))) or 0
-               for name, column in zip(group_by, columns)}
+    rows = session.execute(job_group_statement(filters, group_by, JOB_GROUPS, pagination)).mappings().all()
+    scope = rows[0]
+    # PostgreSQL SUM(bigint) yields Decimal/numeric; preserve the existing JSON
+    # integer contract instead of letting Pydantic encode these as strings.
+    total, sample_count = int(scope["group_total"]), int(scope["sample_count"])
+    missing = {name: int(scope["missing_" + name]) for name in group_by}
     return finish_list([
-        {"dimensions": dict(zip(group_by, row[:-1])), "record_count": row[-1]} for row in rows
+        {"dimensions": {name: row[name] for name in group_by}, "record_count": row["record_count"]}
+        for row in rows if row["record_count"] is not None
     ], total, request, session, caller, pagination, "market_jobs_aggregate", {
         "sample_count": sample_count, "missing_counts": missing, "source": "raw_jobs",
         "unit": "records", "deduplication_key": "raw_jobs.id",
         "coverage": "ingested_records_only", "filters": filters.model_dump(mode="json", exclude_none=True),
     })
+
+
+@router.get("/market-jobs/salary-analysis", operation_id="analyze_market_job_salaries",
+            response_model=schemas.ApiResponse[dto.MarketJobSalaryAnalysis])
+def analyze_market_job_salaries(
+    request: Request, filters: JobFilters = Depends(job_filters),
+    top_n: int = Query(10, ge=1, le=100),
+    assume_monthly: bool = Query(False, description="Explicitly treat source quotes without a pay period as monthly CNY; disclose assumed_monthly_count in answers. Default excludes these quotes."),
+    caller=Depends(require_api_caller), session: Session = Depends(get_db),
+):
+    """Monthly salary distribution and high-paying job TOP over all matching raw_jobs. Explicit CNY month quotes are used directly; annual /12. Unknown periods, daily/hourly/weekly/per-task, negotiable and open ranges are excluded with counts. assume_monthly=true optionally includes period-less quotes under an explicit assumption. Buckets use unrounded range midpoint; TOP uses lower bound DESC, upper bound DESC, id DESC. Extra annual payments are preserved but not added to monthly base. Not actual income or whole-market statistics. Read get_market_job by returned ID only when detailed provenance is needed."""
+    result = analyze_salaries(session, filters, top_n, assume_monthly)
+    audit_read(session, request, caller, "market_jobs_salary_analysis", len(result["top_jobs"]),
+               total=result["sample_count"])
+    return response(result, request)
 
 
 @router.get("/market-jobs/{job_id}", operation_id="get_market_job", response_model=schemas.ApiResponse[dto.MarketJobRead])

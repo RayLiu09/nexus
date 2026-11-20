@@ -623,8 +623,22 @@ bounded sections, existing knowledge/task outlines, node contexts, existing
 graphs, batch evidence and ambiguity-preserving entity candidates. Catalog
 filters add business resource type, multiple classifications, topic, identity,
 region/industry, source publication date and explicit tag `any/all` semantics.
-Market jobs support literal source-address `region` filtering in lists and
-aggregates. Teaching standards support `occupation` matching on source industry,
+Market jobs support literal collection-scope `raw_jobs.region` filtering in
+lists, aggregates and salary analysis. Aggregates accept up to three source
+dimensions including education, experience, industry and region, with full
+matched-record counts and missing values preserved independently of pagination.
+Industry text is not a standard industry/sector classification; source field
+anomalies remain visible. `/open/v1/market-jobs/salary-analysis` returns lightweight
+high-salary job TOP and monthly quote-midpoint buckets at 3000/5000/8000/10000/
+15000/20000/30000 CNY boundaries (left inclusive). TOP orders monthly lower,
+upper, then ID descending; annual quotes divide by 12, extra payment counts
+are not added to monthly base. Nonconvertible quotes have explicit exclusion
+counts. Period-less quotes require `assume_monthly=true` and the answer must
+disclose affected counts; default strict mode can have zero eligible salaries
+despite nonzero matching jobs. Original salary/source detail remains available
+on demand. All these reads share filters and optional `received_to`; this
+receipt cutoff freezes new arrivals, not subsequent updates/deletions.
+Teaching standards support `occupation` matching on source industry,
 occupation names/codes and positions, with source-bound career orientation in
 the response. Current available documents and official classification still gate
 standard/course reads; review/active/superseded library states do not.

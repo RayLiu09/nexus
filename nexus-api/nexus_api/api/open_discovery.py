@@ -85,7 +85,7 @@ def discover(request: Request, caller=Depends(require_api_caller), session: Sess
     specs = [
         ("major_distribution", "专业布点数据", models.MajorOfferingRecord, "/open/v1/major-offerings", ["list", "aggregate"], ["year_school_major_duration_unique", "api_sync_and_excel_import", "ingested_coverage_only"]),
         ("occupational_ability_analysis", "职业能力分析", models.OccupationalAbilityAnalysis, "/open/v1/record-assets/ability-analyses", ["list", "detail", "tasks", "items", "relations", "graphs"], ["independent_domain_records"]),
-        ("market_job", "市场岗位", models.RawJob, "/open/v1/market-jobs", ["list", "detail", "aggregate"], ["raw_jobs_not_legacy_job_demand_records", "collection_time_not_publication_time", "salary_is_source_text"]),
+        ("market_job", "市场岗位", models.RawJob, "/open/v1/market-jobs", ["list", "detail", "aggregate", "salary_analysis"], ["raw_jobs_not_legacy_job_demand_records", "collection_time_not_publication_time", "region_is_collection_scope", "industry_is_unmodified_source_text", "salary_analysis_excludes_unconvertible_quotes", "implicit_monthly_requires_explicit_option"]),
         ("industrial_park", "产业园区", models.IndustrialPark, "/open/v1/industrial-parks", ["list", "detail", "enterprises"], ["ingested_coverage_only"]),
         ("enterprise", "企业数据", models.Enterprise, "/open/v1/enterprises", ["list", "detail"], ["no_inferred_cooperation_relationships"]),
         ("ecommerce_demo_base", "电商示范基地", models.EcommercePark, "/open/v1/ecommerce-demo-bases", ["list", "detail", "aggregate"],

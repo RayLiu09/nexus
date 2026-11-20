@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "source": "public OpenAPI /open/v1",
-  "sha256": "385fec95747982daaff121d990cbc37a4f912638dbe80bab1eaa0927339025fb",
+  "sha256": "5e622bb45a47b4eedb5c8341b1476aa84bdfdd644f64fac5af009c0302eabc0c",
   "bindings": [
     {
       "name": "find_documents",
@@ -6810,6 +6810,438 @@
             "meta"
           ],
           "title": "ListResponse[MarketJobGroup]"
+        },
+        "422": {
+          "properties": {
+            "detail": {
+              "items": {
+                "properties": {
+                  "loc": {
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "type": "array",
+                    "title": "Location"
+                  },
+                  "msg": {
+                    "type": "string",
+                    "title": "Message"
+                  },
+                  "type": {
+                    "type": "string",
+                    "title": "Error Type"
+                  },
+                  "input": {
+                    "title": "Input"
+                  },
+                  "ctx": {
+                    "type": "object",
+                    "title": "Context"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "loc",
+                  "msg",
+                  "type"
+                ],
+                "title": "ValidationError"
+              },
+              "type": "array",
+              "title": "Detail"
+            }
+          },
+          "type": "object",
+          "title": "HTTPValidationError"
+        }
+      }
+    },
+    {
+      "name": "analyze_market_job_salaries",
+      "method": "GET",
+      "path": "/open/v1/market-jobs/salary-analysis",
+      "tags": [
+        "public-business"
+      ],
+      "arguments": [
+        {
+          "argument": "query.top_n",
+          "in": "query",
+          "name": "top_n",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.assume_monthly",
+          "in": "query",
+          "name": "assume_monthly",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.q",
+          "in": "query",
+          "name": "q",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.job_title",
+          "in": "query",
+          "name": "job_title",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.company_name",
+          "in": "query",
+          "name": "company_name",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.industry",
+          "in": "query",
+          "name": "industry",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.education",
+          "in": "query",
+          "name": "education",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.experience",
+          "in": "query",
+          "name": "experience",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.region",
+          "in": "query",
+          "name": "region",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.collected_from",
+          "in": "query",
+          "name": "collected_from",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.collected_to",
+          "in": "query",
+          "name": "collected_to",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.received_to",
+          "in": "query",
+          "name": "received_to",
+          "style": "form",
+          "explode": true
+        }
+      ],
+      "authentication": {
+        "header": "X-API-Key",
+        "injected_by": "executor"
+      },
+      "executor_defaults": {},
+      "potential_ingest_side_effect": false,
+      "response_schemas": {
+        "200": {
+          "properties": {
+            "data": {
+              "properties": {
+                "sample_count": {
+                  "type": "integer",
+                  "title": "Sample Count"
+                },
+                "eligible_count": {
+                  "type": "integer",
+                  "title": "Eligible Count"
+                },
+                "excluded_count": {
+                  "type": "integer",
+                  "title": "Excluded Count"
+                },
+                "exclusion_counts": {
+                  "additionalProperties": {
+                    "type": "integer"
+                  },
+                  "type": "object",
+                  "title": "Exclusion Counts"
+                },
+                "assumed_monthly_count": {
+                  "type": "integer",
+                  "title": "Assumed Monthly Count"
+                },
+                "annual_converted_count": {
+                  "type": "integer",
+                  "title": "Annual Converted Count"
+                },
+                "buckets": {
+                  "items": {
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                        "title": "Code"
+                      },
+                      "lower_inclusive": {
+                        "type": "integer",
+                        "title": "Lower Inclusive"
+                      },
+                      "upper_exclusive": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "title": "Upper Exclusive"
+                      },
+                      "record_count": {
+                        "type": "integer",
+                        "title": "Record Count"
+                      }
+                    },
+                    "type": "object",
+                    "required": [
+                      "code",
+                      "lower_inclusive",
+                      "upper_exclusive",
+                      "record_count"
+                    ],
+                    "title": "MarketJobSalaryBucket"
+                  },
+                  "type": "array",
+                  "title": "Buckets"
+                },
+                "top_jobs": {
+                  "items": {
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "title": "Id"
+                      },
+                      "job_title": {
+                        "type": "string",
+                        "title": "Job Title"
+                      },
+                      "title_normalized": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "title": "Title Normalized"
+                      },
+                      "company_name": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "title": "Company Name"
+                      },
+                      "region": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "title": "Region"
+                      },
+                      "industry": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "title": "Industry"
+                      },
+                      "education": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "title": "Education"
+                      },
+                      "experience_requirement": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "title": "Experience Requirement"
+                      },
+                      "salary_range": {
+                        "type": "string",
+                        "title": "Salary Range"
+                      },
+                      "monthly_lower": {
+                        "type": "number",
+                        "title": "Monthly Lower"
+                      },
+                      "monthly_upper": {
+                        "type": "number",
+                        "title": "Monthly Upper"
+                      },
+                      "period_basis": {
+                        "type": "string",
+                        "enum": [
+                          "explicit_monthly",
+                          "annual_divided_by_12",
+                          "assumed_monthly"
+                        ],
+                        "title": "Period Basis"
+                      },
+                      "payments_per_year": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "title": "Payments Per Year"
+                      }
+                    },
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "job_title",
+                      "title_normalized",
+                      "company_name",
+                      "region",
+                      "industry",
+                      "education",
+                      "experience_requirement",
+                      "salary_range",
+                      "monthly_lower",
+                      "monthly_upper",
+                      "period_basis",
+                      "payments_per_year"
+                    ],
+                    "title": "MarketJobSalaryTop"
+                  },
+                  "type": "array",
+                  "title": "Top Jobs"
+                },
+                "top_n": {
+                  "type": "integer",
+                  "title": "Top N"
+                },
+                "methodology": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Methodology"
+                }
+              },
+              "type": "object",
+              "required": [
+                "sample_count",
+                "eligible_count",
+                "excluded_count",
+                "exclusion_counts",
+                "assumed_monthly_count",
+                "annual_converted_count",
+                "buckets",
+                "top_jobs",
+                "top_n",
+                "methodology"
+              ],
+              "title": "MarketJobSalaryAnalysis"
+            },
+            "meta": {
+              "properties": {
+                "trace_id": {
+                  "type": "string",
+                  "title": "Trace Id"
+                },
+                "page": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Page"
+                },
+                "page_size": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Page Size"
+                },
+                "total": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Total"
+                }
+              },
+              "type": "object",
+              "required": [
+                "trace_id"
+              ],
+              "title": "ResponseMeta"
+            }
+          },
+          "type": "object",
+          "required": [
+            "data",
+            "meta"
+          ],
+          "title": "ApiResponse[MarketJobSalaryAnalysis]"
         },
         "422": {
           "properties": {

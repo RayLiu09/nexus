@@ -83,9 +83,9 @@
       "allow_external_search": false
     },
     "market_jobs": {
-      "description": "Query or aggregate structured market job records; fetch an individual job only when needed.",
+      "description": "Query job titles before broad content when sufficient; aggregate education/experience/industry/collection-region; analyze monthly salary buckets and high-paying job TOP with explicit period assumptions. Read detailed provenance only when needed.",
       "resource_types": ["market_job"],
-      "tools": ["query_market_jobs", "aggregate_market_jobs", "get_market_job"],
+      "tools": ["query_market_jobs", "aggregate_market_jobs", "analyze_market_job_salaries", "get_market_job"],
       "default_limits": {"page_size": 20, "aggregate_page_size": 100},
       "supports_batch_evidence": false,
       "allow_external_search": false

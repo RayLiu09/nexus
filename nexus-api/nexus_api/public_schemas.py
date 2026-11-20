@@ -67,6 +67,42 @@ class MarketJobGroup(BaseModel):
     record_count: int
 
 
+class MarketJobSalaryBucket(BaseModel):
+    code: str
+    lower_inclusive: int
+    upper_exclusive: int | None
+    record_count: int
+
+
+class MarketJobSalaryTop(BaseModel):
+    id: str
+    job_title: str
+    title_normalized: str | None
+    company_name: str | None
+    region: str | None
+    industry: str | None
+    education: str | None
+    experience_requirement: str | None
+    salary_range: str
+    monthly_lower: float
+    monthly_upper: float
+    period_basis: Literal["explicit_monthly", "annual_divided_by_12", "assumed_monthly"]
+    payments_per_year: int | None
+
+
+class MarketJobSalaryAnalysis(BaseModel):
+    sample_count: int
+    eligible_count: int
+    excluded_count: int
+    exclusion_counts: dict[str, int]
+    assumed_monthly_count: int
+    annual_converted_count: int
+    buckets: list[MarketJobSalaryBucket]
+    top_jobs: list[MarketJobSalaryTop]
+    top_n: int
+    methodology: dict[str, Any]
+
+
 class ParkRead(BaseModel):
     id: str
     park_name: str

@@ -1,6 +1,6 @@
 # 基于公开 OpenAPI 生成 function tools 清单
 
-自动生成；共 58 个工具。来源 `/open/v1`，不包含内部接口、已退役接口、流式接口或 C 类增量接口。
+自动生成；共 59 个工具。来源 `/open/v1`，不包含内部接口、已退役接口、流式接口或 C 类增量接口。
 
 调用方按资源标签按需加载工具；使用 `responses-tools.json` 的 Responses function 格式，或 `chat-completions-tools.json` 的 Chat Completions 格式。
 
@@ -18,7 +18,7 @@
 
 专业布点使用 list_major_offerings / aggregate_major_offerings，来源为教育部政务服务平台同步或控制台 Excel 导入数据，直接入库且无 AI 治理；不可用专业简介或培养方案统计替代。职业分类大典使用 query_occupation_dictionary，支持职业大类、小类、名称组合过滤，返回定义与工作任务。两类数据仅表示已入库覆盖。
 
-市场岗位 query_market_jobs / aggregate_market_jobs 支持 region，按 raw_jobs.region 中采集地区做转义的字面子串过滤，不匹配原始地址；采集范围不代表实际工作地。返回 title_normalized 简化清洗名称，job_title 保留原文，与后期岗位归一化无关。query_teaching_standards 支持 occupation 匹配来源行业、职业类别/代码和岗位，返回 career_orientation 原文及定位。标准与课程读取不受库 review/active/superseded 状态限制，仍要求当前 available 文档及正式分类。
+市场岗位 analyze_market_job_salaries 提供月薪区间与高薪岗位 TOP（下限优先），同源过滤、排除原因、缺失周期假设显式；不默认返回完整来源。aggregate_market_jobs 支持 education/experience/industry/region 等最多三维交叉，行业保留原文，地区为采集范围。岗位名检索足够时优先 job_title，广义正文问题才用 q。query_market_jobs / aggregate_market_jobs 支持 region，按 raw_jobs.region 中采集地区做转义的字面子串过滤，不匹配原始地址；采集范围不代表实际工作地。返回 title_normalized 简化清洗名称，job_title 保留原文，与后期岗位归一化无关。query_teaching_standards 支持 occupation 匹配来源行业、职业类别/代码和岗位，返回 career_orientation 原文及定位。标准与课程读取不受库 review/active/superseded 状态限制，仍要求当前 available 文档及正式分类。
 
 专业布点 Excel 下载由 /v1/major-offerings/export 及内部 Console 接口提供，属于二进制下载，不列为 JSON function tool。完整资源与接口映射见 [公开消费合同](../../api/public_agent_data_api.md)。
 
@@ -50,6 +50,7 @@
 | `find_major_profile_documents` | `GET /open/v1/major-profile-documents` | public-discovery |
 | `query_market_jobs` | `GET /open/v1/market-jobs` | public-business |
 | `aggregate_market_jobs` | `GET /open/v1/market-jobs/aggregate` | public-business |
+| `analyze_market_job_salaries` | `GET /open/v1/market-jobs/salary-analysis` | public-business |
 | `get_market_job` | `GET /open/v1/market-jobs/{job_id}` | public-business |
 | `get_available_normalized_ref` | `GET /open/v1/normalized-refs/{ref_id}` | normalized-refs |
 | `list_chunks_for_normalized_ref` | `GET /open/v1/normalized-refs/{ref_id}/chunks` | normalized-refs |

@@ -1953,7 +1953,7 @@
     "type": "function",
     "function": {
       "name": "aggregate_market_jobs",
-      "description": "Count raw job records by stored text fields, filtered by collection region before grouping. Region is not actual work location; no numeric salary or inferred city statistics.",
+      "description": "Count all matching job records by 1–3 source dimensions, including education/experience/industry/region. Region is collection scope; industry is unmodified source text, not a standardized sector. NULL/blank values stay separate; missing_counts includes both. Salary analysis uses the separate salary-analysis endpoint.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1969,7 +1969,8 @@
                     "industry",
                     "education",
                     "experience",
-                    "company_size"
+                    "company_size",
+                    "region"
                   ],
                   "type": "string"
                 },
@@ -2122,6 +2123,168 @@
                 "minimum": 1,
                 "default": 20,
                 "title": "Pagesize"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "strict": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "analyze_market_job_salaries",
+      "description": "Monthly salary distribution and high-paying job TOP over all matching raw_jobs. Explicit CNY month quotes are used directly; annual /12. Unknown periods, daily/hourly/weekly/per-task, negotiable and open ranges are excluded with counts. assume_monthly=true optionally includes period-less quotes under an explicit assumption. Buckets use unrounded range midpoint; TOP uses lower bound DESC, upper bound DESC, id DESC. Extra annual payments are preserved but not added to monthly base. Not actual income or whole-market statistics. Read get_market_job by returned ID only when detailed provenance is needed.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "top_n": {
+                "type": "integer",
+                "maximum": 100,
+                "minimum": 1,
+                "default": 10,
+                "title": "Top N"
+              },
+              "assume_monthly": {
+                "type": "boolean",
+                "description": "Explicitly treat source quotes without a pay period as monthly CNY; disclose assumed_monthly_count in answers. Default excludes these quotes.",
+                "default": false,
+                "title": "Assume Monthly"
+              },
+              "q": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Q"
+              },
+              "job_title": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Job Title"
+              },
+              "company_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Company Name"
+              },
+              "industry": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Industry"
+              },
+              "education": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Education"
+              },
+              "experience": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Experience"
+              },
+              "region": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "采集地区关键词，按 raw_jobs.region 做字面子串匹配；表示采集范围，不代表岗位实际工作地点，不匹配原始地址。",
+                "title": "Region"
+              },
+              "collected_from": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Collected From"
+              },
+              "collected_to": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Collected To"
+              },
+              "received_to": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Optional inclusive upper bound on NEXUS receipt time. Fix this value to reproduce a collection window across calls.",
+                "title": "Received To"
               }
             },
             "additionalProperties": false

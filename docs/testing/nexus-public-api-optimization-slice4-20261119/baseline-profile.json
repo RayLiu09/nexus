@@ -1,0 +1,2734 @@
+{
+  "host": "10.100.11.182",
+  "database": "nexus_dev",
+  "captured_at": "2026-11-19T08:57:26.067087+00:00",
+  "transaction_read_only": "on",
+  "snapshot": "2026-11-19 06:19:25.766004+00:00",
+  "indexes": [
+    {
+      "tablename": "raw_job_provenance",
+      "indexname": "ix_raw_job_provenance_collected",
+      "indexdef": "CREATE INDEX ix_raw_job_provenance_collected ON public.raw_job_provenance USING btree (collected_at)"
+    },
+    {
+      "tablename": "raw_job_provenance",
+      "indexname": "ix_raw_job_provenance_source_job",
+      "indexdef": "CREATE INDEX ix_raw_job_provenance_source_job ON public.raw_job_provenance USING btree (source_name, source_job_id)"
+    },
+    {
+      "tablename": "raw_job_provenance",
+      "indexname": "raw_job_provenance_pkey",
+      "indexdef": "CREATE UNIQUE INDEX raw_job_provenance_pkey ON public.raw_job_provenance USING btree (raw_job_id)"
+    },
+    {
+      "tablename": "raw_job_provenance",
+      "indexname": "uq_raw_job_provenance_record",
+      "indexdef": "CREATE UNIQUE INDEX uq_raw_job_provenance_record ON public.raw_job_provenance USING btree (provider_code, upstream_record_id)"
+    },
+    {
+      "tablename": "raw_jobs",
+      "indexname": "raw_jobs_pkey",
+      "indexdef": "CREATE UNIQUE INDEX raw_jobs_pkey ON public.raw_jobs USING btree (id)"
+    }
+  ],
+  "counts": {
+    "jobs": 164706,
+    "salary_present": 164671,
+    "salary_texts": 1312
+  },
+  "salary_raw": [
+    {
+      "value": "6000-8000元",
+      "n": 6897
+    },
+    {
+      "value": "8000-12000元",
+      "n": 5747
+    },
+    {
+      "value": "1-1.5万",
+      "n": 5672
+    },
+    {
+      "value": "6000-12000元",
+      "n": 5445
+    },
+    {
+      "value": "5000-10000元",
+      "n": 5342
+    },
+    {
+      "value": "5000-8000元",
+      "n": 4998
+    },
+    {
+      "value": "6000-10000元",
+      "n": 4782
+    },
+    {
+      "value": "4000-8000元",
+      "n": 4765
+    },
+    {
+      "value": "1-2万",
+      "n": 4349
+    },
+    {
+      "value": "8000-15000元",
+      "n": 4188
+    },
+    {
+      "value": "4000-6000元",
+      "n": 4148
+    },
+    {
+      "value": "8000-10000元",
+      "n": 4130
+    },
+    {
+      "value": "5000-7000元",
+      "n": 3823
+    },
+    {
+      "value": "7000-10000元",
+      "n": 3351
+    },
+    {
+      "value": "8000-16000元",
+      "n": 3284
+    },
+    {
+      "value": "5000-6000元",
+      "n": 2858
+    },
+    {
+      "value": "7000-14000元",
+      "n": 2551
+    },
+    {
+      "value": "4000-5000元",
+      "n": 2523
+    },
+    {
+      "value": "7000-12000元",
+      "n": 2470
+    },
+    {
+      "value": "面议",
+      "n": 2456
+    },
+    {
+      "value": "6000-9000元",
+      "n": 2393
+    },
+    {
+      "value": "1.5-2万",
+      "n": 2183
+    },
+    {
+      "value": "1.5-2.5万",
+      "n": 2074
+    },
+    {
+      "value": "7000-9000元",
+      "n": 1993
+    },
+    {
+      "value": "1.5-3万",
+      "n": 1897
+    },
+    {
+      "value": "6000-7000元",
+      "n": 1881
+    },
+    {
+      "value": "7000-8000元",
+      "n": 1782
+    },
+    {
+      "value": "8000-13000元",
+      "n": 1573
+    },
+    {
+      "value": "4000-7000元",
+      "n": 1561
+    },
+    {
+      "value": "3000-6000元",
+      "n": 1439
+    },
+    {
+      "value": "2-3万",
+      "n": 1114
+    },
+    {
+      "value": "5000-9000元",
+      "n": 1103
+    },
+    {
+      "value": "1-1.8万",
+      "n": 1061
+    },
+    {
+      "value": "1-1.2万",
+      "n": 1025
+    },
+    {
+      "value": "8000-9000元",
+      "n": 954
+    },
+    {
+      "value": "1.2-2万",
+      "n": 940
+    },
+    {
+      "value": "6000-8000元·13薪",
+      "n": 929
+    },
+    {
+      "value": "1-1.5万·13薪",
+      "n": 910
+    },
+    {
+      "value": "1.2-2.4万",
+      "n": 897
+    },
+    {
+      "value": "2-4万",
+      "n": 880
+    },
+    {
+      "value": "3000-5000元",
+      "n": 858
+    },
+    {
+      "value": "9000-15000元",
+      "n": 853
+    },
+    {
+      "value": "1.2-1.8万",
+      "n": 798
+    },
+    {
+      "value": "8000-12000元·13薪",
+      "n": 790
+    },
+    {
+      "value": "9000-18000元",
+      "n": 776
+    },
+    {
+      "value": "3000-4000元",
+      "n": 736
+    },
+    {
+      "value": "1.2-1.5万",
+      "n": 717
+    },
+    {
+      "value": "6000-11000元",
+      "n": 690
+    },
+    {
+      "value": "8000-11000元",
+      "n": 674
+    },
+    {
+      "value": "7000-11000元",
+      "n": 671
+    },
+    {
+      "value": "9000-12000元",
+      "n": 645
+    },
+    {
+      "value": "2000-4000元",
+      "n": 626
+    },
+    {
+      "value": "7000-9000元·13薪",
+      "n": 576
+    },
+    {
+      "value": "9000-10000元",
+      "n": 575
+    },
+    {
+      "value": "7000-10000元·13薪",
+      "n": 558
+    },
+    {
+      "value": "9000-13000元",
+      "n": 530
+    },
+    {
+      "value": "1-2万·13薪",
+      "n": 510
+    },
+    {
+      "value": "6000-12000元·13薪",
+      "n": 499
+    },
+    {
+      "value": "8000-10000元·13薪",
+      "n": 478
+    },
+    {
+      "value": "1-1.6万",
+      "n": 463
+    },
+    {
+      "value": "7000-13000元",
+      "n": 463
+    },
+    {
+      "value": "1-1.3万",
+      "n": 462
+    },
+    {
+      "value": "8000-14000元",
+      "n": 453
+    },
+    {
+      "value": "1-1.1万",
+      "n": 445
+    },
+    {
+      "value": "9000-11000元",
+      "n": 443
+    },
+    {
+      "value": "150-200元/天",
+      "n": 429
+    },
+    {
+      "value": "1-1.4万",
+      "n": 405
+    },
+    {
+      "value": "5000-8000元·13薪",
+      "n": 398
+    },
+    {
+      "value": "2-2.5万",
+      "n": 390
+    },
+    {
+      "value": "8000-11000元·13薪",
+      "n": 388
+    },
+    {
+      "value": "5000-7000元·13薪",
+      "n": 385
+    },
+    {
+      "value": "8000-15000元·13薪",
+      "n": 381
+    },
+    {
+      "value": "7000-12000元·13薪",
+      "n": 363
+    },
+    {
+      "value": "9000-14000元",
+      "n": 359
+    },
+    {
+      "value": "1.5-2.5万·13薪",
+      "n": 346
+    },
+    {
+      "value": "6000-10000元·13薪",
+      "n": 337
+    },
+    {
+      "value": "6000-9000元·13薪",
+      "n": 330
+    },
+    {
+      "value": "3-5万",
+      "n": 321
+    },
+    {
+      "value": "8000-16000元·13薪",
+      "n": 313
+    },
+    {
+      "value": "1.8-2.5万",
+      "n": 308
+    }
+  ],
+  "degree_raw": [
+    {
+      "value": "大专",
+      "n": 73319
+    },
+    {
+      "value": "本科",
+      "n": 65982
+    },
+    {
+      "value": "学历不限",
+      "n": 16644
+    },
+    {
+      "value": "高中",
+      "n": 2424
+    },
+    {
+      "value": "中专/中技",
+      "n": 2185
+    },
+    {
+      "value": null,
+      "n": 2129
+    },
+    {
+      "value": "硕士",
+      "n": 1602
+    },
+    {
+      "value": "实习",
+      "n": 234
+    },
+    {
+      "value": "初中及以下",
+      "n": 137
+    },
+    {
+      "value": "博士",
+      "n": 45
+    },
+    {
+      "value": "EMBA",
+      "n": 5
+    }
+  ],
+  "experience_raw": [
+    {
+      "value": "1-3年",
+      "n": 60553
+    },
+    {
+      "value": "3-5年",
+      "n": 45232
+    },
+    {
+      "value": "经验不限",
+      "n": 35368
+    },
+    {
+      "value": "5-10年",
+      "n": 13674
+    },
+    {
+      "value": null,
+      "n": 3739
+    },
+    {
+      "value": "1年以下",
+      "n": 2287
+    },
+    {
+      "value": "在校/应届",
+      "n": 2050
+    },
+    {
+      "value": "10年以上",
+      "n": 629
+    },
+    {
+      "value": "本科",
+      "n": 567
+    },
+    {
+      "value": "大专",
+      "n": 430
+    },
+    {
+      "value": "学历不限",
+      "n": 118
+    },
+    {
+      "value": "中专/中技",
+      "n": 27
+    },
+    {
+      "value": "硕士",
+      "n": 15
+    },
+    {
+      "value": "高中",
+      "n": 15
+    },
+    {
+      "value": "初中及以下",
+      "n": 2
+    }
+  ],
+  "company_industry_raw": [
+    {
+      "value": null,
+      "n": 16699
+    },
+    {
+      "value": "互联网电商",
+      "n": 6015
+    },
+    {
+      "value": "软件/IT服务",
+      "n": 4478
+    },
+    {
+      "value": "综合商贸",
+      "n": 2960
+    },
+    {
+      "value": "保险",
+      "n": 2655
+    },
+    {
+      "value": "产业互联网平台",
+      "n": 2612
+    },
+    {
+      "value": "广告/公关/营销",
+      "n": 2033
+    },
+    {
+      "value": "食品/饮料/酒水批发/零售/贸易",
+      "n": 1897
+    },
+    {
+      "value": "货运物流",
+      "n": 1850
+    },
+    {
+      "value": "综合商贸、互联网电商",
+      "n": 1723
+    },
+    {
+      "value": "咨询服务",
+      "n": 1548
+    },
+    {
+      "value": "文化艺术/娱乐",
+      "n": 1480
+    },
+    {
+      "value": "食品/饮品/烟酒制造",
+      "n": 1458
+    },
+    {
+      "value": "物业管理",
+      "n": 1442
+    },
+    {
+      "value": "人工智能",
+      "n": 1325
+    },
+    {
+      "value": "食品/饮品/烟酒制造、食品/饮料/酒水批发/零售/贸易",
+      "n": 1279
+    },
+    {
+      "value": "课外培训与资格考试",
+      "n": 1269
+    },
+    {
+      "value": "船舶/航空/航天/军工",
+      "n": 1250
+    },
+    {
+      "value": "旅游服务",
+      "n": 1233
+    },
+    {
+      "value": "医疗设备/器械/耗材",
+      "n": 1015
+    },
+    {
+      "value": "半导体/芯片",
+      "n": 1013
+    },
+    {
+      "value": "生物/制药",
+      "n": 983
+    },
+    {
+      "value": "房地产开发经营",
+      "n": 940
+    },
+    {
+      "value": "互联网电商、互联网电商",
+      "n": 935
+    },
+    {
+      "value": "通用设备制造",
+      "n": 819
+    },
+    {
+      "value": "银行、保险",
+      "n": 811
+    },
+    {
+      "value": "餐饮服务",
+      "n": 787
+    },
+    {
+      "value": "互联网社交/数字内容",
+      "n": 777
+    },
+    {
+      "value": "医药批发/零售",
+      "n": 739
+    },
+    {
+      "value": "综合商贸、综合商贸",
+      "n": 718
+    },
+    {
+      "value": "互联网生活服务(O2O)",
+      "n": 686
+    },
+    {
+      "value": "软件/IT服务、软件/IT服务",
+      "n": 684
+    },
+    {
+      "value": "专用设备制造",
+      "n": 683
+    },
+    {
+      "value": "电气机械/电力设备",
+      "n": 675
+    },
+    {
+      "value": "互联网广告/营销",
+      "n": 624
+    },
+    {
+      "value": "工程施工",
+      "n": 621
+    },
+    {
+      "value": "新能源/燃油整车研发制造",
+      "n": 615
+    },
+    {
+      "value": "物业管理、物业管理",
+      "n": 614
+    },
+    {
+      "value": "新媒体/MCN",
+      "n": 607
+    },
+    {
+      "value": "技术服务",
+      "n": 589
+    },
+    {
+      "value": "金属制品/机加工",
+      "n": 584
+    },
+    {
+      "value": "医院/诊所服务",
+      "n": 548
+    },
+    {
+      "value": "医疗设备/器械/耗材、医疗设备/器械/耗材",
+      "n": 546
+    },
+    {
+      "value": "货运物流、货运物流",
+      "n": 537
+    },
+    {
+      "value": "生鲜农产品批发/零售/贸易",
+      "n": 534
+    },
+    {
+      "value": "保险、保险",
+      "n": 523
+    },
+    {
+      "value": "消费电子/智能硬件",
+      "n": 522
+    },
+    {
+      "value": "畜牧业",
+      "n": 518
+    },
+    {
+      "value": "人力资源",
+      "n": 514
+    },
+    {
+      "value": "广播/电视/影视",
+      "n": 514
+    },
+    {
+      "value": "装饰装修",
+      "n": 512
+    },
+    {
+      "value": "通信/网络设备",
+      "n": 506
+    },
+    {
+      "value": "医美/健康服务",
+      "n": 502
+    },
+    {
+      "value": "工业自动化/机器人",
+      "n": 502
+    },
+    {
+      "value": "环保",
+      "n": 475
+    },
+    {
+      "value": "食品/饮品/烟酒制造、综合商贸",
+      "n": 472
+    },
+    {
+      "value": "农业",
+      "n": 458
+    },
+    {
+      "value": "其他批发/零售/贸易",
+      "n": 457
+    },
+    {
+      "value": "互联网新零售",
+      "n": 448
+    },
+    {
+      "value": "仪器仪表",
+      "n": 445
+    },
+    {
+      "value": "房地产中介/租赁",
+      "n": 445
+    },
+    {
+      "value": "家具/家居/办公制造",
+      "n": 425
+    },
+    {
+      "value": "产业互联网平台、互联网电商",
+      "n": 420
+    },
+    {
+      "value": "食品/饮品/烟酒制造、畜牧业",
+      "n": 416
+    },
+    {
+      "value": "会议/展览/活动",
+      "n": 407
+    },
+    {
+      "value": "商务服务业",
+      "n": 403
+    },
+    {
+      "value": "汽车4S店/经销商",
+      "n": 401
+    },
+    {
+      "value": "物联网",
+      "n": 378
+    },
+    {
+      "value": "软件/IT服务、产业互联网平台",
+      "n": 377
+    },
+    {
+      "value": "银行、银行",
+      "n": 377
+    },
+    {
+      "value": "互联网游戏",
+      "n": 365
+    },
+    {
+      "value": "日化批发/零售/贸易",
+      "n": 365
+    },
+    {
+      "value": "产业互联网平台、产业互联网平台",
+      "n": 363
+    },
+    {
+      "value": "新能源/燃油车零部件",
+      "n": 355
+    },
+    {
+      "value": "服装/纺织/皮革制造",
+      "n": 349
+    },
+    {
+      "value": "鞋服箱包批发/零售/贸易",
+      "n": 344
+    },
+    {
+      "value": "财务/审计/税务",
+      "n": 332
+    },
+    {
+      "value": "半导体/芯片、半导体/芯片",
+      "n": 329
+    },
+    {
+      "value": "汽车后市场",
+      "n": 325
+    },
+    {
+      "value": "农业、农业",
+      "n": 306
+    }
+  ],
+  "region": [
+    {
+      "value": "北京市",
+      "n": 15904
+    },
+    {
+      "value": "上海市",
+      "n": 12713
+    },
+    {
+      "value": "杭州市",
+      "n": 12032
+    },
+    {
+      "value": "广州市",
+      "n": 11898
+    },
+    {
+      "value": "深圳市",
+      "n": 11715
+    },
+    {
+      "value": "苏州市",
+      "n": 7274
+    },
+    {
+      "value": "南京市",
+      "n": 7068
+    },
+    {
+      "value": "成都市",
+      "n": 6397
+    },
+    {
+      "value": "重庆市",
+      "n": 5848
+    },
+    {
+      "value": "武汉市",
+      "n": 5627
+    },
+    {
+      "value": "昆明市",
+      "n": 5428
+    },
+    {
+      "value": "西安市",
+      "n": 5046
+    },
+    {
+      "value": "南宁市",
+      "n": 4898
+    },
+    {
+      "value": "贵阳市",
+      "n": 4761
+    },
+    {
+      "value": "佛山市",
+      "n": 3466
+    },
+    {
+      "value": "济南市",
+      "n": 3466
+    },
+    {
+      "value": "天津市",
+      "n": 3322
+    },
+    {
+      "value": "长沙市",
+      "n": 3308
+    },
+    {
+      "value": "东莞市",
+      "n": 3212
+    },
+    {
+      "value": "福州市",
+      "n": 3210
+    },
+    {
+      "value": "合肥市",
+      "n": 3187
+    },
+    {
+      "value": "无锡市",
+      "n": 3143
+    },
+    {
+      "value": "大连市",
+      "n": 3120
+    },
+    {
+      "value": "厦门市",
+      "n": 2927
+    },
+    {
+      "value": "郑州市",
+      "n": 2882
+    },
+    {
+      "value": "青岛市",
+      "n": 2785
+    },
+    {
+      "value": "宁波市",
+      "n": 2662
+    },
+    {
+      "value": "沈阳市",
+      "n": 2640
+    },
+    {
+      "value": "云南省",
+      "n": 2341
+    },
+    {
+      "value": "大理市",
+      "n": 936
+    },
+    {
+      "value": "南昌市",
+      "n": 526
+    },
+    {
+      "value": "长春市",
+      "n": 483
+    },
+    {
+      "value": "石家庄市",
+      "n": 171
+    },
+    {
+      "value": "哈尔滨市",
+      "n": 165
+    },
+    {
+      "value": "温州市",
+      "n": 145
+    }
+  ],
+  "plans": {
+    "list_count": {
+      "sql": "SELECT count(*) AS count_1 \nFROM (SELECT raw_jobs.id AS id, raw_jobs.title_raw AS title_raw, raw_jobs.title_normalized AS title_normalized, raw_jobs.region AS region, raw_jobs.company_name_raw AS company_name_raw, raw_jobs.address_raw AS address_raw, raw_jobs.salary_raw AS salary_raw, raw_jobs.experience_raw AS experience_raw, raw_jobs.degree_raw AS degree_raw, raw_jobs.hiring_raw AS hiring_raw, raw_jobs.description_raw AS description_raw, raw_jobs.skills_raw AS skills_raw, raw_jobs.job_tags_raw AS job_tags_raw, raw_jobs.responsibilities_raw AS responsibilities_raw, raw_jobs.requirements_raw AS requirements_raw, raw_jobs.qualifications_raw AS qualifications_raw, raw_jobs.other_matters_raw AS other_matters_raw, raw_jobs.company_industry_raw AS company_industry_raw, raw_jobs.company_scale_raw AS company_scale_raw, raw_jobs.company_financing_raw AS company_financing_raw, raw_jobs.created_at AS created_at, raw_jobs.updated_at AS updated_at, raw_job_provenance.raw_job_id AS raw_job_id, raw_job_provenance.provider_code AS provider_code, raw_job_provenance.upstream_record_id AS upstream_record_id, raw_job_provenance.source_name AS source_name, raw_job_provenance.source_job_id AS source_job_id, raw_job_provenance.source_url AS source_url, raw_job_provenance.external_job_id AS external_job_id, raw_job_provenance.external_task_id AS external_task_id, raw_job_provenance.source_page AS source_page, raw_job_provenance.keyword AS keyword, raw_job_provenance.query_region AS query_region, raw_job_provenance.collected_at AS collected_at, raw_job_provenance.received_at AS received_at, raw_job_provenance.upstream_payload_hash AS upstream_payload_hash, raw_job_provenance.raw_record_hash AS raw_record_hash, raw_job_provenance.raw_record AS raw_record, raw_job_provenance.created_at AS created_at_1, raw_job_provenance.updated_at AS updated_at_1 \nFROM raw_jobs LEFT OUTER JOIN raw_job_provenance ON raw_job_provenance.raw_job_id = raw_jobs.id \nWHERE ((raw_jobs.title_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.title_normalized ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.company_name_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.description_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.responsibilities_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/')) AND raw_job_provenance.received_at <= '2026-11-19 06:19:25.766004+00:00') AS anon_1",
+      "explain": [
+        {
+          "Plan": {
+            "Node Type": "Aggregate",
+            "Strategy": "Plain",
+            "Partial Mode": "Finalize",
+            "Parallel Aware": false,
+            "Async Capable": false,
+            "Startup Cost": 54038.22,
+            "Total Cost": 54038.23,
+            "Plan Rows": 1,
+            "Plan Width": 8,
+            "Actual Startup Time": 7524.233,
+            "Actual Total Time": 7528.167,
+            "Actual Rows": 1.0,
+            "Actual Loops": 1,
+            "Disabled": false,
+            "Shared Hit Blocks": 363864,
+            "Shared Read Blocks": 91206,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 171,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0,
+            "Plans": [
+              {
+                "Node Type": "Gather",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 54038.0,
+                "Total Cost": 54038.21,
+                "Plan Rows": 2,
+                "Plan Width": 8,
+                "Actual Startup Time": 7524.027,
+                "Actual Total Time": 7528.162,
+                "Actual Rows": 3.0,
+                "Actual Loops": 1,
+                "Disabled": false,
+                "Workers Planned": 2,
+                "Workers Launched": 2,
+                "Single Copy": false,
+                "Shared Hit Blocks": 363864,
+                "Shared Read Blocks": 91206,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 171,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Aggregate",
+                    "Strategy": "Plain",
+                    "Partial Mode": "Partial",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 53038.0,
+                    "Total Cost": 53038.01,
+                    "Plan Rows": 1,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 7522.258,
+                    "Actual Total Time": 7522.26,
+                    "Actual Rows": 1.0,
+                    "Actual Loops": 3,
+                    "Disabled": false,
+                    "Shared Hit Blocks": 363864,
+                    "Shared Read Blocks": 91206,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 171,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Workers": [],
+                    "Plans": [
+                      {
+                        "Node Type": "Hash Join",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": true,
+                        "Async Capable": false,
+                        "Join Type": "Inner",
+                        "Startup Cost": 35895.98,
+                        "Total Cost": 52974.97,
+                        "Plan Rows": 25213,
+                        "Plan Width": 0,
+                        "Actual Startup Time": 7503.163,
+                        "Actual Total Time": 7521.738,
+                        "Actual Rows": 11387.67,
+                        "Actual Loops": 3,
+                        "Disabled": false,
+                        "Inner Unique": true,
+                        "Hash Cond": "((raw_job_provenance.raw_job_id)::text = (raw_jobs.id)::text)",
+                        "Shared Hit Blocks": 363864,
+                        "Shared Read Blocks": 91206,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 171,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Workers": [],
+                        "Plans": [
+                          {
+                            "Node Type": "Seq Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": true,
+                            "Async Capable": false,
+                            "Relation Name": "raw_job_provenance",
+                            "Alias": "raw_job_provenance",
+                            "Startup Cost": 0.0,
+                            "Total Cost": 16899.03,
+                            "Plan Rows": 68556,
+                            "Plan Width": 37,
+                            "Actual Startup Time": 0.052,
+                            "Actual Total Time": 10.56,
+                            "Actual Rows": 54902.0,
+                            "Actual Loops": 3,
+                            "Disabled": false,
+                            "Filter": "(received_at <= '2026-11-19 06:19:25.766004+00'::timestamp with time zone)",
+                            "Rows Removed by Filter": 0,
+                            "Shared Hit Blocks": 0,
+                            "Shared Read Blocks": 16042,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Workers": []
+                          },
+                          {
+                            "Node Type": "Hash",
+                            "Parent Relationship": "Inner",
+                            "Parallel Aware": true,
+                            "Async Capable": false,
+                            "Startup Cost": 35591.11,
+                            "Total Cost": 35591.11,
+                            "Plan Rows": 24390,
+                            "Plan Width": 37,
+                            "Actual Startup Time": 7502.985,
+                            "Actual Total Time": 7502.986,
+                            "Actual Rows": 11387.67,
+                            "Actual Loops": 3,
+                            "Disabled": false,
+                            "Hash Buckets": 65536,
+                            "Original Hash Buckets": 65536,
+                            "Hash Batches": 1,
+                            "Original Hash Batches": 1,
+                            "Peak Memory Usage": 2944,
+                            "Shared Hit Blocks": 363864,
+                            "Shared Read Blocks": 75164,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 171,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Workers": [],
+                            "Plans": [
+                              {
+                                "Node Type": "Seq Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": true,
+                                "Async Capable": false,
+                                "Relation Name": "raw_jobs",
+                                "Alias": "raw_jobs",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 35591.11,
+                                "Plan Rows": 24390,
+                                "Plan Width": 37,
+                                "Actual Startup Time": 0.172,
+                                "Actual Total Time": 7477.822,
+                                "Actual Rows": 11387.67,
+                                "Actual Loops": 3,
+                                "Disabled": false,
+                                "Filter": "((title_raw ~~* '%电商%'::text) OR (title_normalized ~~* '%电商%'::text) OR (company_name_raw ~~* '%电商%'::text) OR (description_raw ~~* '%电商%'::text) OR (responsibilities_raw ~~* '%电商%'::text))",
+                                "Rows Removed by Filter": 43514,
+                                "Shared Hit Blocks": 363864,
+                                "Shared Read Blocks": 75164,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 171,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0,
+                                "Workers": []
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "Planning": {
+            "Shared Hit Blocks": 81,
+            "Shared Read Blocks": 40,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0
+          },
+          "Planning Time": 2.658,
+          "Triggers": [],
+          "Execution Time": 7528.198
+        }
+      ]
+    },
+    "list_page": {
+      "sql": "SELECT raw_jobs.id, raw_jobs.title_raw, raw_jobs.title_normalized, raw_jobs.region, raw_jobs.company_name_raw, raw_jobs.address_raw, raw_jobs.salary_raw, raw_jobs.experience_raw, raw_jobs.degree_raw, raw_jobs.hiring_raw, raw_jobs.description_raw, raw_jobs.skills_raw, raw_jobs.job_tags_raw, raw_jobs.responsibilities_raw, raw_jobs.requirements_raw, raw_jobs.qualifications_raw, raw_jobs.other_matters_raw, raw_jobs.company_industry_raw, raw_jobs.company_scale_raw, raw_jobs.company_financing_raw, raw_jobs.created_at, raw_jobs.updated_at, raw_job_provenance.raw_job_id, raw_job_provenance.provider_code, raw_job_provenance.upstream_record_id, raw_job_provenance.source_name, raw_job_provenance.source_job_id, raw_job_provenance.source_url, raw_job_provenance.external_job_id, raw_job_provenance.external_task_id, raw_job_provenance.source_page, raw_job_provenance.keyword, raw_job_provenance.query_region, raw_job_provenance.collected_at, raw_job_provenance.received_at, raw_job_provenance.upstream_payload_hash, raw_job_provenance.raw_record_hash, raw_job_provenance.raw_record, raw_job_provenance.created_at AS created_at_1, raw_job_provenance.updated_at AS updated_at_1 \nFROM raw_jobs LEFT OUTER JOIN raw_job_provenance ON raw_job_provenance.raw_job_id = raw_jobs.id \nWHERE ((raw_jobs.title_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.title_normalized ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.company_name_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.description_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.responsibilities_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/')) AND raw_job_provenance.received_at <= '2026-11-19 06:19:25.766004+00:00' ORDER BY raw_job_provenance.collected_at DESC NULLS LAST, raw_jobs.id DESC \n LIMIT 5",
+      "explain": [
+        {
+          "Plan": {
+            "Node Type": "Limit",
+            "Parallel Aware": false,
+            "Async Capable": false,
+            "Startup Cost": 45669.73,
+            "Total Cost": 45689.25,
+            "Plan Rows": 5,
+            "Plan Width": 3323,
+            "Actual Startup Time": 56.834,
+            "Actual Total Time": 63.18,
+            "Actual Rows": 5.0,
+            "Actual Loops": 1,
+            "Disabled": false,
+            "Shared Hit Blocks": 611,
+            "Shared Read Blocks": 15845,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 1474,
+            "Temp Written Blocks": 15224,
+            "Plans": [
+              {
+                "Node Type": "Nested Loop",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Join Type": "Inner",
+                "Startup Cost": 45669.73,
+                "Total Cost": 281887.41,
+                "Plan Rows": 60512,
+                "Plan Width": 3323,
+                "Actual Startup Time": 56.834,
+                "Actual Total Time": 63.178,
+                "Actual Rows": 5.0,
+                "Actual Loops": 1,
+                "Disabled": false,
+                "Inner Unique": true,
+                "Shared Hit Blocks": 611,
+                "Shared Read Blocks": 15845,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 1474,
+                "Temp Written Blocks": 15224,
+                "Plans": [
+                  {
+                    "Node Type": "Gather Merge",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 45669.31,
+                    "Total Cost": 64832.01,
+                    "Plan Rows": 164534,
+                    "Plan Width": 731,
+                    "Actual Startup Time": 56.631,
+                    "Actual Total Time": 62.223,
+                    "Actual Rows": 46.0,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Workers Planned": 2,
+                    "Workers Launched": 2,
+                    "Shared Hit Blocks": 373,
+                    "Shared Read Blocks": 15763,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 1474,
+                    "Temp Written Blocks": 15224,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 44669.29,
+                        "Total Cost": 44840.68,
+                        "Plan Rows": 68556,
+                        "Plan Width": 731,
+                        "Actual Startup Time": 53.054,
+                        "Actual Total Time": 53.065,
+                        "Actual Rows": 77.67,
+                        "Actual Loops": 3,
+                        "Disabled": false,
+                        "Sort Key": [
+                          "raw_job_provenance.collected_at DESC NULLS LAST",
+                          "raw_job_provenance.raw_job_id DESC"
+                        ],
+                        "Sort Method": "external merge",
+                        "Sort Space Used": 43216,
+                        "Sort Space Type": "Disk",
+                        "Shared Hit Blocks": 373,
+                        "Shared Read Blocks": 15763,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 1474,
+                        "Temp Written Blocks": 15224,
+                        "Workers": [
+                          {
+                            "Worker Number": 0,
+                            "Sort Method": "external merge",
+                            "Sort Space Used": 35456,
+                            "Sort Space Type": "Disk"
+                          },
+                          {
+                            "Worker Number": 1,
+                            "Sort Method": "external merge",
+                            "Sort Space Used": 42872,
+                            "Sort Space Type": "Disk"
+                          }
+                        ],
+                        "Plans": [
+                          {
+                            "Node Type": "Seq Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": true,
+                            "Async Capable": false,
+                            "Relation Name": "raw_job_provenance",
+                            "Alias": "raw_job_provenance",
+                            "Startup Cost": 0.0,
+                            "Total Cost": 16899.03,
+                            "Plan Rows": 68556,
+                            "Plan Width": 731,
+                            "Actual Startup Time": 0.076,
+                            "Actual Total Time": 11.999,
+                            "Actual Rows": 54902.0,
+                            "Actual Loops": 3,
+                            "Disabled": false,
+                            "Filter": "(received_at <= '2026-11-19 06:19:25.766004+00'::timestamp with time zone)",
+                            "Rows Removed by Filter": 0,
+                            "Shared Hit Blocks": 282,
+                            "Shared Read Blocks": 15760,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Workers": []
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "Node Type": "Index Scan",
+                    "Parent Relationship": "Inner",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Scan Direction": "Forward",
+                    "Index Name": "raw_jobs_pkey",
+                    "Relation Name": "raw_jobs",
+                    "Alias": "raw_jobs",
+                    "Startup Cost": 0.42,
+                    "Total Cost": 1.32,
+                    "Plan Rows": 1,
+                    "Plan Width": 2592,
+                    "Actual Startup Time": 0.02,
+                    "Actual Total Time": 0.02,
+                    "Actual Rows": 0.11,
+                    "Actual Loops": 46,
+                    "Disabled": false,
+                    "Index Cond": "((id)::text = (raw_job_provenance.raw_job_id)::text)",
+                    "Rows Removed by Index Recheck": 0,
+                    "Filter": "((title_raw ~~* '%电商%'::text) OR (title_normalized ~~* '%电商%'::text) OR (company_name_raw ~~* '%电商%'::text) OR (description_raw ~~* '%电商%'::text) OR (responsibilities_raw ~~* '%电商%'::text))",
+                    "Rows Removed by Filter": 1,
+                    "Index Searches": 46,
+                    "Shared Hit Blocks": 238,
+                    "Shared Read Blocks": 82,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  }
+                ]
+              }
+            ]
+          },
+          "Planning": {
+            "Shared Hit Blocks": 159,
+            "Shared Read Blocks": 79,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0
+          },
+          "Planning Time": 2.588,
+          "Triggers": [],
+          "Execution Time": 66.809
+        }
+      ]
+    },
+    "group_count": {
+      "sql": "SELECT count(*) AS count_1 \nFROM (SELECT anon_2.degree_raw AS degree_raw, anon_2.experience_raw AS experience_raw, count(anon_2.id) AS record_count \nFROM (SELECT raw_jobs.id AS id, raw_jobs.title_raw AS title_raw, raw_jobs.title_normalized AS title_normalized, raw_jobs.region AS region, raw_jobs.company_name_raw AS company_name_raw, raw_jobs.address_raw AS address_raw, raw_jobs.salary_raw AS salary_raw, raw_jobs.experience_raw AS experience_raw, raw_jobs.degree_raw AS degree_raw, raw_jobs.hiring_raw AS hiring_raw, raw_jobs.description_raw AS description_raw, raw_jobs.skills_raw AS skills_raw, raw_jobs.job_tags_raw AS job_tags_raw, raw_jobs.responsibilities_raw AS responsibilities_raw, raw_jobs.requirements_raw AS requirements_raw, raw_jobs.qualifications_raw AS qualifications_raw, raw_jobs.other_matters_raw AS other_matters_raw, raw_jobs.company_industry_raw AS company_industry_raw, raw_jobs.company_scale_raw AS company_scale_raw, raw_jobs.company_financing_raw AS company_financing_raw, raw_jobs.created_at AS created_at, raw_jobs.updated_at AS updated_at, raw_job_provenance.raw_job_id AS raw_job_id, raw_job_provenance.provider_code AS provider_code, raw_job_provenance.upstream_record_id AS upstream_record_id, raw_job_provenance.source_name AS source_name, raw_job_provenance.source_job_id AS source_job_id, raw_job_provenance.source_url AS source_url, raw_job_provenance.external_job_id AS external_job_id, raw_job_provenance.external_task_id AS external_task_id, raw_job_provenance.source_page AS source_page, raw_job_provenance.keyword AS keyword, raw_job_provenance.query_region AS query_region, raw_job_provenance.collected_at AS collected_at, raw_job_provenance.received_at AS received_at, raw_job_provenance.upstream_payload_hash AS upstream_payload_hash, raw_job_provenance.raw_record_hash AS raw_record_hash, raw_job_provenance.raw_record AS raw_record, raw_job_provenance.created_at AS created_at_1, raw_job_provenance.updated_at AS updated_at_1 \nFROM raw_jobs LEFT OUTER JOIN raw_job_provenance ON raw_job_provenance.raw_job_id = raw_jobs.id \nWHERE ((raw_jobs.title_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.title_normalized ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.company_name_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.description_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.responsibilities_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/')) AND raw_job_provenance.received_at <= '2026-11-19 06:19:25.766004+00:00') AS anon_2 GROUP BY anon_2.degree_raw, anon_2.experience_raw) AS anon_1",
+      "explain": [
+        {
+          "Plan": {
+            "Node Type": "Aggregate",
+            "Strategy": "Plain",
+            "Partial Mode": "Simple",
+            "Parallel Aware": false,
+            "Async Capable": false,
+            "Startup Cost": 54143.01,
+            "Total Cost": 54143.02,
+            "Plan Rows": 1,
+            "Plan Width": 8,
+            "Actual Startup Time": 1137.547,
+            "Actual Total Time": 1141.862,
+            "Actual Rows": 1.0,
+            "Actual Loops": 1,
+            "Disabled": false,
+            "Shared Hit Blocks": 371005,
+            "Shared Read Blocks": 84056,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 106,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0,
+            "Plans": [
+              {
+                "Node Type": "Aggregate",
+                "Strategy": "Sorted",
+                "Partial Mode": "Finalize",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 54106.25,
+                "Total Cost": 54141.55,
+                "Plan Rows": 117,
+                "Plan Width": 23,
+                "Actual Startup Time": 1137.478,
+                "Actual Total Time": 1141.857,
+                "Actual Rows": 66.0,
+                "Actual Loops": 1,
+                "Disabled": false,
+                "Group Key": [
+                  "raw_jobs.degree_raw",
+                  "raw_jobs.experience_raw"
+                ],
+                "Shared Hit Blocks": 371005,
+                "Shared Read Blocks": 84056,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 106,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Gather Merge",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 54106.25,
+                    "Total Cost": 54138.98,
+                    "Plan Rows": 281,
+                    "Plan Width": 15,
+                    "Actual Startup Time": 1137.473,
+                    "Actual Total Time": 1141.835,
+                    "Actual Rows": 168.0,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Workers Planned": 2,
+                    "Workers Launched": 2,
+                    "Shared Hit Blocks": 371005,
+                    "Shared Read Blocks": 84056,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 106,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 53106.23,
+                        "Total Cost": 53106.52,
+                        "Plan Rows": 117,
+                        "Plan Width": 15,
+                        "Actual Startup Time": 1135.744,
+                        "Actual Total Time": 1135.748,
+                        "Actual Rows": 56.0,
+                        "Actual Loops": 3,
+                        "Disabled": false,
+                        "Sort Key": [
+                          "raw_jobs.degree_raw",
+                          "raw_jobs.experience_raw"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 27,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 371005,
+                        "Shared Read Blocks": 84056,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 106,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Workers": [
+                          {
+                            "Worker Number": 0,
+                            "Sort Method": "quicksort",
+                            "Sort Space Used": 26,
+                            "Sort Space Type": "Memory"
+                          },
+                          {
+                            "Worker Number": 1,
+                            "Sort Method": "quicksort",
+                            "Sort Space Used": 26,
+                            "Sort Space Type": "Memory"
+                          }
+                        ],
+                        "Plans": [
+                          {
+                            "Node Type": "Aggregate",
+                            "Strategy": "Hashed",
+                            "Partial Mode": "Partial",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Startup Cost": 53101.04,
+                            "Total Cost": 53102.21,
+                            "Plan Rows": 117,
+                            "Plan Width": 15,
+                            "Actual Startup Time": 1135.662,
+                            "Actual Total Time": 1135.669,
+                            "Actual Rows": 56.0,
+                            "Actual Loops": 3,
+                            "Disabled": false,
+                            "Group Key": [
+                              "raw_jobs.degree_raw",
+                              "raw_jobs.experience_raw"
+                            ],
+                            "Planned Partitions": 0,
+                            "HashAgg Batches": 1,
+                            "Peak Memory Usage": 40,
+                            "Disk Usage": 0,
+                            "Shared Hit Blocks": 370989,
+                            "Shared Read Blocks": 84056,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 106,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Workers": [
+                              {
+                                "Worker Number": 0,
+                                "HashAgg Batches": 1,
+                                "Peak Memory Usage": 40,
+                                "Disk Usage": 0
+                              },
+                              {
+                                "Worker Number": 1,
+                                "HashAgg Batches": 1,
+                                "Peak Memory Usage": 40,
+                                "Disk Usage": 0
+                              }
+                            ],
+                            "Plans": [
+                              {
+                                "Node Type": "Hash Join",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": true,
+                                "Async Capable": false,
+                                "Join Type": "Inner",
+                                "Startup Cost": 35895.98,
+                                "Total Cost": 52974.97,
+                                "Plan Rows": 25213,
+                                "Plan Width": 15,
+                                "Actual Startup Time": 1110.06,
+                                "Actual Total Time": 1133.747,
+                                "Actual Rows": 11387.67,
+                                "Actual Loops": 3,
+                                "Disabled": false,
+                                "Inner Unique": true,
+                                "Hash Cond": "((raw_job_provenance.raw_job_id)::text = (raw_jobs.id)::text)",
+                                "Shared Hit Blocks": 370989,
+                                "Shared Read Blocks": 84056,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 106,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0,
+                                "Workers": [],
+                                "Plans": [
+                                  {
+                                    "Node Type": "Seq Scan",
+                                    "Parent Relationship": "Outer",
+                                    "Parallel Aware": true,
+                                    "Async Capable": false,
+                                    "Relation Name": "raw_job_provenance",
+                                    "Alias": "raw_job_provenance",
+                                    "Startup Cost": 0.0,
+                                    "Total Cost": 16899.03,
+                                    "Plan Rows": 68556,
+                                    "Plan Width": 37,
+                                    "Actual Startup Time": 0.054,
+                                    "Actual Total Time": 14.283,
+                                    "Actual Rows": 54902.0,
+                                    "Actual Loops": 3,
+                                    "Disabled": false,
+                                    "Filter": "(received_at <= '2026-11-19 06:19:25.766004+00'::timestamp with time zone)",
+                                    "Rows Removed by Filter": 0,
+                                    "Shared Hit Blocks": 0,
+                                    "Shared Read Blocks": 16042,
+                                    "Shared Dirtied Blocks": 0,
+                                    "Shared Written Blocks": 0,
+                                    "Local Hit Blocks": 0,
+                                    "Local Read Blocks": 0,
+                                    "Local Dirtied Blocks": 0,
+                                    "Local Written Blocks": 0,
+                                    "Temp Read Blocks": 0,
+                                    "Temp Written Blocks": 0,
+                                    "Workers": []
+                                  },
+                                  {
+                                    "Node Type": "Hash",
+                                    "Parent Relationship": "Inner",
+                                    "Parallel Aware": true,
+                                    "Async Capable": false,
+                                    "Startup Cost": 35591.11,
+                                    "Total Cost": 35591.11,
+                                    "Plan Rows": 24390,
+                                    "Plan Width": 52,
+                                    "Actual Startup Time": 1109.885,
+                                    "Actual Total Time": 1109.885,
+                                    "Actual Rows": 11387.67,
+                                    "Actual Loops": 3,
+                                    "Disabled": false,
+                                    "Hash Buckets": 65536,
+                                    "Original Hash Buckets": 65536,
+                                    "Hash Batches": 1,
+                                    "Original Hash Batches": 1,
+                                    "Peak Memory Usage": 3584,
+                                    "Shared Hit Blocks": 370989,
+                                    "Shared Read Blocks": 68014,
+                                    "Shared Dirtied Blocks": 0,
+                                    "Shared Written Blocks": 106,
+                                    "Local Hit Blocks": 0,
+                                    "Local Read Blocks": 0,
+                                    "Local Dirtied Blocks": 0,
+                                    "Local Written Blocks": 0,
+                                    "Temp Read Blocks": 0,
+                                    "Temp Written Blocks": 0,
+                                    "Workers": [],
+                                    "Plans": [
+                                      {
+                                        "Node Type": "Seq Scan",
+                                        "Parent Relationship": "Outer",
+                                        "Parallel Aware": true,
+                                        "Async Capable": false,
+                                        "Relation Name": "raw_jobs",
+                                        "Alias": "raw_jobs",
+                                        "Startup Cost": 0.0,
+                                        "Total Cost": 35591.11,
+                                        "Plan Rows": 24390,
+                                        "Plan Width": 52,
+                                        "Actual Startup Time": 0.16,
+                                        "Actual Total Time": 1102.992,
+                                        "Actual Rows": 11387.67,
+                                        "Actual Loops": 3,
+                                        "Disabled": false,
+                                        "Filter": "((title_raw ~~* '%电商%'::text) OR (title_normalized ~~* '%电商%'::text) OR (company_name_raw ~~* '%电商%'::text) OR (description_raw ~~* '%电商%'::text) OR (responsibilities_raw ~~* '%电商%'::text))",
+                                        "Rows Removed by Filter": 43514,
+                                        "Shared Hit Blocks": 370989,
+                                        "Shared Read Blocks": 68014,
+                                        "Shared Dirtied Blocks": 0,
+                                        "Shared Written Blocks": 106,
+                                        "Local Hit Blocks": 0,
+                                        "Local Read Blocks": 0,
+                                        "Local Dirtied Blocks": 0,
+                                        "Local Written Blocks": 0,
+                                        "Temp Read Blocks": 0,
+                                        "Temp Written Blocks": 0,
+                                        "Workers": []
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "Planning": {
+            "Shared Hit Blocks": 18,
+            "Shared Read Blocks": 0,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0
+          },
+          "Planning Time": 2.018,
+          "Triggers": [],
+          "Execution Time": 1141.898
+        }
+      ]
+    },
+    "group_page": {
+      "sql": "SELECT anon_1.degree_raw, anon_1.experience_raw, count(anon_1.id) AS record_count \nFROM (SELECT raw_jobs.id AS id, raw_jobs.title_raw AS title_raw, raw_jobs.title_normalized AS title_normalized, raw_jobs.region AS region, raw_jobs.company_name_raw AS company_name_raw, raw_jobs.address_raw AS address_raw, raw_jobs.salary_raw AS salary_raw, raw_jobs.experience_raw AS experience_raw, raw_jobs.degree_raw AS degree_raw, raw_jobs.hiring_raw AS hiring_raw, raw_jobs.description_raw AS description_raw, raw_jobs.skills_raw AS skills_raw, raw_jobs.job_tags_raw AS job_tags_raw, raw_jobs.responsibilities_raw AS responsibilities_raw, raw_jobs.requirements_raw AS requirements_raw, raw_jobs.qualifications_raw AS qualifications_raw, raw_jobs.other_matters_raw AS other_matters_raw, raw_jobs.company_industry_raw AS company_industry_raw, raw_jobs.company_scale_raw AS company_scale_raw, raw_jobs.company_financing_raw AS company_financing_raw, raw_jobs.created_at AS created_at, raw_jobs.updated_at AS updated_at, raw_job_provenance.raw_job_id AS raw_job_id, raw_job_provenance.provider_code AS provider_code, raw_job_provenance.upstream_record_id AS upstream_record_id, raw_job_provenance.source_name AS source_name, raw_job_provenance.source_job_id AS source_job_id, raw_job_provenance.source_url AS source_url, raw_job_provenance.external_job_id AS external_job_id, raw_job_provenance.external_task_id AS external_task_id, raw_job_provenance.source_page AS source_page, raw_job_provenance.keyword AS keyword, raw_job_provenance.query_region AS query_region, raw_job_provenance.collected_at AS collected_at, raw_job_provenance.received_at AS received_at, raw_job_provenance.upstream_payload_hash AS upstream_payload_hash, raw_job_provenance.raw_record_hash AS raw_record_hash, raw_job_provenance.raw_record AS raw_record, raw_job_provenance.created_at AS created_at_1, raw_job_provenance.updated_at AS updated_at_1 \nFROM raw_jobs LEFT OUTER JOIN raw_job_provenance ON raw_job_provenance.raw_job_id = raw_jobs.id \nWHERE ((raw_jobs.title_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.title_normalized ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.company_name_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.description_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.responsibilities_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/')) AND raw_job_provenance.received_at <= '2026-11-19 06:19:25.766004+00:00') AS anon_1 GROUP BY anon_1.degree_raw, anon_1.experience_raw ORDER BY count(anon_1.id) DESC, anon_1.degree_raw, anon_1.experience_raw \n LIMIT 100",
+      "explain": [
+        {
+          "Plan": {
+            "Node Type": "Limit",
+            "Parallel Aware": false,
+            "Async Capable": false,
+            "Startup Cost": 54209.31,
+            "Total Cost": 54209.56,
+            "Plan Rows": 100,
+            "Plan Width": 23,
+            "Actual Startup Time": 939.18,
+            "Actual Total Time": 943.463,
+            "Actual Rows": 66.0,
+            "Actual Loops": 1,
+            "Disabled": false,
+            "Shared Hit Blocks": 371387,
+            "Shared Read Blocks": 83674,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 6,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0,
+            "Plans": [
+              {
+                "Node Type": "Sort",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 54209.31,
+                "Total Cost": 54209.6,
+                "Plan Rows": 117,
+                "Plan Width": 23,
+                "Actual Startup Time": 939.179,
+                "Actual Total Time": 943.457,
+                "Actual Rows": 66.0,
+                "Actual Loops": 1,
+                "Disabled": false,
+                "Sort Key": [
+                  "(count(raw_jobs.id)) DESC",
+                  "raw_jobs.degree_raw",
+                  "raw_jobs.experience_raw"
+                ],
+                "Sort Method": "quicksort",
+                "Sort Space Used": 29,
+                "Sort Space Type": "Memory",
+                "Shared Hit Blocks": 371387,
+                "Shared Read Blocks": 83674,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 6,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Aggregate",
+                    "Strategy": "Sorted",
+                    "Partial Mode": "Finalize",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 54169.28,
+                    "Total Cost": 54205.29,
+                    "Plan Rows": 117,
+                    "Plan Width": 23,
+                    "Actual Startup Time": 939.052,
+                    "Actual Total Time": 943.427,
+                    "Actual Rows": 66.0,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Group Key": [
+                      "raw_jobs.degree_raw",
+                      "raw_jobs.experience_raw"
+                    ],
+                    "Shared Hit Blocks": 371387,
+                    "Shared Read Blocks": 83674,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 6,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Gather Merge",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 54169.28,
+                        "Total Cost": 54202.01,
+                        "Plan Rows": 281,
+                        "Plan Width": 23,
+                        "Actual Startup Time": 939.045,
+                        "Actual Total Time": 943.39,
+                        "Actual Rows": 170.0,
+                        "Actual Loops": 1,
+                        "Disabled": false,
+                        "Workers Planned": 2,
+                        "Workers Launched": 2,
+                        "Shared Hit Blocks": 371387,
+                        "Shared Read Blocks": 83674,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 6,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Sort",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Startup Cost": 53169.26,
+                            "Total Cost": 53169.55,
+                            "Plan Rows": 117,
+                            "Plan Width": 23,
+                            "Actual Startup Time": 764.612,
+                            "Actual Total Time": 764.617,
+                            "Actual Rows": 56.67,
+                            "Actual Loops": 3,
+                            "Disabled": false,
+                            "Sort Key": [
+                              "raw_jobs.degree_raw",
+                              "raw_jobs.experience_raw"
+                            ],
+                            "Sort Method": "quicksort",
+                            "Sort Space Used": 27,
+                            "Sort Space Type": "Memory",
+                            "Shared Hit Blocks": 371387,
+                            "Shared Read Blocks": 83674,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 6,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Workers": [
+                              {
+                                "Worker Number": 0,
+                                "Sort Method": "quicksort",
+                                "Sort Space Used": 27,
+                                "Sort Space Type": "Memory"
+                              },
+                              {
+                                "Worker Number": 1,
+                                "Sort Method": "quicksort",
+                                "Sort Space Used": 27,
+                                "Sort Space Type": "Memory"
+                              }
+                            ],
+                            "Plans": [
+                              {
+                                "Node Type": "Aggregate",
+                                "Strategy": "Hashed",
+                                "Partial Mode": "Partial",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Startup Cost": 53164.07,
+                                "Total Cost": 53165.24,
+                                "Plan Rows": 117,
+                                "Plan Width": 23,
+                                "Actual Startup Time": 764.524,
+                                "Actual Total Time": 764.532,
+                                "Actual Rows": 56.67,
+                                "Actual Loops": 3,
+                                "Disabled": false,
+                                "Group Key": [
+                                  "raw_jobs.degree_raw",
+                                  "raw_jobs.experience_raw"
+                                ],
+                                "Planned Partitions": 0,
+                                "HashAgg Batches": 1,
+                                "Peak Memory Usage": 40,
+                                "Disk Usage": 0,
+                                "Shared Hit Blocks": 371372,
+                                "Shared Read Blocks": 83673,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 6,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0,
+                                "Workers": [
+                                  {
+                                    "Worker Number": 0,
+                                    "HashAgg Batches": 1,
+                                    "Peak Memory Usage": 40,
+                                    "Disk Usage": 0
+                                  },
+                                  {
+                                    "Worker Number": 1,
+                                    "HashAgg Batches": 1,
+                                    "Peak Memory Usage": 40,
+                                    "Disk Usage": 0
+                                  }
+                                ],
+                                "Plans": [
+                                  {
+                                    "Node Type": "Hash Join",
+                                    "Parent Relationship": "Outer",
+                                    "Parallel Aware": true,
+                                    "Async Capable": false,
+                                    "Join Type": "Inner",
+                                    "Startup Cost": 35895.98,
+                                    "Total Cost": 52974.97,
+                                    "Plan Rows": 25213,
+                                    "Plan Width": 52,
+                                    "Actual Startup Time": 739.581,
+                                    "Actual Total Time": 762.535,
+                                    "Actual Rows": 11387.67,
+                                    "Actual Loops": 3,
+                                    "Disabled": false,
+                                    "Inner Unique": true,
+                                    "Hash Cond": "((raw_job_provenance.raw_job_id)::text = (raw_jobs.id)::text)",
+                                    "Shared Hit Blocks": 371372,
+                                    "Shared Read Blocks": 83673,
+                                    "Shared Dirtied Blocks": 0,
+                                    "Shared Written Blocks": 6,
+                                    "Local Hit Blocks": 0,
+                                    "Local Read Blocks": 0,
+                                    "Local Dirtied Blocks": 0,
+                                    "Local Written Blocks": 0,
+                                    "Temp Read Blocks": 0,
+                                    "Temp Written Blocks": 0,
+                                    "Workers": [],
+                                    "Plans": [
+                                      {
+                                        "Node Type": "Seq Scan",
+                                        "Parent Relationship": "Outer",
+                                        "Parallel Aware": true,
+                                        "Async Capable": false,
+                                        "Relation Name": "raw_job_provenance",
+                                        "Alias": "raw_job_provenance",
+                                        "Startup Cost": 0.0,
+                                        "Total Cost": 16899.03,
+                                        "Plan Rows": 68556,
+                                        "Plan Width": 37,
+                                        "Actual Startup Time": 0.054,
+                                        "Actual Total Time": 12.999,
+                                        "Actual Rows": 54902.0,
+                                        "Actual Loops": 3,
+                                        "Disabled": false,
+                                        "Filter": "(received_at <= '2026-11-19 06:19:25.766004+00'::timestamp with time zone)",
+                                        "Rows Removed by Filter": 0,
+                                        "Shared Hit Blocks": 0,
+                                        "Shared Read Blocks": 16042,
+                                        "Shared Dirtied Blocks": 0,
+                                        "Shared Written Blocks": 0,
+                                        "Local Hit Blocks": 0,
+                                        "Local Read Blocks": 0,
+                                        "Local Dirtied Blocks": 0,
+                                        "Local Written Blocks": 0,
+                                        "Temp Read Blocks": 0,
+                                        "Temp Written Blocks": 0,
+                                        "Workers": []
+                                      },
+                                      {
+                                        "Node Type": "Hash",
+                                        "Parent Relationship": "Inner",
+                                        "Parallel Aware": true,
+                                        "Async Capable": false,
+                                        "Startup Cost": 35591.11,
+                                        "Total Cost": 35591.11,
+                                        "Plan Rows": 24390,
+                                        "Plan Width": 52,
+                                        "Actual Startup Time": 739.398,
+                                        "Actual Total Time": 739.398,
+                                        "Actual Rows": 11387.67,
+                                        "Actual Loops": 3,
+                                        "Disabled": false,
+                                        "Hash Buckets": 65536,
+                                        "Original Hash Buckets": 65536,
+                                        "Hash Batches": 1,
+                                        "Original Hash Batches": 1,
+                                        "Peak Memory Usage": 3584,
+                                        "Shared Hit Blocks": 371372,
+                                        "Shared Read Blocks": 67631,
+                                        "Shared Dirtied Blocks": 0,
+                                        "Shared Written Blocks": 6,
+                                        "Local Hit Blocks": 0,
+                                        "Local Read Blocks": 0,
+                                        "Local Dirtied Blocks": 0,
+                                        "Local Written Blocks": 0,
+                                        "Temp Read Blocks": 0,
+                                        "Temp Written Blocks": 0,
+                                        "Workers": [],
+                                        "Plans": [
+                                          {
+                                            "Node Type": "Seq Scan",
+                                            "Parent Relationship": "Outer",
+                                            "Parallel Aware": true,
+                                            "Async Capable": false,
+                                            "Relation Name": "raw_jobs",
+                                            "Alias": "raw_jobs",
+                                            "Startup Cost": 0.0,
+                                            "Total Cost": 35591.11,
+                                            "Plan Rows": 24390,
+                                            "Plan Width": 52,
+                                            "Actual Startup Time": 0.218,
+                                            "Actual Total Time": 732.766,
+                                            "Actual Rows": 11387.67,
+                                            "Actual Loops": 3,
+                                            "Disabled": false,
+                                            "Filter": "((title_raw ~~* '%电商%'::text) OR (title_normalized ~~* '%电商%'::text) OR (company_name_raw ~~* '%电商%'::text) OR (description_raw ~~* '%电商%'::text) OR (responsibilities_raw ~~* '%电商%'::text))",
+                                            "Rows Removed by Filter": 43514,
+                                            "Shared Hit Blocks": 371372,
+                                            "Shared Read Blocks": 67631,
+                                            "Shared Dirtied Blocks": 0,
+                                            "Shared Written Blocks": 6,
+                                            "Local Hit Blocks": 0,
+                                            "Local Read Blocks": 0,
+                                            "Local Dirtied Blocks": 0,
+                                            "Local Written Blocks": 0,
+                                            "Temp Read Blocks": 0,
+                                            "Temp Written Blocks": 0,
+                                            "Workers": []
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "Planning": {
+            "Shared Hit Blocks": 4,
+            "Shared Read Blocks": 14,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0
+          },
+          "Planning Time": 2.045,
+          "Triggers": [],
+          "Execution Time": 943.504
+        }
+      ]
+    },
+    "sample_count": {
+      "sql": "SELECT count(*) AS count_1 \nFROM (SELECT raw_jobs.id AS id, raw_jobs.title_raw AS title_raw, raw_jobs.title_normalized AS title_normalized, raw_jobs.region AS region, raw_jobs.company_name_raw AS company_name_raw, raw_jobs.address_raw AS address_raw, raw_jobs.salary_raw AS salary_raw, raw_jobs.experience_raw AS experience_raw, raw_jobs.degree_raw AS degree_raw, raw_jobs.hiring_raw AS hiring_raw, raw_jobs.description_raw AS description_raw, raw_jobs.skills_raw AS skills_raw, raw_jobs.job_tags_raw AS job_tags_raw, raw_jobs.responsibilities_raw AS responsibilities_raw, raw_jobs.requirements_raw AS requirements_raw, raw_jobs.qualifications_raw AS qualifications_raw, raw_jobs.other_matters_raw AS other_matters_raw, raw_jobs.company_industry_raw AS company_industry_raw, raw_jobs.company_scale_raw AS company_scale_raw, raw_jobs.company_financing_raw AS company_financing_raw, raw_jobs.created_at AS created_at, raw_jobs.updated_at AS updated_at, raw_job_provenance.raw_job_id AS raw_job_id, raw_job_provenance.provider_code AS provider_code, raw_job_provenance.upstream_record_id AS upstream_record_id, raw_job_provenance.source_name AS source_name, raw_job_provenance.source_job_id AS source_job_id, raw_job_provenance.source_url AS source_url, raw_job_provenance.external_job_id AS external_job_id, raw_job_provenance.external_task_id AS external_task_id, raw_job_provenance.source_page AS source_page, raw_job_provenance.keyword AS keyword, raw_job_provenance.query_region AS query_region, raw_job_provenance.collected_at AS collected_at, raw_job_provenance.received_at AS received_at, raw_job_provenance.upstream_payload_hash AS upstream_payload_hash, raw_job_provenance.raw_record_hash AS raw_record_hash, raw_job_provenance.raw_record AS raw_record, raw_job_provenance.created_at AS created_at_1, raw_job_provenance.updated_at AS updated_at_1 \nFROM raw_jobs LEFT OUTER JOIN raw_job_provenance ON raw_job_provenance.raw_job_id = raw_jobs.id \nWHERE ((raw_jobs.title_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.title_normalized ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.company_name_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.description_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.responsibilities_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/')) AND raw_job_provenance.received_at <= '2026-11-19 06:19:25.766004+00:00') AS anon_1",
+      "explain": [
+        {
+          "Plan": {
+            "Node Type": "Aggregate",
+            "Strategy": "Plain",
+            "Partial Mode": "Finalize",
+            "Parallel Aware": false,
+            "Async Capable": false,
+            "Startup Cost": 54038.22,
+            "Total Cost": 54038.23,
+            "Plan Rows": 1,
+            "Plan Width": 8,
+            "Actual Startup Time": 724.957,
+            "Actual Total Time": 729.084,
+            "Actual Rows": 1.0,
+            "Actual Loops": 1,
+            "Disabled": false,
+            "Shared Hit Blocks": 371011,
+            "Shared Read Blocks": 84034,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 32,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0,
+            "Plans": [
+              {
+                "Node Type": "Gather",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 54038.0,
+                "Total Cost": 54038.21,
+                "Plan Rows": 2,
+                "Plan Width": 8,
+                "Actual Startup Time": 724.808,
+                "Actual Total Time": 729.079,
+                "Actual Rows": 3.0,
+                "Actual Loops": 1,
+                "Disabled": false,
+                "Workers Planned": 2,
+                "Workers Launched": 2,
+                "Single Copy": false,
+                "Shared Hit Blocks": 371011,
+                "Shared Read Blocks": 84034,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 32,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Aggregate",
+                    "Strategy": "Plain",
+                    "Partial Mode": "Partial",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 53038.0,
+                    "Total Cost": 53038.01,
+                    "Plan Rows": 1,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 721.65,
+                    "Actual Total Time": 721.651,
+                    "Actual Rows": 1.0,
+                    "Actual Loops": 3,
+                    "Disabled": false,
+                    "Shared Hit Blocks": 371011,
+                    "Shared Read Blocks": 84034,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 32,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Workers": [],
+                    "Plans": [
+                      {
+                        "Node Type": "Hash Join",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": true,
+                        "Async Capable": false,
+                        "Join Type": "Inner",
+                        "Startup Cost": 35895.98,
+                        "Total Cost": 52974.97,
+                        "Plan Rows": 25213,
+                        "Plan Width": 0,
+                        "Actual Startup Time": 697.81,
+                        "Actual Total Time": 721.03,
+                        "Actual Rows": 11387.67,
+                        "Actual Loops": 3,
+                        "Disabled": false,
+                        "Inner Unique": true,
+                        "Hash Cond": "((raw_job_provenance.raw_job_id)::text = (raw_jobs.id)::text)",
+                        "Shared Hit Blocks": 371011,
+                        "Shared Read Blocks": 84034,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 32,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Workers": [],
+                        "Plans": [
+                          {
+                            "Node Type": "Seq Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": true,
+                            "Async Capable": false,
+                            "Relation Name": "raw_job_provenance",
+                            "Alias": "raw_job_provenance",
+                            "Startup Cost": 0.0,
+                            "Total Cost": 16899.03,
+                            "Plan Rows": 68556,
+                            "Plan Width": 37,
+                            "Actual Startup Time": 0.047,
+                            "Actual Total Time": 13.332,
+                            "Actual Rows": 54902.0,
+                            "Actual Loops": 3,
+                            "Disabled": false,
+                            "Filter": "(received_at <= '2026-11-19 06:19:25.766004+00'::timestamp with time zone)",
+                            "Rows Removed by Filter": 0,
+                            "Shared Hit Blocks": 0,
+                            "Shared Read Blocks": 16042,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Workers": []
+                          },
+                          {
+                            "Node Type": "Hash",
+                            "Parent Relationship": "Inner",
+                            "Parallel Aware": true,
+                            "Async Capable": false,
+                            "Startup Cost": 35591.11,
+                            "Total Cost": 35591.11,
+                            "Plan Rows": 24390,
+                            "Plan Width": 37,
+                            "Actual Startup Time": 697.601,
+                            "Actual Total Time": 697.602,
+                            "Actual Rows": 11387.67,
+                            "Actual Loops": 3,
+                            "Disabled": false,
+                            "Hash Buckets": 65536,
+                            "Original Hash Buckets": 65536,
+                            "Hash Batches": 1,
+                            "Original Hash Batches": 1,
+                            "Peak Memory Usage": 2944,
+                            "Shared Hit Blocks": 371011,
+                            "Shared Read Blocks": 67992,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 32,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Workers": [],
+                            "Plans": [
+                              {
+                                "Node Type": "Seq Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": true,
+                                "Async Capable": false,
+                                "Relation Name": "raw_jobs",
+                                "Alias": "raw_jobs",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 35591.11,
+                                "Plan Rows": 24390,
+                                "Plan Width": 37,
+                                "Actual Startup Time": 0.224,
+                                "Actual Total Time": 692.101,
+                                "Actual Rows": 11387.67,
+                                "Actual Loops": 3,
+                                "Disabled": false,
+                                "Filter": "((title_raw ~~* '%电商%'::text) OR (title_normalized ~~* '%电商%'::text) OR (company_name_raw ~~* '%电商%'::text) OR (description_raw ~~* '%电商%'::text) OR (responsibilities_raw ~~* '%电商%'::text))",
+                                "Rows Removed by Filter": 43514,
+                                "Shared Hit Blocks": 371011,
+                                "Shared Read Blocks": 67992,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 32,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0,
+                                "Workers": []
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "Planning": {
+            "Shared Hit Blocks": 4,
+            "Shared Read Blocks": 14,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0
+          },
+          "Planning Time": 2.152,
+          "Triggers": [],
+          "Execution Time": 729.109
+        }
+      ]
+    },
+    "missing_degree_raw": {
+      "sql": "SELECT count(*) AS count_1 \nFROM (SELECT raw_jobs.id AS id, raw_jobs.title_raw AS title_raw, raw_jobs.title_normalized AS title_normalized, raw_jobs.region AS region, raw_jobs.company_name_raw AS company_name_raw, raw_jobs.address_raw AS address_raw, raw_jobs.salary_raw AS salary_raw, raw_jobs.experience_raw AS experience_raw, raw_jobs.degree_raw AS degree_raw, raw_jobs.hiring_raw AS hiring_raw, raw_jobs.description_raw AS description_raw, raw_jobs.skills_raw AS skills_raw, raw_jobs.job_tags_raw AS job_tags_raw, raw_jobs.responsibilities_raw AS responsibilities_raw, raw_jobs.requirements_raw AS requirements_raw, raw_jobs.qualifications_raw AS qualifications_raw, raw_jobs.other_matters_raw AS other_matters_raw, raw_jobs.company_industry_raw AS company_industry_raw, raw_jobs.company_scale_raw AS company_scale_raw, raw_jobs.company_financing_raw AS company_financing_raw, raw_jobs.created_at AS created_at, raw_jobs.updated_at AS updated_at, raw_job_provenance.raw_job_id AS raw_job_id, raw_job_provenance.provider_code AS provider_code, raw_job_provenance.upstream_record_id AS upstream_record_id, raw_job_provenance.source_name AS source_name, raw_job_provenance.source_job_id AS source_job_id, raw_job_provenance.source_url AS source_url, raw_job_provenance.external_job_id AS external_job_id, raw_job_provenance.external_task_id AS external_task_id, raw_job_provenance.source_page AS source_page, raw_job_provenance.keyword AS keyword, raw_job_provenance.query_region AS query_region, raw_job_provenance.collected_at AS collected_at, raw_job_provenance.received_at AS received_at, raw_job_provenance.upstream_payload_hash AS upstream_payload_hash, raw_job_provenance.raw_record_hash AS raw_record_hash, raw_job_provenance.raw_record AS raw_record, raw_job_provenance.created_at AS created_at_1, raw_job_provenance.updated_at AS updated_at_1 \nFROM raw_jobs LEFT OUTER JOIN raw_job_provenance ON raw_job_provenance.raw_job_id = raw_jobs.id \nWHERE ((raw_jobs.title_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.title_normalized ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.company_name_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.description_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.responsibilities_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/')) AND raw_job_provenance.received_at <= '2026-11-19 06:19:25.766004+00:00') AS anon_1 \nWHERE anon_1.degree_raw IS NULL OR trim(anon_1.degree_raw) = ''",
+      "explain": [
+        {
+          "Plan": {
+            "Node Type": "Aggregate",
+            "Strategy": "Plain",
+            "Partial Mode": "Finalize",
+            "Parallel Aware": false,
+            "Async Capable": false,
+            "Startup Cost": 40120.18,
+            "Total Cost": 40120.19,
+            "Plan Rows": 1,
+            "Plan Width": 8,
+            "Actual Startup Time": 29.322,
+            "Actual Total Time": 31.722,
+            "Actual Rows": 1.0,
+            "Actual Loops": 1,
+            "Disabled": false,
+            "Shared Hit Blocks": 935,
+            "Shared Read Blocks": 34402,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 4,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0,
+            "Plans": [
+              {
+                "Node Type": "Gather",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 40119.96,
+                "Total Cost": 40120.17,
+                "Plan Rows": 2,
+                "Plan Width": 8,
+                "Actual Startup Time": 29.074,
+                "Actual Total Time": 31.717,
+                "Actual Rows": 3.0,
+                "Actual Loops": 1,
+                "Disabled": false,
+                "Workers Planned": 2,
+                "Workers Launched": 2,
+                "Single Copy": false,
+                "Shared Hit Blocks": 935,
+                "Shared Read Blocks": 34402,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 4,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Aggregate",
+                    "Strategy": "Plain",
+                    "Partial Mode": "Partial",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 39119.96,
+                    "Total Cost": 39119.97,
+                    "Plan Rows": 1,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 26.863,
+                    "Actual Total Time": 26.864,
+                    "Actual Rows": 1.0,
+                    "Actual Loops": 3,
+                    "Disabled": false,
+                    "Shared Hit Blocks": 935,
+                    "Shared Read Blocks": 34402,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 4,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Workers": [],
+                    "Plans": [
+                      {
+                        "Node Type": "Nested Loop",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Join Type": "Inner",
+                        "Startup Cost": 0.42,
+                        "Total Cost": 39118.83,
+                        "Plan Rows": 452,
+                        "Plan Width": 0,
+                        "Actual Startup Time": 2.701,
+                        "Actual Total Time": 26.838,
+                        "Actual Rows": 103.0,
+                        "Actual Loops": 3,
+                        "Disabled": false,
+                        "Inner Unique": true,
+                        "Shared Hit Blocks": 935,
+                        "Shared Read Blocks": 34402,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 4,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Workers": [],
+                        "Plans": [
+                          {
+                            "Node Type": "Seq Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": true,
+                            "Async Capable": false,
+                            "Relation Name": "raw_jobs",
+                            "Alias": "raw_jobs",
+                            "Startup Cost": 0.0,
+                            "Total Cost": 35922.69,
+                            "Plan Rows": 438,
+                            "Plan Width": 37,
+                            "Actual Startup Time": 2.651,
+                            "Actual Total Time": 25.226,
+                            "Actual Rows": 103.0,
+                            "Actual Loops": 3,
+                            "Disabled": false,
+                            "Filter": "(((degree_raw IS NULL) OR (TRIM(BOTH FROM degree_raw) = ''::text)) AND ((title_raw ~~* '%电商%'::text) OR (title_normalized ~~* '%电商%'::text) OR (company_name_raw ~~* '%电商%'::text) OR (description_raw ~~* '%电商%'::text) OR (responsibilities_raw ~~* '%电商%'::text)))",
+                            "Rows Removed by Filter": 54799,
+                            "Shared Hit Blocks": 284,
+                            "Shared Read Blocks": 33815,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Workers": []
+                          },
+                          {
+                            "Node Type": "Index Scan",
+                            "Parent Relationship": "Inner",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Scan Direction": "Forward",
+                            "Index Name": "raw_job_provenance_pkey",
+                            "Relation Name": "raw_job_provenance",
+                            "Alias": "raw_job_provenance",
+                            "Startup Cost": 0.42,
+                            "Total Cost": 7.3,
+                            "Plan Rows": 1,
+                            "Plan Width": 37,
+                            "Actual Startup Time": 0.015,
+                            "Actual Total Time": 0.015,
+                            "Actual Rows": 1.0,
+                            "Actual Loops": 309,
+                            "Disabled": false,
+                            "Index Cond": "((raw_job_id)::text = (raw_jobs.id)::text)",
+                            "Rows Removed by Index Recheck": 0,
+                            "Filter": "(received_at <= '2026-11-19 06:19:25.766004+00'::timestamp with time zone)",
+                            "Rows Removed by Filter": 0,
+                            "Index Searches": 309,
+                            "Shared Hit Blocks": 651,
+                            "Shared Read Blocks": 587,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 4,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Workers": []
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "Planning": {
+            "Shared Hit Blocks": 4,
+            "Shared Read Blocks": 14,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0
+          },
+          "Planning Time": 2.034,
+          "Triggers": [],
+          "Execution Time": 31.748
+        }
+      ]
+    },
+    "missing_experience_raw": {
+      "sql": "SELECT count(*) AS count_1 \nFROM (SELECT raw_jobs.id AS id, raw_jobs.title_raw AS title_raw, raw_jobs.title_normalized AS title_normalized, raw_jobs.region AS region, raw_jobs.company_name_raw AS company_name_raw, raw_jobs.address_raw AS address_raw, raw_jobs.salary_raw AS salary_raw, raw_jobs.experience_raw AS experience_raw, raw_jobs.degree_raw AS degree_raw, raw_jobs.hiring_raw AS hiring_raw, raw_jobs.description_raw AS description_raw, raw_jobs.skills_raw AS skills_raw, raw_jobs.job_tags_raw AS job_tags_raw, raw_jobs.responsibilities_raw AS responsibilities_raw, raw_jobs.requirements_raw AS requirements_raw, raw_jobs.qualifications_raw AS qualifications_raw, raw_jobs.other_matters_raw AS other_matters_raw, raw_jobs.company_industry_raw AS company_industry_raw, raw_jobs.company_scale_raw AS company_scale_raw, raw_jobs.company_financing_raw AS company_financing_raw, raw_jobs.created_at AS created_at, raw_jobs.updated_at AS updated_at, raw_job_provenance.raw_job_id AS raw_job_id, raw_job_provenance.provider_code AS provider_code, raw_job_provenance.upstream_record_id AS upstream_record_id, raw_job_provenance.source_name AS source_name, raw_job_provenance.source_job_id AS source_job_id, raw_job_provenance.source_url AS source_url, raw_job_provenance.external_job_id AS external_job_id, raw_job_provenance.external_task_id AS external_task_id, raw_job_provenance.source_page AS source_page, raw_job_provenance.keyword AS keyword, raw_job_provenance.query_region AS query_region, raw_job_provenance.collected_at AS collected_at, raw_job_provenance.received_at AS received_at, raw_job_provenance.upstream_payload_hash AS upstream_payload_hash, raw_job_provenance.raw_record_hash AS raw_record_hash, raw_job_provenance.raw_record AS raw_record, raw_job_provenance.created_at AS created_at_1, raw_job_provenance.updated_at AS updated_at_1 \nFROM raw_jobs LEFT OUTER JOIN raw_job_provenance ON raw_job_provenance.raw_job_id = raw_jobs.id \nWHERE ((raw_jobs.title_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.title_normalized ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.company_name_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.description_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/') OR (raw_jobs.responsibilities_raw ILIKE '%%' || '电商' || '%%' ESCAPE '/')) AND raw_job_provenance.received_at <= '2026-11-19 06:19:25.766004+00:00') AS anon_1 \nWHERE anon_1.experience_raw IS NULL OR trim(anon_1.experience_raw) = ''",
+      "explain": [
+        {
+          "Plan": {
+            "Node Type": "Aggregate",
+            "Strategy": "Plain",
+            "Partial Mode": "Finalize",
+            "Parallel Aware": false,
+            "Async Capable": false,
+            "Startup Cost": 41498.39,
+            "Total Cost": 41498.4,
+            "Plan Rows": 1,
+            "Plan Width": 8,
+            "Actual Startup Time": 26.403,
+            "Actual Total Time": 29.08,
+            "Actual Rows": 1.0,
+            "Actual Loops": 1,
+            "Disabled": false,
+            "Shared Hit Blocks": 1973,
+            "Shared Read Blocks": 34020,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 3,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0,
+            "Plans": [
+              {
+                "Node Type": "Gather",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 41498.17,
+                "Total Cost": 41498.38,
+                "Plan Rows": 2,
+                "Plan Width": 8,
+                "Actual Startup Time": 25.921,
+                "Actual Total Time": 29.075,
+                "Actual Rows": 3.0,
+                "Actual Loops": 1,
+                "Disabled": false,
+                "Workers Planned": 2,
+                "Workers Launched": 2,
+                "Single Copy": false,
+                "Shared Hit Blocks": 1973,
+                "Shared Read Blocks": 34020,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 3,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Aggregate",
+                    "Strategy": "Plain",
+                    "Partial Mode": "Partial",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 40498.17,
+                    "Total Cost": 40498.18,
+                    "Plan Rows": 1,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 24.08,
+                    "Actual Total Time": 24.081,
+                    "Actual Rows": 1.0,
+                    "Actual Loops": 3,
+                    "Disabled": false,
+                    "Shared Hit Blocks": 1973,
+                    "Shared Read Blocks": 34020,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 3,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Workers": [],
+                    "Plans": [
+                      {
+                        "Node Type": "Nested Loop",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Join Type": "Inner",
+                        "Startup Cost": 0.42,
+                        "Total Cost": 40496.46,
+                        "Plan Rows": 686,
+                        "Plan Width": 0,
+                        "Actual Startup Time": 1.378,
+                        "Actual Total Time": 24.056,
+                        "Actual Rows": 157.67,
+                        "Actual Loops": 3,
+                        "Disabled": false,
+                        "Inner Unique": true,
+                        "Shared Hit Blocks": 1973,
+                        "Shared Read Blocks": 34020,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 3,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Workers": [],
+                        "Plans": [
+                          {
+                            "Node Type": "Seq Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": true,
+                            "Async Capable": false,
+                            "Relation Name": "raw_jobs",
+                            "Alias": "raw_jobs",
+                            "Startup Cost": 0.0,
+                            "Total Cost": 35922.69,
+                            "Plan Rows": 664,
+                            "Plan Width": 37,
+                            "Actual Startup Time": 1.323,
+                            "Actual Total Time": 22.379,
+                            "Actual Rows": 157.67,
+                            "Actual Loops": 3,
+                            "Disabled": false,
+                            "Filter": "(((experience_raw IS NULL) OR (TRIM(BOTH FROM experience_raw) = ''::text)) AND ((title_raw ~~* '%电商%'::text) OR (title_normalized ~~* '%电商%'::text) OR (company_name_raw ~~* '%电商%'::text) OR (description_raw ~~* '%电商%'::text) OR (responsibilities_raw ~~* '%电商%'::text)))",
+                            "Rows Removed by Filter": 54744,
+                            "Shared Hit Blocks": 566,
+                            "Shared Read Blocks": 33533,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Workers": []
+                          },
+                          {
+                            "Node Type": "Index Scan",
+                            "Parent Relationship": "Inner",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Scan Direction": "Forward",
+                            "Index Name": "raw_job_provenance_pkey",
+                            "Relation Name": "raw_job_provenance",
+                            "Alias": "raw_job_provenance",
+                            "Startup Cost": 0.42,
+                            "Total Cost": 6.89,
+                            "Plan Rows": 1,
+                            "Plan Width": 37,
+                            "Actual Startup Time": 0.01,
+                            "Actual Total Time": 0.01,
+                            "Actual Rows": 1.0,
+                            "Actual Loops": 473,
+                            "Disabled": false,
+                            "Index Cond": "((raw_job_id)::text = (raw_jobs.id)::text)",
+                            "Rows Removed by Index Recheck": 0,
+                            "Filter": "(received_at <= '2026-11-19 06:19:25.766004+00'::timestamp with time zone)",
+                            "Rows Removed by Filter": 0,
+                            "Index Searches": 473,
+                            "Shared Hit Blocks": 1407,
+                            "Shared Read Blocks": 487,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 3,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Workers": []
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "Planning": {
+            "Shared Hit Blocks": 18,
+            "Shared Read Blocks": 0,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0
+          },
+          "Planning Time": 2.009,
+          "Triggers": [],
+          "Execution Time": 29.109
+        }
+      ]
+    }
+  }
+}
