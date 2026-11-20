@@ -1,0 +1,47 @@
+[
+  {
+    "id": "ecommerce_demo_base-01",
+    "resource_type": "ecommerce_demo_base",
+    "dimension": "简单查找",
+    "question": "平台有哪些国家级电子商务示范基地？列出前5家及认定年份。",
+    "status": "unsupported_public_skill",
+    "reason": "当前资产中心有入口，但 discover_data_resources 与随 skill 分发的55工具均无此资源；未调用内部接口",
+    "steps": []
+  },
+  {
+    "id": "ecommerce_demo_base-02",
+    "resource_type": "ecommerce_demo_base",
+    "dimension": "条件筛选",
+    "question": "重庆市有哪些国家级和省级电子商务示范基地？按地区、等级和认定年份筛选。",
+    "status": "unsupported_public_skill",
+    "reason": "当前资产中心有入口，但 discover_data_resources 与随 skill 分发的55工具均无此资源；未调用内部接口",
+    "steps": []
+  },
+  {
+    "id": "ecommerce_demo_base-03",
+    "resource_type": "ecommerce_demo_base",
+    "dimension": "详情溯源",
+    "question": "读取某个已确认基地的认定批次、运营主体、地址与官方来源。",
+    "status": "unsupported_public_skill",
+    "reason": "当前资产中心有入口，但 discover_data_resources 与随 skill 分发的55工具均无此资源；未调用内部接口",
+    "steps": []
+  },
+  {
+    "id": "ecommerce_demo_base-04",
+    "resource_type": "ecommerce_demo_base",
+    "dimension": "统计汇总",
+    "question": "按省份、认定级别和年份统计已入库电子商务示范基地数量。",
+    "status": "unsupported_public_skill",
+    "reason": "当前资产中心有入口，但 discover_data_resources 与随 skill 分发的55工具均无此资源；未调用内部接口",
+    "steps": []
+  },
+  {
+    "id": "ecommerce_demo_base-05",
+    "resource_type": "ecommerce_demo_base",
+    "dimension": "综合比较",
+    "question": "比较重庆与浙江示范基地的等级结构、认定批次及产业定位，并说明来源覆盖差异。",
+    "status": "unsupported_public_skill",
+    "reason": "当前资产中心有入口，但 discover_data_resources 与随 skill 分发的55工具均无此资源；未调用内部接口",
+    "steps": []
+  }
+]

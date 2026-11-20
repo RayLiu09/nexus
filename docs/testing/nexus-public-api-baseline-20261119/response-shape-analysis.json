@@ -1,0 +1,32 @@
+{
+  "search_actual_http_bytes": 411336,
+  "search_hit_count": 3,
+  "first_hit_retained_metadata_bytes": 146877,
+  "first_hit_retained_normalized_lineage_bytes": 144775,
+  "first_hit_image_uri_count": 423,
+  "hypothetical_citation_preserving_hit_list_bytes": 4367,
+  "hypothetical_projection_is_offline_only": true,
+  "no_contract_or_source_data_changed": true,
+  "output_budget_probe": {
+    "actual_http_bytes": 411322,
+    "out_file_bytes": 318,
+    "output": {
+      "truncated": true,
+      "response_mode": "digest",
+      "applied_mode": "minimal",
+      "original_chars": 394431,
+      "message": "Response exceeded the local output budget; use digest/content or a narrower query.",
+      "meta": {
+        "trace_id": "6a658efd5f604ca7b1c6fd21f279e444"
+      },
+      "data_keys": [
+        "query",
+        "kb",
+        "knowledge_types",
+        "results",
+        "count",
+        "caller_id"
+      ]
+    }
+  }
+}

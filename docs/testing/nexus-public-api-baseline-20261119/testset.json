@@ -1,0 +1,2686 @@
+{
+  "name": "nexus-public-api 全资产类别五维检索基线",
+  "date": "2026-11-19",
+  "base_url": "http://10.100.11.51:8000",
+  "skill_path": ".agents/skills/nexus-public-api",
+  "rounds": 3,
+  "concurrency": 1,
+  "timeout_seconds": 30,
+  "similarity_threshold": "server default 0.7",
+  "timing_scope": "skill HTTP + orchestrated data acquisition; excludes Agent answer composition",
+  "cases": [
+    {
+      "id": "industry_policy-01",
+      "resource_type": "industry_policy",
+      "dimension": "简单查找",
+      "question": "平台有哪些标题包含“电商”的产教政策？列出前5份及匹配总数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "industry_policy",
+              "title": "电商",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "industry_policy-02",
+      "resource_type": "industry_policy",
+      "dimension": "条件筛选",
+      "question": "查询产教政策，应用条件 {\"topic\": \"finance_commerce\"}，列出前5份及匹配总数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "industry_policy",
+              "topic": "finance_commerce",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "industry_policy-03",
+      "resource_type": "industry_policy",
+      "dimension": "内容提取",
+      "question": "电子商务发展政策支持哪些数字化与人才培养措施？ 请保留原文引用锚点；本题只读取检索到的有限片段。",
+      "scope": "检索前3份资料/最多3条命中；非全文穷尽",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "industry_policy",
+              "title": "电商",
+              "pageSize": 3
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "search_evidence",
+          "args": {
+            "query": {
+              "q": "电子商务发展政策支持哪些数字化与人才培养措施？",
+              "kb": "industry_research_kb",
+              "resource_type": "industry_policy",
+              "normalized_ref_ids": {
+                "$refs": [
+                  0,
+                  3
+                ]
+              },
+              "top_k": 5
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_evidence_bundle",
+          "args": {
+            "body": {
+              "references": {
+                "$hits": [
+                  1,
+                  3
+                ]
+              },
+              "max_chars": 2000
+            }
+          },
+          "response_mode": "content"
+        }
+      ]
+    },
+    {
+      "id": "industry_policy-04",
+      "resource_type": "industry_policy",
+      "dimension": "数量汇总",
+      "question": "平台产教政策总量有多少，其中标题包含“电商”的有多少、占比多少？",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "industry_policy",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "industry_policy",
+              "title": "电商",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "industry_policy-05",
+      "resource_type": "industry_policy",
+      "dimension": "综合比较",
+      "question": "基于前3份标题包含“电商”的产教政策及返回证据，归纳共同主题、差异与使用限制，不足时明确缺口。",
+      "scope": "前3份文档、每项最多2000字符；只对样本分析",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "industry_policy",
+              "title": "电商",
+              "pageSize": 3
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "search_evidence",
+          "args": {
+            "query": {
+              "q": "电子商务发展政策支持哪些数字化与人才培养措施？",
+              "kb": "industry_research_kb",
+              "resource_type": "industry_policy",
+              "normalized_ref_ids": {
+                "$refs": [
+                  0,
+                  3
+                ]
+              },
+              "top_k": 8
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_evidence_bundle",
+          "args": {
+            "body": {
+              "references": {
+                "$hits": [
+                  1,
+                  5
+                ]
+              },
+              "max_chars": 2000
+            }
+          },
+          "response_mode": "content"
+        }
+      ]
+    },
+    {
+      "id": "industry_report-01",
+      "resource_type": "industry_report",
+      "dimension": "简单查找",
+      "question": "平台有哪些标题包含“低空”的产业报告？列出前5份及匹配总数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "industry_report",
+              "title": "低空",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "industry_report-02",
+      "resource_type": "industry_report",
+      "dimension": "条件筛选",
+      "question": "查询产业报告，应用条件 {\"topic\": \"low_altitude\"}，列出前5份及匹配总数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "industry_report",
+              "topic": "low_altitude",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "industry_report-03",
+      "resource_type": "industry_report",
+      "dimension": "内容提取",
+      "question": "低空经济产业报告提出哪些发展环节与投资风险？ 请保留原文引用锚点；本题只读取检索到的有限片段。",
+      "scope": "检索前3份资料/最多3条命中；非全文穷尽",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "industry_report",
+              "title": "低空",
+              "pageSize": 3
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "search_evidence",
+          "args": {
+            "query": {
+              "q": "低空经济产业报告提出哪些发展环节与投资风险？",
+              "kb": "industry_research_kb",
+              "resource_type": "industry_report",
+              "normalized_ref_ids": {
+                "$refs": [
+                  0,
+                  3
+                ]
+              },
+              "top_k": 5
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_evidence_bundle",
+          "args": {
+            "body": {
+              "references": {
+                "$hits": [
+                  1,
+                  3
+                ]
+              },
+              "max_chars": 2000
+            }
+          },
+          "response_mode": "content"
+        }
+      ]
+    },
+    {
+      "id": "industry_report-04",
+      "resource_type": "industry_report",
+      "dimension": "数量汇总",
+      "question": "平台产业报告总量有多少，其中标题包含“低空”的有多少、占比多少？",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "industry_report",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "industry_report",
+              "title": "低空",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "industry_report-05",
+      "resource_type": "industry_report",
+      "dimension": "综合比较",
+      "question": "基于前3份标题包含“低空”的产业报告及返回证据，归纳共同主题、差异与使用限制，不足时明确缺口。",
+      "scope": "前3份文档、每项最多2000字符；只对样本分析",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "industry_report",
+              "title": "低空",
+              "pageSize": 3
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "search_evidence",
+          "args": {
+            "query": {
+              "q": "低空经济产业报告提出哪些发展环节与投资风险？",
+              "kb": "industry_research_kb",
+              "resource_type": "industry_report",
+              "normalized_ref_ids": {
+                "$refs": [
+                  0,
+                  3
+                ]
+              },
+              "top_k": 8
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_evidence_bundle",
+          "args": {
+            "body": {
+              "references": {
+                "$hits": [
+                  1,
+                  5
+                ]
+              },
+              "max_chars": 2000
+            }
+          },
+          "response_mode": "content"
+        }
+      ]
+    },
+    {
+      "id": "sector_report-01",
+      "resource_type": "sector_report",
+      "dimension": "简单查找",
+      "question": "平台有哪些标题包含“电商”的行业报告？列出前5份及匹配总数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "sector_report",
+              "title": "电商",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "sector_report-02",
+      "resource_type": "sector_report",
+      "dimension": "条件筛选",
+      "question": "查询行业报告，应用条件 {\"title\": \"电商\", \"published_from\": \"2025-01-01\"}，列出前5份及匹配总数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "sector_report",
+              "title": "电商",
+              "published_from": "2025-01-01",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "sector_report-03",
+      "resource_type": "sector_report",
+      "dimension": "内容提取",
+      "question": "电商行业报告反映哪些业态变化和发展趋势？ 请保留原文引用锚点；本题只读取检索到的有限片段。",
+      "scope": "检索前3份资料/最多3条命中；非全文穷尽",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "sector_report",
+              "title": "电商",
+              "pageSize": 3
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "search_evidence",
+          "args": {
+            "query": {
+              "q": "电商行业报告反映哪些业态变化和发展趋势？",
+              "kb": "industry_research_kb",
+              "resource_type": "sector_report",
+              "normalized_ref_ids": {
+                "$refs": [
+                  0,
+                  3
+                ]
+              },
+              "top_k": 5
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_evidence_bundle",
+          "args": {
+            "body": {
+              "references": {
+                "$hits": [
+                  1,
+                  3
+                ]
+              },
+              "max_chars": 2000
+            }
+          },
+          "response_mode": "content"
+        }
+      ]
+    },
+    {
+      "id": "sector_report-04",
+      "resource_type": "sector_report",
+      "dimension": "数量汇总",
+      "question": "平台行业报告总量有多少，其中标题包含“电商”的有多少、占比多少？",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "sector_report",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "sector_report",
+              "title": "电商",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "sector_report-05",
+      "resource_type": "sector_report",
+      "dimension": "综合比较",
+      "question": "基于前3份标题包含“电商”的行业报告及返回证据，归纳共同主题、差异与使用限制，不足时明确缺口。",
+      "scope": "前3份文档、每项最多2000字符；只对样本分析",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "sector_report",
+              "title": "电商",
+              "pageSize": 3
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "search_evidence",
+          "args": {
+            "query": {
+              "q": "电商行业报告反映哪些业态变化和发展趋势？",
+              "kb": "industry_research_kb",
+              "resource_type": "sector_report",
+              "normalized_ref_ids": {
+                "$refs": [
+                  0,
+                  3
+                ]
+              },
+              "top_k": 8
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_evidence_bundle",
+          "args": {
+            "body": {
+              "references": {
+                "$hits": [
+                  1,
+                  5
+                ]
+              },
+              "max_chars": 2000
+            }
+          },
+          "response_mode": "content"
+        }
+      ]
+    },
+    {
+      "id": "industry_regulation_standard-01",
+      "resource_type": "industry_regulation_standard",
+      "dimension": "简单查找",
+      "question": "平台有哪些标题包含“管理”的行业法规标准？列出前5份及匹配总数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "industry_regulation_standard",
+              "title": "管理",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "industry_regulation_standard-02",
+      "resource_type": "industry_regulation_standard",
+      "dimension": "条件筛选",
+      "question": "查询行业法规标准，应用条件 {\"published_from\": \"2025-01-01\"}，列出前5份及匹配总数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "industry_regulation_standard",
+              "published_from": "2025-01-01",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "industry_regulation_standard-03",
+      "resource_type": "industry_regulation_standard",
+      "dimension": "内容提取",
+      "question": "选取一份管理类法规标准，提取其监管对象和主要要求。 请保留原文引用锚点；本题只读取检索到的有限片段。",
+      "scope": "检索前3份资料/最多3条命中；非全文穷尽",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "industry_regulation_standard",
+              "title": "管理",
+              "pageSize": 3
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "list_document_sections",
+          "args": {
+            "query": {
+              "limit": 30,
+              "max_chars": 100
+            },
+            "path": {
+              "ref_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "normalized_ref_id"
+                ]
+              }
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "read_document_section",
+          "args": {
+            "query": {
+              "max_chars": 4000,
+              "adjacent_blocks": 1
+            },
+            "path": {
+              "ref_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "normalized_ref_id"
+                ]
+              },
+              "section_id": {
+                "$ref": [
+                  1,
+                  "data",
+                  "items",
+                  0,
+                  "id"
+                ]
+              }
+            }
+          },
+          "response_mode": "content"
+        }
+      ]
+    },
+    {
+      "id": "industry_regulation_standard-04",
+      "resource_type": "industry_regulation_standard",
+      "dimension": "数量汇总",
+      "question": "平台行业法规标准总量有多少，其中标题包含“管理”的有多少、占比多少？",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "industry_regulation_standard",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "industry_regulation_standard",
+              "title": "管理",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "industry_regulation_standard-05",
+      "resource_type": "industry_regulation_standard",
+      "dimension": "综合比较",
+      "question": "基于前3份标题包含“管理”的行业法规标准及返回证据，归纳共同主题、差异与使用限制，不足时明确缺口。",
+      "scope": "前3份文档、每项最多2000字符；只对样本分析",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "industry_regulation_standard",
+              "title": "管理",
+              "pageSize": 3
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_evidence_bundle",
+          "args": {
+            "body": {
+              "references": {
+                "$bundle": [
+                  0,
+                  3
+                ]
+              },
+              "max_chars": 2000
+            }
+          },
+          "response_mode": "content"
+        }
+      ]
+    },
+    {
+      "id": "major_profile-01",
+      "resource_type": "major_profile",
+      "dimension": "简单查找",
+      "question": "平台有哪些标题包含“电子商务”的专业简介？列出前5份及匹配总数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_major_profile_documents",
+          "args": {
+            "query": {
+              "resource_type": "major_profile",
+              "title": "电子商务",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "major_profile-02",
+      "resource_type": "major_profile",
+      "dimension": "条件筛选",
+      "question": "查询专业简介，应用条件 {\"major_code\": \"530701\"}，列出前5份及匹配总数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_major_profile_documents",
+          "args": {
+            "query": {
+              "resource_type": "major_profile",
+              "major_code": "530701",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "major_profile-03",
+      "resource_type": "major_profile",
+      "dimension": "内容提取",
+      "question": "电子商务相关专业简介中，主要学习内容和就业方向是什么？ 请保留原文引用锚点；本题只读取检索到的有限片段。",
+      "scope": "检索前3份资料/最多3条命中；非全文穷尽",
+      "steps": [
+        {
+          "tool": "find_major_profile_documents",
+          "args": {
+            "query": {
+              "resource_type": "major_profile",
+              "title": "电子商务",
+              "pageSize": 3
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "list_document_sections",
+          "args": {
+            "query": {
+              "limit": 30,
+              "max_chars": 100
+            },
+            "path": {
+              "ref_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "normalized_ref_id"
+                ]
+              }
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "read_document_section",
+          "args": {
+            "query": {
+              "max_chars": 4000,
+              "adjacent_blocks": 1
+            },
+            "path": {
+              "ref_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "normalized_ref_id"
+                ]
+              },
+              "section_id": {
+                "$ref": [
+                  1,
+                  "data",
+                  "items",
+                  0,
+                  "id"
+                ]
+              }
+            }
+          },
+          "response_mode": "content"
+        }
+      ]
+    },
+    {
+      "id": "major_profile-04",
+      "resource_type": "major_profile",
+      "dimension": "数量汇总",
+      "question": "平台专业简介总量有多少，其中标题包含“电子商务”的有多少、占比多少？",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_major_profile_documents",
+          "args": {
+            "query": {
+              "resource_type": "major_profile",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "find_major_profile_documents",
+          "args": {
+            "query": {
+              "resource_type": "major_profile",
+              "title": "电子商务",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "major_profile-05",
+      "resource_type": "major_profile",
+      "dimension": "综合比较",
+      "question": "基于前3份标题包含“电子商务”的专业简介及返回证据，归纳共同主题、差异与使用限制，不足时明确缺口。",
+      "scope": "前3份文档、每项最多2000字符；只对样本分析",
+      "steps": [
+        {
+          "tool": "find_major_profile_documents",
+          "args": {
+            "query": {
+              "resource_type": "major_profile",
+              "title": "电子商务",
+              "pageSize": 3
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_evidence_bundle",
+          "args": {
+            "body": {
+              "references": {
+                "$bundle": [
+                  0,
+                  3
+                ]
+              },
+              "max_chars": 2000
+            }
+          },
+          "response_mode": "content"
+        }
+      ]
+    },
+    {
+      "id": "talent_demand_report-01",
+      "resource_type": "talent_demand_report",
+      "dimension": "简单查找",
+      "question": "平台有哪些标题包含“重庆”的人才需求调研？列出前5份及匹配总数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "talent_demand_report",
+              "title": "重庆",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "talent_demand_report-02",
+      "resource_type": "talent_demand_report",
+      "dimension": "条件筛选",
+      "question": "查询人才需求调研，应用条件 {\"region\": \"重庆\"}，列出前5份及匹配总数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "talent_demand_report",
+              "region": "重庆",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "talent_demand_report-03",
+      "resource_type": "talent_demand_report",
+      "dimension": "内容提取",
+      "question": "重庆人才需求调研资料列出了哪些紧缺岗位和能力要求？ 请保留原文引用锚点；本题只读取检索到的有限片段。",
+      "scope": "检索前3份资料/最多3条命中；非全文穷尽",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "talent_demand_report",
+              "title": "重庆",
+              "pageSize": 3
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "list_document_sections",
+          "args": {
+            "query": {
+              "limit": 30,
+              "max_chars": 100
+            },
+            "path": {
+              "ref_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "normalized_ref_id"
+                ]
+              }
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "read_document_section",
+          "args": {
+            "query": {
+              "max_chars": 4000,
+              "adjacent_blocks": 1
+            },
+            "path": {
+              "ref_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "normalized_ref_id"
+                ]
+              },
+              "section_id": {
+                "$ref": [
+                  1,
+                  "data",
+                  "items",
+                  0,
+                  "id"
+                ]
+              }
+            }
+          },
+          "response_mode": "content"
+        }
+      ]
+    },
+    {
+      "id": "talent_demand_report-04",
+      "resource_type": "talent_demand_report",
+      "dimension": "数量汇总",
+      "question": "平台人才需求调研总量有多少，其中标题包含“重庆”的有多少、占比多少？",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "talent_demand_report",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "talent_demand_report",
+              "title": "重庆",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "talent_demand_report-05",
+      "resource_type": "talent_demand_report",
+      "dimension": "综合比较",
+      "question": "基于前3份标题包含“重庆”的人才需求调研及返回证据，归纳共同主题、差异与使用限制，不足时明确缺口。",
+      "scope": "前3份文档、每项最多2000字符；只对样本分析",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "talent_demand_report",
+              "title": "重庆",
+              "pageSize": 3
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_evidence_bundle",
+          "args": {
+            "body": {
+              "references": {
+                "$bundle": [
+                  0,
+                  3
+                ]
+              },
+              "max_chars": 2000
+            }
+          },
+          "response_mode": "content"
+        }
+      ]
+    },
+    {
+      "id": "teaching_case-01",
+      "resource_type": "teaching_case",
+      "dimension": "简单查找",
+      "question": "平台有哪些标题包含“数据”的教学案例？列出前5份及匹配总数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "teaching_case",
+              "title": "数据",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "teaching_case-02",
+      "resource_type": "teaching_case",
+      "dimension": "条件筛选",
+      "question": "查询教学案例，应用条件 {\"tags\": [\"数据安全\"], \"tags_match\": \"all\"}，列出前5份及匹配总数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "teaching_case",
+              "tags": [
+                "数据安全"
+              ],
+              "tags_match": "all",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "teaching_case-03",
+      "resource_type": "teaching_case",
+      "dimension": "内容提取",
+      "question": "数据安全教学案例反映哪些风险和教学启示？ 请保留原文引用锚点；本题只读取检索到的有限片段。",
+      "scope": "检索前3份资料/最多3条命中；非全文穷尽",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "teaching_case",
+              "title": "数据",
+              "pageSize": 3
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "list_document_sections",
+          "args": {
+            "query": {
+              "limit": 30,
+              "max_chars": 100
+            },
+            "path": {
+              "ref_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "normalized_ref_id"
+                ]
+              }
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "read_document_section",
+          "args": {
+            "query": {
+              "max_chars": 4000,
+              "adjacent_blocks": 1
+            },
+            "path": {
+              "ref_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "normalized_ref_id"
+                ]
+              },
+              "section_id": {
+                "$ref": [
+                  1,
+                  "data",
+                  "items",
+                  0,
+                  "id"
+                ]
+              }
+            }
+          },
+          "response_mode": "content"
+        }
+      ]
+    },
+    {
+      "id": "teaching_case-04",
+      "resource_type": "teaching_case",
+      "dimension": "数量汇总",
+      "question": "平台教学案例总量有多少，其中标题包含“数据”的有多少、占比多少？",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "teaching_case",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "teaching_case",
+              "title": "数据",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "teaching_case-05",
+      "resource_type": "teaching_case",
+      "dimension": "综合比较",
+      "question": "基于前3份标题包含“数据”的教学案例及返回证据，归纳共同主题、差异与使用限制，不足时明确缺口。",
+      "scope": "前3份文档、每项最多2000字符；只对样本分析",
+      "steps": [
+        {
+          "tool": "find_documents",
+          "args": {
+            "query": {
+              "resource_type": "teaching_case",
+              "title": "数据",
+              "pageSize": 3
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_evidence_bundle",
+          "args": {
+            "body": {
+              "references": {
+                "$bundle": [
+                  0,
+                  3
+                ]
+              },
+              "max_chars": 2000
+            }
+          },
+          "response_mode": "content"
+        }
+      ]
+    },
+    {
+      "id": "major_distribution-01",
+      "resource_type": "major_distribution",
+      "dimension": "简单查找",
+      "question": "列出2026年电子商务专业（530701）已入库布点的前5条学校记录及总数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "list_major_offerings",
+          "args": {
+            "query": {
+              "year": 2026,
+              "major_code": "530701",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "major_distribution-02",
+      "resource_type": "major_distribution",
+      "dimension": "条件筛选",
+      "question": "2026年重庆市有哪些电子商务专业布点？列出前10条及匹配总数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "list_major_offerings",
+          "args": {
+            "query": {
+              "year": 2026,
+              "province_name": "重庆市",
+              "major_code": "530701",
+              "pageSize": 10
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "major_distribution-03",
+      "resource_type": "major_distribution",
+      "dimension": "事实提取",
+      "question": "查询已入库的重庆学校2026年电子商务布点，给出学校、专业代码与修业年限（前10条）。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "list_major_offerings",
+          "args": {
+            "query": {
+              "year": 2026,
+              "school_name": "重庆",
+              "major_code": "530701",
+              "pageSize": 10
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "major_distribution-04",
+      "resource_type": "major_distribution",
+      "dimension": "统计汇总",
+      "question": "2026年已入库电子商务专业布点按省份如何分布？使用全量聚合并说明计数单位。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "aggregate_major_offerings",
+          "args": {
+            "query": {
+              "year": 2026,
+              "major_code": "530701",
+              "group_by": [
+                "province_name"
+              ],
+              "pageSize": 200
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "major_distribution-05",
+      "resource_type": "major_distribution",
+      "dimension": "综合比较",
+      "question": "按年份和省份比较电子商务专业已入库布点覆盖，说明重庆在各年的记录数变化；不推断全国总体或实际扩招。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "aggregate_major_offerings",
+          "args": {
+            "query": {
+              "major_code": "530701",
+              "group_by": [
+                "year",
+                "province_name"
+              ],
+              "pageSize": 200
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "occupational_ability_analysis-01",
+      "resource_type": "occupational_ability_analysis",
+      "dimension": "简单查找",
+      "question": "平台有哪些名称包含“电商”的职业能力分析？列出前5项及总数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "list_ability_analyses",
+          "args": {
+            "query": {
+              "major_name": "电商",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "occupational_ability_analysis-02",
+      "resource_type": "occupational_ability_analysis",
+      "dimension": "条件筛选",
+      "question": "专业代码730705对应哪些职业能力分析？",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "list_ability_analyses",
+          "args": {
+            "query": {
+              "major_code": "730705",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "occupational_ability_analysis-03",
+      "resource_type": "occupational_ability_analysis",
+      "dimension": "内容提取",
+      "question": "选取直播电商服务的第一份职业能力分析，列出典型工作任务及其描述。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "list_ability_analyses",
+          "args": {
+            "query": {
+              "major_name": "直播电商",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_ability_analysis_tasks",
+          "args": {
+            "path": {
+              "analysis_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "id"
+                ]
+              }
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "occupational_ability_analysis-04",
+      "resource_type": "occupational_ability_analysis",
+      "dimension": "样本汇总",
+      "question": "对所选直播电商服务分析的前200条能力条目，统计PGSD类别分布并说明是否覆盖完整分析。",
+      "scope": "能力条目前200条；比较meta.total确认是否完整",
+      "steps": [
+        {
+          "tool": "list_ability_analyses",
+          "args": {
+            "query": {
+              "major_name": "直播电商",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "list_ability_items",
+          "args": {
+            "query": {
+              "pageSize": 200
+            },
+            "path": {
+              "analysis_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "id"
+                ]
+              }
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "occupational_ability_analysis-05",
+      "resource_type": "occupational_ability_analysis",
+      "dimension": "综合分析",
+      "question": "结合所选直播电商服务分析的典型任务、前50条能力条目及前50条关系，提出教学重点并给出来源。",
+      "scope": "单分析有限样本；不外推全部专业",
+      "steps": [
+        {
+          "tool": "list_ability_analyses",
+          "args": {
+            "query": {
+              "major_name": "直播电商",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_ability_analysis_tasks",
+          "args": {
+            "path": {
+              "analysis_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "id"
+                ]
+              }
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "list_ability_items",
+          "args": {
+            "query": {
+              "pageSize": 50
+            },
+            "path": {
+              "analysis_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "id"
+                ]
+              }
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "list_ability_relations",
+          "args": {
+            "query": {
+              "pageSize": 50
+            },
+            "path": {
+              "analysis_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "id"
+                ]
+              }
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "market_job-01",
+      "resource_type": "market_job",
+      "dimension": "简单查找",
+      "question": "查询标题匹配“电商”的市场岗位，列出前5条及总样本数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_market_jobs",
+          "args": {
+            "query": {
+              "job_title": "电商",
+              "pageSize": 5,
+              "received_to": "2026-11-19T03:33:54.288003+00:00"
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "market_job-02",
+      "resource_type": "market_job",
+      "dimension": "条件筛选",
+      "question": "查询采集地区为重庆、学历含大专、标题匹配电商的岗位，列出前5条及匹配总数；地区不等同实际工作地。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_market_jobs",
+          "args": {
+            "query": {
+              "job_title": "电商",
+              "region": "重庆",
+              "education": "大专",
+              "pageSize": 5,
+              "received_to": "2026-11-19T03:33:54.288003+00:00"
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "market_job-03",
+      "resource_type": "market_job",
+      "dimension": "详情溯源",
+      "question": "读取第一条电商岗位的详细要求、薪资原文和来源，指出缺失或异常字段。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_market_jobs",
+          "args": {
+            "query": {
+              "job_title": "电商",
+              "pageSize": 1,
+              "received_to": "2026-11-19T03:33:54.288003+00:00"
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_market_job",
+          "args": {
+            "path": {
+              "job_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "id"
+                ]
+              }
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "market_job-04",
+      "resource_type": "market_job",
+      "dimension": "统计汇总",
+      "question": "对所有标题匹配电商的岗位，按学历和经验聚合，报告样本量与缺失值，避免将分组数当岗位数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "aggregate_market_jobs",
+          "args": {
+            "query": {
+              "job_title": "电商",
+              "group_by": [
+                "education",
+                "experience"
+              ],
+              "pageSize": 200,
+              "received_to": "2026-11-19T03:33:54.288003+00:00"
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "market_job-05",
+      "resource_type": "market_job",
+      "dimension": "综合比较",
+      "question": "比较重庆与杭州采集范围内电商岗位的学历分布、样本量和缺失情况；不推断实际工作地或全市场总体。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "aggregate_market_jobs",
+          "args": {
+            "query": {
+              "job_title": "电商",
+              "region": "重庆",
+              "group_by": [
+                "education"
+              ],
+              "pageSize": 200,
+              "received_to": "2026-11-19T03:33:54.288003+00:00"
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "aggregate_market_jobs",
+          "args": {
+            "query": {
+              "job_title": "电商",
+              "region": "杭州",
+              "group_by": [
+                "education"
+              ],
+              "pageSize": 200,
+              "received_to": "2026-11-19T03:33:54.288003+00:00"
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "industrial_park-01",
+      "resource_type": "industrial_park",
+      "dimension": "简单查找",
+      "question": "有哪些产业标签包含电商的园区？列出前5个及匹配总数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_industrial_parks",
+          "args": {
+            "query": {
+              "industry": "电商",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "industrial_park-02",
+      "resource_type": "industrial_park",
+      "dimension": "条件筛选",
+      "question": "名称含重庆且产业标签含电商的园区有哪些？",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_industrial_parks",
+          "args": {
+            "query": {
+              "q": "重庆",
+              "industry": "电商",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "industrial_park-03",
+      "resource_type": "industrial_park",
+      "dimension": "详情溯源",
+      "question": "查询1506电商物流园的简介、企业数量与来源。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_industrial_parks",
+          "args": {
+            "query": {
+              "q": "1506",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_industrial_park",
+          "args": {
+            "path": {
+              "park_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "id"
+                ]
+              }
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "industrial_park-04",
+      "resource_type": "industrial_park",
+      "dimension": "样本汇总",
+      "question": "在前20个电商园区样本中，关联企业数合计多少、哪些园区最多、多少园区为0？",
+      "scope": "前20个园区样本，非全量统计",
+      "steps": [
+        {
+          "tool": "query_industrial_parks",
+          "args": {
+            "query": {
+              "industry": "电商",
+              "pageSize": 20
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "industrial_park-05",
+      "resource_type": "industrial_park",
+      "dimension": "综合比较",
+      "question": "对前3个电商园区，比较产业方向与关联企业覆盖，并读取各园区前5家企业；不推断合作关系。",
+      "scope": "前3个园区及各前5家关联企业",
+      "steps": [
+        {
+          "tool": "query_industrial_parks",
+          "args": {
+            "query": {
+              "industry": "电商",
+              "pageSize": 3
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "query_enterprises",
+          "args": {
+            "query": {
+              "park_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "id"
+                ]
+              },
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "query_enterprises",
+          "args": {
+            "query": {
+              "park_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  1,
+                  "id"
+                ]
+              },
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "query_enterprises",
+          "args": {
+            "query": {
+              "park_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  2,
+                  "id"
+                ]
+              },
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "enterprise-01",
+      "resource_type": "enterprise",
+      "dimension": "简单查找",
+      "question": "列出经营范围包含电子商务的前5家企业与匹配总数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_enterprises",
+          "args": {
+            "query": {
+              "business_scope": "电子商务",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "enterprise-02",
+      "resource_type": "enterprise",
+      "dimension": "条件筛选",
+      "question": "名称/园区检索含重庆且经营范围含电子商务的企业有哪些？",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_enterprises",
+          "args": {
+            "query": {
+              "q": "重庆",
+              "business_scope": "电子商务",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "enterprise-03",
+      "resource_type": "enterprise",
+      "dimension": "详情溯源",
+      "question": "读取一物一码企业的经营范围、所属园区和来源。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_enterprises",
+          "args": {
+            "query": {
+              "q": "一物一码",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_enterprise",
+          "args": {
+            "path": {
+              "enterprise_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "id"
+                ]
+              }
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "enterprise-04",
+      "resource_type": "enterprise",
+      "dimension": "样本汇总",
+      "question": "前20家电子商务相关企业分属哪些园区，样本内各园区多少家？",
+      "scope": "前20家样本；非全部企业分布",
+      "steps": [
+        {
+          "tool": "query_enterprises",
+          "args": {
+            "query": {
+              "business_scope": "电子商务",
+              "pageSize": 20
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "enterprise-05",
+      "resource_type": "enterprise",
+      "dimension": "综合比较",
+      "question": "比较前2家电子商务相关企业的经营范围和实际所属园区产业定位，指出可验证关系与证据不足之处。",
+      "scope": "前2家企业及实际所属园区",
+      "steps": [
+        {
+          "tool": "query_enterprises",
+          "args": {
+            "query": {
+              "business_scope": "电子商务",
+              "pageSize": 2
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_industrial_park",
+          "args": {
+            "path": {
+              "park_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "industrial_park_id"
+                ]
+              }
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_industrial_park",
+          "args": {
+            "path": {
+              "park_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  1,
+                  "industrial_park_id"
+                ]
+              }
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "occupation_dictionary-01",
+      "resource_type": "occupation_dictionary",
+      "dimension": "简单查找",
+      "question": "职业分类大典中的电子商务师代码和职业名称是什么？",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_occupation_dictionary",
+          "args": {
+            "query": {
+              "occupation_name": "电子商务师",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "occupation_dictionary-02",
+      "resource_type": "occupation_dictionary",
+      "dimension": "条件筛选",
+      "question": "第4大类中名称包含互联网的职业有哪些？",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_occupation_dictionary",
+          "args": {
+            "query": {
+              "major_group": "4",
+              "occupation_name": "互联网",
+              "pageSize": 20
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "occupation_dictionary-03",
+      "resource_type": "occupation_dictionary",
+      "dimension": "内容提取",
+      "question": "互联网营销师的职业定义和主要工作任务是什么？",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_occupation_dictionary",
+          "args": {
+            "query": {
+              "occupation_name": "互联网营销师",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "occupation_dictionary-04",
+      "resource_type": "occupation_dictionary",
+      "dimension": "统计汇总",
+      "question": "名称含营销的职业共多少条，按返回大类分布如何？只在返回条数覆盖总数时作全量统计。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_occupation_dictionary",
+          "args": {
+            "query": {
+              "occupation_name": "营销",
+              "pageSize": 200
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "occupation_dictionary-05",
+      "resource_type": "occupation_dictionary",
+      "dimension": "综合比较",
+      "question": "比较电子商务师和互联网营销师的工作任务边界，说明重合点与区别。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_occupation_dictionary",
+          "args": {
+            "query": {
+              "occupation_name": "电子商务师",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "query_occupation_dictionary",
+          "args": {
+            "query": {
+              "occupation_name": "互联网营销师",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "teaching_standard-01",
+      "resource_type": "teaching_standard",
+      "dimension": "简单查找",
+      "question": "有哪些电子商务相关专业教学标准？列出前20项及层次。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_teaching_standards",
+          "args": {
+            "query": {
+              "major_name": "电子商务",
+              "pageSize": 20
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "teaching_standard-02",
+      "resource_type": "teaching_standard",
+      "dimension": "条件筛选",
+      "question": "专业代码530701且职业面向包含电子商务师的教学标准有哪些？",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_teaching_standards",
+          "args": {
+            "query": {
+              "major_code": "530701",
+              "occupation": "电子商务师",
+              "pageSize": 20
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "teaching_standard-03",
+      "resource_type": "teaching_standard",
+      "dimension": "内容溯源",
+      "question": "读取第一份530701电子商务教学标准，提取修业年限、职业面向和课程数量及证据。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_teaching_standards",
+          "args": {
+            "query": {
+              "major_code": "530701",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_teaching_standard",
+          "args": {
+            "path": {
+              "library_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "id"
+                ]
+              }
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "teaching_standard-04",
+      "resource_type": "teaching_standard",
+      "dimension": "统计汇总",
+      "question": "电子商务相关标准按教育层次分布如何？区分标准文档记录数与唯一专业数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_teaching_standards",
+          "args": {
+            "query": {
+              "major_name": "电子商务",
+              "pageSize": 200
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "teaching_standard-05",
+      "resource_type": "teaching_standard",
+      "dimension": "综合分析",
+      "question": "结合第一份530701标准的职业面向与其全部已返回课程，解释核心课程如何支撑岗位能力，不虚构映射。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_teaching_standards",
+          "args": {
+            "query": {
+              "major_code": "530701",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_teaching_standard",
+          "args": {
+            "path": {
+              "library_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "id"
+                ]
+              }
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "query_standard_courses",
+          "args": {
+            "query": {
+              "library_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "id"
+                ]
+              },
+              "pageSize": 200
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "standard_course-01",
+      "resource_type": "standard_course",
+      "dimension": "简单查找",
+      "question": "标准课程库中有哪些客户服务相关课程？列出前5项及总数。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_standard_courses",
+          "args": {
+            "query": {
+              "course_name": "客户服务",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "standard_course-02",
+      "resource_type": "standard_course",
+      "dimension": "条件筛选",
+      "question": "专业530701的核心课程有哪些？",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_standard_courses",
+          "args": {
+            "query": {
+              "major_code": "530701",
+              "course_type": "core",
+              "pageSize": 200
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "standard_course-03",
+      "resource_type": "standard_course",
+      "dimension": "内容溯源",
+      "question": "读取第一条数据分析相关标准课程，提取课程内容、建议学时、来源页码和证据。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_standard_courses",
+          "args": {
+            "query": {
+              "course_name": "数据分析",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_standard_course",
+          "args": {
+            "path": {
+              "course_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "id"
+                ]
+              }
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "standard_course-04",
+      "resource_type": "standard_course",
+      "dimension": "统计汇总",
+      "question": "对专业530701标准课程，按基础、核心、拓展类型统计记录数，核对是否完整。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_standard_courses",
+          "args": {
+            "query": {
+              "major_code": "530701",
+              "pageSize": 200
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "standard_course-05",
+      "resource_type": "standard_course",
+      "dimension": "综合比较",
+      "question": "比较中职730701与高职专科530701的核心课程名称重合与差异，保留源记录并指出重复问题。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "query_standard_courses",
+          "args": {
+            "query": {
+              "major_code": "730701",
+              "course_type": "core",
+              "pageSize": 200
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "query_standard_courses",
+          "args": {
+            "query": {
+              "major_code": "530701",
+              "course_type": "core",
+              "pageSize": 200
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "talent_training_plan-01",
+      "resource_type": "talent_training_plan",
+      "dimension": "简单查找",
+      "question": "有哪些电子商务相关人才培养方案？列出前5份、院校和专业代码。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "list_open_talent_training_plans",
+          "args": {
+            "query": {
+              "major_name": "电子商务",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "talent_training_plan-02",
+      "resource_type": "talent_training_plan",
+      "dimension": "条件筛选",
+      "question": "上海电子信息职业技术学院有哪些跨境电子商务培养方案？",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "list_open_talent_training_plans",
+          "args": {
+            "query": {
+              "institution_name": "上海电子信息",
+              "major_name": "跨境电子商务",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "talent_training_plan-03",
+      "resource_type": "talent_training_plan",
+      "dimension": "内容提取",
+      "question": "读取第一份电子商务相关培养方案，提取培养目标、修业年限和课程数量。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "list_open_talent_training_plans",
+          "args": {
+            "query": {
+              "major_name": "电子商务",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_open_talent_training_plan",
+          "args": {
+            "path": {
+              "item_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "id"
+                ]
+              }
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "talent_training_plan-04",
+      "resource_type": "talent_training_plan",
+      "dimension": "统计汇总",
+      "question": "电子商务相关方案的教育层次、年限和课程数量分布如何？完整返回才作全量统计。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "list_open_talent_training_plans",
+          "args": {
+            "query": {
+              "major_name": "电子商务",
+              "pageSize": 200
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "talent_training_plan-05",
+      "resource_type": "talent_training_plan",
+      "dimension": "综合比较",
+      "question": "比较前2份电子商务相关方案的培养目标与课程设置，列出共有课程和特有方向，并指出学校/层次等缺失。",
+      "scope": "前2份方案，各课程最多200条，按meta.total核对完整性",
+      "steps": [
+        {
+          "tool": "list_open_talent_training_plans",
+          "args": {
+            "query": {
+              "major_name": "电子商务",
+              "pageSize": 2
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "list_training_plan_courses",
+          "args": {
+            "query": {
+              "pageSize": 200
+            },
+            "path": {
+              "plan_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  0,
+                  "id"
+                ]
+              }
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "list_training_plan_courses",
+          "args": {
+            "query": {
+              "pageSize": 200
+            },
+            "path": {
+              "plan_id": {
+                "$ref": [
+                  0,
+                  "data",
+                  1,
+                  "id"
+                ]
+              }
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "course_textbook-01",
+      "resource_type": "course_textbook",
+      "dimension": "简单查找",
+      "question": "有哪些视觉营销教材，给出类型、出版社与已存在大纲能力。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_textbooks",
+          "args": {
+            "query": {
+              "title": "视觉营销",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "course_textbook-02",
+      "resource_type": "course_textbook",
+      "dimension": "条件筛选",
+      "question": "标题含电商且类型为实训的教材有哪些？",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_textbooks",
+          "args": {
+            "query": {
+              "title": "电商",
+              "textbook_type": "training",
+              "pageSize": 5
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "course_textbook-03",
+      "resource_type": "course_textbook",
+      "dimension": "语义内容检索",
+      "question": "视觉营销教材中，商品促销海报设计包含哪些步骤与要点？请给出知识块引用。",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_textbooks",
+          "args": {
+            "query": {
+              "title": "视觉营销",
+              "pageSize": 3
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "search_evidence",
+          "args": {
+            "query": {
+              "q": "商品促销海报设计的步骤和要点",
+              "kb": "course_textbook",
+              "normalized_ref_ids": {
+                "$refs": [
+                  0,
+                  3
+                ]
+              },
+              "top_k": 5
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_evidence_bundle",
+          "args": {
+            "body": {
+              "references": {
+                "$hits": [
+                  1,
+                  3
+                ]
+              },
+              "max_chars": 2000
+            }
+          },
+          "response_mode": "content"
+        }
+      ]
+    },
+    {
+      "id": "course_textbook-04",
+      "resource_type": "course_textbook",
+      "dimension": "统计汇总",
+      "question": "当前可消费教材共多少本，理论型和实训型分别多少，是否存在未归入两类的记录？",
+      "scope": "当前公开可消费资产；数量仅代表已入库覆盖",
+      "steps": [
+        {
+          "tool": "find_textbooks",
+          "args": {
+            "query": {
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "find_textbooks",
+          "args": {
+            "query": {
+              "textbook_type": "theory",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "find_textbooks",
+          "args": {
+            "query": {
+              "textbook_type": "training",
+              "pageSize": 1
+            }
+          },
+          "response_mode": "full"
+        }
+      ]
+    },
+    {
+      "id": "course_textbook-05",
+      "resource_type": "course_textbook",
+      "dimension": "综合分析",
+      "question": "结合视觉营销教材中的海报、短视频与直播视觉设计证据，归纳实践教学模块并指出证据缺口。",
+      "scope": "前3本视觉营销教材、最多5条知识块证据",
+      "steps": [
+        {
+          "tool": "find_textbooks",
+          "args": {
+            "query": {
+              "title": "视觉营销",
+              "pageSize": 3
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "search_evidence",
+          "args": {
+            "query": {
+              "q": "海报设计 短视频 直播场景 视觉设计 实践教学",
+              "kb": "course_textbook",
+              "normalized_ref_ids": {
+                "$refs": [
+                  0,
+                  3
+                ]
+              },
+              "top_k": 8
+            }
+          },
+          "response_mode": "full"
+        },
+        {
+          "tool": "get_evidence_bundle",
+          "args": {
+            "body": {
+              "references": {
+                "$hits": [
+                  1,
+                  5
+                ]
+              },
+              "max_chars": 2000
+            }
+          },
+          "response_mode": "content"
+        }
+      ]
+    }
+  ],
+  "snapshot_received_to": "2026-11-19T03:33:54.288003+00:00"
+}

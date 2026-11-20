@@ -1,0 +1,726 @@
+{
+  "data": [
+    {
+      "code": "industry_policy",
+      "name": "产教政策",
+      "classification": "industry_policy",
+      "source_type": "document",
+      "count": 752,
+      "count_unit": "documents",
+      "endpoint": "/open/v1/assets",
+      "capabilities": [
+        "list",
+        "detail",
+        "content",
+        "chunks",
+        "sections",
+        "scoped_search"
+      ],
+      "visibility": "available_current_generated_ref",
+      "limitations": [
+        "counts_cover_ingested_documents_only",
+        "organization_filter_is_P0_noop"
+      ],
+      "filter_parameters": [
+        "domain",
+        "tag_type",
+        "tags",
+        "is_exact_matched",
+        "tags_match",
+        "page",
+        "pageSize",
+        "title",
+        "resource_type",
+        "domains",
+        "topic",
+        "region",
+        "industry",
+        "major_code",
+        "major_name",
+        "institution_name",
+        "education_level",
+        "published_from",
+        "published_to"
+      ],
+      "knowledge_types": [
+        "industry_research_kb"
+      ],
+      "retrieval_capabilities": [
+        "catalog",
+        "semantic_search",
+        "evidence_bundle",
+        "content",
+        "sections"
+      ]
+    },
+    {
+      "code": "industry_report",
+      "name": "产业报告",
+      "classification": "industry_report",
+      "source_type": "document",
+      "count": 330,
+      "count_unit": "documents",
+      "endpoint": "/open/v1/assets",
+      "capabilities": [
+        "list",
+        "detail",
+        "content",
+        "chunks",
+        "sections",
+        "scoped_search"
+      ],
+      "visibility": "available_current_generated_ref",
+      "limitations": [
+        "counts_cover_ingested_documents_only",
+        "organization_filter_is_P0_noop"
+      ],
+      "filter_parameters": [
+        "domain",
+        "tag_type",
+        "tags",
+        "is_exact_matched",
+        "tags_match",
+        "page",
+        "pageSize",
+        "title",
+        "resource_type",
+        "domains",
+        "topic",
+        "region",
+        "industry",
+        "major_code",
+        "major_name",
+        "institution_name",
+        "education_level",
+        "published_from",
+        "published_to"
+      ],
+      "knowledge_types": [
+        "industry_research_kb"
+      ],
+      "retrieval_capabilities": [
+        "catalog",
+        "semantic_search",
+        "evidence_bundle",
+        "content",
+        "sections"
+      ]
+    },
+    {
+      "code": "sector_report",
+      "name": "行业报告",
+      "classification": "sector_report",
+      "source_type": "document",
+      "count": 218,
+      "count_unit": "documents",
+      "endpoint": "/open/v1/assets",
+      "capabilities": [
+        "list",
+        "detail",
+        "content",
+        "chunks",
+        "sections",
+        "scoped_search"
+      ],
+      "visibility": "available_current_generated_ref",
+      "limitations": [
+        "counts_cover_ingested_documents_only",
+        "organization_filter_is_P0_noop"
+      ],
+      "filter_parameters": [
+        "domain",
+        "tag_type",
+        "tags",
+        "is_exact_matched",
+        "tags_match",
+        "page",
+        "pageSize",
+        "title",
+        "resource_type",
+        "domains",
+        "topic",
+        "region",
+        "industry",
+        "major_code",
+        "major_name",
+        "institution_name",
+        "education_level",
+        "published_from",
+        "published_to"
+      ],
+      "knowledge_types": [
+        "industry_research_kb"
+      ],
+      "retrieval_capabilities": [
+        "catalog",
+        "semantic_search",
+        "evidence_bundle",
+        "content",
+        "sections"
+      ]
+    },
+    {
+      "code": "industry_regulation_standard",
+      "name": "行业法规标准",
+      "classification": "industry_regulation_standard",
+      "source_type": "document",
+      "count": 110,
+      "count_unit": "documents",
+      "endpoint": "/open/v1/assets",
+      "capabilities": [
+        "list",
+        "detail",
+        "content",
+        "chunks",
+        "sections",
+        "scoped_search"
+      ],
+      "visibility": "available_current_generated_ref",
+      "limitations": [
+        "counts_cover_ingested_documents_only",
+        "organization_filter_is_P0_noop"
+      ],
+      "filter_parameters": [
+        "domain",
+        "tag_type",
+        "tags",
+        "is_exact_matched",
+        "tags_match",
+        "page",
+        "pageSize",
+        "title",
+        "resource_type",
+        "domains",
+        "topic",
+        "region",
+        "industry",
+        "major_code",
+        "major_name",
+        "institution_name",
+        "education_level",
+        "published_from",
+        "published_to"
+      ],
+      "knowledge_types": [],
+      "retrieval_capabilities": [
+        "catalog",
+        "evidence_bundle",
+        "content",
+        "sections"
+      ]
+    },
+    {
+      "code": "major_profile",
+      "name": "专业简介",
+      "classification": "major_profile",
+      "source_type": "document",
+      "count": 85,
+      "count_unit": "documents",
+      "endpoint": "/open/v1/major-profile-documents",
+      "capabilities": [
+        "list",
+        "detail",
+        "content",
+        "chunks",
+        "sections",
+        "scoped_search"
+      ],
+      "visibility": "available_current_generated_ref",
+      "limitations": [
+        "counts_cover_ingested_documents_only",
+        "organization_filter_is_P0_noop"
+      ],
+      "filter_parameters": [
+        "title",
+        "resource_type",
+        "domains",
+        "topic",
+        "region",
+        "industry",
+        "major_code",
+        "major_name",
+        "institution_name",
+        "education_level",
+        "published_from",
+        "published_to",
+        "page",
+        "pageSize"
+      ],
+      "knowledge_types": [],
+      "retrieval_capabilities": [
+        "catalog",
+        "evidence_bundle",
+        "content",
+        "sections"
+      ]
+    },
+    {
+      "code": "talent_demand_report",
+      "name": "人才需求调研",
+      "classification": "talent_demand_report",
+      "source_type": "document",
+      "count": 29,
+      "count_unit": "documents",
+      "endpoint": "/open/v1/assets",
+      "capabilities": [
+        "list",
+        "detail",
+        "content",
+        "chunks",
+        "sections",
+        "scoped_search"
+      ],
+      "visibility": "available_current_generated_ref",
+      "limitations": [
+        "counts_cover_ingested_documents_only",
+        "organization_filter_is_P0_noop"
+      ],
+      "filter_parameters": [
+        "domain",
+        "tag_type",
+        "tags",
+        "is_exact_matched",
+        "tags_match",
+        "page",
+        "pageSize",
+        "title",
+        "resource_type",
+        "domains",
+        "topic",
+        "region",
+        "industry",
+        "major_code",
+        "major_name",
+        "institution_name",
+        "education_level",
+        "published_from",
+        "published_to"
+      ],
+      "knowledge_types": [],
+      "retrieval_capabilities": [
+        "catalog",
+        "evidence_bundle",
+        "content",
+        "sections"
+      ]
+    },
+    {
+      "code": "talent_training_plan",
+      "name": "人才培养方案",
+      "classification": "talent_training_plan",
+      "source_type": "document",
+      "count": 25,
+      "count_unit": "documents",
+      "endpoint": "/open/v1/assets",
+      "capabilities": [
+        "list",
+        "detail",
+        "content",
+        "chunks",
+        "sections",
+        "scoped_search"
+      ],
+      "visibility": "available_current_generated_ref",
+      "limitations": [
+        "counts_cover_ingested_documents_only",
+        "organization_filter_is_P0_noop"
+      ],
+      "filter_parameters": [
+        "domain",
+        "tag_type",
+        "tags",
+        "is_exact_matched",
+        "tags_match",
+        "page",
+        "pageSize",
+        "title",
+        "resource_type",
+        "domains",
+        "topic",
+        "region",
+        "industry",
+        "major_code",
+        "major_name",
+        "institution_name",
+        "education_level",
+        "published_from",
+        "published_to"
+      ],
+      "knowledge_types": [],
+      "retrieval_capabilities": [
+        "catalog",
+        "evidence_bundle",
+        "content",
+        "sections"
+      ]
+    },
+    {
+      "code": "teaching_case",
+      "name": "教学案例",
+      "classification": "teaching_case",
+      "source_type": "document",
+      "count": 193,
+      "count_unit": "documents",
+      "endpoint": "/open/v1/assets",
+      "capabilities": [
+        "list",
+        "detail",
+        "content",
+        "chunks",
+        "sections",
+        "scoped_search"
+      ],
+      "visibility": "available_current_generated_ref",
+      "limitations": [
+        "counts_cover_ingested_documents_only",
+        "organization_filter_is_P0_noop"
+      ],
+      "filter_parameters": [
+        "domain",
+        "tag_type",
+        "tags",
+        "is_exact_matched",
+        "tags_match",
+        "page",
+        "pageSize",
+        "title",
+        "resource_type",
+        "domains",
+        "topic",
+        "region",
+        "industry",
+        "major_code",
+        "major_name",
+        "institution_name",
+        "education_level",
+        "published_from",
+        "published_to"
+      ],
+      "knowledge_types": [],
+      "retrieval_capabilities": [
+        "catalog",
+        "evidence_bundle",
+        "content",
+        "sections"
+      ]
+    },
+    {
+      "code": "major_distribution",
+      "name": "专业布点数据",
+      "classification": null,
+      "source_type": "record",
+      "count": 1833,
+      "count_unit": "records",
+      "endpoint": "/open/v1/major-offerings",
+      "capabilities": [
+        "list",
+        "aggregate"
+      ],
+      "visibility": "independent_domain_records",
+      "limitations": [
+        "year_school_major_duration_unique",
+        "api_sync_and_excel_import",
+        "ingested_coverage_only"
+      ],
+      "filter_parameters": [
+        "year",
+        "province_name",
+        "province_code",
+        "major_name",
+        "major_code",
+        "school_name",
+        "school_code",
+        "page",
+        "pageSize"
+      ],
+      "knowledge_types": [],
+      "retrieval_capabilities": [
+        "catalog",
+        "structured_query",
+        "evidence_bundle"
+      ]
+    },
+    {
+      "code": "occupational_ability_analysis",
+      "name": "职业能力分析",
+      "classification": null,
+      "source_type": "record",
+      "count": 14,
+      "count_unit": "records",
+      "endpoint": "/open/v1/record-assets/ability-analyses",
+      "capabilities": [
+        "list",
+        "detail",
+        "tasks",
+        "items",
+        "relations",
+        "graphs"
+      ],
+      "visibility": "independent_domain_records",
+      "limitations": [
+        "independent_domain_records"
+      ],
+      "filter_parameters": [
+        "normalized_ref_id",
+        "major_code",
+        "profile_id",
+        "major_name",
+        "page",
+        "pageSize"
+      ],
+      "knowledge_types": [],
+      "retrieval_capabilities": [
+        "catalog",
+        "structured_query",
+        "graph"
+      ]
+    },
+    {
+      "code": "market_job",
+      "name": "市场岗位",
+      "classification": null,
+      "source_type": "record",
+      "count": 150616,
+      "count_unit": "records",
+      "endpoint": "/open/v1/market-jobs",
+      "capabilities": [
+        "list",
+        "detail",
+        "aggregate"
+      ],
+      "visibility": "independent_domain_records",
+      "limitations": [
+        "raw_jobs_not_legacy_job_demand_records",
+        "collection_time_not_publication_time",
+        "salary_is_source_text"
+      ],
+      "filter_parameters": [
+        "q",
+        "job_title",
+        "company_name",
+        "industry",
+        "education",
+        "experience",
+        "region",
+        "collected_from",
+        "collected_to",
+        "received_to",
+        "page",
+        "pageSize"
+      ],
+      "knowledge_types": [],
+      "retrieval_capabilities": [
+        "catalog",
+        "structured_query",
+        "evidence_bundle"
+      ]
+    },
+    {
+      "code": "industrial_park",
+      "name": "产业园区",
+      "classification": null,
+      "source_type": "record",
+      "count": 11373,
+      "count_unit": "records",
+      "endpoint": "/open/v1/industrial-parks",
+      "capabilities": [
+        "list",
+        "detail",
+        "enterprises"
+      ],
+      "visibility": "independent_domain_records",
+      "limitations": [
+        "ingested_coverage_only"
+      ],
+      "filter_parameters": [
+        "q",
+        "industry",
+        "page",
+        "pageSize"
+      ],
+      "knowledge_types": [],
+      "retrieval_capabilities": [
+        "catalog",
+        "structured_query",
+        "evidence_bundle"
+      ]
+    },
+    {
+      "code": "enterprise",
+      "name": "企业数据",
+      "classification": null,
+      "source_type": "record",
+      "count": 76031,
+      "count_unit": "records",
+      "endpoint": "/open/v1/enterprises",
+      "capabilities": [
+        "list",
+        "detail"
+      ],
+      "visibility": "independent_domain_records",
+      "limitations": [
+        "no_inferred_cooperation_relationships"
+      ],
+      "filter_parameters": [
+        "q",
+        "business_scope",
+        "park_id",
+        "page",
+        "pageSize"
+      ],
+      "knowledge_types": [],
+      "retrieval_capabilities": [
+        "catalog",
+        "structured_query",
+        "evidence_bundle"
+      ]
+    },
+    {
+      "code": "occupation_dictionary",
+      "name": "职业分类大典",
+      "classification": null,
+      "source_type": "record",
+      "count": 1329,
+      "count_unit": "records",
+      "endpoint": "/open/v1/occupation-dictionary",
+      "capabilities": [
+        "list"
+      ],
+      "visibility": "read_only_reference_data",
+      "limitations": [
+        "edition_2022",
+        "imported_verified_entries_only",
+        "no_ai_governance",
+        "no_asset_version_or_normalized_ref"
+      ],
+      "filter_parameters": [
+        "major_group",
+        "minor_group",
+        "occupation_name",
+        "page",
+        "pageSize"
+      ],
+      "knowledge_types": [],
+      "retrieval_capabilities": [
+        "catalog",
+        "structured_query"
+      ]
+    },
+    {
+      "code": "teaching_standard",
+      "name": "专业教学标准",
+      "classification": "teaching_standard",
+      "source_type": "projection",
+      "count": 131,
+      "count_unit": "standards",
+      "endpoint": "/open/v1/teaching-standard-libraries",
+      "capabilities": [
+        "list",
+        "detail",
+        "courses",
+        "existing_graph"
+      ],
+      "visibility": "available_current_document",
+      "limitations": [
+        "library_status_does_not_gate_reads",
+        "no_implicit_activation"
+      ],
+      "filter_parameters": [
+        "major_code",
+        "major_name",
+        "education_level",
+        "occupation",
+        "page",
+        "pageSize"
+      ],
+      "knowledge_types": [],
+      "retrieval_capabilities": [
+        "catalog",
+        "structured_query",
+        "graph"
+      ]
+    },
+    {
+      "code": "standard_course",
+      "name": "标准课程库",
+      "classification": "teaching_standard",
+      "source_type": "projection",
+      "count": 3300,
+      "count_unit": "courses",
+      "endpoint": "/open/v1/teaching-standard-courses",
+      "capabilities": [
+        "list",
+        "detail",
+        "evidence"
+      ],
+      "visibility": "available_current_document",
+      "limitations": [
+        "hours_are_suggested",
+        "tags_are_derived"
+      ],
+      "filter_parameters": [
+        "library_id",
+        "course_name",
+        "major_code",
+        "major_name",
+        "education_level",
+        "course_type",
+        "tag",
+        "page",
+        "pageSize"
+      ],
+      "knowledge_types": [],
+      "retrieval_capabilities": [
+        "catalog",
+        "structured_query"
+      ]
+    },
+    {
+      "code": "course_textbook",
+      "name": "课程教材",
+      "classification": "course_textbook",
+      "source_type": "projection",
+      "count": 168,
+      "count_unit": "textbooks",
+      "endpoint": "/open/v1/course-textbooks",
+      "capabilities": [
+        "list",
+        "detail",
+        "existing_knowledge_outline",
+        "existing_task_outline",
+        "node_context",
+        "scoped_search"
+      ],
+      "visibility": "available_current_classified_document",
+      "limitations": [
+        "outline_reads_do_not_build"
+      ],
+      "filter_parameters": [
+        "title",
+        "textbook_type",
+        "publisher",
+        "chief_editor",
+        "publication_year",
+        "page",
+        "pageSize"
+      ],
+      "knowledge_types": [
+        "course_textbook"
+      ],
+      "retrieval_capabilities": [
+        "catalog",
+        "semantic_search",
+        "evidence_bundle",
+        "content",
+        "sections",
+        "outline"
+      ]
+    }
+  ],
+  "meta": {
+    "trace_id": "ca89c81479b84de7a37643bdb4f6a823",
+    "page": null,
+    "page_size": null,
+    "total": null
+  }
+}

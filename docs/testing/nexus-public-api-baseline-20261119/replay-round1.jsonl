@@ -1,0 +1,143 @@
+{"tool": "find_documents", "args": {"query": {"resource_type": "industry_policy", "title": "电商", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "industry_policy", "topic": "finance_commerce", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "industry_policy", "title": "电商", "pageSize": 3}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "search_evidence", "args": {"query": {"q": "电子商务发展政策支持哪些数字化与人才培养措施？", "kb": "industry_research_kb", "resource_type": "industry_policy", "normalized_ref_ids": ["978662cc-2ee6-4b5c-92d6-58b9a7b41aae", "46d96d90-0297-4af1-9967-fa4cbd495fae", "136981c3-2a36-45b4-b4e2-485d1e400000"], "top_k": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "industry_policy", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "industry_policy", "title": "电商", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "industry_policy", "title": "电商", "pageSize": 3}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "search_evidence", "args": {"query": {"q": "电子商务发展政策支持哪些数字化与人才培养措施？", "kb": "industry_research_kb", "resource_type": "industry_policy", "normalized_ref_ids": ["978662cc-2ee6-4b5c-92d6-58b9a7b41aae", "46d96d90-0297-4af1-9967-fa4cbd495fae", "136981c3-2a36-45b4-b4e2-485d1e400000"], "top_k": 8}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "industry_report", "title": "低空", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "industry_report", "topic": "low_altitude", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "industry_report", "title": "低空", "pageSize": 3}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "search_evidence", "args": {"query": {"q": "低空经济产业报告提出哪些发展环节与投资风险？", "kb": "industry_research_kb", "resource_type": "industry_report", "normalized_ref_ids": ["d02e497d-c818-4194-8793-c9fe555b62ad", "00c70d1e-e2ec-4559-96de-07be76388cf9", "55ddd5a3-63af-43a3-99ea-1154a8e19122"], "top_k": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_evidence_bundle", "args": {"body": {"references": [{"kind": "chunk", "id": "f7592c05-45a0-4dd3-93ca-6b2ae2cbc0dd"}], "max_chars": 2000}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "industry_report", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "industry_report", "title": "低空", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "industry_report", "title": "低空", "pageSize": 3}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "search_evidence", "args": {"query": {"q": "低空经济产业报告提出哪些发展环节与投资风险？", "kb": "industry_research_kb", "resource_type": "industry_report", "normalized_ref_ids": ["d02e497d-c818-4194-8793-c9fe555b62ad", "00c70d1e-e2ec-4559-96de-07be76388cf9", "55ddd5a3-63af-43a3-99ea-1154a8e19122"], "top_k": 8}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_evidence_bundle", "args": {"body": {"references": [{"kind": "chunk", "id": "f7592c05-45a0-4dd3-93ca-6b2ae2cbc0dd"}], "max_chars": 2000}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "sector_report", "title": "电商", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "sector_report", "title": "电商", "published_from": "2025-01-01", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "sector_report", "title": "电商", "pageSize": 3}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "search_evidence", "args": {"query": {"q": "电商行业报告反映哪些业态变化和发展趋势？", "kb": "industry_research_kb", "resource_type": "sector_report", "normalized_ref_ids": ["e93f3a10-b1bc-44a0-bb14-e1598ed49fbf", "b4222ded-d846-46f5-aa85-b24b78f9c6c2", "637a4aaf-2c86-4314-9a0b-78a5e8afa716"], "top_k": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_evidence_bundle", "args": {"body": {"references": [{"kind": "chunk", "id": "ff874658-378c-425d-b8ee-22a256134786"}, {"kind": "chunk", "id": "7c9a0d39-aab9-4751-9381-c85ac10287af"}], "max_chars": 2000}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "sector_report", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "sector_report", "title": "电商", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "sector_report", "title": "电商", "pageSize": 3}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "search_evidence", "args": {"query": {"q": "电商行业报告反映哪些业态变化和发展趋势？", "kb": "industry_research_kb", "resource_type": "sector_report", "normalized_ref_ids": ["e93f3a10-b1bc-44a0-bb14-e1598ed49fbf", "b4222ded-d846-46f5-aa85-b24b78f9c6c2", "637a4aaf-2c86-4314-9a0b-78a5e8afa716"], "top_k": 8}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_evidence_bundle", "args": {"body": {"references": [{"kind": "chunk", "id": "ff874658-378c-425d-b8ee-22a256134786"}, {"kind": "chunk", "id": "7c9a0d39-aab9-4751-9381-c85ac10287af"}], "max_chars": 2000}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "industry_regulation_standard", "title": "管理", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "industry_regulation_standard", "published_from": "2025-01-01", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "industry_regulation_standard", "title": "管理", "pageSize": 3}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_document_sections", "args": {"query": {"limit": 30, "max_chars": 100}, "path": {"ref_id": "a16ff264-3da8-4a1e-a34d-df8d007b72a7"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "read_document_section", "args": {"query": {"max_chars": 4000, "adjacent_blocks": 1}, "path": {"ref_id": "a16ff264-3da8-4a1e-a34d-df8d007b72a7", "section_id": "web-block-0001"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "industry_regulation_standard", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "industry_regulation_standard", "title": "管理", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "industry_regulation_standard", "title": "管理", "pageSize": 3}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_evidence_bundle", "args": {"body": {"references": [{"kind": "normalized_ref", "id": "a16ff264-3da8-4a1e-a34d-df8d007b72a7"}, {"kind": "normalized_ref", "id": "4bc49974-3d4f-4383-9156-7e47af3a90b8"}, {"kind": "normalized_ref", "id": "00cf250f-6034-455c-a513-f7510b6938e0"}], "max_chars": 2000}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_major_profile_documents", "args": {"query": {"resource_type": "major_profile", "title": "电子商务", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_major_profile_documents", "args": {"query": {"resource_type": "major_profile", "major_code": "530701", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_major_profile_documents", "args": {"query": {"resource_type": "major_profile", "title": "电子商务", "pageSize": 3}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_document_sections", "args": {"query": {"limit": 30, "max_chars": 100}, "path": {"ref_id": "9de5877e-94dd-4faa-866a-84876cc83b77"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "read_document_section", "args": {"query": {"max_chars": 4000, "adjacent_blocks": 1}, "path": {"ref_id": "9de5877e-94dd-4faa-866a-84876cc83b77", "section_id": "web-block-0001"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_major_profile_documents", "args": {"query": {"resource_type": "major_profile", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_major_profile_documents", "args": {"query": {"resource_type": "major_profile", "title": "电子商务", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_major_profile_documents", "args": {"query": {"resource_type": "major_profile", "title": "电子商务", "pageSize": 3}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_evidence_bundle", "args": {"body": {"references": [{"kind": "normalized_ref", "id": "9de5877e-94dd-4faa-866a-84876cc83b77"}, {"kind": "normalized_ref", "id": "25a94631-d71c-4b5e-80ec-879a8f0a78c6"}, {"kind": "normalized_ref", "id": "d01e8626-e806-499a-9d73-431683ef454b"}], "max_chars": 2000}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "talent_demand_report", "title": "重庆", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "talent_demand_report", "region": "重庆", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "talent_demand_report", "title": "重庆", "pageSize": 3}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_document_sections", "args": {"query": {"limit": 30, "max_chars": 100}, "path": {"ref_id": "203910a1-4475-4619-b1ec-949ab73c52c6"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "read_document_section", "args": {"query": {"max_chars": 4000, "adjacent_blocks": 1}, "path": {"ref_id": "203910a1-4475-4619-b1ec-949ab73c52c6", "section_id": "block-p00-001"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "talent_demand_report", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "talent_demand_report", "title": "重庆", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "talent_demand_report", "title": "重庆", "pageSize": 3}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_evidence_bundle", "args": {"body": {"references": [{"kind": "normalized_ref", "id": "203910a1-4475-4619-b1ec-949ab73c52c6"}, {"kind": "normalized_ref", "id": "34be61ba-c7d6-4d6b-9d69-e38792a443fd"}, {"kind": "normalized_ref", "id": "ae8f8f08-5bb2-42a9-a64f-587fabcc8ec4"}], "max_chars": 2000}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "teaching_case", "title": "数据", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "teaching_case", "tags": ["数据安全"], "tags_match": "all", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "teaching_case", "title": "数据", "pageSize": 3}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_document_sections", "args": {"query": {"limit": 30, "max_chars": 100}, "path": {"ref_id": "a09b3078-9ea4-4593-8e36-b76565be30be"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "read_document_section", "args": {"query": {"max_chars": 4000, "adjacent_blocks": 1}, "path": {"ref_id": "a09b3078-9ea4-4593-8e36-b76565be30be", "section_id": "block-p00-001"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "teaching_case", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "teaching_case", "title": "数据", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_documents", "args": {"query": {"resource_type": "teaching_case", "title": "数据", "pageSize": 3}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_evidence_bundle", "args": {"body": {"references": [{"kind": "normalized_ref", "id": "a09b3078-9ea4-4593-8e36-b76565be30be"}, {"kind": "normalized_ref", "id": "24483c55-8f62-414b-bee9-d45063a2d730"}, {"kind": "normalized_ref", "id": "3e989559-dafd-45ff-934d-e6f7442bdce5"}], "max_chars": 2000}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_major_offerings", "args": {"query": {"year": 2026, "major_code": "530701", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_major_offerings", "args": {"query": {"year": 2026, "province_name": "重庆市", "major_code": "530701", "pageSize": 10}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_major_offerings", "args": {"query": {"year": 2026, "school_name": "重庆", "major_code": "530701", "pageSize": 10}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "aggregate_major_offerings", "args": {"query": {"year": 2026, "major_code": "530701", "group_by": ["province_name"], "pageSize": 200}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "aggregate_major_offerings", "args": {"query": {"major_code": "530701", "group_by": ["year", "province_name"], "pageSize": 200}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_ability_analyses", "args": {"query": {"major_name": "电商", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_ability_analyses", "args": {"query": {"major_code": "730705", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_ability_analyses", "args": {"query": {"major_name": "直播电商", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_ability_analysis_tasks", "args": {"path": {"analysis_id": "f70957c0-1114-4472-ac8a-01b6e0c920d9"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_ability_analyses", "args": {"query": {"major_name": "直播电商", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_ability_items", "args": {"query": {"pageSize": 200}, "path": {"analysis_id": "f70957c0-1114-4472-ac8a-01b6e0c920d9"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_ability_analyses", "args": {"query": {"major_name": "直播电商", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_ability_analysis_tasks", "args": {"path": {"analysis_id": "f70957c0-1114-4472-ac8a-01b6e0c920d9"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_ability_items", "args": {"query": {"pageSize": 50}, "path": {"analysis_id": "f70957c0-1114-4472-ac8a-01b6e0c920d9"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_ability_relations", "args": {"query": {"pageSize": 50}, "path": {"analysis_id": "f70957c0-1114-4472-ac8a-01b6e0c920d9"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_market_jobs", "args": {"query": {"job_title": "电商", "pageSize": 5, "received_to": "2026-11-19T03:33:54.288003+00:00"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_market_jobs", "args": {"query": {"job_title": "电商", "region": "重庆", "education": "大专", "pageSize": 5, "received_to": "2026-11-19T03:33:54.288003+00:00"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_market_jobs", "args": {"query": {"job_title": "电商", "pageSize": 1, "received_to": "2026-11-19T03:33:54.288003+00:00"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_market_job", "args": {"path": {"job_id": "ac014c51-fc79-41fd-a71f-7f831682e1d6"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "aggregate_market_jobs", "args": {"query": {"job_title": "电商", "group_by": ["education", "experience"], "pageSize": 200, "received_to": "2026-11-19T03:33:54.288003+00:00"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "aggregate_market_jobs", "args": {"query": {"job_title": "电商", "region": "重庆", "group_by": ["education"], "pageSize": 200, "received_to": "2026-11-19T03:33:54.288003+00:00"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "aggregate_market_jobs", "args": {"query": {"job_title": "电商", "region": "杭州", "group_by": ["education"], "pageSize": 200, "received_to": "2026-11-19T03:33:54.288003+00:00"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_industrial_parks", "args": {"query": {"industry": "电商", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_industrial_parks", "args": {"query": {"q": "重庆", "industry": "电商", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_industrial_parks", "args": {"query": {"q": "1506", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_industrial_park", "args": {"path": {"park_id": "59e5dd57-f986-4a6e-ad94-9d42ec7cf88b"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_industrial_parks", "args": {"query": {"industry": "电商", "pageSize": 20}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_industrial_parks", "args": {"query": {"industry": "电商", "pageSize": 3}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_enterprises", "args": {"query": {"park_id": "59e5dd57-f986-4a6e-ad94-9d42ec7cf88b", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_enterprises", "args": {"query": {"park_id": "3336b1da-5d9f-4c13-85ba-40700c13b978", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_enterprises", "args": {"query": {"park_id": "fef7ea30-1356-4a18-a3e1-2b7eb6cab1cc", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_enterprises", "args": {"query": {"business_scope": "电子商务", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_enterprises", "args": {"query": {"q": "重庆", "business_scope": "电子商务", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_enterprises", "args": {"query": {"q": "一物一码", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_enterprise", "args": {"path": {"enterprise_id": "ae00029a-b8d7-4b59-85da-f1b89759fd15"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_enterprises", "args": {"query": {"business_scope": "电子商务", "pageSize": 20}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_enterprises", "args": {"query": {"business_scope": "电子商务", "pageSize": 2}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_industrial_park", "args": {"path": {"park_id": "4ae169b4-c869-46f2-a336-69035161d20a"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_industrial_park", "args": {"path": {"park_id": "151653dd-3d18-4c02-96cd-abb4fbc0e0b7"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_occupation_dictionary", "args": {"query": {"occupation_name": "电子商务师", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_occupation_dictionary", "args": {"query": {"major_group": "4", "occupation_name": "互联网", "pageSize": 20}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_occupation_dictionary", "args": {"query": {"occupation_name": "互联网营销师", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_occupation_dictionary", "args": {"query": {"occupation_name": "营销", "pageSize": 200}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_occupation_dictionary", "args": {"query": {"occupation_name": "电子商务师", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_occupation_dictionary", "args": {"query": {"occupation_name": "互联网营销师", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_teaching_standards", "args": {"query": {"major_name": "电子商务", "pageSize": 20}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_teaching_standards", "args": {"query": {"major_code": "530701", "occupation": "电子商务师", "pageSize": 20}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_teaching_standards", "args": {"query": {"major_code": "530701", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_teaching_standard", "args": {"path": {"library_id": "a1d5027a-299b-4a15-af73-a8e636545224"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_teaching_standards", "args": {"query": {"major_name": "电子商务", "pageSize": 200}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_teaching_standards", "args": {"query": {"major_code": "530701", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_teaching_standard", "args": {"path": {"library_id": "a1d5027a-299b-4a15-af73-a8e636545224"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_standard_courses", "args": {"query": {"library_id": "a1d5027a-299b-4a15-af73-a8e636545224", "pageSize": 200}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_standard_courses", "args": {"query": {"course_name": "客户服务", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_standard_courses", "args": {"query": {"major_code": "530701", "course_type": "core", "pageSize": 200}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_standard_courses", "args": {"query": {"course_name": "数据分析", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_standard_course", "args": {"path": {"course_id": "fceb64da-98d7-46b9-961b-e96c1352b4e2"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_standard_courses", "args": {"query": {"major_code": "530701", "pageSize": 200}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_standard_courses", "args": {"query": {"major_code": "730701", "course_type": "core", "pageSize": 200}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "query_standard_courses", "args": {"query": {"major_code": "530701", "course_type": "core", "pageSize": 200}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_open_talent_training_plans", "args": {"query": {"major_name": "电子商务", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_open_talent_training_plans", "args": {"query": {"institution_name": "上海电子信息", "major_name": "跨境电子商务", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_open_talent_training_plans", "args": {"query": {"major_name": "电子商务", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_open_talent_training_plan", "args": {"path": {"item_id": "76593f65-df82-4770-ab29-ae8f101e3597"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_open_talent_training_plans", "args": {"query": {"major_name": "电子商务", "pageSize": 200}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_open_talent_training_plans", "args": {"query": {"major_name": "电子商务", "pageSize": 2}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_training_plan_courses", "args": {"query": {"pageSize": 200}, "path": {"plan_id": "76593f65-df82-4770-ab29-ae8f101e3597"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "list_training_plan_courses", "args": {"query": {"pageSize": 200}, "path": {"plan_id": "1beb1a9a-5350-4974-852a-94a99f708062"}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_textbooks", "args": {"query": {"title": "视觉营销", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_textbooks", "args": {"query": {"title": "电商", "textbook_type": "training", "pageSize": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_textbooks", "args": {"query": {"title": "视觉营销", "pageSize": 3}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "search_evidence", "args": {"query": {"q": "商品促销海报设计的步骤和要点", "kb": "course_textbook", "normalized_ref_ids": ["67e24d67-8822-471e-acf1-02c4ea727711", "897e872e-5573-445b-ad81-08eb7462a053", "408772b3-eba2-477c-a4c7-6642db38f1b8"], "top_k": 5}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_evidence_bundle", "args": {"body": {"references": [{"kind": "chunk", "id": "9eaab5fd-0330-44f2-8610-cc088d9cf7e7"}, {"kind": "chunk", "id": "b22601e4-ceb2-433e-b6cd-7b8421ca8df2"}, {"kind": "chunk", "id": "4d32d1dc-0f03-4847-853a-680a1c365690"}], "max_chars": 2000}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_textbooks", "args": {"query": {"pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_textbooks", "args": {"query": {"textbook_type": "theory", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_textbooks", "args": {"query": {"textbook_type": "training", "pageSize": 1}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "find_textbooks", "args": {"query": {"title": "视觉营销", "pageSize": 3}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "search_evidence", "args": {"query": {"q": "海报设计 短视频 直播场景 视觉设计 实践教学", "kb": "course_textbook", "normalized_ref_ids": ["67e24d67-8822-471e-acf1-02c4ea727711", "897e872e-5573-445b-ad81-08eb7462a053", "408772b3-eba2-477c-a4c7-6642db38f1b8"], "top_k": 8}}, "response_mode": "digest", "max_output_chars": 12000}
+{"tool": "get_evidence_bundle", "args": {"body": {"references": [{"kind": "chunk", "id": "0373bf8f-2c7a-4df6-8612-cdb22b47787e"}, {"kind": "chunk", "id": "b941e9de-f880-47f0-8c6a-633ce964b3f6"}], "max_chars": 2000}}, "response_mode": "digest", "max_output_chars": 12000}

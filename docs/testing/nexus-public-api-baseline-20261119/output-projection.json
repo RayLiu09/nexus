@@ -1,0 +1,122 @@
+[
+  {
+    "mode": "full",
+    "round": 1,
+    "elapsed_ms": 49.2,
+    "response_bytes": 228671,
+    "projected_bytes": 228671,
+    "trace_id": "baseline19-focused-course-output-full-r1-s84"
+  },
+  {
+    "mode": "digest",
+    "round": 1,
+    "elapsed_ms": 37.6,
+    "response_bytes": 228673,
+    "projected_bytes": 219162,
+    "trace_id": "baseline19-focused-course-output-digest-r1-s85"
+  },
+  {
+    "mode": "summary",
+    "round": 1,
+    "elapsed_ms": 54.5,
+    "response_bytes": 228674,
+    "projected_bytes": 228674,
+    "trace_id": "baseline19-focused-course-output-summary-r1-s86"
+  },
+  {
+    "mode": "full",
+    "round": 2,
+    "elapsed_ms": 62.5,
+    "response_bytes": 228671,
+    "projected_bytes": 228671,
+    "trace_id": "baseline19-focused-course-output-full-r2-s87"
+  },
+  {
+    "mode": "digest",
+    "round": 2,
+    "elapsed_ms": 41.4,
+    "response_bytes": 228673,
+    "projected_bytes": 219162,
+    "trace_id": "baseline19-focused-course-output-digest-r2-s88"
+  },
+  {
+    "mode": "summary",
+    "round": 2,
+    "elapsed_ms": 51.1,
+    "response_bytes": 228674,
+    "projected_bytes": 228674,
+    "trace_id": "baseline19-focused-course-output-summary-r2-s89"
+  },
+  {
+    "mode": "full",
+    "round": 3,
+    "elapsed_ms": 55.4,
+    "response_bytes": 228671,
+    "projected_bytes": 228671,
+    "trace_id": "baseline19-focused-course-output-full-r3-s90"
+  },
+  {
+    "mode": "digest",
+    "round": 3,
+    "elapsed_ms": 52.0,
+    "response_bytes": 228673,
+    "projected_bytes": 219162,
+    "trace_id": "baseline19-focused-course-output-digest-r3-s91"
+  },
+  {
+    "mode": "summary",
+    "round": 3,
+    "elapsed_ms": 62.9,
+    "response_bytes": 228674,
+    "projected_bytes": 228674,
+    "trace_id": "baseline19-focused-course-output-summary-r3-s92"
+  },
+  {
+    "mode": "full",
+    "round": 4,
+    "elapsed_ms": 38.9,
+    "response_bytes": 228671,
+    "projected_bytes": 228671,
+    "trace_id": "baseline19-focused-course-output-full-r4-s93"
+  },
+  {
+    "mode": "digest",
+    "round": 4,
+    "elapsed_ms": 39.7,
+    "response_bytes": 228673,
+    "projected_bytes": 219162,
+    "trace_id": "baseline19-focused-course-output-digest-r4-s94"
+  },
+  {
+    "mode": "summary",
+    "round": 4,
+    "elapsed_ms": 39.9,
+    "response_bytes": 228674,
+    "projected_bytes": 228674,
+    "trace_id": "baseline19-focused-course-output-summary-r4-s95"
+  },
+  {
+    "mode": "full",
+    "round": 5,
+    "elapsed_ms": 78.4,
+    "response_bytes": 228671,
+    "projected_bytes": 228671,
+    "trace_id": "baseline19-focused-course-output-full-r5-s96"
+  },
+  {
+    "mode": "digest",
+    "round": 5,
+    "elapsed_ms": 36.6,
+    "response_bytes": 228673,
+    "projected_bytes": 219162,
+    "trace_id": "baseline19-focused-course-output-digest-r5-s97"
+  },
+  {
+    "mode": "summary",
+    "round": 5,
+    "elapsed_ms": 37.7,
+    "response_bytes": 228674,
+    "projected_bytes": 228674,
+    "trace_id": "baseline19-focused-course-output-summary-r5-s98"
+  }
+]

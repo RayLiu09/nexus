@@ -1,0 +1,47 @@
+{
+  "normalized_status": 200,
+  "chunk_status": 200,
+  "normalized_id_match": true,
+  "chunk_id_match": true,
+  "chunk_ref_match": true,
+  "search_lineage_image_uris": 423,
+  "canonical_lineage_image_uris": 423,
+  "canonical_lineage_keys": [
+    "image_uris",
+    "parse_artifact_id",
+    "parse_artifact_uri",
+    "raw_object_id",
+    "raw_object_uri"
+  ],
+  "canonical_normalized_keys": [
+    "block_count",
+    "checksum",
+    "content_type",
+    "created_at",
+    "governance",
+    "id",
+    "language",
+    "lineage",
+    "metadata_summary",
+    "normalized_type",
+    "object_uri",
+    "quality",
+    "record_count",
+    "schema_version",
+    "source_type",
+    "status",
+    "title",
+    "updated_at",
+    "version_id"
+  ],
+  "search_raw_object_id": "aafd80c8-0f2b-4009-b391-a8e9029d4b65",
+  "canonical_raw_object_id": "aafd80c8-0f2b-4009-b391-a8e9029d4b65",
+  "trace_ids": [
+    "baseline19-tracecheck-normalized-lineage-r0-s1",
+    "baseline19-tracecheck-chunk-lineage-r0-s2"
+  ],
+  "http_ms": [
+    39.3,
+    21.5
+  ]
+}
