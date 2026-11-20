@@ -8,11 +8,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from nexus_app import models
+from nexus_app.data_sync.job_posting_fields import JobPostingMetrics
 from nexus_app.data_sync.job_title_cleaning import clean_job_title
 from nexus_app.data_sync.runtime import SyncRuntimeError
 
@@ -35,6 +37,14 @@ FIELD_COLUMNS = {
     "companyIndustryText": "company_industry_raw",
     "companyScaleText": "company_scale_raw",
     "companyFinancingText": "company_financing_raw",
+}
+
+METRIC_COLUMNS = {
+    "locationText": "location_text",
+    "hiringCount": "hiring_count",
+    "publishTimeText": "publish_time_text",
+    "publishedDate": "published_date",
+    "publishedAt": "published_at",
 }
 
 
@@ -71,6 +81,13 @@ class JobPostingResultHandler:
                 raise SyncRuntimeError("invalid raw job title", code="invalid_job_record")
             if any(value is not None and not isinstance(value, str) for value in values.values()):
                 raise SyncRuntimeError("invalid raw job field", code="invalid_job_record")
+            try:
+                metrics = JobPostingMetrics.model_validate(fields)
+            except ValidationError as exc:
+                raise SyncRuntimeError("invalid raw job metrics", code="invalid_job_record") from exc
+            values.update({
+                column: getattr(metrics, field) for field, column in METRIC_COLUMNS.items()
+            })
             region = record.get("region")
             if region is not None and (not isinstance(region, str) or len(region) > 80):
                 raise SyncRuntimeError("invalid raw job region", code="invalid_job_record")

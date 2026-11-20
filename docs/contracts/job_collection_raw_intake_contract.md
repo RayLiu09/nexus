@@ -6,6 +6,37 @@ The crawler-api response names the parsed job object `fields`. NEXUS stores its 
 
 `raw_jobs` has one row per upstream `recordId` version. Its columns map directly from the verified `fields` keys: `title`, `companyName`, `addressText`, `salaryText`, `experienceText`, `degreeText`, `hiringText`, `description`, `skillsText`, `jobTagsText`, `jobResponsibilitiesText`, `jobRequirementsText`, `qualificationsText`, `otherMattersText`, `companyIndustryText`, `companyScaleText`, and `companyFinancingText`. Only `title` is required. Missing and explicit null optional values are stored as SQL NULL; the original distinction and unknown keys remain in `raw_job_provenance.raw_record`.
 
+### Optional Metrics (2026-11-20)
+
+Crawler contracts 0.5.0 adds the following nullable typed projections. Both the
+adapter and intake validate them; the full original record and its hash remain
+unchanged.
+
+| Upstream field | `raw_jobs` column | PostgreSQL type |
+| --- | --- | --- |
+| `fields.locationText` | `location_text` | text |
+| `fields.hiringCount` | `hiring_count` | integer, CHECK >= 0 |
+| `fields.publishTimeText` | `publish_time_text` | text |
+| `fields.publishedDate` | `published_date` | date |
+| `fields.publishedAt` | `published_at` | timestamptz |
+
+`location_text` is actual workplace; `address_raw` remains detailed address and
+`region` remains collection scope. No location is inferred from another field.
+`hiring_count` remains NULL when absent, even if `hiring_raw` is present; zero
+is a valid explicit value. Publication wording and source dates are retained
+verbatim in original JSON. Typed dates come directly from the upstream response;
+relative-time conversion is upstream-owned. An absent `publishedAt` stays NULL,
+including when `publishedDate` exists. PostgreSQL preserves the instant in
+`timestamptz`; original timezone/offset spelling remains in archived JSON.
+
+Migration `20261120_0134` (after `20261118_0133`) adds nullable columns without
+defaults or backfill and a nonnegative hiring-count check. Apply it before
+restarting API services and data-sync workers with the new ORM. Existing records
+remain NULL; replay does not repair projections or rewrite provenance. No public
+response fields, filters, aggregates or Console columns are added in this slice.
+
+### Provenance
+
 `raw_job_provenance` owns provider/upstream record ID, source/job ID/URL, external Job/Task IDs, source page, query keyword/region, collection and receipt time, upstream `payloadHash`, and a canonical SHA-256 of the full record. `(provider_code, upstream_record_id)` is unique. `source_job_id` is nullable and not unique: a later upstream record ID for the same source job is a new raw version. The complete response is an immutable archival copy, while typed business columns support ordinary processing queries.
 
 Raw rows count collected record versions, not distinct source jobs or deduplicated job demands. Later processing derives its own identity and snapshot boundaries without changing these original values. Raw content is never returned by the generic data-sync APIs or placed in logs/audit.

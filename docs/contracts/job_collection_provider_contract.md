@@ -24,6 +24,28 @@ Status: OpenAPI schema baseline, inspected 2026-10-08, with C2 live verification
 
 Each record has required `recordId`, `taskId`, `source`, `sourceUrl`, `keyword`, `page`, `fields`, `collectedAt`, `payloadHash`, and `createdAt`; `sourceJobId` and `region` may be absent. `fields.title` is required. Optional fields include `companyName`, `addressText`, `salaryText`, `experienceText`, `degreeText`, `hiringText`, `description`, `skillsText`, `jobResponsibilitiesText`, `jobRequirementsText`, `qualificationsText`, `otherMattersText`, `companyIndustryText`, `companyScaleText`, `companyFinancingText`, and `jobTagsText`. Preserve the entire record JSON and source field names. The older normalization design's `responsibilityText`/`requirementText`/`bonusText` names do not match this live schema and need an explicit versioned mapping in the result receiver.
 
+### Optional Job Metrics (crawler-contracts 0.5.0, 2026-11-20)
+
+The records response adds these optional properties under `fields`. All may be
+omitted; the receiver also accepts explicit null. Historical records are not
+automatically populated.
+
+| Field | Type | Receiver behavior |
+| --- | --- | --- |
+| `locationText` | string | Actual workplace, stored separately from detailed `addressText` and top-level collection `region`. |
+| `hiringCount` | nonnegative integer | Preserve explicit zero; missing remains NULL. Do not infer from `hiringText` or default to zero/one. |
+| `publishTimeText` | string | Preserve original wording for display and provenance. |
+| `publishedDate` | date string `YYYY-MM-DD` | Store the upstream source date. Upstream resolves relative dates using collection-time Beijing time; NEXUS does not recalculate it. |
+| `publishedAt` | timezone-aware datetime string | Store the source's explicit time only. Do not derive midnight or collection time when omitted. |
+
+NEXUS uses local receiving models and does not import `crawler-contracts`, so no
+package upgrade is needed. Shared optional-field validation applies to HTTP
+pages and direct result intake. Invalid types, negative/fractional/coerced
+counts, invalid dates and timestamps without timezone are rejected with safe
+error codes. Unknown future optional properties remain accepted and retained in
+the original JSON; typed model serialization never replaces the archival copy.
+The upstream API paths and existing pagination/control protocol are unchanged.
+
 ## Status And Control Mapping
 
 Upstream Job status enum: `queued`, `running`, `pausing`, `paused`, `awaiting_human`, `cancelling`, `cancelled`, `succeeded`, `partially_succeeded`, `failed`. Upstream `desiredState` is separately `running`, `paused`, or `cancelled`. Keep these raw statuses in `external_status` / safe status detail; NEXUS run status has only seven stable values.

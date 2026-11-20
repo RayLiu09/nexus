@@ -320,6 +320,48 @@ def test_401_refreshes_once_for_job_request():
     assert used == ["Bearer token-1", "Bearer token-2"]
 
 
+@pytest.mark.parametrize("metrics", [
+    {},
+    dict.fromkeys(("locationText", "hiringCount", "publishTimeText", "publishedDate", "publishedAt")),
+    {"publishedDate": "2026-11-19", "publishTimeText": "昨日发布"},
+    {
+        "locationText": "湛江·霞山区", "hiringCount": 0,
+        "publishTimeText": "2026-11-19 09:30发布", "publishedDate": "2026-11-19",
+        "publishedAt": "2026-11-19T09:30:00+08:00",
+        "futureOptionalMetric": {"retained": True},
+    },
+    {"hiringCount": 3, "publishedAt": "2026-11-19T01:30:00Z"},
+])
+def test_optional_job_metrics_preserve_original_json(metrics):
+    record = _record()
+    record["fields"].update(metrics)
+    adapter = _adapter(lambda _: httpx.Response(200, json={"items": [record]}))
+    assert adapter.fetch_page(_provider(), JOB_ID, None, "token") == {
+        "records": [record], "next_cursor": None,
+    }
+
+
+@pytest.mark.parametrize("field,value", [
+    ("hiringCount", -1), ("hiringCount", 1.5), ("hiringCount", 3.0),
+    ("hiringCount", True), ("hiringCount", "3"),
+    ("locationText", 123), ("publishTimeText", []),
+    ("publishedDate", "2026-02-30"), ("publishedDate", "2026-1-9"),
+    ("publishedDate", "2026-11-19T00:00:00+08:00"),
+    ("publishedDate", "20261119"), ("publishedDate", 1795046400),
+    ("publishedAt", "2026-11-19T09:30:00"), ("publishedAt", "2026-11-19"),
+    ("publishedAt", "invalid"), ("publishedAt", 1795046400),
+    ("publishedAt", "1795046400"),
+])
+def test_invalid_optional_metrics_reject_page_safely(field, value):
+    record = _record()
+    record["fields"][field] = value
+    adapter = _adapter(lambda _: httpx.Response(200, json={"items": [record]}))
+    with pytest.raises(SyncRuntimeError) as caught:
+        adapter.fetch_page(_provider(), JOB_ID, None, "token")
+    assert caught.value.code == "invalid_page"
+    assert "source text" not in str(caught.value)
+
+
 @pytest.mark.parametrize(
     "body",
     [

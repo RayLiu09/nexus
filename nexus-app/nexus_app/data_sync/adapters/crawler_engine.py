@@ -9,6 +9,7 @@ from uuid import UUID
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
+from nexus_app.data_sync.job_posting_fields import JobPostingMetrics
 from nexus_app.data_sync.job_posting_intake import JobPostingResultHandler
 from nexus_app.data_sync.runtime import SyncRuntimeError
 from nexus_app.data_sync.tokens import (
@@ -119,7 +120,7 @@ class _JobResponse(BaseModel):
     processedCount: int | None = Field(default=None, ge=0)
 
 
-class _RecordFields(BaseModel):
+class _RecordFields(JobPostingMetrics):
     title: str = Field(min_length=1)
 
 

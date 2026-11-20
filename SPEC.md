@@ -702,6 +702,15 @@ P0 API groups include:
   roles, specialties and technical terms remain. Salary-first source detail
   blocks do not invent a missing job title. `--reclean-titles` explicitly permits
   audited re-cleaning of existing title projections from preserved title_raw.
+- Crawler intake accepts five optional job metrics: `locationText`,
+  `hiringCount`, `publishTimeText`, `publishedDate`, and `publishedAt`. Store them
+  in nullable typed raw-job columns, preserving complete original JSON and
+  future optional keys. Actual workplace differs from detailed address and
+  collection region. Missing hiring counts remain unknown, explicit zero is
+  retained, and source dates/times are never fabricated. Relative publication
+  dates use upstream Beijing-time conversion; explicit times require timezone.
+  Migration `20261120_0134` leaves historical fields NULL. This intake extension
+  does not add public response fields, statistics or Console interactions.
 - `GET /open/v1/major-offerings/aggregate` groups Ministry registration facts
   only. Its schema exposes year/province/major grouping with record and school
   counts; there is no competing document-derived route registration.

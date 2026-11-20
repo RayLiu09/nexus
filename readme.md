@@ -280,6 +280,15 @@ Root documents are distilled implementation contracts:
 - Console 解析预览 reads unchanged normalized Markdown and authenticated, block-linked extracted images; 原文下载 reads the retained raw object.
 - Pipeline B structured record assets for occupational ability analysis with domain read models. Professional major offerings synchronize directly from the Ministry API; the old major-distribution Pipeline B is retired. Crawler job postings persist directly in `raw_jobs` with provenance; the legacy job-demand Pipeline B and AI-governance path is retired for new data.
 - Asset Center market job-demand list reads crawler-intake `raw_jobs` directly; the retired Pipeline B `job_demand_*` projection is not used by this view.
+- Crawler contracts 0.5.0 optional metrics are accepted and stored in nullable
+  `raw_jobs` columns: `location_text`, `hiring_count`, `publish_time_text`,
+  `published_date`, and `published_at`. Missing values stay NULL; actual job
+  location, detailed address and collection region remain separate. Original
+  JSON retains all source fields and future optional extensions. Apply migration
+  `20261120_0134` before restarting API services/data-sync workers. Historical
+  records are not backfilled, and NEXUS does not directly depend on the
+  `crawler-contracts` Python package. See the
+  [raw-intake contract](docs/contracts/job_collection_raw_intake_contract.md).
 - Raw jobs retain `title_raw`/`address_raw` and add a simplified cleaned
   `title_normalized` plus the collection-time `region`. Public market job
   list/aggregate and internal raw-job list/export filter this stored collection

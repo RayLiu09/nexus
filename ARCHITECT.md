@@ -980,6 +980,15 @@ API Push data sync is a separate control-plane flow from `data_source` and the i
 
 The W4 runtime optionally starts with `DATA_SYNC_RUNTIME_ENABLED`: a PostgreSQL-backed scheduler creates due runs, and a separate leased worker calls the configured adapter. Provider Catalog and external Token/submit/status/page operations run outside database transactions; progress and status changes use short transactions with lease-owner checks and audit. The crawler-engine result handler writes raw job rows and the page checkpoint atomically. It also fills nullable `raw_jobs.title_normalized` with local conservative cleaning and copies upstream collection `region` to the main table. These query fields do not invoke downstream occupation normalization, geographic parsing or AI. Migration `20261117_0132` adds the fields; a separate dry-run-first, keyset-batched repair fills missing historical values without altering provenance or collection timestamps.
 
+Crawler optional metrics (contracts 0.5.0) share HTTP/intake validation and map
+to nullable `raw_jobs.location_text`, `hiring_count`, `publish_time_text`,
+`published_date` (DATE), and `published_at` (TIMESTAMPTZ). Workplace, detailed
+address and collection region remain separate. Missing count/date/time is never
+inferred; source relative dates are resolved upstream. Complete original JSON,
+unknown optional extensions and canonical hashes remain immutable. Migration
+`20261120_0134` adds columns without backfill and checks nonnegative hiring
+counts. Apply it before restarting services/workers using the new ORM.
+
 Runtime failures retain a bounded scalar diagnostic in the existing
 `data_sync_run.status_detail.error`: internal code, upstream code and message
 only, with credential redaction before persistence and read. Retry/failure audit

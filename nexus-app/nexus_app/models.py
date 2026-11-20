@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -8,6 +8,7 @@ from sqlalchemy import (
     JSON,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Enum,
     ForeignKey,
@@ -429,6 +430,9 @@ class DataSyncRun(TimestampMixin, Base):
 
 class RawJob(TimestampMixin, Base):
     __tablename__ = "raw_jobs"
+    __table_args__ = (
+        CheckConstraint("hiring_count >= 0", name="ck_raw_jobs_hiring_count_nonnegative"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     title_raw: Mapped[str] = mapped_column(Text, nullable=False)
@@ -436,6 +440,11 @@ class RawJob(TimestampMixin, Base):
     region: Mapped[str | None] = mapped_column(String(80))
     company_name_raw: Mapped[str | None] = mapped_column(Text)
     address_raw: Mapped[str | None] = mapped_column(Text)
+    location_text: Mapped[str | None] = mapped_column(Text)
+    hiring_count: Mapped[int | None] = mapped_column(Integer)
+    publish_time_text: Mapped[str | None] = mapped_column(Text)
+    published_date: Mapped[date | None] = mapped_column(Date)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     salary_raw: Mapped[str | None] = mapped_column(Text)
     experience_raw: Mapped[str | None] = mapped_column(Text)
     degree_raw: Mapped[str | None] = mapped_column(Text)
