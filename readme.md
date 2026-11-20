@@ -102,8 +102,15 @@ business facts and continuation IDs, reading full citation evidence on demand.
 Known exact tags take precedence when sufficient. Missing internal content can
 be supplemented through the existing read-only web-search tools, with explicit
 platform/web attribution and `auto_ingest=false`. Console's web-search switch
-retains its own behavior. Local projection reduces model context.
-The executor discards failed pooled connections without automatic replay.
+retains its own behavior. Local projection reduces model context. The optional
+server-side `/open/v1/search?response_view=answer` also reduces HTTP bytes and
+skips complete lineage/outline enrichment, while keeping useful text, title,
+scores and chunk/ref handles. It defaults to 2000 characters per hit with explicit
+length/truncation fields; full evidence stays available on demand and the default
+`full` response is compatible. Enable this query explicitly after the new server
+version is deployed; the skill does not automatically inject it. Embedding
+dependency failures on public search return 503 rather than an unhandled 500;
+the executor discards failed pooled connections without automatic replay.
 The catalog covers all 17 visible resource types, including the read-only
 occupation dictionary and Ministry-synchronized major offerings. Retired
 major-distribution Pipeline B endpoints are excluded. Market jobs accept `region` on both list and aggregate; teaching standards accept

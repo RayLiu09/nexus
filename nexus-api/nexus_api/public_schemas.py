@@ -4,7 +4,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 class MarketJobSourceFields(BaseModel):
     title_raw: str
     company_name_raw: str | None
@@ -391,6 +390,9 @@ class SearchHitRead(BaseModel):
     primary_block_ids: list[str] | None = None
     evidence_block_ids: list[str] | None = None
     knowledge_outline: dict[str, Any] | None = None
+    title: str | None = None
+    content_chars: int | None = None
+    content_truncated: bool | None = None
 
 
 class SearchRead(BaseModel):
@@ -400,3 +402,5 @@ class SearchRead(BaseModel):
     results: list[SearchHitRead]
     count: int
     caller_id: str
+    response_view: Literal["full", "answer"] = "full"
+    source_kind: Literal["platform"] = "platform"

@@ -110,6 +110,14 @@ python3 "$SKILL/scripts/nexus_call.py" call find_documents \
 
 按需取证用`digest|content|full`：`digest`保留chunk/ref/locator和有限正文，但不重复完整metadata图片数组；`content`按`--max-content-chars`截断文本；`summary`省略常见正文。answer预算不足时逐级缩减正文及返回数组，标记`*_truncated`、`*_total_count`和`*_returned_count`，原始meta.total/sample_count保留。截断列表不能视为完整分布；需要全量分析时分页或使用聚合并分批处理。极小预算可能只保留错误/trace，应缩小查询范围。以上为HTTP读取后的本地投影，本地模式本身不减少服务端响应体或下载耗时。
 
+新服务版本部署后，`search_evidence`可显式传`query.response_view=answer`和`answer_max_chars=2000`（100–10000/命中），同时减少实际HTTP体积和完整血缘补全。服务端保留title/score/content/chunk/ref，返回`content_chars`和`content_truncated`；需要引用时再取证。确认`data.response_view=answer`后才判定服务端已支持；旧服务可能忽略未知参数。执行器不自动注入、不推断部署状态；部署前继续原请求。服务端与本地两层预算独立，保留服务端原始长度/截断标记，不能将已截断文本解释成全文。
+
+```bash
+python3 "$SKILL/scripts/nexus_call.py" call search_evidence \
+  '{"query":{"q":"商品促销海报设计的步骤和要点","kb":"course_textbook","normalized_ref_ids":["<returned-ref-id>"],"top_k":5,"response_view":"answer","answer_max_chars":2000}}' \
+  --response-mode answer --max-output-chars 12000
+```
+
 标准课程列表超预算时先尝试完整保留本页课程ID、名称和类型（`projection=course_directory`），再考虑抽样；这时正文、标签、学时等省略字段需按返回ID用`get_standard_course`读取，不能将未返回字段解释为缺失。本页完整也不等于所有分页完整。
 
 `serve` 从 stdin 读取 JSONL，每行格式为 `{"tool":"<name>","args":{"path":{},"query":{},"body":{}},"trace_id":"<optional>","response_mode":"<optional>","max_content_chars":2000,"max_output_chars":<optional>}`，每行返回一个带 `status`、`trace_id`、`elapsed_ms`、`response_bytes` 和实际 `response_mode` 的 JSON。它在同一 origin 内复用 HTTP/HTTPS 连接；可以预置多个独立调用，也可以交互式写入一行、读取结果后再写入依赖前序结果的一行。普通 `call` 仍是单次进程调用。

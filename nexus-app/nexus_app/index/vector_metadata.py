@@ -51,9 +51,18 @@ def compact_metadata(
 
 def hydrate_metadata(
     metadata: dict[str, Any], ref: NormalizedAssetRef | None,
+    *, include_lineage: bool = True,
 ) -> dict[str, Any]:
     """Reconstruct the existing response shape without mutating stored JSON."""
-    result = deepcopy(metadata)
+    source = metadata
+    if not include_lineage and isinstance(metadata.get("normalized_ref"), dict):
+        # Drop lineage before copying, including pre-compaction snapshots.
+        # Governance/quality must still be restored for permission consumers.
+        source = {**metadata, "normalized_ref": {
+            key: value for key, value in metadata["normalized_ref"].items()
+            if key != "lineage"
+        }}
+    result = deepcopy(source)
     omitted = result.pop(STORAGE_KEY, None)
     if omitted is None:
         return result
@@ -67,6 +76,8 @@ def hydrate_metadata(
     if result["normalized_ref"].get("normalized_ref_id") != ref.id:
         raise ValueError("compact vector metadata normalized-ref identity mismatch")
     for field in omitted:
+        if field == "lineage" and not include_lineage:
+            continue
         value = getattr(ref, field)
         if value is None:
             raise ValueError("compact vector metadata canonical field is missing")

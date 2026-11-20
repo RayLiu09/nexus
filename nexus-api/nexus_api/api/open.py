@@ -30,11 +30,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
+from time import perf_counter
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import and_, func, or_, select
-from sqlalchemy.orm import Session, aliased
+from sqlalchemy.orm import Session, aliased, load_only
 
 from nexus_api import schemas, public_schemas as public_dto
 from nexus_api.dependencies import (
@@ -51,7 +53,7 @@ from nexus_app.audit import write_asset_version_accessed_audit, write_audit
 from nexus_app.config import get_settings
 from nexus_app.database import get_db
 from nexus_app.domain_normalize.administrative_division import normalize_province_name
-from nexus_app.index.embedding_client import create_embedding_client
+from nexus_app.index.embedding_client import EmbeddingClientError, create_embedding_client
 from nexus_app.enums import (
     AssetAccessType,
     AssetVersionStatus,
@@ -74,6 +76,7 @@ _OPEN_TAG_TYPES: tuple[str, ...] = (
     "topic",
     "time_range",
 )
+logger = logging.getLogger(__name__)
 _OPEN_TAG_BUCKETS: dict[str, str] = {
     tag_type: bucket_name for bucket_name, tag_type in BUCKET_TO_TAG_TYPE.items()
 }
@@ -997,7 +1000,7 @@ def get_pgvector_qa_service():
     return create_pgvector_qa_service()
 
 def _enrich_with_nexus_refs(
-    session: Session, hits: list[dict]
+    session: Session, hits: list[dict], *, include_evidence: bool = True,
 ) -> list[dict]:
     """Enrich hits with NEXUS-side citation fields when NEXUS ids are present.
 
@@ -1030,11 +1033,15 @@ def _enrich_with_nexus_refs(
     ref_ids = normalized_ref_ids | {c.normalized_ref_id for c in chunks_by_id.values()}
     refs: dict[str, models.NormalizedAssetRef] = {}
     if ref_ids:
-        for ref in session.scalars(
-            select(models.NormalizedAssetRef).where(
-                models.NormalizedAssetRef.id.in_(ref_ids)
-            )
-        ).all():
+        ref_query = select(models.NormalizedAssetRef).where(
+            models.NormalizedAssetRef.id.in_(ref_ids)
+        )
+        if not include_evidence:
+            ref_query = ref_query.options(load_only(
+                models.NormalizedAssetRef.id, models.NormalizedAssetRef.version_id,
+                models.NormalizedAssetRef.title,
+            ))
+        for ref in session.scalars(ref_query).all():
             refs[ref.id] = ref
 
     version_ids = {r.version_id for r in refs.values()}
@@ -1065,7 +1072,7 @@ def _enrich_with_nexus_refs(
     }
     outline_nodes_by_id: dict[str, models.KnowledgeOutlineNode] = {}
     outline_nodes_by_ref: dict[str, dict[str, models.KnowledgeOutlineNode]] = {}
-    if outline_node_ids:
+    if outline_node_ids and include_evidence:
         for node in session.scalars(
             select(models.KnowledgeOutlineNode).where(
                 models.KnowledgeOutlineNode.id.in_(outline_node_ids)
@@ -1109,6 +1116,8 @@ def _enrich_with_nexus_refs(
                     item["knowledge_outline"] = _serialize_outline_citation(node, ref_nodes)
         if ref is not None:
             item["normalized_ref_id"] = ref.id
+            if not include_evidence:
+                item["title"] = ref.title
         if ver is not None:
             item["version_id"] = ver.id
             item["asset_id"] = ver.asset_id
@@ -1286,6 +1295,19 @@ def _compact_locators(hits: list[dict]) -> list[dict]:
     return out
 
 
+def _search_answer_hit(hit: dict, max_chars: int) -> dict:
+    """Return useful text and continuation handles, after all public gates."""
+    text = hit.get("content") or hit.get("snippet") or ""
+    return {
+        **{key: hit[key] for key in (
+            "nexus_chunk_id", "normalized_ref_id", "score", "title", "knowledge_type_code",
+        ) if key in hit},
+        "content": text[:max_chars],
+        "content_chars": len(text),
+        "content_truncated": len(text) > max_chars,
+    }
+
+
 @router.get("/search", operation_id="search_evidence", response_model=schemas.ApiResponse[public_dto.SearchRead], response_model_exclude_unset=True)
 def search_knowledge(
     request: Request,
@@ -1297,6 +1319,13 @@ def search_knowledge(
     filters: DocumentFilters = Depends(document_filters),
     top_k: int = Query(10, ge=1, le=100),
     similarity_threshold: float = Query(0.7, ge=0.0, le=1.0),
+    response_view: Literal["full", "answer"] = Query(
+        "full", description="full preserves complete citations; answer returns useful content and chunk/ref handles, with evidence resolved on demand.",
+    ),
+    answer_max_chars: int = Query(
+        2000, ge=100, le=10000,
+        description="Per-hit content character budget for response_view=answer only; total length and truncation remain explicit.",
+    ),
     outline_node: str | None = Query(
         None,
         max_length=36,
@@ -1321,6 +1350,8 @@ def search_knowledge(
         outline_node: Optional knowledge_outline_node_id — filters hits to
             chunks under that node's subtree. 404 if the node does not exist.
     """
+    started = perf_counter()
+    stage_timings_ms = {}
     kb_code = kb or "course_textbook"
     subtree_chunk_ids: set[str] | None = None
     if outline_node is not None:
@@ -1359,29 +1390,49 @@ def search_knowledge(
         scope = scope.where(models.NormalizedAssetRef.id.in_(normalized_ref_ids))
     scoped_refs = list(session.scalars(scope))
     scoped_ref_set = set(scoped_refs)
+    stage_timings_ms["scope"] = round((perf_counter() - started) * 1000, 2)
+    stage_started = perf_counter()
     adapter = get_pgvector_search_adapter()
     results = []
     if scoped_refs:
         for code in kb_codes:
-            results.extend(adapter.search(
-                session, query=q, knowledge_type_code=code, top_k=top_k,
-                similarity_threshold=similarity_threshold,
-                normalized_ref_ids=scoped_refs,
-                chunk_ids=list(subtree_chunk_ids) if subtree_chunk_ids is not None else None,
-            ))
+            try:
+                results.extend(adapter.search(
+                    session, query=q, knowledge_type_code=code, top_k=top_k,
+                    similarity_threshold=similarity_threshold,
+                    normalized_ref_ids=scoped_refs,
+                    chunk_ids=list(subtree_chunk_ids) if subtree_chunk_ids is not None else None,
+                    **({"include_lineage": False} if response_view == "answer" else {}),
+                ))
+            except EmbeddingClientError:
+                # A failed dependency is not an empty result or a successful search.
+                # Keep exception details (which may contain upstream input) private.
+                logger.warning("public_search_embedding_unavailable", extra={"extra": {
+                    "response_view": response_view, "error_type": "EmbeddingClientError",
+                }})
+                raise HTTPException(503, "search_embedding_unavailable") from None
         unique = {}
         for hit in results:
             key = hit.get("nexus_chunk_id") or hit.get("chunk_id") or hit.get("id")
             if key not in unique or hit.get("score", 0) > unique[key].get("score", 0):
                 unique[key] = hit
         results = sorted(unique.values(), key=lambda hit: (-hit.get("score", 0), str(hit.get("nexus_chunk_id") or hit.get("chunk_id", ""))))[:top_k]
-    results = _enrich_with_nexus_refs(session, results)
+    stage_timings_ms["retrieval"] = round((perf_counter() - stage_started) * 1000, 2)
+    stage_started = perf_counter()
+    results = _enrich_with_nexus_refs(session, results, include_evidence=response_view == "full")
     results = [hit for hit in results if hit.get("normalized_ref_id") in scoped_ref_set]
     results = _filter_hits_to_available(session, results)
     results = apply_permission_filter(caller, results)
 
     # Caller may have been revoked while the retrieval round-trip was in flight.
     _assert_caller_still_active(session, caller)
+    stage_timings_ms["enrichment_and_gates"] = round((perf_counter() - stage_started) * 1000, 2)
+    stage_started = perf_counter()
+    response_hits = (
+        [_search_answer_hit(hit, answer_max_chars) for hit in results]
+        if response_view == "answer" else results
+    )
+    stage_timings_ms["projection"] = round((perf_counter() - stage_started) * 1000, 2)
 
     trace_id = _trace_id(request)
     query_hash = hashlib.sha256(q.encode("utf-8")).hexdigest()[:16]
@@ -1402,6 +1453,8 @@ def search_knowledge(
             "data_source_ids": _hit_data_source_ids(results),
             "top_k": top_k,
             "similarity_threshold": similarity_threshold,
+            "response_view": response_view,
+            "stage_timings_ms": stage_timings_ms,
             # A7 (§10 阶段 A) — record caller_type in summary so operators
             # can slice audits by identity source without joining ApiCaller.
             # `api_caller` here; console → JWT session will emit
@@ -1414,14 +1467,20 @@ def search_knowledge(
     )
     session.commit()
 
+    logger.info("public_search_completed", extra={"extra": {
+        "response_view": response_view, "hit_count": len(results),
+        "stage_timings_ms": stage_timings_ms,
+    }})
+
     return response(
         {
             "query": q,
             "kb": kb_code,
             "knowledge_types": kb_codes,
-            "results": results,
+            "results": response_hits,
             "count": len(results),
             "caller_id": caller.id,
+            **({"response_view": "answer", "source_kind": "platform"} if response_view == "answer" else {}),
         },
         request,
     )

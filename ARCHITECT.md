@@ -748,11 +748,22 @@ must inject `auto_ingest=false` when omitted. No C/change-feed API is added.
 The standalone public-API skill separates answer context from evidence reads:
 its local `answer` projection retains business facts, useful text and minimal
 continuation IDs, deferring lineage/locators to explicit evidence tools.
+Public search additionally accepts opt-in `response_view=answer`, keeping
+title/score/content/chunk/ref and explicit text length/truncation while skipping
+canonical lineage loading and outline ancestry enrichment. Governance/quality,
+scope, availability, permission hooks, caller revalidation and internal audit
+anchors still run before projection. Canonical normalized lineage is preserved;
+default `full` output and QA/Console behavior remain compatible.
 Bounded projections mark sampled arrays and retain original pagination/counts;
 web results retain actual publisher/date/URL when available and their external
 origin. HTTP error responses are returned without automatic replay; the pooled
 connection is discarded before the next request. Local projection alone does
-not reduce HTTP bytes. See [Agent public API contract](docs/api/public_agent_data_api.md) and
+not reduce HTTP bytes. Search `EmbeddingClientError` maps to a safe 503 with
+trace correlation and no successful-search audit, retry or fallback. This does
+not increase upstream embedding capacity. Stage timings in existing audit/logs
+cover scope, retrieval, enrichment/gates and projection; commit and response
+serialization are outside those stage timings.
+See [Agent public API contract](docs/api/public_agent_data_api.md) and
 [generated tools](docs/generated/public-function-tools/README.md).
 
 Two read endpoints added to support consumption-side traceability without exposing MinIO credentials to clients:

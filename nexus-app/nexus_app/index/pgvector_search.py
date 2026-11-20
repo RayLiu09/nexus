@@ -80,6 +80,7 @@ class PgvectorSearchAdapter:
         chunk_ids: "list[str] | tuple[str, ...] | set[str] | None" = None,
         expand_queries: bool = False,
         expansion_provider: "QueryExpansionProvider | None" = None,
+        include_lineage: bool = True,
     ) -> list[dict[str, Any]]:
         """v1.3 PR-10 + PR-7b — the pool can be narrowed by *either* the
         parent normalized_ref set (ref-level anchor: majors/abilities on
@@ -125,6 +126,7 @@ class PgvectorSearchAdapter:
                 similarity_threshold=similarity_threshold,
                 normalized_ref_ids=normalized_ref_ids,
                 chunk_ids=chunk_ids,
+                include_lineage=include_lineage,
             )
 
         # A5 expansion path — each query uses the same scoped search adapter.
@@ -137,6 +139,7 @@ class PgvectorSearchAdapter:
             normalized_ref_ids=normalized_ref_ids,
             chunk_ids=chunk_ids,
             expansion_provider=expansion_provider,
+            include_lineage=include_lineage,
         )
 
     # ------------------------------------------------------------------ #
@@ -154,6 +157,7 @@ class PgvectorSearchAdapter:
         similarity_threshold: float,
         normalized_ref_ids: "list[str] | tuple[str, ...] | set[str] | None",
         chunk_ids: "list[str] | tuple[str, ...] | set[str] | None",
+        include_lineage: bool = True,
     ) -> list[dict[str, Any]]:
         collection_ids = self._eligible_collection_ids(session, knowledge_type_code)
         if not collection_ids:
@@ -183,6 +187,7 @@ class PgvectorSearchAdapter:
                 normalized_ref_ids=normalized_ref_ids,
                 chunk_ids=chunk_ids,
                 collection_ids=collection_ids,
+                include_lineage=include_lineage,
             )
         else:
             hits = self._search_python(
@@ -194,6 +199,7 @@ class PgvectorSearchAdapter:
                 normalized_ref_ids=normalized_ref_ids,
                 chunk_ids=chunk_ids,
                 collection_ids=collection_ids,
+                include_lineage=include_lineage,
             )
         logger.info(
             "pgvector search complete kb=%s top_k=%s hit_count=%s "
@@ -217,6 +223,7 @@ class PgvectorSearchAdapter:
         normalized_ref_ids: "list[str] | tuple[str, ...] | set[str] | None",
         chunk_ids: "list[str] | tuple[str, ...] | set[str] | None",
         expansion_provider: "QueryExpansionProvider | None",
+        include_lineage: bool = True,
     ) -> list[dict[str, Any]]:
         # Imported lazily so pgvector_search doesn't grow a top-level
         # dependency on retrieval/ modules — keeps import cycles impossible.
@@ -241,6 +248,7 @@ class PgvectorSearchAdapter:
                 similarity_threshold=similarity_threshold,
                 normalized_ref_ids=normalized_ref_ids,
                 chunk_ids=chunk_ids,
+                include_lineage=include_lineage,
             )
 
         merged = merge_and_dedup_hits(grouped, top_k=top_k)
@@ -307,6 +315,7 @@ class PgvectorSearchAdapter:
         normalized_ref_ids: "list[str] | tuple[str, ...] | set[str] | None" = None,
         chunk_ids: "list[str] | tuple[str, ...] | set[str] | None" = None,
         collection_ids: list[str] | None = None,
+        include_lineage: bool = True,
     ) -> list[PgvectorSearchHit]:
         if collection_ids is None:
             collection_ids = self._eligible_collection_ids(session, knowledge_type_code)
@@ -404,7 +413,7 @@ class PgvectorSearchAdapter:
         rows = session.execute(sql, params).mappings().all()
         row_chunk_ids = [row["chunk_id"] for row in rows]
         content_by_chunk_id = _load_chunk_content(session, row_chunk_ids)
-        refs = _load_metadata_refs(session, rows)
+        refs = _load_metadata_refs(session, rows, include_lineage=include_lineage)
         hits: list[PgvectorSearchHit] = []
         for row in rows:
             hits.append(
@@ -415,6 +424,7 @@ class PgvectorSearchAdapter:
                     content=content_by_chunk_id.get(row["chunk_id"], ""),
                     metadata=hydrate_metadata(
                         row["metadata"] or {}, refs.get(row["normalized_ref_id"]),
+                        include_lineage=include_lineage,
                     ),
                     knowledge_type_code=row["knowledge_type_code"],
                     collection_key=row["collection_key"],
@@ -433,6 +443,7 @@ class PgvectorSearchAdapter:
         normalized_ref_ids: "list[str] | tuple[str, ...] | set[str] | None" = None,
         chunk_ids: "list[str] | tuple[str, ...] | set[str] | None" = None,
         collection_ids: list[str] | None = None,
+        include_lineage: bool = True,
     ) -> list[PgvectorSearchHit]:
         if collection_ids is None:
             collection_ids = self._eligible_collection_ids(session, knowledge_type_code)
@@ -491,11 +502,13 @@ class PgvectorSearchAdapter:
         refs = _load_metadata_refs(session, [
             {"metadata": hit.metadata, "normalized_ref_id": hit.normalized_ref_id}
             for hit in selected
-        ])
+        ], include_lineage=include_lineage)
         return [PgvectorSearchHit(
             nexus_chunk_id=hit.nexus_chunk_id, normalized_ref_id=hit.normalized_ref_id,
             score=hit.score, content=content.get(hit.nexus_chunk_id, ""),
-            metadata=hydrate_metadata(hit.metadata, refs.get(hit.normalized_ref_id)),
+            metadata=hydrate_metadata(
+                hit.metadata, refs.get(hit.normalized_ref_id), include_lineage=include_lineage,
+            ),
             knowledge_type_code=hit.knowledge_type_code, collection_key=hit.collection_key,
         ) for hit in selected]
 
@@ -517,19 +530,21 @@ def _load_chunk_content(session: Session, chunk_ids: list[str]) -> dict[str, str
     )).all())
 
 
-def _load_metadata_refs(session: Session, rows) -> dict[str, NormalizedAssetRef]:
+def _load_metadata_refs(
+    session: Session, rows, *, include_lineage: bool = True,
+) -> dict[str, NormalizedAssetRef]:
     ids = {
         row["normalized_ref_id"] for row in rows
         if STORAGE_KEY in (row["metadata"] or {})
     }
     if not ids:
         return {}
+    columns = [NormalizedAssetRef.id, NormalizedAssetRef.governance, NormalizedAssetRef.quality]
+    if include_lineage:
+        columns.append(NormalizedAssetRef.lineage)
     refs = session.scalars(select(NormalizedAssetRef).where(
         NormalizedAssetRef.id.in_(ids),
-    ).options(load_only(
-        NormalizedAssetRef.id, NormalizedAssetRef.governance,
-        NormalizedAssetRef.quality, NormalizedAssetRef.lineage,
-    )))
+    ).options(load_only(*columns)))
     return {ref.id: ref for ref in refs}
 
 

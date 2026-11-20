@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "source": "public OpenAPI /open/v1",
-  "sha256": "21ee9508c5350a398b092e1dbc25450b50568178e6aa64a9ec0f9403c1e89530",
+  "sha256": "ba57b3d6d0c63c33b4e058386c7f297519e6678ec4a82da1a8dfb91def4b5a5f",
   "bindings": [
     {
       "name": "find_documents",
@@ -11333,6 +11333,20 @@
           "explode": true
         },
         {
+          "argument": "query.response_view",
+          "in": "query",
+          "name": "response_view",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.answer_max_chars",
+          "in": "query",
+          "name": "answer_max_chars",
+          "style": "form",
+          "explode": true
+        },
+        {
           "argument": "query.outline_node",
           "in": "query",
           "name": "outline_node",
@@ -11626,6 +11640,39 @@
                           }
                         ],
                         "title": "Knowledge Outline"
+                      },
+                      "title": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "title": "Title"
+                      },
+                      "content_chars": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "title": "Content Chars"
+                      },
+                      "content_truncated": {
+                        "anyOf": [
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "title": "Content Truncated"
                       }
                     },
                     "additionalProperties": true,
@@ -11646,6 +11693,21 @@
                 "caller_id": {
                   "type": "string",
                   "title": "Caller Id"
+                },
+                "response_view": {
+                  "type": "string",
+                  "enum": [
+                    "full",
+                    "answer"
+                  ],
+                  "title": "Response View",
+                  "default": "full"
+                },
+                "source_kind": {
+                  "type": "string",
+                  "const": "platform",
+                  "title": "Source Kind",
+                  "default": "platform"
                 }
               },
               "type": "object",

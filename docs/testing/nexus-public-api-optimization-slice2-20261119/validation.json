@@ -1,0 +1,24 @@
+{
+  "api_tests": 49,
+  "adapter_and_expansion_tests": 40,
+  "skill_tests": 26,
+  "generator_check": "passed",
+  "skill_frontmatter": "passed",
+  "python_ast_files": 11,
+  "json_files_validated": 8,
+  "new_review_links": "passed",
+  "diff_check": "passed",
+  "source_sha256": {
+    "nexus-api/nexus_api/api/open.py": "8b6f7902872fc1913953ff9021730d33063a3159b9149abc325e5cbd50404ea8",
+    "nexus-api/nexus_api/public_schemas.py": "933c07db4f0ea2e52ef640899110f5f4dd17ad975bb77c170f896093eebaf367",
+    "nexus-api/tests/test_search_qa_audit.py": "6e2dc1e32f66849142bb42b84021143a8befa154e7bbde8d3e2a7783223226f6",
+    "nexus-api/tests/test_agent_public_evidence.py": "2f488a3706361e96fa1d954d4d48af58f1ad67c458d597656a74f735f87bcd59",
+    "nexus-api/tests/api/test_open_caller_mid_request.py": "894bf673b115b928c2fbbf50a1b79708aaa44056f226b71500f8039e91c5a6cb",
+    "nexus-app/nexus_app/index/pgvector_search.py": "a3ec25dc2bd50e2585c450c4fe3f44412a75689cea3416a47a0cb487b482a001",
+    "nexus-app/nexus_app/index/vector_metadata.py": "b111e43d3f20aa2c2fd7cf069ad9530d377e5d8ec47aa16ff6c1c2d40e8d3754",
+    "nexus-app/tests/index/test_pgvector_search.py": "3a2ba99f82b0a0e8b8c1994a14f270300193b2fa8662fb731be731282c67c424",
+    "skills/nexus-public-api/scripts/nexus_call.py": "ceb751f00bde8318f7d8b3406c90fda3dfd1d56ba4e6f70cf48d4ecb594a3527",
+    "skills/nexus-public-api/tests/test_nexus_call.py": "373d76f2180b921bf22a802eac5bc0c3900fc8a91206cde11a8fb5a17720d625",
+    "docs/testing/nexus-public-api-optimization-slice2-20261119/measure_search_projection.py": "1642b9d389e72b77db79a2667941b63a980ac14f06f003bae3fee8b2be3b8429"
+  }
+}

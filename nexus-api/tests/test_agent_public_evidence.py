@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
@@ -128,7 +129,8 @@ def test_standard_graph_read_allows_review_library_without_activating(app, sessi
     assert library.status == "review"
 
 
-def test_search_scope_is_intersected_before_retrieval_and_multikb(app, session, stub_api_caller, monkeypatch):
+@pytest.mark.parametrize("response_view", ["full", "answer"])
+def test_search_scope_is_intersected_before_retrieval_and_multikb(app, session, stub_api_caller, monkeypatch, response_view):
     session.add(stub_api_caller)
     selected = seed_document(session, "selected", "industry_policy")
     seed_document(session, "other", "industry_policy")
@@ -141,12 +143,13 @@ def test_search_scope_is_intersected_before_retrieval_and_multikb(app, session, 
     from nexus_api.api import open as open_api
     monkeypatch.setattr(open_api, "get_pgvector_search_adapter", lambda: Adapter())
     client = TestClient(app)
-    result = client.get("/open/v1/search", params=[("q", "政策"), ("asset_ids", "asset-selected"), ("knowledge_types", "industry_policy"), ("knowledge_types", "industry_report")])
+    result = client.get("/open/v1/search", params=[("q", "政策"), ("asset_ids", "asset-selected"), ("knowledge_types", "industry_policy"), ("knowledge_types", "industry_report"), ("response_view", response_view)])
     assert result.status_code == 200, result.text
     assert len(calls) == 2
     assert all(call["normalized_ref_ids"] == [selected.id] for call in calls)
+    assert all(call.get("include_lineage", True) == (response_view == "full") for call in calls)
     calls.clear()
-    result = client.get("/open/v1/search?q=政策&asset_ids=asset-selected&normalized_ref_ids=ref-other")
+    result = client.get(f"/open/v1/search?q=政策&asset_ids=asset-selected&normalized_ref_ids=ref-other&response_view={response_view}")
     assert result.status_code == 200 and calls == []
 
 

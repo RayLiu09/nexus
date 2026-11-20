@@ -49,6 +49,22 @@
 - 图谱 graph_type 支持 evidence_grounded_kg、teaching_standard、ability_analysis、job_demand、combined；只选该 ref 对应类型最新成功/生成结果。node_id 指定邻域；depth 为 0–5 的无向连接跳数，边仍保持原方向；节点与关系类型为重复参数。max_nodes≤500、max_edges≤1000，超限返回 truncated。证据图谱返回已有事实及每个节点/边最多三项证据；长证据文本、属性/限定词对象带截断标记。教学标准图谱要求同 ref、同版本的标准库，不限制库状态；talent_demand_report、teaching_case 返回 semantic_only_resource。
 - 批量证据 max_chars 为每项预算（100–10000），结果保持输入顺序。业务记录遵循独立公开边界，不因其存在一个 ref 就绕过文档正文准入；不为 raw_jobs/园区/企业制造 ref。
 
+## 可选服务端作答视图（2026-11-19）
+
+`GET /open/v1/search` / `search_evidence` 新增 `response_view=full|answer`，默认 `full` 保持原完整响应。`answer_max_chars` 默认2000，范围100–10000，按每条命中的Unicode字符数限制正文，仅在answer视图截断；参数自身始终校验范围。范围、collection、阈值、Top-K、排序及命中数不因视图改变。
+
+answer的`data`增加`response_view=answer`、`source_kind=platform`；每个结果返回`nexus_chunk_id`、`normalized_ref_id`、canonical `title`、`score`、`knowledge_type_code`、`content`、完整`content_chars`与`content_truncated`。省略metadata、lineage、locator、原始文件地址、source blocks和大纲路径。字符预算不是全响应字节预算；需要更完整正文时提高预算、缩小范围或沿chunk/ref读取，不把截断前缀解释为全文。
+
+服务端在answer路径不加载normalized lineage列、不恢复完整血缘、不查询大纲祖先路径；canonical governance/quality仍恢复，权限、available/current-ref、Key撤销/过期二次检查及内部审计执行后才投影。normalized资产和现有chunk/ref证据接口不变；需精确引用时用返回ID调用`POST /open/v1/evidence-resolutions`或已有chunk/章节读取，不必每次同时补证。
+
+```json
+{"query":{"q":"商品促销海报设计的步骤和要点","kb":"course_textbook","normalized_ref_ids":["<returned-ref-id>"],"top_k":5,"response_view":"answer","answer_max_chars":2000}}
+```
+
+新服务版本部署后才启用该参数，检查响应中的`data.response_view=answer`，不能将旧服务忽略未知参数产生的full响应视为投影已生效。Skill的`--response-mode answer`仅为本地输出模式，不会自动注入服务端参数。
+
+公开search的embedding依赖失败（包括429/超时包装为`EmbeddingClientError`）返回503，`error.message=search_embedding_unavailable`并保留trace；不泄露上游正文，不自动重试，不降级成空结果，不写成功检索审计。标签语义依赖仍遵循原有503合同。search成功审计/安全日志增加`response_view`和`stage_timings_ms`（scope、retrieval、enrichment_and_gates、projection），计时不包含提交与响应序列化。
+
 ## 权限、只读与审计
 
 文档新读取及目录/检索限定为 available 版本的最新 generated ref。教材、标准、培养方案领域读取还需当前正式分类匹配，标准库的 review/active/superseded 均可读取。当前 API Caller 权限为 `open:*`，组织过滤仍为 P0 noop，本次没有引入或宣称组织级数据隔离。

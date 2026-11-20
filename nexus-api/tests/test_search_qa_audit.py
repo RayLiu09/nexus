@@ -203,6 +203,182 @@ def _auth_headers(caller_client_id: str) -> dict:
 
 
 class TestSearchEndpoint:
+    @pytest.mark.parametrize("response_view", ["full", "answer"])
+    @pytest.mark.parametrize("failure", ["rate_limit", "timeout"])
+    def test_embedding_failure_is_503_and_connection_recovers(
+        self, app, session, monkeypatch, caplog, response_view, failure,
+    ):
+        import httpx
+        from nexus_api.api import open as open_api
+        from nexus_api.auth import require_api_caller
+        from nexus_app.index.embedding_client import LiteLLMEmbeddingClient
+
+        _seed_pgvector_search_chain(session, n=1)
+        caller = _seed_caller(session)
+        app.dependency_overrides[require_api_caller] = lambda: caller
+        calls = []
+
+        def post(url, **kwargs):
+            calls.append(url)
+            request = httpx.Request("POST", url)
+            if len(calls) <= 2:
+                if failure == "timeout":
+                    raise httpx.ReadTimeout("private-upstream-diagnostic", request=request)
+                return httpx.Response(429, request=request, json={
+                    "error": {"message": "private-upstream-diagnostic"},
+                })
+            return httpx.Response(200, request=request, json={
+                "data": [{"embedding": [1.0, 0.0, 0.0]}],
+            })
+
+        monkeypatch.setattr(httpx, "post", post)
+        adapter = PgvectorSearchAdapter(
+            settings=_search_settings(), embedding_client=LiteLLMEmbeddingClient(
+                endpoint="https://embedding.invalid", api_key="test-credential",
+                default_model_alias="bge-m3:latest",
+            ),
+        )
+        monkeypatch.setattr(open_api, "get_pgvector_search_adapter", lambda: adapter)
+        with TestClient(app) as client:
+            params = {"q": "private-question", "kb": "textbook_kb", "response_view": response_view}
+            for index in range(2):
+                trace = f"embedding-failure-{index}"
+                result = client.get("/open/v1/search", params=params, headers={"X-Trace-ID": trace})
+                assert result.status_code == 503
+                assert result.json()["error"]["message"] == "search_embedding_unavailable"
+                assert result.json()["meta"]["trace_id"] == trace
+                assert result.headers["X-Trace-ID"] == trace
+                assert "private-upstream-diagnostic" not in result.text
+                assert not _audits(session, AuditEventType.SEARCH_QUERY_EXECUTED)
+            recovered = client.get("/open/v1/search", params=params)
+            assert recovered.status_code == 200
+            assert recovered.json()["data"]["count"] == 1
+        assert len(calls) == 3  # Each request calls upstream once, without retry.
+        assert len(_audits(session, AuditEventType.SEARCH_QUERY_EXECUTED)) == 1
+        assert "public_search_embedding_unavailable" in caplog.text
+        server_logs = "\n".join(r.getMessage() for r in caplog.records if r.name.startswith("nexus_"))
+        assert "private-question" not in server_logs
+        assert "private-upstream-diagnostic" not in server_logs
+        assert "test-credential" not in server_logs
+
+    def test_answer_view_defers_evidence_keeps_permissions_audit_and_content(
+        self, app, session, monkeypatch,
+    ):
+        from copy import deepcopy
+        from sqlalchemy import event
+
+        from nexus_app.index.collection_resolver import build_vector_metadata, resolve_collection
+        from nexus_app.index.projection_maintenance import compact_batch
+        from nexus_api.api import open as open_api
+        from nexus_api.auth import require_api_caller
+
+        _seed_pgvector_search_chain(session, n=3)
+        caller = _seed_caller(session)
+        ref = session.get(models.NormalizedAssetRef, "search_ref")
+        lineage = {"raw_object_id": "search_raw", "image_uris": [
+            f"s3://bucket/parsed/version/artifact/images/{i}-{'x' * 150}.png" for i in range(423)
+        ]}
+        ref.lineage = deepcopy(lineage)
+        for index in range(1, 4):
+            chunk = session.get(models.KnowledgeChunk, f"search_chunk_{index}")
+            chunk.content = f"课程{index}的操作流程与注意事项。" * 300
+            resolution = resolve_collection(
+                ref, chunk, embedding_model_alias="bge-m3:latest", embedding_dimension=3,
+            )
+            row = session.get(models.KnowledgeEmbeddingPgvector, f"search_embedding_{index}")
+            row.vector_metadata = build_vector_metadata(
+                ref, chunk, resolution, asset_id="search_asset", asset_version_id="search_version",
+            )
+        session.commit()
+        compact_batch(session, apply=True)
+        session.commit()
+        session.expire_all()
+        app.dependency_overrides[require_api_caller] = lambda: caller
+        adapter = PgvectorSearchAdapter(
+            settings=_search_settings(), embedding_client=_StaticEmbeddingClient([1, 0, 0]),
+        )
+        monkeypatch.setattr(open_api, "get_pgvector_search_adapter", lambda: adapter)
+        permission_inputs = []
+
+        def permission_filter(actual_caller, hits):
+            assert actual_caller.id == caller.id
+            permission_inputs.append(deepcopy(hits))
+            return [h for h in hits if h["nexus_chunk_id"] != "search_chunk_2"]
+
+        monkeypatch.setattr(open_api, "apply_permission_filter", permission_filter)
+        queries = []
+
+        def record_query(conn, cursor, statement, parameters, context, executemany):
+            queries.append(statement)
+
+        with TestClient(app) as client:
+            params = {"q": "课程", "kb": "textbook_kb", "top_k": 3}
+            full = client.get("/open/v1/search", params=params).json()["data"]
+            explicit = client.get("/open/v1/search", params={**params, "response_view": "full"}).json()["data"]
+            assert explicit == full
+            assert "response_view" not in full and "source_kind" not in full
+            session.expire_all()
+            event.listen(session.bind, "before_cursor_execute", record_query)
+            try:
+                answer_response = client.get("/open/v1/search", params={
+                    **params, "response_view": "answer", "answer_max_chars": 100,
+                }, headers={"X-Trace-ID": "answer-view-trace"})
+            finally:
+                event.remove(session.bind, "before_cursor_execute", record_query)
+            assert answer_response.status_code == 200
+            answer = answer_response.json()["data"]
+            assert answer["response_view"] == "answer" and answer["source_kind"] == "platform"
+            assert answer["count"] == full["count"] == 2
+            assert not any("normalized_asset_ref.lineage" in q for q in queries)
+            assert len(answer_response.content) < len(str(full).encode()) / 30
+            for before, after in zip(full["results"], answer["results"]):
+                for key in ("nexus_chunk_id", "normalized_ref_id", "score", "knowledge_type_code"):
+                    assert after[key] == before[key]
+                assert after["content"] == before["content"][:100]
+                assert after["content_chars"] == len(before["content"])
+                assert after["content_truncated"] is True
+                assert after["title"] == "Search Ref"
+                assert not ({"metadata", "locator", "source_block_ids", "raw_object_uri", "knowledge_outline"} & after.keys())
+            # No canonical lineage was removed; citation resolution is a later call.
+            normalized = client.get("/open/v1/normalized-refs/search_ref").json()["data"]
+            assert normalized["lineage"] == lineage
+            citation = client.post("/open/v1/evidence-resolutions", json={
+                "references": [{"kind": "chunk", "id": answer["results"][0]["nexus_chunk_id"]}],
+                "max_chars": 100,
+            })
+            assert citation.status_code == 200
+            evidence = citation.json()["data"][0]
+            assert evidence["normalized_ref_id"] == "search_ref"
+            assert evidence["locator"] == full["results"][0]["locator"]
+            assert evidence["content"] == full["results"][0]["content"][:100]
+        events = _audits(session, AuditEventType.SEARCH_QUERY_EXECUTED)
+        audit = next(x for x in events if x.trace_id == "answer-view-trace")
+        assert audit.actor_id == caller.id
+        assert audit.summary["response_view"] == "answer"
+        assert audit.summary["cited_chunk_ids"] == [h["nexus_chunk_id"] for h in full["results"]]
+        assert audit.summary["hit_normalized_ref_ids"] == ["search_ref", "search_ref"]
+        assert audit.summary["data_source_ids"] == ["search_ds"]
+        assert len(audit.summary["cited_locators"]) == 2
+        assert set(audit.summary["stage_timings_ms"]) == {"scope", "retrieval", "enrichment_and_gates", "projection"}
+        assert len(permission_inputs) == 3
+        metadata = permission_inputs[-1][0]["metadata"]["normalized_ref"]
+        assert metadata["governance"]["classification"] == "course_textbook"
+        assert metadata["quality"]["quality_level"] == "pass"
+        assert "lineage" not in metadata
+
+    @pytest.mark.parametrize("query", [
+        "response_view=unknown", "response_view=answer&answer_max_chars=99",
+        "response_view=answer&answer_max_chars=10001",
+    ])
+    def test_invalid_answer_view_parameters_are_rejected(self, app, query):
+        with TestClient(app) as client:
+            assert client.get(f"/open/v1/search?q=test&{query}").status_code == 422
+
+    def test_answer_view_still_requires_real_authentication(self, app_no_auth_override):
+        with TestClient(app_no_auth_override) as client:
+            result = client.get("/open/v1/search?q=test&response_view=answer")
+        assert result.status_code == 401
+
     @pytest.mark.parametrize("classification_added_after_index", [False, True])
     @pytest.mark.parametrize("level", ["L2", "L3"])
     def test_compaction_preserves_full_search_payload_and_source_trace(

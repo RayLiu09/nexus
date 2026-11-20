@@ -3271,6 +3271,24 @@
                 "default": 0.7,
                 "title": "Similarity Threshold"
               },
+              "response_view": {
+                "enum": [
+                  "full",
+                  "answer"
+                ],
+                "type": "string",
+                "description": "full preserves complete citations; answer returns useful content and chunk/ref handles, with evidence resolved on demand.",
+                "default": "full",
+                "title": "Response View"
+              },
+              "answer_max_chars": {
+                "type": "integer",
+                "maximum": 10000,
+                "minimum": 100,
+                "description": "Per-hit content character budget for response_view=answer only; total length and truncation remain explicit.",
+                "default": 2000,
+                "title": "Answer Max Chars"
+              },
               "outline_node": {
                 "anyOf": [
                   {

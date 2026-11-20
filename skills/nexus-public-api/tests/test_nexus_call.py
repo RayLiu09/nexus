@@ -156,6 +156,17 @@ class ResponseProjectionTests(unittest.TestCase):
         error = {"detail": "semantic tag retrieval is temporarily unavailable"}
         self.assertEqual(nexus_call.response_answer(error, "find_documents", 2000)["detail"], error["detail"])
 
+    def test_server_answer_truncation_survives_local_projection(self):
+        value = {"data": {"response_view": "answer", "results": [{
+            "nexus_chunk_id": "chunk-1", "normalized_ref_id": "ref-1", "score": .9,
+            "content": "正文" * 500, "content_chars": 9000, "content_truncated": True,
+        }]}}
+        result = nexus_call.response_answer(value, "search_evidence", 2000)
+        hit = result["data"]["results"][0]
+        self.assertEqual(hit["content_chars"], 9000)
+        self.assertTrue(hit["content_truncated"])
+        self.assertEqual(hit["content"], value["data"]["results"][0]["content"])
+
     def test_answer_truncation_flags_cannot_be_overwritten_by_original_false(self):
         value = {"data": {"content": "正文" * 5000, "content_truncated": False}}
         result = json.loads(nexus_call.render_response(value, "answer", 2000, 800, "read_document_section"))

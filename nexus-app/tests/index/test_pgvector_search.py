@@ -379,6 +379,45 @@ def test_metadata_backfill_reconciles_divergent_legacy_fields(session):
     assert hydrate_metadata(stored, ref)["normalized_ref"]["quality"] == ref.quality
 
 
+@pytest.mark.parametrize("compacted", [False, True])
+def test_search_can_defer_lineage_without_changing_governance_or_ranking(session, compacted):
+    from copy import deepcopy
+
+    _seed_search_rows(session)
+    legacy = _legacy_metadata(session)
+    before = deepcopy(legacy)
+    if compacted:
+        compact_batch(session, apply=True)
+        session.commit()
+    session.expire_all()
+    adapter = PgvectorSearchAdapter(
+        settings=_settings(), embedding_client=_StaticEmbeddingClient([1, 0, 0]),
+    )
+    queries = []
+
+    def record_query(conn, cursor, statement, parameters, context, executemany):
+        queries.append(statement)
+
+    event.listen(session.bind, "before_cursor_execute", record_query)
+    try:
+        light = adapter.search(
+            session, query="课程", knowledge_type_code="course_textbook", include_lineage=False,
+        )
+    finally:
+        event.remove(session.bind, "before_cursor_execute", record_query)
+    assert light
+    assert "lineage" not in light[0]["metadata"]["normalized_ref"]
+    assert not any("normalized_asset_ref.lineage" in q for q in queries)
+    full = adapter.search(session, query="课程", knowledge_type_code="course_textbook")
+    assert [(h["nexus_chunk_id"], h["score"], h["content"]) for h in light] == [
+        (h["nexus_chunk_id"], h["score"], h["content"]) for h in full
+    ]
+    assert light[0]["metadata"]["normalized_ref"]["governance"] == full[0]["metadata"]["normalized_ref"]["governance"]
+    assert light[0]["metadata"]["normalized_ref"]["quality"] == full[0]["metadata"]["normalized_ref"]["quality"]
+    assert full[0]["metadata"]["normalized_ref"]["lineage"] == before["normalized_ref"]["lineage"]
+    assert legacy == before
+
+
 def test_retired_cleanup_preserves_assets_domain_sources_and_active_vectors(session):
     _seed_search_rows(session)
     retired = models.VectorCollection(

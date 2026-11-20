@@ -1,0 +1,71 @@
+{
+  "date": "2026-11-19",
+  "source": "Read-only SSH/sudo docker logs on 10.100.11.51; authentication material not retained",
+  "container": "nexus-api",
+  "image_id": "sha256:37c94ef8d53e2c305e35a1c7f60985418991e7572ade77056a7b350b285910a3",
+  "container_started_at": "2026-11-19T01:31:59.321510736Z",
+  "observations": [
+    {
+      "baseline_http_status": 503,
+      "traces": [
+        "baseline19-focused-teaching_case-02-r19-s59",
+        "baseline19-focused-teaching_case-02-r20-s60"
+      ],
+      "upstream": "LiteLLM /v1/embeddings",
+      "upstream_status": 429,
+      "first_matching_log_at": "2026-11-19T03:38:13.437416+00:00",
+      "last_matching_log_at": "2026-11-19T03:38:13.530340+00:00",
+      "matching_upstream_429_log_count": 8,
+      "note": "The two traces contain eight upstream HTTP429 records; this alone does not identify retries versus tag-resolution fan-out."
+    },
+    {
+      "baseline_http_status": 500,
+      "traces": [
+        "baseline19-focused-course_textbook-03-r1-s61",
+        "baseline19-focused-course_textbook-03-r3-s63",
+        "baseline19-focused-course_textbook-03-r5-s65",
+        "baseline19-focused-course_textbook-03-r7-s67",
+        "baseline19-focused-course_textbook-03-r9-s69",
+        "baseline19-focused-course_textbook-03-r11-s71",
+        "baseline19-focused-course_textbook-03-r13-s73",
+        "baseline19-focused-course_textbook-03-r15-s75",
+        "baseline19-focused-course_textbook-03-r17-s77",
+        "baseline19-focused-course_textbook-03-r19-s79"
+      ],
+      "upstream_status": 429,
+      "first_unhandled_error_at": "2026-11-19T03:38:13.559962+00:00",
+      "last_unhandled_error_at": "2026-11-19T03:38:13.790373+00:00",
+      "exception_chain": [
+        "httpx.HTTPStatusError: HTTP 429 from LiteLLM /v1/embeddings",
+        "nexus_app.index.embedding_client.EmbeddingClientError",
+        "nexus_api.errors.unhandled_exception_handler -> HTTP500"
+      ],
+      "stack_locations": [
+        "embedding_client.py:101 response.raise_for_status",
+        "embedding_client.py:110 raise EmbeddingClientError",
+        "pgvector_search.py:166 embed_texts",
+        "open.py:1366 adapter.search"
+      ]
+    },
+    {
+      "trace": "6a658efd5f604ca7b1c6fd21f279e444",
+      "at": "2026-11-19T03:39:36.476906+00:00",
+      "upstream_status": 200,
+      "embedding_latency_ms": 557.8,
+      "search_hit_count": 3,
+      "request_duration_ms": 633.56
+    },
+    {
+      "trace": "baseline19-recheck-textbook-fresh-session-r1-s1",
+      "search_hit_count": 3,
+      "at": "2026-11-19T03:40:27.243543+00:00",
+      "request_duration_ms": 54.01
+    }
+  ],
+  "limits": [
+    "429 is confirmed; exact LiteLLM/provider rate or budget policy is not established.",
+    "The ten connection interruptions are adjacent to unhandled exceptions, but their independent cause is not proved.",
+    "No service restart, deployment, configuration change or business-data mutation was performed.",
+    "The new response view and 503 mapping have not been deployed to the remote container."
+  ]
+}

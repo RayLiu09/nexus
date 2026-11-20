@@ -1,0 +1,153 @@
+{
+  "environment": "local FastAPI ASGI TestClient + isolated in-memory SQLite; static 3D embeddings",
+  "limitations": "Not deployed or production latency; no network, PostgreSQL ANN, embedding calls, lifespan or workers. Uncompressed HTTP JSON body bytes.",
+  "shape": {
+    "chunks": 3,
+    "image_uris_per_ref": 423,
+    "answer_max_chars": 2000,
+    "repeats_per_view_per_scenario": 20,
+    "warmups_per_view_per_scenario": 2
+  },
+  "scenarios": {
+    "untruncated_content": {
+      "full": {
+        "http_body_bytes": 275460,
+        "local_p50_ms": 12.499,
+        "local_p95_ms": 13.978,
+        "reads_normalized_lineage": true,
+        "elapsed_ms_samples": [
+          12.432,
+          13.978,
+          12.11,
+          12.205,
+          12.566,
+          12.407,
+          14.158,
+          12.623,
+          13.662,
+          12.272,
+          12.333,
+          13.026,
+          13.318,
+          13.147,
+          12.032,
+          12.738,
+          12.088,
+          12.621,
+          12.373,
+          11.93
+        ]
+      },
+      "answer": {
+        "http_body_bytes": 6853,
+        "local_p50_ms": 11.928,
+        "local_p95_ms": 12.767,
+        "reads_normalized_lineage": false,
+        "elapsed_ms_samples": [
+          12.5,
+          11.8,
+          11.438,
+          12.236,
+          11.732,
+          11.91,
+          12.2,
+          11.924,
+          12.448,
+          12.16,
+          11.92,
+          11.925,
+          13.772,
+          11.93,
+          11.886,
+          12.767,
+          11.462,
+          12.356,
+          12.07,
+          11.852
+        ]
+      },
+      "body_reduction_pct": 97.512,
+      "content_chars_per_hit": [
+        700,
+        700,
+        700
+      ],
+      "content_truncated_per_hit": [
+        false,
+        false,
+        false
+      ],
+      "same_ids_scores_and_content_prefix": true
+    },
+    "long_content": {
+      "full": {
+        "http_body_bytes": 335453,
+        "local_p50_ms": 13.286,
+        "local_p95_ms": 14.06,
+        "reads_normalized_lineage": true,
+        "elapsed_ms_samples": [
+          12.598,
+          12.715,
+          13.652,
+          14.06,
+          14.075,
+          12.456,
+          13.555,
+          12.625,
+          13.248,
+          12.86,
+          12.347,
+          13.409,
+          13.128,
+          13.324,
+          13.815,
+          13.726,
+          13.795,
+          13.4,
+          13.204,
+          12.658
+        ]
+      },
+      "answer": {
+        "http_body_bytes": 17988,
+        "local_p50_ms": 12.116,
+        "local_p95_ms": 13.232,
+        "reads_normalized_lineage": false,
+        "elapsed_ms_samples": [
+          11.862,
+          11.645,
+          12.616,
+          12.748,
+          11.627,
+          12.804,
+          11.65,
+          12.277,
+          12.45,
+          13.232,
+          11.931,
+          12.85,
+          11.39,
+          12.13,
+          12.102,
+          12.558,
+          13.34,
+          12.05,
+          11.334,
+          11.758
+        ]
+      },
+      "body_reduction_pct": 94.638,
+      "content_chars_per_hit": [
+        4200,
+        4200,
+        4200
+      ],
+      "content_truncated_per_hit": [
+        true,
+        true,
+        true
+      ],
+      "same_ids_scores_and_content_prefix": true
+    }
+  }
+}

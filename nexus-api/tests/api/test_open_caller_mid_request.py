@@ -51,8 +51,9 @@ def _revoke_during(session: Session, caller_id: str) -> callable:
     return _side_effect
 
 
+@pytest.mark.parametrize("response_view", ["full", "answer"])
 def test_search_fails_closed_when_caller_revoked_mid_request(
-    app_no_auth_override, session, caller, monkeypatch
+    app_no_auth_override, session, caller, monkeypatch, response_view,
 ):
     from nexus_api.api import open as open_api
 
@@ -72,7 +73,7 @@ def test_search_fails_closed_when_caller_revoked_mid_request(
     with patch(target, side_effect=_revoke_during(session, row.id)):
         with TestClient(app_no_auth_override) as client:
             resp = client.get(
-                "/open/v1/search?q=hi&top_k=1",
+                f"/open/v1/search?q=hi&top_k=1&response_view={response_view}",
                 headers={"X-API-Key": plaintext},
             )
     assert resp.status_code == 403

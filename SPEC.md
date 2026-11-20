@@ -59,7 +59,14 @@ remain binding. Answers distinguish platform facts, linked web sources and
 model synthesis. Actual web publisher/date/URL remain available when supplied;
 no date or internal coverage is inferred from an external page. The local
 `answer` response mode marks text/list truncation and preserves original totals
-and continuation IDs.
+and continuation IDs. Public `/open/v1/search` also supports explicit
+`response_view=answer` with `answer_max_chars=2000` (100–10000 per hit), returning
+title, score, body, chunk/ref handles and content length/truncation without full
+citation payloads. Full evidence is read on demand; default `full` remains
+compatible. Canonical lineage, scopes, permission hooks and audit anchors stay
+intact. Embedding dependency failures return traceable 503, not empty success;
+no retries or broad-scope fallback are introduced. The skill enables the server
+view only when explicitly requested after deployment. Console behavior is unchanged.
 Aggregates represent ingested coverage only. Source excerpts and continuation flags
 are visible; a valid citation ID is not a guarantee that every answer claim is true.
 

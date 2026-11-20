@@ -31,6 +31,10 @@ call find_documents '{"query":{"topic":"low_altitude","resource_type":"industry_
 call search_evidence '{"query":{"q":"低空经济 产业规模 增速","kb":"industry_research_kb","normalized_ref_ids":["<ref-id>"],"top_k":8}}' \
   --response-mode answer --max-output-chars 12000
 
+# 新服务版本已部署后：显式启用服务端answer，减少HTTP体积。
+# 检查data.response_view=answer；本地--response-mode不会自动启用此参数。
+call search_evidence '{"query":{"q":"低空经济 产业规模 增速","kb":"industry_research_kb","normalized_ref_ids":["<ref-id>"],"top_k":8,"response_view":"answer","answer_max_chars":2000}}' \
+  --response-mode answer --max-output-chars 12000
 
 # 3) 未取得足够内容时才读取章节。依据标题/预览选择相关块，首块可能只是封面。
 #    section_id必须来自list返回，不构造；已有足够正文则跳过。
