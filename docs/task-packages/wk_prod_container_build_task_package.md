@@ -1,5 +1,21 @@
 # prod 容器镜像构建任务包
 
+## 2026-11-19 重新构建
+
+用户要求使用国内镜像源重新构建 `nexus-api:prod`、`nexus-console:prod`。代码基线为 `57cac43`，包含 pgvector collection 路由、metadata 瘦身回填和 migration `20261118_0133`。沿用现有 Dockerfile，显式指定 DaoCloud 基础镜像、清华 PyPI 索引及包地址、npmmirror npm；单 Agent 顺序构建，允许复用未变化缓存。镜像记录源码 revision label，检查架构、入口、端口，并通过无网络、无宿主机端口映射的临时容器验证 API 新模块、健康检查及 Console 生产登录页。日志单独保存 `/tmp/nexus-{api,console}-prod-{rebuild,verify}-20261119.log`。本轮范围限本地镜像构建、隔离验证和证据记录；不推送镜像、不替换运行服务、不执行迁移，不修改业务源码或仓库锁文件。保留已有构建记录及其他工作区修改。
+
+## 2026-11-17 再次构建（r2）
+
+用户再次要求使用国内镜像源重新构建两个 `prod` 镜像。基于当前工作区（HEAD `939ec0b`），沿用下述范围、禁止项和验收要求，单 Agent 顺序构建，显式使用 DaoCloud、清华 PyPI 与 npmmirror。构建日志另存 `/tmp/nexus-{api,console}-prod-rebuild-20261117-r2.log`，避免覆盖同日已有记录；使用无网络临时容器验证，结果追加到 review evidence。仅构建本地镜像，不推送或替换服务，不修改业务代码及仓库锁文件。
+
+## 2026-11-17 重新构建
+
+用户要求使用国内镜像源重新构建 `nexus-api:prod` 和 `nexus-console:prod`。代码基线 `79d5d16`，使用当前工作区与已有 Dockerfile 的 DaoCloud 基础镜像、清华 PyPI 和 npmmirror npm。沿用本任务包范围和禁止项，单 Agent 顺序构建，允许复用未变化缓存；检查镜像 ID、平台、大小、入口、端口，通过无网络临时容器验证 API 导入、健康检查及 Console 生产登录页启动。仅本地镜像构建和隔离验证，不推送、不替换运行服务、不执行迁移，不改业务代码或仓库锁文件。构建与验证日志保存在 `/tmp/nexus-{api,console}-prod-{rebuild,verify}-20261117.log`，结果记录在对应 review evidence。
+
+## 2026-11-05 重新构建
+
+用户要求使用国内镜像源重建 `nexus-api:prod` 和 `nexus-console:prod`。基于当前工作区（HEAD `e5750b3`，包含已有未提交源码），沿用 DaoCloud 基础镜像、清华 PyPI 和 npmmirror npm。单 Agent 顺序构建，允许复用未变化依赖缓存；检查镜像 ID、平台、大小、入口和端口，并通过无网络临时容器验证 API 导入、Console 生产产物及登录页启动。日志保存 `/tmp/nexus-api-prod-rebuild-20261105.log`、`/tmp/nexus-console-prod-rebuild-20261105.log`。范围限本地构建和临时验证，不推送、不替换运行服务、不执行迁移，不修改业务代码、依赖版本或仓库锁文件。
+
 ## 2026-11-03 重新构建
 
 用户要求使用本地镜像源重建 `nexus-api:prod`、`nexus-console:prod`。基于当前工作区，包含行业法规标准、入口顺序与资产计数性能优化。沿用 Dockerfile 已配置的 DaoCloud 基础镜像、清华 PyPI 和 npmmirror npm，允许复用依赖缓存，重建变化源码和生产产物。单 Agent 顺序构建并记录镜像 ID、平台、大小；在无网络临时容器内检查 API 导入及新模块、Console 生产产物和登录页启动。日志保存 `/tmp/nexus-api-prod-rebuild-20261103.log`、`/tmp/nexus-console-prod-rebuild-20261103.log`。仅本地构建和临时验证，不推送、不替换运行服务、不执行迁移，不改依赖版本或仓库锁文件。
